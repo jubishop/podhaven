@@ -1,13 +1,40 @@
 {
-  "originHash" : "ed44e3a7bc312f058ff2b3ba205c67317a9e9c85582ded1c0eff772d30883582",
+  "originHash" : "1d6e86e59b964312da75feed8d1d7064360766618fd7a14a873a687d6cdceeeb",
   "pins" : [
     {
-      "identity" : "jubiswift",
+      "identity" : "opml",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/jubishop/JubiSwift",
+      "location" : "https://github.com/pixel-foundry/opml",
       "state" : {
-        "branch" : "main",
-        "revision" : "01d715c2b949fd874fd7860cb26171843fb319aa"
+        "branch" : "master",
+        "revision" : "ef862a566b516e4b6702f17507f2e17bca77bff7"
+      }
+    },
+    {
+      "identity" : "swift-html",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-html",
+      "state" : {
+        "revision" : "662619ff6c39c389694b9f5d522c72291d034928",
+        "version" : "0.5.0"
+      }
+    },
+    {
+      "identity" : "swift-snapshot-testing",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-snapshot-testing",
+      "state" : {
+        "revision" : "42a086182681cf661f5c47c9b7dc3931de18c6d7",
+        "version" : "1.17.6"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-syntax",
+      "state" : {
+        "revision" : "0687f71944021d616d34d922343dcef086855920",
+        "version" : "600.0.1"
       }
     }
   ],

@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8B50CEFA2CF2C5FD00B629E9 /* JubiSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 8B50CEF92CF2C5FD00B629E9 /* JubiSwift */; };
+		8B48491C2CF2E63600C67454 /* OPML in Frameworks */ = {isa = PBXBuildFile; productRef = 8B48491B2CF2E63600C67454 /* OPML */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,7 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8B50CEFA2CF2C5FD00B629E9 /* JubiSwift in Frameworks */,
+				8B48491C2CF2E63600C67454 /* OPML in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -117,7 +117,7 @@
 			);
 			name = PodHaven;
 			packageProductDependencies = (
-				8B50CEF92CF2C5FD00B629E9 /* JubiSwift */,
+				8B48491B2CF2E63600C67454 /* OPML */,
 			);
 			productName = PodHaven;
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
@@ -202,7 +202,7 @@
 			mainGroup = 8BD7F9172CF2A49000CEDAA7;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				8BD7F98A2CF2C5CA00CEDAA7 /* XCRemoteSwiftPackageReference "JubiSwift" */,
+				8B81F4622CF2E5E600410163 /* XCRemoteSwiftPackageReference "opml" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8BD7F9212CF2A49000CEDAA7 /* Products */;
@@ -569,21 +569,21 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		8BD7F98A2CF2C5CA00CEDAA7 /* XCRemoteSwiftPackageReference "JubiSwift" */ = {
+		8B81F4622CF2E5E600410163 /* XCRemoteSwiftPackageReference "opml" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/jubishop/JubiSwift";
+			repositoryURL = "https://github.com/pixel-foundry/opml";
 			requirement = {
-				branch = main;
+				branch = master;
 				kind = branch;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		8B50CEF92CF2C5FD00B629E9 /* JubiSwift */ = {
+		8B48491B2CF2E63600C67454 /* OPML */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 8BD7F98A2CF2C5CA00CEDAA7 /* XCRemoteSwiftPackageReference "JubiSwift" */;
-			productName = JubiSwift;
+			package = 8B81F4622CF2E5E600410163 /* XCRemoteSwiftPackageReference "opml" */;
+			productName = OPML;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

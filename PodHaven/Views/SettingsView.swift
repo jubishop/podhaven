@@ -1,9 +1,14 @@
 // Copyright Justin Bishop, 2024
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
   @Environment(Navigation.self) var navigation
+
+  let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)!
+
+  @State private var opmlImporting = false
 
   var body: some View {
     NavigationStack {
@@ -11,7 +16,7 @@ struct SettingsView: View {
         Section("Importing / Exporting") {
           Button(
             action: {
-              // TODO: Import OPML
+              opmlImporting = true
             },
             label: { Text("Import OPML") }
           )
@@ -24,6 +29,17 @@ struct SettingsView: View {
         }
       }
       .navigationTitle("Settings")
+    }
+    .fileImporter(
+      isPresented: $opmlImporting,
+      allowedContentTypes: [opmlType]
+    ) { result in
+      switch result {
+      case .success(let file):
+        print(file.absoluteString)
+      case .failure(let error):
+        print(error.localizedDescription)
+      }
     }
   }
 }
