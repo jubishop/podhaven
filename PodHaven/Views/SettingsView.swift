@@ -29,5 +29,5 @@ struct SettingsView: View {
 }
 
 #Preview {
-  SettingsView().environmentScaffolding()
+  SettingsView().environmentObject(Navigation())
 }
