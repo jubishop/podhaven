@@ -3,7 +3,7 @@
 import SwiftUI
 
 struct ContentView: View {
-  @StateObject private var navigation: Navigation = Navigation()
+  @State private var navigation: Navigation = Navigation()
 
   var body: some View {
     TabView(selection: $navigation.currentTab) {
@@ -16,7 +16,7 @@ struct ContentView: View {
         }
       }
     }
-    .environmentObject(navigation)
+    .environment(navigation)
   }
 }
 

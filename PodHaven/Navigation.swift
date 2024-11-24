@@ -2,11 +2,12 @@
 
 import SwiftUI
 
-class Navigation: ObservableObject {
+@Observable
+class Navigation {
   enum Tab {
     case settings
     case upNext
   }
 
-  @Published var currentTab: Tab = .settings
+  var currentTab: Tab = .settings
 }

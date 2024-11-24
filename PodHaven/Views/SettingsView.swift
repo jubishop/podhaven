@@ -3,7 +3,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-  @EnvironmentObject var navigation: Navigation
+  @Environment(Navigation.self) var navigation
 
   var body: some View {
     NavigationStack {
@@ -29,5 +29,5 @@ struct SettingsView: View {
 }
 
 #Preview {
-  SettingsView().environmentObject(Navigation())
+  SettingsView().environment(Navigation())
 }
