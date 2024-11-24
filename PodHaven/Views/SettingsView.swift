@@ -1,15 +1,11 @@
 // Copyright Justin Bishop, 2024
 
-import OPML
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct SettingsView: View {
   @Environment(Navigation.self) var navigation
 
-  let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)
-
-  @State private var opmlImporting = false
+  @State private var viewModel = SettingsViewModel()
 
   var body: some View {
     NavigationStack {
@@ -18,24 +14,13 @@ struct SettingsView: View {
           Button(
             action: {
               #if targetEnvironment(simulator)
-                guard
-                  let url = Bundle.main.url(
-                    forResource: "podcasts",
-                    withExtension: "opml"
-                  )
-                else {
-                  print("failed to locate opml in resources")
-                  return
-                }
-                do {
-                  let opml = try OPML(file: url)
-                  print(url)
-                  print(opml)
-                } catch {
-                  fatalError(error.localizedDescription)
-                }
+                let url = Bundle.main.url(
+                  forResource: "podcasts",
+                  withExtension: "opml"
+                )!
+                viewModel.importOPMLFile(url)
               #else
-                opmlImporting = true
+                viewModel.opmlImporting = true
               #endif
             },
             label: { Text("Import OPML") }
@@ -51,35 +36,10 @@ struct SettingsView: View {
       .navigationTitle("Settings")
     }
     .fileImporter(
-      isPresented: $opmlImporting,
-      allowedContentTypes: [.text]
-    ) { result in
-      switch result {
-      case .success(let url):
-        print(url)
-        do {
-          if url.startAccessingSecurityScopedResource() {
-            //            let contents = try String(
-            //              contentsOfFile: url.path,
-            //              encoding: String.Encoding.utf8
-            //            )
-            //            print(
-            //              contents
-            //            )
-            let opml = try OPML(file: url)
-            print(url)
-            print(opml)
-          } else {
-            print("couldn't start accessing security scoped response")
-          }
-          url.stopAccessingSecurityScopedResource()
-        } catch {
-          fatalError(error.localizedDescription)
-        }
-      case .failure(let error):
-        print(error.localizedDescription)
-      }
-    }
+      isPresented: $viewModel.opmlImporting,
+      allowedContentTypes: [viewModel.opmlType],
+      onCompletion: viewModel.opmlFileImporterCompletion
+    )
   }
 }
 
