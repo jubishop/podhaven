@@ -7,6 +7,6 @@ class Navigation: ObservableObject {
     case settings
     case upNext
   }
-  
+
   @Published var currentTab: Tab = .settings
 }

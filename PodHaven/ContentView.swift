@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2024
 
-import JubiSwift
 import SwiftUI
 
 struct ContentView: View {
@@ -16,7 +15,8 @@ struct ContentView: View {
           navigation.currentTab = .settings
         }
       }
-    }.environmentObject(navigation)
+    }
+    .environmentObject(navigation)
   }
 }
 
