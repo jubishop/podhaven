@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8B50CEFA2CF2C5FD00B629E9 /* JubiSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 8B50CEF92CF2C5FD00B629E9 /* JubiSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		8BD7F9312CF2A49100CEDAA7 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8B50CEFA2CF2C5FD00B629E9 /* JubiSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = PodHaven;
 			packageProductDependencies = (
+				8B50CEF92CF2C5FD00B629E9 /* JubiSwift */,
 			);
 			productName = PodHaven;
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = 8BD7F9172CF2A49000CEDAA7;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8BD7F98A2CF2C5CA00CEDAA7 /* XCRemoteSwiftPackageReference "JubiSwift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8BD7F9212CF2A49000CEDAA7 /* Products */;
 			projectDirPath = "";
@@ -558,6 +567,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8BD7F98A2CF2C5CA00CEDAA7 /* XCRemoteSwiftPackageReference "JubiSwift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jubishop/JubiSwift";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8B50CEF92CF2C5FD00B629E9 /* JubiSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8BD7F98A2CF2C5CA00CEDAA7 /* XCRemoteSwiftPackageReference "JubiSwift" */;
+			productName = JubiSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8BD7F9182CF2A49000CEDAA7 /* Project object */;
 }

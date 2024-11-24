@@ -1,19 +1,25 @@
-// Copyright Justin Bishop, 2024 
+// Copyright Justin Bishop, 2024
 
+import JubiSwift
 import SwiftUI
 
 struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+  @StateObject private var navigation: Navigation = Navigation()
+
+  var body: some View {
+    TabView(selection: $navigation.currentTab) {
+      Tab("Settings", systemImage: "gear", value: .settings) {
+        SettingsView()
+      }
+      Tab("Up Next", systemImage: "music.note.list", value: .upNext) {
+        Button("Go to settings") {
+          navigation.currentTab = .settings
         }
-        .padding()
-    }
+      }
+    }.environmentObject(navigation)
+  }
 }
 
 #Preview {
-    ContentView()
+  ContentView()
 }

@@ -6,7 +6,7 @@ import SwiftUI
 struct PodHavenApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+          ContentView()
         }
     }
 }
