@@ -33,16 +33,16 @@ class DownloadManagerTests {
       maxConcurrentDownloads: 2
     )
 
-    let fulfilled = Fulfillment()
-    await downloadManager.addURL(url) { result in
-      switch result {
-      case .success(let data):
-        #expect(data == expectedData, "Returned data should match")
-        await fulfilled()
-      case .failure(let error):
-        Issue.record("Expected success, got error: \(error)")
+    await expect("Single download handler") { fulfilled in
+      await downloadManager.addURL(url) { result in
+        switch result {
+        case .success(let data):
+          #expect(data == expectedData, "Returned data should match")
+          await fulfilled()
+        case .failure(let error):
+          Issue.record("Expected success, got error: \(error)")
+        }
       }
     }
-    await expect("Single download handler", is: fulfilled)
   }
 }

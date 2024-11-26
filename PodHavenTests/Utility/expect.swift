@@ -6,7 +6,7 @@ import Testing
 public actor Fulfillment {
   private var _fulfilled: Bool = false
   public var fulfilled: Bool {
-    return _fulfilled
+    _fulfilled
   }
   public func reset() {
     _fulfilled = false
@@ -18,14 +18,20 @@ public actor Fulfillment {
 
 public func expect(
   _ comment: Comment,
-  is fulfillment: Fulfillment,
-  in timeout: Duration = .milliseconds(100)
+  in timeout: Duration = .milliseconds(100),
+  _ block: (Fulfillment) async throws -> Void
 ) async {
+  let fulfillment = Fulfillment()
+  do {
+    try await block(fulfillment)
+  } catch {
+    Issue.record("Fulfillment of \"\(comment)\" threw error: \(error)")
+  }
+
   let sleepDuration: Duration = .milliseconds(10)
   let tries = Int(ceil(timeout / sleepDuration))
   for _ in 0...tries {
     if await fulfillment.fulfilled {
-      await fulfillment.reset()
       return
     }
     try! await Task.sleep(for: sleepDuration)
