@@ -24,7 +24,16 @@ typealias DownloadHandler = (Result<Data, DownloadError>) -> Void
 
 actor DownloadManager {
   static let feed: DownloadManager = {
-    return DownloadManager(maxConcurrentDownloads: 16)
+    let maximumConcurrentDownloads = 16
+    let configuration = URLSessionConfiguration.default
+    configuration.allowsCellularAccess = true
+    configuration.waitsForConnectivity = false
+    configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+    configuration.httpMaximumConnectionsPerHost = maximumConcurrentDownloads
+    return DownloadManager(
+      session: URLSession(configuration: configuration),
+      maxConcurrentDownloads: maximumConcurrentDownloads
+    )
   }()
 
   private var pendingURLs: Set<URL> = []
@@ -33,17 +42,8 @@ actor DownloadManager {
   private let maxConcurrentDownloads: Int
   private let session: URLSession
 
-  init(session: URLSession? = nil, maxConcurrentDownloads: Int = 8) {
-    if let session = session {
-      self.session = session
-    } else {
-      let configuration = URLSessionConfiguration.default
-      configuration.allowsCellularAccess = true
-      configuration.waitsForConnectivity = false
-      configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-      configuration.httpMaximumConnectionsPerHost = maxConcurrentDownloads
-      self.session = URLSession(configuration: configuration)
-    }
+  init(session: URLSession = .shared, maxConcurrentDownloads: Int = 8) {
+    self.session = session
     self.maxConcurrentDownloads = maxConcurrentDownloads
   }
 
