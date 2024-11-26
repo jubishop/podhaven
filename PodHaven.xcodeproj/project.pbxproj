@@ -20,20 +20,12 @@
 			remoteGlobalIDString = 8BD7F91F2CF2A49000CEDAA7;
 			remoteInfo = PodHaven;
 		};
-		8BD7F93B2CF2A49100CEDAA7 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 8BD7F9182CF2A49000CEDAA7 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 8BD7F91F2CF2A49000CEDAA7;
-			remoteInfo = PodHaven;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		8BD0C2362CF638C700B7DC07 /* PodHaven.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = PodHaven.xctestplan; sourceTree = "<group>"; };
 		8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PodHaven.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PodHavenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		8BD7F93A2CF2A49100CEDAA7 /* PodHavenUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PodHavenUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -45,11 +37,6 @@
 		8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = PodHavenTests;
-			sourceTree = "<group>";
-		};
-		8BD7F93D2CF2A49100CEDAA7 /* PodHavenUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = PodHavenUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -72,13 +59,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		8BD7F9372CF2A49100CEDAA7 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -88,7 +68,6 @@
 				8BD0C2362CF638C700B7DC07 /* PodHaven.xctestplan */,
 				8BD7F9222CF2A49000CEDAA7 /* PodHaven */,
 				8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */,
-				8BD7F93D2CF2A49100CEDAA7 /* PodHavenUITests */,
 				8BD7F9212CF2A49000CEDAA7 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -98,7 +77,6 @@
 			children = (
 				8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */,
 				8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */,
-				8BD7F93A2CF2A49100CEDAA7 /* PodHavenUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -154,29 +132,6 @@
 			productReference = 8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		8BD7F9392CF2A49100CEDAA7 /* PodHavenUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 8BD7F94A2CF2A49100CEDAA7 /* Build configuration list for PBXNativeTarget "PodHavenUITests" */;
-			buildPhases = (
-				8BD7F9362CF2A49100CEDAA7 /* Sources */,
-				8BD7F9372CF2A49100CEDAA7 /* Frameworks */,
-				8BD7F9382CF2A49100CEDAA7 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				8BD7F93C2CF2A49100CEDAA7 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				8BD7F93D2CF2A49100CEDAA7 /* PodHavenUITests */,
-			);
-			name = PodHavenUITests;
-			packageProductDependencies = (
-			);
-			productName = PodHavenUITests;
-			productReference = 8BD7F93A2CF2A49100CEDAA7 /* PodHavenUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -191,10 +146,6 @@
 						CreatedOnToolsVersion = 16.1;
 					};
 					8BD7F92F2CF2A49100CEDAA7 = {
-						CreatedOnToolsVersion = 16.1;
-						TestTargetID = 8BD7F91F2CF2A49000CEDAA7;
-					};
-					8BD7F9392CF2A49100CEDAA7 = {
 						CreatedOnToolsVersion = 16.1;
 						TestTargetID = 8BD7F91F2CF2A49000CEDAA7;
 					};
@@ -221,7 +172,6 @@
 			targets = (
 				8BD7F91F2CF2A49000CEDAA7 /* PodHaven */,
 				8BD7F92F2CF2A49100CEDAA7 /* PodHavenTests */,
-				8BD7F9392CF2A49100CEDAA7 /* PodHavenUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -235,13 +185,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		8BD7F92E2CF2A49100CEDAA7 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		8BD7F9382CF2A49100CEDAA7 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -265,13 +208,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		8BD7F9362CF2A49100CEDAA7 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -279,11 +215,6 @@
 			isa = PBXTargetDependency;
 			target = 8BD7F91F2CF2A49000CEDAA7 /* PodHaven */;
 			targetProxy = 8BD7F9312CF2A49100CEDAA7 /* PBXContainerItemProxy */;
-		};
-		8BD7F93C2CF2A49100CEDAA7 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 8BD7F91F2CF2A49000CEDAA7 /* PodHaven */;
-			targetProxy = 8BD7F93B2CF2A49100CEDAA7 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -503,40 +434,6 @@
 			};
 			name = Release;
 		};
-		8BD7F94B2CF2A49100CEDAA7 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 34TKMKM889;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PodHavenUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = PodHaven;
-			};
-			name = Debug;
-		};
-		8BD7F94C2CF2A49100CEDAA7 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 34TKMKM889;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PodHavenUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = PodHaven;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -563,15 +460,6 @@
 			buildConfigurations = (
 				8BD7F9482CF2A49100CEDAA7 /* Debug */,
 				8BD7F9492CF2A49100CEDAA7 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		8BD7F94A2CF2A49100CEDAA7 /* Build configuration list for PBXNativeTarget "PodHavenUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				8BD7F94B2CF2A49100CEDAA7 /* Debug */,
-				8BD7F94C2CF2A49100CEDAA7 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
