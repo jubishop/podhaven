@@ -1,4 +1,5 @@
 import Foundation
+import OrderedCollections
 
 enum DownloadError: Error, LocalizedError {
   case invalidResponse
@@ -36,8 +37,8 @@ actor DownloadManager {
     )
   }()
 
-  private var pendingURLs: Set<URL> = []
   private var handlers: [URL: DownloadHandler] = [:]
+  private var pendingDownloads: OrderedSet<URL> = []
   private var activeDownloads: [URL: Task<Void, Never>] = [:]
   private let maxConcurrentDownloads: Int
   private let session: URLSession
@@ -49,34 +50,64 @@ actor DownloadManager {
 
   func addURL(_ url: URL, handler: @escaping DownloadHandler) {
     handlers[url] = handler
+    addPendingDownload(url)
+  }
 
-    if !activeDownloads.keys.contains(url) {
-      pendingURLs.insert(url)
-      Task { await startNextDownloads() }
+  func cancelDownload(url: URL) async {
+    if pendingDownloads.contains(url) {
+      pendingDownloads.remove(url)
+      if let handler = handlers[url] {
+        Task { @MainActor in handler(.failure(.cancelled)) }
+        handlers.removeValue(forKey: url)
+      }
+    }
+    if let task = activeDownloads[url] {
+      task.cancel()
+      removeActiveDownload(url)
     }
   }
 
-  private func startNextDownloads() async {
-    let availableSlots = maxConcurrentDownloads - activeDownloads.count
-    guard availableSlots > 0 else {
-      return
-    }
-
-    let downloadsToStart = min(availableSlots, pendingURLs.count)
-    for _ in 0..<downloadsToStart {
-      if let url = pendingURLs.popFirst() {
-        activeDownloads[url] = Task { await download(url: url) }
+  func cancelAllDownloads() async {
+    for url in pendingDownloads {
+      if let handler = handlers[url] {
+        Task { @MainActor in handler(.failure(.cancelled)) }
       }
+    }
+    for (_, task) in activeDownloads {
+      task.cancel()
+    }
+    handlers.removeAll()
+    pendingDownloads.removeAll()
+    activeDownloads.removeAll()
+  }
+
+  // MARK: - Private
+  private func addPendingDownload(_ url: URL) {
+    if !activeDownloads.keys.contains(url) && !pendingDownloads.contains(url) {
+      pendingDownloads.append(url)
+      startNextDownloads()
+    }
+  }
+
+  private func removeActiveDownload(_ url: URL) {
+    handlers.removeValue(forKey: url)
+    activeDownloads.removeValue(forKey: url)
+    startNextDownloads()
+  }
+
+  private func startNextDownloads() {
+    let availableSlots = maxConcurrentDownloads - activeDownloads.count
+    for _ in 0..<availableSlots {
+      guard !pendingDownloads.isEmpty else { break }
+      let url = pendingDownloads.removeFirst()
+      activeDownloads[url] = Task { await download(url: url) }
     }
   }
 
   private func download(url: URL) async {
     defer {
-      handlers.removeValue(forKey: url)
-      activeDownloads.removeValue(forKey: url)
-      Task { await startNextDownloads() }
+      removeActiveDownload(url)
     }
-
     let handler = handlers[url]
     do {
       let (data, response) = try await session.data(from: url)
@@ -86,7 +117,6 @@ actor DownloadManager {
       guard (200...299).contains(httpResponse.statusCode) else {
         throw DownloadError.invalidStatusCode(httpResponse.statusCode)
       }
-
       if let handler = handler {
         Task { @MainActor in handler(.success(data)) }
       }
@@ -99,41 +129,10 @@ actor DownloadManager {
       } else {
         finalError = .networkError(error)
       }
-
       if let handler = handler {
         Task { @MainActor in handler(.failure(finalError)) }
       }
     }
   }
 
-  func cancelDownload(url: URL) async {
-    if pendingURLs.contains(url) {
-      pendingURLs.remove(url)
-      if let handler = handlers[url] {
-        Task { @MainActor in handler(.failure(.cancelled)) }
-        handlers.removeValue(forKey: url)
-      }
-      return
-    }
-
-    if let task = activeDownloads[url] {
-      task.cancel()
-      activeDownloads.removeValue(forKey: url)
-    }
-  }
-
-  func cancelAllDownloads() async {
-    for url in pendingURLs {
-      if let handler = handlers[url] {
-        Task { @MainActor in handler(.failure(.cancelled)) }
-      }
-    }
-    pendingURLs.removeAll()
-    handlers.removeAll()
-
-    for (_, task) in activeDownloads {
-      task.cancel()
-    }
-    activeDownloads.removeAll()
-  }
 }

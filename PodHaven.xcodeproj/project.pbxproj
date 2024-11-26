@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8B05D8FB2CF51C0B003AA19D /* GRDB */; };
 		8B48491C2CF2E63600C67454 /* OPML in Frameworks */ = {isa = PBXBuildFile; productRef = 8B48491B2CF2E63600C67454 /* OPML */; };
+		8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 			files = (
 				8B48491C2CF2E63600C67454 /* OPML in Frameworks */,
 				8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */,
+				8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -121,6 +123,7 @@
 			packageProductDependencies = (
 				8B48491B2CF2E63600C67454 /* OPML */,
 				8B05D8FB2CF51C0B003AA19D /* GRDB */,
+				8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */,
 			);
 			productName = PodHaven;
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
@@ -207,6 +210,7 @@
 			packageReferences = (
 				8B81F4622CF2E5E600410163 /* XCRemoteSwiftPackageReference "opml" */,
 				8BD0CF382CF51BD900BD9236 /* XCRemoteSwiftPackageReference "GRDB" */,
+				8B2C9E5F2CF59FA800637544 /* XCRemoteSwiftPackageReference "swift-collections" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8BD7F9212CF2A49000CEDAA7 /* Products */;
@@ -573,6 +577,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		8B2C9E5F2CF59FA800637544 /* XCRemoteSwiftPackageReference "swift-collections" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-collections.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		8B81F4622CF2E5E600410163 /* XCRemoteSwiftPackageReference "opml" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pixel-foundry/opml";
@@ -601,6 +613,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8B81F4622CF2E5E600410163 /* XCRemoteSwiftPackageReference "opml" */;
 			productName = OPML;
+		};
+		8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B2C9E5F2CF59FA800637544 /* XCRemoteSwiftPackageReference "swift-collections" */;
+			productName = OrderedCollections;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
