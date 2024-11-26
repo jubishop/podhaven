@@ -26,7 +26,9 @@ import UniformTypeIdentifiers
   func importOPMLFile(_ url: URL) {
     do {
       let opml = try OPML(file: url)
-      print(opml)
+      for entry in opml.entries {
+        print(entry.feedURL!.absoluteString)
+      }
     } catch {
       Failure.fatal("Couldn't parse OPML file: \(error)")
     }
