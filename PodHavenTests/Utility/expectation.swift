@@ -13,11 +13,11 @@ public class Fulfillment {
 
 public func expectation(
   _ comment: Comment,
-  timeout: Duration = .seconds(0.1),
+  timeout: Duration = .milliseconds(10),
   expectedCount: Int = 1,
   _ body: (Fulfillment) async -> Void
 ) async {
-  let sleepDuration: Duration = .seconds(0.01)
+  let sleepDuration: Duration = .milliseconds(1)
   let tries = Int(ceil(timeout / sleepDuration))
   let fulfillment = Fulfillment()
 
