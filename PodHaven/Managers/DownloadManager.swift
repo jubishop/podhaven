@@ -37,7 +37,7 @@ actor DownloadManager {
     )
   }()
 
-  private var handlers: [URL: DownloadHandler] = [:]
+  private var callbacks: [URL: DownloadHandler] = [:]
   private var pendingDownloads: OrderedSet<URL> = []
   private var activeDownloads: [URL: Task<Void, Never>] = [:]
   private let maxConcurrentDownloads: Int
@@ -48,17 +48,17 @@ actor DownloadManager {
     self.maxConcurrentDownloads = maxConcurrentDownloads
   }
 
-  func addURL(_ url: URL, handler: @escaping DownloadHandler) {
-    handlers[url] = handler
+  func addURL(_ url: URL, callback: @escaping DownloadHandler) {
+    callbacks[url] = callback
     addPendingDownload(url)
   }
 
   func cancelDownload(url: URL) async {
     if pendingDownloads.contains(url) {
       pendingDownloads.remove(url)
-      if let handler = handlers[url] {
-        Task { @MainActor in handler(.failure(.cancelled)) }
-        handlers.removeValue(forKey: url)
+      if let callback = callbacks[url] {
+        Task { @MainActor in callback(.failure(.cancelled)) }
+        callbacks.removeValue(forKey: url)
       }
     }
     if let task = activeDownloads[url] {
@@ -69,14 +69,14 @@ actor DownloadManager {
 
   func cancelAllDownloads() async {
     for url in pendingDownloads {
-      if let handler = handlers[url] {
-        Task { @MainActor in handler(.failure(.cancelled)) }
+      if let callback = callbacks[url] {
+        Task { @MainActor in callback(.failure(.cancelled)) }
       }
     }
     for (_, task) in activeDownloads {
       task.cancel()
     }
-    handlers.removeAll()
+    callbacks.removeAll()
     pendingDownloads.removeAll()
     activeDownloads.removeAll()
   }
@@ -90,7 +90,7 @@ actor DownloadManager {
   }
 
   private func removeActiveDownload(_ url: URL) {
-    handlers.removeValue(forKey: url)
+    callbacks.removeValue(forKey: url)
     activeDownloads.removeValue(forKey: url)
     startNextDownloads()
   }
@@ -108,7 +108,7 @@ actor DownloadManager {
     defer {
       removeActiveDownload(url)
     }
-    let handler = handlers[url]
+    let callback = callbacks[url]
     do {
       let (data, response) = try await session.data(from: url)
       guard let httpResponse = response as? HTTPURLResponse else {
@@ -117,8 +117,8 @@ actor DownloadManager {
       guard (200...299).contains(httpResponse.statusCode) else {
         throw DownloadError.invalidStatusCode(httpResponse.statusCode)
       }
-      if let handler = handler {
-        Task { @MainActor in handler(.success(data)) }
+      if let callback = callback {
+        Task { @MainActor in callback(.success(data)) }
       }
     } catch {
       let finalError: DownloadError
@@ -129,8 +129,8 @@ actor DownloadManager {
       } else {
         finalError = .networkError(error)
       }
-      if let handler = handler {
-        Task { @MainActor in handler(.failure(finalError)) }
+      if let callback = callback {
+        Task { @MainActor in callback(.failure(finalError)) }
       }
     }
   }

@@ -30,6 +30,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		8BD0C2362CF638C700B7DC07 /* PodHaven.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = PodHaven.xctestplan; sourceTree = "<group>"; };
 		8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PodHaven.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PodHavenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BD7F93A2CF2A49100CEDAA7 /* PodHavenUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PodHavenUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -84,6 +85,7 @@
 		8BD7F9172CF2A49000CEDAA7 = {
 			isa = PBXGroup;
 			children = (
+				8BD0C2362CF638C700B7DC07 /* PodHaven.xctestplan */,
 				8BD7F9222CF2A49000CEDAA7 /* PodHaven */,
 				8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */,
 				8BD7F93D2CF2A49100CEDAA7 /* PodHavenUITests */,
