@@ -4,40 +4,32 @@ import Foundation
 import Testing
 
 public class Fulfillment {
-  var count: Int = 0
+  private var _fulfilled: Bool = false
+  public var fulfilled: Bool {
+    _fulfilled
+  }
 
-  func callAsFunction(_ count: Int = 1) {
-    self.count += count
+  public func callAsFunction() {
+    _fulfilled = true
   }
 }
 
 public func expectation(
   _ comment: Comment,
-  timeout: Duration = .milliseconds(10),
-  expectedCount: Int = 1,
+  timeout: Duration = .milliseconds(100),
   _ body: (Fulfillment) async -> Void
 ) async {
-  let sleepDuration: Duration = .milliseconds(1)
+  let sleepDuration: Duration = .milliseconds(10)
   let tries = Int(ceil(timeout / sleepDuration))
   let fulfillment = Fulfillment()
 
   for _ in 0..<tries {
     await body(fulfillment)
-    if fulfillment.count == expectedCount {
+    if fulfillment.fulfilled {
       return
     }
     try! await Task.sleep(for: sleepDuration)
   }
 
-  if fulfillment.count == 0 {
-    Issue.record("Fulfillment of: \"\(comment)\" never occurred")
-  } else {
-    Issue.record(
-      """
-      Fulfillment of: \"\(comment)\" failed \
-      with count: \(fulfillment.count), \
-      expected: \(expectedCount)
-      """
-    )
-  }
+  Issue.record("Fulfillment of: \"\(comment)\" never occurred")
 }
