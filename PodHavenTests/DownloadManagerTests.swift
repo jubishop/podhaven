@@ -42,6 +42,6 @@ import Testing
         Issue.record("Expected success, got error: \(error)")
       }
     }
-    await expectation("Single download handler is called", is: fulfilled)
+    await expect("Single download handler is called", is: fulfilled)
   }
 }

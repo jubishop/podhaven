@@ -13,7 +13,7 @@ public actor Fulfillment {
   }
 }
 
-public func expectation(
+public func expect(
   _ comment: Comment,
   is fulfillment: Fulfillment,
   in timeout: Duration = .milliseconds(100)
