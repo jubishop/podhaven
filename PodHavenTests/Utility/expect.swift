@@ -38,3 +38,20 @@ public func expect(
   }
   Issue.record("Expected fulfillment of: \"\(comment)\" never occurred")
 }
+
+public func expect(
+  _ comment: Comment,
+  is fulfillment: Fulfillment,
+  in timeout: Duration = .milliseconds(100)
+) async {
+  let sleepDuration: Duration = .milliseconds(10)
+  let tries = Int(ceil(timeout / sleepDuration))
+  for _ in 0...tries {
+    if await fulfillment.fulfilled {
+      await fulfillment.reset()
+      return
+    }
+    try! await Task.sleep(for: sleepDuration)
+  }
+  Issue.record("Expected fulfillment of: \"\(comment)\" never occurred")
+}
