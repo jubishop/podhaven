@@ -8,7 +8,10 @@ public actor Fulfillment {
   public var fulfilled: Bool {
     return _fulfilled
   }
-  public func callAsFunction() async {
+  public func reset() {
+    _fulfilled = false
+  }
+  public func callAsFunction() {
     _fulfilled = true
   }
 }
@@ -22,6 +25,7 @@ public func expect(
   let tries = Int(ceil(timeout / sleepDuration))
   for _ in 0...tries {
     if await fulfillment.fulfilled {
+      await fulfillment.reset()
       return
     }
     try! await Task.sleep(for: sleepDuration)
