@@ -32,16 +32,16 @@ import Testing
       maxConcurrentDownloads: 2
     )
 
-    await expectation("Single download handler is called") { fulfillment in
-      await downloadManager.addURL(url) { result in
-        switch result {
-        case .success(let data):
-          #expect(data == expectedData, "Returned data should match")
-          fulfillment()
-        case .failure(let error):
-          Issue.record("Expected success, got error: \(error)")
-        }
+    let fulfilled = Fulfillment()
+    await downloadManager.addURL(url) { result in
+      switch result {
+      case .success(let data):
+        #expect(data == expectedData, "Returned data should match")
+        await fulfilled()
+      case .failure(let error):
+        Issue.record("Expected success, got error: \(error)")
       }
     }
+    await expectation("Single download handler is called", is: fulfilled)
   }
 }

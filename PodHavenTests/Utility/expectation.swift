@@ -3,33 +3,28 @@
 import Foundation
 import Testing
 
-public class Fulfillment {
+public actor Fulfillment {
   private var _fulfilled: Bool = false
   public var fulfilled: Bool {
-    _fulfilled
+    return _fulfilled
   }
-
-  public func callAsFunction() {
+  public func callAsFunction() async {
     _fulfilled = true
   }
 }
 
 public func expectation(
   _ comment: Comment,
-  timeout: Duration = .milliseconds(100),
-  _ body: (Fulfillment) async -> Void
+  is fulfillment: Fulfillment,
+  in timeout: Duration = .milliseconds(100)
 ) async {
   let sleepDuration: Duration = .milliseconds(10)
   let tries = Int(ceil(timeout / sleepDuration))
-  let fulfillment = Fulfillment()
-
-  for _ in 0..<tries {
-    await body(fulfillment)
-    if fulfillment.fulfilled {
+  for _ in 0...tries {
+    if await fulfillment.fulfilled {
       return
     }
     try! await Task.sleep(for: sleepDuration)
   }
-
-  Issue.record("Fulfillment of: \"\(comment)\" never occurred")
+  Issue.record("Expectation that: \"\(comment)\" never occurred")
 }

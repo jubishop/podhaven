@@ -21,7 +21,7 @@ enum DownloadError: Error, LocalizedError {
   }
 }
 
-typealias DownloadHandler = (Result<Data, DownloadError>) -> Void
+typealias DownloadHandler = (Result<Data, DownloadError>) async -> Void
 
 actor DownloadManager {
   static let feed: DownloadManager = {
@@ -57,7 +57,7 @@ actor DownloadManager {
     if pendingDownloads.contains(url) {
       pendingDownloads.remove(url)
       if let callback = callbacks[url] {
-        Task { @MainActor in callback(.failure(.cancelled)) }
+        Task { @MainActor in await callback(.failure(.cancelled)) }
         callbacks.removeValue(forKey: url)
       }
     }
@@ -70,7 +70,7 @@ actor DownloadManager {
   func cancelAllDownloads() async {
     for url in pendingDownloads {
       if let callback = callbacks[url] {
-        Task { @MainActor in callback(.failure(.cancelled)) }
+        Task { @MainActor in await callback(.failure(.cancelled)) }
       }
     }
     for (_, task) in activeDownloads {
@@ -118,7 +118,7 @@ actor DownloadManager {
         throw DownloadError.invalidStatusCode(httpResponse.statusCode)
       }
       if let callback = callback {
-        Task { @MainActor in callback(.success(data)) }
+        Task { @MainActor in await callback(.success(data)) }
       }
     } catch {
       let finalError: DownloadError
@@ -130,7 +130,7 @@ actor DownloadManager {
         finalError = .networkError(error)
       }
       if let callback = callback {
-        Task { @MainActor in callback(.failure(finalError)) }
+        Task { @MainActor in await callback(.failure(finalError)) }
       }
     }
   }
