@@ -5,8 +5,9 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("DownloadManager tests") class DownloadManagerTests {
-  @Test("A single download works successfully")
+@Suite("of DownloadManager tests")
+class DownloadManagerTests {
+  @Test("that a single download works successfully")
   func singleSuccessfulDownload() async {
     let url = URL(string: "https://example.com/data")!
     let expectedData = "Test data".data(using: .utf8)!
@@ -42,6 +43,6 @@ import Testing
         Issue.record("Expected success, got error: \(error)")
       }
     }
-    await expect("Single download handler is called", is: fulfilled)
+    await expect("Single download handler", is: fulfilled)
   }
 }

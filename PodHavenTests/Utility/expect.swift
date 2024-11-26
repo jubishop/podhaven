@@ -26,5 +26,5 @@ public func expect(
     }
     try! await Task.sleep(for: sleepDuration)
   }
-  Issue.record("Expectation that: \"\(comment)\" never occurred")
+  Issue.record("Expected fulfillment of: \"\(comment)\" never occurred")
 }
