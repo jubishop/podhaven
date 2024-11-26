@@ -25,15 +25,15 @@ typealias DownloadHandler = (Result<Data, DownloadError>) -> Void
 
 actor DownloadManager {
   static let feed: DownloadManager = {
-    let maximumConcurrentDownloads = 16
+    let maxConcurrentDownloads = 16
     let configuration = URLSessionConfiguration.default
     configuration.allowsCellularAccess = true
     configuration.waitsForConnectivity = false
     configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-    configuration.httpMaximumConnectionsPerHost = maximumConcurrentDownloads
+    configuration.httpMaximumConnectionsPerHost = maxConcurrentDownloads
     return DownloadManager(
       session: URLSession(configuration: configuration),
-      maxConcurrentDownloads: maximumConcurrentDownloads
+      maxConcurrentDownloads: maxConcurrentDownloads
     )
   }()
 
