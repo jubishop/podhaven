@@ -10,11 +10,11 @@ public actor Fulfillment {
   }
 }
 
-private extension Fulfillment {
-  var fulfilled: Bool {
+extension Fulfillment {
+  fileprivate var fulfilled: Bool {
     _fulfilled
   }
-  func reset() {
+  fileprivate func reset() {
     _fulfilled = false
   }
 }

@@ -36,7 +36,53 @@ actor DownloadTask: Hashable {
     self.manager = manager
   }
 
-  func start() async {
+  func download() async -> DownloadResult {
+    guard result == nil else { return result! }
+    return await withCheckedContinuation { continuation in
+      self.continuation = continuation
+    }
+  }
+
+  func cancel() async {
+    if let manager = manager {
+      await manager.cancelDownload(url: url)
+    } else {
+      _cancel()
+    }
+  }
+
+  // MARK: - Private Methods
+
+  private func setResult(_ result: DownloadResult) {
+    guard self.result == nil else { return }
+    self.result = result
+    resumeContinuation()
+  }
+
+  private func resumeContinuation() {
+    if let continuation = continuation, let result = result {
+      self.continuation = nil
+      continuation.resume(returning: result)
+    }
+  }
+
+  // MARK: - Hashable Conformance
+
+  static func == (lhs: DownloadTask, rhs: DownloadTask) -> Bool {
+    lhs.url == rhs.url
+  }
+
+  nonisolated func hash(into hasher: inout Hasher) {
+    hasher.combine(url)
+  }
+}
+
+extension DownloadTask {
+  fileprivate func _cancel() {
+    setResult(.failure(.cancelled))
+  }
+
+  fileprivate func _start() async {
     guard result == nil else { return }
     do {
       let (data, response) = try await session.data(from: url)
@@ -58,53 +104,6 @@ actor DownloadTask: Hashable {
       }
       setResult(.failure(finalError))
     }
-  }
-
-  func download() async -> DownloadResult {
-    guard let result = result else {
-      return await withCheckedContinuation { continuation in
-        self.continuation = continuation
-      }
-    }
-    return result
-  }
-
-  func cancel() async {
-    if let manager = manager {
-      await manager.cancelDownload(url: url)
-    } else {
-      _cancel()
-    }
-  }
-
-  // MARK: - Private Methods
-
-  private func setResult(_ result: DownloadResult) {
-    guard self.result == nil else { return }
-    self.result = result
-    resumeContinuation()
-  }
-
-  private func resumeContinuation() {
-    if let continuation = continuation, let result = result {
-      continuation.resume(returning: result)
-    }
-  }
-
-  // MARK: - Hashable Conformance
-
-  static func == (lhs: DownloadTask, rhs: DownloadTask) -> Bool {
-    lhs.url == rhs.url
-  }
-
-  nonisolated func hash(into hasher: inout Hasher) {
-    hasher.combine(url)
-  }
-}
-
-extension DownloadTask {
-  fileprivate func _cancel() {
-    setResult(.failure(.cancelled))
   }
 }
 
@@ -130,14 +129,14 @@ actor DownloadManager {
     }
     let download = DownloadTask(url: url, session: session, manager: self)
     pendingDownloads[url] = download
-    await startNextDownload()
+    startNextDownload()
     return download
   }
 
   func cancelDownload(url: URL) async {
     if let activeDownload = activeDownloads.removeValue(forKey: url) {
       await activeDownload._cancel()
-      await startNextDownload()
+      startNextDownload()
     }
     if let pendingDownload = pendingDownloads.removeValue(forKey: url) {
       await pendingDownload._cancel()
@@ -157,23 +156,21 @@ actor DownloadManager {
 
   // MARK: - Private Methods
 
-  private func startDownload(_ download: DownloadTask) async {
-    await download.start()
-    await self.removeActiveDownload(url: download.url)
-  }
-
-  private func removeActiveDownload(url: URL) async {
-    activeDownloads.removeValue(forKey: url)
-    await startNextDownload()
-  }
-
-  private func startNextDownload() async {
+  private func startNextDownload() {
     guard
       activeDownloads.count < maxConcurrentDownloads,
       !pendingDownloads.isEmpty
     else { return }
     let nextEntry = pendingDownloads.removeFirst()
     activeDownloads[nextEntry.key] = nextEntry.value
-    await startDownload(nextEntry.value)
+    executeDownload(nextEntry.value)
+  }
+
+  private func executeDownload(_ download: DownloadTask) {
+    Task {
+      await download._start()
+      activeDownloads.removeValue(forKey: download.url)
+      startNextDownload()
+    }
   }
 }
