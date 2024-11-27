@@ -21,118 +21,195 @@ enum DownloadError: Error, LocalizedError {
   }
 }
 
-typealias DownloadHandler = (Result<Data, DownloadError>) async -> Void
+typealias DownloadResult = Result<Data, DownloadError>
+
+actor DownloadHandle: Hashable {
+  let url: URL
+  private let session: URLSession
+  private var task: URLSessionDataTask?
+  private var continuations: [CheckedContinuation<DownloadResult, Never>] = []
+
+  init(url: URL, session: URLSession) {
+    self.url = url
+    self.session = session
+  }
+
+  /// Starts the download task.
+  func start() {
+    // Prevent multiple starts
+    guard task == nil else { return }
+
+    task = session.dataTask(with: url) { [weak self] data, response, error in
+      Task {
+        await self?
+          .handleCompletion(data: data, response: response, error: error)
+      }
+    }
+
+    task?.resume()
+  }
+
+  /// Awaits the download result, returning a DownloadResult.
+  func download() async -> DownloadResult {
+    await withCheckedContinuation { continuation in
+      continuations.append(continuation)
+    }
+  }
+
+  /// Cancels the download.
+  func cancel() async {
+    task?.cancel()
+    resumeAllContinuations(with: .failure(.cancelled))
+  }
+
+  /// Handles the completion of the download task.
+  private func handleCompletion(
+    data: Data?,
+    response: URLResponse?,
+    error: Error?
+  ) async {
+    defer {
+      continuations = []
+      task = nil
+    }
+
+    let result: DownloadResult
+    if let error = error as? URLError, error.code == .cancelled {
+      result = .failure(.cancelled)
+    } else if let error = error {
+      result = .failure(.networkError(error))
+    } else if let httpResponse = response as? HTTPURLResponse,
+      (200...299).contains(httpResponse.statusCode),
+      let data = data
+    {
+      result = .success(data)
+    } else if let httpResponse = response as? HTTPURLResponse {
+      result = .failure(.invalidStatusCode(httpResponse.statusCode))
+    } else {
+      result = .failure(.invalidResponse)
+    }
+
+    resumeAllContinuations(with: result)
+  }
+
+  /// Resumes all stored continuations with the given result.
+  private func resumeAllContinuations(
+    with result: DownloadResult
+  ) {
+    for continuation in continuations {
+      continuation.resume(returning: result)
+    }
+    continuations = []
+  }
+
+  // MARK: - Hashable Conformance
+
+  static func == (lhs: DownloadHandle, rhs: DownloadHandle) -> Bool {
+    lhs.url == rhs.url
+  }
+
+  nonisolated func hash(into hasher: inout Hasher) {
+    hasher.combine(url)
+  }
+}
 
 actor DownloadManager {
-  static let feed: DownloadManager = {
-    let maxConcurrentDownloads = 16
-    let configuration = URLSessionConfiguration.default
-    configuration.allowsCellularAccess = true
-    configuration.waitsForConnectivity = false
-    configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-    configuration.httpMaximumConnectionsPerHost = maxConcurrentDownloads
-    return DownloadManager(
-      session: URLSession(configuration: configuration),
-      maxConcurrentDownloads: maxConcurrentDownloads
-    )
-  }()
+  static let shared = DownloadManager()
 
-  private var callbacks: [URL: DownloadHandler] = [:]
-  private var pendingDownloads: OrderedSet<URL> = []
-  private var activeDownloads: [URL: Task<Void, Never>] = [:]
+  private var activeDownloads: [URL: DownloadHandle] = [:]
+  private var pendingDownloads: OrderedDictionary<URL, DownloadHandle> = [:]
   private let maxConcurrentDownloads: Int
-  private let session: URLSession
+  let session: URLSession  // Made `let` to allow external modification for testing
 
   init(session: URLSession = .shared, maxConcurrentDownloads: Int = 8) {
     self.session = session
     self.maxConcurrentDownloads = maxConcurrentDownloads
   }
 
-  func addURL(_ url: URL, callback: @escaping DownloadHandler) {
-    callbacks[url] = callback
-    addPendingDownload(url)
+  /// Adds a URL to the download queue and returns a DownloadHandle.
+  /// If the URL is already being downloaded or pending, returns the existing handle.
+  func addURL(_ url: URL) async -> DownloadHandle {
+    // Check if the URL is already active
+    if let activeHandle = activeDownloads[url] {
+      return activeHandle
+    }
+
+    // Check if the URL is already pending
+    if let pendingHandle = pendingDownloads[url] {
+      return pendingHandle
+    }
+
+    // Create a new DownloadHandle
+    let handle = DownloadHandle(url: url, session: session)
+
+    // Add to active or pending based on current active downloads
+    if activeDownloads.count < maxConcurrentDownloads {
+      activeDownloads[url] = handle
+      await startDownload(handle)
+    } else {
+      pendingDownloads[url] = handle
+    }
+
+    return handle
   }
 
+  /// Cancels a specific download by URL.
   func cancelDownload(url: URL) async {
-    if pendingDownloads.contains(url) {
-      pendingDownloads.remove(url)
-      if let callback = callbacks[url] {
-        Task { @MainActor in await callback(.failure(.cancelled)) }
-        callbacks.removeValue(forKey: url)
-      }
+    // Check active downloads
+    if let activeHandle = activeDownloads[url] {
+      await activeHandle.cancel()
+      activeDownloads.removeValue(forKey: url)
+      await startNextDownload()
     }
-    if let task = activeDownloads[url] {
-      task.cancel()
-      removeActiveDownload(url)
+
+    // Check pending downloads
+    if let pendingHandle = pendingDownloads.removeValue(forKey: url) {
+      await pendingHandle.cancel()
     }
   }
 
+  /// Cancels all ongoing and pending downloads.
   func cancelAllDownloads() async {
-    for url in pendingDownloads {
-      if let callback = callbacks[url] {
-        Task { @MainActor in await callback(.failure(.cancelled)) }
-      }
+    // Cancel active downloads
+    for (_, handle) in activeDownloads {
+      await handle.cancel()
     }
-    for (_, task) in activeDownloads {
-      task.cancel()
-    }
-    callbacks.removeAll()
-    pendingDownloads.removeAll()
     activeDownloads.removeAll()
+
+    // Cancel pending downloads
+    for (_, handle) in pendingDownloads {
+      await handle.cancel()
+    }
+    pendingDownloads.removeAll()
   }
 
-  // MARK: - Private
-  private func addPendingDownload(_ url: URL) {
-    if !activeDownloads.keys.contains(url) && !pendingDownloads.contains(url) {
-      pendingDownloads.append(url)
-      startNextDownloads()
+  // MARK: - Private Methods
+
+  /// Starts the download for a given handle.
+  private func startDownload(_ handle: DownloadHandle) async {
+    await handle.start()
+
+    // Start a Task to await the download
+    Task { [weak self] in
+      guard let self = self else { return }
+      let _ = await handle.download()
+      await self.removeActiveDownload(url: handle.url)
     }
   }
 
-  private func removeActiveDownload(_ url: URL) {
-    callbacks.removeValue(forKey: url)
+  /// Removes an active download and starts the next pending download if available.
+  private func removeActiveDownload(url: URL) async {
     activeDownloads.removeValue(forKey: url)
-    startNextDownloads()
+    await startNextDownload()
   }
 
-  private func startNextDownloads() {
-    let availableSlots = maxConcurrentDownloads - activeDownloads.count
-    for _ in 0..<availableSlots {
-      guard !pendingDownloads.isEmpty else { break }
-      let url = pendingDownloads.removeFirst()
-      activeDownloads[url] = Task { await download(url: url) }
-    }
+  /// Starts the next download from the pending queue if concurrency limits allow.
+  private func startNextDownload() async {
+    guard activeDownloads.count < maxConcurrentDownloads,
+      !pendingDownloads.isEmpty
+    else { return }
+    let nextEntry = pendingDownloads.removeFirst()
+    activeDownloads[nextEntry.key] = nextEntry.value
+    await startDownload(nextEntry.value)
   }
-
-  private func download(url: URL) async {
-    defer {
-      removeActiveDownload(url)
-    }
-    let callback = callbacks[url]
-    do {
-      let (data, response) = try await session.data(from: url)
-      guard let httpResponse = response as? HTTPURLResponse else {
-        throw DownloadError.invalidResponse
-      }
-      guard (200...299).contains(httpResponse.statusCode) else {
-        throw DownloadError.invalidStatusCode(httpResponse.statusCode)
-      }
-      if let callback = callback {
-        Task { @MainActor in await callback(.success(data)) }
-      }
-    } catch {
-      let finalError: DownloadError
-      if let downloadError = error as? DownloadError {
-        finalError = downloadError
-      } else if error is CancellationError {
-        finalError = .cancelled
-      } else {
-        finalError = .networkError(error)
-      }
-      if let callback = callback {
-        Task { @MainActor in await callback(.failure(finalError)) }
-      }
-    }
-  }
-
 }

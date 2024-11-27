@@ -5,14 +5,17 @@ import Testing
 
 public actor Fulfillment {
   private var _fulfilled: Bool = false
-  public var fulfilled: Bool {
-    _fulfilled
-  }
-  public func reset() {
-    _fulfilled = false
-  }
   public func callAsFunction() {
     _fulfilled = true
+  }
+}
+
+private extension Fulfillment {
+  var fulfilled: Bool {
+    _fulfilled
+  }
+  func reset() {
+    _fulfilled = false
   }
 }
 
