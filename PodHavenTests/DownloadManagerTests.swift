@@ -11,7 +11,7 @@ class DownloadManagerTests {
 
   init() {
     MockURLProtocol.reset()
-    
+
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [MockURLProtocol.self]
     session = URLSession(configuration: configuration)
