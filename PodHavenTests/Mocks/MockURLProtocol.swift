@@ -3,16 +3,17 @@
 import Foundation
 import Testing
 
-final class MockURLProtocol: URLProtocol {
-  struct URLDetail: Sendable {
-    let data: Data?
-    let delay: Duration?
+struct URLDetail: Sendable {
+  let data: Data?
+  let delay: Duration?
 
-    init(data: Data? = nil, delay: Duration? = nil) {
-      self.data = data
-      self.delay = delay
-    }
+  init(data: Data? = nil, delay: Duration? = nil) {
+    self.data = data
+    self.delay = delay
   }
+}
+
+final class MockURLProtocol: URLProtocol {
   static var urlDetails: [URL: URLDetail] = [:]
   static func reset() {
     urlDetails.removeAll()
