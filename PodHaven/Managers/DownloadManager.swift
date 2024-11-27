@@ -26,7 +26,6 @@ typealias DownloadResult = Result<Data, DownloadError>
 actor DownloadTask: Hashable {
   let url: URL
   private let session: URLSession
-  private var task: URLSessionDataTask?
   private var continuation: CheckedContinuation<DownloadResult, Never>?
   private var result: DownloadResult?
 
@@ -95,8 +94,8 @@ actor DownloadTask: Hashable {
   }
 }
 
-private extension DownloadTask {
-  func cancel() async {
+extension DownloadTask {
+  fileprivate func cancel() {
     setResult(.failure(.cancelled))
   }
 }
@@ -106,8 +105,8 @@ actor DownloadManager {
 
   private var activeDownloads: [URL: DownloadTask] = [:]
   private var pendingDownloads: OrderedDictionary<URL, DownloadTask> = [:]
+  private let session: URLSession
   private let maxConcurrentDownloads: Int
-  let session: URLSession  // Made `let` to allow external modification for testing
 
   init(session: URLSession = .shared, maxConcurrentDownloads: Int = 8) {
     self.session = session
