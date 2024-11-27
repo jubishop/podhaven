@@ -33,7 +33,8 @@ class DownloadManagerTests {
       maxConcurrentDownloads: 2
     )
 
-    let result = await downloadManager.addURL(url).download()
+    let downloadTask = await downloadManager.addURL(url)
+    let result = await downloadTask.download()
     switch result {
     case .success(let data):
       #expect(data == expectedData, "Returned data should match")
