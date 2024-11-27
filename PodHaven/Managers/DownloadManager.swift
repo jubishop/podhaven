@@ -26,15 +26,16 @@ typealias DownloadResult = Result<Data, DownloadError>
 actor DownloadTask: Hashable {
   let url: URL
   private let session: URLSession
+  private weak var manager: DownloadManager?
   private var continuation: CheckedContinuation<DownloadResult, Never>?
   private var result: DownloadResult?
 
-  init(url: URL, session: URLSession) {
+  init(url: URL, session: URLSession, manager: DownloadManager) {
     self.url = url
     self.session = session
+    self.manager = manager
   }
 
-  /// Starts the download task.
   func start() async {
     guard result == nil else { return }
     do {
@@ -59,7 +60,6 @@ actor DownloadTask: Hashable {
     }
   }
 
-  /// Awaits the download result, returning a DownloadResult.
   func download() async -> DownloadResult {
     guard let result = result else {
       return await withCheckedContinuation { continuation in
@@ -67,6 +67,14 @@ actor DownloadTask: Hashable {
       }
     }
     return result
+  }
+
+  func cancel() async {
+    if let manager = manager {
+      await manager.cancelDownload(url: url)
+    } else {
+      _cancel()
+    }
   }
 
   // MARK: - Private Methods
@@ -95,7 +103,7 @@ actor DownloadTask: Hashable {
 }
 
 extension DownloadTask {
-  fileprivate func cancel() {
+  fileprivate func _cancel() {
     setResult(.failure(.cancelled))
   }
 }
@@ -113,73 +121,52 @@ actor DownloadManager {
     self.maxConcurrentDownloads = maxConcurrentDownloads
   }
 
-  /// Adds a URL to the download queue and returns a DownloadTask.
-  /// If the URL is already being downloaded or pending, returns the existing download.
   func addURL(_ url: URL) async -> DownloadTask {
-    // Check if the URL is already active
     if let activeDownload = activeDownloads[url] {
       return activeDownload
     }
-
-    // Check if the URL is already pending
     if let pendingDownload = pendingDownloads[url] {
       return pendingDownload
     }
-
-    // Create a new DownloadTask
-    let download = DownloadTask(url: url, session: session)
-
-    // Add to pending and potentially start it.
+    let download = DownloadTask(url: url, session: session, manager: self)
     pendingDownloads[url] = download
     await startNextDownload()
-
     return download
   }
 
-  /// Cancels a specific download by URL.
   func cancelDownload(url: URL) async {
-    // Check active downloads
     if let activeDownload = activeDownloads.removeValue(forKey: url) {
-      await activeDownload.cancel()
+      await activeDownload._cancel()
       await startNextDownload()
     }
-
-    // Check pending downloads
     if let pendingDownload = pendingDownloads.removeValue(forKey: url) {
-      await pendingDownload.cancel()
+      await pendingDownload._cancel()
     }
   }
 
-  /// Cancels all ongoing and pending downloads.
   func cancelAllDownloads() async {
-    // Cancel active downloads
     for (_, download) in activeDownloads {
-      await download.cancel()
+      await download._cancel()
     }
     activeDownloads.removeAll()
-
-    // Cancel pending downloads
     for (_, download) in pendingDownloads {
-      await download.cancel()
+      await download._cancel()
     }
     pendingDownloads.removeAll()
   }
 
   // MARK: - Private Methods
 
-  /// Starts the download for a given download.
   private func startDownload(_ download: DownloadTask) async {
     await download.start()
     await self.removeActiveDownload(url: download.url)
   }
 
-  /// Removes an active download and starts the next pending download if available.
   private func removeActiveDownload(url: URL) async {
     activeDownloads.removeValue(forKey: url)
     await startNextDownload()
   }
 
-  /// Starts the next download from the pending queue if concurrency limits allow.
   private func startNextDownload() async {
     guard
       activeDownloads.count < maxConcurrentDownloads,
