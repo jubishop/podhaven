@@ -43,20 +43,23 @@ public func expect(
   in timeout: Duration = .milliseconds(100),
   _ block: ((Fulfillment) async throws -> Void)? = nil
 ) async {
-  if fulfillment == nil && block == nil {
+  guard fulfillment != nil || block != nil else {
     Issue.record(
       """
       Fulfillment of \"\(comment)\" cannot be tested: \
       either a trailing closure or Fulfillment variable must be provided.
       """
     )
+    return
   }
+
   let actualFulfillment = fulfillment ?? Fulfillment()
   if let block = block {
     do {
       try await block(actualFulfillment)
     } catch {
       Issue.record("Fulfillment of \"\(comment)\" threw error: \(error)")
+      return
     }
   }
 
