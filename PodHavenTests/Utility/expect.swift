@@ -63,14 +63,15 @@ public func expect(
     }
   }
 
-  let sleepDuration: Duration = .milliseconds(10)
-  let tries = Int(ceil(timeout / sleepDuration))
-  for _ in 0...tries {
+  let startTime = ContinuousClock.now
+  var timeElapsed = Duration.zero
+  while timeElapsed <= timeout {
     if await actualFulfillment.fulfilled {
       await actualFulfillment.reset()
       return
     }
-    try! await Task.sleep(for: sleepDuration)
+    timeElapsed = ContinuousClock.now - startTime
+    try! await Task.sleep(for: .milliseconds(10))
   }
   Issue.record("Expected fulfillment of: \"\(comment)\" never occurred")
 }
