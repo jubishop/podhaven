@@ -1,7 +1,7 @@
 import Foundation
 import OrderedCollections
 
-enum DownloadError: Error, LocalizedError {
+enum DownloadError: Error, LocalizedError, Sendable {
   case invalidResponse
   case invalidStatusCode(Int)
   case networkError(Error)
@@ -23,7 +23,7 @@ enum DownloadError: Error, LocalizedError {
 
 typealias DownloadResult = Result<Data, DownloadError>
 
-actor DownloadTask: Hashable {
+final actor DownloadTask: Hashable, Sendable {
   let url: URL
   private let session: URLSession
   private weak var manager: DownloadManager?
@@ -107,7 +107,7 @@ extension DownloadTask {
   }
 }
 
-actor DownloadManager {
+final actor DownloadManager : Sendable {
   static let shared = DownloadManager()
 
   private var activeDownloads: [URL: DownloadTask] = [:]

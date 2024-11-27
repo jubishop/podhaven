@@ -7,27 +7,19 @@ import Testing
 
 @Suite("of DownloadManager tests")
 class DownloadManagerTests {
+  private let session: URLSession
+
+  init() {
+    MockURLProtocol.reset()
+    
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [MockURLProtocol.self]
+    session = URLSession(configuration: configuration)
+  }
+
   @Test("that a single download works successfully")
   func singleSuccessfulDownload() async {
     let url = URL(string: "https://example.com/data")!
-    let expectedData = "Test data".data(using: .utf8)!
-
-    MockURLProtocol.requestHandler = { request in
-      #expect(request.url == url, "URL Requested should be what was added")
-      let response = try #require(
-        HTTPURLResponse(
-          url: url,
-          statusCode: 200,
-          httpVersion: nil,
-          headerFields: nil
-        )
-      )
-      return (response, expectedData)
-    }
-
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.protocolClasses = [MockURLProtocol.self]
-    let session = URLSession(configuration: configuration)
     let downloadManager = DownloadManager(
       session: session,
       maxConcurrentDownloads: 2
@@ -36,7 +28,7 @@ class DownloadManagerTests {
     let result = await downloadManager.addURL(url).download()
     switch result {
     case .success(let data):
-      #expect(data == expectedData, "Returned data should match")
+      #expect(data == url.dataRepresentation, "Returned data should match")
     case .failure(let error):
       Issue.record("Expected success, got error: \(error)")
     }
