@@ -12,13 +12,17 @@ enum MockResponse {
 
 final class MockURLProtocol: URLProtocol {
   private static var mockResponses: [URL: MockResponse] = [:]
-  private static let queue = DispatchQueue(label: "MockURLProtocolQueue")
-
   static subscript(url: URL) -> MockResponse? {
-    get { queue.sync { mockResponses[url] } }
-    set { queue.sync { mockResponses[url] = newValue } }
+    get { mockResponses[url] }
+    set { mockResponses[url] = newValue }
   }
-  static func reset() { queue.sync { mockResponses.removeAll() } }
+  static var activeRequestCount = 0
+  static var maxActiveRequestsObserved = 0
+  static func reset() {
+    mockResponses.removeAll()
+    activeRequestCount = 0
+    maxActiveRequestsObserved = 0
+  }
 
   override class func canInit(with request: URLRequest) -> Bool {
     true
@@ -29,25 +33,34 @@ final class MockURLProtocol: URLProtocol {
 
   override func startLoading() {
     guard let url = request.url, let client = client else {
-      return
+      fatalError("startLoading has no url or client?!")
     }
+
+    MockURLProtocol.activeRequestCount += 1
+    MockURLProtocol.maxActiveRequestsObserved = max(
+      MockURLProtocol.maxActiveRequestsObserved,
+      MockURLProtocol.activeRequestCount
+    )
 
     let mockDetail =
       MockURLProtocol[url]
       ?? .detail(delay: .zero, data: url.dataRepresentation)
 
-    switch mockDetail {
-    case .delay(let delay):
-      handleResponse(with: url.dataRepresentation, delay: delay)
-
-    case .data(let data):
-      handleResponse(with: data, delay: .zero)
-
-    case .detail(let delay, let data):
-      handleResponse(with: data, delay: delay)
-
-    case .error(let error):
-      client.urlProtocol(self, didFailWithError: error)
+    Task {
+      switch mockDetail {
+        case .delay(let delay):
+          handleResponse(with: url.dataRepresentation, delay: delay)
+          
+        case .data(let data):
+          handleResponse(with: data, delay: .zero)
+          
+        case .detail(let delay, let data):
+          handleResponse(with: data, delay: delay)
+          
+        case .error(let error):
+          client.urlProtocol(self, didFailWithError: error)
+      }
+      MockURLProtocol.activeRequestCount -= 1
     }
   }
 

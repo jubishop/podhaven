@@ -25,12 +25,12 @@ typealias DownloadResult = Result<Data, DownloadError>
 
 final actor DownloadTask: Hashable, Sendable {
   let url: URL
-  private let session: URLSession
+  private let session: Networking
   private weak var manager: DownloadManager?
   private var continuation: CheckedContinuation<DownloadResult, Never>?
   private var result: DownloadResult?
 
-  init(url: URL, session: URLSession, manager: DownloadManager) {
+  init(url: URL, session: Networking, manager: DownloadManager) {
     self.url = url
     self.session = session
     self.manager = manager
@@ -85,7 +85,9 @@ extension DownloadTask {
   fileprivate func _start() async {
     guard result == nil else { return }
     do {
+      print("Now fetching \(url)")
       let (data, response) = try await session.data(from: url)
+      print("Results received for: \(url)")
       guard let httpResponse = response as? HTTPURLResponse else {
         throw DownloadError.invalidResponse
       }
@@ -107,15 +109,19 @@ extension DownloadTask {
   }
 }
 
-final actor DownloadManager : Sendable {
+final actor DownloadManager: Sendable {
   static let shared = DownloadManager()
 
   private var activeDownloads: [URL: DownloadTask] = [:]
   private var pendingDownloads: OrderedDictionary<URL, DownloadTask> = [:]
-  private let session: URLSession
+  private let session: Networking
   private let maxConcurrentDownloads: Int
 
-  init(session: URLSession = .shared, maxConcurrentDownloads: Int = 8) {
+  init(
+    session: Networking = URLSession.shared,
+    maxConcurrentDownloads: Int = 8
+  )
+  {
     self.session = session
     self.maxConcurrentDownloads = maxConcurrentDownloads
   }

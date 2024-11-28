@@ -47,13 +47,12 @@ public func expect(
   _ block: ((Fulfillment) async throws -> Void)? = nil
 ) async {
   guard fulfillment != nil || block != nil else {
-    Issue.record(
+    fatalError(
       """
       Fulfillment of \"\(comment)\" cannot be tested: \
       either a trailing closure or Fulfillment variable must be provided.
       """
     )
-    return
   }
 
   let actualFulfillment = fulfillment ?? Fulfillment()
