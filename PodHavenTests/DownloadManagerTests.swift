@@ -66,4 +66,28 @@ actor DownloadManagerTests {
     result = await task.download()
     #expect(result == .failure(.cancelled))
   }
+
+  @Test("that url's are fetched in the order they're received")
+  func fetchedInOrder() async throws {
+    
+    let downloadManager = DownloadManager(
+      session: session,
+      // No concurrency, otherwise ordering is impossible to guarantee.
+      maxConcurrentDownloads: 1
+    )
+
+    let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
+    var tasks: [DownloadTask] = []
+    for url in urls {
+      await session.set(url, .delay(.zero))
+      let task = await downloadManager.addURL(url)
+      tasks.append(task)
+    }
+    // Reversed download awaits, ensure URL's still downloaded in order.
+    for task in tasks.reversed() {
+      _ = await task.download()
+    }
+    let requestOrder = await session.requestOrder
+    #expect(requestOrder == urls)
+  }
 }
