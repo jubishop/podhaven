@@ -6,7 +6,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of DownloadManager tests")
-class DownloadManagerTests {
+actor DownloadManagerTests {
   private let session: NetworkingMock
 
   init() {
@@ -45,5 +45,20 @@ class DownloadManagerTests {
       _ = await task.download()
     }
     #expect(await session.maxActiveRequests == maxConcurrentDownloads)
+  }
+
+  @Test("that you can cancel a mid-flight download")
+  func cancelActiveDownload() async {
+    let downloadManager = DownloadManager(session: session)
+
+    let url = URL(string: "https://example.com/data")!
+    await session.set(url, .delay(.seconds(1)))
+    let task = await downloadManager.addURL(url)
+    Task {
+      try await Task.sleep(for: .milliseconds(100))
+      await task.cancel()
+    }
+    let result = await task.download()
+    #expect(result == .failure(.cancelled))
   }
 }

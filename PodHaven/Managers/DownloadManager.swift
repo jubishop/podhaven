@@ -1,7 +1,7 @@
 import Foundation
 import OrderedCollections
 
-enum DownloadError: Error, LocalizedError, Sendable {
+enum DownloadError: Error, LocalizedError, Sendable, Equatable {
   case invalidResponse
   case invalidStatusCode(Int)
   case networkError(Error)
@@ -17,6 +17,21 @@ enum DownloadError: Error, LocalizedError, Sendable {
       return "A network error occurred: \(error.localizedDescription)"
     case .cancelled:
       return "The download was cancelled."
+    }
+  }
+
+  static func == (lhs: DownloadError, rhs: DownloadError) -> Bool {
+    switch (lhs, rhs) {
+    case (.invalidResponse, .invalidResponse):
+      return true
+    case (.invalidStatusCode(let lhsCode), .invalidStatusCode(let rhsCode)):
+      return lhsCode == rhsCode
+    case (.networkError(let lhsMessage), .networkError(let rhsMessage)):
+      return lhsMessage.localizedDescription == rhsMessage.localizedDescription
+    case (.cancelled, .cancelled):
+      return true
+    default:
+      return false
     }
   }
 }
@@ -118,8 +133,7 @@ final actor DownloadManager: Sendable {
   init(
     session: Networking = URLSession.shared,
     maxConcurrentDownloads: Int = 8
-  )
-  {
+  ) {
     self.session = session
     self.maxConcurrentDownloads = maxConcurrentDownloads
   }
