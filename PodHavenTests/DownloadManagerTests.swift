@@ -29,13 +29,13 @@ class DownloadManagerTests {
 
   @Test("that max concurrent downloads is respected")
   func maxConcurrentDownloads() async {
-    let maxConcurrentDownloads = 5
+    let maxConcurrentDownloads = 20
     let downloadManager = DownloadManager(
       session: session,
       maxConcurrentDownloads: maxConcurrentDownloads
     )
 
-    let urls = (1...10).map { URL(string: "https://example.com/data\($0)")! }
+    let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
     var tasks: [DownloadTask] = []
     for url in urls {
       await session.set(url, .delay(.milliseconds(10)))
@@ -45,6 +45,6 @@ class DownloadManagerTests {
     for task in tasks {
       _ = await task.download()
     }
-    #expect(await session.maxActiveRequestsObserved == maxConcurrentDownloads)
+    #expect(await session.maxActiveRequests == maxConcurrentDownloads)
   }
 }

@@ -14,21 +14,16 @@ enum MockResponse {
 
 actor NetworkingMock: Networking {
   private var mockResponses: [URL: MockResponse] = [:]
-  private(set) var activeRequestCount = 0
-  private(set) var maxActiveRequestsObserved = 0
+  private(set) var activeRequests = 0
+  private(set) var maxActiveRequests = 0
 
   func data(
     from url: URL,
     delegate: URLSessionTaskDelegate?
   ) async throws -> (Data, URLResponse) {
-    defer {
-      activeRequestCount -= 1
-    }
-    activeRequestCount += 1
-    maxActiveRequestsObserved = max(
-      maxActiveRequestsObserved,
-      activeRequestCount
-    )
+    defer { activeRequests -= 1 }
+    activeRequests += 1
+    maxActiveRequests = max(maxActiveRequests, activeRequests)
 
     switch get(url) {
     case .delay(let delay):
