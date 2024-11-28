@@ -39,9 +39,6 @@ actor NetworkingMock: Networking {
 
     case .error(let error):
       throw error
-
-    case .none:
-      fatalError("No mockResponse for \(url) somehow?")
     }
   }
 
@@ -51,7 +48,7 @@ actor NetworkingMock: Networking {
 
   // MARK: - Private Methods
 
-  private func get(_ url: URL) -> MockResponse? {
+  private func get(_ url: URL) -> MockResponse {
     mockResponses[
       url,
       default: .detail(delay: .milliseconds(10), data: url.dataRepresentation)

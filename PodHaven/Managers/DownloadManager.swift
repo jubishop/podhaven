@@ -22,14 +22,12 @@ enum DownloadError: Error, LocalizedError, Sendable, Equatable {
 
   static func == (lhs: DownloadError, rhs: DownloadError) -> Bool {
     switch (lhs, rhs) {
-    case (.invalidResponse, .invalidResponse):
+    case (.invalidResponse, .invalidResponse),
+      (.cancelled, .cancelled),
+      (.networkError, .networkError):
       return true
     case (.invalidStatusCode(let lhsCode), .invalidStatusCode(let rhsCode)):
       return lhsCode == rhsCode
-    case (.networkError(let lhsMessage), .networkError(let rhsMessage)):
-      return lhsMessage.localizedDescription == rhsMessage.localizedDescription
-    case (.cancelled, .cancelled):
-      return true
     default:
       return false
     }
