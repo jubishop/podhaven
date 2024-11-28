@@ -5,16 +5,12 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of DownloadManager tests", .serialized)
+@Suite("of DownloadManager tests")
 class DownloadManagerTests {
-  private let session: URLSession
+  private let session: NetworkingMock
 
   init() {
-    MockURLProtocol.reset()
-
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.protocolClasses = [MockURLProtocol.self]
-    session = URLSession(configuration: configuration)
+    session = NetworkingMock()
   }
 
   @Test("that a single download works successfully")
@@ -31,26 +27,24 @@ class DownloadManagerTests {
     }
   }
 
-  //  @Test("that max concurrent downloads is respected")
-  //  func maxConcurrentDownloads() async {
-  //    let maxConcurrentDownloads = 5
-  //    let downloadManager = DownloadManager(
-  //      session: session,
-  //      maxConcurrentDownloads: maxConcurrentDownloads
-  //    )
-  //
-  //    let urls = (1...10).map { URL(string: "https://example.com/data\($0)")! }
-  //    var tasks: [DownloadTask] = []
-  //    for url in urls {
-  //      MockURLProtocol[url] = .delay(.milliseconds(10))
-  //      let task = await downloadManager.addURL(url)
-  //      tasks.append(task)
-  //    }
-  //    for task in tasks {
-  //      _ = await task.download()
-  //    }
-  //    #expect(
-  //      MockURLProtocol.maxActiveRequestsObserved == maxConcurrentDownloads
-  //    )
-  //  }
+  @Test("that max concurrent downloads is respected")
+  func maxConcurrentDownloads() async {
+    let maxConcurrentDownloads = 5
+    let downloadManager = DownloadManager(
+      session: session,
+      maxConcurrentDownloads: maxConcurrentDownloads
+    )
+
+    let urls = (1...10).map { URL(string: "https://example.com/data\($0)")! }
+    var tasks: [DownloadTask] = []
+    for url in urls {
+      await session.set(url, .delay(.milliseconds(10)))
+      let task = await downloadManager.addURL(url)
+      tasks.append(task)
+    }
+    for task in tasks {
+      _ = await task.download()
+    }
+    #expect(await session.maxActiveRequestsObserved == maxConcurrentDownloads)
+  }
 }

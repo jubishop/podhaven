@@ -85,9 +85,7 @@ extension DownloadTask {
   fileprivate func _start() async {
     guard result == nil else { return }
     do {
-      print("Now fetching \(url)")
       let (data, response) = try await session.data(from: url)
-      print("Results received for: \(url)")
       guard let httpResponse = response as? HTTPURLResponse else {
         throw DownloadError.invalidResponse
       }
