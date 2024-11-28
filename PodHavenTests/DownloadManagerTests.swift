@@ -38,13 +38,15 @@ actor DownloadManagerTests {
     let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
     var tasks: [DownloadTask] = []
     for url in urls {
+      await session.set(url, .delay(.milliseconds(10)))
       let task = await downloadManager.addURL(url)
       tasks.append(task)
     }
     for task in tasks {
       _ = await task.download()
     }
-    #expect(await session.maxActiveRequests == maxConcurrentDownloads)
+    let maxActiveRequests = await session.maxActiveRequests
+    #expect(maxActiveRequests == maxConcurrentDownloads)
   }
 
   @Test("that you can cancel a mid-flight download")
@@ -52,17 +54,17 @@ actor DownloadManagerTests {
     let downloadManager = DownloadManager(session: session)
 
     let url = URL(string: "https://example.com/data")!
-    await session.set(url, .delay(.milliseconds(500)))
+    await session.set(url, .delay(.milliseconds(50)))
     let task = await downloadManager.addURL(url)
     Task {
-      try await Task.sleep(for: .milliseconds(100))
+      try await Task.sleep(for: .milliseconds(10))
       await task.cancel()
     }
     var result = await task.download()
     #expect(result == .failure(.cancelled))
 
     // Even after the url data has returned, the result remains cancelled.
-    try await Task.sleep(for: .seconds(1))
+    try await Task.sleep(for: .milliseconds(100))
     result = await task.download()
     #expect(result == .failure(.cancelled))
   }
@@ -79,7 +81,6 @@ actor DownloadManagerTests {
     let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
     var tasks: [DownloadTask] = []
     for url in urls {
-      await session.set(url, .delay(.zero))
       let task = await downloadManager.addURL(url)
       tasks.append(task)
     }
@@ -87,7 +88,7 @@ actor DownloadManagerTests {
     for task in tasks.reversed() {
       _ = await task.download()
     }
-    let requestOrder = await session.requestOrder
-    #expect(requestOrder == urls)
+    let requests = await session.requests
+    #expect(requests == urls)
   }
 }

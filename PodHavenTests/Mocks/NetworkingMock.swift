@@ -14,7 +14,7 @@ enum MockResponse {
 
 actor NetworkingMock: Networking {
   private var mockResponses: [URL: MockResponse] = [:]
-  private(set) var requestOrder: [URL] = []
+  private(set) var requests: [URL] = []
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
 
@@ -25,7 +25,7 @@ actor NetworkingMock: Networking {
     defer { activeRequests -= 1 }
     activeRequests += 1
     maxActiveRequests = max(maxActiveRequests, activeRequests)
-    requestOrder.append(url)
+    requests.append(url)
 
     switch get(url) {
     case .delay(let delay):
@@ -53,7 +53,7 @@ actor NetworkingMock: Networking {
   private func get(_ url: URL) -> MockResponse {
     mockResponses[
       url,
-      default: .detail(delay: .milliseconds(10), data: url.dataRepresentation)
+      default: .detail(delay: .zero, data: url.dataRepresentation)
     ]
   }
 
