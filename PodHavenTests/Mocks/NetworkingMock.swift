@@ -54,7 +54,7 @@ actor NetworkingMock: Networking {
   private func get(_ url: URL) -> MockResponse? {
     mockResponses[
       url,
-      default: .detail(delay: .zero, data: url.dataRepresentation)
+      default: .detail(delay: .milliseconds(10), data: url.dataRepresentation)
     ]
   }
 

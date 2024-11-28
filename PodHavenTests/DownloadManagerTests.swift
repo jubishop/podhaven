@@ -38,7 +38,6 @@ class DownloadManagerTests {
     let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
     var tasks: [DownloadTask] = []
     for url in urls {
-      await session.set(url, .delay(.milliseconds(10)))
       let task = await downloadManager.addURL(url)
       tasks.append(task)
     }
