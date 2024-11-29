@@ -14,7 +14,7 @@ actor PodcastTests {
     db = AppDatabase.empty()
   }
 
-  @Test("that a podcast can be created")
+  @Test("that a podcast can be created, fetched, updated, and deleted")
   func createSinglePodcast() async throws {
     let url = URL(string: "https://example.com/data")!
     try db.write { db in

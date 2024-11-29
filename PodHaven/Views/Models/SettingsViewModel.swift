@@ -5,7 +5,8 @@ import OPML
 import UniformTypeIdentifiers
 
 @Observable @MainActor final class SettingsViewModel {
-  // MARK: - OPML work
+  // MARK: - OPML
+
   let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)!
   var opmlImporting = false
 

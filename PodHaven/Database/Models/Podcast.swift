@@ -6,9 +6,6 @@ import GRDB
 struct UnsavedPodcast: Savable {
   let feedURL: URL
   var title: String
-
-  // MARK: - GRDB
-  static var databaseTableName: String { "podcast" }
 }
 
 typealias Podcast = Saved<UnsavedPodcast>

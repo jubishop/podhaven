@@ -79,7 +79,7 @@ final actor DownloadTask: Hashable, Sendable {
     }
   }
 
-  // MARK: - Hashable Conformance
+  // MARK: - Equatable / Hashable
 
   static func == (lhs: DownloadTask, rhs: DownloadTask) -> Bool {
     lhs.url == rhs.url
