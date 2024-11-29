@@ -7,8 +7,15 @@ import UniformTypeIdentifiers
 @Observable @MainActor final class SettingsViewModel {
   // MARK: - OPML
 
+  struct OPMLData: Identifiable {
+    let id = UUID()
+    let title: String
+    let entries: Dictionary<URL, OPMLEntry>
+  }
+
   let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)!
   var opmlImporting = false
+  var opmlData: OPMLData?
 
   func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
     switch result {
@@ -27,9 +34,15 @@ import UniformTypeIdentifiers
   func importOPMLFile(_ url: URL) {
     do {
       let opml = try OPML(file: url)
-      for entry in opml.entries {
-        print(entry.feedURL!.absoluteString)
-      }
+      opmlData = OPMLData(
+        title: opml.title ?? "OPML Entries",
+        entries: Dictionary(
+          uniqueKeysWithValues: opml.entries.compactMap { entry in
+            guard let feedURL = entry.feedURL else { return nil }
+            return (feedURL, entry)
+          }
+        )
+      )
     } catch {
       Failure.fatal("Couldn't parse OPML file: \(error)")
     }

@@ -40,6 +40,14 @@ struct SettingsView: View {
       allowedContentTypes: [viewModel.opmlType],
       onCompletion: viewModel.opmlFileImporterCompletion
     )
+    .sheet(item: $viewModel.opmlData) { opmlData in
+      Text(opmlData.title)
+      Button("Cancel") { viewModel.opmlData = nil }
+      List(Array(opmlData.entries.values), id: \.feedURL) { entry in
+        Text(entry.title ?? "Unknown Podcast Title")
+      }
+      .interactiveDismissDisabled(true)
+    }
   }
 }
 
