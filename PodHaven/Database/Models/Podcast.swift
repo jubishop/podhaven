@@ -3,8 +3,7 @@
 import Foundation
 import GRDB
 
-struct UnsavedPodcast: Savable
-{
+struct UnsavedPodcast: Savable {
   let feedURL: URL
   var title: String
 

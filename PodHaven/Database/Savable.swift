@@ -34,6 +34,11 @@ where V: Savable {
     set { value[keyPath: keyPath] = newValue }
   }
 
+  public init(row: GRDB.Row) throws {
+    id = row[Column("id")]
+    value = try V(row: row)
+  }
+
   public func encode(to container: inout GRDB.PersistenceContainer) throws {
     container[Column("id")] = id
     try value.encode(to: &container)
