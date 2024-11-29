@@ -10,6 +10,8 @@ enum Migrations {
     migrator.registerMigration("v1") { db in
       try db.create(table: "podcast") { t in
         t.autoIncrementedPrimaryKey("id")
+        t.column("feedURL", .text).unique().notNull()
+        t.column("title", .text).notNull()
       }
     }
     
