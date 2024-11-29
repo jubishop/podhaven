@@ -35,7 +35,7 @@ import UniformTypeIdentifiers
     do {
       let opml = try OPML(file: url)
       opmlData = OPMLData(
-        title: opml.title ?? "OPML Entries",
+        title: opml.title ?? "Podcast Subscriptions",
         entries: Dictionary(
           uniqueKeysWithValues: opml.entries.compactMap { entry in
             guard let feedURL = entry.feedURL else { return nil }
