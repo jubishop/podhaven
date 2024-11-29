@@ -54,7 +54,7 @@ final class AppDatabase: Sendable {
     try dbWriter.write(block)
   }
 
-  var reader: any GRDB.DatabaseReader {
+  var reader: any DatabaseReader {
     dbWriter
   }
 }

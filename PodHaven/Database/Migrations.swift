@@ -6,16 +6,25 @@ import GRDB
 enum Migrations {
   static func migrate(_ dbWriter: DatabaseWriter) throws {
     var migrator = DatabaseMigrator()
-    
+
     migrator.registerMigration("v1") { db in
       try db.create(table: "podcast") { t in
         t.autoIncrementedPrimaryKey("id")
-        t.column("feedURL", .text).unique().notNull()
+        t.column("feedURL", .text).unique().notNull().indexed()
         t.column("title", .text).notNull()
       }
+      try db.execute(
+        sql: """
+          CREATE TRIGGER protectFeedURL
+          BEFORE UPDATE OF feedURL ON podcast
+          WHEN OLD.feedURL != NEW.feedURL
+          BEGIN
+          SELECT RAISE(ABORT, 'Updating podcast.feedURL is prohibited');
+          END;
+          """
+      )
     }
-    
+
     try migrator.migrate(dbWriter)
   }
 }
-

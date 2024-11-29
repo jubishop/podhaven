@@ -16,9 +16,9 @@ actor PodcastTests {
 
   @Test("that a podcast can be created, fetched, updated, and deleted")
   func createSinglePodcast() async throws {
-    let url = URL(string: "https://example.com/data")!
+    let url = try #require(URL(string: "https://example.com/data"))
     try db.write { db in
-      let unsavedPodcast = UnsavedPodcast(feedURL: url, title: "Title")
+      let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
       var podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
       #expect(podcast.title == unsavedPodcast.title)
@@ -61,6 +61,72 @@ actor PodcastTests {
       let titleCount =
         try Podcast.filter(Column("title") == podcast.title).fetchCount(db)
       #expect(titleCount == 0)
+    }
+  }
+
+  @Test("that a podcast feedURL must be valid")
+  func failToInsertInvalidFeedURL() async throws {
+    try db.write { db in
+      // Cannot instantiate it.
+      #expect {
+        _ = try UnsavedPodcast(
+          feedURL: try #require(URL(string: "file://example.com/data")),
+          title: "Title"
+        )
+      } throws: { error in
+        error is DBError && error.localizedDescription.contains("scheme")
+      }
+
+      // Cannot work around the init() check and save it.
+      #expect {
+        let unsavedPodcast = try UnsavedPodcast(
+          row: Row([
+            "title": "New title",
+            "feedURL": try #require(URL(string: "http:/path/to/data")),
+          ])
+        )
+        _ = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
+      } throws: { error in
+        error is DBError && error.localizedDescription.contains("absolute")
+      }
+
+      // Can't update it.
+      let unsavedPodcast = try UnsavedPodcast(
+        feedURL: try #require(URL(string: "https://example.com/data")),
+        title: "Title"
+      )
+      let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
+      let newPodcast = try Podcast(
+        row: Row([
+          "id": podcast.id, "title": "New title",
+          "feedURL": try #require(
+            URL(string: "https://example.com/data#anchor")
+          ),
+        ])
+      )
+      #expect { try newPodcast.update(db) } throws: { error in
+        error is DBError && error.localizedDescription.contains("fragment")
+      }
+    }
+  }
+
+  @Test("that a podcast feedURL cannot be altered")
+  func failToUpdateFeedURL() async throws {
+    try db.write { db in
+      let unsavedPodcast = try UnsavedPodcast(
+        feedURL: try #require(URL(string: "https://example.com/data")),
+        title: "Title"
+      )
+      let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
+      let newPodcast = try Podcast(
+        row: Row([
+          "id": podcast.id, "title": "New title",
+          "feedURL": try #require(URL(string: "https://example.com/new_data")),
+        ])
+      )
+      #expect { try newPodcast.update(db) } throws: { error in
+        error is DatabaseError
+      }
     }
   }
 }
