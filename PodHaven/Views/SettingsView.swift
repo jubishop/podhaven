@@ -44,7 +44,7 @@ struct SettingsView: View {
       Text(opmlData.title)
       Button("Cancel") { viewModel.opmlData = nil }
       List(Array(opmlData.entries.values), id: \.feedURL) { entry in
-        Text(entry.title ?? "Unknown Podcast Title")
+        Text(entry.text)
       }
       .interactiveDismissDisabled(true)
     }
