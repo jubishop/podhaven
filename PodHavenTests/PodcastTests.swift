@@ -67,7 +67,7 @@ actor PodcastTests {
   @Test("that a podcast feedURL must be valid")
   func failToInsertInvalidFeedURL() async throws {
     try db.write { db in
-      // Cannot instantiate it.
+      // Bad scheme
       #expect {
         _ = try UnsavedPodcast(
           feedURL: try #require(URL(string: "file://example.com/data")),
@@ -77,55 +77,24 @@ actor PodcastTests {
         error is DBError && error.localizedDescription.contains("scheme")
       }
 
-      // Cannot work around the init() check and save it.
+      // Not absolute
       #expect {
-        let unsavedPodcast = try UnsavedPodcast(
-          row: Row([
-            "title": "New title",
-            "feedURL": try #require(URL(string: "http:/path/to/data")),
-          ])
+        _ = try UnsavedPodcast(
+          feedURL: try #require(URL(string: "http:/path/to/data")),
+          title: "Title"
         )
-        _ = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
       } throws: { error in
         error is DBError && error.localizedDescription.contains("absolute")
       }
 
-      // Can't update it.
-      let unsavedPodcast = try UnsavedPodcast(
-        feedURL: try #require(URL(string: "https://example.com/data")),
-        title: "Title"
-      )
-      let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
-      let newPodcast = try Podcast(
-        row: Row([
-          "id": podcast.id, "title": "New title",
-          "feedURL": try #require(
-            URL(string: "https://example.com/data#anchor")
-          ),
-        ])
-      )
-      #expect { try newPodcast.update(db) } throws: { error in
+      // Fragment
+      #expect {
+        _ = try UnsavedPodcast(
+          feedURL: try #require(URL(string: "http://hi.com/data#fragment")),
+          title: "Title"
+        )
+      } throws: { error in
         error is DBError && error.localizedDescription.contains("fragment")
-      }
-    }
-  }
-
-  @Test("that a podcast feedURL cannot be altered")
-  func failToUpdateFeedURL() async throws {
-    try db.write { db in
-      let unsavedPodcast = try UnsavedPodcast(
-        feedURL: try #require(URL(string: "https://example.com/data")),
-        title: "Title"
-      )
-      let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
-      let newPodcast = try Podcast(
-        row: Row([
-          "id": podcast.id, "title": "New title",
-          "feedURL": try #require(URL(string: "https://example.com/new_data")),
-        ])
-      )
-      #expect { try newPodcast.update(db) } throws: { error in
-        error is DatabaseError
       }
     }
   }

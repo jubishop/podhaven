@@ -13,16 +13,6 @@ enum Migrations {
         t.column("feedURL", .text).unique().notNull().indexed()
         t.column("title", .text).notNull()
       }
-      try db.execute(
-        sql: """
-          CREATE TRIGGER protectFeedURL
-          BEFORE UPDATE OF feedURL ON podcast
-          WHEN OLD.feedURL != NEW.feedURL
-          BEGIN
-          SELECT RAISE(ABORT, 'Updating podcast.feedURL is prohibited');
-          END;
-          """
-      )
     }
 
     try migrator.migrate(dbWriter)

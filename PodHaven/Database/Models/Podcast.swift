@@ -13,12 +13,6 @@ struct UnsavedPodcast: Savable {
     self.title = title
   }
 
-  // MARK: - Persistence Callbacks
-
-  public func willSave(_ db: Database) throws {
-    try UnsavedPodcast.validateURL(feedURL)
-  }
-
   // MARK: - Validations
 
   private static func validateURL(_ url: URL) throws {
