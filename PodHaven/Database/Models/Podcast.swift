@@ -8,10 +8,12 @@ struct UnsavedPodcast: Savable {
   var title: String
 
   init(feedURL: URL, title: String) throws {
+    try UnsavedPodcast.validateURL(feedURL)
     self.feedURL = feedURL
     self.title = title
-    try UnsavedPodcast.validateURL(feedURL)
   }
+
+  // MARK: - Persistence Callbacks
 
   public func willSave(_ db: Database) throws {
     try UnsavedPodcast.validateURL(feedURL)
