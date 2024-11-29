@@ -87,7 +87,7 @@ actor PodcastTests {
         error is DBError && error.localizedDescription.contains("absolute")
       }
 
-      // Fragment
+      // Contains fragment
       #expect {
         _ = try UnsavedPodcast(
           feedURL: try #require(URL(string: "http://hi.com/data#fragment")),

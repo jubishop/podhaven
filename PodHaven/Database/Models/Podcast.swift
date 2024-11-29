@@ -9,6 +9,7 @@ struct UnsavedPodcast: Savable {
 
   init(feedURL: URL, title: String) throws {
     try UnsavedPodcast.validateURL(feedURL)
+
     self.feedURL = feedURL
     self.title = title
   }
