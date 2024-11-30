@@ -6,17 +6,15 @@ typealias DownloadResult = Result<Data, DownloadError>
 final actor DownloadTask: Sendable {
   let url: URL
   private let session: Networking
-  private weak var manager: DownloadManager?
   private var beganContinuations: [CheckedContinuation<Void, Never>] = []
   private var finishedContinuations:
     [CheckedContinuation<DownloadResult, Never>] = []
   private var begun: Bool = false
   private var result: DownloadResult?
 
-  init(url: URL, session: Networking, manager: DownloadManager) {
+  init(url: URL, session: Networking) {
     self.url = url
     self.session = session
-    self.manager = manager
   }
 
   func downloadBegan() async {
@@ -35,12 +33,8 @@ final actor DownloadTask: Sendable {
     }
   }
 
-  func cancel() async {
-    if let manager = manager {
-      await manager.cancelDownload(url: url)
-    } else {
-      _cancel()
-    }
+  func cancel() {
+    haveFinished(.failure(.cancelled))
   }
 
   // MARK: - Private Methods
@@ -66,10 +60,6 @@ final actor DownloadTask: Sendable {
 }
 
 extension DownloadTask {
-  fileprivate func _cancel() {
-    haveFinished(.failure(.cancelled))
-  }
-
   fileprivate func _start() async {
     guard result == nil else { return }
     do {
@@ -121,7 +111,7 @@ final actor DownloadManager: Sendable {
     if let pendingDownload = pendingDownloads[url] {
       return pendingDownload
     }
-    let download = DownloadTask(url: url, session: session, manager: self)
+    let download = DownloadTask(url: url, session: session)
     pendingDownloads[url] = download
     startNextDownload()
     return download
@@ -129,21 +119,21 @@ final actor DownloadManager: Sendable {
 
   func cancelDownload(url: URL) async {
     if let activeDownload = activeDownloads.removeValue(forKey: url) {
-      await activeDownload._cancel()
+      await activeDownload.cancel()
       startNextDownload()
     }
     if let pendingDownload = pendingDownloads.removeValue(forKey: url) {
-      await pendingDownload._cancel()
+      await pendingDownload.cancel()
     }
   }
 
   func cancelAllDownloads() async {
     for (_, download) in activeDownloads {
-      await download._cancel()
+      await download.cancel()
     }
     activeDownloads.removeAll()
     for (_, download) in pendingDownloads {
-      await download._cancel()
+      await download.cancel()
     }
     pendingDownloads.removeAll()
   }
