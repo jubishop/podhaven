@@ -23,6 +23,7 @@ import UniformTypeIdentifiers
     enum Status {
       case waiting, downloading, finished
     }
+
     let text: String
     let feedURL: URL
     var status: Status = .waiting
