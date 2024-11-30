@@ -10,6 +10,7 @@ final actor DownloadTask: Hashable, Sendable {
   private var beganContinuations: [CheckedContinuation<Void, Never>] = []
   private var finishedContinuations:
     [CheckedContinuation<DownloadResult, Never>] = []
+  private var begun: Bool = false
   private var result: DownloadResult?
 
   init(url: URL, session: Networking, manager: DownloadManager) {
@@ -19,7 +20,7 @@ final actor DownloadTask: Hashable, Sendable {
   }
 
   func downloadBegan() async {
-    guard result == nil else { return }
+    guard !begun else { return }
 
     await withCheckedContinuation { continuation in
       beganContinuations.append(continuation)
@@ -44,27 +45,23 @@ final actor DownloadTask: Hashable, Sendable {
 
   // MARK: - Private Methods
 
-  private func setResult(_ result: DownloadResult) {
-    guard self.result == nil else { return }
-    self.result = result
-    resumeContinuations()
-  }
-
-  private func resumeBeganContinuations() {
+  private func haveBegun() {
+    guard !self.begun else { return }
+    self.begun = true
     for beganContinuation in beganContinuations {
       beganContinuation.resume()
     }
     beganContinuations.removeAll()
   }
 
-  private func resumeContinuations() {
-    resumeBeganContinuations()
-    if let result = result {
-      for finishedContinuation in finishedContinuations {
-        finishedContinuation.resume(returning: result)
-      }
-      finishedContinuations.removeAll()
+  private func haveFinished(_ result: DownloadResult) {
+    guard self.result == nil else { return }
+    self.result = result
+    haveBegun()
+    for finishedContinuation in finishedContinuations {
+      finishedContinuation.resume(returning: result)
     }
+    finishedContinuations.removeAll()
   }
 
   // MARK: - Equatable / Hashable
@@ -80,13 +77,13 @@ final actor DownloadTask: Hashable, Sendable {
 
 extension DownloadTask {
   fileprivate func _cancel() {
-    setResult(.failure(.cancelled))
+    haveFinished(.failure(.cancelled))
   }
 
   fileprivate func _start() async {
     guard result == nil else { return }
     do {
-      resumeBeganContinuations()
+      haveBegun()
       let (data, response) = try await session.data(from: url)
       guard let httpResponse = response as? HTTPURLResponse else {
         throw DownloadError.invalidResponse
@@ -94,7 +91,7 @@ extension DownloadTask {
       guard (200...299).contains(httpResponse.statusCode) else {
         throw DownloadError.invalidStatusCode(httpResponse.statusCode)
       }
-      setResult(.success(data))
+      haveFinished(.success(data))
     } catch {
       let finalError: DownloadError
       if let downloadError = error as? DownloadError {
@@ -104,7 +101,7 @@ extension DownloadTask {
       } else {
         finalError = .networkError(error)
       }
-      setResult(.failure(finalError))
+      haveFinished(.failure(finalError))
     }
   }
 }
