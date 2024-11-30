@@ -7,7 +7,9 @@ final actor DownloadTask: Hashable, Sendable {
   let url: URL
   private let session: Networking
   private weak var manager: DownloadManager?
-  private var continuations: [CheckedContinuation<DownloadResult, Never>] = []
+  private var beganContinuations: [CheckedContinuation<Void, Never>] = []
+  private var finishedContinuations:
+    [CheckedContinuation<DownloadResult, Never>] = []
   private var result: DownloadResult?
 
   init(url: URL, session: Networking, manager: DownloadManager) {
@@ -16,11 +18,19 @@ final actor DownloadTask: Hashable, Sendable {
     self.manager = manager
   }
 
-  func download() async -> DownloadResult {
+  func downloadBegan() async {
+    guard result == nil else { return }
+
+    await withCheckedContinuation { continuation in
+      beganContinuations.append(continuation)
+    }
+  }
+
+  func downloadFinished() async -> DownloadResult {
     guard result == nil else { return result! }
 
     return await withCheckedContinuation { continuation in
-      continuations.append(continuation)
+      finishedContinuations.append(continuation)
     }
   }
 
@@ -40,12 +50,20 @@ final actor DownloadTask: Hashable, Sendable {
     resumeContinuations()
   }
 
+  private func resumeBeganContinuations() {
+    for beganContinuation in beganContinuations {
+      beganContinuation.resume()
+    }
+    beganContinuations.removeAll()
+  }
+
   private func resumeContinuations() {
+    resumeBeganContinuations()
     if let result = result {
-      for continuation in continuations {
-        continuation.resume(returning: result)
+      for finishedContinuation in finishedContinuations {
+        finishedContinuation.resume(returning: result)
       }
-      continuations.removeAll()
+      finishedContinuations.removeAll()
     }
   }
 
@@ -68,6 +86,7 @@ extension DownloadTask {
   fileprivate func _start() async {
     guard result == nil else { return }
     do {
+      resumeBeganContinuations()
       let (data, response) = try await session.data(from: url)
       guard let httpResponse = response as? HTTPURLResponse else {
         throw DownloadError.invalidResponse

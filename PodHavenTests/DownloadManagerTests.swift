@@ -18,7 +18,7 @@ actor DownloadManagerTests {
     let downloadManager = DownloadManager(session: session)
 
     let url = URL(string: "https://example.com/data")!
-    let result = await downloadManager.addURL(url).download()
+    let result = await downloadManager.addURL(url).downloadFinished()
     switch result {
     case .success(let data):
       #expect(data == url.dataRepresentation, "Returned data should match")
@@ -43,7 +43,7 @@ actor DownloadManagerTests {
       tasks.append(task)
     }
     for task in tasks {
-      _ = await task.download()
+      _ = await task.downloadFinished()
     }
     let maxActiveRequests = await session.maxActiveRequests
     #expect(maxActiveRequests == maxConcurrentDownloads)
@@ -60,12 +60,12 @@ actor DownloadManagerTests {
       try await Task.sleep(for: .milliseconds(10))
       await task.cancel()
     }
-    var result = await task.download()
+    var result = await task.downloadFinished()
     #expect(result == .failure(.cancelled))
 
     // Even after the url data has returned, the result remains cancelled.
     try await Task.sleep(for: .milliseconds(100))
-    result = await task.download()
+    result = await task.downloadFinished()
     #expect(result == .failure(.cancelled))
   }
 
@@ -85,24 +85,24 @@ actor DownloadManagerTests {
     }
     // Reversed download awaits, ensure URL's still downloaded in order.
     for task in tasks.reversed() {
-      _ = await task.download()
+      _ = await task.downloadFinished()
     }
     let requests = await session.requests
     #expect(requests == urls)
   }
 
-  @Test("that you can call download() multiple times before completion")
+  @Test("that you can call downloadFinished() multiple times before completion")
   func multipleDownloadsCalls() async throws {
     let downloadManager = DownloadManager(session: session)
 
     let url = URL(string: "https://example.com/data")!
-    await session.set(url, .delay(.milliseconds(500)))
+    await session.set(url, .delay(.milliseconds(100)))
     let task = await downloadManager.addURL(url)
     let downloadCount = Counter()
     let taskCount = 5
     for _ in 0..<taskCount {
       Task {
-        let result = await task.download()
+        let result = await task.downloadFinished()
         switch result {
         case .success(let data):
           #expect(data == url.dataRepresentation, "Returned data should match")
@@ -112,7 +112,7 @@ actor DownloadManagerTests {
         }
       }
     }
-    try await Task.sleep(for: .seconds(1))
+    try await Task.sleep(for: .milliseconds(200))
     let tally = await downloadCount.counter
     #expect(tally == taskCount)
   }
