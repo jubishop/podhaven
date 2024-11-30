@@ -99,8 +99,14 @@ import UniformTypeIdentifiers
           guard let outline = opmlFile.outlines[downloadTask.url] else {
             fatalError("No outline for url: \(downloadTask.url)?")
           }
+          #if targetEnvironment(simulator)
+            try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
+          #endif
           await downloadTask.downloadBegan()
           outline.status = .downloading
+          #if targetEnvironment(simulator)
+            try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
+          #endif
           let result = await downloadTask.downloadFinished()
           outline.status = .finished
           // TODO: Save result to Podcasts DB

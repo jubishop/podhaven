@@ -44,7 +44,11 @@ struct SettingsView: View {
     )
     .sheet(item: $opmlViewModel.opmlFile) { opmlFile in
       Text(opmlFile.title)
-      Button("Cancel") { opmlViewModel.opmlFile = nil }
+      if opmlFile.outlines.values.allSatisfy({ $0.status == .finished }) {
+        Button("All Finished") { navigation.currentTab = .upNext }
+      } else {
+        Button("Cancel") { opmlViewModel.opmlFile = nil }
+      }
       List(Array(opmlFile.outlines.values)) { outline in
         HStack {
           Text(outline.text)
