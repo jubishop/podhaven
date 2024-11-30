@@ -4,35 +4,36 @@ import Foundation
 import OPML
 import UniformTypeIdentifiers
 
-@Observable class OPMLFile: Identifiable {
-  var id: String { title }
-  let title: String
-  let outlines: [URL: OPMLOutline]
-
-  init(title: String, outlines: [URL: OPMLOutline]) {
-    self.title = title
-    self.outlines = outlines
-  }
-}
-
-@Observable class OPMLOutline: Identifiable {
-  var id: URL { feedURL }
-
-  enum Status {
-    case waiting, downloading, finished
-  }
-  let text: String
-  let feedURL: URL
-  var status: Status = .waiting
-  var result: DownloadResult?
-
-  init(text: String, feedURL: URL) {
-    self.text = text
-    self.feedURL = feedURL
-  }
-}
-
 @Observable @MainActor final class OPMLViewModel {
+  @Observable final class OPMLFile: Identifiable {
+    var id: String { title }
+
+    let title: String
+    let outlines: [URL: OPMLOutline]
+
+    init(title: String, outlines: [URL: OPMLOutline]) {
+      self.title = title
+      self.outlines = outlines
+    }
+  }
+
+  @Observable final class OPMLOutline: Identifiable {
+    var id: URL { feedURL }
+
+    enum Status {
+      case waiting, downloading, finished
+    }
+    let text: String
+    let feedURL: URL
+    var status: Status = .waiting
+    var result: DownloadResult?
+
+    init(text: String, feedURL: URL) {
+      self.text = text
+      self.feedURL = feedURL
+    }
+  }
+
   let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)!
   var opmlImporting = false
   var opmlFile: OPMLFile?
@@ -97,15 +98,15 @@ import UniformTypeIdentifiers
       for downloadTask in downloadTasks {
         Task {
           guard let outline = opmlFile.outlines[downloadTask.url] else {
-            fatalError("No outline for url: \(downloadTask.url)?")
+            fatalError("No OPMLOutline for url: \(downloadTask.url)?")
           }
           #if targetEnvironment(simulator)
-            try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
+            try await Task.sleep(for: .milliseconds(Int.random(in: 100...1000)))
           #endif
           await downloadTask.downloadBegan()
           outline.status = .downloading
           #if targetEnvironment(simulator)
-            try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
+            try await Task.sleep(for: .milliseconds(Int.random(in: 100...1000)))
           #endif
           let result = await downloadTask.downloadFinished()
           outline.status = .finished

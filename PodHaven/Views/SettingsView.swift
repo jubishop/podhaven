@@ -45,7 +45,9 @@ struct SettingsView: View {
     .sheet(item: $opmlViewModel.opmlFile) { opmlFile in
       Text(opmlFile.title)
       if opmlFile.outlines.values.allSatisfy({ $0.status == .finished }) {
-        Button("All Finished") { navigation.currentTab = .upNext }
+        Button("All Finished") {
+          opmlViewModel.opmlFile = nil
+          navigation.currentTab = .upNext }
       } else {
         Button("Cancel") { opmlViewModel.opmlFile = nil }
       }
