@@ -44,7 +44,7 @@ import UniformTypeIdentifiers
     case .success(let url):
       if url.startAccessingSecurityScopedResource() {
         if let opml = importOPMLFile(url) {
-          loadOPMLFile(opml)
+          downloadOPMLFile(opml)
         }
       } else {
         Failure.fatal("Couldn't start accessing security scoped response.")
@@ -66,9 +66,11 @@ import UniformTypeIdentifiers
   // MARK: - Private Methods
 
   #if targetEnvironment(simulator)
-    public func loadOPMLFileInSimulator(_ opml: OPML) { loadOPMLFile(opml) }
+    public func downloadOPMLFileInSimulator(_ opml: OPML) {
+      downloadOPMLFile(opml)
+    }
   #endif
-  private func loadOPMLFile(_ opml: OPML) {
+  private func downloadOPMLFile(_ opml: OPML) {
     var outlines = [URL: OPMLOutline](capacity: opml.entries.count)
     for entry in opml.entries {
       guard let feedURL = entry.feedURL,

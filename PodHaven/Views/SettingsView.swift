@@ -19,7 +19,7 @@ struct SettingsView: View {
                   withExtension: "opml"
                 )!
                 if let opml = opmlViewModel.importOPMLFile(url) {
-                  opmlViewModel.loadOPMLFileInSimulator(opml)
+                  opmlViewModel.downloadOPMLFileInSimulator(opml)
                 }
               #else
                 opmlViewModel.opmlImporting = true
