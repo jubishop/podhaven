@@ -18,7 +18,9 @@ struct SettingsView: View {
                   forResource: "podcasts",
                   withExtension: "opml"
                 )!
-                opmlViewModel.importOPMLFile(url)
+                if let opml = opmlViewModel.importOPMLFile(url) {
+                  opmlViewModel.loadOPMLFileInSimulator(opml)
+                }
               #else
                 opmlViewModel.opmlImporting = true
               #endif

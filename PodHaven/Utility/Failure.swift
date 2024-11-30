@@ -8,7 +8,6 @@ enum Failure: Sendable {
       fatalError(message)
     #else
       // TODO:  Do something user friendly here
-      fatalError(message)
     #endif
   }
 }

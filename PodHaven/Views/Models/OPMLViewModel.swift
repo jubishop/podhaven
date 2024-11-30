@@ -34,7 +34,9 @@ import UniformTypeIdentifiers
     switch result {
     case .success(let url):
       if url.startAccessingSecurityScopedResource() {
-        importOPMLFile(url)
+        if let opml = importOPMLFile(url) {
+          loadOPMLFile(opml)
+        }
       } else {
         Failure.fatal("Couldn't start accessing security scoped response.")
       }
@@ -44,10 +46,20 @@ import UniformTypeIdentifiers
     }
   }
 
-  func importOPMLFile(_ url: URL) {
+  func importOPMLFile(_ url: URL) -> OPML? {
     guard let opml = try? OPML(file: url) else {
-      return Failure.fatal("Couldn't parse OPML file")
+      Failure.fatal("Couldn't parse OPML file")
+      return nil
     }
+    return opml
+  }
+
+  // MARK: - Private Methods
+
+  #if targetEnvironment(simulator)
+    public func loadOPMLFileInSimulator(_ opml: OPML) { loadOPMLFile(opml) }
+  #endif
+  private func loadOPMLFile(_ opml: OPML) {
     var opmlEntries = [URL: OPMLOutline](capacity: opml.entries.count)
     for entry in opml.entries {
       guard let feedURL = entry.feedURL,
@@ -83,9 +95,7 @@ import UniformTypeIdentifiers
     }
   }
 
-  // MARK: - Private Methods
-
-  func createDownloadManager() -> DownloadManager {
+  private func createDownloadManager() -> DownloadManager {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.allowsCellularAccess = true
     configuration.waitsForConnectivity = true
