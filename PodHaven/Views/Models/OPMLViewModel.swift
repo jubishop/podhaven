@@ -7,17 +7,24 @@ import UniformTypeIdentifiers
 @Observable class OPMLFile: Identifiable {
   var id: String { title }
   let title: String
-  let entries: [URL: OPMLOutline]
+  let outlines: [URL: OPMLOutline]
 
-  init(title: String, entries: [URL: OPMLOutline]) {
+  init(title: String, outlines: [URL: OPMLOutline]) {
     self.title = title
-    self.entries = entries
+    self.outlines = outlines
   }
 }
 
-@Observable class OPMLOutline {
+@Observable class OPMLOutline: Identifiable {
+  var id: URL { feedURL }
+
+  enum Status {
+    case waiting, downloading, finished
+  }
   let text: String
   let feedURL: URL
+  var status: Status = .waiting
+  var result: DownloadResult?
 
   init(text: String, feedURL: URL) {
     self.text = text
@@ -60,7 +67,7 @@ import UniformTypeIdentifiers
     public func loadOPMLFileInSimulator(_ opml: OPML) { loadOPMLFile(opml) }
   #endif
   private func loadOPMLFile(_ opml: OPML) {
-    var opmlEntries = [URL: OPMLOutline](capacity: opml.entries.count)
+    var outlines = [URL: OPMLOutline](capacity: opml.entries.count)
     for entry in opml.entries {
       guard let feedURL = entry.feedURL,
         var components = URLComponents(
@@ -70,25 +77,33 @@ import UniformTypeIdentifiers
       else { continue }
       components.scheme = "https"
       guard let url = components.url else { continue }
-      opmlEntries[url] = OPMLOutline(
+      outlines[url] = OPMLOutline(
         text: entry.text,
         feedURL: url
       )
     }
     opmlFile = OPMLFile(
       title: opml.title ?? "Podcast Subscriptions",
-      entries: opmlEntries
+      outlines: outlines
     )
-    guard let opmlFile = opmlFile else { return }
+    guard let opmlFile = opmlFile else {
+      fatalError("Couldn't create OPMLFile?!")
+    }
     Task {
       let opmlDownloader = createDownloadManager()
-      var downloadTasks = [DownloadTask](capacity: opmlFile.entries.count)
-      for (feedURL, _) in opmlFile.entries {
-        downloadTasks.append(await opmlDownloader.addURL(feedURL))
-      }
+      let downloadTasks = await opmlDownloader.addURLs(
+        opmlFile.outlines.map { $0.key }
+      )
       for downloadTask in downloadTasks {
         Task {
+          guard let outline = opmlFile.outlines[downloadTask.url] else {
+            fatalError("No outline for url: \(downloadTask.url)?")
+          }
+          await downloadTask.downloadBegan()
+          outline.status = .downloading
           let result = await downloadTask.downloadFinished()
+          outline.status = .finished
+          // TODO: Save result to Podcasts DB
           print(result)
         }
       }

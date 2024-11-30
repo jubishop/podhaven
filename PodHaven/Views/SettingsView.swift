@@ -45,8 +45,21 @@ struct SettingsView: View {
     .sheet(item: $opmlViewModel.opmlFile) { opmlFile in
       Text(opmlFile.title)
       Button("Cancel") { opmlViewModel.opmlFile = nil }
-      List(Array(opmlFile.entries.values), id: \.feedURL) { entry in
-        Text(entry.text)
+      List(Array(opmlFile.outlines.values)) { outline in
+        HStack {
+          Text(outline.text)
+          Spacer()
+          if outline.status == .waiting {
+            Image(systemName: "clock")
+              .foregroundColor(.gray)
+          } else if outline.status == .downloading {
+            Image(systemName: "arrow.down.circle")
+              .foregroundColor(.blue)
+          } else if outline.status == .finished {
+            Image(systemName: "checkmark.circle")
+              .foregroundColor(.green)
+          }
+        }
       }
       .interactiveDismissDisabled(true)
     }

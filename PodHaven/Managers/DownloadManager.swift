@@ -133,6 +133,14 @@ final actor DownloadManager: Sendable {
     return download
   }
 
+  func addURLs(_ urls: [URL]) async -> [DownloadTask] {
+    var downloadTasks = [DownloadTask](capacity: urls.count)
+    for url in urls {
+      downloadTasks.append(await addURL(url))
+    }
+    return downloadTasks
+  }
+
   func cancelDownload(url: URL) async {
     if let activeDownload = activeDownloads.removeValue(forKey: url) {
       await activeDownload.cancel()

@@ -27,6 +27,19 @@ actor DownloadManagerTests {
     }
   }
 
+  @Test("that an array of downloads work successfully")
+  func arrayOfSuccessfulDownloads() async {
+    let downloadManager = DownloadManager(session: session)
+
+    let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
+    let downloadTasks = await downloadManager.addURLs(urls)
+    var results = [DownloadResult](capacity: urls.count)
+    for downloadTask in downloadTasks {
+      results.append(await downloadTask.downloadFinished())
+    }
+    #expect(results.count == urls.count)
+  }
+
   @Test("that maxConcurrentDownloads is respected and downloadBegan() works")
   func maxConcurrentDownloads() async {
     let maxConcurrentDownloads = 20
