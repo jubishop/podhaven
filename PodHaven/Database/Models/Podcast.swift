@@ -17,10 +17,9 @@ struct UnsavedPodcast: Savable {
   // MARK: - Validations
 
   private static func validateURL(_ url: URL) throws {
-    guard let scheme = url.scheme?.lowercased(),
-      ["http", "https"].contains(scheme)
+    guard let scheme = url.scheme, scheme == "https"
     else {
-      throw DBError.validationError("feedURL must use http or https scheme.")
+      throw DBError.validationError("feedURL must use https scheme.")
     }
     guard let host = url.host, !host.isEmpty else {
       throw DBError.validationError(

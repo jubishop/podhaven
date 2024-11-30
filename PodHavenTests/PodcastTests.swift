@@ -70,7 +70,7 @@ actor PodcastTests {
       // Bad scheme
       #expect {
         _ = try UnsavedPodcast(
-          feedURL: try #require(URL(string: "file://example.com/data")),
+          feedURL: try #require(URL(string: "http://example.com/data")),
           title: "Title"
         )
       } throws: { error in
@@ -80,7 +80,7 @@ actor PodcastTests {
       // Not absolute
       #expect {
         _ = try UnsavedPodcast(
-          feedURL: try #require(URL(string: "http:/path/to/data")),
+          feedURL: try #require(URL(string: "https:/path/to/data")),
           title: "Title"
         )
       } throws: { error in
@@ -90,7 +90,7 @@ actor PodcastTests {
       // Contains fragment
       #expect {
         _ = try UnsavedPodcast(
-          feedURL: try #require(URL(string: "http://hi.com/data#fragment")),
+          feedURL: try #require(URL(string: "https://hi.com/data#fragment")),
           title: "Title"
         )
       } throws: { error in
