@@ -3,8 +3,15 @@
 import Foundation
 
 actor Counter: Sendable {
-  private(set) var counter: Int = 0
+  private(set) var maxValue: Int = 0
+  private(set) var minValue: Int = 0
+  private(set) var value: Int = 0
   func increment() {
-    counter += 1
+    value += 1
+    maxValue = max(maxValue, value)
+  }
+  func decrement() {
+    value -= 1
+    minValue = min(minValue, value)
   }
 }

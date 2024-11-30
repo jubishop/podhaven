@@ -27,7 +27,7 @@ actor DownloadManagerTests {
     }
   }
 
-  @Test("that max concurrent downloads is respected")
+  @Test("that maxConcurrentDownloads is respected and downloadBegan() works")
   func maxConcurrentDownloads() async {
     let maxConcurrentDownloads = 20
     let downloadManager = DownloadManager(
@@ -42,11 +42,22 @@ actor DownloadManagerTests {
       let task = await downloadManager.addURL(url)
       tasks.append(task)
     }
+    let counter = Counter()
+    for task in tasks {
+      Task {
+        await task.downloadBegan()
+        await counter.increment()
+      }
+      Task {
+        _ = await task.downloadFinished()
+        await counter.decrement()
+      }
+    }
     for task in tasks {
       _ = await task.downloadFinished()
     }
-    let maxActiveRequests = await session.maxActiveRequests
-    #expect(maxActiveRequests == maxConcurrentDownloads)
+    let maxTally = await counter.maxValue
+    #expect(maxTally == maxConcurrentDownloads)
   }
 
   @Test("that you can cancel a mid-flight download")
@@ -113,7 +124,7 @@ actor DownloadManagerTests {
       }
     }
     try await Task.sleep(for: .milliseconds(200))
-    let tally = await downloadCount.counter
+    let tally = await downloadCount.value
     #expect(tally == taskCount)
   }
 }
