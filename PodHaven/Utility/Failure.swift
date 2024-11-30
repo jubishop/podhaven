@@ -2,7 +2,7 @@
 
 import Foundation
 
-enum Failure : Sendable {
+enum Failure: Sendable {
   static func fatal(_ message: String) {
     #if targetEnvironment(simulator)
       fatalError(message)

@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol Networking : Sendable {
+protocol Networking: Sendable {
   func data(
     from url: URL,
     delegate: (any URLSessionTaskDelegate)?

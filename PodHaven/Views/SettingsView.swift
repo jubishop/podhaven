@@ -5,7 +5,7 @@ import SwiftUI
 struct SettingsView: View {
   @Environment(Navigation.self) var navigation
 
-  @State private var viewModel = SettingsViewModel()
+  @State private var opmlViewModel = OPMLViewModel()
 
   var body: some View {
     NavigationStack {
@@ -18,9 +18,9 @@ struct SettingsView: View {
                   forResource: "podcasts",
                   withExtension: "opml"
                 )!
-                viewModel.importOPMLFile(url)
+                opmlViewModel.importOPMLFile(url)
               #else
-                viewModel.opmlImporting = true
+                opmlViewModel.opmlImporting = true
               #endif
             },
             label: { Text("Import OPML") }
@@ -36,13 +36,13 @@ struct SettingsView: View {
       .navigationTitle("Settings")
     }
     .fileImporter(
-      isPresented: $viewModel.opmlImporting,
-      allowedContentTypes: [viewModel.opmlType],
-      onCompletion: viewModel.opmlFileImporterCompletion
+      isPresented: $opmlViewModel.opmlImporting,
+      allowedContentTypes: [opmlViewModel.opmlType],
+      onCompletion: opmlViewModel.opmlFileImporterCompletion
     )
-    .sheet(item: $viewModel.opmlData) { opmlData in
+    .sheet(item: $opmlViewModel.opmlData) { opmlData in
       Text(opmlData.title)
-      Button("Cancel") { viewModel.opmlData = nil }
+      Button("Cancel") { opmlViewModel.opmlData = nil }
       List(Array(opmlData.entries.values), id: \.feedURL) { entry in
         Text(entry.text)
       }
