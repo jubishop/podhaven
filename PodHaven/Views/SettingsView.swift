@@ -40,10 +40,10 @@ struct SettingsView: View {
       allowedContentTypes: [opmlViewModel.opmlType],
       onCompletion: opmlViewModel.opmlFileImporterCompletion
     )
-    .sheet(item: $opmlViewModel.opmlData) { opmlData in
-      Text(opmlData.title)
-      Button("Cancel") { opmlViewModel.opmlData = nil }
-      List(Array(opmlData.entries.values), id: \.feedURL) { entry in
+    .sheet(item: $opmlViewModel.opmlFile) { opmlFile in
+      Text(opmlFile.title)
+      Button("Cancel") { opmlViewModel.opmlFile = nil }
+      List(Array(opmlFile.entries.values), id: \.feedURL) { entry in
         Text(entry.text)
       }
       .interactiveDismissDisabled(true)

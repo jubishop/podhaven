@@ -4,26 +4,31 @@ import Foundation
 import OPML
 import UniformTypeIdentifiers
 
-@Observable @MainActor final class OPMLViewModel {
-  struct OPMLData: Identifiable {
-    let id = UUID()
-    let title: String
-    let entries: [URL: OPMLEntry]
-  }
+@Observable class OPMLFile: Identifiable {
+  var id: String { title }
+  let title: String
+  let entries: [URL: OPMLOutline]
 
-  nonisolated let opmlDownloader: DownloadManager
+  init(title: String, entries: [URL: OPMLOutline]) {
+    self.title = title
+    self.entries = entries
+  }
+}
+
+@Observable class OPMLOutline {
+  let text: String
+  let feedURL: URL
+
+  init(text: String, feedURL: URL) {
+    self.text = text
+    self.feedURL = feedURL
+  }
+}
+
+@Observable @MainActor final class OPMLViewModel {
   let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)!
   var opmlImporting = false
-  var opmlData: OPMLData?
-
-  init() {
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.allowsCellularAccess = true
-    configuration.waitsForConnectivity = true
-    opmlDownloader = DownloadManager(
-      session: URLSession(configuration: configuration)
-    )
-  }
+  var opmlFile: OPMLFile?
 
   func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
     switch result {
@@ -40,33 +45,52 @@ import UniformTypeIdentifiers
   }
 
   func importOPMLFile(_ url: URL) {
-    do {
-      let opml = try OPML(file: url)
-      opmlData = OPMLData(
-        title: opml.title ?? "Podcast Subscriptions",
-        entries: Dictionary(
-          uniqueKeysWithValues: opml.entries.compactMap { entry in
-            guard let feedURL = entry.feedURL else { return nil }
-            return (feedURL, entry)
-          }
+    guard let opml = try? OPML(file: url) else {
+      return Failure.fatal("Couldn't parse OPML file")
+    }
+    var opmlEntries = [URL: OPMLOutline](capacity: opml.entries.count)
+    for entry in opml.entries {
+      guard let feedURL = entry.feedURL,
+        var components = URLComponents(
+          url: feedURL,
+          resolvingAgainstBaseURL: false
         )
+      else { continue }
+      components.scheme = "https"
+      guard let url = components.url else { continue }
+      opmlEntries[url] = OPMLOutline(
+        text: entry.text,
+        feedURL: url
       )
-      if let opmlData = opmlData {
+    }
+    opmlFile = OPMLFile(
+      title: opml.title ?? "Podcast Subscriptions",
+      entries: opmlEntries
+    )
+    guard let opmlFile = opmlFile else { return }
+    Task {
+      let opmlDownloader = createDownloadManager()
+      var downloadTasks = [DownloadTask](capacity: opmlFile.entries.count)
+      for (feedURL, _) in opmlFile.entries {
+        downloadTasks.append(await opmlDownloader.addURL(feedURL))
+      }
+      for downloadTask in downloadTasks {
         Task {
-          var downloadTasks: [DownloadTask] = []
-          for (feedURL, entry) in opmlData.entries {
-            downloadTasks.append(await opmlDownloader.addURL(feedURL))
-          }
-          for downloadTask in downloadTasks {
-            Task {
-              let result = await downloadTask.downloadFinished()
-              print(result)
-            }
-          }
+          let result = await downloadTask.downloadFinished()
+          print(result)
         }
       }
-    } catch {
-      Failure.fatal("Couldn't parse OPML file: \(error)")
     }
+  }
+
+  // MARK: - Private Methods
+
+  func createDownloadManager() -> DownloadManager {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.allowsCellularAccess = true
+    configuration.waitsForConnectivity = true
+    return DownloadManager(
+      session: URLSession(configuration: configuration)
+    )
   }
 }

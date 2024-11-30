@@ -3,7 +3,7 @@ import OrderedCollections
 
 typealias DownloadResult = Result<Data, DownloadError>
 
-final actor DownloadTask: Hashable, Sendable {
+final actor DownloadTask: Sendable {
   let url: URL
   private let session: Networking
   private weak var manager: DownloadManager?
@@ -63,16 +63,6 @@ final actor DownloadTask: Hashable, Sendable {
     }
     finishedContinuations.removeAll()
   }
-
-  // MARK: - Equatable / Hashable
-
-  static func == (lhs: DownloadTask, rhs: DownloadTask) -> Bool {
-    lhs.url == rhs.url
-  }
-
-  nonisolated func hash(into hasher: inout Hasher) {
-    hasher.combine(url)
-  }
 }
 
 extension DownloadTask {
@@ -107,8 +97,6 @@ extension DownloadTask {
 }
 
 final actor DownloadManager: Sendable {
-  static let shared = DownloadManager()
-
   private var activeDownloads: [URL: DownloadTask] = [:]
   private var pendingDownloads: OrderedDictionary<URL, DownloadTask> = [:]
   private let session: Networking
