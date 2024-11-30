@@ -102,6 +102,10 @@ final actor DownloadManager: Sendable {
   private let session: Networking
   private let maxConcurrentDownloads: Int
 
+  var remainingDownloads: Int {
+    pendingDownloads.count + activeDownloads.count
+  }
+
   init(
     session: Networking = URLSession.shared,
     maxConcurrentDownloads: Int = 8

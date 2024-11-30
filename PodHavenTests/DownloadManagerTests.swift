@@ -127,4 +127,27 @@ actor DownloadManagerTests {
     let tally = await downloadCount.value
     #expect(tally == taskCount)
   }
+
+  @Test("that as long as a task exists the Manager won't deallocate")
+  func managerDoesNotDeallocate() async throws {
+    let url2 = URL(string: "https://example.com/data2")!
+    func makeTask() async -> DownloadTask {
+      let downloadManager = DownloadManager(
+        session: session,
+        maxConcurrentDownloads: 1
+      )
+      let url = URL(string: "https://example.com/data")!
+      await session.set(url, .delay(.milliseconds(100)))
+      _ = await downloadManager.addURL(url)
+      await session.set(url2, .delay(.milliseconds(100)))
+      return await downloadManager.addURL(url2)
+    }
+    let task = await makeTask()
+    // In theory, the downloadManager could be deallocated now, since it was
+    // created inside makeTask().  And since it had to wait for the first
+    // url to finish (concurrentTasks = 1, delay = 100ms), it would've never
+    // actually start()'d the second downloadTask.
+    let result = await task.downloadFinished()
+    #expect(result == .success(url2.dataRepresentation))
+  }
 }
