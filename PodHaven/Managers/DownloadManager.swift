@@ -7,7 +7,7 @@ final actor DownloadTask: Hashable, Sendable {
   let url: URL
   private let session: Networking
   private weak var manager: DownloadManager?
-  private var continuation: CheckedContinuation<DownloadResult, Never>?
+  private var continuations: [CheckedContinuation<DownloadResult, Never>] = []
   private var result: DownloadResult?
 
   init(url: URL, session: Networking, manager: DownloadManager) {
@@ -18,8 +18,9 @@ final actor DownloadTask: Hashable, Sendable {
 
   func download() async -> DownloadResult {
     guard result == nil else { return result! }
+
     return await withCheckedContinuation { continuation in
-      self.continuation = continuation
+      continuations.append(continuation)
     }
   }
 
@@ -36,13 +37,15 @@ final actor DownloadTask: Hashable, Sendable {
   private func setResult(_ result: DownloadResult) {
     guard self.result == nil else { return }
     self.result = result
-    resumeContinuation()
+    resumeContinuations()
   }
 
-  private func resumeContinuation() {
-    if let continuation = continuation, let result = result {
-      self.continuation = nil
-      continuation.resume(returning: result)
+  private func resumeContinuations() {
+    if let result = result {
+      for continuation in continuations {
+        continuation.resume(returning: result)
+      }
+      continuations.removeAll()
     }
   }
 

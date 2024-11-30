@@ -9,6 +9,9 @@
     }
   ],
   "defaultOptions" : {
+    "environmentVariableEntries" : [
+
+    ],
     "targetForVariableExpansion" : {
       "containerPath" : "container:PodHaven.xcodeproj",
       "identifier" : "8BD7F91F2CF2A49000CEDAA7",

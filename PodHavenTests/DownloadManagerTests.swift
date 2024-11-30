@@ -71,7 +71,6 @@ actor DownloadManagerTests {
 
   @Test("that url's are fetched in the order they're received")
   func fetchedInOrder() async throws {
-    
     let downloadManager = DownloadManager(
       session: session,
       // No concurrency, otherwise ordering is impossible to guarantee.
@@ -90,5 +89,31 @@ actor DownloadManagerTests {
     }
     let requests = await session.requests
     #expect(requests == urls)
+  }
+
+  @Test("that you can call download() multiple times before completion")
+  func multipleDownloadsCalls() async throws {
+    let downloadManager = DownloadManager(session: session)
+
+    let url = URL(string: "https://example.com/data")!
+    await session.set(url, .delay(.milliseconds(500)))
+    let task = await downloadManager.addURL(url)
+    let downloadCount = Counter()
+    let taskCount = 5
+    for _ in 0..<taskCount {
+      Task {
+        let result = await task.download()
+        switch result {
+        case .success(let data):
+          #expect(data == url.dataRepresentation, "Returned data should match")
+          await downloadCount.increment()
+        case .failure(let error):
+          Issue.record("Expected success, got error: \(error)")
+        }
+      }
+    }
+    try await Task.sleep(for: .seconds(1))
+    let tally = await downloadCount.counter
+    #expect(tally == taskCount)
   }
 }
