@@ -60,8 +60,8 @@ final actor DownloadTask: Sendable {
 }
 
 extension DownloadTask {
-  fileprivate func _start() async {
-    guard result == nil else { return }
+  fileprivate func download() async -> Result<Data, DownloadError> {
+    if let result = result { return result }
     do {
       haveBegun()
       let (data, response) = try await session.data(from: url)
@@ -83,6 +83,10 @@ extension DownloadTask {
       }
       haveFinished(.failure(finalError))
     }
+    guard let result = result else {
+      fatalError("No result by the end of download()?!")
+    }
+    return result
   }
 }
 
@@ -91,6 +95,8 @@ final actor DownloadManager: Sendable {
   private var pendingDownloads: OrderedDictionary<URL, DownloadTask> = [:]
   private let session: Networking
   private let maxConcurrentDownloads: Int
+  private let asyncStream: AsyncStream<DownloadResult>
+  private var streamContinuation: AsyncStream<DownloadResult>.Continuation
 
   var remainingDownloads: Int {
     pendingDownloads.count + activeDownloads.count
@@ -102,8 +108,18 @@ final actor DownloadManager: Sendable {
   ) {
     self.session = session
     self.maxConcurrentDownloads = maxConcurrentDownloads
+    (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(
+      of: DownloadResult.self
+    )
   }
 
+  deinit {
+    self.streamContinuation.finish()
+  }
+
+  func downloads() -> AsyncStream<DownloadResult> { self.asyncStream }
+
+  @discardableResult
   func addURL(_ url: URL) async -> DownloadTask {
     if let activeDownload = activeDownloads[url] {
       return activeDownload
@@ -128,12 +144,12 @@ final actor DownloadManager: Sendable {
   }
 
   func cancelAllDownloads() async {
-    for (_, download) in activeDownloads {
-      await download.cancel()
+    for (_, downloadTask) in activeDownloads {
+      await downloadTask.cancel()
     }
     activeDownloads.removeAll()
-    for (_, download) in pendingDownloads {
-      await download.cancel()
+    for (_, downloadTask) in pendingDownloads {
+      await downloadTask.cancel()
     }
     pendingDownloads.removeAll()
   }
@@ -150,10 +166,11 @@ final actor DownloadManager: Sendable {
     executeDownload(nextEntry.value)
   }
 
-  private func executeDownload(_ download: DownloadTask) {
+  private func executeDownload(_ downloadTask: DownloadTask) {
     Task {
-      await download._start()
-      activeDownloads.removeValue(forKey: download.url)
+      let result = await downloadTask.download()
+      streamContinuation.yield(result)
+      activeDownloads.removeValue(forKey: downloadTask.url)
       startNextDownload()
     }
   }

@@ -150,4 +150,26 @@ actor DownloadManagerTests {
     let result = await task.downloadFinished()
     #expect(result == .success(url2.dataRepresentation))
   }
+
+  @Test("that you can use the AsyncStream to get results")
+  func basicAsyncStream() async throws {
+    let downloadManager = DownloadManager(session: session)
+
+    let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
+    for url in urls {
+      await downloadManager.addURL(url)
+    }
+    print(await downloadManager.remainingDownloads)
+    var resultsReceived = 0
+    for await result in await downloadManager.downloads() {
+      guard case .success = result else {
+        Issue.record("Result was not successful")
+        return
+      }
+      resultsReceived += 1
+      if resultsReceived == 100 {
+        break
+      }
+    }
+  }
 }
