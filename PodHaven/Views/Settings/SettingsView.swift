@@ -3,8 +3,6 @@
 import SwiftUI
 
 struct SettingsView: View {
-  @Environment(Navigation.self) var navigation
-
   var body: some View {
     NavigationStack {
       Form {

@@ -4,37 +4,37 @@ import Foundation
 import OPML
 import UniformTypeIdentifiers
 
+@Observable @MainActor final class OPMLFile: Identifiable {
+  nonisolated var id: String { title }
+
+  let title: String
+  let outlines: [URL: OPMLOutline]
+
+  init(title: String, outlines: [URL: OPMLOutline]) {
+    self.title = title
+    self.outlines = outlines
+  }
+}
+
+@Observable @MainActor final class OPMLOutline: Identifiable {
+  nonisolated var id: URL { feedURL }
+
+  enum Status {
+    case waiting, downloading, finished
+  }
+
+  let text: String
+  let feedURL: URL
+  var status: Status = .waiting
+  var result: DownloadResult?
+
+  init(text: String, feedURL: URL) {
+    self.text = text
+    self.feedURL = feedURL
+  }
+}
+
 @Observable @MainActor final class OPMLViewModel {
-  @Observable final class OPMLFile: Identifiable {
-    var id: String { title }
-
-    let title: String
-    let outlines: [URL: OPMLOutline]
-
-    init(title: String, outlines: [URL: OPMLOutline]) {
-      self.title = title
-      self.outlines = outlines
-    }
-  }
-
-  @Observable final class OPMLOutline: Identifiable {
-    var id: URL { feedURL }
-
-    enum Status {
-      case waiting, downloading, finished
-    }
-
-    let text: String
-    let feedURL: URL
-    var status: Status = .waiting
-    var result: DownloadResult?
-
-    init(text: String, feedURL: URL) {
-      self.text = text
-      self.feedURL = feedURL
-    }
-  }
-
   let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)!
   var opmlImporting = false
   var opmlFile: OPMLFile?
@@ -65,11 +65,6 @@ import UniformTypeIdentifiers
 
   // MARK: - Private Methods
 
-  #if targetEnvironment(simulator)
-    public func downloadOPMLFileInSimulator(_ opml: OPML) {
-      downloadOPMLFile(opml)
-    }
-  #endif
   private func downloadOPMLFile(_ opml: OPML) {
     var outlines = [URL: OPMLOutline](capacity: opml.entries.count)
     for entry in opml.entries {
@@ -131,4 +126,18 @@ import UniformTypeIdentifiers
       session: URLSession(configuration: configuration)
     )
   }
+
+  // MARK: - Simulator Methods
+
+  #if targetEnvironment(simulator)
+    public func importOPMLFileInSimulator() {
+      let url = Bundle.main.url(
+        forResource: "podcasts",
+        withExtension: "opml"
+      )!
+      if let opml = importOPMLFile(url) {
+        downloadOPMLFile(opml)
+      }
+    }
+  #endif
 }
