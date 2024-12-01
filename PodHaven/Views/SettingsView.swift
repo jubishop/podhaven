@@ -62,8 +62,14 @@ struct SettingsView: View {
             Image(systemName: "arrow.down.circle")
               .foregroundColor(.blue)
           } else if outline.status == .finished {
-            Image(systemName: "checkmark.circle")
-              .foregroundColor(.green)
+            switch(outline.result) {
+              case .failure, .none:
+                Image(systemName: "x.circle")
+                  .foregroundColor(.red)
+              case .success:
+                Image(systemName: "checkmark.circle")
+                  .foregroundColor(.green)
+            }
           }
         }
       }

@@ -112,9 +112,9 @@ import UniformTypeIdentifiers
             try await Task.sleep(for: .milliseconds(Int.random(in: 100...1000)))
           #endif
           let result = await downloadTask.downloadFinished()
+          outline.result = result
           outline.status = .finished
           // TODO: Save result to Podcasts DB
-          print(result)
         }
       }
     }
@@ -124,6 +124,8 @@ import UniformTypeIdentifiers
     let configuration = URLSessionConfiguration.ephemeral
     configuration.allowsCellularAccess = true
     configuration.waitsForConnectivity = true
+    configuration.timeoutIntervalForRequest = 5
+    configuration.timeoutIntervalForResource = 20
     return DownloadManager(
       session: URLSession(configuration: configuration)
     )
