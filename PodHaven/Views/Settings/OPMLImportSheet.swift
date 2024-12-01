@@ -24,6 +24,7 @@ struct OPMLImportSheet: View {
     } else {
       Button("Cancel") { opmlViewModel.opmlFile = nil }
     }
+    // TODO: Deal with invalid and already subscribed feeds
     List(Array(opmlFile.outlines.values)) { outline in
       HStack {
         Text(outline.text)

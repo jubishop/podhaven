@@ -2,35 +2,37 @@
 
 import Foundation
 import OPML
+import SwiftUI
 import UniformTypeIdentifiers
 
 @Observable @MainActor final class OPMLFile: Identifiable {
-  nonisolated var id: String { title }
-
+  let id = UUID()
   let title: String
   let outlines: [URL: OPMLOutline]
+  let invalidFeeds: [String]
 
-  init(title: String, outlines: [URL: OPMLOutline]) {
+  init(title: String, outlines: [URL: OPMLOutline], invalidFeeds: [String]) {
     self.title = title
     self.outlines = outlines
+    self.invalidFeeds = invalidFeeds
   }
 }
 
 @Observable @MainActor final class OPMLOutline: Identifiable {
-  nonisolated var id: URL { feedURL }
-
   enum Status {
-    case waiting, downloading, finished
+    case invalidURL, alreadySubscribed, waiting, downloading, finished
   }
 
+  let id = UUID()
   let text: String
-  let feedURL: URL
+  let feedURL: URL?
   var status: Status = .waiting
   var result: DownloadResult?
 
-  init(text: String, feedURL: URL) {
+  init(text: String, feedURL: URL? = nil, status: Status) {
     self.text = text
     self.feedURL = feedURL
+    self.status = status
   }
 }
 
@@ -60,36 +62,42 @@ import UniformTypeIdentifiers
       Failure.fatal("Couldn't parse OPML file")
       return nil
     }
+    if opml.entries.isEmpty {
+      Failure.fatal("OPML file has no subscriptions")
+      return nil
+    }
     return opml
   }
 
   // MARK: - Private Methods
 
   private func downloadOPMLFile(_ opml: OPML) {
-    var outlines = [URL: OPMLOutline](capacity: opml.entries.count)
-    for entry in opml.entries {
-      guard let feedURL = entry.feedURL,
-        var components = URLComponents(
-          url: feedURL,
-          resolvingAgainstBaseURL: false
+    var invalidFeeds: [String] = []
+    let outlines: [URL: OPMLOutline] = Dictionary(
+      uniqueKeysWithValues: opml.entries.compactMap { entry in
+        guard let feedURL = entry.feedURL,
+          let url = try? UnsavedPodcast.convertToValidURL(feedURL)
+        else {
+          invalidFeeds.append(entry.text)
+          return nil
+        }
+        return (
+          url,
+          OPMLOutline(text: entry.text, feedURL: url, status: .waiting)
         )
-      else { continue }
-      components.scheme = "https"
-      guard let url = components.url else { continue }
-      outlines[url] = OPMLOutline(
-        text: entry.text,
-        feedURL: url
-      )
-    }
+      }
+    )
     opmlFile = OPMLFile(
       title: opml.title ?? "Podcast Subscriptions",
-      outlines: outlines
+      outlines: outlines,
+      invalidFeeds: invalidFeeds
     )
     guard let opmlFile = opmlFile else {
       fatalError("Couldn't create OPMLFile?!")
     }
     Task {
       let opmlDownloader = createDownloadManager()
+      // TODO: Check if podcast already in DB before downloading it.
       let downloadTasks = await opmlDownloader.addURLs(
         opmlFile.outlines.map { $0.key }
       )
@@ -99,12 +107,12 @@ import UniformTypeIdentifiers
             fatalError("No OPMLOutline for url: \(downloadTask.url)?")
           }
           #if targetEnvironment(simulator)
-            try await Task.sleep(for: .milliseconds(Int.random(in: 100...1000)))
+            try await Task.sleep(for: .milliseconds(Int.random(in: 300...3000)))
           #endif
           await downloadTask.downloadBegan()
           outline.status = .downloading
           #if targetEnvironment(simulator)
-            try await Task.sleep(for: .milliseconds(Int.random(in: 100...1000)))
+            try await Task.sleep(for: .milliseconds(Int.random(in: 300...3000)))
           #endif
           let result = await downloadTask.downloadFinished()
           outline.result = result

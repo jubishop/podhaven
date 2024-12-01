@@ -8,7 +8,7 @@ struct UnsavedPodcast: Savable {
   var title: String
 
   init(feedURL: URL, title: String) throws {
-    try UnsavedPodcast.validateURL(feedURL)
+    let feedURL = try UnsavedPodcast.convertToValidURL(feedURL)
 
     self.feedURL = feedURL
     self.title = title
@@ -16,18 +16,40 @@ struct UnsavedPodcast: Savable {
 
   // MARK: - Validations
 
+  public static func convertToValidURL(_ url: URL) throws -> URL {
+    guard
+      var components = URLComponents(
+        url: url,
+        resolvingAgainstBaseURL: false
+      )
+    else {
+      throw DBError.validationError("URL: \(url) is invalid.")
+    }
+    if components.scheme == "http" {
+      components.scheme = "https"
+    }
+    components.fragment = nil
+    guard let url = components.url else {
+      throw DBError.validationError("URL: \(url) is invalid.")
+    }
+    try validateURL(url)
+    return url
+  }
+
   private static func validateURL(_ url: URL) throws {
     guard let scheme = url.scheme, scheme == "https"
     else {
-      throw DBError.validationError("feedURL must use https scheme.")
+      throw DBError.validationError("URL: \(url) must use https scheme.")
     }
     guard let host = url.host, !host.isEmpty else {
       throw DBError.validationError(
-        "feedURL must be an absolute URL with a valid host."
+        "URL: \(url) must be an absolute URL with a valid host."
       )
     }
-    if url.fragment != nil {
-      throw DBError.validationError("feedURL should not contain a fragment.")
+    guard url.fragment == nil else {
+      throw DBError.validationError(
+        "URL: \(url) should not contain a fragment."
+      )
     }
   }
 }
