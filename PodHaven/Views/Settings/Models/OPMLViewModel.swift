@@ -2,7 +2,6 @@
 
 import Foundation
 import OPML
-import SwiftUI
 import UniformTypeIdentifiers
 
 @Observable @MainActor final class OPMLFile: Identifiable {
