@@ -124,8 +124,9 @@ import UniformTypeIdentifiers
     let configuration = URLSessionConfiguration.ephemeral
     configuration.allowsCellularAccess = true
     configuration.waitsForConnectivity = true
-    configuration.timeoutIntervalForRequest = 5
-    configuration.timeoutIntervalForResource = 20
+    let timeout = Double(15)
+    configuration.timeoutIntervalForRequest = timeout
+    configuration.timeoutIntervalForResource = timeout
     return DownloadManager(
       session: URLSession(configuration: configuration)
     )

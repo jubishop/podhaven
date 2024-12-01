@@ -6,6 +6,7 @@ import SwiftUI
   enum Tab {
     case settings
     case upNext
+    case podcasts
   }
 
   var currentTab: Tab = .settings

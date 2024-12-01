@@ -10,10 +10,12 @@ struct ContentView: View {
       Tab("Settings", systemImage: "gear", value: .settings) {
         SettingsView()
       }
-      Tab("Up Next", systemImage: "music.note.list", value: .upNext) {
-        Button("Go to settings") {
-          navigation.currentTab = .settings
-        }
+      Tab(
+        "Podcasts",
+        systemImage: "dot.radiowaves.left.and.right",
+        value: .podcasts
+      ) {
+        PodcastsView()
       }
     }
     .environment(navigation)
