@@ -7,31 +7,37 @@ import UniformTypeIdentifiers
 @Observable @MainActor final class OPMLFile: Identifiable {
   let id = UUID()
   let title: String
-  let outlines: [URL: OPMLOutline]
-  let invalidFeeds: [String]
+  var invalid: [OPMLOutline] = []
+  var alreadySubscribed: [URL: OPMLOutline] = [:]
+  var waiting: [URL: OPMLOutline] = [:]
+  var downloading: [URL: OPMLOutline] = [:]
+  var failed: [URL: OPMLOutline] = [:]
+  var finished: [URL: OPMLOutline] = [:]
 
-  init(title: String, outlines: [URL: OPMLOutline], invalidFeeds: [String]) {
+  init(title: String) {
     self.title = title
-    self.outlines = outlines
-    self.invalidFeeds = invalidFeeds
   }
 }
 
-@Observable @MainActor final class OPMLOutline: Identifiable {
+@Observable @MainActor final class OPMLOutline: Identifiable, Equatable {
   enum Status {
-    case invalidURL, alreadySubscribed, waiting, downloading, finished
+    case invalid, alreadySubscribed, waiting, downloading, failed, finished
   }
 
   let id = UUID()
   let text: String
+  var status: Status
   let feedURL: URL?
-  var status: Status = .waiting
   var result: DownloadResult?
 
-  init(text: String, feedURL: URL? = nil, status: Status) {
+  init(text: String, status: Status, feedURL: URL? = nil) {
     self.text = text
-    self.feedURL = feedURL
     self.status = status
+    self.feedURL = feedURL
+  }
+
+  nonisolated static func == (lhs: OPMLOutline, rhs: OPMLOutline) -> Bool {
+    lhs.id == rhs.id
   }
 }
 
@@ -71,51 +77,54 @@ import UniformTypeIdentifiers
   // MARK: - Private Methods
 
   private func downloadOPMLFile(_ opml: OPML) {
-    var invalidFeeds: [String] = []
-    let outlines: [URL: OPMLOutline] = Dictionary(
-      uniqueKeysWithValues: opml.entries.compactMap { entry in
-        guard let feedURL = entry.feedURL,
-          let url = try? UnsavedPodcast.convertToValidURL(feedURL)
-        else {
-          invalidFeeds.append(entry.text)
-          return nil
-        }
-        return (
-          url,
-          OPMLOutline(text: entry.text, feedURL: url, status: .waiting)
-        )
+    let opmlFile = OPMLFile(title: opml.title ?? "Podcast Subscriptions")
+    for entry in opml.entries {
+      guard let feedURL = entry.feedURL,
+        let url = try? UnsavedPodcast.convertToValidURL(feedURL)
+      else {
+        opmlFile.invalid.append(OPMLOutline(text: entry.text, status: .invalid))
+        continue
       }
-    )
-    opmlFile = OPMLFile(
-      title: opml.title ?? "Podcast Subscriptions",
-      outlines: outlines,
-      invalidFeeds: invalidFeeds
-    )
-    guard let opmlFile = opmlFile else {
-      fatalError("Couldn't create OPMLFile?!")
+      // TODO: Check if podcast already in DB before setting it as waiting
+      opmlFile.waiting[url] = OPMLOutline(
+        text: entry.text,
+        status: .waiting,
+        feedURL: url
+      )
     }
+    self.opmlFile = opmlFile
     Task {
       let opmlDownloader = createDownloadManager()
-      // TODO: Check if podcast already in DB before downloading it.
       let downloadTasks = await opmlDownloader.addURLs(
-        opmlFile.outlines.map { $0.key }
+        opmlFile.waiting.map { $0.key }
       )
       for downloadTask in downloadTasks {
         Task {
-          guard let outline = opmlFile.outlines[downloadTask.url] else {
+          guard let outline = opmlFile.waiting[downloadTask.url] else {
             fatalError("No OPMLOutline for url: \(downloadTask.url)?")
           }
           #if targetEnvironment(simulator)
-            try await Task.sleep(for: .milliseconds(Int.random(in: 300...3000)))
+            try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
           #endif
           await downloadTask.downloadBegan()
           outline.status = .downloading
+          opmlFile.downloading[downloadTask.url] = outline
+          opmlFile.waiting.removeValue(forKey: downloadTask.url)
           #if targetEnvironment(simulator)
-            try await Task.sleep(for: .milliseconds(Int.random(in: 300...3000)))
+            try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
           #endif
           let result = await downloadTask.downloadFinished()
+          switch result {
+          case .success:
+            outline.status = .finished
+            opmlFile.finished[downloadTask.url] = outline
+          case .failure:
+              outline.status = .failed
+            opmlFile.failed[downloadTask.url] = outline
+          }
+          opmlFile.downloading.removeValue(forKey: downloadTask.url)
           outline.result = result
-          outline.status = .finished
+
           // TODO: Save result to Podcasts DB
         }
       }

@@ -16,7 +16,7 @@ struct OPMLImportSheet: View {
 
   var body: some View {
     Text(opmlFile.title)
-    if opmlFile.outlines.values.allSatisfy({ $0.status == .finished }) {
+    if opmlFile.waiting.isEmpty && opmlFile.downloading.isEmpty {
       Button("All Finished") {
         opmlViewModel.opmlFile = nil
         navigation.currentTab = .podcasts
@@ -24,30 +24,85 @@ struct OPMLImportSheet: View {
     } else {
       Button("Cancel") { opmlViewModel.opmlFile = nil }
     }
-    // TODO: Deal with invalid and already subscribed feeds
-    List(Array(opmlFile.outlines.values)) { outline in
-      HStack {
-        Text(outline.text)
-        Spacer()
-        if outline.status == .waiting {
-          Image(systemName: "clock")
-            .foregroundColor(.gray)
-        } else if outline.status == .downloading {
-          Image(systemName: "arrow.down.circle")
-            .foregroundColor(.blue)
-        } else if outline.status == .finished {
-          switch outline.result {
-          case .failure, .none:
-            Image(systemName: "x.circle")
-              .foregroundColor(.red)
-          case .success:
-            Image(systemName: "checkmark.circle")
-              .foregroundColor(.green)
+    List {
+      if !opmlFile.invalid.isEmpty {
+        Section(header: Text("Invalid").foregroundStyle(.red).bold()) {
+          ForEach(opmlFile.invalid) { outline in
+            OPMLImportSheetListRow(outline: outline)
+          }
+        }
+      }
+      if !opmlFile.failed.isEmpty {
+        Section(header: Text("Failed").foregroundStyle(.red).bold()) {
+          ForEach(Array(opmlFile.failed.values)) { outline in
+            OPMLImportSheetListRow(outline: outline)
+          }
+        }
+      }
+      if !opmlFile.finished.isEmpty {
+        Section(header: Text("Finished").foregroundStyle(.green).bold()) {
+          ForEach(Array(opmlFile.finished.values)) { outline in
+            OPMLImportSheetListRow(outline: outline)
+          }
+        }
+      }
+      if !opmlFile.downloading.isEmpty {
+        Section(header: Text("Downloading").foregroundStyle(.blue).bold()) {
+          ForEach(Array(opmlFile.downloading.values)) { outline in
+            OPMLImportSheetListRow(outline: outline)
+          }
+        }
+      }
+      if !opmlFile.waiting.isEmpty {
+        Section(header: Text("Waiting").foregroundStyle(.blue).bold()) {
+          ForEach(Array(opmlFile.waiting.values)) { outline in
+            OPMLImportSheetListRow(outline: outline)
+          }
+        }
+      }
+      if !opmlFile.alreadySubscribed.isEmpty {
+        Section(
+          header: Text("Already Subscribed").foregroundStyle(.green).bold()
+        ) {
+          ForEach(Array(opmlFile.alreadySubscribed.values)) { outline in
+            OPMLImportSheetListRow(outline: outline)
           }
         }
       }
     }
+    .animation(.default, value: opmlFile.invalid)
+    .animation(.default, value: Array(opmlFile.failed.values))
+    .animation(.default, value: Array(opmlFile.finished.values))
+    .animation(.default, value: Array(opmlFile.downloading.values))
+    .animation(.default, value: Array(opmlFile.waiting.values))
+    .animation(.default, value: Array(opmlFile.alreadySubscribed.values))
     .interactiveDismissDisabled(true)
+  }
+}
+
+struct OPMLImportSheetListRow: View {
+  let outline: OPMLOutline
+
+  var body: some View {
+    HStack {
+      Text(outline.text)
+      Spacer()
+      switch outline.status {
+      case .invalid, .failed:
+        Image(systemName: "x.circle")
+          .foregroundColor(.red)
+      case .waiting:
+        Image(systemName: "clock")
+          .foregroundColor(.gray)
+      case .downloading:
+        Image(systemName: "arrow.down.circle")
+          .foregroundColor(.blue)
+      case .finished, .alreadySubscribed:
+        Image(systemName: "checkmark.circle")
+          .foregroundColor(.green)
+
+      }
+    }
   }
 }
 
