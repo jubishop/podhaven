@@ -50,14 +50,6 @@ struct OPMLImportSheet: View {
   }
 }
 
-#if targetEnvironment(simulator)
-  struct OPMLImportSheetPreview: View {
-    var body: some View {
-      Text("Import Sheet")
-    }
-  }
-#endif
-
 #Preview {
   struct OPMLImportSheetPreview: View {
     @State private var opmlViewModel: OPMLViewModel
