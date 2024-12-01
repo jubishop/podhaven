@@ -57,9 +57,8 @@ struct OPMLImportSheetListSection: View {
 
 #Preview {
   List {
-    Section(header: Text("Empty")) {
-      OPMLImportSheetListSection(outlines: [])
-    }
+    // Should display nothing...
+    OPMLImportSheetListSection(outlines: [])
     OPMLImportSheetListSection(
       outlines: [OPMLOutline(text: "Invalid", status: .invalid)]
     )
