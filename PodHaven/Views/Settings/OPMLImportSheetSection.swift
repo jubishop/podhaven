@@ -56,31 +56,33 @@ struct OPMLImportSheetSection: View {
 }
 
 #Preview {
-  List {
-    // Should display nothing...
-    OPMLImportSheetSection(outlines: [])
-    OPMLImportSheetSection(
-      outlines: [OPMLOutline(text: "Invalid", status: .invalid)]
-    )
-    OPMLImportSheetSection(
-      outlines: [OPMLOutline(text: "Failed", status: .failed)]
-    )
-    OPMLImportSheetSection(
-      outlines: [OPMLOutline(text: "Finished", status: .finished)]
-    )
-    OPMLImportSheetSection(
-      outlines: [OPMLOutline(text: "Downloading", status: .downloading)]
-    )
-    OPMLImportSheetSection(
-      outlines: [OPMLOutline(text: "Waiting", status: .waiting)]
-    )
-    OPMLImportSheetSection(
-      outlines: [
-        OPMLOutline(
-          text: "Already Subscribed",
-          status: .alreadySubscribed
-        )
-      ]
-    )
+  Preview {
+    List {
+      // Should display nothing...
+      OPMLImportSheetSection(outlines: [])
+      OPMLImportSheetSection(
+        outlines: [OPMLOutline(text: "Invalid", status: .invalid)]
+      )
+      OPMLImportSheetSection(
+        outlines: [OPMLOutline(text: "Failed", status: .failed)]
+      )
+      OPMLImportSheetSection(
+        outlines: [OPMLOutline(text: "Finished", status: .finished)]
+      )
+      OPMLImportSheetSection(
+        outlines: [OPMLOutline(text: "Downloading", status: .downloading)]
+      )
+      OPMLImportSheetSection(
+        outlines: [OPMLOutline(text: "Waiting", status: .waiting)]
+      )
+      OPMLImportSheetSection(
+        outlines: [
+          OPMLOutline(
+            text: "Already Subscribed",
+            status: .alreadySubscribed
+          )
+        ]
+      )
+    }
   }
 }

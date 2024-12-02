@@ -100,5 +100,5 @@ struct OPMLImportSheet: View {
       .customAlert($alert.config)
     }
   }
-  return OPMLImportSheetPreview().forPreview()
+  return Preview { OPMLImportSheetPreview() }
 }
