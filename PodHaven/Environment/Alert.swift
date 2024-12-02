@@ -14,7 +14,7 @@ import SwiftUI
     title: String = "Error",
     actions: OrderedDictionary<String, () -> Void> = ["Ok": {}]
   ) {
-    print("Alerting with title: \(title), message: \(message)")
+    print("Alerting with title: \"\(title)\", message: \"\(message)\"")
     config = AlertConfig(
       title: title,
       actions: {

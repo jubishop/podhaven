@@ -77,7 +77,7 @@ struct OPMLImportSheet: View {
 #Preview {
   @Previewable @State var opmlViewModel = OPMLViewModel()
 
-  return Preview {
+  Preview {
     Form {
       Button("Import Large") {
         opmlViewModel.importOPMLFileInSimulator("large")
