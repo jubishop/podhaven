@@ -82,24 +82,16 @@ struct OPMLImportSheet: View {
     var body: some View {
       Form {
         Button("Import Large") {
-          #if targetEnvironment(simulator)
-            opmlViewModel.importOPMLFileInSimulator("large")
-          #endif
+          opmlViewModel.importOPMLFileInSimulator("large")
         }
         Button("Import Small") {
-          #if targetEnvironment(simulator)
-            opmlViewModel.importOPMLFileInSimulator("small")
-          #endif
+          opmlViewModel.importOPMLFileInSimulator("small")
         }
         Button("Import Invalid") {
-          #if targetEnvironment(simulator)
-            opmlViewModel.importOPMLFileInSimulator("invalid")
-          #endif
+          opmlViewModel.importOPMLFileInSimulator("invalid")
         }
         Button("Import Empty") {
-          #if targetEnvironment(simulator)
-            opmlViewModel.importOPMLFileInSimulator("empty")
-          #endif
+          opmlViewModel.importOPMLFileInSimulator("empty")
         }
       }
       .sheet(item: $opmlViewModel.opmlFile) { opmlFile in

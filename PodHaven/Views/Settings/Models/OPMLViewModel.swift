@@ -120,14 +120,14 @@ import UniformTypeIdentifiers
           guard let outline = opmlFile.waiting[downloadTask.url] else {
             fatalError("No OPMLOutline for url: \(downloadTask.url)?")
           }
-          #if targetEnvironment(simulator)
+          #if DEBUG
             try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
           #endif
           await downloadTask.downloadBegan()
           outline.status = .downloading
           opmlFile.downloading[downloadTask.url] = outline
           opmlFile.waiting.removeValue(forKey: downloadTask.url)
-          #if targetEnvironment(simulator)
+          #if DEBUG
             try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
           #endif
           let result = await downloadTask.downloadFinished()
@@ -162,7 +162,7 @@ import UniformTypeIdentifiers
 
   // MARK: - Simulator Methods
 
-  #if targetEnvironment(simulator)
+  #if DEBUG
     public func importOPMLFileInSimulator(_ resource: String) {
       let url = Bundle.main.url(
         forResource: resource,
