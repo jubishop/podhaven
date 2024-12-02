@@ -17,7 +17,7 @@ struct OPMLImportSheet: View {
   var body: some View {
     Text(opmlFile.title).font(.title)
     Group {
-      if opmlFile.waiting.isEmpty && opmlFile.downloading.isEmpty {
+      if opmlFile.inProgressCount == 0 {
         Button("All Finished") {
           opmlViewModel.opmlFile = nil
           navigation.currentTab = .podcasts
@@ -32,7 +32,17 @@ struct OPMLImportSheet: View {
       }
     }
     .buttonStyle(.bordered)
-    Text("\(opmlFile.totalCount) items, \(opmlFile.inProgressCount) remaining")
+
+    if opmlFile.inProgressCount > 0 {
+      Text(
+        """
+        Importing \(opmlFile.totalCount) items; \
+        \(opmlFile.inProgressCount) remaining
+        """
+      )
+    } else {
+      Text("\(opmlFile.successCount) new podcasts added")
+    }
     if let opmlFile = opmlViewModel.opmlFile {
       ProgressView(
         totalAmount: Double(opmlFile.totalCount),
@@ -98,5 +108,5 @@ struct OPMLImportSheet: View {
       .customAlert($alert.config)
     }
   }
-  return OPMLImportSheetPreview().environment(Navigation())
+  return OPMLImportSheetPreview().forPreview()
 }

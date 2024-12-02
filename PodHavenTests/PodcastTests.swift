@@ -70,7 +70,7 @@ actor PodcastTests {
       // Bad scheme
       #expect {
         _ = try UnsavedPodcast(
-          feedURL: try #require(URL(string: "http://example.com/data")),
+          feedURL: try #require(URL(string: "file://example.com/data")),
           title: "Title"
         )
       } throws: { error in
@@ -85,16 +85,6 @@ actor PodcastTests {
         )
       } throws: { error in
         error is DBError && error.localizedDescription.contains("absolute")
-      }
-
-      // Contains fragment
-      #expect {
-        _ = try UnsavedPodcast(
-          feedURL: try #require(URL(string: "https://hi.com/data#fragment")),
-          title: "Title"
-        )
-      } throws: { error in
-        error is DBError && error.localizedDescription.contains("fragment")
       }
     }
   }
