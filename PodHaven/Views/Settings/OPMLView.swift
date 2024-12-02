@@ -9,7 +9,7 @@ struct OPMLView: View {
     Form {
       Button(
         action: {
-          #if DEBUG
+          #if targetEnvironment(simulator)
             opmlViewModel.importOPMLFileInSimulator("large")
           #else
             opmlViewModel.opmlImporting = true
@@ -31,5 +31,5 @@ struct OPMLView: View {
 }
 
 #Preview {
-  OPMLView()
+  OPMLView().forPreview()
 }
