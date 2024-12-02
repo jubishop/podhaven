@@ -3,7 +3,8 @@
 import SwiftUI
 
 struct ContentView: View {
-  @State private var navigation: Navigation = Navigation()
+  @State private var navigation = Navigation()
+  @State private var alert = Alert.shared
 
   var body: some View {
     TabView(selection: $navigation.currentTab) {
@@ -19,6 +20,7 @@ struct ContentView: View {
       }
     }
     .environment(navigation)
+    .customAlert($alert.config)
   }
 }
 

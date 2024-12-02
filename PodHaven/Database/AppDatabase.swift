@@ -19,7 +19,7 @@ final class AppDatabase: Sendable {
     }
   #endif
 
-  static let shared: AppDatabase = {
+  static let shared = {
     do {
       let dbPool = try DatabasePool(
         path: URL.documentsDirectory.appendingPathComponent("db.sqlite").path,

@@ -71,21 +71,21 @@ import UniformTypeIdentifiers
           downloadOPMLFile(opml)
         }
       } else {
-        Failure.fatal("Couldn't start accessing security scoped response.")
+        Alert.shared("Couldn't start accessing security scoped response.")
       }
       url.stopAccessingSecurityScopedResource()
     case .failure(let error):
-      Failure.fatal("Couldn't import OPML file: \(error)")
+      Alert.shared("Couldn't import OPML file: \(error)")
     }
   }
 
   func importOPMLFile(_ url: URL) -> OPML? {
     guard let opml = try? OPML(file: url) else {
-      Failure.fatal("Couldn't parse OPML file")
+      Alert.shared("Couldn't parse OPML file")
       return nil
     }
     if opml.entries.isEmpty {
-      Failure.fatal("OPML file has no subscriptions")
+      Alert.shared("OPML file has no subscriptions")
       return nil
     }
     return opml
@@ -163,9 +163,9 @@ import UniformTypeIdentifiers
   // MARK: - Simulator Methods
 
   #if targetEnvironment(simulator)
-    public func importOPMLFileInSimulator() {
+    public func importOPMLFileInSimulator(_ resource: String) {
       let url = Bundle.main.url(
-        forResource: "podcasts",
+        forResource: resource,
         withExtension: "opml"
       )!
       if let opml = importOPMLFile(url) {

@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<opml version="1.0">
+<head><title>Superphonic Podcast Subscriptions</title></head>
+<body>
+  <outline type="rss" text="Techdirt" title="Techdirt" xmlUrl="https://feeds.soundcloud.com/users/soundcloud:users:122508048/sounds.rss"/>
+  <outline type="rss" text="Techskirt" title="Techskirt" xmlUrl="https://feeds.soundcloudisgreatbutwhatever.com/users/soundcloud:users:122508048/sounds.rss"/>
+  <outline type="rss" text="The Changelog: Software Development, Open Source" title="The Changelog: Software Development, Open Source" xmlUrl="https://changelog.com/podcast/feed"/>
+</body>
+</opml>

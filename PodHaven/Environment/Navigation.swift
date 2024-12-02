@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-@Observable @MainActor final class Navigation {
+@Observable @MainActor final class Navigation : Sendable {
   enum Tab {
     case settings
     case upNext
