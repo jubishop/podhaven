@@ -25,20 +25,20 @@ struct OPMLImportSheet: View {
       Button("Cancel") { opmlViewModel.opmlFile = nil }
     }
     List {
-      OPMLImportSheetListSection(outlines: opmlFile.invalid)
-      OPMLImportSheetListSection(outlines: Array(opmlFile.failed.values))
-      OPMLImportSheetListSection(outlines: Array(opmlFile.finished.values))
-      OPMLImportSheetListSection(outlines: Array(opmlFile.downloading.values))
-      OPMLImportSheetListSection(outlines: Array(opmlFile.waiting.values))
-      OPMLImportSheetListSection(
+      OPMLImportSheetSection(outlines: Array(opmlFile.downloading.values))
+      OPMLImportSheetSection(outlines: Array(opmlFile.waiting.values))
+      OPMLImportSheetSection(outlines: Array(opmlFile.failed.values))
+      OPMLImportSheetSection(outlines: opmlFile.invalid)
+      OPMLImportSheetSection(outlines: Array(opmlFile.finished.values))
+      OPMLImportSheetSection(
         outlines: Array(opmlFile.alreadySubscribed.values)
       )
     }
-    .animation(.default, value: opmlFile.invalid)
-    .animation(.default, value: Array(opmlFile.failed.values))
-    .animation(.default, value: Array(opmlFile.finished.values))
     .animation(.default, value: Array(opmlFile.downloading.values))
     .animation(.default, value: Array(opmlFile.waiting.values))
+    .animation(.default, value: Array(opmlFile.failed.values))
+    .animation(.default, value: opmlFile.invalid)
+    .animation(.default, value: Array(opmlFile.finished.values))
     .animation(.default, value: Array(opmlFile.alreadySubscribed.values))
     .interactiveDismissDisabled(true)
   }

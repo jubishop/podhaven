@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-struct OPMLImportSheetListSection: View {
+struct OPMLImportSheetSection: View {
   private let headers: [OPMLOutline.Status: Text] = [
     .invalid: Text("Invalid").foregroundStyle(.red).bold(),
     .failed: Text("Failed").foregroundStyle(.red).bold(),
@@ -58,23 +58,23 @@ struct OPMLImportSheetListSection: View {
 #Preview {
   List {
     // Should display nothing...
-    OPMLImportSheetListSection(outlines: [])
-    OPMLImportSheetListSection(
+    OPMLImportSheetSection(outlines: [])
+    OPMLImportSheetSection(
       outlines: [OPMLOutline(text: "Invalid", status: .invalid)]
     )
-    OPMLImportSheetListSection(
+    OPMLImportSheetSection(
       outlines: [OPMLOutline(text: "Failed", status: .failed)]
     )
-    OPMLImportSheetListSection(
+    OPMLImportSheetSection(
       outlines: [OPMLOutline(text: "Finished", status: .finished)]
     )
-    OPMLImportSheetListSection(
+    OPMLImportSheetSection(
       outlines: [OPMLOutline(text: "Downloading", status: .downloading)]
     )
-    OPMLImportSheetListSection(
+    OPMLImportSheetSection(
       outlines: [OPMLOutline(text: "Waiting", status: .waiting)]
     )
-    OPMLImportSheetListSection(
+    OPMLImportSheetSection(
       outlines: [
         OPMLOutline(
           text: "Already Subscribed",
