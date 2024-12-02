@@ -3,8 +3,6 @@
 import SwiftUI
 
 struct PodcastsView: View {
-  @Environment(Navigation.self) var navigation
-
   @State private var podcastsViewModel = PodcastsViewModel()
 
   var body: some View {
@@ -13,5 +11,5 @@ struct PodcastsView: View {
 }
 
 #Preview {
-  PodcastsView().environment(Navigation())
+  PodcastsView()
 }

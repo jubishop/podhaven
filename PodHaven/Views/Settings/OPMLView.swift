@@ -31,5 +31,5 @@ struct OPMLView: View {
 }
 
 #Preview {
-  OPMLView().environment(Navigation())
+  OPMLView()
 }

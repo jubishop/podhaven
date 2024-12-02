@@ -15,7 +15,7 @@ struct OPMLImportSheet: View {
   }
 
   var body: some View {
-    Text(opmlFile.title)
+    Text(opmlFile.title).font(.title)
     Group {
       if opmlFile.waiting.isEmpty && opmlFile.downloading.isEmpty {
         Button("All Finished") {
@@ -23,10 +23,16 @@ struct OPMLImportSheet: View {
           navigation.currentTab = .podcasts
         }
       } else {
-        Button("Cancel") { opmlViewModel.opmlFile = nil }
+        Button(opmlFile.successCount > 0 ? "Stop" : "Cancel") {
+          opmlViewModel.opmlFile = nil
+          if opmlFile.successCount > 0 {
+            navigation.currentTab = .podcasts
+          }
+        }
       }
     }
     .buttonStyle(.bordered)
+    Text("\(opmlFile.totalCount) items, \(opmlFile.inProgressCount) remaining")
     if let opmlFile = opmlViewModel.opmlFile {
       ProgressView(
         totalAmount: Double(opmlFile.totalCount),
