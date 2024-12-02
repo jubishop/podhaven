@@ -15,6 +15,9 @@ import UniformTypeIdentifiers
       + failed.count
       + finished.count
   }
+  var inProgressCount: Int {
+    waiting.count + downloading.count
+  }
   var failCount: Int {
     invalid.count + failed.count
   }
