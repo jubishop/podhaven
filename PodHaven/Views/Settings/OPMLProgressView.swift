@@ -64,11 +64,38 @@ struct OPMLProgressView: View {
 }
 
 #Preview {
-  OPMLProgressView(
-    totalAmount: 100,
-    greenAmount: .constant(40),
-    redAmount: .constant(20)
-  )
-  .frame(height: 50)
-  .padding()
+  struct OPMLProgressViewPreview: View {
+    @State private var greenAmount: Double = 30
+    @State private var redAmount: Double = 50
+    @State private var totalAmount: Double = 100
+
+    var body: some View {
+      VStack {
+        OPMLProgressView(
+          totalAmount: totalAmount,
+          greenAmount: $greenAmount,
+          redAmount: $redAmount
+        )
+        .frame(height: 40)
+        .padding()
+
+        Text(
+          "Green: \(greenAmount, specifier: "%.0f"), Red: \(redAmount, specifier: "%.0f")"
+        )
+
+        Slider(value: $greenAmount, in: 0...(totalAmount - redAmount))
+          .padding()
+          .accentColor(.green)
+
+        Slider(value: $redAmount, in: 0...(totalAmount - greenAmount))
+          .padding()
+          .accentColor(.red)
+
+        Slider(value: $totalAmount, in: 50...200)
+          .padding()
+          .accentColor(.gray)
+      }
+    }
+  }
+  return OPMLProgressViewPreview()
 }
