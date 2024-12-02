@@ -75,30 +75,25 @@ struct OPMLImportSheet: View {
 }
 
 #Preview {
-  struct OPMLImportSheetPreview: View {
-    @State private var alert = Alert.shared
-    @State private var opmlViewModel = OPMLViewModel()
+  @Previewable @State var opmlViewModel = OPMLViewModel()
 
-    var body: some View {
-      Form {
-        Button("Import Large") {
-          opmlViewModel.importOPMLFileInSimulator("large")
-        }
-        Button("Import Small") {
-          opmlViewModel.importOPMLFileInSimulator("small")
-        }
-        Button("Import Invalid") {
-          opmlViewModel.importOPMLFileInSimulator("invalid")
-        }
-        Button("Import Empty") {
-          opmlViewModel.importOPMLFileInSimulator("empty")
-        }
+  return Preview {
+    Form {
+      Button("Import Large") {
+        opmlViewModel.importOPMLFileInSimulator("large")
       }
-      .sheet(item: $opmlViewModel.opmlFile) { opmlFile in
-        OPMLImportSheet(opmlViewModel: $opmlViewModel, opmlFile: opmlFile)
+      Button("Import Small") {
+        opmlViewModel.importOPMLFileInSimulator("small")
       }
-      .customAlert($alert.config)
+      Button("Import Invalid") {
+        opmlViewModel.importOPMLFileInSimulator("invalid")
+      }
+      Button("Import Empty") {
+        opmlViewModel.importOPMLFileInSimulator("empty")
+      }
+    }
+    .sheet(item: $opmlViewModel.opmlFile) { opmlFile in
+      OPMLImportSheet(opmlViewModel: $opmlViewModel, opmlFile: opmlFile)
     }
   }
-  return Preview { OPMLImportSheetPreview() }
 }
