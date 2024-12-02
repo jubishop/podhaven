@@ -5,34 +5,34 @@ import SwiftUI
 struct OPMLProgressView: View {
   @Environment(\.colorScheme) var colorScheme
 
-  @Binding var greenAmount: Double {
+  var greenAmount: Int {
     didSet {
       validateAmounts()
     }
   }
-  @Binding var redAmount: Double {
+  var redAmount: Int {
     didSet {
       validateAmounts()
     }
   }
-  private var totalAmount: Double
+  private var totalAmount: Int
 
   init(
-    totalAmount: Double,
-    greenAmount: Binding<Double>,
-    redAmount: Binding<Double>
+    totalAmount: Int,
+    greenAmount: Int,
+    redAmount: Int
   ) {
     self.totalAmount = totalAmount
-    self._greenAmount = greenAmount
-    self._redAmount = redAmount
+    self.greenAmount = greenAmount
+    self.redAmount = redAmount
     validateAmounts()
   }
 
   var body: some View {
     GeometryReader { geometry in
       let totalWidth = geometry.size.width
-      let greenWidth = totalWidth * (greenAmount / totalAmount)
-      let redWidth = totalWidth * (redAmount / totalAmount)
+      let greenWidth = totalWidth * (Double(greenAmount) / Double(totalAmount))
+      let redWidth = totalWidth * (Double(redAmount) / Double(totalAmount))
       let remainingWidth = totalWidth - greenWidth - redWidth
 
       HStack(spacing: 0) {
@@ -72,26 +72,26 @@ struct OPMLProgressView: View {
     var body: some View {
       VStack {
         OPMLProgressView(
-          totalAmount: totalAmount,
-          greenAmount: $greenAmount,
-          redAmount: $redAmount
+          totalAmount: Int(totalAmount),
+          greenAmount: Int(greenAmount),
+          redAmount: Int(redAmount)
         )
         .frame(height: 40)
         .padding()
 
         Text(
-          "Green: \(greenAmount, specifier: "%.0f"), Red: \(redAmount, specifier: "%.0f")"
+          "Green: \(Int(greenAmount)), Red: \(Int(redAmount))"
         )
 
-        Slider(value: $greenAmount, in: 0...(totalAmount - redAmount))
+        Slider(value: $greenAmount, in: 0...(totalAmount - redAmount), step: 1)
           .padding()
           .accentColor(.green)
 
-        Slider(value: $redAmount, in: 0...(totalAmount - greenAmount))
+        Slider(value: $redAmount, in: 0...(totalAmount - greenAmount), step: 1)
           .padding()
           .accentColor(.red)
 
-        Slider(value: $totalAmount, in: 50...200)
+        Slider(value: $totalAmount, in: 50...200, step: 1)
           .padding()
           .accentColor(.gray)
       }

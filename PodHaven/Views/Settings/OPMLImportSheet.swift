@@ -16,13 +16,25 @@ struct OPMLImportSheet: View {
 
   var body: some View {
     Text(opmlFile.title)
-    if opmlFile.waiting.isEmpty && opmlFile.downloading.isEmpty {
-      Button("All Finished") {
-        opmlViewModel.opmlFile = nil
-        navigation.currentTab = .podcasts
+    Group {
+      if opmlFile.waiting.isEmpty && opmlFile.downloading.isEmpty {
+        Button("All Finished") {
+          opmlViewModel.opmlFile = nil
+          navigation.currentTab = .podcasts
+        }
+      } else {
+        Button("Cancel") { opmlViewModel.opmlFile = nil }
       }
-    } else {
-      Button("Cancel") { opmlViewModel.opmlFile = nil }
+    }
+    .buttonStyle(.bordered)
+    if let opmlFile = opmlViewModel.opmlFile {
+      OPMLProgressView(
+        totalAmount: opmlFile.totalCount,
+        greenAmount: opmlFile.successCount,
+        redAmount: opmlFile.failCount
+      )
+      .frame(height: 40)
+      .padding()
     }
     List {
       OPMLImportSheetSection(outlines: Array(opmlFile.downloading.values))

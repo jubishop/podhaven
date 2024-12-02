@@ -7,6 +7,20 @@ import UniformTypeIdentifiers
 @Observable @MainActor final class OPMLFile: Identifiable {
   let id = UUID()
   let title: String
+  var totalCount: Int {
+    invalid.count
+      + alreadySubscribed.count
+      + waiting.count
+      + downloading.count
+      + failed.count
+      + finished.count
+  }
+  var failCount: Int {
+    invalid.count + failed.count
+  }
+  var successCount: Int {
+    alreadySubscribed.count + finished.count
+  }
   var invalid: [OPMLOutline] = []
   var alreadySubscribed: [URL: OPMLOutline] = [:]
   var waiting: [URL: OPMLOutline] = [:]
@@ -119,7 +133,7 @@ import UniformTypeIdentifiers
             outline.status = .finished
             opmlFile.finished[downloadTask.url] = outline
           case .failure:
-              outline.status = .failed
+            outline.status = .failed
             opmlFile.failed[downloadTask.url] = outline
           }
           opmlFile.downloading.removeValue(forKey: downloadTask.url)
