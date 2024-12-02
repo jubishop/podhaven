@@ -28,10 +28,12 @@ struct OPMLImportSheet: View {
     }
     .buttonStyle(.bordered)
     if let opmlFile = opmlViewModel.opmlFile {
-      OPMLProgressView(
-        totalAmount: opmlFile.totalCount,
-        greenAmount: opmlFile.successCount,
-        redAmount: opmlFile.failCount
+      ProgressView(
+        totalAmount: Double(opmlFile.totalCount),
+        colorAmounts: [
+          .green: Double(opmlFile.successCount),
+          .red: Double(opmlFile.failCount),
+        ]
       )
       .frame(height: 40)
       .padding()
