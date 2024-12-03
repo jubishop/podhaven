@@ -142,7 +142,9 @@ import UniformTypeIdentifiers
           opmlFile.downloading.removeValue(forKey: downloadTask.url)
           outline.result = result
 
-          // TODO: Save result to Podcasts DB
+          // TODO: Parse, then Save result to Podcasts DB
+          // if case .success(let data) = result {
+          // }
         }
       }
     }
