@@ -4,8 +4,6 @@ import Foundation
 import GRDB
 
 final class AppDatabase: Sendable {
-  private let dbWriter: DatabaseWriter
-
   #if DEBUG
     static func empty() -> AppDatabase {
       do {
@@ -39,18 +37,10 @@ final class AppDatabase: Sendable {
     return config
   }
 
-  init(_ dbWriter: any DatabaseWriter) throws {
-    self.dbWriter = dbWriter
-    try Migrations.migrate(dbWriter)
-  }
+  let db: DatabaseWriter
 
-  func read<T>(_ block: (Database) throws -> T) throws -> T {
-    try dbWriter.read { db in
-      try block(db)
-    }
-  }
-
-  func write(_ block: @escaping (Database) throws -> Void) throws {
-    try dbWriter.write(block)
+  private init(_ db: some DatabaseWriter) throws {
+    self.db = db
+    try Migrations.migrate(db)
   }
 }

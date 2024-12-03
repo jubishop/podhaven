@@ -14,9 +14,10 @@ struct PodcastRepository: Sendable {
     PodcastRepository(.shared)
   }()
 
+  var db: any DatabaseReader { appDatabase.db }
   private let appDatabase: AppDatabase
 
-  init(_ appDatabase: AppDatabase) {
+  private init(_ appDatabase: AppDatabase) {
     self.appDatabase = appDatabase
   }
 
@@ -24,7 +25,7 @@ struct PodcastRepository: Sendable {
 
   func insert(_ unsavedPodcast: UnsavedPodcast) throws -> Podcast {
     var podcast: Podcast?
-    try appDatabase.write { db in
+    try appDatabase.db.write { db in
       podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
     }
     guard let podcast = podcast else {
@@ -37,22 +38,16 @@ struct PodcastRepository: Sendable {
   }
 
   func update(_ podcast: Podcast) throws {
-    try appDatabase.write { db in
+    try appDatabase.db.write { db in
       try podcast.update(db)
     }
   }
 
   func delete(_ podcast: Podcast) throws -> Bool {
     var success: Bool = false
-    try appDatabase.write { db in
+    try appDatabase.db.write { db in
       success = try podcast.delete(db)
     }
     return success
-  }
-
-  func read<T>(_ block: (Database) throws -> T) throws -> T {
-    try appDatabase.read { db in
-      try block(db)
-    }
   }
 }

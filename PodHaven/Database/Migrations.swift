@@ -4,7 +4,7 @@ import Foundation
 import GRDB
 
 enum Migrations {
-  static func migrate(_ dbWriter: DatabaseWriter) throws {
+  static func migrate(_ db: DatabaseWriter) throws {
     var migrator = DatabaseMigrator()
 
     migrator.registerMigration("v1") { db in
@@ -15,6 +15,6 @@ enum Migrations {
       }
     }
 
-    try migrator.migrate(dbWriter)
+    try migrator.migrate(db)
   }
 }
