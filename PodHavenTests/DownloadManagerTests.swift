@@ -172,7 +172,6 @@ actor DownloadManagerTests {
     for url in urls {
       await downloadManager.addURL(url)
     }
-    print(await downloadManager.remainingDownloads)
     var resultsReceived = 0
     for await result in await downloadManager.downloads() {
       guard case .success = result else {

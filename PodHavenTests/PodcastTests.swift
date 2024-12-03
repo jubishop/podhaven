@@ -17,7 +17,11 @@ actor PodcastTests {
   @Test("that a podcast can be created, fetched, updated, and deleted")
   func createSinglePodcast() async throws {
     let url = try #require(URL(string: "https://example.com/data"))
-    let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
+    let unsavedPodcast = try UnsavedPodcast(
+      feedURL: url,
+      title: "Title",
+      link: try #require(URL(string: "http://artisanalsoftware.com"))
+    )
 
     var podcast = try repository.insert(unsavedPodcast)
     #expect(podcast.title == unsavedPodcast.title)
@@ -89,7 +93,8 @@ actor PodcastTests {
       _ = try repository.insert(
         UnsavedPodcast(
           feedURL: try #require(URL(string: "file://example.com/data")),
-          title: "Title"
+          title: "Title",
+          link: try #require(URL(string: "http://artisanalsoftware.com"))
         )
       )
     } throws: { error in
@@ -101,7 +106,8 @@ actor PodcastTests {
       _ = try repository.insert(
         UnsavedPodcast(
           feedURL: try #require(URL(string: "https:/path/to/data")),
-          title: "Title"
+          title: "Title",
+          link: try #require(URL(string: "http://artisanalsoftware.com"))
         )
       )
     } throws: { error in
@@ -113,7 +119,11 @@ actor PodcastTests {
   @Test("that a podcast feedURL must be unique")
   func failToInsertDuplicateFeedURL() async throws {
     let url = try #require(URL(string: "https://example.com/data"))
-    let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
+    let unsavedPodcast = try UnsavedPodcast(
+      feedURL: url,
+      title: "Title",
+      link: try #require(URL(string: "http://artisanalsoftware.com"))
+    )
     _ = try self.repository.insert(unsavedPodcast)
     #expect {
       _ = try self.repository.insert(unsavedPodcast)

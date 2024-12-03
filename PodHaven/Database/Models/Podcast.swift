@@ -6,12 +6,14 @@ import GRDB
 struct UnsavedPodcast: Savable {
   let feedURL: URL
   var title: String
+  let link: URL?
 
-  init(feedURL: URL, title: String) throws {
+  init(feedURL: URL, title: String, link: URL?) throws {
     let feedURL = try UnsavedPodcast.convertToValidURL(feedURL)
 
     self.feedURL = feedURL
     self.title = title
+    self.link = link
   }
 
   // MARK: - Validations

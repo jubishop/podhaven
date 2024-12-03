@@ -41,4 +41,11 @@ actor PodcastFeed: Sendable {
   var title: String {
     rssFeed.title ?? "Unknown Title"
   }
+
+  var link: URL? {
+    guard let link = rssFeed.link, let url = URL(string: link) else {
+      return nil
+    }
+    return url
+  }
 }

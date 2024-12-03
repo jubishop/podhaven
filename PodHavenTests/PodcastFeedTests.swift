@@ -17,8 +17,9 @@ actor PodcastFeedTests {
     switch feed {
     case .success(let feed):
       #expect(await feed.title == "Pod Save America")
+      print(await feed.link!)
     case .failure(let error):
-      Issue.record("Failed to parse: \(error)")
+      Issue.record("Failed to parse \(url): \"\(error)\"")
     }
   }
 }

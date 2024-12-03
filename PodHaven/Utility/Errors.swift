@@ -45,7 +45,7 @@ enum FeedError: Error, LocalizedError, Sendable {
     case .failedLoad(let url):
       return "Failed to load URL: \(url)"
     case .failedParse(let error):
-      return "Failed to parse RSS feed: \(error)"
+      return "Failed to parse RSS feed: \"\(error)\""
     case .noRSS:
       return "No RSS feed found."
     }
