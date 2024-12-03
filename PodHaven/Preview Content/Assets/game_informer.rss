@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" media="screen" href="/~files/atom-premium.xsl"?>
+<Error xmlns:feedpress="https://feed.press/xmlns" xmlns:media="http://search.yahoo.com/mrss/" xmlns:podcast="https://podcastindex.org/namespace/1.0" xmlns:googleplay="http://www.google.com/schemas/play-podcasts/1.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:dc="http://purl.org/dc/elements/1.1/" lang="en">
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+<feedpress:locale>en</feedpress:locale>
+  <link rel="self" href="https://feedpress.me/gameinformershow"/>
+  <link rel="hub" href="https://feedpress.superfeedr.com/"/>
+  <logo>https://static.feedpress.com/logo/gameinformershow-61c20177e555a.jpg</logo>
+  <itunes:category text="Leisure">
+    <itunes:category text="Video Games"/>
+  </itunes:category>
+  <media:category scheme="http://www.itunes.com/dtds/podcast-1.0.dtd">Leisure/Video Games</media:category>
+  <itunes:category text="Leisure">
+    <itunes:category text="Games"/>
+  </itunes:category>
+  <media:category scheme="http://www.itunes.com/dtds/podcast-1.0.dtd">Leisure/Games</media:category>
+  <itunes:category text="Leisure">
+    <itunes:category text="Hobbies"/>
+  </itunes:category>
+  <media:category scheme="http://www.itunes.com/dtds/podcast-1.0.dtd">Leisure/Hobbies</media:category>
+  <media:rating>nonadult</media:rating>
+  <media:description type="plain">The Game Informer Show</media:description>
+  <media:credit role="author">Game Informer</media:credit>
+  <media:keywords>gameinformer,video,games,game,informer,gishow,ubisoft,activision,microsoft,sony,playstation,xbox,nintendo,gear,technology,magazine,switch,vr</media:keywords>
+  <media:copyright>Copyright Game Informer Magazine</media:copyright>
+  <copyright>Copyright Game Informer Magazine</copyright>
+  <dc:creator>Game Informer</dc:creator>
+  <itunes:keywords>gameinformer,video,games,game,informer,gishow,ubisoft,activision,microsoft,sony,playstation,xbox,nintendo,gear,technology,magazine,switch,vr</itunes:keywords>
+  <itunes:explicit>false</itunes:explicit>
+  <itunes:author>Game Informer</itunes:author>
+  <itunes:owner>
+    <itunes:email>podcast@gameinformer.com</itunes:email>
+    <itunes:name>Game Informer</itunes:name>
+  </itunes:owner>
+  <itunes:summary>The Game Informer Show is a weekly gaming podcast covering the latest video game news, industry topics, exclusive reveals, and reviews. Join host Alex Van Aken every Thursday for a chat about your favorite games – past and present – with Game Informer staff, developers, and special guests from around the industry.</itunes:summary>
+  <itunes:subtitle>The Game Informer Show</itunes:subtitle>
+  <language>en</language>
+  <feedpress:podcastId>335246945</feedpress:podcastId>
+  <googleplay:email>podcast@gameinformer.com</googleplay:email>
+  <googleplay:description>The Game Informer Show is a weekly gaming podcast covering the latest video game news, industry topics, exclusive reveals, and reviews. Join host Alex Van Aken every Thursday for a chat about your favorite games – past and present – with Game Informer staff, developers, and special guests from around the industry.</googleplay:description>
+  <googleplay:explicit>no</googleplay:explicit>
+  <googleplay:author>Game Informer</googleplay:author>
+  <link>http://www.gameinformer.com/gishow</link>
+  <description>The staff of Game Informer chat it up each week bout the latest news, previews and reviews from the game industry. Each show will cover the weeks hot topics plus the games you're looking forward to or may not know about yet. Subscribe today!</description>
+  <title>The Game Informer Show</title>
+  <Code>NoSuchKey</Code>
+  <Message>The specified key does not exist.</Message>
+  <Key>gishow.xml</Key>
+  <RequestId>XJXX5WGJX20H8R15</RequestId>
+  <HostId>5cSpozXlOgfSDMPfJKsSEo3sOfUAOiRUQnrKlVdHoS/+xVLZZmVScl7PHQMueP2vvjoWjVTGf10=</HostId>
+  <itunes:image href="https://static.feedpress.com/logo/gameinformershow-61c20177e555a.jpg"/>
+</Error>
