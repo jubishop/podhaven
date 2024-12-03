@@ -139,6 +139,7 @@ import UniformTypeIdentifiers
             )
             switch parseResult {
             case .success:
+              // TODO: Add podcast to DB
               outline.status = .finished
               opmlFile.finished[downloadTask.url] = outline
             case .failure:
