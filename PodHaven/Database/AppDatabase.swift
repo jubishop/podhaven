@@ -45,16 +45,12 @@ final class AppDatabase: Sendable {
   }
 
   func read<T>(_ block: (Database) throws -> T) throws -> T {
-    try reader.read { db in
+    try dbWriter.read { db in
       try block(db)
     }
   }
 
   func write(_ block: @escaping (Database) throws -> Void) throws {
     try dbWriter.write(block)
-  }
-
-  var reader: any DatabaseReader {
-    dbWriter
   }
 }

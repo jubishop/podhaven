@@ -51,7 +51,7 @@ struct PodcastRepository: Sendable {
   }
 
   func read<T>(_ block: (Database) throws -> T) throws -> T {
-    try appDatabase.reader.read { db in
+    try appDatabase.read { db in
       try block(db)
     }
   }
