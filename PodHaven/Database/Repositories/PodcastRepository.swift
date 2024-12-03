@@ -20,7 +20,9 @@ struct PodcastRepository: Sendable {
     self.appDatabase = appDatabase
   }
 
-  func insertPodcast(_ unsavedPodcast: UnsavedPodcast) throws -> Podcast {
+  // MARK: - Podcast Methods
+
+  func insert(_ unsavedPodcast: UnsavedPodcast) throws -> Podcast {
     var podcast: Podcast?
     try appDatabase.write { db in
       podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
@@ -34,7 +36,21 @@ struct PodcastRepository: Sendable {
     return podcast
   }
 
-  var db: any GRDB.DatabaseReader {
+  func update(_ podcast: Podcast) throws {
+    try appDatabase.write { db in
+      try podcast.update(db)
+    }
+  }
+
+  func delete(_ podcast: Podcast) throws -> Bool {
+    var success: Bool = false
+    try appDatabase.write { db in
+      success = try podcast.delete(db)
+    }
+    return success
+  }
+
+  var db: any DatabaseReader {
     appDatabase.reader
   }
 }
