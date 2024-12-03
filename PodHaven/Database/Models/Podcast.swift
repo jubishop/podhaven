@@ -7,13 +7,14 @@ struct UnsavedPodcast: Savable {
   let feedURL: URL
   var title: String
   let link: URL?
+  let image: URL?
 
-  init(feedURL: URL, title: String, link: URL?) throws {
-    let feedURL = try UnsavedPodcast.convertToValidURL(feedURL)
-
-    self.feedURL = feedURL
+  init(feedURL: URL, title: String, link: URL? = nil, image: URL? = nil) throws
+  {
+    self.feedURL = try UnsavedPodcast.convertToValidURL(feedURL)
     self.title = title
     self.link = link
+    self.image = image
   }
 
   // MARK: - Validations

@@ -13,6 +13,7 @@ enum Migrations {
         t.column("feedURL", .text).unique().notNull().indexed()
         t.column("title", .text).notNull()
         t.column("link", .text)
+        t.column("image", .text)
       }
     }
 

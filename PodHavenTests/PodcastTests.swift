@@ -19,8 +19,7 @@ actor PodcastTests {
     let url = try #require(URL(string: "https://example.com/data"))
     let unsavedPodcast = try UnsavedPodcast(
       feedURL: url,
-      title: "Title",
-      link: try #require(URL(string: "http://artisanalsoftware.com"))
+      title: "Title"
     )
 
     var podcast = try repository.insert(unsavedPodcast)
@@ -93,8 +92,7 @@ actor PodcastTests {
       _ = try repository.insert(
         UnsavedPodcast(
           feedURL: try #require(URL(string: "file://example.com/data")),
-          title: "Title",
-          link: try #require(URL(string: "http://artisanalsoftware.com"))
+          title: "Title"
         )
       )
     } throws: { error in
@@ -106,8 +104,7 @@ actor PodcastTests {
       _ = try repository.insert(
         UnsavedPodcast(
           feedURL: try #require(URL(string: "https:/path/to/data")),
-          title: "Title",
-          link: try #require(URL(string: "http://artisanalsoftware.com"))
+          title: "Title"
         )
       )
     } throws: { error in
@@ -121,8 +118,7 @@ actor PodcastTests {
     let url = try #require(URL(string: "https://example.com/data"))
     let unsavedPodcast = try UnsavedPodcast(
       feedURL: url,
-      title: "Title",
-      link: try #require(URL(string: "http://artisanalsoftware.com"))
+      title: "Title"
     )
     _ = try self.repository.insert(unsavedPodcast)
     #expect {
