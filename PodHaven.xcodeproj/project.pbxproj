@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8B05D8FB2CF51C0B003AA19D /* GRDB */; };
 		8B48491C2CF2E63600C67454 /* OPML in Frameworks */ = {isa = PBXBuildFile; productRef = 8B48491B2CF2E63600C67454 /* OPML */; };
+		8B7975E72CFEC28C00412AA1 /* FeedKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8B7975E62CFEC28C00412AA1 /* FeedKit */; };
 		8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */; };
 /* End PBXBuildFile section */
 
@@ -49,6 +50,7 @@
 				8B48491C2CF2E63600C67454 /* OPML in Frameworks */,
 				8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */,
 				8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */,
+				8B7975E72CFEC28C00412AA1 /* FeedKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -104,6 +106,7 @@
 				8B48491B2CF2E63600C67454 /* OPML */,
 				8B05D8FB2CF51C0B003AA19D /* GRDB */,
 				8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */,
+				8B7975E62CFEC28C00412AA1 /* FeedKit */,
 			);
 			productName = PodHaven;
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
@@ -164,6 +167,7 @@
 				8B81F4622CF2E5E600410163 /* XCRemoteSwiftPackageReference "opml" */,
 				8BD0CF382CF51BD900BD9236 /* XCRemoteSwiftPackageReference "GRDB" */,
 				8B2C9E5F2CF59FA800637544 /* XCRemoteSwiftPackageReference "swift-collections" */,
+				8BAF45892CFEC2770056EA7B /* XCRemoteSwiftPackageReference "FeedKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8BD7F9212CF2A49000CEDAA7 /* Products */;
@@ -485,6 +489,14 @@
 				kind = branch;
 			};
 		};
+		8BAF45892CFEC2770056EA7B /* XCRemoteSwiftPackageReference "FeedKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/nmdias/FeedKit";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		8BD0CF382CF51BD900BD9236 /* XCRemoteSwiftPackageReference "GRDB" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/groue/GRDB.swift";
@@ -505,6 +517,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8B81F4622CF2E5E600410163 /* XCRemoteSwiftPackageReference "opml" */;
 			productName = OPML;
+		};
+		8B7975E62CFEC28C00412AA1 /* FeedKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8BAF45892CFEC2770056EA7B /* XCRemoteSwiftPackageReference "FeedKit" */;
+			productName = FeedKit;
 		};
 		8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -23,14 +23,20 @@ struct UnsavedPodcast: Savable {
         resolvingAgainstBaseURL: false
       )
     else {
-      throw DBError.validationError("URL: \(url) is invalid.")
+      throw DatabaseError(
+        resultCode: .SQLITE_ERROR,
+        message: "URL: \(url) is invalid."
+      )
     }
     if components.scheme == "http" {
       components.scheme = "https"
     }
     components.fragment = nil
     guard let url = components.url else {
-      throw DBError.validationError("URL: \(url) is invalid.")
+      throw DatabaseError(
+        resultCode: .SQLITE_ERROR,
+        message: "URL: \(url) is invalid."
+      )
     }
     try validateURL(url)
     return url
@@ -39,16 +45,23 @@ struct UnsavedPodcast: Savable {
   private static func validateURL(_ url: URL) throws {
     guard let scheme = url.scheme, scheme == "https"
     else {
-      throw DBError.validationError("URL: \(url) must use https scheme.")
+      throw DatabaseError(
+        resultCode: .SQLITE_ERROR,
+        message: "URL: \(url) must use https scheme."
+      )
     }
     guard let host = url.host, !host.isEmpty else {
-      throw DBError.validationError(
-        "URL: \(url) must be an absolute URL with a valid host."
+      throw DatabaseError(
+        resultCode: .SQLITE_ERROR,
+        message:
+          "URL: \(url) must be an absolute URL with a valid host."
       )
     }
     guard url.fragment == nil else {
-      throw DBError.validationError(
-        "URL: \(url) should not contain a fragment."
+      throw DatabaseError(
+        resultCode: .SQLITE_ERROR,
+        message:
+          "URL: \(url) should not contain a fragment."
       )
     }
   }

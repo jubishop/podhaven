@@ -74,7 +74,7 @@ actor PodcastTests {
           title: "Title"
         )
       } throws: { error in
-        error is DBError && error.localizedDescription.contains("scheme")
+        error is DatabaseError && error.localizedDescription.contains("scheme")
       }
 
       // Not absolute
@@ -84,7 +84,22 @@ actor PodcastTests {
           title: "Title"
         )
       } throws: { error in
-        error is DBError && error.localizedDescription.contains("absolute")
+        error is DatabaseError
+          && error.localizedDescription.contains("absolute")
+      }
+    }
+  }
+
+  @Test("that a podcast feedURL must be unique")
+  func failToInsertDuplicateFeedURL() async throws {
+    let url = try #require(URL(string: "https://example.com/data"))
+    try db.write { db in
+      let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
+      _ = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
+      #expect {
+        _ = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
+      } throws: { error in
+        error is DatabaseError && error.localizedDescription.contains("UNIQUE")
       }
     }
   }
