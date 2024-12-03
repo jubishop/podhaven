@@ -45,7 +45,7 @@ final class AppDatabase: Sendable {
   }
 
   func read<T>(_ block: (Database) throws -> T) throws -> T {
-    try dbWriter.read { db in
+    try reader.read { db in
       try block(db)
     }
   }

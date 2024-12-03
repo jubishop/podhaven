@@ -8,12 +8,10 @@ import Testing
 
 @Suite("of Podcast model tests")
 actor PodcastTests {
-  private let db: DatabaseReader
   private let repository: PodcastRepository
 
   init() {
     repository = PodcastRepository.empty()
-    db = repository.db
   }
 
   @Test("that a podcast can be created, fetched, updated, and deleted")
@@ -24,12 +22,12 @@ actor PodcastTests {
     var podcast = try repository.insert(unsavedPodcast)
     #expect(podcast.title == unsavedPodcast.title)
 
-    let fetchedPodcast = try await db.read { [podcast] db in
+    let fetchedPodcast = try repository.read { [podcast] db in
       try Podcast.find(db, id: podcast.id)
     }
     #expect(fetchedPodcast == podcast)
 
-    let filteredPodcast = try await db.read { [podcast] db in
+    let filteredPodcast = try repository.read { [podcast] db in
       try Podcast.filter(Column("title") == podcast.title).fetchOne(db)
     }
     #expect(filteredPodcast == podcast)
@@ -37,48 +35,48 @@ actor PodcastTests {
     podcast.title = "New Title"
     try repository.update(podcast)
 
-    let fetchedUpdatedPodcast = try await db.read { [podcast] db in
+    let fetchedUpdatedPodcast = try repository.read { [podcast] db in
       try Podcast.find(db, id: podcast.id)
     }
     #expect(fetchedUpdatedPodcast == podcast)
 
-    let updatedFilteredPodcast = try await db.read { [podcast] db in
+    let updatedFilteredPodcast = try repository.read { [podcast] db in
       try Podcast.filter(Column("title") == podcast.title).fetchOne(db)
     }
     #expect(updatedFilteredPodcast == podcast)
 
-    let urlFilteredPodcast = try await db.read { db in
+    let urlFilteredPodcast = try repository.read { db in
       try Podcast.filter(Column("feedURL") == url).fetchOne(db)
     }
     #expect(urlFilteredPodcast == podcast)
 
-    let fetchedAllPodcasts = try await db.read { db in
+    let fetchedAllPodcasts = try repository.read { db in
       try Podcast.fetchAll(db)
     }
     #expect(fetchedAllPodcasts == [podcast])
 
-    try await db.read { [podcast] db in
+    try repository.read { [podcast] db in
       let exists = try podcast.exists(db)
       #expect(exists)
     }
     let deleted = try repository.delete(podcast)
     #expect(deleted)
-    try await db.read { [podcast] db in
+    try repository.read { [podcast] db in
       let exists = try podcast.exists(db)
       #expect(!exists)
     }
 
-    let noPodcasts = try await db.read { db in
+    let noPodcasts = try repository.read { db in
       try Podcast.fetchAll(db)
     }
     #expect(noPodcasts.isEmpty)
 
-    let allCount = try await db.read { db in
+    let allCount = try repository.read { db in
       try Podcast.fetchCount(db)
     }
     #expect(allCount == 0)
 
-    let titleCount = try await db.read { [podcast] db in
+    let titleCount = try repository.read { [podcast] db in
       try Podcast.filter(Column("title") == podcast.title).fetchCount(db)
     }
     #expect(titleCount == 0)

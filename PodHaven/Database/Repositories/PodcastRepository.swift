@@ -50,7 +50,9 @@ struct PodcastRepository: Sendable {
     return success
   }
 
-  var db: any DatabaseReader {
-    appDatabase.reader
+  func read<T>(_ block: (Database) throws -> T) throws -> T {
+    try appDatabase.reader.read { db in
+      try block(db)
+    }
   }
 }
