@@ -3,17 +3,17 @@
 @preconcurrency import FeedKit
 import Foundation
 
+typealias ParseResult = Result<PodcastFeed, FeedError>
+
 actor PodcastFeed: Sendable {
-  static func parse(_ url: URL) async -> Result<PodcastFeed, FeedError> {
+  static func parse(_ url: URL) async -> ParseResult {
     guard let data = try? Data(contentsOf: url) else {
       return .failure(.failedLoad(url))
     }
     return await parse(data: data, from: url)
   }
 
-  static func parse(data: Data, from url: URL) async -> Result<
-    PodcastFeed, FeedError
-  > {
+  static func parse(data: Data, from url: URL) async -> ParseResult {
     let parser = FeedParser(data: data)
     return await withCheckedContinuation {
       continuation in

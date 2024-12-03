@@ -8,27 +8,25 @@ import UniformTypeIdentifiers
   let id = UUID()
   let title: String
   var totalCount: Int {
-    invalid.count
+    failed.count
       + alreadySubscribed.count
       + waiting.count
       + downloading.count
-      + failed.count
       + finished.count
   }
   var inProgressCount: Int {
     waiting.count + downloading.count
   }
   var failCount: Int {
-    invalid.count + failed.count
+    failed.count
   }
   var successCount: Int {
     alreadySubscribed.count + finished.count
   }
-  var invalid: [OPMLOutline] = []
+  var failed: [OPMLOutline] = []
   var alreadySubscribed: [URL: OPMLOutline] = [:]
   var waiting: [URL: OPMLOutline] = [:]
   var downloading: [URL: OPMLOutline] = [:]
-  var failed: [URL: OPMLOutline] = [:]
   var finished: [URL: OPMLOutline] = [:]
 
   init(title: String) {
@@ -38,7 +36,7 @@ import UniformTypeIdentifiers
 
 @Observable @MainActor final class OPMLOutline: Identifiable, Equatable {
   enum Status {
-    case invalid, alreadySubscribed, waiting, downloading, failed, finished
+    case failed, alreadySubscribed, waiting, downloading, finished
   }
 
   let id = UUID()
@@ -99,7 +97,7 @@ import UniformTypeIdentifiers
       guard let feedURL = entry.feedURL,
         let url = try? UnsavedPodcast.convertToValidURL(feedURL)
       else {
-        opmlFile.invalid.append(OPMLOutline(text: entry.text, status: .invalid))
+        opmlFile.failed.append(OPMLOutline(text: entry.text, status: .failed))
         continue
       }
       // TODO: Check if podcast already in DB before setting it as waiting
@@ -125,26 +123,32 @@ import UniformTypeIdentifiers
           #endif
           await downloadTask.downloadBegan()
           outline.status = .downloading
-          opmlFile.downloading[downloadTask.url] = outline
           opmlFile.waiting.removeValue(forKey: downloadTask.url)
+          opmlFile.downloading[downloadTask.url] = outline
           #if DEBUG
             try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
           #endif
-          let result = await downloadTask.downloadFinished()
-          switch result {
-          case .success:
-            outline.status = .finished
-            opmlFile.finished[downloadTask.url] = outline
+          let downloadResult = await downloadTask.downloadFinished()
+          outline.result = downloadResult
+          opmlFile.downloading.removeValue(forKey: downloadTask.url)
+          switch downloadResult {
+          case .success(let data):
+            let parseResult = await PodcastFeed.parse(
+              data: data,
+              from: downloadTask.url
+            )
+            switch parseResult {
+            case .success:
+              outline.status = .finished
+              opmlFile.finished[downloadTask.url] = outline
+            case .failure:
+              outline.status = .failed
+              opmlFile.failed.append(outline)
+            }
           case .failure:
             outline.status = .failed
-            opmlFile.failed[downloadTask.url] = outline
+            opmlFile.failed.append(outline)
           }
-          opmlFile.downloading.removeValue(forKey: downloadTask.url)
-          outline.result = result
-
-          // TODO: Parse, then Save result to Podcasts DB
-          // if case .success(let data) = result {
-          // }
         }
       }
     }

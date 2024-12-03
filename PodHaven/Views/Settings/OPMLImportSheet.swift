@@ -57,8 +57,7 @@ struct OPMLImportSheet: View {
     List {
       OPMLImportSheetSection(outlines: Array(opmlFile.downloading.values))
       OPMLImportSheetSection(outlines: Array(opmlFile.waiting.values))
-      OPMLImportSheetSection(outlines: Array(opmlFile.failed.values))
-      OPMLImportSheetSection(outlines: opmlFile.invalid)
+      OPMLImportSheetSection(outlines: Array(opmlFile.failed))
       OPMLImportSheetSection(outlines: Array(opmlFile.finished.values))
       OPMLImportSheetSection(
         outlines: Array(opmlFile.alreadySubscribed.values)
@@ -66,8 +65,7 @@ struct OPMLImportSheet: View {
     }
     .animation(.default, value: Array(opmlFile.downloading.values))
     .animation(.default, value: Array(opmlFile.waiting.values))
-    .animation(.default, value: Array(opmlFile.failed.values))
-    .animation(.default, value: opmlFile.invalid)
+    .animation(.default, value: Array(opmlFile.failed))
     .animation(.default, value: Array(opmlFile.finished.values))
     .animation(.default, value: Array(opmlFile.alreadySubscribed.values))
     .interactiveDismissDisabled(true)

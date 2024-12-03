@@ -7,7 +7,7 @@ import Testing
 
 @Suite("of PodcastFeed tests")
 actor PodcastFeedTests {
-  @Test("parsing the Pod Save America feed using URL")
+  @Test("parsing the Pod Save America feed")
   func parsePodSaveAmericaFeed() async {
     let url = Bundle.main.url(
       forResource: "pod_save_america",
@@ -21,6 +21,18 @@ actor PodcastFeedTests {
       print(await feed.image!)
     case .failure(let error):
       Issue.record("Failed to parse \(url): \"\(error)\"")
+    }
+  }
+
+  @Test("parsing the invalid Game Informer feed")
+  func parseInvalidGameInformerFeed() async {
+    let url = Bundle.main.url(
+      forResource: "game_informer",
+      withExtension: "rss"
+    )!
+    let feed = await PodcastFeed.parse(url)
+    if case .success = feed {
+      Issue.record("Game Informer should be unparseable")
     }
   }
 }

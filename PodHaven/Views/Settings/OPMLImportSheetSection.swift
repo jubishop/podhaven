@@ -4,7 +4,6 @@ import SwiftUI
 
 struct OPMLImportSheetSection: View {
   private let headers: [OPMLOutline.Status: Text] = [
-    .invalid: Text("Invalid").foregroundStyle(.red).bold(),
     .failed: Text("Failed").foregroundStyle(.red).bold(),
     .waiting: Text("Waiting").foregroundStyle(.blue).bold(),
     .downloading: Text("Downloading").foregroundStyle(.blue).bold(),
@@ -35,7 +34,7 @@ struct OPMLImportSheetSection: View {
             Text(outline.text)
             Spacer()
             switch status {
-            case .invalid, .failed:
+            case .failed:
               Image(systemName: "x.circle")
                 .foregroundColor(.red)
             case .waiting:
@@ -60,9 +59,6 @@ struct OPMLImportSheetSection: View {
     List {
       // Should display nothing...
       OPMLImportSheetSection(outlines: [])
-      OPMLImportSheetSection(
-        outlines: [OPMLOutline(text: "Invalid", status: .invalid)]
-      )
       OPMLImportSheetSection(
         outlines: [OPMLOutline(text: "Failed", status: .failed)]
       )
