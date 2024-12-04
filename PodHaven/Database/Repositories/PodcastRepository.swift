@@ -20,11 +20,11 @@ struct PodcastRepository: Sendable {
 
   private init(_ appDatabase: AppDatabase) {
     self.appDatabase = appDatabase
-    self.observer = ValueObservation.tracking(Podcast.fetchAll)
-      .shared(
-        in: appDatabase.db,
-        extent: .observationLifetime
-      )
+    self.observer =
+      ValueObservation
+      .tracking(Podcast.fetchAll)
+      .removeDuplicates()
+      .shared(in: appDatabase.db)
   }
 
   // MARK: - Writers
