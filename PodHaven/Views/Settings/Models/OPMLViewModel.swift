@@ -42,7 +42,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   let text: String
   var status: Status
   let feedURL: URL?
-  var data: Data?
+  var data: DownloadData?
 
   init(text: String, status: Status, feedURL: URL? = nil) {
     self.text = text
@@ -61,6 +61,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
 @Observable @MainActor final class OPMLViewModel {
   private let repository: PodcastRepository
+  private var downloadManager: DownloadManager?
   let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)!
   var opmlImporting = false
   var opmlFile: OPMLFile?
@@ -97,7 +98,10 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     return opml
   }
 
-  func stopDownloading() {
+  func stopDownloading() async {
+    if let downloadManager = downloadManager {
+      await downloadManager.cancelAllDownloads()
+    }
     opmlFile = nil
     Navigation.shared.currentTab = .podcasts
   }
@@ -131,8 +135,11 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     }
     self.opmlFile = opmlFile
     Task {
-      let opmlDownloader = createDownloadManager()
-      let downloadTasks = await opmlDownloader.addURLs(
+      downloadManager = createDownloadManager()
+      guard let downloadManager = downloadManager else {
+        fatalError("DownloadManager is nil")
+      }
+      let downloadTasks = await downloadManager.addURLs(
         opmlFile.waiting.map { $0.key }
       )
       for downloadTask in downloadTasks {
@@ -140,23 +147,17 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           guard let outline = opmlFile.waiting[downloadTask.url] else {
             fatalError("No OPMLOutline for url: \(downloadTask.url)?")
           }
-          #if DEBUG
-            try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
-          #endif
           await downloadTask.downloadBegan()
           outline.status = .downloading
           opmlFile.waiting.removeValue(forKey: downloadTask.url)
           opmlFile.downloading[downloadTask.url] = outline
-          #if DEBUG
-            try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
-          #endif
           if case .success(let data) = await downloadTask.downloadFinished(),
             case .success(let feed) = await PodcastFeed.parse(
               data: data.data,
               from: downloadTask.url
             )
           {
-            outline.data = data.data
+            outline.data = data
             if let unsavedPodcast = try? UnsavedPodcast(
               feedURL: downloadTask.url,
               title: await feed.title ?? outline.text,

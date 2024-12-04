@@ -22,7 +22,9 @@ struct OPMLImportSheet: View {
         opmlFile.inProgressCount == 0
           ? "All Finished" : opmlFile.successCount > 0 ? "Stop" : "Cancel"
       ) {
-        viewModel.stopDownloading()
+        Task {
+          await viewModel.stopDownloading()
+        }
       }
     }
     .buttonStyle(.bordered)

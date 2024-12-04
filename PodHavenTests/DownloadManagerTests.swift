@@ -93,6 +93,34 @@ actor DownloadManagerTests {
     #expect(result == .failure(.cancelled))
   }
 
+  @Test("that you can cancel all downloads")
+  func cancelAllDownloads() async throws {
+    let downloadManager = DownloadManager(
+      session: session,
+      maxConcurrentDownloads: 1
+    )
+
+    let url = URL(string: "https://example.com/data")!
+    await session.set(url, .delay(.milliseconds(50)))
+    let task = await downloadManager.addURL(url)
+    let url2 = URL(string: "https://example.com/data2")!
+    let task2 = await downloadManager.addURL(url2)
+
+    // At this point: task should be active, task2 should be pending
+    await downloadManager.cancelAllDownloads()
+    var result = await task.downloadFinished()
+    #expect(result == .failure(.cancelled))
+    var result2 = await task2.downloadFinished()
+    #expect(result2 == .failure(.cancelled))
+
+    // Even after the url data has returned, the results remains cancelled.
+    try await Task.sleep(for: .milliseconds(100))
+    result = await task.downloadFinished()
+    #expect(result == .failure(.cancelled))
+    result2 = await task2.downloadFinished()
+    #expect(result2 == .failure(.cancelled))
+  }
+
   @Test("that url's are fetched in the order they're received")
   func fetchedInOrder() async throws {
     let downloadManager = DownloadManager(
