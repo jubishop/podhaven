@@ -135,11 +135,9 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
             try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
           #endif
           await downloadTask.downloadBegan()
-          withMutation(keyPath: \.opmlFile) {
-            outline.status = .downloading
-            opmlFile.waiting.removeValue(forKey: downloadTask.url)
-            opmlFile.downloading[downloadTask.url] = outline
-          }
+          outline.status = .downloading
+          opmlFile.waiting.removeValue(forKey: downloadTask.url)
+          opmlFile.downloading[downloadTask.url] = outline
           #if DEBUG
             try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
           #endif
@@ -156,18 +154,14 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
               link: await feed.link,
               image: await feed.image
             ), (try? repository.insert(unsavedPodcast)) != nil {
-              withMutation(keyPath: \.opmlFile) {
-                outline.status = .finished
-                opmlFile.downloading.removeValue(forKey: downloadTask.url)
-                opmlFile.finished[downloadTask.url] = outline
-              }
+              outline.status = .finished
+              opmlFile.downloading.removeValue(forKey: downloadTask.url)
+              opmlFile.finished[downloadTask.url] = outline
             }
           } else {
-            withMutation(keyPath: \.opmlFile) {
-              outline.status = .failed
-              opmlFile.downloading.removeValue(forKey: downloadTask.url)
-              opmlFile.failed.append(outline)
-            }
+            outline.status = .failed
+            opmlFile.downloading.removeValue(forKey: downloadTask.url)
+            opmlFile.failed.append(outline)
           }
         }
       }
