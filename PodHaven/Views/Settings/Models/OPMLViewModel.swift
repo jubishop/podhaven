@@ -32,7 +32,8 @@ import UniformTypeIdentifiers
   }
 }
 
-@Observable @MainActor final class OPMLOutline: Identifiable, Equatable {
+@Observable @MainActor
+final class OPMLOutline: Equatable, Hashable, Identifiable {
   enum Status {
     case failed, alreadySubscribed, waiting, downloading, finished
   }
@@ -51,6 +52,10 @@ import UniformTypeIdentifiers
 
   nonisolated static func == (lhs: OPMLOutline, rhs: OPMLOutline) -> Bool {
     lhs.id == rhs.id
+  }
+
+  nonisolated func hash(into hasher: inout Hasher) {
+    hasher.combine(id)
   }
 }
 
