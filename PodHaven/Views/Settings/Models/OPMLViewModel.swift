@@ -41,7 +41,7 @@ import UniformTypeIdentifiers
   let text: String
   var status: Status
   let feedURL: URL?
-  var result: DownloadResult?
+  var data: Data?
 
   init(text: String, status: Status, feedURL: URL? = nil) {
     self.text = text
@@ -138,14 +138,13 @@ import UniformTypeIdentifiers
           #if DEBUG
             try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
           #endif
-          let downloadResult = await downloadTask.downloadFinished()
-          outline.result = downloadResult
-          if case .success(let data) = downloadResult,
+          if case .success(let data) = await downloadTask.downloadFinished(),
             case .success(let feed) = await PodcastFeed.parse(
               data: data,
               from: downloadTask.url
             )
           {
+            outline.data = data
             if let unsavedPodcast = try? UnsavedPodcast(
               feedURL: downloadTask.url,
               title: await feed.title ?? outline.text,
