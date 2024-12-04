@@ -16,12 +16,12 @@ actor PodcastFeedTests {
     let feed = await PodcastFeed.parse(url)
     switch feed {
     case .success(let feed):
-      #expect(await feed.title == "Pod Save America")
+      #expect(feed.title == "Pod Save America")
       #expect(
-        try #require(await feed.link) == URL(string: "https://crooked.com")
+        try #require(feed.link) == URL(string: "https://crooked.com")
       )
       #expect(
-        try #require(await feed.image)
+        try #require(feed.image)
           == URL(
             string:
               "https://image.simplecastcdn.com/images/9aa1e238-cbed-4305-9808-c9228fc6dd4f/eb7dddd4-ecb0-444c-b379-f75d7dc6c22b/3000x3000/uploads-2f1595947484360-nc4atf9w7ur-dbbaa7ee07a1ee325ec48d2e666ac261-2fpodsave100daysfinal1800.jpg?aid=rss_feed"

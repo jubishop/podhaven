@@ -5,7 +5,7 @@ import Foundation
 
 typealias ParseResult = Result<PodcastFeed, FeedError>
 
-actor PodcastFeed: Sendable {
+struct PodcastFeed: Sendable {
   static func parse(_ url: URL) async -> ParseResult {
     guard let data = try? Data(contentsOf: url) else {
       return .failure(.failedLoad(url))

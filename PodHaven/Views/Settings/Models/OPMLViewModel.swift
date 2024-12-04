@@ -160,9 +160,9 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
             outline.data = data
             if let unsavedPodcast = try? UnsavedPodcast(
               feedURL: downloadTask.url,
-              title: await feed.title ?? outline.text,
-              link: await feed.link,
-              image: await feed.image
+              title: feed.title ?? outline.text,
+              link: feed.link,
+              image: feed.image
             ), (try? repository.insert(unsavedPodcast)) != nil {
               outline.status = .finished
               opmlFile.downloading.removeValue(forKey: downloadTask.url)
