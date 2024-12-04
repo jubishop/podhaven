@@ -9,7 +9,10 @@ struct OPMLImportSheet: View {
   @Binding var opmlViewModel: OPMLViewModel
   let opmlFile: OPMLFile
 
-  init(opmlViewModel: Binding<OPMLViewModel>, opmlFile: OPMLFile) {
+  init(opmlViewModel: Binding<OPMLViewModel>) {
+    guard let opmlFile = opmlViewModel.wrappedValue.opmlFile else {
+      fatalError("OPMLImportSheet must be initialized with an OPMLFile.")
+    }
     self._opmlViewModel = opmlViewModel
     self.opmlFile = opmlFile
   }
@@ -101,7 +104,7 @@ struct OPMLImportSheet: View {
       }
     }
     .sheet(item: $opmlViewModel.opmlFile) { opmlFile in
-      OPMLImportSheet(opmlViewModel: $opmlViewModel, opmlFile: opmlFile)
+      OPMLImportSheet(opmlViewModel: $opmlViewModel)
     }
   }
 }

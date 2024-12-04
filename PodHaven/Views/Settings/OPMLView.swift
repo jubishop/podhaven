@@ -29,7 +29,7 @@ struct OPMLView: View {
       onCompletion: opmlViewModel.opmlFileImporterCompletion
     )
     .sheet(item: $opmlViewModel.opmlFile) { opmlFile in
-      OPMLImportSheet(opmlViewModel: $opmlViewModel, opmlFile: opmlFile)
+      OPMLImportSheet(opmlViewModel: $opmlViewModel)
     }
   }
 }
