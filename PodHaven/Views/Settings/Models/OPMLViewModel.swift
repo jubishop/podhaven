@@ -140,33 +140,25 @@ import UniformTypeIdentifiers
           #endif
           let downloadResult = await downloadTask.downloadFinished()
           outline.result = downloadResult
-          switch downloadResult {
-          case .success(let data):
-            let parseResult = await PodcastFeed.parse(
+          if case .success(let data) = downloadResult,
+            case .success(let feed) = await PodcastFeed.parse(
               data: data,
               from: downloadTask.url
             )
-            switch parseResult {
-            case .success(let feed):
-              if let unsavedPodcast = try? UnsavedPodcast(
-                feedURL: downloadTask.url,
-                title: await feed.title ?? outline.text,
-                link: await feed.link,
-                image: await feed.image
-              ), (try? repository.insert(unsavedPodcast)) != nil {
-                withMutation(keyPath: \.opmlFile) {
-                  outline.status = .finished
-                  opmlFile.downloading.removeValue(forKey: downloadTask.url)
-                  opmlFile.finished[downloadTask.url] = outline
-                }
+          {
+            if let unsavedPodcast = try? UnsavedPodcast(
+              feedURL: downloadTask.url,
+              title: await feed.title ?? outline.text,
+              link: await feed.link,
+              image: await feed.image
+            ), (try? repository.insert(unsavedPodcast)) != nil {
+              withMutation(keyPath: \.opmlFile) {
+                outline.status = .finished
+                opmlFile.downloading.removeValue(forKey: downloadTask.url)
+                opmlFile.finished[downloadTask.url] = outline
               }
-            case .failure:
-              break
             }
-          case .failure:
-            break
-          }
-          if outline.status != .finished {
+          } else {
             withMutation(keyPath: \.opmlFile) {
               outline.status = .failed
               opmlFile.downloading.removeValue(forKey: downloadTask.url)
