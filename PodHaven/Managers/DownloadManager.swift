@@ -1,7 +1,12 @@
 import Foundation
 import OrderedCollections
 
-typealias DownloadResult = Result<Data, DownloadError>
+typealias DownloadResult = Result<DownloadData, DownloadError>
+
+struct DownloadData: Sendable, Equatable, Hashable {
+  let url: URL
+  let data: Data
+}
 
 final actor DownloadTask: Sendable {
   let url: URL
@@ -60,7 +65,7 @@ final actor DownloadTask: Sendable {
 }
 
 extension DownloadTask {
-  fileprivate func download() async -> Result<Data, DownloadError> {
+  fileprivate func download() async -> DownloadResult {
     if let result = result { return result }
     do {
       haveBegun()
@@ -71,7 +76,7 @@ extension DownloadTask {
       guard (200...299).contains(httpResponse.statusCode) else {
         throw DownloadError.invalidStatusCode(httpResponse.statusCode)
       }
-      haveFinished(.success(data))
+      haveFinished(.success(DownloadData(url: url, data: data)))
     } catch {
       let finalError: DownloadError
       if let downloadError = error as? DownloadError {

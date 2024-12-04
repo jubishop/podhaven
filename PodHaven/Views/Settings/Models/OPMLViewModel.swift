@@ -143,11 +143,11 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           #endif
           if case .success(let data) = await downloadTask.downloadFinished(),
             case .success(let feed) = await PodcastFeed.parse(
-              data: data,
+              data: data.data,
               from: downloadTask.url
             )
           {
-            outline.data = data
+            outline.data = data.data
             if let unsavedPodcast = try? UnsavedPodcast(
               feedURL: downloadTask.url,
               title: await feed.title ?? outline.text,

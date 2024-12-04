@@ -21,7 +21,7 @@ actor DownloadManagerTests {
     let result = await downloadManager.addURL(url).downloadFinished()
     switch result {
     case .success(let data):
-      #expect(data == url.dataRepresentation, "Returned data should match")
+      #expect(data.data == url.dataRepresentation, "Returned data should match")
     case .failure(let error):
       Issue.record("Expected success, got error: \(error)")
     }
@@ -129,7 +129,10 @@ actor DownloadManagerTests {
         let result = await task.downloadFinished()
         switch result {
         case .success(let data):
-          #expect(data == url.dataRepresentation, "Returned data should match")
+          #expect(
+            data.data == url.dataRepresentation,
+            "Returned data should match"
+          )
           await downloadCount.increment()
         case .failure(let error):
           Issue.record("Expected success, got error: \(error)")
@@ -161,7 +164,12 @@ actor DownloadManagerTests {
     // url to finish (concurrentTasks = 1, delay = 100ms), it would've never
     // actually start()'d the second downloadTask.
     let result = await task.downloadFinished()
-    #expect(result == .success(url2.dataRepresentation))
+    #expect(
+      result
+        == .success(
+          DownloadData(url: url2, data: url2.dataRepresentation)
+        )
+    )
   }
 
   @Test("that you can use the AsyncStream to get results")
