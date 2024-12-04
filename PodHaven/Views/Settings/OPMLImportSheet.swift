@@ -4,7 +4,7 @@ import OPML
 import SwiftUI
 
 struct OPMLImportSheet: View {
-  @Environment(Navigation.self) var navigation
+  @State private var navigation = Navigation.shared
 
   @Binding var opmlViewModel: OPMLViewModel
   let opmlFile: OPMLFile
@@ -32,22 +32,27 @@ struct OPMLImportSheet: View {
       }
     }
     .buttonStyle(.bordered)
+    .padding()
 
-    if opmlFile.inProgressCount > 0 {
-      Text(
-        """
-        Importing \(opmlFile.totalCount) items; \
-        \(opmlFile.inProgressCount) remaining
-        """
-      )
-    } else {
-      Text(
-        """
-        \(opmlFile.finished.count) podcasts added; \
-        \(opmlFile.alreadySubscribed.count) already subscribed
-        """
-      )
+    Group {
+      if opmlFile.inProgressCount > 0 {
+        Text(
+          """
+          Importing \(opmlFile.totalCount) items; \
+          \(opmlFile.inProgressCount) remaining
+          """
+        )
+      } else {
+        Text(
+          """
+          \(opmlFile.finished.count) podcasts added; \
+          \(opmlFile.alreadySubscribed.count) already subscribed
+          """
+        )
+      }
     }
+    .padding()
+
     if let opmlFile = opmlViewModel.opmlFile {
       ProgressView(
         totalAmount: Double(opmlFile.totalCount),

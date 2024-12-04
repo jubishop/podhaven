@@ -3,10 +3,9 @@
 import SwiftUI
 
 struct SettingsView: View {
-  @Environment(Navigation.self) var navigation
+  @State private var navigation = Navigation.shared
 
   var body: some View {
-    @Bindable var navigation = navigation
     NavigationStack(path: $navigation.settingsPath) {
       Form {
         Section("Importing / Exporting") {

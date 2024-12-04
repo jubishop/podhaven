@@ -4,7 +4,6 @@ import Foundation
 import SwiftUI
 
 struct Preview<Content: View>: View {
-  @State private var navigation = Navigation()
   @State private var alert = Alert.shared
 
   let content: Content
@@ -15,7 +14,6 @@ struct Preview<Content: View>: View {
 
   var body: some View {
     content
-      .environment(navigation)
       .customAlert($alert.config)
   }
 }

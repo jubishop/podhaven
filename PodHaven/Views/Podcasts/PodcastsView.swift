@@ -3,13 +3,14 @@
 import SwiftUI
 
 struct PodcastsView: View {
+  @State private var navigation = Navigation.shared
   @State private var podcastsViewModel = PodcastsViewModel()
 
   var body: some View {
-    Text("Hello World")
+    Button("Hello World") { navigation.currentTab = .settings }
   }
 }
 
 #Preview {
-  PodcastsView()
+  Preview { PodcastsView() }
 }

@@ -3,12 +3,15 @@
 import SwiftUI
 
 struct ContentView: View {
-  @State private var navigation = Navigation()
-  @State private var alert = Alert.shared
+  @State private var navigation = Navigation.shared
 
   var body: some View {
     TabView(selection: $navigation.currentTab) {
-      Tab("Settings", systemImage: "gear", value: .settings) {
+      Tab(
+        "Settings",
+        systemImage: "gear",
+        value: .settings
+      ) {
         SettingsView()
       }
       Tab(
@@ -19,14 +22,9 @@ struct ContentView: View {
         PodcastsView()
       }
     }
-    .onChange(of: navigation.currentTab) {
-      navigation.settingsPath = NavigationPath()
-    }
-    .environment(navigation)
-    .customAlert($alert.config)
   }
 }
 
 #Preview {
-  ContentView()
+  Preview { ContentView() }
 }

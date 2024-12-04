@@ -24,6 +24,8 @@ struct NavigationView: Hashable {
 }
 
 @Observable @MainActor final class Navigation: Sendable {
+  static let shared = { Navigation() }()
+
   enum Tab {
     case settings
     case upNext
@@ -31,5 +33,12 @@ struct NavigationView: Hashable {
   }
 
   var settingsPath = NavigationPath()
-  var currentTab: Tab = .settings
+
+  var currentTab: Tab = .settings {
+    willSet {
+      if newValue == .settings {
+        settingsPath = NavigationPath()
+      }
+    }
+  }
 }

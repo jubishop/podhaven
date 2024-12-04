@@ -1,12 +1,13 @@
-// Copyright Justin Bishop, 2024 
+// Copyright Justin Bishop, 2024
 
 import SwiftUI
 
 @main
 struct PodHavenApp: App {
-    var body: some Scene {
-        WindowGroup {
-          ContentView()
-        }
+  @State private var alert = Alert.shared
+  var body: some Scene {
+    WindowGroup {
+      ContentView().customAlert($alert.config)
     }
+  }
 }
