@@ -121,4 +121,20 @@ actor PodcastTests {
       error is DatabaseError && error.localizedDescription.contains("UNIQUE")
     }
   }
+
+  @Test("that podcasts are successfully observed")
+  func observePodcasts() async throws {
+    let podcastCounter = Counter()
+    let task = Task {
+      for try await podcasts in repository.observer.values() {
+        await podcastCounter(podcasts.count)
+      }
+    }
+    let url = URL(string: "https://example.com/data")!
+    let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
+    _ = try repository.insert(unsavedPodcast)
+    try await Task.sleep(for: .milliseconds(10))
+    #expect(await podcastCounter.value == 1)
+    task.cancel()
+  }
 }

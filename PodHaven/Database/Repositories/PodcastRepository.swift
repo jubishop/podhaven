@@ -15,13 +15,19 @@ struct PodcastRepository: Sendable {
   }()
 
   var db: any DatabaseReader { appDatabase.db }
+  let observer: SharedValueObservation<[Podcast]>
   private let appDatabase: AppDatabase
 
   private init(_ appDatabase: AppDatabase) {
     self.appDatabase = appDatabase
+    self.observer = ValueObservation.tracking(Podcast.fetchAll)
+      .shared(
+        in: appDatabase.db,
+        extent: .observationLifetime
+      )
   }
 
-  // MARK: - Podcast Methods
+  // MARK: - Writers
 
   func insert(_ unsavedPodcast: UnsavedPodcast) throws -> Podcast {
     try appDatabase.db.write { db in

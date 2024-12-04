@@ -78,7 +78,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           downloadOPMLFile(opml)
         }
       } else {
-        Alert.shared("Couldn't start accessing security scoped response.")
+        Alert.shared("Couldn't start accessing security scoped response")
       }
       url.stopAccessingSecurityScopedResource()
     case .failure(let error):
