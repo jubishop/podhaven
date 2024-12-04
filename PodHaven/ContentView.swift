@@ -19,6 +19,9 @@ struct ContentView: View {
         PodcastsView()
       }
     }
+    .onChange(of: navigation.currentTab) {
+      navigation.settingsPath = NavigationPath()
+    }
     .environment(navigation)
     .customAlert($alert.config)
   }

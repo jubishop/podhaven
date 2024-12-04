@@ -3,12 +3,15 @@
 import SwiftUI
 
 struct SettingsView: View {
+  @Environment(Navigation.self) var navigation
+
   var body: some View {
-    NavigationStack {
+    @Bindable var navigation = navigation
+    NavigationStack(path: $navigation.settingsPath) {
       Form {
         Section("Importing / Exporting") {
           NavigationLink(
-            destination: OPMLView(),
+            value: NavigationView { OPMLView() },
             label: { Text("OPML") }
           )
         }
@@ -26,6 +29,7 @@ struct SettingsView: View {
         #endif
       }
       .navigationTitle("Settings")
+      .navigationDestination(for: NavigationView.self) { view in view() }
     }
   }
 }
