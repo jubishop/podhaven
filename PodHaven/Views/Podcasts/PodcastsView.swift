@@ -3,11 +3,10 @@
 import SwiftUI
 
 struct PodcastsView: View {
-  @State private var navigation = Navigation.shared
   @State private var podcastsViewModel = PodcastsViewModel()
 
   var body: some View {
-    Button("Hello World") { navigation.currentTab = .settings }
+    Button("Hello World") { Navigation.shared.currentTab = .settings }
   }
 }
 

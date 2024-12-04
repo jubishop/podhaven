@@ -97,6 +97,11 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     return opml
   }
 
+  func stopDownloading() {
+    opmlFile = nil
+    Navigation.shared.currentTab = .podcasts
+  }
+
   // MARK: - Private Methods
 
   private func downloadOPMLFile(_ opml: OPML) {

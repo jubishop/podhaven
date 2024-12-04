@@ -4,8 +4,6 @@ import OPML
 import SwiftUI
 
 struct OPMLImportSheet: View {
-  @State private var navigation = Navigation.shared
-
   @Binding var opmlViewModel: OPMLViewModel
   let opmlFile: OPMLFile
 
@@ -20,18 +18,11 @@ struct OPMLImportSheet: View {
   var body: some View {
     Text(opmlFile.title).font(.title)
     Group {
-      if opmlFile.inProgressCount == 0 {
-        Button("All Finished") {
-          opmlViewModel.opmlFile = nil
-          navigation.currentTab = .podcasts
-        }
-      } else {
-        Button(opmlFile.successCount > 0 ? "Stop" : "Cancel") {
-          opmlViewModel.opmlFile = nil
-          if opmlFile.successCount > 0 {
-            navigation.currentTab = .podcasts
-          }
-        }
+      Button(
+        opmlFile.inProgressCount == 0
+          ? "All Finished" : opmlFile.successCount > 0 ? "Stop" : "Cancel"
+      ) {
+        opmlViewModel.stopDownloading()
       }
     }
     .buttonStyle(.bordered)
