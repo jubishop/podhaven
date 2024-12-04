@@ -41,14 +41,19 @@ struct OPMLImportSheet: View {
         """
       )
     } else {
-      Text("\(opmlFile.successCount) new podcasts added")
+      Text(
+        """
+        \(opmlFile.finished.count) podcasts added; \
+        \(opmlFile.alreadySubscribed.count) already subscribed
+        """
+      )
     }
     if let opmlFile = opmlViewModel.opmlFile {
       ProgressView(
         totalAmount: Double(opmlFile.totalCount),
         colorAmounts: [
           .green: Double(opmlFile.successCount),
-          .red: Double(opmlFile.failCount),
+          .red: Double(opmlFile.failed.count),
         ]
       )
       .frame(height: 40)

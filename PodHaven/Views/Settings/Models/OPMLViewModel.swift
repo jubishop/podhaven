@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2024
 
 import Foundation
+import GRDB
 import OPML
 import UniformTypeIdentifiers
 
@@ -16,9 +17,6 @@ import UniformTypeIdentifiers
   }
   var inProgressCount: Int {
     waiting.count + downloading.count
-  }
-  var failCount: Int {
-    failed.count
   }
   var successCount: Int {
     alreadySubscribed.count + finished.count
@@ -57,6 +55,7 @@ import UniformTypeIdentifiers
 }
 
 @Observable @MainActor final class OPMLViewModel {
+  private let repository = PodcastRepository.shared
   let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)!
   var opmlImporting = false
   var opmlFile: OPMLFile?
@@ -100,12 +99,21 @@ import UniformTypeIdentifiers
         opmlFile.failed.append(OPMLOutline(text: entry.text, status: .failed))
         continue
       }
-      // TODO: Check if podcast already in DB before setting it as waiting
-      opmlFile.waiting[url] = OPMLOutline(
-        text: entry.text,
-        status: .waiting,
-        feedURL: url
-      )
+      if (try? repository.db.read({ db in
+        try Podcast.filter(Column("feedURL") == url).fetchOne(db)
+      })) != nil {
+        opmlFile.alreadySubscribed[url] = OPMLOutline(
+          text: entry.text,
+          status: .alreadySubscribed,
+          feedURL: url
+        )
+      } else {
+        opmlFile.waiting[url] = OPMLOutline(
+          text: entry.text,
+          status: .waiting,
+          feedURL: url
+        )
+      }
     }
     self.opmlFile = opmlFile
     Task {
@@ -138,10 +146,19 @@ import UniformTypeIdentifiers
               from: downloadTask.url
             )
             switch parseResult {
-            case .success:
-              // TODO: Add podcast to DB
-              outline.status = .finished
-              opmlFile.finished[downloadTask.url] = outline
+            case .success(let feed):
+              if let unsavedPodcast = try? UnsavedPodcast(
+                feedURL: downloadTask.url,
+                title: await feed.title ?? outline.text,
+                link: await feed.link,
+                image: await feed.image
+              ), (try? repository.insert(unsavedPodcast)) != nil {
+                outline.status = .finished
+                opmlFile.finished[downloadTask.url] = outline
+              } else {
+                outline.status = .failed
+                opmlFile.failed.append(outline)
+              }
             case .failure:
               outline.status = .failed
               opmlFile.failed.append(outline)
