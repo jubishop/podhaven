@@ -3,7 +3,7 @@
 import SwiftUI
 
 struct PodcastsView: View {
-  @State private var podcastsViewModel = PodcastsViewModel()
+  @State private var viewModel = PodcastsViewModel()
 
   var body: some View {
     Button("Hello World") { Navigation.shared.currentTab = .settings }

@@ -3,10 +3,10 @@
 import SwiftUI
 
 struct OPMLView: View {
-  @State private var opmlViewModel: OPMLViewModel
+  @State private var viewModel: OPMLViewModel
 
   init(repository: PodcastRepository = .shared) {
-    _opmlViewModel = State(initialValue: OPMLViewModel(repository: repository))
+    _viewModel = State(initialValue: OPMLViewModel(repository: repository))
   }
 
   var body: some View {
@@ -14,9 +14,9 @@ struct OPMLView: View {
       Button(
         action: {
           #if targetEnvironment(simulator)
-            opmlViewModel.importOPMLFileInSimulator("large")
+            viewModel.importOPMLFileInSimulator("large")
           #else
-            opmlViewModel.opmlImporting = true
+            viewModel.opmlImporting = true
           #endif
         },
         label: { Text("Import OPML") }
@@ -24,12 +24,12 @@ struct OPMLView: View {
     }
     .navigationTitle("OPML")
     .fileImporter(
-      isPresented: $opmlViewModel.opmlImporting,
-      allowedContentTypes: [opmlViewModel.opmlType],
-      onCompletion: opmlViewModel.opmlFileImporterCompletion
+      isPresented: $viewModel.opmlImporting,
+      allowedContentTypes: [viewModel.opmlType],
+      onCompletion: viewModel.opmlFileImporterCompletion
     )
-    .sheet(item: $opmlViewModel.opmlFile) { opmlFile in
-      OPMLImportSheet(opmlViewModel: $opmlViewModel)
+    .sheet(item: $viewModel.opmlFile) { opmlFile in
+      OPMLImportSheet(viewModel: $viewModel)
     }
   }
 }

@@ -4,14 +4,14 @@ import OPML
 import SwiftUI
 
 struct OPMLImportSheet: View {
-  @Binding var opmlViewModel: OPMLViewModel
+  @Binding var viewModel: OPMLViewModel
   let opmlFile: OPMLFile
 
-  init(opmlViewModel: Binding<OPMLViewModel>) {
-    guard let opmlFile = opmlViewModel.wrappedValue.opmlFile else {
+  init(viewModel: Binding<OPMLViewModel>) {
+    guard let opmlFile = viewModel.wrappedValue.opmlFile else {
       fatalError("OPMLImportSheet must be initialized with an OPMLFile.")
     }
-    self._opmlViewModel = opmlViewModel
+    self._viewModel = viewModel
     self.opmlFile = opmlFile
   }
 
@@ -22,7 +22,7 @@ struct OPMLImportSheet: View {
         opmlFile.inProgressCount == 0
           ? "All Finished" : opmlFile.successCount > 0 ? "Stop" : "Cancel"
       ) {
-        opmlViewModel.stopDownloading()
+        viewModel.stopDownloading()
       }
     }
     .buttonStyle(.bordered)
@@ -47,7 +47,7 @@ struct OPMLImportSheet: View {
     }
     .padding()
 
-    if let opmlFile = opmlViewModel.opmlFile {
+    if let opmlFile = viewModel.opmlFile {
       ProgressView(
         totalAmount: Double(opmlFile.totalCount),
         colorAmounts: [
@@ -77,25 +77,25 @@ struct OPMLImportSheet: View {
 }
 
 #Preview {
-  @Previewable @State var opmlViewModel = OPMLViewModel(repository: .empty())
+  @Previewable @State var viewModel = OPMLViewModel(repository: .empty())
 
   Preview {
     Form {
       Button("Import Large") {
-        opmlViewModel.importOPMLFileInSimulator("large")
+        viewModel.importOPMLFileInSimulator("large")
       }
       Button("Import Small") {
-        opmlViewModel.importOPMLFileInSimulator("small")
+        viewModel.importOPMLFileInSimulator("small")
       }
       Button("Import Invalid") {
-        opmlViewModel.importOPMLFileInSimulator("invalid")
+        viewModel.importOPMLFileInSimulator("invalid")
       }
       Button("Import Empty") {
-        opmlViewModel.importOPMLFileInSimulator("empty")
+        viewModel.importOPMLFileInSimulator("empty")
       }
     }
-    .sheet(item: $opmlViewModel.opmlFile) { opmlFile in
-      OPMLImportSheet(opmlViewModel: $opmlViewModel)
+    .sheet(item: $viewModel.opmlFile) { opmlFile in
+      OPMLImportSheet(viewModel: $viewModel)
     }
   }
 }
