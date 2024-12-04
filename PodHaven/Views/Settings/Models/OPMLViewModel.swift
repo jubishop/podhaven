@@ -60,10 +60,14 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 }
 
 @Observable @MainActor final class OPMLViewModel {
-  private let repository = PodcastRepository.shared
+  private let repository: PodcastRepository
   let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)!
   var opmlImporting = false
   var opmlFile: OPMLFile?
+
+  init(repository: PodcastRepository = .shared) {
+    self.repository = repository
+  }
 
   func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
     switch result {
