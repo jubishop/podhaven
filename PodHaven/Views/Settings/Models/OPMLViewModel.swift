@@ -130,15 +130,16 @@ import UniformTypeIdentifiers
             try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
           #endif
           await downloadTask.downloadBegan()
-          outline.status = .downloading
-          opmlFile.waiting.removeValue(forKey: downloadTask.url)
-          opmlFile.downloading[downloadTask.url] = outline
+          withMutation(keyPath: \.opmlFile) {
+            outline.status = .downloading
+            opmlFile.waiting.removeValue(forKey: downloadTask.url)
+            opmlFile.downloading[downloadTask.url] = outline
+          }
           #if DEBUG
             try await Task.sleep(for: .milliseconds(Int.random(in: 500...5000)))
           #endif
           let downloadResult = await downloadTask.downloadFinished()
           outline.result = downloadResult
-          opmlFile.downloading.removeValue(forKey: downloadTask.url)
           switch downloadResult {
           case .success(let data):
             let parseResult = await PodcastFeed.parse(
@@ -153,19 +154,24 @@ import UniformTypeIdentifiers
                 link: await feed.link,
                 image: await feed.image
               ), (try? repository.insert(unsavedPodcast)) != nil {
-                outline.status = .finished
-                opmlFile.finished[downloadTask.url] = outline
-              } else {
-                outline.status = .failed
-                opmlFile.failed.append(outline)
+                withMutation(keyPath: \.opmlFile) {
+                  outline.status = .finished
+                  opmlFile.downloading.removeValue(forKey: downloadTask.url)
+                  opmlFile.finished[downloadTask.url] = outline
+                }
               }
             case .failure:
-              outline.status = .failed
-              opmlFile.failed.append(outline)
+              break
             }
           case .failure:
-            outline.status = .failed
-            opmlFile.failed.append(outline)
+            break
+          }
+          if outline.status != .finished {
+            withMutation(keyPath: \.opmlFile) {
+              outline.status = .failed
+              opmlFile.downloading.removeValue(forKey: downloadTask.url)
+              opmlFile.failed.append(outline)
+            }
           }
         }
       }

@@ -12,6 +12,18 @@ struct SettingsView: View {
             label: { Text("OPML") }
           )
         }
+
+        #if DEBUG
+          Section("Debugging") {
+            Button("Clear DB") {
+              Task {
+                try AppDatabase.shared.db.write { db in
+                  try Podcast.deleteAll(db)
+                }
+              }
+            }
+          }
+        #endif
       }
       .navigationTitle("Settings")
     }
