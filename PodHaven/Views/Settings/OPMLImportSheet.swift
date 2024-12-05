@@ -61,19 +61,18 @@ struct OPMLImportSheet: View {
       .padding()
     }
 
-    let outlines = [
-      Array(opmlFile.downloading.values),
-      Array(opmlFile.waiting.values),
-      opmlFile.failed,
-      Array(opmlFile.finished.values),
-      Array(opmlFile.alreadySubscribed.values),
-    ]
     List {
-      ForEach(outlines, id: \.self) { outlines in
-        OPMLImportSheetSection(outlines: outlines)
-      }
+      OPMLImportSheetSection(outlines: Array(opmlFile.downloading.values))
+      OPMLImportSheetSection(outlines: Array(opmlFile.waiting.values))
+      OPMLImportSheetSection(outlines: opmlFile.failed)
+      OPMLImportSheetSection(outlines: Array(opmlFile.finished.values))
+      OPMLImportSheetSection(outlines: Array(opmlFile.alreadySubscribed.values))
     }
-    .animation(.default, value: outlines)
+    .animation(.default, value: Array(opmlFile.downloading.values))
+    .animation(.default, value: Array(opmlFile.waiting.values))
+    .animation(.default, value: opmlFile.failed)
+    .animation(.default, value: Array(opmlFile.finished.values))
+    .animation(.default, value: Array(opmlFile.alreadySubscribed.values))
     .interactiveDismissDisabled(true)
   }
 }

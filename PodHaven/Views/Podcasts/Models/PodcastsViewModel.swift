@@ -8,21 +8,16 @@ import GRDB
   var podcasts: [Podcast] = []
 
   private let repository: PodcastRepository
-  @ObservationIgnored private var cancellable: AnyCancellable?
 
   init(repository: PodcastRepository = .shared) {
     self.repository = repository
   }
 
   func observePodcasts() {
-    self.cancellable = self.repository.observer.publisher()
-      .sink(
-        receiveCompletion: { completion in
-          Alert.shared("Stopped observing podcasts in the database")
-        },
-        receiveValue: { [unowned self] (podcasts: [Podcast]) in
-          self.podcasts = podcasts
-        }
-      )
+    Task {
+      for try await podcasts in repository.observer.values() {
+        self.podcasts = podcasts
+      }
+    }
   }
 }
