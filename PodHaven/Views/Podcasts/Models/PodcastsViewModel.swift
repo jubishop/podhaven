@@ -13,7 +13,7 @@ import GRDB
     self.repository = repository
   }
 
-  func observePodcasts() async throws {
+  func observePodcasts() async {
     do {
       for try await podcasts in repository.observer.values() {
         self.podcasts = podcasts
