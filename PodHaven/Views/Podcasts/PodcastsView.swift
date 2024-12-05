@@ -7,12 +7,13 @@ struct PodcastsView: View {
 
   init(repository: PodcastRepository = .shared) {
     _viewModel = State(initialValue: PodcastsViewModel(repository: repository))
-    viewModel.observePodcasts()
   }
 
   var body: some View {
     List(viewModel.podcasts) { podcast in
       Text(podcast.title)
+    }.task {
+      await viewModel.observePodcasts()
     }
   }
 }

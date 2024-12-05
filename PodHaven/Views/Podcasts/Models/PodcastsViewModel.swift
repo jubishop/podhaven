@@ -13,11 +13,13 @@ import GRDB
     self.repository = repository
   }
 
-  func observePodcasts() {
-    Task {
+  func observePodcasts() async throws {
+    do {
       for try await podcasts in repository.observer.values() {
         self.podcasts = podcasts
       }
+    } catch {
+      Alert.shared("Error thrown while observing podcast database")
     }
   }
 }
