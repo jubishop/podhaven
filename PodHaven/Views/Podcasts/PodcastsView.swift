@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2024
 
+import NukeUI
 import SwiftUI
 
 extension Collection {
@@ -29,23 +30,15 @@ struct PodcastView: View {
   var body: some View {
     VStack {
       if let image = podcast.image {
-        AsyncImage(url: image) { phase in
-          switch phase {
-          case .empty:
-            Color.gray
-              .cornerRadius(8)
-          case .success(let image):
-            image
-              .resizable()
-              .scaledToFill()
-              .clipped()
-              .cornerRadius(8)
-          case .failure:
+        LazyImage(url: image) { state in
+          if let image = state.image {
+            image.resizable().aspectRatio(contentMode: .fill)
+          } else if state.error != nil {
             Image(systemName: "photo")
               .resizable()
               .scaledToFit()
               .foregroundColor(.red)
-          @unknown default:
+          } else {
             Color.gray
               .cornerRadius(8)
           }
