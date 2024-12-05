@@ -15,6 +15,9 @@ struct UnsavedPodcast: Savable {
     self.title = title
     self.link = link
     self.image = image
+    if image == nil {
+      print("No image for \(title).")
+    }
   }
 
   // MARK: - Validations
