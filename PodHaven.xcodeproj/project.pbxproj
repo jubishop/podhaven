@@ -10,6 +10,8 @@
 		8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8B05D8FB2CF51C0B003AA19D /* GRDB */; };
 		8B48491C2CF2E63600C67454 /* OPML in Frameworks */ = {isa = PBXBuildFile; productRef = 8B48491B2CF2E63600C67454 /* OPML */; };
 		8B7975E72CFEC28C00412AA1 /* FeedKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8B7975E62CFEC28C00412AA1 /* FeedKit */; };
+		8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DEE2D01722E00742C6C /* Nuke */; };
+		8B9E8DF12D01722E00742C6C /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DF02D01722E00742C6C /* NukeUI */; };
 		8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */; };
 /* End PBXBuildFile section */
 
@@ -50,7 +52,9 @@
 				8B48491C2CF2E63600C67454 /* OPML in Frameworks */,
 				8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */,
 				8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */,
+				8B9E8DF12D01722E00742C6C /* NukeUI in Frameworks */,
 				8B7975E72CFEC28C00412AA1 /* FeedKit in Frameworks */,
+				8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -107,6 +111,8 @@
 				8B05D8FB2CF51C0B003AA19D /* GRDB */,
 				8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */,
 				8B7975E62CFEC28C00412AA1 /* FeedKit */,
+				8B9E8DEE2D01722E00742C6C /* Nuke */,
+				8B9E8DF02D01722E00742C6C /* NukeUI */,
 			);
 			productName = PodHaven;
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
@@ -168,6 +174,7 @@
 				8BD0CF382CF51BD900BD9236 /* XCRemoteSwiftPackageReference "GRDB" */,
 				8B2C9E5F2CF59FA800637544 /* XCRemoteSwiftPackageReference "swift-collections" */,
 				8BAF45892CFEC2770056EA7B /* XCRemoteSwiftPackageReference "FeedKit" */,
+				8B950BDB2D01720500E1D1AF /* XCRemoteSwiftPackageReference "Nuke" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8BD7F9212CF2A49000CEDAA7 /* Products */;
@@ -505,6 +512,14 @@
 				kind = branch;
 			};
 		};
+		8B950BDB2D01720500E1D1AF /* XCRemoteSwiftPackageReference "Nuke" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kean/Nuke";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		8BAF45892CFEC2770056EA7B /* XCRemoteSwiftPackageReference "FeedKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/nmdias/FeedKit";
@@ -538,6 +553,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8BAF45892CFEC2770056EA7B /* XCRemoteSwiftPackageReference "FeedKit" */;
 			productName = FeedKit;
+		};
+		8B9E8DEE2D01722E00742C6C /* Nuke */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B950BDB2D01720500E1D1AF /* XCRemoteSwiftPackageReference "Nuke" */;
+			productName = Nuke;
+		};
+		8B9E8DF02D01722E00742C6C /* NukeUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B950BDB2D01720500E1D1AF /* XCRemoteSwiftPackageReference "Nuke" */;
+			productName = NukeUI;
 		};
 		8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */ = {
 			isa = XCSwiftPackageProductDependency;

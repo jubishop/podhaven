@@ -50,7 +50,11 @@ struct PodcastFeed: Sendable {
   }
 
   var image: URL? {
-    guard let image = rssFeed.image?.url, let url = URL(string: image) else {
+    guard
+      let image = rssFeed.image?.url
+        ?? rssFeed.iTunes?.iTunesImage?.attributes?.href,
+      let url = URL(string: image)
+    else {
       return nil
     }
     return url
