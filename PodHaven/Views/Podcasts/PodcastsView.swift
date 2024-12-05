@@ -3,50 +3,40 @@
 import NukeUI
 import SwiftUI
 
-extension Collection {
-  func splitIntoRows(size: Int) -> [[Element]] {
-    var result: [[Element]] = []
-    var currentRow: [Element] = []
-
-    for element in self {
-      currentRow.append(element)
-      if currentRow.count == size {
-        result.append(currentRow)
-        currentRow = []
-      }
-    }
-
-    if !currentRow.isEmpty {
-      result.append(currentRow)
-    }
-
-    return result
-  }
-}
-
 struct PodcastView: View {
+  @State private var containerWidth: CGFloat = 0
+
   let podcast: Podcast
 
   var body: some View {
     VStack {
-      if let image = podcast.image {
-        LazyImage(url: image) { state in
-          if let image = state.image {
-            image.resizable().aspectRatio(contentMode: .fill)
-          } else if state.error != nil {
-            Image(systemName: "photo")
-              .resizable()
-              .scaledToFit()
-              .foregroundColor(.red)
-          } else {
-            Color.gray
-              .cornerRadius(8)
+      Group {
+        if let image = podcast.image {
+          LazyImage(url: image) { state in
+            if let image = state.image {
+              image.resizable().aspectRatio(contentMode: .fill)
+            } else if state.error != nil {
+              Image(systemName: "photo")
+                .resizable()
+                .scaledToFit()
+                .foregroundColor(.red)
+            } else {
+              Color.gray
+                .cornerRadius(8)
+            }
           }
+        } else {
+          Color.gray
+            .cornerRadius(8)
         }
-      } else {
-        Color.gray
-          .cornerRadius(8)
       }
+      .onGeometryChange(for: CGFloat.self) { geometry in
+        return geometry.size.width
+      } action: { newWidth in
+        containerWidth = newWidth
+      }
+      .frame(height: containerWidth)
+
       Text(podcast.title)
         .font(.caption)
         .lineLimit(1)
@@ -67,7 +57,7 @@ struct PodcastsView: View {
 
   var body: some View {
     ScrollView {
-      let rows = viewModel.podcasts.splitIntoRows(size: numberOfColumns)
+      let rows = viewModel.podcasts.chunked(size: numberOfColumns)
       Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
         ForEach(rows, id: \.self) { row in
           GridRow {
