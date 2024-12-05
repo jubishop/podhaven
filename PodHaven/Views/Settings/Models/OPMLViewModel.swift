@@ -141,10 +141,9 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       guard let downloadManager = downloadManager else {
         fatalError("DownloadManager is nil")
       }
-      let downloadTasks = await downloadManager.addURLs(
+      for downloadTask in await downloadManager.addURLs(
         opmlFile.waiting.map { $0.key }
-      )
-      for downloadTask in downloadTasks {
+      ) {
         Task {
           guard let outline = opmlFile.waiting[downloadTask.url] else {
             fatalError("No OPMLOutline for url: \(downloadTask.url)?")
