@@ -4,7 +4,7 @@ import NukeUI
 import SwiftUI
 
 struct PodcastView: View {
-  @State private var containerWidth: CGFloat = 0
+  @State private var width: CGFloat = 0
 
   let podcast: Podcast
 
@@ -33,9 +33,9 @@ struct PodcastView: View {
       .onGeometryChange(for: CGFloat.self) { geometry in
         return geometry.size.width
       } action: { newWidth in
-        containerWidth = newWidth
+        width = newWidth
       }
-      .frame(height: containerWidth)
+      .frame(height: width)
 
       Text(podcast.title)
         .font(.caption)
