@@ -39,10 +39,9 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   }
 
   let id = UUID()
-  let text: String
+  var text: String
   var status: Status
-  let feedURL: URL?
-  var data: DownloadData?
+  var feedURL: URL?
 
   init(text: String, status: Status, feedURL: URL? = nil) {
     self.text = text
@@ -119,21 +118,11 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         opmlFile.failed.append(OPMLOutline(text: entry.text, status: .failed))
         continue
       }
-      if (try? repository.db.read({ db in
-        try Podcast.filter(Column("feedURL") == url).fetchOne(db)
-      })) != nil {
-        opmlFile.alreadySubscribed[url] = OPMLOutline(
-          text: entry.text,
-          status: .alreadySubscribed,
-          feedURL: url
-        )
-      } else {
-        opmlFile.waiting[url] = OPMLOutline(
-          text: entry.text,
-          status: .waiting,
-          feedURL: url
-        )
-      }
+      opmlFile.waiting[url] = OPMLOutline(
+        text: entry.text,
+        status: .waiting,
+        feedURL: url
+      )
     }
     self.opmlFile = opmlFile
     Task {
@@ -158,10 +147,18 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
               from: downloadTask.url
             )
           {
-            outline.data = data
-            if let unsavedPodcast = try? UnsavedPodcast(
-              feedURL: downloadTask.url,
-              title: feed.title ?? outline.text,
+            outline.text = feed.title ?? outline.text
+            outline.feedURL = feed.feedURL
+            if (try? await repository.db.read({ db in
+              try Podcast.filter(Column("feedURL") == feed.feedURL).fetchOne(db)
+            })) != nil {
+              outline.status = .alreadySubscribed
+              opmlFile.downloading.removeValue(forKey: downloadTask.url)
+              opmlFile.alreadySubscribed[downloadTask.url] = outline
+            }
+            else if let unsavedPodcast = try? UnsavedPodcast(
+              feedURL: feed.feedURL,
+              title: outline.text,
               link: feed.link,
               image: feed.image
             ), (try? repository.insert(unsavedPodcast)) != nil {

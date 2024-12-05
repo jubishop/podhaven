@@ -30,7 +30,7 @@ struct PodcastFeed: Sendable {
     }
   }
 
-  let url: URL
+  private let url: URL
   private let rssFeed: RSSFeed
 
   private init(url: URL, rssFeed: RSSFeed) {
@@ -38,8 +38,17 @@ struct PodcastFeed: Sendable {
     self.rssFeed = rssFeed
   }
 
+  var feedURL: URL {
+    if let newFeedURLString = rssFeed.iTunes?.iTunesNewFeedURL,
+      let newFeedURL = URL(string: newFeedURLString)
+    {
+      return newFeedURL
+    }
+    return url
+  }
+
   var title: String? {
-    rssFeed.title
+    rssFeed.title ?? rssFeed.iTunes?.iTunesTitle
   }
 
   var link: URL? {

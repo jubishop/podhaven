@@ -4,7 +4,7 @@ import Foundation
 import GRDB
 
 struct UnsavedPodcast: Savable {
-  let feedURL: URL
+  var feedURL: URL
   var title: String
   let link: URL?
   let image: URL?
