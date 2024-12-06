@@ -27,10 +27,9 @@ struct NoImageThumbnail: View {
 }
 
 struct PodcastThumbnail: View {
-  @State private var width: CGFloat = 0
-
   let podcast: Podcast
 
+  @State private var width: CGFloat = 0
   private let cornerRadius: CGFloat = 8
 
   var body: some View {
@@ -76,7 +75,6 @@ struct PodcastThumbnail: View {
 
 struct PodcastsView: View {
   @State private var viewModel = PodcastsViewModel()
-
   private let numberOfColumns = 3
 
   init(repository: PodcastRepository = .shared) {
@@ -106,22 +104,17 @@ struct PodcastsView: View {
 }
 
 #Preview {
-  struct PodcastsViewPreview: View {
-    @State private var repository: PodcastRepository = .shared
+  @Previewable @State var repository: PodcastRepository = .shared
 
-    var body: some View {
-      PodcastsView()
-        .task {
-          let weedsPodcast = try? await repository.db.read { db in
-            try? Podcast.filter(Column("title") == "Explain It to Me")
-              .fetchOne(db)
-          }
-          if var weedsPodcast = weedsPodcast {
-            weedsPodcast.image = nil
-            try? repository.update(weedsPodcast)
-          }
-        }
+  PodcastsView()
+    .task {
+      let weedsPodcast = try? await repository.db.read { db in
+        try? Podcast.filter(Column("title") == "Explain It to Me")
+          .fetchOne(db)
+      }
+      if var weedsPodcast = weedsPodcast {
+        weedsPodcast.image = nil
+        try? repository.update(weedsPodcast)
+      }
     }
-  }
-  return PodcastsViewPreview()
 }
