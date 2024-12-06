@@ -16,34 +16,36 @@ struct OPMLImportSheet: View {
   }
 
   var body: some View {
-    Text(opmlFile.title).font(.title)
+    Text("Importing : \(opmlFile.title)")
+      .font(.headline)
+      .padding([.top])
 
     HStack {
-      Group {
-        VStack {
-          Group {
-            Button(
-              opmlFile.inProgressCount == 0
-                ? "Lets Go" : opmlFile.successCount > 0 ? "Stop" : "Cancel"
-            ) {
-              viewModel.stopDownloading()
-            }
-          }
-          .buttonStyle(.bordered)
-          Text("\(opmlFile.inProgressCount)").font(.title)
+      HStack {
+        Button(
+          opmlFile.inProgressCount == 0
+            ? "Lets Go" : opmlFile.successCount > 0 ? "Stop" : "Cancel"
+        ) {
+          viewModel.stopDownloading()
         }
-
-        if let opmlFile = viewModel.opmlFile {
-          CircularProgressView(
-            totalAmount: Double(opmlFile.totalCount),
-            colorAmounts: [
-              .green: Double(opmlFile.successCount),
-              .red: Double(opmlFile.failed.count),
-            ]
-          )
-        }
+        .buttonStyle(.bordered)
+        .frame(maxWidth: .infinity)
+        Text("\(opmlFile.inProgressCount)")
+          .font(.largeTitle)
+          .frame(maxWidth: .infinity)
       }
       .frame(maxWidth: .infinity)
+
+      if let opmlFile = viewModel.opmlFile {
+        CircularProgressView(
+          totalAmount: Double(opmlFile.totalCount),
+          colorAmounts: [
+            .green: Double(opmlFile.successCount),
+            .red: Double(opmlFile.failed.count),
+          ]
+        )
+        .frame(maxWidth: .infinity)
+      }
     }
     .padding([.horizontal])
 
