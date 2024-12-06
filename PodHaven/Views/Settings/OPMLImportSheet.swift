@@ -21,19 +21,13 @@ struct OPMLImportSheet: View {
       .padding([.top])
 
     HStack {
-      HStack {
-        Button(
-          opmlFile.inProgressCount == 0
-            ? "Lets Go" : opmlFile.successCount > 0 ? "Stop" : "Cancel"
-        ) {
-          viewModel.stopDownloading()
-        }
-        .buttonStyle(.bordered)
-        .frame(maxWidth: .infinity)
-        Text("\(opmlFile.inProgressCount)")
-          .font(.largeTitle)
-          .frame(maxWidth: .infinity)
+      Button(
+        opmlFile.inProgressCount == 0
+          ? "Lets Go" : opmlFile.successCount > 0 ? "Stop" : "Cancel"
+      ) {
+        viewModel.stopDownloading()
       }
+      .buttonStyle(.bordered)
       .frame(maxWidth: .infinity)
 
       if let opmlFile = viewModel.opmlFile {
