@@ -1,9 +1,33 @@
 // Copyright Justin Bishop, 2024
 
+import GRDB
 import NukeUI
 import SwiftUI
 
-struct PodcastView: View {
+struct NoImageThumbnail: View {
+  @Binding var width: CGFloat
+  let cornerRadius: CGFloat
+
+  var body: some View {
+    ZStack {
+      Color.gray
+        .cornerRadius(cornerRadius)
+      VStack {
+        Image(systemName: "photo")
+          .resizable()
+          .scaledToFit()
+          .frame(width: width / 2, height: width / 2)
+          .foregroundColor(.white.opacity(0.8))
+        Text("No Image")
+          .font(.caption)
+          .foregroundColor(.white.opacity(0.8))
+      }
+    }
+  }
+}
+
+struct PodcastThumbnail: View {
+  private let cornerRadius: CGFloat = 8
   @State private var width: CGFloat = 0
 
   let podcast: Podcast
@@ -14,20 +38,25 @@ struct PodcastView: View {
         if let image = podcast.image {
           LazyImage(url: image) { state in
             if let image = state.image {
-              image.resizable().aspectRatio(contentMode: .fill)
-            } else if state.error != nil {
-              Image(systemName: "photo")
+              image
                 .resizable()
-                .scaledToFit()
-                .foregroundColor(.red)
+                .cornerRadius(cornerRadius)
+            } else if state.error != nil {
+              NoImageThumbnail(width: $width, cornerRadius: cornerRadius)
             } else {
-              Color.gray
-                .cornerRadius(8)
+              ZStack {
+                Color.gray
+                  .cornerRadius(cornerRadius)
+                Image(systemName: "photo")
+                  .resizable()
+                  .scaledToFit()
+                  .frame(width: width / 2, height: width / 2)
+                  .foregroundColor(.white.opacity(0.8))
+              }
             }
           }
         } else {
-          Color.gray
-            .cornerRadius(8)
+          NoImageThumbnail(width: $width, cornerRadius: cornerRadius)
         }
       }
       .onGeometryChange(for: CGFloat.self) { geometry in
@@ -46,9 +75,7 @@ struct PodcastView: View {
 
 struct PodcastsView: View {
   @State private var viewModel = PodcastsViewModel()
-  @State private var containerWidth: CGFloat = 0
 
-  private let spacing: CGFloat = 10
   private let numberOfColumns = 3
 
   init(repository: PodcastRepository = .shared) {
@@ -56,18 +83,20 @@ struct PodcastsView: View {
   }
 
   var body: some View {
-    ScrollView {
-      let rows = viewModel.podcasts.chunked(size: numberOfColumns)
-      Grid(horizontalSpacing: spacing, verticalSpacing: spacing) {
-        ForEach(rows, id: \.self) { row in
-          GridRow {
-            ForEach(row) { podcast in
-              PodcastView(podcast: podcast)
+    NavigationStack {
+      ScrollView {
+        let rows = viewModel.podcasts.chunked(size: numberOfColumns)
+        Grid {
+          ForEach(rows, id: \.self) { row in
+            GridRow {
+              ForEach(row) { podcast in
+                PodcastThumbnail(podcast: podcast)
+              }
             }
           }
         }
+        .padding()
       }
-      .padding()
     }
     .task {
       await viewModel.observePodcasts()
@@ -76,5 +105,22 @@ struct PodcastsView: View {
 }
 
 #Preview {
-  Preview { PodcastsView(repository: .shared) }
+  struct PodcastsViewPreview: View {
+    @State private var repository: PodcastRepository = .shared
+
+    var body: some View {
+      PodcastsView()
+        .task {
+          let weedsPodcast = try? await repository.db.read { db in
+            try? Podcast.filter(Column("title") == "Explain It to Me")
+              .fetchOne(db)
+          }
+          if var weedsPodcast = weedsPodcast {
+            weedsPodcast.image = nil
+            try? repository.update(weedsPodcast)
+          }
+        }
+    }
+  }
+  return PodcastsViewPreview()
 }

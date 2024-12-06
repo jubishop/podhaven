@@ -3,7 +3,7 @@
 import OrderedCollections
 import SwiftUI
 
-struct ProgressView: View {
+struct MultiColorProgressView: View {
   private let totalAmount: Double
   private let colorAmounts: OrderedDictionary<Color, Double>
   private var totalColorAmount: Double {
@@ -49,48 +49,43 @@ struct ProgressView: View {
 }
 
 #Preview {
-  struct ProgressViewPreview: View {
-    @State private var greenAmount: Double = 30
-    @State private var redAmount: Double = 50
-    @State private var blueAmount: Double = 10
-    @State private var totalAmount: Double = 100
+  @Previewable @State var greenAmount: Double = 30
+  @Previewable @State var redAmount: Double = 50
+  @Previewable @State var blueAmount: Double = 10
+  @Previewable @State var totalAmount: Double = 100
 
-    var body: some View {
-      VStack {
-        ProgressView(
-          totalAmount: totalAmount,
-          colorAmounts: [
-            .green: greenAmount, .red: redAmount, .blue: blueAmount,
-          ]
-        )
-        .frame(height: 40)
-        .padding()
+  VStack {
+    MultiColorProgressView(
+      totalAmount: totalAmount,
+      colorAmounts: [
+        .green: greenAmount, .red: redAmount, .blue: blueAmount,
+      ]
+    )
+    .frame(height: 40)
+    .padding()
 
-        Text(
-          """
-          Green: \(Int(greenAmount)), \
-          Red: \(Int(redAmount)), \
-          Blue: \(Int(blueAmount))
-          """
-        )
+    Text(
+      """
+      Green: \(Int(greenAmount)), \
+      Red: \(Int(redAmount)), \
+      Blue: \(Int(blueAmount))
+      """
+    )
 
-        Slider(value: $greenAmount, in: 0...totalAmount)
-          .padding()
-          .accentColor(.green)
+    Slider(value: $greenAmount, in: 0...totalAmount)
+      .padding()
+      .accentColor(.green)
 
-        Slider(value: $redAmount, in: 0...totalAmount)
-          .padding()
-          .accentColor(.red)
+    Slider(value: $redAmount, in: 0...totalAmount)
+      .padding()
+      .accentColor(.red)
 
-        Slider(value: $blueAmount, in: 0...totalAmount)
-          .padding()
-          .accentColor(.blue)
+    Slider(value: $blueAmount, in: 0...totalAmount)
+      .padding()
+      .accentColor(.blue)
 
-        Slider(value: $totalAmount, in: 50...200)
-          .padding()
-          .accentColor(.gray)
-      }
-    }
+    Slider(value: $totalAmount, in: 50...200)
+      .padding()
+      .accentColor(.gray)
   }
-  return ProgressViewPreview()
 }

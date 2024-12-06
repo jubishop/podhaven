@@ -6,8 +6,8 @@ import GRDB
 struct UnsavedPodcast: Savable {
   var feedURL: URL
   var title: String
-  let link: URL?
-  let image: URL?
+  var link: URL?
+  var image: URL?
 
   init(feedURL: URL, title: String, link: URL? = nil, image: URL? = nil) throws
   {

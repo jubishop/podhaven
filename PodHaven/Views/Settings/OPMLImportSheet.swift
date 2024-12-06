@@ -48,7 +48,7 @@ struct OPMLImportSheet: View {
     .padding()
 
     if let opmlFile = viewModel.opmlFile {
-      ProgressView(
+      MultiColorProgressView(
         totalAmount: Double(opmlFile.totalCount),
         colorAmounts: [
           .green: Double(opmlFile.successCount),
