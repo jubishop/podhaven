@@ -3,7 +3,7 @@
 import OrderedCollections
 import SwiftUI
 
-struct MultiColorProgressView: View {
+struct RectangularProgressView: View {
   private let totalAmount: Double
   private let colorAmounts: OrderedDictionary<Color, Double>
   private var totalColorAmount: Double {
@@ -34,7 +34,7 @@ struct MultiColorProgressView: View {
         ForEach(Array(colorWidths.keys), id: \.self) { color in
           if let width = colorWidths[color] {
             Rectangle()
-              .fill(color)
+              .fill(color.gradient)
               .frame(width: width)
           }
         }
@@ -55,7 +55,7 @@ struct MultiColorProgressView: View {
   @Previewable @State var totalAmount: Double = 100
 
   VStack {
-    MultiColorProgressView(
+    RectangularProgressView(
       totalAmount: totalAmount,
       colorAmounts: [
         .green: greenAmount, .red: redAmount, .blue: blueAmount,
