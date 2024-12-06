@@ -28,16 +28,19 @@ struct NavigationView: Hashable {
 
   enum Tab {
     case settings
-    case upNext
     case podcasts
   }
 
   var settingsPath = NavigationPath()
+  var podcastsPath = NavigationPath()
 
   var currentTab: Tab = .settings {
     willSet {
       if newValue == .settings {
         settingsPath = NavigationPath()
+      }
+      if newValue == .podcasts {
+        podcastsPath = NavigationPath()
       }
     }
   }

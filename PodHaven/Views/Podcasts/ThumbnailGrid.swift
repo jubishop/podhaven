@@ -78,19 +78,17 @@ struct ThumbnailGrid: View {
   private let numberOfColumns = 3
 
   var body: some View {
-    NavigationStack {
-      ScrollView {
-        let rows = podcasts.chunked(size: numberOfColumns)
-        Grid {
-          ForEach(rows, id: \.self) { row in
-            GridRow {
-              ForEach(row) { podcast in
-                PodcastThumbnail(podcast: podcast)
-              }
-            }
+    let rows = podcasts.chunked(size: numberOfColumns)
+    Grid {
+      ForEach(rows, id: \.self) { row in
+        GridRow {
+          ForEach(row) { podcast in
+            NavigationLink(
+              value: podcast,
+              label: { PodcastThumbnail(podcast: podcast) }
+            )
           }
         }
-        .padding()
       }
     }
   }
@@ -110,7 +108,7 @@ struct ThumbnailGrid: View {
             fetchedPodcasts[0].image = nil
             fetchedPodcasts[1].image = URL(string: "http://nope.com/0.jpg")!
           }
-          podcasts = fetchedPodcasts
+          podcasts = Array(fetchedPodcasts.prefix(12))
         } catch {
           print(error.localizedDescription)
         }
