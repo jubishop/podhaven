@@ -183,7 +183,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.allowsCellularAccess = true
     configuration.waitsForConnectivity = true
-    let timeout = Double(15)
+    let timeout = Double(10)
     configuration.timeoutIntervalForRequest = timeout
     configuration.timeoutIntervalForResource = timeout
     return DownloadManager(

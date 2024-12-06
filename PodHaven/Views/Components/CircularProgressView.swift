@@ -58,10 +58,10 @@ struct CircularProgressView: View {
           )
           .fill(color.gradient)
         }
-      }
-      Circle()
-        .stroke(.primary)
+      }.overlay(Circle().stroke(.primary))
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .aspectRatio(1, contentMode: .fit)
   }
 }
 
