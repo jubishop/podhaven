@@ -162,6 +162,9 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
               link: feed.link,
               image: feed.image
             ), (try? repository.insert(unsavedPodcast)) != nil {
+              if let image = feed.image {
+                PodcastImages.shared.prefetch([image])
+              }
               outline.status = .finished
               opmlFile.downloading.removeValue(forKey: downloadTask.url)
               opmlFile.finished[downloadTask.url] = outline
