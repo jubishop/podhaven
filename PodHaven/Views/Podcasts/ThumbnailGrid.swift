@@ -5,7 +5,7 @@ import NukeUI
 import SwiftUI
 
 struct NoImageThumbnail: View {
-  @Binding var width: CGFloat
+  let width: CGFloat
   let cornerRadius: CGFloat
 
   var body: some View {
@@ -42,7 +42,7 @@ struct PodcastThumbnail: View {
                 .resizable()
                 .cornerRadius(cornerRadius)
             } else if state.error != nil {
-              NoImageThumbnail(width: $width, cornerRadius: cornerRadius)
+              NoImageThumbnail(width: width, cornerRadius: cornerRadius)
             } else {
               ZStack {
                 Color.gray
@@ -56,7 +56,7 @@ struct PodcastThumbnail: View {
             }
           }
         } else {
-          NoImageThumbnail(width: $width, cornerRadius: cornerRadius)
+          NoImageThumbnail(width: width, cornerRadius: cornerRadius)
         }
       }
       .onGeometryChange(for: CGFloat.self) { geometry in
@@ -74,7 +74,7 @@ struct PodcastThumbnail: View {
 }
 
 struct ThumbnailGrid: View {
-  @Binding var podcasts: [Podcast]
+  let podcasts: [Podcast]
   private let numberOfColumns = 3
 
   var body: some View {
@@ -98,7 +98,7 @@ struct ThumbnailGrid: View {
   @Previewable @State var podcasts: [Podcast] = []
 
   Preview {
-    ThumbnailGrid(podcasts: $podcasts)
+    ThumbnailGrid(podcasts: podcasts)
       .task {
         do {
           var fetchedPodcasts = try PodcastRepository.shared.db.read { db in

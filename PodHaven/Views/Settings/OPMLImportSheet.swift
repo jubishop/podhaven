@@ -4,14 +4,14 @@ import OPML
 import SwiftUI
 
 struct OPMLImportSheet: View {
-  @Binding var viewModel: OPMLViewModel
+  let viewModel: OPMLViewModel
   let opmlFile: OPMLFile
 
-  init(viewModel: Binding<OPMLViewModel>) {
-    guard let opmlFile = viewModel.wrappedValue.opmlFile else {
+  init(viewModel: OPMLViewModel) {
+    guard let opmlFile = viewModel.opmlFile else {
       fatalError("OPMLImportSheet must be initialized with an OPMLFile.")
     }
-    self._viewModel = viewModel
+    self.viewModel = viewModel
     self.opmlFile = opmlFile
   }
 
@@ -94,7 +94,7 @@ struct OPMLImportSheet: View {
       }
     }
     .sheet(item: $viewModel.opmlFile) { opmlFile in
-      OPMLImportSheet(viewModel: $viewModel)
+      OPMLImportSheet(viewModel: viewModel)
     }
   }
 }
