@@ -27,10 +27,11 @@ struct NoImageThumbnail: View {
 }
 
 struct PodcastThumbnail: View {
-  private let cornerRadius: CGFloat = 8
   @State private var width: CGFloat = 0
 
   let podcast: Podcast
+
+  private let cornerRadius: CGFloat = 8
 
   var body: some View {
     VStack {
