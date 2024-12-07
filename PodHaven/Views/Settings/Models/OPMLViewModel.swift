@@ -113,7 +113,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     let opmlFile = OPMLFile(title: opml.title ?? "Podcast Subscriptions")
     for entry in opml.entries {
       guard let feedURL = entry.feedURL,
-        let url = try? UnsavedPodcast.convertToValidURL(feedURL)
+        let url = try? feedURL.convertToValidURL()
       else {
         opmlFile.failed.append(OPMLOutline(text: entry.text, status: .failed))
         continue
@@ -155,8 +155,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
               outline.status = .alreadySubscribed
               opmlFile.downloading.removeValue(forKey: downloadTask.url)
               opmlFile.alreadySubscribed[downloadTask.url] = outline
-            }
-            else if let unsavedPodcast = try? UnsavedPodcast(
+            } else if let unsavedPodcast = try? UnsavedPodcast(
               feedURL: feed.feedURL,
               title: outline.text,
               link: feed.link,

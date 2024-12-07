@@ -85,28 +85,23 @@ actor PodcastTests {
   @Test("that a podcast feedURL must be valid")
   func failToInsertInvalidFeedURL() async throws {
     // Bad scheme
-    #expect {
-      _ = try repository.insert(
+    #expect(throws: URLError.self) {
+      try repository.insert(
         UnsavedPodcast(
           feedURL: URL(string: "file://example.com/data")!,
           title: "Title"
         )
       )
-    } throws: { error in
-      error is DatabaseError && error.localizedDescription.contains("scheme")
     }
 
     // Not absolute
-    #expect {
-      _ = try repository.insert(
+    #expect(throws: URLError.self) {
+      try repository.insert(
         UnsavedPodcast(
           feedURL: URL(string: "https:/path/to/data")!,
           title: "Title"
         )
       )
-    } throws: { error in
-      error is DatabaseError
-        && error.localizedDescription.contains("absolute")
     }
   }
 
@@ -123,10 +118,8 @@ actor PodcastTests {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
     _ = try self.repository.insert(unsavedPodcast)
-    #expect {
-      _ = try self.repository.insert(unsavedPodcast)
-    } throws: { error in
-      error is DatabaseError && error.localizedDescription.contains("UNIQUE")
+    #expect(throws: DatabaseError.self) {
+      try self.repository.insert(unsavedPodcast)
     }
   }
 
