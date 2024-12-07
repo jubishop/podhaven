@@ -48,15 +48,16 @@ struct HTMLText: View {
         if let mergedDescriptor = newUIFont.fontDescriptor.withSymbolicTraits(
           originalFont.fontDescriptor.symbolicTraits
         ) {
-          nsAttributedString.addAttribute(
-            .font,
-            value: UIFont(
-              descriptor: mergedDescriptor,
-              size: newUIFont.pointSize
-            ),
-            range: range
+          newUIFont = UIFont(
+            descriptor: mergedDescriptor,
+            size: newUIFont.pointSize
           )
         }
+        nsAttributedString.addAttribute(
+          .font,
+          value: newUIFont,
+          range: range
+        )
       }
     }
 
@@ -95,5 +96,6 @@ struct HTMLText: View {
     """,
     color: .blue,
     font: .largeTitle
-  ).padding()
+  )
+  .padding()
 }
