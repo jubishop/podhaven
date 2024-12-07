@@ -37,13 +37,29 @@ struct HTMLText: View {
     to nsAttributedString: NSMutableAttributedString
   ) -> NSAttributedString {
     let fullRange = NSRange(location: 0, length: nsAttributedString.length)
-    nsAttributedString.removeAttribute(.foregroundColor, range: fullRange)
-    let uiFont = uiFont(for: font)
-    nsAttributedString.addAttribute(
+
+    nsAttributedString.enumerateAttribute(
       .font,
-      value: uiFont,
-      range: fullRange
-    )
+      in: fullRange,
+      options: []
+    ) { (value, range, _) in
+      if let originalFont = value as? UIFont {
+        var newUIFont = uiFont(for: font)
+        if let mergedDescriptor = newUIFont.fontDescriptor.withSymbolicTraits(
+          originalFont.fontDescriptor.symbolicTraits
+        ) {
+          nsAttributedString.addAttribute(
+            .font,
+            value: UIFont(
+              descriptor: mergedDescriptor,
+              size: newUIFont.pointSize
+            ),
+            range: range
+          )
+        }
+      }
+    }
+
     nsAttributedString.addAttribute(
       .foregroundColor,
       value: UIColor(color),
@@ -79,5 +95,5 @@ struct HTMLText: View {
     """,
     color: .blue,
     font: .largeTitle
-  )
+  ).padding()
 }
