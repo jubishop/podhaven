@@ -4,12 +4,19 @@ import SwiftUI
 
 struct HTMLText: View {
   let html: String
-  var customColor: Color = .primary
-  var font: Font = .body
+  var color: Color
+  var font: Font
+
+  init(_ html: String, color: Color = .primary, font: Font = .body) {
+    self.html = html
+    self.color = color
+    self.font = font
+  }
 
   var body: some View {
-    if let data = html.data(using: .utf8),
-       let nsAttributedString = try? NSMutableAttributedString(
+    if html.isHTML(),
+      let data = html.data(using: .utf8),
+      let nsAttributedString = try? NSMutableAttributedString(
         data: data,
         options: [
           .documentType: NSAttributedString.DocumentType.html,
@@ -22,82 +29,55 @@ struct HTMLText: View {
       let attributedString = AttributedString(modifiedAttributedString)
       Text(attributedString)
     } else {
-      Text(html).foregroundStyle(customColor).font(font)
+      Text(html).foregroundStyle(color).font(font)
     }
   }
 
-  private func applyCustomStyles(to nsAttributedString: NSMutableAttributedString)
-    -> NSAttributedString
-  {
-    nsAttributedString.enumerateAttributes(
-      in: NSRange(location: 0, length: nsAttributedString.length)
-    ) { attributes, range, _ in
-      // Remove explicit color attributes
-      if attributes.keys.contains(.foregroundColor) {
-        nsAttributedString.removeAttribute(.foregroundColor, range: range)
-      }
-
-      // Apply custom font size based on SwiftUI Font
-      if let fontSize = fontSize(for: font) {
-        let currentFont =
-          attributes[.font] as? UIFont
-          ?? UIFont.systemFont(ofSize: UIFont.systemFontSize)
-        let newFont = currentFont.withSize(fontSize)
-        nsAttributedString.addAttribute(
-          .font,
-          value: newFont,
-          range: range
-        )
-      }
-
-      // Apply custom color
-      nsAttributedString.addAttribute(
-        .foregroundColor,
-        value: UIColor(customColor),
-        range: range
-      )
-    }
-
+  private func applyCustomStyles(
+    to nsAttributedString: NSMutableAttributedString
+  ) -> NSAttributedString {
+    let fullRange = NSRange(location: 0, length: nsAttributedString.length)
+    nsAttributedString.removeAttribute(.foregroundColor, range: fullRange)
+    let uiFont = uiFont(for: font)
+    nsAttributedString.addAttribute(
+      .font,
+      value: uiFont,
+      range: fullRange
+    )
+    nsAttributedString.addAttribute(
+      .foregroundColor,
+      value: UIColor(color),
+      range: fullRange
+    )
     return nsAttributedString
   }
 
-  /// Maps SwiftUI Font styles to `CGFloat` font sizes.
-  private func fontSize(for font: Font) -> CGFloat? {
-    switch font {
-    case .largeTitle:
-      return UIFont.preferredFont(forTextStyle: .largeTitle).pointSize
-    case .title:
-      return UIFont.preferredFont(forTextStyle: .title1).pointSize
-    case .title2:
-      return UIFont.preferredFont(forTextStyle: .title2).pointSize
-    case .title3:
-      return UIFont.preferredFont(forTextStyle: .title3).pointSize
-    case .headline:
-      return UIFont.preferredFont(forTextStyle: .headline).pointSize
-    case .subheadline:
-      return UIFont.preferredFont(forTextStyle: .subheadline).pointSize
-    case .body:
-      return UIFont.preferredFont(forTextStyle: .body).pointSize
-    case .callout:
-      return UIFont.preferredFont(forTextStyle: .callout).pointSize
-    case .caption:
-      return UIFont.preferredFont(forTextStyle: .caption1).pointSize
-    case .caption2:
-      return UIFont.preferredFont(forTextStyle: .caption2).pointSize
-    case .footnote:
-      return UIFont.preferredFont(forTextStyle: .footnote).pointSize
-    default:
-      return nil
-    }
+  private func uiFont(for font: Font) -> UIFont {
+    let textStyleMapping: [Font: UIFont.TextStyle] = [
+      .largeTitle: .largeTitle,
+      .title: .title1,
+      .title2: .title2,
+      .title3: .title3,
+      .headline: .headline,
+      .subheadline: .subheadline,
+      .body: .body,
+      .callout: .callout,
+      .caption: .caption1,
+      .caption2: .caption2,
+      .footnote: .footnote,
+    ]
+    let textStyle = textStyleMapping[font, default: .body]
+    return UIFont.preferredFont(forTextStyle: textStyle)
   }
 }
 
 #Preview {
   HTMLText(
-    html: """
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla facilisi.
-      <b>Quisque</b> <i>phasellus</i> <u>finibus</u> <strong>elementum</strong> <em>sollicitudin</em>.
-      """,
+    """
+    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla facilisi.
+    <b>Quisque</b> <i>phasellus</i> <u>finibus</u> <strong>elementum</strong> <em>sollicitudin</em>.
+    """,
+    color: .blue,
     font: .largeTitle
   )
 }

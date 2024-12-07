@@ -110,7 +110,7 @@ struct ThumbnailGrid: View {
           }
           podcasts = Array(fetchedPodcasts.prefix(12))
         } catch {
-          print(error.localizedDescription)
+          fatalError("Couldn't modify podcasts: \(error)")
         }
       }
   }

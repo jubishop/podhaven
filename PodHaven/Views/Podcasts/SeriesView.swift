@@ -13,7 +13,7 @@ struct SeriesView: View {
   var body: some View {
     VStack {
       if let description = viewModel.podcast.description {
-        Text(description)
+        HTMLText(description).padding()
       }
     }
     .navigationTitle(viewModel.podcast.title)
