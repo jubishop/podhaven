@@ -14,19 +14,24 @@ public protocol Savable:
 extension Savable {
   static var databaseTableName: String {
     let prefix = "Unsaved"
+    let structName = String(describing: Self.self)
 
-    let typeName =
-      String(describing: Self.self).components(separatedBy: ".").last ?? ""
-    guard typeName.hasPrefix(prefix) else {
-      fatalError("Struct name: \(typeName) must start with \"\(prefix)\".")
+    guard
+      let typeName = structName.components(separatedBy: ".").last,
+      typeName.hasPrefix(prefix)
+    else {
+      fatalError(
+        "Type: \"\(structName)\" must start with \"\(prefix)\"."
+      )
     }
 
     let suffix = typeName.dropFirst(prefix.count)
     guard let firstCharacter = suffix.first else {
-      fatalError("Struct name after '\(prefix)' prefix is empty.")
+      fatalError(
+        "Struct name: \"\(structName)\" after \"\(prefix)\" prefix is empty."
+      )
     }
 
-    let tableName = firstCharacter.lowercased() + suffix.dropFirst()
-    return tableName
+    return firstCharacter.lowercased() + suffix.dropFirst()
   }
 }

@@ -46,4 +46,10 @@ struct PodcastRepository: Sendable {
       try podcast.delete(db)
     }
   }
+
+  func insert(_ unsavedEpisode: UnsavedEpisode) throws -> Episode {
+    try appDatabase.db.write { db in
+      try unsavedEpisode.insertAndFetch(db, as: Episode.self)
+    }
+  }
 }

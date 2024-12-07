@@ -5,19 +5,22 @@ import GRDB
 
 struct UnsavedEpisode: Savable {
   let guid: String
-  let media: URL?
+  let podcastId: Int64
+  var media: URL?
   var title: String?
   var description: String?
   var link: URL?
 
   init(
     guid: String,
+    podcast: Podcast,
     media: URL? = nil,
     title: String? = nil,
     description: String? = nil,
     link: URL? = nil
   ) {
     self.guid = guid
+    self.podcastId = podcast.id
     self.media = try? media?.convertToValidURL()
     self.title = title
     self.description = description
@@ -26,3 +29,10 @@ struct UnsavedEpisode: Savable {
 }
 
 typealias Episode = Saved<UnsavedEpisode>
+
+extension Episode {
+  static let podcast = belongsTo(Podcast.self)
+  var podcast: QueryInterfaceRequest<Podcast> {
+    request(for: Self.podcast)
+  }
+}

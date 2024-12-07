@@ -26,3 +26,10 @@ struct UnsavedPodcast: Savable {
 }
 
 typealias Podcast = Saved<UnsavedPodcast>
+
+extension Podcast {
+  static let episodes = hasMany(Episode.self)
+  var episodes: QueryInterfaceRequest<Episode> {
+    request(for: Self.episodes)
+  }
+}

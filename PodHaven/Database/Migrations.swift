@@ -20,6 +20,16 @@ enum Migrations {
         t.column("image", .text)
         t.column("description", .text)
       }
+
+      try db.create(table: "episode") { t in
+        t.autoIncrementedPrimaryKey("id")
+        t.belongsTo("podcast", onDelete: .cascade).notNull()
+        t.column("guid", .text).unique().notNull().indexed()
+        t.column("media", .text)
+        t.column("title", .text)
+        t.column("description", .text)
+        t.column("link", .text)
+      }
     }
 
     try migrator.migrate(db)

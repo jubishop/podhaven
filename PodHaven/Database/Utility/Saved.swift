@@ -24,6 +24,10 @@ where V: Savable {
     set { value[keyPath: keyPath] = newValue }
   }
 
+  private enum Columns: String, ColumnExpression {
+    case id
+  }
+
   // MARK: - TableRecord
 
   public static var databaseTableName: String { V.databaseTableName }
@@ -31,14 +35,14 @@ where V: Savable {
   // MARK: - FetchableRecord
 
   public init(row: Row) throws {
-    id = row[Column("id")]
+    id = row[Columns.id]
     value = try V(row: row)
   }
 
   // MARK: - PersistableRecord
 
   public func encode(to container: inout PersistenceContainer) throws {
-    container[Column("id")] = id
+    container[Columns.id] = id
     try value.encode(to: &container)
   }
 
