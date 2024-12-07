@@ -18,6 +18,7 @@ enum Migrations {
         t.column("title", .text).notNull()
         t.column("link", .text)
         t.column("image", .text)
+        t.column("description", .text)
       }
     }
 

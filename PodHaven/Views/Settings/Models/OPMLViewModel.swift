@@ -160,7 +160,8 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
               feedURL: feed.feedURL,
               title: outline.text,
               link: feed.link,
-              image: feed.image
+              image: feed.image,
+              description: feed.description
             ), (try? repository.insert(unsavedPodcast)) != nil {
               if let image = feed.image {
                 PodcastImages.shared.prefetch([image])

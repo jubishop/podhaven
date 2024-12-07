@@ -68,4 +68,8 @@ struct PodcastFeed: Sendable {
     }
     return url
   }
+
+  var description: String? {
+    rssFeed.description ?? rssFeed.iTunes?.iTunesSummary
+  }
 }

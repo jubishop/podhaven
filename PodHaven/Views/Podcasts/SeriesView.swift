@@ -1,15 +1,38 @@
 // Copyright Justin Bishop, 2024
 
+import GRDB
 import SwiftUI
 
 struct SeriesView: View {
-  let podcast: Podcast
+  @State private var viewModel: SeriesViewModel
+
+  init(podcast: Podcast) {
+    _viewModel = State(initialValue: SeriesViewModel(podcast: podcast))
+  }
 
   var body: some View {
-    Text(podcast.title)
+    VStack {
+      if let description = viewModel.podcast.description {
+        Text(description)
+      }
+    }
+    .navigationTitle(viewModel.podcast.title)
   }
 }
 
-//#Preview {
-//  SeriesView(podcast: .constant())
-//}
+#Preview {
+  struct SeriesViewPreview: View {
+    let podcast: Podcast
+    init() {
+      self.podcast = try! PodcastRepository.shared.db.read { db in
+        try! Podcast.filter(Column("title") == "Hard Fork").fetchOne(db)!
+      }
+    }
+
+    var body: some View {
+      SeriesView(podcast: podcast)
+    }
+  }
+
+  return Preview { NavigationStack { SeriesViewPreview() } }
+}
