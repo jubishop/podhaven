@@ -27,5 +27,32 @@ actor Episode {
       try podcast.episodes.fetchAll(db)
     }
     #expect(episodes == [episode])
+
+    let fetchedPodcast = try await repository.db.read { db in
+      try episode.podcast.fetchOne(db)
+    }
+    #expect(podcast == fetchedPodcast)
+
+    let olderUnsavedEpisode = UnsavedEpisode(
+      guid: "guid2",
+      podcast: podcast,
+      pubDate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
+    )
+    let olderEpisode = try repository.insert(olderUnsavedEpisode)
+    let middleUnsavedEpisode = UnsavedEpisode(
+      guid: "guid3",
+      podcast: podcast,
+      pubDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())
+    )
+    let middleEpisode = try repository.insert(middleUnsavedEpisode)
+    let podcastSeries = try await repository.db.read { db in
+      try Podcast
+        .including(all: Podcast.episodes)
+        .asRequest(of: PodcastSeries.self)
+        .filter(key: ["id": podcast.id])
+        .fetchOne(db)
+    }!
+    #expect(podcastSeries.podcast == podcast)
+    #expect(podcastSeries.episodes == [episode, middleEpisode, olderEpisode])
   }
 }

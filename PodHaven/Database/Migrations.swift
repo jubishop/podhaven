@@ -24,7 +24,8 @@ enum Migrations {
       try db.create(table: "episode") { t in
         t.autoIncrementedPrimaryKey("id")
         t.belongsTo("podcast", onDelete: .cascade).notNull()
-        t.column("guid", .text).unique().notNull().indexed()
+        t.column("guid", .text).unique().notNull()
+        t.column("pubDate", .text).notNull()
         t.column("media", .text)
         t.column("title", .text)
         t.column("description", .text)

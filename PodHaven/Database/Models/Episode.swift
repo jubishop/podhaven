@@ -7,6 +7,7 @@ struct UnsavedEpisode: Savable {
   let guid: String
   let podcastId: Int64
   var media: URL?
+  var pubDate: Date?
   var title: String?
   var description: String?
   var link: URL?
@@ -15,6 +16,7 @@ struct UnsavedEpisode: Savable {
     guid: String,
     podcast: Podcast,
     media: URL? = nil,
+    pubDate: Date? = nil,
     title: String? = nil,
     description: String? = nil,
     link: URL? = nil
@@ -22,6 +24,7 @@ struct UnsavedEpisode: Savable {
     self.guid = guid
     self.podcastId = podcast.id
     self.media = try? media?.convertToValidURL()
+    self.pubDate = pubDate ?? Date()
     self.title = title
     self.description = description
     self.link = try? link?.convertToValidURL()
