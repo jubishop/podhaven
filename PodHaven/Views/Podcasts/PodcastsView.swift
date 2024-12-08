@@ -7,11 +7,6 @@ import SwiftUI
 struct PodcastsView: View {
   @State private var navigation = Navigation.shared
   @State private var viewModel = PodcastsViewModel()
-  private let numberOfColumns = 3
-
-  init(repository: PodcastRepository = .shared) {
-    _viewModel = State(initialValue: PodcastsViewModel(repository: repository))
-  }
 
   var body: some View {
     NavigationStack(path: $navigation.podcastsPath) {
@@ -22,9 +17,9 @@ struct PodcastsView: View {
       .navigationDestination(for: Podcast.self) { podcast in
         SeriesView(podcast: podcast)
       }
-    }
-    .task {
-      await viewModel.observePodcasts()
+      .task {
+        await viewModel.observePodcasts()
+      }
     }
   }
 }

@@ -17,6 +17,9 @@ struct SeriesView: View {
       }
     }
     .navigationTitle(viewModel.podcast.title)
+    .task {
+      await viewModel.observePodcasts()
+    }
   }
 }
 
