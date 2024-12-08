@@ -47,9 +47,9 @@ actor Episode {
     let middleEpisode = try repository.insert(middleUnsavedEpisode)
     let podcastSeries = try await repository.db.read { db in
       try Podcast
+        .filter(id: podcast.id)
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
-        .filter(key: ["id": podcast.id])
         .fetchOne(db)
     }!
     #expect(podcastSeries.podcast == podcast)
