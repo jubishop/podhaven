@@ -107,10 +107,10 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
   func stopDownloading() {
     Task {
-      if let downloadManager = downloadManager {
+      if let downloadManager = self.downloadManager {
         await downloadManager.cancelAllDownloads()
       }
-      opmlFile = nil
+      self.opmlFile = nil
       Navigation.shared.currentTab = .podcasts
     }
   }
@@ -135,56 +135,55 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       )
     }
     self.opmlFile = opmlFile
-    Task {
-      downloadManager = createDownloadManager()
-      guard let downloadManager = downloadManager else {
-        fatalError("DownloadManager should be set now")
-      }
-      var taskAndOutline = [(OPMLOutline, DownloadTask)](
-        capacity: opmlFile.waiting.count
-      )
-      for outline in opmlFile.waiting {
-        let task = await downloadManager.addURL(outline.feedURL)
-        taskAndOutline.append((outline, task))
-      }
-      for (outline, downloadTask) in taskAndOutline {
-        Task {
-          await downloadTask.downloadBegan()
-          outline.status = .downloading
-          opmlFile.waiting.remove(outline)
-          opmlFile.downloading.insert(outline)
-          if case .success(let data) = await downloadTask.downloadFinished(),
-            case .success(let feed) = await PodcastFeed.parse(data: data.data)
-          {
-            outline.feedURL = feed.feedURL ?? outline.feedURL
-            outline.text = feed.title ?? outline.text
-            let feedURL = outline.feedURL
-            if (try? await repository.db.read({ db in
-              try Podcast.filter(key: ["feedURL": feedURL]).fetchOne(db)
-            })) != nil {
-              outline.status = .alreadySubscribed
-              opmlFile.downloading.remove(outline)
-              opmlFile.alreadySubscribed.insert(outline)
-            } else if let unsavedPodcast = try? UnsavedPodcast(
-              feedURL: outline.feedURL,
-              title: outline.text,
-              link: feed.link,
-              image: feed.image,
-              description: feed.description
-            ), (try? repository.insert(unsavedPodcast)) != nil {
-              if let image = feed.image {
-                PodcastImages.shared.prefetch([image])
-              }
-              outline.status = .finished
-              opmlFile.downloading.remove(outline)
-              opmlFile.finished.insert(outline)
-            }
+    self.downloadManager = createDownloadManager()
+    guard let downloadManager = downloadManager else {
+      fatalError("DownloadManager should be set now")
+    }
+    for outline in opmlFile.waiting {
+      Task {
+        let downloadTask = await downloadManager.addURL(outline.feedURL)
+        await downloadTask.downloadBegan()
+        outline.status = .downloading
+        opmlFile.waiting.remove(outline)
+        opmlFile.downloading.insert(outline)
+
+        let markFailed: () -> Void = {
+          outline.status = .failed
+          opmlFile.downloading.remove(outline)
+          opmlFile.failed.insert(outline)
+        }
+
+        guard case .success(let data) = await downloadTask.downloadFinished(),
+          case .success(let feed) = await PodcastFeed.parse(data: data.data)
+        else {
+          markFailed()
+          return
+        }
+
+        outline.feedURL = feed.feedURL ?? outline.feedURL
+        outline.text = feed.title ?? outline.text
+        let feedURL = outline.feedURL
+        if (try? await self.repository.db.read({ db in
+          try Podcast.filter(key: ["feedURL": feedURL]).fetchOne(db)
+        })) != nil {
+          outline.status = .alreadySubscribed
+          opmlFile.downloading.remove(outline)
+          opmlFile.alreadySubscribed.insert(outline)
+        } else if let unsavedPodcast = try? UnsavedPodcast(
+          feedURL: outline.feedURL,
+          title: outline.text,
+          link: feed.link,
+          image: feed.image,
+          description: feed.description
+        ), (try? self.repository.insert(unsavedPodcast)) != nil {
+          if let image = feed.image {
+            PodcastImages.shared.prefetch([image])
           }
-          if outline.status == .downloading {
-            outline.status = .failed
-            opmlFile.downloading.remove(outline)
-            opmlFile.failed.insert(outline)
-          }
+          outline.status = .finished
+          opmlFile.downloading.remove(outline)
+          opmlFile.finished.insert(outline)
+        } else {
+          markFailed()
         }
       }
     }

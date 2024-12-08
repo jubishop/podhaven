@@ -23,7 +23,7 @@ final actor DownloadTask: Sendable {
   }
 
   func downloadBegan() async {
-    guard !begun else { return }
+    guard !self.begun else { return }
 
     await withCheckedContinuation { continuation in
       beganContinuations.append(continuation)
@@ -31,7 +31,7 @@ final actor DownloadTask: Sendable {
   }
 
   func downloadFinished() async -> DownloadResult {
-    guard result == nil else { return result! }
+    guard self.result == nil else { return self.result! }
 
     return await withCheckedContinuation { continuation in
       finishedContinuations.append(continuation)
@@ -66,7 +66,7 @@ final actor DownloadTask: Sendable {
 
 extension DownloadTask {
   fileprivate func download() async -> DownloadResult {
-    if let result = result { return result }
+    if let result = self.result { return result }
     do {
       haveBegun()
       let (data, response) = try await session.data(from: url)
@@ -88,7 +88,7 @@ extension DownloadTask {
       }
       haveFinished(.failure(finalError))
     }
-    guard let result = result else {
+    guard let result = self.result else {
       fatalError("No result by the end of download()?!")
     }
     return result
