@@ -17,10 +17,10 @@ struct PodcastFeed: Sendable {
     guard let data = try? Data(contentsOf: url) else {
       return .failure(.failedLoad(url))
     }
-    return await parse(data: data, from: url)
+    return await parse(data: data)
   }
 
-  static func parse(data: Data, from url: URL) async -> ParseResult {
+  static func parse(data: Data) async -> ParseResult {
     let parser = FeedParser(data: data)
     return await withCheckedContinuation {
       continuation in
@@ -29,7 +29,7 @@ struct PodcastFeed: Sendable {
         guard let rssFeed = feed.rssFeed else {
           return continuation.resume(returning: .failure(.noRSS))
         }
-        let podcastFeed = PodcastFeed(url: url, rssFeed: rssFeed)
+        let podcastFeed = PodcastFeed(rssFeed: rssFeed)
         continuation.resume(returning: .success(podcastFeed))
       case .failure(let error):
         continuation.resume(returning: .failure(.failedParse(error)))
@@ -37,25 +37,23 @@ struct PodcastFeed: Sendable {
     }
   }
 
-  private let url: URL
   private let rssFeed: RSSFeed
   private let items: [PodcastFeedItem]
 
-  private init(url: URL, rssFeed: RSSFeed) {
-    self.url = url
+  private init(rssFeed: RSSFeed) {
     self.rssFeed = rssFeed
     self.items = (rssFeed.items ?? []).map { rssFeedItem in
       PodcastFeedItem(rssFeedItem: rssFeedItem)
     }
   }
 
-  var feedURL: URL {
+  var feedURL: URL? {
     if let newFeedURLString = rssFeed.iTunes?.iTunesNewFeedURL,
       let newFeedURL = URL(string: newFeedURLString)
     {
       return newFeedURL
     }
-    return url
+    return nil
   }
 
   var title: String? {

@@ -39,14 +39,14 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   }
 
   let id = UUID()
-  var text: String
   var status: Status
   var feedURL: URL?
+  var text: String
 
-  init(text: String, status: Status, feedURL: URL? = nil) {
-    self.text = text
+  init(status: Status, feedURL: URL? = nil, text: String) {
     self.status = status
     self.feedURL = feedURL
+    self.text = text
   }
 
   nonisolated static func == (lhs: OPMLOutline, rhs: OPMLOutline) -> Bool {
@@ -115,13 +115,13 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       guard let feedURL = entry.feedURL,
         let url = try? feedURL.convertToValidURL()
       else {
-        opmlFile.failed.append(OPMLOutline(text: entry.text, status: .failed))
+        opmlFile.failed.append(OPMLOutline(status: .failed, text: entry.text))
         continue
       }
       opmlFile.waiting[url] = OPMLOutline(
-        text: entry.text,
         status: .waiting,
-        feedURL: url
+        feedURL: url,
+        text: entry.text
       )
     }
     self.opmlFile = opmlFile
@@ -142,26 +142,25 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           opmlFile.waiting.removeValue(forKey: downloadTask.url)
           opmlFile.downloading[downloadTask.url] = outline
           if case .success(let data) = await downloadTask.downloadFinished(),
-            case .success(let feed) = await PodcastFeed.parse(
-              data: data.data,
-              from: downloadTask.url
-            )
+            case .success(let feed) = await PodcastFeed.parse(data: data.data)
           {
+            outline.feedURL = feed.feedURL ?? outline.feedURL
             outline.text = feed.title ?? outline.text
-            outline.feedURL = feed.feedURL
             if (try? await repository.db.read({ db in
               try Podcast.filter(Column("feedURL") == feed.feedURL).fetchOne(db)
             })) != nil {
               outline.status = .alreadySubscribed
               opmlFile.downloading.removeValue(forKey: downloadTask.url)
               opmlFile.alreadySubscribed[downloadTask.url] = outline
-            } else if let unsavedPodcast = try? UnsavedPodcast(
-              feedURL: feed.feedURL,
-              title: outline.text,
-              link: feed.link,
-              image: feed.image,
-              description: feed.description
-            ), (try? repository.insert(unsavedPodcast)) != nil {
+            } else if let feedURL = feed.feedURL,
+              let unsavedPodcast = try? UnsavedPodcast(
+                feedURL: feedURL,
+                title: outline.text,
+                link: feed.link,
+                image: feed.image,
+                description: feed.description
+              ), (try? repository.insert(unsavedPodcast)) != nil
+            {
               if let image = feed.image {
                 PodcastImages.shared.prefetch([image])
               }
