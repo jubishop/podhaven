@@ -29,8 +29,7 @@ struct PodcastFeed: Sendable {
         guard let rssFeed = feed.rssFeed else {
           return continuation.resume(returning: .failure(.noRSS))
         }
-        let podcastFeed = PodcastFeed(rssFeed: rssFeed)
-        continuation.resume(returning: .success(podcastFeed))
+        continuation.resume(returning: .success(PodcastFeed(rssFeed: rssFeed)))
       case .failure(let error):
         continuation.resume(returning: .failure(.failedParse(error)))
       }
@@ -42,9 +41,8 @@ struct PodcastFeed: Sendable {
 
   private init(rssFeed: RSSFeed) {
     self.rssFeed = rssFeed
-    self.items = (rssFeed.items ?? []).map { rssFeedItem in
-      PodcastFeedItem(rssFeedItem: rssFeedItem)
-    }
+    self.items = (rssFeed.items ?? [])
+      .map { rssFeedItem in PodcastFeedItem(rssFeedItem: rssFeedItem) }
   }
 
   var feedURL: URL? {

@@ -43,4 +43,20 @@ actor PodcastFeedTests {
       Issue.record("Game Informer should be unparseable")
     }
   }
+
+  @Test("parsing the Land of the Giants")
+  func parseLandOfTheGiantsFeed() async throws {
+    let url = Bundle.main.url(
+      forResource: "land_of_the_giants",
+      withExtension: "rss"
+    )!
+    let feed = await PodcastFeed.parse(url)
+    switch feed {
+      case .success(let feed):
+        #expect(feed.title == "Land of the Giants")
+      case .failure(let error):
+        Issue.record("Failed to parse \(url): \"\(error)\"")
+    }
+  }
+
 }

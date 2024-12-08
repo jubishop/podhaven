@@ -19,7 +19,7 @@ struct UnsavedPodcast: Savable {
   ) throws {
     self.feedURL = try feedURL.convertToValidURL()
     self.title = title
-    self.link = try link?.convertToValidURL()
+    self.link = try? link?.convertToValidURL()
     self.image = try? image?.convertToValidURL()
     self.description = description
   }

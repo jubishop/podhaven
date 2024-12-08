@@ -15,7 +15,7 @@ extension URL {
         userInfo: ["message": "URL: \(self) is invalid."]
       )
     }
-    if components.scheme == "http" {
+    if components.scheme == nil || components.scheme == "http" {
       components.scheme = "https"
     }
     components.fragment = nil
