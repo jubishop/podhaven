@@ -84,7 +84,7 @@ extension DownloadTask {
       } else if error is CancellationError {
         finalError = .cancelled
       } else {
-        finalError = .networkError(error)
+        finalError = .networkError(String(describing: error))
       }
       haveFinished(.failure(finalError))
     }

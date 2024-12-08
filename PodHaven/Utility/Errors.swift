@@ -5,7 +5,7 @@ import Foundation
 enum DownloadError: Error, LocalizedError, Sendable {
   case invalidResponse
   case invalidStatusCode(Int)
-  case networkError(Error)
+  case networkError(String)
   case cancelled
 
   var errorDescription: String {
@@ -14,8 +14,8 @@ enum DownloadError: Error, LocalizedError, Sendable {
       return "Received an invalid response from the server."
     case .invalidStatusCode(let statusCode):
       return "Received HTTP status code \(statusCode)."
-    case .networkError(let error):
-      return "A network error occurred: \(error.localizedDescription)"
+    case .networkError(let message):
+      return "A network error occurred: \"\(message)\""
     case .cancelled:
       return "The download was cancelled."
     }
