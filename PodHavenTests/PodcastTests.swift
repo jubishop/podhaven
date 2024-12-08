@@ -46,7 +46,7 @@ actor PodcastTests {
     #expect(updatedFilteredPodcast == podcast)
 
     let urlFilteredPodcast = try await repository.db.read { db in
-      try Podcast.filter(Column("feedURL") == url).fetchOne(db)
+      try Podcast.filter(key: ["feedURL": url]).fetchOne(db)
     }
     #expect(urlFilteredPodcast == podcast)
 

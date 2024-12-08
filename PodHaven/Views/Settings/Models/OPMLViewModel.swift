@@ -21,11 +21,11 @@ import UniformTypeIdentifiers
   var successCount: Int {
     alreadySubscribed.count + finished.count
   }
-  var failed: [OPMLOutline] = []
-  var alreadySubscribed: [URL: OPMLOutline] = [:]
-  var waiting: [URL: OPMLOutline] = [:]
-  var downloading: [URL: OPMLOutline] = [:]
-  var finished: [URL: OPMLOutline] = [:]
+  var failed: Set<OPMLOutline> = []
+  var alreadySubscribed: Set<OPMLOutline> = []
+  var waiting: Set<OPMLOutline> = []
+  var downloading: Set<OPMLOutline> = []
+  var finished: Set<OPMLOutline> = []
 
   init(title: String) {
     self.title = title
@@ -40,10 +40,18 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
   let id = UUID()
   var status: Status
-  var feedURL: URL?
+  var feedURL: URL
   var text: String
 
-  init(status: Status, feedURL: URL? = nil, text: String) {
+  convenience init(status: Status, text: String) {
+    self.init(
+      status: status,
+      feedURL: URL(string: "https://google.com")!,
+      text: text
+    )
+  }
+
+  init(status: Status, feedURL: URL, text: String) {
     self.status = status
     self.feedURL = feedURL
     self.text = text
@@ -115,13 +123,15 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       guard let feedURL = entry.feedURL,
         let validURL = try? feedURL.convertToValidURL()
       else {
-        opmlFile.failed.append(OPMLOutline(status: .failed, text: entry.text))
+        opmlFile.failed.insert(OPMLOutline(status: .failed, text: entry.text))
         continue
       }
-      opmlFile.waiting[validURL] = OPMLOutline(
-        status: .waiting,
-        feedURL: validURL,
-        text: entry.text
+      opmlFile.waiting.insert(
+        OPMLOutline(
+          status: .waiting,
+          feedURL: validURL,
+          text: entry.text
+        )
       )
     }
     self.opmlFile = opmlFile
@@ -130,33 +140,33 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       guard let downloadManager = downloadManager else {
         fatalError("DownloadManager should be set now")
       }
-      for downloadTask in await downloadManager.addURLs(
-        opmlFile.waiting.map { $0.key }
-      ) {
+      var taskAndOutline = [(OPMLOutline, DownloadTask)](
+        capacity: opmlFile.waiting.count
+      )
+      for outline in opmlFile.waiting {
+        let task = await downloadManager.addURL(outline.feedURL)
+        taskAndOutline.append((outline, task))
+      }
+      for (outline, downloadTask) in taskAndOutline {
         Task {
-          guard let outline = opmlFile.waiting[downloadTask.url] else {
-            fatalError("No OPMLOutline for url: \(downloadTask.url)?")
-          }
           await downloadTask.downloadBegan()
           outline.status = .downloading
-          opmlFile.waiting.removeValue(forKey: downloadTask.url)
-          opmlFile.downloading[downloadTask.url] = outline
+          opmlFile.waiting.remove(outline)
+          opmlFile.downloading.insert(outline)
           if case .success(let data) = await downloadTask.downloadFinished(),
             case .success(let feed) = await PodcastFeed.parse(data: data.data)
           {
             outline.feedURL = feed.feedURL ?? outline.feedURL
             outline.text = feed.title ?? outline.text
-            guard let feedURL = outline.feedURL else {
-              fatalError("feedURL should be set by now")
-            }
+            let feedURL = outline.feedURL
             if (try? await repository.db.read({ db in
-              try Podcast.filter(Column("feedURL") == feedURL).fetchOne(db)
+              try Podcast.filter(key: ["feedURL": feedURL]).fetchOne(db)
             })) != nil {
               outline.status = .alreadySubscribed
-              opmlFile.downloading.removeValue(forKey: downloadTask.url)
-              opmlFile.alreadySubscribed[downloadTask.url] = outline
+              opmlFile.downloading.remove(outline)
+              opmlFile.alreadySubscribed.insert(outline)
             } else if let unsavedPodcast = try? UnsavedPodcast(
-              feedURL: feedURL,
+              feedURL: outline.feedURL,
               title: outline.text,
               link: feed.link,
               image: feed.image,
@@ -166,14 +176,14 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
                 PodcastImages.shared.prefetch([image])
               }
               outline.status = .finished
-              opmlFile.downloading.removeValue(forKey: downloadTask.url)
-              opmlFile.finished[downloadTask.url] = outline
+              opmlFile.downloading.remove(outline)
+              opmlFile.finished.insert(outline)
             }
           }
           if outline.status == .downloading {
             outline.status = .failed
-            opmlFile.downloading.removeValue(forKey: downloadTask.url)
-            opmlFile.failed.append(outline)
+            opmlFile.downloading.remove(outline)
+            opmlFile.failed.insert(outline)
           }
         }
       }
