@@ -6,13 +6,63 @@ import Foundation
 typealias ParseResult = Result<PodcastFeed, FeedError>
 
 struct PodcastFeedItem: Sendable {
+  let guid: String
+
   private let rssFeedItem: RSSFeedItem
-  fileprivate init(rssFeedItem: RSSFeedItem) {
+  private let feedItemGUID: RSSFeedItemGUID
+
+  fileprivate init(rssFeedItem: RSSFeedItem) throws {
+    guard let feedItemGUID = rssFeedItem.guid, let guid = feedItemGUID.value
+    else {
+      throw FeedError.failedParse("PodcastFeedItem requires a GUID")
+    }
     self.rssFeedItem = rssFeedItem
+    self.feedItemGUID = feedItemGUID
+    self.guid = guid
+  }
+
+  var media: URL? {
+    guard let urlString = rssFeedItem.enclosure?.attributes?.url,
+      let url = URL(string: urlString)
+    else {
+      return nil
+    }
+    return url
+  }
+
+  var pubDate: Date? {
+    rssFeedItem.pubDate
+  }
+
+  var title: String? {
+    rssFeedItem.title ?? rssFeedItem.iTunes?.iTunesTitle
+  }
+
+  var description: String? {
+    rssFeedItem.description ?? rssFeedItem.iTunes?.iTunesSummary
+  }
+
+  var link: URL? {
+    guard let urlString = rssFeedItem.link, let url = URL(string: urlString)
+    else {
+      return nil
+    }
+    return url
+  }
+
+  var image: URL? {
+    guard let urlString = rssFeedItem.iTunes?.iTunesImage?.attributes?.href,
+      let url = URL(string: urlString)
+    else {
+      return nil
+    }
+    return url
   }
 }
 
 struct PodcastFeed: Sendable {
+  // MARK: - Static Parsing Methods
+
   static func parse(_ url: URL) async -> ParseResult {
     guard let data = try? Data(contentsOf: url) else {
       return .failure(.failedLoad(url))
@@ -31,27 +81,34 @@ struct PodcastFeed: Sendable {
         }
         continuation.resume(returning: .success(PodcastFeed(rssFeed: rssFeed)))
       case .failure(let error):
-        continuation.resume(returning: .failure(.failedParse(error)))
+        continuation.resume(
+          returning: .failure(.failedParse(String(describing: error)))
+        )
       }
     }
   }
 
+  // MARK: - Instance Definition
+
+  let items: [PodcastFeedItem]
+
   private let rssFeed: RSSFeed
-  private let items: [PodcastFeedItem]
 
   private init(rssFeed: RSSFeed) {
     self.rssFeed = rssFeed
     self.items = (rssFeed.items ?? [])
-      .map { rssFeedItem in PodcastFeedItem(rssFeedItem: rssFeedItem) }
+      .compactMap { rssFeedItem in
+        try? PodcastFeedItem(rssFeedItem: rssFeedItem)
+      }
   }
 
   var feedURL: URL? {
-    if let newFeedURLString = rssFeed.iTunes?.iTunesNewFeedURL,
+    guard let newFeedURLString = rssFeed.iTunes?.iTunesNewFeedURL,
       let newFeedURL = URL(string: newFeedURLString)
-    {
-      return newFeedURL
+    else {
+      return nil
     }
-    return nil
+    return newFeedURL
   }
 
   var title: String? {

@@ -24,15 +24,15 @@ enum DownloadError: Error, LocalizedError, Sendable {
 
 enum FeedError: Error, LocalizedError, Sendable {
   case failedLoad(URL)
-  case failedParse(Error)
+  case failedParse(String)
   case noRSS
 
   var errorDescription: String {
     switch self {
     case .failedLoad(let url):
       return "Failed to load URL: \(url)"
-    case .failedParse(let error):
-      return "Failed to parse RSS feed: \"\(error)\""
+    case .failedParse(let message):
+      return "Failed to parse RSS feed: \"\(message)\""
     case .noRSS:
       return "No RSS feed found."
     }

@@ -11,6 +11,7 @@ struct UnsavedEpisode: Savable {
   var title: String?
   var description: String?
   var link: URL?
+  var image: URL?
 
   init(
     guid: String,
@@ -19,7 +20,8 @@ struct UnsavedEpisode: Savable {
     pubDate: Date? = nil,
     title: String? = nil,
     description: String? = nil,
-    link: URL? = nil
+    link: URL? = nil,
+    image: URL? = nil
   ) {
     self.guid = guid
     self.podcastId = podcast.id
@@ -28,6 +30,7 @@ struct UnsavedEpisode: Savable {
     self.title = title
     self.description = description
     self.link = try? link?.convertToValidURL()
+    self.image = try? image?.convertToValidURL()
   }
 }
 

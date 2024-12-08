@@ -30,6 +30,7 @@ enum Migrations {
         t.column("title", .text)
         t.column("description", .text)
         t.column("link", .text)
+        t.column("image", .text)
       }
     }
 
