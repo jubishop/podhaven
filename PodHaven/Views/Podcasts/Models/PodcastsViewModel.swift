@@ -7,15 +7,9 @@ import GRDB
 @Observable @MainActor final class PodcastsViewModel {
   var podcasts: [Podcast] = []
 
-  private let repository: PodcastRepository
-
-  init(repository: PodcastRepository = .shared) {
-    self.repository = repository
-  }
-
   func observePodcasts() async {
     do {
-      for try await podcasts in repository.observer.values() {
+      for try await podcasts in PodcastRepository.shared.observer.values() {
         self.podcasts = podcasts
       }
     } catch {
