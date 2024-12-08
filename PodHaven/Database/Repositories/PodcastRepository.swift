@@ -27,8 +27,9 @@ struct PodcastRepository: Sendable {
       .shared(in: appDatabase.db)
   }
 
-  // MARK: - Writers
+  // MARK: - Podcast Writers
 
+  @discardableResult
   func insert(_ unsavedPodcast: UnsavedPodcast) throws -> Podcast {
     try appDatabase.db.write { db in
       try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
@@ -47,6 +48,9 @@ struct PodcastRepository: Sendable {
     }
   }
 
+  // MARK: - Episode Writers
+
+  @discardableResult
   func insert(_ unsavedEpisode: UnsavedEpisode) throws -> Episode {
     try appDatabase.db.write { db in
       try unsavedEpisode.insertAndFetch(db, as: Episode.self)

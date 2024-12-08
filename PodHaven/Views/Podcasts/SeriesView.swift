@@ -15,6 +15,9 @@ struct SeriesView: View {
       if let description = viewModel.podcast.description {
         HTMLText(description).padding()
       }
+      List(Array(viewModel.episodes)) { episode in
+        Text(episode.title ?? "No title")
+      }
     }
     .navigationTitle(viewModel.podcast.title)
     .task {

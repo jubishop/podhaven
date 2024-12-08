@@ -170,9 +170,22 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           link: feed.link,
           image: feed.image,
           description: feed.description
-        ), (try? PodcastRepository.shared.insert(unsavedPodcast)) != nil {
+        ), let podcast = try? PodcastRepository.shared.insert(unsavedPodcast) {
           if let image = feed.image {
             PodcastImages.shared.prefetch([image])
+          }
+          for feedItem in feed.items {
+            let unsavedEpisode = UnsavedEpisode(
+              guid: feedItem.guid,
+              podcast: podcast,
+              media: feedItem.media,
+              pubDate: feedItem.pubDate,
+              title: feedItem.title,
+              description: feedItem.description,
+              link: feedItem.link,
+              image: feedItem.image
+            )
+            _ = try? PodcastRepository.shared.insert(unsavedEpisode)
           }
           outline.status = .finished
           opmlFile.downloading.remove(outline)
