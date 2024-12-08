@@ -60,22 +60,22 @@ struct OPMLImportSheetSection: View {
       // Should display nothing...
       OPMLImportSheetSection(outlines: [])
       OPMLImportSheetSection(
-        outlines: [OPMLOutline(text: "Failed", status: .failed)]
+        outlines: [OPMLOutline(status: .failed, text: "Failed")]
       )
       OPMLImportSheetSection(
-        outlines: [OPMLOutline(text: "Finished", status: .finished)]
+        outlines: [OPMLOutline(status: .finished, text: "Finished")]
       )
       OPMLImportSheetSection(
-        outlines: [OPMLOutline(text: "Downloading", status: .downloading)]
+        outlines: [OPMLOutline(status: .downloading, text: "Downloading")]
       )
       OPMLImportSheetSection(
-        outlines: [OPMLOutline(text: "Waiting", status: .waiting)]
+        outlines: [OPMLOutline(status: .waiting, text: "Waiting")]
       )
       OPMLImportSheetSection(
         outlines: [
           OPMLOutline(
-            text: "Already Subscribed",
-            status: .alreadySubscribed
+            status: .alreadySubscribed,
+            text: "Already Subscribed"
           )
         ]
       )
