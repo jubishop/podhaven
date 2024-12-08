@@ -17,7 +17,7 @@ final actor DownloadTask: Sendable {
   private var begun: Bool = false
   private var result: DownloadResult?
 
-  init(url: URL, session: Networking) {
+  fileprivate init(url: URL, session: Networking) {
     self.url = url
     self.session = session
   }

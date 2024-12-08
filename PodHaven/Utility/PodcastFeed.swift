@@ -5,6 +5,13 @@ import Foundation
 
 typealias ParseResult = Result<PodcastFeed, FeedError>
 
+struct PodcastFeedItem: Sendable {
+  private let rssFeedItem: RSSFeedItem
+  fileprivate init(rssFeedItem: RSSFeedItem) {
+    self.rssFeedItem = rssFeedItem
+  }
+}
+
 struct PodcastFeed: Sendable {
   static func parse(_ url: URL) async -> ParseResult {
     guard let data = try? Data(contentsOf: url) else {
@@ -32,10 +39,14 @@ struct PodcastFeed: Sendable {
 
   private let url: URL
   private let rssFeed: RSSFeed
+  private let items: [PodcastFeedItem]
 
   private init(url: URL, rssFeed: RSSFeed) {
     self.url = url
     self.rssFeed = rssFeed
+    self.items = (rssFeed.items ?? []).map { rssFeedItem in
+      PodcastFeedItem(rssFeedItem: rssFeedItem)
+    }
   }
 
   var feedURL: URL {

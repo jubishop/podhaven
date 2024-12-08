@@ -2,7 +2,7 @@
 
 import Foundation
 
-enum DownloadError: Error, LocalizedError, Sendable, Equatable {
+enum DownloadError: Error, LocalizedError, Sendable {
   case invalidResponse
   case invalidStatusCode(Int)
   case networkError(Error)
@@ -18,19 +18,6 @@ enum DownloadError: Error, LocalizedError, Sendable, Equatable {
       return "A network error occurred: \(error.localizedDescription)"
     case .cancelled:
       return "The download was cancelled."
-    }
-  }
-
-  static func == (lhs: DownloadError, rhs: DownloadError) -> Bool {
-    switch (lhs, rhs) {
-    case (.invalidResponse, .invalidResponse),
-      (.cancelled, .cancelled),
-      (.networkError, .networkError):
-      return true
-    case (.invalidStatusCode(let lhsCode), .invalidStatusCode(let rhsCode)):
-      return lhsCode == rhsCode
-    default:
-      return false
     }
   }
 }

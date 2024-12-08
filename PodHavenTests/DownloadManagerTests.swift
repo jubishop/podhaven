@@ -19,12 +19,7 @@ actor DownloadManagerTests {
 
     let url = URL(string: "https://example.com/data")!
     let result = await downloadManager.addURL(url).downloadFinished()
-    switch result {
-    case .success(let data):
-      #expect(data.data == url.dataRepresentation, "Returned data should match")
-    case .failure(let error):
-      Issue.record("Expected success, got error: \(error)")
-    }
+    #expect(result.isSuccessfulWith(DownloadData(url: url)))
   }
 
   @Test("that an array of downloads work successfully")
@@ -85,12 +80,12 @@ actor DownloadManagerTests {
       await task.cancel()
     }
     var result = await task.downloadFinished()
-    #expect(result == .failure(.cancelled))
+    #expect(result.isCancelled)
 
     // Even after the url data has returned, the result remains cancelled.
     try await Task.sleep(for: .milliseconds(100))
     result = await task.downloadFinished()
-    #expect(result == .failure(.cancelled))
+    #expect(result.isCancelled)
   }
 
   @Test("that you can cancel all downloads")
@@ -109,16 +104,16 @@ actor DownloadManagerTests {
     // At this point: task should be active, task2 should be pending
     await downloadManager.cancelAllDownloads()
     var result = await task.downloadFinished()
-    #expect(result == .failure(.cancelled))
+    #expect(result.isCancelled)
     var result2 = await task2.downloadFinished()
-    #expect(result2 == .failure(.cancelled))
+    #expect(result2.isCancelled)
 
     // Even after the url data has returned, the results remains cancelled.
     try await Task.sleep(for: .milliseconds(100))
     result = await task.downloadFinished()
-    #expect(result == .failure(.cancelled))
+    #expect(result.isCancelled)
     result2 = await task2.downloadFinished()
-    #expect(result2 == .failure(.cancelled))
+    #expect(result2.isCancelled)
   }
 
   @Test("that url's are fetched in the order they're received")
@@ -155,16 +150,8 @@ actor DownloadManagerTests {
     for _ in 0..<taskCount {
       Task {
         let result = await task.downloadFinished()
-        switch result {
-        case .success(let data):
-          #expect(
-            data.data == url.dataRepresentation,
-            "Returned data should match"
-          )
-          await downloadCount.increment()
-        case .failure(let error):
-          Issue.record("Expected success, got error: \(error)")
-        }
+        #expect(result.isSuccessfulWith(DownloadData(url: url)))
+        await downloadCount.increment()
       }
     }
     try await Task.sleep(for: .milliseconds(200))
@@ -192,12 +179,7 @@ actor DownloadManagerTests {
     // url to finish (concurrentTasks = 1, delay = 100ms), it would've never
     // actually start()'d the second downloadTask.
     let result = await task.downloadFinished()
-    #expect(
-      result
-        == .success(
-          DownloadData(url: url2, data: url2.dataRepresentation)
-        )
-    )
+    #expect(result.isSuccessfulWith(DownloadData(url: url2)))
   }
 
   @Test("that you can use the AsyncStream to get results")
