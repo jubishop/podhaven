@@ -3,7 +3,11 @@
 import Foundation
 
 extension URL {
-  public func convertToValidURL() throws -> URL {
+  static let placeholder = {
+    URL(string: "about:blank")!
+  }()
+
+  func convertToValidURL() throws -> URL {
     guard
       var components = URLComponents(
         url: self,
@@ -29,7 +33,7 @@ extension URL {
     return url
   }
 
-  public func validate() throws {
+  func validate() throws {
     guard let scheme = self.scheme, scheme == "https"
     else {
       throw URLError(

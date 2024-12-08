@@ -76,6 +76,18 @@ struct OPMLImportSheet: View {
       Button("Import Empty") {
         viewModel.importOPMLFileInSimulator("empty")
       }
+
+      #if DEBUG
+        Section("Debugging") {
+          Button("Clear DB") {
+            Task {
+              try AppDatabase.shared.db.write { db in
+                try Podcast.deleteAll(db)
+              }
+            }
+          }
+        }
+      #endif
     }
     .sheet(item: $viewModel.opmlFile) { opmlFile in
       OPMLImportSheet(viewModel: viewModel)

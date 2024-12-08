@@ -46,7 +46,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   convenience init(status: Status, text: String) {
     self.init(
       status: status,
-      feedURL: URL(string: "https://google.com")!,
+      feedURL: URL.placeholder,
       text: text
     )
   }
