@@ -60,7 +60,7 @@ struct OPMLImportSheet: View {
 }
 
 #Preview {
-  @Previewable @State var viewModel = OPMLViewModel(repository: .empty())
+  @Previewable @State var viewModel = OPMLViewModel()
 
   Preview {
     Form {

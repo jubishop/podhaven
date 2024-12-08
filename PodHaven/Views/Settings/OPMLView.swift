@@ -3,11 +3,7 @@
 import SwiftUI
 
 struct OPMLView: View {
-  @State private var viewModel: OPMLViewModel
-
-  init(repository: PodcastRepository = .shared) {
-    _viewModel = State(initialValue: OPMLViewModel(repository: repository))
-  }
+  @State private var viewModel = OPMLViewModel()
 
   var body: some View {
     Form {
@@ -35,5 +31,5 @@ struct OPMLView: View {
 }
 
 #Preview {
-  Preview { OPMLView(repository: .empty()) }
+  Preview { OPMLView() }
 }

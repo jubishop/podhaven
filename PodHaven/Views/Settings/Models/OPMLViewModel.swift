@@ -67,15 +67,10 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 }
 
 @Observable @MainActor final class OPMLViewModel {
-  private let repository: PodcastRepository
   private var downloadManager: DownloadManager?
   let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)!
   var opmlImporting = false
   var opmlFile: OPMLFile?
-
-  init(repository: PodcastRepository = .shared) {
-    self.repository = repository
-  }
 
   func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
     switch result {
@@ -163,7 +158,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         outline.feedURL = feed.feedURL ?? outline.feedURL
         outline.text = feed.title ?? outline.text
         let feedURL = outline.feedURL
-        if (try? await self.repository.db.read({ db in
+        if (try? await PodcastRepository.shared.db.read({ db in
           try Podcast.filter(key: ["feedURL": feedURL]).fetchOne(db)
         })) != nil {
           outline.status = .alreadySubscribed
@@ -175,7 +170,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           link: feed.link,
           image: feed.image,
           description: feed.description
-        ), (try? self.repository.insert(unsavedPodcast)) != nil {
+        ), (try? PodcastRepository.shared.insert(unsavedPodcast)) != nil {
           if let image = feed.image {
             PodcastImages.shared.prefetch([image])
           }
