@@ -9,7 +9,7 @@ struct EpisodeListView: View {
     NavigationLink(
       value: episode,
       label: {
-        Text(episode.title ?? "No Title")
+        Text(episode.toString)
       }
     )
   }

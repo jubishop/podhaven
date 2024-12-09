@@ -10,7 +10,7 @@ struct EpisodeView: View {
   }
 
   var body: some View {
-    Text(viewModel.episode.title ?? "No Title")
+    Text(viewModel.episode.toString)
       .task {
         await viewModel.observeEpisode()
       }
