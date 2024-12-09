@@ -8,25 +8,25 @@ struct UnsavedPodcast: Savable {
   var title: String
   var link: URL?
   var image: URL?
-  var podcastDescription: String?
+  var description: String?
 
   init(
     feedURL: URL,
     title: String,
     link: URL? = nil,
     image: URL? = nil,
-    podcastDescription: String? = nil
+    description: String? = nil
   ) throws {
     self.feedURL = try feedURL.convertToValidURL()
     self.title = title
     self.link = try? link?.convertToValidURL()
     self.image = try? image?.convertToValidURL()
-    self.podcastDescription = podcastDescription
+    self.description = description
   }
 
-  // MARK: - CustomStringConvertible
+  // MARK: - Savable
 
-  public var description: String { self.title }
+  var toString: String { self.title }
 }
 
 typealias Podcast = Saved<UnsavedPodcast>

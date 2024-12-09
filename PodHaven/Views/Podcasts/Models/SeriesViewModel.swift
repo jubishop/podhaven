@@ -30,13 +30,13 @@ import GRDB
       ) {
         guard self.podcastSeries != podcastSeries else { return }
         guard let podcastSeries = podcastSeries else {
-          Alert.shared("No return from DB for podcast: \(podcast)")
+          Alert.shared("No return from DB for podcast: \(podcast.toString)")
           return
         }
         self.podcastSeries = podcastSeries
       }
     } catch {
-      Alert.shared("Error thrown while observing podcast: \(podcast)")
+      Alert.shared("Error thrown while observing podcast: \(podcast.toString)")
     }
   }
 }

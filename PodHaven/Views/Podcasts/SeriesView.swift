@@ -12,7 +12,7 @@ struct SeriesView: View {
 
   var body: some View {
     VStack {
-      if let description = viewModel.podcast.podcastDescription {
+      if let description = viewModel.podcast.description {
         HTMLText(description).padding()
       }
       List(Array(viewModel.episodes)) { episode in

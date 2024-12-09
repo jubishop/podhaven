@@ -11,7 +11,6 @@ struct EpisodeView: View {
 
   var body: some View {
     Text(viewModel.episode.title ?? "No Title")
-      .navigationTitle(viewModel.episode.title ?? "No Title")
       .task {
         await viewModel.observeEpisode()
       }

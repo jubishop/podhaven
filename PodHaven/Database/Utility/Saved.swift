@@ -5,13 +5,8 @@ import GRDB
 
 @dynamicMemberLookup
 public struct Saved<V>:
-  Codable,
-  CustomStringConvertible,
-  Hashable,
-  Identifiable,
-  FetchableRecord,
-  PersistableRecord,
-  Sendable
+  Savable,
+  Identifiable
 where V: Savable {
   public var id: Int64
   private var value: V
@@ -43,10 +38,10 @@ where V: Savable {
     try value.encode(to: &container)
   }
 
-  // MARK: - CustomStringConvertible
+  // MARK: - Savable
 
-  public var description: String {
-    value.description
+  public var toString: String {
+    value.toString
   }
 
   // MARK: - Persistence Callbacks

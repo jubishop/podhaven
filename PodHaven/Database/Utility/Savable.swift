@@ -5,12 +5,13 @@ import GRDB
 
 public protocol Savable:
   Codable,
-  CustomStringConvertible,
   Hashable,
   FetchableRecord,
   PersistableRecord,
   Sendable
-{}
+{
+  var toString: String { get }
+}
 
 extension Savable {
   static var databaseTableName: String {

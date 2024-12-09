@@ -23,7 +23,7 @@ import GRDB
         guard self.episode != episode else { return }
         guard let episode = episode else {
           Alert.shared(
-            "No return from DB for episode: \(self.episode)"
+            "No return from DB for episode: \(self.episode.toString)"
           )
           return
         }
@@ -31,7 +31,7 @@ import GRDB
       }
     } catch {
       Alert.shared(
-        "Error thrown while observing episode: \(episode)"
+        "Error thrown while observing episode: \(self.episode.toString)"
       )
     }
   }
