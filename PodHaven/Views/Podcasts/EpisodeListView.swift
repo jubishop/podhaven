@@ -15,7 +15,6 @@ struct EpisodeListView: View {
   }
 }
 
-// TODO
 #Preview {
   struct EpisodeListViewPreview: View {
     let episode: Episode
