@@ -34,7 +34,7 @@ struct SeriesView: View {
     let podcast: Podcast
     init() {
       self.podcast = try! PodcastRepository.shared.db.read { db in
-        try! Podcast.filter(Column("title") == "Hard Fork").fetchOne(db)!
+        try! Podcast.fetchOne(db)!
       }
     }
 

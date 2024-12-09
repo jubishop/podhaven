@@ -17,6 +17,19 @@ struct EpisodeView: View {
   }
 }
 
-//#Preview {
-//    EpisodeView()
-//}
+#Preview {
+  struct EpisodeViewPreview: View {
+    let episode: Episode
+    init() {
+      self.episode = try! PodcastRepository.shared.db.read { db in
+        try! Episode.fetchOne(db)!
+      }
+    }
+
+    var body: some View {
+      EpisodeView(episode: episode)
+    }
+  }
+
+  return Preview { NavigationStack { EpisodeViewPreview() } }
+}
