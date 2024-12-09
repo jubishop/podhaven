@@ -20,7 +20,6 @@ struct TabContent<Content: View>: View {
         geometry.size.height
       } action: { newHeight in
         height = newHeight
-        print("setting new internalTab Height: \(newHeight)")
       }
   }
 }

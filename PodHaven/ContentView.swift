@@ -33,7 +33,6 @@ struct ContentView: View {
     .onGeometryChange(for: CGFloat.self) { geometry in
       geometry.size.height
     } action: { newHeight in
-      print("setting new fullStackHeight Height: \(newHeight)")
       fullStackHeight = newHeight
     }
   }

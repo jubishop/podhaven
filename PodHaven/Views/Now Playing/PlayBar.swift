@@ -14,7 +14,6 @@ struct PlayBar: View {
   var body: some View {
     HStack {
       Button(action: {
-        print("Previous button tapped")
       }) {
         Image(systemName: "backward.fill")
           .font(.title)
@@ -24,7 +23,6 @@ struct PlayBar: View {
       Spacer()
 
       Button(action: {
-        print("Play button tapped")
       }) {
         Image(systemName: "play.fill")
           .font(.title)
@@ -34,7 +32,6 @@ struct PlayBar: View {
       Spacer()
 
       Button(action: {
-        print("Next button tapped")
       }) {
         Image(systemName: "forward.fill")
           .font(.title)
@@ -43,7 +40,6 @@ struct PlayBar: View {
     }
     .padding()
     .background(Capsule().fill(Color.blue))
-    .padding(.horizontal)
     .offset(y: internalTabHeight - fullStackHeight)
   }
 }
