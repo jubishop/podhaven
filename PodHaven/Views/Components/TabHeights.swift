@@ -7,11 +7,7 @@ final class TabHeights: Sendable {
   private var heights: [Navigation.Tab: CGFloat] = [:]
 
   subscript(tab: Navigation.Tab) -> CGFloat {
-    get {
-      self.heights[tab, default: 0]
-    }
-    set {
-      self.heights[tab] = newValue
-    }
+    get { self.heights[tab, default: 0] }
+    set { self.heights[tab] = newValue }
   }
 }
