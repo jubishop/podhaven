@@ -12,14 +12,17 @@ struct SeriesView: View {
 
   var body: some View {
     VStack {
-      if let description = viewModel.podcast.description {
+      if let description = viewModel.podcast.podcastDescription {
         HTMLText(description).padding()
       }
       List(Array(viewModel.episodes)) { episode in
-        Text(episode.title ?? "No title")
+        EpisodeListView(episode: episode)
       }
     }
     .navigationTitle(viewModel.podcast.title)
+    .navigationDestination(for: Episode.self) { episode in
+      EpisodeView(episode: episode)
+    }
     .task {
       await viewModel.observePodcasts()
     }

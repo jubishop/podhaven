@@ -9,7 +9,7 @@ struct UnsavedEpisode: Savable {
   var media: URL?
   var pubDate: Date?
   var title: String?
-  var description: String?
+  var episodeDescription: String?
   var link: URL?
   var image: URL?
 
@@ -19,7 +19,7 @@ struct UnsavedEpisode: Savable {
     media: URL? = nil,
     pubDate: Date? = nil,
     title: String? = nil,
-    description: String? = nil,
+    episodeDescription: String? = nil,
     link: URL? = nil,
     image: URL? = nil
   ) {
@@ -28,10 +28,14 @@ struct UnsavedEpisode: Savable {
     self.media = try? media?.convertToValidURL()
     self.pubDate = pubDate ?? Date()
     self.title = title
-    self.description = description
+    self.episodeDescription = episodeDescription
     self.link = try? link?.convertToValidURL()
     self.image = try? image?.convertToValidURL()
   }
+
+  // MARK: - CustomStringConvertible
+
+  public var description: String { self.title ?? self.guid }
 }
 
 typealias Episode = Saved<UnsavedEpisode>

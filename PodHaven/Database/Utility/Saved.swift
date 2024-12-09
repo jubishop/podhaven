@@ -6,6 +6,7 @@ import GRDB
 @dynamicMemberLookup
 public struct Saved<V>:
   Codable,
+  CustomStringConvertible,
   Hashable,
   Identifiable,
   FetchableRecord,
@@ -40,6 +41,12 @@ where V: Savable {
   public func encode(to container: inout PersistenceContainer) throws {
     container[Column(CodingKeys.id)] = id
     try value.encode(to: &container)
+  }
+
+  // MARK: - CustomStringConvertible
+
+  public var description: String {
+    value.description
   }
 
   // MARK: - Persistence Callbacks

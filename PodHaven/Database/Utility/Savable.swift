@@ -5,6 +5,7 @@ import GRDB
 
 public protocol Savable:
   Codable,
+  CustomStringConvertible,
   Hashable,
   FetchableRecord,
   PersistableRecord,
