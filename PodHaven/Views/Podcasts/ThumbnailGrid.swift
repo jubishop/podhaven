@@ -60,7 +60,7 @@ struct PodcastThumbnail: View {
         }
       }
       .onGeometryChange(for: CGFloat.self) { geometry in
-        return geometry.size.width
+        geometry.size.width
       } action: { newWidth in
         width = newWidth
       }
