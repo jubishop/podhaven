@@ -15,20 +15,24 @@ struct ContentView: View {
           systemImage: "gear",
           value: .settings
         ) {
-          TabContent(height: binding(for: .settings)) { SettingsView() }
+          TabContent(height: tabHeightsBinding(for: .settings)) {
+            SettingsView()
+          }
         }
         Tab(
           "Podcasts",
           systemImage: "dot.radiowaves.left.and.right",
           value: .podcasts
         ) {
-          TabContent(height: binding(for: .podcasts)) { PodcastsView() }
+          TabContent(height: tabHeightsBinding(for: .podcasts)) {
+            PodcastsView()
+          }
         }
       }
-      PlayBar(
-        fullStackHeight: $fullStackHeight,
-        internalTabHeight: binding(for: navigation.currentTab)
-      )
+      PlayBar()
+        .offset(
+          y: tabHeights[navigation.currentTab, default: 0] - fullStackHeight
+        )
     }
     .onGeometryChange(for: CGFloat.self) { geometry in
       geometry.size.height
@@ -37,9 +41,9 @@ struct ContentView: View {
     }
   }
 
-  private func binding(for tab: Navigation.Tab) -> Binding<CGFloat> {
+  private func tabHeightsBinding(for tab: Navigation.Tab) -> Binding<CGFloat> {
     Binding(
-      get: { tabHeights[tab] ?? 0 },
+      get: { tabHeights[tab, default: 0] },
       set: { tabHeights[tab] = $0 }
     )
   }

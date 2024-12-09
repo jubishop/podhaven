@@ -3,7 +3,6 @@
 import SwiftUI
 
 struct TabContent<Content: View>: View {
-  @State private var alert = Alert.shared
   @Binding var height: CGFloat
 
   let content: Content
