@@ -2,20 +2,6 @@
 
 import SwiftUI
 
-@Observable @MainActor
-final class TabHeights: Sendable {
-  private var heights: [Navigation.Tab: CGFloat] = [:]
-
-  subscript(tab: Navigation.Tab) -> CGFloat {
-    get {
-      self.heights[tab, default: 0]
-    }
-    set {
-      self.heights[tab] = newValue
-    }
-  }
-}
-
 struct ContentView: View {
   @State private var navigation = Navigation.shared
   @State private var fullStackHeight: CGFloat = 0
