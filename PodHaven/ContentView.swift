@@ -2,10 +2,24 @@
 
 import SwiftUI
 
+@Observable @MainActor
+final class TabHeights: Sendable {
+  private var heights: [Navigation.Tab: CGFloat] = [:]
+
+  subscript(tab: Navigation.Tab) -> Binding<CGFloat> {
+    get {
+      Binding(
+        get: { self.heights[tab, default: 0] },
+        set: { self.heights[tab] = $0 }
+      )
+    }
+  }
+}
+
 struct ContentView: View {
   @State private var navigation = Navigation.shared
   @State private var fullStackHeight: CGFloat = 0
-  @State private var tabHeights: [Navigation.Tab: CGFloat] = [:]
+  @State private var tabHeights = TabHeights()
 
   var body: some View {
     ZStack(alignment: .bottom) {
@@ -15,7 +29,7 @@ struct ContentView: View {
           systemImage: "gear",
           value: .settings
         ) {
-          TabContent(height: tabHeightsBinding(for: .settings)) {
+          TabContent(height: tabHeights[.settings]) {
             SettingsView()
           }
         }
@@ -24,14 +38,14 @@ struct ContentView: View {
           systemImage: "dot.radiowaves.left.and.right",
           value: .podcasts
         ) {
-          TabContent(height: tabHeightsBinding(for: .podcasts)) {
+          TabContent(height: tabHeights[.podcasts]) {
             PodcastsView()
           }
         }
       }
       PlayBar()
         .offset(
-          y: tabHeights[navigation.currentTab, default: 0] - fullStackHeight
+          y: tabHeights[navigation.currentTab].wrappedValue - fullStackHeight
         )
     }
     .onGeometryChange(for: CGFloat.self) { geometry in
@@ -39,13 +53,6 @@ struct ContentView: View {
     } action: { newHeight in
       fullStackHeight = newHeight
     }
-  }
-
-  private func tabHeightsBinding(for tab: Navigation.Tab) -> Binding<CGFloat> {
-    Binding(
-      get: { tabHeights[tab, default: 0] },
-      set: { tabHeights[tab] = $0 }
-    )
   }
 }
 
