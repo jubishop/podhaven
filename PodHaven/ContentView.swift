@@ -12,14 +12,14 @@ struct ContentView: View {
         systemImage: "gear",
         value: .settings
       ) {
-        SettingsView()
+        TabContent { SettingsView() }
       }
       Tab(
         "Podcasts",
         systemImage: "dot.radiowaves.left.and.right",
         value: .podcasts
       ) {
-        PodcastsView()
+        TabContent { PodcastsView() }
       }
     }
   }
