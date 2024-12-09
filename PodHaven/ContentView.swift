@@ -6,12 +6,12 @@ import SwiftUI
 final class TabHeights: Sendable {
   private var heights: [Navigation.Tab: CGFloat] = [:]
 
-  subscript(tab: Navigation.Tab) -> Binding<CGFloat> {
+  subscript(tab: Navigation.Tab) -> CGFloat {
     get {
-      Binding(
-        get: { self.heights[tab, default: 0] },
-        set: { self.heights[tab] = $0 }
-      )
+      self.heights[tab, default: 0]
+    }
+    set {
+      self.heights[tab] = newValue
     }
   }
 }
@@ -29,7 +29,7 @@ struct ContentView: View {
           systemImage: "gear",
           value: .settings
         ) {
-          TabContent(height: tabHeights[.settings]) {
+          TabContent(height: $tabHeights[.settings]) {
             SettingsView()
           }
         }
@@ -38,14 +38,14 @@ struct ContentView: View {
           systemImage: "dot.radiowaves.left.and.right",
           value: .podcasts
         ) {
-          TabContent(height: tabHeights[.podcasts]) {
+          TabContent(height: $tabHeights[.podcasts]) {
             PodcastsView()
           }
         }
       }
       PlayBar()
         .offset(
-          y: tabHeights[navigation.currentTab].wrappedValue - fullStackHeight
+          y: tabHeights[navigation.currentTab] - fullStackHeight
         )
     }
     .onGeometryChange(for: CGFloat.self) { geometry in
