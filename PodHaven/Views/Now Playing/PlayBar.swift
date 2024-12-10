@@ -14,22 +14,26 @@ struct PlayBar: View {
       .padding()
 
       Button(action: {
-//        if PlayState.shared.isPlaying {
-//          PlayManager.shared.pause()
-//        } else {
-//          PlayManager.shared.play()
-//        }
-      }) {
-//        Image(
-//          systemName: PlayState.shared.isPlaying
-//            ? "pause.circle" : "play.circle"
-//        )
-//        .font(.largeTitle)
-      }
+        if PlayState.shared.isPlaying {
+          Task.detached(priority: .userInitiated) {
+            await PlayManager.shared.pause()
+          }
+        } else {
+          Task.detached(priority: .userInitiated) {
+            await PlayManager.shared.play()
+          }
+        }
+       }) {
+        Image(
+          systemName: PlayState.shared.isPlaying
+            ? "pause.circle" : "play.circle"
+        )
+        .font(.largeTitle)
+       }
       .padding()
 
       Button(action: {
-        // PlayManager.shared.seekForward()
+       //  PlayManager.shared.seekForward()
       }) {
         Image(systemName: "goforward.10")
       }

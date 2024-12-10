@@ -18,21 +18,28 @@ actor PlayManager: Sendable {
       await Alert.shared("Failed to set the audio session configuration")
     }
   }
+
   //
-  //  // TODO: Stop playback when the app is terminated...
-  //
+  // TODO: Save play state when app is terminated
+  // TODO: setActive(false) when audio stops or i'm background/terminated
+
   private var avPlayer = AVPlayer()
+  private var isActive = false
+  private var durationObserver: NSKeyValueObservation?
+  private var timeObserver: Any?
   //  private var playerObserver: Any?
   //  private var timeObserver: Any?
 
   fileprivate init() {
   }
 
-  func start(_ url: URL) {
-    let avPlayerItem = AVPlayerItem(url: url)
-    avPlayer.replaceCurrentItem(with: avPlayerItem)
+  func start(_ url: URL) async {
+    if let timeObserver = timeObserver {
+      avPlayer.removeTimeObserver(timeObserver)
+    }
 
-    let playerObserver = avPlayerItem.observe(
+    let avPlayerItem = AVPlayerItem(url: url)
+    durationObserver = avPlayerItem.observe(
       \.duration,
       options: [.initial, .new]
     ) { _, change in
@@ -41,23 +48,41 @@ actor PlayManager: Sendable {
       }
     }
 
-    let timeObserver = avPlayer.addPeriodicTimeObserver(
+    avPlayer.replaceCurrentItem(with: avPlayerItem)
+    timeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: CMTime(seconds: 1, preferredTimescale: 100),
       queue: .global(qos: .utility)
     ) { time in
       print(time)
     }
 
-    avPlayer.play()
+    await play()
   }
-  //
-  //  func play() {
-  //    player?.play()
-  //  }
-  //
-  //  func pause() {
-  //    player?.pause()
-  //  }
+
+  func play() async {
+    guard !(await PlayState.shared.isPlaying) else { return }
+
+    if !isActive {
+      do {
+        try AVAudioSession.sharedInstance().setActive(true)
+        isActive = true
+      } catch {
+        await Alert.shared("Failed to activate audio session")
+      }
+    }
+
+    avPlayer.play()
+    await MainActor.run {
+      PlayState.shared.isPlaying = true
+    }
+  }
+
+  func pause() async {
+    avPlayer.pause()
+    await MainActor.run {
+      PlayState.shared.isPlaying = false
+    }
+  }
   //
   //  func stop() {
   //    player?.pause()

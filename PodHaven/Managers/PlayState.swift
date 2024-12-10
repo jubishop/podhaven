@@ -5,6 +5,8 @@ import Foundation
 @Observable @MainActor final class PlayState: Sendable {
   static let shared = { PlayState() }()
 
+  var isPlaying = false
+
   fileprivate init() {
 
   }
