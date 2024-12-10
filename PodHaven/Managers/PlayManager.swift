@@ -6,7 +6,7 @@ import Foundation
 actor PlayManager : Sendable {
   static let shared = { PlayManager() }()
 
-  func configureAudioSession() async {
+  static func configureAudioSession() async {
     do {
       try AVAudioSession.sharedInstance()
         .setCategory(
