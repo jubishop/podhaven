@@ -135,7 +135,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       fatalError("DownloadManager should be set now")
     }
     for outline in opmlFile.waiting {
-      Task.detached(priority: .utility) {
+      Task.detached(priority: .userInitiated) {
         let downloadTask = await downloadManager.addURL(outline.feedURL)
         await downloadTask.downloadBegan()
         await MainActor.run {

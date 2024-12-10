@@ -10,10 +10,19 @@ struct EpisodeView: View {
   }
 
   var body: some View {
-    Text(viewModel.episode.toString)
-      .task {
-        await viewModel.observeEpisode()
-      }
+    Button(
+      action: {
+        if let media = viewModel.episode.media {
+          Task.detached(priority: .userInitiated) {
+            await PlayManager.shared.start(media)
+          }
+        }
+      },
+      label: { Text(viewModel.episode.toString) }
+    )
+    .task {
+      await viewModel.observeEpisode()
+    }
   }
 }
 
@@ -29,7 +38,7 @@ struct EpisodeView: View {
     var body: some View {
       EpisodeView(episode: episode)
     }
-  }
+}
 
   return Preview { NavigationStack { EpisodeViewPreview() } }
 }

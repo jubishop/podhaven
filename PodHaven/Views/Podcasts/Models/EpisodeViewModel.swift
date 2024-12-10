@@ -10,6 +10,7 @@ import GRDB
     self.episode = episode
   }
 
+  // TODO: Observe a PodcastEpisode instead
   func observeEpisode() async {
     do {
       let observer =
