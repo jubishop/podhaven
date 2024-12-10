@@ -20,4 +20,6 @@ struct PlaybackManager: Sendable {
       }
     }
   }
+
+  // TODO: Stop playback when the app is terminated...
 }
