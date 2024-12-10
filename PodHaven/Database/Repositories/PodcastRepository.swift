@@ -10,9 +10,7 @@ struct PodcastRepository: Sendable {
     }
   #endif
 
-  static let shared: PodcastRepository = {
-    PodcastRepository(.shared)
-  }()
+  static let shared = { PodcastRepository(.shared) }()
 
   var db: any DatabaseReader { appDatabase.db }
   let observer: SharedValueObservation<[Podcast]>

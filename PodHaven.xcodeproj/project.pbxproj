@@ -31,9 +31,22 @@
 		8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PodHavenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8BCAF0922D07E231002F069D /* Exceptions for "PodHaven" folder in "PodHaven" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8BD7F91F2CF2A49000CEDAA7 /* PodHaven */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8BD7F9222CF2A49000CEDAA7 /* PodHaven */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8BCAF0922D07E231002F069D /* Exceptions for "PodHaven" folder in "PodHaven" target */,
+			);
 			path = PodHaven;
 			sourceTree = "<group>";
 		};
@@ -364,6 +377,7 @@
 				DEVELOPMENT_TEAM = 34TKMKM889;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PodHaven/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -397,6 +411,7 @@
 				DEVELOPMENT_TEAM = 34TKMKM889;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PodHaven/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

@@ -10,6 +10,9 @@ struct PodHavenApp: App {
     WindowGroup {
       ContentView()
         .customAlert($alert.config)
+        .task {
+          await PlaybackManager.shared.configureAudioSession()
+        }
     }
   }
 }

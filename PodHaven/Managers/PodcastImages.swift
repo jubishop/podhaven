@@ -1,12 +1,10 @@
-// Copyright Justin Bishop, 2024 
+// Copyright Justin Bishop, 2024
 
 import Foundation
 import Nuke
 
 struct PodcastImages: Sendable {
-  static let shared: PodcastImages = {
-    PodcastImages()
-  }()
+  static let shared = { PodcastImages() }()
 
   private let prefetcher = ImagePrefetcher()
 
@@ -14,4 +12,3 @@ struct PodcastImages: Sendable {
     prefetcher.startPrefetching(with: urls)
   }
 }
-
