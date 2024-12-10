@@ -5,7 +5,7 @@ import SwiftUI
 struct OPMLImportSheetSection: View {
   private let headers: [OPMLOutline.Status: Text] = [
     .failed: Text("Failed").foregroundStyle(.red).bold(),
-    .waiting: Text("Waiting").foregroundStyle(.blue).bold(),
+    .waiting: Text("Waiting").foregroundStyle(.gray).bold(),
     .downloading: Text("Downloading").foregroundStyle(.blue).bold(),
     .finished: Text("Finished").foregroundStyle(.green).bold(),
     .alreadySubscribed: Text("Already Subscribed").foregroundStyle(.green)

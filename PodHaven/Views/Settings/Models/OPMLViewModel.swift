@@ -5,33 +5,6 @@ import GRDB
 import OPML
 import UniformTypeIdentifiers
 
-@Observable @MainActor final class OPMLFile: Identifiable {
-  let id = UUID()
-  let title: String
-  var totalCount: Int {
-    failed.count
-      + alreadySubscribed.count
-      + waiting.count
-      + downloading.count
-      + finished.count
-  }
-  var inProgressCount: Int {
-    waiting.count + downloading.count
-  }
-  var successCount: Int {
-    alreadySubscribed.count + finished.count
-  }
-  var failed: Set<OPMLOutline> = []
-  var alreadySubscribed: Set<OPMLOutline> = []
-  var waiting: Set<OPMLOutline> = []
-  var downloading: Set<OPMLOutline> = []
-  var finished: Set<OPMLOutline> = []
-
-  init(title: String) {
-    self.title = title
-  }
-}
-
 @Observable @MainActor
 final class OPMLOutline: Equatable, Hashable, Identifiable {
   enum Status {
@@ -63,6 +36,33 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
   nonisolated func hash(into hasher: inout Hasher) {
     hasher.combine(id)
+  }
+}
+
+@Observable @MainActor final class OPMLFile: Identifiable {
+  let id = UUID()
+  let title: String
+  var totalCount: Int {
+    failed.count
+      + alreadySubscribed.count
+      + waiting.count
+      + downloading.count
+      + finished.count
+  }
+  var inProgressCount: Int {
+    waiting.count + downloading.count
+  }
+  var successCount: Int {
+    alreadySubscribed.count + finished.count
+  }
+  var failed: Set<OPMLOutline> = []
+  var alreadySubscribed: Set<OPMLOutline> = []
+  var waiting: Set<OPMLOutline> = []
+  var downloading: Set<OPMLOutline> = []
+  var finished: Set<OPMLOutline> = []
+
+  init(title: String) {
+    self.title = title
   }
 }
 
@@ -135,36 +135,44 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       fatalError("DownloadManager should be set now")
     }
     for outline in opmlFile.waiting {
-      Task {
+      Task.detached(priority: .utility) {
         let downloadTask = await downloadManager.addURL(outline.feedURL)
         await downloadTask.downloadBegan()
-        outline.status = .downloading
-        opmlFile.waiting.remove(outline)
-        opmlFile.downloading.insert(outline)
+        await MainActor.run {
+          outline.status = .downloading
+          opmlFile.waiting.remove(outline)
+          opmlFile.downloading.insert(outline)
+        }
 
-        let markFailed: () -> Void = {
-          outline.status = .failed
-          opmlFile.downloading.remove(outline)
-          opmlFile.failed.insert(outline)
+        let markFailed: () async -> Void = {
+          await MainActor.run {
+            outline.status = .failed
+            opmlFile.downloading.remove(outline)
+            opmlFile.failed.insert(outline)
+          }
         }
 
         guard case .success(let data) = await downloadTask.downloadFinished(),
           case .success(let feed) = await PodcastFeed.parse(data: data.data)
         else {
-          markFailed()
+          await markFailed()
           return
         }
 
-        outline.feedURL = feed.feedURL ?? outline.feedURL
-        outline.text = feed.title ?? outline.text
-        let feedURL = outline.feedURL
+        await MainActor.run {
+          outline.feedURL = feed.feedURL ?? outline.feedURL
+          outline.text = feed.title ?? outline.text
+        }
+        let feedURL = await outline.feedURL
         if (try? await PodcastRepository.shared.db.read({ db in
           try Podcast.filter(key: ["feedURL": feedURL]).fetchOne(db)
         })) != nil {
-          outline.status = .alreadySubscribed
-          opmlFile.downloading.remove(outline)
-          opmlFile.alreadySubscribed.insert(outline)
-        } else if let unsavedPodcast = try? UnsavedPodcast(
+          await MainActor.run {
+            outline.status = .alreadySubscribed
+            opmlFile.downloading.remove(outline)
+            opmlFile.alreadySubscribed.insert(outline)
+          }
+        } else if let unsavedPodcast = try? await UnsavedPodcast(
           feedURL: outline.feedURL,
           title: outline.text,
           link: feed.link,
@@ -187,11 +195,13 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
             )
             _ = try? PodcastRepository.shared.insert(unsavedEpisode)
           }
-          outline.status = .finished
-          opmlFile.downloading.remove(outline)
-          opmlFile.finished.insert(outline)
+          await MainActor.run {
+            outline.status = .finished
+            opmlFile.downloading.remove(outline)
+            opmlFile.finished.insert(outline)
+          }
         } else {
-          markFailed()
+          await markFailed()
         }
       }
     }

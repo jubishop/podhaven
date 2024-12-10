@@ -11,7 +11,7 @@ struct PodHavenApp: App {
       ContentView()
         .customAlert($alert.config)
         .task {
-          await PlaybackManager.shared.configureAudioSession()
+          await PlayManager.shared.configureAudioSession()
         }
     }
   }

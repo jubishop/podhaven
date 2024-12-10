@@ -35,6 +35,7 @@ struct OPMLImportSheet: View {
           totalAmount: Double(opmlFile.totalCount),
           colorAmounts: [
             .green: Double(opmlFile.successCount),
+            .blue: Double(opmlFile.downloading.count),
             .red: Double(opmlFile.failed.count),
           ]
         )
