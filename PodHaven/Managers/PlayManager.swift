@@ -4,6 +4,8 @@ import AVFoundation
 import Foundation
 
 actor PlayManager: Sendable {
+  // MARK: - Static Methods
+
   static let shared = { PlayManager() }()
 
   static func configureAudioSession() async {
@@ -19,111 +21,130 @@ actor PlayManager: Sendable {
     }
   }
 
-  //
   // TODO: Save play state when app is terminated
   // TODO: setActive(false) when audio stops or i'm background/terminated
 
-  private var avPlayer = AVPlayer()
-  private var isActive = false
+  private var isPlaying: Bool = false  // Semaphor
+  private var currentURL: URL = URL.placeholder
+  private var avPlayer = AVPlayer() {
+    willSet {
+      avPlayer.pause()
+      removeObservers()
+    }
+  }
+  private var avPlayerItem = AVPlayerItem(url: URL.placeholder) {
+    willSet {
+      avPlayer.pause()
+      removeObservers()
+    }
+  }
+  private var isActive = false {
+    willSet {
+      if newValue != isActive {
+        do {
+          try AVAudioSession.sharedInstance().setActive(newValue)
+        } catch {
+          Task { @MainActor in
+            Alert.shared("Failed to activate audio session")
+          }
+        }
+      }
+    }
+  }
   private var durationObserver: NSKeyValueObservation?
   private var timeObserver: Any?
-  //  private var playerObserver: Any?
-  //  private var timeObserver: Any?
 
-  fileprivate init() {
+  fileprivate init() {}
+
+  // MARK: - Public Methods
+
+  func start(_ url: URL) {
+    load(url)
+    play()
   }
 
-  func start(_ url: URL) async {
-    if let timeObserver = timeObserver {
-      avPlayer.removeTimeObserver(timeObserver)
-    }
+  func load(_ url: URL) {
+    isPlaying = false
+    Task { @MainActor in PlayState.shared.isPlaying = true }
 
-    let avPlayerItem = AVPlayerItem(url: url)
+    isActive = true
+    currentURL = url
+    if avPlayer.status == .failed {
+      Task { @MainActor in
+        await Alert.shared.report(
+          """
+          AVPlayer failed with message: \
+          \(avPlayer.error?.localizedDescription ?? "")
+          """
+        )
+      }
+      avPlayer = AVPlayer()
+    }
+    avPlayerItem = AVPlayerItem(url: url)
+    avPlayer.replaceCurrentItem(with: avPlayerItem)
+  }
+
+  func play() {
+    guard isActive && !isPlaying else { return }
+    isPlaying = true
+    Task { @MainActor in PlayState.shared.isPlaying = true }
+
+    if avPlayerItem.status == .failed {
+      Task { @MainActor in
+        await Alert.shared.report(
+          """
+          AVPlayerItem failed with message: \
+          \(avPlayerItem.error?.localizedDescription ?? "")
+          """
+        )
+      }
+      avPlayerItem = AVPlayerItem(url: currentURL)
+      avPlayer.replaceCurrentItem(with: avPlayerItem)
+    }
+    avPlayer.play()
+    addObservers()
+  }
+
+  func pause() {
+    guard isPlaying else { return }
+    isPlaying = false
+    Task { @MainActor in PlayState.shared.isPlaying = false }
+
+    removeObservers()
+    avPlayer.pause()
+  }
+
+  func stop() {
+    pause()
+    isActive = false
+  }
+
+  // MARK: - Private Methods
+
+  private func addObservers() {
+    removeObservers()
     durationObserver = avPlayerItem.observe(
       \.duration,
       options: [.initial, .new]
     ) { _, change in
       if let duration = change.newValue {
-        print(duration)
+        print("Duration is: \(duration)")
       }
     }
-
-    avPlayer.replaceCurrentItem(with: avPlayerItem)
     timeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: CMTime(seconds: 1, preferredTimescale: 100),
       queue: .global(qos: .utility)
     ) { time in
-      print(time)
-    }
-
-    await play()
-  }
-
-  func play() async {
-    guard !(await PlayState.shared.isPlaying) else { return }
-
-    if !isActive {
-      do {
-        try AVAudioSession.sharedInstance().setActive(true)
-        isActive = true
-      } catch {
-        await Alert.shared("Failed to activate audio session")
-      }
-    }
-
-    avPlayer.play()
-    await MainActor.run {
-      PlayState.shared.isPlaying = true
+      print("Time is: \(time)")
     }
   }
 
-  func pause() async {
-    avPlayer.pause()
-    await MainActor.run {
-      PlayState.shared.isPlaying = false
+  private func removeObservers() {
+    if let timeObserver = timeObserver {
+      avPlayer.removeTimeObserver(timeObserver)
     }
+    self.timeObserver = nil
+    self.durationObserver?.invalidate()
+    self.durationObserver = nil
   }
-  //
-  //  func stop() {
-  //    player?.pause()
-  //    if let timeObserver = timeObserver {
-  //      player?.removeTimeObserver(timeObserver)
-  //    }
-  //    player = nil
-  //  }
-  //
-  //  func seekForward() {
-  //    guard let currentTime = player?.currentTime() else { return }
-  //    let newTime = CMTimeGetSeconds(currentTime) + 10
-  //    seek(to: newTime)
-  //  }
-  //
-  //  func seekBackward() {
-  //    guard let currentTime = player?.currentTime() else { return }
-  //    let newTime = max(CMTimeGetSeconds(currentTime) - 10, 0)
-  //    seek(to: newTime)
-  //  }
-  //
-  //  private func seek(to seconds: Double) {
-  //    let time = CMTime(seconds: seconds, preferredTimescale: 600)
-  //    player?.seek(to: time)
-  //  }
-  //
-  //  private func updateProgress() {
-  //    guard let currentTime = player?.currentTime().seconds, duration > 0 else {
-  //      return
-  //    }
-  //    progress = currentTime / duration
-  //  }
-  //
-  //  private func updateDuration() {
-  //    durationText = formatTime(seconds: duration)
-  //  }
-  //
-  //  private func formatTime(seconds: Double) -> String {
-  //    guard !seconds.isNaN else { return "0:00" }
-  //    let minutes = Int(seconds) / 60
-  //    let seconds = Int(seconds) % 60
-  //    return String(format: "%d:%02d", minutes, seconds)
-  //  }
 }

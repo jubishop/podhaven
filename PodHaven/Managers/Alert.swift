@@ -14,7 +14,7 @@ import SwiftUI
     title: String = "Error",
     actions: OrderedDictionary<String, () -> Void> = ["Ok": {}]
   ) {
-    print("Alerting with title: \"\(title)\", message: \"\(message)\"")
+    report(message, title: title)
     config = AlertConfig(
       title: title,
       actions: {
@@ -26,5 +26,10 @@ import SwiftUI
       },
       message: { Text(message) }
     )
+  }
+
+  func report(_ message: String, title: String = "Error") {
+    // TODO: Send this to Sentry
+    print("Reporting with title: \"\(title)\", message: \"\(message)\"")
   }
 }
