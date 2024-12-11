@@ -21,9 +21,6 @@ actor PlayManager: Sendable {
     }
   }
 
-  // TODO: Save play state when app is terminated
-  // TODO: setActive(false) when audio stops or i'm background/terminated
-
   private var isPlaying: Bool = false  // Semaphor
   private var currentURL: URL = URL.placeholder
   private var avPlayer = AVPlayer() {
