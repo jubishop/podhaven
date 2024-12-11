@@ -34,7 +34,7 @@ struct EpisodeView: View {
       self.podcastEpisode = try! PodcastRepository.shared.db.read { db in
         try! Episode
           .including(required: Episode.podcast)
-          .order(sql: "RANDOM()")
+          .shuffled()
           .asRequest(of: PodcastEpisode.self)
           .fetchOne(db)!
       }

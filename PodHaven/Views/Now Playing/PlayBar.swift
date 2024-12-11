@@ -59,7 +59,7 @@ struct PlayBar: View {
         let podcastEpisode = try! await PodcastRepository.shared.db.read { db in
           try! Episode
             .including(required: Episode.podcast)
-            .order(sql: "RANDOM()")
+            .shuffled()
             .asRequest(of: PodcastEpisode.self)
             .fetchOne(db)!
         }
