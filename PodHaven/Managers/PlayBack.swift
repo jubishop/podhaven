@@ -6,7 +6,7 @@ import Foundation
 @Observable @MainActor final class PlayState: Sendable {
   static let shared = { PlayState() }()
 
-  fileprivate(set)var isPlayable = false
+  fileprivate(set)var isActive = false
   fileprivate(set)var isPlaying = false
 
   private init() {}
@@ -47,7 +47,7 @@ actor PlayManager: Sendable {
   private var isActive = false {
     willSet {
       if newValue != isActive {
-        DispatchQueue.main.sync { PlayState.shared.isPlayable = newValue }
+        DispatchQueue.main.sync { PlayState.shared.isActive = newValue }
         do {
           try AVAudioSession.sharedInstance().setActive(newValue)
         } catch {
