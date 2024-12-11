@@ -21,7 +21,12 @@ struct SeriesView: View {
     }
     .navigationTitle(viewModel.podcast.title)
     .navigationDestination(for: Episode.self) { episode in
-      EpisodeView(episode: episode)
+      EpisodeView(
+        podcastEpisode: PodcastEpisode(
+          podcast: viewModel.podcast,
+          episode: episode
+        )
+      )
     }
     .task {
       await viewModel.observePodcasts()

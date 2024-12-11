@@ -5,8 +5,10 @@ import SwiftUI
 struct EpisodeView: View {
   @State private var viewModel: EpisodeViewModel
 
-  init(episode: Episode) {
-    _viewModel = State(initialValue: EpisodeViewModel(episode: episode))
+  init(podcastEpisode: PodcastEpisode) {
+    _viewModel = State(
+      initialValue: EpisodeViewModel(podcastEpisode: podcastEpisode)
+    )
   }
 
   var body: some View {
@@ -28,17 +30,20 @@ struct EpisodeView: View {
 
 #Preview {
   struct EpisodeViewPreview: View {
-    let episode: Episode
+    let podcastEpisode: PodcastEpisode
     init() {
-      self.episode = try! PodcastRepository.shared.db.read { db in
-        try! Episode.fetchOne(db)!
+      self.podcastEpisode = try! PodcastRepository.shared.db.read { db in
+        try! Episode
+          .including(required: Episode.podcast)
+          .asRequest(of: PodcastEpisode.self)
+          .fetchOne(db)!
       }
     }
 
     var body: some View {
-      EpisodeView(episode: episode)
+      EpisodeView(podcastEpisode: podcastEpisode)
     }
-}
+  }
 
   return Preview { NavigationStack { EpisodeViewPreview() } }
 }

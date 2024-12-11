@@ -4,31 +4,38 @@ import Foundation
 import GRDB
 
 @Observable @MainActor final class EpisodeViewModel {
-  var episode: Episode
+  var podcastEpisode: PodcastEpisode
+  var podcast: Podcast { podcastEpisode.podcast }
+  var episode: Episode { podcastEpisode.episode }
 
-  init(episode: Episode) {
-    self.episode = episode
+  init(podcastEpisode: PodcastEpisode) {
+    self.podcastEpisode = podcastEpisode
   }
 
-  // TODO: Observe a PodcastEpisode instead
   func observeEpisode() async {
     do {
       let observer =
         ValueObservation
-        .tracking(Episode.filter(id: episode.id).fetchOne)
+        .tracking(
+          Episode
+            .filter(id: episode.id)
+            .including(required: Episode.podcast)
+            .asRequest(of: PodcastEpisode.self)
+            .fetchOne
+        )
         .removeDuplicates()
 
-      for try await episode in observer.values(
+      for try await podcastEpisode in observer.values(
         in: PodcastRepository.shared.db
       ) {
-        guard self.episode != episode else { return }
-        guard let episode = episode else {
+        guard self.podcastEpisode != podcastEpisode else { return }
+        guard let podcastEpisode = podcastEpisode else {
           Alert.shared(
-            "No return from DB for episode: \(self.episode.toString)"
+            "No return from DB for episode: \(episode.toString)"
           )
           return
         }
-        self.episode = episode
+        self.podcastEpisode = podcastEpisode
       }
     } catch {
       Alert.shared(
