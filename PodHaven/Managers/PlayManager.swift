@@ -38,6 +38,7 @@ actor PlayManager: Sendable {
   private var isActive = false {
     willSet {
       if newValue != isActive {
+        DispatchQueue.main.sync { PlayState.shared.isPlayable = newValue }
         do {
           try AVAudioSession.sharedInstance().setActive(newValue)
         } catch {
@@ -62,7 +63,7 @@ actor PlayManager: Sendable {
 
   func load(_ url: URL) {
     isPlaying = false
-    DispatchQueue.main.asyncAndWait { PlayState.shared.isPlaying = true }
+    DispatchQueue.main.sync { PlayState.shared.isPlaying = true }
 
     isActive = true
     currentURL = url
@@ -84,7 +85,7 @@ actor PlayManager: Sendable {
   func play() {
     guard isActive && !isPlaying else { return }
     isPlaying = true
-    DispatchQueue.main.asyncAndWait { PlayState.shared.isPlaying = true }
+    DispatchQueue.main.sync { PlayState.shared.isPlaying = true }
 
     if avPlayerItem.status == .failed {
       Task { @MainActor in
@@ -105,7 +106,7 @@ actor PlayManager: Sendable {
   func pause() {
     guard isPlaying else { return }
     isPlaying = false
-    DispatchQueue.main.asyncAndWait { PlayState.shared.isPlaying = false }
+    DispatchQueue.main.sync { PlayState.shared.isPlaying = false }
 
     removeObservers()
     avPlayer.pause()

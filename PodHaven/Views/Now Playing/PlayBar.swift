@@ -14,6 +14,7 @@ struct PlayBar: View {
       .padding()
 
       Button(action: {
+        guard PlayState.shared.isPlayable else { return }
         if PlayState.shared.isPlaying {
           Task.detached(priority: .userInitiated) {
             await PlayManager.shared.pause()
@@ -23,17 +24,18 @@ struct PlayBar: View {
             await PlayManager.shared.play()
           }
         }
-       }) {
+      }) {
         Image(
-          systemName: PlayState.shared.isPlaying
-            ? "pause.circle" : "play.circle"
+          systemName: PlayState.shared.isPlayable
+            ? (PlayState.shared.isPlaying
+              ? "pause.circle" : "play.circle") : "xmark.circle"
         )
         .font(.largeTitle)
-       }
+      }
       .padding()
 
       Button(action: {
-       //  PlayManager.shared.seekForward()
+        //  PlayManager.shared.seekForward()
       }) {
         Image(systemName: "goforward.10")
       }

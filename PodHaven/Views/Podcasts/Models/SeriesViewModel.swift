@@ -6,7 +6,7 @@ import GRDB
 @Observable @MainActor final class SeriesViewModel {
   var podcastSeries: PodcastSeries
   var podcast: Podcast { podcastSeries.podcast }
-  var episodes: Set<Episode> { podcastSeries.episodes }
+  var episodes: [Episode] { podcastSeries.episodes }
 
   init(podcast: Podcast) {
     self.podcastSeries = PodcastSeries(podcast: podcast, episodes: [])
