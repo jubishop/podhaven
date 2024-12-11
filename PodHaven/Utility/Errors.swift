@@ -2,6 +2,17 @@
 
 import Foundation
 
+enum PlaybackError: Error, LocalizedError, Sendable {
+  case notPlayable(URL)
+
+  var errorDescription: String {
+    switch self {
+      case .notPlayable(let url):
+        return "The asset at \(url) cannot be played."
+    }
+  }
+}
+
 enum DownloadError: Error, LocalizedError, Sendable {
   case invalidResponse
   case invalidStatusCode(Int)

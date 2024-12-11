@@ -16,7 +16,7 @@ struct EpisodeView: View {
       action: {
         if let media = viewModel.episode.media {
           Task.detached(priority: .userInitiated) {
-            await PlayManager.shared.start(media)
+            try await PlayManager.shared.start(media)
           }
         }
       },

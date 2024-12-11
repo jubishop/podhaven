@@ -14,7 +14,9 @@ struct PlayBar: View {
       .padding()
 
       Button(action: {
-        guard PlayState.shared.isActive else { return }
+        guard PlayState.shared.isActive, !PlayState.shared.isLoading else {
+          return
+        }
         if PlayState.shared.isPlaying {
           Task.detached(priority: .userInitiated) {
             await PlayManager.shared.pause()
@@ -26,7 +28,7 @@ struct PlayBar: View {
         }
       }) {
         Image(
-          systemName: PlayState.shared.isActive
+          systemName: PlayState.shared.isActive && !PlayState.shared.isLoading
             ? (PlayState.shared.isPlaying
               ? "pause.circle" : "play.circle") : "xmark.circle"
         )

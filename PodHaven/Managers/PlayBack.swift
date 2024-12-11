@@ -6,9 +6,10 @@ import Foundation
 @Observable @MainActor final class PlayState: Sendable {
   static let shared = { PlayState() }()
 
+  fileprivate(set) var isLoading = false
   fileprivate(set) var isActive = false
   fileprivate(set) var isPlaying = false
-
+  fileprivate(set) var duration = CMTime.zero
   private init() {}
 }
 
@@ -30,6 +31,16 @@ actor PlayManager: Sendable {
     }
   }
 
+  private var _isLoading = false
+  private var isLoading: Bool {
+    get { _isLoading }
+    set {
+      if newValue != _isLoading {
+        _isLoading = newValue
+        DispatchQueue.main.sync { PlayState.shared.isLoading = newValue }
+      }
+    }
+  }
   private var _isPlaying = false
   private var isPlaying: Bool {
     get { _isPlaying }
@@ -67,21 +78,33 @@ actor PlayManager: Sendable {
 
   // MARK: - Public Methods
 
-  func start(_ url: URL) {
-    load(url)
+  func start(_ url: URL) async throws {
+    try await load(url)
     play()
   }
 
-  func load(_ url: URL) {
-    isActive = true
-    isPlaying = false
-    avPlayerItem = AVPlayerItem(url: url)
+  func load(_ url: URL) async throws {
+    guard !isLoading else { return }
+    defer { isLoading = false }
+    pause()
+    isLoading = true
+
+    let avAsset = AVURLAsset(url: url)
+    let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
+    guard isPlayable else {
+      reset(from: PlaybackError.notPlayable(url))
+      return
+    }
+    DispatchQueue.main.sync { PlayState.shared.duration = duration }
+    avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
+    isActive = true
   }
 
   func play() {
     guard isActive && !isPlaying else { return }
     isPlaying = true
+
     avPlayer.play()
     addObservers()
   }
@@ -89,6 +112,7 @@ actor PlayManager: Sendable {
   func pause() {
     guard isPlaying else { return }
     isPlaying = false
+
     removeObservers()
     avPlayer.pause()
   }
@@ -113,17 +137,6 @@ actor PlayManager: Sendable {
 
   private func addObservers() {
     removeObservers()
-
-    keyValueObservers.append(
-      avPlayerItem.observe(
-        \.duration,
-        options: [.initial, .new]
-      ) { _, change in
-        if let duration = change.newValue {
-          print("Duration is: \(duration)")
-        }
-      }
-    )
 
     keyValueObservers.append(
       avPlayerItem.observe(
