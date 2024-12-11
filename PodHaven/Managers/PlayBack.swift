@@ -58,20 +58,9 @@ actor PlayManager: Sendable {
     }
   }
 
-  private var currentURL: URL = URL.placeholder
-  private var avPlayer = AVPlayer() {
-    willSet {
-      avPlayer.pause()
-      removeObservers()
-    }
-  }
-  private var avPlayerItem = AVPlayerItem(url: URL.placeholder) {
-    willSet {
-      avPlayer.pause()
-      removeObservers()
-    }
-  }
-  private var durationObserver: NSKeyValueObservation?
+  private var avPlayer = AVPlayer()
+  private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
+  private var keyValueObservers: [NSKeyValueObservation] = []
   private var timeObserver: Any?
 
   fileprivate init() {}
@@ -84,20 +73,8 @@ actor PlayManager: Sendable {
   }
 
   func load(_ url: URL) {
-    isPlaying = false
     isActive = true
-    currentURL = url
-    if avPlayer.status == .failed {
-      Task { @MainActor in
-        await Alert.shared.report(
-          """
-          AVPlayer failed with message: \
-          \(avPlayer.error?.localizedDescription ?? "")
-          """
-        )
-      }
-      avPlayer = AVPlayer()
-    }
+    isPlaying = false
     avPlayerItem = AVPlayerItem(url: url)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
   }
@@ -105,18 +82,6 @@ actor PlayManager: Sendable {
   func play() {
     guard isActive && !isPlaying else { return }
     isPlaying = true
-    if avPlayerItem.status == .failed {
-      Task { @MainActor in
-        await Alert.shared.report(
-          """
-          AVPlayerItem failed with message: \
-          \(avPlayerItem.error?.localizedDescription ?? "")
-          """
-        )
-      }
-      avPlayerItem = AVPlayerItem(url: currentURL)
-      avPlayer.replaceCurrentItem(with: avPlayerItem)
-    }
     avPlayer.play()
     addObservers()
   }
@@ -135,16 +100,52 @@ actor PlayManager: Sendable {
 
   // MARK: - Private Methods
 
+  private func reset(from error: Error?) {
+    stop()
+    avPlayer = AVPlayer()
+    avPlayerItem = AVPlayerItem(url: URL.placeholder)
+    Task { @MainActor in
+      Alert.shared(
+        "Playback encountered an error: \(String(describing: error))"
+      )
+    }
+  }
+
   private func addObservers() {
     removeObservers()
-    durationObserver = avPlayerItem.observe(
-      \.duration,
-      options: [.initial, .new]
-    ) { _, change in
-      if let duration = change.newValue {
-        print("Duration is: \(duration)")
+
+    keyValueObservers.append(
+      avPlayerItem.observe(
+        \.duration,
+        options: [.initial, .new]
+      ) { _, change in
+        if let duration = change.newValue {
+          print("Duration is: \(duration)")
+        }
       }
-    }
+    )
+
+    keyValueObservers.append(
+      avPlayerItem.observe(
+        \.status,
+        options: [.initial, .new]
+      ) { [unowned self] _, change in
+        if change.newValue == .failed {
+          Task { await self.reset(from: avPlayerItem.error) }
+        }
+      }
+    )
+    keyValueObservers.append(
+      avPlayer.observe(
+        \.status,
+        options: [.initial, .new]
+      ) { [unowned self] _, change in
+        if change.newValue == .failed {
+          Task { await self.reset(from: avPlayer.error) }
+        }
+      }
+    )
+
     timeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: CMTime(seconds: 1, preferredTimescale: 100),
       queue: .global(qos: .utility)
@@ -158,7 +159,9 @@ actor PlayManager: Sendable {
       avPlayer.removeTimeObserver(timeObserver)
       self.timeObserver = nil
     }
-    self.durationObserver?.invalidate()
-    self.durationObserver = nil
+    for keyValueObserver in keyValueObservers {
+      keyValueObserver.invalidate()
+    }
+    keyValueObservers = []
   }
 }
