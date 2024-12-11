@@ -5,7 +5,7 @@ import OrderedCollections
 import SwiftUI
 
 @Observable @MainActor final class Alert: Sendable {
-  static let shared = { Alert() }()
+  static let shared = Alert()
 
   var config: AlertConfig?
 

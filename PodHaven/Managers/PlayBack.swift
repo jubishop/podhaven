@@ -4,7 +4,7 @@ import AVFoundation
 import Foundation
 
 @Observable @MainActor final class PlayState: Sendable {
-  static let shared = { PlayState() }()
+  static let shared = PlayState()
 
   fileprivate(set) var isLoading = false
   fileprivate(set) var isActive = false
@@ -16,7 +16,7 @@ import Foundation
 actor PlayManager: Sendable {
   // MARK: - Static Methods
 
-  static let shared = { PlayManager() }()
+  static let shared = PlayManager()
 
   static func configureAudioSession() async {
     do {
@@ -123,6 +123,20 @@ actor PlayManager: Sendable {
     isActive = false
   }
 
+  func seekForward(
+    _ duration: CMTime = CMTime(seconds: 10, preferredTimescale: 60)
+  ) {
+    guard !isLoading, isActive else { return }
+    avPlayer.seek(to: avPlayer.currentTime() + duration)
+  }
+
+  func seekBackward(
+    _ duration: CMTime = CMTime(seconds: 10, preferredTimescale: 60)
+  ) {
+    guard !isLoading, isActive else { return }
+    avPlayer.seek(to: avPlayer.currentTime() - duration)
+  }
+
   // MARK: - Private Methods
 
   private func reset(from error: Error?) {
@@ -165,7 +179,7 @@ actor PlayManager: Sendable {
     )
 
     timeObserver = avPlayer.addPeriodicTimeObserver(
-      forInterval: CMTime(seconds: 1, preferredTimescale: 100),
+      forInterval: CMTime(seconds: 1, preferredTimescale: 60),
       queue: .global(qos: .utility)
     ) { time in
       print("Time is: \(time)")

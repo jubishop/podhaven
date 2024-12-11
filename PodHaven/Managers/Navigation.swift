@@ -24,7 +24,7 @@ struct NavigationView: Hashable {
 }
 
 @Observable @MainActor final class Navigation: Sendable {
-  static let shared = { Navigation() }()
+  static let shared = Navigation()
 
   enum Tab {
     case settings

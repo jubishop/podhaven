@@ -4,7 +4,7 @@ import Foundation
 import Nuke
 
 struct PodcastImages: Sendable {
-  static let shared = { PodcastImages() }()
+  static let shared = PodcastImages()
 
   private let prefetcher = ImagePrefetcher()
 
