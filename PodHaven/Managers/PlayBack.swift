@@ -10,10 +10,11 @@ import Foundation
   fileprivate(set) var isActive = false
   fileprivate(set) var isPlaying = false
   fileprivate(set) var duration = CMTime.zero
+  fileprivate(set) var onDeck: PodcastEpisode?
   private init() {}
 }
 
-actor PlayManager: Sendable {
+final actor PlayManager: Sendable {
   // MARK: - Static Methods
 
   static let shared = PlayManager()
@@ -30,6 +31,8 @@ actor PlayManager: Sendable {
       await Alert.shared("Failed to set the audio session configuration")
     }
   }
+
+  // MARK: - State Management
 
   private var _isLoading = false
   private var isLoading: Bool {
@@ -69,21 +72,25 @@ actor PlayManager: Sendable {
     }
   }
 
+  // MARK: - Private Variables
+
   private var avPlayer = AVPlayer()
   private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
   private var keyValueObservers: [NSKeyValueObservation] = []
   private var timeObserver: Any?
-
   fileprivate init() {}
 
   // MARK: - Public Methods
 
-  func start(_ url: URL) async throws {
-    try await load(url)
+  func start(_ podcastEpisode: PodcastEpisode) async throws {
+    try await load(podcastEpisode)
     play()
   }
 
-  func load(_ url: URL) async throws {
+  func load(_ podcastEpisode: PodcastEpisode) async throws {
+    guard let url = podcastEpisode.episode.media else {
+      throw PlaybackError.noURL(podcastEpisode.episode)
+    }
     guard !isLoading else { return }
     defer { isLoading = false }
     isLoading = true
@@ -91,12 +98,12 @@ actor PlayManager: Sendable {
     let avAsset = AVURLAsset(url: url)
     let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
     guard isPlayable else {
-      Task { @MainActor in Alert.shared("\(url) is not playable") }
-      return
+      throw PlaybackError.notPlayable(url)
     }
 
     pause()
-    setDuration(duration)
+    await setPodcastEpisode(podcastEpisode)
+    await setDuration(duration)
     avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
     isActive = true
@@ -144,14 +151,16 @@ actor PlayManager: Sendable {
     avPlayer = AVPlayer()
     avPlayerItem = AVPlayerItem(url: URL.placeholder)
     Task { @MainActor in
-      Alert.shared(
-        "Playback status failure: \(String(describing: error))"
-      )
+      Alert.shared("Playback status failure: \(String(describing: error))")
     }
   }
 
-  private func setDuration(_ duration: CMTime) {
-    DispatchQueue.main.sync { PlayState.shared.duration = duration }
+  private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
+    await Task { @MainActor in PlayState.shared.onDeck = podcastEpisode }.value
+  }
+
+  private func setDuration(_ duration: CMTime) async {
+    await Task { @MainActor in PlayState.shared.duration = duration }.value
   }
 
   private func addObservers() {

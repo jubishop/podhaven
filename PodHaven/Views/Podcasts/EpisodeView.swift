@@ -14,10 +14,9 @@ struct EpisodeView: View {
   var body: some View {
     Button(
       action: {
-        if let media = viewModel.episode.media {
-          Task.detached(priority: .userInitiated) {
-            try await PlayManager.shared.start(media)
-          }
+        Task.detached(priority: .userInitiated) {
+          // TODO: Do something smart if this throws
+          try await PlayManager.shared.start(viewModel.podcastEpisode)
         }
       },
       label: { Text(viewModel.episode.toString) }
@@ -35,6 +34,7 @@ struct EpisodeView: View {
       self.podcastEpisode = try! PodcastRepository.shared.db.read { db in
         try! Episode
           .including(required: Episode.podcast)
+          .order(sql: "RANDOM()")
           .asRequest(of: PodcastEpisode.self)
           .fetchOne(db)!
       }

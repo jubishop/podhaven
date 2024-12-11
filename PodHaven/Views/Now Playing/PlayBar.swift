@@ -56,12 +56,14 @@ struct PlayBar: View {
   struct PlayBarPreview: View {
     init() {
       Task {
-        try await PlayManager.shared.load(
-          URL(
-            string:
-              "https://pdst.fm/e/chrt.fm/track/479722/arttrk.com/p/CRMDA/claritaspod.com/measure/pscrb.fm/rss/p/mgln.ai/e/284/pdrl.fm/b85a46/stitcher.simplecastaudio.com/9aa1e238-cbed-4305-9808-c9228fc6dd4f/episodes/97cb195d-ed09-4644-bd9d-215623b0a9bf/audio/128/default.mp3?aid=rss_feed&amp;awCollectionId=9aa1e238-cbed-4305-9808-c9228fc6dd4f&amp;awEpisodeId=97cb195d-ed09-4644-bd9d-215623b0a9bf&amp;feed=dxZsm5kX"
-          )!
-        )
+        let podcastEpisode = try! await PodcastRepository.shared.db.read { db in
+          try! Episode
+            .including(required: Episode.podcast)
+            .order(sql: "RANDOM()")
+            .asRequest(of: PodcastEpisode.self)
+            .fetchOne(db)!
+        }
+        try await PlayManager.shared.load(podcastEpisode)
       }
     }
     var body: some View {

@@ -4,11 +4,14 @@ import Foundation
 
 enum PlaybackError: Error, LocalizedError, Sendable {
   case notPlayable(URL)
+  case noURL(Episode)
 
   var errorDescription: String {
     switch self {
-      case .notPlayable(let url):
-        return "The asset at \(url) cannot be played."
+    case .notPlayable(let url):
+      return "The asset at \(url) cannot be played."
+    case .noURL(let episode):
+      return "The episode: \(episode.toString) has no URL."
     }
   }
 }
