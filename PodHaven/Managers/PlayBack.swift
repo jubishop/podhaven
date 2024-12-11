@@ -94,6 +94,7 @@ actor PlayManager: Sendable {
       Task { @MainActor in Alert.shared("\(url) is not playable") }
       return
     }
+
     pause()
     setDuration(duration)
     avPlayerItem = AVPlayerItem(asset: avAsset)
