@@ -62,7 +62,7 @@ actor PlayManager: Sendable {
 
   func load(_ url: URL) {
     isPlaying = false
-    Task { @MainActor in PlayState.shared.isPlaying = true }
+    DispatchQueue.main.asyncAndWait { PlayState.shared.isPlaying = true }
 
     isActive = true
     currentURL = url
@@ -84,7 +84,7 @@ actor PlayManager: Sendable {
   func play() {
     guard isActive && !isPlaying else { return }
     isPlaying = true
-    Task { @MainActor in PlayState.shared.isPlaying = true }
+    DispatchQueue.main.asyncAndWait { PlayState.shared.isPlaying = true }
 
     if avPlayerItem.status == .failed {
       Task { @MainActor in
@@ -105,7 +105,7 @@ actor PlayManager: Sendable {
   func pause() {
     guard isPlaying else { return }
     isPlaying = false
-    Task { @MainActor in PlayState.shared.isPlaying = false }
+    DispatchQueue.main.asyncAndWait { PlayState.shared.isPlaying = false }
 
     removeObservers()
     avPlayer.pause()
