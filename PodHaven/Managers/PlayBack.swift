@@ -6,8 +6,8 @@ import Foundation
 @Observable @MainActor final class PlayState: Sendable {
   static let shared = { PlayState() }()
 
-  fileprivate(set)var isActive = false
-  fileprivate(set)var isPlaying = false
+  fileprivate(set) var isActive = false
+  fileprivate(set) var isPlaying = false
 
   private init() {}
 }
@@ -30,7 +30,34 @@ actor PlayManager: Sendable {
     }
   }
 
-  private var isPlaying: Bool = false  // Semaphor
+  private var _isPlaying = false
+  private var isPlaying: Bool {
+    get { _isPlaying }
+    set {
+      if newValue != _isPlaying {
+        _isPlaying = newValue
+        DispatchQueue.main.sync { PlayState.shared.isPlaying = newValue }
+      }
+    }
+  }
+  private var _isActive = false
+  private var isActive: Bool {
+    get { _isActive }
+    set {
+      if newValue != _isActive {
+        do {
+          try AVAudioSession.sharedInstance().setActive(newValue)
+        } catch {
+          Task { @MainActor in
+            Alert.shared("Failed to activate audio session")
+          }
+        }
+        _isActive = newValue
+        DispatchQueue.main.sync { PlayState.shared.isActive = newValue }
+      }
+    }
+  }
+
   private var currentURL: URL = URL.placeholder
   private var avPlayer = AVPlayer() {
     willSet {
@@ -42,20 +69,6 @@ actor PlayManager: Sendable {
     willSet {
       avPlayer.pause()
       removeObservers()
-    }
-  }
-  private var isActive = false {
-    willSet {
-      if newValue != isActive {
-        DispatchQueue.main.sync { PlayState.shared.isActive = newValue }
-        do {
-          try AVAudioSession.sharedInstance().setActive(newValue)
-        } catch {
-          Task { @MainActor in
-            Alert.shared("Failed to activate audio session")
-          }
-        }
-      }
     }
   }
   private var durationObserver: NSKeyValueObservation?
@@ -72,8 +85,6 @@ actor PlayManager: Sendable {
 
   func load(_ url: URL) {
     isPlaying = false
-    DispatchQueue.main.sync { PlayState.shared.isPlaying = true }
-
     isActive = true
     currentURL = url
     if avPlayer.status == .failed {
@@ -94,8 +105,6 @@ actor PlayManager: Sendable {
   func play() {
     guard isActive && !isPlaying else { return }
     isPlaying = true
-    DispatchQueue.main.sync { PlayState.shared.isPlaying = true }
-
     if avPlayerItem.status == .failed {
       Task { @MainActor in
         await Alert.shared.report(
@@ -115,8 +124,6 @@ actor PlayManager: Sendable {
   func pause() {
     guard isPlaying else { return }
     isPlaying = false
-    DispatchQueue.main.sync { PlayState.shared.isPlaying = false }
-
     removeObservers()
     avPlayer.pause()
   }
@@ -149,8 +156,8 @@ actor PlayManager: Sendable {
   private func removeObservers() {
     if let timeObserver = timeObserver {
       avPlayer.removeTimeObserver(timeObserver)
+      self.timeObserver = nil
     }
-    self.timeObserver = nil
     self.durationObserver?.invalidate()
     self.durationObserver = nil
   }
