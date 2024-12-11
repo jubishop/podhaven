@@ -44,4 +44,6 @@ struct NavigationView: Hashable {
       }
     }
   }
+
+  private init() {}
 }

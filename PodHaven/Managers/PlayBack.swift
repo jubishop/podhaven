@@ -3,6 +3,15 @@
 import AVFoundation
 import Foundation
 
+@Observable @MainActor final class PlayState: Sendable {
+  static let shared = { PlayState() }()
+
+  fileprivate(set)var isPlayable = false
+  fileprivate(set)var isPlaying = false
+
+  private init() {}
+}
+
 actor PlayManager: Sendable {
   // MARK: - Static Methods
 

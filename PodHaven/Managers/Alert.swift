@@ -9,6 +9,8 @@ import SwiftUI
 
   var config: AlertConfig?
 
+  private init() {}
+
   func callAsFunction(
     _ message: String,
     title: String = "Error",

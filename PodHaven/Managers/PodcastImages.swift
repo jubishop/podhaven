@@ -8,6 +8,8 @@ struct PodcastImages: Sendable {
 
   private let prefetcher = ImagePrefetcher()
 
+  private init() {}
+
   func prefetch(_ urls: [URL]) {
     prefetcher.startPrefetching(with: urls)
   }
