@@ -86,16 +86,16 @@ actor PlayManager: Sendable {
   func load(_ url: URL) async throws {
     guard !isLoading else { return }
     defer { isLoading = false }
-    pause()
     isLoading = true
 
     let avAsset = AVURLAsset(url: url)
     let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
     guard isPlayable else {
-      reset(from: PlaybackError.notPlayable(url))
+      Task { @MainActor in Alert.shared("\(url) is not playable") }
       return
     }
-    DispatchQueue.main.sync { PlayState.shared.duration = duration }
+    pause()
+    setDuration(duration)
     avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
     isActive = true
@@ -130,9 +130,13 @@ actor PlayManager: Sendable {
     avPlayerItem = AVPlayerItem(url: URL.placeholder)
     Task { @MainActor in
       Alert.shared(
-        "Playback encountered an error: \(String(describing: error))"
+        "Playback status failure: \(String(describing: error))"
       )
     }
+  }
+
+  private func setDuration(_ duration: CMTime) {
+    DispatchQueue.main.sync { PlayState.shared.duration = duration }
   }
 
   private func addObservers() {
