@@ -178,7 +178,11 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           link: feed.link,
           image: feed.image,
           description: feed.description
-        ), let podcast = try? PodcastRepository.shared.insert(unsavedPodcast) {
+        ),
+          let podcast = try? await PodcastRepository.shared.insert(
+            unsavedPodcast
+          )
+        {
           if let image = feed.image {
             PodcastImages.shared.prefetch([image])
           }
@@ -193,7 +197,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
               link: feedItem.link,
               image: feedItem.image
             )
-            _ = try? PodcastRepository.shared.insert(unsavedEpisode)
+            _ = try? await PodcastRepository.shared.insert(unsavedEpisode)
           }
           await MainActor.run {
             outline.status = .finished

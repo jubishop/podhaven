@@ -18,11 +18,11 @@ actor Episode {
   func createSingleEpisode() async throws {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    let podcast = try repository.insert(unsavedPodcast)
+    let podcast = try await repository.insert(unsavedPodcast)
     #expect(podcast.title == unsavedPodcast.title)
 
     let unsavedEpisode = UnsavedEpisode(guid: "guid", podcast: podcast)
-    let episode = try repository.insert(unsavedEpisode)
+    let episode = try await repository.insert(unsavedEpisode)
     let episodes = try await repository.db.read { [podcast] db in
       try podcast.episodes.fetchAll(db)
     }
@@ -38,13 +38,13 @@ actor Episode {
       podcast: podcast,
       pubDate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
     )
-    let olderEpisode = try repository.insert(olderUnsavedEpisode)
+    let olderEpisode = try await repository.insert(olderUnsavedEpisode)
     let middleUnsavedEpisode = UnsavedEpisode(
       guid: "guid3",
       podcast: podcast,
       pubDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())
     )
-    let middleEpisode = try repository.insert(middleUnsavedEpisode)
+    let middleEpisode = try await repository.insert(middleUnsavedEpisode)
     let podcastSeries = try await repository.db.read { db in
       try Podcast
         .filter(id: podcast.id)

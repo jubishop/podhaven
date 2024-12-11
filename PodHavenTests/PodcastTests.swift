@@ -19,7 +19,7 @@ actor PodcastTests {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
-    var podcast = try repository.insert(unsavedPodcast)
+    var podcast = try await repository.insert(unsavedPodcast)
     #expect(podcast.title == unsavedPodcast.title)
 
     let fetchedPodcast = try await repository.db.read { [podcast] db in
@@ -33,7 +33,7 @@ actor PodcastTests {
     #expect(filteredPodcast == podcast)
 
     podcast.title = "New Title"
-    try repository.update(podcast)
+    try await repository.update(podcast)
 
     let fetchedUpdatedPodcast = try await repository.db.read { [podcast] db in
       try Podcast.find(db, id: podcast.id)
@@ -59,7 +59,7 @@ actor PodcastTests {
       let exists = try podcast.exists(db)
       #expect(exists)
     }
-    let deleted = try repository.delete(podcast)
+    let deleted = try await repository.delete(podcast)
     #expect(deleted)
     try await repository.db.read { [podcast] db in
       let exists = try podcast.exists(db)
@@ -85,8 +85,8 @@ actor PodcastTests {
   @Test("that a podcast feedURL must be valid")
   func failToInsertInvalidFeedURL() async throws {
     // Bad scheme
-    #expect(throws: URLError.self) {
-      try repository.insert(
+    await #expect(throws: URLError.self) {
+      try await repository.insert(
         UnsavedPodcast(
           feedURL: URL(string: "file://example.com/data")!,
           title: "Title"
@@ -95,8 +95,8 @@ actor PodcastTests {
     }
 
     // Not absolute
-    #expect(throws: URLError.self) {
-      try repository.insert(
+    await #expect(throws: URLError.self) {
+      try await repository.insert(
         UnsavedPodcast(
           feedURL: URL(string: "https:/path/to/data")!,
           title: "Title"
@@ -109,7 +109,7 @@ actor PodcastTests {
   func convertFeedURLToHTTPS() async throws {
     let url = URL(string: "http://example.com/data#fragment")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    let podcast = try self.repository.insert(unsavedPodcast)
+    let podcast = try await self.repository.insert(unsavedPodcast)
     #expect(podcast.feedURL == URL(string: "https://example.com/data")!)
   }
 
@@ -117,9 +117,9 @@ actor PodcastTests {
   func failToInsertDuplicateFeedURL() async throws {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    _ = try self.repository.insert(unsavedPodcast)
-    #expect(throws: DatabaseError.self) {
-      try self.repository.insert(unsavedPodcast)
+    _ = try await self.repository.insert(unsavedPodcast)
+    await #expect(throws: DatabaseError.self) {
+      try await self.repository.insert(unsavedPodcast)
     }
   }
 
@@ -133,7 +133,7 @@ actor PodcastTests {
     }
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    _ = try repository.insert(unsavedPodcast)
+    _ = try await repository.insert(unsavedPodcast)
     try await Task.sleep(for: .milliseconds(10))
     #expect(await podcastCounter.value == 1)
     task.cancel()

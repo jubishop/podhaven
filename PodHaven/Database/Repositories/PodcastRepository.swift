@@ -28,20 +28,20 @@ struct PodcastRepository: Sendable {
   // MARK: - Podcast Writers
 
   @discardableResult
-  func insert(_ unsavedPodcast: UnsavedPodcast) throws -> Podcast {
-    try appDatabase.db.write { db in
+  func insert(_ unsavedPodcast: UnsavedPodcast) async throws -> Podcast {
+    try await appDatabase.db.write { db in
       try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
     }
   }
 
-  func update(_ podcast: Podcast) throws {
-    try appDatabase.db.write { db in
+  func update(_ podcast: Podcast) async throws {
+    try await appDatabase.db.write { db in
       try podcast.update(db)
     }
   }
 
-  func delete(_ podcast: Podcast) throws -> Bool {
-    try appDatabase.db.write { db in
+  func delete(_ podcast: Podcast) async throws -> Bool {
+    try await appDatabase.db.write { db in
       try podcast.delete(db)
     }
   }
@@ -49,8 +49,8 @@ struct PodcastRepository: Sendable {
   // MARK: - Episode Writers
 
   @discardableResult
-  func insert(_ unsavedEpisode: UnsavedEpisode) throws -> Episode {
-    try appDatabase.db.write { db in
+  func insert(_ unsavedEpisode: UnsavedEpisode) async throws -> Episode {
+    try await appDatabase.db.write { db in
       try unsavedEpisode.insertAndFetch(db, as: Episode.self)
     }
   }
