@@ -79,7 +79,7 @@ struct PlayBar: View {
           isDragging = isEditing
         }
       )
-      .disabled(PlayState.shared.isActive)
+      .disabled(!PlayState.shared.isActive)
       .frame(width: barWidth)
     }
   }

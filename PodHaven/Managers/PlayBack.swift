@@ -152,6 +152,7 @@ final actor PlayManager: Sendable {
   func seek(to time: CMTime) {
     guard !isLoading, isActive else { return }
     avPlayer.seek(to: time)
+    Task { @MainActor in PlayState.shared.currentTime = time }
   }
 
   // MARK: - Private Methods
