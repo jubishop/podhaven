@@ -131,70 +131,73 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     }
     for outline in opmlFile.waiting {
       Task.detached(priority: .userInitiated) {
+        defer {
+          Task { @MainActor in
+            guard outline.status != .finished else { return }
+            outline.status = .failed
+            opmlFile.downloading.remove(outline)
+            opmlFile.failed.insert(outline)
+          }
+        }
+
         let downloadTask = await downloadManager.addURL(outline.feedURL)
         await downloadTask.downloadBegan()
+
         await Task { @MainActor in
           outline.status = .downloading
           opmlFile.waiting.remove(outline)
           opmlFile.downloading.insert(outline)
-        }.value
-
-        let markFailed: () async -> Void = {
-          await Task { @MainActor in
-            outline.status = .failed
-            opmlFile.downloading.remove(outline)
-            opmlFile.failed.insert(outline)
-          }.value
         }
+        .value
 
         guard case .success(let data) = await downloadTask.downloadFinished(),
           case .success(let feed) = await PodcastFeed.parse(data: data.data)
-        else {
-          await markFailed()
-          return
-        }
+        else { return }
 
         await Task { @MainActor in
           outline.feedURL = feed.feedURL ?? outline.feedURL
           outline.text = feed.title ?? outline.text
-        }.value
+        }
+        .value
 
-        if let unsavedPodcast = try? await UnsavedPodcast(
-          feedURL: outline.feedURL,
-          title: outline.text,
-          link: feed.link,
-          image: feed.image,
-          description: feed.description
-        ),
+        guard
+          let unsavedPodcast = try? await UnsavedPodcast(
+            feedURL: outline.feedURL,
+            title: outline.text,
+            link: feed.link,
+            image: feed.image,
+            description: feed.description
+          ),
           let podcast = try? await PodcastRepository.shared.insert(
             unsavedPodcast
           )
-        {
-          if let image = feed.image {
-            PodcastImages.shared.prefetch([image])
-          }
-          try? await PodcastRepository.shared.batchInsert(
-            feed.items.map { feedItem in
-              UnsavedEpisode(
-                guid: feedItem.guid,
-                podcast: podcast,
-                media: feedItem.media,
-                pubDate: feedItem.pubDate,
-                title: feedItem.title,
-                description: feedItem.description,
-                link: feedItem.link,
-                image: feedItem.image
-              )
-            }
-          )
-          await Task { @MainActor in
-            outline.status = .finished
-            opmlFile.downloading.remove(outline)
-            opmlFile.finished.insert(outline)
-          }.value
-        } else {
-          await markFailed()
+        else { return }
+
+        if let image = feed.image {
+          PodcastImages.shared.prefetch([image])
         }
+
+        try? await PodcastRepository.shared.batchInsert(
+          feed.items.map { feedItem in
+            UnsavedEpisode(
+              guid: feedItem.guid,
+              podcast: podcast,
+              media: feedItem.media,
+              pubDate: feedItem.pubDate,
+              title: feedItem.title,
+              description: feedItem.description,
+              link: feedItem.link,
+              image: feedItem.image
+            )
+          }
+        )
+
+        await Task { @MainActor in
+          outline.status = .finished
+          opmlFile.downloading.remove(outline)
+          opmlFile.finished.insert(outline)
+        }
+        .value
       }
     }
   }

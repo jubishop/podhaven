@@ -30,17 +30,15 @@ struct OPMLImportSheet: View {
       .buttonStyle(.bordered)
       .frame(maxWidth: .infinity)
 
-      if let opmlFile = viewModel.opmlFile {
-        CircularProgressView(
-          totalAmount: Double(opmlFile.totalCount),
-          colorAmounts: [
-            .green: Double(opmlFile.finished.count),
-            .blue: Double(opmlFile.downloading.count),
-            .red: Double(opmlFile.failed.count),
-          ]
-        )
-        .frame(maxWidth: .infinity)
-      }
+      CircularProgressView(
+        totalAmount: Double(opmlFile.totalCount),
+        colorAmounts: [
+          .green: Double(opmlFile.finished.count),
+          .blue: Double(opmlFile.downloading.count),
+          .red: Double(opmlFile.failed.count),
+        ]
+      )
+      .frame(maxWidth: .infinity)
     }
     .padding([.horizontal])
 
