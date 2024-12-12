@@ -187,19 +187,20 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
             PodcastImages.shared.prefetch([image])
           }
           // TODO: Batch insert these
-          for feedItem in feed.items {
-            let unsavedEpisode = UnsavedEpisode(
-              guid: feedItem.guid,
-              podcast: podcast,
-              media: feedItem.media,
-              pubDate: feedItem.pubDate,
-              title: feedItem.title,
-              description: feedItem.description,
-              link: feedItem.link,
-              image: feedItem.image
-            )
-            _ = try? await PodcastRepository.shared.insert(unsavedEpisode)
-          }
+          try? await PodcastRepository.shared.batchInsert(
+            feed.items.map { feedItem in
+              UnsavedEpisode(
+                guid: feedItem.guid,
+                podcast: podcast,
+                media: feedItem.media,
+                pubDate: feedItem.pubDate,
+                title: feedItem.title,
+                description: feedItem.description,
+                link: feedItem.link,
+                image: feedItem.image
+              )
+            }
+          )
           await MainActor.run {
             outline.status = .finished
             opmlFile.downloading.remove(outline)
