@@ -10,6 +10,7 @@ import Foundation
   fileprivate(set) var isActive = false
   fileprivate(set) var isPlaying = false
   fileprivate(set) var duration = CMTime.zero
+  fileprivate(set) var currentTime = CMTime.zero
   fileprivate(set) var onDeck: PodcastEpisode?
   private init() {}
 }
@@ -190,8 +191,8 @@ final actor PlayManager: Sendable {
     timeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: CMTime(seconds: 1, preferredTimescale: 60),
       queue: .global(qos: .utility)
-    ) { time in
-      print("Time is: \(time)")
+    ) { currentTime in
+      Task { @MainActor in PlayState.shared.currentTime = currentTime }
     }
   }
 
