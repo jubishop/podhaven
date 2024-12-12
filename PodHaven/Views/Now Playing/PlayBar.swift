@@ -12,7 +12,7 @@ struct PlayBar: View {
         Group {
           Button(action: {
             Task.detached(priority: .userInitiated) {
-              await PlayManager.shared.seekForward()
+              await PlayManager.shared.seekBackward()
             }
           }) {
             Image(systemName: "gobackward.10").foregroundColor(.white)

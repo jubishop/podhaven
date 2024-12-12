@@ -41,7 +41,7 @@ final actor PlayManager: Sendable {
     set {
       if newValue != _isLoading {
         _isLoading = newValue
-        DispatchQueue.main.sync { PlayState.shared.isLoading = newValue }
+        Task { @MainActor in PlayState.shared.isLoading = newValue }
       }
     }
   }
@@ -51,7 +51,7 @@ final actor PlayManager: Sendable {
     set {
       if newValue != _isPlaying {
         _isPlaying = newValue
-        DispatchQueue.main.sync { PlayState.shared.isPlaying = newValue }
+        Task { @MainActor in PlayState.shared.isPlaying = newValue }
       }
     }
   }
@@ -68,7 +68,7 @@ final actor PlayManager: Sendable {
           }
         }
         _isActive = newValue
-        DispatchQueue.main.sync { PlayState.shared.isActive = newValue }
+        Task { @MainActor in PlayState.shared.isActive = newValue }
       }
     }
   }
@@ -135,14 +135,18 @@ final actor PlayManager: Sendable {
     _ duration: CMTime = CMTime(seconds: 10, preferredTimescale: 60)
   ) {
     guard !isLoading, isActive else { return }
-    avPlayer.seek(to: avPlayer.currentTime() + duration)
+    seek(to: avPlayer.currentTime() + duration)
   }
 
   func seekBackward(
     _ duration: CMTime = CMTime(seconds: 10, preferredTimescale: 60)
   ) {
     guard !isLoading, isActive else { return }
-    avPlayer.seek(to: avPlayer.currentTime() - duration)
+    seek(to: avPlayer.currentTime() - duration)
+  }
+
+  func seek(to time: CMTime) {
+    avPlayer.seek(to: time)
   }
 
   // MARK: - Private Methods
