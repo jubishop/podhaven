@@ -113,14 +113,18 @@ actor PodcastTests {
     #expect(podcast.feedURL == URL(string: "https://example.com/data")!)
   }
 
-  @Test("that a podcast feedURL must be unique")
-  func failToInsertDuplicateFeedURL() async throws {
+  @Test("that a podcast feedURL replaces existing entry")
+  func updateExistingPodcastOnConflict() async throws {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
     _ = try await self.repository.insert(unsavedPodcast)
-    await #expect(throws: DatabaseError.self) {
-      try await self.repository.insert(unsavedPodcast)
+    let unsavedPodcast2 = try UnsavedPodcast(feedURL: url, title: "New Title")
+    _ = try await self.repository.insert(unsavedPodcast2)
+
+    let fetchedPodcast = try await repository.db.read { db in
+      try Podcast.filter(key: ["feedURL": url]).fetchOne(db)
     }
+    #expect(fetchedPodcast?.title == "New Title")
   }
 
   @Test("that podcasts are successfully observed")

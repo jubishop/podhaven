@@ -7,7 +7,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of Episode model tests")
-actor Episode {
+actor EpisodeTests {
   private let repository: PodcastRepository
 
   init() {
@@ -45,11 +45,42 @@ actor Episode {
     }!
     #expect(podcastSeries.podcast == podcast)
     #expect(
-      (podcastSeries.episodes.map { Int($0.pubDate.timeIntervalSince1970) }) == [
-        Int(newestUnsavedEpisode.pubDate.timeIntervalSince1970),
-        Int(middleUnsavedEpisode.pubDate.timeIntervalSince1970),
-        Int(oldestUnsavedEpisode.pubDate.timeIntervalSince1970),
-      ]
+      (podcastSeries.episodes.map { Int($0.pubDate.timeIntervalSince1970) })
+        == [
+          Int(newestUnsavedEpisode.pubDate.timeIntervalSince1970),
+          Int(middleUnsavedEpisode.pubDate.timeIntervalSince1970),
+          Int(oldestUnsavedEpisode.pubDate.timeIntervalSince1970),
+        ]
     )
+  }
+
+  @Test("that an episode with same podcast/guid replaces existing entry")
+  func updateExistingEpisodeOnConflict() async throws {
+    let unsavedPodcast = try UnsavedPodcast(
+      feedURL: URL(string: "https://example.com/data")!,
+      title: "Title"
+    )
+    let podcast = try await repository.insert(unsavedPodcast)
+    #expect(podcast.title == unsavedPodcast.title)
+
+    let guid = "guid"
+    let unsavedEpisode = UnsavedEpisode(
+      guid: guid,
+      podcast: podcast,
+      title: "Title"
+    )
+    try await repository.batchInsert([unsavedEpisode])
+    let unsavedEpisode2 = UnsavedEpisode(
+      guid: guid,
+      podcast: podcast,
+      title: "New Title"
+    )
+    try await repository.batchInsert([unsavedEpisode2])
+
+    let fetchedEpisode = try await repository.db.read { db in
+      try Episode.filter(key: ["guid": guid, "podcastId": podcast.id])
+        .fetchOne(db)
+    }
+    #expect(fetchedEpisode?.title == "New Title")
   }
 }

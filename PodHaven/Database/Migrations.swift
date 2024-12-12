@@ -14,7 +14,11 @@ enum Migrations {
     migrator.registerMigration("v1") { db in
       try db.create(table: "podcast") { t in
         t.autoIncrementedPrimaryKey("id")
-        t.column("feedURL", .text).unique().notNull().indexed()
+        t
+          .column("feedURL", .text)
+          .unique(onConflict: .replace)
+          .notNull()
+          .indexed()
         t.column("title", .text).notNull()
         t.column("link", .text)
         t.column("image", .text)
@@ -24,7 +28,8 @@ enum Migrations {
       try db.create(table: "episode") { t in
         t.autoIncrementedPrimaryKey("id")
         t.belongsTo("podcast", onDelete: .cascade).notNull()
-        t.column("guid", .text).unique().notNull()
+        t.column("guid", .text).notNull().indexed()
+        t.uniqueKey(["podcastId", "guid"], onConflict: .replace)
         t.column("pubDate", .text).notNull()
         t.column("media", .text)
         t.column("title", .text)
