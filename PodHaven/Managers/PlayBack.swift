@@ -135,24 +135,20 @@ final actor PlayManager: Sendable {
     isActive = false
   }
 
-  func seekForward(
-    _ duration: CMTime = CMTime(seconds: 10)
-  ) {
+  func seekForward(_ duration: CMTime = CMTime(seconds: 10)) async {
     guard !isLoading, isActive else { return }
-    seek(to: avPlayer.currentTime() + duration)
+    await seek(to: avPlayer.currentTime() + duration)
   }
 
-  func seekBackward(
-    _ duration: CMTime = CMTime(seconds: 10)
-  ) {
+  func seekBackward(_ duration: CMTime = CMTime(seconds: 10)) async {
     guard !isLoading, isActive else { return }
-    seek(to: avPlayer.currentTime() - duration)
+    await seek(to: avPlayer.currentTime() - duration)
   }
 
-  func seek(to time: CMTime) {
+  func seek(to time: CMTime) async {
     guard !isLoading, isActive else { return }
-    avPlayer.seek(to: time)
-    Task { @MainActor in PlayState.shared.currentTime = time }
+    await avPlayer.seek(to: time)
+    await setCurrentTime(time)
   }
 
   // MARK: - Private Methods
@@ -174,6 +170,13 @@ final actor PlayManager: Sendable {
     await Task { @MainActor in PlayState.shared.duration = duration }.value
   }
 
+  private func setCurrentTime(_ currentTime: CMTime) async {
+    await Task { @MainActor in
+      PlayState.shared.currentTime = currentTime
+    }
+    .value
+  }
+
   private func addObservers() {
     removeObservers()
 
@@ -183,7 +186,7 @@ final actor PlayManager: Sendable {
         options: [.initial, .new]
       ) { [unowned self] _, change in
         if change.newValue == .failed {
-          Task { await self.reset(from: avPlayerItem.error) }
+          Task { await reset(from: avPlayerItem.error) }
         }
       }
     )
@@ -193,7 +196,7 @@ final actor PlayManager: Sendable {
         options: [.initial, .new]
       ) { [unowned self] _, change in
         if change.newValue == .failed {
-          Task { await self.reset(from: avPlayer.error) }
+          Task { await reset(from: avPlayer.error) }
         }
       }
     )
@@ -202,7 +205,7 @@ final actor PlayManager: Sendable {
       forInterval: Self.CMTime(seconds: 1),
       queue: .global(qos: .utility)
     ) { currentTime in
-      Task { @MainActor in PlayState.shared.currentTime = currentTime }
+      Task { [unowned self] in await self.setCurrentTime(currentTime) }
     }
   }
 
