@@ -200,6 +200,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     }
   }
 
+  // TODO: Lete's create a FeedManager to use instead.
   private func createDownloadManager() -> DownloadManager {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.allowsCellularAccess = true
