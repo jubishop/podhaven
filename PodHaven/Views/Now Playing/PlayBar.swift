@@ -3,11 +3,9 @@
 import AVFoundation
 import SwiftUI
 
-// TODO: We need a PlayBarViewModel
 struct PlayBar: View {
-  @State private var barWidth: CGFloat = 0
-  @State private var sliderValue: Double = 0
-  @State private var isDragging: Bool = false
+  @State private var viewModel = PlayBarViewModel()
+
   var body: some View {
     VStack {
       HStack {
@@ -58,29 +56,17 @@ struct PlayBar: View {
       .onGeometryChange(for: CGFloat.self) { geometry in
         geometry.size.width
       } action: { newWidth in
-        barWidth = newWidth
+        viewModel.barWidth = newWidth
       }
       Slider(
-        value: Binding(
-          get: {
-            isDragging ? sliderValue : PlayState.shared.currentTime.seconds
-          },
-          set: { newValue in
-            sliderValue = newValue
-            Task.detached(priority: .userInitiated) {
-              await PlayManager.shared.seek(
-                to: PlayManager.CMTime(seconds: sliderValue)
-              )
-            }
-          }
-        ),
+        value: $viewModel.sliderValue,
         in: 0...PlayState.shared.duration.seconds,
         onEditingChanged: { isEditing in
-          isDragging = isEditing
+          viewModel.isDragging = isEditing
         }
       )
       .disabled(!PlayState.shared.isActive)
-      .frame(width: barWidth)
+      .frame(width: viewModel.barWidth)
     }
   }
 }
