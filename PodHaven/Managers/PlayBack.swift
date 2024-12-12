@@ -33,6 +33,10 @@ final actor PlayManager: Sendable {
     }
   }
 
+  static func CMTime(seconds: Double) -> CMTime {
+    CoreMedia.CMTime(seconds: seconds, preferredTimescale: 60)
+  }
+
   // MARK: - State Management
 
   private var _isLoading = false
@@ -132,14 +136,14 @@ final actor PlayManager: Sendable {
   }
 
   func seekForward(
-    _ duration: CMTime = CMTime(seconds: 10, preferredTimescale: 60)
+    _ duration: CMTime = CMTime(seconds: 10)
   ) {
     guard !isLoading, isActive else { return }
     seek(to: avPlayer.currentTime() + duration)
   }
 
   func seekBackward(
-    _ duration: CMTime = CMTime(seconds: 10, preferredTimescale: 60)
+    _ duration: CMTime = CMTime(seconds: 10)
   ) {
     guard !isLoading, isActive else { return }
     seek(to: avPlayer.currentTime() - duration)
@@ -193,7 +197,7 @@ final actor PlayManager: Sendable {
     )
 
     timeObserver = avPlayer.addPeriodicTimeObserver(
-      forInterval: CMTime(seconds: 1, preferredTimescale: 60),
+      forInterval: Self.CMTime(seconds: 1),
       queue: .global(qos: .utility)
     ) { currentTime in
       Task { @MainActor in PlayState.shared.currentTime = currentTime }

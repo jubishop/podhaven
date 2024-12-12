@@ -3,9 +3,11 @@
 import AVFoundation
 import SwiftUI
 
+// TODO: We need a PlayBarViewModel
 struct PlayBar: View {
-  @State private var buttonWidth: CGFloat = 0
-
+  @State private var barWidth: CGFloat = 0
+  @State private var sliderValue: Double = 0
+  @State private var isDragging: Bool = false
   var body: some View {
     VStack {
       HStack {
@@ -32,9 +34,10 @@ struct PlayBar: View {
             }
           }) {
             Image(
-              systemName: PlayState.shared.isActive && !PlayState.shared.isLoading
-              ? (PlayState.shared.isPlaying
-                 ? "pause.circle" : "play.circle") : "xmark.circle"
+              systemName: PlayState.shared.isActive
+                && !PlayState.shared.isLoading
+                ? (PlayState.shared.isPlaying
+                  ? "pause.circle" : "play.circle") : "xmark.circle"
             )
             .font(.largeTitle)
             .foregroundColor(.white)
@@ -55,12 +58,28 @@ struct PlayBar: View {
       .onGeometryChange(for: CGFloat.self) { geometry in
         geometry.size.width
       } action: { newWidth in
-        buttonWidth = newWidth
+        barWidth = newWidth
       }
       Slider(
-        value: .constant(PlayState.shared.currentTime.seconds),
-        in: 0...PlayState.shared.duration.seconds
-      ).disabled(true).frame(width: buttonWidth)
+        value: Binding(
+          get: {
+            isDragging ? sliderValue : PlayState.shared.currentTime.seconds
+          },
+          set: { newValue in
+            sliderValue = newValue
+            Task.detached(priority: .userInitiated) {
+              await PlayManager.shared.seek(
+                to: PlayManager.CMTime(seconds: sliderValue)
+              )
+            }
+          }
+        ),
+        in: 0...PlayState.shared.duration.seconds,
+        onEditingChanged: { isEditing in
+          isDragging = isEditing
+        }
+      )
+      .frame(width: barWidth)
     }
   }
 }
