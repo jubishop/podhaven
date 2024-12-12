@@ -128,7 +128,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       fatalError("DownloadManager should be set now")
     }
     for outline in opmlFile.waiting {
-      Task.detached(priority: .userInitiated) {
+      Task.detached {
         defer {
           Task { @MainActor in
             guard outline.status != .finished else { return }

@@ -14,7 +14,7 @@ struct EpisodeView: View {
   var body: some View {
     Button(
       action: {
-        Task(priority: .userInitiated) { @PlayManager in
+        Task { @PlayManager in
           // TODO: Do something smart if this throws
           try await PlayManager.shared.start(viewModel.podcastEpisode)
         }
