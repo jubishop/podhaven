@@ -15,7 +15,7 @@ import SwiftUI
     }
     set {
       self._sliderValue = newValue
-      Task.detached(priority: .userInitiated) {
+      Task(priority: .userInitiated) { @PlayManager in
         await PlayManager.shared.seek(
           to: PlayManager.CMTime(seconds: self._sliderValue)
         )

@@ -95,14 +95,12 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     return opml
   }
 
-  func stopDownloading() {
-    Task {
-      if let downloadManager = downloadManager {
-        await downloadManager.cancelAllDownloads()
-      }
-      opmlFile = nil
-      Navigation.shared.currentTab = .podcasts
+  func stopDownloading() async {
+    if let downloadManager = downloadManager {
+      await downloadManager.cancelAllDownloads()
     }
+    opmlFile = nil
+    Navigation.shared.currentTab = .podcasts
   }
 
   // MARK: - Private Methods

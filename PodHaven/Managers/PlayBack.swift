@@ -16,6 +16,7 @@ import Foundation
 }
 
 // TODO: Figure out what to do when reaching end of Episode
+@globalActor
 final actor PlayManager: Sendable {
   // MARK: - Static Methods
 
@@ -84,7 +85,7 @@ final actor PlayManager: Sendable {
   private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
   private var keyValueObservers: [NSKeyValueObservation] = []
   private var timeObserver: Any?
-  fileprivate init() {}
+  init() {}
 
   // MARK: - Public Methods
 

@@ -11,7 +11,7 @@ struct PlayBar: View {
       HStack {
         Group {
           Button(action: {
-            Task.detached(priority: .userInitiated) {
+            Task(priority: .userInitiated) { @PlayManager in
               await PlayManager.shared.seekBackward()
             }
           }) {
@@ -22,11 +22,11 @@ struct PlayBar: View {
               return
             }
             if PlayState.shared.isPlaying {
-              Task.detached(priority: .userInitiated) {
+              Task(priority: .userInitiated) { @PlayManager in
                 await PlayManager.shared.pause()
               }
             } else {
-              Task.detached(priority: .userInitiated) {
+              Task(priority: .userInitiated) { @PlayManager in
                 await PlayManager.shared.play()
               }
             }
@@ -41,7 +41,7 @@ struct PlayBar: View {
             .foregroundColor(.white)
           }
           Button(action: {
-            Task.detached(priority: .userInitiated) {
+            Task(priority: .userInitiated) { @PlayManager in
               await PlayManager.shared.seekForward()
             }
           }) {
