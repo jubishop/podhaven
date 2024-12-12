@@ -48,13 +48,6 @@ struct PodcastRepository: Sendable {
 
   // MARK: - Episode Writers
 
-  @discardableResult
-  func insert(_ unsavedEpisode: UnsavedEpisode) async throws -> Episode {
-    try await appDatabase.db.write { db in
-      try unsavedEpisode.insertAndFetch(db, as: Episode.self)
-    }
-  }
-
   func batchInsert(_ unsavedEpisodes: [UnsavedEpisode]) async throws {
     try await appDatabase.db.write { db in
       for unsavedEpisode in unsavedEpisodes {

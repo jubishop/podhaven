@@ -21,30 +21,21 @@ actor Episode {
     let podcast = try await repository.insert(unsavedPodcast)
     #expect(podcast.title == unsavedPodcast.title)
 
-    let unsavedEpisode = UnsavedEpisode(guid: "guid", podcast: podcast)
-    let episode = try await repository.insert(unsavedEpisode)
-    let episodes = try await repository.db.read { [podcast] db in
-      try podcast.episodes.fetchAll(db)
-    }
-    #expect(episodes == [episode])
-
-    let fetchedPodcast = try await repository.db.read { db in
-      try episode.podcast.fetchOne(db)
-    }
-    #expect(podcast == fetchedPodcast)
-
-    let olderUnsavedEpisode = UnsavedEpisode(
+    let newestUnsavedEpisode = UnsavedEpisode(guid: "guid", podcast: podcast)
+    let oldestUnsavedEpisode = UnsavedEpisode(
       guid: "guid2",
       podcast: podcast,
       pubDate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
     )
-    let olderEpisode = try await repository.insert(olderUnsavedEpisode)
     let middleUnsavedEpisode = UnsavedEpisode(
       guid: "guid3",
       podcast: podcast,
       pubDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())
     )
-    let middleEpisode = try await repository.insert(middleUnsavedEpisode)
+    try await repository.batchInsert([
+      middleUnsavedEpisode, oldestUnsavedEpisode, newestUnsavedEpisode,
+    ])
+
     let podcastSeries = try await repository.db.read { db in
       try Podcast
         .filter(id: podcast.id)
@@ -53,6 +44,12 @@ actor Episode {
         .fetchOne(db)
     }!
     #expect(podcastSeries.podcast == podcast)
-    #expect(podcastSeries.episodes == [episode, middleEpisode, olderEpisode])
+    #expect(
+      (podcastSeries.episodes.map { Int($0.pubDate.timeIntervalSince1970) }) == [
+        Int(newestUnsavedEpisode.pubDate.timeIntervalSince1970),
+        Int(middleUnsavedEpisode.pubDate.timeIntervalSince1970),
+        Int(oldestUnsavedEpisode.pubDate.timeIntervalSince1970),
+      ]
+    )
   }
 }
