@@ -186,7 +186,6 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           if let image = feed.image {
             PodcastImages.shared.prefetch([image])
           }
-          // TODO: Batch insert these
           try? await PodcastRepository.shared.batchInsert(
             feed.items.map { feedItem in
               UnsavedEpisode(
