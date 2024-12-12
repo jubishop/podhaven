@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 @Observable @MainActor
 final class OPMLOutline: Equatable, Hashable, Identifiable {
   enum Status {
-    case failed, alreadySubscribed, waiting, downloading, finished
+    case failed, waiting, downloading, finished
   }
 
   let id = UUID()
@@ -44,7 +44,6 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   let title: String
   var totalCount: Int {
     failed.count
-      + alreadySubscribed.count
       + waiting.count
       + downloading.count
       + finished.count
@@ -52,11 +51,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   var inProgressCount: Int {
     waiting.count + downloading.count
   }
-  var successCount: Int {
-    alreadySubscribed.count + finished.count
-  }
   var failed: Set<OPMLOutline> = []
-  var alreadySubscribed: Set<OPMLOutline> = []
   var waiting: Set<OPMLOutline> = []
   var downloading: Set<OPMLOutline> = []
   var finished: Set<OPMLOutline> = []
@@ -138,18 +133,18 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       Task.detached(priority: .userInitiated) {
         let downloadTask = await downloadManager.addURL(outline.feedURL)
         await downloadTask.downloadBegan()
-        await MainActor.run {
+        await Task { @MainActor in
           outline.status = .downloading
           opmlFile.waiting.remove(outline)
           opmlFile.downloading.insert(outline)
-        }
+        }.value
 
         let markFailed: () async -> Void = {
-          await MainActor.run {
+          await Task { @MainActor in
             outline.status = .failed
             opmlFile.downloading.remove(outline)
             opmlFile.failed.insert(outline)
-          }
+          }.value
         }
 
         guard case .success(let data) = await downloadTask.downloadFinished(),
@@ -159,20 +154,12 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           return
         }
 
-        await MainActor.run {
+        await Task { @MainActor in
           outline.feedURL = feed.feedURL ?? outline.feedURL
           outline.text = feed.title ?? outline.text
-        }
-        let feedURL = await outline.feedURL
-        if (try? await PodcastRepository.shared.db.read({ db in
-          try Podcast.filter(key: ["feedURL": feedURL]).fetchOne(db)
-        })) != nil {
-          await MainActor.run {
-            outline.status = .alreadySubscribed
-            opmlFile.downloading.remove(outline)
-            opmlFile.alreadySubscribed.insert(outline)
-          }
-        } else if let unsavedPodcast = try? await UnsavedPodcast(
+        }.value
+
+        if let unsavedPodcast = try? await UnsavedPodcast(
           feedURL: outline.feedURL,
           title: outline.text,
           link: feed.link,
@@ -200,11 +187,11 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
               )
             }
           )
-          await MainActor.run {
+          await Task { @MainActor in
             outline.status = .finished
             opmlFile.downloading.remove(outline)
             opmlFile.finished.insert(outline)
-          }
+          }.value
         } else {
           await markFailed()
         }

@@ -8,8 +8,6 @@ struct OPMLImportSheetSection: View {
     .waiting: Text("Waiting").foregroundStyle(.gray).bold(),
     .downloading: Text("Downloading").foregroundStyle(.blue).bold(),
     .finished: Text("Finished").foregroundStyle(.green).bold(),
-    .alreadySubscribed: Text("Already Subscribed").foregroundStyle(.green)
-      .bold(),
   ]
 
   let outlines: [OPMLOutline]
@@ -43,7 +41,7 @@ struct OPMLImportSheetSection: View {
             case .downloading:
               Image(systemName: "arrow.down.circle")
                 .foregroundColor(.blue)
-            case .finished, .alreadySubscribed:
+            case .finished:
               Image(systemName: "checkmark.circle")
                 .foregroundColor(.green)
             }
@@ -70,14 +68,6 @@ struct OPMLImportSheetSection: View {
       )
       OPMLImportSheetSection(
         outlines: [OPMLOutline(status: .waiting, text: "Waiting")]
-      )
-      OPMLImportSheetSection(
-        outlines: [
-          OPMLOutline(
-            status: .alreadySubscribed,
-            text: "Already Subscribed"
-          )
-        ]
       )
     }
   }

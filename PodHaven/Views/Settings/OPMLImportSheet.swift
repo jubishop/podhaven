@@ -23,7 +23,7 @@ struct OPMLImportSheet: View {
     HStack {
       Button(
         opmlFile.inProgressCount == 0
-          ? "Lets Go" : opmlFile.successCount > 0 ? "Stop" : "Cancel"
+          ? "Lets Go" : opmlFile.finished.count > 0 ? "Stop" : "Cancel"
       ) {
         viewModel.stopDownloading()
       }
@@ -34,7 +34,7 @@ struct OPMLImportSheet: View {
         CircularProgressView(
           totalAmount: Double(opmlFile.totalCount),
           colorAmounts: [
-            .green: Double(opmlFile.successCount),
+            .green: Double(opmlFile.finished.count),
             .blue: Double(opmlFile.downloading.count),
             .red: Double(opmlFile.failed.count),
           ]
@@ -49,13 +49,11 @@ struct OPMLImportSheet: View {
       OPMLImportSheetSection(outlines: Array(opmlFile.waiting))
       OPMLImportSheetSection(outlines: Array(opmlFile.failed))
       OPMLImportSheetSection(outlines: Array(opmlFile.finished))
-      OPMLImportSheetSection(outlines: Array(opmlFile.alreadySubscribed))
     }
     .animation(.default, value: Array(opmlFile.downloading))
     .animation(.default, value: Array(opmlFile.waiting))
     .animation(.default, value: Array(opmlFile.failed))
     .animation(.default, value: Array(opmlFile.finished))
-    .animation(.default, value: Array(opmlFile.alreadySubscribed))
     .interactiveDismissDisabled(true)
   }
 }
