@@ -162,29 +162,15 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
             image: data.feed.image,
             description: data.feed.description
           ),
-          let podcast = try? await PodcastRepository.shared.insert(
-            unsavedPodcast
-          )
+          (try? await PodcastRepository.shared.insertNewSeries(
+            unsavedPodcast,
+            feedItems: data.feed.items
+          )) != nil
         else { return }
 
         if let image = data.feed.image {
           PodcastImages.shared.prefetch([image])
         }
-
-        try? await PodcastRepository.shared.batchInsert(
-          data.feed.items.map { feedItem in
-            UnsavedEpisode(
-              guid: feedItem.guid,
-              podcast: podcast,
-              media: feedItem.media,
-              pubDate: feedItem.pubDate,
-              title: feedItem.title,
-              description: feedItem.description,
-              link: feedItem.link,
-              image: feedItem.image
-            )
-          }
-        )
 
         await Task { @MainActor in
           outline.status = .finished

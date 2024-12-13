@@ -25,6 +25,30 @@ struct PodcastRepository: Sendable {
       .shared(in: appDatabase.db)
   }
 
+  // MARK: - Series Writers
+
+  func insertNewSeries(
+    _ unsavedPodcast: UnsavedPodcast,
+    feedItems: [PodcastFeedItem]
+  ) async throws {
+    let podcast = try await insert(unsavedPodcast)
+
+    try? await batchInsert(
+      feedItems.map { feedItem in
+        UnsavedEpisode(
+          guid: feedItem.guid,
+          podcast: podcast,
+          media: feedItem.media,
+          pubDate: feedItem.pubDate,
+          title: feedItem.title,
+          description: feedItem.description,
+          link: feedItem.link,
+          image: feedItem.image
+        )
+      }
+    )
+  }
+
   // MARK: - Podcast Writers
 
   @discardableResult
