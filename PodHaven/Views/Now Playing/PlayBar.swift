@@ -18,9 +18,8 @@ struct PlayBar: View {
             Image(systemName: "gobackward.10").foregroundColor(.white)
           }
           Button(action: {
-            guard PlayState.shared.isActive, !PlayState.shared.isLoading else {
-              return
-            }
+            guard PlayState.shared.isActive, !PlayState.shared.isLoading
+            else { return }
             if PlayState.shared.isPlaying {
               Task { @PlayManager in
                 await PlayManager.shared.pause()

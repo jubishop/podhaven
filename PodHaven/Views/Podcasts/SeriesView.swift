@@ -19,17 +19,7 @@ struct SeriesView: View {
         EpisodeListView(episode: episode)
       }
       .refreshable {
-        let feedTask = await FeedManager.shared.addURL(
-          viewModel.podcast.feedURL
-        )
-        let feedResult = await feedTask.feedParsed()
-        switch feedResult {
-        case .failure(let error):
-          Alert.shared(error.errorDescription)
-        case .success(let feedData):
-          // TODO: Save new data
-          print("Got feeddata: \(feedData)")
-        }
+        await viewModel.refreshSeries()
       }
     }
     .navigationTitle(viewModel.podcast.title)
