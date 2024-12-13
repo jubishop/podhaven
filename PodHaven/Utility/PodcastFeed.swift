@@ -9,7 +9,6 @@ struct PodcastFeedItem: Sendable {
   let guid: String
 
   private let rssFeedItem: RSSFeedItem
-  private let feedItemGUID: RSSFeedItemGUID
 
   fileprivate init(rssFeedItem: RSSFeedItem) throws {
     guard let feedItemGUID = rssFeedItem.guid, let guid = feedItemGUID.value
@@ -17,7 +16,6 @@ struct PodcastFeedItem: Sendable {
       throw FeedError.failedParse("PodcastFeedItem requires a GUID")
     }
     self.rssFeedItem = rssFeedItem
-    self.feedItemGUID = feedItemGUID
     self.guid = guid
   }
 
