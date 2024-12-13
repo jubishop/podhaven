@@ -10,6 +10,7 @@ import GRDB
   func observePodcasts() async {
     do {
       for try await podcasts in PodcastRepository.shared.observer.values() {
+        guard self.podcasts != podcasts else { return }
         self.podcasts = podcasts
       }
     } catch {

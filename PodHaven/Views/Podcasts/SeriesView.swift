@@ -19,7 +19,11 @@ struct SeriesView: View {
         EpisodeListView(episode: episode)
       }
       .refreshable {
-        await viewModel.refreshSeries()
+        do {
+          try await viewModel.refreshSeries()
+        } catch {
+          Alert.shared("Failed to refresh series: \(viewModel.podcast.title)")
+        }
       }
     }
     .navigationTitle(viewModel.podcast.title)

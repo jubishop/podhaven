@@ -156,7 +156,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
         guard
           let unsavedPodcast = await feedResult.feed.toUnsavedPodcast(
-            feedURL: outline.feedURL,
+            oldFeedURL: outline.feedURL,
             oldTitle: outline.text
           ),
           (try? await PodcastRepository.shared.insertSeries(

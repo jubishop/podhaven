@@ -29,6 +29,19 @@ struct PodcastFeedItem: Sendable {
     )
   }
 
+  func toUnsavedEpisode(mergingOld oldEpisode: Episode?) -> UnsavedEpisode {
+    guard let oldEpisode else { return toUnsavedEpisode() }
+    return UnsavedEpisode(
+      guid: guid,
+      media: media ?? oldEpisode.media,
+      pubDate: pubDate ?? oldEpisode.pubDate,
+      title: title ?? oldEpisode.title,
+      description: description ?? oldEpisode.description,
+      link: link ?? oldEpisode.link,
+      image: image ?? oldEpisode.image
+    )
+  }
+
   var media: URL? {
     guard let urlString = rssFeedItem.enclosure?.attributes?.url,
       let url = URL(string: urlString)
@@ -102,14 +115,25 @@ struct PodcastFeed: Sendable, Equatable {
       }
   }
 
-  func toUnsavedPodcast(feedURL: URL, oldTitle: String) async -> UnsavedPodcast?
-  {
+  func toUnsavedPodcast(oldFeedURL: URL, oldTitle: String) -> UnsavedPodcast? {
     try? UnsavedPodcast(
-      feedURL: feedURL,
+      feedURL: feedURL ?? oldFeedURL,
       title: title ?? oldTitle,
       link: link,
       image: image,
       description: description
+    )
+  }
+
+  func toUnsavedPodcast(mergingOld oldPodcast: Podcast)
+    -> UnsavedPodcast?
+  {
+    try? UnsavedPodcast(
+      feedURL: feedURL ?? oldPodcast.feedURL,
+      title: title ?? oldPodcast.title,
+      link: link ?? oldPodcast.link,
+      image: image ?? oldPodcast.image,
+      description: description ?? oldPodcast.description
     )
   }
 

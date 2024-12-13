@@ -13,15 +13,27 @@ import IdentifiedCollections
     self.podcastSeries = PodcastSeries(podcast: podcast)
   }
 
-  func refreshSeries() async {
+  func refreshSeries() async throws {
     let feedTask = await FeedManager.shared.addURL(podcast.feedURL)
     let feedResult = await feedTask.feedParsed()
     switch feedResult {
     case .failure(let error):
       Alert.shared(error.errorDescription)
     case .success(let feedData):
-      // TODO: Save this data, use podcastSeries.episodesDictionary
-      print("Got feeddata: \(feedData)")
+      print("current podcast id is: \(podcast.id)")
+      guard
+        let newUnsavedPodcast = feedData.feed.toUnsavedPodcast(
+          mergingOld: podcast
+        )
+      else { return }
+      let newPodcast = Podcast(id: podcast.id, from: newUnsavedPodcast)
+      let newUnsavedEpisodes = feedData.feed.items.map { feedItem in
+        feedItem.toUnsavedEpisode(mergingOld: episodes[id: feedItem.guid])
+      }
+    // TODO: Make insertSeries for Podcast
+    //      let newPodcast = try await PodcastRepository.shared
+    //        .insertSeries(newUnsavedPodcast, unsavedEpisodes: newUnsavedEpisodes)
+    //      print("New podcast id is: \(newPodcast.id)")
     }
   }
 
