@@ -9,7 +9,7 @@ public struct Saved<V>:
   Identifiable
 where V: Savable {
   public var id: Int64
-  private var value: V
+  internal var value: V
 
   subscript<T>(dynamicMember keyPath: KeyPath<V, T>) -> T {
     value[keyPath: keyPath]

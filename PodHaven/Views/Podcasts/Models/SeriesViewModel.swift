@@ -2,12 +2,12 @@
 
 import Foundation
 import GRDB
-import OrderedCollections
+import IdentifiedCollections
 
 @Observable @MainActor final class SeriesViewModel {
   var podcastSeries: PodcastSeries
   var podcast: Podcast { podcastSeries.podcast }
-  var episodes: [Episode] { podcastSeries.episodes }
+  var episodes: IdentifiedArray<String, Episode> { podcastSeries.episodes }
 
   init(podcast: Podcast) {
     self.podcastSeries = PodcastSeries(podcast: podcast)

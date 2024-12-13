@@ -44,7 +44,7 @@ actor EpisodeTests {
         .fetchOne(db)
     }!
     #expect(
-      podcastSeries.episodes
+      podcastSeries.episodes.elements
         == podcastSeries.episodes.sorted { $0.pubDate > $1.pubDate }
     )
   }
