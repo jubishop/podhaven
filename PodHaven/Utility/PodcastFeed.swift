@@ -32,9 +32,7 @@ struct PodcastFeedItem: Sendable {
   var media: URL? {
     guard let urlString = rssFeedItem.enclosure?.attributes?.url,
       let url = URL(string: urlString)
-    else {
-      return nil
-    }
+    else { return nil }
     return url
   }
 
@@ -52,18 +50,14 @@ struct PodcastFeedItem: Sendable {
 
   var link: URL? {
     guard let urlString = rssFeedItem.link, let url = URL(string: urlString)
-    else {
-      return nil
-    }
+    else { return nil }
     return url
   }
 
   var image: URL? {
     guard let urlString = rssFeedItem.iTunes?.iTunesImage?.attributes?.href,
       let url = URL(string: urlString)
-    else {
-      return nil
-    }
+    else { return nil }
     return url
   }
 }
@@ -72,9 +66,8 @@ struct PodcastFeed: Sendable, Equatable {
   // MARK: - Static Parsing Methods
 
   static func parse(_ url: URL) async -> ParseResult {
-    guard let data = try? Data(contentsOf: url) else {
-      return .failure(.failedLoad(url))
-    }
+    guard let data = try? Data(contentsOf: url)
+    else { return .failure(.failedLoad(url)) }
     return await parse(data)
   }
 
@@ -84,9 +77,8 @@ struct PodcastFeed: Sendable, Equatable {
       continuation in
       switch parser.parse() {
       case .success(let feed):
-        guard let rssFeed = feed.rssFeed else {
-          return continuation.resume(returning: .failure(.noRSS))
-        }
+        guard let rssFeed = feed.rssFeed
+        else { return continuation.resume(returning: .failure(.noRSS)) }
         continuation.resume(returning: .success(PodcastFeed(rssFeed: rssFeed)))
       case .failure(let error):
         continuation.resume(
@@ -124,9 +116,7 @@ struct PodcastFeed: Sendable, Equatable {
   var feedURL: URL? {
     guard let newFeedURLString = rssFeed.iTunes?.iTunesNewFeedURL,
       let newFeedURL = URL(string: newFeedURLString)
-    else {
-      return nil
-    }
+    else { return nil }
     return newFeedURL
   }
 
@@ -135,9 +125,8 @@ struct PodcastFeed: Sendable, Equatable {
   }
 
   var link: URL? {
-    guard let link = rssFeed.link, let url = URL(string: link) else {
-      return nil
-    }
+    guard let link = rssFeed.link, let url = URL(string: link)
+    else { return nil }
     return url
   }
 
@@ -146,9 +135,7 @@ struct PodcastFeed: Sendable, Equatable {
       let image = rssFeed.image?.url
         ?? rssFeed.iTunes?.iTunesImage?.attributes?.href,
       let url = URL(string: image)
-    else {
-      return nil
-    }
+    else { return nil }
     return url
   }
 
