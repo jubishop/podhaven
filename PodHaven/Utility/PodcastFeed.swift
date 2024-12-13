@@ -72,7 +72,7 @@ struct PodcastFeedItem: Sendable {
   }
 }
 
-struct PodcastFeed: Sendable {
+struct PodcastFeed: Sendable, Equatable {
   // MARK: - Static Parsing Methods
 
   static func parse(_ url: URL) async -> ParseResult {
@@ -158,5 +158,11 @@ struct PodcastFeed: Sendable {
 
   var description: String? {
     rssFeed.description ?? rssFeed.iTunes?.iTunesSummary
+  }
+
+  // MARK: - Equatable
+
+  static func == (lhs: PodcastFeed, rhs: PodcastFeed) -> Bool {
+    lhs.rssFeed == rhs.rssFeed
   }
 }

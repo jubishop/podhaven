@@ -25,6 +25,13 @@ extension DownloadResult {
     return false
   }
 
+  func isSuccessfulWith() -> DownloadData? {
+    if case .success(let downloadData) = self {
+      return downloadData
+    }
+    return nil
+  }
+
   func isSuccessful() -> Bool {
     if case .success = self {
       return true

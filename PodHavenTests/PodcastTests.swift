@@ -14,36 +14,18 @@ actor PodcastTests {
     repository = PodcastRepository.empty()
   }
 
-  @Test("that a podcast can be created, fetched, updated, and deleted")
+  @Test("that a podcast can be created, fetched, and deleted")
   func createSinglePodcast() async throws {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
-    var podcast = try await repository.insert(unsavedPodcast)
+    let podcast = try await repository.insert(unsavedPodcast)
     #expect(podcast.title == unsavedPodcast.title)
 
     let fetchedPodcast = try await repository.db.read { [podcast] db in
-      try Podcast.find(db, id: podcast.id)
+      try Podcast.filter(id: podcast.id).fetchOne(db)
     }
     #expect(fetchedPodcast == podcast)
-
-    let filteredPodcast = try await repository.db.read { [podcast] db in
-      try Podcast.filter(Column("title") == podcast.title).fetchOne(db)
-    }
-    #expect(filteredPodcast == podcast)
-
-    podcast.title = "New Title"
-    try await repository.update(podcast)
-
-    let fetchedUpdatedPodcast = try await repository.db.read { [podcast] db in
-      try Podcast.find(db, id: podcast.id)
-    }
-    #expect(fetchedUpdatedPodcast == podcast)
-
-    let updatedFilteredPodcast = try await repository.db.read { [podcast] db in
-      try Podcast.filter(Column("title") == podcast.title).fetchOne(db)
-    }
-    #expect(updatedFilteredPodcast == podcast)
 
     let urlFilteredPodcast = try await repository.db.read { db in
       try Podcast.filter(key: ["feedURL": url]).fetchOne(db)

@@ -27,20 +27,27 @@ struct PodcastRepository: Sendable {
 
   // MARK: - Series Writers
 
+  @discardableResult
   func insertSeries(
     _ unsavedPodcast: UnsavedPodcast,
-    unsavedEpisodes: [UnsavedEpisode]
-  ) async throws {
+    unsavedEpisodes: [UnsavedEpisode] = []
+  ) async throws -> Podcast {
     try await appDatabase.db.write { db in
       let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
       for var unsavedEpisode in unsavedEpisodes {
         unsavedEpisode.podcastId = podcast.id
         try unsavedEpisode.insert(db)
       }
+      return podcast
     }
   }
 
   // MARK: - Podcast Writers
+
+  @discardableResult
+  func insert(_ unsavedPodcast: UnsavedPodcast) async throws -> Podcast {
+    try await insertSeries(unsavedPodcast)
+  }
 
   func delete(_ podcast: Podcast) async throws -> Bool {
     try await appDatabase.db.write { db in
