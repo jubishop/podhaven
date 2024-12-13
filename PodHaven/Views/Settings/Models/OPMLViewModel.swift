@@ -162,7 +162,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
             image: data.feed.image,
             description: data.feed.description
           ),
-          (try? await PodcastRepository.shared.insertNewSeries(
+          (try? await PodcastRepository.shared.insertSeries(
             unsavedPodcast,
             feedItems: data.feed.items
           )) != nil

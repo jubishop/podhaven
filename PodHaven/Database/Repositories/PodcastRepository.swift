@@ -27,7 +27,7 @@ struct PodcastRepository: Sendable {
 
   // MARK: - Series Writers
 
-  func insertNewSeries(
+  func insertSeries(
     _ unsavedPodcast: UnsavedPodcast,
     feedItems: [PodcastFeedItem]
   ) async throws {
