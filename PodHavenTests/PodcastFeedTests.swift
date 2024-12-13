@@ -40,9 +40,4 @@ actor PodcastFeedTests {
     let feed = parseResult.isSuccessfulWith()
     #expect(feed?.title == "Land of the Giants")
   }
-
-  @Test("that new feed podcast values will replace old ones")
-  func newFeedPodcastValuesReplaceOld() async throws {
-    // TODO, also do new episodes
-  }
 }
