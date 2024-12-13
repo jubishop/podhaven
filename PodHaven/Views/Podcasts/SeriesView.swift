@@ -15,7 +15,7 @@ struct SeriesView: View {
       if let description = viewModel.podcast.description {
         HTMLText(description).padding()
       }
-      List(Array(viewModel.episodes)) { episode in
+      List(viewModel.episodes) { episode in
         EpisodeListView(episode: episode)
       }
       .refreshable {

@@ -5,5 +5,5 @@ import GRDB
 
 struct PodcastEpisode: Decodable, FetchableRecord, Equatable {
   let podcast: Podcast
-  var episode: Episode
+  let episode: Episode
 }
