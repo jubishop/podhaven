@@ -20,7 +20,7 @@ import OrderedCollections
       case .failure(let error):
         Alert.shared(error.errorDescription)
       case .success(let feedData):
-        // TODO: Save this data.
+        // TODO: Save this data, use podcastSeries.episodesDictionary
         print("Got feeddata: \(feedData)")
     }
   }
