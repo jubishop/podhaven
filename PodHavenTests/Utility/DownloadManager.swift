@@ -19,8 +19,8 @@ extension DownloadResult {
   }
 
   func isSuccessfulWith(_ expectedData: DownloadData) -> Bool {
-    if case .success(let successData) = self {
-      return successData == expectedData
+    if case .success(let downloadData) = self {
+      return downloadData == expectedData
     }
     return false
   }

@@ -5,7 +5,7 @@ import GRDB
 
 struct UnsavedEpisode: Savable {
   let guid: String
-  let podcastId: Int64
+  var podcastId: Int64?
   var media: URL?
   var pubDate: Date
   var title: String?
@@ -15,7 +15,7 @@ struct UnsavedEpisode: Savable {
 
   init(
     guid: String,
-    podcast: Podcast,
+    podcast: Podcast? = nil,
     media: URL? = nil,
     pubDate: Date? = nil,
     title: String? = nil,
@@ -24,7 +24,7 @@ struct UnsavedEpisode: Savable {
     image: URL? = nil
   ) {
     self.guid = guid
-    self.podcastId = podcast.id
+    self.podcastId = podcast?.id
     self.media = try? media?.convertToValidURL()
     self.pubDate = pubDate ?? Date()
     self.title = title

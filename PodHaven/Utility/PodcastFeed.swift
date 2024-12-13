@@ -21,6 +21,18 @@ struct PodcastFeedItem: Sendable {
     self.guid = guid
   }
 
+  func toUnsavedEpisode() -> UnsavedEpisode {
+    UnsavedEpisode(
+      guid: guid,
+      media: media,
+      pubDate: pubDate,
+      title: title,
+      description: description,
+      link: link,
+      image: image
+    )
+  }
+
   var media: URL? {
     guard let urlString = rssFeedItem.enclosure?.attributes?.url,
       let url = URL(string: urlString)
@@ -100,6 +112,17 @@ struct PodcastFeed: Sendable {
       .compactMap { rssFeedItem in
         try? PodcastFeedItem(rssFeedItem: rssFeedItem)
       }
+  }
+
+  func toUnsavedPodcast(feedURL: URL, oldTitle: String) async -> UnsavedPodcast?
+  {
+    try? UnsavedPodcast(
+      feedURL: feedURL,
+      title: title ?? oldTitle,
+      link: link,
+      image: image,
+      description: description
+    )
   }
 
   var feedURL: URL? {

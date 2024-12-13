@@ -29,54 +29,22 @@ struct PodcastRepository: Sendable {
 
   func insertSeries(
     _ unsavedPodcast: UnsavedPodcast,
-    feedItems: [PodcastFeedItem]
+    unsavedEpisodes: [UnsavedEpisode]
   ) async throws {
-    let podcast = try await insert(unsavedPodcast)
-
-    try? await batchInsert(
-      feedItems.map { feedItem in
-        UnsavedEpisode(
-          guid: feedItem.guid,
-          podcast: podcast,
-          media: feedItem.media,
-          pubDate: feedItem.pubDate,
-          title: feedItem.title,
-          description: feedItem.description,
-          link: feedItem.link,
-          image: feedItem.image
-        )
+    try await appDatabase.db.write { db in
+      let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
+      for var unsavedEpisode in unsavedEpisodes {
+        unsavedEpisode.podcastId = podcast.id
+        try unsavedEpisode.insert(db)
       }
-    )
+    }
   }
 
   // MARK: - Podcast Writers
 
-  @discardableResult
-  func insert(_ unsavedPodcast: UnsavedPodcast) async throws -> Podcast {
-    try await appDatabase.db.write { db in
-      try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
-    }
-  }
-
-  func update(_ podcast: Podcast) async throws {
-    try await appDatabase.db.write { db in
-      try podcast.update(db)
-    }
-  }
-
   func delete(_ podcast: Podcast) async throws -> Bool {
     try await appDatabase.db.write { db in
       try podcast.delete(db)
-    }
-  }
-
-  // MARK: - Episode Writers
-
-  func batchInsert(_ unsavedEpisodes: [UnsavedEpisode]) async throws {
-    try await appDatabase.db.write { db in
-      for unsavedEpisode in unsavedEpisodes {
-        try unsavedEpisode.insert(db)
-      }
     }
   }
 }
