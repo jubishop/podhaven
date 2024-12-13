@@ -17,6 +17,10 @@ final actor FeedTask: Sendable {
     self.downloadTask = downloadTask
   }
 
+  func downloadBegan() async {
+    await downloadTask.downloadBegan()
+  }
+
   func feedParsed() async -> FeedResult {
     defer { finished = true }
     let downloadResult = await downloadTask.downloadFinished()
@@ -54,7 +58,7 @@ final actor FeedManager: Sendable {
     )
   }
 
-  func fetch(_ url: URL) async -> FeedTask {
+  func addURL(_ url: URL) async -> FeedTask {
     if let feedTask = feedTasks[url], !(await feedTask.finished) {
       return feedTask
     }

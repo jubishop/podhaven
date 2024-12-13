@@ -194,10 +194,7 @@ actor DownloadManagerTests {
     }
     var resultsReceived = 0
     for await result in await downloadManager.downloads() {
-      guard case .success = result else {
-        Issue.record("Result was not successful")
-        return
-      }
+      #expect(result.isSuccessful())
       resultsReceived += 1
       if resultsReceived == 100 {
         break

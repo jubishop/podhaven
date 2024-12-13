@@ -24,4 +24,11 @@ extension DownloadResult {
     }
     return false
   }
+
+  func isSuccessful() -> Bool {
+    if case .success = self {
+      return true
+    }
+    return false
+  }
 }

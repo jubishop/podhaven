@@ -122,11 +122,8 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         )
       )
     }
+
     self.opmlFile = opmlFile
-    self.downloadManager = createDownloadManager()
-    guard let downloadManager = downloadManager else {
-      fatalError("DownloadManager should be set now")
-    }
     for outline in opmlFile.waiting {
       Task.detached {
         defer {
@@ -138,9 +135,9 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           }
         }
 
-        let downloadTask = await downloadManager.addURL(outline.feedURL)
-        await downloadTask.downloadBegan()
+        let feedTask = await FeedManager.shared.addURL(outline.feedURL)
 
+        await feedTask.downloadBegan()
         await Task { @MainActor in
           outline.status = .downloading
           opmlFile.waiting.remove(outline)
@@ -148,13 +145,12 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         }
         .value
 
-        guard case .success(let data) = await downloadTask.downloadFinished(),
-          case .success(let feed) = await PodcastFeed.parse(data.data)
+        guard case .success(let data) = await feedTask.feedParsed()
         else { return }
 
         await Task { @MainActor in
-          outline.feedURL = feed.feedURL ?? outline.feedURL
-          outline.text = feed.title ?? outline.text
+          outline.feedURL = data.feed.feedURL ?? outline.feedURL
+          outline.text = data.feed.title ?? outline.text
         }
         .value
 
@@ -162,21 +158,21 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           let unsavedPodcast = try? await UnsavedPodcast(
             feedURL: outline.feedURL,
             title: outline.text,
-            link: feed.link,
-            image: feed.image,
-            description: feed.description
+            link: data.feed.link,
+            image: data.feed.image,
+            description: data.feed.description
           ),
           let podcast = try? await PodcastRepository.shared.insert(
             unsavedPodcast
           )
         else { return }
 
-        if let image = feed.image {
+        if let image = data.feed.image {
           PodcastImages.shared.prefetch([image])
         }
 
         try? await PodcastRepository.shared.batchInsert(
-          feed.items.map { feedItem in
+          data.feed.items.map { feedItem in
             UnsavedEpisode(
               guid: feedItem.guid,
               podcast: podcast,
@@ -198,19 +194,6 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         .value
       }
     }
-  }
-
-  // TODO: Lete's create a FeedManager to use instead.
-  private func createDownloadManager() -> DownloadManager {
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.allowsCellularAccess = true
-    configuration.waitsForConnectivity = true
-    let timeout = Double(10)
-    configuration.timeoutIntervalForRequest = timeout
-    configuration.timeoutIntervalForResource = timeout
-    return DownloadManager(
-      session: URLSession(configuration: configuration)
-    )
   }
 
   // MARK: - Simulator Methods
