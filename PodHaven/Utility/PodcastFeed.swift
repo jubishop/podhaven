@@ -125,16 +125,12 @@ struct PodcastFeed: Sendable, Equatable {
     )
   }
 
-  func toUnsavedPodcast(mergingOld oldPodcast: Podcast)
-    -> UnsavedPodcast?
-  {
-    try? UnsavedPodcast(
-      feedURL: feedURL ?? oldPodcast.feedURL,
-      title: title ?? oldPodcast.title,
-      link: link ?? oldPodcast.link,
-      image: image ?? oldPodcast.image,
-      description: description ?? oldPodcast.description
-    )
+  func toPodcast(mergingOld oldPodcast: Podcast) -> Podcast? {
+    guard let unsavedPodcast = toUnsavedPodcast(
+      oldFeedURL: oldPodcast.feedURL,
+      oldTitle: oldPodcast.title
+    ) else { return nil }
+    return Podcast(id: oldPodcast.id, from: unsavedPodcast)
   }
 
   var feedURL: URL? {
