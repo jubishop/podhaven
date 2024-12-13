@@ -17,11 +17,11 @@ import OrderedCollections
     let feedTask = await FeedManager.shared.addURL(podcast.feedURL)
     let feedResult = await feedTask.feedParsed()
     switch feedResult {
-      case .failure(let error):
-        Alert.shared(error.errorDescription)
-      case .success(let feedData):
-        // TODO: Save this data, use podcastSeries.episodesDictionary
-        print("Got feeddata: \(feedData)")
+    case .failure(let error):
+      Alert.shared(error.errorDescription)
+    case .success(let feedData):
+      // TODO: Save this data, use podcastSeries.episodesDictionary
+      print("Got feeddata: \(feedData)")
     }
   }
 
