@@ -18,8 +18,10 @@ actor DownloadManagerTests {
     let downloadManager = DownloadManager(session: session)
 
     let url = URL(string: "https://example.com/data")!
-    let result = await downloadManager.addURL(url).downloadFinished()
+    let downloadTask = await downloadManager.addURL(url)
+    let result = await downloadTask.downloadFinished()
     #expect(result.isSuccessfulWith(DownloadData(url: url)))
+    #expect(await downloadTask.finished)
   }
 
   @Test("that an array of downloads work successfully")

@@ -149,7 +149,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         .value
 
         guard case .success(let data) = await downloadTask.downloadFinished(),
-          case .success(let feed) = await PodcastFeed.parse(data: data.data)
+          case .success(let feed) = await PodcastFeed.parse(data.data)
         else { return }
 
         await Task { @MainActor in

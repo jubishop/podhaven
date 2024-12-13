@@ -10,6 +10,8 @@ struct DownloadData: Sendable, Equatable, Hashable {
 
 final actor DownloadTask: Sendable {
   let url: URL
+  var finished: Bool { result != nil }
+
   private let session: Networking
   private var beganContinuations: [CheckedContinuation<Void, Never>] = []
   private var finishedContinuations:
@@ -138,6 +140,7 @@ final actor DownloadManager: Sendable {
     return download
   }
 
+  @discardableResult
   func addURLs(_ urls: [URL]) async -> [DownloadTask] {
     var downloadTasks = [DownloadTask](capacity: urls.count)
     for url in urls {

@@ -67,10 +67,10 @@ struct PodcastFeed: Sendable {
     guard let data = try? Data(contentsOf: url) else {
       return .failure(.failedLoad(url))
     }
-    return await parse(data: data)
+    return await parse(data)
   }
 
-  static func parse(data: Data) async -> ParseResult {
+  static func parse(_ data: Data) async -> ParseResult {
     let parser = FeedParser(data: data)
     return await withCheckedContinuation {
       continuation in
