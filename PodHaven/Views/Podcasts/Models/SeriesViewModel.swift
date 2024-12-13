@@ -20,17 +20,24 @@ import IdentifiedCollections
     case .failure(let error):
       Alert.shared(error.errorDescription)
     case .success(let feedData):
-      print("current podcast id is: \(podcast.id)")
-      guard let newPodcast = feedData.feed.toPodcast(mergingOld: podcast)
+      guard let newPodcast = feedData.feed.toPodcast(mergingExisting: podcast)
       else { return }
-      let newUnsavedEpisodes = feedData.feed.items.map { feedItem in
-        feedItem.toUnsavedEpisode(mergingOld: episodes[id: feedItem.guid])
+      var unsavedEpisodes: [UnsavedEpisode] = []
+      var existingEpisodes: [Episode] = []
+      for feedItem in feedData.feed.items {
+        if let existingEpisode = episodes[id: feedItem.guid] {
+          existingEpisodes.append(
+            feedItem.toEpisode(mergingExisting: existingEpisode)
+          )
+        } else {
+          unsavedEpisodes.append(feedItem.toUnsavedEpisode())
+        }
       }
-    // TODO: We need to create saved episodes for those that already exist
-    // TODO: Make insertSeries for Podcast
-    //      let newPodcast = try await PodcastRepository.shared
-    //        .insertSeries(newUnsavedPodcast, unsavedEpisodes: newUnsavedEpisodes)
-    //      print("New podcast id is: \(newPodcast.id)")
+      try await PodcastRepository.shared.insertSeries(
+        newPodcast,
+        unsavedEpisodes: unsavedEpisodes,
+        existingEpisodes: existingEpisodes
+      )
     }
   }
 

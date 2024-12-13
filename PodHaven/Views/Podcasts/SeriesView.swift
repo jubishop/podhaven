@@ -22,7 +22,10 @@ struct SeriesView: View {
         do {
           try await viewModel.refreshSeries()
         } catch {
-          Alert.shared("Failed to refresh series: \(viewModel.podcast.title)")
+          Alert.shared(
+            "Failed to refresh series: \(viewModel.podcast.title)",
+            report: "Error: \(error)"
+          )
         }
       }
     }

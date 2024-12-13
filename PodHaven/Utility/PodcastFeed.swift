@@ -17,28 +17,28 @@ struct PodcastFeedItem: Sendable {
     self.guid = guid
   }
 
-  func toUnsavedEpisode() -> UnsavedEpisode {
-    UnsavedEpisode(
+  func toUnsavedEpisode(mergingExisting existingEpisode: Episode? = nil)
+    -> UnsavedEpisode
+  {
+    guard existingEpisode?.guid == nil || existingEpisode?.guid == guid else {
+      fatalError("Merging two episodes with different guids?")
+    }
+    return UnsavedEpisode(
       guid: guid,
-      media: media,
-      pubDate: pubDate,
-      title: title,
-      description: description,
-      link: link,
-      image: image
+      podcastId: existingEpisode?.podcastId,
+      media: media ?? existingEpisode?.media,
+      pubDate: pubDate ?? existingEpisode?.pubDate,
+      title: title ?? existingEpisode?.title,
+      description: description ?? existingEpisode?.description,
+      link: link ?? existingEpisode?.link,
+      image: image ?? existingEpisode?.image
     )
   }
 
-  func toUnsavedEpisode(mergingOld oldEpisode: Episode?) -> UnsavedEpisode {
-    guard let oldEpisode else { return toUnsavedEpisode() }
-    return UnsavedEpisode(
-      guid: guid,
-      media: media ?? oldEpisode.media,
-      pubDate: pubDate ?? oldEpisode.pubDate,
-      title: title ?? oldEpisode.title,
-      description: description ?? oldEpisode.description,
-      link: link ?? oldEpisode.link,
-      image: image ?? oldEpisode.image
+  func toEpisode(mergingExisting existingEpisode: Episode) -> Episode {
+    Episode(
+      id: existingEpisode.id,
+      from: toUnsavedEpisode(mergingExisting: existingEpisode)
     )
   }
 
@@ -125,12 +125,23 @@ struct PodcastFeed: Sendable, Equatable {
     )
   }
 
-  func toPodcast(mergingOld oldPodcast: Podcast) -> Podcast? {
-    guard let unsavedPodcast = toUnsavedPodcast(
-      oldFeedURL: oldPodcast.feedURL,
-      oldTitle: oldPodcast.title
-    ) else { return nil }
-    return Podcast(id: oldPodcast.id, from: unsavedPodcast)
+  func toUnsavedPodcast(mergingExisting existingPodcast: Podcast)
+    -> UnsavedPodcast?
+  {
+    try? UnsavedPodcast(
+      feedURL: feedURL ?? existingPodcast.feedURL,
+      title: title ?? existingPodcast.title,
+      link: link ?? existingPodcast.link,
+      image: image ?? existingPodcast.image,
+      description: description ?? existingPodcast.description
+    )
+  }
+
+  func toPodcast(mergingExisting existingPodcast: Podcast) -> Podcast? {
+    guard
+      let unsavedPodcast = toUnsavedPodcast(mergingExisting: existingPodcast)
+    else { return nil }
+    return Podcast(id: existingPodcast.id, from: unsavedPodcast)
   }
 
   var feedURL: URL? {

@@ -14,9 +14,14 @@ import SwiftUI
   func callAsFunction(
     _ message: String,
     title: String = "Error",
+    report: String? = nil,
     actions: OrderedDictionary<String, () -> Void> = ["Ok": {}]
   ) {
-    report(message, title: title)
+    if let report = report {
+      self.report(message + " and report: \"\(report)\"", title: title)
+    } else {
+      self.report(message, title: title)
+    }
     config = AlertConfig(
       title: title,
       actions: {

@@ -42,6 +42,23 @@ struct PodcastRepository: Sendable {
     }
   }
 
+  func insertSeries(
+    _ podcast: Podcast,
+    unsavedEpisodes: [UnsavedEpisode] = [],
+    existingEpisodes: [Episode] = []
+  ) async throws {
+    try await appDatabase.db.write { db in
+      try podcast.update(db)
+      for existingEpisode in existingEpisodes {
+        try existingEpisode.update(db)
+      }
+      for var unsavedEpisode in unsavedEpisodes {
+        unsavedEpisode.podcastId = podcast.id
+        try unsavedEpisode.insert(db)
+      }
+    }
+  }
+
   // MARK: - Podcast Writers
 
   @discardableResult
