@@ -15,5 +15,8 @@ struct Preview<Content: View>: View {
   var body: some View {
     content
       .customAlert($alert.config)
+      .task {
+        await DB.shared.observePodcasts()
+      }
   }
 }

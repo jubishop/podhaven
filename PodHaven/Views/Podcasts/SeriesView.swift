@@ -39,7 +39,7 @@ struct SeriesView: View {
       )
     }
     .task {
-      await viewModel.observePodcasts()
+      await viewModel.observePodcast()
     }
   }
 }

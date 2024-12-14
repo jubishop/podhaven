@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2024
 
 import GRDB
+import IdentifiedCollections
 import NukeUI
 import SwiftUI
 
@@ -74,7 +75,7 @@ struct PodcastThumbnail: View {
 }
 
 struct ThumbnailGrid: View {
-  let podcasts: [Podcast]
+  let podcasts: PodcastArray
   private let numberOfColumns = 3
 
   var body: some View {
@@ -95,7 +96,9 @@ struct ThumbnailGrid: View {
 }
 
 #Preview {
-  @Previewable @State var podcasts: [Podcast] = []
+  @Previewable @State var podcasts: PodcastArray = IdentifiedArray(
+    id: \Podcast.feedURL
+  )
 
   Preview {
     ThumbnailGrid(podcasts: podcasts)
@@ -108,9 +111,12 @@ struct ThumbnailGrid: View {
             fetchedPodcasts[0].image = nil
             fetchedPodcasts[1].image = URL(string: "http://nope.com/0.jpg")!
           }
-          podcasts = Array(fetchedPodcasts.prefix(12))
+          podcasts = IdentifiedArray(
+            uniqueElements: fetchedPodcasts.prefix(12),
+            id: \Podcast.feedURL
+          )
         } catch {
-          fatalError("Couldn't modify podcasts: \(error)")
+          fatalError("Couldn't preview podcast grid: \(error)")
         }
       }
   }

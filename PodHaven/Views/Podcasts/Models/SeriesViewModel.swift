@@ -41,7 +41,7 @@ import IdentifiedCollections
     }
   }
 
-  func observePodcasts() async {
+  func observePodcast() async {
     do {
       let observer =
         ValueObservation

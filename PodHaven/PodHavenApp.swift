@@ -12,6 +12,7 @@ struct PodHavenApp: App {
         .customAlert($alert.config)
         .task {
           await PlayManager.configureAudioSession()
+          await DB.shared.observePodcasts()
         }
     }
   }

@@ -1,13 +1,16 @@
 // Copyright Justin Bishop, 2024
 
 import Foundation
+import IdentifiedCollections
 
 extension Array {
   public init(capacity: Int) {
     self.init()
     self.reserveCapacity(capacity)
   }
+}
 
+extension IdentifiedArray {
   func chunked(size: Int) -> [[Element]] {
     guard size > 0, count > 0 else { return [] }
 

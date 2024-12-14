@@ -13,16 +13,11 @@ struct PodcastRepository: Sendable {
   static let shared = PodcastRepository(.shared)
 
   var db: any DatabaseReader { appDatabase.db }
-  let observer: SharedValueObservation<[Podcast]>
+
   private let appDatabase: AppDatabase
 
   private init(_ appDatabase: AppDatabase) {
     self.appDatabase = appDatabase
-    self.observer =
-      ValueObservation
-      .tracking(Podcast.fetchAll)
-      .removeDuplicates()
-      .shared(in: appDatabase.db)
   }
 
   // MARK: - Series Writers
