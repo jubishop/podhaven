@@ -12,12 +12,12 @@ struct PodcastRepository: Sendable {
 
   static let shared = PodcastRepository(.shared)
 
-  var db: any DatabaseReader { appDatabase.db }
+  var db: any DatabaseReader { appDB.db }
 
-  private let appDatabase: AppDatabase
+  private let appDB: AppDB
 
-  private init(_ appDatabase: AppDatabase) {
-    self.appDatabase = appDatabase
+  private init(_ appDB: AppDB) {
+    self.appDB = appDB
   }
 
   // MARK: - Series Writers
@@ -27,7 +27,7 @@ struct PodcastRepository: Sendable {
     _ unsavedPodcast: UnsavedPodcast,
     unsavedEpisodes: [UnsavedEpisode] = []
   ) async throws -> Podcast {
-    try await appDatabase.db.write { db in
+    try await appDB.db.write { db in
       let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
       for var unsavedEpisode in unsavedEpisodes {
         unsavedEpisode.podcastId = podcast.id
@@ -42,7 +42,7 @@ struct PodcastRepository: Sendable {
     unsavedEpisodes: [UnsavedEpisode] = [],
     existingEpisodes: [Episode] = []
   ) async throws {
-    try await appDatabase.db.write { db in
+    try await appDB.db.write { db in
       try podcast.update(db)
       for existingEpisode in existingEpisodes {
         try existingEpisode.update(db)
@@ -62,7 +62,7 @@ struct PodcastRepository: Sendable {
   }
 
   func delete(_ podcast: Podcast) async throws -> Bool {
-    try await appDatabase.db.write { db in
+    try await appDB.db.write { db in
       try podcast.delete(db)
     }
   }

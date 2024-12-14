@@ -3,16 +3,16 @@
 import Foundation
 import GRDB
 
-final class AppDatabase: Sendable {
+final class AppDB: Sendable {
   #if DEBUG
-    static func empty() -> AppDatabase {
+    static func empty() -> AppDB {
       do {
         let dbQueue = try DatabaseQueue(
           configuration: makeConfiguration()
         )
-        return try AppDatabase(dbQueue)
+        return try AppDB(dbQueue)
       } catch {
-        fatalError("Failed to initialize empty AppDatabase: \(error)")
+        fatalError("Failed to initialize empty AppDB: \(error)")
       }
     }
   #endif
@@ -23,9 +23,9 @@ final class AppDatabase: Sendable {
         path: URL.documentsDirectory.appendingPathComponent("db.sqlite").path,
         configuration: makeConfiguration()
       )
-      return try AppDatabase(dbPool)
+      return try AppDB(dbPool)
     } catch {
-      fatalError("Failed to initialize shared AppDatabase: \(error)")
+      fatalError("Failed to initialize shared AppDB: \(error)")
     }
   }()
 

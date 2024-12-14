@@ -19,7 +19,7 @@ struct SettingsView: View {
           Section("Debugging") {
             Button("Clear DB") {
               Task {
-                try AppDatabase.shared.db.write { db in
+                try AppDB.shared.db.write { db in
                   try Podcast.deleteAll(db)
                 }
               }
