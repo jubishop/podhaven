@@ -55,7 +55,6 @@ import IdentifiedCollections
         .removeDuplicates()
 
       for try await podcastSeries in observer.values(in: Repo.shared.db) {
-        guard self.podcastSeries != podcastSeries else { return }
         guard let podcastSeries = podcastSeries else {
           Alert.shared("No return from DB for podcast: \(podcast.toString)")
           return

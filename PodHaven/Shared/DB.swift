@@ -8,11 +8,20 @@ import Semaphore
 typealias PodcastArray = IdentifiedArray<URL, Podcast>
 
 @Observable @MainActor final class DB: Sendable {
-  static let shared = DB()
+  #if DEBUG
+    static func empty() -> DB { DB(.empty()) }
+  #endif
+
+  static let shared = DB(.shared)
 
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
   private let semaphore = AsyncSemaphore(value: 1)
+  private let appDB: AppDB
+
+  init(_ appDB: AppDB) {
+    self.appDB = appDB
+  }
 
   func observePodcasts() async {
     await semaphore.wait()
@@ -25,10 +34,7 @@ typealias PodcastArray = IdentifiedArray<URL, Podcast>
       .removeDuplicates()
 
     do {
-      for try await podcasts in observer.values(in: Repo.shared.db)
-      {
-        print("got podcasts: \(podcasts)")
-        guard self.podcasts != podcasts else { return }
+      for try await podcasts in observer.values(in: appDB.db) {
         self.podcasts = podcasts
       }
     } catch {

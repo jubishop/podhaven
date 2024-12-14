@@ -9,9 +9,11 @@ import Testing
 @Suite("of Podcast model tests")
 actor PodcastTests {
   private let repo: Repo
-
-  init() {
-    repo = Repo.empty()
+  private let db: DB
+  init() async {
+    let appDB: AppDB = .empty()
+    repo = Repo.init(appDB)
+    db = await DB.init(appDB)
   }
 
   @Test("that a podcast can be created, fetched, and deleted")
@@ -111,11 +113,11 @@ actor PodcastTests {
 
   @Test("that podcasts are successfully observed")
   func observePodcasts() async throws {
-    Task { await DB.shared.observePodcasts() }
+    Task { await db.observePodcasts() }
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
     _ = try await repo.insert(unsavedPodcast)
     try await Task.sleep(for: .milliseconds(50))
-    #expect((await DB.shared.podcasts.count) == 1)
+    #expect((await db.podcasts.count) == 1)
   }
 }

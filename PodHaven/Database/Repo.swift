@@ -5,9 +5,7 @@ import GRDB
 
 struct Repo: Sendable {
   #if DEBUG
-    static func empty() -> Repo {
-      Repo(.empty())
-    }
+    static func empty() -> Repo { Repo(.empty()) }
   #endif
 
   static let shared = Repo(.shared)
@@ -16,7 +14,7 @@ struct Repo: Sendable {
 
   private let appDB: AppDB
 
-  private init(_ appDB: AppDB) {
+  init(_ appDB: AppDB) {
     self.appDB = appDB
   }
 
