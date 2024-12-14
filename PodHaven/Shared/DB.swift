@@ -15,6 +15,8 @@ typealias PodcastArray = IdentifiedArray<URL, Podcast>
 
   func observePodcasts() async {
     guard !observing else { return }
+    defer { observing = false }
+    observing = true
 
     let observer =
       ValueObservation.tracking { db in
@@ -23,15 +25,15 @@ typealias PodcastArray = IdentifiedArray<URL, Podcast>
       .removeDuplicates()
 
     do {
-      observing = true
       for try await podcasts in observer.values(in: PodcastRepository.shared.db)
       {
         guard self.podcasts != podcasts else { return }
         self.podcasts = podcasts
       }
     } catch {
-      observing = false
-      Alert.shared("Error thrown while observing podcast database")
+      if !Task.isCancelled {
+        Alert.shared("Error thrown while observing podcast database")
+      }
     }
   }
 }
