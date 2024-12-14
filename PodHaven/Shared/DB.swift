@@ -3,6 +3,7 @@
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Semaphore
 
 typealias PodcastArray = IdentifiedArray<URL, Podcast>
 
@@ -11,12 +12,11 @@ typealias PodcastArray = IdentifiedArray<URL, Podcast>
 
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
-  private var observing = false
+  private let semaphore = AsyncSemaphore(value: 1)
 
   func observePodcasts() async {
-    guard !observing else { return }
-    defer { observing = false }
-    observing = true
+    await semaphore.wait()
+    defer { semaphore.signal() }
 
     let observer =
       ValueObservation.tracking { db in
@@ -31,9 +31,7 @@ typealias PodcastArray = IdentifiedArray<URL, Podcast>
         self.podcasts = podcasts
       }
     } catch {
-      if !Task.isCancelled {
-        Alert.shared("Error thrown while observing podcast database")
-      }
+      Alert.shared("Error thrown while observing podcast database")
     }
   }
 }

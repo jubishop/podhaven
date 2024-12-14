@@ -14,6 +14,7 @@
 		8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DEE2D01722E00742C6C /* Nuke */; };
 		8B9E8DF12D01722E00742C6C /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DF02D01722E00742C6C /* NukeUI */; };
 		8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */; };
+		8BE319E92D0E22D8009F48C9 /* Semaphore in Frameworks */ = {isa = PBXBuildFile; productRef = 8BE319E82D0E22D8009F48C9 /* Semaphore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -68,6 +69,7 @@
 				8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */,
 				8B9E8DF12D01722E00742C6C /* NukeUI in Frameworks */,
 				8B14BBE32D0CB37A0007E89B /* IdentifiedCollections in Frameworks */,
+				8BE319E92D0E22D8009F48C9 /* Semaphore in Frameworks */,
 				8B7975E72CFEC28C00412AA1 /* FeedKit in Frameworks */,
 				8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */,
 			);
@@ -129,6 +131,7 @@
 				8B9E8DEE2D01722E00742C6C /* Nuke */,
 				8B9E8DF02D01722E00742C6C /* NukeUI */,
 				8B14BBE22D0CB37A0007E89B /* IdentifiedCollections */,
+				8BE319E82D0E22D8009F48C9 /* Semaphore */,
 			);
 			productName = PodHaven;
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
@@ -192,6 +195,7 @@
 				8BAF45892CFEC2770056EA7B /* XCRemoteSwiftPackageReference "FeedKit" */,
 				8B950BDB2D01720500E1D1AF /* XCRemoteSwiftPackageReference "Nuke" */,
 				8B14BBE12D0CB37A0007E89B /* XCRemoteSwiftPackageReference "swift-identified-collections" */,
+				8BE319E72D0E22D8009F48C9 /* XCRemoteSwiftPackageReference "Semaphore" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8BD7F9212CF2A49000CEDAA7 /* Products */;
@@ -563,6 +567,14 @@
 				kind = branch;
 			};
 		};
+		8BE319E72D0E22D8009F48C9 /* XCRemoteSwiftPackageReference "Semaphore" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/Semaphore";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -600,6 +612,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8B2C9E5F2CF59FA800637544 /* XCRemoteSwiftPackageReference "swift-collections" */;
 			productName = OrderedCollections;
+		};
+		8BE319E82D0E22D8009F48C9 /* Semaphore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8BE319E72D0E22D8009F48C9 /* XCRemoteSwiftPackageReference "Semaphore" */;
+			productName = Semaphore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
