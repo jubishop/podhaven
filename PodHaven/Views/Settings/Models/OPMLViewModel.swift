@@ -159,7 +159,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
             oldFeedURL: outline.feedURL,
             oldTitle: outline.text
           ),
-          (try? await PodcastRepository.shared.insertSeries(
+          (try? await Repo.shared.insertSeries(
             unsavedPodcast,
             unsavedEpisodes: feedResult.feed.items.map { $0.toUnsavedEpisode() }
           )) != nil

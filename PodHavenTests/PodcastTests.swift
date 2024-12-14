@@ -8,10 +8,10 @@ import Testing
 
 @Suite("of Podcast model tests")
 actor PodcastTests {
-  private let repository: PodcastRepository
+  private let repo: Repo
 
   init() {
-    repository = PodcastRepository.empty()
+    repo = Repo.empty()
   }
 
   @Test("that a podcast can be created, fetched, and deleted")
@@ -19,46 +19,46 @@ actor PodcastTests {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
-    let podcast = try await repository.insert(unsavedPodcast)
+    let podcast = try await repo.insert(unsavedPodcast)
     #expect(podcast.title == unsavedPodcast.title)
 
-    let fetchedPodcast = try await repository.db.read { [podcast] db in
+    let fetchedPodcast = try await repo.db.read { [podcast] db in
       try Podcast.filter(id: podcast.id).fetchOne(db)
     }
     #expect(fetchedPodcast == podcast)
 
-    let urlFilteredPodcast = try await repository.db.read { db in
+    let urlFilteredPodcast = try await repo.db.read { db in
       try Podcast.filter(key: ["feedURL": url]).fetchOne(db)
     }
     #expect(urlFilteredPodcast == podcast)
 
-    let fetchedAllPodcasts = try await repository.db.read { db in
+    let fetchedAllPodcasts = try await repo.db.read { db in
       try Podcast.fetchAll(db)
     }
     #expect(fetchedAllPodcasts == [podcast])
 
-    try await repository.db.read { [podcast] db in
+    try await repo.db.read { [podcast] db in
       let exists = try podcast.exists(db)
       #expect(exists)
     }
-    let deleted = try await repository.delete(podcast)
+    let deleted = try await repo.delete(podcast)
     #expect(deleted)
-    try await repository.db.read { [podcast] db in
+    try await repo.db.read { [podcast] db in
       let exists = try podcast.exists(db)
       #expect(!exists)
     }
 
-    let noPodcasts = try await repository.db.read { db in
+    let noPodcasts = try await repo.db.read { db in
       try Podcast.fetchAll(db)
     }
     #expect(noPodcasts.isEmpty)
 
-    let allCount = try await repository.db.read { db in
+    let allCount = try await repo.db.read { db in
       try Podcast.fetchCount(db)
     }
     #expect(allCount == 0)
 
-    let titleCount = try await repository.db.read { [podcast] db in
+    let titleCount = try await repo.db.read { [podcast] db in
       try Podcast.filter(Column("title") == podcast.title).fetchCount(db)
     }
     #expect(titleCount == 0)
@@ -68,7 +68,7 @@ actor PodcastTests {
   func failToInsertInvalidFeedURL() async throws {
     // Bad scheme
     await #expect(throws: URLError.self) {
-      try await repository.insert(
+      try await repo.insert(
         UnsavedPodcast(
           feedURL: URL(string: "file://example.com/data")!,
           title: "Title"
@@ -78,7 +78,7 @@ actor PodcastTests {
 
     // Not absolute
     await #expect(throws: URLError.self) {
-      try await repository.insert(
+      try await repo.insert(
         UnsavedPodcast(
           feedURL: URL(string: "https:/path/to/data")!,
           title: "Title"
@@ -91,7 +91,7 @@ actor PodcastTests {
   func convertFeedURLToHTTPS() async throws {
     let url = URL(string: "http://example.com/data#fragment")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    let podcast = try await self.repository.insert(unsavedPodcast)
+    let podcast = try await repo.insert(unsavedPodcast)
     #expect(podcast.feedURL == URL(string: "https://example.com/data")!)
   }
 
@@ -99,11 +99,11 @@ actor PodcastTests {
   func updateExistingPodcastOnConflict() async throws {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    _ = try await self.repository.insert(unsavedPodcast)
+    _ = try await repo.insert(unsavedPodcast)
     let unsavedPodcast2 = try UnsavedPodcast(feedURL: url, title: "New Title")
-    _ = try await self.repository.insert(unsavedPodcast2)
+    _ = try await repo.insert(unsavedPodcast2)
 
-    let fetchedPodcast = try await repository.db.read { db in
+    let fetchedPodcast = try await repo.db.read { db in
       try Podcast.filter(key: ["feedURL": url]).fetchOne(db)
     }
     #expect(fetchedPodcast?.title == "New Title")
@@ -111,17 +111,11 @@ actor PodcastTests {
 
   @Test("that podcasts are successfully observed")
   func observePodcasts() async throws {
-    let podcastCounter = Counter()
-    let task = Task {
-      for try await podcasts in repository.observer.values() {
-        await podcastCounter(podcasts.count)
-      }
-    }
+    Task { await DB.shared.observePodcasts() }
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    _ = try await repository.insert(unsavedPodcast)
-    try await Task.sleep(for: .milliseconds(10))
-    #expect(await podcastCounter.value == 1)
-    task.cancel()
+    _ = try await repo.insert(unsavedPodcast)
+    try await Task.sleep(for: .milliseconds(50))
+    #expect((await DB.shared.podcasts.count) == 1)
   }
 }

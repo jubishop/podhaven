@@ -3,14 +3,14 @@
 import Foundation
 import GRDB
 
-struct PodcastRepository: Sendable {
+struct Repo: Sendable {
   #if DEBUG
-    static func empty() -> PodcastRepository {
-      PodcastRepository(.empty())
+    static func empty() -> Repo {
+      Repo(.empty())
     }
   #endif
 
-  static let shared = PodcastRepository(.shared)
+  static let shared = Repo(.shared)
 
   var db: any DatabaseReader { appDB.db }
 

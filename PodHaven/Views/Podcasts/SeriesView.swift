@@ -48,7 +48,7 @@ struct SeriesView: View {
   struct SeriesViewPreview: View {
     let podcast: Podcast
     init() {
-      self.podcast = try! PodcastRepository.shared.db.read { db in
+      self.podcast = try! Repo.shared.db.read { db in
         try! Podcast.fetchOne(db)!
       }
     }

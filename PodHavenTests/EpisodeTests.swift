@@ -8,10 +8,10 @@ import Testing
 
 @Suite("of Episode model tests")
 actor EpisodeTests {
-  private let repository: PodcastRepository
+  private let repo: Repo
 
   init() {
-    repository = PodcastRepository.empty()
+    repo = Repo.empty()
   }
 
   @Test("that episodes are created and fetched in the right order")
@@ -29,14 +29,14 @@ actor EpisodeTests {
       pubDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())
     )
 
-    try await repository.insertSeries(
+    try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
         middleUnsavedEpisode, oldestUnsavedEpisode, newestUnsavedEpisode,
       ]
     )
 
-    let podcastSeries = try await repository.db.read { db in
+    let podcastSeries = try await repo.db.read { db in
       try Podcast
         .filter(key: ["feedURL": url])
         .including(all: Podcast.episodes)

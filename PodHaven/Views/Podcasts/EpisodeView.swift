@@ -34,7 +34,7 @@ struct EpisodeView: View {
   struct EpisodeViewPreview: View {
     let podcastEpisode: PodcastEpisode
     init() {
-      self.podcastEpisode = try! PodcastRepository.shared.db.read { db in
+      self.podcastEpisode = try! Repo.shared.db.read { db in
         try! Episode
           .including(required: Episode.podcast)
           .shuffled()

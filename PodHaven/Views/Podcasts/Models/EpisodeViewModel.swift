@@ -25,9 +25,7 @@ import GRDB
         )
         .removeDuplicates()
 
-      for try await podcastEpisode in observer.values(
-        in: PodcastRepository.shared.db
-      ) {
+      for try await podcastEpisode in observer.values(in: Repo.shared.db) {
         guard self.podcastEpisode != podcastEpisode else { return }
         guard let podcastEpisode = podcastEpisode else {
           Alert.shared(

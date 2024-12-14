@@ -74,7 +74,7 @@ struct PlayBar: View {
   struct PlayBarPreview: View {
     init() {
       Task {
-        let podcastEpisode = try! await PodcastRepository.shared.db.read { db in
+        let podcastEpisode = try! await Repo.shared.db.read { db in
           try! Episode
             .including(required: Episode.podcast)
             .shuffled()

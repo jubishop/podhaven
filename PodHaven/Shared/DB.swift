@@ -25,8 +25,9 @@ typealias PodcastArray = IdentifiedArray<URL, Podcast>
       .removeDuplicates()
 
     do {
-      for try await podcasts in observer.values(in: PodcastRepository.shared.db)
+      for try await podcasts in observer.values(in: Repo.shared.db)
       {
+        print("got podcasts: \(podcasts)")
         guard self.podcasts != podcasts else { return }
         self.podcasts = podcasts
       }

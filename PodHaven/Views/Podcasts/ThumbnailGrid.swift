@@ -104,7 +104,7 @@ struct ThumbnailGrid: View {
     ThumbnailGrid(podcasts: podcasts)
       .task {
         do {
-          var fetchedPodcasts = try PodcastRepository.shared.db.read { db in
+          var fetchedPodcasts = try Repo.shared.db.read { db in
             try Podcast.fetchAll(db)
           }
           if fetchedPodcasts.count > 2 {

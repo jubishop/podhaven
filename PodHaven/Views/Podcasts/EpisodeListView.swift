@@ -19,7 +19,7 @@ struct EpisodeListView: View {
   struct EpisodeListViewPreview: View {
     let episode: Episode
     init() {
-      self.episode = try! PodcastRepository.shared.db.read { db in
+      self.episode = try! Repo.shared.db.read { db in
         try! Episode.fetchOne(db)!
       }
     }
