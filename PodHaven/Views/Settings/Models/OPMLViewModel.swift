@@ -107,17 +107,26 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
   private func downloadOPMLFile(_ opml: OPML) {
     let opmlFile = OPMLFile(title: opml.title ?? "Podcast Subscriptions")
+
     for entry in opml.entries {
       guard let feedURL = entry.feedURL,
-        let validURL = try? feedURL.convertToValidURL()
+        let feedURL = try? feedURL.convertToValidURL()
       else {
         opmlFile.failed.insert(OPMLOutline(status: .failed, text: entry.text))
         continue
       }
+
+      if DB.shared.podcasts[id: feedURL] != nil {
+        opmlFile.finished.insert(
+          OPMLOutline(status: .finished, text: entry.text)
+        )
+        continue
+      }
+
       opmlFile.waiting.insert(
         OPMLOutline(
           status: .waiting,
-          feedURL: validURL,
+          feedURL: feedURL,
           text: entry.text
         )
       )
