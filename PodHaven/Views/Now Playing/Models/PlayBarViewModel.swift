@@ -5,19 +5,18 @@ import SwiftUI
 
 @Observable @MainActor final class PlayBarViewModel {
   var barWidth: CGFloat = 0
-  var isDragging: Bool = false
+  var isDragging = false
 
   private var _sliderValue: Double = 0
   var sliderValue: Double {
     get {
-      self.isDragging
-        ? self._sliderValue : PlayState.shared.currentTime.seconds
+      isDragging ? _sliderValue : PlayState.shared.currentTime.seconds
     }
     set {
       self._sliderValue = newValue
       Task { @PlayManager in
         await PlayManager.shared.seek(
-          to: PlayManager.CMTime(seconds: self._sliderValue)
+          to: PlayManager.CMTime(seconds: _sliderValue)
         )
       }
     }

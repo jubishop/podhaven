@@ -149,8 +149,15 @@ final actor PlayManager: Sendable {
 
   func seek(to time: CMTime) async {
     guard !isLoading, isActive else { return }
-    await avPlayer.seek(to: time)
+    removeTimeObserver()
     await setCurrentTime(time)
+    avPlayer.seek(to: time) { [unowned self] completed in
+      if completed {
+        Task { @PlayManager in
+          await self.addTimeObserver()
+        }
+      }
+    }
   }
 
   // MARK: - Private Methods
@@ -203,22 +210,30 @@ final actor PlayManager: Sendable {
       }
     )
 
+    addTimeObserver()
+  }
+
+  private func removeObservers() {
+    removeTimeObserver()
+    for keyValueObserver in keyValueObservers {
+      keyValueObserver.invalidate()
+    }
+    keyValueObservers = []
+  }
+
+  private func removeTimeObserver() {
+    if let timeObserver = timeObserver {
+      avPlayer.removeTimeObserver(timeObserver)
+      self.timeObserver = nil
+    }
+  }
+
+  private func addTimeObserver() {
     timeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: Self.CMTime(seconds: 1),
       queue: .global(qos: .utility)
     ) { currentTime in
       Task { [unowned self] in await self.setCurrentTime(currentTime) }
     }
-  }
-
-  private func removeObservers() {
-    if let timeObserver = timeObserver {
-      avPlayer.removeTimeObserver(timeObserver)
-      self.timeObserver = nil
-    }
-    for keyValueObserver in keyValueObservers {
-      keyValueObserver.invalidate()
-    }
-    keyValueObservers = []
   }
 }
