@@ -15,3 +15,6 @@ playground.xcworkspace
 
 # Building
 .build/
+
+# Sentry
+.sentryclirc

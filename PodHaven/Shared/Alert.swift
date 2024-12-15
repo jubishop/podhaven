@@ -2,6 +2,7 @@
 
 import Foundation
 import OrderedCollections
+import Sentry
 import SwiftUI
 
 @Observable @MainActor final class Alert: Sendable {
@@ -22,7 +23,7 @@ import SwiftUI
     if let report = report {
       message += "; with report: \"\(report)\""
     }
-    self.report(message, error: error, title: title)
+    self.report(message, error: error)
 
     config = AlertConfig(
       title: title,
@@ -37,12 +38,10 @@ import SwiftUI
     )
   }
 
-  func report(_ message: String, error: Error? = nil, title: String = "Error") {
-    // TODO: Send this to Sentry
-    var message = message
+  func report(_ message: String, error: Error? = nil) {
+    SentrySDK.capture(message: message)
     if let error = error {
-      message += "; with error: \"\(error)\""
+      SentrySDK.capture(error: error)
     }
-    print("Reporting with title: \"\(title)\", message: \"\(message)\"")
   }
 }
