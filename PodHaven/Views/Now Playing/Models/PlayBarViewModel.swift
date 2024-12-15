@@ -9,9 +9,7 @@ import SwiftUI
 
   private var _sliderValue: Double = 0
   var sliderValue: Double {
-    get {
-      isDragging ? _sliderValue : PlayState.shared.currentTime.seconds
-    }
+    get { isDragging ? _sliderValue : PlayState.shared.currentTime.seconds }
     set {
       self._sliderValue = newValue
       Task { @PlayManager in
