@@ -84,10 +84,14 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   }
 
   func importOPMLFile(_ url: URL) -> OPML? {
-    guard let opml = try? OPML(file: url) else {
-      Alert.shared("Couldn't parse OPML file")
+    let opml: OPML
+    do {
+      opml = try OPML(file: url)
+    } catch {
+      Alert.shared("Couldn't parse OPML file", error: error)
       return nil
     }
+
     if opml.entries.isEmpty {
       Alert.shared("OPML file has no subscriptions")
       return nil
@@ -108,6 +112,14 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   private func downloadOPMLFile(_ opml: OPML) {
     let opmlFile = OPMLFile(title: opml.title ?? "Podcast Subscriptions")
 
+    let allPodcasts: PodcastArray
+    do {
+      allPodcasts = try Repo.shared.allPodcasts()
+    } catch {
+      Alert.shared("Could not fetch podcasts for deduping", error: error)
+      return
+    }
+
     for entry in opml.entries {
       guard let feedURL = entry.feedURL,
         let feedURL = try? feedURL.convertToValidURL()
@@ -116,7 +128,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         continue
       }
 
-      if DB.shared.podcasts[id: feedURL] != nil {
+      if allPodcasts[id: feedURL] != nil {
         opmlFile.finished.insert(
           OPMLOutline(status: .finished, text: entry.text)
         )

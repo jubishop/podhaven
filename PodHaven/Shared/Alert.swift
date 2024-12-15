@@ -15,13 +15,15 @@ import SwiftUI
     _ message: String,
     title: String = "Error",
     report: String? = nil,
+    error: Error? = nil,
     actions: OrderedDictionary<String, () -> Void> = ["Ok": {}]
   ) {
+    var message = message
     if let report = report {
-      self.report(message + " and report: \"\(report)\"", title: title)
-    } else {
-      self.report(message, title: title)
+      message += "; with report: \"\(report)\""
     }
+    self.report(message, error: error, title: title)
+
     config = AlertConfig(
       title: title,
       actions: {
@@ -35,8 +37,12 @@ import SwiftUI
     )
   }
 
-  func report(_ message: String, title: String = "Error") {
+  func report(_ message: String, error: Error? = nil, title: String = "Error") {
     // TODO: Send this to Sentry
+    var message = message
+    if let error = error {
+      message += "; with error: \"\(error)\""
+    }
     print("Reporting with title: \"\(title)\", message: \"\(message)\"")
   }
 }

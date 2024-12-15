@@ -2,6 +2,9 @@
 
 import Foundation
 import GRDB
+import IdentifiedCollections
+
+typealias PodcastArray = IdentifiedArray<URL, Podcast>
 
 struct Repo: Sendable {
   #if DEBUG
@@ -13,9 +16,25 @@ struct Repo: Sendable {
   var db: any DatabaseReader { appDB.db }
 
   private let appDB: AppDB
+  let observer: SharedValueObservation<PodcastArray>
 
   init(_ appDB: AppDB) {
     self.appDB = appDB
+    self.observer =
+      ValueObservation
+      .tracking { db in
+        try Podcast.all().fetchIdentifiedArray(db, id: \Podcast.feedURL)
+      }
+      .removeDuplicates()
+      .shared(in: appDB.db)
+  }
+
+  // MARK: - Readers
+
+  func allPodcasts() throws -> PodcastArray {
+    try appDB.db.read { db in
+      try Podcast.all().fetchIdentifiedArray(db, id: \Podcast.feedURL)
+    }
   }
 
   // MARK: - Series Writers
