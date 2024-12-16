@@ -60,6 +60,7 @@ final class PlayManager: Sendable {
       if newValue != _isPlaying {
         _isPlaying = newValue
         Task { @MainActor in PlayState.shared.isPlaying = newValue }
+        Task { @MPActor in MPTransport.shared.isPlaying = newValue }
       }
     }
   }

@@ -29,6 +29,11 @@ final class MPTransport {
     return podcastEpisode.podcast
   }
 
+  var isPlaying: Bool {
+    get { infoCenter.playbackState == .playing }
+    set { infoCenter.playbackState = newValue ? .playing : .stopped }
+  }
+
   func onDeck(_ podcastEpisode: PodcastEpisode) {
     self.podcastEpisode = podcastEpisode
 
