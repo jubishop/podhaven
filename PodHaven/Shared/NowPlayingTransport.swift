@@ -4,15 +4,15 @@ import Foundation
 import MediaPlayer
 
 @globalActor
-final actor MPActor { static let shared = MPActor() }
+final actor NowPlayingActor { static let shared = NowPlayingActor() }
 
-@MPActor
-final class MPTransport {
+@NowPlayingActor
+final class NowPlayingTransport {
   // MARK: - Static Methods
 
-  static let shared = MPTransport()
+  static let shared = NowPlayingTransport()
 
-  static func configureMediaPlayer() async {
+  static func configureNowPlayingInfoCenter() async {
     MPNowPlayingInfoCenter.default().playbackState = .stopped
   }
 

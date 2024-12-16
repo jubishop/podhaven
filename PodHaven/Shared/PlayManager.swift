@@ -50,7 +50,9 @@ final class PlayManager: Sendable {
       if newValue != _isLoading {
         _isLoading = newValue
         Task { @MainActor in PlayState.shared.isLoading = newValue }
-        Task { @MPActor in MPTransport.shared.isLoading = newValue }
+        Task { @NowPlayingActor in
+          NowPlayingTransport.shared.isLoading = newValue
+        }
       }
     }
   }
@@ -61,7 +63,9 @@ final class PlayManager: Sendable {
       if newValue != _isPlaying {
         _isPlaying = newValue
         Task { @MainActor in PlayState.shared.isPlaying = newValue }
-        Task { @MPActor in MPTransport.shared.isPlaying = newValue }
+        Task { @NowPlayingActor in
+          NowPlayingTransport.shared.isPlaying = newValue
+        }
       }
     }
   }
@@ -79,7 +83,9 @@ final class PlayManager: Sendable {
         }
         _isActive = newValue
         Task { @MainActor in PlayState.shared.isActive = newValue }
-        Task { @MPActor in MPTransport.shared.isActive = newValue }
+        Task { @NowPlayingActor in
+          NowPlayingTransport.shared.isActive = newValue
+        }
       }
     }
   }
@@ -168,12 +174,18 @@ final class PlayManager: Sendable {
 
   private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
     await Task { @MainActor in PlayState.shared.onDeck = podcastEpisode }.value
-    await Task { @MPActor in MPTransport.shared.onDeck(podcastEpisode) }.value
+    await Task { @NowPlayingActor in
+      NowPlayingTransport.shared.onDeck(podcastEpisode)
+    }
+    .value
   }
 
   private func setDuration(_ duration: CMTime) async {
     await Task { @MainActor in PlayState.shared.duration = duration }.value
-    await Task { @MPActor in MPTransport.shared.duration(duration) }.value
+    await Task { @NowPlayingActor in
+      NowPlayingTransport.shared.duration(duration)
+    }
+    .value
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
