@@ -167,7 +167,6 @@ final class PlayManager: Sendable {
   private func reset(from error: Error?) {
     stop()
     avPlayer = AVPlayer()
-    avPlayer.actionAtItemEnd = .advance
     avPlayerItem = AVPlayerItem(url: URL.placeholder)
     Task { @MainActor in
       Alert.shared("Playback status failure: \(String(describing: error))")
