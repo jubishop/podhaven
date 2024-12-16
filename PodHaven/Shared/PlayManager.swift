@@ -85,7 +85,6 @@ final class PlayManager: Sendable {
 
   private var avPlayer = AVPlayer()
   private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
-  private var keyValueObservers: [NSKeyValueObservation] = []
   private var timeObserver: Any?
   init() {}
 
@@ -192,37 +191,11 @@ final class PlayManager: Sendable {
 
   private func addObservers() {
     removeObservers()
-
-    keyValueObservers.append(
-      avPlayerItem.observe(
-        \.status,
-        options: [.initial, .new]
-      ) { [unowned self] _, change in
-        if change.newValue == .failed {
-          Task { await reset(from: avPlayerItem.error) }
-        }
-      }
-    )
-    keyValueObservers.append(
-      avPlayer.observe(
-        \.status,
-        options: [.initial, .new]
-      ) { [unowned self] _, change in
-        if change.newValue == .failed {
-          Task { await reset(from: avPlayer.error) }
-        }
-      }
-    )
-
     addTimeObserver()
   }
 
   private func removeObservers() {
     removeTimeObserver()
-    for keyValueObserver in keyValueObservers {
-      keyValueObserver.invalidate()
-    }
-    keyValueObservers = []
   }
 
   private func removeTimeObserver() {
