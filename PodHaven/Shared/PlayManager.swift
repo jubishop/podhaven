@@ -50,6 +50,7 @@ final class PlayManager: Sendable {
       if newValue != _isLoading {
         _isLoading = newValue
         Task { @MainActor in PlayState.shared.isLoading = newValue }
+        Task { @MPActor in MPTransport.shared.isLoading = newValue }
       }
     }
   }
@@ -78,6 +79,7 @@ final class PlayManager: Sendable {
         }
         _isActive = newValue
         Task { @MainActor in PlayState.shared.isActive = newValue }
+        Task { @MPActor in MPTransport.shared.isActive = newValue }
       }
     }
   }
@@ -163,15 +165,6 @@ final class PlayManager: Sendable {
   }
 
   // MARK: - Private Methods
-
-  private func reset(from error: Error?) {
-    stop()
-    avPlayer = AVPlayer()
-    avPlayerItem = AVPlayerItem(url: URL.placeholder)
-    Task { @MainActor in
-      Alert.shared("Playback status failure: \(String(describing: error))")
-    }
-  }
 
   private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
     await Task { @MainActor in PlayState.shared.onDeck = podcastEpisode }.value

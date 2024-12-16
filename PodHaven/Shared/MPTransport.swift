@@ -4,17 +4,21 @@ import Foundation
 import MediaPlayer
 
 @globalActor
-final actor MPActor {
-  static let shared = MPActor()
-}
+final actor MPActor { static let shared = MPActor() }
 
 @MPActor
 final class MPTransport {
+  // MARK: - Static Methods
+
   static let shared = MPTransport()
 
+  static func configureMediaPlayer() async {
+    MPNowPlayingInfoCenter.default().playbackState = .stopped
+  }
+
+  // MARK: - Convenience Getters
   private let appIdentifier = "com.artisanal.podhaven"
   private let infoCenter = MPNowPlayingInfoCenter.default()
-
   private var podcastEpisode: PodcastEpisode?
   private var episode: Episode {
     guard let podcastEpisode = podcastEpisode else {
@@ -29,10 +33,34 @@ final class MPTransport {
     return podcastEpisode.podcast
   }
 
-  var isPlaying: Bool {
-    get { infoCenter.playbackState == .playing }
-    set { infoCenter.playbackState = newValue ? .playing : .stopped }
+  // MARK: - State Management
+
+  private var _isLoading = false
+  var isLoading: Bool {
+    get { _isLoading }
+    set {
+      _isLoading = newValue
+      updatePlaybackState()
+    }
   }
+  private var _isPlaying = false
+  var isPlaying: Bool {
+    get { _isPlaying }
+    set {
+      _isPlaying = newValue
+      updatePlaybackState()
+    }
+  }
+  private var _isActive = false
+  var isActive: Bool {
+    get { _isActive }
+    set {
+      _isActive = newValue
+      updatePlaybackState()
+    }
+  }
+
+  // MARK: - Public Methods
 
   func onDeck(_ podcastEpisode: PodcastEpisode) {
     self.podcastEpisode = podcastEpisode
@@ -68,7 +96,6 @@ final class MPTransport {
     }
 
     infoCenter.nowPlayingInfo = nowPlayingInfo
-    infoCenter.playbackState = .stopped
   }
 
   func duration(_ duration: CMTime) {
@@ -79,5 +106,16 @@ final class MPTransport {
     infoCenter.nowPlayingInfo?[MPMediaItemPropertyPlaybackDuration] = NSNumber(
       value: CMTimeGetSeconds(duration)
     )
+  }
+
+  // MARK: - Private Methods
+
+  private func updatePlaybackState() {
+    guard !isLoading, isActive else {
+      infoCenter.playbackState = .stopped
+      return
+    }
+
+    infoCenter.playbackState = isPlaying ? .playing : .paused
   }
 }
