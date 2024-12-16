@@ -12,7 +12,7 @@ import SwiftUI
     get { isDragging ? _sliderValue : PlayState.shared.currentTime.seconds }
     set {
       self._sliderValue = newValue
-      Task { @PlayManager in
+      Task { @PlayActor in
         await PlayManager.shared.seek(
           to: PlayManager.CMTime(seconds: _sliderValue)
         )

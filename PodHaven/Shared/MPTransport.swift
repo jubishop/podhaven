@@ -4,7 +4,15 @@ import Foundation
 import MediaPlayer
 
 @globalActor
-final actor MPTransport {
+final actor MPActor {
+  static let shared = MPActor()
+}
+
+@MPActor
+final class MPTransport {
   static let shared = MPTransport()
 
+  func updateNowPlayingInfo() {
+
+  }
 }

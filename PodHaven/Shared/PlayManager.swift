@@ -15,9 +15,11 @@ import Foundation
   private init() {}
 }
 
-// TODO: Figure out what to do when reaching end of Episode
 @globalActor
-final actor PlayManager: Sendable {
+final actor PlayActor: Sendable { static let shared = PlayActor() }
+
+@PlayActor
+final class PlayManager: Sendable {
   // MARK: - Static Methods
 
   static let shared = PlayManager()
@@ -153,8 +155,8 @@ final actor PlayManager: Sendable {
     await setCurrentTime(time)
     avPlayer.seek(to: time) { [unowned self] completed in
       if completed {
-        Task { @PlayManager in
-          await self.addTimeObserver()
+        Task { @PlayActor in
+          self.addTimeObserver()
         }
       }
     }

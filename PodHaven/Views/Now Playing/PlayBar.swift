@@ -11,7 +11,7 @@ struct PlayBar: View {
       HStack {
         Group {
           Button(action: {
-            Task { @PlayManager in
+            Task { @PlayActor in
               await PlayManager.shared.seekBackward()
             }
           }) {
@@ -21,12 +21,12 @@ struct PlayBar: View {
             guard PlayState.shared.isActive, !PlayState.shared.isLoading
             else { return }
             if PlayState.shared.isPlaying {
-              Task { @PlayManager in
-                await PlayManager.shared.pause()
+              Task { @PlayActor in
+                PlayManager.shared.pause()
               }
             } else {
-              Task { @PlayManager in
-                await PlayManager.shared.play()
+              Task { @PlayActor in
+                PlayManager.shared.play()
               }
             }
           }) {
@@ -40,7 +40,7 @@ struct PlayBar: View {
             .foregroundColor(.white)
           }
           Button(action: {
-            Task { @PlayManager in
+            Task { @PlayActor in
               await PlayManager.shared.seekForward()
             }
           }) {

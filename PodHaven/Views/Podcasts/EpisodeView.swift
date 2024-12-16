@@ -14,7 +14,7 @@ struct EpisodeView: View {
   var body: some View {
     Button(
       action: {
-        Task { @PlayManager in
+        Task { @PlayActor in
           do {
             try await PlayManager.shared.start(viewModel.podcastEpisode)
           } catch {
