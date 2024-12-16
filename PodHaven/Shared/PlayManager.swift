@@ -192,19 +192,19 @@ final class PlayManager: Sendable {
     removeTimeObserver()
   }
 
-  private func removeTimeObserver() {
-    if let timeObserver = timeObserver {
-      avPlayer.removeTimeObserver(timeObserver)
-      self.timeObserver = nil
-    }
-  }
-
   private func addTimeObserver() {
     timeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: Self.CMTime(seconds: 1),
       queue: .global(qos: .utility)
     ) { currentTime in
       Task { [unowned self] in await self.setCurrentTime(currentTime) }
+    }
+  }
+
+  private func removeTimeObserver() {
+    if let timeObserver = timeObserver {
+      avPlayer.removeTimeObserver(timeObserver)
+      self.timeObserver = nil
     }
   }
 }
