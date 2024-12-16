@@ -175,10 +175,12 @@ final class PlayManager: Sendable {
 
   private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
     await Task { @MainActor in PlayState.shared.onDeck = podcastEpisode }.value
+    await Task { @MPActor in MPTransport.shared.onDeck(podcastEpisode) }.value
   }
 
   private func setDuration(_ duration: CMTime) async {
     await Task { @MainActor in PlayState.shared.duration = duration }.value
+    await Task { @MPActor in MPTransport.shared.duration(duration) }.value
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
