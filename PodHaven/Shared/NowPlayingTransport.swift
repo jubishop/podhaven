@@ -40,7 +40,7 @@ final class NowPlayingTransport {
     get { _isLoading }
     set {
       _isLoading = newValue
-      updatePlaybackState()
+      updatePlaybackInfo()
     }
   }
   private var _isPlaying = false
@@ -48,7 +48,7 @@ final class NowPlayingTransport {
     get { _isPlaying }
     set {
       _isPlaying = newValue
-      updatePlaybackState()
+      updatePlaybackInfo()
     }
   }
   private var _isActive = false
@@ -56,7 +56,7 @@ final class NowPlayingTransport {
     get { _isActive }
     set {
       _isActive = newValue
-      updatePlaybackState()
+      updatePlaybackInfo()
     }
   }
 
@@ -110,12 +110,17 @@ final class NowPlayingTransport {
 
   // MARK: - Private Methods
 
-  private func updatePlaybackState() {
+  private func updatePlaybackInfo() {
+    guard infoCenter.nowPlayingInfo != nil else {
+      fatalError("Updating playback info on a nil nowPlayingInfo?")
+    }
+
     guard !isLoading, isActive else {
-      infoCenter.playbackState = .stopped
+      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
       return
     }
 
-    infoCenter.playbackState = isPlaying ? .playing : .paused
+    infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] =
+      isPlaying ? 1.0 : 0.0
   }
 }
