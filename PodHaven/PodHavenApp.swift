@@ -23,7 +23,6 @@ struct PodHavenApp: App {
         .customAlert($alert.config)
         .task {
           await PlayManager.configureAudioSession()
-          await NowPlayingTransport.configureNowPlayingInfoCenter()
         }
     }
   }

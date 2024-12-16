@@ -12,10 +12,6 @@ final class NowPlayingTransport {
 
   static let shared = NowPlayingTransport()
 
-  static func configureNowPlayingInfoCenter() async {
-    MPNowPlayingInfoCenter.default().playbackState = .stopped
-  }
-
   // MARK: - Convenience Getters
   private let appIdentifier = "com.artisanal.podhaven"
   private let infoCenter = MPNowPlayingInfoCenter.default()
@@ -78,8 +74,8 @@ final class NowPlayingTransport {
     }
     nowPlayingInfo[MPNowPlayingInfoPropertyCurrentPlaybackDate] =
       episode.pubDate
+    nowPlayingInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
     nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = Double(0)
-    nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackProgress] = 0
     nowPlayingInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] =
       episode.guid
     nowPlayingInfo[MPNowPlayingInfoPropertyExternalUserProfileIdentifier] =
@@ -87,9 +83,8 @@ final class NowPlayingTransport {
     nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = false
     nowPlayingInfo[MPNowPlayingInfoPropertyMediaType] =
       MPNowPlayingInfoMediaType.audio.rawValue
-    nowPlayingInfo[MPNowPlayingInfoPropertyServiceIdentifier] = podcast.title
     nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackProgress] = Float(0.0)
-    nowPlayingInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
+    nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
     if let podcastLink = podcast.link {
       nowPlayingInfo[MPNowPlayingInfoPropertyServiceIdentifier] =
         podcastLink.absoluteString
@@ -111,10 +106,6 @@ final class NowPlayingTransport {
   // MARK: - Private Methods
 
   private func updatePlaybackInfo() {
-    guard infoCenter.nowPlayingInfo != nil else {
-      fatalError("Updating playback info on a nil nowPlayingInfo?")
-    }
-
     guard !isLoading, isActive else {
       infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
       return
