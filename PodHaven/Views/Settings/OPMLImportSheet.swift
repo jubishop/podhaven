@@ -62,16 +62,16 @@ struct OPMLImportSheet: View {
   Preview {
     Form {
       Button("Import Large") {
-        viewModel.importOPMLFileInSimulator("large")
+        Task { await viewModel.importOPMLFileInSimulator("large") }
       }
       Button("Import Small") {
-        viewModel.importOPMLFileInSimulator("small")
+        Task { await viewModel.importOPMLFileInSimulator("small") }
       }
       Button("Import Invalid") {
-        viewModel.importOPMLFileInSimulator("invalid")
+        Task { await viewModel.importOPMLFileInSimulator("invalid") }
       }
       Button("Import Empty") {
-        viewModel.importOPMLFileInSimulator("empty")
+        Task { await viewModel.importOPMLFileInSimulator("empty") }
       }
 
       #if DEBUG

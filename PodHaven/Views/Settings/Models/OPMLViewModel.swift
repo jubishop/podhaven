@@ -67,12 +67,12 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   var opmlImporting = false
   var opmlFile: OPMLFile?
 
-  func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
+  func opmlFileImporterCompletion(_ result: Result<URL, any Error>) async {
     switch result {
     case .success(let url):
       if url.startAccessingSecurityScopedResource() {
-        if let opml = importOPMLFile(url) {
-          downloadOPMLFile(opml)
+        if let opml = await importOPMLFile(url) {
+          await downloadOPMLFile(opml)
         }
       } else {
         Alert.shared("Couldn't start accessing security scoped response")
@@ -83,20 +83,22 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     }
   }
 
-  func importOPMLFile(_ url: URL) -> OPML? {
-    let opml: OPML
-    do {
-      opml = try OPML(file: url)
-    } catch {
-      Alert.shared("Couldn't parse OPML file", error: error)
-      return nil
-    }
+  func importOPMLFile(_ url: URL) async -> OPML? {
+    await withCheckedContinuation { continuation in
+      do {
+        let opml = try OPML(file: url)
 
-    if opml.entries.isEmpty {
-      Alert.shared("OPML file has no subscriptions")
-      return nil
+        if opml.entries.isEmpty {
+          Alert.shared("OPML file has no subscriptions")
+          continuation.resume(returning: nil)
+        } else {
+          continuation.resume(returning: opml)
+        }
+      } catch {
+        Alert.shared("Couldn't parse OPML file", error: error)
+        continuation.resume(returning: nil)
+      }
     }
-    return opml
   }
 
   func stopDownloading() async {
@@ -109,12 +111,12 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
   // MARK: - Private Methods
 
-  private func downloadOPMLFile(_ opml: OPML) {
+  private func downloadOPMLFile(_ opml: OPML) async {
     let opmlFile = OPMLFile(title: opml.title ?? "Podcast Subscriptions")
 
     let allPodcasts: PodcastArray
     do {
-      allPodcasts = try Repo.shared.allPodcasts()
+      allPodcasts = try await Repo.shared.allPodcasts()
     } catch {
       Alert.shared("Could not fetch podcasts for deduping", error: error)
       return
@@ -203,13 +205,13 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   // MARK: - Simulator Methods
 
   #if DEBUG
-    public func importOPMLFileInSimulator(_ resource: String) {
+    public func importOPMLFileInSimulator(_ resource: String) async {
       let url = Bundle.main.url(
         forResource: resource,
         withExtension: "opml"
       )!
-      if let opml = importOPMLFile(url) {
-        downloadOPMLFile(opml)
+      if let opml = await importOPMLFile(url) {
+        await downloadOPMLFile(opml)
       }
     }
   #endif

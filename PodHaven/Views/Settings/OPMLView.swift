@@ -10,19 +10,33 @@ struct OPMLView: View {
       Button(
         action: {
           #if targetEnvironment(simulator)
-            viewModel.importOPMLFileInSimulator("large")
+            Task { await viewModel.importOPMLFileInSimulator("large") }
           #else
             viewModel.opmlImporting = true
           #endif
         },
         label: { Text("Import OPML") }
       )
+
+      #if DEBUG
+        Section("Debugging") {
+          Button("Clear DB") {
+            Task {
+              try AppDB.shared.db.write { db in
+                try Podcast.deleteAll(db)
+              }
+            }
+          }
+        }
+      #endif
     }
     .navigationTitle("OPML")
     .fileImporter(
       isPresented: $viewModel.opmlImporting,
       allowedContentTypes: [viewModel.opmlType],
-      onCompletion: viewModel.opmlFileImporterCompletion
+      onCompletion: { result in
+        Task { await viewModel.opmlFileImporterCompletion(result) }
+      }
     )
     .sheet(item: $viewModel.opmlFile) { opmlFile in
       OPMLImportSheet(viewModel: viewModel)
