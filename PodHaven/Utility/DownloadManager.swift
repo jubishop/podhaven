@@ -25,7 +25,7 @@ final actor DownloadTask: Sendable {
   }
 
   func downloadBegan() async {
-    guard !self.begun else { return }
+    guard !begun else { return }
 
     await withCheckedContinuation { continuation in
       beganContinuations.append(continuation)
@@ -33,7 +33,7 @@ final actor DownloadTask: Sendable {
   }
 
   func downloadFinished() async -> DownloadResult {
-    guard self.result == nil else { return self.result! }
+    guard result == nil else { return result! }
 
     return await withCheckedContinuation { continuation in
       finishedContinuations.append(continuation)
@@ -47,8 +47,8 @@ final actor DownloadTask: Sendable {
   // MARK: - Private Methods
 
   private func haveBegun() {
-    guard !self.begun else { return }
-    self.begun = true
+    guard !begun else { return }
+    begun = true
     for beganContinuation in beganContinuations {
       beganContinuation.resume()
     }
@@ -121,10 +121,10 @@ final actor DownloadManager: Sendable {
   }
 
   deinit {
-    self.streamContinuation.finish()
+    streamContinuation.finish()
   }
 
-  func downloads() -> AsyncStream<DownloadResult> { self.asyncStream }
+  func downloads() -> AsyncStream<DownloadResult> { asyncStream }
 
   @discardableResult
   func addURL(_ url: URL) async -> DownloadTask {
