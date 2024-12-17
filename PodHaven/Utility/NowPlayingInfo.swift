@@ -34,7 +34,7 @@ final class NowPlayingInfo {
         newValue == .playing ? 1.0 : 0.0
     }
   }
-  init(_ key: NowPlayingAccessKey) {}
+  init(_ key: PlayManagerAccessKey) {}
 
   // MARK: - Public Methods
 

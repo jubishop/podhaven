@@ -45,7 +45,7 @@ import Semaphore
   private init() {}
 }
 
-struct NowPlayingAccessKey { fileprivate init() {} }
+struct PlayManagerAccessKey { fileprivate init() {} }
 
 @globalActor
 final actor PlayActor: Sendable { static let shared = PlayActor() }
@@ -68,8 +68,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
-  static func CMTime(seconds: Double) -> CMTime {
-    CoreMedia.CMTime(seconds: seconds, preferredTimescale: 60)
+  static func CMTimeInSeconds(_ seconds: Double) -> CMTime {
+    CMTime(seconds: seconds, preferredTimescale: 60)
   }
 
   // MARK: - State Management
@@ -84,8 +84,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       Task { @MainActor in PlayState.shared.status = newValue }
     }
   }
-  private let nowPlayingInfo = NowPlayingInfo(NowPlayingAccessKey())
+  private let nowPlayingInfo = NowPlayingInfo(PlayManagerAccessKey())
+  private let commandCenter = CommandCenter(PlayManagerAccessKey())
   private let loadingSemaphor = AsyncSemaphore(value: 1)
+  private var commandObservingTask: Task<Void, Never>?
   private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
   private var timeObserver: Any?
 
@@ -123,16 +125,18 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       try AVAudioSession.sharedInstance().setActive(true)
     } catch {
       Task { @MainActor in Alert.shared("Failed to set audio session active") }
+      throw PlaybackError.notActive
     }
 
-    await setPodcastEpisode(podcastEpisode)
-    await setDuration(duration)
+    setPodcastEpisode(podcastEpisode)
+    setDuration(duration)
 
     avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
 
     status = .active
     addObservers()
+    startCommandCenter()
   }
 
   func play() {
@@ -145,8 +149,11 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   func stop() {
-    pause()
+    stopCommandCenter()
     removeObservers()
+    status = .stopped
+    pause()
+    setCurrentTime(Self.CMTimeInSeconds(0))
 
     do {
       try AVAudioSession.sharedInstance().setActive(false)
@@ -157,17 +164,17 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
-  func seekForward(_ duration: CMTime = CMTime(seconds: 10)) async {
-    await seek(to: avPlayer.currentTime() + duration)
+  func seekForward(_ duration: CMTime = CMTimeInSeconds(10)) {
+    seek(to: avPlayer.currentTime() + duration)
   }
 
-  func seekBackward(_ duration: CMTime = CMTime(seconds: 10)) async {
-    await seek(to: avPlayer.currentTime() - duration)
+  func seekBackward(_ duration: CMTime = CMTimeInSeconds(10)) {
+    seek(to: avPlayer.currentTime() - duration)
   }
 
-  func seek(to time: CMTime) async {
+  func seek(to time: CMTime) {
     removeTimeObserver()
-    await setCurrentTime(time)
+    setCurrentTime(time)
     avPlayer.seek(to: time) { [unowned self] completed in
       if completed {
         Task { @PlayActor in addTimeObserver() }
@@ -177,19 +184,43 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - Private Methods
 
-  private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
+  private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) {
     nowPlayingInfo.onDeck(podcastEpisode)
-    await Task { @MainActor in PlayState.shared.onDeck = podcastEpisode }.value
+    Task { @MainActor in PlayState.shared.onDeck = podcastEpisode }
   }
 
-  private func setDuration(_ duration: CMTime) async {
+  private func setDuration(_ duration: CMTime) {
     nowPlayingInfo.duration(duration)
-    await Task { @MainActor in PlayState.shared.duration = duration }.value
+    Task { @MainActor in PlayState.shared.duration = duration }
   }
 
-  private func setCurrentTime(_ currentTime: CMTime) async {
-    await Task { @MainActor in PlayState.shared.currentTime = currentTime }
-      .value
+  private func setCurrentTime(_ currentTime: CMTime) {
+    Task { @MainActor in PlayState.shared.currentTime = currentTime }
+  }
+
+  private func startCommandCenter() {
+    commandCenter.begin()
+    self.commandObservingTask = Task { @PlayActor in
+      for await command in commandCenter.commands() {
+        if Task.isCancelled {
+          break
+        }
+        switch command {
+        case .play:
+          play()
+        case .pause:
+          pause()
+        }
+      }
+    }
+  }
+
+  private func stopCommandCenter() {
+    commandCenter.stop()
+    if let commandObservingTask = self.commandObservingTask {
+      commandObservingTask.cancel()
+      self.commandObservingTask = nil
+    }
   }
 
   private func addObservers() {
@@ -224,7 +255,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   private func addTimeObserver() {
     timeObserver = avPlayer.addPeriodicTimeObserver(
-      forInterval: Self.CMTime(seconds: 1),
+      forInterval: Self.CMTimeInSeconds(1),
       queue: .global(qos: .utility)
     ) { currentTime in
       Task { [unowned self] in await setCurrentTime(currentTime) }

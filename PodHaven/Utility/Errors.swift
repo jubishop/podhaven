@@ -5,6 +5,7 @@ import Foundation
 enum PlaybackError: Error, LocalizedError, Sendable {
   case notPlayable(URL)
   case noURL(Episode)
+  case notActive
 
   var errorDescription: String {
     switch self {
@@ -12,6 +13,8 @@ enum PlaybackError: Error, LocalizedError, Sendable {
       return "The asset at \(url) cannot be played."
     case .noURL(let episode):
       return "The episode: \(episode.toString) has no URL."
+    case .notActive:
+      return "The session could not be marked active."
     }
   }
 }

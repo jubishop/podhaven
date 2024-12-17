@@ -12,18 +12,29 @@ struct EpisodeView: View {
   }
 
   var body: some View {
-    Button(
-      action: {
-        Task { @PlayActor in
-          do {
-            try await PlayManager.shared.start(viewModel.podcastEpisode)
-          } catch {
-            await Alert.shared("Failed to start podcast: \(error)")
+    VStack {
+      Button(
+        action: {
+          Task { @PlayActor in
+            do {
+              try await PlayManager.shared.start(viewModel.podcastEpisode)
+            } catch {
+              await Alert.shared("Failed to start podcast: \(error)")
+            }
           }
-        }
-      },
-      label: { Text(viewModel.episode.toString) }
-    )
+        },
+        label: { Text(viewModel.episode.toString) }
+      )
+      Spacer()
+      Button(
+        action: {
+          Task { @PlayActor in
+            PlayManager.shared.stop()
+          }
+        },
+        label: { Text("Stop") }
+      )
+    }
     .task {
       await viewModel.observeEpisode()
     }
