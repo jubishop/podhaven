@@ -18,17 +18,17 @@ struct PlayBar: View {
             Image(systemName: "gobackward.10").foregroundColor(.white)
           }
           Button(action: {
-            guard PlayState.status.playable
+            guard PlayState.playable
             else { return }
-            if PlayState.status.playing {
+            if PlayState.playing {
               Task { @PlayActor in PlayManager.shared.pause() }
             } else {
               Task { @PlayActor in PlayManager.shared.play() }
             }
           }) {
             Image(
-              systemName: PlayState.status.playable
-                ? (PlayState.status.playing
+              systemName: PlayState.playable
+                ? (PlayState.playing
                   ? "pause.circle" : "play.circle") : "xmark.circle"
             )
             .font(.largeTitle)
@@ -59,7 +59,7 @@ struct PlayBar: View {
           viewModel.isDragging = isEditing
         }
       )
-      .disabled(!PlayState.status.playable)
+      .disabled(!PlayState.playable)
       .frame(width: viewModel.barWidth)
     }
   }

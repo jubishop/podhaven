@@ -4,15 +4,21 @@ import AVFoundation
 import Foundation
 import Semaphore
 
-struct NowPlayingAccessKey { fileprivate init() {} }
-
 @dynamicMemberLookup
 @Observable @MainActor final class PlayState: Sendable {
   static let shared = PlayState()
 
+  // MARK: - Meta
+
   static subscript<T>(dynamicMember keyPath: KeyPath<PlayState, T>) -> T {
     shared[keyPath: keyPath]
   }
+
+  subscript<T>(dynamicMember keyPath: KeyPath<PlayState.Status, T>) -> T {
+    status[keyPath: keyPath]
+  }
+
+  // MARK:- State Management
 
   enum Status: Sendable {
     case loading, active, playing, paused, stopped, waiting
@@ -39,14 +45,15 @@ struct NowPlayingAccessKey { fileprivate init() {} }
   private init() {}
 }
 
+struct NowPlayingAccessKey { fileprivate init() {} }
+
 @globalActor
 final actor PlayActor: Sendable { static let shared = PlayActor() }
 
-@PlayActor
-final class PlayManager: Sendable {
-  // MARK: - Static Methods
-
+@PlayActor final class PlayManager: Sendable {
   static let shared = PlayManager()
+
+  // MARK: - Static Methods
 
   static func configureAudioSession() async {
     do {
@@ -78,9 +85,9 @@ final class PlayManager: Sendable {
     }
   }
   private let nowPlayingInfo = NowPlayingInfo(NowPlayingAccessKey())
+  private let loadingSemaphor = AsyncSemaphore(value: 1)
   private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
   private var timeObserver: Any?
-  private let loadingSemaphor = AsyncSemaphore(value: 1)
 
   // MARK: - Private Variables
 

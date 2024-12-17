@@ -39,7 +39,6 @@ final actor FeedTask: Sendable {
   }
 }
 
-@globalActor
 final actor FeedManager: Sendable {
   static let shared = FeedManager()
 
