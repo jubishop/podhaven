@@ -49,10 +49,8 @@ final class PlayManager: Sendable {
     set {
       if newValue != _isLoading {
         _isLoading = newValue
+        nowPlayingTransport.isLoading = newValue
         Task { @MainActor in PlayState.shared.isLoading = newValue }
-        Task { @NowPlayingActor in
-          NowPlayingTransport.shared.isLoading = newValue
-        }
       }
     }
   }
@@ -62,10 +60,8 @@ final class PlayManager: Sendable {
     set {
       if newValue != _isPlaying {
         _isPlaying = newValue
+        nowPlayingTransport.isPlaying = newValue
         Task { @MainActor in PlayState.shared.isPlaying = newValue }
-        Task { @NowPlayingActor in
-          NowPlayingTransport.shared.isPlaying = newValue
-        }
       }
     }
   }
@@ -82,10 +78,8 @@ final class PlayManager: Sendable {
           }
         }
         _isActive = newValue
+        nowPlayingTransport.isActive = newValue
         Task { @MainActor in PlayState.shared.isActive = newValue }
-        Task { @NowPlayingActor in
-          NowPlayingTransport.shared.isActive = newValue
-        }
       }
     }
   }
@@ -94,8 +88,9 @@ final class PlayManager: Sendable {
 
   private var avPlayer = AVPlayer()
   private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
+  private let nowPlayingTransport = NowPlayingTransport()
   private var timeObserver: Any?
-  init() {}
+  private init() {}
 
   // MARK: - Public Methods
 
@@ -173,19 +168,13 @@ final class PlayManager: Sendable {
   // MARK: - Private Methods
 
   private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
+    nowPlayingTransport.onDeck(podcastEpisode)
     await Task { @MainActor in PlayState.shared.onDeck = podcastEpisode }.value
-    await Task { @NowPlayingActor in
-      NowPlayingTransport.shared.onDeck(podcastEpisode)
-    }
-    .value
   }
 
   private func setDuration(_ duration: CMTime) async {
+    nowPlayingTransport.duration(duration)
     await Task { @MainActor in PlayState.shared.duration = duration }.value
-    await Task { @NowPlayingActor in
-      NowPlayingTransport.shared.duration(duration)
-    }
-    .value
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {

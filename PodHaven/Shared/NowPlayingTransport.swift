@@ -3,15 +3,7 @@
 import Foundation
 import MediaPlayer
 
-@globalActor
-final actor NowPlayingActor { static let shared = NowPlayingActor() }
-
-@NowPlayingActor
 final class NowPlayingTransport {
-  // MARK: - Static Methods
-
-  static let shared = NowPlayingTransport()
-
   // MARK: - Convenience Getters
   private let appIdentifier = "com.artisanal.podhaven"
   private let infoCenter = MPNowPlayingInfoCenter.default()
