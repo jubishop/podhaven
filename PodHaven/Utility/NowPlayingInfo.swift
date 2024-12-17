@@ -5,6 +5,7 @@ import MediaPlayer
 
 final class NowPlayingInfo {
   // MARK: - Convenience Getters
+
   private let appIdentifier = "com.artisanal.podhaven"
   private let infoCenter = MPNowPlayingInfoCenter.default()
   private var podcastEpisode: PodcastEpisode?
@@ -23,28 +24,14 @@ final class NowPlayingInfo {
 
   // MARK: - State Management
 
-  private var _isLoading = false
-  var isLoading: Bool {
-    get { _isLoading }
+  var _status: PlayState.Status = .stopped
+  var status: PlayState.Status {
+    get { _status }
     set {
-      _isLoading = newValue
-      updatePlaybackInfo()
-    }
-  }
-  private var _isPlaying = false
-  var isPlaying: Bool {
-    get { _isPlaying }
-    set {
-      _isPlaying = newValue
-      updatePlaybackInfo()
-    }
-  }
-  private var _isActive = false
-  var isActive: Bool {
-    get { _isActive }
-    set {
-      _isActive = newValue
-      updatePlaybackInfo()
+      guard newValue != _status else { return }
+      _status = newValue
+      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] =
+        newValue == .playing ? 1.0 : 0.0
     }
   }
   init(_ key: NowPlayingAccessKey) {}
@@ -87,24 +74,8 @@ final class NowPlayingInfo {
   }
 
   func duration(_ duration: CMTime) {
-    guard infoCenter.nowPlayingInfo != nil else {
-      fatalError("Setting duration on a nil nowPlayingInfo?")
-    }
-
     infoCenter.nowPlayingInfo?[MPMediaItemPropertyPlaybackDuration] = NSNumber(
       value: CMTimeGetSeconds(duration)
     )
-  }
-
-  // MARK: - Private Methods
-
-  private func updatePlaybackInfo() {
-    guard !isLoading, isActive else {
-      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
-      return
-    }
-
-    infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] =
-      isPlaying ? 1.0 : 0.0
   }
 }

@@ -2,16 +2,32 @@
 
 import AVFoundation
 import Foundation
+import Semaphore
 
 struct NowPlayingAccessKey { fileprivate init() {} }
 
 @Observable @MainActor final class PlayState: Sendable {
   static let shared = PlayState()
 
-  // TODO:  Create a state enum: loading, active, playing, paused, waiting.
-  fileprivate(set) var isLoading = false
-  fileprivate(set) var isActive = false
-  fileprivate(set) var isPlaying = false
+  enum Status: Sendable {
+    case loading, active, playing, paused, stopped, waiting
+
+    var playable: Bool {
+      switch self {
+      case .active, .playing, .paused: return true
+      default: return false
+      }
+    }
+
+    var loading: Bool { self == .loading }
+    var active: Bool { self == .active }
+    var playing: Bool { self == .playing }
+    var paused: Bool { self == .paused }
+    var stopped: Bool { self == .stopped }
+    var waiting: Bool { self == .waiting }
+  }
+
+  fileprivate(set) var status: Status = .stopped
   fileprivate(set) var duration = CMTime.zero
   fileprivate(set) var currentTime = CMTime.zero
   fileprivate(set) var onDeck: PodcastEpisode?
@@ -46,55 +62,25 @@ final class PlayManager: Sendable {
 
   // MARK: - State Management
 
-  private var _isLoading = false
-  private var isLoading: Bool {
-    get { _isLoading }
+  private var _status: PlayState.Status = .stopped
+  private var status: PlayState.Status {
+    get { _status }
     set {
-      if newValue != _isLoading {
-        _isLoading = newValue
-        nowPlayingInfo.isLoading = newValue
-        Task { @MainActor in PlayState.shared.isLoading = newValue }
-      }
+      guard newValue != _status else { return }
+      _status = newValue
+      nowPlayingInfo.status = newValue
+      Task { @MainActor in PlayState.shared.status = newValue }
     }
   }
-  private var _isPlaying = false
-  private var isPlaying: Bool {
-    get { _isPlaying }
-    set {
-      if newValue != _isPlaying {
-        _isPlaying = newValue
-        nowPlayingInfo.isPlaying = newValue
-        Task { @MainActor in PlayState.shared.isPlaying = newValue }
-      }
-    }
-  }
-  private var _isActive = false
-  private var isActive: Bool {
-    get { _isActive }
-    set {
-      if newValue != _isActive {
-        do {
-          try AVAudioSession.sharedInstance().setActive(newValue)
-        } catch {
-          Task { @MainActor in
-            Alert.shared("Failed to set audio session active")
-          }
-        }
-        _isActive = newValue
-        if _isActive { addObservers() } else { removeObservers() }
-        nowPlayingInfo.isActive = newValue
-        Task { @MainActor in PlayState.shared.isActive = newValue }
-      }
-    }
-  }
+  private let nowPlayingInfo = NowPlayingInfo(NowPlayingAccessKey())
+  private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
+  private var timeObserver: Any?
+  private let loadingSemaphor = AsyncSemaphore(value: 1)
 
   // MARK: - Private Variables
 
   private var avPlayer = AVPlayer()
   private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
-  private let nowPlayingInfo = NowPlayingInfo(NowPlayingAccessKey())
-  private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
-  private var timeObserver: Any?
   private init() {}
 
   // MARK: - Public Methods
@@ -108,10 +94,12 @@ final class PlayManager: Sendable {
     guard let url = podcastEpisode.episode.media else {
       throw PlaybackError.noURL(podcastEpisode.episode)
     }
-    guard !isLoading else { return }
-    defer { isLoading = false }
-    isLoading = true
-    stop()
+    await loadingSemaphor.wait()
+    defer { loadingSemaphor.signal() }
+
+    removeObservers()
+    pause()
+    status = .loading
 
     let avAsset = AVURLAsset(url: url)
     let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
@@ -119,15 +107,24 @@ final class PlayManager: Sendable {
       throw PlaybackError.notPlayable(url)
     }
 
+    do {
+      try AVAudioSession.sharedInstance().setActive(true)
+    } catch {
+      Task { @MainActor in Alert.shared("Failed to set audio session active") }
+    }
+
     await setPodcastEpisode(podcastEpisode)
     await setDuration(duration)
+
     avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
-    isActive = true
+
+    status = .active
+    addObservers()
   }
 
   func play() {
-    guard isActive else { return }
+    guard status.playable else { return }
     avPlayer.play()
   }
 
@@ -137,21 +134,26 @@ final class PlayManager: Sendable {
 
   func stop() {
     pause()
-    isActive = false
+    removeObservers()
+
+    do {
+      try AVAudioSession.sharedInstance().setActive(false)
+    } catch {
+      Task { @MainActor in
+        Alert.shared("Failed to set audio session inactive")
+      }
+    }
   }
 
   func seekForward(_ duration: CMTime = CMTime(seconds: 10)) async {
-    guard !isLoading, isActive else { return }
     await seek(to: avPlayer.currentTime() + duration)
   }
 
   func seekBackward(_ duration: CMTime = CMTime(seconds: 10)) async {
-    guard !isLoading, isActive else { return }
     await seek(to: avPlayer.currentTime() - duration)
   }
 
   func seek(to time: CMTime) async {
-    guard !isLoading, isActive else { return }
     removeTimeObserver()
     await setCurrentTime(time)
     avPlayer.seek(to: time) { [unowned self] completed in
@@ -174,28 +176,27 @@ final class PlayManager: Sendable {
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
-    await Task { @MainActor in
-      PlayState.shared.currentTime = currentTime
-    }
-    .value
+    await Task { @MainActor in PlayState.shared.currentTime = currentTime }
+      .value
   }
 
   private func addObservers() {
     removeObservers()
+
     keyValueObservers.append(
       avPlayer.observe(
         \.timeControlStatus,
-        options: [.new, .initial],
+        options: .new,
         changeHandler: { [unowned self] playerItem, _ in
           switch playerItem.timeControlStatus {
           case AVPlayer.TimeControlStatus.paused:
-            Task { @PlayActor in self.isPlaying = false }
+            Task { @PlayActor in status = .paused }
           case AVPlayer.TimeControlStatus.playing:
-            Task { @PlayActor in self.isPlaying = true }
+            Task { @PlayActor in status = .playing }
           case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
-            break
+            Task { @PlayActor in status = .waiting }
           @unknown default:
-            break
+            fatalError("Time control status unknown?")
           }
         }
       )
@@ -214,7 +215,7 @@ final class PlayManager: Sendable {
       forInterval: Self.CMTime(seconds: 1),
       queue: .global(qos: .utility)
     ) { currentTime in
-      Task { [unowned self] in await self.setCurrentTime(currentTime) }
+      Task { [unowned self] in await setCurrentTime(currentTime) }
     }
   }
 
