@@ -3,6 +3,8 @@
 import AVFoundation
 import Foundation
 
+struct NowPlayingAccessKey { fileprivate init() {} }
+
 @Observable @MainActor final class PlayState: Sendable {
   static let shared = PlayState()
 
@@ -49,7 +51,7 @@ final class PlayManager: Sendable {
     set {
       if newValue != _isLoading {
         _isLoading = newValue
-        nowPlayingTransport.isLoading = newValue
+        nowPlayingInfo.isLoading = newValue
         Task { @MainActor in PlayState.shared.isLoading = newValue }
       }
     }
@@ -60,7 +62,7 @@ final class PlayManager: Sendable {
     set {
       if newValue != _isPlaying {
         _isPlaying = newValue
-        nowPlayingTransport.isPlaying = newValue
+        nowPlayingInfo.isPlaying = newValue
         Task { @MainActor in PlayState.shared.isPlaying = newValue }
       }
     }
@@ -78,7 +80,7 @@ final class PlayManager: Sendable {
           }
         }
         _isActive = newValue
-        nowPlayingTransport.isActive = newValue
+        nowPlayingInfo.isActive = newValue
         Task { @MainActor in PlayState.shared.isActive = newValue }
       }
     }
@@ -88,7 +90,7 @@ final class PlayManager: Sendable {
 
   private var avPlayer = AVPlayer()
   private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
-  private let nowPlayingTransport = NowPlayingTransport()
+  private let nowPlayingInfo = NowPlayingInfo(NowPlayingAccessKey())
   private var timeObserver: Any?
   private init() {}
 
@@ -168,12 +170,12 @@ final class PlayManager: Sendable {
   // MARK: - Private Methods
 
   private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
-    nowPlayingTransport.onDeck(podcastEpisode)
+    nowPlayingInfo.onDeck(podcastEpisode)
     await Task { @MainActor in PlayState.shared.onDeck = podcastEpisode }.value
   }
 
   private func setDuration(_ duration: CMTime) async {
-    nowPlayingTransport.duration(duration)
+    nowPlayingInfo.duration(duration)
     await Task { @MainActor in PlayState.shared.duration = duration }.value
   }
 
