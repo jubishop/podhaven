@@ -18,17 +18,17 @@ struct PlayBar: View {
             Image(systemName: "gobackward.10").foregroundColor(.white)
           }
           Button(action: {
-            guard PlayState.shared.status.playable
+            guard PlayState.status.playable
             else { return }
-            if PlayState.shared.status.playing {
+            if PlayState.status.playing {
               Task { @PlayActor in PlayManager.shared.pause() }
             } else {
               Task { @PlayActor in PlayManager.shared.play() }
             }
           }) {
             Image(
-              systemName: PlayState.shared.status.playable
-                ? (PlayState.shared.status.playing
+              systemName: PlayState.status.playable
+                ? (PlayState.status.playing
                   ? "pause.circle" : "play.circle") : "xmark.circle"
             )
             .font(.largeTitle)
@@ -54,12 +54,12 @@ struct PlayBar: View {
       }
       Slider(
         value: $viewModel.sliderValue,
-        in: 0...PlayState.shared.duration.seconds,
+        in: 0...PlayState.duration.seconds,
         onEditingChanged: { isEditing in
           viewModel.isDragging = isEditing
         }
       )
-      .disabled(!PlayState.shared.status.playable)
+      .disabled(!PlayState.status.playable)
       .frame(width: viewModel.barWidth)
     }
   }
@@ -80,6 +80,8 @@ struct PlayBar: View {
       }
     }
     var body: some View {
+      Text(PlayState.onDeck?.podcast.title ?? "")
+      Text(PlayState.onDeck?.episode.title ?? "")
       PlayBar()
     }
   }

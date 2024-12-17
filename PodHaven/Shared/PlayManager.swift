@@ -6,8 +6,13 @@ import Semaphore
 
 struct NowPlayingAccessKey { fileprivate init() {} }
 
+@dynamicMemberLookup
 @Observable @MainActor final class PlayState: Sendable {
   static let shared = PlayState()
+
+  static subscript<T>(dynamicMember keyPath: KeyPath<PlayState, T>) -> T {
+    shared[keyPath: keyPath]
+  }
 
   enum Status: Sendable {
     case loading, active, playing, paused, stopped, waiting
