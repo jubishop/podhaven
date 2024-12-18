@@ -3,7 +3,7 @@
 import Foundation
 import GRDB
 
-final class AppDB: Sendable {
+struct AppDB: Sendable {
   #if DEBUG
     static func empty() -> AppDB {
       do {
