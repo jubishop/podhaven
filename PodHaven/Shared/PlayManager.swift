@@ -128,7 +128,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       throw PlaybackError.notActive
     }
 
-    await setPodcastEpisode(podcastEpisode)
+    setPodcastEpisode(podcastEpisode)
     setDuration(duration)
 
     avPlayerItem = AVPlayerItem(asset: avAsset)
@@ -184,7 +184,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - Private Methods
 
-  private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
+  private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) {
     nowPlayingInfo.onDeck(podcastEpisode)
     Task { @MainActor in PlayState.shared.onDeck = podcastEpisode }
   }
