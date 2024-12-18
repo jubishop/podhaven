@@ -164,11 +164,11 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
-  func seekForward(_ duration: CMTime = CMTimeInSeconds(10)) {
+  func seekForward(_ duration: CMTime) {
     seek(to: avPlayer.currentTime() + duration)
   }
 
-  func seekBackward(_ duration: CMTime = CMTimeInSeconds(10)) {
+  func seekBackward(_ duration: CMTime) {
     seek(to: avPlayer.currentTime() - duration)
   }
 

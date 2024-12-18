@@ -12,7 +12,7 @@ enum MockResponse {
   case error(Error)
 }
 
-actor NetworkingMock: Networking {
+final actor NetworkingMock: Networking {
   private var mockResponses: [URL: MockResponse] = [:]
   private(set) var requests: [URL] = []
   private(set) var activeRequests = 0

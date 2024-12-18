@@ -12,10 +12,10 @@ struct PlayBar: View {
         Group {
           Button(action: {
             Task { @PlayActor in
-              PlayManager.shared.seekBackward()
+              PlayManager.shared.seekBackward(PlayManager.CMTimeInSeconds(15))
             }
           }) {
-            Image(systemName: "gobackward.10").foregroundColor(.white)
+            Image(systemName: "gobackward.15").foregroundColor(.white)
           }
           Button(action: {
             guard PlayState.playable
@@ -36,10 +36,10 @@ struct PlayBar: View {
           }
           Button(action: {
             Task { @PlayActor in
-              PlayManager.shared.seekForward()
+              PlayManager.shared.seekForward(PlayManager.CMTimeInSeconds(30))
             }
           }) {
-            Image(systemName: "goforward.10").foregroundColor(.white)
+            Image(systemName: "goforward.30").foregroundColor(.white)
           }
         }
         .padding(.horizontal)

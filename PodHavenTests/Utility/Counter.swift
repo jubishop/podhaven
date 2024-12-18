@@ -2,7 +2,7 @@
 
 import Foundation
 
-actor Counter: Sendable {
+final actor Counter: Sendable {
   private(set) var maxValue: Int = 0
   private(set) var minValue: Int = 0
   private(set) var value: Int = 0
