@@ -12,7 +12,7 @@ struct EpisodeView: View {
   }
 
   var body: some View {
-    VStack {
+    VStack(spacing: 40) {
       Button(
         action: {
           Task { @PlayActor in
@@ -25,7 +25,6 @@ struct EpisodeView: View {
         },
         label: { Text(viewModel.episode.toString) }
       )
-      Spacer()
       Button(
         action: {
           Task { @PlayActor in
