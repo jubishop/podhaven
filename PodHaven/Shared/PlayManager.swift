@@ -85,7 +85,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
   private let nowPlayingInfo = NowPlayingInfo(PlayManagerAccessKey())
-  private let commandCenter = CommandCenter(PlayManagerAccessKey())
+  private var commandCenter = CommandCenter(PlayManagerAccessKey())
   private let loadingSemaphor = AsyncSemaphore(value: 1)
   private var commandObservingTask: Task<Void, Never>?
   private var keyValueObservers = [NSKeyValueObservation](capacity: 1)

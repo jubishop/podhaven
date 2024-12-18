@@ -5,14 +5,14 @@ import MediaPlayer
 
 // TODO: Deal with AVAudioSession.interruptionNotification
 
-final class CommandCenter {
+struct CommandCenter {
   enum Command {
     case play, pause
     case skipBackward(TimeInterval)
     case skipForward(TimeInterval)
   }
 
-  private let commandCenter = MPRemoteCommandCenter.shared()
+  var commandCenter: MPRemoteCommandCenter { MPRemoteCommandCenter.shared() }
   private var stream: AsyncStream<Command>?
   private var continuation: AsyncStream<Command>.Continuation?
 
@@ -25,7 +25,7 @@ final class CommandCenter {
     return stream
   }
 
-  func begin() {
+  mutating func begin() {
     stop()
     let (stream, continuation) = AsyncStream.makeStream(of: Command.self)
     self.stream = stream
@@ -56,7 +56,7 @@ final class CommandCenter {
     }
   }
 
-  func stop() {
+  mutating func stop() {
     commandCenter.playCommand.removeTarget(nil)
     commandCenter.pauseCommand.removeTarget(nil)
     commandCenter.skipForwardCommand.removeTarget(nil)
