@@ -7,9 +7,6 @@ struct NowPlayingInfo: Sendable {
   // MARK: - Convenience Getters
 
   private let appIdentifier = "com.artisanal.podhaven"
-  private var infoCenter: MPNowPlayingInfoCenter {
-    MPNowPlayingInfoCenter.default()
-  }
   private var podcastEpisode: PodcastEpisode?
   private var episode: Episode {
     guard let podcastEpisode = podcastEpisode else {
@@ -34,8 +31,9 @@ struct NowPlayingInfo: Sendable {
     set {
       guard newValue != _status else { return }
       _status = newValue
-      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] =
-        newValue == .playing ? 1.0 : 0.0
+      MPNowPlayingInfoCenter.default().nowPlayingInfo?[
+        MPNowPlayingInfoPropertyPlaybackRate
+      ] = newValue == .playing ? 1.0 : 0.0
     }
   }
   init(_ key: PlayManagerAccessKey) {}
@@ -48,22 +46,6 @@ struct NowPlayingInfo: Sendable {
     var nowPlayingInfo: [String: Any] = [:]
 
     nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = podcast.title
-    if let imageURL = podcast.image {
-      Task {
-        var nowPlayingInfo =
-          MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
-        if let (data, resp) = try? await URLSession.shared.data(from: imageURL),
-          let httpResp = resp as? HTTPURLResponse,
-          (200...299).contains(httpResp.statusCode),
-          let uiImage = UIImage(data: data)
-        {
-          print("made image")
-          nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(
-            boundsSize: uiImage.size
-          ) { size in uiImage }
-        }
-      }
-    }
     nowPlayingInfo[MPMediaItemPropertyMediaType] =
       MPMediaType.podcast.rawValue
     nowPlayingInfo[MPMediaItemPropertyTitle] = episode.title
@@ -90,29 +72,54 @@ struct NowPlayingInfo: Sendable {
         podcastLink.absoluteString
     }
 
-    infoCenter.nowPlayingInfo = nowPlayingInfo
+    MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    addItemArtwork()
   }
 
   mutating func duration(_ duration: CMTime) {
     self.duration = duration
-    infoCenter.nowPlayingInfo?[MPMediaItemPropertyPlaybackDuration] =
-      NSNumber(value: CMTimeGetSeconds(duration))
+    MPNowPlayingInfoCenter.default().nowPlayingInfo?[
+      MPMediaItemPropertyPlaybackDuration
+    ] = NSNumber(value: CMTimeGetSeconds(duration))
     updateProgress()
   }
 
   mutating func currentTime(_ currentTime: CMTime) {
     self.currentTime = currentTime
-    infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
-      NSNumber(value: CMTimeGetSeconds(currentTime))
+    MPNowPlayingInfoCenter.default().nowPlayingInfo?[
+      MPNowPlayingInfoPropertyElapsedPlaybackTime
+    ] = NSNumber(value: CMTimeGetSeconds(currentTime))
     updateProgress()
   }
 
   // MARK: - Private Methods
 
-  func updateProgress() {
+  private func updateProgress() {
     guard let duration = self.duration, let currentTime = self.currentTime
     else { return }
-    infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackProgress] =
-      CMTimeGetSeconds(currentTime) / CMTimeGetSeconds(duration)
+    MPNowPlayingInfoCenter.default().nowPlayingInfo?[
+      MPNowPlayingInfoPropertyPlaybackProgress
+    ] = CMTimeGetSeconds(currentTime) / CMTimeGetSeconds(duration)
+  }
+
+  private func addItemArtwork() {
+    if let imageURL = podcast.image {
+      Task {
+        if let (data, resp) = try? await URLSession.shared.data(from: imageURL),
+           let httpResp = resp as? HTTPURLResponse,
+           (200...299).contains(httpResp.statusCode),
+           let uiImage = UIImage(data: data)
+        {
+          var nowPlayingInfo =
+          MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
+          nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(
+            boundsSize: uiImage.size
+          ) {
+            size in uiImage
+          }
+          MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        }
+      }
+    }
   }
 }
