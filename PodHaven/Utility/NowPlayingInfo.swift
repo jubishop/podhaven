@@ -3,11 +3,13 @@
 import Foundation
 import MediaPlayer
 
-final class NowPlayingInfo {
+struct NowPlayingInfo: Sendable {
   // MARK: - Convenience Getters
 
   private let appIdentifier = "com.artisanal.podhaven"
-  private let infoCenter = MPNowPlayingInfoCenter.default()
+  private var infoCenter: MPNowPlayingInfoCenter {
+    MPNowPlayingInfoCenter.default()
+  }
   private var podcastEpisode: PodcastEpisode?
   private var episode: Episode {
     guard let podcastEpisode = podcastEpisode else {
@@ -40,12 +42,28 @@ final class NowPlayingInfo {
 
   // MARK: - Public Methods
 
-  func onDeck(_ podcastEpisode: PodcastEpisode) {
+  mutating func onDeck(_ podcastEpisode: PodcastEpisode) {
     self.podcastEpisode = podcastEpisode
 
     var nowPlayingInfo: [String: Any] = [:]
 
     nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = podcast.title
+    if let imageURL = podcast.image {
+      Task {
+        var nowPlayingInfo =
+          MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
+        if let (data, resp) = try? await URLSession.shared.data(from: imageURL),
+          let httpResp = resp as? HTTPURLResponse,
+          (200...299).contains(httpResp.statusCode),
+          let uiImage = UIImage(data: data)
+        {
+          print("made image")
+          nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(
+            boundsSize: uiImage.size
+          ) { size in uiImage }
+        }
+      }
+    }
     nowPlayingInfo[MPMediaItemPropertyMediaType] =
       MPMediaType.podcast.rawValue
     nowPlayingInfo[MPMediaItemPropertyTitle] = episode.title
@@ -75,14 +93,14 @@ final class NowPlayingInfo {
     infoCenter.nowPlayingInfo = nowPlayingInfo
   }
 
-  func duration(_ duration: CMTime) {
+  mutating func duration(_ duration: CMTime) {
     self.duration = duration
     infoCenter.nowPlayingInfo?[MPMediaItemPropertyPlaybackDuration] =
       NSNumber(value: CMTimeGetSeconds(duration))
     updateProgress()
   }
 
-  func currentTime(_ currentTime: CMTime) {
+  mutating func currentTime(_ currentTime: CMTime) {
     self.currentTime = currentTime
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
       NSNumber(value: CMTimeGetSeconds(currentTime))
