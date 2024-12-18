@@ -113,6 +113,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
     removeObservers()
     pause()
+    setCurrentTime(CMTime.zero)
     status = .loading
 
     let avAsset = AVURLAsset(url: url)
@@ -151,9 +152,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   func stop() {
     stopCommandCenter()
     removeObservers()
-    status = .stopped
     pause()
-    setCurrentTime(Self.CMTimeInSeconds(0))
+    setCurrentTime(CMTime.zero)
+    status = .stopped
 
     do {
       try AVAudioSession.sharedInstance().setActive(false)
