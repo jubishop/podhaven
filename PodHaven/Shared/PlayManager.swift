@@ -84,7 +84,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       Task { @MainActor in PlayState.shared.status = newValue }
     }
   }
-  private let nowPlayingInfo = NowPlayingInfo(PlayManagerAccessKey())
+  private var nowPlayingInfo = NowPlayingInfo(PlayManagerAccessKey())
   private var commandCenter = CommandCenter(PlayManagerAccessKey())
   private let loadingSemaphor = AsyncSemaphore(value: 1)
   private var commandObservingTask: Task<Void, Never>?

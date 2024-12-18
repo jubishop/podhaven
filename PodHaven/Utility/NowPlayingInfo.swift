@@ -3,7 +3,7 @@
 import Foundation
 import MediaPlayer
 
-final class NowPlayingInfo {
+struct NowPlayingInfo {
   // MARK: - Convenience Getters
 
   private let appIdentifier = "com.artisanal.podhaven"
@@ -40,7 +40,7 @@ final class NowPlayingInfo {
 
   // MARK: - Public Methods
 
-  func onDeck(_ podcastEpisode: PodcastEpisode) {
+  mutating func onDeck(_ podcastEpisode: PodcastEpisode) {
     self.podcastEpisode = podcastEpisode
 
     var nowPlayingInfo: [String: Any] = [:]
@@ -75,14 +75,14 @@ final class NowPlayingInfo {
     infoCenter.nowPlayingInfo = nowPlayingInfo
   }
 
-  func duration(_ duration: CMTime) {
+  mutating func duration(_ duration: CMTime) {
     self.duration = duration
     infoCenter.nowPlayingInfo?[MPMediaItemPropertyPlaybackDuration] =
       NSNumber(value: CMTimeGetSeconds(duration))
     updateProgress()
   }
 
-  func currentTime(_ currentTime: CMTime) {
+  mutating func currentTime(_ currentTime: CMTime) {
     self.currentTime = currentTime
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
       NSNumber(value: CMTimeGetSeconds(currentTime))
