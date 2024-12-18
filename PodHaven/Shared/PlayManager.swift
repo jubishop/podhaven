@@ -111,9 +111,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     await loadingSemaphor.wait()
     defer { loadingSemaphor.signal() }
 
-    removeObservers()
-    pause()
-    setCurrentTime(CMTime.zero)
+    rewind()
     status = .loading
 
     let avAsset = AVURLAsset(url: url)
@@ -151,9 +149,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   func stop() {
     stopCommandCenter()
-    removeObservers()
-    pause()
-    setCurrentTime(CMTime.zero)
+    rewind()
     status = .stopped
 
     do {
@@ -184,6 +180,12 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   // MARK: - Private Methods
+
+  private func rewind() {
+    removeObservers()
+    pause()
+    setCurrentTime(CMTime.zero)
+  }
 
   private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
     nowPlayingInfo.podcastEpisode = podcastEpisode
