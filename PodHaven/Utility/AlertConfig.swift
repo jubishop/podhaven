@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-public struct AlertConfig {
+struct AlertConfig {
   public let title: String
   public var actions: () -> AnyView
   public var message: () -> AnyView
@@ -23,7 +23,7 @@ public struct AlertConfig {
 }
 
 extension View {
-  public func customAlert(_ config: Binding<AlertConfig?>) -> some View {
+  func customAlert(_ config: Binding<AlertConfig?>) -> some View {
     alert(
       config.wrappedValue?.title ?? "",
       isPresented: Binding(
