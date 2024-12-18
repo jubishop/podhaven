@@ -21,6 +21,8 @@ final class NowPlayingInfo {
     }
     return podcastEpisode.podcast
   }
+  private var currentTime: CMTime?
+  private var duration: CMTime?
 
   // MARK: - State Management
 
@@ -74,8 +76,25 @@ final class NowPlayingInfo {
   }
 
   func duration(_ duration: CMTime) {
-    infoCenter.nowPlayingInfo?[MPMediaItemPropertyPlaybackDuration] = NSNumber(
-      value: CMTimeGetSeconds(duration)
-    )
+    self.duration = duration
+    infoCenter.nowPlayingInfo?[MPMediaItemPropertyPlaybackDuration] =
+      NSNumber(value: CMTimeGetSeconds(duration))
+    updateProgress()
+  }
+
+  func currentTime(_ currentTime: CMTime) {
+    self.currentTime = currentTime
+    infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
+      NSNumber(value: CMTimeGetSeconds(currentTime))
+    updateProgress()
+  }
+
+  // MARK: - Private Methods
+
+  func updateProgress() {
+    guard let duration = self.duration, let currentTime = self.currentTime
+    else { return }
+    infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackProgress] =
+      CMTimeGetSeconds(currentTime) / CMTimeGetSeconds(duration)
   }
 }

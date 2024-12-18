@@ -159,7 +159,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       try AVAudioSession.sharedInstance().setActive(false)
     } catch {
       Task { @MainActor in
-        Alert.shared("Failed to set audio session inactive")
+        Alert.shared("Failed to set audio session as inactive")
       }
     }
   }
@@ -195,6 +195,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   private func setCurrentTime(_ currentTime: CMTime) {
+    nowPlayingInfo.currentTime(currentTime)
     Task { @MainActor in PlayState.shared.currentTime = currentTime }
   }
 
@@ -258,7 +259,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       forInterval: Self.CMTimeInSeconds(1),
       queue: .global(qos: .utility)
     ) { currentTime in
-      Task { [unowned self] in await setCurrentTime(currentTime) }
+      Task { @PlayActor [unowned self] in setCurrentTime(currentTime) }
     }
   }
 
