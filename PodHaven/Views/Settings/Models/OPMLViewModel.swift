@@ -158,7 +158,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           }
         }
 
-        let feedTask = await FeedManager.shared.addURL(outline.feedURL)
+        var feedTask = await FeedManager.shared.addURL(outline.feedURL)
 
         await feedTask.downloadBegan()
         await Task { @MainActor in

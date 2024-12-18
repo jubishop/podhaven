@@ -14,7 +14,7 @@ import IdentifiedCollections
   }
 
   func refreshSeries() async throws {
-    let feedTask = await FeedManager.shared.addURL(podcast.feedURL)
+    var feedTask = await FeedManager.shared.addURL(podcast.feedURL)
     let feedResult = await feedTask.feedParsed()
     switch feedResult {
     case .failure(let error):

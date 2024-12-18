@@ -9,7 +9,7 @@ struct FeedData: Sendable {
   let feed: PodcastFeed
 }
 
-final actor FeedTask: Sendable {
+struct FeedTask: Sendable {
   let downloadTask: DownloadTask
   var finished: Bool = false
 
@@ -21,7 +21,7 @@ final actor FeedTask: Sendable {
     await downloadTask.downloadBegan()
   }
 
-  func feedParsed() async -> FeedResult {
+  mutating func feedParsed() async -> FeedResult {
     defer { finished = true }
     let downloadResult = await downloadTask.downloadFinished()
     switch downloadResult {
@@ -58,7 +58,7 @@ final actor FeedManager: Sendable {
   }
 
   func addURL(_ url: URL) async -> FeedTask {
-    if let feedTask = feedTasks[url], !(await feedTask.finished) {
+    if let feedTask = feedTasks[url], !feedTask.finished {
       return feedTask
     }
     let feedTask = FeedTask(await downloadManager.addURL(url))
