@@ -211,6 +211,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
           play()
         case .pause:
           pause()
+        case .skipForward(let interval):
+          seekForward(Self.CMTimeInSeconds(interval))
+        case .skipBackward(let interval):
+          seekBackward(Self.CMTimeInSeconds(interval))
         }
       }
     }

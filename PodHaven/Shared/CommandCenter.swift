@@ -3,9 +3,13 @@
 import Foundation
 import MediaPlayer
 
+// TODO: Deal with AVAudioSession.interruptionNotification
+
 final class CommandCenter {
   enum Command {
     case play, pause
+    case skipBackward(TimeInterval)
+    case skipForward(TimeInterval)
   }
 
   private let commandCenter = MPRemoteCommandCenter.shared()
@@ -34,11 +38,29 @@ final class CommandCenter {
       continuation.yield(.pause)
       return .success
     }
+    commandCenter.skipForwardCommand.preferredIntervals = [30]
+    commandCenter.skipForwardCommand.addTarget { event in
+      guard let skipEvent = event as? MPSkipIntervalCommandEvent else {
+        fatalError("Event is not an MPSkipIntervalCommandEvent")
+      }
+      continuation.yield(.skipForward(skipEvent.interval))
+      return .success
+    }
+    commandCenter.skipBackwardCommand.preferredIntervals = [15]
+    commandCenter.skipBackwardCommand.addTarget { event in
+      guard let skipEvent = event as? MPSkipIntervalCommandEvent else {
+        fatalError("Event is not an MPSkipIntervalCommandEvent")
+      }
+      continuation.yield(.skipBackward(skipEvent.interval))
+      return .success
+    }
   }
 
   func stop() {
     commandCenter.playCommand.removeTarget(nil)
     commandCenter.pauseCommand.removeTarget(nil)
+    commandCenter.skipForwardCommand.removeTarget(nil)
+    commandCenter.skipBackwardCommand.removeTarget(nil)
     if let continuation = self.continuation {
       continuation.finish()
       self.continuation = nil
