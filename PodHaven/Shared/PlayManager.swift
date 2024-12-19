@@ -200,6 +200,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
           play()
         case .pause:
           pause()
+        case .togglePlayPause:
+          if status.playing { pause() } else { play() }
         case .skipForward(let interval):
           seekForward(Self.CMTimeInSeconds(interval))
         case .skipBackward(let interval):

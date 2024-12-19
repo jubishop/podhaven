@@ -5,7 +5,7 @@ import MediaPlayer
 
 struct CommandCenter: Sendable {
   enum Command {
-    case play, pause
+    case play, pause, togglePlayPause
     case skipBackward(TimeInterval)
     case skipForward(TimeInterval)
     case playbackPosition(TimeInterval)
@@ -42,6 +42,10 @@ struct CommandCenter: Sendable {
       continuation.yield(.pause)
       return .success
     }
+    commandCenter.togglePlayPauseCommand.addTarget { event in
+      continuation.yield(.togglePlayPause)
+      return .success
+    }
     commandCenter.skipForwardCommand.preferredIntervals = [30]
     commandCenter.skipForwardCommand.addTarget { event in
       guard let skipEvent = event as? MPSkipIntervalCommandEvent else {
@@ -69,6 +73,7 @@ struct CommandCenter: Sendable {
   mutating func stop() {
     commandCenter.playCommand.removeTarget(nil)
     commandCenter.pauseCommand.removeTarget(nil)
+    commandCenter.togglePlayPauseCommand.removeTarget(nil)
     commandCenter.skipForwardCommand.removeTarget(nil)
     commandCenter.skipBackwardCommand.removeTarget(nil)
     commandCenter.changePlaybackPositionCommand.removeTarget(nil)
