@@ -30,7 +30,7 @@ struct CommandCenter: Sendable {
 
   // MARK: - Public Methods
 
-  mutating func begin() {
+  mutating func start() {
     stop()
     let (stream, continuation) = AsyncStream.makeStream(of: Command.self)
     (self.stream, self.continuation) = (stream, continuation)
