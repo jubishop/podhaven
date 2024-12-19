@@ -226,29 +226,15 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         named: AVAudioSession.interruptionNotification
       ) {
         if Task.isCancelled { break }
-        guard notification.name == AVAudioSession.interruptionNotification,
-          let userInfo = notification.userInfo,
-          let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-          let type = AVAudioSession.InterruptionType(rawValue: typeValue)
-        else { fatalError("Interruption notification invalid") }
-
-        switch type {
-        case .began:
+        switch AudioInterruption.parse(notification) {
+        case .pause:
           pause()
-        case .ended:
-          guard
-            let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey]
-              as? UInt
-          else { fatalError("Interruption options invalid") }
-
-          let options = AVAudioSession.InterruptionOptions(
-            rawValue: optionsValue
-          )
-          if options.contains(.shouldResume) {
-            play()
-          }
-        @unknown default:
+        case .resume:
+          play()
+        case .ignore:
           break
+        @unknown default:
+          fatalError("Interruption Notification unknown?!")
         }
       }
     }
