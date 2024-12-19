@@ -8,6 +8,7 @@ struct CommandCenter: Sendable {
     case play, pause
     case skipBackward(TimeInterval)
     case skipForward(TimeInterval)
+    case playbackPosition(TimeInterval)
   }
 
   // MARK: - State Management
@@ -45,7 +46,7 @@ struct CommandCenter: Sendable {
     commandCenter.skipForwardCommand.preferredIntervals = [30]
     commandCenter.skipForwardCommand.addTarget { event in
       guard let skipEvent = event as? MPSkipIntervalCommandEvent else {
-        fatalError("Event is not an MPSkipIntervalCommandEvent")
+        fatalError("Event is not a MPSkipIntervalCommandEvent")
       }
       continuation.yield(.skipForward(skipEvent.interval))
       return .success
@@ -53,9 +54,15 @@ struct CommandCenter: Sendable {
     commandCenter.skipBackwardCommand.preferredIntervals = [15]
     commandCenter.skipBackwardCommand.addTarget { event in
       guard let skipEvent = event as? MPSkipIntervalCommandEvent else {
-        fatalError("Event is not an MPSkipIntervalCommandEvent")
+        fatalError("Event is not a MPSkipIntervalCommandEvent")
       }
       continuation.yield(.skipBackward(skipEvent.interval))
+      return .success
+    }
+    commandCenter.changePlaybackPositionCommand.addTarget { event in
+      guard let positionEvent = event as? MPChangePlaybackPositionCommandEvent
+      else { fatalError("Event is not a MPChangePlaybackPositionCommandEvent") }
+      continuation.yield(.playbackPosition(positionEvent.positionTime))
       return .success
     }
   }

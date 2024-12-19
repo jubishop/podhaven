@@ -239,6 +239,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
           seekForward(Self.CMTimeInSeconds(interval))
         case .skipBackward(let interval):
           seekBackward(Self.CMTimeInSeconds(interval))
+        case .playbackPosition(let position):
+          seek(to: Self.CMTimeInSeconds(position))
         }
       }
     }
@@ -263,7 +265,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
           let userInfo = notification.userInfo,
           let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
           let type = AVAudioSession.InterruptionType(rawValue: typeValue)
-        else { return }
+        else { fatalError("Interruption notification invalid") }
 
         switch type {
         case .began:
@@ -272,7 +274,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
           guard
             let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey]
               as? UInt
-          else { return }
+          else { fatalError("Interruption options invalid") }
 
           let options = AVAudioSession.InterruptionOptions(
             rawValue: optionsValue
