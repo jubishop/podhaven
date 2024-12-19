@@ -33,8 +33,7 @@ struct CommandCenter: Sendable {
   mutating func begin() {
     stop()
     let (stream, continuation) = AsyncStream.makeStream(of: Command.self)
-    self.stream = stream
-    self.continuation = continuation
+    (self.stream, self.continuation) = (stream, continuation)
     commandCenter.playCommand.addTarget { event in
       continuation.yield(.play)
       return .success
@@ -72,6 +71,7 @@ struct CommandCenter: Sendable {
     commandCenter.pauseCommand.removeTarget(nil)
     commandCenter.skipForwardCommand.removeTarget(nil)
     commandCenter.skipBackwardCommand.removeTarget(nil)
+    commandCenter.changePlaybackPositionCommand.removeTarget(nil)
     if let continuation = self.continuation {
       continuation.finish()
       self.continuation = nil
