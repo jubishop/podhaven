@@ -218,11 +218,12 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   private func stopIntegrations() {
-    stopInterruptionNotifications()
     stopCommandCenter()
+    stopInterruptionNotifications()
   }
 
   private func startCommandCenter() {
+    stopCommandCenter()
     commandCenter.begin()
     self.commandObservingTask = Task { @PlayActor in
       for await command in commandCenter.commands() {
@@ -250,6 +251,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   private func startInterruptionNotifications() {
+    stopInterruptionNotifications()
     self.notificationObservingTask = Task { @PlayActor in
       for await notification in notificationCenter.notifications(
         named: AVAudioSession.interruptionNotification
@@ -291,9 +293,17 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   private func addObservers() {
-    removeObservers()
-
+    addKVObservers()
     addTimeObserver()
+  }
+
+  private func removeObservers() {
+    removeKVObservers()
+    removeTimeObserver()
+  }
+
+  private func addKVObservers() {
+    removeKVObservers()
     keyValueObservers.append(
       avPlayer.observe(
         \.timeControlStatus,
@@ -314,13 +324,13 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     )
   }
 
-  private func removeObservers() {
+  private func removeKVObservers() {
     for keyValueObserver in keyValueObservers { keyValueObserver.invalidate() }
     keyValueObservers.removeAll(keepingCapacity: true)
-    removeTimeObserver()
   }
 
   private func addTimeObserver() {
+    removeTimeObserver()
     timeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: Self.CMTimeInSeconds(1),
       queue: .global(qos: .utility)
