@@ -189,7 +189,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         else { return }
 
         if let image = feedResult.feed.image {
-          PodcastImages.shared.prefetch([image])
+          Images.shared.prefetch([image])
         }
 
         await Task { @MainActor in

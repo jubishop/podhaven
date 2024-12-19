@@ -45,16 +45,12 @@ struct NowPlayingInfo: Sendable {
 
     nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = podcast.title
     if let imageURL = podcast.image,
-      let (data, resp) = try? await URLSession.shared.data(from: imageURL),
-      let httpResp = resp as? HTTPURLResponse,
-      (200...299).contains(httpResp.statusCode),
-      let uiImage = UIImage(data: data)
+      let image = try? await Images.shared.fetchImage(imageURL)
     {
       nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(
-        boundsSize: uiImage.size
-      ) {
-        size in uiImage
-      }
+        boundsSize: image.size,
+        requestHandler: { size in image }
+      )
     }
     nowPlayingInfo[MPMediaItemPropertyMediaType] =
       MPMediaType.podcast.rawValue
