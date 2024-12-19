@@ -94,6 +94,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private var commandCenter = CommandCenter(PlayManagerAccessKey())
   private let loadingSemaphor = AsyncSemaphore(value: 1)
   private var commandObservingTask: Task<Void, Never>?
+  private var notificationObservingTask: Task<Void, Never>?
   private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
   private var timeObserver: Any?
 
@@ -103,15 +104,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private var notificationCenter: NotificationCenter {
     NotificationCenter.default
   }
-  private init() {
-    Task { @PlayActor in
-      for await notification in notificationCenter.notifications(
-        named: AVAudioSession.interruptionNotification
-      ) {
-        playbackInterrupted(notification)
-      }
-    }
-  }
+  private init() {}
 
   // MARK: - Public Methods
 
@@ -151,7 +144,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
     status = .active
     addObservers()
-    startCommandCenter()
+    startIntegrations()
   }
 
   func play() {
@@ -164,7 +157,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   func stop() {
-    stopCommandCenter()
+    stopIntegrations()
     rewind()
     status = .stopped
 
@@ -203,31 +196,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     setCurrentTime(CMTime.zero)
   }
 
-  private func playbackInterrupted(_ notification: Notification) {
-    guard notification.name == AVAudioSession.interruptionNotification,
-      let userInfo = notification.userInfo,
-      let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-      let type = AVAudioSession.InterruptionType(rawValue: typeValue)
-    else { return }
-
-    switch type {
-    case .began:
-      pause()
-    case .ended:
-      guard
-        let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey]
-          as? UInt
-      else { return }
-
-      let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-      if options.contains(.shouldResume) {
-        play()
-      }
-    @unknown default:
-      break
-    }
-  }
-
   private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
     nowPlayingInfo.podcastEpisode = podcastEpisode
     await nowPlayingInfo.onDeck()
@@ -242,6 +210,16 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private func setCurrentTime(_ currentTime: CMTime) {
     nowPlayingInfo.currentTime(currentTime)
     Task { @MainActor in PlayState.shared.currentTime = currentTime }
+  }
+
+  private func startIntegrations() {
+    startCommandCenter()
+    startInterruptionNotifications()
+  }
+
+  private func stopIntegrations() {
+    stopInterruptionNotifications()
+    stopCommandCenter()
   }
 
   private func startCommandCenter() {
@@ -268,6 +246,47 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     if let commandObservingTask = self.commandObservingTask {
       commandObservingTask.cancel()
       self.commandObservingTask = nil
+    }
+  }
+
+  private func startInterruptionNotifications() {
+    self.notificationObservingTask = Task { @PlayActor in
+      for await notification in notificationCenter.notifications(
+        named: AVAudioSession.interruptionNotification
+      ) {
+        if Task.isCancelled { break }
+        guard notification.name == AVAudioSession.interruptionNotification,
+          let userInfo = notification.userInfo,
+          let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+          let type = AVAudioSession.InterruptionType(rawValue: typeValue)
+        else { return }
+
+        switch type {
+        case .began:
+          pause()
+        case .ended:
+          guard
+            let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey]
+              as? UInt
+          else { return }
+
+          let options = AVAudioSession.InterruptionOptions(
+            rawValue: optionsValue
+          )
+          if options.contains(.shouldResume) {
+            play()
+          }
+        @unknown default:
+          break
+        }
+      }
+    }
+  }
+
+  private func stopInterruptionNotifications() {
+    if let notificationObservingTask = self.notificationObservingTask {
+      notificationObservingTask.cancel()
+      self.notificationObservingTask = nil
     }
   }
 
