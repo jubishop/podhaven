@@ -188,7 +188,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
-  // MARK: - Private Methods
+  // MARK: - Private State Management
 
   private func rewind() {
     removeObservers()
@@ -211,6 +211,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     nowPlayingInfo.currentTime(currentTime)
     Task { @MainActor in PlayState.shared.currentTime = currentTime }
   }
+
+  // MARK: - Private Observers / Integrators
 
   private func startIntegrations() {
     startCommandCenter()
