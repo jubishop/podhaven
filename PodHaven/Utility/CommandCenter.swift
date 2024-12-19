@@ -3,7 +3,7 @@
 import Foundation
 import MediaPlayer
 
-struct CommandCenter {
+struct CommandCenter: Sendable {
   enum Command {
     case play, pause
     case skipBackward(TimeInterval)
