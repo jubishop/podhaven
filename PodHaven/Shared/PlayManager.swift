@@ -207,9 +207,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     commandCenter.begin()
     self.commandObservingTask = Task { @PlayActor in
       for await command in commandCenter.commands() {
-        if Task.isCancelled {
-          break
-        }
+        if Task.isCancelled { break }
         switch command {
         case .play:
           play()
