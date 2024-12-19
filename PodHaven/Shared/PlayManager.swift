@@ -94,7 +94,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private var commandCenter = CommandCenter(PlayManagerAccessKey())
   private let loadingSemaphor = AsyncSemaphore(value: 1)
   private var commandObservingTask: Task<Void, Never>?
-  private var notificationObservingTask: Task<Void, Never>?
+  private var interruptionObservingTask: Task<Void, Never>?
   private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
   private var timeObserver: Any?
 
@@ -254,7 +254,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   private func startInterruptionNotifications() {
     stopInterruptionNotifications()
-    self.notificationObservingTask = Task { @PlayActor in
+    self.interruptionObservingTask = Task { @PlayActor in
       for await notification in notificationCenter.notifications(
         named: AVAudioSession.interruptionNotification
       ) {
@@ -288,9 +288,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   private func stopInterruptionNotifications() {
-    if let notificationObservingTask = self.notificationObservingTask {
-      notificationObservingTask.cancel()
-      self.notificationObservingTask = nil
+    if let interruptionObservingTask = self.interruptionObservingTask {
+      interruptionObservingTask.cancel()
+      self.interruptionObservingTask = nil
     }
   }
 
