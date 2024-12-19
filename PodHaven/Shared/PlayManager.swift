@@ -70,14 +70,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     } catch {
       await Alert.shared("Failed to set the audio session configuration")
     }
-
-    Task { @PlayActor in
-      for await notification in NotificationCenter.default.notifications(
-        named: AVAudioSession.interruptionNotification
-      ) {
-        PlayManager.shared.playbackInterrupted(notification)
-      }
-    }
   }
 
   static func CMTimeInSeconds(_ seconds: Double) -> CMTime {
@@ -108,7 +100,18 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   // MARK: - Convenience Getters
 
   private var audioSession: AVAudioSession { Self.audioSession }
-  private init() {}
+  private var notificationCenter: NotificationCenter {
+    NotificationCenter.default
+  }
+  private init() {
+    Task { @PlayActor in
+      for await notification in notificationCenter.notifications(
+        named: AVAudioSession.interruptionNotification
+      ) {
+        playbackInterrupted(notification)
+      }
+    }
+  }
 
   // MARK: - Public Methods
 
@@ -192,7 +195,15 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
-  func playbackInterrupted(_ notification: Notification) {
+  // MARK: - Private Methods
+
+  private func rewind() {
+    removeObservers()
+    pause()
+    setCurrentTime(CMTime.zero)
+  }
+
+  private func playbackInterrupted(_ notification: Notification) {
     guard notification.name == AVAudioSession.interruptionNotification,
       let userInfo = notification.userInfo,
       let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
@@ -215,14 +226,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     @unknown default:
       break
     }
-  }
-
-  // MARK: - Private Methods
-
-  private func rewind() {
-    removeObservers()
-    pause()
-    setCurrentTime(CMTime.zero)
   }
 
   private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
