@@ -4,47 +4,6 @@ import AVFoundation
 import Foundation
 import Semaphore
 
-@dynamicMemberLookup
-@Observable @MainActor final class PlayState: Sendable {
-  static let shared = PlayState()
-
-  // MARK: - Meta
-
-  static subscript<T>(dynamicMember keyPath: KeyPath<PlayState, T>) -> T {
-    shared[keyPath: keyPath]
-  }
-
-  subscript<T>(dynamicMember keyPath: KeyPath<PlayState.Status, T>) -> T {
-    status[keyPath: keyPath]
-  }
-
-  // MARK:- State Management
-
-  enum Status: Sendable {
-    case loading, active, playing, paused, stopped, waiting
-
-    var playable: Bool {
-      switch self {
-      case .active, .playing, .paused, .waiting: return true
-      default: return false
-      }
-    }
-
-    var loading: Bool { self == .loading }
-    var active: Bool { self == .active }
-    var playing: Bool { self == .playing }
-    var paused: Bool { self == .paused }
-    var stopped: Bool { self == .stopped }
-    var waiting: Bool { self == .waiting }
-  }
-
-  fileprivate(set) var status: Status = .stopped
-  fileprivate(set) var duration = CMTime.zero
-  fileprivate(set) var currentTime = CMTime.zero
-  fileprivate(set) var onDeck: PodcastEpisode?
-  private init() {}
-}
-
 struct PlayManagerAccessKey { fileprivate init() {} }
 
 @globalActor
@@ -78,6 +37,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - State Management
 
+  private let accessKey = PlayManagerAccessKey()
   private var _status: PlayState.Status = .stopped
   private var status: PlayState.Status {
     get { _status }
@@ -85,13 +45,13 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       guard newValue != _status else { return }
       _status = newValue
       nowPlayingInfo.status = newValue
-      Task { @MainActor in PlayState.shared.status = newValue }
+      Task { @MainActor in PlayState.shared.setStatus(newValue, accessKey) }
     }
   }
   private var avPlayer = AVPlayer()
   private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
-  private var nowPlayingInfo = NowPlayingInfo(PlayManagerAccessKey())
-  private var commandCenter = CommandCenter(PlayManagerAccessKey())
+  private var nowPlayingInfo: NowPlayingInfo
+  private var commandCenter: CommandCenter
   private let loadingSemaphor = AsyncSemaphore(value: 1)
   private var commandObservingTask: Task<Void, Never>?
   private var interruptionObservingTask: Task<Void, Never>?
@@ -104,7 +64,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private var notificationCenter: NotificationCenter {
     NotificationCenter.default
   }
-  private init() {}
+  private init() {
+    nowPlayingInfo = NowPlayingInfo(accessKey)
+    commandCenter = CommandCenter(accessKey)
+  }
 
   // MARK: - Public Methods
 
@@ -199,17 +162,19 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
     nowPlayingInfo.podcastEpisode = podcastEpisode
     await nowPlayingInfo.onDeck()
-    Task { @MainActor in PlayState.shared.onDeck = podcastEpisode }
+    Task { @MainActor in PlayState.shared.setOnDeck(podcastEpisode, accessKey) }
   }
 
   private func setDuration(_ duration: CMTime) {
     nowPlayingInfo.duration(duration)
-    Task { @MainActor in PlayState.shared.duration = duration }
+    Task { @MainActor in PlayState.shared.setDuration(duration, accessKey) }
   }
 
   private func setCurrentTime(_ currentTime: CMTime) {
     nowPlayingInfo.currentTime(currentTime)
-    Task { @MainActor in PlayState.shared.currentTime = currentTime }
+    Task { @MainActor in
+      PlayState.shared.setCurrentTime(currentTime, accessKey)
+    }
   }
 
   // MARK: - Private Observers / Integrators
