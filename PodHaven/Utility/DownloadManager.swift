@@ -33,7 +33,7 @@ final actor DownloadTask: Sendable {
   }
 
   func downloadFinished() async -> DownloadResult {
-    guard result == nil else { return result! }
+    if let result = result { return result }
 
     return await withCheckedContinuation { continuation in
       finishedContinuations.append(continuation)

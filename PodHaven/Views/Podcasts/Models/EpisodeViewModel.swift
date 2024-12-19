@@ -27,17 +27,13 @@ import GRDB
 
       for try await podcastEpisode in observer.values(in: Repo.shared.db) {
         guard let podcastEpisode = podcastEpisode else {
-          Alert.shared(
-            "No return from DB for episode: \(episode.toString)"
-          )
+          Alert.shared("No return from DB for: \(episode.toString)")
           return
         }
         self.podcastEpisode = podcastEpisode
       }
     } catch {
-      Alert.shared(
-        "Error thrown while observing episode: \(self.episode.toString)"
-      )
+      Alert.shared("Error thrown while observing: \(episode.toString)")
     }
   }
 

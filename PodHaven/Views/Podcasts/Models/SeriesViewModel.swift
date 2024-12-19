@@ -14,14 +14,14 @@ import IdentifiedCollections
   }
 
   func refreshSeries() async throws {
-    let feedResult = await FeedManager.shared.addURL(podcast.feedURL)
-      .feedParsed()
+    let feedTask = await FeedManager.shared.addURL(podcast.feedURL)
+    let feedResult = await feedTask.feedParsed()
     switch feedResult {
     case .failure(let error):
       Alert.shared(error.errorDescription)
     case .success(let feedData):
       guard let newPodcast = feedData.feed.toPodcast(mergingExisting: podcast)
-      else { return }
+      else { fatalError("Failed to refresh series: \(podcast.toString)") }
       var unsavedEpisodes: [UnsavedEpisode] = []
       var existingEpisodes: [Episode] = []
       for feedItem in feedData.feed.items {
@@ -56,13 +56,13 @@ import IdentifiedCollections
 
       for try await podcastSeries in observer.values(in: Repo.shared.db) {
         guard let podcastSeries = podcastSeries else {
-          Alert.shared("No return from DB for podcast: \(podcast.toString)")
+          Alert.shared("No return from DB for: \(podcast.toString)")
           return
         }
         self.podcastSeries = podcastSeries
       }
     } catch {
-      Alert.shared("Error thrown while observing podcast: \(podcast.toString)")
+      Alert.shared("Error thrown while observing: \(podcast.toString)")
     }
   }
 }
