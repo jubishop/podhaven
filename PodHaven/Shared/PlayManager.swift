@@ -293,6 +293,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private func addObservers() {
     removeObservers()
 
+    addTimeObserver()
     keyValueObservers.append(
       avPlayer.observe(
         \.timeControlStatus,
@@ -311,7 +312,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         }
       )
     )
-    addTimeObserver()
   }
 
   private func removeObservers() {
