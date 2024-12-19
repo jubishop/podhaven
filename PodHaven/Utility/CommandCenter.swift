@@ -3,8 +3,6 @@
 import Foundation
 import MediaPlayer
 
-// TODO: Deal with AVAudioSession.interruptionNotification
-
 struct CommandCenter {
   enum Command {
     case play, pause
@@ -12,10 +10,14 @@ struct CommandCenter {
     case skipForward(TimeInterval)
   }
 
-  var commandCenter: MPRemoteCommandCenter { MPRemoteCommandCenter.shared() }
+  // MARK: - State Management
+
   private var stream: AsyncStream<Command>?
   private var continuation: AsyncStream<Command>.Continuation?
 
+  // MARK: - Convenience Getters
+
+  var commandCenter: MPRemoteCommandCenter { MPRemoteCommandCenter.shared() }
   init(_ key: PlayManagerAccessKey) {}
 
   func commands() -> AsyncStream<Command> {
@@ -24,6 +26,8 @@ struct CommandCenter {
     }
     return stream
   }
+
+  // MARK: - Public Methods
 
   mutating func begin() {
     stop()

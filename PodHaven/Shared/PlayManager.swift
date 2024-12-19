@@ -55,16 +55,28 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - Static Methods
 
+  private static var audioSession: AVAudioSession {
+    AVAudioSession.sharedInstance()
+  }
+
   static func configureAudioSession() async {
     do {
-      try AVAudioSession.sharedInstance()
-        .setCategory(
-          .playback,
-          mode: .spokenAudio,
-          policy: .longFormAudio
-        )
+      try audioSession.setCategory(
+        .playback,
+        mode: .spokenAudio,
+        policy: .longFormAudio
+      )
+      try audioSession.setMode(.spokenAudio)
     } catch {
       await Alert.shared("Failed to set the audio session configuration")
+    }
+
+    Task { @PlayActor in
+      for await notification in NotificationCenter.default.notifications(
+        named: AVAudioSession.interruptionNotification
+      ) {
+        PlayManager.shared.playbackInterrupted(notification)
+      }
     }
   }
 
@@ -84,6 +96,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       Task { @MainActor in PlayState.shared.status = newValue }
     }
   }
+  private var avPlayer = AVPlayer()
+  private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
   private var nowPlayingInfo = NowPlayingInfo(PlayManagerAccessKey())
   private var commandCenter = CommandCenter(PlayManagerAccessKey())
   private let loadingSemaphor = AsyncSemaphore(value: 1)
@@ -91,10 +105,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
   private var timeObserver: Any?
 
-  // MARK: - Private Variables
+  // MARK: - Convenience Getters
 
-  private var avPlayer = AVPlayer()
-  private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
+  private var audioSession: AVAudioSession { Self.audioSession }
   private init() {}
 
   // MARK: - Public Methods
@@ -121,7 +134,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
 
     do {
-      try AVAudioSession.sharedInstance().setActive(true)
+      try audioSession.setActive(true)
     } catch {
       Task { @MainActor in Alert.shared("Failed to set audio session active") }
       throw PlaybackError.notActive
@@ -153,7 +166,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     status = .stopped
 
     do {
-      try AVAudioSession.sharedInstance().setActive(false)
+      try audioSession.setActive(false)
     } catch {
       Task { @MainActor in
         Alert.shared("Failed to set audio session as inactive")
@@ -176,6 +189,31 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       if completed {
         Task { @PlayActor in addTimeObserver() }
       }
+    }
+  }
+
+  func playbackInterrupted(_ notification: Notification) {
+    guard notification.name == AVAudioSession.interruptionNotification,
+      let userInfo = notification.userInfo,
+      let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+      let type = AVAudioSession.InterruptionType(rawValue: typeValue)
+    else { return }
+
+    switch type {
+    case .began:
+      pause()
+    case .ended:
+      guard
+        let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey]
+          as? UInt
+      else { return }
+
+      let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+      if options.contains(.shouldResume) {
+        play()
+      }
+    @unknown default:
+      break
     }
   }
 
