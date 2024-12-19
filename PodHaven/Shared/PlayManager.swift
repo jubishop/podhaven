@@ -25,7 +25,7 @@ import Semaphore
 
     var playable: Bool {
       switch self {
-      case .active, .playing, .paused: return true
+      case .active, .playing, .paused, .waiting: return true
       default: return false
       }
     }
