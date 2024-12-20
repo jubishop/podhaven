@@ -26,13 +26,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         policy: .longFormAudio
       )
       try audioSession.setMode(.spokenAudio)
+      try await shared.resume()
     } catch {
       await Alert.shared("Failed to set the audio session configuration")
     }
-  }
-
-  static func CMTimeInSeconds(_ seconds: Double) -> CMTime {
-    CMTime(seconds: seconds, preferredTimescale: 60)
   }
 
   // MARK: - State Management
@@ -162,6 +159,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
     nowPlayingInfo.podcastEpisode = podcastEpisode
     await nowPlayingInfo.onDeck()
+    Persistence.nowPlaying.save(podcastEpisode)
     Task { @MainActor in PlayState.shared.setOnDeck(podcastEpisode, accessKey) }
   }
 
@@ -172,12 +170,23 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   private func setCurrentTime(_ currentTime: CMTime) {
     nowPlayingInfo.currentTime(currentTime)
+    Persistence.currentTime.save(currentTime)
     Task { @MainActor in
       PlayState.shared.setCurrentTime(currentTime, accessKey)
     }
   }
 
   // MARK: - Private Observers / Integrators
+
+  private func resume() async throws {
+    let currentTime: CMTime? = Persistence.currentTime.load()
+    if let podcastEpisode: PodcastEpisode = Persistence.nowPlaying.load() {
+      try await load(podcastEpisode)
+      if let currentTime = currentTime {
+        seek(to: currentTime)
+      }
+    }
+  }
 
   private func startIntegrations() {
     startCommandCenter()
@@ -203,11 +212,11 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         case .togglePlayPause:
           if status.playing { pause() } else { play() }
         case .skipForward(let interval):
-          seekForward(Self.CMTimeInSeconds(interval))
+          seekForward(CMTime.inSeconds(interval))
         case .skipBackward(let interval):
-          seekBackward(Self.CMTimeInSeconds(interval))
+          seekBackward(CMTime.inSeconds(interval))
         case .playbackPosition(let position):
-          seek(to: Self.CMTimeInSeconds(position))
+          seek(to: CMTime.inSeconds(position))
         }
       }
     }
@@ -289,7 +298,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private func addTimeObserver() {
     removeTimeObserver()
     timeObserver = avPlayer.addPeriodicTimeObserver(
-      forInterval: Self.CMTimeInSeconds(1),
+      forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
     ) { currentTime in
       Task { @PlayActor [unowned self] in setCurrentTime(currentTime) }

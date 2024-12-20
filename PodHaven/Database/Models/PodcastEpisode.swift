@@ -3,7 +3,7 @@
 import Foundation
 import GRDB
 
-struct PodcastEpisode: Decodable, FetchableRecord, Equatable {
+struct PodcastEpisode: Codable, FetchableRecord, Equatable {
   let podcast: Podcast
   let episode: Episode
 }

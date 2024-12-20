@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2024
 
+import AVFoundation
 import Foundation
 import SwiftUI
 
@@ -13,9 +14,7 @@ import SwiftUI
     set {
       self._sliderValue = newValue
       Task { @PlayActor in
-        await PlayManager.shared.seek(
-          to: PlayManager.CMTimeInSeconds(_sliderValue)
-        )
+        await PlayManager.shared.seek(to: CMTime.inSeconds(_sliderValue))
       }
     }
   }
