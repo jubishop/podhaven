@@ -28,7 +28,7 @@ actor PodcastTests {
     #expect(fetchedPodcast == podcast)
 
     let urlFilteredPodcast = try await repo.db.read { db in
-      try Podcast.filter(key: ["feedURL": url]).fetchOne(db)
+      try Podcast.fetchOne(db, key: ["feedURL": url])
     }
     #expect(urlFilteredPodcast == podcast)
 
@@ -104,7 +104,7 @@ actor PodcastTests {
     _ = try await repo.insert(unsavedPodcast2)
 
     let fetchedPodcast = try await repo.db.read { db in
-      try Podcast.filter(key: ["feedURL": url]).fetchOne(db)
+      try Podcast.fetchOne(db, key: ["feedURL": url])
     }
     #expect(fetchedPodcast?.title == "New Title")
   }

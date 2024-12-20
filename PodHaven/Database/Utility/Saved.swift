@@ -36,6 +36,11 @@ where V: Savable {
     self.value = value
   }
 
+  public init(from value: V) {
+    self.id = -1
+    self.value = value
+  }
+
   // MARK: - PersistableRecord
 
   public func encode(to container: inout PersistenceContainer) throws {

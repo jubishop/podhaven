@@ -27,6 +27,7 @@ struct PodcastFeedItem: Sendable {
       guid: guid,
       podcastId: existingEpisode?.podcastId,
       media: media ?? existingEpisode?.media,
+      currentTime: existingEpisode?.currentTime,
       pubDate: pubDate ?? existingEpisode?.pubDate,
       title: title ?? existingEpisode?.title,
       description: description ?? existingEpisode?.description,
@@ -115,16 +116,6 @@ struct PodcastFeed: Sendable, Equatable {
       }
   }
 
-  func toUnsavedPodcast(oldFeedURL: URL, oldTitle: String) -> UnsavedPodcast? {
-    try? UnsavedPodcast(
-      feedURL: feedURL ?? oldFeedURL,
-      title: title ?? oldTitle,
-      link: link,
-      image: image,
-      description: description
-    )
-  }
-
   func toUnsavedPodcast(mergingExisting existingPodcast: Podcast)
     -> UnsavedPodcast?
   {
@@ -134,6 +125,14 @@ struct PodcastFeed: Sendable, Equatable {
       link: link ?? existingPodcast.link,
       image: image ?? existingPodcast.image,
       description: description ?? existingPodcast.description
+    )
+  }
+
+  func toUnsavedPodcast(oldFeedURL: URL, oldTitle: String) -> UnsavedPodcast? {
+    try? toUnsavedPodcast(
+      mergingExisting: Podcast(
+        from: UnsavedPodcast(feedURL: oldFeedURL, title: oldTitle)
+      )
     )
   }
 

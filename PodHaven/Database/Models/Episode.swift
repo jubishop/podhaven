@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2024
 
+import AVFoundation
 import Foundation
 import GRDB
 
@@ -7,6 +8,7 @@ struct UnsavedEpisode: Savable {
   let guid: String
   var podcastId: Int64?
   var media: URL?
+  var currentTime: CMTime?
   var pubDate: Date
   var title: String?
   var description: String?
@@ -17,6 +19,7 @@ struct UnsavedEpisode: Savable {
     guid: String,
     podcastId: Int64? = nil,
     media: URL? = nil,
+    currentTime: CMTime? = nil,
     pubDate: Date? = nil,
     title: String? = nil,
     description: String? = nil,
@@ -26,6 +29,9 @@ struct UnsavedEpisode: Savable {
     self.guid = guid
     self.podcastId = podcastId
     self.media = try? media?.convertToValidURL()
+    if self.media != nil {
+      self.currentTime = currentTime ?? CMTime.zero
+    }
     self.pubDate = pubDate ?? Date()
     self.title = title
     self.description = description

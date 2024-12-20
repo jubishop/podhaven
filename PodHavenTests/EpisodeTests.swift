@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2024
 
+import AVFoundation
 import Foundation
 import GRDB
 import Testing
@@ -47,5 +48,28 @@ actor EpisodeTests {
       podcastSeries.episodes.elements
         == podcastSeries.episodes.sorted { $0.pubDate > $1.pubDate }
     )
+  }
+
+  @Test("that episodes can persist currentTime")
+  func persistCurrentTime() async throws {
+    let url = URL(string: "https://example.com/data")!
+    let guid = "guid"
+    let cmTime = CMTime.inSeconds(30)
+
+    let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
+    let unsavedEpisode = UnsavedEpisode(
+      guid: guid,
+      media: url,
+      currentTime: cmTime
+    )
+    let podcast = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode]
+    )
+
+    let episode = try await repo.db.read { db in
+      try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcast.id])
+    }
+    #expect(episode!.currentTime == cmTime)
   }
 }

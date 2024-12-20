@@ -3,9 +3,7 @@
 import Foundation
 
 extension URL {
-  static let placeholder = {
-    URL(string: "about:blank")!
-  }()
+  static let placeholder = { URL(string: "about:blank")! }()
 
   func convertToValidURL() throws -> URL {
     guard
