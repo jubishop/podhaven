@@ -62,10 +62,19 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 }
 
 @Observable @MainActor final class OPMLViewModel {
-  private var downloadManager: DownloadManager?
-  let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)!
+  let opmlType: UTType
+
   var opmlImporting = false
   var opmlFile: OPMLFile?
+
+  private var downloadManager: DownloadManager?
+  private var downloadTaskGroup: DiscardingTaskGroup?
+
+  init() {
+    guard let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)
+    else { fatalError("Couldn't initialize opml UTType?") }
+    self.opmlType = opmlType
+  }
 
   func opmlFileImporterCompletion(_ result: Result<URL, any Error>) async {
     switch result {
@@ -105,6 +114,10 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     if let downloadManager = downloadManager {
       await downloadManager.cancelAllDownloads()
     }
+    if let downloadTaskGroup = downloadTaskGroup {
+      downloadTaskGroup.cancelAll()
+    }
+
     opmlFile = nil
     Navigation.shared.currentTab = .podcasts
   }
@@ -147,57 +160,62 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     }
 
     self.opmlFile = opmlFile
-    for outline in opmlFile.waiting {
-      Task.detached {
-        defer {
-          Task { @MainActor in
-            guard outline.status != .finished else { return }
-            outline.status = .failed
-            opmlFile.downloading.remove(outline)
-            opmlFile.failed.insert(outline)
+    await withDiscardingTaskGroup { group in
+      self.downloadTaskGroup = group
+      for outline in opmlFile.waiting {
+        group.addTask {
+          defer {
+            Task { @MainActor in
+              guard outline.status != .finished else { return }
+              outline.status = .failed
+              opmlFile.downloading.remove(outline)
+              opmlFile.failed.insert(outline)
+            }
           }
+
+          let feedTask = await FeedManager.shared.addURL(outline.feedURL)
+
+          await feedTask.downloadBegan()
+          await Task { @MainActor in
+            outline.status = .downloading
+            opmlFile.waiting.remove(outline)
+            opmlFile.downloading.insert(outline)
+          }
+          .value
+
+          guard case .success(let feedResult) = await feedTask.feedParsed()
+          else { return }
+
+          await Task { @MainActor in
+            outline.feedURL = feedResult.feed.feedURL ?? outline.feedURL
+            outline.text = feedResult.feed.title ?? outline.text
+          }
+          .value
+
+          guard
+            let unsavedPodcast = await feedResult.feed.toUnsavedPodcast(
+              oldFeedURL: outline.feedURL,
+              oldTitle: outline.text
+            ),
+            (try? await Repo.shared.insertSeries(
+              unsavedPodcast,
+              unsavedEpisodes: feedResult.feed.items.map {
+                $0.toUnsavedEpisode()
+              }
+            )) != nil
+          else { return }
+
+          if let image = feedResult.feed.image {
+            Images.shared.prefetch([image])
+          }
+
+          await Task { @MainActor in
+            outline.status = .finished
+            opmlFile.downloading.remove(outline)
+            opmlFile.finished.insert(outline)
+          }
+          .value
         }
-
-        let feedTask = await FeedManager.shared.addURL(outline.feedURL)
-
-        await feedTask.downloadBegan()
-        await Task { @MainActor in
-          outline.status = .downloading
-          opmlFile.waiting.remove(outline)
-          opmlFile.downloading.insert(outline)
-        }
-        .value
-
-        guard case .success(let feedResult) = await feedTask.feedParsed()
-        else { return }
-
-        await Task { @MainActor in
-          outline.feedURL = feedResult.feed.feedURL ?? outline.feedURL
-          outline.text = feedResult.feed.title ?? outline.text
-        }
-        .value
-
-        guard
-          let unsavedPodcast = await feedResult.feed.toUnsavedPodcast(
-            oldFeedURL: outline.feedURL,
-            oldTitle: outline.text
-          ),
-          (try? await Repo.shared.insertSeries(
-            unsavedPodcast,
-            unsavedEpisodes: feedResult.feed.items.map { $0.toUnsavedEpisode() }
-          )) != nil
-        else { return }
-
-        if let image = feedResult.feed.image {
-          Images.shared.prefetch([image])
-        }
-
-        await Task { @MainActor in
-          outline.status = .finished
-          opmlFile.downloading.remove(outline)
-          opmlFile.finished.insert(outline)
-        }
-        .value
       }
     }
   }
