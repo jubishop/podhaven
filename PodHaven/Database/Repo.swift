@@ -83,4 +83,12 @@ struct Repo: Sendable {
       try podcast.delete(db)
     }
   }
+
+  // MARK: - Episode Writers
+
+  func update(_ episode: Episode) async throws {
+    try await appDB.db.write { db in
+      try episode.update(db)
+    }
+  }
 }

@@ -67,9 +67,18 @@ actor EpisodeTests {
       unsavedEpisodes: [unsavedEpisode]
     )
 
-    let episode = try await repo.db.read { db in
+    var episode = try await repo.db.read { db in
       try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcast.id])
-    }
-    #expect(episode!.currentTime == cmTime)
+    }!
+    #expect(episode.currentTime == cmTime)
+
+    let newCMTime = CMTime.inSeconds(60)
+    episode.currentTime = newCMTime
+    try await repo.update(episode)
+
+    episode = try await repo.db.read { db in
+      try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcast.id])
+    }!
+    #expect(episode.currentTime == newCMTime)
   }
 }
