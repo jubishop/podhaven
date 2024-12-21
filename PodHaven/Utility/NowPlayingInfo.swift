@@ -86,8 +86,8 @@ struct NowPlayingInfo: Sendable {
     updateProgress()
 
     var episode = podcastEpisode.episode
-    episode.currentTime = currentTime
     Task(priority: .utility) {
+      episode.currentTime = currentTime
       try await Repo.shared.update(episode)
     }
   }

@@ -165,8 +165,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
 
     nowPlayingInfo = await NowPlayingInfo(podcastEpisode, accessKey)
-    Persistence.currentEpisodeID.save(podcastEpisode.episode.id)
     Task { @MainActor in PlayState.shared.setOnDeck(podcastEpisode, accessKey) }
+    Task(priority: .utility) {
+      Persistence.currentEpisodeID.save(podcastEpisode.episode.id)
+    }
 
     seek(to: currentTime)
   }
