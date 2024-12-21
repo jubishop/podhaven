@@ -93,6 +93,13 @@ struct NowPlayingInfo: Sendable {
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
       NSNumber(value: CMTimeGetSeconds(currentTime))
     updateProgress()
+
+    if var episode = podcastEpisode?.episode {
+      episode.currentTime = currentTime
+      Task(priority: .utility) {
+        try await Repo.shared.update(episode)
+      }
+    }
   }
 
   // MARK: - Private Methods

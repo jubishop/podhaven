@@ -80,7 +80,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     await loadingSemaphor.wait()
     defer { loadingSemaphor.signal() }
 
-    rewind()
+    stopIntegrations()
+    removeObservers()
+    pause()
     status = .loading
 
     let avAsset = AVURLAsset(url: url)
@@ -96,15 +98,15 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       throw PlaybackError.notActive
     }
 
-    await setPodcastEpisode(podcastEpisode)
-    setDuration(duration)
-
     avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
 
-    status = .active
+    await setPodcastEpisode(podcastEpisode)
+    setDuration(duration)
+
     addObservers()
     startIntegrations()
+    status = .active
   }
 
   func play() {
@@ -118,7 +120,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   func stop() {
     stopIntegrations()
-    rewind()
+    removeObservers()
+    pause()
+    setCurrentTime(CMTime.zero)
     status = .stopped
 
     do {
@@ -150,17 +154,17 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - Private State Management
 
-  private func rewind() {
-    removeObservers()
-    pause()
-    setCurrentTime(CMTime.zero)
-  }
-
   private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
+    guard let currentTime = podcastEpisode.episode.currentTime else {
+      fatalError("Setting podcast episode with no time?")
+    }
+
     nowPlayingInfo.podcastEpisode = podcastEpisode
     await nowPlayingInfo.onDeck()
-    Persistence.nowPlaying.save(podcastEpisode)
+    Persistence.currentEpisodeID.save(podcastEpisode.episode.id)
     Task { @MainActor in PlayState.shared.setOnDeck(podcastEpisode, accessKey) }
+
+    seek(to: currentTime)
   }
 
   private func setDuration(_ duration: CMTime) {
@@ -170,7 +174,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   private func setCurrentTime(_ currentTime: CMTime) {
     nowPlayingInfo.currentTime(currentTime)
-    Persistence.currentTime.save(currentTime)
     Task { @MainActor in
       PlayState.shared.setCurrentTime(currentTime, accessKey)
     }
@@ -179,12 +182,16 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   // MARK: - Private Observers / Integrators
 
   private func resume() async throws {
-    let currentTime: CMTime? = Persistence.currentTime.load()
-    if let podcastEpisode: PodcastEpisode = Persistence.nowPlaying.load() {
+    if let episodeID: Int64 = Persistence.currentEpisodeID.load(),
+      let podcastEpisode = try await Repo.shared.db.read({ db in
+        try Episode
+          .filter(id: episodeID)
+          .including(required: Episode.podcast)
+          .asRequest(of: PodcastEpisode.self)
+          .fetchOne(db)
+      })
+    {
       try await load(podcastEpisode)
-      if let currentTime = currentTime {
-        seek(to: currentTime)
-      }
     }
   }
 

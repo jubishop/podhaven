@@ -3,7 +3,7 @@
 import Foundation
 
 enum Persistence: String {
-  case nowPlaying, currentTime
+  case currentEpisodeID
 
   func save(_ value: Any?) {
     UserDefaults.standard.set(value, forKey: self.rawValue)
