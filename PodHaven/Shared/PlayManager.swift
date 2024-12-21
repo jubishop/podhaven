@@ -87,7 +87,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     let avAsset = AVURLAsset(url: url)
     let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
     guard isPlayable else {
-      Task { @MainActor in Alert.shared("Could not play podcast episode") }
+      Task { @MainActor in
+        Alert.shared("Could not play \(podcastEpisode.episode.toString)")
+      }
       stop()
       throw PlaybackError.notPlayable(url)
     }
