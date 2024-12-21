@@ -126,8 +126,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     stopIntegrations()
     removeObservers()
     pause()
-    setCurrentTime(CMTime.zero)
-    nowPlayingInfo = nil
+    if nowPlayingInfo != nil {
+      setCurrentTime(CMTime.zero)
+      nowPlayingInfo = nil
+    }
     status = .stopped
 
     do {
