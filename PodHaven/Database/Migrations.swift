@@ -32,6 +32,7 @@ enum Migrations {
         t.uniqueKey(["podcastId", "guid"], onConflict: .replace)
         t.column("media", .text)
         t.column("currentTime", .integer)
+        t.column("duration", .integer)
         t.column("pubDate", .text).notNull()
         t.column("title", .text)
         t.column("description", .text)

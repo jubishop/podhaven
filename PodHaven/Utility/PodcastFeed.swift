@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2024
 
+import AVFoundation
 @preconcurrency import FeedKit
 import Foundation
 
@@ -28,6 +29,7 @@ struct PodcastFeedItem: Sendable {
       podcastId: existingEpisode?.podcastId,
       media: media ?? existingEpisode?.media,
       currentTime: existingEpisode?.currentTime,
+      duration: duration ?? existingEpisode?.duration,
       pubDate: pubDate ?? existingEpisode?.pubDate,
       title: title ?? existingEpisode?.title,
       description: description ?? existingEpisode?.description,
@@ -73,6 +75,12 @@ struct PodcastFeedItem: Sendable {
       let url = URL(string: urlString)
     else { return nil }
     return url
+  }
+
+  var duration: CMTime? {
+    guard let timeInterval = rssFeedItem.iTunes?.iTunesDuration
+    else { return nil }
+    return CMTime.inSeconds(timeInterval)
   }
 }
 

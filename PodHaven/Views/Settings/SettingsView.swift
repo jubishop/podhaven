@@ -24,6 +24,14 @@ struct SettingsView: View {
                 }
               }
             }
+            Button(
+              action: {
+                Task { @PlayActor in
+                  PlayManager.shared.stop()
+                }
+              },
+              label: { Text("Stop Playing") }
+            )
           }
         #endif
       }

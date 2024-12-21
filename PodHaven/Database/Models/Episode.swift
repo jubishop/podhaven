@@ -9,6 +9,7 @@ struct UnsavedEpisode: Savable {
   var podcastId: Int64?
   var media: URL?
   var currentTime: CMTime?
+  var duration: CMTime?
   var pubDate: Date
   var title: String?
   var description: String?
@@ -20,6 +21,7 @@ struct UnsavedEpisode: Savable {
     podcastId: Int64? = nil,
     media: URL? = nil,
     currentTime: CMTime? = nil,
+    duration: CMTime? = nil,
     pubDate: Date? = nil,
     title: String? = nil,
     description: String? = nil,
@@ -31,6 +33,7 @@ struct UnsavedEpisode: Savable {
     self.media = try? media?.convertToValidURL()
     if self.media != nil {
       self.currentTime = currentTime ?? CMTime.zero
+      self.duration = duration ?? CMTime.zero
     }
     self.pubDate = pubDate ?? Date()
     self.title = title

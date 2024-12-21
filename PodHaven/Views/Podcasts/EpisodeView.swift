@@ -13,6 +13,8 @@ struct EpisodeView: View {
 
   var body: some View {
     VStack(spacing: 40) {
+      Text(viewModel.episode.toString)
+      Text("Duration: \(String(describing: viewModel.episode.duration))")
       Button(
         action: {
           Task { @PlayActor in
@@ -23,15 +25,7 @@ struct EpisodeView: View {
             }
           }
         },
-        label: { Text(viewModel.episode.toString) }
-      )
-      Button(
-        action: {
-          Task { @PlayActor in
-            PlayManager.shared.stop()
-          }
-        },
-        label: { Text("Stop") }
+        label: { Text("Play") }
       )
     }
     .task {
