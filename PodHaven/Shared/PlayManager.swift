@@ -41,13 +41,13 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     set {
       guard newValue != _status else { return }
       _status = newValue
-      nowPlayingInfo.status = newValue
+      nowPlayingInfo?.status = newValue
       Task { @MainActor in PlayState.shared.setStatus(newValue, accessKey) }
     }
   }
   private var avPlayer = AVPlayer()
   private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
-  private var nowPlayingInfo: NowPlayingInfo
+  private var nowPlayingInfo: NowPlayingInfo?
   private var commandCenter: CommandCenter
   private let loadingSemaphor = AsyncSemaphore(value: 1)
   private var commandObservingTask: Task<Void, Never>?
@@ -62,7 +62,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     NotificationCenter.default
   }
   private init() {
-    nowPlayingInfo = NowPlayingInfo(accessKey)
     commandCenter = CommandCenter(accessKey)
   }
 
@@ -88,6 +87,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     let avAsset = AVURLAsset(url: url)
     let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
     guard isPlayable else {
+      Task { @MainActor in Alert.shared("Could not play podcast episode") }
+      status = .paused
+      addObservers()
+      startIntegrations()
       throw PlaybackError.notPlayable(url)
     }
 
@@ -95,6 +98,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       try audioSession.setActive(true)
     } catch {
       Task { @MainActor in Alert.shared("Failed to set audio session active") }
+      stop()
       throw PlaybackError.notActive
     }
 
@@ -104,9 +108,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     await setPodcastEpisode(podcastEpisode)
     setDuration(duration)
 
+    status = .active
     addObservers()
     startIntegrations()
-    status = .active
   }
 
   func play() {
@@ -123,6 +127,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     removeObservers()
     pause()
     setCurrentTime(CMTime.zero)
+    nowPlayingInfo = nil
     status = .stopped
 
     do {
@@ -159,8 +164,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       fatalError("Setting podcast episode with no time?")
     }
 
-    nowPlayingInfo.podcastEpisode = podcastEpisode
-    await nowPlayingInfo.onDeck()
+    nowPlayingInfo = await NowPlayingInfo(podcastEpisode, accessKey)
     Persistence.currentEpisodeID.save(podcastEpisode.episode.id)
     Task { @MainActor in PlayState.shared.setOnDeck(podcastEpisode, accessKey) }
 
@@ -168,11 +172,19 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   private func setDuration(_ duration: CMTime) {
+    guard var nowPlayingInfo = nowPlayingInfo else {
+      fatalError("setting duration with no nowPlayingInfo?")
+    }
+
     nowPlayingInfo.duration(duration)
     Task { @MainActor in PlayState.shared.setDuration(duration, accessKey) }
   }
 
   private func setCurrentTime(_ currentTime: CMTime) {
+    guard var nowPlayingInfo = nowPlayingInfo else {
+      fatalError("setting currentTime with no nowPlayingInfo?")
+    }
+
     nowPlayingInfo.currentTime(currentTime)
     Task { @MainActor in
       PlayState.shared.setCurrentTime(currentTime, accessKey)

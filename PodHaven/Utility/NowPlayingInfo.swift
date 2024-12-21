@@ -6,7 +6,7 @@ import MediaPlayer
 struct NowPlayingInfo: Sendable {
   // MARK: - State Management
 
-  var podcastEpisode: PodcastEpisode?
+  let podcastEpisode: PodcastEpisode
   private var currentTime: CMTime?
   private var duration: CMTime?
   var _status: PlayState.Status = .stopped
@@ -24,23 +24,14 @@ struct NowPlayingInfo: Sendable {
 
   private let appIdentifier = "com.artisanal.podhaven"
   var infoCenter: MPNowPlayingInfoCenter { MPNowPlayingInfoCenter.default() }
-  private var episode: Episode {
-    guard let podcastEpisode = podcastEpisode else {
-      fatalError("Calling episode when no podcastEpisode loaded?")
-    }
-    return podcastEpisode.episode
-  }
-  private var podcast: Podcast {
-    guard let podcastEpisode = podcastEpisode else {
-      fatalError("Calling podcast when no podcast loaded?")
-    }
-    return podcastEpisode.podcast
-  }
-  init(_ key: PlayManagerAccessKey) {}
+  private var episode: Episode { podcastEpisode.episode }
+  private var podcast: Podcast { podcastEpisode.podcast }
 
-  // MARK: - Public Methods
+  // MARK: - Initializing
 
-  func onDeck() async {
+  init(_ podcastEpisode: PodcastEpisode, _ key: PlayManagerAccessKey) async {
+    self.podcastEpisode = podcastEpisode
+
     var nowPlayingInfo: [String: Any] = [:]
 
     nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = podcast.title
@@ -94,11 +85,10 @@ struct NowPlayingInfo: Sendable {
       NSNumber(value: CMTimeGetSeconds(currentTime))
     updateProgress()
 
-    if var episode = podcastEpisode?.episode {
-      episode.currentTime = currentTime
-      Task(priority: .utility) {
-        try await Repo.shared.update(episode)
-      }
+    var episode = podcastEpisode.episode
+    episode.currentTime = currentTime
+    Task(priority: .utility) {
+      try await Repo.shared.update(episode)
     }
   }
 
