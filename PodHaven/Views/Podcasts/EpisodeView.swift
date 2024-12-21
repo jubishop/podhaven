@@ -18,11 +18,7 @@ struct EpisodeView: View {
       Button(
         action: {
           Task { @PlayActor in
-            do {
-              try await PlayManager.shared.start(viewModel.podcastEpisode)
-            } catch {
-              await Alert.shared("Failed to start podcast: \(error)")
-            }
+            await PlayManager.shared.start(viewModel.podcastEpisode)
           }
         },
         label: { Text("Play") }

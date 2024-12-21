@@ -32,6 +32,16 @@ struct SettingsView: View {
               },
               label: { Text("Stop Playing") }
             )
+            Button(
+              action: {
+                Task {
+                  try await playInvalidMedia()
+                }
+              },
+              label: {
+                Text("Load Invalid Episode")
+              }
+            )
           }
         #endif
       }
@@ -39,6 +49,30 @@ struct SettingsView: View {
       .navigationDestination(for: NavigationView.self) { view in view() }
     }
   }
+
+  #if DEBUG
+    func playInvalidMedia() async throws {
+      let podcastEpisode = try! await Repo.shared.db.read { db in
+        try! Episode
+          .including(required: Episode.podcast)
+          .shuffled()
+          .asRequest(of: PodcastEpisode.self)
+          .fetchOne(db)!
+      }
+      await PlayManager.shared.load(
+        PodcastEpisode(
+          podcast: podcastEpisode.podcast,
+          episode: Episode(
+            id: 1,
+            from: UnsavedEpisode(
+              guid: "guid",
+              media: URL(string: "https://notreal.com/hi.mp3")!
+            )
+          )
+        )
+      )
+    }
+  #endif
 }
 
 #Preview {

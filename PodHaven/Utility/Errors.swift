@@ -3,18 +3,21 @@
 import Foundation
 
 enum PlaybackError: Error, LocalizedError, Sendable {
-  case notPlayable(URL)
+  case notPlayable(Episode)
   case noURL(Episode)
   case notActive
+  case noMetadata(Episode)
 
   var errorDescription: String {
     switch self {
-    case .notPlayable(let url):
-      return "The asset at \(url) cannot be played."
+    case .notPlayable(let episode):
+      return "The media for: \(episode.toString) cannot be played."
     case .noURL(let episode):
       return "The episode: \(episode.toString) has no URL."
     case .notActive:
       return "The session could not be marked active."
+    case .noMetadata(let episode):
+      return "Metadata for the episode: \(episode.toString) can't be loaded."
     }
   }
 }

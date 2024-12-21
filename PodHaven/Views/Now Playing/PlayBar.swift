@@ -76,7 +76,7 @@ struct PlayBar: View {
             .asRequest(of: PodcastEpisode.self)
             .fetchOne(db)!
         }
-        try await PlayManager.shared.load(podcastEpisode)
+        await PlayManager.shared.load(podcastEpisode)
       }
     }
     var body: some View {

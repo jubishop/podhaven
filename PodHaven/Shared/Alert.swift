@@ -39,8 +39,10 @@ import SwiftUI
   }
 
   func report(_ message: String, error: Error? = nil) {
+    print("Reporting: \(message)")
     SentrySDK.capture(message: message)
     if let error = error {
+      print("Error: \(error.localizedDescription)")
       SentrySDK.capture(error: error)
     }
   }

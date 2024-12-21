@@ -67,14 +67,14 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - Public Methods
 
-  func start(_ podcastEpisode: PodcastEpisode) async throws {
-    try await load(podcastEpisode)
+  func start(_ podcastEpisode: PodcastEpisode) async {
+    await load(podcastEpisode)
     play()
   }
 
-  func load(_ podcastEpisode: PodcastEpisode) async throws {
+  func load(_ podcastEpisode: PodcastEpisode) async {
     guard let url = podcastEpisode.episode.media else {
-      throw PlaybackError.noURL(podcastEpisode.episode)
+      fatalError("\(podcastEpisode.episode.toString) has no media")
     }
     await loadingSemaphor.wait()
     defer { loadingSemaphor.signal() }
@@ -85,21 +85,22 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     status = .loading
 
     let avAsset = AVURLAsset(url: url)
-    let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
-    guard isPlayable else {
-      Task { @MainActor in
-        Alert.shared("Could not play \(podcastEpisode.episode.toString)")
-      }
-      stop()
-      throw PlaybackError.notPlayable(url)
-    }
 
+    let duration: CMTime
     do {
+      let (isPlayable, loadedDuration) = try await avAsset.load(
+        .isPlayable,
+        .duration
+      )
+      guard isPlayable else {
+        throw PlaybackError.notPlayable(podcastEpisode.episode)
+      }
+      duration = loadedDuration
       try audioSession.setActive(true)
     } catch {
-      Task { @MainActor in Alert.shared("Failed to set audio session active") }
+      await Alert.shared("Can't play \(podcastEpisode.episode.toString)")
       stop()
-      throw PlaybackError.notActive
+      return
     }
 
     avPlayerItem = AVPlayerItem(asset: avAsset)
@@ -115,6 +116,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   func play() {
     guard status.playable else { return }
+    print("playing")
     avPlayer.play()
   }
 
@@ -207,7 +209,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
           .fetchOne(db)
       })
     {
-      try await load(podcastEpisode)
+      await load(podcastEpisode)
     }
   }
 
