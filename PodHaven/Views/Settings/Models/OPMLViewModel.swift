@@ -69,7 +69,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   var opmlFile: OPMLFile?
 
   private var downloadSemaphor = AsyncSemaphore(value: 1)
-  private var downloadTaskGroup: DiscardingTaskGroup?
+  private var feedManager: FeedManager?
 
   init() {
     guard let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)
@@ -112,11 +112,17 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   }
 
   func stopDownloading() async {
-    if let downloadTaskGroup = self.downloadTaskGroup {
-      downloadTaskGroup.cancelAll()
+    if let feedManager = self.feedManager {
+      await feedManager.cancelAll()
     }
-
+    self.feedManager = nil
     opmlFile = nil
+  }
+
+  func finishedDownloading() async {
+    feedManager = nil
+    opmlFile = nil
+    Navigation.shared.currentTab = .podcasts
   }
 
   // MARK: - Private Methods
@@ -161,7 +167,9 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
     self.opmlFile = opmlFile
     await withDiscardingTaskGroup { group in
-      self.downloadTaskGroup = group
+      let feedManager = FeedManager()
+      self.feedManager = feedManager
+      defer { self.feedManager = nil }
 
       for outline in opmlFile.waiting {
         group.addTask {
@@ -174,9 +182,9 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
             }
           }
 
-          let feedTask = await FeedManager.shared.addURL(outline.feedURL)
-
+          let feedTask = await feedManager.addURL(outline.feedURL)
           await feedTask.downloadBegan()
+
           await Task { @MainActor in
             outline.status = .downloading
             opmlFile.waiting.remove(outline)

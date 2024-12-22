@@ -127,7 +127,7 @@ final actor DownloadManager: Sendable {
   func downloads() -> AsyncStream<DownloadResult> { asyncStream }
 
   @discardableResult
-  func addURL(_ url: URL) async -> DownloadTask {
+  func addURL(_ url: URL) -> DownloadTask {
     if let activeDownload = activeDownloads[url] {
       return activeDownload
     }
@@ -141,10 +141,10 @@ final actor DownloadManager: Sendable {
   }
 
   @discardableResult
-  func addURLs(_ urls: [URL]) async -> [DownloadTask] {
+  func addURLs(_ urls: [URL]) -> [DownloadTask] {
     var downloadTasks = [DownloadTask](capacity: urls.count)
     for url in urls {
-      downloadTasks.append(await addURL(url))
+      downloadTasks.append(addURL(url))
     }
     return downloadTasks
   }

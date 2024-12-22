@@ -47,7 +47,7 @@ final actor FeedManager: Sendable {
   private let downloadManager: DownloadManager
   private var feedTasks: [URL: FeedTask] = [:]
 
-  private init() {
+  init(maxConcurrentDownloads: Int = 8) {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.allowsCellularAccess = true
     configuration.waitsForConnectivity = true
@@ -55,7 +55,8 @@ final actor FeedManager: Sendable {
     configuration.timeoutIntervalForRequest = timeout
     configuration.timeoutIntervalForResource = timeout
     downloadManager = DownloadManager(
-      session: URLSession(configuration: configuration)
+      session: URLSession(configuration: configuration),
+      maxConcurrentDownloads: maxConcurrentDownloads
     )
   }
 
