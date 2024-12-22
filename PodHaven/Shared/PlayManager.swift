@@ -27,9 +27,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         policy: .longFormAudio
       )
       try audioSession.setMode(.spokenAudio)
-      try await shared.resume()
+      await shared.resume()
     } catch {
-      await Alert.shared("Failed to set the audio session configuration")
+      await Alert.shared("Failed to initialize the audio session")
     }
   }
 
@@ -207,17 +207,21 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - Private Observers / Integrators
 
-  private func resume() async throws {
-    if let episodeID: Int64 = Persistence.currentEpisodeID.load(),
-      let podcastEpisode = try await Repo.shared.db.read({ db in
-        try Episode
-          .filter(id: episodeID)
-          .including(required: Episode.podcast)
-          .asRequest(of: PodcastEpisode.self)
-          .fetchOne(db)
-      })
-    {
-      await load(podcastEpisode)
+  private func resume() async {
+    do {
+      if let episodeID: Int64 = Persistence.currentEpisodeID.load(),
+         let podcastEpisode = try await Repo.shared.db.read({ db in
+           try Episode
+             .filter(id: episodeID)
+             .including(required: Episode.podcast)
+             .asRequest(of: PodcastEpisode.self)
+             .fetchOne(db)
+         })
+      {
+        await load(podcastEpisode)
+      }
+    } catch {
+      // Do nothing
     }
   }
 
