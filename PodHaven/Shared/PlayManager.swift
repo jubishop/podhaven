@@ -203,23 +203,29 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     Task { @MainActor in
       PlayState.shared.setCurrentTime(currentTime, accessKey)
     }
+    Task.detached(priority: .utility) {
+      guard let episodeID: Int64 = Persistence.currentEpisodeID.load()
+      else { return }
+
+      try await Repo.shared.updateCurrentTime(episodeID, currentTime)
+    }
   }
 
   // MARK: - Private Observers / Integrators
 
   private func resume() async {
     do {
-      if let episodeID: Int64 = Persistence.currentEpisodeID.load(),
-         let podcastEpisode = try await Repo.shared.db.read({ db in
-           try Episode
-             .filter(id: episodeID)
-             .including(required: Episode.podcast)
-             .asRequest(of: PodcastEpisode.self)
-             .fetchOne(db)
-         })
-      {
-        await load(podcastEpisode)
-      }
+      guard let episodeID: Int64 = Persistence.currentEpisodeID.load(),
+        let podcastEpisode = try await Repo.shared.db.read({ db in
+          try Episode
+            .filter(id: episodeID)
+            .including(required: Episode.podcast)
+            .asRequest(of: PodcastEpisode.self)
+            .fetchOne(db)
+        })
+      else { return }
+
+      await load(podcastEpisode)
     } catch {
       // Do nothing
     }

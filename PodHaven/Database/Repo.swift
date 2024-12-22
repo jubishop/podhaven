@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2024
 
+import AVFoundation
 import Foundation
 import GRDB
 import IdentifiedCollections
@@ -88,6 +89,17 @@ struct Repo: Sendable {
 
   func update(_ episode: Episode) async throws {
     try await appDB.db.write { db in
+      try episode.update(db)
+    }
+  }
+
+  func updateCurrentTime(_ episodeID: Int64, _ currentTime: CMTime) async throws
+  {
+    try await appDB.db.write { db in
+      guard var episode = try Episode.fetchOne(db, id: episodeID)
+      else { return }
+
+      episode.currentTime = currentTime
       try episode.update(db)
     }
   }
