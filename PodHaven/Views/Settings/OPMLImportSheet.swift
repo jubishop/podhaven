@@ -86,7 +86,7 @@ struct OPMLImportSheet: View {
         }
       #endif
     }
-    .sheet(item: $viewModel.opmlFile) { opmlFile in
+    .sheet(item: $viewModel.opmlFile) { _ in
       OPMLImportSheet(viewModel: viewModel)
     }
   }

@@ -38,7 +38,7 @@ struct OPMLView: View {
         Task { await viewModel.opmlFileImporterCompletion(result) }
       }
     )
-    .sheet(item: $viewModel.opmlFile) { opmlFile in
+    .sheet(item: $viewModel.opmlFile) { _ in
       OPMLImportSheet(viewModel: viewModel)
     }
   }
