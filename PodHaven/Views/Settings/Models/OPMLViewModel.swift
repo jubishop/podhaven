@@ -117,7 +117,6 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     }
 
     opmlFile = nil
-    Navigation.shared.currentTab = .podcasts
   }
 
   // MARK: - Private Methods
