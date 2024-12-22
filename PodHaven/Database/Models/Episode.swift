@@ -15,6 +15,7 @@ struct UnsavedEpisode: Savable {
   var description: String?
   var link: URL?
   var image: URL?
+  var queueOrder: Int?
 
   init(
     guid: String,
@@ -26,7 +27,8 @@ struct UnsavedEpisode: Savable {
     title: String? = nil,
     description: String? = nil,
     link: URL? = nil,
-    image: URL? = nil
+    image: URL? = nil,
+    queueOrder: Int? = nil
   ) {
     self.guid = guid
     self.podcastId = podcastId
@@ -40,6 +42,7 @@ struct UnsavedEpisode: Savable {
     self.description = description
     self.link = try? link?.convertToValidURL()
     self.image = try? image?.convertToValidURL()
+    self.queueOrder = queueOrder
   }
 
   // MARK: - Savable

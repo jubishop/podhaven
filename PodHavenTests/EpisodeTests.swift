@@ -21,7 +21,7 @@ actor EpisodeTests {
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
     let newestUnsavedEpisode = UnsavedEpisode(guid: "guid")
-    let oldestUnsavedEpisode = UnsavedEpisode(
+    let oldUnsavedEpisode = UnsavedEpisode(
       guid: "guid2",
       pubDate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
     )
@@ -29,11 +29,18 @@ actor EpisodeTests {
       guid: "guid3",
       pubDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())
     )
+    let ancientUnsavedEpisode = UnsavedEpisode(
+      guid: "guid4",
+      pubDate: Calendar.current.date(byAdding: .day, value: -1000, to: Date())
+    )
 
     try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
-        middleUnsavedEpisode, oldestUnsavedEpisode, newestUnsavedEpisode,
+        middleUnsavedEpisode,
+        ancientUnsavedEpisode,
+        oldUnsavedEpisode,
+        newestUnsavedEpisode,
       ]
     )
 
@@ -80,5 +87,45 @@ actor EpisodeTests {
       try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcast.id])
     }!
     #expect(episode.currentTime == newCMTime)
+  }
+
+  @Test("that episodes can persist and fetch queueOrder")
+  func persistQueueOrder() async throws {
+    let url = URL(string: "https://example.com/data")!
+    let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
+
+    let topUnsavedEpisode = UnsavedEpisode(guid: "guid", queueOrder: 0)
+    let bottomUnsavedEpisode = UnsavedEpisode(
+      guid: "guid2",
+      queueOrder: 3
+    )
+    let middleTopUnsavedEpisode = UnsavedEpisode(
+      guid: "guid3",
+      queueOrder: 1
+    )
+    let middleBottomUnsavedEpisode = UnsavedEpisode(
+      guid: "guid4",
+      queueOrder: 2
+    )
+
+    try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [
+        topUnsavedEpisode,
+        bottomUnsavedEpisode,
+        middleTopUnsavedEpisode,
+        middleBottomUnsavedEpisode,
+      ]
+    )
+
+    let podcastEpisodes = try await repo.db.read { db in
+      try Episode
+        .filter(Column("queueOrder") != nil)
+        .including(required: Episode.podcast)
+        .order(Column("queueOrder").asc)
+        .asRequest(of: PodcastEpisode.self)
+        .fetchAll(db)
+    }
+    #expect(podcastEpisodes.map { $0.episode.queueOrder } == [0, 1, 2, 3])
   }
 }

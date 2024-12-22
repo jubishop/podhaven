@@ -38,6 +38,7 @@ enum Migrations {
         t.column("description", .text)
         t.column("link", .text)
         t.column("image", .text)
+        t.column("queueOrder", .integer)
       }
     }
 

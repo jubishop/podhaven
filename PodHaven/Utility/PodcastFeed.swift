@@ -34,7 +34,8 @@ struct PodcastFeedItem: Sendable {
       title: title ?? existingEpisode?.title,
       description: description ?? existingEpisode?.description,
       link: link ?? existingEpisode?.link,
-      image: image ?? existingEpisode?.image
+      image: image ?? existingEpisode?.image,
+      queueOrder: existingEpisode?.queueOrder
     )
   }
 
