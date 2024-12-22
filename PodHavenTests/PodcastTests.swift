@@ -19,7 +19,7 @@ actor PodcastTests {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
-    let podcast = try await repo.insert(unsavedPodcast)
+    let podcast = try await repo.insertSeries(unsavedPodcast)
     #expect(podcast.title == unsavedPodcast.title)
 
     let fetchedPodcast = try await repo.db.read { [podcast] db in
@@ -68,7 +68,7 @@ actor PodcastTests {
   func failToInsertInvalidFeedURL() async throws {
     // Bad scheme
     await #expect(throws: URLError.self) {
-      try await repo.insert(
+      try await repo.insertSeries(
         UnsavedPodcast(
           feedURL: URL(string: "file://example.com/data")!,
           title: "Title"
@@ -78,7 +78,7 @@ actor PodcastTests {
 
     // Not absolute
     await #expect(throws: URLError.self) {
-      try await repo.insert(
+      try await repo.insertSeries(
         UnsavedPodcast(
           feedURL: URL(string: "https:/path/to/data")!,
           title: "Title"
@@ -91,7 +91,7 @@ actor PodcastTests {
   func convertFeedURLToHTTPS() async throws {
     let url = URL(string: "http://example.com/data#fragment")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    let podcast = try await repo.insert(unsavedPodcast)
+    let podcast = try await repo.insertSeries(unsavedPodcast)
     #expect(podcast.feedURL == URL(string: "https://example.com/data")!)
   }
 
@@ -99,9 +99,9 @@ actor PodcastTests {
   func updateExistingPodcastOnConflict() async throws {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    _ = try await repo.insert(unsavedPodcast)
+    _ = try await repo.insertSeries(unsavedPodcast)
     let unsavedPodcast2 = try UnsavedPodcast(feedURL: url, title: "New Title")
-    _ = try await repo.insert(unsavedPodcast2)
+    _ = try await repo.insertSeries(unsavedPodcast2)
 
     let fetchedPodcast = try await repo.db.read { db in
       try Podcast.fetchOne(db, key: ["feedURL": url])

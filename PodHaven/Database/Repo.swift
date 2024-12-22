@@ -75,10 +75,6 @@ struct Repo: Sendable {
   // MARK: - Podcast Writers
 
   @discardableResult
-  func insert(_ unsavedPodcast: UnsavedPodcast) async throws -> Podcast {
-    try await insertSeries(unsavedPodcast)
-  }
-
   func delete(_ podcast: Podcast) async throws -> Bool {
     try await appDB.db.write { db in
       try podcast.delete(db)
@@ -86,12 +82,6 @@ struct Repo: Sendable {
   }
 
   // MARK: - Episode Writers
-
-  func update(_ episode: Episode) async throws {
-    try await appDB.db.write { db in
-      try episode.update(db)
-    }
-  }
 
   func updateCurrentTime(_ episodeID: Int64, _ currentTime: CMTime) async throws
   {

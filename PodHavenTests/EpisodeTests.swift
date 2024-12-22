@@ -74,19 +74,18 @@ actor EpisodeTests {
       unsavedEpisodes: [unsavedEpisode]
     )
 
-    var episode = try await repo.db.read { db in
+    let episode = try await repo.db.read { db in
       try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcast.id])
     }!
     #expect(episode.currentTime == cmTime)
 
     let newCMTime = CMTime.inSeconds(60)
-    episode.currentTime = newCMTime
-    try await repo.update(episode)
+    try await repo.updateCurrentTime(episode.id, newCMTime)
 
-    episode = try await repo.db.read { db in
-      try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcast.id])
+    let updatedEpisode = try await repo.db.read { db in
+      try Episode.fetchOne(db, id: episode.id)
     }!
-    #expect(episode.currentTime == newCMTime)
+    #expect(updatedEpisode.currentTime == newCMTime)
   }
 
   @Test("that episodes can persist and fetch queueOrder")
