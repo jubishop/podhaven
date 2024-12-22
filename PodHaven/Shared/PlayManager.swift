@@ -3,6 +3,7 @@
 import AVFoundation
 import Foundation
 import Semaphore
+import SwiftUI
 
 struct PlayManagerAccessKey { fileprivate init() {} }
 
@@ -41,7 +42,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     set {
       guard newValue != _status else { return }
       _status = newValue
-      nowPlayingInfo?.status = newValue
+      nowPlayingInfo?.playing(newValue.playing)
       Task { @MainActor in PlayState.shared.setStatus(newValue, accessKey) }
     }
   }
@@ -76,6 +77,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     guard let url = podcastEpisode.episode.media else {
       fatalError("\(podcastEpisode.episode.toString) has no media")
     }
+    guard let currentTime = podcastEpisode.episode.currentTime else {
+      fatalError("\(podcastEpisode.episode.toString) has no current time")
+    }
+
     await loadingSemaphor.wait()
     defer { loadingSemaphor.signal() }
 
@@ -106,8 +111,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
 
-    await setPodcastEpisode(podcastEpisode)
-    setDuration(duration)
+    await setOnDeck(podcastEpisode, duration)
+    if currentTime != CMTime.zero { seek(to: currentTime) }
 
     status = .active
     addObservers()
@@ -116,7 +121,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   func play() {
     guard status.playable else { return }
-    print("playing")
     avPlayer.play()
   }
 
@@ -152,10 +156,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   func seek(to time: CMTime) {
-    removeTimeObserver()
+    let observingTime = removeTimeObserver()
     setCurrentTime(time)
     avPlayer.seek(to: time) { [unowned self] completed in
-      if completed {
+      if completed, observingTime {
         Task { @PlayActor in addTimeObserver() }
       }
     }
@@ -163,35 +167,39 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - Private State Management
 
-  private func setPodcastEpisode(_ podcastEpisode: PodcastEpisode) async {
-    guard let currentTime = podcastEpisode.episode.currentTime else {
-      fatalError("Setting podcast episode with no time?")
+  private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime)
+    async
+  {
+    guard let url = podcastEpisode.episode.media else {
+      fatalError("\(podcastEpisode.episode.toString) has no media")
     }
 
-    nowPlayingInfo = await NowPlayingInfo(podcastEpisode, accessKey)
-    Task { @MainActor in PlayState.shared.setOnDeck(podcastEpisode, accessKey) }
+    var image: UIImage?
+    if let imageURL = podcastEpisode.podcast.image {
+      image = try? await Images.shared.fetchImage(imageURL)
+    }
+    let onDeck = OnDeck(
+      feedURL: podcastEpisode.podcast.feedURL,
+      guid: podcastEpisode.episode.guid,
+      podcastTitle: podcastEpisode.podcast.title,
+      podcastURL: podcastEpisode.podcast.link,
+      episodeTitle: podcastEpisode.episode.title,
+      duration: duration,
+      image: image,
+      mediaURL: url,
+      pubDate: podcastEpisode.episode.pubDate,
+      key: accessKey
+    )
+
+    nowPlayingInfo = NowPlayingInfo(onDeck, accessKey)
+    Task { @MainActor in PlayState.shared.setOnDeck(onDeck, accessKey) }
     Task(priority: .utility) {
       Persistence.currentEpisodeID.save(podcastEpisode.episode.id)
     }
-
-    seek(to: currentTime)
-  }
-
-  private func setDuration(_ duration: CMTime) {
-    guard var nowPlayingInfo = nowPlayingInfo else {
-      fatalError("setting duration with no nowPlayingInfo?")
-    }
-
-    nowPlayingInfo.duration(duration)
-    Task { @MainActor in PlayState.shared.setDuration(duration, accessKey) }
   }
 
   private func setCurrentTime(_ currentTime: CMTime) {
-    guard var nowPlayingInfo = nowPlayingInfo else {
-      fatalError("setting currentTime with no nowPlayingInfo?")
-    }
-
-    nowPlayingInfo.currentTime(currentTime)
+    nowPlayingInfo?.currentTime(currentTime)
     Task { @MainActor in
       PlayState.shared.setCurrentTime(currentTime, accessKey)
     }
@@ -330,10 +338,13 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
-  private func removeTimeObserver() {
+  @discardableResult
+  private func removeTimeObserver() -> Bool {
     if let timeObserver = timeObserver {
       avPlayer.removeTimeObserver(timeObserver)
       self.timeObserver = nil
+      return true
     }
+    return false
   }
 }

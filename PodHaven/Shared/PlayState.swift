@@ -2,6 +2,43 @@
 
 import AVFoundation
 import Foundation
+import SwiftUI
+
+
+struct OnDeck: Sendable {
+  let feedURL: URL
+  let guid: String
+  let podcastTitle: String
+  let podcastURL: URL?
+  let episodeTitle: String?
+  let duration: CMTime
+  let image: UIImage?
+  let mediaURL: URL
+  let pubDate: Date?
+
+  init(
+    feedURL: URL,
+    guid: String,
+    podcastTitle: String,
+    podcastURL: URL?,
+    episodeTitle: String?,
+    duration: CMTime,
+    image: UIImage?,
+    mediaURL: URL,
+    pubDate: Date?,
+    key: PlayManagerAccessKey
+  ) {
+    self.feedURL = feedURL
+    self.guid = guid
+    self.podcastTitle = podcastTitle
+    self.podcastURL = podcastURL
+    self.episodeTitle = episodeTitle
+    self.duration = duration
+    self.image = image
+    self.mediaURL = mediaURL
+    self.pubDate = pubDate
+  }
+}
 
 @dynamicMemberLookup
 @Observable @MainActor final class PlayState: Sendable {
@@ -38,9 +75,8 @@ import Foundation
   }
 
   private(set) var status: Status = .stopped
-  private(set) var duration = CMTime.zero
   private(set) var currentTime = CMTime.zero
-  private(set) var onDeck: PodcastEpisode?
+  private(set) var onDeck: OnDeck?
   private init() {}
 
   // MARK: - State Setters
@@ -49,15 +85,11 @@ import Foundation
     self.status = status
   }
 
-  func setDuration(_ duration: CMTime, _ key: PlayManagerAccessKey) {
-    self.duration = duration
-  }
-
   func setCurrentTime(_ currentTime: CMTime, _ key: PlayManagerAccessKey) {
     self.currentTime = currentTime
   }
 
-  func setOnDeck(_ onDeck: PodcastEpisode, _ key: PlayManagerAccessKey) {
+  func setOnDeck(_ onDeck: OnDeck, _ key: PlayManagerAccessKey) {
     self.onDeck = onDeck
   }
 }

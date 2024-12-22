@@ -54,7 +54,7 @@ struct PlayBar: View {
       }
       Slider(
         value: $viewModel.sliderValue,
-        in: 0...PlayState.duration.seconds,
+        in: 0...Double(PlayState.onDeck?.duration.seconds ?? 0),
         onEditingChanged: { isEditing in
           viewModel.isDragging = isEditing
         }
@@ -80,8 +80,8 @@ struct PlayBar: View {
       }
     }
     var body: some View {
-      Text(PlayState.onDeck?.podcast.title ?? "")
-      Text(PlayState.onDeck?.episode.title ?? "")
+      Text(PlayState.onDeck?.podcastTitle ?? "")
+      Text(PlayState.onDeck?.episodeTitle ?? "")
       PlayBar()
     }
   }
