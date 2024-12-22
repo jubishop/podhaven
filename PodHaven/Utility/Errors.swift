@@ -45,6 +45,7 @@ enum DownloadError: Error, LocalizedError, Sendable {
 enum FeedError: Error, LocalizedError, Sendable {
   case failedLoad(URL)
   case failedParse(String)
+  case cancelled
   case noRSS
 
   var errorDescription: String {
@@ -55,6 +56,8 @@ enum FeedError: Error, LocalizedError, Sendable {
       return "Failed to parse RSS feed: \"\(message)\""
     case .noRSS:
       return "No RSS feed found."
+    case .cancelled:
+      return "The feed download was cancelled."
     }
   }
 }

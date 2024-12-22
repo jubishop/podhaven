@@ -9,9 +9,8 @@ struct FeedData: Sendable {
   let feed: PodcastFeed
 }
 
-final actor FeedTask: Sendable {
+struct FeedTask: Sendable {
   let downloadTask: DownloadTask
-  var finished: Bool = false
 
   fileprivate init(_ downloadTask: DownloadTask) {
     self.downloadTask = downloadTask
@@ -22,7 +21,6 @@ final actor FeedTask: Sendable {
   }
 
   func feedParsed() async -> FeedResult {
-    defer { finished = true }
     let downloadResult = await downloadTask.downloadFinished()
     switch downloadResult {
     case .failure:
@@ -36,6 +34,10 @@ final actor FeedTask: Sendable {
         return .failure(error)
       }
     }
+  }
+
+  func cancel() async {
+    await downloadTask.cancel()
   }
 }
 
@@ -58,11 +60,21 @@ final actor FeedManager: Sendable {
   }
 
   func addURL(_ url: URL) async -> FeedTask {
-    if let feedTask = feedTasks[url], !(await feedTask.finished) {
-      return feedTask
-    }
+    if let feedTask = feedTasks[url] { return feedTask }
+
     let feedTask = FeedTask(await downloadManager.addURL(url))
     feedTasks[url] = feedTask
+    Task(priority: .utility) {
+      _ = await feedTask.feedParsed()
+      feedTasks.removeValue(forKey: url)
+    }
     return feedTask
+  }
+
+  func cancelAll() async {
+    for feedTask in feedTasks.values {
+      await feedTask.cancel()
+    }
+    feedTasks.removeAll()
   }
 }

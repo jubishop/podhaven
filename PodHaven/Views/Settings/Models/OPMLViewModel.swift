@@ -3,6 +3,7 @@
 import Foundation
 import GRDB
 import OPML
+import Semaphore
 import UniformTypeIdentifiers
 
 @Observable @MainActor
@@ -67,7 +68,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   var opmlImporting = false
   var opmlFile: OPMLFile?
 
-  private var downloadManager: DownloadManager?
+  private var downloadSemaphor = AsyncSemaphore(value: 1)
   private var downloadTaskGroup: DiscardingTaskGroup?
 
   init() {
@@ -111,10 +112,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   }
 
   func stopDownloading() async {
-    if let downloadManager = downloadManager {
-      await downloadManager.cancelAllDownloads()
-    }
-    if let downloadTaskGroup = downloadTaskGroup {
+    if let downloadTaskGroup = self.downloadTaskGroup {
       downloadTaskGroup.cancelAll()
     }
 
@@ -125,6 +123,9 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   // MARK: - Private Methods
 
   private func downloadOPMLFile(_ opml: OPML) async {
+    await downloadSemaphor.wait()
+    defer { downloadSemaphor.signal() }
+
     let opmlFile = OPMLFile(title: opml.title ?? "Podcast Subscriptions")
 
     let allPodcasts: PodcastArray
@@ -162,6 +163,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     self.opmlFile = opmlFile
     await withDiscardingTaskGroup { group in
       self.downloadTaskGroup = group
+
       for outline in opmlFile.waiting {
         group.addTask {
           defer {
