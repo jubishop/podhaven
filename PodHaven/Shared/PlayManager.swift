@@ -181,7 +181,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     episodeID = podcastEpisode.episode.id
 
     var image: UIImage?
-    if let imageURL = podcastEpisode.podcast.image {
+    if let imageURL = podcastEpisode.episode.image
+      ?? podcastEpisode.podcast.image
+    {
       image = try? await Images.shared.fetchImage(imageURL)
     }
     let onDeck = OnDeck(
