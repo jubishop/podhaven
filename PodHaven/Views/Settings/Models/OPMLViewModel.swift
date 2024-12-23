@@ -120,8 +120,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   }
 
   func finishedDownloading() async {
-    feedManager = nil
-    opmlFile = nil
+    await stopDownloading()
     Navigation.shared.currentTab = .podcasts
   }
 
