@@ -9,7 +9,7 @@ import IdentifiedCollections
 
   func observePodcasts() async {
     do {
-      for try await podcasts in Repo.shared.observer.values() {
+      for try await podcasts in Observatory.allPodcasts.values() {
         self.podcasts = podcasts
       }
     } catch {

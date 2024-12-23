@@ -17,17 +17,9 @@ struct Repo: Sendable {
   var db: any DatabaseReader { appDB.db }
 
   private let appDB: AppDB
-  let observer: SharedValueObservation<PodcastArray>
 
   init(_ appDB: AppDB) {
     self.appDB = appDB
-    self.observer =
-      ValueObservation
-      .tracking { db in
-        try Podcast.all().fetchIdentifiedArray(db, id: \Podcast.feedURL)
-      }
-      .removeDuplicates()
-      .shared(in: appDB.db)
   }
 
   // MARK: - Readers
