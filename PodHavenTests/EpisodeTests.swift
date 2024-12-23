@@ -94,26 +94,19 @@ actor EpisodeTests {
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
     let topUnsavedEpisode = UnsavedEpisode(guid: "guid", queueOrder: 0)
-    let bottomUnsavedEpisode = UnsavedEpisode(
-      guid: "guid2",
-      queueOrder: 3
-    )
-    let middleTopUnsavedEpisode = UnsavedEpisode(
-      guid: "guid3",
-      queueOrder: 1
-    )
-    let middleBottomUnsavedEpisode = UnsavedEpisode(
-      guid: "guid4",
-      queueOrder: 2
-    )
+    let bottomUnsavedEpisode = UnsavedEpisode(guid: "guid2", queueOrder: 3)
+    let midTopUnsavedEpisode = UnsavedEpisode(guid: "guid3", queueOrder: 1)
+    let midBottomUnsavedEpisode = UnsavedEpisode(guid: "guid4", queueOrder: 2)
+    let unqueuedUnsavedEpisode = UnsavedEpisode(guid: "guid5")
 
     try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
         topUnsavedEpisode,
         bottomUnsavedEpisode,
-        middleTopUnsavedEpisode,
-        middleBottomUnsavedEpisode,
+        midTopUnsavedEpisode,
+        midBottomUnsavedEpisode,
+        unqueuedUnsavedEpisode,
       ]
     )
 
