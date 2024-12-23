@@ -26,17 +26,13 @@ struct SettingsView: View {
             }
             Button(
               action: {
-                Task { @PlayActor in
-                  PlayManager.shared.stop()
-                }
+                Task { @PlayActor in PlayManager.shared.stop() }
               },
               label: { Text("Stop Playing") }
             )
             Button(
               action: {
-                Task {
-                  try await playInvalidMedia()
-                }
+                Task { await playInvalidMedia() }
               },
               label: {
                 Text("Load Invalid Episode")
@@ -51,13 +47,18 @@ struct SettingsView: View {
   }
 
   #if DEBUG
-    func playInvalidMedia() async throws {
-      let podcastEpisode = try! await Repo.shared.db.read { db in
-        try! Episode
-          .including(required: Episode.podcast)
-          .shuffled()
-          .asRequest(of: PodcastEpisode.self)
-          .fetchOne(db)!
+    func playInvalidMedia() async {
+      guard
+        let podcastEpisode = try? await Repo.shared.db.read({ db in
+          try? Episode
+            .including(required: Episode.podcast)
+            .shuffled()
+            .asRequest(of: PodcastEpisode.self)
+            .fetchOne(db)
+        })
+      else {
+        Alert.shared("No episodes in DB")
+        return
       }
       await PlayManager.shared.load(
         PodcastEpisode(
@@ -66,7 +67,8 @@ struct SettingsView: View {
             id: 1,
             from: UnsavedEpisode(
               guid: "guid",
-              media: URL(string: "https://notreal.com/hi.mp3")!
+              media: URL(string: "https://notreal.com/hi.mp3")!,
+              title: "Stupid Tech Talky Talky"
             )
           )
         )

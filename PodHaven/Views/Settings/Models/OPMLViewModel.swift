@@ -165,12 +165,12 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       )
     }
 
+    let feedManager = FeedManager()
+    self.feedManager = feedManager
+    defer { self.feedManager = nil }
+
     self.opmlFile = opmlFile
     await withDiscardingTaskGroup { group in
-      let feedManager = FeedManager()
-      self.feedManager = feedManager
-      defer { self.feedManager = nil }
-
       for outline in opmlFile.waiting {
         group.addTask {
           defer {
