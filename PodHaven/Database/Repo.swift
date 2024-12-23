@@ -72,14 +72,30 @@ struct Repo: Sendable {
 
   // MARK: - Episode Writers
 
-  func updateCurrentTime(_ episodeID: Int64, _ currentTime: CMTime) async throws
-  {
-    try await appDB.db.write { db in
-      guard var episode = try Episode.fetchOne(db, id: episodeID)
-      else { return }
+  func updateCurrentTime(
+    _ episodeID: Int64,
+    _ currentTime: CMTime
+  ) async throws {
+    _ = try await appDB.db.write { db in
+      try Episode
+        .filter(id: episodeID)
+        .updateAll(db, Column("currentTime").set(to: currentTime))
+    }
+  }
 
-      episode.currentTime = currentTime
-      try episode.update(db)
+  enum QueuePosition { case top, bottom }
+  func addToQueue(
+    _ episodeID: Int64,
+    _ position: QueuePosition
+  ) async throws {
+    try await appDB.db.write { db in
+      let max =
+        try Episode
+        .select(max(Column("queueOrder")), as: Int.self)
+        .fetchOne(db)
+      try Episode
+        .filter(id: episodeID)
+        .updateAll(db, Column("queueOrder").set(to: (max ?? 0) + 1))
     }
   }
 }

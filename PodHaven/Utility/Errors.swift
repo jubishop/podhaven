@@ -2,6 +2,17 @@
 
 import Foundation
 
+enum DBError: Error, LocalizedError, Sendable {
+  case episodeNotFound(Int64)
+
+  var errorDescription: String {
+    switch self {
+    case .episodeNotFound(let id):
+      return "Episode with ID: \(id) could not be found."
+    }
+  }
+}
+
 enum PlaybackError: Error, LocalizedError, Sendable {
   case notPlayable(Episode)
   case noURL(Episode)

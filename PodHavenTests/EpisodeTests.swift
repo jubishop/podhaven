@@ -99,7 +99,7 @@ actor EpisodeTests {
     let midBottomUnsavedEpisode = UnsavedEpisode(guid: "guid4", queueOrder: 2)
     let unqueuedUnsavedEpisode = UnsavedEpisode(guid: "guid5")
 
-    try await repo.insertSeries(
+    let podcast = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
         topUnsavedEpisode,
@@ -119,5 +119,16 @@ actor EpisodeTests {
         .fetchAll(db)
     }
     #expect(podcastEpisodes.map { $0.episode.queueOrder } == [0, 1, 2, 3])
+
+    let unqueuedEpisode = try await repo.db.read { db in
+      try Episode.fetchOne(db, key: ["guid": "guid5", "podcastId": podcast.id])
+    }!
+
+    try await repo.addToQueue(unqueuedEpisode.id, .bottom)
+
+    let newMaxEpisode = try await repo.db.read { db in
+      try Episode.find(db, id: unqueuedEpisode.id)
+    }
+    #expect(newMaxEpisode.queueOrder == 4)
   }
 }
