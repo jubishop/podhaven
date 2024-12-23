@@ -1,11 +1,27 @@
 // Copyright Justin Bishop, 2024
 
+import AVFoundation
 import Sentry
 import SwiftUI
 
 @main
 struct PodHavenApp: App {
   @State private var alert = Alert.shared
+
+  private func configureAudioSession() async {
+    do {
+      try AVAudioSession.sharedInstance()
+        .setCategory(
+          .playback,
+          mode: .spokenAudio,
+          policy: .longFormAudio
+        )
+      try AVAudioSession.sharedInstance().setMode(.spokenAudio)
+      await PlayManager.shared.resume()
+    } catch {
+      Alert.shared("Failed to initialize the audio session")
+    }
+  }
 
   init() {
     SentrySDK.start { options in
@@ -22,7 +38,7 @@ struct PodHavenApp: App {
       ContentView()
         .customAlert($alert.config)
         .task {
-          await PlayManager.configureAudioSession()
+          await configureAudioSession()
         }
     }
   }

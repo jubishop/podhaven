@@ -12,26 +12,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 @PlayActor final class PlayManager: Sendable {
   static let shared = PlayManager()
 
-  // MARK: - Static Methods
-
-  private static var audioSession: AVAudioSession {
-    AVAudioSession.sharedInstance()
-  }
-
-  static func configureAudioSession() async {
-    do {
-      try audioSession.setCategory(
-        .playback,
-        mode: .spokenAudio,
-        policy: .longFormAudio
-      )
-      try audioSession.setMode(.spokenAudio)
-      await shared.resume()
-    } catch {
-      await Alert.shared("Failed to initialize the audio session")
-    }
-  }
-
   // MARK: - State Management
 
   private let accessKey = PlayManagerAccessKey()
@@ -45,6 +25,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       Task { @MainActor in PlayState.shared.setStatus(newValue, accessKey) }
     }
   }
+  private var episodeID: Int64?
   private var avPlayer = AVPlayer()
   private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
   private var nowPlayingInfo: NowPlayingInfo?
@@ -56,15 +37,36 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - Convenience Getters
 
-  private var audioSession: AVAudioSession { Self.audioSession }
+  private var audioSession: AVAudioSession { AVAudioSession.sharedInstance() }
   private var notificationCenter: NotificationCenter {
     NotificationCenter.default
   }
+
+  // MARK: - Initialization
+
   private init() {
     commandCenter = CommandCenter(accessKey)
   }
 
-  // MARK: - Public Methods
+  func resume() async {
+    do {
+      guard let episodeID: Int64 = Persistence.currentEpisodeID.load(),
+        let podcastEpisode = try await Repo.shared.db.read({ db in
+          try Episode
+            .filter(id: episodeID)
+            .including(required: Episode.podcast)
+            .asRequest(of: PodcastEpisode.self)
+            .fetchOne(db)
+        })
+      else { return }
+
+      await load(podcastEpisode)
+    } catch {
+      // Do nothing
+    }
+  }
+
+  // MARK: - Starting / Loading
 
   func start(_ podcastEpisode: PodcastEpisode) async {
     await load(podcastEpisode)
@@ -81,8 +83,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       fatalError("\(podcastEpisode.episode.toString) has no current time")
     }
 
-    stopIntegrations()
-    removeObservers()
+    stopTracking()
     pause()
     status = .loading
 
@@ -109,12 +110,17 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     avPlayer.replaceCurrentItem(with: avPlayerItem)
 
     await setOnDeck(podcastEpisode, duration)
-    if currentTime != CMTime.zero { seek(to: currentTime) }
+    if currentTime != CMTime.zero {
+      seek(to: currentTime)
+    } else {
+      setCurrentTime(CMTime.zero)
+    }
 
     status = .active
-    addObservers()
-    startIntegrations()
+    startTracking()
   }
+
+  // MARK: - Playback Controls
 
   func play() {
     guard status.playable else { return }
@@ -126,13 +132,13 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   func stop() {
-    stopIntegrations()
-    removeObservers()
+    stopTracking()
     pause()
     if nowPlayingInfo != nil {
       setCurrentTime(CMTime.zero)
       nowPlayingInfo = nil
     }
+    episodeID = nil
     status = .stopped
 
     do {
@@ -143,6 +149,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       }
     }
   }
+
+  // MARK: - Seeking
 
   func seekForward(_ duration: CMTime) {
     seek(to: avPlayer.currentTime() + duration)
@@ -170,6 +178,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     guard let url = podcastEpisode.episode.media else {
       fatalError("\(podcastEpisode.episode.toString) has no media")
     }
+    episodeID = podcastEpisode.episode.id
 
     var image: UIImage?
     if let imageURL = podcastEpisode.podcast.image {
@@ -191,7 +200,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     nowPlayingInfo = NowPlayingInfo(onDeck, accessKey)
     Task { @MainActor in PlayState.shared.setOnDeck(onDeck, accessKey) }
     Task(priority: .utility) {
-      Persistence.currentEpisodeID.save(podcastEpisode.episode.id)
+      Persistence.currentEpisodeID.save(episodeID)
     }
   }
 
@@ -201,41 +210,46 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       PlayState.shared.setCurrentTime(currentTime, accessKey)
     }
     Task(priority: .utility) {
-      guard let episodeID: Int64 = Persistence.currentEpisodeID.load()
-      else { return }
+      guard let episodeID = self.episodeID else { return }
 
       try await Repo.shared.updateCurrentTime(episodeID, currentTime)
     }
   }
 
-  // MARK: - Private Observers / Integrators
+  // MARK: - Private Tracking
 
-  private func resume() async {
-    do {
-      guard let episodeID: Int64 = Persistence.currentEpisodeID.load(),
-        let podcastEpisode = try await Repo.shared.db.read({ db in
-          try Episode
-            .filter(id: episodeID)
-            .including(required: Episode.podcast)
-            .asRequest(of: PodcastEpisode.self)
-            .fetchOne(db)
-        })
-      else { return }
-
-      await load(podcastEpisode)
-    } catch {
-      // Do nothing
-    }
-  }
-
-  private func startIntegrations() {
+  private func startTracking() {
+    addKVObservers()
+    addTimeObserver()
     startCommandCenter()
     startInterruptionNotifications()
   }
 
-  private func stopIntegrations() {
+  private func stopTracking() {
+    removeKVObservers()
+    removeTimeObserver()
     stopCommandCenter()
     stopInterruptionNotifications()
+  }
+
+  private func addTimeObserver() {
+    removeTimeObserver()
+    timeObserver = avPlayer.addPeriodicTimeObserver(
+      forInterval: CMTime.inSeconds(1),
+      queue: .global(qos: .utility)
+    ) { currentTime in
+      Task { @PlayActor [unowned self] in setCurrentTime(currentTime) }
+    }
+  }
+
+  @discardableResult
+  private func removeTimeObserver() -> Bool {
+    if let timeObserver = timeObserver {
+      avPlayer.removeTimeObserver(timeObserver)
+      self.timeObserver = nil
+      return true
+    }
+    return false
   }
 
   private func startCommandCenter() {
@@ -298,16 +312,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
-  private func addObservers() {
-    addKVObservers()
-    addTimeObserver()
-  }
-
-  private func removeObservers() {
-    removeKVObservers()
-    removeTimeObserver()
-  }
-
   private func addKVObservers() {
     removeKVObservers()
     keyValueObservers.append(
@@ -333,25 +337,5 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private func removeKVObservers() {
     for keyValueObserver in keyValueObservers { keyValueObserver.invalidate() }
     keyValueObservers.removeAll(keepingCapacity: true)
-  }
-
-  private func addTimeObserver() {
-    removeTimeObserver()
-    timeObserver = avPlayer.addPeriodicTimeObserver(
-      forInterval: CMTime.inSeconds(1),
-      queue: .global(qos: .utility)
-    ) { currentTime in
-      Task { @PlayActor [unowned self] in setCurrentTime(currentTime) }
-    }
-  }
-
-  @discardableResult
-  private func removeTimeObserver() -> Bool {
-    if let timeObserver = timeObserver {
-      avPlayer.removeTimeObserver(timeObserver)
-      self.timeObserver = nil
-      return true
-    }
-    return false
   }
 }
