@@ -3,9 +3,6 @@
 import AVFoundation
 import Foundation
 import GRDB
-import IdentifiedCollections
-
-typealias PodcastArray = IdentifiedArray<URL, Podcast>
 
 struct Repo: Sendable {
   #if DEBUG
