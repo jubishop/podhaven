@@ -203,7 +203,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     Task { @MainActor in
       PlayState.shared.setCurrentTime(currentTime, accessKey)
     }
-    Task.detached(priority: .utility) {
+    Task(priority: .utility) {
       guard let episodeID: Int64 = Persistence.currentEpisodeID.load()
       else { return }
 
