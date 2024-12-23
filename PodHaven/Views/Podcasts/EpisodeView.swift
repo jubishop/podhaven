@@ -18,10 +18,23 @@ struct EpisodeView: View {
       Button(
         action: {
           Task { @PlayActor in
-            await PlayManager.shared.start(viewModel.podcastEpisode)
+            await PlayManager.shared.load(viewModel.podcastEpisode)
+            PlayManager.shared.play()
           }
         },
-        label: { Text("Play") }
+        label: { Text("Play Now") }
+      )
+      Button(
+        action: {
+          // TODO: Add to top
+        },
+        label: { Text("Add To Top Of Queue") }
+      )
+      Button(
+        action: {
+          // TODO: Add to bottom
+        },
+        label: { Text("Add To Bottom Of Queue") }
       )
     }
     .task {

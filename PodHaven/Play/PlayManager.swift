@@ -66,12 +66,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
-  // MARK: - Starting / Loading
-
-  func start(_ podcastEpisode: PodcastEpisode) async {
-    await load(podcastEpisode)
-    play()
-  }
+  // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async {
     if status == .loading { return }
