@@ -2,7 +2,6 @@
 
 import AVFoundation
 import Foundation
-import Semaphore
 import SwiftUI
 
 struct PlayManagerAccessKey { fileprivate init() {} }
@@ -50,7 +49,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
   private var nowPlayingInfo: NowPlayingInfo?
   private var commandCenter: CommandCenter
-  private let loadingSemaphor = AsyncSemaphore(value: 1)
   private var commandObservingTask: Task<Void, Never>?
   private var interruptionObservingTask: Task<Void, Never>?
   private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
@@ -74,15 +72,14 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   func load(_ podcastEpisode: PodcastEpisode) async {
+    if status == .loading { return }
+
     guard let url = podcastEpisode.episode.media else {
       fatalError("\(podcastEpisode.episode.toString) has no media")
     }
     guard let currentTime = podcastEpisode.episode.currentTime else {
       fatalError("\(podcastEpisode.episode.toString) has no current time")
     }
-
-    await loadingSemaphor.wait()
-    defer { loadingSemaphor.signal() }
 
     stopIntegrations()
     removeObservers()
