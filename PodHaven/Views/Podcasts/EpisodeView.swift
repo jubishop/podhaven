@@ -26,13 +26,17 @@ struct EpisodeView: View {
       )
       Button(
         action: {
-          // TODO: Add to top
+          Task {
+            try await Repo.shared.insertToQueue(viewModel.episode.id, at: 1)
+          }
         },
         label: { Text("Add To Top Of Queue") }
       )
       Button(
         action: {
-          // TODO: Add to bottom
+          Task {
+            try await Repo.shared.appendToQueue(viewModel.episode.id)
+          }
         },
         label: { Text("Add To Bottom Of Queue") }
       )
@@ -68,11 +72,9 @@ struct EpisodeView: View {
       }
       .task {
         if self.podcastEpisode == nil {
-          print("podcast episode is nill")
           if let podcastSeries = try? await Helpers.loadSeries(),
             let episode = podcastSeries.episodes.randomElement()
           {
-            print("setting podcast episode")
             self.podcastEpisode = PodcastEpisode(
               podcast: podcastSeries.podcast,
               episode: episode

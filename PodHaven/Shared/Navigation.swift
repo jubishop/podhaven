@@ -32,14 +32,17 @@ struct NavigationView: Hashable {
 
   var settingsPath = NavigationPath()
   var podcastsPath = NavigationPath()
+  var upNextPath = NavigationPath()
 
   var currentTab: Tab = .settings {
     willSet {
-      if newValue == .settings {
+      switch newValue {
+      case .settings:
         settingsPath = NavigationPath()
-      }
-      if newValue == .podcasts {
+      case .podcasts:
         podcastsPath = NavigationPath()
+      case .upNext:
+        upNextPath = NavigationPath()
       }
     }
   }

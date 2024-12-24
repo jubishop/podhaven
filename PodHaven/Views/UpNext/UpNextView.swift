@@ -7,10 +7,10 @@ struct UpNextView: View {
   @State private var viewModel = UpNextViewModel()
 
   var body: some View {
-    NavigationStack(path: $navigation.podcastsPath) {
+    NavigationStack(path: $navigation.upNextPath) {
       List {
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
-          Text(podcastEpisode.podcast.title)
+          Text(podcastEpisode.episode.title ?? podcastEpisode.podcast.title)
         }
       }
       .navigationTitle("Up Next")

@@ -17,7 +17,6 @@ enum Helpers {
         oldTitle: "Pod Save America"
       )
     else {
-      print("throwing badness")
       throw FeedError.failedParse("Could not load pod_save_america")
     }
     return try await Repo.shared.insertSeries(
