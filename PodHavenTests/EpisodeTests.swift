@@ -69,10 +69,11 @@ actor EpisodeTests {
       media: url,
       currentTime: cmTime
     )
-    let podcast = try await repo.insertSeries(
+    let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]
     )
+    let podcast = podcastSeries.podcast
 
     let episode = try await repo.db.read { db in
       try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcast.id])

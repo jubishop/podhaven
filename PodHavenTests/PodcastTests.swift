@@ -19,7 +19,8 @@ actor PodcastTests {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
-    let podcast = try await repo.insertSeries(unsavedPodcast)
+    let podcastSeries = try await repo.insertSeries(unsavedPodcast)
+    let podcast = podcastSeries.podcast
     #expect(podcast.title == unsavedPodcast.title)
 
     let fetchedPodcast = try await repo.db.read { [podcast] db in
@@ -91,7 +92,8 @@ actor PodcastTests {
   func convertFeedURLToHTTPS() async throws {
     let url = URL(string: "http://example.com/data#fragment")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    let podcast = try await repo.insertSeries(unsavedPodcast)
+    let podcastSeries = try await repo.insertSeries(unsavedPodcast)
+    let podcast = podcastSeries.podcast
     #expect(podcast.feedURL == URL(string: "https://example.com/data")!)
   }
 

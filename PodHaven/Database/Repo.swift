@@ -3,6 +3,7 @@
 import AVFoundation
 import Foundation
 import GRDB
+import IdentifiedCollections
 
 struct Repo: Sendable {
   #if DEBUG
@@ -33,14 +34,17 @@ struct Repo: Sendable {
   func insertSeries(
     _ unsavedPodcast: UnsavedPodcast,
     unsavedEpisodes: [UnsavedEpisode] = []
-  ) async throws -> Podcast {
+  ) async throws -> PodcastSeries {
     try await appDB.db.write { db in
       let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
+      var episodes: IdentifiedArray<String, Episode> = IdentifiedArray(
+        id: \Episode.guid
+      )
       for var unsavedEpisode in unsavedEpisodes {
         unsavedEpisode.podcastId = podcast.id
-        try unsavedEpisode.insert(db)
+        episodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
       }
-      return podcast
+      return PodcastSeries(podcast: podcast, episodes: episodes)
     }
   }
 

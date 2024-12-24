@@ -7,13 +7,13 @@ import Testing
 @Suite("of Queue repo tests")
 actor QueueTests {
   private let repo: Repo
-  private let podcast: Podcast
+  private let podcastSeries: PodcastSeries
   init() async throws {
     repo = Repo.empty()
 
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    podcast = try await repo.insertSeries(
+    podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
         UnsavedEpisode(guid: "top", queueOrder: 1),
@@ -115,7 +115,7 @@ actor QueueTests {
   }
 
   private func fetchEpisode(_ guid: String) async throws -> Episode {
-    let podcastID = podcast.id
+    let podcastID = podcastSeries.podcast.id
     return try await self.repo.db.read { db in
       try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcastID])
     }!
