@@ -93,6 +93,18 @@ actor EpisodeTests {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
+    let fetchOrder: () async throws -> [Int] = {
+      let podcastEpisodes = try await self.repo.db.read { db in
+        try Episode
+          .filter(Column("queueOrder") != nil)
+          .including(required: Episode.podcast)
+          .order(Column("queueOrder").asc)
+          .asRequest(of: PodcastEpisode.self)
+          .fetchAll(db)
+      }
+      return podcastEpisodes.map { $0.episode.queueOrder ?? -1 }
+    }
+
     // General insertion testing
     let topUnsavedEpisode = UnsavedEpisode(guid: "top", queueOrder: 1)
     let bottomUnsavedEpisode = UnsavedEpisode(guid: "bot", queueOrder: 4)
@@ -111,15 +123,7 @@ actor EpisodeTests {
         unqueuedTopEpisode,
       ]
     )
-    var podcastEpisodes = try await repo.db.read { db in
-      try Episode
-        .filter(Column("queueOrder") != nil)
-        .including(required: Episode.podcast)
-        .order(Column("queueOrder").asc)
-        .asRequest(of: PodcastEpisode.self)
-        .fetchAll(db)
-    }
-    #expect(podcastEpisodes.map { $0.episode.queueOrder } == [1, 2, 3, 4])
+    #expect((try await fetchOrder()) == [1, 2, 3, 4])
 
     // Testing appending at bottom
     let newBottomEpisode = try await repo.db.read { db in
@@ -136,7 +140,7 @@ actor EpisodeTests {
       try Episode.fetchOne(db, key: ["guid": "unqto", "podcastId": podcast.id])
     }!
     try await repo.insertToQueue(newTopEpisode.id, at: 1)
-    let newMinEpisode = try await repo.db.read { db in
+    var newMinEpisode = try await repo.db.read { db in
       try Episode.find(db, id: newTopEpisode.id)
     }
     #expect(newMinEpisode.queueOrder == 1)
@@ -144,17 +148,7 @@ actor EpisodeTests {
       try Episode.find(db, id: newBottomEpisode.id)
     }
     #expect(updatedMaxEpisode.queueOrder == 6)
-    podcastEpisodes = try await repo.db.read { db in
-      try Episode
-        .filter(Column("queueOrder") != nil)
-        .including(required: Episode.podcast)
-        .order(Column("queueOrder").asc)
-        .asRequest(of: PodcastEpisode.self)
-        .fetchAll(db)
-    }
-    #expect(
-      podcastEpisodes.map { $0.episode.queueOrder } == [1, 2, 3, 4, 5, 6]
-    )
+    #expect((try await fetchOrder()) == [1, 2, 3, 4, 5, 6])
 
     // Test dequeuing an item in the middle
     var midTopEpisode = try await repo.db.read { db in
@@ -169,18 +163,18 @@ actor EpisodeTests {
       try Episode.find(db, id: newBottomEpisode.id)
     }
     #expect(updatedMaxEpisode.queueOrder == 5)
-    podcastEpisodes = try await repo.db.read { db in
-      try Episode
-        .filter(Column("queueOrder") != nil)
-        .including(required: Episode.podcast)
-        .order(Column("queueOrder").asc)
-        .asRequest(of: PodcastEpisode.self)
-        .fetchAll(db)
-    }
-    #expect(
-      podcastEpisodes.map { $0.episode.queueOrder } == [1, 2, 3, 4, 5]
-    )
+    #expect((try await fetchOrder()) == [1, 2, 3, 4, 5])
 
+    // Test Appending an existing episode
+    newMinEpisode = try await repo.db.read { db in
+      try Episode.find(db, id: newTopEpisode.id)
+    }
+    try await repo.appendToQueue(newMinEpisode.id)
+    newMinEpisode = try await repo.db.read { db in
+      try Episode.find(db, id: newTopEpisode.id)
+    }
+    // #expect(newMinEpisode.queueOrder == 5)
+    #expect((try await fetchOrder()) == [1, 2, 3, 4, 5])
     // TODO: Test when oldPositions exist
   }
 }
