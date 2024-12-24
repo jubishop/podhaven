@@ -83,19 +83,19 @@ struct Repo: Sendable {
     }
   }
 
-  enum QueuePosition { case top, bottom }
-  func addToQueue(
-    _ episodeID: Int64,
-    _ position: QueuePosition
-  ) async throws {
-    try await appDB.db.write { db in
-      let max =
+  func insertToQueue(_ episodeID: Int64, position: Int) {
+
+  }
+
+  func appendToQueue(_ episodeID: Int64) async throws {
+      try await appDB.db.write { db in
+        let max =
+          try Episode
+          .select(max(Column("queueOrder")), as: Int.self)
+          .fetchOne(db)
         try Episode
-        .select(max(Column("queueOrder")), as: Int.self)
-        .fetchOne(db)
-      try Episode
-        .filter(id: episodeID)
-        .updateAll(db, Column("queueOrder").set(to: (max ?? 0) + 1))
-    }
+          .filter(id: episodeID)
+          .updateAll(db, Column("queueOrder").set(to: (max ?? 0) + 1))
+      }
   }
 }

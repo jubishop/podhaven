@@ -88,8 +88,8 @@ actor EpisodeTests {
     #expect(updatedEpisode.currentTime == newCMTime)
   }
 
-  @Test("that episodes can persist and fetch queueOrder")
-  func persistQueueOrder() async throws {
+  @Test("that the queueOrder works")
+  func testQueueOrder() async throws {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
@@ -124,7 +124,7 @@ actor EpisodeTests {
       try Episode.fetchOne(db, key: ["guid": "guid5", "podcastId": podcast.id])
     }!
 
-    try await repo.addToQueue(unqueuedEpisode.id, .bottom)
+    try await repo.appendToQueue(unqueuedEpisode.id)
 
     let newMaxEpisode = try await repo.db.read { db in
       try Episode.find(db, id: unqueuedEpisode.id)
