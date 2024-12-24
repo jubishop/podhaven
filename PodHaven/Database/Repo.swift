@@ -141,15 +141,17 @@ struct Repo: Sendable {
       "insertToQueue method requires a transaction"
     )
     let oldPosition = try _fetchOldPosition(db, for: episodeID) ?? Int.max
+    let computedNewPosition =
+      newPosition > oldPosition ? newPosition - 1 : newPosition
     try _moveInQueue(
       db,
       episodeID: episodeID,
       from: oldPosition,
-      to: newPosition > oldPosition ? newPosition - 1 : newPosition
+      to: computedNewPosition
     )
     try Episode
       .filter(id: episodeID)
-      .updateAll(db, queueColumn.set(to: newPosition))
+      .updateAll(db, queueColumn.set(to: computedNewPosition))
   }
 
   private func _moveInQueue(
