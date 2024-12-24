@@ -46,8 +46,7 @@ actor DownloadManagerTests {
       maxConcurrentDownloads: maxConcurrentDownloads
     )
 
-    let totalURLs = 100
-    let urls = (1...totalURLs)
+    let urls = (1...100)
       .map { URL(string: "https://example.com/data\($0)")! }
     var tasks: [DownloadTask] = []
     for url in urls {
@@ -56,18 +55,15 @@ actor DownloadManagerTests {
       tasks.append(task)
     }
     let counter = Counter()
-    for task in tasks {
-      Task {
-        await task.downloadBegan()
-        await counter.increment()
-        _ = await task.downloadFinished()
-        await counter.decrement()
+    await withDiscardingTaskGroup { group in
+      for task in tasks {
+        group.addTask {
+          await task.downloadBegan()
+          await counter.increment()
+          _ = await task.downloadFinished()
+          await counter.decrement()
+        }
       }
-    }
-    var downloaded = 0
-    for await _ in await downloadManager.downloads() {
-      downloaded += 1
-      if downloaded == totalURLs { break }
     }
     let maxTally = await counter.maxValue
     #expect(maxTally == maxConcurrentDownloads)
