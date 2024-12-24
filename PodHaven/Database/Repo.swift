@@ -83,8 +83,13 @@ struct Repo: Sendable {
     }
   }
 
-  func insertToQueue(_ episodeID: Int64, position: Int) {
-
+  func insertToQueue(_ episodeID: Int64, at position: Int) async throws {
+    try await appDB.db.write { db in
+      try Episode.filter(Column("queueOrder") >= position)
+        .updateAll(db, Column("queueOrder").set(to: Column("queueOrder") + 1))
+      try Episode.filter(id: episodeID)
+        .updateAll(db, Column("queueOrder").set(to: position))
+    }
   }
 
   func appendToQueue(_ episodeID: Int64) async throws {
