@@ -21,9 +21,10 @@ struct PodcastFeedItem: Sendable {
   func toUnsavedEpisode(mergingExisting existingEpisode: Episode? = nil)
     -> UnsavedEpisode
   {
-    guard existingEpisode?.guid == nil || existingEpisode?.guid == guid else {
-      fatalError("Merging two episodes with different guids?")
-    }
+    precondition(
+      existingEpisode?.guid == nil || existingEpisode?.guid == guid,
+      "Merging two episodes with different guids?"
+    )
     return UnsavedEpisode(
       guid: guid,
       podcastId: existingEpisode?.podcastId,

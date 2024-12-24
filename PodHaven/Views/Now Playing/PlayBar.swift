@@ -18,8 +18,8 @@ struct PlayBar: View {
             Image(systemName: "gobackward.15").foregroundColor(.white)
           }
           Button(action: {
-            guard PlayState.playable
-            else { return }
+            guard PlayState.playable else { return }
+
             if PlayState.playing {
               Task { @PlayActor in PlayManager.shared.pause() }
             } else {
