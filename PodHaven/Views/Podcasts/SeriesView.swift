@@ -46,15 +46,29 @@ struct SeriesView: View {
 
 #Preview {
   struct SeriesViewPreview: View {
-    let podcast: Podcast
+    @State var podcast: Podcast?
+
     init() {
-      self.podcast = try! Repo.shared.db.read { db in
-        try! Podcast.fetchOne(db)!
+      self.podcast = try? Repo.shared.db.read { db in
+        try Podcast.all().shuffled().fetchOne(db)
       }
     }
 
     var body: some View {
-      SeriesView(podcast: podcast)
+      Group {
+        if let podcast = self.podcast {
+          SeriesView(podcast: podcast)
+        } else {
+          Text("No podcast in DB")
+        }
+      }
+      .task {
+        if self.podcast == nil {
+          if let podcastSeries = try? await Helpers.loadSeries() {
+            self.podcast = podcastSeries.podcast
+          }
+        }
+      }
     }
   }
 

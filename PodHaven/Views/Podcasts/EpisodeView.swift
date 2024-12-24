@@ -54,7 +54,7 @@ struct EpisodeView: View {
     init() {
       podcastEpisode =
         try? Repo.shared.db.read { db in
-          try? Episode
+          try Episode
             .including(required: Episode.podcast)
             .shuffled()
             .asRequest(of: PodcastEpisode.self)
