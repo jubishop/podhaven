@@ -83,16 +83,17 @@ struct Repo: Sendable {
     }
   }
 
+  // MARK: - Queue Management
+
   func dequeue(_ episodeID: Int64) async throws {
     try await appDB.db.write { db in
       guard let oldPosition = try _fetchOldPosition(db, for: episodeID) else {
         return
       }
 
-      try Episode.filter(Column("queueOrder") > oldPosition)
-        .updateAll(db, Column("queueOrder").set(to: Column("queueOrder") - 1))
+      try _moveInQueue(db, episodeID: episodeID, from: oldPosition, to: Int.max)
       try Episode.filter(id: episodeID)
-        .updateAll(db, Column("queueOrder").set(to: nil))
+        .updateAll(db, queueColumn.set(to: nil))
     }
   }
 
@@ -106,13 +107,15 @@ struct Repo: Sendable {
     try await appDB.db.write { db in
       let newPosition =
         (try Episode
-          .select(max(Column("queueOrder")), as: Int.self)
+          .select(max(queueColumn), as: Int.self)
           .fetchOne(db) ?? 0) + 1
       try _insertToQueue(db, episodeID: episodeID, at: newPosition)
     }
   }
 
-  //MARK: - Private Helpers
+  //MARK: - Private Queue Helpers
+
+  private let queueColumn = Column("queueOrder")
 
   private func _fetchOldPosition(_ db: Database, for episodeID: Int64) throws
     -> Int?
@@ -121,11 +124,10 @@ struct Repo: Sendable {
       db.isInsideTransaction,
       "fetchOldPosition method requires a transaction"
     )
-
     return
       try Episode
       .filter(id: episodeID)
-      .select(Column("queueOrder"), as: Int.self)
+      .select(queueColumn, as: Int.self)
       .fetchOne(db)
   }
 
@@ -138,20 +140,16 @@ struct Repo: Sendable {
       db.isInsideTransaction,
       "insertToQueue method requires a transaction"
     )
-    if let oldPosition = try _fetchOldPosition(db, for: episodeID) {
-      try _moveInQueue(
-        db,
-        episodeID: episodeID,
-        from: oldPosition,
-        to: newPosition > oldPosition ? newPosition - 1 : newPosition
-      )
-    } else {
-      try Episode.filter(Column("queueOrder") >= newPosition)
-        .updateAll(db, Column("queueOrder").set(to: Column("queueOrder") + 1))
-      try Episode
-        .filter(id: episodeID)
-        .updateAll(db, Column("queueOrder").set(to: newPosition))
-    }
+    let oldPosition = try _fetchOldPosition(db, for: episodeID) ?? Int.max
+    try _moveInQueue(
+      db,
+      episodeID: episodeID,
+      from: oldPosition,
+      to: newPosition > oldPosition ? newPosition - 1 : newPosition
+    )
+    try Episode
+      .filter(id: episodeID)
+      .updateAll(db, queueColumn.set(to: newPosition))
   }
 
   private func _moveInQueue(
@@ -165,6 +163,17 @@ struct Repo: Sendable {
       db.isInsideTransaction,
       "moveInQueue method requires a transaction"
     )
-    // TODO: write this
+
+    if newPosition > oldPosition {
+      try Episode.filter(
+        queueColumn > oldPosition && queueColumn <= newPosition
+      )
+      .updateAll(db, queueColumn.set(to: queueColumn - 1))
+    } else {
+      try Episode.filter(
+        queueColumn >= newPosition && queueColumn < oldPosition
+      )
+      .updateAll(db, queueColumn.set(to: queueColumn + 1))
+    }
   }
 }
