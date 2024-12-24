@@ -112,7 +112,7 @@ actor EpisodeTests {
       ]
     )
 
-    let podcastEpisodes = try await repo.db.read { db in
+    var podcastEpisodes = try await repo.db.read { db in
       try Episode
         .filter(Column("queueOrder") != nil)
         .including(required: Episode.podcast)
@@ -144,7 +144,7 @@ actor EpisodeTests {
     }
     #expect(updatedMaxEpisode.queueOrder == 6)
 
-    let updatedPodcastEpisodes = try await repo.db.read { db in
+    podcastEpisodes = try await repo.db.read { db in
       try Episode
         .filter(Column("queueOrder") != nil)
         .including(required: Episode.podcast)
@@ -153,9 +153,7 @@ actor EpisodeTests {
         .fetchAll(db)
     }
     #expect(
-      updatedPodcastEpisodes.map { $0.episode.queueOrder } == [
-        1, 2, 3, 4, 5, 6,
-      ]
+      podcastEpisodes.map { $0.episode.queueOrder } == [1, 2, 3, 4, 5, 6]
     )
   }
 }
