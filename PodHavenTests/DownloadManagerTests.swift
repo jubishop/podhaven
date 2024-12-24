@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2024
 
 import Foundation
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -45,10 +46,12 @@ actor DownloadManagerTests {
       maxConcurrentDownloads: maxConcurrentDownloads
     )
 
-    let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
+    let totalURLs = 100
+    let urls = (1...totalURLs)
+      .map { URL(string: "https://example.com/data\($0)")! }
     var tasks: [DownloadTask] = []
     for url in urls {
-      await session.set(url, .delay(.milliseconds(30)))
+      await session.set(url, .delay(.milliseconds(20)))
       let task = await downloadManager.addURL(url)
       tasks.append(task)
     }
@@ -57,14 +60,14 @@ actor DownloadManagerTests {
       Task {
         await task.downloadBegan()
         await counter.increment()
-      }
-      Task {
         _ = await task.downloadFinished()
         await counter.decrement()
       }
     }
-    for task in tasks {
-      _ = await task.downloadFinished()
+    var downloaded = 0
+    for await _ in await downloadManager.downloads() {
+      downloaded += 1
+      if downloaded == totalURLs { break }
     }
     let maxTally = await counter.maxValue
     #expect(maxTally == maxConcurrentDownloads)
