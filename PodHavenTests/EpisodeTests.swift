@@ -94,9 +94,9 @@ actor EpisodeTests {
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
     let topUnsavedEpisode = UnsavedEpisode(guid: "top", queueOrder: 1)
-    let bottomUnsavedEpisode = UnsavedEpisode(guid: "bottom", queueOrder: 4)
-    let midTopUnsavedEpisode = UnsavedEpisode(guid: "midtop", queueOrder: 2)
-    let midBottomUnsavedEpisode = UnsavedEpisode(guid: "midbot", queueOrder: 3)
+    let bottomUnsavedEpisode = UnsavedEpisode(guid: "bot", queueOrder: 4)
+    let midTopUnsavedEpisode = UnsavedEpisode(guid: "midto", queueOrder: 2)
+    let midBottomUnsavedEpisode = UnsavedEpisode(guid: "midbo", queueOrder: 3)
     let unqueuedBottomEpisode = UnsavedEpisode(guid: "unqbo")
     let unqueuedTopEpisode = UnsavedEpisode(guid: "unqto")
 
@@ -139,7 +139,7 @@ actor EpisodeTests {
       try Episode.find(db, id: newTopEpisode.id)
     }
     #expect(newMinEpisode.queueOrder == 1)
-    let updatedMaxEpisode = try await repo.db.read { db in
+    var updatedMaxEpisode = try await repo.db.read { db in
       try Episode.find(db, id: newBottomEpisode.id)
     }
     #expect(updatedMaxEpisode.queueOrder == 6)
@@ -154,6 +154,30 @@ actor EpisodeTests {
     }
     #expect(
       podcastEpisodes.map { $0.episode.queueOrder } == [1, 2, 3, 4, 5, 6]
+    )
+
+    var midTopEpisode = try await repo.db.read { db in
+      try Episode.fetchOne(db, key: ["guid": "midto", "podcastId": podcast.id])
+    }!
+    try await repo.dequeue(midTopEpisode.id)
+    midTopEpisode = try await repo.db.read { db in
+      try Episode.fetchOne(db, key: ["guid": "midto", "podcastId": podcast.id])
+    }!
+    #expect(midTopEpisode.queueOrder == nil)
+    updatedMaxEpisode = try await repo.db.read { db in
+      try Episode.find(db, id: newBottomEpisode.id)
+    }
+    #expect(updatedMaxEpisode.queueOrder == 5)
+    podcastEpisodes = try await repo.db.read { db in
+      try Episode
+        .filter(Column("queueOrder") != nil)
+        .including(required: Episode.podcast)
+        .order(Column("queueOrder").asc)
+        .asRequest(of: PodcastEpisode.self)
+        .fetchAll(db)
+    }
+    #expect(
+      podcastEpisodes.map { $0.episode.queueOrder } == [1, 2, 3, 4, 5]
     )
   }
 }

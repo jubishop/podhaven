@@ -33,7 +33,7 @@ import IdentifiedCollections
           unsavedEpisodes.append(feedItem.toUnsavedEpisode())
         }
       }
-      try await Repo.shared.insertSeries(
+      try await Repo.shared.updateSeries(
         newPodcast,
         unsavedEpisodes: unsavedEpisodes,
         existingEpisodes: existingEpisodes
