@@ -29,6 +29,14 @@ struct AppDB: Sendable {
     }
   }()
 
+  // MARK: - Columns
+
+  static let pubDateColumn = Column("pubDate")
+  static let queueOrderColumn = Column("queueOrder")
+  static let currentTimeColumn = Column("currentTime")
+
+  // MARK: - Private Static Helpers
+
   private static func makeConfiguration() -> Configuration {
     var config = Configuration()
     #if DEBUG
@@ -37,8 +45,9 @@ struct AppDB: Sendable {
     return config
   }
 
-  let db: DatabaseWriter
+  // MARK: - Initialization
 
+  let db: DatabaseWriter
   private init(_ db: some DatabaseWriter) throws {
     self.db = db
     try Migrations.migrate(db)

@@ -11,10 +11,10 @@ struct Repo: Sendable {
 
   static let shared = Repo(.shared)
 
+  // MARK: - Initialization
+
   var db: any DatabaseReader { appDB.db }
-
   private let appDB: AppDB
-
   init(_ appDB: AppDB) {
     self.appDB = appDB
   }
@@ -93,7 +93,7 @@ struct Repo: Sendable {
 
       try _moveInQueue(db, episodeID: episodeID, from: oldPosition, to: Int.max)
       try Episode.filter(id: episodeID)
-        .updateAll(db, queueColumn.set(to: nil))
+        .updateAll(db, AppDB.queueOrderColumn.set(to: nil))
     }
   }
 
@@ -107,15 +107,13 @@ struct Repo: Sendable {
     try await appDB.db.write { db in
       let newPosition =
         (try Episode
-          .select(max(queueColumn), as: Int.self)
+          .select(max(AppDB.queueOrderColumn), as: Int.self)
           .fetchOne(db) ?? 0) + 1
       try _insertToQueue(db, episodeID: episodeID, at: newPosition)
     }
   }
 
   //MARK: - Private Queue Helpers
-
-  private let queueColumn = Column("queueOrder")
 
   private func _fetchOldPosition(_ db: Database, for episodeID: Int64) throws
     -> Int?
@@ -127,7 +125,7 @@ struct Repo: Sendable {
     return
       try Episode
       .filter(id: episodeID)
-      .select(queueColumn, as: Int.self)
+      .select(AppDB.queueOrderColumn, as: Int.self)
       .fetchOne(db)
   }
 
@@ -151,7 +149,7 @@ struct Repo: Sendable {
     )
     try Episode
       .filter(id: episodeID)
-      .updateAll(db, queueColumn.set(to: computedNewPosition))
+      .updateAll(db, AppDB.queueOrderColumn.set(to: computedNewPosition))
   }
 
   private func _moveInQueue(
@@ -168,14 +166,16 @@ struct Repo: Sendable {
 
     if newPosition > oldPosition {
       try Episode.filter(
-        queueColumn > oldPosition && queueColumn <= newPosition
+        AppDB.queueOrderColumn > oldPosition
+          && AppDB.queueOrderColumn <= newPosition
       )
-      .updateAll(db, queueColumn.set(to: queueColumn - 1))
+      .updateAll(db, AppDB.queueOrderColumn.set(to: AppDB.queueOrderColumn - 1))
     } else {
       try Episode.filter(
-        queueColumn >= newPosition && queueColumn < oldPosition
+        AppDB.queueOrderColumn >= newPosition
+          && AppDB.queueOrderColumn < oldPosition
       )
-      .updateAll(db, queueColumn.set(to: queueColumn + 1))
+      .updateAll(db, AppDB.queueOrderColumn.set(to: AppDB.queueOrderColumn + 1))
     }
   }
 }

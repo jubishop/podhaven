@@ -27,8 +27,7 @@ struct NavigationView: Hashable {
   static let shared = Navigation()
 
   enum Tab {
-    case settings
-    case podcasts
+    case settings, podcasts, upNext
   }
 
   var settingsPath = NavigationPath()

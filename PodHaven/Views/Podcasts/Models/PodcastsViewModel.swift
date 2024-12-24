@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2024
 
 import Foundation
-import GRDB
 import IdentifiedCollections
 
 @Observable @MainActor final class PodcastsViewModel {
@@ -13,7 +12,7 @@ import IdentifiedCollections
         self.podcasts = podcasts
       }
     } catch {
-      Alert.shared("Error thrown while observing podcast database")
+      Alert.shared("Error thrown while observing all podcasts in database")
     }
   }
 }

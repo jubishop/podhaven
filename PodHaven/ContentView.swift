@@ -21,6 +21,15 @@ struct ContentView: View {
         }
       }
       Tab(
+        "Up Next",
+        systemImage: "list.bullet",
+        value: .upNext
+      ) {
+        TabContent(height: $tabHeights[.upNext]) {
+          UpNextView()
+        }
+      }
+      Tab(
         "Podcasts",
         systemImage: "dot.radiowaves.left.and.right",
         value: .podcasts

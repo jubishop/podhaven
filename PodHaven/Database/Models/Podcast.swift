@@ -32,7 +32,7 @@ struct UnsavedPodcast: Savable {
 typealias Podcast = Saved<UnsavedPodcast>
 
 extension Podcast {
-  static let episodes = hasMany(Episode.self).order(Column("pubDate").desc)
+  static let episodes = hasMany(Episode.self).order(AppDB.pubDateColumn.desc)
   var episodes: QueryInterfaceRequest<Episode> {
     request(for: Self.episodes)
   }

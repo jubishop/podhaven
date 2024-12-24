@@ -23,9 +23,9 @@ struct Observatory: Sendable {
   static let queuedEpisodes: SharedValueObservation<PodcastEpisodeArray> =
     ValueObservation.tracking { db in
       try Episode
-        .filter(Column("queueOrder") != nil)
+        .filter(AppDB.queueOrderColumn != nil)
         .including(required: Episode.podcast)
-        .order(Column("queueOrder").asc)
+        .order(AppDB.queueOrderColumn.asc)
         .asRequest(of: PodcastEpisode.self)
         .fetchIdentifiedArray(db)
     }
