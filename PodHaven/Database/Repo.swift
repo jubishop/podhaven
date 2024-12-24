@@ -88,14 +88,14 @@ struct Repo: Sendable {
   }
 
   func appendToQueue(_ episodeID: Int64) async throws {
-      try await appDB.db.write { db in
-        let max =
-          try Episode
-          .select(max(Column("queueOrder")), as: Int.self)
-          .fetchOne(db)
+    try await appDB.db.write { db in
+      let max =
         try Episode
-          .filter(id: episodeID)
-          .updateAll(db, Column("queueOrder").set(to: (max ?? 0) + 1))
-      }
+        .select(max(Column("queueOrder")), as: Int.self)
+        .fetchOne(db)
+      try Episode
+        .filter(id: episodeID)
+        .updateAll(db, Column("queueOrder").set(to: (max ?? 0) + 1))
+    }
   }
 }
