@@ -105,15 +105,13 @@ actor QueueTests {
   // MARK: - Helpers
 
   private func fetchOrder() async throws -> [Int] {
-    let podcastEpisodes = try await repo.db.read { db in
+    let episodes = try await repo.db.read { db in
       try Episode
         .filter(Column("queueOrder") != nil)
-        .including(required: Episode.podcast)
         .order(Column("queueOrder").asc)
-        .asRequest(of: PodcastEpisode.self)
         .fetchAll(db)
     }
-    return podcastEpisodes.map { $0.episode.queueOrder ?? -1 }
+    return episodes.map { $0.queueOrder ?? -1 }
   }
 
   private func fetchEpisode(_ guid: String) async throws -> Episode {
