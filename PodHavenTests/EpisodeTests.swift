@@ -93,13 +93,13 @@ actor EpisodeTests {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
+    // General insertion testing
     let topUnsavedEpisode = UnsavedEpisode(guid: "top", queueOrder: 1)
     let bottomUnsavedEpisode = UnsavedEpisode(guid: "bot", queueOrder: 4)
     let midTopUnsavedEpisode = UnsavedEpisode(guid: "midto", queueOrder: 2)
     let midBottomUnsavedEpisode = UnsavedEpisode(guid: "midbo", queueOrder: 3)
     let unqueuedBottomEpisode = UnsavedEpisode(guid: "unqbo")
     let unqueuedTopEpisode = UnsavedEpisode(guid: "unqto")
-
     let podcast = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
@@ -111,7 +111,6 @@ actor EpisodeTests {
         unqueuedTopEpisode,
       ]
     )
-
     var podcastEpisodes = try await repo.db.read { db in
       try Episode
         .filter(Column("queueOrder") != nil)
@@ -122,6 +121,7 @@ actor EpisodeTests {
     }
     #expect(podcastEpisodes.map { $0.episode.queueOrder } == [1, 2, 3, 4])
 
+    // Testing appending at bottom
     let newBottomEpisode = try await repo.db.read { db in
       try Episode.fetchOne(db, key: ["guid": "unqbo", "podcastId": podcast.id])
     }!
@@ -131,6 +131,7 @@ actor EpisodeTests {
     }
     #expect(newMaxEpisode.queueOrder == 5)
 
+    // Test inserting at top
     let newTopEpisode = try await repo.db.read { db in
       try Episode.fetchOne(db, key: ["guid": "unqto", "podcastId": podcast.id])
     }!
@@ -143,7 +144,6 @@ actor EpisodeTests {
       try Episode.find(db, id: newBottomEpisode.id)
     }
     #expect(updatedMaxEpisode.queueOrder == 6)
-
     podcastEpisodes = try await repo.db.read { db in
       try Episode
         .filter(Column("queueOrder") != nil)
@@ -156,6 +156,7 @@ actor EpisodeTests {
       podcastEpisodes.map { $0.episode.queueOrder } == [1, 2, 3, 4, 5, 6]
     )
 
+    // Test dequeuing an item in the middle
     var midTopEpisode = try await repo.db.read { db in
       try Episode.fetchOne(db, key: ["guid": "midto", "podcastId": podcast.id])
     }!
