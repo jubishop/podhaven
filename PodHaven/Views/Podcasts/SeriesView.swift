@@ -16,7 +16,10 @@ struct SeriesView: View {
         HTMLText(description).padding()
       }
       List(viewModel.episodes) { episode in
-        EpisodeListView(episode: episode)
+        EpisodeListView(podcastEpisode: PodcastEpisode(
+          podcast: viewModel.podcast,
+          episode: episode
+        ))
       }
       .refreshable {
         do {
@@ -48,12 +51,6 @@ struct SeriesView: View {
   struct SeriesViewPreview: View {
     @State var podcast: Podcast?
 
-    init() {
-      self.podcast = try? Repo.shared.db.read { db in
-        try Podcast.all().shuffled().fetchOne(db)
-      }
-    }
-
     var body: some View {
       Group {
         if let podcast = self.podcast {
@@ -63,11 +60,7 @@ struct SeriesView: View {
         }
       }
       .task {
-        if self.podcast == nil {
-          if let podcastSeries = try? await Helpers.loadSeries() {
-            self.podcast = podcastSeries.podcast
-          }
-        }
+        self.podcast = try? await Helpers.loadSeries()?.podcast
       }
     }
   }

@@ -3,7 +3,9 @@
 import SwiftUI
 
 struct EpisodeListView: View {
-  let episode: Episode
+  let podcastEpisode: PodcastEpisode
+  var podcast: Podcast { podcastEpisode.podcast }
+  var episode: Episode { podcastEpisode.episode }
 
   var body: some View {
     NavigationLink(
@@ -17,15 +19,19 @@ struct EpisodeListView: View {
 
 #Preview {
   struct EpisodeListViewPreview: View {
-    let episode: Episode
-    init() {
-      self.episode = try! Repo.shared.db.read { db in
-        try! Episode.fetchOne(db)!
-      }
-    }
+    @State var podcastEpisode: PodcastEpisode?
 
     var body: some View {
-      EpisodeListView(episode: episode)
+      Group {
+        if let podcastEpisode = self.podcastEpisode {
+          EpisodeListView(podcastEpisode: podcastEpisode)
+        } else {
+          Text("No episodes in DB")
+        }
+      }
+      .task {
+        self.podcastEpisode = try? await Helpers.loadPodcastEpisode()
+      }
     }
   }
 

@@ -51,17 +51,6 @@ struct EpisodeView: View {
   struct EpisodeViewPreview: View {
     @State var podcastEpisode: PodcastEpisode?
 
-    init() {
-      podcastEpisode =
-        try? Repo.shared.db.read { db in
-          try Episode
-            .including(required: Episode.podcast)
-            .shuffled()
-            .asRequest(of: PodcastEpisode.self)
-            .fetchOne(db)
-        }
-    }
-
     var body: some View {
       Group {
         if let podcastEpisode = self.podcastEpisode {
@@ -71,16 +60,7 @@ struct EpisodeView: View {
         }
       }
       .task {
-        if self.podcastEpisode == nil {
-          if let podcastSeries = try? await Helpers.loadSeries(),
-            let episode = podcastSeries.episodes.randomElement()
-          {
-            self.podcastEpisode = PodcastEpisode(
-              podcast: podcastSeries.podcast,
-              episode: episode
-            )
-          }
-        }
+        self.podcastEpisode = try? await Helpers.loadPodcastEpisode()
       }
     }
   }
