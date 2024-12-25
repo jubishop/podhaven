@@ -3,8 +3,6 @@
 import Foundation
 
 enum Helpers {
-  private static let seriesFiles = ["pod_save_america", "land_of_the_giants"]
-
   static func loadSeries()
     async throws -> PodcastSeries?
   {
@@ -17,7 +15,7 @@ enum Helpers {
     }) {
       return podcastSeries
     }
-    let fileName = seriesFiles.randomElement()!
+    let fileName = ["pod_save_america", "land_of_the_giants"].randomElement()!
     let parseResult = await PodcastFeed.parse(
       Bundle.main.url(forResource: fileName, withExtension: "rss")!
     )
