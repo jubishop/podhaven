@@ -3,7 +3,9 @@
 import Foundation
 import GRDB
 
-struct PodcastEpisode: Codable, FetchableRecord, Equatable, Identifiable {
+struct PodcastEpisode: Codable, FetchableRecord, Equatable, Identifiable,
+  Hashable
+{
   var id: Int64 { episode.id }
 
   let podcast: Podcast

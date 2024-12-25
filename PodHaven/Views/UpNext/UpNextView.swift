@@ -10,11 +10,12 @@ struct UpNextView: View {
     NavigationStack(path: $navigation.upNextPath) {
       List {
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
-          Text(podcastEpisode.episode.title ?? podcastEpisode.podcast.title)
+          UpNextListView(podcastEpisode: podcastEpisode)
         }
       }
       .navigationTitle("Up Next")
-      .navigationDestination(for: Episode.self) { episode in
+      .navigationDestination(for: PodcastEpisode.self) { podcastEpisode in
+        EpisodeView(podcastEpisode: podcastEpisode)
       }
       .task {
         await viewModel.observePodcastEpisodes()
