@@ -38,6 +38,14 @@ struct SettingsView: View {
                 Text("Load Invalid Episode")
               }
             )
+            Button(
+              action: {
+                Task { try await Helpers.populateQueue() }
+              },
+              label: {
+                Text("Populate Queue")
+              }
+            )
           }
         #endif
       }

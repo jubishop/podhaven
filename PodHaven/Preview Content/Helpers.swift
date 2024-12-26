@@ -54,7 +54,7 @@ enum Helpers {
     )
   }
 
-  static func populateQueue(queueSize: Int = 50) async throws {
+  static func populateQueue(queueSize: Int = 20) async throws {
     var allPodcastSeries: [PodcastSeries] = []
     for seriesFile in seriesFiles {
       if let podcastSeries = try? await loadSeries(fileName: seriesFile) {

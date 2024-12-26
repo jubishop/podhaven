@@ -112,7 +112,7 @@ struct Repo: Sendable {
       let newPosition =
         (try Episode
           .select(max(AppDB.queueOrderColumn), as: Int.self)
-          .fetchOne(db) ?? 0) + 1
+          .fetchOne(db) ?? -1) + 1
       try _insertToQueue(db, episodeID: episodeID, at: newPosition)
     }
   }

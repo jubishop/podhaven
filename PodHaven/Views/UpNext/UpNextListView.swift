@@ -11,7 +11,10 @@ struct UpNextListView: View {
     NavigationLink(
       value: podcastEpisode,
       label: {
-        Text(episode.toString)
+        HStack(spacing: 20) {
+          Text(String(episode.queueOrder ?? -1))
+          Text(episode.toString)
+        }
       }
     )
   }
