@@ -27,7 +27,7 @@ struct EpisodeView: View {
       Button(
         action: {
           Task {
-            try await Repo.shared.insertToQueue(viewModel.episode.id, at: 1)
+            try await Repo.shared.insertToQueue(viewModel.episode.id, at: 0)
           }
         },
         label: { Text("Add To Top Of Queue") }
