@@ -12,10 +12,14 @@ struct UpNextView: View {
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
           UpNextListView(podcastEpisode: podcastEpisode)
         }
+        .onMove(perform: viewModel.moveItem)
       }
       .navigationTitle("Up Next")
       .navigationDestination(for: PodcastEpisode.self) { podcastEpisode in
         EpisodeView(podcastEpisode: podcastEpisode)
+      }
+      .toolbar {
+        EditButton()
       }
       .task {
         await viewModel.observeQueuedEpisodes()
