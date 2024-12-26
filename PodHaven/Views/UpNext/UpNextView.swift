@@ -13,6 +13,7 @@ struct UpNextView: View {
           UpNextListView(podcastEpisode: podcastEpisode)
         }
         .onMove(perform: viewModel.moveItem)
+        .onDelete(perform: viewModel.deleteItems)
       }
       .navigationTitle("Up Next")
       .navigationDestination(for: PodcastEpisode.self) { podcastEpisode in

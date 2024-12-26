@@ -6,15 +6,22 @@ import IdentifiedCollections
 @Observable @MainActor final class UpNextViewModel {
   var podcastEpisodes: PodcastEpisodeArray = IdentifiedArrayOf<PodcastEpisode>()
 
-  func moveItem(from source: IndexSet, to destination: Int) {
-    guard source.count == 1 else { fatalError("Somehow dragged several?") }
-    guard let from = source.first else { fatalError("No source in drag?") }
-    print("moving from: \(from), to: \(destination)")
+  func moveItem(from: IndexSet, to: Int) {
+    guard from.count == 1 else { fatalError("Somehow dragged several?") }
+    guard let from = from.first else { fatalError("No from in drag?") }
     Task {
       try await Repo.shared.insertToQueue(
         podcastEpisodes[from].episode.id,
-        at: destination
+        at: to
       )
+    }
+  }
+
+  func deleteItems(at offsets: IndexSet) {
+    Task {
+      for offset in offsets.reversed() {
+        try await Repo.shared.dequeue(podcastEpisodes[offset].episode.id)
+      }
     }
   }
 
