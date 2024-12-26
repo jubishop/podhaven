@@ -18,12 +18,20 @@ struct UpNextView: View {
         EpisodeView(podcastEpisode: podcastEpisode)
       }
       .task {
-        await viewModel.observePodcastEpisodes()
+        await viewModel.observeQueuedEpisodes()
       }
     }
   }
 }
 
 #Preview {
-  Preview { UpNextView() }
+  struct UpNextViewPreview: View {
+
+    var body: some View {
+      UpNextView()
+        .task { try? await Helpers.populateQueue() }
+    }
+  }
+
+  return Preview { UpNextViewPreview() }
 }

@@ -6,7 +6,7 @@ import IdentifiedCollections
 @Observable @MainActor final class UpNextViewModel {
   var podcastEpisodes: PodcastEpisodeArray = IdentifiedArrayOf<PodcastEpisode>()
 
-  func observePodcastEpisodes() async {
+  func observeQueuedEpisodes() async {
     do {
       for try await podcastEpisodes in Observatory.queuedEpisodes.values() {
         self.podcastEpisodes = podcastEpisodes

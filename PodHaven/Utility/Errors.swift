@@ -4,11 +4,17 @@ import Foundation
 
 enum DBError: Error, LocalizedError, Sendable {
   case episodeNotFound(Int64)
+  case seriesNotFound(Int64)
+  case podcastEpisodeNotFound(Int64)
 
   var errorDescription: String {
     switch self {
     case .episodeNotFound(let id):
       return "Episode with ID: \(id) could not be found."
+    case .seriesNotFound(let id):
+      return "PodcastSeries with Podcast ID: \(id) could not be found."
+    case .podcastEpisodeNotFound(let id):
+      return "PodcastEpisode with Podcast ID: \(id) could not be found."
     }
   }
 }

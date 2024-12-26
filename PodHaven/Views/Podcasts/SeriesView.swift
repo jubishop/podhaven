@@ -60,7 +60,7 @@ struct SeriesView: View {
         }
       }
       .task {
-        self.podcast = try? await Helpers.loadSeries()?.podcast
+        self.podcast = try? await Helpers.loadSeries().podcast
       }
     }
   }
