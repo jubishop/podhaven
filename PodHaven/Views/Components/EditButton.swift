@@ -1,39 +1,23 @@
 import SwiftUI
 
-struct EditButton<Label: View, StyledButton: View>: View {
+struct EditButton<Label: View>: View {
   @Environment(\.editMode) private var editMode
   var onToggle: ((Bool) -> Void)?
   var label: (Bool) -> Label
-  var buttonStyle: (Button<Label>, Bool) -> StyledButton
 
   init(
     onToggle: ((Bool) -> Void)? = nil,
     @ViewBuilder label: @escaping (Bool) -> Label = { isEditing in
       Text(isEditing ? "Done" : "Edit")
-    },
-    @ViewBuilder buttonStyle: @escaping (Button<Label>, Bool) -> StyledButton
+    }
   ) {
     self.onToggle = onToggle
     self.label = label
-    self.buttonStyle = buttonStyle
-  }
-
-  init(
-    onToggle: ((Bool) -> Void)? = nil,
-    @ViewBuilder label: @escaping (Bool) -> Text = { isEditing in
-      Text(isEditing ? "Done" : "Edit")
-    }
-  ) where StyledButton == Button<Text>, Label == Text {
-    self.init(
-      onToggle: onToggle,
-      label: label,
-      buttonStyle: { button, _ in button }
-    )
   }
 
   var body: some View {
     let isEditing = editMode?.wrappedValue == .active
-    let button = Button(
+    Button(
       action: {
         withAnimation {
           editMode?.wrappedValue = isEditing ? .inactive : .active
@@ -44,11 +28,13 @@ struct EditButton<Label: View, StyledButton: View>: View {
         label(isEditing)
       }
     )
-    buttonStyle(button, isEditing)
   }
 }
 
 #Preview {
+  @Previewable @Environment(\.editMode) var editMode
+  var isEditing: Bool { editMode?.wrappedValue == .active }
+
   VStack(spacing: 20) {
     // Default Everything
     EditButton()
@@ -67,15 +53,11 @@ struct EditButton<Label: View, StyledButton: View>: View {
       })
 
     // Custom Button Style Only
-    EditButton(
-      buttonStyle: { button, isEditing in
-        button
-          .padding()
-          .background(isEditing ? Color.green : Color.red)
-          .cornerRadius(8)
-          .shadow(radius: 3)
-      }
-    )
+    EditButton()
+      .padding()
+      .background(isEditing ? Color.green : Color.white)
+      .cornerRadius(8)
+      .shadow(radius: 3)
 
     // Custom Everything
     EditButton(
@@ -87,22 +69,18 @@ struct EditButton<Label: View, StyledButton: View>: View {
           Image(systemName: isEditing ? "checkmark.circle" : "pencil.circle")
           Text(isEditing ? "Done Editing" : "Edit Mode")
         }
-      },
-      buttonStyle: { button, isEditing in
-        button
-          .padding(10)
-          .background(
-            RoundedRectangle(cornerRadius: 10)
-              .fill(isEditing ? Color.blue : Color.gray)
-              .animation(.easeInOut, value: isEditing)
-          )
-          .overlay(
-            RoundedRectangle(cornerRadius: 10)
-              .stroke(Color.white, lineWidth: 2)
-          )
-          .foregroundStyle(isEditing ? Color.white : Color.black)
       }
     )
+    .padding(10)
+    .background(
+      RoundedRectangle(cornerRadius: 10)
+        .fill(isEditing ? Color.blue : Color.black)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: 10)
+        .stroke(Color.white, lineWidth: 2)
+    )
+    .foregroundStyle(Color.white)
   }
   .padding()
 }
