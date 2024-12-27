@@ -2,6 +2,7 @@
 
 import AVFoundation
 import Foundation
+import GRDB
 import SwiftUI
 
 struct PlayManagerAccessKey { fileprivate init() {} }
@@ -55,11 +56,28 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       \.currentItem,
       options: .new,
       changeHandler: { [unowned self] currentItem, change in
-        // TODO: Add next item in queue to our AVQueuePlayer
-        // TODO: Observe queue changes and if first item is added, add it.
+        // TODO: Remove this item from the queue
         print("current item is: \(String(describing: change.newValue))")
       }
     )
+
+    Task {
+      let observer =
+        ValueObservation.tracking(
+          Episode
+            .filter(AppDB.queueOrderColumn == 0)
+            .fetchOne
+        )
+        .removeDuplicates()
+      for try await topQueueItem in observer.values(in: Repo.shared.db) {
+        // TODO: Add (or remove) item in queue to our AVQueuePlayer
+        if let topQueueItem = topQueueItem {
+          print("top queue item is now \(topQueueItem.toString)")
+        } else {
+          print("queue is now empty")
+        }
+      }
+    }
 
     do {
       guard let episodeID: Int64 = Persistence.currentEpisodeID.load(),
@@ -81,8 +99,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async {
-    // TODO: Remove item from queue
     if status == .loading { return }
+
+    // TODO: place currently playing item at top of queue
 
     stopTracking()
     pause()

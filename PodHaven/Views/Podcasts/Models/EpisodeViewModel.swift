@@ -21,8 +21,7 @@ import GRDB
   func observeEpisode() async {
     do {
       let observer =
-        ValueObservation
-        .tracking(
+        ValueObservation.tracking(
           Episode
             .filter(id: episode.id)
             .including(required: Episode.podcast)
