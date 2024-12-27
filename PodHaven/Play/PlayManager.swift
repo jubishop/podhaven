@@ -26,12 +26,13 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
   private var episodeID: Int64?
-  private var avPlayer = AVPlayer()
+  private var avPlayer = AVQueuePlayer()
   private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
   private var nowPlayingInfo: NowPlayingInfo?
   private var commandCenter: CommandCenter
   private var commandObservingTask: Task<Void, Never>?
   private var interruptionObservingTask: Task<Void, Never>?
+  private var currentItemObserver: NSKeyValueObservation?
   private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
   private var timeObserver: Any?
 
@@ -46,9 +47,18 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   private init() {
     commandCenter = CommandCenter(accessKey)
+    avPlayer.actionAtItemEnd = .advance
   }
 
   func resume() async {
+    currentItemObserver = avPlayer.observe(
+      \.currentItem,
+      options: .new,
+      changeHandler: { [unowned self] currentItem, change in
+        print("current item is: \(String(describing: change.newValue))")
+      }
+    )
+
     do {
       guard let episodeID: Int64 = Persistence.currentEpisodeID.load(),
         let podcastEpisode = try await Repo.shared.db.read({ db in

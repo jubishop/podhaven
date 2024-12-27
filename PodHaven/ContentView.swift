@@ -41,9 +41,7 @@ struct ContentView: View {
     }
     .overlay(alignment: .bottom) {
       PlayBar()
-        .offset(
-          y: tabHeights[navigation.currentTab] - fullStackHeight
-        )
+        .offset(y: tabHeights[navigation.currentTab] - fullStackHeight)
     }
     .onGeometryChange(for: CGFloat.self) { geometry in
       geometry.size.height

@@ -8,7 +8,7 @@ import SwiftUI
 struct PodHavenApp: App {
   @State private var alert = Alert.shared
 
-  private func configureAudioSession() async {
+  static func configureAudioSession() async {
     do {
       try AVAudioSession.sharedInstance()
         .setCategory(
@@ -38,7 +38,7 @@ struct PodHavenApp: App {
       ContentView()
         .customAlert($alert.config)
         .task {
-          await configureAudioSession()
+          await Self.configureAudioSession()
         }
     }
   }

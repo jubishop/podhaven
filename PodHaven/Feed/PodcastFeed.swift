@@ -8,27 +8,32 @@ typealias ParseResult = Result<PodcastFeed, FeedError>
 
 struct PodcastFeedItem: Sendable {
   let guid: String
+  let media: URL
 
   private let rssFeedItem: RSSFeedItem
 
   fileprivate init(rssFeedItem: RSSFeedItem) throws {
     guard let feedItemGUID = rssFeedItem.guid, let guid = feedItemGUID.value
     else { throw FeedError.failedParse("PodcastFeedItem requires a GUID") }
+    guard let urlString = rssFeedItem.enclosure?.attributes?.url,
+      let media = try? URL(string: urlString)?.convertToValidURL()
+    else { throw FeedError.failedParse("PodcastFeedItem requires media URL") }
     self.rssFeedItem = rssFeedItem
     self.guid = guid
+    self.media = media
   }
 
   func toUnsavedEpisode(mergingExisting existingEpisode: Episode? = nil)
     -> UnsavedEpisode
   {
     precondition(
-      existingEpisode?.guid == nil || existingEpisode?.guid == guid,
+      existingEpisode == nil || existingEpisode?.guid == guid,
       "Merging two episodes with different guids?"
     )
     return UnsavedEpisode(
       guid: guid,
       podcastId: existingEpisode?.podcastId,
-      media: media ?? existingEpisode?.media,
+      media: media,
       currentTime: existingEpisode?.currentTime,
       duration: duration ?? existingEpisode?.duration,
       pubDate: pubDate ?? existingEpisode?.pubDate,
@@ -45,13 +50,6 @@ struct PodcastFeedItem: Sendable {
       id: existingEpisode.id,
       from: toUnsavedEpisode(mergingExisting: existingEpisode)
     )
-  }
-
-  var media: URL? {
-    guard let urlString = rssFeedItem.enclosure?.attributes?.url,
-      let url = URL(string: urlString)
-    else { return nil }
-    return url
   }
 
   var pubDate: Date? {

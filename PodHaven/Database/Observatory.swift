@@ -5,7 +5,7 @@ import GRDB
 import IdentifiedCollections
 
 typealias PodcastArray = IdentifiedArray<URL, Podcast>
-typealias PodcastEpisodeArray = IdentifiedArrayOf<PodcastEpisode>
+typealias PodcastEpisodeArray = IdentifiedArray<URL, PodcastEpisode>
 
 struct Observatory: Sendable {
   // MARK:- Observers
@@ -27,7 +27,7 @@ struct Observatory: Sendable {
         .including(required: Episode.podcast)
         .order(AppDB.queueOrderColumn.asc)
         .asRequest(of: PodcastEpisode.self)
-        .fetchIdentifiedArray(db)
+        .fetchIdentifiedArray(db, id: \PodcastEpisode.episode.media)
     }
     .removeDuplicates()
     .shared(in: Repo.shared.db)
