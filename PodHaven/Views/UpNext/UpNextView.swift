@@ -3,16 +3,9 @@
 import SwiftUI
 
 struct UpNextView: View {
-  @Environment(\.editMode) private var editMode
-  @State private var isEditing: Bool = false
-
   @State private var navigation = Navigation.shared
   @State private var viewModel = UpNextViewModel()
-
-  // TODO: Move this to the viewModel
-  @State private var isSelected = BindableDictionary<PodcastEpisode, Bool>(
-    defaultValue: false
-  )
+  @State private var isEditing: Bool = false
 
   var body: some View {
     NavigationStack(path: $navigation.upNextPath) {
@@ -20,12 +13,12 @@ struct UpNextView: View {
         // TODO: Swipe right to go to top of queue
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
           UpNextListView(
-            isSelected: $isSelected[podcastEpisode],
+            isSelected: $viewModel.isSelected[podcastEpisode],
             podcastEpisode: podcastEpisode
           )
         }
         .onMove(perform: viewModel.moveItem)
-        .onDelete(perform: viewModel.deleteItems)
+        .onDelete(perform: viewModel.deleteOffsets)
       }
       .animation(.default, value: Array(viewModel.podcastEpisodes))
       .navigationTitle("Up Next")
@@ -34,22 +27,12 @@ struct UpNextView: View {
       }
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
-          EditButton { isEditing in
-            self.isEditing = isEditing
-          }
+          EditButton { isEditing in self.isEditing = isEditing }
         }
         if isEditing {
           ToolbarItem(placement: .topBarLeading) {
             Button(
-              action: {
-                // TODO: Move this to the viewModel
-                let selectedItems = isSelected.keys.filter { isSelected[$0] }
-                Task {
-                  for selectedItem in selectedItems {
-                    try await Repo.shared.dequeue(selectedItem.episode.id)
-                  }
-                }
-              },
+              action: viewModel.deleteSelected,
               label: { Text("Delete Selected") }
             )
           }

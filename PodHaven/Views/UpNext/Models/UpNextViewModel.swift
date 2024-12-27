@@ -7,6 +7,7 @@ import IdentifiedCollections
   var podcastEpisodes: PodcastEpisodeArray = IdentifiedArray(
     id: \PodcastEpisode.episode.media
   )
+  var isSelected = BindableDictionary<PodcastEpisode, Bool>(defaultValue: false)
 
   func moveItem(from: IndexSet, to: Int) {
     guard from.count == 1 else { fatalError("Somehow dragged several?") }
@@ -19,10 +20,18 @@ import IdentifiedCollections
     }
   }
 
-  func deleteItems(at offsets: IndexSet) {
+  func deleteOffsets(at offsets: IndexSet) {
     Task {
       for offset in offsets.reversed() {
         try await Repo.shared.dequeue(podcastEpisodes[offset].episode.id)
+      }
+    }
+  }
+
+  func deleteSelected() {
+    Task {
+      for selectedItem in isSelected.keys.filter({ isSelected[$0] }) {
+        try await Repo.shared.dequeue(selectedItem.episode.id)
       }
     }
   }

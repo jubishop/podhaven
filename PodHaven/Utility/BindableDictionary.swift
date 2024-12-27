@@ -2,8 +2,8 @@
 
 import Foundation
 
-@Observable @MainActor
-final class BindableDictionary<Key: Hashable, Value>: Sendable {
+@Observable
+final class BindableDictionary<Key: Hashable, Value>: Sequence {
   private var dictionary: [Key: Value] = [:]
   private let defaultValue: Value
 
@@ -17,5 +17,9 @@ final class BindableDictionary<Key: Hashable, Value>: Sendable {
   subscript(key: Key) -> Value {
     get { dictionary[key, default: defaultValue] }
     set { dictionary[key] = newValue }
+  }
+
+  func makeIterator() -> Dictionary<Key, Value>.Iterator {
+    dictionary.makeIterator()
   }
 }
