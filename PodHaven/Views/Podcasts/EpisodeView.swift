@@ -15,7 +15,7 @@ struct EpisodeView: View {
     VStack(spacing: 40) {
       Text(viewModel.episode.toString)
       Text("Duration: \(String(describing: viewModel.episode.duration))")
-      if !viewModel.currentlyPlaying() {
+      if !PlayState.shared.isOnDeck(viewModel.podcastEpisode) {
         Button(
           action: {
             Task { @PlayActor in

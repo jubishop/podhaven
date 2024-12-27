@@ -4,7 +4,6 @@ import AVFoundation
 import Foundation
 import SwiftUI
 
-
 struct OnDeck: Sendable {
   let feedURL: URL
   let guid: String
@@ -78,6 +77,12 @@ struct OnDeck: Sendable {
   private(set) var currentTime = CMTime.zero
   private(set) var onDeck: OnDeck?
   private init() {}
+
+  func isOnDeck(_ podcastEpisode: PodcastEpisode) -> Bool {
+    onDeck?.guid == podcastEpisode.episode.guid
+      && onDeck?.feedURL == podcastEpisode.podcast.feedURL
+      && onDeck?.mediaURL == podcastEpisode.episode.media
+  }
 
   // MARK: - State Setters
 
