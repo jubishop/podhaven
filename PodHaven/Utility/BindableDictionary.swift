@@ -11,6 +11,9 @@ final class BindableDictionary<Key: Hashable, Value>: Sendable {
     self.defaultValue = defaultValue
   }
 
+  var values: [Value] { Array(dictionary.values) }
+  var keys: [Key] { Array(dictionary.keys) }
+
   subscript(key: Key) -> Value {
     get { dictionary[key, default: defaultValue] }
     set { dictionary[key] = newValue }

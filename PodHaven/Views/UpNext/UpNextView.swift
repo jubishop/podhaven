@@ -4,6 +4,7 @@ import SwiftUI
 
 struct UpNextView: View {
   @Environment(\.editMode) private var editMode
+  @State private var isEditing: Bool = false
 
   @State private var navigation = Navigation.shared
   @State private var viewModel = UpNextViewModel()
@@ -24,13 +25,31 @@ struct UpNextView: View {
         .onMove(perform: viewModel.moveItem)
         // .onDelete(perform: viewModel.deleteItems)
       }
+      .animation(.default, value: Array(viewModel.podcastEpisodes))
       .navigationTitle("Up Next")
       .navigationDestination(for: PodcastEpisode.self) { podcastEpisode in
         EpisodeView(podcastEpisode: podcastEpisode)
       }
       .toolbar {
-        EditButton { isEditing in
-          print("isediting? \(isEditing)")
+        ToolbarItem(placement: .topBarTrailing) {
+          EditButton { isEditing in
+            self.isEditing = isEditing
+          }
+        }
+        if isEditing {
+          ToolbarItem(placement: .topBarLeading) {
+            Button(
+              action: {
+                let selectedItems = isSelected.keys.filter { isSelected[$0] }
+                Task {
+                  for selectedItem in selectedItems {
+                    try await Repo.shared.dequeue(selectedItem.episode.id)
+                  }
+                }
+              },
+              label: { Text("Delete Selected") }
+            )
+          }
         }
       }
       .task {
