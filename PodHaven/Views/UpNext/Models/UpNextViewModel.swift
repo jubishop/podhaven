@@ -19,6 +19,14 @@ import IdentifiedCollections
     }
   }
 
+  func deleteItems(at offsets: IndexSet) {
+    Task {
+      for offset in offsets.reversed() {
+        try await Repo.shared.dequeue(podcastEpisodes[offset].episode.id)
+      }
+    }
+  }
+
   func observeQueuedEpisodes() async {
     do {
       for try await podcastEpisodes in Observatory.queuedEpisodes.values() {

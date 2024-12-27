@@ -25,6 +25,7 @@ struct UpNextView: View {
           )
         }
         .onMove(perform: viewModel.moveItem)
+        .onDelete(perform: viewModel.deleteItems)
       }
       .animation(.default, value: Array(viewModel.podcastEpisodes))
       .navigationTitle("Up Next")
