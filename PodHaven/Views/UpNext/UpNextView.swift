@@ -8,6 +8,8 @@ struct UpNextView: View {
 
   @State private var navigation = Navigation.shared
   @State private var viewModel = UpNextViewModel()
+
+  // TODO: Move this to the viewModel
   @State private var isSelected = BindableDictionary<PodcastEpisode, Bool>(
     defaultValue: false
   )
@@ -23,7 +25,6 @@ struct UpNextView: View {
           )
         }
         .onMove(perform: viewModel.moveItem)
-        // .onDelete(perform: viewModel.deleteItems)
       }
       .animation(.default, value: Array(viewModel.podcastEpisodes))
       .navigationTitle("Up Next")
@@ -40,6 +41,7 @@ struct UpNextView: View {
           ToolbarItem(placement: .topBarLeading) {
             Button(
               action: {
+                // TODO: Move this to the viewModel
                 let selectedItems = isSelected.keys.filter { isSelected[$0] }
                 Task {
                   for selectedItem in selectedItems {
