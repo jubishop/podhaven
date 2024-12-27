@@ -20,6 +20,12 @@ import IdentifiedCollections
     }
   }
 
+  func moveToTop(_ podcastEpisode: PodcastEpisode) {
+    Task {
+      try await Repo.shared.unshiftToQueue(podcastEpisode.episode.id)
+    }
+  }
+
   func deleteOffsets(at offsets: IndexSet) {
     Task {
       for offset in offsets.reversed() {

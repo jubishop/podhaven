@@ -42,7 +42,7 @@ actor QueueTests {
   @Test("inserting a new episode at top")
   func insertingNewAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
-    try await repo.insertToQueue(topEpisode.id, at: 0)
+    try await repo.unshiftToQueue(topEpisode.id)
     topEpisode = try await fetchEpisode("unqtop")
     #expect(topEpisode.queueOrder == 0)
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])

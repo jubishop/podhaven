@@ -10,12 +10,20 @@ struct UpNextView: View {
   var body: some View {
     NavigationStack(path: $navigation.upNextPath) {
       List {
-        // TODO: Swipe right to go to top of queue
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
           UpNextListView(
             isSelected: $viewModel.isSelected[podcastEpisode],
             podcastEpisode: podcastEpisode
           )
+          .swipeActions(edge: .leading) {
+            Button(
+              action: { viewModel.moveToTop(podcastEpisode) },
+              label: {
+                Label("Move to Top", systemImage: "arrow.up")
+              }
+            )
+            .tint(.green)
+          }
         }
         .onMove(perform: viewModel.moveItem)
         .onDelete(perform: viewModel.deleteOffsets)

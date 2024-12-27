@@ -107,6 +107,12 @@ struct Repo: Sendable {
     }
   }
 
+  func unshiftToQueue(_ episodeID: Int64) async throws {
+    try await appDB.db.write { db in
+      try _insertToQueue(db, episodeID: episodeID, at: 0)
+    }
+  }
+
   func appendToQueue(_ episodeID: Int64) async throws {
     try await appDB.db.write { db in
       let newPosition =
