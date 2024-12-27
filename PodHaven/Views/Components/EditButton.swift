@@ -1,25 +1,36 @@
-// Copyright Justin Bishop, 2024
-
 import SwiftUI
 
-struct EditButton<Label: View>: View {
+struct EditButton<Label: View, StyledButton: View>: View {
   @Environment(\.editMode) private var editMode
   var onToggle: ((Bool) -> Void)?
   var label: (Bool) -> Label
-  var buttonStyle: (Button<Label>, Bool) -> AnyView
+  var buttonStyle: (Button<Label>, Bool) -> StyledButton
 
+  // Primary initializer
   init(
     onToggle: ((Bool) -> Void)? = nil,
     @ViewBuilder label: @escaping (Bool) -> Label = { isEditing in
       Text(isEditing ? "Done" : "Edit")
     },
-    buttonStyle: @escaping (Button<Label>, Bool) -> AnyView = { button, _ in
-      AnyView(button)
-    }
+    @ViewBuilder buttonStyle: @escaping (Button<Label>, Bool) -> StyledButton
   ) {
     self.onToggle = onToggle
     self.label = label
     self.buttonStyle = buttonStyle
+  }
+
+  // Convenience initializer for default buttonStyle
+  init(
+    onToggle: ((Bool) -> Void)? = nil,
+    @ViewBuilder label: @escaping (Bool) -> Text = { isEditing in
+      Text(isEditing ? "Done" : "Edit")
+    }
+  ) where StyledButton == Button<Text>, Label == Text {
+    self.init(
+      onToggle: onToggle,
+      label: label,
+      buttonStyle: { button, _ in button }  // Default buttonStyle: no modification
+    )
   }
 
   var body: some View {
@@ -35,44 +46,41 @@ struct EditButton<Label: View>: View {
         label(isEditing)
       }
     )
-    buttonStyle(button, isEditing)
+
+    buttonStyle(button, isEditing)  // Apply the styling closure directly
   }
 }
 
 #Preview {
   VStack(spacing: 20) {
-    // Default EditButton
+    // Default Everything
     EditButton()
 
-    // Toggle Only
+    // Custom Toggle Only
     EditButton { isEditing in
-      print("now editing: \(isEditing ? "yes" : "no")")
+      print("Now editing?: \(isEditing ? "yes" : "no")")
     }
 
     // Custom Label Only
-    EditButton(label: { isEditing in
-      Text(isEditing ? "Finish Editing" : "Start Editing")
-        .bold()
-        .foregroundColor(.blue)
-    })
-
-    // Custom Button Style
     EditButton(
       label: { isEditing in
-        Text(isEditing ? "Done" : "Edit")
-          .padding()
-      },
+        Text(isEditing ? "Finish Editing" : "Start Editing")
+          .bold()
+          .foregroundColor(.blue)
+      })
+
+    // Custom Button Style Only
+    EditButton(
       buttonStyle: { button, isEditing in
-        AnyView(
-          button
-            .background(isEditing ? Color.green : Color.red)
-            .cornerRadius(8)
-            .shadow(radius: 3)
-        )
+        button
+          .padding()
+          .background(isEditing ? Color.green : Color.red)
+          .cornerRadius(8)
+          .shadow(radius: 3)
       }
     )
 
-    // Custom Button Style and Toggle Action
+    // Custom Everything
     EditButton(
       onToggle: { isEditing in
         print("Editing mode is now: \(isEditing ? "Active" : "Inactive")")
@@ -84,40 +92,18 @@ struct EditButton<Label: View>: View {
         }
       },
       buttonStyle: { button, isEditing in
-        AnyView(
-          button
-            .padding(10)
-            .background(
-              RoundedRectangle(cornerRadius: 10)
-                .fill(isEditing ? Color.blue : Color.gray)
-                .animation(.easeInOut, value: isEditing)
-            )
-            .overlay(
-              RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.white, lineWidth: 2)
-            )
-            .foregroundStyle(isEditing ? Color.white : Color.black)
-        )
-      }
-    )
-
-    // Animated style
-    EditButton(
-      label: { isEditing in
-        Text(isEditing ? "Finish Editing" : "Start Editing")
-          .bold()
-          .foregroundColor(.white)
-      },
-      buttonStyle: { button, isEditing in
-        AnyView(
-          button
-            .padding(10)
-            .background(
-              RoundedRectangle(cornerRadius: 10)
-                .fill(isEditing ? Color.blue : Color.gray)
-                .animation(.easeInOut, value: isEditing)
-            )
-        )
+        button
+          .padding(10)
+          .background(
+            RoundedRectangle(cornerRadius: 10)
+              .fill(isEditing ? Color.blue : Color.gray)
+              .animation(.easeInOut, value: isEditing)
+          )
+          .overlay(
+            RoundedRectangle(cornerRadius: 10)
+              .stroke(Color.white, lineWidth: 2)
+          )
+          .foregroundStyle(isEditing ? Color.white : Color.black)
       }
     )
   }
