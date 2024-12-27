@@ -31,7 +31,7 @@ enum Helpers {
     return try await Repo.shared.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: feedResult.items.map {
-        $0.toUnsavedEpisode()
+        try $0.toUnsavedEpisode()
       }
     )
   }

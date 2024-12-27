@@ -8,8 +8,8 @@ struct UnsavedEpisode: Savable {
   let guid: String
   var podcastId: Int64?
   var media: URL
-  var currentTime: CMTime?
-  var duration: CMTime?
+  var currentTime: CMTime
+  var duration: CMTime
   var pubDate: Date
   var title: String?
   var description: String?
@@ -29,10 +29,10 @@ struct UnsavedEpisode: Savable {
     link: URL? = nil,
     image: URL? = nil,
     queueOrder: Int? = nil
-  ) {
+  ) throws {
     self.guid = guid
     self.podcastId = podcastId
-    self.media = media
+    self.media = try media.convertToValidURL()
     self.currentTime = currentTime ?? CMTime.zero
     self.duration = duration ?? CMTime.zero
     self.pubDate = pubDate ?? Date()

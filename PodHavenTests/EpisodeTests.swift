@@ -20,17 +20,20 @@ actor EpisodeTests {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
-    let newestUnsavedEpisode = UnsavedEpisode(guid: "guid")
-    let oldUnsavedEpisode = UnsavedEpisode(
+    let newestUnsavedEpisode = try UnsavedEpisode(guid: "guid", media: url)
+    let oldUnsavedEpisode = try UnsavedEpisode(
       guid: "guid2",
+      media: url,
       pubDate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
     )
-    let middleUnsavedEpisode = UnsavedEpisode(
+    let middleUnsavedEpisode = try UnsavedEpisode(
       guid: "guid3",
+      media: url,
       pubDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())
     )
-    let ancientUnsavedEpisode = UnsavedEpisode(
+    let ancientUnsavedEpisode = try UnsavedEpisode(
       guid: "guid4",
+      media: url,
       pubDate: Calendar.current.date(byAdding: .day, value: -1000, to: Date())
     )
 
@@ -64,7 +67,7 @@ actor EpisodeTests {
     let cmTime = CMTime.inSeconds(30)
 
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    let unsavedEpisode = UnsavedEpisode(
+    let unsavedEpisode = try UnsavedEpisode(
       guid: guid,
       media: url,
       currentTime: cmTime

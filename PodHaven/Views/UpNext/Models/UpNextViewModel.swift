@@ -4,7 +4,9 @@ import Foundation
 import IdentifiedCollections
 
 @Observable @MainActor final class UpNextViewModel {
-  var podcastEpisodes: PodcastEpisodeArray = IdentifiedArrayOf<PodcastEpisode>()
+  var podcastEpisodes: PodcastEpisodeArray = IdentifiedArray(
+    id: \PodcastEpisode.episode.media
+  )
 
   func moveItem(from: IndexSet, to: Int) {
     guard from.count == 1 else { fatalError("Somehow dragged several?") }

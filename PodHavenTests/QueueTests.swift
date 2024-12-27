@@ -16,14 +16,14 @@ actor QueueTests {
     podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
-        UnsavedEpisode(guid: "top", queueOrder: 0),
-        UnsavedEpisode(guid: "bottom", queueOrder: 4),
-        UnsavedEpisode(guid: "midtop", queueOrder: 1),
-        UnsavedEpisode(guid: "middle", queueOrder: 2),
-        UnsavedEpisode(guid: "midbottom", queueOrder: 3),
-        UnsavedEpisode(guid: "unqbottom"),
-        UnsavedEpisode(guid: "unqmiddle"),
-        UnsavedEpisode(guid: "unqtop"),
+        UnsavedEpisode(guid: "top", media: url, queueOrder: 0),
+        UnsavedEpisode(guid: "bottom", media: url, queueOrder: 4),
+        UnsavedEpisode(guid: "midtop", media: url, queueOrder: 1),
+        UnsavedEpisode(guid: "middle", media: url, queueOrder: 2),
+        UnsavedEpisode(guid: "midbottom", media: url, queueOrder: 3),
+        UnsavedEpisode(guid: "unqbottom", media: url),
+        UnsavedEpisode(guid: "unqmiddle", media: url),
+        UnsavedEpisode(guid: "unqtop", media: url),
       ]
     )
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])

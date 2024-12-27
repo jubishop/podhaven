@@ -43,7 +43,7 @@ struct DebugSection: View {
       PodcastEpisode(
         podcast: podcastEpisode.podcast,
         episode: Episode(
-          from: UnsavedEpisode(
+          from: try UnsavedEpisode(
             guid: "guid",
             media: URL(string: "https://notreal.com/hi.mp3")!,
             title: "Stupid Tech Talky Talky"

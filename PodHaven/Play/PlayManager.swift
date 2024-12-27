@@ -81,18 +81,11 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   func load(_ podcastEpisode: PodcastEpisode) async {
     if status == .loading { return }
 
-    guard let url = podcastEpisode.episode.media else {
-      fatalError("\(podcastEpisode.episode.toString) has no media")
-    }
-    guard let currentTime = podcastEpisode.episode.currentTime else {
-      fatalError("\(podcastEpisode.episode.toString) has no current time")
-    }
-
     stopTracking()
     pause()
     status = .loading
 
-    let avAsset = AVURLAsset(url: url)
+    let avAsset = AVURLAsset(url: podcastEpisode.episode.media)
 
     let duration: CMTime
     do {
@@ -115,8 +108,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     avPlayer.replaceCurrentItem(with: avPlayerItem)
 
     await setOnDeck(podcastEpisode, duration)
-    if currentTime != CMTime.zero {
-      seek(to: currentTime)
+    if podcastEpisode.episode.currentTime != CMTime.zero {
+      seek(to: podcastEpisode.episode.currentTime)
     } else {
       setCurrentTime(CMTime.zero)
     }
@@ -180,9 +173,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime)
     async
   {
-    guard let url = podcastEpisode.episode.media else {
-      fatalError("\(podcastEpisode.episode.toString) has no media")
-    }
     episodeID = podcastEpisode.episode.id
 
     var image: UIImage?
@@ -199,7 +189,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       episodeTitle: podcastEpisode.episode.title,
       duration: duration,
       image: image,
-      mediaURL: url,
+      mediaURL: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate,
       key: accessKey
     )

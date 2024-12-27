@@ -26,11 +26,13 @@ import IdentifiedCollections
       var existingEpisodes: [Episode] = []
       for feedItem in feedData.feed.items {
         if let existingEpisode = episodes[id: feedItem.guid] {
-          existingEpisodes.append(
-            feedItem.toEpisode(mergingExisting: existingEpisode)
-          )
-        } else {
-          unsavedEpisodes.append(feedItem.toUnsavedEpisode())
+          if let newExistingEpisode = try? feedItem.toEpisode(
+            mergingExisting: existingEpisode
+          ) {
+            existingEpisodes.append(newExistingEpisode)
+          }
+        } else if let newUnsavedEpisode = try? feedItem.toUnsavedEpisode() {
+          unsavedEpisodes.append(newUnsavedEpisode)
         }
       }
       try await Repo.shared.updateSeries(

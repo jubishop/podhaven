@@ -23,14 +23,14 @@ struct PodcastFeedItem: Sendable {
     self.media = media
   }
 
-  func toUnsavedEpisode(mergingExisting existingEpisode: Episode? = nil)
+  func toUnsavedEpisode(mergingExisting existingEpisode: Episode? = nil) throws
     -> UnsavedEpisode
   {
     precondition(
       existingEpisode == nil || existingEpisode?.guid == guid,
       "Merging two episodes with different guids?"
     )
-    return UnsavedEpisode(
+    return try UnsavedEpisode(
       guid: guid,
       podcastId: existingEpisode?.podcastId,
       media: media,
@@ -45,10 +45,10 @@ struct PodcastFeedItem: Sendable {
     )
   }
 
-  func toEpisode(mergingExisting existingEpisode: Episode) -> Episode {
+  func toEpisode(mergingExisting existingEpisode: Episode) throws -> Episode {
     Episode(
       id: existingEpisode.id,
-      from: toUnsavedEpisode(mergingExisting: existingEpisode)
+      from: try toUnsavedEpisode(mergingExisting: existingEpisode)
     )
   }
 
