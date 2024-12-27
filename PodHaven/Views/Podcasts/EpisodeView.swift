@@ -15,32 +15,33 @@ struct EpisodeView: View {
     VStack(spacing: 40) {
       Text(viewModel.episode.toString)
       Text("Duration: \(String(describing: viewModel.episode.duration))")
-      // TODO: Change these button options if already playing
-      Button(
-        action: {
-          Task { @PlayActor in
-            await PlayManager.shared.load(viewModel.podcastEpisode)
-            PlayManager.shared.play()
-          }
-        },
-        label: { Text("Play Now") }
-      )
-      Button(
-        action: {
-          Task {
-            try await Repo.shared.insertToQueue(viewModel.episode.id, at: 0)
-          }
-        },
-        label: { Text("Add To Top Of Queue") }
-      )
-      Button(
-        action: {
-          Task {
-            try await Repo.shared.appendToQueue(viewModel.episode.id)
-          }
-        },
-        label: { Text("Add To Bottom Of Queue") }
-      )
+      if !viewModel.currentlyPlaying() {
+        Button(
+          action: {
+            Task { @PlayActor in
+              await PlayManager.shared.load(viewModel.podcastEpisode)
+              PlayManager.shared.play()
+            }
+          },
+          label: { Text("Play Now") }
+        )
+        Button(
+          action: {
+            Task {
+              try await Repo.shared.insertToQueue(viewModel.episode.id, at: 0)
+            }
+          },
+          label: { Text("Add To Top Of Queue") }
+        )
+        Button(
+          action: {
+            Task {
+              try await Repo.shared.appendToQueue(viewModel.episode.id)
+            }
+          },
+          label: { Text("Add To Bottom Of Queue") }
+        )
+      }
     }
     .task {
       await viewModel.observeEpisode()

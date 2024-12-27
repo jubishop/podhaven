@@ -56,6 +56,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       options: .new,
       changeHandler: { [unowned self] currentItem, change in
         // TODO: Add next item in queue to our AVQueuePlayer
+        // TODO: Observe queue changes and if first item is added, add it.
         print("current item is: \(String(describing: change.newValue))")
       }
     )

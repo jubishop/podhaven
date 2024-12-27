@@ -12,6 +12,12 @@ import GRDB
     self.podcastEpisode = podcastEpisode
   }
 
+  func currentlyPlaying() -> Bool {
+    PlayState.onDeck?.guid == podcastEpisode.episode.guid
+      && PlayState.onDeck?.feedURL == podcastEpisode.podcast.feedURL
+      && PlayState.onDeck?.mediaURL == podcastEpisode.episode.media
+  }
+
   func observeEpisode() async {
     do {
       let observer =
@@ -36,5 +42,4 @@ import GRDB
       Alert.shared("Error thrown while observing: \(episode.toString)")
     }
   }
-
 }
