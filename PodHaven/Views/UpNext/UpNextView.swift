@@ -3,25 +3,35 @@
 import SwiftUI
 
 struct UpNextView: View {
+  @Environment(\.editMode) private var editMode
+
   @State private var navigation = Navigation.shared
   @State private var viewModel = UpNextViewModel()
+  @State private var isSelected = BindableDictionary<PodcastEpisode, Bool>(
+    defaultValue: false
+  )
 
   var body: some View {
     NavigationStack(path: $navigation.upNextPath) {
       List {
         // TODO: Swipe right to go to top of queue
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
-          UpNextListView(podcastEpisode: podcastEpisode)
+          UpNextListView(
+            isSelected: $isSelected[podcastEpisode],
+            podcastEpisode: podcastEpisode
+          )
         }
         .onMove(perform: viewModel.moveItem)
-        .onDelete(perform: viewModel.deleteItems)
+        // .onDelete(perform: viewModel.deleteItems)
       }
       .navigationTitle("Up Next")
       .navigationDestination(for: PodcastEpisode.self) { podcastEpisode in
         EpisodeView(podcastEpisode: podcastEpisode)
       }
       .toolbar {
-        EditButton()
+        EditButton { isEditing in
+          print("isediting? \(isEditing)")
+        }
       }
       .task {
         await viewModel.observeQueuedEpisodes()
