@@ -44,7 +44,7 @@ struct EditButton<Label: View, StyledButton: View>: View {
         label(isEditing)
       }
     )
-    buttonStyle(button, isEditing)  // Apply the styling closure directly
+    buttonStyle(button, isEditing)
   }
 }
 
