@@ -2,6 +2,8 @@ import SwiftUI
 
 struct EditButton<Label: View>: View {
   @Environment(\.editMode) private var editMode
+  private var isEditing: Bool { editMode?.wrappedValue == .active }
+
   var onToggle: ((Bool) -> Void)?
   var label: (Bool) -> Label
 
@@ -16,12 +18,11 @@ struct EditButton<Label: View>: View {
   }
 
   var body: some View {
-    let isEditing = editMode?.wrappedValue == .active
     Button(
       action: {
         withAnimation {
           editMode?.wrappedValue = isEditing ? .inactive : .active
-          onToggle?(!isEditing)
+          onToggle?(isEditing)
         }
       },
       label: {
