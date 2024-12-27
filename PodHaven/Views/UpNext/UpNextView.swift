@@ -9,6 +9,7 @@ struct UpNextView: View {
   var body: some View {
     NavigationStack(path: $navigation.upNextPath) {
       List {
+        // TODO: Swipe right to go to top of queue
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
           UpNextListView(podcastEpisode: podcastEpisode)
         }

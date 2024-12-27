@@ -33,7 +33,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private var commandCenter: CommandCenter
   private var commandObservingTask: Task<Void, Never>?
   private var interruptionObservingTask: Task<Void, Never>?
-  private var currentItemObserver: NSKeyValueObservation?
+  private var queueObservingTask: Task<Void, Error>?
   private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
   private var timeObserver: Any?
 
@@ -52,33 +52,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
 
   func resume() async {
-    currentItemObserver = avPlayer.observe(
-      \.currentItem,
-      options: .new,
-      changeHandler: { [unowned self] currentItem, change in
-        // TODO: Remove this item from the queue
-        print("current item is: \(String(describing: change.newValue))")
-      }
-    )
-
-    Task {
-      let observer =
-        ValueObservation.tracking(
-          Episode
-            .filter(AppDB.queueOrderColumn == 0)
-            .fetchOne
-        )
-        .removeDuplicates()
-      for try await topQueueItem in observer.values(in: Repo.shared.db) {
-        // TODO: Add (or remove) item in queue to our AVQueuePlayer
-        if let topQueueItem = topQueueItem {
-          print("top queue item is now \(topQueueItem.toString)")
-        } else {
-          print("queue is now empty")
-        }
-      }
-    }
-
     do {
       guard let episodeID: Int64 = Persistence.currentEpisodeID.load(),
         let podcastEpisode = try await Repo.shared.db.read({ db in
@@ -241,6 +214,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     addKVObservers()
     addTimeObserver()
     startCommandCenter()
+    startQueueObserving()
     startInterruptionNotifications()
   }
 
@@ -248,6 +222,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     removeKVObservers()
     removeTimeObserver()
     stopCommandCenter()
+    stopQueueObserving()
     stopInterruptionNotifications()
   }
 
@@ -303,6 +278,35 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
+  private func startQueueObserving() {
+    stopQueueObserving()
+    self.queueObservingTask = Task { @PlayActor in
+      let observer =
+        ValueObservation.tracking(
+          Episode
+            .filter(AppDB.queueOrderColumn == 0)
+            .fetchOne
+        )
+        .removeDuplicates()
+      for try await topQueueItem in observer.values(in: Repo.shared.db) {
+        // TODO: Add (or remove) item in queue to our AVQueuePlayer
+        if Task.isCancelled { break }
+        if let topQueueItem = topQueueItem {
+          print("top queue item is now \(topQueueItem.toString)")
+        } else {
+          print("queue is now empty")
+        }
+      }
+    }
+  }
+
+  private func stopQueueObserving() {
+    if let queueObservingTask = self.queueObservingTask {
+      queueObservingTask.cancel()
+      self.queueObservingTask = nil
+    }
+  }
+
   private func startInterruptionNotifications() {
     stopInterruptionNotifications()
     self.interruptionObservingTask = Task { @PlayActor in
@@ -348,6 +352,16 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
           @unknown default:
             fatalError("Time control status unknown?")
           }
+        }
+      )
+    )
+    keyValueObservers.append(
+      avPlayer.observe(
+        \.currentItem,
+        options: .new,
+        changeHandler: { [unowned self] currentItem, change in
+          // TODO: Remove this item from the queue
+          print("current item is: \(String(describing: change.newValue))")
         }
       )
     )
