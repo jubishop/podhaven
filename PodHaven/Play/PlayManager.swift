@@ -55,6 +55,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       \.currentItem,
       options: .new,
       changeHandler: { [unowned self] currentItem, change in
+        // TODO: Add next item in queue to our AVQueuePlayer
         print("current item is: \(String(describing: change.newValue))")
       }
     )
@@ -79,6 +80,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async {
+    // TODO: Remove item from queue
     if status == .loading { return }
 
     stopTracking()

@@ -15,6 +15,7 @@ struct EpisodeView: View {
     VStack(spacing: 40) {
       Text(viewModel.episode.toString)
       Text("Duration: \(String(describing: viewModel.episode.duration))")
+      // TODO: Change these button options if already playing
       Button(
         action: {
           Task { @PlayActor in
