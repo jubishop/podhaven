@@ -6,7 +6,6 @@ struct EditButton<Label: View, StyledButton: View>: View {
   var label: (Bool) -> Label
   var buttonStyle: (Button<Label>, Bool) -> StyledButton
 
-  // Primary initializer
   init(
     onToggle: ((Bool) -> Void)? = nil,
     @ViewBuilder label: @escaping (Bool) -> Label = { isEditing in
@@ -19,7 +18,6 @@ struct EditButton<Label: View, StyledButton: View>: View {
     self.buttonStyle = buttonStyle
   }
 
-  // Convenience initializer for default buttonStyle
   init(
     onToggle: ((Bool) -> Void)? = nil,
     @ViewBuilder label: @escaping (Bool) -> Text = { isEditing in
@@ -29,7 +27,7 @@ struct EditButton<Label: View, StyledButton: View>: View {
     self.init(
       onToggle: onToggle,
       label: label,
-      buttonStyle: { button, _ in button }  // Default buttonStyle: no modification
+      buttonStyle: { button, _ in button }
     )
   }
 
@@ -46,7 +44,6 @@ struct EditButton<Label: View, StyledButton: View>: View {
         label(isEditing)
       }
     )
-
     buttonStyle(button, isEditing)  // Apply the styling closure directly
   }
 }
