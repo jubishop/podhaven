@@ -342,7 +342,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     keyValueObservers.append(
       avPlayer.observe(
         \.timeControlStatus,
-        options: .new,
+        options: [.initial, .new],
         changeHandler: { [unowned self] playerItem, _ in
           switch playerItem.timeControlStatus {
           case AVPlayer.TimeControlStatus.paused:
@@ -360,10 +360,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     keyValueObservers.append(
       avPlayer.observe(
         \.currentItem,
-        options: .new,
-        changeHandler: { [unowned self] currentItem, change in
+        options: [.initial, .new],
+        changeHandler: { [unowned self] avPlayer, _ in
           // TODO: Remove this from queue
-          print("current item is: \(String(describing: change.newValue))")
+          print("current item is: \(String(describing: avPlayer.currentItem))")
         }
       )
     )
