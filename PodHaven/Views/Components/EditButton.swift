@@ -33,16 +33,21 @@ struct EditButton<Label: View>: View {
 }
 
 #Preview {
+  @Previewable @State var defaultText: String = "Unclicked"
+  @Previewable @State var customText: String = "Unclicked"
   @Previewable @Environment(\.editMode) var editMode
   var isEditing: Bool { editMode?.wrappedValue == .active }
-
+  
   VStack(spacing: 20) {
+    Text("Edit mode: \(isEditing ? "active" : "inactive")")
+
     // Default Everything
     EditButton()
 
     // Custom Toggle Only
+    Text(defaultText)
     EditButton { isEditing in
-      print("Now editing?: \(isEditing ? "yes" : "no")")
+      defaultText = "Default editing?: \(isEditing ? "yes" : "no")"
     }
 
     // Custom Label Only
@@ -62,9 +67,10 @@ struct EditButton<Label: View>: View {
       .shadow(radius: 3)
 
     // Custom Everything
+    Text(customText)
     EditButton(
       onToggle: { isEditing in
-        print("Editing mode is now: \(isEditing ? "Active" : "Inactive")")
+        customText = "Custom editing?: \(isEditing ? "yes" : "no")"
       },
       label: { isEditing in
         HStack {

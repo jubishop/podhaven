@@ -362,7 +362,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         \.currentItem,
         options: .new,
         changeHandler: { [unowned self] currentItem, change in
-          // TODO: Remove this item from the queue
+          // TODO: Remove this from queue
           print("current item is: \(String(describing: change.newValue))")
         }
       )
