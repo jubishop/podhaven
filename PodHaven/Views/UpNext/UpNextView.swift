@@ -3,7 +3,6 @@
 import SwiftUI
 
 struct UpNextView: View {
-  @State private var editMode: EditMode = .inactive
   @State private var navigation = Navigation.shared
   @State private var viewModel = UpNextViewModel()
 
@@ -28,7 +27,7 @@ struct UpNextView: View {
         .onMove(perform: viewModel.moveItem)
         .onDelete(perform: viewModel.deleteOffsets)
       }
-      .environment(\.editMode, $editMode)
+      .environment(\.editMode, $viewModel.editMode)
       .animation(.default, value: Array(viewModel.podcastEpisodes))
       .navigationTitle("Up Next")
       .navigationDestination(for: PodcastEpisode.self) { podcastEpisode in
@@ -36,8 +35,8 @@ struct UpNextView: View {
       }
       .toolbar {
         ToolbarItemGroup(placement: .primaryAction) {
-          EditButton(editMode: $editMode)
-          if editMode == .active {
+          EditButton(editMode: $viewModel.editMode)
+          if viewModel.editMode == .active {
             if viewModel.anySelected {
               Button(
                 action: viewModel.deleteSelected,

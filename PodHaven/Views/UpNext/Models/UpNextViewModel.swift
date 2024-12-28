@@ -5,6 +5,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor final class UpNextViewModel {
+  var editMode: EditMode = .inactive
   var podcastEpisodes: PodcastEpisodeArray = IdentifiedArray(
     id: \PodcastEpisode.episode.media
   )
