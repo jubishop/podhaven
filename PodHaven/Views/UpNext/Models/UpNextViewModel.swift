@@ -2,12 +2,14 @@
 
 import Foundation
 import IdentifiedCollections
+import SwiftUI
 
 @Observable @MainActor final class UpNextViewModel {
   var podcastEpisodes: PodcastEpisodeArray = IdentifiedArray(
     id: \PodcastEpisode.episode.media
   )
   var isSelected = BindableDictionary<PodcastEpisode, Bool>(defaultValue: false)
+  var anySelected: Bool { isSelected.values.contains(true) }
 
   func moveItem(from: IndexSet, to: Int) {
     guard from.count == 1 else { fatalError("Somehow dragged several?") }
@@ -21,9 +23,7 @@ import IdentifiedCollections
   }
 
   func moveToTop(_ podcastEpisode: PodcastEpisode) {
-    Task {
-      try await Repo.shared.unshiftToQueue(podcastEpisode.episode.id)
-    }
+    Task { try await Repo.shared.unshiftToQueue(podcastEpisode.episode.id) }
   }
 
   func deleteOffsets(at offsets: IndexSet) {
@@ -40,6 +40,10 @@ import IdentifiedCollections
         try await Repo.shared.dequeue(selectedItem.episode.id)
       }
     }
+  }
+
+  func deleteAll() {
+    Task { try await Repo.shared.clearQueue() }
   }
 
   func observeQueuedEpisodes() async {

@@ -89,6 +89,13 @@ struct Repo: Sendable {
 
   // MARK: - Queue Management
 
+  func clearQueue() async throws {
+    _ = try await appDB.db.write { db in
+      try Episode.filter(AppDB.queueOrderColumn != nil)
+        .updateAll(db, AppDB.queueOrderColumn.set(to: nil))
+    }
+  }
+
   func dequeue(_ episodeID: Int64) async throws {
     try await appDB.db.write { db in
       guard let oldPosition = try _fetchOldPosition(db, for: episodeID) else {

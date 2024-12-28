@@ -3,9 +3,9 @@
 import SwiftUI
 
 struct UpNextView: View {
+  @State private var editMode: EditMode = .inactive
   @State private var navigation = Navigation.shared
   @State private var viewModel = UpNextViewModel()
-  @State private var isEditing: Bool = false
 
   var body: some View {
     NavigationStack(path: $navigation.upNextPath) {
@@ -28,27 +28,34 @@ struct UpNextView: View {
         .onMove(perform: viewModel.moveItem)
         .onDelete(perform: viewModel.deleteOffsets)
       }
+      .environment(\.editMode, $editMode)
       .animation(.default, value: Array(viewModel.podcastEpisodes))
       .navigationTitle("Up Next")
       .navigationDestination(for: PodcastEpisode.self) { podcastEpisode in
         EpisodeView(podcastEpisode: podcastEpisode)
       }
       .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          EditButton { isEditing in self.isEditing = isEditing }
-        }
-        if isEditing {
-          ToolbarItem(placement: .topBarLeading) {
-            Button(
-              action: viewModel.deleteSelected,
-              label: { Text("Delete Selected") }
-            )
+        ToolbarItemGroup(placement: .primaryAction) {
+          EditButton(editMode: $editMode)
+          if editMode == .active {
+            if viewModel.anySelected {
+              Button(
+                action: viewModel.deleteSelected,
+                label: { Text("Delete Selected") }
+              )
+            } else {
+              Button(
+                action: {
+                  viewModel.deleteAll()
+                },
+                label: { Text("Delete All") }
+              )
+            }
           }
         }
       }
-      .task {
-        await viewModel.observeQueuedEpisodes()
-      }
+      .toolbarRole(.navigationStack)
+      .task { await viewModel.observeQueuedEpisodes() }
     }
   }
 }
