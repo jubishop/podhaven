@@ -28,8 +28,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   }
   private var episodeID: Int64?
   private var avPlayer = AVQueuePlayer()
-  private var avPlayerItem = AVPlayerItem(url: URL.placeholder)
   private var nowPlayingInfo: NowPlayingInfo?
+  private var upNext: PodcastEpisode?
   private var commandCenter: CommandCenter
   private var commandObservingTask: Task<Void, Never>?
   private var interruptionObservingTask: Task<Void, Never>?
@@ -99,7 +99,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       return
     }
 
-    avPlayerItem = AVPlayerItem(asset: avAsset)
+    let avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
 
     await setOnDeck(podcastEpisode, duration)
@@ -196,6 +196,11 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
+  private func setUpNext(_ podcastEpisode: PodcastEpisode?) {
+    // TODO: Add (or remove) item in queue to our AVQueuePlayer
+    upNext = podcastEpisode
+  }
+
   private func setCurrentTime(_ currentTime: CMTime) {
     nowPlayingInfo?.currentTime(currentTime)
     Task { @MainActor in
@@ -285,17 +290,14 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         ValueObservation.tracking(
           Episode
             .filter(AppDB.queueOrderColumn == 0)
+            .including(required: Episode.podcast)
+            .asRequest(of: PodcastEpisode.self)
             .fetchOne
         )
         .removeDuplicates()
       for try await topQueueItem in observer.values(in: Repo.shared.db) {
-        // TODO: Add (or remove) item in queue to our AVQueuePlayer
         if Task.isCancelled { break }
-        if let topQueueItem = topQueueItem {
-          print("top queue item is now \(topQueueItem.toString)")
-        } else {
-          print("queue is now empty")
-        }
+        self.setUpNext(topQueueItem)
       }
     }
   }
