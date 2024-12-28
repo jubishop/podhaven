@@ -5,10 +5,11 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor final class UpNextViewModel {
-  var editMode: EditMode = .inactive
   var podcastEpisodes: PodcastEpisodeArray = IdentifiedArray(
     id: \PodcastEpisode.episode.media
   )
+  var editMode: EditMode = .inactive
+  var isEditing: Bool { editMode == .active }
   var isSelected = BindableDictionary<PodcastEpisode, Bool>(defaultValue: false)
   var anySelected: Bool { isSelected.values.contains(true) }
 

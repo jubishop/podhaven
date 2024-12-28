@@ -35,8 +35,9 @@ struct UpNextView: View {
       }
       .toolbar {
         ToolbarItemGroup(placement: .primaryAction) {
-          EditButton(editMode: $viewModel.editMode)
-          if viewModel.editMode == .active {
+          EditButton()
+            .environment(\.editMode, $viewModel.editMode)
+          if viewModel.isEditing {
             if viewModel.anySelected {
               Button(
                 action: viewModel.deleteSelected,

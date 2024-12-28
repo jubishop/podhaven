@@ -1,20 +1,18 @@
 import SwiftUI
 
 struct EditButton<Label: View>: View {
-  @Binding var editMode: EditMode
-  var isEditing: Bool { editMode == .active }
+  @Environment(\.editMode) private var editMode
+  private var isEditing: Bool { editMode?.wrappedValue == .active }
 
   var onToggle: ((Bool) -> Void)?
   var label: (Bool) -> Label
 
   init(
-    editMode: Binding<EditMode>,
     onToggle: ((Bool) -> Void)? = nil,
     @ViewBuilder label: @escaping (Bool) -> Label = { isEditing in
       Text(isEditing ? "Done" : "Edit")
     }
   ) {
-    self._editMode = editMode
     self.onToggle = onToggle
     self.label = label
   }
@@ -23,7 +21,7 @@ struct EditButton<Label: View>: View {
     Button(
       action: {
         withAnimation {
-          editMode = isEditing ? .inactive : .active
+          editMode?.wrappedValue = isEditing ? .inactive : .active
           onToggle?(isEditing)
         }
       },
@@ -35,20 +33,20 @@ struct EditButton<Label: View>: View {
 }
 
 #Preview {
-  @Previewable @State var editMode: EditMode = .inactive
+  @Previewable @Environment(\.editMode) var editMode
+  var isEditing: Bool { editMode?.wrappedValue == .active }
 
   VStack(spacing: 20) {
     // Default Everything
-    EditButton(editMode: $editMode)
+    EditButton()
 
     // Custom Toggle Only
-    EditButton(editMode: $editMode) { isEditing in
+    EditButton { isEditing in
       print("Now editing?: \(isEditing ? "yes" : "no")")
     }
 
     // Custom Label Only
     EditButton(
-      editMode: $editMode,
       label: { isEditing in
         Text(isEditing ? "Finish Editing" : "Start Editing")
           .bold()
@@ -57,15 +55,14 @@ struct EditButton<Label: View>: View {
     )
 
     // Custom Button Style Only
-    EditButton(editMode: $editMode)
+    EditButton()
       .padding()
-      .background(editMode == .active ? Color.green : Color.white)
+      .background(isEditing ? Color.green : Color.white)
       .cornerRadius(8)
       .shadow(radius: 3)
 
     // Custom Everything
     EditButton(
-      editMode: $editMode,
       onToggle: { isEditing in
         print("Editing mode is now: \(isEditing ? "Active" : "Inactive")")
       },
@@ -79,7 +76,7 @@ struct EditButton<Label: View>: View {
     .padding(10)
     .background(
       RoundedRectangle(cornerRadius: 10)
-        .fill(editMode == .active ? Color.blue : Color.black)
+        .fill(isEditing ? Color.blue : Color.black)
     )
     .overlay(
       RoundedRectangle(cornerRadius: 10)

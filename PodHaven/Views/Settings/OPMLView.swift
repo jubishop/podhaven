@@ -17,18 +17,6 @@ struct OPMLView: View {
         },
         label: { Text("Import OPML") }
       )
-
-      #if DEBUG
-        Section("Debugging") {
-          Button("Clear DB") {
-            Task {
-              try AppDB.shared.db.write { db in
-                try Podcast.deleteAll(db)
-              }
-            }
-          }
-        }
-      #endif
     }
     .navigationTitle("OPML")
     .fileImporter(
