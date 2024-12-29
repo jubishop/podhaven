@@ -361,9 +361,20 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       avPlayer.observe(
         \.currentItem,
         options: [.initial, .new],
-        changeHandler: { [unowned self] avPlayer, _ in
-          // TODO: Remove this from queue
-          print("current item is: \(String(describing: avPlayer.currentItem))")
+        changeHandler: { avPlayer, _ in
+          Task { @MainActor in
+            if let currentItem = avPlayer.currentItem,
+              let urlAsset = currentItem.asset as? AVURLAsset
+            {
+              Task.detached(priority: .utility) {
+                if let episode = try await Repo.shared.episode(urlAsset.url) {
+                  try await Repo.shared.dequeue(episode.id)
+                }
+              }
+            } else {
+              Alert.shared.report("Could not fetch URL for current item?")
+            }
+          }
         }
       )
     )

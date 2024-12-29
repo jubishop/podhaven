@@ -30,7 +30,11 @@ enum Migrations {
         t.belongsTo("podcast", onDelete: .cascade).notNull()
         t.column("guid", .text).notNull().indexed()
         t.uniqueKey(["podcastId", "guid"], onConflict: .replace)
-        t.column("media", .text).notNull()
+        t
+          .column("media", .text)
+          .unique(onConflict: .replace)
+          .notNull()
+          .indexed()
         t.column("currentTime", .integer)
         t.column("duration", .integer)
         t.column("pubDate", .text).notNull()

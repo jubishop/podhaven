@@ -31,9 +31,10 @@ struct AppDB: Sendable {
 
   // MARK: - Columns
 
+  static let currentTimeColumn = Column("currentTime")
+  static let mediaColumn = Column("media")
   static let pubDateColumn = Column("pubDate")
   static let queueOrderColumn = Column("queueOrder")
-  static let currentTimeColumn = Column("currentTime")
 
   // MARK: - Private Static Helpers
 

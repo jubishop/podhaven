@@ -11,19 +11,21 @@ actor QueueTests {
   init() async throws {
     repo = Repo.empty()
 
-    let url = URL(string: "https://example.com/data")!
-    let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
+    let unsavedPodcast = try UnsavedPodcast(
+      feedURL: URL.valid(),
+      title: "Title"
+    )
     podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
-        UnsavedEpisode(guid: "top", media: url, queueOrder: 0),
-        UnsavedEpisode(guid: "bottom", media: url, queueOrder: 4),
-        UnsavedEpisode(guid: "midtop", media: url, queueOrder: 1),
-        UnsavedEpisode(guid: "middle", media: url, queueOrder: 2),
-        UnsavedEpisode(guid: "midbottom", media: url, queueOrder: 3),
-        UnsavedEpisode(guid: "unqbottom", media: url),
-        UnsavedEpisode(guid: "unqmiddle", media: url),
-        UnsavedEpisode(guid: "unqtop", media: url),
+        UnsavedEpisode(guid: "top", media: URL.valid(), queueOrder: 0),
+        UnsavedEpisode(guid: "bottom", media: URL.valid(), queueOrder: 4),
+        UnsavedEpisode(guid: "midtop", media: URL.valid(), queueOrder: 1),
+        UnsavedEpisode(guid: "middle", media: URL.valid(), queueOrder: 2),
+        UnsavedEpisode(guid: "midbottom", media: URL.valid(), queueOrder: 3),
+        UnsavedEpisode(guid: "unqbottom", media: URL.valid()),
+        UnsavedEpisode(guid: "unqmiddle", media: URL.valid()),
+        UnsavedEpisode(guid: "unqtop", media: URL.valid()),
       ]
     )
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])

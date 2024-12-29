@@ -91,4 +91,23 @@ actor EpisodeTests {
     }!
     #expect(updatedEpisode.currentTime == newCMTime)
   }
+
+  @Test("that an episode can be fetched by its media url")
+  func fetchEpisodeByMediaURL() async throws {
+    let unsavedPodcast = try UnsavedPodcast(
+      feedURL: URL.valid(),
+      title: "Title"
+    )
+    let unsavedEpisode = try UnsavedEpisode(
+      guid: String.random(),
+      media: URL.valid()
+    )
+    try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode]
+    )
+
+    let episode = try await repo.episode(unsavedEpisode.media)!
+    #expect(episode.media == unsavedEpisode.media)
+  }
 }

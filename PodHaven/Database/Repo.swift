@@ -28,6 +28,12 @@ struct Repo: Sendable {
     }
   }
 
+  func episode(_ url: URL) async throws -> Episode? {
+    try await appDB.db.read { db in
+      try Episode.filter(AppDB.mediaColumn == url).fetchOne(db)
+    }
+  }
+
   // MARK: - Series Writers
 
   @discardableResult
