@@ -75,8 +75,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   func load(_ podcastEpisode: PodcastEpisode) async {
     if status == .loading { return }
 
-    // TODO: place currently playing item at top of queue
-
     stopTracking()
     pause()
     status = .loading
@@ -99,6 +97,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       stop()
       return
     }
+
+    // TODO: place currently playing item at top of queue
 
     let avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
