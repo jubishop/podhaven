@@ -26,9 +26,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       Task { @MainActor in PlayState.shared.setStatus(newValue, accessKey) }
     }
   }
-  private var episodeID: Int64?
+  var episodeID: Int64? { onDeck?.episode.id }
   private var avPlayer = AVQueuePlayer()
   private var nowPlayingInfo: NowPlayingInfo?
+  private var onDeck: PodcastEpisode?
   private var upNext: PodcastEpisode?
   private var commandCenter: CommandCenter
   private var commandObservingTask: Task<Void, Never>?
@@ -127,11 +128,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   func stop() {
     stopTracking()
     pause()
-    if nowPlayingInfo != nil {
-      setCurrentTime(CMTime.zero)
-      nowPlayingInfo = nil
-    }
-    episodeID = nil
+    clearOnDeck()
+    clearUpNext()
     status = .stopped
 
     do {
@@ -168,8 +166,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime)
     async
   {
-    episodeID = podcastEpisode.episode.id
-
+    onDeck = podcastEpisode
     var image: UIImage?
     if let imageURL = podcastEpisode.episode.image
       ?? podcastEpisode.podcast.image
@@ -196,9 +193,26 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
-  private func setUpNext(_ podcastEpisode: PodcastEpisode?) {
-    // TODO: Add (or remove) item in queue to our AVQueuePlayer
+  private func clearOnDeck() {
+    onDeck = nil
+    if nowPlayingInfo != nil {
+      setCurrentTime(CMTime.zero)
+      nowPlayingInfo = nil
+    }
+    Task { @MainActor in PlayState.shared.setOnDeck(nil, accessKey) }
+    Task(priority: .utility) {
+      Persistence.currentEpisodeID.save(nil)
+    }
+  }
+
+  private func setUpNext(_ podcastEpisode: PodcastEpisode) {
+    // TODO: Add item to our AVQueuePlayer
     upNext = podcastEpisode
+  }
+
+  private func clearUpNext() {
+    // TODO: Remove item from our AVQueuePlayer
+    upNext = nil
   }
 
   private func setCurrentTime(_ currentTime: CMTime) {
@@ -297,7 +311,11 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         .removeDuplicates()
       for try await topQueueItem in observer.values(in: Repo.shared.db) {
         if Task.isCancelled { break }
-        self.setUpNext(topQueueItem)
+        if let upNext = topQueueItem {
+          self.setUpNext(upNext)
+        } else {
+          self.clearUpNext()
+        }
       }
     }
   }

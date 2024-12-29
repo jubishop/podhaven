@@ -94,7 +94,7 @@ struct OnDeck: Sendable {
     self.currentTime = currentTime
   }
 
-  func setOnDeck(_ onDeck: OnDeck, _ key: PlayManagerAccessKey) {
+  func setOnDeck(_ onDeck: OnDeck?, _ key: PlayManagerAccessKey) {
     self.onDeck = onDeck
   }
 }
