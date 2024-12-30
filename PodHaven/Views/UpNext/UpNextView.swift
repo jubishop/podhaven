@@ -23,9 +23,17 @@ struct UpNextView: View {
             )
             .tint(.green)
           }
+          .swipeActions(edge: .trailing) {
+            Button(
+              action: { viewModel.deleteItem(podcastEpisode) },
+              label: {
+                Label("Delete", systemImage: "trash")
+              }
+            )
+            .tint(.red)
+          }
         }
         .onMove(perform: viewModel.moveItem)
-        .onDelete(perform: viewModel.deleteOffsets)
       }
       .environment(\.editMode, $viewModel.editMode)
       .animation(.default, value: Array(viewModel.podcastEpisodes))

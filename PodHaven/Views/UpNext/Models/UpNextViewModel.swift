@@ -36,11 +36,9 @@ import SwiftUI
     }
   }
 
-  func deleteOffsets(at offsets: IndexSet) {
+  func deleteItem(_ podcastEpisode: PodcastEpisode) {
     Task {
-      for offset in offsets.reversed() {
-        try await Repo.shared.dequeue(podcastEpisodes[offset].episode.id)
-      }
+      try await Repo.shared.dequeue(podcastEpisode.episode.id)
     }
   }
 
