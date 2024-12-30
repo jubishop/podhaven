@@ -69,6 +69,9 @@ final actor FeedManager: Sendable {
     streamContinuation.finish()
   }
 
+  func feeds() -> AsyncStream<FeedResult> { asyncStream }
+
+  @discardableResult
   func addURL(_ url: URL) async -> FeedTask {
     if let feedTask = feedTasks[url] { return feedTask }
 

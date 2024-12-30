@@ -8,10 +8,7 @@ enum Helpers {
   private static let seriesFiles = ["pod_save_america", "land_of_the_giants"]
   private static let opmlFiles = ["large", "small"]
 
-  static func importPodcasts(
-    numberNeeded: Int = 10,
-    fileName: String = opmlFiles.randomElement()!
-  )
+  static func importPodcasts(numberNeeded: Int = 10, fileName: String = "large")
     async throws
   {
     let allPodcasts = try await Repo.shared.allPodcasts()
@@ -23,7 +20,25 @@ enum Helpers {
     )!
     let opml = try OPML(file: url)
 
-    // TODO: Finish this, use in ThumbnailGrid and PodcastsView
+    let feedManager = FeedManager()
+    for entry in opml.entries {
+      guard let feedURL = entry.feedURL,
+        let feedURL = try? feedURL.convertToValidURL()
+      else { continue }
+      if allPodcasts[id: feedURL] != nil { continue }
+      await feedManager.addURL(feedURL)
+    }
+
+    var numberRemaining = numberNeeded - allPodcasts.count
+    for await feedResult in await feedManager.feeds() {
+      switch feedResult {
+      case .success(let feedData):
+        numberRemaining -= 1
+      case .failure(let feedError):
+        // Do nothing
+      }
+      if numberRemaining <= 0 { break }
+    }
   }
 
   static func loadSeries(fileName: String = seriesFiles.randomElement()!)
