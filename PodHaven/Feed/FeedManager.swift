@@ -49,6 +49,8 @@ final actor FeedManager: Sendable {
   private let asyncStream: AsyncStream<FeedResult>
   private let streamContinuation: AsyncStream<FeedResult>.Continuation
 
+  var remainingFeeds: Int { feedTasks.count }
+
   init(maxConcurrentDownloads: Int = 8) {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.allowsCellularAccess = true

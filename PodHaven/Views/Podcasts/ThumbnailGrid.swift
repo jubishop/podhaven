@@ -104,15 +104,15 @@ struct ThumbnailGrid: View {
     ThumbnailGrid(podcasts: podcasts)
       .task {
         do {
-          var fetchedPodcasts = try Repo.shared.db.read { db in
-            try Podcast.fetchAll(db)
-          }
-          if fetchedPodcasts.count > 2 {
-            fetchedPodcasts[0].image = nil
-            fetchedPodcasts[1].image = URL(string: "http://nope.com/0.jpg")!
+          try await Helpers.importPodcasts(12)
+
+          var allPodcasts = try await Repo.shared.allPodcasts()
+          if allPodcasts.count > 2 {
+            allPodcasts[0].image = nil
+            allPodcasts[1].image = URL(string: "http://nope.com/0.jpg")!
           }
           podcasts = IdentifiedArray(
-            uniqueElements: fetchedPodcasts.prefix(12),
+            uniqueElements: allPodcasts.prefix(12),
             id: \Podcast.feedURL
           )
         } catch {

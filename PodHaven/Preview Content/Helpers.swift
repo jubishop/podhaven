@@ -8,7 +8,10 @@ enum Helpers {
   private static let seriesFiles = ["pod_save_america", "land_of_the_giants"]
   private static let opmlFiles = ["large", "small"]
 
-  static func importPodcasts(numberNeeded: Int = 10, fileName: String = "large")
+  static func importPodcasts(
+    _ numberNeeded: Int = 20,
+    from fileName: String = "large"
+  )
     async throws
   {
     let allPodcasts = try await Repo.shared.allPodcasts()
@@ -33,11 +36,25 @@ enum Helpers {
     for await feedResult in await feedManager.feeds() {
       switch feedResult {
       case .success(let feedData):
-        numberRemaining -= 1
-      case .failure(let feedError):
-        // Do nothing
+        if let feedURL = feedData.feed.feedURL, let title = feedData.feed.title,
+          let unsavedPodcast = feedData.feed.toUnsavedPodcast(
+            oldFeedURL: feedURL,
+            oldTitle: title
+          ),
+          (try? await Repo.shared.insertSeries(
+            unsavedPodcast,
+            unsavedEpisodes: feedData.feed.items.map {
+              try $0.toUnsavedEpisode()
+            }
+          )) != nil
+        {
+          numberRemaining -= 1
+        }
+      case .failure(_):
+        continue
       }
-      if numberRemaining <= 0 { break }
+      let remainingFeeds = await feedManager.remainingFeeds
+      if numberRemaining <= 0 || remainingFeeds <= 0 { break }
     }
   }
 
