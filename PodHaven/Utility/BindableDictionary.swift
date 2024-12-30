@@ -22,4 +22,8 @@ final class BindableDictionary<Key: Hashable, Value>: Sequence {
   func makeIterator() -> Dictionary<Key, Value>.Iterator {
     dictionary.makeIterator()
   }
+
+  func removeAll(keepingCapacity keepCapacity: Bool = false) {
+    dictionary.removeAll(keepingCapacity: keepCapacity)
+  }
 }

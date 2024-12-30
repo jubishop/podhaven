@@ -41,11 +41,13 @@ import SwiftUI
       for selectedItem in isSelected.keys.filter({ isSelected[$0] }) {
         try await Repo.shared.dequeue(selectedItem.episode.id)
       }
+      isSelected.removeAll()
     }
   }
 
   func deleteAll() {
     Task { try await Repo.shared.clearQueue() }
+    isSelected.removeAll()
   }
 
   func observeQueuedEpisodes() async {
