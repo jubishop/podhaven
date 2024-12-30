@@ -31,6 +31,7 @@ import SwiftUI
   func deleteOffsets(at offsets: IndexSet) {
     Task {
       for offset in offsets.reversed() {
+        isSelected.removeValue(forKey: podcastEpisodes[offset])
         try await Repo.shared.dequeue(podcastEpisodes[offset].episode.id)
       }
     }
@@ -39,9 +40,9 @@ import SwiftUI
   func deleteSelected() {
     Task {
       for selectedItem in isSelected.keys.filter({ isSelected[$0] }) {
+        isSelected.removeValue(forKey: selectedItem)
         try await Repo.shared.dequeue(selectedItem.episode.id)
       }
-      isSelected.removeAll()
     }
   }
 
