@@ -43,7 +43,10 @@ import SwiftUI
   }
 
   func deleteAll() {
-    Task { try await Repo.shared.clearQueue() }
+    Task {
+      try await Repo.shared.clearQueue()
+      editMode = .inactive
+    }
   }
 
   func unselectAll() {
