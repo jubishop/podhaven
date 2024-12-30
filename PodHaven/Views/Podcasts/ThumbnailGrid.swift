@@ -106,11 +106,12 @@ struct ThumbnailGrid: View {
         do {
           try await Helpers.importPodcasts(12)
 
-          var allPodcasts = try await Repo.shared.allPodcasts()
-          if allPodcasts.count > 2 {
-            allPodcasts[0].image = nil
-            allPodcasts[1].image = URL(string: "http://nope.com/0.jpg")!
-          }
+          var allPodcasts = try await Repo.shared.allPodcasts().shuffled()
+          let shuffled = Array(0..<12).shuffled()
+          allPodcasts[shuffled[0]].image = nil
+          allPodcasts[shuffled[1]].image = URL(
+            string: "http://nope.com/0.jpg"
+          )!
           podcasts = IdentifiedArray(
             uniqueElements: allPodcasts.prefix(12),
             id: \Podcast.feedURL
