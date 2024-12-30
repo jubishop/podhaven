@@ -25,7 +25,6 @@ struct UpNextView: View {
           }
         }
         .onMove(perform: viewModel.moveItem)
-        .onDelete(perform: viewModel.deleteOffsets)
       }
       .environment(\.editMode, $viewModel.editMode)
       .animation(.default, value: Array(viewModel.podcastEpisodes))

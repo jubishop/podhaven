@@ -32,51 +32,54 @@ struct UpNextListView: View {
 
       Spacer()
 
-      Menu(
-        content: {
-          Button(
-            action: {
-              Task { @PlayActor in
-                await PlayManager.shared.load(podcastEpisode)
-                PlayManager.shared.play()
-              }
-            },
-            label: { Label("Play Now", systemImage: "play") }
-          )
+      if !isEditing {
+        Menu(
+          content: {
+            Button(
+              action: {
+                Task { @PlayActor in
+                  await PlayManager.shared.load(podcastEpisode)
+                  PlayManager.shared.play()
+                }
+              },
+              label: { Label("Play Now", systemImage: "play") }
+            )
 
-          Button(
-            action: {
-              Task {
-                try await Repo.shared.unshiftToQueue(episode.id)
-              }
-            },
-            label: { Label("Play Next", systemImage: "square.and.arrow.up") }
-          )
+            Button(
+              action: {
+                Task {
+                  try await Repo.shared.unshiftToQueue(episode.id)
+                }
+              },
+              label: { Label("Play Next", systemImage: "square.and.arrow.up") }
+            )
 
-          Button(
-            action: {
-              Task {
-                Navigation.shared.showEpisode(podcastEpisode)
-              }
-            },
-            label: { Label("View Details", systemImage: "info.circle") }
-          )
+            Button(
+              action: {
+                Task {
+                  Navigation.shared.showEpisode(podcastEpisode)
+                }
+              },
+              label: { Label("View Details", systemImage: "info.circle") }
+            )
 
-          Button(
-            action: {
-              Task {
-                try await Repo.shared.dequeue(episode.id)
-              }
-            },
-            label: { Label("Delete", systemImage: "trash") }
-          )
-        },
-        label: {
-          Image(systemName: "ellipsis")
-            .font(.title)
-        }
-      )
-      .buttonStyle(PlainButtonStyle())
+            Button(
+              action: {
+                Task {
+                  try await Repo.shared.dequeue(episode.id)
+                }
+              },
+              label: { Label("Delete", systemImage: "trash") }
+            )
+          },
+          label: {
+            Image(systemName: "ellipsis")
+              .font(.title)
+              .frame(maxHeight: .infinity)
+          }
+        )
+        .buttonStyle(PlainButtonStyle())
+      }
     }
   }
 }

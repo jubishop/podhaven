@@ -28,14 +28,6 @@ import SwiftUI
     Task { try await Repo.shared.unshiftToQueue(podcastEpisode.episode.id) }
   }
 
-  func deleteOffsets(at offsets: IndexSet) {
-    Task {
-      for offset in offsets.reversed() {
-        try await Repo.shared.dequeue(podcastEpisodes[offset].episode.id)
-      }
-    }
-  }
-
   func deleteSelected() {
     Task {
       for selectedItem in isSelected.keys.filter({ isSelected[$0] }) {
