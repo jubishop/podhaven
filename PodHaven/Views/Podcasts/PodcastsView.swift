@@ -15,12 +15,20 @@ struct PodcastsView: View {
       .navigationDestination(for: Podcast.self) { podcast in
         SeriesView(podcast: podcast)
       }
-    }.task {
+    }
+    .task {
       await viewModel.observePodcasts()
     }
   }
 }
 
 #Preview {
-  Preview { PodcastsView() }
+  Preview {
+    PodcastsView()
+      .task {
+        do {
+          try await Helpers.importPodcasts()
+        } catch { fatalError("Could not preview podcasts view: \(error)") }
+      }
+  }
 }
