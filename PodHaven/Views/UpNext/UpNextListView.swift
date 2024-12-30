@@ -12,28 +12,28 @@ struct UpNextListView: View {
   private var isEditing: Bool { editMode?.wrappedValue.isEditing == true }
 
   var body: some View {
-    NavigationLink(
-      value: podcastEpisode,
-      label: {
-        HStack(spacing: 20) {
-          if isEditing {
-            Button(
-              action: {
-                isSelected.toggle()
-              },
-              label: {
-                Image(
-                  systemName: isSelected ? "checkmark.circle.fill" : "circle"
-                )
-              }
+    HStack(spacing: 20) {
+      if isEditing {
+        Button(
+          action: {
+            isSelected.toggle()
+          },
+          label: {
+            Image(
+              systemName: isSelected ? "checkmark.circle.fill" : "circle"
             )
-            .buttonStyle(BorderlessButtonStyle())
           }
+        )
+        .buttonStyle(BorderlessButtonStyle())
+      }
 
-          Text(episode.toString)
-            .lineLimit(2)
-        }
-        .contextMenu {
+      Text(episode.toString)
+        .lineLimit(2)
+
+      Spacer()
+
+      Menu(
+        content: {
           Button(
             action: {
               Task { @PlayActor in
@@ -56,14 +56,28 @@ struct UpNextListView: View {
           Button(
             action: {
               Task {
+                Navigation.shared.showEpisode(podcastEpisode)
+              }
+            },
+            label: { Label("View Details", systemImage: "info.circle") }
+          )
+
+          Button(
+            action: {
+              Task {
                 try await Repo.shared.dequeue(episode.id)
               }
             },
             label: { Label("Delete", systemImage: "trash") }
           )
+        },
+        label: {
+          Image(systemName: "ellipsis")
+            .font(.title)
         }
-      }
-    )
+      )
+      .buttonStyle(PlainButtonStyle())
+    }
   }
 }
 

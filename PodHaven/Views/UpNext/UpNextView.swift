@@ -30,9 +30,6 @@ struct UpNextView: View {
       .environment(\.editMode, $viewModel.editMode)
       .animation(.default, value: Array(viewModel.podcastEpisodes))
       .navigationTitle("Up Next")
-      .navigationDestination(for: PodcastEpisode.self) { podcastEpisode in
-        EpisodeView(podcastEpisode: podcastEpisode)
-      }
       .toolbar {
         ToolbarItemGroup(placement: .primaryAction) {
           if viewModel.isEditing {

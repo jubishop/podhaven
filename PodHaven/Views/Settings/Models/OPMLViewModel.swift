@@ -121,7 +121,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
   func finishedDownloading() async {
     await stopDownloading()
-    Navigation.shared.currentTab = .podcasts
+    Navigation.shared.showTab(.podcasts)
   }
 
   // MARK: - Private Methods

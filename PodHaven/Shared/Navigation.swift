@@ -33,18 +33,24 @@ struct NavigationView: Hashable {
   var settingsPath = NavigationPath()
   var podcastsPath = NavigationPath()
   var upNextPath = NavigationPath()
+  var currentTab: Tab = .settings
 
-  var currentTab: Tab = .settings {
-    willSet {
-      switch newValue {
-      case .settings:
-        settingsPath = NavigationPath()
-      case .podcasts:
-        podcastsPath = NavigationPath()
-      case .upNext:
-        upNextPath = NavigationPath()
-      }
+  func showTab(_ tab: Tab) {
+    switch tab {
+    case .settings:
+      settingsPath = NavigationPath()
+    case .podcasts:
+      podcastsPath = NavigationPath()
+    case .upNext:
+      upNextPath = NavigationPath()
     }
+    currentTab = tab
+  }
+
+  func showEpisode(_ podcastEpisode: PodcastEpisode) {
+    showTab(.podcasts)
+    podcastsPath.append(podcastEpisode.podcast)
+    podcastsPath.append(podcastEpisode.episode)
   }
 
   private init() {}
