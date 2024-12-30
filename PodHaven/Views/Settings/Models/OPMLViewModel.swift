@@ -213,10 +213,6 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
             )) != nil
           else { return }
 
-          if let image = feedResult.feed.image {
-            Images.shared.prefetch([image])
-          }
-
           await Task { @MainActor in
             outline.status = .finished
             opmlFile.downloading.remove(outline)
