@@ -9,13 +9,14 @@ struct UpNextListView: View {
   let podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }
   var episode: Episode { podcastEpisode.episode }
+  private var isEditing: Bool { editMode?.wrappedValue.isEditing == true }
 
   var body: some View {
     NavigationLink(
       value: podcastEpisode,
       label: {
         HStack(spacing: 20) {
-          if editMode?.wrappedValue.isEditing == true {
+          if isEditing {
             Button(
               action: {
                 isSelected.toggle()
@@ -24,13 +25,42 @@ struct UpNextListView: View {
                 Image(
                   systemName: isSelected ? "checkmark.circle.fill" : "circle"
                 )
-                .foregroundColor(isSelected ? .blue : .gray)
               }
             )
             .buttonStyle(BorderlessButtonStyle())
           }
-          Text(String(episode.queueOrder ?? -1))
+
           Text(episode.toString)
+            .lineLimit(2)
+        }
+        .contextMenu {
+          Button(
+            action: {
+              Task { @PlayActor in
+                await PlayManager.shared.load(podcastEpisode)
+                PlayManager.shared.play()
+              }
+            },
+            label: { Label("Play Now", systemImage: "play") }
+          )
+
+          Button(
+            action: {
+              Task {
+                try await Repo.shared.unshiftToQueue(episode.id)
+              }
+            },
+            label: { Label("Play Next", systemImage: "square.and.arrow.up") }
+          )
+
+          Button(
+            action: {
+              Task {
+                try await Repo.shared.dequeue(episode.id)
+              }
+            },
+            label: { Label("Delete", systemImage: "trash") }
+          )
         }
       }
     )
@@ -38,19 +68,21 @@ struct UpNextListView: View {
 }
 
 #Preview {
-  struct UpNextListViewPreview: View {
-    @State var podcastEpisode: PodcastEpisode?
-    @State var editMode: EditMode = .inactive
+  @Previewable @State var podcastEpisode: PodcastEpisode?
+  @Previewable @State var editMode: EditMode = .inactive
+  @Previewable @State var selected: Bool = false
 
-    var body: some View {
+  Preview {
+    NavigationStack {
       Group {
-        if let podcastEpisode = self.podcastEpisode {
+        if let podcastEpisode = podcastEpisode {
           VStack(spacing: 40) {
             UpNextListView(
-              isSelected: .constant(false),
+              isSelected: $selected,
               podcastEpisode: podcastEpisode
             )
             .environment(\.editMode, $editMode)
+            Divider()
             Button(
               action: {
                 editMode = editMode == .active ? .inactive : .active
@@ -60,16 +92,13 @@ struct UpNextListView: View {
               }
             )
           }
-
         } else {
           Text("No episodes in DB")
         }
       }
       .task {
-        self.podcastEpisode = try? await Helpers.loadPodcastEpisode()
+        podcastEpisode = try? await Helpers.loadPodcastEpisode()
       }
     }
   }
-
-  return Preview { NavigationStack { UpNextListViewPreview() } }
 }

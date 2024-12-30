@@ -35,8 +35,6 @@ struct UpNextView: View {
       }
       .toolbar {
         ToolbarItemGroup(placement: .primaryAction) {
-          EditButton()
-            .environment(\.editMode, $viewModel.editMode)
           if viewModel.isEditing {
             if viewModel.anySelected {
               Button(
@@ -52,6 +50,8 @@ struct UpNextView: View {
               )
             }
           }
+          EditButton()
+            .environment(\.editMode, $viewModel.editMode)
         }
       }
       .toolbarRole(.navigationStack)
@@ -61,13 +61,8 @@ struct UpNextView: View {
 }
 
 #Preview {
-  struct UpNextViewPreview: View {
-
-    var body: some View {
-      UpNextView()
-        .task { try? await Helpers.populateQueue() }
-    }
+  Preview {
+    UpNextView()
+      .task { try? await Helpers.populateQueue() }
   }
-
-  return Preview { UpNextViewPreview() }
 }
