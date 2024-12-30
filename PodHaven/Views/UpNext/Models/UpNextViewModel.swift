@@ -31,7 +31,6 @@ import SwiftUI
   func deleteOffsets(at offsets: IndexSet) {
     Task {
       for offset in offsets.reversed() {
-        isSelected.removeValue(forKey: podcastEpisodes[offset])
         try await Repo.shared.dequeue(podcastEpisodes[offset].episode.id)
       }
     }
@@ -40,7 +39,6 @@ import SwiftUI
   func deleteSelected() {
     Task {
       for selectedItem in isSelected.keys.filter({ isSelected[$0] }) {
-        isSelected.removeValue(forKey: selectedItem)
         try await Repo.shared.dequeue(selectedItem.episode.id)
       }
     }
@@ -48,6 +46,9 @@ import SwiftUI
 
   func deleteAll() {
     Task { try await Repo.shared.clearQueue() }
+  }
+
+  func unselectAll() {
     isSelected.removeAll()
   }
 
@@ -55,6 +56,11 @@ import SwiftUI
     do {
       for try await podcastEpisodes in Observatory.queuedEpisodes.values() {
         self.podcastEpisodes = podcastEpisodes
+        for podcastEpisode in isSelected.keys {
+          if !podcastEpisodes.contains(podcastEpisode) {
+            isSelected.removeValue(forKey: podcastEpisode)
+          }
+        }
       }
     } catch {
       Alert.shared("Error thrown while observing queued episodes in db")

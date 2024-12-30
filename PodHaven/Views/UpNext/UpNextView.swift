@@ -41,11 +41,13 @@ struct UpNextView: View {
                 action: viewModel.deleteSelected,
                 label: { Text("Delete Selected") }
               )
+              Button(
+                action: viewModel.unselectAll,
+                label: { Text("Unselect All") }
+              )
             } else {
               Button(
-                action: {
-                  viewModel.deleteAll()
-                },
+                action: { viewModel.deleteAll() },
                 label: { Text("Delete All") }
               )
             }
