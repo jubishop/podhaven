@@ -2,9 +2,29 @@
 
 import Foundation
 import GRDB
+import OPML
 
 enum Helpers {
   private static let seriesFiles = ["pod_save_america", "land_of_the_giants"]
+  private static let opmlFiles = ["large", "small"]
+
+  static func importPodcasts(
+    numberNeeded: Int = 10,
+    fileName: String = opmlFiles.randomElement()!
+  )
+    async throws
+  {
+    let allPodcasts = try await Repo.shared.allPodcasts()
+    if allPodcasts.count >= numberNeeded { return }
+
+    let url = Bundle.main.url(
+      forResource: fileName,
+      withExtension: "opml"
+    )!
+    let opml = try OPML(file: url)
+
+    // TODO: Finish this, use in ThumbnailGrid and PodcastsView
+  }
 
   static func loadSeries(fileName: String = seriesFiles.randomElement()!)
     async throws -> PodcastSeries

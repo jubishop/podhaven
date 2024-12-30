@@ -46,6 +46,8 @@ final actor FeedManager: Sendable {
 
   private let downloadManager: DownloadManager
   private var feedTasks: [URL: FeedTask] = [:]
+  private let asyncStream: AsyncStream<FeedResult>
+  private let streamContinuation: AsyncStream<FeedResult>.Continuation
 
   init(maxConcurrentDownloads: Int = 8) {
     let configuration = URLSessionConfiguration.ephemeral
@@ -58,6 +60,13 @@ final actor FeedManager: Sendable {
       session: URLSession(configuration: configuration),
       maxConcurrentDownloads: maxConcurrentDownloads
     )
+    (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(
+      of: FeedResult.self
+    )
+  }
+
+  deinit {
+    streamContinuation.finish()
   }
 
   func addURL(_ url: URL) async -> FeedTask {
@@ -66,7 +75,8 @@ final actor FeedManager: Sendable {
     let feedTask = FeedTask(await downloadManager.addURL(url))
     feedTasks[url] = feedTask
     Task(priority: .utility) {
-      _ = await feedTask.feedParsed()
+      let feedResult = await feedTask.feedParsed()
+      streamContinuation.yield(feedResult)
       feedTasks.removeValue(forKey: url)
     }
     return feedTask

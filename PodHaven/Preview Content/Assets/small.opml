@@ -2,8 +2,16 @@
 <opml version="1.0">
 <head><title>Superphonic Podcast Subscriptions</title></head>
 <body>
-  <outline type="rss" text="Techdirt" title="Techdirt" xmlUrl="https://feeds.soundcloud.com/users/soundcloud:users:122508048/sounds.rss"/>
-  <outline type="rss" text="Techskirt" title="Techskirt" xmlUrl="https://feeds.soundcloudisgreatbutwhatever.com/users/soundcloud:users:122508048/sounds.rss"/>
-  <outline type="rss" text="The Changelog: Software Development, Open Source" title="The Changelog: Software Development, Open Source" xmlUrl="https://changelog.com/podcast/feed"/>
+  <outline type="rss" text="Chasing Life" title="Chasing Life" xmlUrl="https://feeds.megaphone.fm/WMHY6124370245"/>
+  <outline type="rss" text="Consider This from NPR" title="Consider This from NPR" xmlUrl="https://feeds.npr.org/510355/podcast.xml"/>
+  <outline type="rss" text="Freakonomics Radio" title="Freakonomics Radio" xmlUrl="https://feeds.simplecast.com/Y8lFbOT4"/>
+  <outline type="rss" text="Gadget Lab: Weekly Tech News from WIRED" title="Gadget Lab: Weekly Tech News from WIRED" xmlUrl="https://publicfeeds.net/f/5901/gadget-lab"/>
+  <outline type="rss" text="Game Scoop!" title="Game Scoop!" xmlUrl="https://feeds.megaphone.fm/gamescoop"/>
+  <outline type="rss" text="GeekWire" title="GeekWire" xmlUrl="https://www.omnycontent.com/d/playlist/6d1b1a1a-28ad-418a-8626-a89a000a9890/726fe721-7095-4486-834a-a9d5017e66a3/6d1bf6ae-2fdf-4358-9139-a9d5017e66a3/podcast.rss"/>
+  <outline type="rss" text="Hard Fork" title="Hard Fork" xmlUrl="https://feeds.simplecast.com/l2i9YnTd"/>
+  <outline type="rss" text="Hard Borked" title="Hard Borked" xmlUrl="https://feeds.simpleycastedpooper.com/l2i9YnTd"/>
+  <outline type="rss" text="Hidden Brain" title="Hidden Brain" xmlUrl="https://feeds.simplecast.com/kwWc0lhf"/>
+  <outline type="rss" text="How It Happened" title="How It Happened" xmlUrl="https://feeds.megaphone.fm/axioshowithappened"/>
+  <outline type="rss" text="Land of the Giants" title="Land of the Giants" xmlUrl="https://feeds.megaphone.fm/landofthegiants"/>
 </body>
 </opml>

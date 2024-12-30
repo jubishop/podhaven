@@ -103,7 +103,7 @@ final actor DownloadManager: Sendable {
   private let session: Networking
   private let maxConcurrentDownloads: Int
   private let asyncStream: AsyncStream<DownloadResult>
-  private var streamContinuation: AsyncStream<DownloadResult>.Continuation
+  private let streamContinuation: AsyncStream<DownloadResult>.Continuation
 
   var remainingDownloads: Int {
     pendingDownloads.count + activeDownloads.count
@@ -184,8 +184,8 @@ final actor DownloadManager: Sendable {
 
   private func executeDownload(_ downloadTask: DownloadTask) {
     Task {
-      let result = await downloadTask.download()
-      streamContinuation.yield(result)
+      let downloadResult = await downloadTask.download()
+      streamContinuation.yield(downloadResult)
       activeDownloads.removeValue(forKey: downloadTask.url)
       startNextDownload()
     }
