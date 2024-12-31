@@ -5,16 +5,8 @@ import SwiftUI
 struct UpNextListView: View {
   private var viewModel: UpNextListViewModel
 
-  init(
-    isSelected: Binding<Bool>,
-    podcastEpisode: PodcastEpisode,
-    editMode: EditMode
-  ) {
-    viewModel = UpNextListViewModel(
-      isSelected: isSelected,
-      podcastEpisode: podcastEpisode,
-      editMode: editMode
-    )
+  init(viewModel: UpNextListViewModel) {
+    self.viewModel = viewModel
   }
 
   var body: some View {
@@ -84,9 +76,11 @@ struct UpNextListView: View {
         if let podcastEpisode = podcastEpisode {
           VStack(spacing: 40) {
             UpNextListView(
-              isSelected: $selected,
-              podcastEpisode: podcastEpisode,
-              editMode: editMode
+              viewModel: UpNextListViewModel(
+                isSelected: $selected,
+                podcastEpisode: podcastEpisode,
+                editMode: editMode
+              )
             )
             Divider()
             Button(
