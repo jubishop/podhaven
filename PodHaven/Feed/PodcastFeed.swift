@@ -35,6 +35,7 @@ struct PodcastFeedItem: Sendable {
       podcastId: existingEpisode?.podcastId,
       media: media,
       currentTime: existingEpisode?.currentTime,
+      completed: existingEpisode?.completed,
       duration: duration ?? existingEpisode?.duration,
       pubDate: pubDate ?? existingEpisode?.pubDate,
       title: title ?? existingEpisode?.title,

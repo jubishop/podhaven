@@ -36,6 +36,7 @@ enum Migrations {
           .notNull()
           .indexed()
         t.column("currentTime", .integer)
+        t.column("completed", .boolean).defaults(to: false)
         t.column("duration", .integer)
         t.column("pubDate", .text).notNull()
         t.column("title", .text)

@@ -33,17 +33,14 @@ struct NavigationView: Hashable {
   var settingsPath = NavigationPath()
   var podcastsPath = NavigationPath()
   var upNextPath = NavigationPath()
-  var currentTab: Tab = .settings
+  var currentTab: Tab = .settings {
+    willSet {
+      clearPaths(newValue)
+    }
+  }
 
   func showTab(_ tab: Tab) {
-    switch tab {
-    case .settings:
-      settingsPath = NavigationPath()
-    case .podcasts:
-      podcastsPath = NavigationPath()
-    case .upNext:
-      upNextPath = NavigationPath()
-    }
+    clearPaths(tab)
     currentTab = tab
   }
 
@@ -54,4 +51,15 @@ struct NavigationView: Hashable {
   }
 
   private init() {}
+
+  private func clearPaths(_ tab: Tab) {
+    switch tab {
+    case .settings:
+      settingsPath = NavigationPath()
+    case .podcasts:
+      podcastsPath = NavigationPath()
+    case .upNext:
+      upNextPath = NavigationPath()
+    }
+  }
 }

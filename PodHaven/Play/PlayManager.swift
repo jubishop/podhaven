@@ -153,7 +153,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   {
     guard podcastEpisode != onDeck else { return }
 
-    // TODO: Unshift episode back on to queue unless it's completed
+    if let episodeID = onDeck?.id {
+      try? await Repo.shared.unshiftToQueue(episodeID)
+    }
 
     try? await Repo.shared.dequeue(podcastEpisode.id)
     onDeck = podcastEpisode
@@ -217,7 +219,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   // MARK: - Private Tracking
 
   private func startTracking() {
-    // TODO: Watch notification of when episode ends
     addKVObservers()
     addTimeObserver()
     startCommandCenter()
@@ -320,7 +321,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {
         if Task.isCancelled { break }
-        // TODO: Mark episode as completed
+        if let episodeID = onDeck?.id {
+          try? await Repo.shared.markComplete(episodeID)
+        }
+        clearOnDeck()
         if let nextEpisode = try? await Repo.shared.nextEpisode() {
           Task { @PlayActor in
             await load(nextEpisode)

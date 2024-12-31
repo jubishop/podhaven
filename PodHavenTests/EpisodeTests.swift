@@ -110,4 +110,30 @@ actor EpisodeTests {
     let podcastEpisode = try await repo.episode(unsavedEpisode.media)!
     #expect(podcastEpisode.episode.media == unsavedEpisode.media)
   }
+
+  @Test("that an episode can be marked complete")
+  func markEpisodeComplete() async throws {
+    let unsavedPodcast = try UnsavedPodcast(
+      feedURL: URL.valid(),
+      title: "Title"
+    )
+    let unsavedEpisode = try UnsavedEpisode(
+      guid: String.random(),
+      media: URL.valid(),
+      currentTime: CMTime.inSeconds(60)
+    )
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode]
+    )
+
+    let episode = podcastSeries.episodes.first!
+    #expect(episode.completed == false)
+    #expect(episode.currentTime == CMTime.inSeconds(60))
+    try await repo.markComplete(episode.id)
+
+    let podcastEpisode = try await repo.episode(episode.id)!
+    #expect(podcastEpisode.episode.completed == true)
+    #expect(podcastEpisode.episode.currentTime == CMTime.zero)
+  }
 }

@@ -113,7 +113,19 @@ struct Repo: Sendable {
     _ = try await appDB.db.write { db in
       try Episode
         .filter(id: episodeID)
-        .updateAll(db, Column("currentTime").set(to: currentTime))
+        .updateAll(db, AppDB.currentTimeColumn.set(to: currentTime))
+    }
+  }
+
+  func markComplete(_ episodeID: Int64) async throws {
+    _ = try await appDB.db.write { db in
+      try Episode
+        .filter(id: episodeID)
+        .updateAll(
+          db,
+          AppDB.completedColumn.set(to: true),
+          AppDB.currentTimeColumn.set(to: CMTime.zero)
+        )
     }
   }
 

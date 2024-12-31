@@ -31,6 +31,7 @@ struct AppDB: Sendable {
 
   // MARK: - Columns
 
+  static let completedColumn = Column("completed")
   static let currentTimeColumn = Column("currentTime")
   static let mediaColumn = Column("media")
   static let pubDateColumn = Column("pubDate")
