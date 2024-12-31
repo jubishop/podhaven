@@ -16,7 +16,7 @@ struct PodcastsView: View {
         SeriesView(podcast: podcast)
       }
       .refreshable {
-        // TODO: Refresh all podcasts
+        try? await viewModel.refreshPodcasts()
       }
     }
     .task {

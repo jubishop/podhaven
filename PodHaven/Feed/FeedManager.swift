@@ -46,6 +46,16 @@ final actor FeedManager: Sendable {
 
   // MARK: - Static Helpers
 
+  static func refreshSeries(podcast: Podcast) async throws {
+    guard
+      let podcastSeries = try await Repo.shared.podcastSeries(
+        podcastID: podcast.id
+      )
+    else { return }
+
+    try await refreshSeries(podcastSeries: podcastSeries)
+  }
+
   static func refreshSeries(podcastSeries: PodcastSeries) async throws {
     let feedTask = await shared.addURL(podcastSeries.podcast.feedURL)
     let feedResult = await feedTask.feedParsed()

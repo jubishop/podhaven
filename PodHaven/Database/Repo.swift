@@ -20,13 +20,27 @@ struct Repo: Sendable {
     self.appDB = appDB
   }
 
-  // MARK: - Readers
+  // MARK: - Global Readers
 
   func allPodcasts() async throws -> PodcastArray {
     try await appDB.db.read { db in
       try Podcast.all().fetchIdentifiedArray(db, id: \Podcast.feedURL)
     }
   }
+
+  // MARK: - Series Readers
+
+  func podcastSeries(podcastID: Int64) async throws -> PodcastSeries? {
+    try await appDB.db.read { db in
+      try Podcast
+        .filter(id: podcastID)
+        .including(all: Podcast.episodes)
+        .asRequest(of: PodcastSeries.self)
+        .fetchOne(db)
+    }
+  }
+
+  // MARK: - Episode Readers
 
   func nextEpisode() async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
