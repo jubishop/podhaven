@@ -4,8 +4,8 @@ import OPML
 import SwiftUI
 
 struct OPMLImportSheet: View {
-  let viewModel: OPMLViewModel
-  let opmlFile: OPMLFile
+  private let viewModel: OPMLViewModel
+  private let opmlFile: OPMLFile
 
   init(viewModel: OPMLViewModel, opmlFile: OPMLFile) {
     self.viewModel = viewModel

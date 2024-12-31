@@ -3,7 +3,7 @@
 import SwiftUI
 
 struct UpNextListView: View {
-  private var viewModel: UpNextListViewModel
+  private let viewModel: UpNextListViewModel
 
   init(viewModel: UpNextListViewModel) {
     self.viewModel = viewModel

@@ -10,8 +10,8 @@ struct OPMLImportSheetSection: View {
     .finished: Text("Finished").foregroundStyle(.green).bold(),
   ]
 
-  let outlines: [OPMLOutline]
-  let status: OPMLOutline.Status
+  private let outlines: [OPMLOutline]
+  private let status: OPMLOutline.Status
 
   init(outlines: [OPMLOutline]) {
     self.outlines = outlines
