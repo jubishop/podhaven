@@ -7,10 +7,7 @@ struct OPMLImportSheet: View {
   let viewModel: OPMLViewModel
   let opmlFile: OPMLFile
 
-  init(viewModel: OPMLViewModel) {
-    guard let opmlFile = viewModel.opmlFile else {
-      fatalError("OPMLImportSheet must be initialized with an OPMLFile.")
-    }
+  init(viewModel: OPMLViewModel, opmlFile: OPMLFile) {
     self.viewModel = viewModel
     self.opmlFile = opmlFile
   }
@@ -91,8 +88,8 @@ struct OPMLImportSheet: View {
         }
       #endif
     }
-    .sheet(item: $viewModel.opmlFile) { _ in
-      OPMLImportSheet(viewModel: viewModel)
+    .sheet(item: $viewModel.opmlFile) { opmlFile in
+      OPMLImportSheet(viewModel: viewModel, opmlFile: opmlFile)
     }
   }
 }
