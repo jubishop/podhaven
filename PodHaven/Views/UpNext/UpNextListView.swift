@@ -3,72 +3,60 @@
 import SwiftUI
 
 struct UpNextListView: View {
-  @Environment(\.editMode) private var editMode
-  @Binding var isSelected: Bool
+  private var viewModel: UpNextListViewModel
 
-  let podcastEpisode: PodcastEpisode
-  var podcast: Podcast { podcastEpisode.podcast }
-  var episode: Episode { podcastEpisode.episode }
-  private var isEditing: Bool { editMode?.wrappedValue.isEditing == true }
+  init(
+    isSelected: Binding<Bool>,
+    podcastEpisode: PodcastEpisode,
+    editMode: EditMode
+  ) {
+    viewModel = UpNextListViewModel(
+      isSelected: isSelected,
+      podcastEpisode: podcastEpisode,
+      editMode: editMode
+    )
+  }
 
   var body: some View {
     HStack(spacing: 20) {
-      if isEditing {
+      if viewModel.isEditing {
         Button(
-          action: {
-            isSelected.toggle()
-          },
+          action: { viewModel.isSelected.wrappedValue.toggle() },
           label: {
             Image(
-              systemName: isSelected ? "checkmark.circle.fill" : "circle"
+              systemName: viewModel.isSelected.wrappedValue
+                ? "checkmark.circle.fill" : "circle"
             )
           }
         )
         .buttonStyle(BorderlessButtonStyle())
       }
 
-      Text(episode.toString)
+      Text(viewModel.episode.toString)
         .lineLimit(2)
 
       Spacer()
 
-      if !isEditing {
+      if !viewModel.isEditing {
         Menu(
           content: {
             Button(
-              action: {
-                Task { @PlayActor in
-                  await PlayManager.shared.load(podcastEpisode)
-                  PlayManager.shared.play()
-                }
-              },
+              action: viewModel.playNow,
               label: { Label("Play Now", systemImage: "play") }
             )
 
             Button(
-              action: {
-                Task {
-                  try await Repo.shared.unshiftToQueue(episode.id)
-                }
-              },
+              action: viewModel.playNext,
               label: { Label("Play Next", systemImage: "square.and.arrow.up") }
             )
 
             Button(
-              action: {
-                Task {
-                  Navigation.shared.showEpisode(podcastEpisode)
-                }
-              },
+              action: viewModel.viewDetails,
               label: { Label("View Details", systemImage: "info.circle") }
             )
 
             Button(
-              action: {
-                Task {
-                  try await Repo.shared.dequeue(episode.id)
-                }
-              },
+              action: viewModel.delete,
               label: { Label("Delete", systemImage: "trash") }
             )
           },
@@ -81,6 +69,7 @@ struct UpNextListView: View {
         .buttonStyle(PlainButtonStyle())
       }
     }
+    .fixedSize(horizontal: false, vertical: true)
   }
 }
 
@@ -96,9 +85,9 @@ struct UpNextListView: View {
           VStack(spacing: 40) {
             UpNextListView(
               isSelected: $selected,
-              podcastEpisode: podcastEpisode
+              podcastEpisode: podcastEpisode,
+              editMode: editMode
             )
-            .environment(\.editMode, $editMode)
             Divider()
             Button(
               action: {

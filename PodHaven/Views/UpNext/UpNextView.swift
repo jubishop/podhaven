@@ -12,7 +12,8 @@ struct UpNextView: View {
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
           UpNextListView(
             isSelected: $viewModel.isSelected[podcastEpisode],
-            podcastEpisode: podcastEpisode
+            podcastEpisode: podcastEpisode,
+            editMode: viewModel.editMode
           )
           .swipeActions(edge: .leading) {
             Button(
