@@ -18,10 +18,14 @@ import IdentifiedCollections
     let feedResult = await feedTask.feedParsed()
     switch feedResult {
     case .failure(let error):
-      Alert.shared(error.errorDescription)
+      throw error
     case .success(let feedData):
       guard let newPodcast = feedData.feed.toPodcast(mergingExisting: podcast)
-      else { fatalError("Failed to refresh series: \(podcast.toString)") }
+      else {
+        throw FeedError.failedParse(
+          "Failed to refresh series: \(podcast.toString)"
+        )
+      }
       var unsavedEpisodes: [UnsavedEpisode] = []
       var existingEpisodes: [Episode] = []
       for feedItem in feedData.feed.items {
