@@ -28,6 +28,16 @@ struct Repo: Sendable {
     }
   }
 
+  func nextEpisode() async throws -> PodcastEpisode? {
+    try await appDB.db.read { db in
+      try Episode
+        .filter(AppDB.queueOrderColumn == 0)
+        .including(required: Episode.podcast)
+        .asRequest(of: PodcastEpisode.self)
+        .fetchOne(db)
+    }
+  }
+
   func episode(_ episodeID: Int64) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode

@@ -34,7 +34,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private var commandCenter: CommandCenter
   private var commandObservingTask: Task<Void, Never>?
   private var interruptionObservingTask: Task<Void, Never>?
-  private var queueObservingTask: Task<Void, Error>?
+  private var playToEndObservingTask: Task<Void, Never>?
   private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
   private var timeObserver: Any?
 
@@ -153,11 +153,11 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   {
     guard podcastEpisode != onDeck else { return }
 
-    if let onDeck = onDeck {
-      try? await Repo.shared.unshiftToQueue(onDeck.id)
-    }
+    // TODO: Unshift episode back on to queue unless it's completed
 
+    try? await Repo.shared.dequeue(podcastEpisode.id)
     onDeck = podcastEpisode
+
     var image: UIImage?
     if let imageURL = podcastEpisode.episode.image
       ?? podcastEpisode.podcast.image
@@ -222,6 +222,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     addTimeObserver()
     startCommandCenter()
     startInterruptionNotifications()
+    startPlayToEndNotifications()
   }
 
   private func stopTracking() {
@@ -229,6 +230,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     removeTimeObserver()
     stopCommandCenter()
     stopInterruptionNotifications()
+    stopPlayToEndNotifications()
   }
 
   private func addTimeObserver() {
@@ -308,6 +310,31 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     if let interruptionObservingTask = self.interruptionObservingTask {
       interruptionObservingTask.cancel()
       self.interruptionObservingTask = nil
+    }
+  }
+
+  private func startPlayToEndNotifications() {
+    stopPlayToEndNotifications()
+    self.playToEndObservingTask = Task { @PlayActor in
+      for await _ in notificationCenter.notifications(
+        named: AVPlayerItem.didPlayToEndTimeNotification
+      ) {
+        if Task.isCancelled { break }
+        // TODO: Mark episode as completed
+        if let nextEpisode = try? await Repo.shared.nextEpisode() {
+          Task { @PlayActor in
+            await load(nextEpisode)
+            play()
+          }
+        }
+      }
+    }
+  }
+
+  private func stopPlayToEndNotifications() {
+    if let playToEndObservingTask = self.playToEndObservingTask {
+      playToEndObservingTask.cancel()
+      self.playToEndObservingTask = nil
     }
   }
 
