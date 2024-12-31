@@ -13,6 +13,7 @@ struct EpisodeView: View {
 
   var body: some View {
     VStack(spacing: 40) {
+      Text(viewModel.podcast.toString)
       Text(viewModel.episode.toString)
       Text("Duration: \(viewModel.episode.duration.readable())")
       if !viewModel.onDeck {
