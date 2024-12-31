@@ -10,6 +10,25 @@ extension CMTime: Codable, @retroactive DatabaseValueConvertible {
     CMTime(seconds: seconds, preferredTimescale: 60)
   }
 
+  // MARK: - Instance Methods
+
+  func readable() -> String {
+    let totalSeconds = CMTimeGetSeconds(self)
+    guard !totalSeconds.isNaN && totalSeconds.isFinite else {
+      return "Unknown"
+    }
+
+    let hours = Int(totalSeconds) / 3600
+    let minutes = (Int(totalSeconds) % 3600) / 60
+    let seconds = Int(totalSeconds) % 60
+
+    if hours > 0 {
+      return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+      return String(format: "%d:%02d", minutes, seconds)
+    }
+  }
+
   // MARK: - Codable
 
   enum CodingKeys: String, CodingKey {

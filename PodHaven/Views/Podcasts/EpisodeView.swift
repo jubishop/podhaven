@@ -14,31 +14,18 @@ struct EpisodeView: View {
   var body: some View {
     VStack(spacing: 40) {
       Text(viewModel.episode.toString)
-      Text("Duration: \(String(describing: viewModel.episode.duration))")
-      if !PlayState.shared.isOnDeck(viewModel.podcastEpisode) {
+      Text("Duration: \(viewModel.episode.duration.readable())")
+      if !viewModel.onDeck {
         Button(
-          action: {
-            Task { @PlayActor in
-              await PlayManager.shared.load(viewModel.podcastEpisode)
-              PlayManager.shared.play()
-            }
-          },
+          action: viewModel.playNow,
           label: { Text("Play Now") }
         )
         Button(
-          action: {
-            Task {
-              try await Repo.shared.unshiftToQueue(viewModel.episode.id)
-            }
-          },
+          action: viewModel.addToTopOfQueue,
           label: { Text("Add To Top Of Queue") }
         )
         Button(
-          action: {
-            Task {
-              try await Repo.shared.appendToQueue(viewModel.episode.id)
-            }
-          },
+          action: viewModel.appendToQueue,
           label: { Text("Add To Bottom Of Queue") }
         )
       }

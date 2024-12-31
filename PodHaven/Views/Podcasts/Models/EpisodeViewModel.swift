@@ -4,12 +4,33 @@ import Foundation
 import GRDB
 
 @Observable @MainActor final class EpisodeViewModel {
-  var podcastEpisode: PodcastEpisode
+  private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }
   var episode: Episode { podcastEpisode.episode }
 
   init(podcastEpisode: PodcastEpisode) {
     self.podcastEpisode = podcastEpisode
+  }
+
+  var onDeck: Bool { PlayState.shared.isOnDeck(podcastEpisode) }
+
+  func playNow() {
+    Task { @PlayActor in
+      await PlayManager.shared.load(podcastEpisode)
+      PlayManager.shared.play()
+    }
+  }
+
+  func addToTopOfQueue() {
+    Task {
+      try await Repo.shared.unshiftToQueue(episode.id)
+    }
+  }
+
+  func appendToQueue() {
+    Task {
+      try await Repo.shared.appendToQueue(episode.id)
+    }
   }
 
   func observeEpisode() async {
