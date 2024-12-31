@@ -8,6 +8,7 @@ struct PlayBar: View {
 
   var body: some View {
     VStack {
+      Text(viewModel.episodeTitle).background(.black)
       HStack {
         Group {
           Button(

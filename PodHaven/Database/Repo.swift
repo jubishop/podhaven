@@ -28,9 +28,23 @@ struct Repo: Sendable {
     }
   }
 
-  func episode(_ url: URL) async throws -> Episode? {
+  func episode(_ episodeID: Int64) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
-      try Episode.filter(AppDB.mediaColumn == url).fetchOne(db)
+      try Episode
+        .filter(id: episodeID)
+        .including(required: Episode.podcast)
+        .asRequest(of: PodcastEpisode.self)
+        .fetchOne(db)
+    }
+  }
+
+  func episode(_ url: URL) async throws -> PodcastEpisode? {
+    try await appDB.db.read { db in
+      try Episode
+        .filter(AppDB.mediaColumn == url)
+        .including(required: Episode.podcast)
+        .asRequest(of: PodcastEpisode.self)
+        .fetchOne(db)
     }
   }
 

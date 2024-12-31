@@ -107,7 +107,7 @@ actor EpisodeTests {
       unsavedEpisodes: [unsavedEpisode]
     )
 
-    let episode = try await repo.episode(unsavedEpisode.media)!
-    #expect(episode.media == unsavedEpisode.media)
+    let podcastEpisode = try await repo.episode(unsavedEpisode.media)!
+    #expect(podcastEpisode.episode.media == unsavedEpisode.media)
   }
 }

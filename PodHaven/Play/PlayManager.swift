@@ -27,7 +27,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
   var episodeID: Int64? { onDeck?.episode.id }
-  private var avPlayer = AVQueuePlayer()
+  private var avPlayer = AVPlayer()
   private var nowPlayingInfo: NowPlayingInfo?
   private var onDeck: PodcastEpisode?
   private var upNext: PodcastEpisode?
@@ -49,19 +49,12 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   private init() {
     commandCenter = CommandCenter(accessKey)
-    avPlayer.actionAtItemEnd = .advance
   }
 
   func resume() async {
     do {
       guard let episodeID: Int64 = Persistence.currentEpisodeID.load(),
-        let podcastEpisode = try await Repo.shared.db.read({ db in
-          try Episode
-            .filter(id: episodeID)
-            .including(required: Episode.podcast)
-            .asRequest(of: PodcastEpisode.self)
-            .fetchOne(db)
-        })
+        let podcastEpisode = try await Repo.shared.episode(episodeID)
       else { return }
 
       await load(podcastEpisode)
@@ -98,17 +91,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       return
     }
 
-    // TODO: place currently playing item at top of queue
-
     let avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
 
     await setOnDeck(podcastEpisode, duration)
-    if podcastEpisode.episode.currentTime != CMTime.zero {
-      seek(to: podcastEpisode.episode.currentTime)
-    } else {
-      setCurrentTime(CMTime.zero)
-    }
 
     status = .active
     startTracking()
@@ -129,7 +115,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     stopTracking()
     pause()
     clearOnDeck()
-    clearUpNext()
     status = .stopped
 
     do {
@@ -166,6 +151,12 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime)
     async
   {
+    guard podcastEpisode != onDeck else { return }
+
+    if let onDeck = onDeck {
+      try? await Repo.shared.unshiftToQueue(onDeck.id)
+    }
+
     onDeck = podcastEpisode
     var image: UIImage?
     if let imageURL = podcastEpisode.episode.image
@@ -191,6 +182,12 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     Task(priority: .utility) {
       Persistence.currentEpisodeID.save(episodeID)
     }
+
+    if podcastEpisode.episode.currentTime != CMTime.zero {
+      seek(to: podcastEpisode.episode.currentTime)
+    } else {
+      setCurrentTime(CMTime.zero)
+    }
   }
 
   private func clearOnDeck() {
@@ -203,16 +200,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     Task(priority: .utility) {
       Persistence.currentEpisodeID.save(nil)
     }
-  }
-
-  private func setUpNext(_ podcastEpisode: PodcastEpisode) {
-    // TODO: Add item to our AVQueuePlayer
-    upNext = podcastEpisode
-  }
-
-  private func clearUpNext() {
-    // TODO: Remove item from our AVQueuePlayer
-    upNext = nil
   }
 
   private func setCurrentTime(_ currentTime: CMTime) {
@@ -230,10 +217,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   // MARK: - Private Tracking
 
   private func startTracking() {
+    // TODO: Watch notification of when episode ends
     addKVObservers()
     addTimeObserver()
     startCommandCenter()
-    startQueueObserving()
     startInterruptionNotifications()
   }
 
@@ -241,7 +228,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     removeKVObservers()
     removeTimeObserver()
     stopCommandCenter()
-    stopQueueObserving()
     stopInterruptionNotifications()
   }
 
@@ -297,36 +283,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     }
   }
 
-  private func startQueueObserving() {
-    stopQueueObserving()
-    self.queueObservingTask = Task { @PlayActor in
-      let observer =
-        ValueObservation.tracking(
-          Episode
-            .filter(AppDB.queueOrderColumn == 0)
-            .including(required: Episode.podcast)
-            .asRequest(of: PodcastEpisode.self)
-            .fetchOne
-        )
-        .removeDuplicates()
-      for try await topQueueItem in observer.values(in: Repo.shared.db) {
-        if Task.isCancelled { break }
-        if let upNext = topQueueItem {
-          self.setUpNext(upNext)
-        } else {
-          self.clearUpNext()
-        }
-      }
-    }
-  }
-
-  private func stopQueueObserving() {
-    if let queueObservingTask = self.queueObservingTask {
-      queueObservingTask.cancel()
-      self.queueObservingTask = nil
-    }
-  }
-
   private func startInterruptionNotifications() {
     stopInterruptionNotifications()
     self.interruptionObservingTask = Task { @PlayActor in
@@ -371,27 +327,6 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
             Task { @PlayActor in status = .waiting }
           @unknown default:
             fatalError("Time control status unknown?")
-          }
-        }
-      )
-    )
-    keyValueObservers.append(
-      avPlayer.observe(
-        \.currentItem,
-        options: [.initial, .new],
-        changeHandler: { avPlayer, _ in
-          Task { @MainActor in
-            if let currentItem = avPlayer.currentItem,
-              let urlAsset = currentItem.asset as? AVURLAsset
-            {
-              Task.detached(priority: .utility) {
-                if let episode = try await Repo.shared.episode(urlAsset.url) {
-                  try await Repo.shared.dequeue(episode.id)
-                }
-              }
-            } else {
-              Alert.shared.report("Could not fetch URL for current item?")
-            }
           }
         }
       )
