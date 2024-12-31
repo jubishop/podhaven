@@ -16,10 +16,12 @@ struct SeriesView: View {
         HTMLText(description).padding()
       }
       List(viewModel.episodes) { episode in
-        EpisodeListView(podcastEpisode: PodcastEpisode(
-          podcast: viewModel.podcast,
-          episode: episode
-        ))
+        EpisodeListView(
+          podcastEpisode: PodcastEpisode(
+            podcast: viewModel.podcast,
+            episode: episode
+          )
+        )
       }
       .refreshable {
         do {
@@ -48,22 +50,20 @@ struct SeriesView: View {
 }
 
 #Preview {
-  struct SeriesViewPreview: View {
-    @State var podcast: Podcast?
+  @Previewable @State var podcast: Podcast?
 
-    var body: some View {
+  Preview {
+    NavigationStack {
       Group {
-        if let podcast = self.podcast {
+        if let podcast = podcast {
           SeriesView(podcast: podcast)
         } else {
           Text("No podcast in DB")
         }
       }
-      .task {
-        self.podcast = try? await Helpers.loadSeries().podcast
-      }
     }
   }
-
-  return Preview { NavigationStack { SeriesViewPreview() } }
+  .task {
+    podcast = try? await Helpers.loadSeries().podcast
+  }
 }

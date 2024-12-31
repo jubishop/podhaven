@@ -18,22 +18,18 @@ struct EpisodeListView: View {
 }
 
 #Preview {
-  struct EpisodeListViewPreview: View {
-    @State var podcastEpisode: PodcastEpisode?
+  @Previewable @State var podcastEpisode: PodcastEpisode?
 
-    var body: some View {
-      Group {
-        if let podcastEpisode = self.podcastEpisode {
-          EpisodeListView(podcastEpisode: podcastEpisode)
-        } else {
-          Text("No episodes in DB")
-        }
-      }
-      .task {
-        self.podcastEpisode = try? await Helpers.loadPodcastEpisode()
+  Preview {
+    NavigationStack {
+      if let podcastEpisode = podcastEpisode {
+        EpisodeListView(podcastEpisode: podcastEpisode)
+      } else {
+        Text("No episodes in DB")
       }
     }
   }
-
-  return Preview { NavigationStack { EpisodeListViewPreview() } }
+  .task {
+    podcastEpisode = try? await Helpers.loadPodcastEpisode()
+  }
 }

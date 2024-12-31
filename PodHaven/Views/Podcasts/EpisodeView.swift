@@ -50,22 +50,20 @@ struct EpisodeView: View {
 }
 
 #Preview {
-  struct EpisodeViewPreview: View {
-    @State var podcastEpisode: PodcastEpisode?
+  @Previewable @State var podcastEpisode: PodcastEpisode?
 
-    var body: some View {
+  Preview {
+    NavigationStack {
       Group {
-        if let podcastEpisode = self.podcastEpisode {
+        if let podcastEpisode = podcastEpisode {
           EpisodeView(podcastEpisode: podcastEpisode)
         } else {
           Text("No episodes in DB")
         }
       }
-      .task {
-        self.podcastEpisode = try? await Helpers.loadPodcastEpisode()
-      }
     }
   }
-
-  return Preview { NavigationStack { EpisodeViewPreview() } }
+  .task {
+    podcastEpisode = try? await Helpers.loadPodcastEpisode()
+  }
 }

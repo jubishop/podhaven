@@ -72,33 +72,31 @@ struct UpNextListView: View {
 
   Preview {
     NavigationStack {
-      Group {
-        if let podcastEpisode = podcastEpisode {
-          VStack(spacing: 40) {
-            UpNextListView(
-              viewModel: UpNextListViewModel(
-                isSelected: $selected,
-                podcastEpisode: podcastEpisode,
-                editMode: editMode
-              )
+      if let podcastEpisode = podcastEpisode {
+        VStack(spacing: 40) {
+          UpNextListView(
+            viewModel: UpNextListViewModel(
+              isSelected: $selected,
+              podcastEpisode: podcastEpisode,
+              editMode: editMode
             )
-            Divider()
-            Button(
-              action: {
-                editMode = editMode == .active ? .inactive : .active
-              },
-              label: {
-                Text("Swap edit mode")
-              }
-            )
-          }
-        } else {
-          Text("No episodes in DB")
+          )
+          Divider()
+          Button(
+            action: {
+              editMode = editMode == .active ? .inactive : .active
+            },
+            label: {
+              Text("Swap edit mode")
+            }
+          )
         }
-      }
-      .task {
-        podcastEpisode = try? await Helpers.loadPodcastEpisode()
+      } else {
+        Text("No episodes in DB")
       }
     }
+  }
+  .task {
+    podcastEpisode = try? await Helpers.loadPodcastEpisode()
   }
 }

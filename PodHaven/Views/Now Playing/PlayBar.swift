@@ -66,24 +66,11 @@ struct PlayBar: View {
 }
 
 #Preview {
-  struct PlayBarPreview: View {
-    init() {
-      Task {
-        let podcastEpisode = try! await Repo.shared.db.read { db in
-          try! Episode
-            .including(required: Episode.podcast)
-            .shuffled()
-            .asRequest(of: PodcastEpisode.self)
-            .fetchOne(db)!
-        }
-        await PlayManager.shared.load(podcastEpisode)
-      }
-    }
-    var body: some View {
-      Text(PlayState.onDeck?.podcastTitle ?? "")
-      Text(PlayState.onDeck?.episodeTitle ?? "")
-      PlayBar()
-    }
+  Preview {
+    PlayBar()
   }
-  return Preview { PlayBarPreview() }
+  .task {
+    let podcastEpisode = try! await Helpers.loadPodcastEpisode()
+    await PlayManager.shared.load(podcastEpisode)
+  }
 }
