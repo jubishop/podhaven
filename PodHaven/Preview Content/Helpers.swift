@@ -5,7 +5,10 @@ import GRDB
 import OPML
 
 enum Helpers {
-  private static let seriesFiles = ["pod_save_america", "land_of_the_giants"]
+  private static let seriesFiles = [
+    "pod_save_america": "https://feeds.simplecast.com/dxZsm5kX",
+    "land_of_the_giants": "https://feeds.megaphone.fm/landofthegiants",
+  ]
   private static let opmlFiles = ["large", "small"]
 
   static func importPodcasts(
@@ -58,7 +61,7 @@ enum Helpers {
     }
   }
 
-  static func loadSeries(fileName: String = seriesFiles.randomElement()!)
+  static func loadSeries(fileName: String = seriesFiles.keys.randomElement()!)
     async throws -> PodcastSeries
   {
     if let podcastSeries = try? await Repo.shared.db.read({ db in
@@ -70,14 +73,13 @@ enum Helpers {
     }) {
       return podcastSeries
     }
-    let fileName = ["pod_save_america", "land_of_the_giants"].randomElement()!
     let parseResult = await PodcastFeed.parse(
       Bundle.main.url(forResource: fileName, withExtension: "rss")!
     )
     guard case .success(let feedResult) = parseResult,
       let unsavedPodcast = feedResult.toUnsavedPodcast(
-        oldFeedURL: URL(string: "https://jubi.com")!,
-        oldTitle: "Pod Save America"
+        oldFeedURL: URL(string: seriesFiles[fileName]!)!,
+        oldTitle: fileName
       )
     else { throw DBError.seriesNotFound(0) }
     return try await Repo.shared.insertSeries(
@@ -108,7 +110,7 @@ enum Helpers {
 
   static func populateQueue(queueSize: Int = 20) async throws {
     var allPodcastSeries: [PodcastSeries] = []
-    for seriesFile in seriesFiles {
+    for seriesFile in seriesFiles.keys {
       if let podcastSeries = try? await loadSeries(fileName: seriesFile) {
         allPodcastSeries.append(podcastSeries)
       }

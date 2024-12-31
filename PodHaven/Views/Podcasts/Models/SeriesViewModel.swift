@@ -20,7 +20,7 @@ import IdentifiedCollections
     case .failure(let error):
       throw error
     case .success(let feedData):
-      guard let newPodcast = feedData.feed.toPodcast(mergingExisting: podcast)
+      guard var newPodcast = feedData.feed.toPodcast(mergingExisting: podcast)
       else {
         throw FeedError.failedParse(
           "Failed to refresh series: \(podcast.toString)"
@@ -39,6 +39,7 @@ import IdentifiedCollections
           unsavedEpisodes.append(newUnsavedEpisode)
         }
       }
+      newPodcast.lastUpdate = Date()
       try await Repo.shared.updateSeries(
         newPodcast,
         unsavedEpisodes: unsavedEpisodes,

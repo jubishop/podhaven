@@ -23,6 +23,7 @@ enum Migrations {
         t.column("link", .text)
         t.column("image", .text)
         t.column("description", .text)
+        t.column("lastUpdate", .integer).notNull()
       }
 
       try db.create(table: "episode") { t in

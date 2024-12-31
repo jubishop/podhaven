@@ -133,7 +133,8 @@ struct PodcastFeed: Sendable, Equatable {
       title: title ?? existingPodcast.title,
       link: link ?? existingPodcast.link,
       image: image ?? existingPodcast.image,
-      description: description ?? existingPodcast.description
+      description: description ?? existingPodcast.description,
+      lastUpdate: existingPodcast.lastUpdate
     )
   }
 

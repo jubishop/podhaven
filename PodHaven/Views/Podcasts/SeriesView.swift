@@ -13,8 +13,9 @@ struct SeriesView: View {
   var body: some View {
     VStack {
       if let description = viewModel.podcast.description {
-        HTMLText(description).padding()
+        HTMLText(description).lineLimit(3).padding()
       }
+      Text("Last updated: \(viewModel.podcast.formattedLastUpdate)")
       List(viewModel.episodes) { episode in
         EpisodeListView(
           podcastEpisode: PodcastEpisode(
