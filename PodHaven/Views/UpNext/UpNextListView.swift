@@ -78,7 +78,7 @@ struct UpNextListView: View {
             viewModel: UpNextListViewModel(
               isSelected: $selected,
               podcastEpisode: podcastEpisode,
-              editMode: editMode
+              editMode: $editMode
             )
           )
           Divider()

@@ -7,16 +7,16 @@ import SwiftUI
 @Observable @MainActor final class UpNextListViewModel {
   let isSelected: Binding<Bool>
   let podcastEpisode: PodcastEpisode
-  let editMode: EditMode
+  let editMode: Binding<EditMode>
 
   var podcast: Podcast { podcastEpisode.podcast }
   var episode: Episode { podcastEpisode.episode }
-  var isEditing: Bool { editMode.isEditing == true }
+  var isEditing: Bool { editMode.wrappedValue.isEditing == true }
 
   init(
     isSelected: Binding<Bool>,
     podcastEpisode: PodcastEpisode,
-    editMode: EditMode
+    editMode: Binding<EditMode>
   ) {
     self.isSelected = isSelected
     self.podcastEpisode = podcastEpisode
