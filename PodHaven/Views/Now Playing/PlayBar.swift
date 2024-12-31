@@ -10,37 +10,30 @@ struct PlayBar: View {
     VStack {
       HStack {
         Group {
-          Button(action: {
-            Task { @PlayActor in
-              PlayManager.shared.seekBackward(CMTime.inSeconds(15))
+          Button(
+            action: viewModel.seekBackward,
+            label: {
+              viewModel.seekBackwardImage.foregroundColor(.white)
             }
-          }) {
-            Image(systemName: "gobackward.15").foregroundColor(.white)
-          }
-          Button(action: {
-            guard PlayState.playable else { return }
-
-            if PlayState.playing {
-              Task { @PlayActor in PlayManager.shared.pause() }
-            } else {
-              Task { @PlayActor in PlayManager.shared.play() }
+          )
+          Button(
+            action: viewModel.playOrPause,
+            label: {
+              Image(
+                systemName: viewModel.playable
+                  ? (viewModel.playing ? "pause.circle" : "play.circle")
+                  : "xmark.circle"
+              )
+              .font(.largeTitle)
+              .foregroundColor(.white)
             }
-          }) {
-            Image(
-              systemName: PlayState.playable
-                ? (PlayState.playing
-                  ? "pause.circle" : "play.circle") : "xmark.circle"
-            )
-            .font(.largeTitle)
-            .foregroundColor(.white)
-          }
-          Button(action: {
-            Task { @PlayActor in
-              PlayManager.shared.seekForward(CMTime.inSeconds(30))
+          )
+          Button(
+            action: viewModel.seekForward,
+            label: {
+              viewModel.seekForwardImage.foregroundColor(.white)
             }
-          }) {
-            Image(systemName: "goforward.30").foregroundColor(.white)
-          }
+          )
         }
         .padding(.horizontal)
       }
@@ -54,12 +47,12 @@ struct PlayBar: View {
       }
       Slider(
         value: $viewModel.sliderValue,
-        in: 0...Double(PlayState.onDeck?.duration.seconds ?? 0),
+        in: 0...Double(viewModel.duration.seconds),
         onEditingChanged: { isEditing in
           viewModel.isDragging = isEditing
         }
       )
-      .disabled(!PlayState.playable)
+      .disabled(!viewModel.playable)
       .frame(width: viewModel.barWidth)
     }
   }
