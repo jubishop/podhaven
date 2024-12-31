@@ -10,7 +10,6 @@ import SwiftUI
 
   var playable: Bool { PlayState.playable }
   var playing: Bool { PlayState.playing }
-  var episodeTitle: String { PlayState.onDeck?.episodeTitle ?? ""}
 
   private var _sliderValue: Double = 0
   var sliderValue: Double {
