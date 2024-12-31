@@ -93,7 +93,7 @@ final actor FeedManager: Sendable {
 
   var remainingFeeds: Int { feedTasks.count }
 
-  init(maxConcurrentDownloads: Int = 8) {
+  init(maxConcurrentDownloads: Int = 16) {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.allowsCellularAccess = true
     configuration.waitsForConnectivity = true

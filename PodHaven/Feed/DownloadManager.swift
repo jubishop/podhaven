@@ -111,7 +111,7 @@ final actor DownloadManager: Sendable {
 
   init(
     session: Networking = URLSession.shared,
-    maxConcurrentDownloads: Int = 8
+    maxConcurrentDownloads: Int = 16
   ) {
     self.session = session
     self.maxConcurrentDownloads = maxConcurrentDownloads
