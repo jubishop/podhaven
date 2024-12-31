@@ -14,38 +14,7 @@ import IdentifiedCollections
   }
 
   func refreshSeries() async throws {
-    let feedTask = await FeedManager.shared.addURL(podcast.feedURL)
-    let feedResult = await feedTask.feedParsed()
-    switch feedResult {
-    case .failure(let error):
-      throw error
-    case .success(let feedData):
-      guard var newPodcast = feedData.feed.toPodcast(mergingExisting: podcast)
-      else {
-        throw FeedError.failedParse(
-          "Failed to refresh series: \(podcast.toString)"
-        )
-      }
-      var unsavedEpisodes: [UnsavedEpisode] = []
-      var existingEpisodes: [Episode] = []
-      for feedItem in feedData.feed.items {
-        if let existingEpisode = episodes[id: feedItem.guid] {
-          if let newExistingEpisode = try? feedItem.toEpisode(
-            mergingExisting: existingEpisode
-          ) {
-            existingEpisodes.append(newExistingEpisode)
-          }
-        } else if let newUnsavedEpisode = try? feedItem.toUnsavedEpisode() {
-          unsavedEpisodes.append(newUnsavedEpisode)
-        }
-      }
-      newPodcast.lastUpdate = Date()
-      try await Repo.shared.updateSeries(
-        newPodcast,
-        unsavedEpisodes: unsavedEpisodes,
-        existingEpisodes: existingEpisodes
-      )
-    }
+    try await FeedManager.refreshSeries(podcastSeries: podcastSeries)
   }
 
   func observePodcast() async {

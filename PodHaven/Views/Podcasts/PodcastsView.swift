@@ -15,6 +15,9 @@ struct PodcastsView: View {
       .navigationDestination(for: Podcast.self) { podcast in
         SeriesView(podcast: podcast)
       }
+      .refreshable {
+        // TODO: Refresh all podcasts
+      }
     }
     .task {
       await viewModel.observePodcasts()

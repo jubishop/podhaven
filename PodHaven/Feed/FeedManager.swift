@@ -44,6 +44,48 @@ struct FeedTask: Sendable {
 final actor FeedManager: Sendable {
   static let shared = FeedManager()
 
+  // MARK: - Static Helpers
+
+  static func refreshSeries(podcastSeries: PodcastSeries) async throws {
+    let feedTask = await shared.addURL(podcastSeries.podcast.feedURL)
+    let feedResult = await feedTask.feedParsed()
+    switch feedResult {
+    case .failure(let error):
+      throw error
+    case .success(let feedData):
+      guard
+        var newPodcast = feedData.feed.toPodcast(
+          mergingExisting: podcastSeries.podcast
+        )
+      else {
+        throw FeedError.failedParse(
+          "Failed to refresh series: \(podcastSeries.podcast.toString)"
+        )
+      }
+      var unsavedEpisodes: [UnsavedEpisode] = []
+      var existingEpisodes: [Episode] = []
+      for feedItem in feedData.feed.items {
+        if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
+          if let newExistingEpisode = try? feedItem.toEpisode(
+            mergingExisting: existingEpisode
+          ) {
+            existingEpisodes.append(newExistingEpisode)
+          }
+        } else if let newUnsavedEpisode = try? feedItem.toUnsavedEpisode() {
+          unsavedEpisodes.append(newUnsavedEpisode)
+        }
+      }
+      newPodcast.lastUpdate = Date()
+      try await Repo.shared.updateSeries(
+        newPodcast,
+        unsavedEpisodes: unsavedEpisodes,
+        existingEpisodes: existingEpisodes
+      )
+    }
+  }
+
+  // MARK: - Concurrent Download Management
+
   private let downloadManager: DownloadManager
   private var feedTasks: [URL: FeedTask] = [:]
   private let asyncStream: AsyncStream<FeedResult>
