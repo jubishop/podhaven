@@ -11,6 +11,7 @@
 		8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8B05D8FB2CF51C0B003AA19D /* GRDB */; };
 		8B14BBE32D0CB37A0007E89B /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8B14BBE22D0CB37A0007E89B /* IdentifiedCollections */; };
 		8B2AC03D2D25D2F700DB7FE5 /* XMLCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 8B2AC03C2D25D2F700DB7FE5 /* XMLCoder */; };
+		8B2AC0472D25D77900DB7FE5 /* XMLCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 8B2AC0462D25D77900DB7FE5 /* XMLCoder */; };
 		8B48491C2CF2E63600C67454 /* OPML in Frameworks */ = {isa = PBXBuildFile; productRef = 8B48491B2CF2E63600C67454 /* OPML */; };
 		8B7975E72CFEC28C00412AA1 /* FeedKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8B7975E62CFEC28C00412AA1 /* FeedKit */; };
 		8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DEE2D01722E00742C6C /* Nuke */; };
@@ -84,6 +85,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8B2AC0472D25D77900DB7FE5 /* XMLCoder in Frameworks */,
 				8BE319EA2D0E575C009F48C9 /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -164,6 +166,7 @@
 			);
 			name = PodHavenTests;
 			packageProductDependencies = (
+				8B2AC0462D25D77900DB7FE5 /* XMLCoder */,
 			);
 			productName = PodHavenTests;
 			productReference = 8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */;
@@ -644,6 +647,11 @@
 			productName = IdentifiedCollections;
 		};
 		8B2AC03C2D25D2F700DB7FE5 /* XMLCoder */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B2AC03B2D25D2F700DB7FE5 /* XCRemoteSwiftPackageReference "XMLCoder" */;
+			productName = XMLCoder;
+		};
+		8B2AC0462D25D77900DB7FE5 /* XMLCoder */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8B2AC03B2D25D2F700DB7FE5 /* XCRemoteSwiftPackageReference "XMLCoder" */;
 			productName = XMLCoder;

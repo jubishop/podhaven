@@ -96,17 +96,14 @@ struct PodcastFeed: Sendable, Equatable {
 
   static func parse(_ data: Data) async -> ParseResult {
     let parser = FeedParser(data: data)
-    return await withCheckedContinuation {
-      continuation in
+    return await withCheckedContinuation { continuation in
       switch parser.parse() {
       case .success(let feed):
         guard let rssFeed = feed.rssFeed
         else { return continuation.resume(returning: .failure(.noRSS)) }
         continuation.resume(returning: .success(PodcastFeed(rssFeed: rssFeed)))
       case .failure(let error):
-        continuation.resume(
-          returning: .failure(.failedParse(String(describing: error)))
-        )
+        continuation.resume(returning: .failure(.failedParse(String(describing: error))))
       }
     }
   }

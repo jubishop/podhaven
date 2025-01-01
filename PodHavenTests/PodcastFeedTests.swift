@@ -9,10 +9,7 @@ import Testing
 actor PodcastFeedTests {
   @Test("parsing the Pod Save America feed")
   func parsePodSaveAmericaFeed() async throws {
-    let url = Bundle.main.url(
-      forResource: "pod_save_america",
-      withExtension: "rss"
-    )!
+    let url = Bundle.main.url(forResource: "pod_save_america", withExtension: "rss")!
     let parseResult = await PodcastFeed.parse(url)
     let feed = parseResult.isSuccessfulWith()
     let unsavedPodcast = feed?.toUnsavedPodcast(oldFeedURL: URL.valid(), oldTitle: "OldTitle")
@@ -23,20 +20,14 @@ actor PodcastFeedTests {
 
   @Test("parsing the invalid Game Informer feed")
   func parseInvalidGameInformerFeed() async {
-    let url = Bundle.main.url(
-      forResource: "game_informer",
-      withExtension: "rss"
-    )!
+    let url = Bundle.main.url(forResource: "game_informer_invalid", withExtension: "rss")!
     let parseResult = await PodcastFeed.parse(url)
     #expect(parseResult.isUnparseable)
   }
 
   @Test("parsing the Land of the Giants")
   func parseLandOfTheGiantsFeed() async throws {
-    let url = Bundle.main.url(
-      forResource: "land_of_the_giants",
-      withExtension: "rss"
-    )!
+    let url = Bundle.main.url(forResource: "land_of_the_giants", withExtension: "rss")!
     let parseResult = await PodcastFeed.parse(url)
     let feed = parseResult.isSuccessfulWith()
     #expect(feed?.title == "Land of the Giants")
