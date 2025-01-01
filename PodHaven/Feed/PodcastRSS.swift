@@ -3,7 +3,7 @@
 import Foundation
 import XMLCoder
 
-struct PodcastRSS: Codable, Sendable {
+struct PodcastRSS: Decodable, Sendable {
   // MARK: - Static Parsing Methods
 
   static func parse(_ url: URL) async throws -> Podcast {
@@ -25,16 +25,31 @@ struct PodcastRSS: Codable, Sendable {
 
   // MARK: - Models
 
-  struct Podcast: Codable, Sendable {
-    let title: String
-    let description: String
+  struct Podcast: Decodable, Sendable {
+    let title: String?
+    let description: String?
     let episodes: [Episode]
-    let itunesSummary: String?
+    let iTunes: iTunesNamespace
+
+    struct iTunesNamespace: Codable, Sendable {
+      let summary: String?
+
+      enum CodingKeys: String, CodingKey {
+        case summary = "itunes:summary"
+      }
+    }
 
     enum CodingKeys: String, CodingKey {
       case title, description
       case episodes = "item"
-      case itunesSummary = "itunes:summary"
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      title = try container.decodeIfPresent(String.self, forKey: .title)
+      description = try container.decodeIfPresent(String.self, forKey: .description)
+      episodes = try container.decode([Episode].self, forKey: .episodes)
+      iTunes = try iTunesNamespace.init(from: decoder)
     }
   }
 
