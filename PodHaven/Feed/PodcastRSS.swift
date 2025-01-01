@@ -25,12 +25,23 @@ struct PodcastRSS: Decodable, Sendable {
 
   // MARK: - Models
 
+  @dynamicMemberLookup
   struct Podcast: Decodable, Sendable {
-    let title: String?
-    let description: String?
-    let episodes: [Episode]
-    let iTunes: iTunesNamespace
+    // Mark: - Attributes
 
+    struct TopLevelValues: Decodable, Sendable {
+      let title: String?
+      let description: String?
+      let episodes: [Episode]
+
+      enum CodingKeys: String, CodingKey {
+        case title, description
+        case episodes = "item"
+      }
+    }
+    private let values: TopLevelValues
+
+    let iTunes: iTunesNamespace
     struct iTunesNamespace: Codable, Sendable {
       let summary: String?
 
@@ -39,16 +50,14 @@ struct PodcastRSS: Decodable, Sendable {
       }
     }
 
-    enum CodingKeys: String, CodingKey {
-      case title, description
-      case episodes = "item"
+    // MARK: - Meta
+
+    subscript<T>(dynamicMember keyPath: KeyPath<TopLevelValues, T>) -> T {
+      values[keyPath: keyPath]
     }
 
     init(from decoder: Decoder) throws {
-      let container = try decoder.container(keyedBy: CodingKeys.self)
-      title = try container.decodeIfPresent(String.self, forKey: .title)
-      description = try container.decodeIfPresent(String.self, forKey: .description)
-      episodes = try container.decodeIfPresent([Episode].self, forKey: .episodes) ?? []
+      values = try TopLevelValues(from: decoder)
       iTunes = try iTunesNamespace(from: decoder)
     }
   }
@@ -56,8 +65,6 @@ struct PodcastRSS: Decodable, Sendable {
   struct Episode: Codable, Sendable {
     let title: String
   }
-
-  // MARK: - Private
 
   private let channel: Podcast
 }
