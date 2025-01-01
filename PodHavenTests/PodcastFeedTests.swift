@@ -15,9 +15,10 @@ actor PodcastFeedTests {
     )!
     let parseResult = await PodcastFeed.parse(url)
     let feed = parseResult.isSuccessfulWith()
-    #expect(feed?.title == "Pod Save America")
-    #expect(feed?.link == URL(string: "https://crooked.com"))
-    #expect(feed?.image?.absoluteString.contains("simplecastcdn") != nil)
+    let unsavedPodcast = feed?.toUnsavedPodcast(oldFeedURL: URL.valid(), oldTitle: "OldTitle")
+    #expect(unsavedPodcast?.title == "Pod Save America")
+    #expect(unsavedPodcast?.link == URL(string: "https://crooked.com"))
+    #expect(unsavedPodcast?.image?.absoluteString.contains("simplecastcdn") != nil)
   }
 
   @Test("parsing the invalid Game Informer feed")

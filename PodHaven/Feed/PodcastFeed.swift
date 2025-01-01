@@ -6,7 +6,7 @@ import Foundation
 
 typealias ParseResult = Result<PodcastFeed, FeedError>
 
-struct PodcastFeedItem: Sendable {
+struct EpisodeFeed: Sendable {
   let guid: String
   let media: URL
 
@@ -14,10 +14,10 @@ struct PodcastFeedItem: Sendable {
 
   fileprivate init(rssFeedItem: RSSFeedItem) throws {
     guard let feedItemGUID = rssFeedItem.guid, let guid = feedItemGUID.value
-    else { throw FeedError.failedParse("PodcastFeedItem requires a GUID") }
+    else { throw FeedError.failedParse("EpisodeFeed requires a GUID") }
     guard let urlString = rssFeedItem.enclosure?.attributes?.url,
       let media = try? URL(string: urlString)?.convertToValidURL()
-    else { throw FeedError.failedParse("PodcastFeedItem requires media URL") }
+    else { throw FeedError.failedParse("EpisodeFeed requires media URL") }
     self.rssFeedItem = rssFeedItem
     self.guid = guid
     self.media = media
@@ -113,7 +113,7 @@ struct PodcastFeed: Sendable, Equatable {
 
   // MARK: - Instance Definition
 
-  let items: [PodcastFeedItem]
+  let items: [EpisodeFeed]
 
   private let rssFeed: RSSFeed
 
@@ -121,7 +121,7 @@ struct PodcastFeed: Sendable, Equatable {
     self.rssFeed = rssFeed
     self.items = (rssFeed.items ?? [])
       .compactMap { rssFeedItem in
-        try? PodcastFeedItem(rssFeedItem: rssFeedItem)
+        try? EpisodeFeed(rssFeedItem: rssFeedItem)
       }
   }
 
