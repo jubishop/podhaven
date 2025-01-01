@@ -8,6 +8,7 @@ enum Helpers {
   private static let seriesFiles = [
     "pod_save_america": "https://feeds.simplecast.com/dxZsm5kX",
     "land_of_the_giants": "https://feeds.megaphone.fm/landofthegiants",
+    "changelog": "https://changelog.com/podcast/feed",
   ]
   private static let opmlFiles = ["large", "small"]
 
