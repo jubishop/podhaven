@@ -23,9 +23,7 @@ struct PodcastFeedItem: Sendable {
     self.media = media
   }
 
-  func toUnsavedEpisode(mergingExisting existingEpisode: Episode? = nil) throws
-    -> UnsavedEpisode
-  {
+  func toUnsavedEpisode(mergingExisting existingEpisode: Episode? = nil) throws -> UnsavedEpisode {
     precondition(
       existingEpisode == nil || existingEpisode?.guid == guid,
       "Merging two episodes with different guids?"
@@ -53,32 +51,34 @@ struct PodcastFeedItem: Sendable {
     )
   }
 
-  var pubDate: Date? {
+  // MARK: - Private Helpers
+
+  private var pubDate: Date? {
     rssFeedItem.pubDate
   }
 
-  var title: String? {
+  private var title: String? {
     rssFeedItem.title ?? rssFeedItem.iTunes?.iTunesTitle
   }
 
-  var description: String? {
+  private var description: String? {
     rssFeedItem.description ?? rssFeedItem.iTunes?.iTunesSummary
   }
 
-  var link: URL? {
+  private var link: URL? {
     guard let urlString = rssFeedItem.link, let url = URL(string: urlString)
     else { return nil }
     return url
   }
 
-  var image: URL? {
+  private var image: URL? {
     guard let urlString = rssFeedItem.iTunes?.iTunesImage?.attributes?.href,
       let url = URL(string: urlString)
     else { return nil }
     return url
   }
 
-  var duration: CMTime? {
+  private var duration: CMTime? {
     guard let timeInterval = rssFeedItem.iTunes?.iTunesDuration
     else { return nil }
     return CMTime.inSeconds(timeInterval)
@@ -125,17 +125,6 @@ struct PodcastFeed: Sendable, Equatable {
       }
   }
 
-  func toUnsavedPodcast(mergingExisting existingPodcast: Podcast) -> UnsavedPodcast? {
-    try? UnsavedPodcast(
-      feedURL: feedURL ?? existingPodcast.feedURL,
-      title: title ?? existingPodcast.title,
-      link: link ?? existingPodcast.link,
-      image: image ?? existingPodcast.image,
-      description: description ?? existingPodcast.description,
-      lastUpdate: existingPodcast.lastUpdate
-    )
-  }
-
   func toUnsavedPodcast(oldFeedURL: URL, oldTitle: String) -> UnsavedPodcast? {
     try? toUnsavedPodcast(
       mergingExisting: Podcast(
@@ -163,14 +152,27 @@ struct PodcastFeed: Sendable, Equatable {
     rssFeed.title ?? rssFeed.iTunes?.iTunesTitle
   }
 
-  var link: URL? {
+  // MARK: - Private Helpers
+
+  private func toUnsavedPodcast(mergingExisting existingPodcast: Podcast) -> UnsavedPodcast? {
+    try? UnsavedPodcast(
+      feedURL: feedURL ?? existingPodcast.feedURL,
+      title: title ?? existingPodcast.title,
+      link: link ?? existingPodcast.link,
+      image: image ?? existingPodcast.image,
+      description: description ?? existingPodcast.description,
+      lastUpdate: existingPodcast.lastUpdate
+    )
+  }
+
+  private var link: URL? {
     guard let link = rssFeed.link, let url = URL(string: link)
     else { return nil }
 
     return url
   }
 
-  var image: URL? {
+  private var image: URL? {
     guard
       let image = rssFeed.image?.url
         ?? rssFeed.iTunes?.iTunesImage?.attributes?.href,
@@ -180,7 +182,7 @@ struct PodcastFeed: Sendable, Equatable {
     return url
   }
 
-  var description: String? {
+  private var description: String? {
     rssFeed.description ?? rssFeed.iTunes?.iTunesSummary
   }
 
