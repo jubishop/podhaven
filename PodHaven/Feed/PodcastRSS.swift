@@ -14,7 +14,8 @@ struct PodcastRSS: Codable, Sendable {
   static func parse(_ data: Data) async throws -> Podcast {
     try await withCheckedThrowingContinuation { continuation in
       do {
-        let podcastRSS = try XMLDecoder().decode(PodcastRSS.self, from: data)
+        let decoder = XMLDecoder()
+        let podcastRSS = try decoder.decode(PodcastRSS.self, from: data)
         continuation.resume(returning: podcastRSS.channel)
       } catch {
         continuation.resume(throwing: error)
@@ -26,9 +27,15 @@ struct PodcastRSS: Codable, Sendable {
 
   struct Podcast: Codable, Sendable {
     let title: String
+    let description: String
+    let episodes: [Episode]
+    let itunesSummary: String?
 
-    var episodes: [Episode] { item }
-    private let item: [Episode]
+    enum CodingKeys: String, CodingKey {
+      case title, description
+      case episodes = "item"
+      case itunesSummary = "itunes:summary"
+    }
   }
 
   struct Episode: Codable, Sendable {
