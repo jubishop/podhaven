@@ -48,8 +48,8 @@ struct PodcastRSS: Decodable, Sendable {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       title = try container.decodeIfPresent(String.self, forKey: .title)
       description = try container.decodeIfPresent(String.self, forKey: .description)
-      episodes = try container.decode([Episode].self, forKey: .episodes)
-      iTunes = try iTunesNamespace.init(from: decoder)
+      episodes = try container.decodeIfPresent([Episode].self, forKey: .episodes) ?? []
+      iTunes = try iTunesNamespace(from: decoder)
     }
   }
 
