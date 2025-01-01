@@ -32,7 +32,7 @@ struct PodcastRSS: Decodable, Sendable {
     struct TopLevelValues: Decodable, Sendable {
       let title: String?
       let description: String?
-      let episodes: [Episode]
+      let episodes: [Episode]?
 
       enum CodingKeys: String, CodingKey {
         case title, description
