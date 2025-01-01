@@ -5,9 +5,7 @@ import SwiftUI
 struct ContentView: View {
   @State private var navigation = Navigation.shared
   @State private var fullStackHeight: CGFloat = 0
-  @State private var tabHeights = BindableDictionary<Navigation.Tab, CGFloat>(
-    defaultValue: 0
-  )
+  @State private var tabHeights = BindableDictionary<Navigation.Tab, CGFloat>(defaultValue: 0)
 
   var body: some View {
     TabView(selection: $navigation.currentTab) {
