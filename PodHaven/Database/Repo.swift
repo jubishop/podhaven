@@ -75,10 +75,9 @@ struct Repo: Sendable {
   // MARK: - Series Writers
 
   @discardableResult
-  func insertSeries(
-    _ unsavedPodcast: UnsavedPodcast,
-    unsavedEpisodes: [UnsavedEpisode] = []
-  ) async throws -> PodcastSeries {
+  func insertSeries(_ unsavedPodcast: UnsavedPodcast, unsavedEpisodes: [UnsavedEpisode] = [])
+    async throws -> PodcastSeries
+  {
     try await appDB.db.write { db in
       let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
       var episodes: IdentifiedArray<String, Episode> = IdentifiedArray(
@@ -120,10 +119,7 @@ struct Repo: Sendable {
 
   // MARK: - Episode Writers
 
-  func updateCurrentTime(
-    _ episodeID: Int64,
-    _ currentTime: CMTime
-  ) async throws {
+  func updateCurrentTime(_ episodeID: Int64, _ currentTime: CMTime) async throws {
     _ = try await appDB.db.write { db in
       try Episode
         .filter(id: episodeID)
@@ -154,9 +150,8 @@ struct Repo: Sendable {
 
   func dequeue(_ episodeID: Int64) async throws {
     try await appDB.db.write { db in
-      guard let oldPosition = try _fetchOldPosition(db, for: episodeID) else {
-        return
-      }
+      guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
+      else { return }
 
       try _moveInQueue(db, episodeID: episodeID, from: oldPosition, to: Int.max)
       try Episode.filter(id: episodeID)
@@ -188,9 +183,7 @@ struct Repo: Sendable {
 
   //MARK: - Private Queue Helpers
 
-  private func _fetchOldPosition(_ db: Database, for episodeID: Int64) throws
-    -> Int?
-  {
+  private func _fetchOldPosition(_ db: Database, for episodeID: Int64) throws -> Int? {
     precondition(
       db.isInsideTransaction,
       "fetchOldPosition method requires a transaction"
@@ -212,8 +205,7 @@ struct Repo: Sendable {
       "insertToQueue method requires a transaction"
     )
     let oldPosition = try _fetchOldPosition(db, for: episodeID) ?? Int.max
-    let computedNewPosition =
-      newPosition > oldPosition ? newPosition - 1 : newPosition
+    let computedNewPosition = newPosition > oldPosition ? newPosition - 1 : newPosition
     try _moveInQueue(
       db,
       episodeID: episodeID,
@@ -242,13 +234,13 @@ struct Repo: Sendable {
         AppDB.queueOrderColumn > oldPosition
           && AppDB.queueOrderColumn <= newPosition
       )
-      .updateAll(db, AppDB.queueOrderColumn.set(to: AppDB.queueOrderColumn - 1))
+      .updateAll(db, AppDB.queueOrderColumn -= 1)
     } else {
       try Episode.filter(
         AppDB.queueOrderColumn >= newPosition
           && AppDB.queueOrderColumn < oldPosition
       )
-      .updateAll(db, AppDB.queueOrderColumn.set(to: AppDB.queueOrderColumn + 1))
+      .updateAll(db, AppDB.queueOrderColumn += 1)
     }
   }
 }
