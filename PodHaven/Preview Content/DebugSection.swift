@@ -28,7 +28,7 @@ struct DebugSection: View {
       )
       Button(
         action: {
-          Task { try await Helpers.populateQueue() }
+          Task { try await PreviewHelpers.populateQueue() }
         },
         label: {
           Text("Populate Queue")
@@ -38,7 +38,7 @@ struct DebugSection: View {
   }
 
   func playInvalidMedia() async throws {
-    let podcastEpisode = try await Helpers.loadPodcastEpisode()
+    let podcastEpisode = try await PreviewHelpers.loadPodcastEpisode()
     await PlayManager.shared.load(
       PodcastEpisode(
         podcast: podcastEpisode.podcast,

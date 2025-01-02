@@ -94,7 +94,13 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     let avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.replaceCurrentItem(with: avPlayerItem)
 
-    await setOnDeck(podcastEpisode, duration)
+    do {
+      try await setOnDeck(podcastEpisode, duration)
+    } catch {
+      await Alert.shared("Failed to set \(podcastEpisode.episode.toString) on deck")
+      stop()
+      return
+    }
 
     status = .active
     startTracking()
@@ -148,24 +154,17 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - Private State Management
 
-  private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime)
-    async
-  {
+  private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async throws {
     guard podcastEpisode != onDeck else { return }
 
     if let episodeID = onDeck?.id {
-      try? await Repo.shared.unshiftToQueue(episodeID)
+      try await Repo.shared.unshiftToQueue(episodeID)
     }
 
-    try? await Repo.shared.dequeue(podcastEpisode.id)
+    try await Repo.shared.dequeue(podcastEpisode.id)
     onDeck = podcastEpisode
 
-    var image: UIImage?
-    if let imageURL = podcastEpisode.episode.image
-      ?? podcastEpisode.podcast.image
-    {
-      image = try? await Images.shared.fetchImage(imageURL)
-    }
+    let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
       feedURL: podcastEpisode.podcast.feedURL,
       guid: podcastEpisode.episode.guid,
@@ -173,7 +172,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       podcastURL: podcastEpisode.podcast.link,
       episodeTitle: podcastEpisode.episode.title,
       duration: duration,
-      image: image,
+      image: try await Images.shared.fetchImage(imageURL),
       mediaURL: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate,
       key: accessKey

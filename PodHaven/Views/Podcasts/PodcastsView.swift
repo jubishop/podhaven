@@ -30,7 +30,7 @@ struct PodcastsView: View {
     PodcastsView()
       .task {
         do {
-          try await Helpers.importPodcasts()
+          try await PreviewHelpers.importPodcasts()
         } catch { fatalError("Could not preview podcasts view: \(error)") }
       }
   }

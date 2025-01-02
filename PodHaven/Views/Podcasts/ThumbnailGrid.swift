@@ -36,28 +36,24 @@ struct PodcastThumbnail: View {
   var body: some View {
     VStack {
       Group {
-        if let image = podcast.image {
-          LazyImage(url: image) { state in
-            if let image = state.image {
-              image
-                .resizable()
+        LazyImage(url: podcast.image) { state in
+          if let image = state.image {
+            image
+              .resizable()
+              .cornerRadius(cornerRadius)
+          } else if state.error != nil {
+            NoImageThumbnail(width: width, cornerRadius: cornerRadius)
+          } else {
+            ZStack {
+              Color.gray
                 .cornerRadius(cornerRadius)
-            } else if state.error != nil {
-              NoImageThumbnail(width: width, cornerRadius: cornerRadius)
-            } else {
-              ZStack {
-                Color.gray
-                  .cornerRadius(cornerRadius)
-                Image(systemName: "photo")
-                  .resizable()
-                  .scaledToFit()
-                  .frame(width: width / 2, height: width / 2)
-                  .foregroundColor(.white.opacity(0.8))
-              }
+              Image(systemName: "photo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: width / 2, height: width / 2)
+                .foregroundColor(.white.opacity(0.8))
             }
           }
-        } else {
-          NoImageThumbnail(width: width, cornerRadius: cornerRadius)
         }
       }
       .onGeometryChange(for: CGFloat.self) { geometry in
@@ -105,12 +101,11 @@ struct ThumbnailGrid: View {
   }
   .task {
     do {
-      try await Helpers.importPodcasts(12)
+      try await PreviewHelpers.importPodcasts(12)
 
       var allPodcasts = try await Repo.shared.allPodcasts().shuffled()
       let shuffled = Array(0..<12).shuffled()
-      allPodcasts[shuffled[0]].image = nil
-      allPodcasts[shuffled[1]].image = URL(
+      allPodcasts[shuffled[0]].image = URL(
         string: "http://nope.com/0.jpg"
       )!
       podcasts = IdentifiedArray(

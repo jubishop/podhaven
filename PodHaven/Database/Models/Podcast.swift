@@ -6,24 +6,23 @@ import GRDB
 struct UnsavedPodcast: Savable {
   var feedURL: URL
   var title: String
-  var link: URL?
-  var image: URL?
-  var description: String?
+  var link: URL
+  var image: URL
+  var description: String
   var lastUpdate: Date
 
-  // TODO: Make these all required
   init(
     feedURL: URL,
     title: String,
-    link: URL? = nil,
-    image: URL? = nil,
-    description: String? = nil,
+    link: URL,
+    image: URL,
+    description: String,
     lastUpdate: Date? = nil
   ) throws {
     self.feedURL = try feedURL.convertToValidURL()
     self.title = title
-    self.link = try? link?.convertToValidURL()
-    self.image = try? image?.convertToValidURL()
+    self.link = try link.convertToValidURL()
+    self.image = try image.convertToValidURL()
     self.description = description
     self.lastUpdate = lastUpdate ?? Date()
   }

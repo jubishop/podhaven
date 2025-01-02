@@ -17,7 +17,7 @@ actor PodcastTests {
   @Test("that a podcast can be created, fetched, and deleted")
   func createSinglePodcast() async throws {
     let url = URL(string: "https://example.com/data")!
-    let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
+    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: url)
 
     let podcastSeries = try await repo.insertSeries(unsavedPodcast)
     let podcast = podcastSeries.podcast
@@ -70,39 +70,42 @@ actor PodcastTests {
     // Bad scheme
     await #expect(throws: URLError.self) {
       try await repo.insertSeries(
-        UnsavedPodcast(
-          feedURL: URL(string: "file://example.com/data")!,
-          title: "Title"
-        )
+        TestHelpers.unsavedPodcast(feedURL: URL(string: "file://example.com/data")!)
       )
     }
 
     // Not absolute
     await #expect(throws: URLError.self) {
       try await repo.insertSeries(
-        UnsavedPodcast(
-          feedURL: URL(string: "https:/path/to/data")!,
-          title: "Title"
-        )
+        TestHelpers.unsavedPodcast(feedURL: URL(string: "https:/path/to/data")!)
       )
     }
   }
 
-  @Test("that a podcast feedURL is properly modified as needed")
+  @Test("that a podcast feedURL converts http to https as needed")
   func convertFeedURLToHTTPS() async throws {
     let url = URL(string: "http://example.com/data#fragment")!
-    let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
+    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: url)
     let podcastSeries = try await repo.insertSeries(unsavedPodcast)
     let podcast = podcastSeries.podcast
-    #expect(podcast.feedURL == URL(string: "https://example.com/data")!)
+    #expect(podcast.feedURL == URL(string: "https://example.com/data#fragment")!)
+  }
+
+  @Test("that a podcast feedURL adds https as needed")
+  func convertFeedURLAddsHTTPS() async throws {
+    let url = URL(string: "example.com/data#fragment")!
+    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: url)
+    let podcastSeries = try await repo.insertSeries(unsavedPodcast)
+    let podcast = podcastSeries.podcast
+    #expect(podcast.feedURL == URL(string: "https://example.com/data#fragment")!)
   }
 
   @Test("that a podcast feedURL replaces existing entry")
   func updateExistingPodcastOnConflict() async throws {
     let url = URL(string: "https://example.com/data")!
-    let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
+    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: url, title: "Old Title")
     _ = try await repo.insertSeries(unsavedPodcast)
-    let unsavedPodcast2 = try UnsavedPodcast(feedURL: url, title: "New Title")
+    let unsavedPodcast2 = try TestHelpers.unsavedPodcast(feedURL: url, title: "New Title")
     _ = try await repo.insertSeries(unsavedPodcast2)
 
     let fetchedPodcast = try await repo.db.read { db in

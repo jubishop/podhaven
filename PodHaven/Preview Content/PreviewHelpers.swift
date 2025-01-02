@@ -4,7 +4,7 @@ import Foundation
 import GRDB
 import OPML
 
-enum Helpers {
+enum PreviewHelpers {
   private static let seriesFiles = [
     "pod_save_america": "https://feeds.simplecast.com/dxZsm5kX",
     "land_of_the_giants": "https://feeds.megaphone.fm/landofthegiants",
@@ -40,12 +40,10 @@ enum Helpers {
     for await feedResult in await feedManager.feeds() {
       switch feedResult {
       case .success(let podcastFeed):
-        if let unsavedPodcast = podcastFeed.toUnsavedPodcast(),
-          (try? await Repo.shared.insertSeries(
-            unsavedPodcast,
-            unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
-          )) != nil
-        {
+        if (try? await Repo.shared.insertSeries(
+          try podcastFeed.toUnsavedPodcast(),
+          unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+        )) != nil {
           numberRemaining -= 1
         }
       case .failure(_):
@@ -71,8 +69,7 @@ enum Helpers {
     let podcastFeed = try await PodcastFeed.parse(
       Bundle.main.url(forResource: fileName, withExtension: "rss")!
     )
-    guard let unsavedPodcast = podcastFeed.toUnsavedPodcast()
-    else { throw DBError.seriesNotFound(0) }
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
     return try await Repo.shared.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }

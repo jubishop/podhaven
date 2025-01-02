@@ -12,9 +12,7 @@ struct SeriesView: View {
 
   var body: some View {
     VStack {
-      if let description = viewModel.podcast.description {
-        HTMLText(description).lineLimit(3).padding()
-      }
+      HTMLText(viewModel.podcast.description).lineLimit(3).padding()
       Text("Last updated: \(viewModel.podcast.formattedLastUpdate)")
       List(viewModel.episodes) { episode in
         EpisodeListView(
@@ -65,6 +63,6 @@ struct SeriesView: View {
     }
   }
   .task {
-    podcast = try? await Helpers.loadSeries().podcast
+    podcast = try? await PreviewHelpers.loadSeries().podcast
   }
 }

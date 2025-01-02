@@ -18,25 +18,16 @@ actor EpisodeTests {
   @Test("that episodes are created and fetched in the right order")
   func createSingleEpisode() async throws {
     let url = URL(string: "https://example.com/data")!
-    let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
+    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: url)
 
-    let newestUnsavedEpisode = try UnsavedEpisode(guid: "guid", title: "title", media: url)
-    let oldUnsavedEpisode = try UnsavedEpisode(
-      guid: "guid2",
-      title: "title",
-      media: url,
+    let newestUnsavedEpisode = try TestHelpers.unsavedEpisode()
+    let oldUnsavedEpisode = try TestHelpers.unsavedEpisode(
       pubDate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
     )
-    let middleUnsavedEpisode = try UnsavedEpisode(
-      guid: "guid3",
-      title: "title",
-      media: url,
+    let middleUnsavedEpisode = try TestHelpers.unsavedEpisode(
       pubDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())
     )
-    let ancientUnsavedEpisode = try UnsavedEpisode(
-      guid: "guid4",
-      title: "title",
-      media: url,
+    let ancientUnsavedEpisode = try TestHelpers.unsavedEpisode(
       pubDate: Calendar.current.date(byAdding: .day, value: -1000, to: Date())
     )
 
@@ -69,13 +60,8 @@ actor EpisodeTests {
     let guid = "guid"
     let cmTime = CMTime.inSeconds(30)
 
-    let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
-    let unsavedEpisode = try UnsavedEpisode(
-      guid: guid,
-      title: "title",
-      media: url,
-      currentTime: cmTime
-    )
+    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: url)
+    let unsavedEpisode = try TestHelpers.unsavedEpisode(guid: guid, currentTime: cmTime)
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]
@@ -98,11 +84,11 @@ actor EpisodeTests {
 
   @Test("that an episode can be fetched by its media url")
   func fetchEpisodeByMediaURL() async throws {
-    let unsavedPodcast = try UnsavedPodcast(
+    let unsavedPodcast = try TestHelpers.unsavedPodcast(
       feedURL: URL.valid(),
       title: "Title"
     )
-    let unsavedEpisode = try UnsavedEpisode(
+    let unsavedEpisode = try TestHelpers.unsavedEpisode(
       guid: String.random(),
       title: "title",
       media: URL.valid()
@@ -118,16 +104,8 @@ actor EpisodeTests {
 
   @Test("that an episode can be marked complete")
   func markEpisodeComplete() async throws {
-    let unsavedPodcast = try UnsavedPodcast(
-      feedURL: URL.valid(),
-      title: "Title"
-    )
-    let unsavedEpisode = try UnsavedEpisode(
-      guid: String.random(),
-      title: "title",
-      media: URL.valid(),
-      currentTime: CMTime.inSeconds(60)
-    )
+    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    let unsavedEpisode = try TestHelpers.unsavedEpisode(currentTime: CMTime.inSeconds(60))
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]

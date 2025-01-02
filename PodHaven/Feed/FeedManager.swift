@@ -57,12 +57,7 @@ final actor FeedManager: Sendable {
     case .failure(let error):
       throw error
     case .success(let podcastFeed):
-      guard var newPodcast = podcastFeed.toPodcast(mergingExisting: podcastSeries.podcast)
-      else {
-        throw FeedError.failedConversion(
-          "Failed to refresh series: \(podcastSeries.podcast.toString)"
-        )
-      }
+      var newPodcast = try podcastFeed.toPodcast(mergingExisting: podcastSeries.podcast)
       var unsavedEpisodes: [UnsavedEpisode] = []
       var existingEpisodes: [Episode] = []
       for feedItem in podcastFeed.episodes {

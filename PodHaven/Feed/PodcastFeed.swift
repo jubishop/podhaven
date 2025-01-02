@@ -3,7 +3,7 @@
 import AVFoundation
 import Foundation
 
-struct EpisodeFeed: Sendable {
+struct EpisodeFeed: Sendable, Equatable {
   let guid: String
   let media: URL
 
@@ -12,6 +12,7 @@ struct EpisodeFeed: Sendable {
   fileprivate init(rssEpisode: PodcastRSS.Episode) throws {
     guard let media = URL(string: rssEpisode.enclosure.url)
     else { throw FeedError.failedConversion("EpisodeFeed invalid media URL") }
+
     self.rssEpisode = rssEpisode
     self.guid = rssEpisode.guid
     self.media = media
@@ -65,16 +66,22 @@ struct EpisodeFeed: Sendable {
   private var duration: CMTime? {
     guard let timeComponents = rssEpisode.iTunes.duration?.split(separator: ":"),
       timeComponents.count <= 3
-    else { return CMTime.zero }
+    else { return nil }
 
     var seconds = 0
     var multiplier = 1
     for value in timeComponents.reversed() {
-      guard let value = Int(value) else { return CMTime.zero }
+      guard let value = Int(value) else { return nil }
       seconds += multiplier * value
       multiplier *= 60
     }
     return CMTime.inSeconds(Double(seconds))
+  }
+
+  // MARK: - Equatable
+
+  static func == (lhs: EpisodeFeed, rhs: EpisodeFeed) -> Bool {
+    lhs.guid == rhs.guid
   }
 }
 
@@ -97,31 +104,43 @@ struct PodcastFeed: Sendable, Equatable {
 
   private let rssPodcast: PodcastRSS.Podcast
   private let feedURL: URL
+  private let link: URL
+  private let image: URL
 
   private init(rssPodcast: PodcastRSS.Podcast) throws {
     guard let urlString = rssPodcast.atomLinks.first(where: { $0.rel == "self" })?.href,
       let feedURL = URL(string: urlString)
     else { throw FeedError.failedConversion("PodcastFeed invalid feed URL") }
+    guard let link = URL(string: rssPodcast.link)
+    else { throw FeedError.failedConversion("PodcastFeed invalid link URL") }
+    guard let image = URL(string: rssPodcast.iTunes.image.href)
+    else { throw FeedError.failedConversion("PodcastFeed invalid media URL") }
+
     self.rssPodcast = rssPodcast
     self.feedURL = feedURL
+    self.link = link
+    self.image = image
     self.episodes = rssPodcast.episodes.compactMap { rssEpisode in
       try? EpisodeFeed(rssEpisode: rssEpisode)
     }
   }
 
-  func toPodcast(mergingExisting existingPodcast: Podcast) -> Podcast? {
-    guard let unsavedPodcast = toUnsavedPodcast(mergingExisting: existingPodcast)
-    else { return nil }
-
+  func toPodcast(mergingExisting existingPodcast: Podcast) throws -> Podcast {
+    let unsavedPodcast = try toUnsavedPodcast(mergingExisting: existingPodcast)
     return Podcast(id: existingPodcast.id, from: unsavedPodcast)
   }
 
-  func toUnsavedPodcast(mergingExisting existingPodcast: Podcast? = nil) -> UnsavedPodcast? {
-    try? UnsavedPodcast(
+  func toUnsavedPodcast(mergingExisting existingPodcast: Podcast? = nil) throws -> UnsavedPodcast {
+    precondition(
+      existingPodcast == nil || existingPodcast?.feedURL == feedURL,
+      "Merging two podcasts with different feedURLs?"
+    )
+
+    return try UnsavedPodcast(
       feedURL: newFeedURL ?? feedURL,
       title: rssPodcast.title,
-      link: link ?? existingPodcast?.link,
-      image: image ?? existingPodcast?.image,
+      link: link,
+      image: image,
       description: rssPodcast.description,
       lastUpdate: existingPodcast?.lastUpdate
     )
@@ -135,20 +154,6 @@ struct PodcastFeed: Sendable, Equatable {
     else { return nil }
 
     return newFeedURL
-  }
-
-  private var link: URL? {
-    guard let url = URL(string: rssPodcast.link)
-    else { return nil }
-
-    return url
-  }
-
-  private var image: URL? {
-    guard let url = URL(string: rssPodcast.iTunes.image.href)
-    else { return nil }
-
-    return url
   }
 
   // MARK: - Equatable

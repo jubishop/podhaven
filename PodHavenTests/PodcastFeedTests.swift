@@ -12,10 +12,10 @@ actor PodcastFeedTests {
   func parsePodSaveAmericaFeed() async throws {
     let url = Bundle.main.url(forResource: "pod_save_america", withExtension: "rss")!
     let feed = try await PodcastFeed.parse(url)
-    let unsavedPodcast = feed.toUnsavedPodcast()
-    #expect(unsavedPodcast?.title == "Pod Save America")
-    #expect(unsavedPodcast?.link == URL(string: "https://crooked.com"))
-    #expect(unsavedPodcast?.image?.absoluteString.contains("simplecastcdn") != nil)
+    let unsavedPodcast = try feed.toUnsavedPodcast()
+    #expect(unsavedPodcast.title == "Pod Save America")
+    #expect(unsavedPodcast.link == URL(string: "https://crooked.com"))
+    #expect(unsavedPodcast.image.absoluteString.contains("simplecastcdn") != nil)
     let unsavedEpisode = try feed.episodes.first!.toUnsavedEpisode()
     #expect(unsavedEpisode.duration == CMTime.inSeconds(2643))
   }
@@ -32,7 +32,7 @@ actor PodcastFeedTests {
   func parseLandOfTheGiantsFeed() async throws {
     let url = Bundle.main.url(forResource: "land_of_the_giants", withExtension: "rss")!
     let feed = try await PodcastFeed.parse(url)
-    let unsavedPodcast = feed.toUnsavedPodcast()
-    #expect(unsavedPodcast?.title == "Land of the Giants")
+    let unsavedPodcast = try feed.toUnsavedPodcast()
+    #expect(unsavedPodcast.title == "Land of the Giants")
   }
 }

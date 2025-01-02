@@ -52,6 +52,6 @@ struct EpisodeView: View {
     }
   }
   .task {
-    podcastEpisode = try? await Helpers.loadPodcastEpisode()
+    podcastEpisode = try? await PreviewHelpers.loadPodcastEpisode()
   }
 }
