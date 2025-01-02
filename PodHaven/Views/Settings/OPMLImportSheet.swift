@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2024
 
-import OPML
 import SwiftUI
 
 struct OPMLImportSheet: View {
@@ -64,16 +63,16 @@ struct OPMLImportSheet: View {
   Preview {
     Form {
       Button("Import Large") {
-        Task { await viewModel.importOPMLFileInSimulator("large") }
+        Task { try await viewModel.importOPMLFileInSimulator("large") }
       }
       Button("Import Small") {
-        Task { await viewModel.importOPMLFileInSimulator("small") }
+        Task { try await viewModel.importOPMLFileInSimulator("small") }
       }
       Button("Import Invalid") {
-        Task { await viewModel.importOPMLFileInSimulator("invalid") }
+        Task { try await viewModel.importOPMLFileInSimulator("invalid") }
       }
       Button("Import Empty") {
-        Task { await viewModel.importOPMLFileInSimulator("empty") }
+        Task { try await viewModel.importOPMLFileInSimulator("empty") }
       }
 
       #if DEBUG

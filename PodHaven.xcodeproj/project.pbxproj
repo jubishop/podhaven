@@ -12,7 +12,6 @@
 		8B14BBE32D0CB37A0007E89B /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8B14BBE22D0CB37A0007E89B /* IdentifiedCollections */; };
 		8B2AC03D2D25D2F700DB7FE5 /* XMLCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 8B2AC03C2D25D2F700DB7FE5 /* XMLCoder */; };
 		8B2AC0472D25D77900DB7FE5 /* XMLCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 8B2AC0462D25D77900DB7FE5 /* XMLCoder */; };
-		8B48491C2CF2E63600C67454 /* OPML in Frameworks */ = {isa = PBXBuildFile; productRef = 8B48491B2CF2E63600C67454 /* OPML */; };
 		8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DEE2D01722E00742C6C /* Nuke */; };
 		8B9E8DF12D01722E00742C6C /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DF02D01722E00742C6C /* NukeUI */; };
 		8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */; };
@@ -67,7 +66,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8B48491C2CF2E63600C67454 /* OPML in Frameworks */,
 				8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */,
 				8B2AC03D2D25D2F700DB7FE5 /* XMLCoder in Frameworks */,
 				8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */,
@@ -131,7 +129,6 @@
 			);
 			name = PodHaven;
 			packageProductDependencies = (
-				8B48491B2CF2E63600C67454 /* OPML */,
 				8B05D8FB2CF51C0B003AA19D /* GRDB */,
 				8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */,
 				8B9E8DEE2D01722E00742C6C /* Nuke */,
@@ -198,7 +195,6 @@
 			mainGroup = 8BD7F9172CF2A49000CEDAA7;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				8B81F4622CF2E5E600410163 /* XCRemoteSwiftPackageReference "opml" */,
 				8BD0CF382CF51BD900BD9236 /* XCRemoteSwiftPackageReference "GRDB" */,
 				8B2C9E5F2CF59FA800637544 /* XCRemoteSwiftPackageReference "swift-collections" */,
 				8B950BDB2D01720500E1D1AF /* XCRemoteSwiftPackageReference "Nuke" */,
@@ -584,14 +580,6 @@
 				kind = branch;
 			};
 		};
-		8B81F4622CF2E5E600410163 /* XCRemoteSwiftPackageReference "opml" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/pixel-foundry/opml";
-			requirement = {
-				branch = master;
-				kind = branch;
-			};
-		};
 		8B950BDB2D01720500E1D1AF /* XCRemoteSwiftPackageReference "Nuke" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kean/Nuke";
@@ -643,11 +631,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8B2AC03B2D25D2F700DB7FE5 /* XCRemoteSwiftPackageReference "XMLCoder" */;
 			productName = XMLCoder;
-		};
-		8B48491B2CF2E63600C67454 /* OPML */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 8B81F4622CF2E5E600410163 /* XCRemoteSwiftPackageReference "opml" */;
-			productName = OPML;
 		};
 		8B9E8DEE2D01722E00742C6C /* Nuke */ = {
 			isa = XCSwiftPackageProductDependency;

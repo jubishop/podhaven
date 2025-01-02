@@ -2,7 +2,6 @@
 
 import Foundation
 import GRDB
-import OPML
 
 enum PreviewHelpers {
   private static let seriesFiles = [
@@ -25,11 +24,11 @@ enum PreviewHelpers {
       forResource: fileName,
       withExtension: "opml"
     )!
-    let opml = try OPML(file: url)
+    let opml = try await PodcastOPML.parse(url)
 
     let feedManager = FeedManager()
-    for entry in opml.entries {
-      guard let feedURL = entry.feedURL,
+    for outline in opml.body.outlines {
+      guard let feedURL = URL(string: outline.xmlUrl),
         let feedURL = try? feedURL.convertToValidURL()
       else { continue }
       if allPodcasts[id: feedURL] != nil { continue }

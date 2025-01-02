@@ -6,17 +6,17 @@ import XMLCoder
 struct PodcastOPML: Decodable, Sendable {
   // MARK: - Static Parsing Methods
 
-  static func parse(_ url: URL) async throws -> [Feed] {
+  static func parse(_ url: URL) async throws -> PodcastOPML {
     let data = try Data(contentsOf: url)
     return try await parse(data)
   }
 
-  static func parse(_ data: Data) async throws -> [Feed] {
+  static func parse(_ data: Data) async throws -> PodcastOPML {
     try await withCheckedThrowingContinuation { continuation in
       do {
         let decoder = XMLDecoder()
         let podcastOPML = try decoder.decode(PodcastOPML.self, from: data)
-        continuation.resume(returning: podcastOPML.body.feeds)
+        continuation.resume(returning: podcastOPML)
       } catch {
         continuation.resume(throwing: error)
       }
@@ -25,17 +25,22 @@ struct PodcastOPML: Decodable, Sendable {
 
   // MARK: - Models
 
-  struct Feed: Decodable, Sendable {
+  struct Outline: Decodable, Sendable {
     let text: String
     let xmlUrl: String
   }
 
   struct Body: Decodable, Sendable {
-    let feeds: [Feed]
+    let outlines: [Outline]
 
     enum CodingKeys: String, CodingKey {
-      case feeds = "outline"
+      case outlines = "outline"
     }
   }
   let body: Body
+
+  struct Head: Decodable, Sendable {
+    let title: String?
+  }
+  let head: Head
 }

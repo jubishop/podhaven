@@ -10,10 +10,11 @@ actor PodcastOPMLTests {
   @Test("parsing large OPML file")
   func parseLargeOPMLFile() async throws {
     let url = Bundle.main.url(forResource: "large", withExtension: "opml")!
-    let feeds = try await PodcastOPML.parse(url)
-    #expect(feeds.count == 43)
-    #expect(feeds.first!.text == "Chasing Life")
-    #expect(feeds.first!.xmlUrl == "https://feeds.megaphone.fm/WMHY6124370245")
+    let opml = try await PodcastOPML.parse(url)
+    #expect(opml.head.title == "Superphonic Podcast Subscriptions")
+    #expect(opml.body.outlines.count == 43)
+    #expect(opml.body.outlines.first!.text == "Chasing Life")
+    #expect(opml.body.outlines.first!.xmlUrl == "https://feeds.megaphone.fm/WMHY6124370245")
   }
 
   @Test("parsing invalid OPML file")

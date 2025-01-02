@@ -23,7 +23,7 @@ struct OPMLView: View {
       isPresented: $viewModel.opmlImporting,
       allowedContentTypes: [viewModel.opmlType],
       onCompletion: { result in
-        Task { await viewModel.opmlFileImporterCompletion(result) }
+        Task { try await viewModel.opmlFileImporterCompletion(result) }
       }
     )
     .sheet(item: $viewModel.opmlFile) { opmlFile in

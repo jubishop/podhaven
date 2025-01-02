@@ -1,5 +1,5 @@
 {
-  "originHash" : "dc597ffa3d186193281859af79b18a0d81a8be757a41aef06181b6e36a7de0e5",
+  "originHash" : "1db810421ac9773d2a719bb3d31ad27e4ab761f3635e89c488af35ad71838524",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -17,15 +17,6 @@
       "state" : {
         "branch" : "main",
         "revision" : "1d748d4eac8db894ea3c4abfc504a87c902834bf"
-      }
-    },
-    {
-      "identity" : "opml",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pixel-foundry/opml",
-      "state" : {
-        "branch" : "master",
-        "revision" : "ef862a566b516e4b6702f17507f2e17bca77bff7"
       }
     },
     {
@@ -56,39 +47,12 @@
       }
     },
     {
-      "identity" : "swift-html",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-html",
-      "state" : {
-        "revision" : "662619ff6c39c389694b9f5d522c72291d034928",
-        "version" : "0.5.0"
-      }
-    },
-    {
       "identity" : "swift-identified-collections",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-identified-collections",
       "state" : {
         "branch" : "main",
         "revision" : "322d9ffeeba85c9f7c4984b39422ec7cc3c56597"
-      }
-    },
-    {
-      "identity" : "swift-snapshot-testing",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-snapshot-testing",
-      "state" : {
-        "revision" : "42a086182681cf661f5c47c9b7dc3931de18c6d7",
-        "version" : "1.17.6"
-      }
-    },
-    {
-      "identity" : "swift-syntax",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-syntax",
-      "state" : {
-        "revision" : "0687f71944021d616d34d922343dcef086855920",
-        "version" : "600.0.1"
       }
     },
     {

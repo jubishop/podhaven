@@ -2,7 +2,6 @@
 
 import Foundation
 import GRDB
-import OPML  // TODO: Make my own parser for this
 import Semaphore
 import UniformTypeIdentifiers
 
@@ -77,37 +76,18 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     self.opmlType = opmlType
   }
 
-  func opmlFileImporterCompletion(_ result: Result<URL, any Error>) async {
+  func opmlFileImporterCompletion(_ result: Result<URL, any Error>) async throws {
     switch result {
     case .success(let url):
       if url.startAccessingSecurityScopedResource() {
-        if let opml = await importOPMLFile(url) {
-          await downloadOPMLFile(opml)
-        }
+        let opml = try await PodcastOPML.parse(url)
+        await downloadOPMLFile(opml)
       } else {
         Alert.shared("Couldn't start accessing security scoped response")
       }
       url.stopAccessingSecurityScopedResource()
     case .failure(let error):
       Alert.shared("Couldn't import OPML file: \(error)")
-    }
-  }
-
-  func importOPMLFile(_ url: URL) async -> OPML? {
-    await withCheckedContinuation { continuation in
-      do {
-        let opml = try OPML(file: url)
-
-        if opml.entries.isEmpty {
-          Alert.shared("OPML file has no subscriptions")
-          continuation.resume(returning: nil)
-        } else {
-          continuation.resume(returning: opml)
-        }
-      } catch {
-        Alert.shared("Couldn't parse OPML file", error: error)
-        continuation.resume(returning: nil)
-      }
     }
   }
 
@@ -126,11 +106,11 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
   // MARK: - Private Methods
 
-  private func downloadOPMLFile(_ opml: OPML) async {
+  private func downloadOPMLFile(_ opml: PodcastOPML) async {
     await downloadSemaphor.wait()
     defer { downloadSemaphor.signal() }
 
-    let opmlFile = OPMLFile(title: opml.title ?? "Podcast Subscriptions")
+    let opmlFile = OPMLFile(title: opml.head.title ?? "Podcast Subscriptions")
 
     let allPodcasts: PodcastArray
     do {
@@ -140,17 +120,17 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       return
     }
 
-    for entry in opml.entries {
-      guard let feedURL = entry.feedURL,
+    for outline in opml.body.outlines {
+      guard let feedURL = URL(string: outline.xmlUrl),
         let feedURL = try? feedURL.convertToValidURL()
       else {
-        opmlFile.failed.insert(OPMLOutline(status: .failed, text: entry.text))
+        opmlFile.failed.insert(OPMLOutline(status: .failed, text: outline.text))
         continue
       }
 
       if allPodcasts[id: feedURL] != nil {
         opmlFile.finished.insert(
-          OPMLOutline(status: .finished, text: entry.text)
+          OPMLOutline(status: .finished, text: outline.text)
         )
         continue
       }
@@ -159,7 +139,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         OPMLOutline(
           status: .waiting,
           feedURL: feedURL,
-          text: entry.text
+          text: outline.text
         )
       )
     }
@@ -217,14 +197,13 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   // MARK: - Simulator Methods
 
   #if DEBUG
-    public func importOPMLFileInSimulator(_ resource: String) async {
+    public func importOPMLFileInSimulator(_ resource: String) async throws {
       let url = Bundle.main.url(
         forResource: resource,
         withExtension: "opml"
       )!
-      if let opml = await importOPMLFile(url) {
-        await downloadOPMLFile(opml)
-      }
+      let opml = try await PodcastOPML.parse(url)
+      await downloadOPMLFile(opml)
     }
   #endif
 }
