@@ -32,23 +32,26 @@ struct PodcastRSS: Decodable, Sendable {
     struct TopLevelValues: Decodable, Sendable {
       let title: String
       let description: String
+      let link: String
       let episodes: [Episode]
 
       enum CodingKeys: String, CodingKey {
-        case title, description
+        case title, description, link
         case episodes = "item"
       }
     }
     private let values: TopLevelValues
 
-    let iTunes: iTunesNamespace
-    struct iTunesNamespace: Codable, Sendable {
+    struct iTunesNamespace: Decodable, Sendable {
       let summary: String?
+      let newFeedURL: String?
 
       enum CodingKeys: String, CodingKey {
         case summary = "itunes:summary"
+        case newFeedURL = "itunes:new-feed-url"
       }
     }
+    let iTunes: iTunesNamespace
 
     // MARK: - Meta
 
@@ -62,7 +65,7 @@ struct PodcastRSS: Decodable, Sendable {
     }
   }
 
-  struct Episode: Codable, Sendable {
+  struct Episode: Decodable, Sendable {
     let title: String
   }
 

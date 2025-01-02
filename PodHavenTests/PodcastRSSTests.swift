@@ -17,6 +17,8 @@ actor PodcastRSSTests {
     #expect(podcast.description == desc)
     #expect(podcast.iTunes.summary == desc)
     #expect(podcast.episodes.first!.title == "State of the \"log\" 2024 (Friends)")
+    #expect(podcast.iTunes.newFeedURL == "https://changelog.com/podcast/feed")
+    #expect(podcast.link == "https://changelog.com/podcast")
   }
 
   // TODO: Parse the invalid game informer feed
