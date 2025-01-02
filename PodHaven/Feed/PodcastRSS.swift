@@ -47,7 +47,7 @@ struct PodcastRSS: Decodable, Sendable {
       struct Image: Decodable, Sendable {
         let href: String
       }
-      let _image: Image
+      private let _image: Image
       var image: String { _image.href }
       let newFeedURL: String?
 
