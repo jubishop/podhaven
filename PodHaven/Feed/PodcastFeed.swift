@@ -63,13 +63,13 @@ struct EpisodeFeed: Sendable {
   }
 
   private var duration: CMTime? {
-    guard let timeComponents = rssEpisode.iTunes.duration?.split(separator: ":").reversed(),
+    guard let timeComponents = rssEpisode.iTunes.duration?.split(separator: ":"),
       timeComponents.count <= 3
     else { return CMTime.zero }
 
     var seconds = 0
     var multiplier = 1
-    for value in timeComponents {
+    for value in timeComponents.reversed() {
       guard let value = Int(value) else { return CMTime.zero }
       seconds += multiplier * value
       multiplier *= 60
