@@ -63,14 +63,9 @@ final actor FeedManager: Sendable {
     case .failure(let error):
       throw error
     case .success(let feedData):
-      guard
-        var newPodcast = feedData.feed.toPodcast(
-          mergingExisting: podcastSeries.podcast
-        )
+      guard var newPodcast = feedData.feed.toPodcast(mergingExisting: podcastSeries.podcast)
       else {
-        throw FeedError.failedParse(
-          "Failed to refresh series: \(podcastSeries.podcast.toString)"
-        )
+        throw FeedError.failedParse("Failed to refresh series: \(podcastSeries.podcast.toString)")
       }
       var unsavedEpisodes: [UnsavedEpisode] = []
       var existingEpisodes: [Episode] = []

@@ -122,38 +122,36 @@ struct PodcastFeed: Sendable, Equatable {
       }
   }
 
-  func toUnsavedPodcast(oldFeedURL: URL) -> UnsavedPodcast? {
-    try? toUnsavedPodcast(
-      mergingExisting: Podcast(
-        // TODO: Remove need for title here
-        from: UnsavedPodcast(feedURL: oldFeedURL, title: "Remove Me")
-      )
-    )
-  }
-
   func toPodcast(mergingExisting existingPodcast: Podcast) -> Podcast? {
-    guard let unsavedPodcast = toUnsavedPodcast(mergingExisting: existingPodcast)
+    guard
+      let unsavedPodcast = toUnsavedPodcast(
+        feedURL: existingPodcast.feedURL,
+        mergingExisting: existingPodcast
+      )
     else { return nil }
 
     return Podcast(id: existingPodcast.id, from: unsavedPodcast)
   }
 
-  // MARK: - Private Helpers
-
-  private func toUnsavedPodcast(mergingExisting existingPodcast: Podcast) -> UnsavedPodcast? {
+  func toUnsavedPodcast(feedURL: URL, mergingExisting existingPodcast: Podcast? = nil)
+    -> UnsavedPodcast?
+  {
     try? UnsavedPodcast(
-      feedURL: feedURL ?? existingPodcast.feedURL,
-      title: title ?? existingPodcast.title,
-      link: link ?? existingPodcast.link,
-      image: image ?? existingPodcast.image,
-      description: description ?? existingPodcast.description,
-      lastUpdate: existingPodcast.lastUpdate
+      feedURL: self.feedURL ?? feedURL,
+      // TODO: Title will become non-optional
+      title: title ?? existingPodcast?.title ?? "Remove me",
+      link: link ?? existingPodcast?.link,
+      image: image ?? existingPodcast?.image,
+      description: description ?? existingPodcast?.description,
+      lastUpdate: existingPodcast?.lastUpdate
     )
   }
 
+  // MARK: - Private Helpers
+
   private var feedURL: URL? {
     guard let newFeedURLString = rssFeed.iTunes?.iTunesNewFeedURL,
-          let newFeedURL = URL(string: newFeedURLString)
+      let newFeedURL = URL(string: newFeedURLString)
     else { return nil }
 
     return newFeedURL
