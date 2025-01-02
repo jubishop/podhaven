@@ -10,9 +10,8 @@ actor PodcastFeedTests {
   @Test("parsing the Pod Save America feed")
   func parsePodSaveAmericaFeed() async throws {
     let url = Bundle.main.url(forResource: "pod_save_america", withExtension: "rss")!
-    let parseResult = await PodcastFeed.parse(url)
-    let feed = parseResult.isSuccessfulWith()
-    let unsavedPodcast = feed?.toUnsavedPodcast(feedURL: URL.valid())
+    let feed = try await PodcastFeed.parse(url)
+    let unsavedPodcast = feed.toUnsavedPodcast(feedURL: URL.valid())
     #expect(unsavedPodcast?.title == "Pod Save America")
     #expect(unsavedPodcast?.link == URL(string: "https://crooked.com"))
     #expect(unsavedPodcast?.image?.absoluteString.contains("simplecastcdn") != nil)
@@ -21,16 +20,16 @@ actor PodcastFeedTests {
   @Test("parsing the invalid Game Informer feed")
   func parseInvalidGameInformerFeed() async {
     let url = Bundle.main.url(forResource: "game_informer_invalid", withExtension: "rss")!
-    let parseResult = await PodcastFeed.parse(url)
-    #expect(parseResult.isUnparseable)
+    await #expect(throws: (any Error).self) {
+      try await PodcastFeed.parse(url)
+    }
   }
 
   @Test("parsing the Land of the Giants")
   func parseLandOfTheGiantsFeed() async throws {
     let url = Bundle.main.url(forResource: "land_of_the_giants", withExtension: "rss")!
-    let parseResult = await PodcastFeed.parse(url)
-    let feed = parseResult.isSuccessfulWith()
-    let unsavedPodcast = feed?.toUnsavedPodcast(feedURL: URL.valid())
+    let feed = try await PodcastFeed.parse(url)
+    let unsavedPodcast = feed.toUnsavedPodcast(feedURL: URL.valid())
     #expect(unsavedPodcast?.title == "Land of the Giants")
   }
 }

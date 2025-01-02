@@ -16,8 +16,8 @@ struct PodcastRSS: Decodable, Sendable {
       do {
         let decoder = XMLDecoder()
         decoder.dateDecodingStrategy = .formatted(Date.rfc2822)
-        let podcastRSS = try decoder.decode(PodcastRSS.self, from: data)
-        continuation.resume(returning: podcastRSS.channel)
+        let rssPodcast = try decoder.decode(PodcastRSS.self, from: data)
+        continuation.resume(returning: rssPodcast.channel)
       } catch {
         continuation.resume(throwing: error)
       }
@@ -68,7 +68,7 @@ struct PodcastRSS: Decodable, Sendable {
   }
 
   @dynamicMemberLookup
-  struct Podcast: Decodable, Sendable {
+  struct Podcast: Decodable, Sendable, Equatable {
     // Mark: - Attributes
 
     struct TopLevelValues: Decodable, Sendable {
@@ -107,6 +107,13 @@ struct PodcastRSS: Decodable, Sendable {
     init(from decoder: Decoder) throws {
       values = try TopLevelValues(from: decoder)
       iTunes = try iTunesNamespace(from: decoder)
+    }
+
+    // MARK: - Equatable
+
+    // TODO: Pull out and use <atom:link rel="self"> for feedURL, always required.
+    static func == (lhs: Podcast, rhs: Podcast) -> Bool {
+      lhs.title == rhs.title && lhs.description == rhs.description && lhs.link == rhs.link
     }
   }
 

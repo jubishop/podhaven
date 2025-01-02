@@ -4,22 +4,17 @@ import AVFoundation
 @preconcurrency import FeedKit
 import Foundation
 
-typealias ParseResult = Result<PodcastFeed, FeedError>
-
 struct EpisodeFeed: Sendable {
   let guid: String
   let media: URL
 
-  private let rssFeedItem: RSSFeedItem
+  private let rssEpisode: PodcastRSS.Episode
 
-  fileprivate init(rssFeedItem: RSSFeedItem) throws {
-    guard let feedItemGUID = rssFeedItem.guid, let guid = feedItemGUID.value
-    else { throw FeedError.failedParse("EpisodeFeed requires a GUID") }
-    guard let urlString = rssFeedItem.enclosure?.attributes?.url,
-      let media = try? URL(string: urlString)?.convertToValidURL()
-    else { throw FeedError.failedParse("EpisodeFeed requires media URL") }
-    self.rssFeedItem = rssFeedItem
-    self.guid = guid
+  fileprivate init(rssEpisode: PodcastRSS.Episode) throws {
+    guard let media = try? URL(string: rssEpisode.enclosure.url)?.convertToValidURL()
+    else { throw FeedError.failedConversion("EpisodeFeed requires media URL") }
+    self.rssEpisode = rssEpisode
+    self.guid = rssEpisode.guid
     self.media = media
   }
 
@@ -28,6 +23,7 @@ struct EpisodeFeed: Sendable {
       existingEpisode == nil || existingEpisode?.guid == guid,
       "Merging two episodes with different guids?"
     )
+
     return try UnsavedEpisode(
       guid: guid,
       podcastId: existingEpisode?.podcastId,
@@ -35,9 +31,9 @@ struct EpisodeFeed: Sendable {
       currentTime: existingEpisode?.currentTime,
       completed: existingEpisode?.completed,
       duration: duration ?? existingEpisode?.duration,
-      pubDate: pubDate ?? existingEpisode?.pubDate,
-      title: title ?? existingEpisode?.title,
-      description: description ?? existingEpisode?.description,
+      pubDate: rssEpisode.pubDate ?? existingEpisode?.pubDate,
+      title: rssEpisode.title,
+      description: rssEpisode.description ?? existingEpisode?.description,
       link: link ?? existingEpisode?.link,
       image: image ?? existingEpisode?.image,
       queueOrder: existingEpisode?.queueOrder
@@ -53,73 +49,60 @@ struct EpisodeFeed: Sendable {
 
   // MARK: - Private Helpers
 
-  private var pubDate: Date? {
-    rssFeedItem.pubDate
-  }
-
-  private var title: String? {
-    rssFeedItem.title ?? rssFeedItem.iTunes?.iTunesTitle
-  }
-
-  private var description: String? {
-    rssFeedItem.description ?? rssFeedItem.iTunes?.iTunesSummary
-  }
-
   private var link: URL? {
-    guard let urlString = rssFeedItem.link, let url = URL(string: urlString)
+    guard let urlString = rssEpisode.link, let url = URL(string: urlString)
     else { return nil }
+
     return url
   }
 
   private var image: URL? {
-    guard let urlString = rssFeedItem.iTunes?.iTunesImage?.attributes?.href,
-      let url = URL(string: urlString)
+    guard let urlString = rssEpisode.iTunes.image?.href, let url = URL(string: urlString)
     else { return nil }
+
     return url
   }
 
   private var duration: CMTime? {
-    guard let timeInterval = rssFeedItem.iTunes?.iTunesDuration
-    else { return nil }
-    return CMTime.inSeconds(timeInterval)
+    guard let timeComponents = rssEpisode.iTunes.duration?.split(separator: ":").reversed(),
+      timeComponents.count <= 3
+    else { return CMTime.zero }
+
+    var seconds = 0
+    for (position, value) in timeComponents.enumerated() {
+      guard let value = Int(value) else { return CMTime.zero }
+      var multiplier = 1
+      for _ in 0..<position { multiplier *= 60 }
+      seconds += multiplier * value
+    }
+    return CMTime.inSeconds(Double(seconds))
   }
 }
 
 struct PodcastFeed: Sendable, Equatable {
   // MARK: - Static Parsing Methods
 
-  static func parse(_ url: URL) async -> ParseResult {
-    guard let data = try? Data(contentsOf: url)
-    else { return .failure(.failedLoad(url)) }
-    return await parse(data)
+  static func parse(_ url: URL) async throws -> PodcastFeed {
+    guard let data = try? Data(contentsOf: url) else { throw FeedError.failedLoad(url) }
+    return try await parse(data)
   }
 
-  static func parse(_ data: Data) async -> ParseResult {
-    let parser = FeedParser(data: data)
-    return await withCheckedContinuation { continuation in
-      switch parser.parse() {
-      case .success(let feed):
-        guard let rssFeed = feed.rssFeed
-        else { return continuation.resume(returning: .failure(.noRSS)) }
-        continuation.resume(returning: .success(PodcastFeed(rssFeed: rssFeed)))
-      case .failure(let error):
-        continuation.resume(returning: .failure(.failedParse(String(describing: error))))
-      }
-    }
+  static func parse(_ data: Data) async throws -> PodcastFeed {
+    let rssPodcast = try await PodcastRSS.parse(data)
+    return PodcastFeed(rssPodcast: rssPodcast)
   }
 
   // MARK: - Instance Definition
 
-  let items: [EpisodeFeed]
+  let episodes: [EpisodeFeed]
 
-  private let rssFeed: RSSFeed
+  private let rssPodcast: PodcastRSS.Podcast
 
-  private init(rssFeed: RSSFeed) {
-    self.rssFeed = rssFeed
-    self.items = (rssFeed.items ?? [])
-      .compactMap { rssFeedItem in
-        try? EpisodeFeed(rssFeedItem: rssFeedItem)
-      }
+  private init(rssPodcast: PodcastRSS.Podcast) {
+    self.rssPodcast = rssPodcast
+    self.episodes = rssPodcast.episodes.compactMap { rssEpisode in
+      try? EpisodeFeed(rssEpisode: rssEpisode)
+    }
   }
 
   func toPodcast(mergingExisting existingPodcast: Podcast) -> Podcast? {
@@ -133,58 +116,47 @@ struct PodcastFeed: Sendable, Equatable {
     return Podcast(id: existingPodcast.id, from: unsavedPodcast)
   }
 
+  // TODO: Remove need for feedURL here
   func toUnsavedPodcast(feedURL: URL, mergingExisting existingPodcast: Podcast? = nil)
     -> UnsavedPodcast?
   {
     try? UnsavedPodcast(
-      feedURL: self.feedURL ?? feedURL,
-      // TODO: Title will become non-optional
-      title: title ?? existingPodcast?.title ?? "Remove me",
+      feedURL: self.newFeedURL ?? feedURL,
+      title: rssPodcast.title,
       link: link ?? existingPodcast?.link,
       image: image ?? existingPodcast?.image,
-      description: description ?? existingPodcast?.description,
+      description: rssPodcast.description,
       lastUpdate: existingPodcast?.lastUpdate
     )
   }
 
   // MARK: - Private Helpers
 
-  private var feedURL: URL? {
-    guard let newFeedURLString = rssFeed.iTunes?.iTunesNewFeedURL,
+  private var newFeedURL: URL? {
+    guard let newFeedURLString = rssPodcast.iTunes.newFeedURL,
       let newFeedURL = URL(string: newFeedURLString)
     else { return nil }
 
     return newFeedURL
   }
 
-  private var title: String? {
-    rssFeed.title ?? rssFeed.iTunes?.iTunesTitle
-  }
-
   private var link: URL? {
-    guard let link = rssFeed.link, let url = URL(string: link)
+    guard let url = URL(string: rssPodcast.link)
     else { return nil }
 
     return url
   }
 
   private var image: URL? {
-    guard
-      let image = rssFeed.image?.url
-        ?? rssFeed.iTunes?.iTunesImage?.attributes?.href,
-      let url = URL(string: image)
+    guard let url = URL(string: rssPodcast.iTunes.image.href)
     else { return nil }
 
     return url
   }
 
-  private var description: String? {
-    rssFeed.description ?? rssFeed.iTunes?.iTunesSummary
-  }
-
   // MARK: - Equatable
 
   static func == (lhs: PodcastFeed, rhs: PodcastFeed) -> Bool {
-    lhs.rssFeed == rhs.rssFeed
+    lhs.rssPodcast == rhs.rssPodcast
   }
 }

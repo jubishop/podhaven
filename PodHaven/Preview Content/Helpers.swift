@@ -43,7 +43,7 @@ enum Helpers {
         if let unsavedPodcast = feedData.feed.toUnsavedPodcast(feedURL: feedData.url),
           (try? await Repo.shared.insertSeries(
             unsavedPodcast,
-            unsavedEpisodes: feedData.feed.items.map {
+            unsavedEpisodes: feedData.feed.episodes.map {
               try $0.toUnsavedEpisode()
             }
           )) != nil
@@ -70,19 +70,17 @@ enum Helpers {
     }) {
       return podcastSeries
     }
-    let parseResult = await PodcastFeed.parse(
+    let podcastFeed = try await PodcastFeed.parse(
       Bundle.main.url(forResource: fileName, withExtension: "rss")!
     )
-    guard case .success(let feedResult) = parseResult,
-      let unsavedPodcast = feedResult.toUnsavedPodcast(
+    guard
+      let unsavedPodcast = podcastFeed.toUnsavedPodcast(
         feedURL: URL(string: seriesFiles[fileName]!)!
       )
     else { throw DBError.seriesNotFound(0) }
     return try await Repo.shared.insertSeries(
       unsavedPodcast,
-      unsavedEpisodes: feedResult.items.map {
-        try $0.toUnsavedEpisode()
-      }
+      unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
     )
   }
 
