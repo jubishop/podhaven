@@ -84,19 +84,9 @@ actor EpisodeTests {
 
   @Test("that an episode can be fetched by its media url")
   func fetchEpisodeByMediaURL() async throws {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast(
-      feedURL: URL.valid(),
-      title: "Title"
-    )
-    let unsavedEpisode = try TestHelpers.unsavedEpisode(
-      guid: String.random(),
-      title: "title",
-      media: URL.valid()
-    )
-    try await repo.insertSeries(
-      unsavedPodcast,
-      unsavedEpisodes: [unsavedEpisode]
-    )
+    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    let unsavedEpisode = try TestHelpers.unsavedEpisode()
+    try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: [unsavedEpisode])
 
     let podcastEpisode = try await repo.episode(unsavedEpisode.media)!
     #expect(podcastEpisode.episode.media == unsavedEpisode.media)
