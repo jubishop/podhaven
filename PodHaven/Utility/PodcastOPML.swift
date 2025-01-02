@@ -25,12 +25,11 @@ struct PodcastOPML: Decodable, Sendable {
 
   // MARK: - Models
 
-  struct Outline: Decodable, Sendable {
-    let text: String
-    let xmlUrl: String
-  }
-
   struct Body: Decodable, Sendable {
+    struct Outline: Decodable, Sendable {
+      let text: String
+      let xmlUrl: String
+    }
     let outlines: [Outline]
 
     enum CodingKeys: String, CodingKey {
