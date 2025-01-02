@@ -1,8 +1,8 @@
 // Copyright Justin Bishop, 2024
 
+import AVFoundation
 import Foundation
 import Testing
-import AVFoundation
 
 @testable import PodHaven
 
@@ -20,12 +20,12 @@ actor PodcastFeedTests {
     #expect(unsavedEpisode.duration == CMTime.inSeconds(2643))
   }
 
-  @Test("parsing the invalid Game Informer feed")
-  func parseInvalidGameInformerFeed() async {
-    let url = Bundle.main.url(forResource: "game_informer_invalid", withExtension: "rss")!
-    await #expect(throws: (any Error).self) {
-      try await PodcastFeed.parse(url)
-    }
+  @Test("parsing the Marketplace feed")
+  func parseMarketplaceFeed() async throws {
+    let url = Bundle.main.url(forResource: "marketplace", withExtension: "rss")!
+    let feed = try await PodcastFeed.parse(url)
+    let unsavedPodcast = try feed.toUnsavedPodcast()
+    #expect(unsavedPodcast.title == "Marketplace")
   }
 
   @Test("parsing the Land of the Giants")
@@ -34,5 +34,13 @@ actor PodcastFeedTests {
     let feed = try await PodcastFeed.parse(url)
     let unsavedPodcast = try feed.toUnsavedPodcast()
     #expect(unsavedPodcast.title == "Land of the Giants")
+  }
+
+  @Test("parsing the invalid Game Informer feed")
+  func parseInvalidGameInformerFeed() async {
+    let url = Bundle.main.url(forResource: "game_informer_invalid", withExtension: "rss")!
+    await #expect(throws: (any Error).self) {
+      try await PodcastFeed.parse(url)
+    }
   }
 }

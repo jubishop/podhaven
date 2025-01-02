@@ -22,7 +22,7 @@ struct FeedTask: Sendable {
       return .failure(.failedLoad(downloadTask.url))
     case .success(let downloadData):
       do {
-        let podcastFeed = try await PodcastFeed.parse(downloadData.data)
+        let podcastFeed = try await PodcastFeed.parse(downloadData.data, from: downloadData.url)
         return .success(podcastFeed)
       } catch {
         return .failure(.failedParse(error))

@@ -90,12 +90,12 @@ struct PodcastFeed: Sendable, Equatable {
 
   static func parse(_ url: URL) async throws -> PodcastFeed {
     guard let data = try? Data(contentsOf: url) else { throw FeedError.failedLoad(url) }
-    return try await parse(data)
+    return try await parse(data, from: url)
   }
 
-  static func parse(_ data: Data) async throws -> PodcastFeed {
+  static func parse(_ data: Data, from: URL) async throws -> PodcastFeed {
     let rssPodcast = try await PodcastRSS.parse(data)
-    return try PodcastFeed(rssPodcast: rssPodcast)
+    return try PodcastFeed(rssPodcast: rssPodcast, from: from)
   }
 
   // MARK: - Instance Definition
@@ -107,17 +107,14 @@ struct PodcastFeed: Sendable, Equatable {
   private let link: URL
   private let image: URL
 
-  private init(rssPodcast: PodcastRSS.Podcast) throws {
-    guard let urlString = rssPodcast.atomLinks.first(where: { $0.rel == "self" })?.href,
-      let feedURL = URL(string: urlString)
-    else { throw FeedError.failedConversion("PodcastFeed invalid feed URL") }
+  private init(rssPodcast: PodcastRSS.Podcast, from: URL) throws {
     guard let link = URL(string: rssPodcast.link)
     else { throw FeedError.failedConversion("PodcastFeed invalid link URL") }
     guard let image = URL(string: rssPodcast.iTunes.image.href)
     else { throw FeedError.failedConversion("PodcastFeed invalid media URL") }
 
     self.rssPodcast = rssPodcast
-    self.feedURL = feedURL
+    self.feedURL = rssPodcast.feedURL ?? from
     self.link = link
     self.image = image
     self.episodes = rssPodcast.episodes.compactMap { rssEpisode in

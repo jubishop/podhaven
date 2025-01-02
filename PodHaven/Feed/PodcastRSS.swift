@@ -104,6 +104,14 @@ struct PodcastRSS: Decodable, Sendable {
     }
     let iTunes: iTunesNamespace
 
+    // MARK: - Convenience Getters
+
+    var feedURL: URL? {
+      guard let urlString = self.atomLinks.first(where: { $0.rel == "self" })?.href
+      else { return nil }
+      return URL(string: urlString)
+    }
+
     // MARK: - Meta
 
     subscript<T>(dynamicMember keyPath: KeyPath<TopLevelValues, T>) -> T {
