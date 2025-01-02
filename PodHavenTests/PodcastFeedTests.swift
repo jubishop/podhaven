@@ -15,6 +15,7 @@ actor PodcastFeedTests {
     #expect(unsavedPodcast?.title == "Pod Save America")
     #expect(unsavedPodcast?.link == URL(string: "https://crooked.com"))
     #expect(unsavedPodcast?.image?.absoluteString.contains("simplecastcdn") != nil)
+    // TODO: Test Duration
   }
 
   @Test("parsing the invalid Game Informer feed")
