@@ -68,11 +68,11 @@ struct EpisodeFeed: Sendable {
     else { return CMTime.zero }
 
     var seconds = 0
-    for (position, value) in timeComponents.enumerated() {
+    var multiplier = 1
+    for value in timeComponents {
       guard let value = Int(value) else { return CMTime.zero }
-      var multiplier = 1
-      for _ in 0..<position { multiplier *= 60 }
       seconds += multiplier * value
+      multiplier *= 60
     }
     return CMTime.inSeconds(Double(seconds))
   }
