@@ -114,13 +114,6 @@ struct PodcastRSS: Decodable, Sendable {
       values = try TopLevelValues(from: decoder)
       iTunes = try iTunesNamespace(from: decoder)
     }
-
-    // MARK: - Equatable
-
-    // TODO: Pull out and use <atom:link rel="self"> for feedURL, always required.
-    static func == (lhs: Podcast, rhs: Podcast) -> Bool {
-      lhs.title == rhs.title && lhs.description == rhs.description && lhs.link == rhs.link
-    }
   }
 
   private let channel: Podcast

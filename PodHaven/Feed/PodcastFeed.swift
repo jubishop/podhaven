@@ -154,6 +154,6 @@ struct PodcastFeed: Sendable, Equatable {
   // MARK: - Equatable
 
   static func == (lhs: PodcastFeed, rhs: PodcastFeed) -> Bool {
-    lhs.rssPodcast == rhs.rssPodcast
+    lhs.feedURL == rhs.feedURL
   }
 }

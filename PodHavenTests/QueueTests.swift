@@ -18,14 +18,14 @@ actor QueueTests {
     podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
-        UnsavedEpisode(guid: "top", media: URL.valid(), queueOrder: 0),
-        UnsavedEpisode(guid: "bottom", media: URL.valid(), queueOrder: 4),
-        UnsavedEpisode(guid: "midtop", media: URL.valid(), queueOrder: 1),
-        UnsavedEpisode(guid: "middle", media: URL.valid(), queueOrder: 2),
-        UnsavedEpisode(guid: "midbottom", media: URL.valid(), queueOrder: 3),
-        UnsavedEpisode(guid: "unqbottom", media: URL.valid()),
-        UnsavedEpisode(guid: "unqmiddle", media: URL.valid()),
-        UnsavedEpisode(guid: "unqtop", media: URL.valid()),
+        UnsavedEpisode(guid: "top", title: "title", media: URL.valid(), queueOrder: 0),
+        UnsavedEpisode(guid: "bottom", title: "title", media: URL.valid(), queueOrder: 4),
+        UnsavedEpisode(guid: "midtop", title: "title", media: URL.valid(), queueOrder: 1),
+        UnsavedEpisode(guid: "middle", title: "title", media: URL.valid(), queueOrder: 2),
+        UnsavedEpisode(guid: "midbottom", title: "title", media: URL.valid(), queueOrder: 3),
+        UnsavedEpisode(guid: "unqbottom", title: "title", media: URL.valid()),
+        UnsavedEpisode(guid: "unqmiddle", title: "title", media: URL.valid()),
+        UnsavedEpisode(guid: "unqtop", title: "title", media: URL.valid()),
       ]
     )
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])

@@ -20,19 +20,22 @@ actor EpisodeTests {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
 
-    let newestUnsavedEpisode = try UnsavedEpisode(guid: "guid", media: url)
+    let newestUnsavedEpisode = try UnsavedEpisode(guid: "guid", title: "title", media: url)
     let oldUnsavedEpisode = try UnsavedEpisode(
       guid: "guid2",
+      title: "title",
       media: url,
       pubDate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
     )
     let middleUnsavedEpisode = try UnsavedEpisode(
       guid: "guid3",
+      title: "title",
       media: url,
       pubDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())
     )
     let ancientUnsavedEpisode = try UnsavedEpisode(
       guid: "guid4",
+      title: "title",
       media: url,
       pubDate: Calendar.current.date(byAdding: .day, value: -1000, to: Date())
     )
@@ -69,6 +72,7 @@ actor EpisodeTests {
     let unsavedPodcast = try UnsavedPodcast(feedURL: url, title: "Title")
     let unsavedEpisode = try UnsavedEpisode(
       guid: guid,
+      title: "title",
       media: url,
       currentTime: cmTime
     )
@@ -100,6 +104,7 @@ actor EpisodeTests {
     )
     let unsavedEpisode = try UnsavedEpisode(
       guid: String.random(),
+      title: "title",
       media: URL.valid()
     )
     try await repo.insertSeries(
@@ -119,6 +124,7 @@ actor EpisodeTests {
     )
     let unsavedEpisode = try UnsavedEpisode(
       guid: String.random(),
+      title: "title",
       media: URL.valid(),
       currentTime: CMTime.inSeconds(60)
     )

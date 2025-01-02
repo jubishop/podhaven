@@ -7,7 +7,7 @@ import GRDB
 struct UnsavedEpisode: Savable {
   let guid: String
   var podcastId: Int64?
-  var title: String? // TODO: Make this required
+  var title: String
   var media: URL
   var currentTime: CMTime
   var completed: Bool
@@ -21,7 +21,7 @@ struct UnsavedEpisode: Savable {
   init(
     guid: String,
     podcastId: Int64? = nil,
-    title: String? = nil,
+    title: String,
     media: URL,
     currentTime: CMTime? = nil,
     completed: Bool? = nil,
@@ -48,7 +48,7 @@ struct UnsavedEpisode: Savable {
 
   // MARK: - Savable
 
-  var toString: String { self.title ?? self.guid }
+  var toString: String { self.title }
 }
 
 typealias Episode = Saved<UnsavedEpisode>
