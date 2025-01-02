@@ -30,6 +30,15 @@ actor PodcastRSSTests {
     )
     #expect(episode.pubDate! == Date.rfc2822.date(from: "Fri, 20 Dec 2024 20:00:00 +0000"))
     #expect(episode.iTunes.duration! == "2:08:21")
+    #expect(
+      episode.description!
+        == "Our 7th annual year-end wrap-up is here! We're featuring 12 listener voicemails, dope Breakmaster Cylinder remixes & our favorite episodes of the year. Thanks for listening! 💚"
+    )
+    #expect(episode.link == "https://changelog.com/friends/74")
+    #expect(
+      episode.iTunes.image!.href
+        == "https://cdn.changelog.com/uploads/covers/changelog--friends-original.png?v=63848361609"
+    )
   }
 
   // TODO: Parse the invalid game informer feed

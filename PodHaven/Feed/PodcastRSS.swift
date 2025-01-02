@@ -35,14 +35,21 @@ struct PodcastRSS: Decodable, Sendable {
       let title: String
       let enclosure: Enclosure
       let guid: String
+      let link: String?
+      let description: String?
       let pubDate: Date?
     }
     private let values: TopLevelValues
 
     struct iTunesNamespace: Decodable, Sendable {
+      struct Image: Decodable, Sendable {
+        let href: String
+      }
+      let image: Image?
       let duration: String?
 
       enum CodingKeys: String, CodingKey {
+        case image = "itunes:image"
         case duration = "itunes:duration"
       }
     }
