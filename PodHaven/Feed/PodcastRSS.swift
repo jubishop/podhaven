@@ -47,12 +47,11 @@ struct PodcastRSS: Decodable, Sendable {
       struct Image: Decodable, Sendable {
         let href: String
       }
-      private let _image: Image
-      var image: String { _image.href }
+      let image: Image
       let newFeedURL: String?
 
       enum CodingKeys: String, CodingKey {
-        case _image = "itunes:image"
+        case image = "itunes:image"
         case newFeedURL = "itunes:new-feed-url"
       }
     }
@@ -70,9 +69,38 @@ struct PodcastRSS: Decodable, Sendable {
     }
   }
 
+  @dynamicMemberLookup
   struct Episode: Decodable, Sendable {
-    let title: String
-    let pubDate: Date
+    struct TopLevelValues: Decodable, Sendable {
+      struct Enclosure: Decodable, Sendable {
+        let url: String
+      }
+      let title: String
+      let enclosure: Enclosure
+      let guid: String
+      let pubDate: Date?
+    }
+    private let values: TopLevelValues
+
+    struct iTunesNamespace: Decodable, Sendable {
+      let duration: String?
+
+      enum CodingKeys: String, CodingKey {
+        case duration = "itunes:duration"
+      }
+    }
+    let iTunes: iTunesNamespace
+
+    // MARK: - Meta
+
+    subscript<T>(dynamicMember keyPath: KeyPath<TopLevelValues, T>) -> T {
+      values[keyPath: keyPath]
+    }
+
+    init(from decoder: Decoder) throws {
+      values = try TopLevelValues(from: decoder)
+      iTunes = try iTunesNamespace(from: decoder)
+    }
   }
 
   private let channel: Podcast
