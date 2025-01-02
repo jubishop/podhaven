@@ -26,12 +26,12 @@ struct EpisodeFeed: Sendable {
     return try UnsavedEpisode(
       guid: guid,
       podcastId: existingEpisode?.podcastId,
+      title: rssEpisode.title,
       media: media,
       currentTime: existingEpisode?.currentTime,
       completed: existingEpisode?.completed,
       duration: duration ?? existingEpisode?.duration,
       pubDate: rssEpisode.pubDate ?? existingEpisode?.pubDate,
-      title: rssEpisode.title,
       description: rssEpisode.description ?? existingEpisode?.description,
       link: link ?? existingEpisode?.link,
       image: image ?? existingEpisode?.image,

@@ -11,6 +11,7 @@ struct UnsavedPodcast: Savable {
   var description: String?
   var lastUpdate: Date
 
+  // TODO: Make these all required
   init(
     feedURL: URL,
     title: String,
