@@ -122,10 +122,11 @@ struct PodcastFeed: Sendable, Equatable {
       }
   }
 
-  func toUnsavedPodcast(oldFeedURL: URL, oldTitle: String) -> UnsavedPodcast? {
+  func toUnsavedPodcast(oldFeedURL: URL) -> UnsavedPodcast? {
     try? toUnsavedPodcast(
       mergingExisting: Podcast(
-        from: UnsavedPodcast(feedURL: oldFeedURL, title: oldTitle)
+        // TODO: Remove need for title here
+        from: UnsavedPodcast(feedURL: oldFeedURL, title: "Remove Me")
       )
     )
   }
@@ -135,18 +136,6 @@ struct PodcastFeed: Sendable, Equatable {
     else { return nil }
 
     return Podcast(id: existingPodcast.id, from: unsavedPodcast)
-  }
-
-  var feedURL: URL? {
-    guard let newFeedURLString = rssFeed.iTunes?.iTunesNewFeedURL,
-      let newFeedURL = URL(string: newFeedURLString)
-    else { return nil }
-
-    return newFeedURL
-  }
-
-  var title: String? {
-    rssFeed.title ?? rssFeed.iTunes?.iTunesTitle
   }
 
   // MARK: - Private Helpers
@@ -160,6 +149,18 @@ struct PodcastFeed: Sendable, Equatable {
       description: description ?? existingPodcast.description,
       lastUpdate: existingPodcast.lastUpdate
     )
+  }
+
+  private var feedURL: URL? {
+    guard let newFeedURLString = rssFeed.iTunes?.iTunesNewFeedURL,
+          let newFeedURL = URL(string: newFeedURLString)
+    else { return nil }
+
+    return newFeedURL
+  }
+
+  private var title: String? {
+    rssFeed.title ?? rssFeed.iTunes?.iTunesTitle
   }
 
   private var link: URL? {

@@ -40,11 +40,7 @@ enum Helpers {
     for await feedResult in await feedManager.feeds() {
       switch feedResult {
       case .success(let feedData):
-        if let feedURL = feedData.feed.feedURL, let title = feedData.feed.title,
-          let unsavedPodcast = feedData.feed.toUnsavedPodcast(
-            oldFeedURL: feedURL,
-            oldTitle: title
-          ),
+        if let unsavedPodcast = feedData.feed.toUnsavedPodcast(oldFeedURL: feedData.url),
           (try? await Repo.shared.insertSeries(
             unsavedPodcast,
             unsavedEpisodes: feedData.feed.items.map {
@@ -79,8 +75,7 @@ enum Helpers {
     )
     guard case .success(let feedResult) = parseResult,
       let unsavedPodcast = feedResult.toUnsavedPodcast(
-        oldFeedURL: URL(string: seriesFiles[fileName]!)!,
-        oldTitle: fileName
+        oldFeedURL: URL(string: seriesFiles[fileName]!)!
       )
     else { throw DBError.seriesNotFound(0) }
     return try await Repo.shared.insertSeries(
