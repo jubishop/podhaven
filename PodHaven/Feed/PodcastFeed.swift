@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2024
 
 import AVFoundation
-@preconcurrency import FeedKit
 import Foundation
 
 struct EpisodeFeed: Sendable {
