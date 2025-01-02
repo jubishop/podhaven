@@ -41,5 +41,11 @@ actor PodcastRSSTests {
     )
   }
 
-  // TODO: Parse the invalid game informer feed
+  @Test("parsing the invalid Game Informer feed")
+  func parseInvalidGameInformerFeed() async {
+    let url = Bundle.main.url(forResource: "game_informer_invalid", withExtension: "rss")!
+    await #expect(throws: (any Error).self) {
+      try await PodcastRSS.parse(url)
+    }
+  }
 }
