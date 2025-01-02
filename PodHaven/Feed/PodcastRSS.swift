@@ -15,6 +15,7 @@ struct PodcastRSS: Decodable, Sendable {
     try await withCheckedThrowingContinuation { continuation in
       do {
         let decoder = XMLDecoder()
+        decoder.dateDecodingStrategy = .formatted(Date.rfc2822)
         let podcastRSS = try decoder.decode(PodcastRSS.self, from: data)
         continuation.resume(returning: podcastRSS.channel)
       } catch {
@@ -43,11 +44,15 @@ struct PodcastRSS: Decodable, Sendable {
     private let values: TopLevelValues
 
     struct iTunesNamespace: Decodable, Sendable {
-      let summary: String?
+      struct Image: Decodable, Sendable {
+        let href: String
+      }
+      let _image: Image
+      var image: String { _image.href }
       let newFeedURL: String?
 
       enum CodingKeys: String, CodingKey {
-        case summary = "itunes:summary"
+        case _image = "itunes:image"
         case newFeedURL = "itunes:new-feed-url"
       }
     }
@@ -67,6 +72,7 @@ struct PodcastRSS: Decodable, Sendable {
 
   struct Episode: Decodable, Sendable {
     let title: String
+    let pubDate: Date
   }
 
   private let channel: Podcast
