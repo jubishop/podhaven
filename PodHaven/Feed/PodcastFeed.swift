@@ -50,17 +50,17 @@ struct EpisodeFeed: Sendable, Equatable {
   // MARK: - Private Helpers
 
   private var link: URL? {
-    guard let urlString = rssEpisode.link, let url = URL(string: urlString)
+    guard let urlString = rssEpisode.link
     else { return nil }
 
-    return url
+    return URL(string: urlString)
   }
 
   private var image: URL? {
-    guard let urlString = rssEpisode.iTunes.image?.href, let url = URL(string: urlString)
+    guard let urlString = rssEpisode.iTunes.image?.href
     else { return nil }
 
-    return url
+    return URL(string: urlString)
   }
 
   private var duration: CMTime? {
@@ -104,18 +104,16 @@ struct PodcastFeed: Sendable, Equatable {
 
   private let rssPodcast: PodcastRSS.Podcast
   private let feedURL: URL
-  private let link: URL
+  private let link: URL?
   private let image: URL
 
   private init(rssPodcast: PodcastRSS.Podcast, from: URL) throws {
-    guard let link = URL(string: rssPodcast.link)
-    else { throw FeedError.failedConversion("PodcastFeed invalid link URL") }
     guard let image = URL(string: rssPodcast.iTunes.image.href)
     else { throw FeedError.failedConversion("PodcastFeed invalid media URL") }
 
     self.rssPodcast = rssPodcast
     self.feedURL = rssPodcast.feedURL ?? from
-    self.link = link
+    self.link = URL(string: rssPodcast.link ?? "")
     self.image = image
     self.episodes = rssPodcast.episodes.compactMap { rssEpisode in
       try? EpisodeFeed(rssEpisode: rssEpisode)
@@ -136,9 +134,9 @@ struct PodcastFeed: Sendable, Equatable {
     return try UnsavedPodcast(
       feedURL: newFeedURL ?? feedURL,
       title: rssPodcast.title,
-      link: link,
       image: image,
       description: rssPodcast.description,
+      link: link,
       lastUpdate: existingPodcast?.lastUpdate
     )
   }

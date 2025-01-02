@@ -6,7 +6,7 @@ import GRDB
 struct UnsavedPodcast: Savable {
   var feedURL: URL
   var title: String
-  var link: URL
+  var link: URL?
   var image: URL
   var description: String
   var lastUpdate: Date
@@ -14,16 +14,16 @@ struct UnsavedPodcast: Savable {
   init(
     feedURL: URL,
     title: String,
-    link: URL,
     image: URL,
     description: String,
+    link: URL? = nil,
     lastUpdate: Date? = nil
   ) throws {
     self.feedURL = try feedURL.convertToValidURL()
     self.title = title
-    self.link = try link.convertToValidURL()
     self.image = try image.convertToValidURL()
     self.description = description
+    self.link = try? link?.convertToValidURL()
     self.lastUpdate = lastUpdate ?? Date()
   }
 

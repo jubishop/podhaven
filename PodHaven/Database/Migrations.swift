@@ -20,7 +20,7 @@ enum Migrations {
           .notNull()
           .indexed()
         t.column("title", .text).notNull()
-        t.column("link", .text).notNull()
+        t.column("link", .text)
         t.column("image", .text).notNull()
         t.column("description", .text).notNull()
         t.column("lastUpdate", .integer).notNull()

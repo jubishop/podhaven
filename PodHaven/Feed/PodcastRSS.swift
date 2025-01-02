@@ -78,7 +78,7 @@ struct PodcastRSS: Decodable, Sendable {
       }
       let title: String
       let description: String
-      let link: String
+      let link: String?
       let episodes: [Episode]
       let atomLinks: [AtomLink]
 

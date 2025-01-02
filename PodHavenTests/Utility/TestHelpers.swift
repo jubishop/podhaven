@@ -11,13 +11,13 @@ enum TestHelpers {
     podcastId: Int64? = nil,
     title: String = String.random(),
     media: URL = URL.valid(),
-    currentTime: CMTime = CMTime.zero,
-    completed: Bool = false,
-    duration: CMTime = CMTime.zero,
+    currentTime: CMTime? = nil,
+    completed: Bool? = nil,
+    duration: CMTime? = nil,
     pubDate: Date? = Date(),
-    description: String = String.random(),
-    link: URL = URL.valid(),
-    image: URL = URL.valid(),
+    description: String? = nil,
+    link: URL? = nil,
+    image: URL? = nil,
     queueOrder: Int? = nil
   ) throws -> UnsavedEpisode {
     try UnsavedEpisode(
@@ -39,17 +39,17 @@ enum TestHelpers {
   static func unsavedPodcast(
     feedURL: URL = URL.valid(),
     title: String = String.random(),
-    link: URL = URL.valid(),
     image: URL = URL.valid(),
     description: String = String.random(),
-    lastUpdate: Date? = Date()
+    link: URL? = nil,
+    lastUpdate: Date? = nil
   ) throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: feedURL,
       title: title,
-      link: link,
       image: image,
       description: description,
+      link: link,
       lastUpdate: lastUpdate
     )
   }

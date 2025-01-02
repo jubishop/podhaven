@@ -51,6 +51,13 @@ actor PodcastRSSTests {
     #expect(podcast.title == "Marketplace")
   }
 
+  @Test("parsing the Unexplainable feed")
+  func parseUnexplainableFeed() async throws {
+    let url = Bundle.main.url(forResource: "unexplainable", withExtension: "rss")!
+    let podcast = try await PodcastRSS.parse(url)
+    #expect(podcast.title == "Unexplainable")
+  }
+
   @Test("parsing the invalid Game Informer feed")
   func parseInvalidGameInformerFeed() async {
     let url = Bundle.main.url(forResource: "game_informer_invalid", withExtension: "rss")!
