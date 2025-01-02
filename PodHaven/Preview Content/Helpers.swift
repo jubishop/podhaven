@@ -39,13 +39,11 @@ enum Helpers {
     var numberRemaining = numberNeeded - allPodcasts.count
     for await feedResult in await feedManager.feeds() {
       switch feedResult {
-      case .success(let feedData):
-        if let unsavedPodcast = feedData.feed.toUnsavedPodcast(feedURL: feedData.url),
+      case .success(let podcastFeed):
+        if let unsavedPodcast = podcastFeed.toUnsavedPodcast(),
           (try? await Repo.shared.insertSeries(
             unsavedPodcast,
-            unsavedEpisodes: feedData.feed.episodes.map {
-              try $0.toUnsavedEpisode()
-            }
+            unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
           )) != nil
         {
           numberRemaining -= 1
@@ -73,10 +71,7 @@ enum Helpers {
     let podcastFeed = try await PodcastFeed.parse(
       Bundle.main.url(forResource: fileName, withExtension: "rss")!
     )
-    guard
-      let unsavedPodcast = podcastFeed.toUnsavedPodcast(
-        feedURL: URL(string: seriesFiles[fileName]!)!
-      )
+    guard let unsavedPodcast = podcastFeed.toUnsavedPodcast()
     else { throw DBError.seriesNotFound(0) }
     return try await Repo.shared.insertSeries(
       unsavedPodcast,

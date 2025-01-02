@@ -10,8 +10,8 @@ struct EpisodeFeed: Sendable {
   private let rssEpisode: PodcastRSS.Episode
 
   fileprivate init(rssEpisode: PodcastRSS.Episode) throws {
-    guard let media = try? URL(string: rssEpisode.enclosure.url)?.convertToValidURL()
-    else { throw FeedError.failedConversion("EpisodeFeed requires media URL") }
+    guard let media = URL(string: rssEpisode.enclosure.url)
+    else { throw FeedError.failedConversion("EpisodeFeed invalid media URL") }
     self.rssEpisode = rssEpisode
     self.guid = rssEpisode.guid
     self.media = media
@@ -88,7 +88,7 @@ struct PodcastFeed: Sendable, Equatable {
 
   static func parse(_ data: Data) async throws -> PodcastFeed {
     let rssPodcast = try await PodcastRSS.parse(data)
-    return PodcastFeed(rssPodcast: rssPodcast)
+    return try PodcastFeed(rssPodcast: rssPodcast)
   }
 
   // MARK: - Instance Definition
@@ -96,31 +96,29 @@ struct PodcastFeed: Sendable, Equatable {
   let episodes: [EpisodeFeed]
 
   private let rssPodcast: PodcastRSS.Podcast
+  private let feedURL: URL
 
-  private init(rssPodcast: PodcastRSS.Podcast) {
+  private init(rssPodcast: PodcastRSS.Podcast) throws {
+    guard let urlString = rssPodcast.atomLinks.first(where: { $0.rel == "self" })?.href,
+      let feedURL = URL(string: urlString)
+    else { throw FeedError.failedConversion("PodcastFeed invalid feed URL") }
     self.rssPodcast = rssPodcast
+    self.feedURL = feedURL
     self.episodes = rssPodcast.episodes.compactMap { rssEpisode in
       try? EpisodeFeed(rssEpisode: rssEpisode)
     }
   }
 
   func toPodcast(mergingExisting existingPodcast: Podcast) -> Podcast? {
-    guard
-      let unsavedPodcast = toUnsavedPodcast(
-        feedURL: existingPodcast.feedURL,
-        mergingExisting: existingPodcast
-      )
+    guard let unsavedPodcast = toUnsavedPodcast(mergingExisting: existingPodcast)
     else { return nil }
 
     return Podcast(id: existingPodcast.id, from: unsavedPodcast)
   }
 
-  // TODO: Remove need for feedURL here
-  func toUnsavedPodcast(feedURL: URL, mergingExisting existingPodcast: Podcast? = nil)
-    -> UnsavedPodcast?
-  {
+  func toUnsavedPodcast(mergingExisting existingPodcast: Podcast? = nil) -> UnsavedPodcast? {
     try? UnsavedPodcast(
-      feedURL: self.newFeedURL ?? feedURL,
+      feedURL: newFeedURL ?? feedURL,
       title: rssPodcast.title,
       link: link ?? existingPodcast?.link,
       image: image ?? existingPodcast?.image,

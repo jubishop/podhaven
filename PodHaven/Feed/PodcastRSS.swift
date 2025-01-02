@@ -68,18 +68,24 @@ struct PodcastRSS: Decodable, Sendable {
   }
 
   @dynamicMemberLookup
-  struct Podcast: Decodable, Sendable, Equatable {
+  struct Podcast: Decodable, Sendable {
     // Mark: - Attributes
 
     struct TopLevelValues: Decodable, Sendable {
+      struct AtomLink: Decodable, Sendable {
+        let href: String
+        let rel: String
+      }
       let title: String
       let description: String
       let link: String
       let episodes: [Episode]
+      let atomLinks: [AtomLink]
 
       enum CodingKeys: String, CodingKey {
         case title, description, link
         case episodes = "item"
+        case atomLinks = "atom:link"
       }
     }
     private let values: TopLevelValues

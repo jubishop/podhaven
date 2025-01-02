@@ -2,12 +2,7 @@
 
 import Foundation
 
-typealias FeedResult = Result<FeedData, FeedError>
-
-struct FeedData: Sendable {
-  let url: URL // TODO: Remove this once it's built into PodcastFeed
-  let feed: PodcastFeed
-}
+typealias FeedResult = Result<PodcastFeed, FeedError>
 
 struct FeedTask: Sendable {
   let downloadTask: DownloadTask
@@ -28,7 +23,7 @@ struct FeedTask: Sendable {
     case .success(let downloadData):
       do {
         let podcastFeed = try await PodcastFeed.parse(downloadData.data)
-        return .success(FeedData(url: downloadTask.url, feed: podcastFeed))
+        return .success(podcastFeed)
       } catch {
         return .failure(.failedParse(error))
       }
@@ -61,8 +56,8 @@ final actor FeedManager: Sendable {
     switch feedResult {
     case .failure(let error):
       throw error
-    case .success(let feedData):
-      guard var newPodcast = feedData.feed.toPodcast(mergingExisting: podcastSeries.podcast)
+    case .success(let podcastFeed):
+      guard var newPodcast = podcastFeed.toPodcast(mergingExisting: podcastSeries.podcast)
       else {
         throw FeedError.failedConversion(
           "Failed to refresh series: \(podcastSeries.podcast.toString)"
@@ -70,7 +65,7 @@ final actor FeedManager: Sendable {
       }
       var unsavedEpisodes: [UnsavedEpisode] = []
       var existingEpisodes: [Episode] = []
-      for feedItem in feedData.feed.episodes {
+      for feedItem in podcastFeed.episodes {
         if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
           if let newExistingEpisode = try? feedItem.toEpisode(
             mergingExisting: existingEpisode

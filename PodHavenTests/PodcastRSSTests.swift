@@ -22,6 +22,9 @@ actor PodcastRSSTests {
       podcast.iTunes.image.href
         == "https://cdn.changelog.com/static/images/podcasts/podcast-original-f16d0363067166f241d080ee2e2d4a28.png"
     )
+    #expect(
+      podcast.atomLinks.first { $0.rel == "self" }!.href == "https://changelog.com/podcast/feed"
+    )
     #expect(episode.guid == "changelog.com/17/2644")
     #expect(episode.title == "State of the \"log\" 2024 (Friends)")
     #expect(

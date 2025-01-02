@@ -191,14 +191,14 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           }
           .value
 
-          guard case .success(let feedData) = await feedTask.feedParsed()
+          guard case .success(let podcastFeed) = await feedTask.feedParsed()
           else { return }
 
           guard
-            let unsavedPodcast = await feedData.feed.toUnsavedPodcast(feedURL: outline.feedURL),
+            let unsavedPodcast = podcastFeed.toUnsavedPodcast(),
             (try? await Repo.shared.insertSeries(
               unsavedPodcast,
-              unsavedEpisodes: feedData.feed.episodes.map { try $0.toUnsavedEpisode() }
+              unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
             )) != nil
           else { return }
 
