@@ -30,7 +30,7 @@ struct ContentView: View {
     }
     .overlay(alignment: .bottom) {
       PlayBar()
-        .offset(y: internalHeight - fullStackHeight)
+        .padding(.bottom, fullStackHeight - internalHeight)
     }
     .onGeometryChange(for: CGFloat.self) { geometry in
       geometry.size.height
