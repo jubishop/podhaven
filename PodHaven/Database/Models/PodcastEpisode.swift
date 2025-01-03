@@ -2,6 +2,9 @@
 
 import Foundation
 import GRDB
+import IdentifiedCollections
+
+typealias PodcastEpisodeArray = IdentifiedArray<URL, PodcastEpisode>
 
 struct PodcastEpisode: Codable, FetchableRecord, Equatable, Identifiable,
   Hashable

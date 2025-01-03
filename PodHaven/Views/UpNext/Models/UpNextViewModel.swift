@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import GRDB
 import IdentifiedCollections
 import SwiftUI
 
@@ -54,8 +55,18 @@ import SwiftUI
   }
 
   func observeQueuedEpisodes() async {
+    let observer =
+      ValueObservation.tracking { db in
+        try Episode
+          .filter(AppDB.queueOrderColumn != nil)
+          .including(required: Episode.podcast)
+          .order(AppDB.queueOrderColumn.asc)
+          .asRequest(of: PodcastEpisode.self)
+          .fetchIdentifiedArray(db, id: \PodcastEpisode.episode.media)
+      }
+      .removeDuplicates()
     do {
-      for try await podcastEpisodes in Observatory.queuedEpisodes.values() {
+      for try await podcastEpisodes in observer.values(in: Repo.shared.db) {
         self.podcastEpisodes = podcastEpisodes
         for podcastEpisode in isSelected.keys {
           if !podcastEpisodes.contains(podcastEpisode) {
