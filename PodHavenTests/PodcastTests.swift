@@ -42,7 +42,7 @@ actor PodcastTests {
       let exists = try podcast.exists(db)
       #expect(exists)
     }
-    let deleted = try await repo.delete(podcast)
+    let deleted = try await repo.delete(podcast.id)
     #expect(deleted)
     try await repo.db.read { [podcast] db in
       let exists = try podcast.exists(db)

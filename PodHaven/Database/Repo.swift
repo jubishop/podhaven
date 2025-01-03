@@ -111,9 +111,9 @@ struct Repo: Sendable {
   // MARK: - Podcast Writers
 
   @discardableResult
-  func delete(_ podcast: Podcast) async throws -> Bool {
+  func delete(_ podcastID: Int64) async throws -> Bool {
     try await appDB.db.write { db in
-      try podcast.delete(db)
+      try Podcast.deleteOne(db, id: podcastID)
     }
   }
 
