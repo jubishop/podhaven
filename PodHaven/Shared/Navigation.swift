@@ -2,37 +2,17 @@
 
 import SwiftUI
 
-struct NavigationView: Hashable {
-  private let id = UUID()
-  private let builder: () -> AnyView
-
-  init<Content: View>(@ViewBuilder _ builder: @escaping () -> Content) {
-    self.builder = { AnyView(builder()) }
-  }
-
-  func callAsFunction() -> some View {
-    builder()
-  }
-
-  static func == (lhs: NavigationView, rhs: NavigationView) -> Bool {
-    lhs.id == rhs.id
-  }
-
-  func hash(into hasher: inout Hasher) {
-    hasher.combine(id)
-  }
-}
-
 @Observable @MainActor final class Navigation: Sendable {
   static let shared = Navigation()
 
   enum Tab {
-    case settings, podcasts, upNext
+    case settings, podcasts, upNext, discover
   }
 
   var settingsPath = NavigationPath()
   var podcastsPath = NavigationPath()
   var upNextPath = NavigationPath()
+  var discoverPath = NavigationPath()
   var currentTab: Tab = .settings {
     willSet {
       clearPaths(newValue)
@@ -60,6 +40,8 @@ struct NavigationView: Hashable {
       podcastsPath = NavigationPath()
     case .upNext:
       upNextPath = NavigationPath()
+    case .discover:
+      discoverPath = NavigationPath()
     }
   }
 }

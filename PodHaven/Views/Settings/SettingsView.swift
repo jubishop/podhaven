@@ -3,16 +3,17 @@
 import SwiftUI
 
 struct SettingsView: View {
+  enum Sections {
+    case opml
+  }
+
   @State private var navigation = Navigation.shared
 
   var body: some View {
     NavigationStack(path: $navigation.settingsPath) {
       Form {
         Section("Importing / Exporting") {
-          NavigationLink(
-            value: NavigationView { OPMLView() },
-            label: { Text("OPML") }
-          )
+          NavigationLink(value: Sections.opml, label: { Text("OPML") })
         }
 
         #if DEBUG
@@ -20,7 +21,11 @@ struct SettingsView: View {
         #endif
       }
       .navigationTitle("Settings")
-      .navigationDestination(for: NavigationView.self) { view in view() }
+      .navigationDestination(for: Sections.self) { section in
+        switch section {
+        case .opml: OPMLView()
+        }
+      }
     }
   }
 }

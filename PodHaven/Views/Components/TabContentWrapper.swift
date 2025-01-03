@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-struct TabContent<Content: View>: View {
+struct TabContentWrapper<Content: View>: View {
   @Binding var height: CGFloat
 
   let content: Content
@@ -26,7 +26,7 @@ struct TabContent<Content: View>: View {
 #Preview {
   TabView {
     Tab("Preview", systemImage: "gear") {
-      TabContent(height: .constant(0)) { Text("Hello World") }
+      TabContentWrapper(height: .constant(0)) { Text("Hello World") }
     }
   }
 }

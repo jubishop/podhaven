@@ -9,30 +9,23 @@ struct ContentView: View {
 
   var body: some View {
     TabView(selection: $navigation.currentTab) {
-      Tab(
-        "Settings",
-        systemImage: "gear",
-        value: .settings
-      ) {
-        TabContent(height: $tabHeights[.settings]) {
+      Tab("Settings", systemImage: "gear", value: .settings) {
+        TabContentWrapper(height: $tabHeights[.settings]) {
           SettingsView()
         }
       }
-      Tab(
-        "Up Next",
-        systemImage: "list.bullet",
-        value: .upNext
-      ) {
-        TabContent(height: $tabHeights[.upNext]) {
+      Tab("Up Next", systemImage: "list.bullet", value: .upNext) {
+        TabContentWrapper(height: $tabHeights[.upNext]) {
           UpNextView()
         }
       }
-      Tab(
-        "Podcasts",
-        systemImage: "dot.radiowaves.left.and.right",
-        value: .podcasts
-      ) {
-        TabContent(height: $tabHeights[.podcasts]) {
+      Tab("Discover", systemImage: "magnifyingglass", value: .discover, role: .search) {
+        TabContentWrapper(height: $tabHeights[.discover]) {
+          DiscoverView()
+        }
+      }
+      Tab("Podcasts", systemImage: "dot.radiowaves.left.and.right", value: .podcasts) {
+        TabContentWrapper(height: $tabHeights[.podcasts]) {
           PodcastsView()
         }
       }
