@@ -10,8 +10,7 @@ struct ContentView: View {
   var body: some View {
     TabView(selection: $navigation.currentTab) {
       Tab("Settings", systemImage: "gear", value: .settings) {
-        SettingsView()
-          .tab()
+        SettingsView().tab()
           .onGeometryChange(for: CGFloat.self) { geometry in
             geometry.size.height
           } action: { newHeight in
