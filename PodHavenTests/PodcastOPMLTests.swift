@@ -12,7 +12,7 @@ actor PodcastOPMLTests {
     let url = Bundle.main.url(forResource: "large", withExtension: "opml")!
     let opml = try await PodcastOPML.parse(url)
     #expect(opml.head.title == "Superphonic Podcast Subscriptions")
-    #expect(opml.body.outlines.count == 43)
+    #expect(opml.body.outlines.count == 48)
     #expect(opml.body.outlines.first!.text == "Chasing Life")
     #expect(opml.body.outlines.first!.xmlUrl == "https://feeds.megaphone.fm/WMHY6124370245")
   }
