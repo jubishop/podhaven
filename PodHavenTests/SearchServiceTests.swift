@@ -28,6 +28,10 @@ actor SearchServiceTests {
       .data(data)
     )
     let result = try await service.searchByTerm(searchTerm)
-    #expect(result.feeds.first!.title == "Hard Fork")
+    let feed = result.feeds.first!
+    #expect(feed.title == "Hard Fork")
+    #expect(feed.url == URL(string: "https://feeds.simplecast.com/l2i9YnTd")!)
+    #expect(feed.lastUpdateTime == Date(timeIntervalSince1970: TimeInterval(1736023489)))
+    #expect(feed.categories["102"] == "Technology")
   }
 }
