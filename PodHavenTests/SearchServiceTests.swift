@@ -7,10 +7,16 @@ import Testing
 
 @Suite("of SearchService tests")
 actor SearchServiceTests {
+  private let service: SearchService
+
+  init() {
+    service = SearchService(session: URLSession.shared)
+  }
+
   @Test("basic search query")
   func testBasicSearchQuery() async throws {
-    let result = try await SearchService.searchByTerm("hard fork")
-    print(String(data: result, encoding: .utf8)!)
+    let result = try await service.searchByTerm("hard fork")
+    #expect(result.feeds.first!.title == "Hard Fork")
   }
 }
 

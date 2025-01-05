@@ -3,16 +3,8 @@
 import Foundation
 
 protocol Networking: Sendable {
-  func data(
-    from url: URL,
-    delegate: (any URLSessionTaskDelegate)?
-  ) async throws -> (Data, URLResponse)
-}
-
-extension Networking {
-  func data(from url: URL) async throws -> (Data, URLResponse) {
-    try await data(from: url, delegate: nil)
-  }
+  func data(from url: URL) async throws -> (Data, URLResponse)
+  func data(for: URLRequest) async throws -> (Data, URLResponse)
 }
 
 extension URLSession: Networking {}

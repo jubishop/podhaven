@@ -108,15 +108,10 @@ final actor DownloadManager: Sendable {
     pendingDownloads.count + activeDownloads.count
   }
 
-  init(
-    session: Networking = URLSession.shared,
-    maxConcurrentDownloads: Int = 16
-  ) {
+  init(session: Networking, maxConcurrentDownloads: Int = 16) {
     self.session = session
     self.maxConcurrentDownloads = maxConcurrentDownloads
-    (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(
-      of: DownloadResult.self
-    )
+    (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(of: DownloadResult.self)
   }
 
   deinit {

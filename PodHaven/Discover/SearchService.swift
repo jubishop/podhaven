@@ -2,32 +2,42 @@
 
 import Foundation
 
-enum SearchService: Sendable {
-  // MARK: - Static Search Methods
-
-  static func searchByTerm(_ term: String) async throws -> Data {
-    let urlPath = "/search/byterm?q=\(term)"
-    return try await performRequest(urlPath)
+struct SearchService: Sendable {
+  private let session: Networking
+  init(session: Networking) {
+    self.session = session
   }
 
-  // MARK: - Private Helpers
+  // MARK: - Search Methods
+
+  func searchByTerm(_ term: String) async throws -> SearchResult {
+    let urlPath = "/search/byterm?q=\(term)"
+    let result = try await performRequest(urlPath)
+    return try await parse(result)
+  }
+
+  // MARK: - Static Private Helpers
 
   static private let apiKey = "G3SPKHRKRLCU7Z2PJXEW"
   static private let apiSecret = "tQcZQATRC5Yg#zG^s7jyaVsMU8fQx5rpuGU6nqC7"
   static private let baseURLString = "https://api.podcastindex.org/api/1.0"
-  static private let urlSession = {
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.allowsCellularAccess = true
-    configuration.waitsForConnectivity = true
-    let timeout = Double(10)
-    configuration.timeoutIntervalForRequest = timeout
-    configuration.timeoutIntervalForResource = timeout
-    return URLSession(configuration: configuration)
-  }()
 
-  static private func performRequest(_ urlPath: String) async throws -> Data {
+  private func parse(_ data: Data) async throws -> SearchResult {
+    try await withCheckedThrowingContinuation { continuation in
+      do {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        let searchResult = try decoder.decode(SearchResult.self, from: data)
+        continuation.resume(returning: searchResult)
+      } catch {
+        continuation.resume(throwing: error)
+      }
+    }
+  }
+
+  private func performRequest(_ urlPath: String) async throws -> Data {
     let request = try buildRequest(urlPath)
-    let (data, response) = try await urlSession.data(for: request)
+    let (data, response) = try await session.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {
       throw SearchError.invalidResponse
     }
@@ -37,19 +47,19 @@ enum SearchService: Sendable {
     return data
   }
 
-  static private func buildRequest(_ urlPath: String) throws -> URLRequest {
-    let urlString = baseURLString + urlPath
-    guard let url = URL(string: urlString) else { throw SearchError.badURL(urlString) }
+  private func buildRequest(_ urlPath: String) throws -> URLRequest {
+    let urlString = Self.baseURLString + urlPath
+    guard let url = URL(string: urlString) else { fatalError("Can't make url from: \(urlString)?") }
     var request = URLRequest(url: url)
     request.httpMethod = "GET"
 
     request.addValue("PodHaven", forHTTPHeaderField: "User-Agent")
-    request.addValue(apiKey, forHTTPHeaderField: "X-Auth-Key")
+    request.addValue(Self.apiKey, forHTTPHeaderField: "X-Auth-Key")
 
     let apiHeaderTime = String(Int(Date().timeIntervalSince1970))
     request.addValue(apiHeaderTime, forHTTPHeaderField: "X-Auth-Date")
 
-    let hash = (apiKey + apiSecret + apiHeaderTime).sha1()
+    let hash = (Self.apiKey + Self.apiSecret + apiHeaderTime).sha1()
     request.addValue(hash, forHTTPHeaderField: "Authorization")
 
     return request

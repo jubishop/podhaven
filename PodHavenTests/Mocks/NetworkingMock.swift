@@ -18,10 +18,12 @@ final actor NetworkingMock: Networking {
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
 
-  func data(
-    from url: URL,
-    delegate: URLSessionTaskDelegate?
-  ) async throws -> (Data, URLResponse) {
+  func data(for urlRequest: URLRequest) async throws -> (Data, URLResponse) {
+    guard let url = urlRequest.url else { fatalError("No URL in URLRequest: \(urlRequest)??") }
+    return try await data(from: url)
+  }
+
+  func data(from url: URL) async throws -> (Data, URLResponse) {
     defer { activeRequests -= 1 }
     activeRequests += 1
     maxActiveRequests = max(maxActiveRequests, activeRequests)
