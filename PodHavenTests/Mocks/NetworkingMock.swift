@@ -14,10 +14,15 @@ enum MockResponse {
 }
 
 final actor NetworkingMock: Networking {
+  private let session: URLSession
   private var mockResponses: [URL: MockResponse] = [:]
   private(set) var requests: [URL] = []
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
+
+  init(session: URLSession = URLSession.shared) {
+    self.session = session
+  }
 
   func data(for urlRequest: URLRequest) async throws -> (Data, URLResponse) {
     guard let url = urlRequest.url else { fatalError("No URL in URLRequest: \(urlRequest)??") }
@@ -29,7 +34,7 @@ final actor NetworkingMock: Networking {
 
     switch get(url) {
       case .production:
-        return try await URLSession.shared.data(for: urlRequest)
+        return try await session.data(for: urlRequest)
       case .delay(let delay):
         try await Task.sleep(for: delay)
         return (url.dataRepresentation, response(url))
