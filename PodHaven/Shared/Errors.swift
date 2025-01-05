@@ -48,9 +48,9 @@ enum DownloadError: Error, LocalizedError, Sendable {
   var errorDescription: String {
     switch self {
     case .invalidResponse:
-      return "Received an invalid response from the server."
+      return "Received invalid response from the server."
     case .invalidStatusCode(let statusCode):
-      return "Received HTTP status code \(statusCode)."
+      return "Received invalid HTTP status code \(statusCode)."
     case .networkError(let message):
       return "A network error occurred: \"\(message)\""
     case .cancelled:
@@ -78,6 +78,20 @@ enum FeedError: Error, LocalizedError, Sendable {
       return "No RSS feed found."
     case .cancelled:
       return "The feed download was cancelled."
+    }
+  }
+}
+
+enum SearchError: Error, LocalizedError, Sendable {
+  case invalidResponse
+  case invalidStatusCode(Int)
+  
+  var errorDescription: String {
+    switch self {
+      case .invalidResponse:
+        return "Received invalid response from search API."
+      case .invalidStatusCode(let statusCode):
+        return "Received invalid status code \(statusCode) from search API."
     }
   }
 }
