@@ -10,6 +10,7 @@ enum MockResponse {
   case data(Data)
   case detail(delay: Duration, data: Data)
   case error(Error)
+  case production
 }
 
 final actor NetworkingMock: Networking {
@@ -20,30 +21,33 @@ final actor NetworkingMock: Networking {
 
   func data(for urlRequest: URLRequest) async throws -> (Data, URLResponse) {
     guard let url = urlRequest.url else { fatalError("No URL in URLRequest: \(urlRequest)??") }
-    return try await data(from: url)
-  }
 
-  func data(from url: URL) async throws -> (Data, URLResponse) {
-    defer { activeRequests -= 1 }
     activeRequests += 1
+    defer { activeRequests -= 1 }
     maxActiveRequests = max(maxActiveRequests, activeRequests)
     requests.append(url)
 
     switch get(url) {
-    case .delay(let delay):
-      try await Task.sleep(for: delay)
-      return (url.dataRepresentation, response(url))
+      case .production:
+        return try await URLSession.shared.data(for: urlRequest)
+      case .delay(let delay):
+        try await Task.sleep(for: delay)
+        return (url.dataRepresentation, response(url))
 
-    case .data(let data):
-      return (data, response(url))
+      case .data(let data):
+        return (data, response(url))
 
-    case .detail(let delay, let data):
-      try await Task.sleep(for: delay)
-      return (data, response(url))
+      case .detail(let delay, let data):
+        try await Task.sleep(for: delay)
+        return (data, response(url))
 
-    case .error(let error):
-      throw error
+      case .error(let error):
+        throw error
     }
+  }
+
+  func data(from url: URL) async throws -> (Data, URLResponse) {
+    return try await data(for: URLRequest(url: url))
   }
 
   func set(_ url: URL, _ response: MockResponse) {

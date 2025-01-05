@@ -34,4 +34,18 @@ actor SearchServiceTests {
     #expect(feed.lastUpdateTime == Date(timeIntervalSince1970: TimeInterval(1736023489)))
     #expect(feed.categories["102"] == "Technology")
   }
+
+  @Test("listing categories")
+  func testListingCategories() async throws {
+    let data = try Data(
+      contentsOf: Bundle.main.url(forResource: "categories", withExtension: "json")!
+    )
+    await session.set(
+      URL(string: Self.baseURLString + "/categories/list")!,
+      .data(data)
+    )
+    let result = try await service.listCategories()
+    #expect(result.count == 112)
+    #expect(result.feeds.first(where: { $0.id == 38 })!.name == "Parenting")
+  }
 }

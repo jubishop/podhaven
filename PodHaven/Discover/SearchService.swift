@@ -12,8 +12,12 @@ struct SearchService: Sendable {
 
   func searchByTerm(_ term: String) async throws -> SearchResult {
     let urlPath = "/search/byterm?q=\(term)"
-    let result = try await performRequest(urlPath)
-    return try await parse(result)
+    return try await parse(try await performRequest(urlPath))
+  }
+
+  func listCategories() async throws -> CategoriesResult {
+    let urlPath = "/categories/list"
+    return try await parse(try await performRequest(urlPath))
   }
 
   // MARK: - Static Private Helpers
@@ -22,12 +26,12 @@ struct SearchService: Sendable {
   static private let apiSecret = "tQcZQATRC5Yg#zG^s7jyaVsMU8fQx5rpuGU6nqC7"
   static private let baseURLString = "https://api.podcastindex.org/api/1.0"
 
-  private func parse(_ data: Data) async throws -> SearchResult {
+  private func parse<T: Decodable>(_ data: Data) async throws -> T {
     try await withCheckedThrowingContinuation { continuation in
       do {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
-        let searchResult = try decoder.decode(SearchResult.self, from: data)
+        let searchResult = try decoder.decode(T.self, from: data)
         continuation.resume(returning: searchResult)
       } catch {
         continuation.resume(throwing: error)
