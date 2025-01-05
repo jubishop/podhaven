@@ -83,15 +83,18 @@ enum FeedError: Error, LocalizedError, Sendable {
 }
 
 enum SearchError: Error, LocalizedError, Sendable {
+  case badURL(String)
   case invalidResponse
   case invalidStatusCode(Int)
-  
+
   var errorDescription: String {
     switch self {
-      case .invalidResponse:
-        return "Received invalid response from search API."
-      case .invalidStatusCode(let statusCode):
-        return "Received invalid status code \(statusCode) from search API."
+    case .badURL(let url):
+      return "Bad URL for search query: \(url)"
+    case .invalidResponse:
+      return "Received invalid response from search API."
+    case .invalidStatusCode(let statusCode):
+      return "Received invalid status code \(statusCode) from search API."
     }
   }
 }
