@@ -14,15 +14,9 @@ final actor DownloadTask: Sendable {
 
   private let session: Networking
   private var beganContinuations: [CheckedContinuation<Void, Never>] = []
-  private var finishedContinuations:
-    [CheckedContinuation<DownloadResult, Never>] = []
+  private var finishedContinuations: [CheckedContinuation<DownloadResult, Never>] = []
   private var begun: Bool = false
   private var result: DownloadResult?
-
-  fileprivate init(url: URL, session: Networking) {
-    self.url = url
-    self.session = session
-  }
 
   func downloadBegan() async {
     guard !begun else { return }
@@ -44,29 +38,13 @@ final actor DownloadTask: Sendable {
     haveFinished(.failure(.cancelled))
   }
 
-  // MARK: - Private Methods
+  // MARK: - Fileprivate Methods
 
-  private func haveBegun() {
-    guard !begun else { return }
-    begun = true
-    for beganContinuation in beganContinuations {
-      beganContinuation.resume()
-    }
-    beganContinuations.removeAll()
+  fileprivate init(url: URL, session: Networking) {
+    self.url = url
+    self.session = session
   }
 
-  private func haveFinished(_ result: DownloadResult) {
-    guard self.result == nil else { return }
-    self.result = result
-    haveBegun()
-    for finishedContinuation in finishedContinuations {
-      finishedContinuation.resume(returning: result)
-    }
-    finishedContinuations.removeAll()
-  }
-}
-
-extension DownloadTask {
   fileprivate func download() async -> DownloadResult {
     if let result = self.result { return result }
     do {
@@ -94,6 +72,27 @@ extension DownloadTask {
       fatalError("No result by the end of download()?!")
     }
     return result
+  }
+
+  // MARK: - Private Methods
+
+  private func haveBegun() {
+    guard !begun else { return }
+    begun = true
+    for beganContinuation in beganContinuations {
+      beganContinuation.resume()
+    }
+    beganContinuations.removeAll()
+  }
+
+  private func haveFinished(_ result: DownloadResult) {
+    guard self.result == nil else { return }
+    self.result = result
+    haveBegun()
+    for finishedContinuation in finishedContinuations {
+      finishedContinuation.resume(returning: result)
+    }
+    finishedContinuations.removeAll()
   }
 }
 
