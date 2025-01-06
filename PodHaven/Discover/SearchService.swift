@@ -11,20 +11,21 @@ struct SearchService: Sendable {
   // MARK: - Search Methods
 
   func searchByTerm(_ term: String) async throws -> SearchResult {
-    let urlPath = "/search/byterm?q=\(term)"
-    return try await parse(try await performRequest(urlPath))
+    try await parse(
+      try await performRequest("/search/byterm", [URLQueryItem(name: "q", value: term)])
+    )
   }
 
   func listCategories() async throws -> CategoriesResult {
-    let urlPath = "/categories/list"
-    return try await parse(try await performRequest(urlPath))
+    try await parse(try await performRequest("/categories/list"))
   }
 
   // MARK: - Static Private Helpers
 
   static private let apiKey = "G3SPKHRKRLCU7Z2PJXEW"
   static private let apiSecret = "tQcZQATRC5Yg#zG^s7jyaVsMU8fQx5rpuGU6nqC7"
-  static private let baseURLString = "https://api.podcastindex.org/api/1.0"
+  static private let baseHost = "api.podcastindex.org"
+  static private let basePath = "/api/1.0"
 
   private func parse<T: Decodable>(_ data: Data) async throws -> T {
     try await withCheckedThrowingContinuation { continuation in
@@ -39,8 +40,8 @@ struct SearchService: Sendable {
     }
   }
 
-  private func performRequest(_ urlPath: String) async throws -> Data {
-    let request = try buildRequest(urlPath)
+  private func performRequest(_ path: String, _ query: [URLQueryItem]? = nil) async throws -> Data {
+    let request = try buildRequest(path, query)
     let (data, response) = try await session.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {
       throw SearchError.invalidResponse
@@ -51,9 +52,13 @@ struct SearchService: Sendable {
     return data
   }
 
-  private func buildRequest(_ urlPath: String) throws -> URLRequest {
-    let urlString = Self.baseURLString + urlPath
-    guard let url = URL(string: urlString) else { fatalError("Can't make url from: \(urlString)?") }
+  private func buildRequest(_ path: String, _ query: [URLQueryItem]? = nil) throws -> URLRequest {
+    var components = URLComponents()
+    components.scheme = "https"
+    components.host = Self.baseHost
+    components.path = Self.basePath + path
+    components.queryItems = query
+    guard let url = components.url else { fatalError("Can't make url from: \(components)?") }
     var request = URLRequest(url: url)
     request.httpMethod = "GET"
 
