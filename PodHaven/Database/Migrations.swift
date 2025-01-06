@@ -16,7 +16,7 @@ enum Migrations {
         t.autoIncrementedPrimaryKey("id")
         t
           .column("feedURL", .text)
-          .unique(onConflict: .replace)
+          .unique(onConflict: .fail)
           .notNull()
           .indexed()
         t.column("title", .text).notNull()
@@ -30,10 +30,10 @@ enum Migrations {
         t.autoIncrementedPrimaryKey("id")
         t.belongsTo("podcast", onDelete: .cascade).notNull()
         t.column("guid", .text).notNull().indexed()
-        t.uniqueKey(["podcastId", "guid"], onConflict: .replace)
+        t.uniqueKey(["podcastId", "guid"], onConflict: .fail)
         t
           .column("media", .text)
-          .unique(onConflict: .replace)
+          .unique(onConflict: .fail)
           .notNull()
           .indexed()
         t.column("title", .text).notNull()
