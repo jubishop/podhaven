@@ -6,12 +6,8 @@ import Foundation
 @propertyWrapper
 struct OptionalURL: Decodable, Sendable {
   private let value: URL?
-
   var wrappedValue: URL? { value }
-
-  init(wrappedValue: URL?) {
-    self.value = wrappedValue
-  }
+  init(wrappedValue: URL?) { self.value = wrappedValue }
 
   init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
@@ -22,12 +18,8 @@ struct OptionalURL: Decodable, Sendable {
 @propertyWrapper
 struct CMTimeInSeconds: Decodable, Sendable {
   private let value: CMTime
-
   var wrappedValue: CMTime { value }
-
-  init(wrappedValue: CMTime) {
-    self.value = wrappedValue
-  }
+  init(wrappedValue: CMTime) { self.value = wrappedValue }
 
   init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
