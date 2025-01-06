@@ -16,6 +16,10 @@ struct SearchService: Sendable {
     )
   }
 
+  func searchTrending() async throws -> TrendingResult {
+    try await parse(try await performRequest("/podcasts/trending"))
+  }
+
   func listCategories() async throws -> CategoriesResult {
     try await parse(try await performRequest("/categories/list"))
   }

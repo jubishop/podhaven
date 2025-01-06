@@ -15,6 +15,5 @@ struct TrendingResult: Sendable, Decodable {
   let feeds: [FeedResult]
   let since: Date
   let count: Int
-  let max: Int
 }
 

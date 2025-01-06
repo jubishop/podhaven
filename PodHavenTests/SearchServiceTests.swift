@@ -48,4 +48,18 @@ actor SearchServiceTests {
     #expect(result.count == 112)
     #expect(result.feeds.first(where: { $0.id == 38 })!.name == "Parenting")
   }
+
+  @Test("search trending")
+  func testSearchTrending() async throws {
+    let data = try Data(
+      contentsOf: Bundle.main.url(forResource: "trending", withExtension: "json")!
+    )
+    await session.set(
+      URL(string: Self.baseURLString + "/podcasts/trending")!,
+      .data(data)
+    )
+    let result = try await service.searchTrending()
+    #expect(result.count == 40)
+    #expect(result.since == Date(timeIntervalSince1970: TimeInterval(1736102643)))
+  }
 }
