@@ -3,8 +3,8 @@
 import Foundation
 
 struct SearchService: Sendable {
-  private let session: Networking
-  init(session: Networking) {
+  private let session: DataFetchable
+  init(session: DataFetchable) {
     self.session = session
   }
 

@@ -12,7 +12,7 @@ final actor DownloadTask: Sendable {
   let url: URL
   var finished: Bool { result != nil }
 
-  private let session: Networking
+  private let session: DataFetchable
   private var beganContinuations: [CheckedContinuation<Void, Never>] = []
   private var finishedContinuations: [CheckedContinuation<DownloadResult, Never>] = []
   private var begun: Bool = false
@@ -40,7 +40,7 @@ final actor DownloadTask: Sendable {
 
   // MARK: - Fileprivate Methods
 
-  fileprivate init(url: URL, session: Networking) {
+  fileprivate init(url: URL, session: DataFetchable) {
     self.url = url
     self.session = session
   }
@@ -99,7 +99,7 @@ final actor DownloadTask: Sendable {
 final actor DownloadManager: Sendable {
   private var activeDownloads: [URL: DownloadTask] = [:]
   private var pendingDownloads: OrderedDictionary<URL, DownloadTask> = [:]
-  private let session: Networking
+  private let session: DataFetchable
   private let maxConcurrentDownloads: Int
   private let asyncStream: AsyncStream<DownloadResult>
   private let streamContinuation: AsyncStream<DownloadResult>.Continuation
@@ -108,7 +108,7 @@ final actor DownloadManager: Sendable {
     pendingDownloads.count + activeDownloads.count
   }
 
-  init(session: Networking, maxConcurrentDownloads: Int = 16) {
+  init(session: DataFetchable, maxConcurrentDownloads: Int = 16) {
     self.session = session
     self.maxConcurrentDownloads = maxConcurrentDownloads
     (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(of: DownloadResult.self)

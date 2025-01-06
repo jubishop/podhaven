@@ -8,10 +8,10 @@ import Testing
 
 @Suite("of DownloadManager tests")
 actor DownloadManagerTests {
-  private let session: NetworkingMock
+  private let session: DataFetchableMock
 
   init() {
-    session = NetworkingMock()
+    session = DataFetchableMock()
   }
 
   @Test("that a single download works successfully")

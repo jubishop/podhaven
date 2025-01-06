@@ -13,7 +13,7 @@ enum MockResponse {
   case production
 }
 
-final actor NetworkingMock: Networking {
+final actor DataFetchableMock: DataFetchable {
   private let session: URLSession
   private var mockResponses: [URL: MockResponse] = [:]
   private(set) var requests: [URL] = []
@@ -33,26 +33,27 @@ final actor NetworkingMock: Networking {
     requests.append(url)
 
     switch get(url) {
-      case .production:
-        return try await session.data(for: urlRequest)
-      case .delay(let delay):
-        try await Task.sleep(for: delay)
-        return (url.dataRepresentation, response(url))
+    case .production:
+      return try await session.data(for: urlRequest)
 
-      case .data(let data):
-        return (data, response(url))
+    case .delay(let delay):
+      try await Task.sleep(for: delay)
+      return (url.dataRepresentation, response(url))
 
-      case .detail(let delay, let data):
-        try await Task.sleep(for: delay)
-        return (data, response(url))
+    case .data(let data):
+      return (data, response(url))
 
-      case .error(let error):
-        throw error
+    case .detail(let delay, let data):
+      try await Task.sleep(for: delay)
+      return (data, response(url))
+
+    case .error(let error):
+      throw error
     }
   }
 
   func data(from url: URL) async throws -> (Data, URLResponse) {
-    return try await data(for: URLRequest(url: url))
+    try await data(for: URLRequest(url: url))
   }
 
   func set(_ url: URL, _ response: MockResponse) {

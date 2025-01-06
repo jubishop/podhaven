@@ -100,17 +100,14 @@ actor PodcastTests {
     #expect(podcast.feedURL == URL(string: "https://example.com/data#fragment")!)
   }
 
-  @Test("that a podcast feedURL replaces existing entry")
+  @Test("that trying to set the same podcast feedURL throws error")
   func updateExistingPodcastOnConflict() async throws {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: url, title: "Old Title")
     _ = try await repo.insertSeries(unsavedPodcast)
     let unsavedPodcast2 = try TestHelpers.unsavedPodcast(feedURL: url, title: "New Title")
-    _ = try await repo.insertSeries(unsavedPodcast2)
-
-    let fetchedPodcast = try await repo.db.read { db in
-      try Podcast.fetchOne(db, key: ["feedURL": url])
+    await #expect(throws: (any Error).self) {
+      _ = try await repo.insertSeries(unsavedPodcast2)
     }
-    #expect(fetchedPodcast?.title == "New Title")
   }
 }

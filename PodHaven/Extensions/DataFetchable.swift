@@ -2,9 +2,9 @@
 
 import Foundation
 
-protocol Networking: Sendable {
+protocol DataFetchable: Sendable {
   func data(from url: URL) async throws -> (Data, URLResponse)
   func data(for: URLRequest) async throws -> (Data, URLResponse)
 }
 
-extension URLSession: Networking {}
+extension URLSession: DataFetchable {}

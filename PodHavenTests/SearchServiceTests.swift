@@ -9,11 +9,11 @@ import Testing
 actor SearchServiceTests {
   static private let baseURLString = "https://api.podcastindex.org/api/1.0"
 
-  private let session: NetworkingMock
+  private let session: DataFetchableMock
   private let service: SearchService
 
   init() {
-    session = NetworkingMock()
+    session = DataFetchableMock()
     service = SearchService(session: session)
   }
 
