@@ -1,0 +1,22 @@
+// Copyright Justin Bishop, 2025
+
+import AVFoundation
+import Foundation
+
+struct EpisodeResult: Sendable, Decodable {
+  struct ItemResult: Sendable, Decodable {
+    let id: Int
+    let guid: String
+    let title: String
+    @OptionalURL var link: URL?
+    let description: String
+    let datePublished: Date
+    let enclosureUrl: URL
+    @CMTimeInSeconds var duration: CMTime
+    @OptionalURL var image: URL?
+    let feedUrl: URL
+    let feedImage: URL
+    let feedTitle: String
+  }
+  let items: [ItemResult]
+}

@@ -8,6 +8,5 @@ struct CategoriesResult: Sendable, Decodable {
     let name: String
   }
   let feeds: [Category]
-  let count: Int
 }
 

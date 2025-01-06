@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import Foundation
 import Testing
 
@@ -29,7 +30,7 @@ actor SearchServiceTests {
     )
     let result = try await service.searchByTerm(searchTerm)
     let feed = result.feeds.first!
-    #expect(result.count == 5)
+    #expect(result.feeds.count == 5)
     #expect(feed.title == "Hard Fork")
     #expect(feed.url == URL(string: "https://feeds.simplecast.com/l2i9YnTd")!)
     #expect(feed.lastUpdateTime == Date(timeIntervalSince1970: TimeInterval(1736023489)))
@@ -52,8 +53,28 @@ actor SearchServiceTests {
       feed.description
         == "Adam Devine, Anders Holm, Blake Anderson, and Kyle Newacheck seriously discuss some very important topics."
     )
+    #expect(result.feeds.count == 3)
     #expect(Set(feed.categories.values) == ["Comedy", "Society", "Culture"])
-    #expect(result.count == 3)
+  }
+
+  @Test("search by person")
+  func testSearchByPerson() async throws {
+    let searchTerm = "Neil DeGrasse Tyson"
+    let data = try Data(
+      contentsOf: Bundle.main.url(forResource: "ndg_byperson", withExtension: "json")!
+    )
+    await session.set(
+      URL(string: Self.baseURLString + "/search/byperson?q=\(searchTerm)")!,
+      .data(data)
+    )
+    let result = try await service.searchByPerson(searchTerm)
+    let item = result.items.first!
+    #expect(result.items.count == 60)
+    #expect(
+      item.title
+        == "Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women"
+    )
+    #expect(item.duration == CMTime.inSeconds(887))
   }
 
   @Test("listing categories")
@@ -66,7 +87,7 @@ actor SearchServiceTests {
       .data(data)
     )
     let result = try await service.listCategories()
-    #expect(result.count == 112)
+    #expect(result.feeds.count == 112)
     #expect(result.feeds.first(where: { $0.id == 38 })!.name == "Parenting")
   }
 
@@ -80,7 +101,7 @@ actor SearchServiceTests {
       .data(data)
     )
     let result = try await service.searchTrending()
-    #expect(result.count == 40)
+    #expect(result.feeds.count == 40)
     #expect(result.since == Date(timeIntervalSince1970: TimeInterval(1736102643)))
   }
 }

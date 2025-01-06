@@ -22,6 +22,12 @@ struct SearchService: Sendable {
     )
   }
 
+  func searchByPerson(_ person: String) async throws -> EpisodeResult {
+    try await parse(
+      try await performRequest("/search/byperson", [URLQueryItem(name: "q", value: person)])
+    )
+  }
+
   func searchTrending() async throws -> TrendingResult {
     try await parse(try await performRequest("/podcasts/trending"))
   }
