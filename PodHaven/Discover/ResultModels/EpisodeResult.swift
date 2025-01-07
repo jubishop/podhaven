@@ -12,7 +12,7 @@ struct EpisodeResult: Sendable, Decodable {
     let description: String
     let datePublished: Date
     let enclosureUrl: URL
-    @CMTimeInSeconds var duration: CMTime
+    let duration: CMTime
     @OptionalURL var image: URL?
     let feedUrl: URL
     let feedImage: URL
