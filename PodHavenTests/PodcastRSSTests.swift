@@ -16,19 +16,17 @@ actor PodcastRSSTests {
     #expect(podcast.title == "The Changelog: Software Development, Open Source")
     let desc = "Software's best weekly news brief, deep technical interviews & talk show."
     #expect(podcast.description == desc)
-    #expect(podcast.iTunes.newFeedURL == "https://changelog.com/podcast/feed")
-    #expect(podcast.link == "https://changelog.com/podcast")
+    #expect(podcast.iTunes.newFeedURL?.absoluteString == "https://changelog.com/podcast/feed")
+    #expect(podcast.link?.absoluteString == "https://changelog.com/podcast")
     #expect(
-      podcast.iTunes.image.href
+      podcast.iTunes.image.href.absoluteString
         == "https://cdn.changelog.com/static/images/podcasts/podcast-original-f16d0363067166f241d080ee2e2d4a28.png"
     )
-    #expect(
-      podcast.atomLinks.first { $0.rel == "self" }!.href == "https://changelog.com/podcast/feed"
-    )
+    #expect(podcast.feedURL?.absoluteString == "https://changelog.com/podcast/feed")
     #expect(episode.guid == "changelog.com/17/2644")
     #expect(episode.title == "State of the \"log\" 2024 (Friends)")
     #expect(
-      episode.enclosure.url
+      episode.enclosure.url.absoluteString
         == "https://op3.dev/e/https://cdn.changelog.com/uploads/friends/74/changelog--friends-74.mp3"
     )
     #expect(episode.pubDate! == Date.rfc2822.date(from: "Fri, 20 Dec 2024 20:00:00 +0000"))
@@ -37,9 +35,9 @@ actor PodcastRSSTests {
       episode.description!
         == "Our 7th annual year-end wrap-up is here! We're featuring 12 listener voicemails, dope Breakmaster Cylinder remixes & our favorite episodes of the year. Thanks for listening! 💚"
     )
-    #expect(episode.link == "https://changelog.com/friends/74")
+    #expect(episode.link?.absoluteString == "https://changelog.com/friends/74")
     #expect(
-      episode.iTunes.image!.href
+      episode.iTunes.image!.href.absoluteString
         == "https://cdn.changelog.com/uploads/covers/changelog--friends-original.png?v=63848361609"
     )
   }

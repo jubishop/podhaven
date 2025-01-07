@@ -30,12 +30,12 @@ struct PodcastRSS: Decodable, Sendable {
   struct Episode: Decodable, Sendable {
     struct TopLevelValues: Decodable, Sendable {
       struct Enclosure: Decodable, Sendable {
-        let url: String
+        let url: URL
       }
       let title: String
       let enclosure: Enclosure
       let guid: String
-      let link: String?
+      let link: URL?
       let description: String?
       let pubDate: Date?
     }
@@ -43,7 +43,7 @@ struct PodcastRSS: Decodable, Sendable {
 
     struct iTunesNamespace: Decodable, Sendable {
       struct Image: Decodable, Sendable {
-        let href: String
+        let href: URL
       }
       let image: Image?
       let duration: String?
@@ -73,12 +73,12 @@ struct PodcastRSS: Decodable, Sendable {
 
     struct TopLevelValues: Decodable, Sendable {
       struct AtomLink: Decodable, Sendable {
-        let href: String
+        let href: URL
         let rel: String
       }
       let title: String
       let description: String
-      let link: String?
+      let link: URL?
       let episodes: [Episode]
       let atomLinks: [AtomLink]
 
@@ -92,10 +92,10 @@ struct PodcastRSS: Decodable, Sendable {
 
     struct iTunesNamespace: Decodable, Sendable {
       struct Image: Decodable, Sendable {
-        let href: String
+        let href: URL
       }
       let image: Image
-      let newFeedURL: String?
+      let newFeedURL: URL?
 
       enum CodingKeys: String, CodingKey {
         case image = "itunes:image"
@@ -107,9 +107,7 @@ struct PodcastRSS: Decodable, Sendable {
     // MARK: - Convenience Getters
 
     var feedURL: URL? {
-      guard let urlString = self.atomLinks.first(where: { $0.rel == "self" })?.href
-      else { return nil }
-      return URL(string: urlString)
+      self.atomLinks.first(where: { $0.rel == "self" })?.href
     }
 
     // MARK: - Meta
