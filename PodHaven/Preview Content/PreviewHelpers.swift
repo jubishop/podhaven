@@ -11,14 +11,9 @@ enum PreviewHelpers {
   ]
   private static let opmlFiles = ["large", "small"]
 
-  static func importPodcasts(
-    _ numberNeeded: Int = 20,
-    from fileName: String = "large"
-  )
-    async throws
-  {
+  static func importPodcasts(_ number: Int = 20, from fileName: String = "large") async throws {
     let allPodcasts = try await Repo.shared.allPodcasts()
-    if allPodcasts.count >= numberNeeded { return }
+    if allPodcasts.count >= number { return }
 
     let url = Bundle.main.url(
       forResource: fileName,
@@ -35,7 +30,7 @@ enum PreviewHelpers {
       await feedManager.addURL(feedURL)
     }
 
-    var numberRemaining = numberNeeded - allPodcasts.count
+    var numberRemaining = number - allPodcasts.count
     for await feedResult in await feedManager.feeds() {
       switch feedResult {
       case .success(let podcastFeed):
@@ -53,8 +48,8 @@ enum PreviewHelpers {
     }
   }
 
-  static func loadSeries(fileName: String = seriesFiles.keys.randomElement()!)
-    async throws -> PodcastSeries
+  static func loadSeries(fileName: String = seriesFiles.keys.randomElement()!) async throws
+    -> PodcastSeries
   {
     if let podcastSeries = try? await Repo.shared.db.read({ db in
       try Podcast
@@ -75,6 +70,19 @@ enum PreviewHelpers {
     )
   }
 
+  static func loadPodcast() async throws -> Podcast {
+    if let podcast = try? await Repo.shared.db.read({ db in
+      try Podcast
+        .all()
+        .shuffled()
+        .fetchOne(db)
+    }) {
+      return podcast
+    }
+    let podcastSeries = try! await loadSeries()
+    return podcastSeries.podcast
+  }
+
   static func loadPodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = try? await Repo.shared.db.read({ db in
       try Episode
@@ -87,10 +95,7 @@ enum PreviewHelpers {
     }
     let podcastSeries = try! await loadSeries()
     let episode = podcastSeries.episodes.randomElement()!
-    return PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: episode
-    )
+    return PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
   }
 
   static func populateQueue(queueSize: Int = 20) async throws {

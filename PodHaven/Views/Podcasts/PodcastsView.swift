@@ -9,7 +9,7 @@ struct PodcastsView: View {
   var body: some View {
     NavigationStack(path: $navigation.podcastsPath) {
       ScrollView {
-        ThumbnailGrid(podcasts: viewModel.podcasts).padding()
+        PodcastGrid(podcasts: viewModel.podcasts).padding()
       }
       .navigationTitle("Podcasts")
       .navigationDestination(for: Podcast.self) { podcast in
@@ -31,7 +31,7 @@ struct PodcastsView: View {
       .task {
         do {
           try await PreviewHelpers.importPodcasts()
-        } catch { fatalError("Could not preview podcasts view: \(error)") }
+        } catch { fatalError("Couldn't preview podcasts view: \(error)") }
       }
   }
 }
