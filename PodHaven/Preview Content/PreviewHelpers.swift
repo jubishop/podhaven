@@ -23,8 +23,7 @@ enum PreviewHelpers {
 
     let feedManager = FeedManager()
     for outline in opml.body.outlines {
-      guard let feedURL = URL(string: outline.xmlUrl),
-        let feedURL = try? feedURL.convertToValidURL()
+      guard let feedURL = try? outline.xmlUrl.convertToValidURL()
       else { continue }
       if allPodcasts[id: feedURL] != nil { continue }
       await feedManager.addURL(feedURL)

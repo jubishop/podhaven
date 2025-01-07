@@ -28,7 +28,7 @@ struct PodcastOPML: Decodable, Sendable {
   struct Body: Decodable, Sendable {
     struct Outline: Decodable, Sendable {
       let text: String
-      let xmlUrl: String
+      let xmlUrl: URL
     }
     let outlines: [Outline]
 

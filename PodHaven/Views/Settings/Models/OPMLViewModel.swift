@@ -121,8 +121,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     }
 
     for outline in opml.body.outlines {
-      guard let feedURL = URL(string: outline.xmlUrl),
-        let feedURL = try? feedURL.convertToValidURL()
+      guard let feedURL = try? outline.xmlUrl.convertToValidURL()
       else {
         opmlFile.failed.insert(OPMLOutline(status: .failed, text: outline.text))
         continue

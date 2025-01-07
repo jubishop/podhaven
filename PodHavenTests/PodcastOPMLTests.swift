@@ -14,7 +14,9 @@ actor PodcastOPMLTests {
     #expect(opml.head.title == "Superphonic Podcast Subscriptions")
     #expect(opml.body.outlines.count == 48)
     #expect(opml.body.outlines.first!.text == "Chasing Life")
-    #expect(opml.body.outlines.first!.xmlUrl == "https://feeds.megaphone.fm/WMHY6124370245")
+    #expect(
+      opml.body.outlines.first!.xmlUrl.absoluteString == "https://feeds.megaphone.fm/WMHY6124370245"
+    )
   }
 
   @Test("parsing invalid OPML file")
