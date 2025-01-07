@@ -1,7 +1,7 @@
 import Foundation
 import OrderedCollections
 
-typealias DownloadResult = Result<DownloadData, DownloadError>
+typealias DownloadResult = Result<DownloadData, any Error>
 
 struct DownloadData: Sendable, Equatable, Hashable {
   let url: URL
@@ -35,7 +35,7 @@ final actor DownloadTask: Sendable {
   }
 
   func cancel() {
-    haveFinished(.failure(.cancelled))
+    haveFinished(.failure(Err.cancelled))
   }
 
   // MARK: - Fileprivate Methods
@@ -51,22 +51,18 @@ final actor DownloadTask: Sendable {
       haveBegun()
       let (data, response) = try await session.data(from: url)
       guard let httpResponse = response as? HTTPURLResponse else {
-        throw DownloadError.invalidResponse
+        throw Err.msg("Invalid HTTP Response")
       }
       guard (200...299).contains(httpResponse.statusCode) else {
-        throw DownloadError.invalidStatusCode(httpResponse.statusCode)
+        throw Err.msg("Invalid Status Code: \(httpResponse.statusCode)")
       }
       haveFinished(.success(DownloadData(url: url, data: data)))
     } catch {
-      let finalError: DownloadError
-      if let downloadError = error as? DownloadError {
-        finalError = downloadError
-      } else if error is CancellationError {
-        finalError = .cancelled
+      if error is CancellationError {
+        haveFinished(.failure(Err.cancelled))
       } else {
-        finalError = .networkError(String(describing: error))
+        haveFinished(.failure(error))
       }
-      haveFinished(.failure(finalError))
     }
     guard let result = self.result else {
       fatalError("No result by the end of download()?!")

@@ -60,10 +60,10 @@ struct SearchService: Sendable {
     let request = try buildRequest(path, query)
     let (data, response) = try await session.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {
-      throw SearchError.invalidResponse
+      throw Err.msg("Invalid HTTP Response")
     }
     guard (200...299).contains(httpResponse.statusCode) else {
-      throw SearchError.invalidStatusCode(httpResponse.statusCode)
+      throw Err.msg("Invalid Status Code: \(httpResponse.statusCode)")
     }
     return data
   }

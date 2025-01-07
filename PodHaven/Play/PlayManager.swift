@@ -80,9 +80,9 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         .isPlayable,
         .duration
       )
-      guard isPlayable else {
-        throw PlaybackError.notPlayable(podcastEpisode.episode)
-      }
+      guard isPlayable
+      else { throw Err.msg("\(podcastEpisode.episode.toString) is not playable") }
+
       duration = loadedDuration
       try audioSession.setActive(true)
     } catch {

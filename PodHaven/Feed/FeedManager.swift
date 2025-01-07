@@ -2,7 +2,7 @@
 
 import Foundation
 
-typealias FeedResult = Result<PodcastFeed, FeedError>
+typealias FeedResult = Result<PodcastFeed, any Error>
 
 struct FeedTask: Sendable {
   let downloadTask: DownloadTask
@@ -19,13 +19,13 @@ struct FeedTask: Sendable {
     let downloadResult = await downloadTask.downloadFinished()
     switch downloadResult {
     case .failure:
-      return .failure(.failedLoad(downloadTask.url))
+      return .failure(Err.msg("Failed to load: \(downloadTask.url)"))
     case .success(let downloadData):
       do {
         let podcastFeed = try await PodcastFeed.parse(downloadData.data, from: downloadData.url)
         return .success(podcastFeed)
       } catch {
-        return .failure(.failedParse(error))
+        return .failure(error)
       }
     }
   }
