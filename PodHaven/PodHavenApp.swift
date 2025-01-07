@@ -8,7 +8,7 @@ import SwiftUI
 struct PodHavenApp: App {
   @State private var alert = Alert.shared
 
-  static func configureAudioSession() async {
+  private static func configureAudioSession() async {
     do {
       try AVAudioSession.sharedInstance()
         .setCategory(
@@ -17,7 +17,6 @@ struct PodHavenApp: App {
           policy: .longFormAudio
         )
       try AVAudioSession.sharedInstance().setMode(.spokenAudio)
-      await PlayManager.shared.resume()
     } catch {
       Alert.shared("Failed to initialize the audio session")
     }
@@ -39,6 +38,7 @@ struct PodHavenApp: App {
         .customAlert($alert.config)
         .task {
           await Self.configureAudioSession()
+          await PlayManager.shared.resume()
         }
     }
   }

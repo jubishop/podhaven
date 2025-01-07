@@ -70,32 +70,31 @@ struct UpNextListView: View {
   @Previewable @State var editMode: EditMode = .inactive
   @Previewable @State var selected: Bool = false
 
-  Preview {
-    NavigationStack {
-      if let podcastEpisode = podcastEpisode {
-        VStack(spacing: 40) {
-          UpNextListView(
-            viewModel: UpNextListViewModel(
-              isSelected: $selected,
-              podcastEpisode: podcastEpisode,
-              editMode: $editMode
-            )
+  NavigationStack {
+    if let podcastEpisode = podcastEpisode {
+      VStack(spacing: 40) {
+        UpNextListView(
+          viewModel: UpNextListViewModel(
+            isSelected: $selected,
+            podcastEpisode: podcastEpisode,
+            editMode: $editMode
           )
-          Divider()
-          Button(
-            action: {
-              editMode = editMode == .active ? .inactive : .active
-            },
-            label: {
-              Text("Swap edit mode")
-            }
-          )
-        }
-      } else {
-        Text("No episodes in DB")
+        )
+        Divider()
+        Button(
+          action: {
+            editMode = editMode == .active ? .inactive : .active
+          },
+          label: {
+            Text("Swap edit mode")
+          }
+        )
       }
+    } else {
+      Text("No episodes in DB")
     }
   }
+  .preview()
   .task {
     podcastEpisode = try? await PreviewHelpers.loadPodcastEpisode()
   }

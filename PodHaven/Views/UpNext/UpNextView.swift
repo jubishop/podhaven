@@ -71,8 +71,7 @@ struct UpNextView: View {
 }
 
 #Preview {
-  Preview {
-    UpNextView()
-  }
-  .task { try? await PreviewHelpers.populateQueue() }
+  UpNextView()
+    .preview()
+    .task { try? await PreviewHelpers.populateQueue() }
 }

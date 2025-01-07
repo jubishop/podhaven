@@ -26,12 +26,11 @@ struct PodcastsView: View {
 }
 
 #Preview {
-  Preview {
-    PodcastsView()
-      .task {
-        do {
-          try await PreviewHelpers.importPodcasts()
-        } catch { fatalError("Couldn't preview podcasts view: \(error)") }
-      }
-  }
+  PodcastsView()
+    .preview()
+    .task {
+      do {
+        try await PreviewHelpers.importPodcasts()
+      } catch { fatalError("Couldn't preview podcasts view: \(error)") }
+    }
 }

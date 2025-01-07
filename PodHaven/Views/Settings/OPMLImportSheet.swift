@@ -60,35 +60,34 @@ struct OPMLImportSheet: View {
 #Preview {
   @Previewable @State var viewModel = OPMLViewModel()
 
-  Preview {
-    Form {
-      Button("Import Large") {
-        Task { try await viewModel.importOPMLFileInSimulator("large") }
-      }
-      Button("Import Small") {
-        Task { try await viewModel.importOPMLFileInSimulator("small") }
-      }
-      Button("Import Invalid") {
-        Task { try await viewModel.importOPMLFileInSimulator("invalid") }
-      }
-      Button("Import Empty") {
-        Task { try await viewModel.importOPMLFileInSimulator("empty") }
-      }
+  Form {
+    Button("Import Large") {
+      Task { try await viewModel.importOPMLFileInSimulator("large") }
+    }
+    Button("Import Small") {
+      Task { try await viewModel.importOPMLFileInSimulator("small") }
+    }
+    Button("Import Invalid") {
+      Task { try await viewModel.importOPMLFileInSimulator("invalid") }
+    }
+    Button("Import Empty") {
+      Task { try await viewModel.importOPMLFileInSimulator("empty") }
+    }
 
-      #if DEBUG
-        Section("Debugging") {
-          Button("Clear DB") {
-            Task {
-              try AppDB.shared.db.write { db in
-                try Podcast.deleteAll(db)
-              }
+    #if DEBUG
+      Section("Debugging") {
+        Button("Clear DB") {
+          Task {
+            try AppDB.shared.db.write { db in
+              try Podcast.deleteAll(db)
             }
           }
         }
-      #endif
-    }
-    .sheet(item: $viewModel.opmlFile) { opmlFile in
-      OPMLImportSheet(viewModel: viewModel, opmlFile: opmlFile)
-    }
+      }
+    #endif
+  }
+  .preview()
+  .sheet(item: $viewModel.opmlFile) { opmlFile in
+    OPMLImportSheet(viewModel: viewModel, opmlFile: opmlFile)
   }
 }

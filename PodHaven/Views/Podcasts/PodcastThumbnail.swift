@@ -53,17 +53,16 @@ struct PodcastThumbnail: View {
   @Previewable @State var podcast: Podcast?
   @Previewable @State var invalidPodcast: Podcast?
 
-  Preview {
-    VStack {
-      if let podcast = podcast {
-        PodcastThumbnail(podcast: podcast).padding()
-      }
-      if let invalidPodcast = invalidPodcast {
-        PodcastThumbnail(podcast: invalidPodcast).padding()
-      }
+  VStack {
+    if let podcast = podcast {
+      PodcastThumbnail(podcast: podcast).padding()
     }
-    .padding()
+    if let invalidPodcast = invalidPodcast {
+      PodcastThumbnail(podcast: invalidPodcast).padding()
+    }
   }
+  .padding()
+  .preview()
   .task {
     do {
       podcast = try await PreviewHelpers.loadPodcast()

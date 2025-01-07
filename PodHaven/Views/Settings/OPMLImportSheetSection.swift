@@ -53,22 +53,21 @@ struct OPMLImportSheetSection: View {
 }
 
 #Preview {
-  Preview {
-    List {
-      // Should display nothing...
-      OPMLImportSheetSection(outlines: [])
-      OPMLImportSheetSection(
-        outlines: [OPMLOutline(status: .failed, text: "Failed")]
-      )
-      OPMLImportSheetSection(
-        outlines: [OPMLOutline(status: .finished, text: "Finished")]
-      )
-      OPMLImportSheetSection(
-        outlines: [OPMLOutline(status: .downloading, text: "Downloading")]
-      )
-      OPMLImportSheetSection(
-        outlines: [OPMLOutline(status: .waiting, text: "Waiting")]
-      )
-    }
+  List {
+    // Should display nothing...
+    OPMLImportSheetSection(outlines: [])
+    OPMLImportSheetSection(
+      outlines: [OPMLOutline(status: .failed, text: "Failed")]
+    )
+    OPMLImportSheetSection(
+      outlines: [OPMLOutline(status: .finished, text: "Finished")]
+    )
+    OPMLImportSheetSection(
+      outlines: [OPMLOutline(status: .downloading, text: "Downloading")]
+    )
+    OPMLImportSheetSection(
+      outlines: [OPMLOutline(status: .waiting, text: "Waiting")]
+    )
   }
+  .preview()
 }

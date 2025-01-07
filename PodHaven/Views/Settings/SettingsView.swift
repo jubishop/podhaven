@@ -31,5 +31,5 @@ struct SettingsView: View {
 }
 
 #Preview {
-  Preview { SettingsView() }
+  SettingsView().preview()
 }

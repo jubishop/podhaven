@@ -28,17 +28,16 @@ struct PodcastGrid: View {
 #Preview {
   @Previewable @State var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
-  Preview {
-    PodcastGrid(podcasts: podcasts)
-  }
-  .task {
-    do {
-      try await PreviewHelpers.importPodcasts(12)
+  PodcastGrid(podcasts: podcasts)
+    .preview()
+    .task {
+      do {
+        try await PreviewHelpers.importPodcasts(12)
 
-      var allPodcasts = try await Repo.shared.allPodcasts().shuffled()
-      let shuffled = Array(0..<12).shuffled()
-      allPodcasts[shuffled[0]].image = URL(string: "http://nope.com/0.jpg")!
-      podcasts = IdentifiedArray(uniqueElements: allPodcasts.prefix(12), id: \Podcast.feedURL)
-    } catch { fatalError("Couldn't preview podcast grid: \(error)") }
-  }
+        var allPodcasts = try await Repo.shared.allPodcasts().shuffled()
+        let shuffled = Array(0..<12).shuffled()
+        allPodcasts[shuffled[0]].image = URL(string: "http://nope.com/0.jpg")!
+        podcasts = IdentifiedArray(uniqueElements: allPodcasts.prefix(12), id: \Podcast.feedURL)
+      } catch { fatalError("Couldn't preview podcast grid: \(error)") }
+    }
 }
