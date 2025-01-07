@@ -32,10 +32,6 @@ struct SearchService: Sendable {
     try await parse(try await performRequest("/podcasts/trending"))
   }
 
-  func listCategories() async throws -> CategoriesResult {
-    try await parse(try await performRequest("/categories/list"))
-  }
-
   // MARK: - Static Private Helpers
 
   static private let apiKey = "G3SPKHRKRLCU7Z2PJXEW"

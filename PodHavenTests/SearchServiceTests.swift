@@ -77,20 +77,6 @@ actor SearchServiceTests {
     #expect(item.duration == CMTime.inSeconds(887))
   }
 
-  @Test("listing categories")
-  func testListingCategories() async throws {
-    let data = try Data(
-      contentsOf: Bundle.main.url(forResource: "categories", withExtension: "json")!
-    )
-    await session.set(
-      URL(string: Self.baseURLString + "/categories/list")!,
-      .data(data)
-    )
-    let result = try await service.listCategories()
-    #expect(result.feeds.count == 112)
-    #expect(result.feeds.first(where: { $0.id == 38 })!.name == "Parenting")
-  }
-
   @Test("search trending")
   func testSearchTrending() async throws {
     let data = try Data(
