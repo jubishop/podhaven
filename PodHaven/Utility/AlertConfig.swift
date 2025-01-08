@@ -2,49 +2,34 @@
 
 import SwiftUI
 
-struct AlertConfig {
-  public let title: String
-  public var actions: () -> AnyView
-  public var message: () -> AnyView
+struct AlertConfig<Actions: View, Message: View> {
+  let title: String
+  let actions: Actions
+  let message: Message
 
-  public init(
+  init(
     title: String,
-    @ViewBuilder actions: @escaping () -> some View = {
-      Button("OK", action: {})
-    },
-    @ViewBuilder message: @escaping () -> some View = {
-      EmptyView()
-    }
+    @ViewBuilder actions: () -> Actions,
+    @ViewBuilder message: () -> Message
   ) {
     self.title = title
-    self.actions = { AnyView(actions()) }
-    self.message = { AnyView(message()) }
+    self.actions = actions()
+    self.message = message()
   }
 }
 
 extension View {
-  func customAlert(_ config: Binding<AlertConfig?>) -> some View {
+  func customAlert<Actions: View, Message: View>(_ config: Binding<AlertConfig<Actions, Message>?>)
+    -> some View
+  {
     alert(
       config.wrappedValue?.title ?? "",
       isPresented: Binding(
         get: { config.wrappedValue != nil },
-        set: { isShown in
-          if !isShown {
-            config.wrappedValue = nil
-          }
-        }
+        set: { if !$0 { config.wrappedValue = nil } }
       ),
-      actions: {
-        if let actions = config.wrappedValue?.actions() {
-          actions
-        }
-      },
-      message: {
-        if let message = config.wrappedValue?.message() {
-          message
-        }
-      }
+      actions: { config.wrappedValue?.actions },
+      message: { config.wrappedValue?.message }
     )
   }
 }
-

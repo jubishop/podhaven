@@ -8,7 +8,10 @@ import SwiftUI
 @Observable @MainActor final class Alert: Sendable {
   static let shared = Alert()
 
-  var config: AlertConfig?
+  var config:
+    AlertConfig<
+      ForEach<OrderedDictionary<String, () -> Void>.Elements, String, Button<Text>>, Text
+    >?
 
   private init() {}
 
@@ -28,10 +31,8 @@ import SwiftUI
     config = AlertConfig(
       title: title,
       actions: {
-        ForEach(Array(actions.keys), id: \.self) { label in
-          if let action = actions[label] {
-            Button(action: action) { Text(label) }
-          }
+        ForEach(actions.elements, id: \.key) { element in
+          Button(element.key, action: element.value)
         }
       },
       message: { Text(message) }
