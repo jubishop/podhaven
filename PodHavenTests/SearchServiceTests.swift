@@ -87,7 +87,25 @@ actor SearchServiceTests {
       .data(data)
     )
     let result = try await service.searchTrending()
+    let feed = result.feeds.first!
     #expect(result.feeds.count == 40)
     #expect(result.since == Date(timeIntervalSince1970: TimeInterval(1736102643)))
+    #expect(feed.title == "La Venganza Será Terrible (oficial)")
+  }
+
+  @Test("search trending in News category")
+  func testSearchTrendingInNews() async throws {
+    let data = try Data(
+      contentsOf: Bundle.main.url(forResource: "trending_in_news", withExtension: "json")!
+    )
+    await session.set(
+      URL(string: Self.baseURLString + "/podcasts/trending?cat=News")!,
+      .data(data)
+    )
+    let result = try await service.searchTrending(categories: ["News"])
+    let feed = result.feeds.first!
+    #expect(result.feeds.count == 40)
+    #expect(result.since == Date(timeIntervalSince1970: TimeInterval(1736208810)))
+    #expect(feed.title == "Thinking Crypto News & Interviews")
   }
 }

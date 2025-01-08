@@ -28,8 +28,11 @@ struct SearchService: Sendable {
     )
   }
 
-  func searchTrending() async throws -> TrendingResult {
-    try await parse(try await performRequest("/podcasts/trending"))
+  func searchTrending(categories: [String] = []) async throws -> TrendingResult {
+    let queryItems: [URLQueryItem]? =
+      categories.isEmpty
+      ? nil : [URLQueryItem(name: "cat", value: categories.joined(separator: ","))]
+    return try await parse(try await performRequest("/podcasts/trending", queryItems))
   }
 
   // MARK: - Static Private Helpers
