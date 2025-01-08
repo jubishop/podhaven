@@ -1,8 +1,11 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
-import Sentry
 import SwiftUI
+
+#if !DEBUG
+  import Sentry
+#endif
 
 @main
 struct PodHavenApp: App {
@@ -23,13 +26,15 @@ struct PodHavenApp: App {
   }
 
   init() {
-    SentrySDK.start { options in
-      options.dsn =
-        "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
-      options.enableAutoPerformanceTracing = true
-      options.tracesSampleRate = 1.0
-      options.profilesSampleRate = 1.0
-    }
+    #if !DEBUG
+      SentrySDK.start { options in
+        options.dsn =
+          "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
+        options.enableAutoPerformanceTracing = true
+        options.tracesSampleRate = 1.0
+        options.profilesSampleRate = 1.0
+      }
+    #endif
   }
 
   var body: some Scene {

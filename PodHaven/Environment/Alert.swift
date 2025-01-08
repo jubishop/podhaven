@@ -1,7 +1,10 @@
 // Copyright Justin Bishop, 2025
 
-import Sentry
 import SwiftUI
+
+#if !DEBUG
+  import Sentry
+#endif
 
 @Observable @MainActor final class Alert {
   var config: AlertConfig?
@@ -33,7 +36,9 @@ import SwiftUI
 
   static func report(_ message: String) {
     print("Reporting: \(message)")
-    SentrySDK.capture(message: message)
+    #if !DEBUG
+      SentrySDK.capture(message: message)
+    #endif
   }
 
   func callAsFunction<Actions: View>(
@@ -55,7 +60,9 @@ import SwiftUI
 
   static func report(_ error: Error) {
     print("Error: \(error.localizedDescription)")
-    SentrySDK.capture(error: error)
+    #if !DEBUG
+      SentrySDK.capture(error: error)
+    #endif
   }
 
 }
