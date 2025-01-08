@@ -1,33 +1,27 @@
 import SwiftUI
 
 struct TokenGridView<Token: Hashable, Content: View>: View {
-  let tokens: [Token]
-  let spacing: CGFloat
-  let verticalSpacing: CGFloat
-  let content: (Token) -> Content
+  private let tokens: [Token]
+  private let width: CGFloat
+  private let spacing: CGFloat
+  private let verticalSpacing: CGFloat
+  private let content: (Token) -> Content
+  private var rows: [[Token]] = [[]]
 
   init(
     tokens: [Token],
+    width: CGFloat,
     spacing: CGFloat = 8,
     verticalSpacing: CGFloat? = nil,
     @ViewBuilder content: @escaping (Token) -> Content
   ) {
     self.tokens = tokens
+    self.width = width
     self.spacing = spacing
     self.verticalSpacing = verticalSpacing ?? spacing
     self.content = content
-  }
 
-  var body: some View {
-    GeometryReader { geometry in
-      self.generateLayout(in: geometry.size.width)
-    }
-  }
-
-  private func generateLayout(in width: CGFloat) -> some View {
     var currentRowWidth: CGFloat = 0
-    var rows: [[Token]] = [[]]
-
     for token in tokens {
       let tokenWidth = measure(token).width
       if currentRowWidth + spacing + tokenWidth > width {
@@ -38,8 +32,10 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
         currentRowWidth += spacing + tokenWidth
       }
     }
+  }
 
-    return VStack(alignment: .leading, spacing: verticalSpacing) {
+  var body: some View {
+    VStack(alignment: .leading, spacing: verticalSpacing) {
       ForEach(rows, id: \.self) { row in
         HStack(spacing: spacing) {
           ForEach(row, id: \.self) { token in
@@ -56,7 +52,7 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
 }
 
 #Preview {
-  @Previewable @State var gridWidth: CGFloat = 400
+  @Previewable @State var width: CGFloat = 400
   @Previewable @State var spacing: CGFloat = 4
   @Previewable @State var verticalSpacing: CGFloat = 4
 
@@ -76,7 +72,12 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
   ]
 
   VStack {
-    TokenGridView(tokens: tokens, spacing: spacing, verticalSpacing: verticalSpacing) { token in
+    TokenGridView(
+      tokens: tokens,
+      width: width,
+      spacing: spacing,
+      verticalSpacing: verticalSpacing
+    ) { token in
       Button(action: {
         print("Tapped on \(token)")
       }) {
@@ -88,7 +89,7 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
           .cornerRadius(4)
       }
     }
-    .frame(width: gridWidth)
+    .frame(width: width)
     .overlay(
       Rectangle()
         .stroke(Color.gray, lineWidth: 1)
@@ -98,8 +99,8 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
     Divider()
 
     HStack {
-      Text("Width: \(Int(gridWidth))")
-      Slider(value: $gridWidth, in: 100...500, step: 1)
+      Text("Width: \(Int(width))")
+      Slider(value: $width, in: 100...500, step: 1)
     }
     .padding(.horizontal)
 
