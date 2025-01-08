@@ -29,13 +29,13 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
     var rows: [[Token]] = [[]]
 
     for token in tokens {
-      let tokenSize = measureToken(token: token).width
-      if currentRowWidth + tokenSize + spacing > width {
+      let tokenWidth = measure(token).width
+      if currentRowWidth + spacing + tokenWidth > width {
         rows.append([token])
-        currentRowWidth = tokenSize
+        currentRowWidth = tokenWidth
       } else {
         rows[rows.count - 1].append(token)
-        currentRowWidth += tokenSize + spacing
+        currentRowWidth += spacing + tokenWidth
       }
     }
 
@@ -50,19 +50,29 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
     }
   }
 
-  private func measureToken(token: Token) -> CGSize {
+  private func measure(_ token: Token) -> CGSize {
     UIHostingController(rootView: content(token)).view.intrinsicContentSize
   }
 }
 
 #Preview {
-  @Previewable @State var gridWidth: CGFloat = 300
-  @Previewable @State var spacing: CGFloat = 8
-  @Previewable @State var verticalSpacing: CGFloat = 8
+  @Previewable @State var gridWidth: CGFloat = 400
+  @Previewable @State var spacing: CGFloat = 4
+  @Previewable @State var verticalSpacing: CGFloat = 4
 
   let tokens: [String] = [
     "Swift", "UIKit", "Combine", "SwiftUI", "Foundation", "Xcode 16.0", "Objective-C++", "iOS",
-    "macOS", "WatchKit", "ARKit", "RealityKit",
+    "macOS", "WatchKit", "ARKit", "RealityKit", "AppKit", "SceneKit", "CoreML", "CoreData",
+    "Vision", "SpriteKit", "Metal", "Swift Package Manager", "Swift Playgrounds",
+    "Interface Builder", "MVVM", "VIPER", "Clean Architecture", "Concurrency", "Swift Concurrency",
+    "Async/Await", "Actor Model", "KeyPath", "Property Wrappers", "Generics",
+    "Protocol Oriented Programming", "Extensions", "Closures", "Functional Programming",
+    "State Management", "Environment", "View Modifiers", "Animations", "Gestures", "Auto Layout",
+    "Stacks", "Grids", "Lists", "ForEach", "NavigationStack", "NavigationSplitView",
+    "ObservableObject", "Published", "CombineSchedulers", "Swift Charts", "Reality Composer",
+    "XCTest", "Test Driven Development", "Snapshot Testing", "Simulator", "Accessibility",
+    "Localization", "Dark Mode", "Dynamic Type", "Core Animation", "Game Development", "SwiftLint",
+    "Code Coverage", "Code Signing",
   ]
 
   VStack {
@@ -71,18 +81,21 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
         print("Tapped on \(token)")
       }) {
         Text(token)
-          .padding(8)
+          .font(.caption)
+          .padding(4)
           .background(Color.blue.opacity(0.2))
           .foregroundColor(.blue)
-          .cornerRadius(8)
+          .cornerRadius(4)
       }
     }
-    .frame(width: gridWidth)  // Dynamically set the frame size
+    .frame(width: gridWidth)
     .overlay(
-      Rectangle()  // Or Rectangle if you prefer
-        .stroke(Color.gray, lineWidth: 2)  // Set the color and width of the line
+      Rectangle()
+        .stroke(Color.gray, lineWidth: 1)
     )
     .padding(.vertical)
+
+    Divider()
 
     HStack {
       Text("Width: \(Int(gridWidth))")
