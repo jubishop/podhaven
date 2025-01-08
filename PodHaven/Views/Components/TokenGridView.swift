@@ -2,10 +2,19 @@ import SwiftUI
 
 struct TokenGridView<Token: Hashable, Content: View>: View {
   let tokens: [Token]
+  let spacing: CGFloat
+  let verticalSpacing: CGFloat
   let content: (Token) -> Content
 
-  init(tokens: [Token], @ViewBuilder content: @escaping (Token) -> Content) {
+  init(
+    tokens: [Token],
+    spacing: CGFloat = 8,
+    verticalSpacing: CGFloat? = nil,
+    @ViewBuilder content: @escaping (Token) -> Content
+  ) {
     self.tokens = tokens
+    self.spacing = spacing
+    self.verticalSpacing = verticalSpacing ?? spacing
     self.content = content
   }
 
@@ -15,26 +24,24 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
     }
   }
 
-  func generateLayout(in width: CGFloat) -> some View {
+  private func generateLayout(in width: CGFloat) -> some View {
     var currentRowWidth: CGFloat = 0
-    var rows: [[Token]] = [[]]  // Array to hold rows of tokens
+    var rows: [[Token]] = [[]]
 
-    // Measure and group tokens into rows
     for token in tokens {
       let tokenSize = measureToken(token: token).width
-      if currentRowWidth + tokenSize + 8 > width {  // Check if token fits in current row
-        rows.append([token])  // Create a new row
-        currentRowWidth = tokenSize  // Reset row width
+      if currentRowWidth + tokenSize + spacing > width {
+        rows.append([token])
+        currentRowWidth = tokenSize
       } else {
-        rows[rows.count - 1].append(token)  // Add to the current row
-        currentRowWidth += tokenSize + 8  // Increment current row width (+ spacing)
+        rows[rows.count - 1].append(token)
+        currentRowWidth += tokenSize + spacing
       }
     }
 
-    // Build the layout with calculated rows
-    return VStack(alignment: .leading, spacing: 8) {
+    return VStack(alignment: .leading, spacing: verticalSpacing) {
       ForEach(rows, id: \.self) { row in
-        HStack(spacing: 8) {
+        HStack(spacing: spacing) {
           ForEach(row, id: \.self) { token in
             content(token)
           }
@@ -43,30 +50,57 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
     }
   }
 
-  // Helper function to measure the size of a token's content
-  func measureToken(token: Token) -> CGSize {
-    let hostingView = UIHostingController(rootView: content(token))
-    return hostingView.view.intrinsicContentSize
+  private func measureToken(token: Token) -> CGSize {
+    UIHostingController(rootView: content(token)).view.intrinsicContentSize
   }
 }
 
 #Preview {
+  @Previewable @State var gridWidth: CGFloat = 300
+  @Previewable @State var spacing: CGFloat = 8
+  @Previewable @State var verticalSpacing: CGFloat = 8
+
   let tokens: [String] = [
-    "Swift", "UIKit", "Combine", "SwiftUI", "Foundation",
-    "Xcode 16.0", "Objective-C++", "iOS", "macOS", "WatchKit", "ARKit", "RealityKit",
+    "Swift", "UIKit", "Combine", "SwiftUI", "Foundation", "Xcode 16.0", "Objective-C++", "iOS",
+    "macOS", "WatchKit", "ARKit", "RealityKit",
   ]
 
-  TokenGridView(tokens: tokens) { token in
-    Button(action: {
-      print("Tapped on \(token)")
-    }) {
-      Text(token)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color.blue.opacity(0.2))
-        .foregroundColor(.blue)
-        .cornerRadius(8)
+  VStack {
+    TokenGridView(tokens: tokens, spacing: spacing, verticalSpacing: verticalSpacing) { token in
+      Button(action: {
+        print("Tapped on \(token)")
+      }) {
+        Text(token)
+          .padding(8)
+          .background(Color.blue.opacity(0.2))
+          .foregroundColor(.blue)
+          .cornerRadius(8)
+      }
     }
+    .frame(width: gridWidth)  // Dynamically set the frame size
+    .overlay(
+      Rectangle()  // Or Rectangle if you prefer
+        .stroke(Color.gray, lineWidth: 2)  // Set the color and width of the line
+    )
+    .padding(.vertical)
+
+    HStack {
+      Text("Width: \(Int(gridWidth))")
+      Slider(value: $gridWidth, in: 100...500, step: 1)
+    }
+    .padding(.horizontal)
+
+    HStack {
+      Text("Spacing: \(Int(spacing))")
+      Slider(value: $spacing, in: 1...100, step: 1)
+    }
+    .padding(.horizontal)
+
+    HStack {
+      Text("Vertical Spacing: \(Int(verticalSpacing))")
+      Slider(value: $verticalSpacing, in: 1...100, step: 1)
+    }
+    .padding(.horizontal)
   }
   .padding()
   .preview()
