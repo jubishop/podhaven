@@ -1,4 +1,4 @@
-// Copyright Justin Bishop, 2025 
+// Copyright Justin Bishop, 2025
 
 import SwiftUI
 
@@ -8,13 +8,18 @@ struct DiscoverView: View {
 
   var body: some View {
     NavigationStack(path: $navigation.discoverPath) {
-      Form {
+      ScrollView {
       }
+      .searchable(
+        text: $viewModel.searchText,
+        tokens: $viewModel.currentTokens,
+        suggestedTokens: .constant(viewModel.allTokens)
+      ) { token in Text(token.text) }
       .navigationTitle("Discover")
     }
   }
 }
 
 #Preview {
-    DiscoverView()
+  DiscoverView().preview()
 }
