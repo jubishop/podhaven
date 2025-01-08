@@ -8,8 +8,8 @@ struct AlertConfig<Actions: View, Message: View> {
   let message: Message
 
   init(
-    title: String,
-    @ViewBuilder actions: () -> Actions,
+    title: String = "Error",
+    @ViewBuilder actions: () -> Actions = { Button("Ok") {} },
     @ViewBuilder message: () -> Message
   ) {
     self.title = title

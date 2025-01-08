@@ -8,10 +8,7 @@ import SwiftUI
 @Observable @MainActor final class Alert: Sendable {
   static let shared = Alert()
 
-  var config:
-    AlertConfig<
-      ForEach<OrderedDictionary<String, () -> Void>.Elements, String, Button<Text>>, Text
-    >?
+  var config: AlertConfig<AnyView, Text>?
 
   private init() {}
 
@@ -20,7 +17,7 @@ import SwiftUI
     title: String = "Error",
     report: String? = nil,
     error: Error? = nil,
-    actions: OrderedDictionary<String, () -> Void> = ["Ok": {}]
+    @ViewBuilder actions: () -> AnyView = { AnyView(Button("Ok") {}) }
   ) {
     var message = message
     if let report = report {
@@ -30,11 +27,7 @@ import SwiftUI
 
     config = AlertConfig(
       title: title,
-      actions: {
-        ForEach(actions.elements, id: \.key) { element in
-          Button(element.key, action: element.value)
-        }
-      },
+      actions: actions,
       message: { Text(message) }
     )
   }
