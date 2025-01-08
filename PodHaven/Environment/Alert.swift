@@ -27,11 +27,11 @@ import SwiftUI
     @ViewBuilder actions: @escaping () -> Actions = { Button("Ok") {} },
     _ message: String
   ) {
-    report(message)
+    Self.report(message)
     self(title: title, actions: actions, message: { Text(message) })
   }
 
-  func report(_ message: String) {
+  static func report(_ message: String) {
     print("Reporting: \(message)")
     SentrySDK.capture(message: message)
   }
@@ -49,11 +49,11 @@ import SwiftUI
     @ViewBuilder actions: @escaping () -> Actions = { Button("Ok") {} },
     _ error: any Error
   ) {
-    report(error)
+    Self.report(error)
     self(title: title, actions: actions, message: { Text(error.localizedDescription) })
   }
 
-  func report(_ error: Error) {
+  static func report(_ error: Error) {
     print("Error: \(error.localizedDescription)")
     SentrySDK.capture(error: error)
   }
