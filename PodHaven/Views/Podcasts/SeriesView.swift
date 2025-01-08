@@ -4,6 +4,7 @@ import GRDB
 import SwiftUI
 
 struct SeriesView: View {
+  @Environment(Alert.self) var alert
   @State private var viewModel: SeriesViewModel
 
   init(podcast: Podcast) {
@@ -26,10 +27,7 @@ struct SeriesView: View {
         do {
           try await viewModel.refreshSeries()
         } catch {
-          Alert.shared(
-            "Failed to refresh series: \(viewModel.podcast.toString)",
-            report: "Error: \(error)"
-          )
+          alert.andReport("Failed to refresh series: \(viewModel.podcast.toString)")
         }
       }
     }
@@ -43,7 +41,11 @@ struct SeriesView: View {
       )
     }
     .task {
-      await viewModel.observePodcast()
+      do {
+        try await viewModel.observePodcast()
+      } catch {
+        alert.andReport(error)
+      }
     }
   }
 }

@@ -72,8 +72,7 @@ struct PodcastFeed: Sendable, Equatable {
   // MARK: - Static Parsing Methods
 
   static func parse(_ url: URL) async throws -> PodcastFeed {
-    guard let data = try? Data(contentsOf: url) else { throw Err.msg("Failed to load: \(url)") }
-    return try await parse(data, from: url)
+    try await parse(try Data(contentsOf: url), from: url)
   }
 
   static func parse(_ data: Data, from: URL) async throws -> PodcastFeed {

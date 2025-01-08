@@ -3,6 +3,7 @@
 import SwiftUI
 
 struct EpisodeView: View {
+  @Environment(Alert.self) var alert
   @State private var viewModel: EpisodeViewModel
 
   init(podcastEpisode: PodcastEpisode) {
@@ -32,7 +33,11 @@ struct EpisodeView: View {
       }
     }
     .task {
-      await viewModel.observeEpisode()
+      do {
+        try await viewModel.observeEpisode()
+      } catch {
+        alert.andReport(error)
+      }
     }
   }
 }

@@ -17,20 +17,17 @@ import IdentifiedCollections
     }
   }
 
-  func observePodcasts() async {
-    let observer = ValueObservation
+  func observePodcasts() async throws {
+    let observer =
+      ValueObservation
       .tracking { db in
         try Podcast
           .all()
           .fetchIdentifiedArray(db, id: \Podcast.feedURL)
       }
       .removeDuplicates()
-    do {
-      for try await podcasts in observer.values(in: Repo.shared.db) {
-        self.podcasts = podcasts
-      }
-    } catch {
-      Alert.shared("Error thrown while observing all podcasts in database")
+    for try await podcasts in observer.values(in: Repo.shared.db) {
+      self.podcasts = podcasts
     }
   }
 }

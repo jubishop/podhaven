@@ -14,7 +14,7 @@ struct DebugSection: View {
       }
       Button(
         action: {
-          Task { @PlayActor in PlayManager.shared.stop() }
+          Task { @PlayActor in try PlayManager.shared.stop() }
         },
         label: { Text("Stop Playing") }
       )
@@ -39,7 +39,7 @@ struct DebugSection: View {
 
   func playInvalidMedia() async throws {
     let podcastEpisode = try await PreviewHelpers.loadPodcastEpisode()
-    await PlayManager.shared.load(
+    try await PlayManager.shared.load(
       PodcastEpisode(
         podcast: podcastEpisode.podcast,
         episode: Episode(

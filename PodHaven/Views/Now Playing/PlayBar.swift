@@ -63,6 +63,6 @@ struct PlayBar: View {
     .preview()
     .task {
       let podcastEpisode = try! await PreviewHelpers.loadPodcastEpisode()
-      await PlayManager.shared.load(podcastEpisode)
+      try? await PlayManager.shared.load(podcastEpisode)
     }
 }

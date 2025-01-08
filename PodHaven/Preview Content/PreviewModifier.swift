@@ -4,10 +4,12 @@ import Foundation
 import SwiftUI
 
 struct PreviewModifier: ViewModifier {
-  @State private var alert = Alert.shared
+  @State private var alert = Alert()
 
   func body(content: Content) -> some View {
-    content.customAlert($alert.config)
+    content
+      .customAlert($alert.config)
+      .environment(alert)
   }
 }
 

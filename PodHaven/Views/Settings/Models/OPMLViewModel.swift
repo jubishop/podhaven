@@ -79,15 +79,13 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   func opmlFileImporterCompletion(_ result: Result<URL, any Error>) async throws {
     switch result {
     case .success(let url):
-      if url.startAccessingSecurityScopedResource() {
-        let opml = try await PodcastOPML.parse(url)
-        await downloadOPMLFile(opml)
-      } else {
-        Alert.shared("Couldn't start accessing security scoped response")
-      }
+      guard url.startAccessingSecurityScopedResource()
+      else { throw Err.msg("Couldn't start accessing security scoped response") }
+      let opml = try await PodcastOPML.parse(url)
+      try await downloadOPMLFile(opml)
       url.stopAccessingSecurityScopedResource()
     case .failure(let error):
-      Alert.shared("Couldn't import OPML file: \(error)")
+      throw error
     }
   }
 
@@ -106,19 +104,14 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
   // MARK: - Private Methods
 
-  private func downloadOPMLFile(_ opml: PodcastOPML) async {
+  private func downloadOPMLFile(_ opml: PodcastOPML) async throws {
     await downloadSemaphor.wait()
     defer { downloadSemaphor.signal() }
 
     let opmlFile = OPMLFile(title: opml.head.title ?? "Podcast Subscriptions")
 
     let allPodcasts: PodcastArray
-    do {
-      allPodcasts = try await Repo.shared.allPodcasts()
-    } catch {
-      Alert.shared("Could not fetch podcasts for deduping", error: error)
-      return
-    }
+    allPodcasts = try await Repo.shared.allPodcasts()
 
     for outline in opml.body.outlines {
       guard let feedURL = try? outline.xmlUrl.convertToValidURL()
@@ -202,7 +195,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         withExtension: "opml"
       )!
       let opml = try await PodcastOPML.parse(url)
-      await downloadOPMLFile(opml)
+      try await downloadOPMLFile(opml)
     }
   #endif
 }

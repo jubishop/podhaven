@@ -16,7 +16,7 @@ import GRDB
 
   func playNow() {
     Task { @PlayActor in
-      await PlayManager.shared.load(podcastEpisode)
+      try await PlayManager.shared.load(podcastEpisode)
       PlayManager.shared.play()
     }
   }
@@ -33,27 +33,21 @@ import GRDB
     }
   }
 
-  func observeEpisode() async {
-    do {
-      let observer =
-        ValueObservation.tracking(
-          Episode
-            .filter(id: episode.id)
-            .including(required: Episode.podcast)
-            .asRequest(of: PodcastEpisode.self)
-            .fetchOne
-        )
-        .removeDuplicates()
+  func observeEpisode() async throws {
+    let observer =
+      ValueObservation.tracking(
+        Episode
+          .filter(id: episode.id)
+          .including(required: Episode.podcast)
+          .asRequest(of: PodcastEpisode.self)
+          .fetchOne
+      )
+      .removeDuplicates()
 
-      for try await podcastEpisode in observer.values(in: Repo.shared.db) {
-        guard let podcastEpisode = podcastEpisode else {
-          Alert.shared("No return from DB for: \(episode.toString)")
-          return
-        }
-        self.podcastEpisode = podcastEpisode
-      }
-    } catch {
-      Alert.shared("Error thrown while observing: \(episode.toString)")
+    for try await podcastEpisode in observer.values(in: Repo.shared.db) {
+      guard let podcastEpisode = podcastEpisode
+      else { throw Err.msg("No return from DB for: \(episode.toString)") }
+      self.podcastEpisode = podcastEpisode
     }
   }
 }

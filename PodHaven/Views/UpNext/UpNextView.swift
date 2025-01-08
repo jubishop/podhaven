@@ -3,6 +3,7 @@
 import SwiftUI
 
 struct UpNextView: View {
+  @Environment(Alert.self) var alert
   @State private var navigation = Navigation.shared
   @State private var viewModel = UpNextViewModel()
 
@@ -65,7 +66,13 @@ struct UpNextView: View {
         }
       }
       .toolbarRole(.navigationStack)
-      .task { await viewModel.observeQueuedEpisodes() }
+      .task {
+        do {
+          try await viewModel.observeQueuedEpisodes()
+        } catch {
+          alert.andReport(error)
+        }
+      }
     }
   }
 }

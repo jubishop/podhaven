@@ -54,7 +54,7 @@ import SwiftUI
     isSelected.removeAll()
   }
 
-  func observeQueuedEpisodes() async {
+  func observeQueuedEpisodes() async throws {
     let observer =
       ValueObservation.tracking { db in
         try Episode
@@ -65,17 +65,13 @@ import SwiftUI
           .fetchIdentifiedArray(db, id: \PodcastEpisode.episode.media)
       }
       .removeDuplicates()
-    do {
-      for try await podcastEpisodes in observer.values(in: Repo.shared.db) {
-        self.podcastEpisodes = podcastEpisodes
-        for podcastEpisode in isSelected.keys {
-          if !podcastEpisodes.contains(podcastEpisode) {
-            isSelected.removeValue(forKey: podcastEpisode)
-          }
+    for try await podcastEpisodes in observer.values(in: Repo.shared.db) {
+      self.podcastEpisodes = podcastEpisodes
+      for podcastEpisode in isSelected.keys {
+        if !podcastEpisodes.contains(podcastEpisode) {
+          isSelected.removeValue(forKey: podcastEpisode)
         }
       }
-    } catch {
-      Alert.shared("Error thrown while observing queued episodes in db")
     }
   }
 }

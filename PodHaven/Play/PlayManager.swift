@@ -3,7 +3,6 @@
 import AVFoundation
 import Foundation
 import GRDB
-import SwiftUI
 
 struct PlayManagerAccessKey { fileprivate init() {} }
 
@@ -57,7 +56,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         let podcastEpisode = try await Repo.shared.episode(episodeID)
       else { return }
 
-      await load(podcastEpisode)
+      try await load(podcastEpisode)
     } catch {
       // Do nothing
     }
@@ -65,7 +64,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - Loading
 
-  func load(_ podcastEpisode: PodcastEpisode) async {
+  func load(_ podcastEpisode: PodcastEpisode) async throws {
     if status == .loading { return }
 
     stopTracking()
@@ -86,9 +85,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       duration = loadedDuration
       try audioSession.setActive(true)
     } catch {
-      await Alert.shared("Can't play \(podcastEpisode.episode.toString)")
-      stop()
-      return
+      try stop()
+      throw Err.msg("Can't play \(podcastEpisode.episode.toString)")
     }
 
     let avPlayerItem = AVPlayerItem(asset: avAsset)
@@ -97,9 +95,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     do {
       try await setOnDeck(podcastEpisode, duration)
     } catch {
-      await Alert.shared("Failed to set \(podcastEpisode.episode.toString) on deck")
-      stop()
-      return
+      try stop()
+      throw Err.msg("Failed to set \(podcastEpisode.episode.toString) on deck")
     }
 
     status = .active
@@ -117,7 +114,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     avPlayer.pause()
   }
 
-  func stop() {
+  func stop() throws {
     stopTracking()
     pause()
     clearOnDeck()
@@ -126,9 +123,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     do {
       try audioSession.setActive(false)
     } catch {
-      Task { @MainActor in
-        Alert.shared("Failed to set audio session as inactive")
-      }
+      throw Err.msg("Failed to set audio session as inactive")
     }
   }
 
@@ -326,7 +321,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
         clearOnDeck()
         if let nextEpisode = try? await Repo.shared.nextEpisode() {
           Task { @PlayActor in
-            await load(nextEpisode)
+            try await load(nextEpisode)
             play()
           }
         }

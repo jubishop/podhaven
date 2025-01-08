@@ -3,6 +3,7 @@
 import SwiftUI
 
 struct PodcastsView: View {
+  @Environment(Alert.self) var alert
   @State private var navigation = Navigation.shared
   @State private var viewModel = PodcastsViewModel()
 
@@ -20,7 +21,11 @@ struct PodcastsView: View {
       }
     }
     .task {
-      await viewModel.observePodcasts()
+      do {
+        try await viewModel.observePodcasts()
+      } catch {
+        alert.andReport(error)
+      }
     }
   }
 }

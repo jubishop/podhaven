@@ -17,28 +17,22 @@ import IdentifiedCollections
     try await FeedManager.refreshSeries(podcastSeries: podcastSeries)
   }
 
-  func observePodcast() async {
-    do {
-      let observer =
-        ValueObservation
-        .tracking(
-          Podcast
-            .filter(id: podcast.id)
-            .including(all: Podcast.episodes)
-            .asRequest(of: PodcastSeries.self)
-            .fetchOne
-        )
-        .removeDuplicates()
+  func observePodcast() async throws {
+    let observer =
+      ValueObservation
+      .tracking(
+        Podcast
+          .filter(id: podcast.id)
+          .including(all: Podcast.episodes)
+          .asRequest(of: PodcastSeries.self)
+          .fetchOne
+      )
+      .removeDuplicates()
 
-      for try await podcastSeries in observer.values(in: Repo.shared.db) {
-        guard let podcastSeries = podcastSeries else {
-          Alert.shared("No return from DB for: \(podcast.toString)")
-          return
-        }
-        self.podcastSeries = podcastSeries
-      }
-    } catch {
-      Alert.shared("Error thrown while observing: \(podcast.toString)")
+    for try await podcastSeries in observer.values(in: Repo.shared.db) {
+      guard let podcastSeries = podcastSeries
+      else { throw Err.msg("No return from DB for: \(podcast.toString)") }
+      self.podcastSeries = podcastSeries
     }
   }
 }
