@@ -22,18 +22,7 @@ import Foundation
 
   let allTokens: [Token] = Token.allCases
   var currentTokens: [Token] = [.trending]
-
-  private var _searchText: String = ""
-  var searchText: String {
-    get { _searchText }
-    set {
-      let trimmedValue = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !trimmedValue.isEmpty && currentTokens.isEmpty {
-        currentTokens = [.allFields]
-      }
-      _searchText = trimmedValue
-    }
-  }
+  var searchText: String = ""
 
   var showCategories: Bool { currentTokens.count == 1 && currentTokens.first == .trending }
   var width: CGFloat = 0
