@@ -28,7 +28,7 @@ struct DiscoverView: View {
         text: $viewModel.searchText,
         tokens: $viewModel.currentTokens,
         suggestedTokens: .constant(viewModel.allTokens)
-      ) { token in Text(token.text) }
+      ) { token in Text(token.rawValue) }
       .navigationTitle("Discover")
     }
     .onGeometryChange(for: CGFloat.self) { geometry in
