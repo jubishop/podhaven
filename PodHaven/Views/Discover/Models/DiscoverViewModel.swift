@@ -1,33 +1,29 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import SwiftUI
 
 @Observable @MainActor final class DiscoverViewModel {
-  enum Token: CaseIterable, Identifiable, Hashable {
-    case allFields, titles, people, trending
-    case category(String)
-    var id: Self { self }
+  let allTokens: [SearchToken] = SearchToken.allCases
+  var currentTokens: [SearchToken] = [.trending]
 
-    static let allCases: [Token] = [.allFields, .titles, .people, .trending]
-    var text: String {
-      switch self {
-      case .allFields: return "All Fields"
-      case .titles: return "Titles"
-      case .people: return "People"
-      case .trending: return "Trending"
-      case .category(let category): return category
-      }
-    }
+  var searchText: String = "" {
+    didSet { if currentTokens.isEmpty && !searchText.isEmpty { currentTokens = [.allFields] } }
   }
 
-  let allTokens: [Token] = Token.allCases
-  var currentTokens: [Token] = [.trending]
-  var searchText: String = ""
-
-  var showCategories: Bool { currentTokens.count == 1 && currentTokens.first == .trending }
+  var searchPresented: Bool = false
   var width: CGFloat = 0
+
+  var showCategories: Bool { searchPresented && currentTokens == [.trending] }
 
   func categorySelected(_ category: String) {
     currentTokens.append(.category(category))
+    searchPresented = false
+  }
+
+  func searchSubmitted() {
+    if !searchText.isEmpty {
+      searchPresented = false
+    }
   }
 }

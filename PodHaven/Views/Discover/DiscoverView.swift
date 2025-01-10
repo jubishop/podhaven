@@ -23,12 +23,32 @@ struct DiscoverView: View {
             }
           }
         }
+        SearchView(viewModel: viewModel)
+          .searchable(
+            text: $viewModel.searchText,
+            tokens: $viewModel.currentTokens,
+            suggestedTokens: .constant(viewModel.allTokens),
+            isPresented: $viewModel.searchPresented
+          ) { token in
+            HStack {
+              let imageName = switch token {
+                case .trending:
+                  "chart.line.uptrend.xyaxis"
+                case .allFields:
+                  "line.3.horizontal.decrease.circle"
+                case .titles:
+                  "text.book.closed"
+                case .people:
+                  "person"
+                case .category(_):
+                  "square.grid.2x2"
+              }
+              Image(systemName: imageName)
+              Text(token.text)
+            }
+          }
+          .onSubmit(of: .search, viewModel.searchSubmitted)
       }
-      .searchable(
-        text: $viewModel.searchText,
-        tokens: $viewModel.currentTokens,
-        suggestedTokens: .constant(viewModel.allTokens)
-      ) { token in Text(token.text) }
       .navigationTitle("Discover")
     }
     .onGeometryChange(for: CGFloat.self) { geometry in

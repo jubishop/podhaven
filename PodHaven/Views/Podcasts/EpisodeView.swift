@@ -6,10 +6,8 @@ struct EpisodeView: View {
   @Environment(Alert.self) var alert
   @State private var viewModel: EpisodeViewModel
 
-  init(podcastEpisode: PodcastEpisode) {
-    _viewModel = State(
-      initialValue: EpisodeViewModel(podcastEpisode: podcastEpisode)
-    )
+  init(viewModel: EpisodeViewModel) {
+    self.viewModel = viewModel
   }
 
   var body: some View {
@@ -48,7 +46,7 @@ struct EpisodeView: View {
   NavigationStack {
     Group {
       if let podcastEpisode = podcastEpisode {
-        EpisodeView(podcastEpisode: podcastEpisode)
+        EpisodeView(viewModel: EpisodeViewModel(podcastEpisode: podcastEpisode))
       } else {
         Text("No episodes in DB")
       }

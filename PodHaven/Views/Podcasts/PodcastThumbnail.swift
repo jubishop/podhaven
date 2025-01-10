@@ -4,10 +4,14 @@ import NukeUI
 import SwiftUI
 
 struct PodcastThumbnail: View {
-  let podcast: Podcast
-
   @State private var width: CGFloat = 0
+
+  private let podcast: Podcast
   private let cornerRadius: CGFloat = 8
+
+  init(podcast: Podcast) {
+    self.podcast = podcast
+  }
 
   var body: some View {
     VStack {

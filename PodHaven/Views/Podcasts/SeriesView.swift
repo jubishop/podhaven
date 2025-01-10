@@ -7,8 +7,8 @@ struct SeriesView: View {
   @Environment(Alert.self) var alert
   @State private var viewModel: SeriesViewModel
 
-  init(podcast: Podcast) {
-    _viewModel = State(initialValue: SeriesViewModel(podcast: podcast))
+  init(viewModel: SeriesViewModel) {
+    self.viewModel = viewModel
   }
 
   var body: some View {
@@ -34,9 +34,11 @@ struct SeriesView: View {
     .navigationTitle(viewModel.podcast.title)
     .navigationDestination(for: Episode.self) { episode in
       EpisodeView(
-        podcastEpisode: PodcastEpisode(
-          podcast: viewModel.podcast,
-          episode: episode
+        viewModel: EpisodeViewModel(
+          podcastEpisode: PodcastEpisode(
+            podcast: viewModel.podcast,
+            episode: episode
+          )
         )
       )
     }
@@ -56,7 +58,7 @@ struct SeriesView: View {
   NavigationStack {
     Group {
       if let podcast = podcast {
-        SeriesView(podcast: podcast)
+        SeriesView(viewModel: SeriesViewModel(podcast: podcast))
       } else {
         Text("No podcast in DB")
       }

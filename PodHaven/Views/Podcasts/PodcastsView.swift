@@ -14,7 +14,7 @@ struct PodcastsView: View {
       }
       .navigationTitle("Podcasts")
       .navigationDestination(for: Podcast.self) { podcast in
-        SeriesView(podcast: podcast)
+        SeriesView(viewModel: SeriesViewModel(podcast: podcast))
       }
       .refreshable {
         try? await viewModel.refreshPodcasts()

@@ -3,7 +3,7 @@ import SwiftUI
 struct TokenGridView<Token: Hashable, Content: View>: View {
   private let tokens: [Token]
   private let width: CGFloat
-  private let spacing: CGFloat
+  private let horizontalSpacing: CGFloat
   private let verticalSpacing: CGFloat
   private let content: (Token) -> Content
   private var rows: [[Token]] = [[]]
@@ -11,25 +11,25 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
   init(
     tokens: [Token],
     width: CGFloat,
-    spacing: CGFloat = 8,
-    verticalSpacing: CGFloat? = nil,
+    horizontalSpacing: CGFloat = 8,
+    verticalSpacing: CGFloat = 8,
     @ViewBuilder content: @escaping (Token) -> Content
   ) {
     self.tokens = tokens
     self.width = width
-    self.spacing = spacing
-    self.verticalSpacing = verticalSpacing ?? spacing
+    self.horizontalSpacing = horizontalSpacing
+    self.verticalSpacing = verticalSpacing
     self.content = content
 
     var currentRowWidth: CGFloat = 0
     for token in tokens {
       let tokenWidth = measure(token).width
-      if currentRowWidth + spacing + tokenWidth > width {
+      if currentRowWidth + horizontalSpacing + tokenWidth > width {
         rows.append([token])
         currentRowWidth = tokenWidth
       } else {
         rows[rows.count - 1].append(token)
-        currentRowWidth += spacing + tokenWidth
+        currentRowWidth += horizontalSpacing + tokenWidth
       }
     }
   }
@@ -37,7 +37,7 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
   var body: some View {
     VStack(alignment: .leading, spacing: verticalSpacing) {
       ForEach(rows, id: \.self) { row in
-        HStack(spacing: spacing) {
+        HStack(spacing: horizontalSpacing) {
           ForEach(row, id: \.self) { token in
             content(token)
           }
@@ -53,7 +53,7 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
 
 #Preview {
   @Previewable @State var width: CGFloat = 400
-  @Previewable @State var spacing: CGFloat = 4
+  @Previewable @State var horizontalSpacing: CGFloat = 4
   @Previewable @State var verticalSpacing: CGFloat = 4
 
   let tokens: [String] = [
@@ -71,11 +71,11 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
     "Code Coverage", "Code Signing",
   ]
 
-  VStack {
+  ScrollView {
     TokenGridView(
       tokens: tokens,
       width: width,
-      spacing: spacing,
+      horizontalSpacing: horizontalSpacing,
       verticalSpacing: verticalSpacing
     ) { token in
       Button(action: {
@@ -105,8 +105,8 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
     .padding(.horizontal)
 
     HStack {
-      Text("Spacing: \(Int(spacing))")
-      Slider(value: $spacing, in: 1...100, step: 1)
+      Text("Horizontal Spacing: \(Int(horizontalSpacing))")
+      Slider(value: $horizontalSpacing, in: 1...100, step: 1)
     }
     .padding(.horizontal)
 

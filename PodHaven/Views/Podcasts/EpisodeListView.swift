@@ -3,9 +3,13 @@
 import SwiftUI
 
 struct EpisodeListView: View {
-  let podcastEpisode: PodcastEpisode
-  var podcast: Podcast { podcastEpisode.podcast }
-  var episode: Episode { podcastEpisode.episode }
+  private let podcastEpisode: PodcastEpisode
+  private var podcast: Podcast { podcastEpisode.podcast }
+  private var episode: Episode { podcastEpisode.episode }
+
+  init(podcastEpisode: PodcastEpisode) {
+    self.podcastEpisode = podcastEpisode
+  }
 
   var body: some View {
     NavigationLink(

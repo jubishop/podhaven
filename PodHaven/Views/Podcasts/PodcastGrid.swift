@@ -5,8 +5,12 @@ import IdentifiedCollections
 import SwiftUI
 
 struct PodcastGrid: View {
-  let podcasts: PodcastArray
+  private let podcasts: PodcastArray
   private let numberOfColumns = 3
+
+  init(podcasts: PodcastArray) {
+    self.podcasts = podcasts
+  }
 
   var body: some View {
     let rows = podcasts.chunked(size: numberOfColumns)
