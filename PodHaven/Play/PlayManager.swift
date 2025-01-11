@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import Factory
 import Foundation
 import GRDB
 
@@ -13,6 +14,8 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   static let shared = PlayManager()
 
   // MARK: - State Management
+
+  @ObservationIgnored @Injected(\.repo) private var repo
 
   private let accessKey = PlayManagerAccessKey()
   private var _status: PlayState.Status = .stopped
@@ -53,7 +56,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   func resume() async {
     do {
       guard let episodeID: Int64 = Persistence.currentEpisodeID.load(),
-        let podcastEpisode = try await Repo.shared.episode(episodeID)
+        let podcastEpisode = try await repo.episode(episodeID)
       else { return }
 
       try await load(podcastEpisode)
@@ -153,10 +156,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     guard podcastEpisode != onDeck else { return }
 
     if let episodeID = onDeck?.id {
-      try await Repo.shared.unshiftToQueue(episodeID)
+      try await repo.unshiftToQueue(episodeID)
     }
 
-    try await Repo.shared.dequeue(podcastEpisode.id)
+    try await repo.dequeue(podcastEpisode.id)
     onDeck = podcastEpisode
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
@@ -206,7 +209,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     Task(priority: .utility) {
       guard let episodeID = self.episodeID else { return }
 
-      try await Repo.shared.updateCurrentTime(episodeID, currentTime)
+      try await repo.updateCurrentTime(episodeID, currentTime)
     }
   }
 
@@ -316,10 +319,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       ) {
         if Task.isCancelled { break }
         if let episodeID = onDeck?.id {
-          try? await Repo.shared.markComplete(episodeID)
+          try? await repo.markComplete(episodeID)
         }
         clearOnDeck()
-        if let nextEpisode = try? await Repo.shared.nextEpisode() {
+        if let nextEpisode = try? await repo.nextEpisode() {
           Task { @PlayActor in
             try await load(nextEpisode)
             play()

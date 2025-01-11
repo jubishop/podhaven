@@ -1,9 +1,16 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import Factory
 import Foundation
 import GRDB
 import IdentifiedCollections
+
+extension Container {
+  var repo: Factory<Repo> {
+    Factory(self) { Repo(.shared(RepoAccessKey())) }.scope(.singleton)
+  }
+}
 
 struct RepoAccessKey { fileprivate init() {} }
 
@@ -12,13 +19,11 @@ struct Repo: Sendable {
     static func empty() -> Repo { Repo(.empty()) }
   #endif
 
-  static let shared = Repo(.shared(RepoAccessKey()))
-
   // MARK: - Initialization
 
   var db: any DatabaseReader { appDB.db }
   private let appDB: AppDB
-  init(_ appDB: AppDB) {
+  fileprivate init(_ appDB: AppDB) {
     self.appDB = appDB
   }
 

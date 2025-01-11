@@ -1,9 +1,12 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
 import GRDB
 
 @Observable @MainActor final class EpisodeViewModel {
+  @ObservationIgnored @Injected(\.repo) private var repo
+
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }
   var episode: Episode { podcastEpisode.episode }
@@ -23,13 +26,13 @@ import GRDB
 
   func addToTopOfQueue() {
     Task {
-      try await Repo.shared.unshiftToQueue(episode.id)
+      try await repo.unshiftToQueue(episode.id)
     }
   }
 
   func appendToQueue() {
     Task {
-      try await Repo.shared.appendToQueue(episode.id)
+      try await repo.appendToQueue(episode.id)
     }
   }
 
@@ -44,7 +47,7 @@ import GRDB
       )
       .removeDuplicates()
 
-    for try await podcastEpisode in observer.values(in: Repo.shared.db) {
+    for try await podcastEpisode in observer.values(in: repo.db) {
       guard let podcastEpisode = podcastEpisode
       else { throw Err.msg("No return from DB for: \(episode.toString)") }
       self.podcastEpisode = podcastEpisode

@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
 import GRDB
 
@@ -12,7 +13,8 @@ enum PreviewHelpers {
   private static let opmlFiles = ["large", "small"]
 
   static func importPodcasts(_ number: Int = 20, from fileName: String = "large") async throws {
-    let allPodcasts = try await Repo.shared.allPodcasts()
+    let repo = Container.shared.repo()
+    let allPodcasts = try await repo.allPodcasts()
     if allPodcasts.count >= number { return }
 
     let url = Bundle.main.url(
@@ -33,7 +35,7 @@ enum PreviewHelpers {
     for await feedResult in await feedManager.feeds() {
       switch feedResult {
       case .success(let podcastFeed):
-        if (try? await Repo.shared.insertSeries(
+        if (try? await repo.insertSeries(
           try podcastFeed.toUnsavedPodcast(),
           unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
         )) != nil {
@@ -50,7 +52,8 @@ enum PreviewHelpers {
   static func loadSeries(fileName: String = seriesFiles.keys.randomElement()!) async throws
     -> PodcastSeries
   {
-    if let podcastSeries = try? await Repo.shared.db.read({ db in
+    let repo = Container.shared.repo()
+    if let podcastSeries = try? await repo.db.read({ db in
       try Podcast
         .including(all: Podcast.episodes)
         .shuffled()
@@ -63,14 +66,15 @@ enum PreviewHelpers {
       Bundle.main.url(forResource: fileName, withExtension: "rss")!
     )
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
-    return try await Repo.shared.insertSeries(
+    return try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
     )
   }
 
   static func loadPodcast() async throws -> Podcast {
-    if let podcast = try? await Repo.shared.db.read({ db in
+    let repo = Container.shared.repo()
+    if let podcast = try? await repo.db.read({ db in
       try Podcast
         .all()
         .shuffled()
@@ -83,7 +87,8 @@ enum PreviewHelpers {
   }
 
   static func loadPodcastEpisode() async throws -> PodcastEpisode {
-    if let podcastEpisode = try? await Repo.shared.db.read({ db in
+    let repo = Container.shared.repo()
+    if let podcastEpisode = try? await repo.db.read({ db in
       try Episode
         .including(required: Episode.podcast)
         .shuffled()
@@ -98,6 +103,7 @@ enum PreviewHelpers {
   }
 
   static func populateQueue(queueSize: Int = 20) async throws {
+    let repo = Container.shared.repo()
     var allPodcastSeries: [PodcastSeries] = []
     for seriesFile in seriesFiles.keys {
       if let podcastSeries = try? await loadSeries(fileName: seriesFile) {
@@ -105,14 +111,14 @@ enum PreviewHelpers {
       }
     }
     let currentSize: Int = min(
-      try await Repo.shared.db.read { db in
+      try await repo.db.read { db in
         try Episode.filter(Schema.queueOrderColumn != nil).fetchCount(db)
       },
       queueSize
     )
     for _ in currentSize...queueSize {
       let episode = allPodcastSeries.randomElement()!.episodes.randomElement()!
-      try await Repo.shared.appendToQueue(episode.id)
+      try await repo.appendToQueue(episode.id)
     }
   }
 }

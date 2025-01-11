@@ -1,6 +1,15 @@
 {
-  "originHash" : "1db810421ac9773d2a719bb3d31ad27e4ab761f3635e89c488af35ad71838524",
+  "originHash" : "1916ec9c6e7991f0f09178ac5a6f296398e3f044af84f13c3b347fe8f3f6d92e",
   "pins" : [
+    {
+      "identity" : "factory",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/hmlongco/Factory",
+      "state" : {
+        "branch" : "main",
+        "revision" : "f2679ac998718e54e4bab899e69a17d261575863"
+      }
+    },
     {
       "identity" : "grdb.swift",
       "kind" : "remoteSourceControl",

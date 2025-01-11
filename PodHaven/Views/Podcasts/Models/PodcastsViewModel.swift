@@ -1,10 +1,13 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
 import GRDB
 import IdentifiedCollections
 
 @Observable @MainActor final class PodcastsViewModel {
+  @ObservationIgnored @Injected(\.repo) private var repo
+
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
   func refreshPodcasts() async throws {
@@ -26,7 +29,7 @@ import IdentifiedCollections
           .fetchIdentifiedArray(db, id: \Podcast.feedURL)
       }
       .removeDuplicates()
-    for try await podcasts in observer.values(in: Repo.shared.db) {
+    for try await podcasts in observer.values(in: repo.db) {
       self.podcasts = podcasts
     }
   }

@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import GRDB
 import IdentifiedCollections
 import SwiftUI
@@ -36,9 +37,10 @@ struct PodcastGrid: View {
     .preview()
     .task {
       do {
-        try await PreviewHelpers.importPodcasts(12)
+        let repo = Container.shared.repo()
 
-        var allPodcasts = try await Repo.shared.allPodcasts().shuffled()
+        try await PreviewHelpers.importPodcasts(12)
+        var allPodcasts = try await repo.allPodcasts().shuffled()
         let shuffled = Array(0..<12).shuffled()
         allPodcasts[shuffled[0]].image = URL(string: "http://nope.com/0.jpg")!
         podcasts = IdentifiedArray(uniqueElements: allPodcasts.prefix(12), id: \Podcast.feedURL)

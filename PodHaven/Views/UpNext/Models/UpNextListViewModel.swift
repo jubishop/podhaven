@@ -1,10 +1,13 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
 import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor final class UpNextListViewModel {
+  @ObservationIgnored @Injected(\.repo) private var repo
+
   let isSelected: Binding<Bool>
   let podcastEpisode: PodcastEpisode
   let editMode: Binding<EditMode>
@@ -32,7 +35,7 @@ import SwiftUI
 
   func playNext() {
     Task {
-      try await Repo.shared.unshiftToQueue(episode.id)
+      try await repo.unshiftToQueue(episode.id)
     }
   }
 
@@ -44,7 +47,7 @@ import SwiftUI
 
   func delete() {
     Task {
-      try await Repo.shared.dequeue(episode.id)
+      try await repo.dequeue(episode.id)
     }
   }
 }

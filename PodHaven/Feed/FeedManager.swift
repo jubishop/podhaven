@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
 
 typealias FeedResult = Result<PodcastFeed, any Error>
@@ -41,10 +42,8 @@ final actor FeedManager: Sendable {
   // MARK: - Static Helpers
 
   static func refreshSeries(podcast: Podcast) async throws {
-    guard
-      let podcastSeries = try await Repo.shared.podcastSeries(
-        podcastID: podcast.id
-      )
+    let repo = Container.shared.repo()
+    guard let podcastSeries = try await repo.podcastSeries(podcastID: podcast.id)
     else { return }
 
     try await refreshSeries(podcastSeries: podcastSeries)
@@ -72,7 +71,8 @@ final actor FeedManager: Sendable {
         }
       }
       newPodcast.lastUpdate = Date()
-      try await Repo.shared.updateSeries(
+      let repo = Container.shared.repo()
+      try await repo.updateSeries(
         newPodcast,
         unsavedEpisodes: unsavedEpisodes,
         existingEpisodes: existingEpisodes

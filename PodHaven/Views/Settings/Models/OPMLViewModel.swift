@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
 import GRDB
 import Semaphore
@@ -108,10 +109,11 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     await downloadSemaphor.wait()
     defer { downloadSemaphor.signal() }
 
+    let repo = Container.shared.repo()
     let opmlFile = OPMLFile(title: opml.head.title ?? "Podcast Subscriptions")
 
     let allPodcasts: PodcastArray
-    allPodcasts = try await Repo.shared.allPodcasts()
+    allPodcasts = try await repo.allPodcasts()
 
     for outline in opml.body.outlines {
       guard let feedURL = try? outline.xmlUrl.convertToValidURL()
@@ -167,7 +169,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           else { return }
 
           guard let unsavedPodcast = try? podcastFeed.toUnsavedPodcast(),
-            (try? await Repo.shared.insertSeries(
+            (try? await repo.insertSeries(
               unsavedPodcast,
               unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
             )) != nil

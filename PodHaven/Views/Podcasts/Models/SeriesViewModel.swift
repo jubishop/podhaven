@@ -1,10 +1,13 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
 import GRDB
 import IdentifiedCollections
 
 @Observable @MainActor final class SeriesViewModel {
+  @ObservationIgnored @Injected(\.repo) private var repo
+
   var podcastSeries: PodcastSeries
   var podcast: Podcast { podcastSeries.podcast }
   var episodes: IdentifiedArray<String, Episode> { podcastSeries.episodes }
@@ -29,7 +32,7 @@ import IdentifiedCollections
       )
       .removeDuplicates()
 
-    for try await podcastSeries in observer.values(in: Repo.shared.db) {
+    for try await podcastSeries in observer.values(in: repo.db) {
       guard let podcastSeries = podcastSeries
       else { throw Err.msg("No return from DB for: \(podcast.toString)") }
       self.podcastSeries = podcastSeries
