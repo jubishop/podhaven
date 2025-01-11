@@ -16,7 +16,18 @@ import SwiftUI
 
   var searchText: String = "" {
     didSet {
-      if currentTokens.isEmpty && !searchText.trimmed().isEmpty { currentTokens = [.allFields] }
+      if currentTokens.isEmpty && !searchText.trimmed().isEmpty {
+        currentTokens = [.allFields]
+      } else if currentTokens.count == 2 {
+        _searchText = ""
+      } else if currentTokens == [.trending] {
+        let searchedCategories = searchedCategories
+        if searchedCategories.count == 1 {
+          if let onlyCategory = searchedCategories.first {
+            categorySelected(onlyCategory)
+          }
+        }
+      }
     }
   }
 
@@ -48,13 +59,22 @@ import SwiftUI
 
   func categorySelected(_ category: String) {
     currentTokens.append(.category(category))
+    _searchText = ""
     searchPresented = false
+    updateCurrentView()
   }
 
   func searchSubmitted() {
+    // TODO: Deal with .trending but no category chosen
     if !searchText.isEmpty {
       searchPresented = false
-      currentView = currentTokens.first ?? .allFields
+      updateCurrentView()
     }
+  }
+
+  // MARK: - Private Helpers
+
+  private func updateCurrentView() {
+    currentView = currentTokens.first ?? .allFields
   }
 }

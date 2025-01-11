@@ -22,9 +22,6 @@ struct DiscoverView: View {
           if viewModel.showSearchWarning {
             SearchWarning(warning: "Must Enter A Search Query")
           }
-          if viewModel.showCategoryWarning {
-            SearchWarning(warning: "Search For One Category Only")
-          }
           if viewModel.showCategories {
             CategoryGrid(viewModel: viewModel)
           }
