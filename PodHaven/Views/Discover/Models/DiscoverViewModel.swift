@@ -36,23 +36,12 @@ import SwiftUI
       PlayState.shared.playbarVisible = !searchPresented
     }
   }
-
   var showSearchWarning: Bool {
     searchPresented && currentTokens.count == 1 && currentTokens.first != .trending
       && searchText.trimmed().isEmpty
   }
 
-  var showCategoryWarning: Bool {
-    currentTokens.count == 2 && !searchText.trimmed().isEmpty
-  }
   var showCategories: Bool { searchPresented && currentTokens == [.trending] }
-
-  private var searchedCategories: [String] {
-    let searchText = self.searchText.trimmed()
-    if searchText.isEmpty { return SearchService.categories }
-
-    return SearchService.categories.filter { $0.lowercased().starts(with: searchText.lowercased()) }
-  }
   var categories: [String] { ["All Categories"] + searchedCategories }
 
   // MARK: - Events
@@ -60,21 +49,38 @@ import SwiftUI
   func categorySelected(_ category: String) {
     currentTokens.append(.category(category))
     _searchText = ""
-    searchPresented = false
     updateCurrentView()
   }
 
   func searchSubmitted() {
-    // TODO: Deal with .trending but no category chosen
-    if !searchText.isEmpty {
-      searchPresented = false
-      updateCurrentView()
-    }
+    updateCurrentView()
   }
 
   // MARK: - Private Helpers
 
+  private var searchedCategories: [String] {
+    let searchText = searchText.trimmed()
+    if searchText.isEmpty { return SearchService.categories }
+
+    return SearchService.categories.filter { $0.lowercased().starts(with: searchText.lowercased()) }
+  }
+
   private func updateCurrentView() {
-    currentView = currentTokens.first ?? .allFields
+    if let currentToken = readyToSearch() {
+      searchPresented = false
+      currentView = currentToken
+    }
+  }
+
+  private func readyToSearch() -> SearchToken? {
+    guard let currentToken = currentTokens.first else { return nil }
+
+    let searchText = searchText.trimmed()
+    guard
+      (currentToken == .trending && searchText.isEmpty)
+        || (currentToken != .trending && !searchText.isEmpty)
+    else { return nil }
+
+    return currentToken
   }
 }
