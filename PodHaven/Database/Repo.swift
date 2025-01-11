@@ -45,7 +45,7 @@ struct Repo: Sendable {
   func nextEpisode() async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
-        .filter(AppDB.queueOrderColumn == 0)
+        .filter(Schema.queueOrderColumn == 0)
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)
@@ -65,7 +65,7 @@ struct Repo: Sendable {
   func episode(_ url: URL) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
-        .filter(AppDB.mediaColumn == url)
+        .filter(Schema.mediaColumn == url)
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)
@@ -123,7 +123,7 @@ struct Repo: Sendable {
     _ = try await appDB.db.write { db in
       try Episode
         .filter(id: episodeID)
-        .updateAll(db, AppDB.currentTimeColumn.set(to: currentTime.seconds))
+        .updateAll(db, Schema.currentTimeColumn.set(to: currentTime.seconds))
     }
   }
 
@@ -133,8 +133,8 @@ struct Repo: Sendable {
         .filter(id: episodeID)
         .updateAll(
           db,
-          AppDB.completedColumn.set(to: true),
-          AppDB.currentTimeColumn.set(to: 0)
+          Schema.completedColumn.set(to: true),
+          Schema.currentTimeColumn.set(to: 0)
         )
     }
   }
@@ -143,8 +143,8 @@ struct Repo: Sendable {
 
   func clearQueue() async throws {
     _ = try await appDB.db.write { db in
-      try Episode.filter(AppDB.queueOrderColumn != nil)
-        .updateAll(db, AppDB.queueOrderColumn.set(to: nil))
+      try Episode.filter(Schema.queueOrderColumn != nil)
+        .updateAll(db, Schema.queueOrderColumn.set(to: nil))
     }
   }
 
@@ -155,7 +155,7 @@ struct Repo: Sendable {
 
       try _moveInQueue(db, episodeID: episodeID, from: oldPosition, to: Int.max)
       try Episode.filter(id: episodeID)
-        .updateAll(db, AppDB.queueOrderColumn.set(to: nil))
+        .updateAll(db, Schema.queueOrderColumn.set(to: nil))
     }
   }
 
@@ -175,7 +175,7 @@ struct Repo: Sendable {
     try await appDB.db.write { db in
       let newPosition =
         (try Episode
-          .select(max(AppDB.queueOrderColumn), as: Int.self)
+          .select(max(Schema.queueOrderColumn), as: Int.self)
           .fetchOne(db) ?? -1) + 1
       try _insertToQueue(db, episodeID: episodeID, at: newPosition)
     }
@@ -191,7 +191,7 @@ struct Repo: Sendable {
     return
       try Episode
       .filter(id: episodeID)
-      .select(AppDB.queueOrderColumn, as: Int.self)
+      .select(Schema.queueOrderColumn, as: Int.self)
       .fetchOne(db)
   }
 
@@ -206,15 +206,10 @@ struct Repo: Sendable {
     )
     let oldPosition = try _fetchOldPosition(db, for: episodeID) ?? Int.max
     let computedNewPosition = newPosition > oldPosition ? newPosition - 1 : newPosition
-    try _moveInQueue(
-      db,
-      episodeID: episodeID,
-      from: oldPosition,
-      to: computedNewPosition
-    )
+    try _moveInQueue(db, episodeID: episodeID, from: oldPosition, to: computedNewPosition)
     try Episode
       .filter(id: episodeID)
-      .updateAll(db, AppDB.queueOrderColumn.set(to: computedNewPosition))
+      .updateAll(db, Schema.queueOrderColumn.set(to: computedNewPosition))
   }
 
   private func _moveInQueue(
@@ -231,16 +226,14 @@ struct Repo: Sendable {
 
     if newPosition > oldPosition {
       try Episode.filter(
-        AppDB.queueOrderColumn > oldPosition
-          && AppDB.queueOrderColumn <= newPosition
+        Schema.queueOrderColumn > oldPosition && Schema.queueOrderColumn <= newPosition
       )
-      .updateAll(db, AppDB.queueOrderColumn -= 1)
+      .updateAll(db, Schema.queueOrderColumn -= 1)
     } else {
       try Episode.filter(
-        AppDB.queueOrderColumn >= newPosition
-          && AppDB.queueOrderColumn < oldPosition
+        Schema.queueOrderColumn >= newPosition && Schema.queueOrderColumn < oldPosition
       )
-      .updateAll(db, AppDB.queueOrderColumn += 1)
+      .updateAll(db, Schema.queueOrderColumn += 1)
     }
   }
 }

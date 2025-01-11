@@ -11,7 +11,7 @@ import SwiftUI
   // MARK: - Token / Search Management
 
   let allTokens: [SearchToken] = SearchToken.allCases
-  var currentTokens: [SearchToken] = [.trending]
+  var currentTokens: [SearchToken]
   var currentView: SearchToken = .trending
 
   var searchText: String = "" {
@@ -41,8 +41,15 @@ import SwiftUI
       && searchText.trimmed().isEmpty
   }
 
+  private let allCategoriesName: String = "All Categories"
   var showCategories: Bool { searchPresented && currentTokens == [.trending] }
-  var categories: [String] { ["All Categories"] + searchedCategories }
+  var categories: [String] { [allCategoriesName] + searchedCategories }
+
+  // MARK: - Initialization
+
+  init() {
+    currentTokens = [.trending, .category(allCategoriesName)]
+  }
 
   // MARK: - Events
 
@@ -76,9 +83,7 @@ import SwiftUI
     guard let currentToken = currentTokens.first else { return nil }
 
     let searchText = searchText.trimmed()
-    guard
-      (currentToken == .trending && searchText.isEmpty)
-        || (currentToken != .trending && !searchText.isEmpty)
+    guard (currentTokens.count == 2) || (currentToken != .trending && !searchText.isEmpty)
     else { return nil }
 
     return currentToken

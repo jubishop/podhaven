@@ -106,7 +106,7 @@ enum PreviewHelpers {
     }
     let currentSize: Int = min(
       try await Repo.shared.db.read { db in
-        try Episode.filter(AppDB.queueOrderColumn != nil).fetchCount(db)
+        try Episode.filter(Schema.queueOrderColumn != nil).fetchCount(db)
       },
       queueSize
     )

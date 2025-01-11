@@ -3,8 +3,18 @@
 import Foundation
 import GRDB
 
-enum Migrations {
-  static func migrate(_ db: DatabaseWriter) throws {
+enum Schema {
+  // MARK: - Episode Columns
+
+  static let completedColumn = Column("completed")
+  static let currentTimeColumn = Column("currentTime")
+  static let mediaColumn = Column("media")
+  static let pubDateColumn = Column("pubDate")
+  static let queueOrderColumn = Column("queueOrder")
+
+  // MARK: - Migrator
+
+  static func makeMigrator() throws -> DatabaseMigrator {
     var migrator = DatabaseMigrator()
 
     #if DEBUG
@@ -48,6 +58,6 @@ enum Migrations {
       }
     }
 
-    try migrator.migrate(db)
+    return migrator
   }
 }

@@ -58,9 +58,9 @@ import SwiftUI
     let observer =
       ValueObservation.tracking { db in
         try Episode
-          .filter(AppDB.queueOrderColumn != nil)
+          .filter(Schema.queueOrderColumn != nil)
           .including(required: Episode.podcast)
-          .order(AppDB.queueOrderColumn.asc)
+          .order(Schema.queueOrderColumn.asc)
           .asRequest(of: PodcastEpisode.self)
           .fetchIdentifiedArray(db, id: \PodcastEpisode.episode.media)
       }
