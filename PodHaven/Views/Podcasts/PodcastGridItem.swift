@@ -3,7 +3,7 @@
 import NukeUI
 import SwiftUI
 
-struct PodcastThumbnail: View {
+struct PodcastGridItem: View {
   @State private var width: CGFloat = 0
 
   private let podcast: Podcast
@@ -59,10 +59,10 @@ struct PodcastThumbnail: View {
 
   VStack {
     if let podcast = podcast {
-      PodcastThumbnail(podcast: podcast).padding()
+      PodcastGridItem(podcast: podcast).padding()
     }
     if let invalidPodcast = invalidPodcast {
-      PodcastThumbnail(podcast: invalidPodcast).padding()
+      PodcastGridItem(podcast: invalidPodcast).padding()
     }
   }
   .padding()

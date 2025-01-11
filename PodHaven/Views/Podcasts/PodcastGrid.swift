@@ -20,7 +20,7 @@ struct PodcastGrid: View {
           ForEach(row) { podcast in
             NavigationLink(
               value: podcast,
-              label: { PodcastThumbnail(podcast: podcast) }
+              label: { PodcastGridItem(podcast: podcast) }
             )
           }
         }

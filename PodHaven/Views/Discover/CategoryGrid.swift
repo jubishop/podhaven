@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-struct CategoryGridView: View {
+struct CategoryGrid: View {
   @State private var paddedWidth: CGFloat
 
   private let viewModel: DiscoverViewModel

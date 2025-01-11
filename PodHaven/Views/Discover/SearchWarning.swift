@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-struct SearchWarningView: View {
+struct SearchWarning: View {
   private let warning: String
 
   init(warning: String) {
@@ -17,5 +17,5 @@ struct SearchWarningView: View {
 }
 
 #Preview {
-  SearchWarningView(warning: "Test Warning")
+  SearchWarning(warning: "Test Warning").preview()
 }

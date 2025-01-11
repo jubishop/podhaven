@@ -20,13 +20,13 @@ struct DiscoverView: View {
         .onSubmit(of: .search, viewModel.searchSubmitted)
         .overlay(alignment: .top) {
           if viewModel.showSearchWarning {
-            SearchWarningView(warning: "Must Enter A Search Query")
+            SearchWarning(warning: "Must Enter A Search Query")
           }
           if viewModel.showCategoryWarning {
-            SearchWarningView(warning: "Search For One Category Only")
+            SearchWarning(warning: "Search For One Category Only")
           }
           if viewModel.showCategories {
-            CategoryGridView(viewModel: viewModel)
+            CategoryGrid(viewModel: viewModel)
           }
         }
         .onGeometryChange(for: CGFloat.self) { geometry in

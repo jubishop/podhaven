@@ -14,9 +14,7 @@ struct EpisodeListView: View {
   var body: some View {
     NavigationLink(
       value: episode,
-      label: {
-        Text(episode.toString)
-      }
+      label: { Text(episode.toString) }
     )
   }
 }
