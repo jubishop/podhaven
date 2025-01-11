@@ -11,14 +11,14 @@ struct DiscoverView: View {
       ScrollView {
         switch viewModel.currentView {
         case .allFields:
-          TrendingResultView()
+          AllFieldsResultView()
         case .titles:
           TitlesResultView()
         case .people:
           PeopleResultView()
         case .trending:
-          TrendingResultView()
-        default: fatalError("currentView unknonw: \(viewModel.currentView)")
+          TrendingResultView(currentTokens: viewModel.currentTokens)
+        default: fatalError("viewModel.currentView unknown: \(viewModel.currentView)")
         }
       }
       .navigationTitle("Discover")
@@ -50,6 +50,11 @@ struct DiscoverView: View {
       .overlay(alignment: .top) {
         if viewModel.showSearchWarning {
           Text("Must Enter A Search Query")
+            .padding()
+            .background(Color(.systemBackground))
+        }
+        if viewModel.showCategoryWarning {
+          Text("Search for one category only")
             .padding()
             .background(Color(.systemBackground))
         }

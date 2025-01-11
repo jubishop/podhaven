@@ -3,6 +3,12 @@
 import SwiftUI
 
 struct TrendingResultView: View {
+  private let currentTokens: [SearchToken]
+
+  init(currentTokens: [SearchToken]) {
+    self.currentTokens = currentTokens
+  }
+
   var body: some View {
     Text("Trending").font(.largeTitle)
   }

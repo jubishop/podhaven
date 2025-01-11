@@ -9,7 +9,7 @@ import SwiftUI
   var currentView: SearchToken = .trending
   var searchText: String = "" {
     didSet {
-      if currentTokens.isEmpty && !searchText.trimmed.isEmpty { currentTokens = [.allFields] }
+      if currentTokens.isEmpty && !searchText.trimmed().isEmpty { currentTokens = [.allFields] }
     }
   }
 
@@ -18,7 +18,10 @@ import SwiftUI
 
   var showSearchWarning: Bool {
     searchPresented && currentTokens.count == 1 && currentTokens.first != .trending
-      && searchText.isEmpty
+      && searchText.trimmed().isEmpty
+  }
+  var showCategoryWarning: Bool {
+    currentTokens.count == 2 && !searchText.trimmed().isEmpty
   }
   var showCategories: Bool { searchPresented && currentTokens == [.trending] }
 
