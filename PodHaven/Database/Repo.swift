@@ -5,12 +5,14 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 
+struct RepoAccessKey { fileprivate init() {} }
+
 struct Repo: Sendable {
   #if DEBUG
     static func empty() -> Repo { Repo(.empty()) }
   #endif
 
-  static let shared = Repo(.shared)
+  static let shared = Repo(.shared(RepoAccessKey()))
 
   // MARK: - Initialization
 

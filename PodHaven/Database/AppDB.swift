@@ -17,7 +17,7 @@ struct AppDB: Sendable {
     }
   #endif
 
-  static let shared = {
+  private static let _shared = {
     do {
       let dbPool = try DatabasePool(
         path: URL.documentsDirectory.appendingPathComponent("db.sqlite").path,
@@ -28,6 +28,10 @@ struct AppDB: Sendable {
       fatalError("Failed to initialize shared AppDB: \(error)")
     }
   }()
+  static func shared(_ key: RepoAccessKey) -> AppDB { _shared }
+  #if DEBUG
+    static let shared = { _shared }()
+  #endif
 
   // MARK: - Private Static Helpers
 
