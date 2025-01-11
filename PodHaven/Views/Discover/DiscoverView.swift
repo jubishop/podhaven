@@ -60,13 +60,18 @@ struct DiscoverView: View {
         }
         if viewModel.showCategories {
           ScrollView {
-            TokenGridView(tokens: SearchService.categories, width: viewModel.width) { category in
+            TokenGridView(
+              tokens: viewModel.categories,
+              width: viewModel.width,
+              horizontalSpacing: viewModel.categories.count > 10 ? 8 : 16,
+              verticalSpacing: viewModel.categories.count > 10 ? 8 : 16
+            ) { category in
               Button(action: {
                 viewModel.categorySelected(category)
               }) {
                 Text(category)
-                  .font(.caption)
-                  .padding(4)
+                  .font(viewModel.categories.count > 10 ? .caption : .title)
+                  .padding(viewModel.categories.count > 8 ? 4 : 10)
                   .background(Color.blue.opacity(0.2))
                   .foregroundColor(.blue)
                   .cornerRadius(4)

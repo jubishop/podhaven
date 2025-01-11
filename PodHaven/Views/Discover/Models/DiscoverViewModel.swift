@@ -25,6 +25,14 @@ import SwiftUI
   }
   var showCategories: Bool { searchPresented && currentTokens == [.trending] }
 
+  private var searchedCategories: [String] {
+    let searchText = self.searchText.trimmed()
+    if searchText.isEmpty { return SearchService.categories }
+
+    return SearchService.categories.filter { $0.lowercased().starts(with: searchText.lowercased()) }
+  }
+  var categories: [String] { ["All Categories"] + searchedCategories }
+
   func categorySelected(_ category: String) {
     currentTokens.append(.category(category))
     searchPresented = false
