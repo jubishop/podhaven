@@ -10,7 +10,11 @@ struct TrendingResultView: View {
   }
 
   var body: some View {
-    Text("Trending").font(.largeTitle)
+    Text("Trending")
+      .font(.largeTitle)
+    List(1...100, id: \.self) { index in
+      Text("Entry \(index)")
+    }
   }
 }
 

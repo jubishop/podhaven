@@ -10,6 +10,7 @@ struct CircularProgressView: View {
   private let innerRadius: MarkDimension
   private let angularInset: CGFloat?
   private var totalColorAmount: Double { colorAmounts.values.reduce(0, +) }
+
   init(
     totalAmount: Double = 1,
     colorAmounts: OrderedDictionary<Color, Double>,

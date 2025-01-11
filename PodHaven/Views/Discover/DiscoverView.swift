@@ -8,84 +8,32 @@ struct DiscoverView: View {
 
   var body: some View {
     NavigationStack(path: $navigation.discoverPath) {
-      ScrollView {
-        switch viewModel.currentView {
-        case .allFields:
-          AllFieldsResultView()
-        case .titles:
-          TitlesResultView()
-        case .people:
-          PeopleResultView()
-        case .trending:
-          TrendingResultView(currentTokens: viewModel.currentTokens)
-        default: fatalError("viewModel.currentView unknown: \(viewModel.currentView)")
+      SearchView(viewModel: viewModel)
+        .searchable(
+          text: $viewModel.searchText,
+          tokens: $viewModel.currentTokens,
+          suggestedTokens: .constant(viewModel.allTokens),
+          isPresented: $viewModel.searchPresented
+        ) { token in
+          SearchTokenView(token: token)
         }
-      }
-      .navigationTitle("Discover")
-      .searchable(
-        text: $viewModel.searchText,
-        tokens: $viewModel.currentTokens,
-        suggestedTokens: .constant(viewModel.allTokens),
-        isPresented: $viewModel.searchPresented
-      ) { token in
-        HStack {
-          let imageName =
-            switch token {
-            case .trending:
-              "chart.line.uptrend.xyaxis"
-            case .allFields:
-              "line.3.horizontal.decrease.circle"
-            case .titles:
-              "text.book.closed"
-            case .people:
-              "person"
-            case .category(_):
-              "square.grid.2x2"
-            }
-          Image(systemName: imageName)
-          Text(token.text)
-        }
-      }
-      .onSubmit(of: .search, viewModel.searchSubmitted)
-      .overlay(alignment: .top) {
-        if viewModel.showSearchWarning {
-          Text("Must Enter A Search Query")
-            .padding()
-            .background(Color(.systemBackground))
-        }
-        if viewModel.showCategoryWarning {
-          Text("Search for one category only")
-            .padding()
-            .background(Color(.systemBackground))
-        }
-        if viewModel.showCategories {
-          ScrollView {
-            TokenGridView(
-              tokens: viewModel.categories,
-              width: viewModel.width,
-              horizontalSpacing: viewModel.categories.count > 10 ? 8 : 16,
-              verticalSpacing: viewModel.categories.count > 10 ? 8 : 16
-            ) { category in
-              Button(action: {
-                viewModel.categorySelected(category)
-              }) {
-                Text(category)
-                  .font(viewModel.categories.count > 10 ? .caption : .title)
-                  .padding(viewModel.categories.count > 8 ? 4 : 10)
-                  .background(Color.blue.opacity(0.2))
-                  .foregroundColor(.blue)
-                  .cornerRadius(4)
-              }
-            }
-            .background(Color(.systemBackground))
+        .onSubmit(of: .search, viewModel.searchSubmitted)
+        .overlay(alignment: .top) {
+          if viewModel.showSearchWarning {
+            SearchWarningView(warning: "Must Enter A Search Query")
+          }
+          if viewModel.showCategoryWarning {
+            SearchWarningView(warning: "Search For One Category Only")
+          }
+          if viewModel.showCategories {
+            CategoryGridView(viewModel: viewModel)
           }
         }
-      }
-    }
-    .onGeometryChange(for: CGFloat.self) { geometry in
-      geometry.size.width
-    } action: { newWidth in
-      viewModel.width = newWidth
+        .onGeometryChange(for: CGFloat.self) { geometry in
+          geometry.size.width
+        } action: { newWidth in
+          viewModel.width = newWidth
+        }
     }
   }
 }

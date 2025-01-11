@@ -2,10 +2,10 @@ import SwiftUI
 
 struct EditButton<Label: View>: View {
   @Environment(\.editMode) private var editMode
-  private var isEditing: Bool { editMode?.wrappedValue == .active }
 
-  var onToggle: ((Bool) -> Void)?
-  var label: (Bool) -> Label
+  private var isEditing: Bool { editMode?.wrappedValue == .active }
+  private var onToggle: ((Bool) -> Void)?
+  private var label: (Bool) -> Label
 
   init(
     onToggle: ((Bool) -> Void)? = nil,

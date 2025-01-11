@@ -3,11 +3,11 @@
 import SwiftUI
 
 struct HTMLText: View {
-  let html: String
-  var color: Color
-  var font: Font
-
   @State private var attributedString: AttributedString?
+
+  private let html: String
+  private var color: Color
+  private var font: Font
 
   init(_ html: String, color: Color = .primary, font: Font = .body) {
     self.html = html
