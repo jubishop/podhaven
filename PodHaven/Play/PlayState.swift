@@ -73,9 +73,11 @@ struct OnDeck: Sendable {
     var waiting: Bool { self == .waiting }
   }
 
+  var playbarVisible = true
   private(set) var status: Status = .stopped
   private(set) var currentTime = CMTime.zero
   private(set) var onDeck: OnDeck?
+
   private init() {}
 
   func isOnDeck(_ podcastEpisode: PodcastEpisode) -> Bool {

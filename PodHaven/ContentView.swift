@@ -21,8 +21,10 @@ struct ContentView: View {
       }
     }
     .overlay(alignment: .bottom) {
-      PlayBar()
-        .padding(.bottom, 50)
+      if PlayState.shared.playbarVisible {
+        PlayBar()
+          .padding(.bottom, 50)
+      }
     }
   }
 }

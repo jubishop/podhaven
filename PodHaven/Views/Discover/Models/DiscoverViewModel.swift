@@ -20,7 +20,12 @@ import SwiftUI
     }
   }
 
-  var searchPresented: Bool = false
+  var searchPresented: Bool = false {
+    didSet {
+      PlayState.shared.playbarVisible = !searchPresented
+    }
+  }
+
   var showSearchWarning: Bool {
     searchPresented && currentTokens.count == 1 && currentTokens.first != .trending
       && searchText.trimmed().isEmpty
