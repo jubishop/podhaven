@@ -3,7 +3,7 @@
 import Foundation
 
 struct TrendingResult: Sendable, Decodable {
-  struct FeedResult: Sendable, Decodable {
+  struct FeedResult: Sendable, Decodable, Identifiable {
     let id: Int
     let url: URL
     let image: URL

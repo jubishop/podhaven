@@ -22,7 +22,7 @@ struct SearchView: View {
         PeopleResultView()
           .navigationTitle("People")
       case .trending:
-        TrendingResultView(currentTokens: viewModel.currentTokens)
+        TrendingResultView(category: viewModel.currentCategory, result: viewModel.trendingResult)
           .navigationTitle("Trending")
       default: fatalError("viewModel.currentView unknown: \(viewModel.currentView)")
       }

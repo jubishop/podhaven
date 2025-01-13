@@ -3,6 +3,8 @@
 import SwiftUI
 
 struct DiscoverView: View {
+  @Environment(Alert.self) var alert
+
   @State private var navigation = Navigation.shared
   @State private var viewModel = DiscoverViewModel()
 
@@ -31,6 +33,9 @@ struct DiscoverView: View {
         } action: { newWidth in
           viewModel.width = newWidth
         }
+    }
+    .task {
+      await viewModel.runSearch()
     }
   }
 }

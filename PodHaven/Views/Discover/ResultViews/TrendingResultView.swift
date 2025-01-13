@@ -3,17 +3,28 @@
 import SwiftUI
 
 struct TrendingResultView: View {
-  private let currentTokens: [SearchToken]
+  private let category: String
+  private let result: TrendingResult?
 
-  init(currentTokens: [SearchToken]) {
-    self.currentTokens = currentTokens
+  init(category: String, result: TrendingResult?) {
+    self.category = category
+    self.result = result
   }
 
   var body: some View {
-    Text("Trending")
-      .font(.largeTitle)
-    List(1...100, id: \.self) { index in
-      Text("Entry \(index)")
+    VStack {
+      Text("Trending: \(category)")
+        .font(.largeTitle)
+      if let result = result {
+        List {
+          ForEach(result.feeds) { feed in
+            Text(feed.title)
+          }
+        }
+      } else {
+        Text("Still searching")
+        Spacer()
+      }
     }
   }
 }

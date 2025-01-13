@@ -1,9 +1,12 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
 import SwiftUI
 
 @Observable @MainActor final class DiscoverViewModel {
+  @ObservationIgnored @Injected(\.alert) private var alert
+
   // MARK: - Geometry Management
 
   var width: CGFloat = 0
@@ -13,7 +16,7 @@ import SwiftUI
   let allTokens: [SearchToken] = SearchToken.allCases
   var currentTokens: [SearchToken]
   var currentView: SearchToken = .trending
-
+  var currentCategory: String { currentTokens[safe: 1]?.text ?? allCategoriesName }
   var searchText: String = "" {
     didSet {
       if currentTokens.isEmpty && !searchText.trimmed().isEmpty {
@@ -45,10 +48,25 @@ import SwiftUI
   var showCategories: Bool { searchPresented && currentTokens == [.trending] }
   var categories: [String] { [allCategoriesName] + searchedCategories }
 
+  // MARK: - Searching and Results
+
+  private let searchService: SearchService
+  var trendingResult: TrendingResult?
+
   // MARK: - Initialization
 
   init() {
     currentTokens = [.trending, .category(allCategoriesName)]
+
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.allowsCellularAccess = true
+    configuration.waitsForConnectivity = true
+    let timeout = Double(10)
+    configuration.timeoutIntervalForRequest = timeout
+    configuration.timeoutIntervalForResource = timeout
+    searchService = SearchService(
+      session: URLSession(configuration: configuration)
+    )
   }
 
   // MARK: - Events
@@ -56,27 +74,42 @@ import SwiftUI
   func categorySelected(_ category: String) {
     currentTokens.append(.category(category))
     _searchText = ""
-    updateCurrentView()
+    searchSubmitted()
   }
 
   func searchSubmitted() {
-    updateCurrentView()
+    if let currentToken = readyToSearch() {
+      searchPresented = false
+      currentView = currentToken
+      Task { await runSearch() }
+    }
+  }
+
+  func runSearch() async {
+    self.trendingResult = nil
+
+    do {
+      if currentView == .trending {
+        self.trendingResult = try await searchTrending()
+      }
+    } catch {
+      alert.andReport(error)
+    }
   }
 
   // MARK: - Private Helpers
+
+  private func searchTrending() async throws -> TrendingResult {
+    guard let category = currentTokens[safe: 1], category.text != allCategoriesName
+    else { return try await searchService.searchTrending() }
+    return try await searchService.searchTrending(categories: [category.text])
+  }
 
   private var searchedCategories: [String] {
     let searchText = searchText.trimmed()
     if searchText.isEmpty { return SearchService.categories }
 
     return SearchService.categories.filter { $0.lowercased().starts(with: searchText.lowercased()) }
-  }
-
-  private func updateCurrentView() {
-    if let currentToken = readyToSearch() {
-      searchPresented = false
-      currentView = currentToken
-    }
   }
 
   private func readyToSearch() -> SearchToken? {

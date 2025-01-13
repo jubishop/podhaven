@@ -8,6 +8,10 @@ extension Array {
     self.init()
     self.reserveCapacity(capacity)
   }
+
+  subscript(safe index: Int) -> Element? {
+    indices.contains(index) ? self[index] : nil
+  }
 }
 
 extension IdentifiedArray {

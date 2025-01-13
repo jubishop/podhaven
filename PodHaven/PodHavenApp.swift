@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import Factory
 import SwiftUI
 
 #if !DEBUG
@@ -9,7 +10,7 @@ import SwiftUI
 
 @main
 struct PodHavenApp: App {
-  @State private var alert = Alert()
+  @State private var alert = Container.shared.alert()
 
   private func configureAudioSession() async {
     do {

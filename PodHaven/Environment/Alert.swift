@@ -1,13 +1,22 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import SwiftUI
 
 #if !DEBUG
   import Sentry
 #endif
 
+extension Container {
+  var alert: Factory<Alert> {
+    Factory(self) { @MainActor in Alert() }.scope(.singleton)
+  }
+}
+
 @Observable @MainActor final class Alert {
   var config: AlertConfig?
+
+  fileprivate init() {}
 
   func callAsFunction<Actions: View, Message: View>(
     title: String = "Error",
