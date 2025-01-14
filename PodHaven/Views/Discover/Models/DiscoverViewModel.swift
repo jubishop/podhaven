@@ -5,8 +5,6 @@ import Foundation
 import SwiftUI
 
 @Observable @MainActor final class DiscoverViewModel {
-  @ObservationIgnored @Injected(\.alert) private var alert
-
   // MARK: - Geometry Management
 
   var width: CGFloat = 0
@@ -23,13 +21,6 @@ import SwiftUI
         currentTokens = [.allFields]
       } else if currentTokens.count == 2 {
         _searchText = ""
-      } else if currentTokens == [.trending] {
-        let searchedCategories = searchedCategories
-        if searchedCategories.count == 1 {
-          if let onlyCategory = searchedCategories.first {
-            categorySelected(onlyCategory)
-          }
-        }
       }
     }
   }
@@ -71,29 +62,25 @@ import SwiftUI
 
   // MARK: - Events
 
-  func categorySelected(_ category: String) {
+  func categorySelected(_ category: String) async throws {
     currentTokens.append(.category(category))
     _searchText = ""
-    searchSubmitted()
+    try await searchSubmitted()
   }
 
-  func searchSubmitted() {
+  func searchSubmitted() async throws {
     if let currentToken = readyToSearch() {
       searchPresented = false
       currentView = currentToken
-      Task { await runSearch() }
+      try await runSearch()
     }
   }
 
-  func runSearch() async {
+  func runSearch() async throws {
     self.trendingResult = nil
 
-    do {
-      if currentView == .trending {
-        self.trendingResult = try await searchTrending()
-      }
-    } catch {
-      alert.andReport(error)
+    if currentView == .trending {
+      self.trendingResult = try await searchTrending()
     }
   }
 

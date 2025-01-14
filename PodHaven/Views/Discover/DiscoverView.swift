@@ -19,7 +19,15 @@ struct DiscoverView: View {
         ) { token in
           SearchTokenView(token: token)
         }
-        .onSubmit(of: .search, viewModel.searchSubmitted)
+        .onSubmit(of: .search) {
+          Task {
+            do {
+              try await viewModel.searchSubmitted()
+            } catch {
+              alert.andReport(error)
+            }
+          }
+        }
         .overlay(alignment: .top) {
           if viewModel.showSearchWarning {
             SearchWarning(warning: "Must Enter A Search Query")
@@ -35,7 +43,11 @@ struct DiscoverView: View {
         }
     }
     .task {
-      await viewModel.runSearch()
+      do {
+        try await viewModel.runSearch()
+      } catch {
+        alert.andReport(error)
+      }
     }
   }
 }

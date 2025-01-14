@@ -3,6 +3,8 @@
 import SwiftUI
 
 struct CategoryGrid: View {
+  @Environment(Alert.self) var alert
+
   @State private var paddedWidth: CGFloat
 
   private let viewModel: DiscoverViewModel
@@ -20,16 +22,25 @@ struct CategoryGrid: View {
         horizontalSpacing: viewModel.categories.count > 10 ? 8 : 16,
         verticalSpacing: viewModel.categories.count > 10 ? 8 : 16
       ) { category in
-        Button(action: {
-          viewModel.categorySelected(category)
-        }) {
-          Text(category)
-            .font(viewModel.categories.count > 10 ? .caption : .title)
-            .padding(viewModel.categories.count > 8 ? 4 : 10)
-            .background(Color.blue.opacity(0.2))
-            .foregroundColor(.blue)
-            .cornerRadius(4)
-        }
+        Button(
+          action: {
+            Task {
+              do {
+                try await viewModel.categorySelected(category)
+              } catch {
+                alert.andReport(error)
+              }
+            }
+          },
+          label: {
+            Text(category)
+              .font(viewModel.categories.count > 10 ? .caption : .title)
+              .padding(viewModel.categories.count > 8 ? 4 : 10)
+              .background(Color.blue.opacity(0.2))
+              .foregroundColor(.blue)
+              .cornerRadius(4)
+          }
+        )
       }
       .padding(.bottom)
       .background(Color(.systemBackground))
