@@ -2,9 +2,9 @@
 
 import SwiftUI
 
-struct PeopleResultView: View {
+struct TitleResultsView: View {
   var body: some View {
-    Text("People").font(.largeTitle)
+    Text("Titles").font(.largeTitle).navigationTitle("Titles")
   }
 }
 

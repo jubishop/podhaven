@@ -13,17 +13,19 @@ struct SearchView: View {
     Group {
       switch viewModel.currentView {
       case .allFields:
-        AllFieldsResultView()
-          .navigationTitle("All Fields")
+        AllFieldResultsView()
       case .titles:
-        TitlesResultView()
-          .navigationTitle("Titles")
+        TitleResultsView()
       case .people:
-        PeopleResultView()
-          .navigationTitle("People")
+        PeopleResultsView()
       case .trending:
-        TrendingResultView(category: viewModel.currentCategory, result: viewModel.trendingResult)
-          .navigationTitle("Trending")
+        TrendingResultsView(
+          viewModel:
+            TrendingResultsViewModel(
+              category: viewModel.currentCategory,
+              trendingResult: viewModel.trendingResult
+            )
+        )
       default: fatalError("viewModel.currentView unknown: \(viewModel.currentView)")
       }
     }

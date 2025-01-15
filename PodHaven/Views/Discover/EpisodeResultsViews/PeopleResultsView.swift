@@ -2,11 +2,10 @@
 
 import SwiftUI
 
-struct AllFieldsResultView: View {
+struct PeopleResultsView: View {
   var body: some View {
-    Text("All Fields").font(.largeTitle)
+    Text("People").font(.largeTitle).navigationTitle("People")
   }
 }
 
 // TODO: Make a preview
-
