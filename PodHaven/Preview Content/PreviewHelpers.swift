@@ -23,7 +23,7 @@ enum PreviewHelpers {
     )!
     let opml = try await PodcastOPML.parse(url)
 
-    let feedManager = FeedManager()
+    let feedManager = Container.shared.feedManager()
     for outline in opml.body.outlines {
       guard let feedURL = try? outline.xmlUrl.convertToValidURL()
       else { continue }

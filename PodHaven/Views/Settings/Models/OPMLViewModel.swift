@@ -138,7 +138,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       )
     }
 
-    let feedManager = FeedManager()
+    let feedManager = Container.shared.feedManager()
     self.feedManager = feedManager
     defer { self.feedManager = nil }
 

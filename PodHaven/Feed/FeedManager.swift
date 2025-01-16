@@ -3,6 +3,12 @@
 import Factory
 import Foundation
 
+extension Container {
+  var feedManager: Factory<FeedManager> {
+    Factory(self) { FeedManager() }.scope(.singleton)
+  }
+}
+
 typealias FeedResult = Result<PodcastFeed, any Error>
 
 struct FeedTask: Sendable {
@@ -37,8 +43,6 @@ struct FeedTask: Sendable {
 }
 
 final actor FeedManager: Sendable {
-  static let shared = FeedManager()
-
   // MARK: - Static Helpers
 
   static func refreshSeries(podcast: Podcast) async throws {
@@ -50,7 +54,8 @@ final actor FeedManager: Sendable {
   }
 
   static func refreshSeries(podcastSeries: PodcastSeries) async throws {
-    let feedTask = await shared.addURL(podcastSeries.podcast.feedURL)
+    let feedManager = Container.shared.feedManager()
+    let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
     let feedResult = await feedTask.feedParsed()
     switch feedResult {
     case .failure(let error):
@@ -89,17 +94,14 @@ final actor FeedManager: Sendable {
 
   var remainingFeeds: Int { feedTasks.count }
 
-  init(maxConcurrentDownloads: Int = 16) {
+  fileprivate init() {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.allowsCellularAccess = true
     configuration.waitsForConnectivity = true
     let timeout = Double(10)
     configuration.timeoutIntervalForRequest = timeout
     configuration.timeoutIntervalForResource = timeout
-    downloadManager = DownloadManager(
-      session: URLSession(configuration: configuration),
-      maxConcurrentDownloads: maxConcurrentDownloads
-    )
+    downloadManager = DownloadManager(session: URLSession(configuration: configuration))
     (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(
       of: FeedResult.self
     )
