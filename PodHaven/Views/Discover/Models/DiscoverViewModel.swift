@@ -15,6 +15,17 @@ import SwiftUI
   var currentTokens: [SearchToken]
   var currentView: SearchToken = .trending
   var currentCategory: String { currentTokens[safe: 1]?.text ?? allCategoriesName }
+  var categoriesToSearch: [String] {
+    guard let category = currentTokens[safe: 1], category.text != allCategoriesName
+    else { return [] }
+    return [category.text]
+  }
+  let language: String? = {
+    guard let languageCode = Locale.current.language.languageCode, languageCode.isISOLanguage
+    else { return nil }
+    return languageCode.identifier
+  }()
+
   var searchText: String = "" {
     didSet {
       if currentTokens.isEmpty && !searchText.trimmed().isEmpty {
@@ -37,7 +48,7 @@ import SwiftUI
 
   private let allCategoriesName: String = "All Categories"
   var showCategories: Bool { searchPresented && currentTokens == [.trending] }
-  var categories: [String] { [allCategoriesName] + searchedCategories }
+  var categories: [String] { [allCategoriesName] + filteredCategories }
 
   // MARK: - Searching and Results
 
@@ -87,12 +98,10 @@ import SwiftUI
   // MARK: - Private Helpers
 
   private func searchTrending() async throws -> TrendingResult {
-    guard let category = currentTokens[safe: 1], category.text != allCategoriesName
-    else { return try await searchService.searchTrending() }
-    return try await searchService.searchTrending(categories: [category.text])
+    try await searchService.searchTrending(categories: categoriesToSearch, language: language)
   }
 
-  private var searchedCategories: [String] {
+  private var filteredCategories: [String] {
     let searchText = searchText.trimmed()
     if searchText.isEmpty { return SearchService.categories }
 

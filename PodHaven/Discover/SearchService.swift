@@ -28,10 +28,16 @@ struct SearchService: Sendable {
     )
   }
 
-  func searchTrending(categories: [String] = []) async throws -> TrendingResult {
-    let queryItems: [URLQueryItem]? =
-      categories.isEmpty
-      ? nil : [URLQueryItem(name: "cat", value: categories.joined(separator: ","))]
+  func searchTrending(categories: [String] = [], language: String? = nil) async throws
+    -> TrendingResult
+  {
+    var queryItems: [URLQueryItem] = []
+    if !categories.isEmpty {
+      queryItems.append(URLQueryItem(name: "cat", value: categories.joined(separator: ",")))
+    }
+    if let language = language {
+      queryItems.append(URLQueryItem(name: "lang", value: language))
+    }
     return try await parse(try await performRequest("/podcasts/trending", queryItems))
   }
 

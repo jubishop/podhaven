@@ -16,8 +16,12 @@ struct TrendingItemDetailView: View {
       Text(viewModel.feedResult.title)
         .font(.largeTitle)
       HTMLText(viewModel.feedResult.description)
-      List(viewModel.unsavedEpisodes, id: \.guid) { unsavedEpisode in
-        Text(unsavedEpisode.toString)
+      if viewModel.unsavedEpisodes.isEmpty {
+        Text("Loading episodes")
+      } else {
+        List(viewModel.unsavedEpisodes, id: \.guid) { unsavedEpisode in
+          Text(unsavedEpisode.toString)
+        }
       }
     }
     .navigationTitle(viewModel.category)
