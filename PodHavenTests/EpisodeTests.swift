@@ -17,7 +17,7 @@ actor EpisodeTests {
 
   @Test("that episodes are created and fetched in the right order")
   func createSingleEpisode() async throws {
-    let url = URL(string: "https://example.com/data")!
+    let url = URL.valid()
     let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: url)
 
     let newestUnsavedEpisode = try TestHelpers.unsavedEpisode()
@@ -54,13 +54,41 @@ actor EpisodeTests {
     )
   }
 
+  @Test("that a series with new episodes can be refreshed")
+  func refreshSeriesWithNewEpisodes() async throws {
+    let unsavedPodcast = try TestHelpers.unsavedPodcast(title: "original podcast title")
+    let oldEpisode = try TestHelpers.unsavedEpisode(title: "original")
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [oldEpisode]
+    )
+    #expect(podcastSeries.episodes.count == 1)
+    var podcast = podcastSeries.podcast
+    #expect(podcast.title == "original podcast title")
+    podcast.title = "new podcast title"
+    var episode = podcastSeries.episodes.first!
+    #expect(episode.title == "original")
+    episode.title = "new title"
+    let newEpisode = try TestHelpers.unsavedEpisode(title: "episode 2")
+    try await repo.updateSeries(
+      podcast,
+      unsavedEpisodes: [newEpisode],
+      existingEpisodes: [episode]
+    )
+
+    let fetchedSeries = try await repo.podcastSeries(podcastID: podcastSeries.podcast.id)!
+    #expect(fetchedSeries.podcast.title == "new podcast title")
+    #expect(fetchedSeries.episodes.count == 2)
+    #expect(fetchedSeries.episodes.last!.title == "new title")
+    #expect(fetchedSeries.episodes.first!.title == "episode 2")
+  }
+
   @Test("that episodes can persist currentTime")
   func persistCurrentTime() async throws {
-    let url = URL(string: "https://example.com/data")!
     let guid = "guid"
     let cmTime = CMTime.inSeconds(30)
 
-    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: url)
+    let unsavedPodcast = try TestHelpers.unsavedPodcast()
     let unsavedEpisode = try TestHelpers.unsavedEpisode(guid: guid, currentTime: cmTime)
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,

@@ -16,6 +16,7 @@ actor FeedManagerTests {
     session = DataFetchableMock()
     manager = FeedManager.initForTest(session: session)
     Container.shared.feedManager.context(.test) { self.manager }
+    Container.shared.repo.context(.test) { Repo.empty() }
   }
 
   @Test("parsing the Pod Save America feed")
@@ -35,4 +36,9 @@ actor FeedManagerTests {
   }
 
   // TODO: Test FeedManager.refreshSeries
+
+  @Test("that refreshSeries works")
+  func refreshSeries() async throws {
+    
+  }
 }
