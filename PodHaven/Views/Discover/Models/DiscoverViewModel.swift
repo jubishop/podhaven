@@ -14,13 +14,13 @@ import SwiftUI
   let allTokens: [SearchToken] = SearchToken.allCases
   var currentTokens: [SearchToken]
   var currentView: SearchToken = .trending
-  var currentCategory: String { currentTokens[safe: 1]?.text ?? allCategoriesName }
+  var currentCategory: String { currentTokens[safe: 1]?.text ?? Self.allCategoriesName }
   var categoriesToSearch: [String] {
-    guard let category = currentTokens[safe: 1], category.text != allCategoriesName
+    guard let category = currentTokens[safe: 1], category.text != Self.allCategoriesName
     else { return [] }
     return [category.text]
   }
-  let language: String? = {
+  static let language: String? = {
     guard let languageCode = Locale.current.language.languageCode, languageCode.isISOLanguage
     else { return nil }
     return languageCode.identifier
@@ -46,29 +46,19 @@ import SwiftUI
       && searchText.trimmed().isEmpty
   }
 
-  private let allCategoriesName: String = "All Categories"
+  static private let allCategoriesName: String = "All Categories"
   var showCategories: Bool { searchPresented && currentTokens == [.trending] }
-  var categories: [String] { [allCategoriesName] + filteredCategories }
+  var categories: [String] { [Self.allCategoriesName] + filteredCategories }
 
   // MARK: - Searching and Results
 
-  private let searchService: SearchService
+  @ObservationIgnored @Injected(\.searchService) private var searchService
   var trendingResult: TrendingResult?
 
   // MARK: - Initialization
 
   init() {
-    currentTokens = [.trending, .category(allCategoriesName)]
-
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.allowsCellularAccess = true
-    configuration.waitsForConnectivity = true
-    let timeout = Double(10)
-    configuration.timeoutIntervalForRequest = timeout
-    configuration.timeoutIntervalForResource = timeout
-    searchService = SearchService(
-      session: URLSession(configuration: configuration)
-    )
+    currentTokens = [.trending, .category(Self.allCategoriesName)]
   }
 
   // MARK: - Events
@@ -98,7 +88,7 @@ import SwiftUI
   // MARK: - Private Helpers
 
   private func searchTrending() async throws -> TrendingResult {
-    try await searchService.searchTrending(categories: categoriesToSearch, language: language)
+    try await searchService.searchTrending(categories: categoriesToSearch, language: Self.language)
   }
 
   private var filteredCategories: [String] {

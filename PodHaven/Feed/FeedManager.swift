@@ -5,7 +5,16 @@ import Foundation
 
 extension Container {
   var feedManager: Factory<FeedManager> {
-    Factory(self) { FeedManager() }.scope(.singleton)
+    Factory(self) {
+      let configuration = URLSessionConfiguration.ephemeral
+      configuration.allowsCellularAccess = true
+      configuration.waitsForConnectivity = true
+      let timeout = Double(10)
+      configuration.timeoutIntervalForRequest = timeout
+      configuration.timeoutIntervalForResource = timeout
+      return FeedManager(session: URLSession(configuration: configuration))
+    }
+    .scope(.singleton)
   }
 }
 
@@ -94,14 +103,8 @@ final actor FeedManager: Sendable {
 
   var remainingFeeds: Int { feedTasks.count }
 
-  fileprivate init() {
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.allowsCellularAccess = true
-    configuration.waitsForConnectivity = true
-    let timeout = Double(10)
-    configuration.timeoutIntervalForRequest = timeout
-    configuration.timeoutIntervalForResource = timeout
-    downloadManager = DownloadManager(session: URLSession(configuration: configuration))
+  fileprivate init(session: DataFetchable) {
+    downloadManager = DownloadManager(session: session)
     (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(
       of: FeedResult.self
     )

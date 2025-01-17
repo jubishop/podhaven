@@ -1,10 +1,27 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
+
+extension Container {
+  var searchService: Factory<SearchService> {
+    Factory(self) {
+      let configuration = URLSessionConfiguration.ephemeral
+      configuration.allowsCellularAccess = true
+      configuration.waitsForConnectivity = true
+      let timeout = Double(10)
+      configuration.timeoutIntervalForRequest = timeout
+      configuration.timeoutIntervalForResource = timeout
+      return SearchService(session: URLSession(configuration: configuration))
+    }
+    .scope(.singleton)
+  }
+}
 
 struct SearchService: Sendable {
   private let session: DataFetchable
-  init(session: DataFetchable) {
+
+  fileprivate init(session: DataFetchable) {
     self.session = session
   }
 

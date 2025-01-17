@@ -32,4 +32,7 @@ struct SearchView: View {
   }
 }
 
-// TODO: Make preview
+// TODO: Make this interesting.
+#Preview {
+  SearchView(viewModel: DiscoverViewModel()).preview()
+}
