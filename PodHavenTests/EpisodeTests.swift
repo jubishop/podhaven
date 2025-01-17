@@ -9,11 +9,7 @@ import Testing
 
 @Suite("of Episode model tests")
 actor EpisodeTests {
-  private let repo: Repo
-
-  init() {
-    repo = Repo.empty()
-  }
+  private let repo: Repo = .empty()
 
   @Test("that episodes are created and fetched in the right order")
   func createSingleEpisode() async throws {

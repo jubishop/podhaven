@@ -6,6 +6,7 @@ import GRDB
 
 @Observable @MainActor final class EpisodeViewModel {
   @ObservationIgnored @Injected(\.repo) private var repo
+  @ObservationIgnored @Injected(\.queue) private var queue
 
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }
@@ -26,13 +27,13 @@ import GRDB
 
   func addToTopOfQueue() {
     Task {
-      try await repo.unshiftToQueue(episode.id)
+      try await queue.unshift(episode.id)
     }
   }
 
   func appendToQueue() {
     Task {
-      try await repo.appendToQueue(episode.id)
+      try await queue.append(episode.id)
     }
   }
 

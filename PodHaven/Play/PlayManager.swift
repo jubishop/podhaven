@@ -16,6 +16,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
   // MARK: - State Management
 
   @ObservationIgnored @Injected(\.repo) private var repo
+  @ObservationIgnored @Injected(\.queue) private var queue
 
   private let accessKey = PlayManagerAccessKey()
   private var _status: PlayState.Status = .stopped
@@ -156,10 +157,10 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
     guard podcastEpisode != onDeck else { return }
 
     if let episodeID = onDeck?.id {
-      try await repo.unshiftToQueue(episodeID)
+      try await queue.unshift(episodeID)
     }
 
-    try await repo.dequeue(podcastEpisode.id)
+    try await queue.dequeue(podcastEpisode.id)
     onDeck = podcastEpisode
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image

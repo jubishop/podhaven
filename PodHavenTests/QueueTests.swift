@@ -7,9 +7,13 @@ import Testing
 @Suite("of Queue repo tests")
 actor QueueTests {
   private let repo: Repo
+  private let queue: Queue
   private let podcastSeries: PodcastSeries
+
   init() async throws {
-    repo = Repo.empty()
+    let appDB = AppDB.empty()
+    repo = Repo.initForTest(appDB)
+    queue = Queue.initForTest(appDB)
 
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
     podcastSeries = try await repo.insertSeries(
@@ -32,7 +36,7 @@ actor QueueTests {
   func testAppendingNew() async throws {
     // Test appending at bottom
     var bottomEpisode = try await fetchEpisode("unqbottom")
-    try await repo.appendToQueue(bottomEpisode.id)
+    try await queue.append(bottomEpisode.id)
     bottomEpisode = try await fetchEpisode("unqbottom")
     #expect(bottomEpisode.queueOrder == 5)
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
@@ -41,7 +45,7 @@ actor QueueTests {
   @Test("inserting a new episode at top")
   func insertingNewAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
-    try await repo.unshiftToQueue(topEpisode.id)
+    try await queue.unshift(topEpisode.id)
     topEpisode = try await fetchEpisode("unqtop")
     #expect(topEpisode.queueOrder == 0)
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
@@ -50,7 +54,7 @@ actor QueueTests {
   @Test("inserting a new episode at middle")
   func insertingNewAtMiddle() async throws {
     var middleEpisode = try await fetchEpisode("unqmiddle")
-    try await repo.insertToQueue(middleEpisode.id, at: 3)
+    try await queue.insert(middleEpisode.id, at: 3)
     middleEpisode = try await fetchEpisode("unqmiddle")
     #expect(middleEpisode.queueOrder == 3)
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
@@ -59,7 +63,7 @@ actor QueueTests {
   @Test("inserting a new episode at bottom")
   func insertingNewAtBottom() async throws {
     var bottomEpisode = try await fetchEpisode("unqbottom")
-    try await repo.insertToQueue(bottomEpisode.id, at: 5)
+    try await queue.insert(bottomEpisode.id, at: 5)
     bottomEpisode = try await fetchEpisode("unqbottom")
     #expect(bottomEpisode.queueOrder == 5)
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
@@ -68,7 +72,7 @@ actor QueueTests {
   @Test("dequeing an episode")
   func testDequeue() async throws {
     var midTopEpisode = try await fetchEpisode("midtop")
-    try await repo.dequeue(midTopEpisode.id)
+    try await queue.dequeue(midTopEpisode.id)
     midTopEpisode = try await fetchEpisode("midtop")
     #expect(midTopEpisode.queueOrder == nil)
     #expect((try await fetchOrder()) == [0, 1, 2, 3])
@@ -77,7 +81,7 @@ actor QueueTests {
   @Test("appending an existing episode")
   func testAppendExisting() async throws {
     var middleEpisode = try await fetchEpisode("middle")
-    try await repo.appendToQueue(middleEpisode.id)
+    try await queue.append(middleEpisode.id)
     middleEpisode = try await fetchEpisode("middle")
     #expect(middleEpisode.queueOrder == 4)
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
@@ -86,7 +90,7 @@ actor QueueTests {
   @Test("inserting an existing episode below current location")
   func testInsertExistingBelow() async throws {
     var midTopEpisode = try await fetchEpisode("midtop")
-    try await repo.insertToQueue(midTopEpisode.id, at: 3)
+    try await queue.insert(midTopEpisode.id, at: 3)
     midTopEpisode = try await fetchEpisode("midtop")
     #expect(midTopEpisode.queueOrder == 2)
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
@@ -95,7 +99,7 @@ actor QueueTests {
   @Test("inserting an existing episode above current location")
   func testInsertExistingAbove() async throws {
     var midBottomEpisode = try await fetchEpisode("midbottom")
-    try await repo.insertToQueue(midBottomEpisode.id, at: 1)
+    try await queue.insert(midBottomEpisode.id, at: 1)
     midBottomEpisode = try await fetchEpisode("midbottom")
     #expect(midBottomEpisode.queueOrder == 1)
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
@@ -115,7 +119,7 @@ actor QueueTests {
 
   private func fetchEpisode(_ guid: String) async throws -> Episode {
     let podcastID = podcastSeries.podcast.id
-    return try await self.repo.db.read { db in
+    return try await repo.db.read { db in
       try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcastID])
     }!
   }

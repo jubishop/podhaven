@@ -104,6 +104,7 @@ enum PreviewHelpers {
 
   static func populateQueue(queueSize: Int = 20) async throws {
     let repo = Container.shared.repo()
+    let queue = Container.shared.queue()
     var allPodcastSeries: [PodcastSeries] = []
     for seriesFile in seriesFiles.keys {
       if let podcastSeries = try? await loadSeries(fileName: seriesFile) {
@@ -118,7 +119,7 @@ enum PreviewHelpers {
     )
     for _ in currentSize...queueSize {
       let episode = allPodcastSeries.randomElement()!.episodes.randomElement()!
-      try await repo.appendToQueue(episode.id)
+      try await queue.append(episode.id)
     }
   }
 }

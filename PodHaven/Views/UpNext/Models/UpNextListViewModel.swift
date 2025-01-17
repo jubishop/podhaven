@@ -6,7 +6,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor final class UpNextListViewModel {
-  @ObservationIgnored @Injected(\.repo) private var repo
+  @ObservationIgnored @Injected(\.queue) private var queue
 
   let isSelected: Binding<Bool>
   let podcastEpisode: PodcastEpisode
@@ -35,7 +35,7 @@ import SwiftUI
 
   func playNext() {
     Task {
-      try await repo.unshiftToQueue(episode.id)
+      try await queue.unshift(episode.id)
     }
   }
 
@@ -47,7 +47,7 @@ import SwiftUI
 
   func delete() {
     Task {
-      try await repo.dequeue(episode.id)
+      try await queue.dequeue(episode.id)
     }
   }
 }

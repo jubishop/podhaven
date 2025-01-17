@@ -8,6 +8,7 @@ import SwiftUI
 
 @Observable @MainActor final class UpNextViewModel {
   @ObservationIgnored @Injected(\.repo) private var repo
+  @ObservationIgnored @Injected(\.queue) private var queue
 
   var podcastEpisodes: PodcastEpisodeArray = IdentifiedArray(
     id: \PodcastEpisode.episode.media
@@ -21,31 +22,31 @@ import SwiftUI
     precondition(from.count == 1, "Somehow dragged several?")
     guard let from = from.first else { fatalError("No from in drag?") }
     Task {
-      try await repo.insertToQueue(podcastEpisodes[from].episode.id, at: to)
+      try await queue.insert(podcastEpisodes[from].episode.id, at: to)
     }
   }
 
   func moveToTop(_ podcastEpisode: PodcastEpisode) {
-    Task { try await repo.unshiftToQueue(podcastEpisode.episode.id) }
+    Task { try await queue.unshift(podcastEpisode.episode.id) }
   }
 
   func deleteSelected() {
     Task {
       for selectedItem in isSelected.keys.filter({ isSelected[$0] }) {
-        try await repo.dequeue(selectedItem.episode.id)
+        try await queue.dequeue(selectedItem.episode.id)
       }
     }
   }
 
   func deleteItem(_ podcastEpisode: PodcastEpisode) {
     Task {
-      try await repo.dequeue(podcastEpisode.episode.id)
+      try await queue.dequeue(podcastEpisode.episode.id)
     }
   }
 
   func deleteAll() {
     Task {
-      try await repo.clearQueue()
+      try await queue.clear()
       editMode = .inactive
     }
   }

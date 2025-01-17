@@ -7,9 +7,7 @@ struct AppDB: Sendable {
   #if DEBUG
     static func empty() -> AppDB {
       do {
-        let dbQueue = try DatabaseQueue(
-          configuration: makeConfiguration()
-        )
+        let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
         return try AppDB(dbQueue)
       } catch {
         fatalError("Failed to initialize empty AppDB: \(error)")
@@ -29,6 +27,7 @@ struct AppDB: Sendable {
     }
   }()
   static func shared(_ key: RepoAccessKey) -> AppDB { _shared }
+  static func shared(_ key: QueueAccessKey) -> AppDB { _shared }
   #if DEBUG
     static let shared = { _shared }()
   #endif

@@ -17,6 +17,7 @@ struct RepoAccessKey { fileprivate init() {} }
 struct Repo: Sendable {
   #if DEBUG
     static func empty() -> Repo { Repo(.empty()) }
+    static func initForTest(_ appDB: AppDB) -> Repo { Repo(appDB) }
   #endif
 
   // MARK: - Initialization
@@ -143,104 +144,6 @@ struct Repo: Sendable {
           Schema.completedColumn.set(to: true),
           Schema.currentTimeColumn.set(to: 0)
         )
-    }
-  }
-
-  // MARK: - Queue Management
-
-  func clearQueue() async throws {
-    _ = try await appDB.db.write { db in
-      try Episode.filter(Schema.queueOrderColumn != nil)
-        .updateAll(db, Schema.queueOrderColumn.set(to: nil))
-    }
-  }
-
-  func dequeue(_ episodeID: Int64) async throws {
-    try await appDB.db.write { db in
-      guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
-      else { return }
-
-      try _moveInQueue(db, episodeID: episodeID, from: oldPosition, to: Int.max)
-      try Episode.filter(id: episodeID)
-        .updateAll(db, Schema.queueOrderColumn.set(to: nil))
-    }
-  }
-
-  func insertToQueue(_ episodeID: Int64, at newPosition: Int) async throws {
-    try await appDB.db.write { db in
-      try _insertToQueue(db, episodeID: episodeID, at: newPosition)
-    }
-  }
-
-  func unshiftToQueue(_ episodeID: Int64) async throws {
-    try await appDB.db.write { db in
-      try _insertToQueue(db, episodeID: episodeID, at: 0)
-    }
-  }
-
-  func appendToQueue(_ episodeID: Int64) async throws {
-    try await appDB.db.write { db in
-      let newPosition =
-        (try Episode
-          .select(max(Schema.queueOrderColumn), as: Int.self)
-          .fetchOne(db) ?? -1) + 1
-      try _insertToQueue(db, episodeID: episodeID, at: newPosition)
-    }
-  }
-
-  //MARK: - Private Queue Helpers
-
-  private func _fetchOldPosition(_ db: Database, for episodeID: Int64) throws -> Int? {
-    precondition(
-      db.isInsideTransaction,
-      "fetchOldPosition method requires a transaction"
-    )
-    return
-      try Episode
-      .filter(id: episodeID)
-      .select(Schema.queueOrderColumn, as: Int.self)
-      .fetchOne(db)
-  }
-
-  private func _insertToQueue(
-    _ db: Database,
-    episodeID: Int64,
-    at newPosition: Int
-  ) throws {
-    precondition(
-      db.isInsideTransaction,
-      "insertToQueue method requires a transaction"
-    )
-    let oldPosition = try _fetchOldPosition(db, for: episodeID) ?? Int.max
-    let computedNewPosition = newPosition > oldPosition ? newPosition - 1 : newPosition
-    try _moveInQueue(db, episodeID: episodeID, from: oldPosition, to: computedNewPosition)
-    try Episode
-      .filter(id: episodeID)
-      .updateAll(db, Schema.queueOrderColumn.set(to: computedNewPosition))
-  }
-
-  private func _moveInQueue(
-    _ db: Database,
-    episodeID: Int64,
-    from oldPosition: Int,
-    to newPosition: Int
-  ) throws {
-    guard newPosition != oldPosition else { return }
-    precondition(
-      db.isInsideTransaction,
-      "moveInQueue method requires a transaction"
-    )
-
-    if newPosition > oldPosition {
-      try Episode.filter(
-        Schema.queueOrderColumn > oldPosition && Schema.queueOrderColumn <= newPosition
-      )
-      .updateAll(db, Schema.queueOrderColumn -= 1)
-    } else {
-      try Episode.filter(
-        Schema.queueOrderColumn >= newPosition && Schema.queueOrderColumn < oldPosition
-      )
-      .updateAll(db, Schema.queueOrderColumn += 1)
     }
   }
 }
