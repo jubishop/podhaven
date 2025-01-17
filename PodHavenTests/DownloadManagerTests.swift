@@ -18,7 +18,7 @@ actor DownloadManagerTests {
   func singleSuccessfulDownload() async {
     let downloadManager = DownloadManager(session: session)
 
-    let url = URL(string: "https://example.com/data")!
+    let url = URL.valid()
     let downloadTask = await downloadManager.addURL(url)
     let result = await downloadTask.downloadFinished()
     #expect(result.isSuccessfulWith(DownloadData(url: url)))
@@ -46,8 +46,7 @@ actor DownloadManagerTests {
       maxConcurrentDownloads: maxConcurrentDownloads
     )
 
-    let urls = (1...100)
-      .map { URL(string: "https://example.com/data\($0)")! }
+    let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
     var tasks: [DownloadTask] = []
     for url in urls {
       await session.set(url, .delay(.milliseconds(20)))
@@ -73,7 +72,7 @@ actor DownloadManagerTests {
   func cancelActiveDownload() async throws {
     let downloadManager = DownloadManager(session: session)
 
-    let url = URL(string: "https://example.com/data")!
+    let url = URL.valid()
     await session.set(url, .delay(.milliseconds(50)))
     let task = await downloadManager.addURL(url)
     Task {
@@ -96,10 +95,10 @@ actor DownloadManagerTests {
       maxConcurrentDownloads: 1
     )
 
-    let url = URL(string: "https://example.com/data")!
+    let url = URL.valid()
     await session.set(url, .delay(.milliseconds(50)))
     let task = await downloadManager.addURL(url)
-    let url2 = URL(string: "https://example.com/data2")!
+    let url2 = URL.valid()
     let task2 = await downloadManager.addURL(url2)
 
     // At this point: task should be active, task2 should be pending
@@ -143,7 +142,7 @@ actor DownloadManagerTests {
   func multipleDownloadsCalls() async throws {
     let downloadManager = DownloadManager(session: session)
 
-    let url = URL(string: "https://example.com/data")!
+    let url = URL.valid()
     await session.set(url, .delay(.milliseconds(100)))
     let task = await downloadManager.addURL(url)
     let downloadCount = Counter()
@@ -162,13 +161,13 @@ actor DownloadManagerTests {
 
   @Test("that as long as a task exists the Manager won't deallocate")
   func managerDoesNotDeallocate() async throws {
-    let url2 = URL(string: "https://example.com/data2")!
+    let url2 = URL.valid()
     func makeTask() async -> DownloadTask {
       let downloadManager = DownloadManager(
         session: session,
         maxConcurrentDownloads: 1
       )
-      let url = URL(string: "https://example.com/data")!
+      let url = URL.valid()
       await session.set(url, .delay(.milliseconds(100)))
       _ = await downloadManager.addURL(url)
       await session.set(url2, .delay(.milliseconds(100)))

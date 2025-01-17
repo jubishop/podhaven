@@ -56,6 +56,12 @@ final actor FeedManager: Sendable {
 
   // MARK: - Static Helpers
 
+  #if DEBUG
+    static func initForTest(session: DataFetchable) -> FeedManager {
+      FeedManager(session: session)
+    }
+  #endif
+
   static func refreshSeries(podcast: Podcast) async throws {
     let repo = Container.shared.repo()
     guard let podcastSeries = try await repo.podcastSeries(podcastID: podcast.id)

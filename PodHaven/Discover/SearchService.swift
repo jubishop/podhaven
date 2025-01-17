@@ -19,6 +19,14 @@ extension Container {
 }
 
 struct SearchService: Sendable {
+  // MARK: - Static Helpers
+
+  #if DEBUG
+    static func initForTest(session: DataFetchable) -> SearchService {
+      SearchService(session: session)
+    }
+  #endif
+
   private let session: DataFetchable
 
   fileprivate init(session: DataFetchable) {
@@ -78,7 +86,7 @@ struct SearchService: Sendable {
     }
   }
 
-  private func performRequest(_ path: String, _ query: [URLQueryItem]? = nil) async throws -> Data {
+  private func performRequest(_ path: String, _ query: [URLQueryItem] = []) async throws -> Data {
     let request = try buildRequest(path, query)
     let (data, response) = try await session.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {
@@ -90,12 +98,15 @@ struct SearchService: Sendable {
     return data
   }
 
-  private func buildRequest(_ path: String, _ query: [URLQueryItem]? = nil) throws -> URLRequest {
+  private func buildRequest(_ path: String, _ queryItems: [URLQueryItem] = []) throws -> URLRequest
+  {
     var components = URLComponents()
     components.scheme = "https"
     components.host = Self.baseHost
     components.path = Self.basePath + path
-    components.queryItems = query
+    if !queryItems.isEmpty {
+      components.queryItems = queryItems
+    }
     guard let url = components.url else { fatalError("Can't make url from: \(components)?") }
     var request = URLRequest(url: url)
     request.httpMethod = "GET"

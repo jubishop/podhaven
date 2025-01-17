@@ -12,30 +12,22 @@ extension DownloadData {
 
 extension DownloadResult {
   var isCancelled: Bool {
-    if case .failure(Err.cancelled) = self {
-      return true
-    }
+    if case .failure(Err.cancelled) = self { return true }
     return false
   }
 
   func isSuccessfulWith(_ expectedData: DownloadData) -> Bool {
-    if case .success(let downloadData) = self {
-      return downloadData == expectedData
-    }
+    if case .success(let downloadData) = self { return downloadData == expectedData }
     return false
   }
 
   func isSuccessfulWith() -> DownloadData? {
-    if case .success(let downloadData) = self {
-      return downloadData
-    }
+    if case .success(let downloadData) = self { return downloadData }
     return nil
   }
 
   func isSuccessful() -> Bool {
-    if case .success = self {
-      return true
-    }
+    if case .success = self { return true }
     return false
   }
 }

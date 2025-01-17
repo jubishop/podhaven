@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import Factory
 import Foundation
 import Testing
 
@@ -15,7 +16,8 @@ actor SearchServiceTests {
 
   init() {
     session = DataFetchableMock()
-    service = SearchService(session: session)
+    service = SearchService.initForTest(session: session)
+    Container.shared.searchService.context(.test) { self.service }
   }
 
   @Test("basic search query")
