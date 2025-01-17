@@ -32,7 +32,9 @@ struct SearchView: View {
   }
 }
 
-// TODO: Make this interesting.
 #Preview {
-  SearchView(viewModel: DiscoverViewModel()).preview()
+  NavigationStack {
+    SearchView(viewModel: DiscoverViewModel())
+  }
+  .preview()
 }

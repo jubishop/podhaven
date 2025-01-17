@@ -54,4 +54,18 @@ struct CategoryGrid: View {
   }
 }
 
-// TODO: Make preview
+#Preview {
+  @Previewable @State var viewModel = DiscoverViewModel()
+
+  NavigationStack {
+    if viewModel.width > 0 {
+      CategoryGrid(viewModel: viewModel).frame(width: viewModel.width)
+    }
+  }
+  .preview()
+  .onGeometryChange(for: CGFloat.self) { geometry in
+    geometry.size.width
+  } action: { newWidth in
+    viewModel.width = newWidth
+  }
+}
