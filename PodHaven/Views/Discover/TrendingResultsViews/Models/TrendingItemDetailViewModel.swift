@@ -23,9 +23,7 @@ import Foundation
       throw error
     case .success(let podcastFeed):
       self.unsavedPodcast = try podcastFeed.toUnsavedPodcast()
-      self.unsavedEpisodes = podcastFeed.episodes.compactMap { episodeFeed in
-        try? episodeFeed.toUnsavedEpisode()
-      }
+      self.unsavedEpisodes = podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
     }
   }
 }

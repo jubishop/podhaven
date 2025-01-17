@@ -112,8 +112,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     let repo = Container.shared.repo()
     let opmlFile = OPMLFile(title: opml.head.title ?? "Podcast Subscriptions")
 
-    let allPodcasts: PodcastArray
-    allPodcasts = try await repo.allPodcasts()
+    let allPodcasts = try await repo.allPodcasts()
 
     for outline in opml.body.outlines {
       guard let feedURL = try? outline.xmlUrl.convertToValidURL()
@@ -171,7 +170,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           guard let unsavedPodcast = try? podcastFeed.toUnsavedPodcast(),
             (try? await repo.insertSeries(
               unsavedPodcast,
-              unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+              unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
             )) != nil
           else { return }
 

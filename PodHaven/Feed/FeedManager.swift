@@ -14,7 +14,7 @@ extension Container {
       configuration.timeoutIntervalForResource = timeout
       return FeedManager(session: URLSession(configuration: configuration))
     }
-    .scope(.singleton)
+    .scope(.unique)
   }
 }
 
@@ -52,6 +52,8 @@ struct FeedTask: Sendable {
 }
 
 final actor FeedManager: Sendable {
+  private static var feedManager = Container.shared.feedManager()
+
   // MARK: - Static Helpers
 
   static func refreshSeries(podcast: Podcast) async throws {
@@ -63,7 +65,6 @@ final actor FeedManager: Sendable {
   }
 
   static func refreshSeries(podcastSeries: PodcastSeries) async throws {
-    let feedManager = Container.shared.feedManager()
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
     let feedResult = await feedTask.feedParsed()
     switch feedResult {
