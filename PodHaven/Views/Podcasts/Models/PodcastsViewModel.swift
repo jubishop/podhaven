@@ -7,6 +7,7 @@ import IdentifiedCollections
 
 @Observable @MainActor final class PodcastsViewModel {
   @ObservationIgnored @Injected(\.repo) private var repo
+  @ObservationIgnored @Injected(\.feedManager) private var feedManager
 
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
@@ -14,7 +15,7 @@ import IdentifiedCollections
     try await withThrowingDiscardingTaskGroup { group in
       for podcast in podcasts {
         group.addTask {
-          try await FeedManager.refreshSeries(podcast: podcast)
+          try await self.feedManager.refreshSeries(podcast: podcast)
         }
       }
     }

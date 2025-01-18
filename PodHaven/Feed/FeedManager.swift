@@ -52,26 +52,49 @@ struct FeedTask: Sendable {
 }
 
 final actor FeedManager: Sendable {
-  private static var feedManager = Container.shared.feedManager()
-
   // MARK: - Static Helpers
 
   #if DEBUG
-    static func initForTest(session: DataFetchable) -> FeedManager {
-      FeedManager(session: session)
+    static func initForTest(session: DataFetchable, repo: Repo) -> FeedManager {
+      FeedManager(session: session, repo: repo)
     }
   #endif
 
-  static func refreshSeries(podcast: Podcast) async throws {
-    let repo = Container.shared.repo()
+  // MARK: - Concurrent Download Management
+
+  private let downloadManager: DownloadManager
+  private let repo: Repo
+  private let asyncStream: AsyncStream<FeedResult>
+  private let streamContinuation: AsyncStream<FeedResult>.Continuation
+  private var feedTasks: [URL: FeedTask] = [:]
+
+  var remainingFeeds: Int { feedTasks.count }
+
+  fileprivate init(session: DataFetchable, repo: Repo = Container.shared.repo()) {
+    downloadManager = DownloadManager(session: session)
+    self.repo = repo
+    (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(
+      of: FeedResult.self
+    )
+  }
+
+  deinit {
+    streamContinuation.finish()
+  }
+
+  func feeds() -> AsyncStream<FeedResult> { asyncStream }
+
+  // MARK: - Refreshing Series
+
+  func refreshSeries(podcast: Podcast) async throws {
     guard let podcastSeries = try await repo.podcastSeries(podcastID: podcast.id)
     else { return }
 
     try await refreshSeries(podcastSeries: podcastSeries)
   }
 
-  static func refreshSeries(podcastSeries: PodcastSeries) async throws {
-    let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
+  func refreshSeries(podcastSeries: PodcastSeries) async throws {
+    let feedTask = await addURL(podcastSeries.podcast.feedURL)
     let feedResult = await feedTask.feedParsed()
     switch feedResult {
     case .failure(let error):
@@ -92,7 +115,6 @@ final actor FeedManager: Sendable {
         }
       }
       newPodcast.lastUpdate = Date()
-      let repo = Container.shared.repo()
       try await repo.updateSeries(
         newPodcast,
         unsavedEpisodes: unsavedEpisodes,
@@ -101,27 +123,7 @@ final actor FeedManager: Sendable {
     }
   }
 
-  // MARK: - Concurrent Download Management
-
-  private let downloadManager: DownloadManager
-  private var feedTasks: [URL: FeedTask] = [:]
-  private let asyncStream: AsyncStream<FeedResult>
-  private let streamContinuation: AsyncStream<FeedResult>.Continuation
-
-  var remainingFeeds: Int { feedTasks.count }
-
-  fileprivate init(session: DataFetchable) {
-    downloadManager = DownloadManager(session: session)
-    (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(
-      of: FeedResult.self
-    )
-  }
-
-  deinit {
-    streamContinuation.finish()
-  }
-
-  func feeds() -> AsyncStream<FeedResult> { asyncStream }
+  // MARK: - Downloading Feeds
 
   @discardableResult
   func addURL(_ url: URL) async -> FeedTask {

@@ -4,6 +4,8 @@ import Factory
 import Foundation
 
 @Observable @MainActor class TrendingItemDetailViewModel {
+  @ObservationIgnored @Injected(\.feedManager) private var feedManager
+
   let category: String
   let feedResult: TrendingResult.FeedResult
   var unsavedPodcast: UnsavedPodcast?
@@ -15,7 +17,6 @@ import Foundation
   }
 
   func fetchFeed() async throws {
-    let feedManager = Container.shared.feedManager()
     let feedTask = await feedManager.addURL(feedResult.url)
     let feedResult = await feedTask.feedParsed()
     switch feedResult {

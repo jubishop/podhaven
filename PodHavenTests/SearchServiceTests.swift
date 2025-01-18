@@ -17,7 +17,6 @@ actor SearchServiceTests {
   init() {
     session = DataFetchableMock()
     service = SearchService.initForTest(session: session)
-    Container.shared.searchService.context(.test) { self.service }
   }
 
   @Test("basic search query")

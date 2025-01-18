@@ -63,13 +63,15 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 }
 
 @Observable @MainActor final class OPMLViewModel {
+  @ObservationIgnored @Injected(\.repo) private var repo
+  @ObservationIgnored @Injected(\.feedManager) private var feedManager
+
   let opmlType: UTType
 
   var opmlImporting = false
   var opmlFile: OPMLFile?
 
   private var downloadSemaphor = AsyncSemaphore(value: 1)
-  private var feedManager: FeedManager?
 
   init() {
     guard let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)
@@ -91,10 +93,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   }
 
   func stopDownloading() async {
-    if let feedManager = self.feedManager {
-      await feedManager.cancelAll()
-    }
-    self.feedManager = nil
+    await feedManager.cancelAll()
     opmlFile = nil
   }
 
@@ -109,7 +108,6 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     await downloadSemaphor.wait()
     defer { downloadSemaphor.signal() }
 
-    let repo = Container.shared.repo()
     let opmlFile = OPMLFile(title: opml.head.title ?? "Podcast Subscriptions")
 
     let allPodcasts = try await repo.allPodcasts()
@@ -137,10 +135,6 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       )
     }
 
-    let feedManager = Container.shared.feedManager()
-    self.feedManager = feedManager
-    defer { self.feedManager = nil }
-
     self.opmlFile = opmlFile
     await withDiscardingTaskGroup { group in
       for outline in opmlFile.waiting {
@@ -154,7 +148,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
             }
           }
 
-          let feedTask = await feedManager.addURL(outline.feedURL)
+          let feedTask = await self.feedManager.addURL(outline.feedURL)
           await feedTask.downloadBegan()
 
           await Task { @MainActor in
@@ -168,7 +162,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           else { return }
 
           guard let unsavedPodcast = try? podcastFeed.toUnsavedPodcast(),
-            (try? await repo.insertSeries(
+            (try? await self.repo.insertSeries(
               unsavedPodcast,
               unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
             )) != nil
