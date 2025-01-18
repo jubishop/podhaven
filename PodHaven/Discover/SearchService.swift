@@ -25,7 +25,12 @@ struct SearchService: Sendable {
     static func initForTest(session: DataFetchable) -> SearchService {
       SearchService(session: session)
     }
+    static func parseForPreview<T: Decodable>(_ data: Data) async throws -> T {
+      try await parse(data)
+    }
   #endif
+
+  // MARK: - Initialization
 
   private let session: DataFetchable
 
@@ -36,19 +41,19 @@ struct SearchService: Sendable {
   // MARK: - Search Methods
 
   func searchByTerm(_ term: String) async throws -> SearchResult {
-    try await parse(
+    try await Self.parse(
       try await performRequest("/search/byterm", [URLQueryItem(name: "q", value: term)])
     )
   }
 
   func searchByTitle(_ title: String) async throws -> SearchResult {
-    try await parse(
+    try await Self.parse(
       try await performRequest("/search/bytitle", [URLQueryItem(name: "q", value: title)])
     )
   }
 
   func searchByPerson(_ person: String) async throws -> EpisodeResult {
-    try await parse(
+    try await Self.parse(
       try await performRequest("/search/byperson", [URLQueryItem(name: "q", value: person)])
     )
   }
@@ -63,17 +68,17 @@ struct SearchService: Sendable {
     if let language = language {
       queryItems.append(URLQueryItem(name: "lang", value: language))
     }
-    return try await parse(try await performRequest("/podcasts/trending", queryItems))
+    return try await Self.parse(try await performRequest("/podcasts/trending", queryItems))
   }
 
-  // MARK: - Static Private Helpers
+  // MARK: - Private Helpers
 
   static private let apiKey = "G3SPKHRKRLCU7Z2PJXEW"
   static private let apiSecret = "tQcZQATRC5Yg#zG^s7jyaVsMU8fQx5rpuGU6nqC7"
   static private let baseHost = "api.podcastindex.org"
   static private let basePath = "/api/1.0"
 
-  private func parse<T: Decodable>(_ data: Data) async throws -> T {
+  private static func parse<T: Decodable>(_ data: Data) async throws -> T {
     try await withCheckedThrowingContinuation { continuation in
       do {
         let decoder = JSONDecoder()

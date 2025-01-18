@@ -36,4 +36,24 @@ struct TrendingResultsView: View {
   }
 }
 
-// TODO: Make a preview
+#Preview {
+  @Previewable @State var viewModel: TrendingResultsViewModel = TrendingResultsViewModel(
+    category: "News",
+    trendingResult: nil
+  )
+
+  NavigationStack {
+    TrendingResultsView(viewModel: viewModel)
+  }
+  .preview()
+  .task {
+    viewModel = TrendingResultsViewModel(
+      category: "News",
+      trendingResult: try! await SearchService.parseForPreview(
+        try! Data(
+          contentsOf: Bundle.main.url(forResource: "trending_in_news", withExtension: "json")!
+        )
+      )
+    )
+  }
+}
