@@ -72,7 +72,8 @@ import SwiftUI
   // MARK: - Private Helpers
 
   private static func message(_ error: any Error) -> String {
-    return error.localizedDescription
+    guard let err = error as? Err else { return error.localizedDescription }
+    return err.localizedDescription
   }
 }
 

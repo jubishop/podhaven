@@ -12,4 +12,6 @@ enum Err: Error, LocalizedError, Sendable {
     case .cancelled: return "Cancelled"
     }
   }
+
+  var localizedDescription: String { errorDescription }
 }
