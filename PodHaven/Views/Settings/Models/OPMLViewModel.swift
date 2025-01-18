@@ -120,66 +120,74 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       }
 
       if allPodcasts[id: feedURL] != nil {
-        opmlFile.finished.insert(
-          OPMLOutline(status: .finished, text: outline.text)
+        opmlFile.finished.insert(OPMLOutline(status: .finished, text: outline.text))
+      } else {
+        opmlFile.waiting.insert(
+          OPMLOutline(
+            status: .waiting,
+            feedURL: feedURL,
+            text: outline.text
+          )
         )
-        continue
       }
-
-      opmlFile.waiting.insert(
-        OPMLOutline(
-          status: .waiting,
-          feedURL: feedURL,
-          text: outline.text
-        )
-      )
     }
 
     self.opmlFile = opmlFile
-    // TODO: Why do so many fail on second import?
     await withDiscardingTaskGroup { group in
       for outline in opmlFile.waiting {
         group.addTask {
-          defer {
-            Task { @MainActor in
-              guard outline.status != .finished else { return }
-              outline.status = .failed
-              opmlFile.downloading.remove(outline)
-              opmlFile.failed.insert(outline)
-            }
-          }
-
           let feedTask = await self.feedManager.addURL(outline.feedURL)
           await feedTask.downloadBegan()
+          await self.updateOutlineStatus(outline, in: opmlFile, to: .downloading)
 
-          await Task { @MainActor in
-            outline.status = .downloading
-            opmlFile.waiting.remove(outline)
-            opmlFile.downloading.insert(outline)
-          }
-          .value
+          do {
+            guard case .success(let podcastFeed) = await feedTask.feedParsed()
+            else { throw Err.msg("Failed to parse: \(await outline.text)") }
+            let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
 
-          guard case .success(let podcastFeed) = await feedTask.feedParsed()
-          else { return }
+            await Task { @MainActor in
+              outline.feedURL = unsavedPodcast.feedURL
+              outline.text = unsavedPodcast.toString
+            }
+            .value
 
-          guard let unsavedPodcast = try? podcastFeed.toUnsavedPodcast(),
-            (try? await self.repo.insertSeries(
+            try await self.repo.insertSeries(
               unsavedPodcast,
               unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
-            )) != nil
-          else { return }
-
-          await Task { @MainActor in
-            outline.status = .finished
-            outline.feedURL = unsavedPodcast.feedURL
-            outline.text = unsavedPodcast.toString
-            opmlFile.downloading.remove(outline)
-            opmlFile.finished.insert(outline)
+            )
+            await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
+          } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
+            await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
+          } catch {
+            await self.updateOutlineStatus(outline, in: opmlFile, to: .failed)
           }
-          .value
         }
       }
     }
+  }
+
+  private func updateOutlineStatus(
+    _ outline: OPMLOutline,
+    in opmlFile: OPMLFile,
+    to newStatus: OPMLOutline.Status
+  ) async {
+    await Task { @MainActor in
+      outline.status = newStatus
+      switch newStatus {
+      case .finished:
+        opmlFile.downloading.remove(outline)
+        opmlFile.finished.insert(outline)
+      case .failed:
+        opmlFile.downloading.remove(outline)
+        opmlFile.failed.insert(outline)
+      case .downloading:
+        opmlFile.waiting.remove(outline)
+        opmlFile.downloading.insert(outline)
+      case .waiting:
+        fatalError("Updated status back to waiting?!")
+      }
+    }
+    .value
   }
 
   // MARK: - Simulator Methods
