@@ -50,7 +50,7 @@ import SwiftUI
     @ViewBuilder actions: @escaping () -> Actions = { Button("Ok") {} },
     _ error: any Error
   ) {
-    self(title: title, actions: actions, message: { Text(error.localizedDescription) })
+    self(title: title, actions: actions, message: { Text(Self.message(error)) })
   }
 
   func andReport<Actions: View>(
@@ -59,16 +59,21 @@ import SwiftUI
     _ error: any Error
   ) {
     Self.report(error)
-    self(title: title, actions: actions, message: { Text(error.localizedDescription) })
+    self(title: title, actions: actions, message: { Text(Self.message(error)) })
   }
 
-  static func report(_ error: Error) {
-    print("Error: \(error.localizedDescription)")
+  static func report(_ error: any Error) {
+    print("Error: \(message(error))")
     #if !DEBUG
       SentrySDK.capture(error: error)
     #endif
   }
 
+  // MARK: - Private Helpers
+
+  private static func message(_ error: any Error) -> String {
+    return error.localizedDescription
+  }
 }
 
 @Observable @MainActor final class AlertConfig {

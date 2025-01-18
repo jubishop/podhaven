@@ -136,6 +136,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     }
 
     self.opmlFile = opmlFile
+    // TODO: Why do so many fail on second import?
     await withDiscardingTaskGroup { group in
       for outline in opmlFile.waiting {
         group.addTask {

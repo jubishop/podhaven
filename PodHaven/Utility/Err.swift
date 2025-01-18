@@ -8,8 +8,8 @@ enum Err: Error, LocalizedError, Sendable {
 
   var errorDescription: String {
     switch self {
-      case .msg(let msg): return msg
-      case .cancelled: return "Cancelled"
+    case .msg(let message): return message
+    case .cancelled: return "Cancelled"
     }
   }
 }

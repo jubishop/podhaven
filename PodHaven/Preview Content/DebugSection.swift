@@ -3,6 +3,8 @@
 import SwiftUI
 
 struct DebugSection: View {
+  @Environment(Alert.self) var alert
+
   var body: some View {
     Section("Debugging") {
       Button("Clear DB") {
@@ -20,7 +22,13 @@ struct DebugSection: View {
       )
       Button(
         action: {
-          Task { try await playInvalidMedia() }
+          Task {
+            do {
+              try await playInvalidMedia()
+            } catch {
+              alert.andReport(error)
+            }
+          }
         },
         label: {
           Text("Load Invalid Episode")
