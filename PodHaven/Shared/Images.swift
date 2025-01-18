@@ -1,16 +1,21 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
 import Nuke
 import SwiftUI
 
-struct Images: Sendable {
-  static let shared = Images()
+extension Container {
+  var images: Factory<Images> {
+    Factory(self) { Images() }.scope(.singleton)
+  }
+}
 
+struct Images: Sendable {
   private let pipeline = ImagePipeline.shared
   private let prefetcher = ImagePrefetcher()
 
-  private init() {}
+  fileprivate init() {}
 
   func prefetch(_ urls: [URL]) {
     prefetcher.startPrefetching(with: urls)

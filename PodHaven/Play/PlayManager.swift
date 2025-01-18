@@ -17,6 +17,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   @ObservationIgnored @Injected(\.repo) private var repo
   @ObservationIgnored @Injected(\.queue) private var queue
+  @ObservationIgnored @Injected(\.images) private var images
 
   private let accessKey = PlayManagerAccessKey()
   private var _status: PlayState.Status = .stopped
@@ -171,7 +172,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
       podcastURL: podcastEpisode.podcast.link,
       episodeTitle: podcastEpisode.episode.title,
       duration: duration,
-      image: try await Images.shared.fetchImage(imageURL),
+      image: try await images.fetchImage(imageURL),
       mediaURL: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate,
       key: accessKey
