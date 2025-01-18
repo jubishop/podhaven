@@ -10,7 +10,7 @@ import Testing
 @Suite("of FeedManager tests")
 actor FeedManagerTests {
   private let session: DataFetchableMock = DataFetchableMock()
-  private let repo: Repo = .empty()
+  private let repo: Repo = .inMemory()
   private let manager: FeedManager
 
   init() {

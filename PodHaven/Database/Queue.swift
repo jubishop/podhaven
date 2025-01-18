@@ -8,7 +8,7 @@ import IdentifiedCollections
 
 extension Container {
   var queue: Factory<Queue> {
-    Factory(self) { Queue(.shared(QueueAccessKey())) }.scope(.singleton)
+    Factory(self) { Queue(.onDisk(QueueAccessKey())) }.scope(.singleton)
   }
 }
 
@@ -16,7 +16,7 @@ struct QueueAccessKey { fileprivate init() {} }
 
 struct Queue: Sendable {
   #if DEBUG
-    static func empty() -> Queue { Queue(.empty()) }
+    static func inMemory() -> Queue { Queue(.inMemory()) }
     static func initForTest(_ appDB: AppDB) -> Queue { Queue(appDB) }
   #endif
 

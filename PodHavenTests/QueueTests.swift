@@ -11,7 +11,7 @@ actor QueueTests {
   private let podcastSeries: PodcastSeries
 
   init() async throws {
-    let appDB = AppDB.empty()
+    let appDB = AppDB.inMemory()
     repo = Repo.initForTest(appDB)
     queue = Queue.initForTest(appDB)
 

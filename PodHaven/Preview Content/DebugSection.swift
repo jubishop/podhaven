@@ -9,7 +9,7 @@ struct DebugSection: View {
     Section("Debugging") {
       Button("Clear DB") {
         Task {
-          try AppDB.shared.db.write { db in
+          try AppDB.onDisk.db.write { db in
             try Podcast.deleteAll(db)
           }
         }

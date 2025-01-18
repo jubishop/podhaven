@@ -5,17 +5,17 @@ import GRDB
 
 struct AppDB: Sendable {
   #if DEBUG
-    static func empty() -> AppDB {
+    static func inMemory() -> AppDB {
       do {
         let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
         return try AppDB(dbQueue)
       } catch {
-        fatalError("Failed to initialize empty AppDB: \(error)")
+        fatalError("Failed to initialize inMemory AppDB: \(error)")
       }
     }
   #endif
 
-  private static let _shared = {
+  private static let _onDisk = {
     do {
       let dbPool = try DatabasePool(
         path: URL.documentsDirectory.appendingPathComponent("db.sqlite").path,
@@ -23,13 +23,13 @@ struct AppDB: Sendable {
       )
       return try AppDB(dbPool)
     } catch {
-      fatalError("Failed to initialize shared AppDB: \(error)")
+      fatalError("Failed to initialize onDisk AppDB: \(error)")
     }
   }()
-  static func shared(_ key: RepoAccessKey) -> AppDB { _shared }
-  static func shared(_ key: QueueAccessKey) -> AppDB { _shared }
+  static func onDisk(_ key: RepoAccessKey) -> AppDB { _onDisk }
+  static func onDisk(_ key: QueueAccessKey) -> AppDB { _onDisk }
   #if DEBUG
-    static let shared = { _shared }()
+    static let onDisk = { _onDisk }()
   #endif
 
   // MARK: - Private Static Helpers

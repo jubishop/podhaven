@@ -8,7 +8,7 @@ import Testing
 
 @Suite("of Podcast model tests")
 actor PodcastTests {
-  private let repo: Repo = .empty()
+  private let repo: Repo = .inMemory()
 
   @Test("that a podcast can be created, fetched, and deleted")
   func createSinglePodcast() async throws {

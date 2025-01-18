@@ -8,7 +8,7 @@ import IdentifiedCollections
 
 extension Container {
   var repo: Factory<Repo> {
-    Factory(self) { Repo(.shared(RepoAccessKey())) }.scope(.singleton)
+    Factory(self) { Repo(.onDisk(RepoAccessKey())) }.scope(.singleton)
   }
 }
 
@@ -16,7 +16,7 @@ struct RepoAccessKey { fileprivate init() {} }
 
 struct Repo: Sendable {
   #if DEBUG
-    static func empty() -> Repo { Repo(.empty()) }
+    static func inMemory() -> Repo { Repo(.inMemory()) }
     static func initForTest(_ appDB: AppDB) -> Repo { Repo(appDB) }
   #endif
 
