@@ -36,7 +36,6 @@ final actor PlayManager {
   private var avPlayer = AVPlayer()
   private var nowPlayingInfo: NowPlayingInfo?
   private var onDeck: PodcastEpisode?
-  private var upNext: PodcastEpisode?
   private var commandCenter: CommandCenter
   private var commandObservingTask: Task<Void, Never>?
   private var interruptionObservingTask: Task<Void, Never>?
@@ -89,7 +88,7 @@ final actor PlayManager {
       duration = loadedDuration
       try audioSession.setActive(true)
     } catch {
-      try stop()
+      await reload()
       throw Err.msg("Can't play \(podcastEpisode.episode.toString)")
     }
 
@@ -99,12 +98,20 @@ final actor PlayManager {
     do {
       try await setOnDeck(podcastEpisode, duration)
     } catch {
-      try stop()
+      await reload()
       throw Err.msg("Failed to set \(podcastEpisode.episode.toString) on deck")
     }
 
     status = .active
     startTracking()
+  }
+
+  private func reload() async {
+    status = .stopped
+    if let onDeck = onDeck {
+      self.onDeck = nil
+      try? await load(onDeck)
+    }
   }
 
   // MARK: - Playback Controls
@@ -117,19 +124,6 @@ final actor PlayManager {
 
   func pause() {
     avPlayer.pause()
-  }
-
-  func stop() throws {
-    stopTracking()
-    pause()
-    clearOnDeck()
-    status = .stopped
-
-    do {
-      try audioSession.setActive(false)
-    } catch {
-      throw Err.msg("Failed to set audio session as inactive")
-    }
   }
 
   // MARK: - Seeking
@@ -160,8 +154,8 @@ final actor PlayManager {
     if let episodeID = onDeck?.id {
       try await queue.unshift(episodeID)
     }
-
     try await queue.dequeue(podcastEpisode.id)
+
     onDeck = podcastEpisode
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image

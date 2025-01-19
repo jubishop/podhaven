@@ -17,12 +17,6 @@ struct DebugSection: View {
       }
       Button(
         action: {
-          Task { try await Container.shared.playManager().stop() }
-        },
-        label: { Text("Stop Playing") }
-      )
-      Button(
-        action: {
           Task {
             do {
               try await playInvalidMedia()
