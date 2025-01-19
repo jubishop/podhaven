@@ -26,6 +26,7 @@ final actor PlayManager {
     get { _status }
     set {
       guard newValue != _status else { return }
+
       _status = newValue
       nowPlayingInfo?.playing(newValue.playing)
       Task { await PlayState.shared.setStatus(newValue, accessKey) }
@@ -81,10 +82,7 @@ final actor PlayManager {
 
     let duration: CMTime
     do {
-      let (isPlayable, loadedDuration) = try await avAsset.load(
-        .isPlayable,
-        .duration
-      )
+      let (isPlayable, loadedDuration) = try await avAsset.load(.isPlayable, .duration)
       guard isPlayable
       else { throw Err.msg("\(podcastEpisode.episode.toString) is not playable") }
 
@@ -113,6 +111,7 @@ final actor PlayManager {
 
   func play() {
     guard status.playable else { return }
+
     avPlayer.play()
   }
 
@@ -181,9 +180,7 @@ final actor PlayManager {
 
     nowPlayingInfo = NowPlayingInfo(onDeck, accessKey)
     Task { @MainActor in PlayState.shared.setOnDeck(onDeck, accessKey) }
-    Task(priority: .utility) {
-      Persistence.currentEpisodeID.save(episodeID)
-    }
+    Task(priority: .utility) { Persistence.currentEpisodeID.save(episodeID) }
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
       seek(to: podcastEpisode.episode.currentTime)
@@ -194,21 +191,15 @@ final actor PlayManager {
 
   private func clearOnDeck() {
     onDeck = nil
-    if nowPlayingInfo != nil {
-      setCurrentTime(CMTime.zero)
-      nowPlayingInfo = nil
-    }
+    setCurrentTime(CMTime.zero)
+    nowPlayingInfo = nil
     Task { @MainActor in PlayState.shared.setOnDeck(nil, accessKey) }
-    Task(priority: .utility) {
-      Persistence.currentEpisodeID.save(nil)
-    }
+    Task(priority: .utility) { Persistence.currentEpisodeID.save(nil) }
   }
 
   private func setCurrentTime(_ currentTime: CMTime) {
     nowPlayingInfo?.currentTime(currentTime)
-    Task { @MainActor in
-      PlayState.shared.setCurrentTime(currentTime, accessKey)
-    }
+    Task { @MainActor in PlayState.shared.setCurrentTime(currentTime, accessKey) }
     Task(priority: .utility) {
       guard let episodeID = self.episodeID else { return }
 
