@@ -191,6 +191,8 @@ final actor PlayManager {
     Task(priority: .utility) { Persistence.currentEpisodeID.save(nil) }
   }
 
+  // TODO: Bug, current time is not always updating?
+  
   private func setCurrentTime(_ currentTime: CMTime) {
     nowPlayingInfo?.currentTime(currentTime)
     Task { @MainActor in PlayState.shared.setCurrentTime(currentTime, accessKey) }
