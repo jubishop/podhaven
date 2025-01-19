@@ -9,6 +9,12 @@ struct PlayBar: View {
 
   var body: some View {
     VStack {
+      if let episodeTitle = viewModel.episodeTitle {
+        Text(episodeTitle)
+          .lineLimit(1)
+          .padding(.bottom)
+          .frame(width: viewModel.barWidth)
+      }
       HStack {
         Group {
           Button(
@@ -38,9 +44,6 @@ struct PlayBar: View {
         }
         .padding(.horizontal)
       }
-      .padding()
-      .background(Color.blue)
-      .cornerRadius(16)
       .onGeometryChange(for: CGFloat.self) { geometry in
         geometry.size.width
       } action: { newWidth in
@@ -56,6 +59,9 @@ struct PlayBar: View {
       .disabled(!viewModel.playable)
       .frame(width: viewModel.barWidth)
     }
+    .padding()
+    .background(Color.blue)
+    .cornerRadius(16)
   }
 }
 

@@ -9,6 +9,7 @@ import SwiftUI
   var barWidth: CGFloat = 0
   var isDragging = false
 
+  var episodeTitle: String? { PlayState.onDeck?.episodeTitle }
   var playable: Bool { PlayState.playable }
   var playing: Bool { PlayState.playing }
 

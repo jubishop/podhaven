@@ -32,10 +32,9 @@ final actor PlayManager {
       Task { await PlayState.shared.setStatus(newValue, accessKey) }
     }
   }
-  var episodeID: Int64? { onDeck?.episode.id }
+  var episodeID: Int64?
   private var avPlayer = AVPlayer()
   private var nowPlayingInfo: NowPlayingInfo?
-  private var onDeck: PodcastEpisode?
   private var commandCenter: CommandCenter
   private var commandObservingTask: Task<Void, Never>?
   private var interruptionObservingTask: Task<Void, Never>?
@@ -108,10 +107,14 @@ final actor PlayManager {
 
   private func reload() async {
     status = .stopped
-    if let onDeck = onDeck {
-      self.onDeck = nil
-      try? await load(onDeck)
-    }
+
+    let episodeID = self.episodeID
+    self.episodeID = nil
+
+    guard let episodeID = episodeID, let podcastEpisode = try? await repo.episode(episodeID)
+    else { return }
+
+    try? await load(podcastEpisode)
   }
 
   // MARK: - Playback Controls
@@ -137,10 +140,10 @@ final actor PlayManager {
   }
 
   func seek(to time: CMTime) {
-    let observingTime = removeTimeObserver()
+    removeTimeObserver()
     setCurrentTime(time)
     avPlayer.seek(to: time) { [unowned self] completed in
-      if completed, observingTime {
+      if completed {
         Task { await addTimeObserver() }
       }
     }
@@ -149,14 +152,14 @@ final actor PlayManager {
   // MARK: - Private State Management
 
   private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async throws {
-    guard podcastEpisode != onDeck else { return }
+    guard podcastEpisode.id != episodeID else { return }
 
-    if let episodeID = onDeck?.id {
+    if let episodeID = self.episodeID {
       try await queue.unshift(episodeID)
     }
     try await queue.dequeue(podcastEpisode.id)
 
-    onDeck = podcastEpisode
+    self.episodeID = podcastEpisode.id
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
@@ -184,15 +187,13 @@ final actor PlayManager {
   }
 
   private func clearOnDeck() {
-    onDeck = nil
+    episodeID = nil
     setCurrentTime(CMTime.zero)
     nowPlayingInfo = nil
     Task { @MainActor in PlayState.shared.setOnDeck(nil, accessKey) }
     Task(priority: .utility) { Persistence.currentEpisodeID.save(nil) }
   }
 
-  // TODO: Bug, current time is not always updating?
-  
   private func setCurrentTime(_ currentTime: CMTime) {
     nowPlayingInfo?.currentTime(currentTime)
     Task { @MainActor in PlayState.shared.setCurrentTime(currentTime, accessKey) }
@@ -227,22 +228,21 @@ final actor PlayManager {
 
   private func addTimeObserver() {
     removeTimeObserver()
-    timeObserver = avPlayer.addPeriodicTimeObserver(
+    self.timeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
     ) { currentTime in
-      Task { [unowned self] in await setCurrentTime(currentTime) }
+      Task { [unowned self] in
+        await setCurrentTime(currentTime)
+      }
     }
   }
 
-  @discardableResult
-  private func removeTimeObserver() -> Bool {
-    if let timeObserver = timeObserver {
+  private func removeTimeObserver() {
+    if let timeObserver = self.timeObserver {
       avPlayer.removeTimeObserver(timeObserver)
       self.timeObserver = nil
-      return true
     }
-    return false
   }
 
   private func startCommandCenter() {
@@ -312,7 +312,7 @@ final actor PlayManager {
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {
         if Task.isCancelled { break }
-        if let episodeID = onDeck?.id {
+        if let episodeID = self.episodeID {
           try? await repo.markComplete(episodeID)
         }
         clearOnDeck()
