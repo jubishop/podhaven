@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import Factory
 import Foundation
 import SwiftUI
 
@@ -16,8 +17,8 @@ import SwiftUI
     get { isDragging ? _sliderValue : PlayState.currentTime.seconds }
     set {
       self._sliderValue = newValue
-      Task { @PlayActor in
-        await PlayManager.shared.seek(to: CMTime.inSeconds(_sliderValue))
+      Task {
+        await Container.shared.playManager().value.seek(to: CMTime.inSeconds(_sliderValue))
       }
     }
   }
@@ -34,21 +35,21 @@ import SwiftUI
     guard PlayState.playable else { return }
 
     if PlayState.playing {
-      Task { @PlayActor in PlayManager.shared.pause() }
+      Task { await Container.shared.playManager().value.pause() }
     } else {
-      Task { @PlayActor in PlayManager.shared.play() }
+      Task { await Container.shared.playManager().value.play() }
     }
   }
 
   func seekBackward() {
-    Task { @PlayActor in
-      PlayManager.shared.seekBackward(CMTime.inSeconds(15))
+    Task {
+      await Container.shared.playManager().value.seekBackward(CMTime.inSeconds(15))
     }
   }
 
   func seekForward() {
-    Task { @PlayActor in
-      PlayManager.shared.seekForward(CMTime.inSeconds(30))
+    Task {
+      await Container.shared.playManager().value.seekForward(CMTime.inSeconds(30))
     }
   }
 }

@@ -27,9 +27,9 @@ import SwiftUI
   }
 
   func playNow() {
-    Task { @PlayActor in
-      try await PlayManager.shared.load(podcastEpisode)
-      PlayManager.shared.play()
+    Task {
+      try await Container.shared.playManager().value.load(podcastEpisode)
+      await Container.shared.playManager().value.play()
     }
   }
 

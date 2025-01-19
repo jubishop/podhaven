@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import Factory
 import SwiftUI
 
 struct PlayBar: View {
@@ -63,6 +64,6 @@ struct PlayBar: View {
     .preview()
     .task {
       let podcastEpisode = try! await PreviewHelpers.loadPodcastEpisode()
-      try? await PlayManager.shared.load(podcastEpisode)
+      try? await Container.shared.playManager().value.load(podcastEpisode)
     }
 }

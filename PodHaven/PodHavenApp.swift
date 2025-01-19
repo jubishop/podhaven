@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import Factory
 import SwiftUI
 
 #if !DEBUG
@@ -44,7 +45,7 @@ struct PodHavenApp: App {
         .environment(alert)
         .task {
           await configureAudioSession()
-          await PlayManager.shared.resume()
+          await Container.shared.playManager().value.resume()
         }
     }
   }

@@ -10,9 +10,13 @@ struct PlayManagerAccessKey { fileprivate init() {} }
 @globalActor
 final actor PlayActor: Sendable { static let shared = PlayActor() }
 
-@PlayActor final class PlayManager: Sendable {
-  static let shared = PlayManager()
+extension Container {
+  var playManager: Factory<Task<PlayManager, Never>> {
+    Factory(self) { Task { await PlayManager() } }.scope(.singleton)
+  }
+}
 
+@PlayActor final class PlayManager: Sendable {
   // MARK: - State Management
 
   @ObservationIgnored @Injected(\.repo) private var repo
@@ -51,7 +55,7 @@ final actor PlayActor: Sendable { static let shared = PlayActor() }
 
   // MARK: - Initialization
 
-  private init() {
+  fileprivate init() {
     commandCenter = CommandCenter(accessKey)
   }
 

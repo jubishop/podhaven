@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import SwiftUI
 
 struct DebugSection: View {
@@ -16,7 +17,7 @@ struct DebugSection: View {
       }
       Button(
         action: {
-          Task { @PlayActor in try PlayManager.shared.stop() }
+          Task { try await Container.shared.playManager().value.stop() }
         },
         label: { Text("Stop Playing") }
       )
@@ -47,7 +48,7 @@ struct DebugSection: View {
 
   func playInvalidMedia() async throws {
     let podcastEpisode = try await PreviewHelpers.loadPodcastEpisode()
-    try await PlayManager.shared.load(
+    try await Container.shared.playManager().value.load(
       PodcastEpisode(
         podcast: podcastEpisode.podcast,
         episode: Episode(
