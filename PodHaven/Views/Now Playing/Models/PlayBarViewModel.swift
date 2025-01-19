@@ -18,7 +18,7 @@ import SwiftUI
     set {
       self._sliderValue = newValue
       Task {
-        await Container.shared.playManager().value.seek(to: CMTime.inSeconds(_sliderValue))
+        await Container.shared.playManager().seek(to: CMTime.inSeconds(_sliderValue))
       }
     }
   }
@@ -35,21 +35,21 @@ import SwiftUI
     guard PlayState.playable else { return }
 
     if PlayState.playing {
-      Task { await Container.shared.playManager().value.pause() }
+      Task { await Container.shared.playManager().pause() }
     } else {
-      Task { await Container.shared.playManager().value.play() }
+      Task { await Container.shared.playManager().play() }
     }
   }
 
   func seekBackward() {
     Task {
-      await Container.shared.playManager().value.seekBackward(CMTime.inSeconds(15))
+      await Container.shared.playManager().seekBackward(CMTime.inSeconds(15))
     }
   }
 
   func seekForward() {
     Task {
-      await Container.shared.playManager().value.seekForward(CMTime.inSeconds(30))
+      await Container.shared.playManager().seekForward(CMTime.inSeconds(30))
     }
   }
 }

@@ -20,8 +20,8 @@ import GRDB
 
   func playNow() {
     Task {
-      try await Container.shared.playManager().value.load(podcastEpisode)
-      await Container.shared.playManager().value.play()
+      try await Container.shared.playManager().load(podcastEpisode)
+      await Container.shared.playManager().play()
     }
   }
 

@@ -7,16 +7,13 @@ import GRDB
 
 struct PlayManagerAccessKey { fileprivate init() {} }
 
-@globalActor
-final actor PlayActor: Sendable { static let shared = PlayActor() }
-
 extension Container {
-  var playManager: Factory<Task<PlayManager, Never>> {
-    Factory(self) { Task { await PlayManager() } }.scope(.singleton)
+  var playManager: Factory<PlayManager> {
+    Factory(self) { PlayManager() }.scope(.singleton)
   }
 }
 
-@PlayActor final class PlayManager: Sendable {
+final actor PlayManager {
   // MARK: - State Management
 
   @ObservationIgnored @Injected(\.repo) private var repo
@@ -31,7 +28,7 @@ extension Container {
       guard newValue != _status else { return }
       _status = newValue
       nowPlayingInfo?.playing(newValue.playing)
-      Task { @MainActor in PlayState.shared.setStatus(newValue, accessKey) }
+      Task { await PlayState.shared.setStatus(newValue, accessKey) }
     }
   }
   var episodeID: Int64? { onDeck?.episode.id }
@@ -151,7 +148,7 @@ extension Container {
     setCurrentTime(time)
     avPlayer.seek(to: time) { [unowned self] completed in
       if completed, observingTime {
-        Task { @PlayActor in addTimeObserver() }
+        Task { await addTimeObserver() }
       }
     }
   }
@@ -221,6 +218,10 @@ extension Container {
 
   // MARK: - Private Tracking
 
+  private func setStatus(_ status: PlayState.Status) {
+    self.status = status
+  }
+
   private func startTracking() {
     addKVObservers()
     addTimeObserver()
@@ -243,7 +244,7 @@ extension Container {
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
     ) { currentTime in
-      Task { @PlayActor [unowned self] in setCurrentTime(currentTime) }
+      Task { [unowned self] in await setCurrentTime(currentTime) }
     }
   }
 
@@ -260,7 +261,7 @@ extension Container {
   private func startCommandCenter() {
     stopCommandCenter()
     commandCenter.start()
-    self.commandObservingTask = Task { @PlayActor in
+    self.commandObservingTask = Task {
       for await command in commandCenter.commands() {
         if Task.isCancelled { break }
         switch command {
@@ -291,7 +292,7 @@ extension Container {
 
   private func startInterruptionNotifications() {
     stopInterruptionNotifications()
-    self.interruptionObservingTask = Task { @PlayActor in
+    self.interruptionObservingTask = Task {
       for await notification in notificationCenter.notifications(
         named: AVAudioSession.interruptionNotification
       ) {
@@ -319,7 +320,7 @@ extension Container {
 
   private func startPlayToEndNotifications() {
     stopPlayToEndNotifications()
-    self.playToEndObservingTask = Task { @PlayActor in
+    self.playToEndObservingTask = Task {
       for await _ in notificationCenter.notifications(
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {
@@ -329,7 +330,7 @@ extension Container {
         }
         clearOnDeck()
         if let nextEpisode = try? await repo.nextEpisode() {
-          Task { @PlayActor in
+          Task {
             try await load(nextEpisode)
             play()
           }
@@ -354,11 +355,11 @@ extension Container {
         changeHandler: { [unowned self] playerItem, _ in
           switch playerItem.timeControlStatus {
           case AVPlayer.TimeControlStatus.paused:
-            Task { @PlayActor in status = .paused }
+            Task { await self.setStatus(.paused) }
           case AVPlayer.TimeControlStatus.playing:
-            Task { @PlayActor in status = .playing }
+            Task { await self.setStatus(.playing) }
           case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
-            Task { @PlayActor in status = .waiting }
+            Task { await self.setStatus(.waiting) }
           @unknown default:
             fatalError("Time control status unknown?")
           }

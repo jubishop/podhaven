@@ -45,7 +45,7 @@ struct PodHavenApp: App {
         .environment(alert)
         .task {
           await configureAudioSession()
-          await Container.shared.playManager().value.resume()
+          await Container.shared.playManager().resume()
         }
     }
   }
