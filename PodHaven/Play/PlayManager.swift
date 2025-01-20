@@ -16,9 +16,9 @@ extension Container {
 final actor PlayManager {
   // MARK: - State Management
 
-  @ObservationIgnored @Injected(\.repo) private var repo
-  @ObservationIgnored @Injected(\.queue) private var queue
-  @ObservationIgnored @Injected(\.images) private var images
+  @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @LazyInjected(\.queue) private var queue
+  @ObservationIgnored @LazyInjected(\.images) private var images
 
   private let accessKey = PlayManagerAccessKey()
   private var _status: PlayState.Status = .stopped

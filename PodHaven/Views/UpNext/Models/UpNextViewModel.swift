@@ -7,12 +7,10 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor final class UpNextViewModel {
-  @ObservationIgnored @Injected(\.repo) private var repo
-  @ObservationIgnored @Injected(\.queue) private var queue
+  @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @LazyInjected(\.queue) private var queue
 
-  var podcastEpisodes: PodcastEpisodeArray = IdentifiedArray(
-    id: \PodcastEpisode.episode.media
-  )
+  var podcastEpisodes: PodcastEpisodeArray = IdentifiedArray(id: \PodcastEpisode.episode.media)
   var editMode: EditMode = .inactive
   var isEditing: Bool { editMode == .active }
   var isSelected = BindableDictionary<PodcastEpisode, Bool>(defaultValue: false)
@@ -21,9 +19,7 @@ import SwiftUI
   func moveItem(from: IndexSet, to: Int) {
     precondition(from.count == 1, "Somehow dragged several?")
     guard let from = from.first else { fatalError("No from in drag?") }
-    Task {
-      try await queue.insert(podcastEpisodes[from].episode.id, at: to)
-    }
+    Task { try await queue.insert(podcastEpisodes[from].episode.id, at: to) }
   }
 
   func moveToTop(_ podcastEpisode: PodcastEpisode) {
@@ -39,9 +35,7 @@ import SwiftUI
   }
 
   func deleteItem(_ podcastEpisode: PodcastEpisode) {
-    Task {
-      try await queue.dequeue(podcastEpisode.episode.id)
-    }
+    Task { try await queue.dequeue(podcastEpisode.episode.id) }
   }
 
   func deleteAll() {

@@ -4,7 +4,7 @@ import Factory
 import Foundation
 
 @Observable @MainActor class TrendingItemDetailViewModel {
-  @ObservationIgnored @Injected(\.feedManager) private var feedManager
+  @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
 
   let category: String
   let feedResult: TrendingResult.FeedResult

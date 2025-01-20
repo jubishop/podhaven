@@ -5,8 +5,8 @@ import Foundation
 import GRDB
 
 @Observable @MainActor final class EpisodeViewModel {
-  @ObservationIgnored @Injected(\.repo) private var repo
-  @ObservationIgnored @Injected(\.queue) private var queue
+  @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @LazyInjected(\.queue) private var queue
 
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }

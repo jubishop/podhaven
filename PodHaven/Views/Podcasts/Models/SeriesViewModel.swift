@@ -6,8 +6,8 @@ import GRDB
 import IdentifiedCollections
 
 @Observable @MainActor final class SeriesViewModel {
-  @ObservationIgnored @Injected(\.repo) private var repo
-  @ObservationIgnored @Injected(\.feedManager) private var feedManager
+  @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
 
   var podcastSeries: PodcastSeries
   var podcast: Podcast { podcastSeries.podcast }

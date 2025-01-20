@@ -52,7 +52,7 @@ import SwiftUI
 
   // MARK: - Searching and Results
 
-  @ObservationIgnored @Injected(\.searchService) private var searchService
+  @ObservationIgnored @LazyInjected(\.searchService) private var searchService
   var trendingResult: TrendingResult?
 
   // MARK: - Initialization
