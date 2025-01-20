@@ -5,6 +5,8 @@ import Foundation
 import SwiftUI
 
 @Observable @MainActor final class DiscoverViewModel {
+  @ObservationIgnored @LazyInjected(\.playState) private var playState
+
   // MARK: - Geometry Management
 
   var width: CGFloat = 0
@@ -38,7 +40,7 @@ import SwiftUI
 
   var searchPresented: Bool = false {
     didSet {
-      PlayState.shared.playbarVisible = !searchPresented
+      playState.playbarVisible = !searchPresented
     }
   }
   var showSearchWarning: Bool {

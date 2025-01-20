@@ -12,6 +12,8 @@ import SwiftUI
 struct PodHavenApp: App {
   @State private var alert = Container.shared.alert()
 
+  let playManager = Container.shared.playManager()
+
   private func configureAudioSession() async {
     do {
       try AVAudioSession.sharedInstance()
@@ -45,7 +47,7 @@ struct PodHavenApp: App {
         .environment(alert)
         .task {
           await configureAudioSession()
-          await Container.shared.playManager().resume()
+          await playManager.resume()
         }
     }
   }

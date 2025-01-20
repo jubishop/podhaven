@@ -8,6 +8,7 @@ import GRDB
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
+  @ObservationIgnored @LazyInjected(\.playState) private var playState
 
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }
@@ -17,7 +18,7 @@ import GRDB
     self.podcastEpisode = podcastEpisode
   }
 
-  var onDeck: Bool { PlayState.shared.isOnDeck(podcastEpisode) }
+  var onDeck: Bool { playState.isOnDeck(podcastEpisode) }
 
   func playNow() {
     Task {

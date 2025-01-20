@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import Factory
 import Foundation
 import SwiftUI
 
@@ -39,15 +40,15 @@ struct OnDeck: Sendable {
   }
 }
 
+extension Container {
+  var playState: Factory<PlayState> {
+    Factory(self) { @MainActor in PlayState() }.scope(.singleton)
+  }
+}
+
 @dynamicMemberLookup
 @Observable @MainActor final class PlayState: Sendable {
-  static let shared = PlayState()
-
   // MARK: - Meta
-
-  static subscript<T>(dynamicMember keyPath: KeyPath<PlayState, T>) -> T {
-    shared[keyPath: keyPath]
-  }
 
   subscript<T>(dynamicMember keyPath: KeyPath<PlayState.Status, T>) -> T {
     status[keyPath: keyPath]
@@ -78,7 +79,7 @@ struct OnDeck: Sendable {
   private(set) var currentTime = CMTime.zero
   private(set) var onDeck: OnDeck?
 
-  private init() {}
+  fileprivate init() {}
 
   func isOnDeck(_ podcastEpisode: PodcastEpisode) -> Bool {
     onDeck?.guid == podcastEpisode.episode.guid

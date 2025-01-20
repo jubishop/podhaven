@@ -19,6 +19,7 @@ final actor PlayManager {
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.images) private var images
+  @ObservationIgnored @LazyInjected(\.playState) private var playState
 
   private let accessKey = PlayManagerAccessKey()
   private var _status: PlayState.Status = .stopped
@@ -29,7 +30,7 @@ final actor PlayManager {
 
       _status = newValue
       nowPlayingInfo?.playing(newValue.playing)
-      Task { await PlayState.shared.setStatus(newValue, accessKey) }
+      Task { await playState.setStatus(newValue, accessKey) }
     }
   }
   var episodeID: Int64?
@@ -176,7 +177,7 @@ final actor PlayManager {
     )
 
     nowPlayingInfo = NowPlayingInfo(onDeck, accessKey)
-    Task { @MainActor in PlayState.shared.setOnDeck(onDeck, accessKey) }
+    Task { await playState.setOnDeck(onDeck, accessKey) }
     Task(priority: .utility) { Persistence.currentEpisodeID.save(episodeID) }
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
@@ -190,13 +191,13 @@ final actor PlayManager {
     episodeID = nil
     setCurrentTime(CMTime.zero)
     nowPlayingInfo = nil
-    Task { @MainActor in PlayState.shared.setOnDeck(nil, accessKey) }
+    Task { await playState.setOnDeck(nil, accessKey) }
     Task(priority: .utility) { Persistence.currentEpisodeID.save(nil) }
   }
 
   private func setCurrentTime(_ currentTime: CMTime) {
     nowPlayingInfo?.currentTime(currentTime)
-    Task { @MainActor in PlayState.shared.setCurrentTime(currentTime, accessKey) }
+    Task { await playState.setCurrentTime(currentTime, accessKey) }
     Task(priority: .utility) {
       guard let episodeID = self.episodeID else { return }
 

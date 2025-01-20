@@ -6,6 +6,8 @@ import SwiftUI
 struct DebugSection: View {
   @Environment(Alert.self) var alert
 
+  private let playManager = Container.shared.playManager()
+
   var body: some View {
     Section("Debugging") {
       Button("Clear DB") {
@@ -42,7 +44,7 @@ struct DebugSection: View {
 
   func playInvalidMedia() async throws {
     let podcastEpisode = try await PreviewHelpers.loadPodcastEpisode()
-    try await Container.shared.playManager().load(
+    try await playManager.load(
       PodcastEpisode(
         podcast: podcastEpisode.podcast,
         episode: Episode(
