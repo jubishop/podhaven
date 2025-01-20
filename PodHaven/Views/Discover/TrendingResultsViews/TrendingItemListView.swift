@@ -17,4 +17,20 @@ struct TrendingItemListView: View {
   }
 }
 
-// TODO: Make preview
+#Preview {
+  @Previewable @State var feedResult: TrendingResult.FeedResult?
+
+  NavigationStack {
+    List {
+      if let feedResult = feedResult {
+        TrendingItemListView(feedResult: feedResult)
+      } else {
+        Text("No trending result found")
+      }
+    }
+  }
+  .preview()
+  .task {
+    feedResult = try! await PreviewHelpers.loadFeedResult()
+  }
+}

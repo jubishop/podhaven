@@ -54,5 +54,6 @@ struct DiscoverView: View {
 }
 
 #Preview {
-  DiscoverView().preview()
+  DiscoverView()
+    .preview()
 }

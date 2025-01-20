@@ -49,11 +49,7 @@ struct TrendingResultsView: View {
   .task {
     viewModel = TrendingResultsViewModel(
       category: "News",
-      trendingResult: try! await SearchService.parseForPreview(
-        try! Data(
-          contentsOf: Bundle.main.url(forResource: "trending_in_news", withExtension: "json")!
-        )
-      )
+      trendingResult: try! await PreviewHelpers.loadTrendingResult()
     )
   }
 }

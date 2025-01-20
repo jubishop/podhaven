@@ -82,7 +82,7 @@ enum PreviewHelpers {
     }) {
       return podcast
     }
-    let podcastSeries = try! await loadSeries()
+    let podcastSeries = try await loadSeries()
     return podcastSeries.podcast
   }
 
@@ -97,7 +97,7 @@ enum PreviewHelpers {
     }) {
       return podcastEpisode
     }
-    let podcastSeries = try! await loadSeries()
+    let podcastSeries = try await loadSeries()
     let episode = podcastSeries.episodes.randomElement()!
     return PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
   }
@@ -121,5 +121,17 @@ enum PreviewHelpers {
       let episode = allPodcastSeries.randomElement()!.episodes.randomElement()!
       try await queue.append(episode.id)
     }
+  }
+
+  static func loadTrendingResult() async throws -> TrendingResult {
+    try await SearchService.parseForPreview(
+      try Data(
+        contentsOf: Bundle.main.url(forResource: "trending_in_news", withExtension: "json")!
+      )
+    )
+  }
+
+  static func loadFeedResult() async throws -> TrendingResult.FeedResult {
+    try await loadTrendingResult().feeds.randomElement()!
   }
 }

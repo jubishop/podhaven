@@ -23,10 +23,12 @@ struct EpisodeListView: View {
   @Previewable @State var podcastEpisode: PodcastEpisode?
 
   NavigationStack {
-    if let podcastEpisode = podcastEpisode {
-      EpisodeListView(podcastEpisode: podcastEpisode)
-    } else {
-      Text("No episodes in DB")
+    List {
+      if let podcastEpisode = podcastEpisode {
+        EpisodeListView(podcastEpisode: podcastEpisode)
+      } else {
+        Text("No episodes in DB")
+      }
     }
   }
   .preview()

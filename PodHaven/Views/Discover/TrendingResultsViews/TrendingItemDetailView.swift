@@ -52,7 +52,7 @@ struct TrendingItemDetailView: View {
     )
     viewModel = TrendingItemDetailViewModel(
       category: "News",
-      feedResult: trendingResult.feeds.randomElement()!
+      feedResult: try! await PreviewHelpers.loadFeedResult()
     )
   }
 }
