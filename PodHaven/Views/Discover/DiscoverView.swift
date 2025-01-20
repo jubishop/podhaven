@@ -1,11 +1,12 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import SwiftUI
 
 struct DiscoverView: View {
   @Environment(Alert.self) var alert
 
-  @State private var navigation = Navigation.shared
+  @State private var navigation = Container.shared.navigation()
   @State private var viewModel = DiscoverViewModel()
 
   var body: some View {

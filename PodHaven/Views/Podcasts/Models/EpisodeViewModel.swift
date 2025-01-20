@@ -7,6 +7,7 @@ import GRDB
 @Observable @MainActor final class EpisodeViewModel {
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.queue) private var queue
+  @ObservationIgnored @LazyInjected(\.playManager) private var playManager
 
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }
@@ -20,21 +21,17 @@ import GRDB
 
   func playNow() {
     Task {
-      try await Container.shared.playManager().load(podcastEpisode)
-      await Container.shared.playManager().play()
+      try await playManager.load(podcastEpisode)
+      await playManager.play()
     }
   }
 
   func addToTopOfQueue() {
-    Task {
-      try await queue.unshift(episode.id)
-    }
+    Task { try await queue.unshift(episode.id) }
   }
 
   func appendToQueue() {
-    Task {
-      try await queue.append(episode.id)
-    }
+    Task { try await queue.append(episode.id) }
   }
 
   func observeEpisode() async throws {

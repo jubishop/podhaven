@@ -1,10 +1,11 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
 import SwiftUI
 
 struct PreviewModifier: ViewModifier {
-  @State private var alert = Alert.shared
+  @State private var alert = Container.shared.alert()
 
   func body(content: Content) -> some View {
     content

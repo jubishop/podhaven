@@ -7,6 +7,8 @@ import SwiftUI
 
 @Observable @MainActor final class UpNextListViewModel {
   @ObservationIgnored @LazyInjected(\.queue) private var queue
+  @ObservationIgnored @LazyInjected(\.navigation) private var navigation
+  @ObservationIgnored @LazyInjected(\.playManager) private var playManager
 
   let isSelected: Binding<Bool>
   let podcastEpisode: PodcastEpisode
@@ -28,8 +30,8 @@ import SwiftUI
 
   func playNow() {
     Task {
-      try await Container.shared.playManager().load(podcastEpisode)
-      await Container.shared.playManager().play()
+      try await playManager.load(podcastEpisode)
+      await playManager.play()
     }
   }
 
@@ -40,14 +42,10 @@ import SwiftUI
   }
 
   func viewDetails() {
-    Task {
-      Navigation.shared.showEpisode(podcastEpisode)
-    }
+    Task { navigation.showEpisode(podcastEpisode) }
   }
 
   func delete() {
-    Task {
-      try await queue.dequeue(episode.id)
-    }
+    Task { try await queue.dequeue(episode.id) }
   }
 }

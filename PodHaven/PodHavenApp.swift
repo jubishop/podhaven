@@ -10,7 +10,7 @@ import SwiftUI
 
 @main
 struct PodHavenApp: App {
-  @State private var alert = Alert.shared
+  @State private var alert = Container.shared.alert()
 
   private func configureAudioSession() async {
     do {

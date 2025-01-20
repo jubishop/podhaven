@@ -1,10 +1,15 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import SwiftUI
 
-@Observable @MainActor final class Navigation: Sendable {
-  static let shared = Navigation()
+extension Container {
+  var navigation: Factory<Navigation> {
+    Factory(self) { @MainActor in Navigation() }.scope(.singleton)
+  }
+}
 
+@Observable @MainActor final class Navigation: Sendable {
   enum Tab {
     case settings, podcasts, upNext, discover
   }
@@ -30,7 +35,7 @@ import SwiftUI
     podcastsPath.append(podcastEpisode.episode)
   }
 
-  private init() {}
+  fileprivate init() {}
 
   private func clearPaths(_ tab: Tab) {
     switch tab {

@@ -1,10 +1,12 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import SwiftUI
 
 struct PodcastsView: View {
   @Environment(Alert.self) var alert
-  @State private var navigation = Navigation.shared
+
+  @State private var navigation = Container.shared.navigation()
   @State private var viewModel = PodcastsViewModel()
 
   var body: some View {

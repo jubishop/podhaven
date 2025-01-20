@@ -6,6 +6,8 @@ import Foundation
 import SwiftUI
 
 @Observable @MainActor final class PlayBarViewModel {
+  @ObservationIgnored @LazyInjected(\.playManager) private var playManager
+
   var barWidth: CGFloat = 0
   var isDragging = false
 
@@ -18,9 +20,7 @@ import SwiftUI
     get { isDragging ? _sliderValue : PlayState.currentTime.seconds }
     set {
       self._sliderValue = newValue
-      Task {
-        await Container.shared.playManager().seek(to: CMTime.inSeconds(_sliderValue))
-      }
+      Task { await playManager.seek(to: CMTime.inSeconds(_sliderValue)) }
     }
   }
   var duration: CMTime { PlayState.onDeck?.duration ?? CMTime.zero }
@@ -36,21 +36,17 @@ import SwiftUI
     guard PlayState.playable else { return }
 
     if PlayState.playing {
-      Task { await Container.shared.playManager().pause() }
+      Task { await playManager.pause() }
     } else {
-      Task { await Container.shared.playManager().play() }
+      Task { await playManager.play() }
     }
   }
 
   func seekBackward() {
-    Task {
-      await Container.shared.playManager().seekBackward(CMTime.inSeconds(15))
-    }
+    Task { await playManager.seekBackward(CMTime.inSeconds(15)) }
   }
 
   func seekForward() {
-    Task {
-      await Container.shared.playManager().seekForward(CMTime.inSeconds(30))
-    }
+    Task { await playManager.seekForward(CMTime.inSeconds(30)) }
   }
 }

@@ -1,10 +1,12 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import SwiftUI
 
 struct UpNextView: View {
   @Environment(Alert.self) var alert
-  @State private var navigation = Navigation.shared
+
+  @State private var navigation = Container.shared.navigation()
   @State private var viewModel = UpNextViewModel()
 
   var body: some View {

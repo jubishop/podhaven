@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import SwiftUI
 
 struct SettingsView: View {
@@ -7,7 +8,7 @@ struct SettingsView: View {
     case opml
   }
 
-  @State private var navigation = Navigation.shared
+  @State private var navigation = Container.shared.navigation()
 
   var body: some View {
     NavigationStack(path: $navigation.settingsPath) {

@@ -1,14 +1,19 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import SwiftUI
 
 #if !DEBUG
   import Sentry
 #endif
 
-@Observable @MainActor final class Alert {
-  static let shared = Alert()
+extension Container {
+  var alert: Factory<Alert> {
+    Factory(self) { @MainActor in Alert() }.scope(.singleton)
+  }
+}
 
+@Observable @MainActor final class Alert {
   var config: AlertConfig?
 
   fileprivate init() {}

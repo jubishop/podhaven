@@ -65,6 +65,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 @Observable @MainActor final class OPMLViewModel {
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
+  @ObservationIgnored @LazyInjected(\.navigation) private var navigation
 
   let opmlType: UTType
 
@@ -99,7 +100,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
   func finishedDownloading() async {
     await stopDownloading()
-    Navigation.shared.showTab(.podcasts)
+    navigation.showTab(.podcasts)
   }
 
   // MARK: - Private Methods
