@@ -10,7 +10,6 @@ import IdentifiedCollections
   @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
 
   var podcastSeries: PodcastSeriesArray = IdentifiedArray(id: \PodcastSeries.podcast.feedURL)
-  var podcasts: [Podcast] { podcastSeries.map { $0.podcast } }
 
   func refreshPodcasts() async throws {
     try await withThrowingDiscardingTaskGroup { group in

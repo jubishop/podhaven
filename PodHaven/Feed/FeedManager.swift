@@ -86,13 +86,6 @@ final actor FeedManager: Sendable {
 
   // MARK: - Refreshing Series
 
-  func refreshSeries(podcast: Podcast) async throws {
-    guard let podcastSeries = try await repo.podcastSeries(podcastID: podcast.id)
-    else { return }
-
-    try await refreshSeries(podcastSeries: podcastSeries)
-  }
-
   func refreshSeries(podcastSeries: PodcastSeries) async throws {
     let feedTask = await addURL(podcastSeries.podcast.feedURL)
     let feedResult = await feedTask.feedParsed()

@@ -12,7 +12,9 @@ extension Array {
   subscript(safe index: Int) -> Element? {
     indices.contains(index) ? self[index] : nil
   }
+}
 
+extension IdentifiedArray {
   func chunked(size: Int) -> [[Element]] {
     guard size > 0, count > 0 else { return [] }
 

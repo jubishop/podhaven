@@ -12,14 +12,21 @@ struct PodcastsView: View {
   var body: some View {
     NavigationStack(path: $navigation.podcastsPath) {
       ScrollView {
-        PodcastGrid(podcasts: viewModel.podcasts).padding()
+        PodcastGrid(podcastSeries: viewModel.podcastSeries).padding()
       }
       .navigationTitle("Podcasts")
+      .navigationDestination(for: PodcastSeries.self) { podcastSeries in
+        SeriesView(viewModel: SeriesViewModel(podcastSeries: podcastSeries))
+      }
       .navigationDestination(for: Podcast.self) { podcast in
         SeriesView(viewModel: SeriesViewModel(podcast: podcast))
       }
       .refreshable {
-        try? await viewModel.refreshPodcasts()
+        do {
+          try await viewModel.refreshPodcasts()
+        } catch {
+          alert.andReport("Failed to refresh all podcasts: \(error)")
+        }
       }
     }
     .task {
