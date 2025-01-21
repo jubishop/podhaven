@@ -4,7 +4,11 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 
-struct PodcastSeries: Decodable, FetchableRecord, Equatable {
+typealias PodcastSeriesArray = IdentifiedArray<URL, PodcastSeries> // podcast.feedURL
+
+struct PodcastSeries: Decodable, FetchableRecord, Equatable, Identifiable, Hashable {
+  var id: Podcast.ID { podcast.id }
+
   let podcast: Podcast
   let episodes: EpisodeArray
 

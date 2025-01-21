@@ -9,14 +9,14 @@ import IdentifiedCollections
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
 
-  var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
+  var podcastSeries: PodcastSeriesArray = IdentifiedArray(id: \PodcastSeries.podcast.feedURL)
+  var podcasts: [Podcast] { podcastSeries.map { $0.podcast } }
 
   func refreshPodcasts() async throws {
     try await withThrowingDiscardingTaskGroup { group in
-      for podcast in podcasts {
+      for podcastSeries in self.podcastSeries {
         group.addTask {
-          // TODO: Open a DB transaction so this doesn't cause a bunch individually
-          try await self.feedManager.refreshSeries(podcast: podcast)
+          try await self.feedManager.refreshSeries(podcastSeries: podcastSeries)
         }
       }
     }
@@ -28,11 +28,13 @@ import IdentifiedCollections
       .tracking { db in
         try Podcast
           .all()
-          .fetchIdentifiedArray(db, id: \Podcast.feedURL)
+          .including(all: Podcast.episodes)
+          .asRequest(of: PodcastSeries.self)
+          .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)
       }
       .removeDuplicates()
-    for try await podcasts in observer.values(in: repo.db) {
-      self.podcasts = podcasts
+    for try await podcastSeries in observer.values(in: repo.db) {
+      self.podcastSeries = podcastSeries
     }
   }
 }

@@ -5,11 +5,9 @@ import GRDB
 import IdentifiedCollections
 import Tagged
 
-typealias PodcastEpisodeArray = IdentifiedArray<URL, PodcastEpisode>
+typealias PodcastEpisodeArray = IdentifiedArray<URL, PodcastEpisode> // episode.media
 
-struct PodcastEpisode: Codable, FetchableRecord, Equatable, Identifiable,
-  Hashable
-{
+struct PodcastEpisode: Codable, FetchableRecord, Equatable, Identifiable, Hashable {
   var id: Episode.ID { episode.id }
 
   let podcast: Podcast
