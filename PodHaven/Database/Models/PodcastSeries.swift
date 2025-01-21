@@ -6,13 +6,13 @@ import IdentifiedCollections
 
 struct PodcastSeries: Decodable, FetchableRecord, Equatable {
   let podcast: Podcast
-  let episodes: IdentifiedArray<String, Episode>
+  let episodes: EpisodeArray
 
   init(podcast: Podcast) {
     self.init(podcast: podcast, episodes: IdentifiedArray(id: \Episode.guid))
   }
 
-  init(podcast: Podcast, episodes: IdentifiedArray<String, Episode>) {
+  init(podcast: Podcast, episodes: EpisodeArray) {
     self.podcast = podcast
     self.episodes = episodes
   }

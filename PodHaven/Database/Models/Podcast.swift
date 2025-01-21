@@ -4,7 +4,7 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 
-typealias PodcastArray = IdentifiedArray<URL, Podcast>
+typealias PodcastArray = IdentifiedArray<URL, Podcast> // feedURL
 
 struct UnsavedPodcast: Savable {
   var feedURL: URL

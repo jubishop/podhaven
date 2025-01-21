@@ -11,7 +11,7 @@ import IdentifiedCollections
 
   var podcastSeries: PodcastSeries
   var podcast: Podcast { podcastSeries.podcast }
-  var episodes: IdentifiedArray<String, Episode> { podcastSeries.episodes }
+  var episodes: EpisodeArray { podcastSeries.episodes }
 
   init(podcast: Podcast) {
     self.podcastSeries = PodcastSeries(podcast: podcast)

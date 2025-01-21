@@ -4,6 +4,9 @@ import AVFoundation
 import Foundation
 import GRDB
 import Tagged
+import IdentifiedCollections
+
+typealias EpisodeArray = IdentifiedArray<String, Episode>  // guid
 
 struct UnsavedEpisode: Savable {
   let guid: String
