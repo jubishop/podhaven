@@ -15,6 +15,7 @@ import IdentifiedCollections
     try await withThrowingDiscardingTaskGroup { group in
       for podcast in podcasts {
         group.addTask {
+          // TODO: Open a DB transaction so this doesn't cause a bunch individually
           try await self.feedManager.refreshSeries(podcast: podcast)
         }
       }

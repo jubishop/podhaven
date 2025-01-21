@@ -100,9 +100,7 @@ final actor DownloadManager: Sendable {
   private let asyncStream: AsyncStream<DownloadResult>
   private let streamContinuation: AsyncStream<DownloadResult>.Continuation
 
-  var remainingDownloads: Int {
-    pendingDownloads.count + activeDownloads.count
-  }
+  var remainingDownloads: Int { pendingDownloads.count + activeDownloads.count }
 
   init(session: DataFetchable, maxConcurrentDownloads: Int = 16) {
     self.session = session
