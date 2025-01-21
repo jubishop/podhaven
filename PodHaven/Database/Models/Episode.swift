@@ -7,7 +7,7 @@ import Tagged
 
 struct UnsavedEpisode: Savable {
   let guid: String
-  var podcastId: Tagged<Podcast, Int64>?
+  var podcastId: Podcast.ID?
   var title: String
   var media: URL
   var currentTime: CMTime
@@ -21,7 +21,7 @@ struct UnsavedEpisode: Savable {
 
   init(
     guid: String,
-    podcastId: Tagged<Podcast, Int64>? = nil,
+    podcastId: Podcast.ID? = nil,
     title: String,
     media: URL,
     currentTime: CMTime? = nil,

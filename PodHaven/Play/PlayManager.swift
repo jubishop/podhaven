@@ -34,7 +34,7 @@ final actor PlayManager {
       Task { await playState.setStatus(newValue, accessKey) }
     }
   }
-  var episodeID: Tagged<Episode, Int64>?
+  var episodeID: Episode.ID?
   private var avPlayer = AVPlayer()
   private var nowPlayingInfo: NowPlayingInfo?
   private var commandCenter: CommandCenter
@@ -59,7 +59,7 @@ final actor PlayManager {
 
   func resume() async {
     do {
-      guard let episodeID: Tagged<Episode, Int64> = Persistence.currentEpisodeID.load(),
+      guard let episodeID: Episode.ID = Persistence.currentEpisodeID.load(),
         let podcastEpisode = try await repo.episode(episodeID)
       else { return }
 

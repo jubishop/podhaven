@@ -39,7 +39,7 @@ struct Repo: Sendable {
 
   // MARK: - Series Readers
 
-  func podcastSeries(podcastID: Tagged<Podcast, Int64>) async throws -> PodcastSeries? {
+  func podcastSeries(podcastID: Podcast.ID) async throws -> PodcastSeries? {
     try await appDB.db.read { db in
       try Podcast
         .filter(id: podcastID)
@@ -61,7 +61,7 @@ struct Repo: Sendable {
     }
   }
 
-  func episode(_ episodeID: Tagged<Episode, Int64>) async throws -> PodcastEpisode? {
+  func episode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
         .filter(id: episodeID)
@@ -120,7 +120,7 @@ struct Repo: Sendable {
   // MARK: - Podcast Writers
 
   @discardableResult
-  func delete(_ podcastID: Tagged<Podcast, Int64>) async throws -> Bool {
+  func delete(_ podcastID: Podcast.ID) async throws -> Bool {
     try await appDB.db.write { db in
       try Podcast.deleteOne(db, id: podcastID)
     }
@@ -128,7 +128,7 @@ struct Repo: Sendable {
 
   // MARK: - Episode Writers
 
-  func updateCurrentTime(_ episodeID: Tagged<Episode, Int64>, _ currentTime: CMTime) async throws {
+  func updateCurrentTime(_ episodeID: Episode.ID, _ currentTime: CMTime) async throws {
     _ = try await appDB.db.write { db in
       try Episode
         .filter(id: episodeID)
@@ -136,7 +136,7 @@ struct Repo: Sendable {
     }
   }
 
-  func markComplete(_ episodeID: Tagged<Episode, Int64>) async throws {
+  func markComplete(_ episodeID: Episode.ID) async throws {
     _ = try await appDB.db.write { db in
       try Episode
         .filter(id: episodeID)
