@@ -16,6 +16,14 @@ struct TrendingItemDetailView: View {
       Text(viewModel.feedResult.title)
         .font(.largeTitle)
       HTMLText(viewModel.feedResult.description)
+      Button(
+        action: {
+          Task { try await viewModel.subscribe() }
+        },
+        label: {
+          Text("Subscribe")
+        }
+      )
       if viewModel.unsavedEpisodes.isEmpty {
         Text("Loading episodes")
       } else {

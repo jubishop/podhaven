@@ -24,13 +24,13 @@ extension Container {
     }
   }
 
-  func showTab(_ tab: Tab) {
-    clearPaths(tab)
-    currentTab = tab
+  func showPodcast(_ podcastSeries: PodcastSeries) {
+    currentTab = .podcasts
+    podcastsPath.append(podcastSeries.podcast)
   }
 
   func showEpisode(_ podcastEpisode: PodcastEpisode) {
-    showTab(.podcasts)
+    currentTab = .podcasts
     podcastsPath.append(podcastEpisode.podcast)
     podcastsPath.append(podcastEpisode.episode)
   }

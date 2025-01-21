@@ -4,7 +4,9 @@ import Factory
 import Foundation
 
 @Observable @MainActor class TrendingItemDetailViewModel {
+  @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
+  @ObservationIgnored @LazyInjected(\.navigation) private var navigation
 
   let category: String
   let feedResult: TrendingResult.FeedResult
@@ -16,15 +18,33 @@ import Foundation
     self.feedResult = feedResult
   }
 
-  func fetchFeed() async throws {
+  @discardableResult
+  func fetchFeed() async throws -> UnsavedPodcast {
     let feedTask = await feedManager.addURL(feedResult.url)
     let feedResult = await feedTask.feedParsed()
     switch feedResult {
     case .failure(let error):
       throw error
     case .success(let podcastFeed):
-      self.unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+      let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+      self.unsavedPodcast = unsavedPodcast
       self.unsavedEpisodes = podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
+      return unsavedPodcast
     }
+  }
+
+  func subscribe() async throws {
+    let unsavedPodcast: UnsavedPodcast
+    if let fetchedUnsavedPodcast = self.unsavedPodcast {
+      unsavedPodcast = fetchedUnsavedPodcast
+    } else {
+      unsavedPodcast = try await fetchFeed()
+    }
+
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: unsavedEpisodes
+    )
+    navigation.showPodcast(podcastSeries)
   }
 }
