@@ -33,7 +33,19 @@ struct Repo: Sendable {
 
   func allPodcasts() async throws -> PodcastArray {
     try await appDB.db.read { db in
-      try Podcast.all().fetchIdentifiedArray(db, id: \Podcast.feedURL)
+      try Podcast
+        .all()
+        .fetchIdentifiedArray(db, id: \Podcast.feedURL)
+    }
+  }
+
+  func allPodcastSeries() async throws -> PodcastSeriesArray {
+    try await appDB.db.read { db in
+      try Podcast
+        .all()
+        .including(all: Podcast.episodes)
+        .asRequest(of: PodcastSeries.self)
+        .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)
     }
   }
 

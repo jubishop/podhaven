@@ -12,12 +12,9 @@ struct PodcastsView: View {
   var body: some View {
     NavigationStack(path: $navigation.podcastsPath) {
       ScrollView {
-        PodcastGrid(podcastSeries: viewModel.podcastSeries).padding()
+        PodcastGrid(podcasts: viewModel.podcasts).padding()
       }
       .navigationTitle("Podcasts")
-      .navigationDestination(for: PodcastSeries.self) { podcastSeries in
-        SeriesView(viewModel: SeriesViewModel(podcastSeries: podcastSeries))
-      }
       .navigationDestination(for: Podcast.self) { podcast in
         SeriesView(viewModel: SeriesViewModel(podcast: podcast))
       }

@@ -6,22 +6,22 @@ import IdentifiedCollections
 import SwiftUI
 
 struct PodcastGrid: View {
-  private let podcastSeries: PodcastSeriesArray
+  private let podcasts: PodcastArray
   private let numberOfColumns = 3
 
-  init(podcastSeries: PodcastSeriesArray) {
-    self.podcastSeries = podcastSeries
+  init(podcasts: PodcastArray) {
+    self.podcasts = podcasts
   }
 
   var body: some View {
-    let rows = podcastSeries.chunked(size: numberOfColumns)
+    let rows = podcasts.chunked(size: numberOfColumns)
     Grid {
       ForEach(rows, id: \.self) { row in
         GridRow {
-          ForEach(row) { podcastSeries in
+          ForEach(row) { podcast in
             NavigationLink(
-              value: podcastSeries,
-              label: { PodcastGridItem(podcast: podcastSeries.podcast) }
+              value: podcast,
+              label: { PodcastGridItem(podcast: podcast) }
             )
           }
         }
@@ -31,11 +31,9 @@ struct PodcastGrid: View {
 }
 
 #Preview {
-  @Previewable @State var podcastSeries: PodcastSeriesArray = IdentifiedArray(
-    id: \PodcastSeries.podcast.feedURL
-  )
+  @Previewable @State var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
-  PodcastGrid(podcastSeries: podcastSeries)
+  PodcastGrid(podcasts: podcasts)
     .preview()
     .task {
       do {
@@ -43,10 +41,7 @@ struct PodcastGrid: View {
         try await PreviewHelpers.importPodcasts(12)
         var allPodcasts = try await repo.allPodcasts().shuffled()
         allPodcasts[Int.random(in: 0...11)].image = URL(string: "http://nope.com/0.jpg")!
-        podcastSeries = IdentifiedArray(
-          uniqueElements: Array(allPodcasts.prefix(12)).map { PodcastSeries(podcast: $0) },
-          id: \PodcastSeries.podcast.feedURL
-        )
+        podcasts = IdentifiedArray(uniqueElements: allPodcasts.prefix(12), id: \Podcast.feedURL)
       } catch { fatalError("Couldn't preview podcast grid: \(error)") }
     }
 }

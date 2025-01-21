@@ -13,12 +13,8 @@ import IdentifiedCollections
   var podcast: Podcast { podcastSeries.podcast }
   var episodes: EpisodeArray { podcastSeries.episodes }
 
-  convenience init(podcast: Podcast) {
-    self.init(podcastSeries: PodcastSeries(podcast: podcast))
-  }
-
-  init(podcastSeries: PodcastSeries) {
-    self.podcastSeries = podcastSeries
+  init(podcast: Podcast) {
+    self.podcastSeries = PodcastSeries(podcast: podcast)
   }
 
   func refreshSeries() async throws {
