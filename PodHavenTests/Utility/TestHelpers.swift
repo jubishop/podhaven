@@ -2,13 +2,14 @@
 
 import AVFoundation
 import Foundation
+import Tagged
 
 @testable import PodHaven
 
 enum TestHelpers {
   static func unsavedEpisode(
     guid: String = String.random(),
-    podcastId: Int64? = nil,
+    podcastId: Tagged<Podcast, Int64>? = nil,
     title: String = String.random(),
     media: URL = URL.valid(),
     currentTime: CMTime? = nil,

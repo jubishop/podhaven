@@ -5,6 +5,7 @@ import Factory
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Tagged
 
 extension Container {
   var queue: Factory<Queue> {
@@ -34,7 +35,7 @@ struct Queue: Sendable {
     }
   }
 
-  func dequeue(_ episodeID: Int64) async throws {
+  func dequeue(_ episodeID: Tagged<Episode, Int64>) async throws {
     try await appDB.db.write { db in
       guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
       else { return }
@@ -45,19 +46,19 @@ struct Queue: Sendable {
     }
   }
 
-  func insert(_ episodeID: Int64, at newPosition: Int) async throws {
+  func insert(_ episodeID: Tagged<Episode, Int64>, at newPosition: Int) async throws {
     try await appDB.db.write { db in
       try _insert(db, episodeID: episodeID, at: newPosition)
     }
   }
 
-  func unshift(_ episodeID: Int64) async throws {
+  func unshift(_ episodeID: Tagged<Episode, Int64>) async throws {
     try await appDB.db.write { db in
       try _insert(db, episodeID: episodeID, at: 0)
     }
   }
 
-  func append(_ episodeID: Int64) async throws {
+  func append(_ episodeID: Tagged<Episode, Int64>) async throws {
     try await appDB.db.write { db in
       let newPosition =
         (try Episode
@@ -69,7 +70,9 @@ struct Queue: Sendable {
 
   //MARK: - Private Queue Helpers
 
-  private func _fetchOldPosition(_ db: Database, for episodeID: Int64) throws -> Int? {
+  private func _fetchOldPosition(_ db: Database, for episodeID: Tagged<Episode, Int64>) throws
+    -> Int?
+  {
     precondition(
       db.isInsideTransaction,
       "fetchOldPosition method requires a transaction"
@@ -83,7 +86,7 @@ struct Queue: Sendable {
 
   private func _insert(
     _ db: Database,
-    episodeID: Int64,
+    episodeID: Tagged<Episode, Int64>,
     at newPosition: Int
   ) throws {
     precondition(
@@ -100,7 +103,7 @@ struct Queue: Sendable {
 
   private func _move(
     _ db: Database,
-    episodeID: Int64,
+    episodeID: Tagged<Episode, Int64>,
     from oldPosition: Int,
     to newPosition: Int
   ) throws {

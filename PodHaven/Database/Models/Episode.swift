@@ -3,10 +3,11 @@
 import AVFoundation
 import Foundation
 import GRDB
+import Tagged
 
 struct UnsavedEpisode: Savable {
   let guid: String
-  var podcastId: Int64?
+  var podcastId: Tagged<Podcast, Int64>?
   var title: String
   var media: URL
   var currentTime: CMTime
@@ -20,7 +21,7 @@ struct UnsavedEpisode: Savable {
 
   init(
     guid: String,
-    podcastId: Int64? = nil,
+    podcastId: Tagged<Podcast, Int64>? = nil,
     title: String,
     media: URL,
     currentTime: CMTime? = nil,

@@ -45,11 +45,6 @@ struct TrendingItemDetailView: View {
   }
   .preview()
   .task {
-    let trendingResult: TrendingResult = try! await SearchService.parseForPreview(
-      try! Data(
-        contentsOf: Bundle.main.url(forResource: "trending_in_news", withExtension: "json")!
-      )
-    )
     viewModel = TrendingItemDetailViewModel(
       category: "News",
       feedResult: try! await PreviewHelpers.loadFeedResult()

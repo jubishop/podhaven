@@ -4,6 +4,7 @@ import AVFoundation
 import Factory
 import Foundation
 import GRDB
+import Tagged
 
 struct PlayManagerAccessKey { fileprivate init() {} }
 
@@ -33,7 +34,7 @@ final actor PlayManager {
       Task { await playState.setStatus(newValue, accessKey) }
     }
   }
-  var episodeID: Int64?
+  var episodeID: Tagged<Episode, Int64>?
   private var avPlayer = AVPlayer()
   private var nowPlayingInfo: NowPlayingInfo?
   private var commandCenter: CommandCenter
@@ -58,7 +59,7 @@ final actor PlayManager {
 
   func resume() async {
     do {
-      guard let episodeID: Int64 = Persistence.currentEpisodeID.load(),
+      guard let episodeID: Tagged<Episode, Int64> = Persistence.currentEpisodeID.load(),
         let podcastEpisode = try await repo.episode(episodeID)
       else { return }
 

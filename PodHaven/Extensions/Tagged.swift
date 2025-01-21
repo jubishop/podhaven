@@ -1,0 +1,18 @@
+// Copyright Justin Bishop, 2025
+
+import Foundation
+import GRDB
+import Tagged
+
+extension Tagged: @retroactive SQLExpressible
+where RawValue: SQLExpressible {}
+
+extension Tagged: @retroactive StatementBinding
+where RawValue: StatementBinding {}
+
+extension Tagged: @retroactive StatementColumnConvertible
+where RawValue: StatementColumnConvertible {}
+
+extension Tagged: @retroactive DatabaseValueConvertible
+where RawValue: DatabaseValueConvertible {}
+  

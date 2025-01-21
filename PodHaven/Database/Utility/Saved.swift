@@ -2,13 +2,16 @@
 
 import Foundation
 import GRDB
+import Tagged
 
 @dynamicMemberLookup
 public struct Saved<V>:
   Savable,
   Identifiable
 where V: Savable {
-  public var id: Int64
+  public typealias ID = Tagged<Self, Int64>
+  public var id: ID
+
   internal var value: V
 
   subscript<T>(dynamicMember keyPath: KeyPath<V, T>) -> T {
@@ -31,7 +34,7 @@ where V: Savable {
     value = try V(row: row)
   }
 
-  public init(id: Int64, from value: V) {
+  public init(id: Tagged<Self, Int64>, from value: V) {
     self.id = id
     self.value = value
   }
