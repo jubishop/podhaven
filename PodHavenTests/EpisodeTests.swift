@@ -12,7 +12,7 @@ actor EpisodeTests {
   private let repo: Repo = .inMemory()
 
   @Test("that episodes are created and fetched in the right order")
-  func createSingleEpisode() async throws {
+  func createSeveralEpisodes() async throws {
     let url = URL.valid()
     let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: url)
 

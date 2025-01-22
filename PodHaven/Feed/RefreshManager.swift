@@ -2,6 +2,7 @@
 
 import Factory
 import Foundation
+import UIKit
 
 extension Container {
   var refreshManager: Factory<RefreshManager> {
@@ -17,6 +18,10 @@ actor RefreshManager: Sendable {
       RefreshManager(feedManager: feedManager, repo: repo)
     }
   #endif
+
+  // MARK: - State Management
+
+  private var backgroundRefreshTask: Task<Void, Never>?
 
   // MARK: - Initialization
 
@@ -60,6 +65,54 @@ actor RefreshManager: Sendable {
         unsavedEpisodes: unsavedEpisodes,
         existingEpisodes: existingEpisodes
       )
+    }
+  }
+
+  // MARK: - Background Refreshing
+
+  func startBackgroundRefreshing() async {
+    if await UIApplication.shared.applicationState == .active {
+      activated()
+    }
+
+    Task(priority: .utility) { [unowned self] in
+      for await _ in NotificationCenter.default.notifications(
+        named: UIApplication.didBecomeActiveNotification
+      ) {
+        self.activated()
+      }
+    }
+
+    Task(priority: .utility) { [unowned self] in
+      for await _ in NotificationCenter.default.notifications(
+        named: UIApplication.willResignActiveNotification
+      ) {
+        self.backgrounded()
+      }
+    }
+  }
+
+  private func activated() {
+    backgroundRefreshTask = Task(priority: .background) { [unowned self] in
+      while !Task.isCancelled {
+        try? await performScheduledRefresh()
+        try? await Task.sleep(for: .seconds(900)) // 15 minutes
+      }
+    }
+  }
+
+  private func backgrounded() {
+    backgroundRefreshTask?.cancel()
+    backgroundRefreshTask = nil
+  }
+
+  private func performScheduledRefresh() async throws {
+    try await withThrowingDiscardingTaskGroup { group in
+      for podcastSeries in try await repo.allStalePodcastSeries() {
+        group.addTask {
+          try await self.refreshSeries(podcastSeries: podcastSeries)
+        }
+      }
     }
   }
 }

@@ -47,9 +47,7 @@ final actor PlayManager {
   // MARK: - Convenience Getters
 
   private var audioSession: AVAudioSession { AVAudioSession.sharedInstance() }
-  private var notificationCenter: NotificationCenter {
-    NotificationCenter.default
-  }
+  private var notificationCenter: NotificationCenter { NotificationCenter.default }
 
   // MARK: - Initialization
 

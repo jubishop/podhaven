@@ -23,30 +23,30 @@ struct UnsavedEpisode: Savable {
   var queueOrder: Int?
 
   init(
-    guid: String,
     podcastId: Podcast.ID? = nil,
-    title: String,
+    guid: String,
     media: URL,
-    currentTime: CMTime? = nil,
-    completed: Bool? = nil,
-    duration: CMTime? = nil,
+    title: String,
     pubDate: Date? = nil,
+    duration: CMTime? = nil,
     description: String? = nil,
     link: URL? = nil,
     image: URL? = nil,
+    completed: Bool? = nil,
+    currentTime: CMTime? = nil,
     queueOrder: Int? = nil
   ) throws {
-    self.guid = guid
     self.podcastId = podcastId
-    self.title = title
+    self.guid = guid
     self.media = try media.convertToValidURL()
-    self.currentTime = currentTime ?? CMTime.zero
-    self.completed = completed ?? false
-    self.duration = duration ?? CMTime.zero
+    self.title = title
     self.pubDate = pubDate ?? Date()
+    self.duration = duration ?? CMTime.zero
     self.description = description
     self.link = try? link?.convertToValidURL()
     self.image = try? image?.convertToValidURL()
+    self.completed = completed ?? false
+    self.currentTime = currentTime ?? CMTime.zero
     self.queueOrder = queueOrder
   }
 

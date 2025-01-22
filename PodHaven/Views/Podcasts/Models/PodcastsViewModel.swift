@@ -14,11 +14,9 @@ import IdentifiedCollections
   func refreshPodcasts() async throws {
     let allSeries = try await repo.allPodcastSeries()
     try await withThrowingDiscardingTaskGroup { group in
-      for podcast in self.podcasts {
-        if let podcastSeries = allSeries[id: podcast.feedURL] {
-          group.addTask {
-            try await self.refreshManager.refreshSeries(podcastSeries: podcastSeries)
-          }
+      for podcastSeries in allSeries {
+        group.addTask {
+          try await self.refreshManager.refreshSeries(podcastSeries: podcastSeries)
         }
       }
     }

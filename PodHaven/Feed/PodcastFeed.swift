@@ -22,17 +22,17 @@ struct EpisodeFeed: Sendable, Equatable {
     )
 
     return try UnsavedEpisode(
-      guid: guid,
       podcastId: existingEpisode?.podcastId,
-      title: rssEpisode.title,
+      guid: guid,
       media: media,
-      currentTime: existingEpisode?.currentTime,
-      completed: existingEpisode?.completed,
-      duration: duration ?? existingEpisode?.duration,
+      title: rssEpisode.title,
       pubDate: rssEpisode.pubDate ?? existingEpisode?.pubDate,
+      duration: duration ?? existingEpisode?.duration,
       description: rssEpisode.description ?? existingEpisode?.description,
       link: rssEpisode.link ?? existingEpisode?.link,
       image: rssEpisode.iTunes.image?.href ?? existingEpisode?.image,
+      completed: existingEpisode?.completed,
+      currentTime: existingEpisode?.currentTime,
       queueOrder: existingEpisode?.queueOrder
     )
   }

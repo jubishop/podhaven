@@ -12,6 +12,7 @@ import SwiftUI
 struct PodHavenApp: App {
   @State private var alert = Container.shared.alert()
 
+  let refreshManager = Container.shared.refreshManager()
   let playManager = Container.shared.playManager()
 
   private func configureAudioSession() async {
@@ -48,6 +49,7 @@ struct PodHavenApp: App {
         .task {
           await configureAudioSession()
           await playManager.resume()
+          await refreshManager.startBackgroundRefreshing()
         }
     }
   }

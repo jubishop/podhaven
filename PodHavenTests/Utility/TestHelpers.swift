@@ -22,17 +22,17 @@ enum TestHelpers {
     queueOrder: Int? = nil
   ) throws -> UnsavedEpisode {
     try UnsavedEpisode(
-      guid: guid,
       podcastId: podcastId,
-      title: title,
+      guid: guid,
       media: media,
-      currentTime: currentTime,
-      completed: completed,
-      duration: duration,
+      title: title,
       pubDate: pubDate,
+      duration: duration,
       description: description,
       link: link,
       image: image,
+      completed: completed,
+      currentTime: currentTime,
       queueOrder: queueOrder
     )
   }

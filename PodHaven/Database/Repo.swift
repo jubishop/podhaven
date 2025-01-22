@@ -49,6 +49,16 @@ struct Repo: Sendable {
     }
   }
 
+  func allStalePodcastSeries() async throws -> PodcastSeriesArray {
+    try await appDB.db.read { db in
+      try Podcast
+        .filter(Schema.lastUpdateColumn < Date().addingTimeInterval(-600)) // 10 minutes
+        .including(all: Podcast.episodes)
+        .asRequest(of: PodcastSeries.self)
+        .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)
+    }
+  }
+
   // MARK: - Series Readers
 
   func podcastSeries(podcastID: Podcast.ID) async throws -> PodcastSeries? {
