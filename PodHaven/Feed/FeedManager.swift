@@ -55,24 +55,22 @@ final actor FeedManager: Sendable {
   // MARK: - Static Helpers
 
   #if DEBUG
-    static func initForTest(session: DataFetchable, repo: Repo) -> FeedManager {
-      FeedManager(session: session, repo: repo)
+    static func initForTest(session: DataFetchable) -> FeedManager {
+      FeedManager(session: session)
     }
   #endif
 
   // MARK: - Concurrent Download Management
 
   private let downloadManager: DownloadManager
-  private let repo: Repo
   private let asyncStream: AsyncStream<FeedResult>
   private let streamContinuation: AsyncStream<FeedResult>.Continuation
   private var feedTasks: [URL: FeedTask] = [:]
 
   var remainingFeeds: Int { feedTasks.count }
 
-  fileprivate init(session: DataFetchable, repo: Repo = Container.shared.repo()) {
+  fileprivate init(session: DataFetchable) {
     downloadManager = DownloadManager(session: session)
-    self.repo = repo
     (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(
       of: FeedResult.self
     )
@@ -83,38 +81,6 @@ final actor FeedManager: Sendable {
   }
 
   func feeds() -> AsyncStream<FeedResult> { asyncStream }
-
-  // MARK: - Refreshing Series
-
-  func refreshSeries(podcastSeries: PodcastSeries) async throws {
-    let feedTask = await addURL(podcastSeries.podcast.feedURL)
-    let feedResult = await feedTask.feedParsed()
-    switch feedResult {
-    case .failure(let error):
-      throw error
-    case .success(let podcastFeed):
-      var newPodcast = try podcastFeed.toPodcast(mergingExisting: podcastSeries.podcast)
-      var unsavedEpisodes: [UnsavedEpisode] = []
-      var existingEpisodes: [Episode] = []
-      for feedItem in podcastFeed.episodes {
-        if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
-          if let newExistingEpisode = try? feedItem.toEpisode(
-            mergingExisting: existingEpisode
-          ) {
-            existingEpisodes.append(newExistingEpisode)
-          }
-        } else if let newUnsavedEpisode = try? feedItem.toUnsavedEpisode() {
-          unsavedEpisodes.append(newUnsavedEpisode)
-        }
-      }
-      newPodcast.lastUpdate = Date()
-      try await repo.updateSeries(
-        newPodcast,
-        unsavedEpisodes: unsavedEpisodes,
-        existingEpisodes: existingEpisodes
-      )
-    }
-  }
 
   // MARK: - Downloading Feeds
 

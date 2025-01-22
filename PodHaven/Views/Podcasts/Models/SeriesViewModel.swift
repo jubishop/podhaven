@@ -7,7 +7,7 @@ import IdentifiedCollections
 
 @Observable @MainActor final class SeriesViewModel {
   @ObservationIgnored @LazyInjected(\.repo) private var repo
-  @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
+  @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
 
   var podcastSeries: PodcastSeries
   var podcast: Podcast { podcastSeries.podcast }
@@ -18,7 +18,7 @@ import IdentifiedCollections
   }
 
   func refreshSeries() async throws {
-    try await feedManager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
   }
 
   func observePodcast() async throws {

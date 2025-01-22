@@ -7,7 +7,7 @@ import IdentifiedCollections
 
 @Observable @MainActor final class PodcastsViewModel {
   @ObservationIgnored @LazyInjected(\.repo) private var repo
-  @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
+  @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
 
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
@@ -17,7 +17,7 @@ import IdentifiedCollections
       for podcast in self.podcasts {
         if let podcastSeries = allSeries[id: podcast.feedURL] {
           group.addTask {
-            try await self.feedManager.refreshSeries(podcastSeries: podcastSeries)
+            try await self.refreshManager.refreshSeries(podcastSeries: podcastSeries)
           }
         }
       }
