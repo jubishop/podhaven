@@ -5,20 +5,17 @@ import SwiftUI
 struct CategoryGrid: View {
   @Environment(Alert.self) var alert
 
-  @State private var paddedWidth: CGFloat
-
   private let viewModel: DiscoverViewModel
 
   init(viewModel: DiscoverViewModel) {
     self.viewModel = viewModel
-    self.paddedWidth = viewModel.width
   }
 
   var body: some View {
     ScrollView {
       TokenGridView(
-        tokens: DiscoverViewModel.categories,
-        width: paddedWidth,
+        tokens: viewModel.categories,
+        width: viewModel.width,
         horizontalSpacing: 8,
         verticalSpacing: 8
       ) { category in
@@ -43,11 +40,6 @@ struct CategoryGrid: View {
         )
       }
       .background(Color(.systemBackground))
-      .onGeometryChange(for: CGFloat.self) { geometry in
-        geometry.size.width
-      } action: { newWidth in
-        paddedWidth = newWidth
-      }
     }
   }
 }
@@ -58,14 +50,13 @@ struct CategoryGrid: View {
   NavigationStack {
     if viewModel.width > 0 {
       CategoryGrid(viewModel: viewModel)
-        .padding()
-        .frame(width: viewModel.width)
     }
   }
+  .background(
+    SizeReader { size in
+      viewModel.width = size.width
+    }
+  )
+  .padding()
   .preview()
-  .onGeometryChange(for: CGFloat.self) { geometry in
-    geometry.size.width
-  } action: { newWidth in
-    viewModel.width = newWidth
-  }
 }

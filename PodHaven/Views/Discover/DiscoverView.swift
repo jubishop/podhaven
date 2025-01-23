@@ -29,20 +29,19 @@ struct DiscoverView: View {
             }
           }
         }
+        .background(
+          SizeReader { size in
+            viewModel.width = size.width
+          }
+          .padding()
+        )
         .overlay(alignment: .top) {
           if viewModel.showSearchWarning {
             SearchWarning(warning: "Must Enter A Search Query")
           }
           if viewModel.showCategories {
             CategoryGrid(viewModel: viewModel)
-              .padding([.horizontal, .bottom])
-              .frame(width: viewModel.width)
           }
-        }
-        .onGeometryChange(for: CGFloat.self) { geometry in
-          geometry.size.width
-        } action: { newWidth in
-          viewModel.width = newWidth
         }
     }
     .task {

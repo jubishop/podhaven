@@ -39,15 +39,10 @@ import SwiftUI
         return
       }
 
-      guard currentTokens.first != .trending
-      else {
-        _searchText = "⬇️"
-        return
-      }
-
       if currentTokens.isEmpty && !searchText.trimmed().isEmpty {
         currentTokens = [.allFields]
       }
+
       _searchText = newValue
     }
   }
@@ -64,9 +59,9 @@ import SwiftUI
       && searchText.trimmed().isEmpty
   }
 
-  static let categories: [String] = [allCategoriesName] + SearchService.categories
   static private let allCategoriesName: String = "All Categories"
   var showCategories: Bool { searchPresented && currentTokens == [.trending] }
+  var categories: [String] { [Self.allCategoriesName] + filteredCategories }
 
   // MARK: - Searching and Results
 
@@ -107,6 +102,12 @@ import SwiftUI
 
   private func searchTrending() async throws -> TrendingResult {
     try await searchService.searchTrending(categories: categoriesToSearch, language: Self.language)
+  }
+
+  private var filteredCategories: [String] {
+    let searchText = searchText.trimmed()
+    if searchText.isEmpty { return SearchService.categories }
+    return SearchService.categories.filter { $0.lowercased().starts(with: searchText.lowercased()) }
   }
 
   private func readyToSearch() -> SearchToken? {
