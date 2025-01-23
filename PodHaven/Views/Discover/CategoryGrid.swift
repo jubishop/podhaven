@@ -42,14 +42,12 @@ struct CategoryGrid: View {
           }
         )
       }
-      .padding(.bottom)
       .background(Color(.systemBackground))
       .onGeometryChange(for: CGFloat.self) { geometry in
         geometry.size.width
       } action: { newWidth in
         paddedWidth = newWidth
       }
-      .padding(.horizontal)
     }
   }
 }
@@ -60,6 +58,7 @@ struct CategoryGrid: View {
   NavigationStack {
     if viewModel.width > 0 {
       CategoryGrid(viewModel: viewModel)
+        .padding()
         .frame(width: viewModel.width)
     }
   }

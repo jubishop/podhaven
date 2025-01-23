@@ -35,6 +35,7 @@ struct DiscoverView: View {
           }
           if viewModel.showCategories {
             CategoryGrid(viewModel: viewModel)
+              .padding([.horizontal, .bottom])
               .frame(width: viewModel.width)
           }
         }
