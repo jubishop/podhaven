@@ -9,9 +9,9 @@ typealias PodcastArray = IdentifiedArray<URL, Podcast> // feedURL
 struct UnsavedPodcast: Savable {
   var feedURL: URL
   var title: String
-  var link: URL?
   var image: URL
   var description: String
+  var link: URL?
   var lastUpdate: Date
 
   init(

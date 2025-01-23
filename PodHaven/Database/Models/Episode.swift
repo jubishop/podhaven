@@ -3,23 +3,23 @@
 import AVFoundation
 import Foundation
 import GRDB
-import Tagged
 import IdentifiedCollections
+import Tagged
 
 typealias EpisodeArray = IdentifiedArray<String, Episode>  // guid
 
 struct UnsavedEpisode: Savable {
-  let guid: String
   var podcastId: Podcast.ID?
-  var title: String
+  let guid: String
   var media: URL
-  var currentTime: CMTime
-  var completed: Bool
-  var duration: CMTime
+  var title: String
   var pubDate: Date
+  var duration: CMTime
   var description: String?
   var link: URL?
   var image: URL?
+  var completed: Bool
+  var currentTime: CMTime
   var queueOrder: Int?
 
   init(

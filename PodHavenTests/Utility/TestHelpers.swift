@@ -8,17 +8,17 @@ import Tagged
 
 enum TestHelpers {
   static func unsavedEpisode(
-    guid: String = String.random(),
     podcastId: Podcast.ID? = nil,
-    title: String = String.random(),
+    guid: String = String.random(),
     media: URL = URL.valid(),
-    currentTime: CMTime? = nil,
-    completed: Bool? = nil,
-    duration: CMTime? = nil,
+    title: String = String.random(),
     pubDate: Date? = Date(),
+    duration: CMTime? = nil,
     description: String? = nil,
     link: URL? = nil,
     image: URL? = nil,
+    completed: Bool? = nil,
+    currentTime: CMTime? = nil,
     queueOrder: Int? = nil
   ) throws -> UnsavedEpisode {
     try UnsavedEpisode(
