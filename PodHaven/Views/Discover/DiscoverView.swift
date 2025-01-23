@@ -35,6 +35,7 @@ struct DiscoverView: View {
           }
           if viewModel.showCategories {
             CategoryGrid(viewModel: viewModel)
+              .frame(width: viewModel.width)
           }
         }
         .onGeometryChange(for: CGFloat.self) { geometry in

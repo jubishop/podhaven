@@ -32,5 +32,6 @@ struct ContentView: View {
 }
 
 #Preview {
-  ContentView().preview()
+  ContentView()
+    .preview()
 }

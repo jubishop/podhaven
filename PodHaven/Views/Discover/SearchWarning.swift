@@ -17,5 +17,6 @@ struct SearchWarning: View {
 }
 
 #Preview {
-  SearchWarning(warning: "Test Warning").preview()
+  SearchWarning(warning: "Test Warning")
+    .preview()
 }

@@ -60,5 +60,6 @@ struct DebugSection: View {
 }
 
 #Preview {
-  DebugSection().preview()
+  DebugSection()
+    .preview()
 }

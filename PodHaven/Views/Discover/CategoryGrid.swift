@@ -17,10 +17,10 @@ struct CategoryGrid: View {
   var body: some View {
     ScrollView {
       TokenGridView(
-        tokens: viewModel.categories,
+        tokens: DiscoverViewModel.categories,
         width: paddedWidth,
-        horizontalSpacing: viewModel.categories.count > 10 ? 8 : 16,
-        verticalSpacing: viewModel.categories.count > 10 ? 8 : 16
+        horizontalSpacing: 8,
+        verticalSpacing: 8
       ) { category in
         Button(
           action: {
@@ -34,8 +34,8 @@ struct CategoryGrid: View {
           },
           label: {
             Text(category)
-              .font(viewModel.categories.count > 10 ? .caption : .title)
-              .padding(viewModel.categories.count > 8 ? 4 : 10)
+              .font(.caption)
+              .padding(4)
               .background(Color.blue.opacity(0.2))
               .foregroundColor(.blue)
               .cornerRadius(4)
@@ -59,7 +59,8 @@ struct CategoryGrid: View {
 
   NavigationStack {
     if viewModel.width > 0 {
-      CategoryGrid(viewModel: viewModel).frame(width: viewModel.width)
+      CategoryGrid(viewModel: viewModel)
+        .frame(width: viewModel.width)
     }
   }
   .preview()

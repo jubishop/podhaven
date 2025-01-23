@@ -33,5 +33,6 @@ struct OPMLView: View {
 }
 
 #Preview {
-  OPMLView().preview()
+  OPMLView()
+    .preview()
 }

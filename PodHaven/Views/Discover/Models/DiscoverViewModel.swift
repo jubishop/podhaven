@@ -20,21 +20,35 @@ import SwiftUI
   var categoriesToSearch: [String] {
     guard let category = currentTokens[safe: 1], category.text != Self.allCategoriesName
     else { return [] }
+
     return [category.text]
   }
   static let language: String? = {
     guard let languageCode = Locale.current.language.languageCode, languageCode.isISOLanguage
     else { return nil }
+
     return languageCode.identifier
   }()
 
-  var searchText: String = "" {
-    didSet {
+  private var _searchText: String = ""
+  var searchText: String {
+    get { _searchText }
+    set {
+      guard currentTokens.count < 2 else {
+        _searchText = ""
+        return
+      }
+
+      guard currentTokens.first != .trending
+      else {
+        _searchText = "⬇️"
+        return
+      }
+
       if currentTokens.isEmpty && !searchText.trimmed().isEmpty {
         currentTokens = [.allFields]
-      } else if currentTokens.count == 2 {
-        _searchText = ""
       }
+      _searchText = newValue
     }
   }
 
@@ -44,13 +58,15 @@ import SwiftUI
     }
   }
   var showSearchWarning: Bool {
-    searchPresented && currentTokens.count == 1 && currentTokens.first != .trending
+    searchPresented
+      && currentTokens.count == 1
+      && currentTokens.first != .trending
       && searchText.trimmed().isEmpty
   }
 
+  static let categories: [String] = [allCategoriesName] + SearchService.categories
   static private let allCategoriesName: String = "All Categories"
   var showCategories: Bool { searchPresented && currentTokens == [.trending] }
-  var categories: [String] { [Self.allCategoriesName] + filteredCategories }
 
   // MARK: - Searching and Results
 
@@ -91,13 +107,6 @@ import SwiftUI
 
   private func searchTrending() async throws -> TrendingResult {
     try await searchService.searchTrending(categories: categoriesToSearch, language: Self.language)
-  }
-
-  private var filteredCategories: [String] {
-    let searchText = searchText.trimmed()
-    if searchText.isEmpty { return SearchService.categories }
-
-    return SearchService.categories.filter { $0.lowercased().starts(with: searchText.lowercased()) }
   }
 
   private func readyToSearch() -> SearchToken? {
