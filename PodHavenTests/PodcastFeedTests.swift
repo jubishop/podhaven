@@ -24,8 +24,13 @@ actor PodcastFeedTests {
   func parseMarketplaceFeed() async throws {
     let url = Bundle.main.url(forResource: "marketplace", withExtension: "rss")!
     let feed = try await PodcastFeed.parse(url)
-    let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: true)
+    let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: false)
+    let unsavedEpisodes = feed.toUnsavedEpisodes()
     #expect(unsavedPodcast.title == "Marketplace")
+    #expect(unsavedPodcast.subscribed == false)
+    #expect(unsavedEpisodes.count == 50)
+    #expect(unsavedEpisodes.first!.title == "Happy New Year! The cold weather could cost you.")
+    #expect(unsavedEpisodes.last!.title == "What’s better, a pension or a 401(k)?")
   }
 
   @Test("parsing the Land of the Giants")
@@ -33,7 +38,12 @@ actor PodcastFeedTests {
     let url = Bundle.main.url(forResource: "land_of_the_giants", withExtension: "rss")!
     let feed = try await PodcastFeed.parse(url)
     let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: true)
+    let unsavedEpisodes = feed.toUnsavedEpisodes()
     #expect(unsavedPodcast.title == "Land of the Giants")
+    #expect(unsavedPodcast.subscribed == true)
+    #expect(unsavedEpisodes.count == 71)
+    #expect(unsavedEpisodes.first!.title == "Disney is a Tech Company?")
+    #expect(unsavedEpisodes.last!.title == "The Rise of Amazon")
   }
 
   @Test("parsing the invalid Game Informer feed")
