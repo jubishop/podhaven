@@ -23,6 +23,7 @@ import SwiftUI
 
     return [category.text]
   }
+
   static let language: String? = {
     guard let languageCode = Locale.current.language.languageCode, languageCode.isISOLanguage
     else { return nil }
@@ -34,13 +35,9 @@ import SwiftUI
   var searchText: String {
     get { _searchText }
     set {
-      guard currentTokens.count < 2 else {
+      guard currentTokens.count == 1 else {
         _searchText = ""
         return
-      }
-
-      if currentTokens.isEmpty && !searchText.trimmed().isEmpty {
-        currentTokens = [.allFields]
       }
 
       _searchText = newValue
@@ -52,6 +49,7 @@ import SwiftUI
       playState.playbarVisible = !searchPresented
     }
   }
+
   var showSearchWarning: Bool {
     searchPresented
       && currentTokens.count == 1
@@ -111,9 +109,11 @@ import SwiftUI
   }
 
   private func readyToSearch() -> SearchToken? {
-    guard let currentToken = currentTokens.first else { return nil }
-
     let searchText = searchText.trimmed()
+
+    guard let currentToken = currentTokens.first
+    else { return searchText.isEmpty ? nil : .allFields }
+
     guard (currentTokens.count == 2) || (currentToken != .trending && !searchText.isEmpty)
     else { return nil }
 
