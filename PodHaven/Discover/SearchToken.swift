@@ -17,4 +17,11 @@ enum SearchToken: CaseIterable, Identifiable, Hashable, Equatable {
     case .category(let category): return category
     }
   }
+
+  var isCategory: Bool {
+    switch self {
+    case .category: return true
+    default: return false
+    }
+  }
 }

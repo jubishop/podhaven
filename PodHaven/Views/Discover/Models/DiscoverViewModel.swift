@@ -17,6 +17,7 @@ import SwiftUI
   var currentTokens: [SearchToken]
   var currentView: SearchToken = .trending
   var currentCategory: String { currentTokens[safe: 1]?.text ?? Self.allCategoriesName }
+
   var categoriesToSearch: [String] {
     guard let category = currentTokens[safe: 1], category.text != Self.allCategoriesName
     else { return [] }
@@ -35,7 +36,14 @@ import SwiftUI
   var searchText: String {
     get { _searchText }
     set {
-      guard currentTokens.count == 1 else {
+      guard currentTokens.count == 1
+      else {
+        _searchText = ""
+        return
+      }
+
+      guard let lastToken = currentTokens.last, !lastToken.isCategory
+      else {
         _searchText = ""
         return
       }
@@ -75,20 +83,35 @@ import SwiftUI
   // MARK: - Events
 
   func categorySelected(_ category: String) async throws {
+    guard currentTokens == [.trending]
+    else { return }
+
     currentTokens.append(.category(category))
     _searchText = ""
     try await searchSubmitted()
   }
 
   func searchSubmitted() async throws {
+    if currentTokens.isEmpty {
+      currentTokens = [.allFields]
+    }
+
+    if let firstToken = currentTokens.first, firstToken.isCategory {
+      currentTokens.insert(.trending, at: 0)
+    }
+
+    if let lastToken = currentTokens.last, lastToken.isCategory {
+      _searchText = ""
+    }
+
     if let currentToken = readyToSearch() {
       searchPresented = false
       currentView = currentToken
-      try await runSearch()
+      try await performSearch()
     }
   }
 
-  func runSearch() async throws {
+  func performSearch() async throws {
     self.trendingResult = nil
 
     if currentView == .trending {
@@ -116,6 +139,8 @@ import SwiftUI
 
     guard (currentTokens.count == 2) || (currentToken != .trending && !searchText.isEmpty)
     else { return nil }
+
+    if currentToken.isCategory { return nil }
 
     return currentToken
   }

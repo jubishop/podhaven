@@ -46,7 +46,7 @@ struct DiscoverView: View {
     }
     .task {
       do {
-        try await viewModel.runSearch()
+        try await viewModel.performSearch()
       } catch {
         alert.andReport(error)
       }
