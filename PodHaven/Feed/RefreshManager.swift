@@ -50,9 +50,7 @@ actor RefreshManager: Sendable {
       var existingEpisodes: [Episode] = []
       for feedItem in podcastFeed.episodes {
         if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
-          if let newExistingEpisode = try? feedItem.toEpisode(
-            mergingExisting: existingEpisode
-          ) {
+          if let newExistingEpisode = try? feedItem.toEpisode(mergingExisting: existingEpisode) {
             existingEpisodes.append(newExistingEpisode)
           }
         } else if let newUnsavedEpisode = try? feedItem.toUnsavedEpisode() {
@@ -96,7 +94,7 @@ actor RefreshManager: Sendable {
     backgroundRefreshTask = Task(priority: .background) { [unowned self] in
       while !Task.isCancelled {
         try? await performScheduledRefresh()
-        try? await Task.sleep(for: .seconds(900)) // 15 minutes
+        try? await Task.sleep(for: .seconds(900))  // 15 minutes
       }
     }
   }
