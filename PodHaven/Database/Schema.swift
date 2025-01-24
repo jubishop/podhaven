@@ -12,6 +12,7 @@ enum Schema {
   static let mediaColumn = Column("media")
   static let pubDateColumn = Column("pubDate")
   static let queueOrderColumn = Column("queueOrder")
+  static let subscribedColumn = Column("subscribed")
 
   // MARK: - Migrator
 

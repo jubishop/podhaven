@@ -53,7 +53,7 @@ enum TestHelpers {
       description: description,
       link: link,
       lastUpdate: lastUpdate,
-      subscribed: ]subscribed
+      subscribed: subscribed
     )
   }
 }

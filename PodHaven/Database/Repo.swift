@@ -31,6 +31,7 @@ struct Repo: Sendable {
 
   // MARK: - Global Readers
 
+  // TODO: Test this
   func allPodcasts() async throws -> PodcastArray {
     try await appDB.db.read { db in
       try Podcast
@@ -39,6 +40,7 @@ struct Repo: Sendable {
     }
   }
 
+  // TODO: Test this
   func allPodcastSeries() async throws -> PodcastSeriesArray {
     try await appDB.db.read { db in
       try Podcast
@@ -52,7 +54,7 @@ struct Repo: Sendable {
   func allStalePodcastSeries() async throws -> PodcastSeriesArray {
     try await appDB.db.read { db in
       try Podcast
-        .filter(Schema.lastUpdateColumn < Date().addingTimeInterval(-600)) // 10 minutes
+        .filter(Schema.lastUpdateColumn < Date().addingTimeInterval(-600))  // 10 minutes
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)
@@ -160,11 +162,16 @@ struct Repo: Sendable {
     _ = try await appDB.db.write { db in
       try Episode
         .filter(id: episodeID)
-        .updateAll(
-          db,
-          Schema.completedColumn.set(to: true),
-          Schema.currentTimeColumn.set(to: 0)
-        )
+        .updateAll(db, Schema.completedColumn.set(to: true), Schema.currentTimeColumn.set(to: 0))
+    }
+  }
+
+  // TODO: Test this
+  func markSubscribed(_ podcastID: Podcast.ID) async throws {
+    _ = try await appDB.db.write { db in
+      try Podcast
+        .filter(id: podcastID)
+        .updateAll(db, Schema.subscribedColumn.set(to: true))
     }
   }
 }

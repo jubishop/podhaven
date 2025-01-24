@@ -65,6 +65,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 @Observable @MainActor final class OPMLViewModel {
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
+  @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
 
   let opmlType: UTType
@@ -120,7 +121,15 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         continue
       }
 
-      if allPodcasts[id: feedURL] != nil {
+      if let podcast = allPodcasts[id: feedURL] {
+        if !podcast.subscribed {
+          Task {
+            try await repo.markSubscribed(podcast.id)
+            if let series = try await repo.podcastSeries(podcastID: podcast.id) {
+              try await refreshManager.refreshSeries(podcastSeries: series)
+            }
+          }
+        }
         opmlFile.finished.insert(OPMLOutline(status: .finished, text: outline.text))
       } else {
         opmlFile.waiting.insert(
