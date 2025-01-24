@@ -31,7 +31,6 @@ struct Repo: Sendable {
 
   // MARK: - Global Readers
 
-  // TODO: Test this, add subscribed filter option
   func allPodcasts() async throws -> PodcastArray {
     try await appDB.db.read { db in
       try Podcast
@@ -40,11 +39,29 @@ struct Repo: Sendable {
     }
   }
 
-  // TODO: Test this, add subscribed filter option
+  func allSubscribedPodcasts() async throws -> PodcastArray {
+    try await appDB.db.read { db in
+      try Podcast
+        .filter(Schema.subscribedColumn == true)
+        .fetchIdentifiedArray(db, id: \Podcast.feedURL)
+    }
+  }
+
+  // TODO: Test this, and subscribed filter option
   func allPodcastSeries() async throws -> PodcastSeriesArray {
     try await appDB.db.read { db in
       try Podcast
         .all()
+        .including(all: Podcast.episodes)
+        .asRequest(of: PodcastSeries.self)
+        .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)
+    }
+  }
+
+  func allSubscribedPodcastSeries() async throws -> PodcastSeriesArray {
+    try await appDB.db.read { db in
+      try Podcast
+        .filter(Schema.subscribedColumn == true)
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)

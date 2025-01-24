@@ -107,6 +107,24 @@ actor PodcastTests {
     }
   }
 
+  @Test("that allPodcasts() returns all Podcasts and allSubscribedPodcasts() only subscribed")
+  func testAllAndSubscribedPodcasts() async throws {
+    let freshPodcast = try TestHelpers.unsavedPodcast(lastUpdate: Date())
+    let stalePodcast = try TestHelpers.unsavedPodcast(
+      lastUpdate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
+    )
+    let unsubscribedPodcast = try TestHelpers.unsavedPodcast(subscribed: false)
+    try await repo.insertSeries(freshPodcast)
+    try await repo.insertSeries(stalePodcast)
+    try await repo.insertSeries(unsubscribedPodcast)
+
+    let allPodcasts = try await repo.allPodcasts()
+    #expect(allPodcasts.count == 3)
+
+    let subscribedPodcasts = try await repo.allSubscribedPodcasts()
+    #expect(subscribedPodcasts.count == 2)
+  }
+
   @Test("that allStalePodcastSeries() only return stale PodcastSeries")
   func testAllStalePodcastSeries() async throws {
     let freshPodcast = try TestHelpers.unsavedPodcast(lastUpdate: Date())
