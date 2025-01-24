@@ -291,8 +291,6 @@ final actor PlayManager {
           play()
         case .ignore:
           break
-        @unknown default:
-          fatalError("Interruption Notification unknown?!")
         }
       }
     }
