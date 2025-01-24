@@ -22,7 +22,7 @@ import Foundation
     let podcastFeed = try await PodcastFeed.parse(feedResult.url)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false)
     self.unsavedPodcast = unsavedPodcast
-    self.unsavedEpisodes = podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
+    self.unsavedEpisodes = podcastFeed.toUnsavedEpisodes()
     return unsavedPodcast
   }
 

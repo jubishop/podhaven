@@ -163,7 +163,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
             try await self.repo.insertSeries(
               unsavedPodcast,
-              unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
+              unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
             )
             await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
           } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {

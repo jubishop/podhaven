@@ -128,6 +128,11 @@ struct PodcastFeed: Sendable, Equatable {
     )
   }
 
+  // TODO: Test this
+  func toUnsavedEpisodes() -> [UnsavedEpisode] {
+    episodes.compactMap { try? $0.toUnsavedEpisode() }
+  }
+
   // MARK: - Equatable
 
   static func == (lhs: PodcastFeed, rhs: PodcastFeed) -> Bool {
