@@ -104,19 +104,27 @@ struct PodcastFeed: Sendable, Equatable {
     return Podcast(id: existingPodcast.id, from: unsavedPodcast)
   }
 
-  func toUnsavedPodcast(mergingExisting existingPodcast: Podcast? = nil) throws -> UnsavedPodcast {
-    precondition(
-      existingPodcast == nil || existingPodcast?.feedURL == feedURL,
-      "Merging two podcasts with different feedURLs?"
-    )
-
-    return try UnsavedPodcast(
+  func toUnsavedPodcast(subscribed: Bool, lastUpdate: Date? = nil) throws -> UnsavedPodcast {
+    try UnsavedPodcast(
       feedURL: rssPodcast.iTunes.newFeedURL ?? feedURL,
       title: rssPodcast.title,
       image: image,
       description: rssPodcast.description,
       link: link,
-      lastUpdate: existingPodcast?.lastUpdate
+      lastUpdate: lastUpdate,
+      subscribed: subscribed
+    )
+  }
+
+  func toUnsavedPodcast(mergingExisting existingPodcast: Podcast) throws -> UnsavedPodcast {
+    precondition(
+      existingPodcast.feedURL == feedURL,
+      "Merging two podcasts with different feedURLs?"
+    )
+
+    return try toUnsavedPodcast(
+      subscribed: existingPodcast.subscribed,
+      lastUpdate: existingPodcast.lastUpdate
     )
   }
 

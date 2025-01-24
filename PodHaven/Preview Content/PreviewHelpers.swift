@@ -36,7 +36,7 @@ enum PreviewHelpers {
       switch feedResult {
       case .success(let podcastFeed):
         if (try? await repo.insertSeries(
-          try podcastFeed.toUnsavedPodcast(),
+          try podcastFeed.toUnsavedPodcast(subscribed: true),
           unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
         )) != nil {
           numberRemaining -= 1
@@ -65,7 +65,7 @@ enum PreviewHelpers {
     let podcastFeed = try await PodcastFeed.parse(
       Bundle.main.url(forResource: fileName, withExtension: "rss")!
     )
-    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: true)
     return try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }

@@ -13,6 +13,7 @@ struct UnsavedPodcast: Savable {
   var description: String
   var link: URL?
   var lastUpdate: Date
+  var subscribed: Bool
 
   init(
     feedURL: URL,
@@ -20,7 +21,8 @@ struct UnsavedPodcast: Savable {
     image: URL,
     description: String,
     link: URL? = nil,
-    lastUpdate: Date? = nil
+    lastUpdate: Date? = nil,
+    subscribed: Bool
   ) throws {
     self.feedURL = try feedURL.convertToValidURL()
     self.title = title
@@ -28,6 +30,7 @@ struct UnsavedPodcast: Savable {
     self.description = description
     self.link = try? link?.convertToValidURL()
     self.lastUpdate = lastUpdate ?? Date()
+    self.subscribed = subscribed
   }
 
   // MARK: - Savable

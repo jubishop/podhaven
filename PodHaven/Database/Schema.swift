@@ -37,6 +37,7 @@ enum Schema {
 
         // App Added Metadata
         t.column("lastUpdate", .datetime).defaults(to: Date())
+        t.column("subscribed", .boolean).notNull()
       }
 
       try db.create(table: "episode") { t in
