@@ -37,7 +37,7 @@ enum Schema {
         t.column("link", .text)
 
         // App Added Metadata
-        t.column("lastUpdate", .datetime).defaults(to: Date())
+        t.column("lastUpdate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
         t.column("subscribed", .boolean).notNull()
       }
 
@@ -59,8 +59,8 @@ enum Schema {
         t.column("image", .text)
 
         // App Added Metadata
-        t.column("completed", .boolean).defaults(to: false)
-        t.column("currentTime", .integer).defaults(to: 0)
+        t.column("completed", .boolean).notNull().defaults(to: false)
+        t.column("currentTime", .integer).notNull().defaults(to: 0)
         t.column("queueOrder", .integer).check { $0 >= 0 }
       }
     }
