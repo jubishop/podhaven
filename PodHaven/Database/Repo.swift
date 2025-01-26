@@ -47,7 +47,6 @@ struct Repo: Sendable {
     }
   }
 
-  // TODO: Test this, and subscribed filter option
   func allPodcastSeries() async throws -> PodcastSeriesArray {
     try await appDB.db.read { db in
       try Podcast
@@ -68,11 +67,11 @@ struct Repo: Sendable {
     }
   }
 
-  // TODO: Add subscribed filter to this, and test.
-  func allStalePodcastSeries() async throws -> PodcastSeriesArray {
+  func allStaleSubscribedPodcastSeries() async throws -> PodcastSeriesArray {
     try await appDB.db.read { db in
       try Podcast
         .filter(Schema.lastUpdateColumn < Date().addingTimeInterval(-600))  // 10 minutes
+        .filter(Schema.subscribedColumn == true)
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)

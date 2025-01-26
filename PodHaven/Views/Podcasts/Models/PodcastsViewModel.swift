@@ -12,7 +12,7 @@ import IdentifiedCollections
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
   func refreshPodcasts() async throws {
-    let allSeries = try await repo.allPodcastSeries()
+    let allSeries = try await repo.allSubscribedPodcastSeries()
     try await withThrowingDiscardingTaskGroup { group in
       for podcastSeries in allSeries {
         group.addTask {
@@ -27,7 +27,7 @@ import IdentifiedCollections
       ValueObservation
       .tracking { db in
         try Podcast
-          .all()
+          .filter(Schema.subscribedColumn == true)
           .fetchIdentifiedArray(db, id: \Podcast.feedURL)
       }
       .removeDuplicates()

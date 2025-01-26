@@ -106,7 +106,7 @@ actor RefreshManager: Sendable {
 
   private func performScheduledRefresh() async throws {
     try await withThrowingDiscardingTaskGroup { group in
-      for podcastSeries in try await repo.allStalePodcastSeries() {
+      for podcastSeries in try await repo.allStaleSubscribedPodcastSeries() {
         group.addTask {
           try await self.refreshSeries(podcastSeries: podcastSeries)
         }
