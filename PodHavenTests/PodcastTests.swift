@@ -162,4 +162,15 @@ actor PodcastTests {
     #expect(allStaleSeries.count == 1)
     #expect(allStaleSeries.first! == staleSeries)
   }
+
+  @Test("markSubscribed() successfully marks a podcast as subscribed")
+  func testMarkSubscribed() async throws {
+    let unsavedPodcast  = try TestHelpers.unsavedPodcast(subscribed: false)
+    let podcastSeries = try await repo.insertSeries(unsavedPodcast)
+    #expect(podcastSeries.podcast.subscribed == false)
+
+    try await repo.markSubscribed(podcastSeries.id)
+    let fetchedPodcast = try await repo.podcastSeries(podcastID: podcastSeries.id)!
+    #expect(fetchedPodcast.podcast.subscribed == true)
+  }
 }
