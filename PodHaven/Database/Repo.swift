@@ -183,7 +183,6 @@ struct Repo: Sendable {
     }
   }
 
-  // TODO: Test this
   func markSubscribed(_ podcastID: Podcast.ID) async throws {
     _ = try await appDB.db.write { db in
       try Podcast
