@@ -107,8 +107,8 @@ actor PodcastTests {
     }
   }
 
-  @Test("allPodcasts() and allSubscribedPodcasts()")
-  func testAllAndSubscribedPodcasts() async throws {
+  @Test("allPodcasts()")
+  func testAll() async throws {
     let freshPodcast = try TestHelpers.unsavedPodcast(lastUpdate: Date())
     let stalePodcast = try TestHelpers.unsavedPodcast(
       lastUpdate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
@@ -120,13 +120,10 @@ actor PodcastTests {
 
     let allPodcasts: PodcastArray = try await repo.allPodcasts()
     #expect(allPodcasts.count == 3)
-
-    let subscribedPodcasts: PodcastArray = try await repo.allSubscribedPodcasts()
-    #expect(subscribedPodcasts.count == 2)
   }
 
-  @Test("allPodcastSeries() and allSubscribedPodcastSeries()")
-  func testAllAndSubscribedPodcastSeries() async throws {
+  @Test("allPodcastSeries()")
+  func testAllPodcastSeries() async throws {
     let freshPodcast = try TestHelpers.unsavedPodcast(lastUpdate: Date())
     let stalePodcast = try TestHelpers.unsavedPodcast(
       lastUpdate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
@@ -138,29 +135,6 @@ actor PodcastTests {
 
     let allPodcastSeries: PodcastSeriesArray = try await repo.allPodcastSeries()
     #expect(allPodcastSeries.count == 3)
-
-    let subscribedPodcastSeries: PodcastSeriesArray = try await repo.allSubscribedPodcastSeries()
-    #expect(subscribedPodcastSeries.count == 2)
-  }
-
-  @Test("that allStalePodcastSeries() only return stale PodcastSeries")
-  func testAllStalePodcastSeries() async throws {
-    let freshPodcast = try TestHelpers.unsavedPodcast(lastUpdate: Date())
-    let stalePodcast = try TestHelpers.unsavedPodcast(
-      lastUpdate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
-    )
-    let unsubscribedStalePodcast = try TestHelpers.unsavedPodcast(
-      lastUpdate: Calendar.current.date(byAdding: .day, value: -10, to: Date()),
-      subscribed: false
-    )
-
-    try await repo.insertSeries(freshPodcast)
-    let staleSeries = try await repo.insertSeries(stalePodcast)
-    try await repo.insertSeries(unsubscribedStalePodcast)
-
-    let allStaleSeries = try await repo.allStaleSubscribedPodcastSeries()
-    #expect(allStaleSeries.count == 1)
-    #expect(allStaleSeries.first! == staleSeries)
   }
 
   @Test("markSubscribed() successfully marks a podcast as subscribed")

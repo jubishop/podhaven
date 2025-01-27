@@ -12,7 +12,7 @@ import IdentifiedCollections
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
   func refreshPodcasts() async throws {
-    let allSeries = try await repo.allSubscribedPodcastSeries()
+    let allSeries = try await repo.allPodcastSeries { $0.filter(Schema.subscribedColumn == true) }
     try await withThrowingDiscardingTaskGroup { group in
       for podcastSeries in allSeries {
         group.addTask {

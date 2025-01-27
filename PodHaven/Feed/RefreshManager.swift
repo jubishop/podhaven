@@ -2,6 +2,7 @@
 
 import Factory
 import Foundation
+import GRDB
 import UIKit
 
 extension Container {
@@ -106,7 +107,12 @@ actor RefreshManager: Sendable {
 
   private func performScheduledRefresh() async throws {
     try await withThrowingDiscardingTaskGroup { group in
-      for podcastSeries in try await repo.allStaleSubscribedPodcastSeries() {
+      let allStaleSubscribedPodcastSeries: PodcastSeriesArray =
+        try await repo.allPodcastSeries {
+          $0.filter(Schema.lastUpdateColumn < Date().addingTimeInterval(-600))  // 10 minutes
+            .filter(Schema.subscribedColumn == true)
+        }
+      for podcastSeries in allStaleSubscribedPodcastSeries {
         group.addTask {
           try await self.refreshSeries(podcastSeries: podcastSeries)
         }

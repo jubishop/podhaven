@@ -7,6 +7,9 @@ import GRDB
 import IdentifiedCollections
 import Tagged
 
+typealias RequestClosure =
+  @Sendable (QueryInterfaceRequest<Podcast>) -> QueryInterfaceRequest<Podcast>
+
 extension Container {
   var repo: Factory<Repo> {
     Factory(self) { Repo(.onDisk(RepoAccessKey())) }.scope(.singleton)
@@ -31,47 +34,18 @@ struct Repo: Sendable {
 
   // MARK: - Global Readers
 
-  func allPodcasts() async throws -> PodcastArray {
+  func allPodcasts(_ req: (@escaping RequestClosure) = { $0 }) async throws -> PodcastArray {
     try await appDB.db.read { db in
-      try Podcast
-        .all()
+      try req(Podcast.all())
         .fetchIdentifiedArray(db, id: \Podcast.feedURL)
     }
   }
 
-  func allSubscribedPodcasts() async throws -> PodcastArray {
+  func allPodcastSeries(_ req: (@escaping RequestClosure) = { $0 }) async throws
+    -> PodcastSeriesArray
+  {
     try await appDB.db.read { db in
-      try Podcast
-        .filter(Schema.subscribedColumn == true)
-        .fetchIdentifiedArray(db, id: \Podcast.feedURL)
-    }
-  }
-
-  func allPodcastSeries() async throws -> PodcastSeriesArray {
-    try await appDB.db.read { db in
-      try Podcast
-        .all()
-        .including(all: Podcast.episodes)
-        .asRequest(of: PodcastSeries.self)
-        .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)
-    }
-  }
-
-  func allSubscribedPodcastSeries() async throws -> PodcastSeriesArray {
-    try await appDB.db.read { db in
-      try Podcast
-        .filter(Schema.subscribedColumn == true)
-        .including(all: Podcast.episodes)
-        .asRequest(of: PodcastSeries.self)
-        .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)
-    }
-  }
-
-  func allStaleSubscribedPodcastSeries() async throws -> PodcastSeriesArray {
-    try await appDB.db.read { db in
-      try Podcast
-        .filter(Schema.lastUpdateColumn < Date().addingTimeInterval(-600))  // 10 minutes
-        .filter(Schema.subscribedColumn == true)
+      try req(Podcast.all())
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)
