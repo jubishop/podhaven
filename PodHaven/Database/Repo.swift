@@ -34,18 +34,20 @@ struct Repo: Sendable {
 
   // MARK: - Global Readers
 
-  func allPodcasts(_ req: (@escaping RequestClosure) = { $0 }) async throws -> PodcastArray {
+  func allPodcasts(_ requestClosure: (@escaping RequestClosure) = { $0 }) async throws
+    -> PodcastArray
+  {
     try await appDB.db.read { db in
-      try req(Podcast.all())
+      try requestClosure(Podcast.all())
         .fetchIdentifiedArray(db, id: \Podcast.feedURL)
     }
   }
 
-  func allPodcastSeries(_ req: (@escaping RequestClosure) = { $0 }) async throws
+  func allPodcastSeries(_ requestClosure: (@escaping RequestClosure) = { $0 }) async throws
     -> PodcastSeriesArray
   {
     try await appDB.db.read { db in
-      try req(Podcast.all())
+      try requestClosure(Podcast.all())
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)
