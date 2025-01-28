@@ -111,7 +111,11 @@ actor PodcastTests {
   func testAll() async throws {
     let freshPodcast = try TestHelpers.unsavedPodcast(lastUpdate: Date())
     let stalePodcast = try TestHelpers.unsavedPodcast(
-      lastUpdate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
+      lastUpdate: Calendar.current.date(
+        byAdding: .day,
+        value: -10,
+        to: Date()
+      )
     )
     let unsubscribedPodcast = try TestHelpers.unsavedPodcast(subscribed: false)
     try await repo.insertSeries(freshPodcast)
@@ -139,7 +143,7 @@ actor PodcastTests {
 
   @Test("markSubscribed() successfully marks a podcast as subscribed")
   func testMarkSubscribed() async throws {
-    let unsavedPodcast  = try TestHelpers.unsavedPodcast(subscribed: false)
+    let unsavedPodcast = try TestHelpers.unsavedPodcast(subscribed: false)
     let podcastSeries = try await repo.insertSeries(unsavedPodcast)
     #expect(podcastSeries.podcast.subscribed == false)
 

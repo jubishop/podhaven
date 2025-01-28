@@ -32,7 +32,7 @@ struct Repo: Sendable {
     self.appDB = appDB
   }
 
-  // MARK: - Global Readers
+  // MARK: - Global Reader
 
   func allPodcasts(_ requestClosure: (@escaping RequestClosure) = { $0 }) async throws
     -> PodcastArray
