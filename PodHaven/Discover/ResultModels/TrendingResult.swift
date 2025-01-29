@@ -10,7 +10,18 @@ struct TrendingResult: Sendable, Decodable {
     let title: String
     let description: String
     let trendScore: Int
-    let categories: Dictionary<String, String>
+    let categories: [String: String]
+
+    func toUnsavedPodcast() throws -> UnsavedPodcast {
+      try UnsavedPodcast(
+        feedURL: url,
+        title: title,
+        image: image,
+        description: description,
+        lastUpdate: Date(timeIntervalSince1970: 0),
+        subscribed: false
+      )
+    }
   }
   let feeds: [FeedResult]
   let since: Date

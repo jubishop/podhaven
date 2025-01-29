@@ -19,6 +19,10 @@ import Foundation
 
   @discardableResult
   func fetchFeed() async throws -> UnsavedPodcast {
+    if let fetchedUnsavedPodcast = self.unsavedPodcast {
+      return fetchedUnsavedPodcast
+    }
+
     let podcastFeed = try await PodcastFeed.parse(feedResult.url)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false)
     self.unsavedPodcast = unsavedPodcast

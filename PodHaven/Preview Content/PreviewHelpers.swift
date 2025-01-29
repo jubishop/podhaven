@@ -72,6 +72,20 @@ enum PreviewHelpers {
     )
   }
 
+  static func loadUnsavedPodcastEpisodes(fileName: String = seriesFiles.keys.randomElement()!)
+    async throws
+    -> (UnsavedPodcast, [UnsavedEpisode])
+  {
+    let podcastFeed = try await PodcastFeed.parse(
+      Bundle.main.url(forResource: fileName, withExtension: "rss")!
+    )
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: true)
+    return (
+      unsavedPodcast,
+      try podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+    )
+  }
+
   static func loadPodcast() async throws -> Podcast {
     let repo = Container.shared.repo()
     if let podcast = try? await repo.db.read({ db in

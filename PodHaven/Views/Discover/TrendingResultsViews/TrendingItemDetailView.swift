@@ -26,9 +26,16 @@ struct TrendingItemDetailView: View {
       )
       if viewModel.unsavedEpisodes.isEmpty {
         Text("Loading episodes")
-      } else {
+      } else if let unsavedPodcast = viewModel.unsavedPodcast {
         List(viewModel.unsavedEpisodes, id: \.guid) { unsavedEpisode in
-          Text(unsavedEpisode.toString)
+          NavigationLink(
+            value: unsavedEpisode,
+            // TODO: Make this TrendingItemEpisodeListView
+            label: { Text(unsavedEpisode.title) }
+          )
+        }
+        .navigationDestination(for: UnsavedEpisode.self) { unsavedEpisode in
+          TrendingItemEpisodeDetailView(unsavedPodcast, unsavedEpisode)
         }
       }
     }
