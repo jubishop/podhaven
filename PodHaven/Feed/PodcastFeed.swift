@@ -15,32 +15,32 @@ struct EpisodeFeed: Sendable, Equatable {
     self.media = rssEpisode.enclosure.url
   }
 
-  func toUnsavedEpisode(mergingExisting existingEpisode: Episode? = nil) throws -> UnsavedEpisode {
+  func toUnsavedEpisode(merging episode: Episode? = nil) throws -> UnsavedEpisode {
     precondition(
-      existingEpisode == nil || existingEpisode?.guid == guid,
+      episode == nil || episode?.guid == guid,
       "Merging two episodes with different guids?"
     )
 
     return try UnsavedEpisode(
-      podcastId: existingEpisode?.podcastId,
+      podcastId: episode?.podcastId,
       guid: guid,
       media: media,
       title: rssEpisode.title,
-      pubDate: rssEpisode.pubDate ?? existingEpisode?.pubDate,
-      duration: duration ?? existingEpisode?.duration,
-      description: rssEpisode.description ?? existingEpisode?.description,
-      link: rssEpisode.link ?? existingEpisode?.link,
-      image: rssEpisode.iTunes.image?.href ?? existingEpisode?.image,
-      completed: existingEpisode?.completed,
-      currentTime: existingEpisode?.currentTime,
-      queueOrder: existingEpisode?.queueOrder
+      pubDate: rssEpisode.pubDate ?? episode?.pubDate,
+      duration: duration ?? episode?.duration,
+      description: rssEpisode.description ?? episode?.description,
+      link: rssEpisode.link ?? episode?.link,
+      image: rssEpisode.iTunes.image?.href ?? episode?.image,
+      completed: episode?.completed,
+      currentTime: episode?.currentTime,
+      queueOrder: episode?.queueOrder
     )
   }
 
-  func toEpisode(mergingExisting existingEpisode: Episode) throws -> Episode {
+  func toEpisode(merging episode: Episode) throws -> Episode {
     Episode(
-      id: existingEpisode.id,
-      from: try toUnsavedEpisode(mergingExisting: existingEpisode)
+      id: episode.id,
+      from: try toUnsavedEpisode(merging: episode)
     )
   }
 
@@ -99,9 +99,9 @@ struct PodcastFeed: Sendable, Equatable {
     }
   }
 
-  func toPodcast(mergingExisting existingPodcast: Podcast) throws -> Podcast {
-    let unsavedPodcast = try toUnsavedPodcast(mergingExisting: existingPodcast)
-    return Podcast(id: existingPodcast.id, from: unsavedPodcast)
+  func toPodcast(merging podcast: Podcast) throws -> Podcast {
+    let unsavedPodcast = try toUnsavedPodcast(merging: podcast)
+    return Podcast(id: podcast.id, from: unsavedPodcast)
   }
 
   func toUnsavedPodcast(subscribed: Bool, lastUpdate: Date? = nil) throws -> UnsavedPodcast {
@@ -128,15 +128,15 @@ struct PodcastFeed: Sendable, Equatable {
     )
   }
 
-  func toUnsavedPodcast(mergingExisting existingPodcast: Podcast) throws -> UnsavedPodcast {
+  func toUnsavedPodcast(merging podcast: Podcast) throws -> UnsavedPodcast {
     precondition(
-      existingPodcast.feedURL == feedURL,
+      podcast.feedURL == feedURL,
       "Merging two podcasts with different feedURLs?"
     )
 
     return try toUnsavedPodcast(
-      subscribed: existingPodcast.subscribed,
-      lastUpdate: existingPodcast.lastUpdate
+      subscribed: podcast.subscribed,
+      lastUpdate: podcast.lastUpdate
     )
   }
 
