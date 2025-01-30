@@ -28,7 +28,7 @@ struct TrendingItemListView: View {
   }
   .preview()
   .task {
-    unsavedPodcast = try! await PreviewHelpers.loadFeedResult().toUnsavedPodcast()
+    unsavedPodcast = try! await PreviewHelpers.loadUnsavedPodcast()
   }
 }
 

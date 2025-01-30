@@ -16,6 +16,7 @@ struct TrendingItemDetailView: View {
       Text(viewModel.unsavedPodcast.title)
         .font(.largeTitle)
       HTMLText(viewModel.unsavedPodcast.description)
+
       if viewModel.unsavedPodcast.subscribed {
         Text("Subscribed")
       } else {
@@ -28,6 +29,7 @@ struct TrendingItemDetailView: View {
           }
         )
       }
+
       if viewModel.unsavedEpisodes.isEmpty {
         Text("Loading episodes")
       } else {
