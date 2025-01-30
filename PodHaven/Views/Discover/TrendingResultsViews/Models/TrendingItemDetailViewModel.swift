@@ -23,7 +23,6 @@ import Foundation
   }
 
   func subscribe() async throws {
-    var unsavedPodcast: UnsavedPodcast = self.unsavedPodcast
     unsavedPodcast.subscribed = true
 
     let podcastSeries = try await repo.insertSeries(

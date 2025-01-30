@@ -15,18 +15,17 @@ struct TrendingItemEpisodeListView: View {
 }
 
 #Preview {
-  @Previewable @State var unsavedEpisodes: [UnsavedEpisode]?
-  @Previewable @State var unsavedPodcast: UnsavedPodcast?
+  @Previewable @State var unsavedEpisode: UnsavedEpisode?
 
   NavigationStack {
-    if let unsavedEpisodes = unsavedEpisodes {
+    if let unsavedEpisode = unsavedEpisode {
       List {
-        TrendingItemEpisodeListView(unsavedEpisode: unsavedEpisodes.randomElement()!)
+        TrendingItemEpisodeListView(unsavedEpisode: unsavedEpisode)
       }
     }
   }
   .preview()
   .task {
-    (unsavedPodcast, unsavedEpisodes) = try! await PreviewHelpers.loadUnsavedPodcastEpisodes()
+    unsavedEpisode = try! await PreviewHelpers.loadUnsavedEpisode()
   }
 }

@@ -12,6 +12,8 @@ enum PreviewHelpers {
   ]
   private static let opmlFiles = ["large", "small"]
 
+  // MARK: - Full Importing
+
   static func importPodcasts(_ number: Int = 20, from fileName: String = "large") async throws {
     let repo = Container.shared.repo()
     let allPodcasts = try await repo.allPodcasts()
@@ -49,6 +51,8 @@ enum PreviewHelpers {
     }
   }
 
+  // MARK: - Loading Podcasts/Episodes
+
   static func loadSeries(fileName: String = seriesFiles.keys.randomElement()!) async throws
     -> PodcastSeries
   {
@@ -72,6 +76,23 @@ enum PreviewHelpers {
     )
   }
 
+  static func loadPodcast(fileName: String = seriesFiles.keys.randomElement()!) async throws
+    -> Podcast
+  {
+    let podcastSeries = try await loadSeries(fileName: fileName)
+    return podcastSeries.podcast
+  }
+
+  static func loadPodcastEpisode(fileName: String = seriesFiles.keys.randomElement()!) async throws
+    -> PodcastEpisode
+  {
+    let podcastSeries = try await loadSeries(fileName: fileName)
+    let episode = podcastSeries.episodes.randomElement()!
+    return PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
+  }
+
+  // MARK: - Importing Unsaved Podcasts/Episodes
+
   static func loadUnsavedPodcastEpisodes(fileName: String = seriesFiles.keys.randomElement()!)
     async throws
     -> (UnsavedPodcast, [UnsavedEpisode])
@@ -86,35 +107,21 @@ enum PreviewHelpers {
     )
   }
 
-  static func loadPodcast() async throws -> Podcast {
-    let repo = Container.shared.repo()
-    if let podcast = try? await repo.db.read({ db in
-      try Podcast
-        .all()
-        .shuffled()
-        .fetchOne(db)
-    }) {
-      return podcast
-    }
-    let podcastSeries = try await loadSeries()
-    return podcastSeries.podcast
+  static func loadUnsavedEpisode(fileName: String = seriesFiles.keys.randomElement()!) async throws
+    -> UnsavedEpisode
+  {
+    let (_, unsavedEpisodes) = try! await PreviewHelpers.loadUnsavedPodcastEpisodes()
+    return unsavedEpisodes.randomElement()!
   }
 
-  static func loadPodcastEpisode() async throws -> PodcastEpisode {
-    let repo = Container.shared.repo()
-    if let podcastEpisode = try? await repo.db.read({ db in
-      try Episode
-        .including(required: Episode.podcast)
-        .shuffled()
-        .asRequest(of: PodcastEpisode.self)
-        .fetchOne(db)
-    }) {
-      return podcastEpisode
-    }
-    let podcastSeries = try await loadSeries()
-    let episode = podcastSeries.episodes.randomElement()!
-    return PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
+  static func loadUnsavedPodcast(fileName: String = seriesFiles.keys.randomElement()!) async throws
+  -> UnsavedPodcast
+  {
+    let (unsavedPodcast, _) = try! await PreviewHelpers.loadUnsavedPodcastEpisodes()
+    return unsavedPodcast
   }
+
+  // MARK: Queue Management
 
   static func populateQueue(queueSize: Int = 20) async throws {
     let repo = Container.shared.repo()
@@ -136,6 +143,8 @@ enum PreviewHelpers {
       try await queue.append(episode.id)
     }
   }
+
+  // MARK: - Searching
 
   static func loadTrendingResult() async throws -> TrendingResult {
     try await SearchService.parseForPreview(

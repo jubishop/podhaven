@@ -38,10 +38,7 @@ struct EpisodeFeed: Sendable, Equatable {
   }
 
   func toEpisode(merging episode: Episode) throws -> Episode {
-    Episode(
-      id: episode.id,
-      from: try toUnsavedEpisode(merging: episode)
-    )
+    Episode(id: episode.id, from: try toUnsavedEpisode(merging: episode))
   }
 
   // MARK: - Private Helpers
@@ -134,10 +131,7 @@ struct PodcastFeed: Sendable, Equatable {
       "Merging two podcasts with different feedURLs?"
     )
 
-    return try toUnsavedPodcast(
-      subscribed: podcast.subscribed,
-      lastUpdate: podcast.lastUpdate
-    )
+    return try toUnsavedPodcast(subscribed: podcast.subscribed, lastUpdate: podcast.lastUpdate)
   }
 
   func toUnsavedEpisodes() -> [UnsavedEpisode] {

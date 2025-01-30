@@ -16,14 +16,18 @@ struct TrendingItemDetailView: View {
       Text(viewModel.unsavedPodcast.title)
         .font(.largeTitle)
       HTMLText(viewModel.unsavedPodcast.description)
-      Button(
-        action: {
-          Task { try await viewModel.subscribe() }
-        },
-        label: {
-          Text("Subscribe")
-        }
-      )
+      if viewModel.unsavedPodcast.subscribed {
+        Text("Subscribed")
+      } else {
+        Button(
+          action: {
+            Task { try await viewModel.subscribe() }
+          },
+          label: {
+            Text("Subscribe")
+          }
+        )
+      }
       if viewModel.unsavedEpisodes.isEmpty {
         Text("Loading episodes")
       } else {
@@ -67,7 +71,7 @@ struct TrendingItemDetailView: View {
   .task {
     viewModel = TrendingItemDetailViewModel(
       category: "News",
-      unsavedPodcast: try! await PreviewHelpers.loadFeedResult().toUnsavedPodcast()
+      unsavedPodcast: try! await PreviewHelpers.loadUnsavedPodcast()
     )
   }
 }
