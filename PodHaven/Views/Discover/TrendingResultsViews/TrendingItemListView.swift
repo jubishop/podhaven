@@ -3,27 +3,27 @@
 import SwiftUI
 
 struct TrendingItemListView: View {
-  private let feedResult: TrendingResult.FeedResult
+  private let unsavedPodcast: UnsavedPodcast
 
-  init(feedResult: TrendingResult.FeedResult) {
-    self.feedResult = feedResult
+  init(unsavedPodcast: UnsavedPodcast) {
+    self.unsavedPodcast = unsavedPodcast
   }
 
   var body: some View {
     NavigationLink(
-      value: feedResult,
-      label: { Text(feedResult.title) }
+      value: unsavedPodcast,
+      label: { Text(unsavedPodcast.title) }
     )
   }
 }
 
 #Preview {
-  @Previewable @State var feedResult: TrendingResult.FeedResult?
+  @Previewable @State var unsavedPodcast: UnsavedPodcast?
 
   NavigationStack {
     List {
-      if let feedResult = feedResult {
-        TrendingItemListView(feedResult: feedResult)
+      if let unsavedPodcast = unsavedPodcast {
+        TrendingItemListView(unsavedPodcast: unsavedPodcast)
       } else {
         Text("No trending result found")
       }
@@ -31,6 +31,6 @@ struct TrendingItemListView: View {
   }
   .preview()
   .task {
-    feedResult = try! await PreviewHelpers.loadFeedResult()
+    unsavedPodcast = try! await PreviewHelpers.loadFeedResult().toUnsavedPodcast()
   }
 }

@@ -13,23 +13,18 @@ struct TrendingResultsView: View {
     VStack {
       Text(viewModel.category)
         .font(.largeTitle)
-      if let trendingResult = viewModel.trendingResult {
-        List {
-          ForEach(trendingResult.feeds) { feed in
-            TrendingItemListView(feedResult: feed)
-          }
+      List {
+        ForEach(viewModel.unsavedPodcasts) { unsavedPodcast in
+          TrendingItemListView(unsavedPodcast: unsavedPodcast)
         }
-        .navigationDestination(for: TrendingResult.FeedResult.self) { feedResult in
-          TrendingItemDetailView(
-            viewModel: TrendingItemDetailViewModel(
-              category: viewModel.category,
-              feedResult: feedResult
-            )
+      }
+      .navigationDestination(for: UnsavedPodcast) { unsavedPodcast in
+        TrendingItemDetailView(
+          viewModel: TrendingItemDetailViewModel(
+            category: viewModel.category,
+            unsavedPodcast: unsavedPodcast
           )
-        }
-      } else {
-        Text("Still searching")
-        Spacer()
+        )
       }
     }
     .navigationTitle("Trending")

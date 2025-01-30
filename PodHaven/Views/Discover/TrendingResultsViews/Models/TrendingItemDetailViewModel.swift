@@ -9,34 +9,22 @@ import Foundation
 
   let category: String
   let feedResult: TrendingResult.FeedResult
-  var unsavedPodcast: UnsavedPodcast?
+  var unsavedPodcast: UnsavedPodcast
   var unsavedEpisodes: [UnsavedEpisode] = []
 
-  init(category: String, feedResult: TrendingResult.FeedResult) {
+  init(category: String, unsavedPodcast: UnsavedPodcast) {
     self.category = category
-    self.feedResult = feedResult
+    self.unsavedPodcast = unsavedPodcast
   }
 
-  @discardableResult
-  func fetchFeed() async throws -> UnsavedPodcast {
-    if let fetchedUnsavedPodcast = self.unsavedPodcast {
-      return fetchedUnsavedPodcast
-    }
-
-    let podcastFeed = try await PodcastFeed.parse(feedResult.url)
-    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false)
-    self.unsavedPodcast = unsavedPodcast
-    self.unsavedEpisodes = podcastFeed.toUnsavedEpisodes()
-    return unsavedPodcast
+  func fetchFeed() async throws {
+    let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
+    unsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: unsavedPodcast)
+    unsavedEpisodes = podcastFeed.toUnsavedEpisodes()
   }
 
   func subscribe() async throws {
-    var unsavedPodcast: UnsavedPodcast
-    if let fetchedUnsavedPodcast = self.unsavedPodcast {
-      unsavedPodcast = fetchedUnsavedPodcast
-    } else {
-      unsavedPodcast = try await fetchFeed()
-    }
+    var unsavedPodcast: UnsavedPodcast = self.unsavedPodcast
     unsavedPodcast.subscribed = true
 
     let podcastSeries = try await repo.insertSeries(
