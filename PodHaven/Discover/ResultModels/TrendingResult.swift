@@ -18,7 +18,7 @@ struct TrendingResult: Sendable, Decodable {
         title: title,
         image: image,
         description: description,
-        lastUpdate: Date(timeIntervalSince1970: 0),
+        lastUpdate: Date.epoch,
         subscribed: false
       )
     }

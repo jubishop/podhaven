@@ -10,4 +10,6 @@ extension Date {
     rfc2822.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
     return rfc2822
   }()
+
+  static let epoch: Date = Date(timeIntervalSince1970: 0)
 }
