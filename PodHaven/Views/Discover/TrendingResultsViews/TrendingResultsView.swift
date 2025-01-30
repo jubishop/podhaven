@@ -13,18 +13,27 @@ struct TrendingResultsView: View {
     VStack {
       Text(viewModel.category)
         .font(.largeTitle)
-      List {
-        ForEach(viewModel.unsavedPodcasts) { unsavedPodcast in
-          TrendingItemListView(unsavedPodcast: unsavedPodcast)
+      if viewModel.trendingResult != nil {
+        List {
+          ForEach(viewModel.unsavedPodcasts, id: \.feedURL) { unsavedPodcast in
+            NavigationLink(
+              destination: {
+                TrendingItemDetailView(
+                  viewModel: TrendingItemDetailViewModel(
+                    category: viewModel.category,
+                    unsavedPodcast: unsavedPodcast
+                  )
+                )
+              },
+              label: {
+                TrendingItemListView(unsavedPodcast: unsavedPodcast)
+              }
+            )
+          }
         }
-      }
-      .navigationDestination(for: UnsavedPodcast) { unsavedPodcast in
-        TrendingItemDetailView(
-          viewModel: TrendingItemDetailViewModel(
-            category: viewModel.category,
-            unsavedPodcast: unsavedPodcast
-          )
-        )
+      } else {
+        Text("Still searching")
+        Spacer()
       }
     }
     .navigationTitle("Trending")
@@ -32,13 +41,12 @@ struct TrendingResultsView: View {
 }
 
 #Preview {
-  @Previewable @State var viewModel: TrendingResultsViewModel = TrendingResultsViewModel(
-    category: "News",
-    trendingResult: nil
-  )
+  @Previewable @State var viewModel: TrendingResultsViewModel?
 
   NavigationStack {
-    TrendingResultsView(viewModel: viewModel)
+    if let viewModel = viewModel {
+      TrendingResultsView(viewModel: viewModel)
+    }
   }
   .preview()
   .task {

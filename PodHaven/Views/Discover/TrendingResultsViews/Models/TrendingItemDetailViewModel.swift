@@ -8,7 +8,6 @@ import Foundation
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
 
   let category: String
-  let feedResult: TrendingResult.FeedResult
   var unsavedPodcast: UnsavedPodcast
   var unsavedEpisodes: [UnsavedEpisode] = []
 

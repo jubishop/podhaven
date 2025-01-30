@@ -26,4 +26,3 @@ struct TrendingResult: Sendable, Decodable {
   let feeds: [FeedResult]
   let since: Date
 }
-

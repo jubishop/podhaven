@@ -13,9 +13,9 @@ struct TrendingItemDetailView: View {
 
   var body: some View {
     VStack(spacing: 40) {
-      Text(viewModel.feedResult.title)
+      Text(viewModel.unsavedPodcast.title)
         .font(.largeTitle)
-      HTMLText(viewModel.feedResult.description)
+      HTMLText(viewModel.unsavedPodcast.description)
       Button(
         action: {
           Task { try await viewModel.subscribe() }
@@ -26,16 +26,21 @@ struct TrendingItemDetailView: View {
       )
       if viewModel.unsavedEpisodes.isEmpty {
         Text("Loading episodes")
-      } else if let unsavedPodcast = viewModel.unsavedPodcast {
+      } else {
         List(viewModel.unsavedEpisodes, id: \.guid) { unsavedEpisode in
           NavigationLink(
-            value: unsavedEpisode,
-            // TODO: Make this TrendingItemEpisodeListView
-            label: { Text(unsavedEpisode.title) }
+            destination: {
+              TrendingItemEpisodeDetailView(
+                viewModel: TrendingItemEpisodeDetailViewModel(
+                  unsavedPodcast: viewModel.unsavedPodcast,
+                  unsavedEpisode: unsavedEpisode
+                )
+              )
+            },
+            label: {
+              TrendingItemEpisodeListView(unsavedEpisode: unsavedEpisode)
+            }
           )
-        }
-        .navigationDestination(for: UnsavedEpisode.self) { unsavedEpisode in
-          TrendingItemEpisodeDetailView(unsavedPodcast, unsavedEpisode)
         }
       }
     }
@@ -62,7 +67,7 @@ struct TrendingItemDetailView: View {
   .task {
     viewModel = TrendingItemDetailViewModel(
       category: "News",
-      feedResult: try! await PreviewHelpers.loadFeedResult()
+      unsavedPodcast: try! await PreviewHelpers.loadFeedResult().toUnsavedPodcast()
     )
   }
 }

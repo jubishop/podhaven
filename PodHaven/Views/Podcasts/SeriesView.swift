@@ -16,11 +16,16 @@ struct SeriesView: View {
       HTMLText(viewModel.podcast.description).lineLimit(3).padding()
       Text("Last updated: \(viewModel.podcast.formattedLastUpdate)")
       List(viewModel.episodes) { episode in
-        EpisodeListView(
-          podcastEpisode: PodcastEpisode(
-            podcast: viewModel.podcast,
-            episode: episode
-          )
+        NavigationLink(
+          value: episode,
+          label: {
+            EpisodeListView(
+              podcastEpisode: PodcastEpisode(
+                podcast: viewModel.podcast,
+                episode: episode
+              )
+            )
+          }
         )
       }
       .refreshable {

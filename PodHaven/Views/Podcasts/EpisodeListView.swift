@@ -12,23 +12,18 @@ struct EpisodeListView: View {
   }
 
   var body: some View {
-    NavigationLink(
-      value: episode,
-      label: { Text(episode.toString) }
-    )
+    Text(episode.toString)
   }
 }
 
 #Preview {
   @Previewable @State var podcastEpisode: PodcastEpisode?
 
-  NavigationStack {
-    List {
-      if let podcastEpisode = podcastEpisode {
-        EpisodeListView(podcastEpisode: podcastEpisode)
-      } else {
-        Text("No episodes in DB")
-      }
+  List {
+    if let podcastEpisode = podcastEpisode {
+      EpisodeListView(podcastEpisode: podcastEpisode)
+    } else {
+      Text("No episodes in DB")
     }
   }
   .preview()

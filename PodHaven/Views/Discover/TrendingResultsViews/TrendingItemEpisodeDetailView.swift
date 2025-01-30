@@ -3,16 +3,14 @@
 import SwiftUI
 
 struct TrendingItemEpisodeDetailView: View {
-  private let unsavedPodcast: UnsavedPodcast
-  private let unsavedEpisode: UnsavedEpisode
+  private let viewModel: TrendingItemEpisodeDetailViewModel
 
-  init(_ unsavedPodcast: UnsavedPodcast, _ unsavedEpisode: UnsavedEpisode) {
-    self.unsavedPodcast = unsavedPodcast
-    self.unsavedEpisode = unsavedEpisode
+  init(viewModel: TrendingItemEpisodeDetailViewModel) {
+    self.viewModel = viewModel
   }
 
   var body: some View {
-    Text(unsavedEpisode.title)
+    Text(viewModel.unsavedEpisode.title)
   }
 }
 
@@ -23,7 +21,12 @@ struct TrendingItemEpisodeDetailView: View {
   NavigationStack {
     if let unsavedPodcast = unsavedPodcast, let unsavedEpisodes = unsavedEpisodes {
       List {
-        TrendingItemEpisodeDetailView(unsavedPodcast, unsavedEpisodes.randomElement()!)
+        TrendingItemEpisodeDetailView(
+          viewModel: TrendingItemEpisodeDetailViewModel(
+            unsavedPodcast: unsavedPodcast,
+            unsavedEpisode: unsavedEpisodes.randomElement()!
+          )
+        )
       }
     }
   }

@@ -10,10 +10,7 @@ struct TrendingItemListView: View {
   }
 
   var body: some View {
-    NavigationLink(
-      value: unsavedPodcast,
-      label: { Text(unsavedPodcast.title) }
-    )
+    Text(unsavedPodcast.title)
   }
 }
 
@@ -34,3 +31,4 @@ struct TrendingItemListView: View {
     unsavedPodcast = try! await PreviewHelpers.loadFeedResult().toUnsavedPodcast()
   }
 }
+

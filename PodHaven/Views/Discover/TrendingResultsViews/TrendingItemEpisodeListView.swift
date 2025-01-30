@@ -6,32 +6,27 @@ struct TrendingItemEpisodeListView: View {
   private let unsavedEpisode: UnsavedEpisode
 
   init(unsavedEpisode: UnsavedEpisode) {
-    self.unsavedEpisode= unsavedEpisode
+    self.unsavedEpisode = unsavedEpisode
   }
 
   var body: some View {
-    NavigationLink(
-      value: unsavedEpisode
-      label: { Text(unsavedEpisodetitle) }
-    )
+    Text(unsavedEpisode.title)
   }
 }
 
 #Preview {
-  @Previewable @State var unsavedEpisode TrendingResult.FeedResult?
+  @Previewable @State var unsavedEpisodes: [UnsavedEpisode]?
+  @Previewable @State var unsavedPodcast: UnsavedPodcast?
 
   NavigationStack {
-    List {
-      if let unsavedEpisode= unsavedEpisode{
-        TrendingItemListView(uunsavedEpisode
-      } else {
-        Text("No trending result found")
+    if let unsavedEpisodes = unsavedEpisodes {
+      List {
+        TrendingItemEpisodeListView(unsavedEpisode: unsavedEpisodes.randomElement()!)
       }
     }
   }
   .preview()
   .task {
-    unsavedEpisode= try! await PreviewHelpers.loadFeedResult()
+    (unsavedPodcast, unsavedEpisodes) = try! await PreviewHelpers.loadUnsavedPodcastEpisodes()
   }
 }
-
