@@ -11,6 +11,7 @@ struct TrendingItemEpisodeDetailView: View {
 
   var body: some View {
     Text(viewModel.unsavedEpisode.title)
+      .navigationTitle(viewModel.unsavedEpisode.title)
   }
 }
 

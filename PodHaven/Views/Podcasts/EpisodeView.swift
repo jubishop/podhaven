@@ -31,6 +31,7 @@ struct EpisodeView: View {
         )
       }
     }
+    .navigationTitle(viewModel.episode.title)
     .task {
       do {
         try await viewModel.observeEpisode()

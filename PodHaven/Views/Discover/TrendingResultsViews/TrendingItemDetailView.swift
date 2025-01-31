@@ -13,8 +13,6 @@ struct TrendingItemDetailView: View {
 
   var body: some View {
     VStack(spacing: 40) {
-      Text(viewModel.unsavedPodcast.title)
-        .font(.largeTitle)
       HTMLText(viewModel.unsavedPodcast.description)
 
       if viewModel.unsavedPodcast.subscribed {
@@ -57,7 +55,7 @@ struct TrendingItemDetailView: View {
         )
       }
     }
-    .navigationTitle(viewModel.category)
+    .navigationTitle(viewModel.unsavedPodcast.title)
     .task {
       do {
         try await viewModel.fetchFeed()

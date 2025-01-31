@@ -11,8 +11,6 @@ struct TrendingResultsView: View {
 
   var body: some View {
     VStack {
-      Text(viewModel.category)
-        .font(.largeTitle)
       if viewModel.trendingResult != nil {
         List {
           ForEach(viewModel.unsavedPodcasts, id: \.feedURL) { unsavedPodcast in
@@ -43,7 +41,7 @@ struct TrendingResultsView: View {
         Spacer()
       }
     }
-    .navigationTitle("Trending")
+    .navigationTitle("📈 \(viewModel.category)")
   }
 }
 

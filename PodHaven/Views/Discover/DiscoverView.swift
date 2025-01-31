@@ -29,6 +29,7 @@ struct DiscoverView: View {
             }
           }
         }
+        .navigationBarTitle("Discover")
         .background(
           SizeReader { size in
             viewModel.width = size.width
