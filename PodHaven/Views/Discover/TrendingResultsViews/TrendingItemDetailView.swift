@@ -35,19 +35,26 @@ struct TrendingItemDetailView: View {
       } else {
         List(viewModel.unsavedEpisodes, id: \.guid) { unsavedEpisode in
           NavigationLink(
-            destination: {
-              TrendingItemEpisodeDetailView(
-                viewModel: TrendingItemEpisodeDetailViewModel(
-                  unsavedPodcast: viewModel.unsavedPodcast,
-                  unsavedEpisode: unsavedEpisode
-                )
-              )
-            },
+            value: UnsavedPodcastEpisode(
+              unsavedPodcast: viewModel.unsavedPodcast,
+              unsavedEpisode: unsavedEpisode
+            ),
             label: {
               TrendingItemEpisodeListView(unsavedEpisode: unsavedEpisode)
             }
           )
         }
+        .navigationDestination(
+          for: UnsavedPodcastEpisode.self,
+          destination: { unsavedPodcastEpisode in
+            TrendingItemEpisodeDetailView(
+              viewModel: TrendingItemEpisodeDetailViewModel(
+                unsavedPodcast: unsavedPodcastEpisode.unsavedPodcast,
+                unsavedEpisode: unsavedPodcastEpisode.unsavedEpisode
+              )
+            )
+          }
+        )
       }
     }
     .navigationTitle(viewModel.category)

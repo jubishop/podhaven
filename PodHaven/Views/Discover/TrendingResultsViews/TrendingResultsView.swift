@@ -17,20 +17,27 @@ struct TrendingResultsView: View {
         List {
           ForEach(viewModel.unsavedPodcasts, id: \.feedURL) { unsavedPodcast in
             NavigationLink(
-              destination: {
-                TrendingItemDetailView(
-                  viewModel: TrendingItemDetailViewModel(
-                    category: viewModel.category,
-                    unsavedPodcast: unsavedPodcast
-                  )
-                )
-              },
+              value: TrendingPodcast(
+                unsavedPodcast: unsavedPodcast,
+                category: viewModel.category
+              ),
               label: {
                 TrendingItemListView(unsavedPodcast: unsavedPodcast)
               }
             )
           }
         }
+        .navigationDestination(
+          for: TrendingPodcast.self,
+          destination: { trendingPodcast in
+            TrendingItemDetailView(
+              viewModel: TrendingItemDetailViewModel(
+                category: trendingPodcast.category,
+                unsavedPodcast: trendingPodcast.unsavedPodcast
+              )
+            )
+          }
+        )
       } else {
         Text("Still searching")
         Spacer()
