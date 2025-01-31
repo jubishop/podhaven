@@ -24,10 +24,8 @@ actor PodcastTests {
     }
     #expect(fetchedPodcast == podcast)
 
-    let urlFilteredPodcast = try await repo.db.read { db in
-      try Podcast.fetchOne(db, key: ["feedURL": url])
-    }
-    #expect(urlFilteredPodcast == podcast)
+    let urlFilteredPodcastSeries = try await repo.podcastSeries(podcast.feedURL)
+    #expect(urlFilteredPodcastSeries?.podcast == podcast)
 
     let fetchedAllPodcasts = try await repo.db.read { db in
       try Podcast.fetchAll(db)

@@ -116,7 +116,7 @@ struct PodcastFeed: Sendable, Equatable {
   func toUnsavedPodcast(merging unsavedPodcast: UnsavedPodcast) throws -> UnsavedPodcast {
     precondition(
       unsavedPodcast.feedURL == feedURL,
-      "Merging two podcasts with different feedURLs?"
+      "Merging two podcasts with different feedURLs?: \(feedURL) != \(unsavedPodcast.feedURL)"
     )
 
     return try toUnsavedPodcast(
