@@ -21,14 +21,12 @@ struct TrendingItemEpisodeDetailView: View {
 
   NavigationStack {
     if let unsavedPodcast = unsavedPodcast, let unsavedEpisodes = unsavedEpisodes {
-      List {
-        TrendingItemEpisodeDetailView(
-          viewModel: TrendingItemEpisodeDetailViewModel(
-            unsavedPodcast: unsavedPodcast,
-            unsavedEpisode: unsavedEpisodes.randomElement()!
-          )
+      TrendingItemEpisodeDetailView(
+        viewModel: TrendingItemEpisodeDetailViewModel(
+          unsavedPodcast: unsavedPodcast,
+          unsavedEpisode: unsavedEpisodes.randomElement()!
         )
-      }
+      )
     }
   }
   .preview()
