@@ -78,16 +78,12 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
       horizontalSpacing: horizontalSpacing,
       verticalSpacing: verticalSpacing
     ) { token in
-      Button(action: {
-        print("Tapped on \(token)")
-      }) {
-        Text(token)
-          .font(.caption)
-          .padding(4)
-          .background(Color.blue.opacity(0.2))
-          .foregroundColor(.blue)
-          .cornerRadius(4)
-      }
+      Text(token)
+        .font(.caption)
+        .padding(4)
+        .background(Color.blue.opacity(0.2))
+        .foregroundColor(.blue)
+        .cornerRadius(4)
     }
     .frame(width: width)
     .overlay(

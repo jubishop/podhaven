@@ -41,7 +41,6 @@ actor RefreshManagerTests {
       contentsOf: Bundle.main.url(forResource: "hardfork_short_updated", withExtension: "rss")!
     )
     await session.set(podcastSeries.podcast.feedURL, .data(data))
-    print(podcastSeries.podcast.feedURL)
     try await manager.refreshSeries(podcastSeries: podcastSeries)
 
     let updatedSeries = try await repo.podcastSeries(podcastID: podcastSeries.podcast.id)!
