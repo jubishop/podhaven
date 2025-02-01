@@ -31,6 +31,7 @@ import Foundation
   func subscribe() async throws {
     unsavedPodcast.subscribed = true
 
+    // TODO: If this podcast already exists this will fatal
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: unsavedEpisodes
