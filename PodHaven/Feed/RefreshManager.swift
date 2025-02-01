@@ -46,25 +46,29 @@ actor RefreshManager: Sendable {
     case .failure(let error):
       throw error
     case .success(let podcastFeed):
-      var newPodcast = try podcastFeed.toPodcast(merging: podcastSeries.podcast)
-      var unsavedEpisodes: [UnsavedEpisode] = []
-      var existingEpisodes: [Episode] = []
-      for feedItem in podcastFeed.episodes {
-        if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
-          if let newExistingEpisode = try? feedItem.toEpisode(merging: existingEpisode) {
-            existingEpisodes.append(newExistingEpisode)
-          }
-        } else if let newUnsavedEpisode = try? feedItem.toUnsavedEpisode() {
-          unsavedEpisodes.append(newUnsavedEpisode)
-        }
-      }
-      newPodcast.lastUpdate = Date()
-      try await repo.updateSeries(
-        newPodcast,
-        unsavedEpisodes: unsavedEpisodes,
-        existingEpisodes: existingEpisodes
-      )
+      try await updateSeriesFromFeed(podcastSeries: podcastSeries, podcastFeed: podcastFeed)
     }
+  }
+
+  func updateSeriesFromFeed(podcastSeries: PodcastSeries, podcastFeed: PodcastFeed) async throws {
+    var newPodcast = try podcastFeed.toPodcast(merging: podcastSeries.podcast)
+    var unsavedEpisodes: [UnsavedEpisode] = []
+    var existingEpisodes: [Episode] = []
+    for feedItem in podcastFeed.episodes {
+      if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
+        if let newExistingEpisode = try? feedItem.toEpisode(merging: existingEpisode) {
+          existingEpisodes.append(newExistingEpisode)
+        }
+      } else if let newUnsavedEpisode = try? feedItem.toUnsavedEpisode() {
+        unsavedEpisodes.append(newUnsavedEpisode)
+      }
+    }
+    newPodcast.lastUpdate = Date()
+    try await repo.updateSeries(
+      newPodcast,
+      unsavedEpisodes: unsavedEpisodes,
+      existingEpisodes: existingEpisodes
+    )
   }
 
   // MARK: - Background Refreshing
