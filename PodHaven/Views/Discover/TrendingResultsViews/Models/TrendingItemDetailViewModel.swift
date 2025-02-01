@@ -22,9 +22,9 @@ import Foundation
 
   func fetchFeed() async throws {
     let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
+    self.podcastFeed = podcastFeed
     unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false)
     unsavedEpisodes = podcastFeed.toUnsavedEpisodes()
-    self.podcastFeed = podcastFeed
 
     existingPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)
     if let podcastSeries = existingPodcastSeries, podcastSeries.podcast.subscribed {
