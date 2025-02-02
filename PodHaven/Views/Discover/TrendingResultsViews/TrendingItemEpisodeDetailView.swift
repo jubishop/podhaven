@@ -3,6 +3,8 @@
 import SwiftUI
 
 struct TrendingItemEpisodeDetailView: View {
+  @Environment(Alert.self) var alert
+
   private let viewModel: TrendingItemEpisodeDetailViewModel
 
   init(viewModel: TrendingItemEpisodeDetailViewModel) {
@@ -10,8 +12,32 @@ struct TrendingItemEpisodeDetailView: View {
   }
 
   var body: some View {
-    Text(viewModel.unsavedEpisode.title)
-      .navigationTitle(viewModel.unsavedEpisode.title)
+    VStack {
+      Text(viewModel.unsavedEpisode.title)
+      Text("Duration: \(viewModel.unsavedEpisode.duration.readable())")
+      if !viewModel.onDeck {
+        Button(
+          action: viewModel.playNow,
+          label: { Text("Play Now") }
+        )
+        Button(
+          action: viewModel.addToTopOfQueue,
+          label: { Text("Add To Top Of Queue") }
+        )
+        Button(
+          action: viewModel.appendToQueue,
+          label: { Text("Add To Bottom Of Queue") }
+        )
+      }
+    }
+    .navigationTitle(viewModel.unsavedEpisode.title)
+    .task {
+      do {
+        try await viewModel.fetchEpisode()
+      } catch {
+        alert.andReport(error)
+      }
+    }
   }
 }
 
