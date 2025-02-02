@@ -2,7 +2,7 @@
 
 import Foundation
 
-struct UnsavedPodcastEpisode: Sendable, Hashable {
+struct UnsavedPodcastEpisode: Hashable {
   let unsavedPodcast: UnsavedPodcast
   let unsavedEpisode: UnsavedEpisode
 }

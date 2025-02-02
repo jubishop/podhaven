@@ -43,8 +43,7 @@ struct TrendingItemDetailView: View {
           destination: { unsavedPodcastEpisode in
             TrendingItemEpisodeDetailView(
               viewModel: TrendingItemEpisodeDetailViewModel(
-                unsavedPodcast: unsavedPodcastEpisode.unsavedPodcast,
-                unsavedEpisode: unsavedPodcastEpisode.unsavedEpisode
+                unsavedPodcastEpisode: unsavedPodcastEpisode
               )
             )
           }

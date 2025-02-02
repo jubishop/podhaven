@@ -10,17 +10,15 @@ import GRDB
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.playState) private var playState
 
-  let unsavedPodcast: UnsavedPodcast
-  let unsavedEpisode: UnsavedEpisode
+  private let unsavedPodcastEpisode: UnsavedPodcastEpisode
+  var unsavedPodcast: UnsavedPodcast { unsavedPodcastEpisode.unsavedPodcast }
+  var unsavedEpisode: UnsavedEpisode { unsavedPodcastEpisode.unsavedEpisode }
 
   private var fetchAttempted = false
   private var podcastEpisode: PodcastEpisode?
-  var podcast: Podcast? { podcastEpisode?.podcast }
-  var episode: Episode? { podcastEpisode?.episode }
 
-  init(unsavedPodcast: UnsavedPodcast, unsavedEpisode: UnsavedEpisode) {
-    self.unsavedPodcast = unsavedPodcast
-    self.unsavedEpisode = unsavedEpisode
+  init(unsavedPodcastEpisode: UnsavedPodcastEpisode) {
+    self.unsavedPodcastEpisode = unsavedPodcastEpisode
   }
 
   var onDeck: Bool {
@@ -32,17 +30,24 @@ import GRDB
 
   func playNow() {
     Task {
+      let podcastEpisode = try await self.fetchOrCreateEpisode()
       try await playManager.load(podcastEpisode)
       await playManager.play()
     }
   }
 
   func addToTopOfQueue() {
-    Task { try await queue.unshift(episode.id) }
+    Task {
+      let podcastEpisode = try await self.fetchOrCreateEpisode()
+      try await queue.unshift(podcastEpisode.episode.id)
+    }
   }
 
   func appendToQueue() {
-    Task { try await queue.append(episode.id) }
+    Task {
+      let podcastEpisode = try await self.fetchOrCreateEpisode()
+      try await queue.append(podcastEpisode.episode.id)
+    }
   }
 
   func fetchOrCreateEpisode() async throws -> PodcastEpisode {
@@ -50,9 +55,10 @@ import GRDB
     if let existingEpisode = self.podcastEpisode {
       return existingEpisode
     }
-    // TODO: Check if podcast exists just without this episode
-    //   then either add the episode or entire "series"
-    return existingEpisode
+
+    let podcastEpisode = try await repo.addEpisode(unsavedPodcastEpisode)
+    self.podcastEpisode = podcastEpisode
+    return podcastEpisode
   }
 
   func fetchEpisode() async throws {

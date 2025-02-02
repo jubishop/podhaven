@@ -75,7 +75,7 @@ struct Repo: Sendable {
         .fetchOne(db)
     }
   }
-  
+
   // MARK: - Episode Readers
 
   func nextEpisode() async throws -> PodcastEpisode? {
@@ -152,6 +152,25 @@ struct Repo: Sendable {
   }
 
   // MARK: - Episode Writers
+
+  // TODO: Test this
+  @discardableResult
+  func addEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
+    let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
+
+    return try await appDB.db.write { db in
+      var unsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
+      let podcast: Podcast
+      if let fetchedPodcast = try Podcast.fetchOne(db, key: ["feedURL": unsavedPodcast.feedURL]) {
+        podcast = fetchedPodcast
+      } else {
+        podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
+      }
+      unsavedEpisode.podcastId = podcast.id
+      let episode = try unsavedEpisode.insertAndFetch(db, as: Episode.self)
+      return PodcastEpisode(podcast: podcast, episode: episode)
+    }
+  }
 
   func updateCurrentTime(_ episodeID: Episode.ID, _ currentTime: CMTime) async throws {
     _ = try await appDB.db.write { db in

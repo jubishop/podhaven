@@ -49,8 +49,10 @@ struct TrendingItemEpisodeDetailView: View {
     if let unsavedPodcast = unsavedPodcast, let unsavedEpisodes = unsavedEpisodes {
       TrendingItemEpisodeDetailView(
         viewModel: TrendingItemEpisodeDetailViewModel(
-          unsavedPodcast: unsavedPodcast,
-          unsavedEpisode: unsavedEpisodes.randomElement()!
+          unsavedPodcastEpisode: UnsavedPodcastEpisode(
+            unsavedPodcast: unsavedPodcast,
+            unsavedEpisode: unsavedEpisodes.randomElement()!
+          )
         )
       )
     }
