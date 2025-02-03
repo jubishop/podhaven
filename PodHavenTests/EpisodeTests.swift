@@ -134,4 +134,34 @@ actor EpisodeTests {
     #expect(podcastEpisode.episode.completed == true)
     #expect(podcastEpisode.episode.currentTime == CMTime.zero)
   }
+
+  @Test("that addEpisode works when podcast exists or is new")
+  func testAddEpisode() async throws {
+    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    let unsavedEpisode = try TestHelpers.unsavedEpisode()
+    let insertedPodcastEpisode = try await repo.addEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: unsavedEpisode
+      )
+    )
+    #expect(insertedPodcastEpisode.podcast.feedURL == unsavedPodcast.feedURL)
+    #expect(insertedPodcastEpisode.episode.media == unsavedEpisode.media)
+
+    let fetchedPodcastEpisode = try await repo.episode(insertedPodcastEpisode.id)!
+    #expect(fetchedPodcastEpisode.podcast.title == insertedPodcastEpisode.podcast.title)
+    #expect(fetchedPodcastEpisode.episode.guid == insertedPodcastEpisode.episode.guid)
+
+    let secondUnsavedEpisode = try TestHelpers.unsavedEpisode()
+    let _ = try await repo.addEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: secondUnsavedEpisode
+      )
+    )
+
+    let fetchedPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)!
+    #expect(fetchedPodcastSeries.episodes.count == 2)
+
+  }
 }
