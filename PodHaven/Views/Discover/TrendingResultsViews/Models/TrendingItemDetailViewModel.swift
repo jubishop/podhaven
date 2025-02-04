@@ -11,6 +11,7 @@ import Foundation
   let category: String
   var unsavedPodcast: UnsavedPodcast
   var unsavedEpisodes: [UnsavedEpisode] = []
+  var subscribable: Bool = false
 
   private var existingPodcastSeries: PodcastSeries?
   private var podcastFeed: PodcastFeed?
@@ -29,6 +30,8 @@ import Foundation
     existingPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)
     if let podcastSeries = existingPodcastSeries, podcastSeries.podcast.subscribed {
       navigation.showPodcast(podcastSeries)
+    } else {
+      subscribable = true
     }
   }
 

@@ -15,14 +15,16 @@ struct TrendingItemDetailView: View {
     VStack(spacing: 40) {
       HTMLText(viewModel.unsavedPodcast.description)
 
-      Button(
-        action: {
-          Task { try await viewModel.subscribe() }
-        },
-        label: {
-          Text("Subscribe")
-        }
-      )
+      if viewModel.subscribable {
+        Button(
+          action: {
+            Task { try await viewModel.subscribe() }
+          },
+          label: {
+            Text("Subscribe")
+          }
+        )
+      }
 
       if viewModel.unsavedEpisodes.isEmpty {
         Text("Loading episodes")
