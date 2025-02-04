@@ -21,6 +21,10 @@ import IdentifiedCollections
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
   }
 
+  func subscribe() async throws {
+    try await repo.markSubscribed(podcast.id)
+  }
+
   func observePodcast() async throws {
     let observer =
       ValueObservation

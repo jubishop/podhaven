@@ -14,7 +14,19 @@ struct SeriesView: View {
   var body: some View {
     VStack {
       HTMLText(viewModel.podcast.description).lineLimit(3).padding()
+
       Text("Last updated: \(viewModel.podcast.formattedLastUpdate)")
+
+      if !viewModel.podcast.subscribed {
+        Button(
+          action: {
+            Task { try await viewModel.subscribe() }
+          },
+          label: {
+            Text("Subscribe")
+          }
+        )
+      }
       List(viewModel.episodes) { episode in
         NavigationLink(
           value: episode,
