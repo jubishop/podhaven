@@ -56,7 +56,7 @@ struct Repo: Sendable {
 
   // MARK: - Series Readers
 
-  func podcastSeries(podcastID: Podcast.ID) async throws -> PodcastSeries? {
+  func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
     try await appDB.db.read { db in
       try Podcast
         .filter(id: podcastID)

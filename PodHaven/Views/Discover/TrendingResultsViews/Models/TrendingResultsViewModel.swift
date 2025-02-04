@@ -11,7 +11,7 @@ import Foundation
     self.category = category
     self.trendingResult = trendingResult
     if let trendingResult = trendingResult {
-      unsavedPodcasts = trendingResult.feeds.compactMap { try? $0.toUnsavedPodcast()}
+      unsavedPodcasts = trendingResult.feeds.compactMap { try? $0.toUnsavedPodcast() }
     } else {
       unsavedPodcasts = []
     }

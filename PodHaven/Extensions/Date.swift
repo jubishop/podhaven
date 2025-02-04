@@ -12,4 +12,8 @@ extension Date {
   }()
 
   static let epoch: Date = Date(timeIntervalSince1970: 0)
+
+  static func minutesAgo(_ minutes: Int) -> Date {
+    Date().addingTimeInterval(-TimeInterval(minutes * 60))
+  }
 }

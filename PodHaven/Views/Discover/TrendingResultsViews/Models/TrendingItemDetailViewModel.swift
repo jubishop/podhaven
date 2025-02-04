@@ -24,7 +24,7 @@ import Foundation
   func fetchFeed() async throws {
     let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
     self.podcastFeed = podcastFeed
-    unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false)
+    unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false, lastUpdate: Date.epoch)
     unsavedEpisodes = podcastFeed.toUnsavedEpisodes()
 
     existingPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)
@@ -47,6 +47,7 @@ import Foundation
       navigation.showPodcast(updatedPodcastSeries)
     } else {
       unsavedPodcast.subscribed = true
+      unsavedPodcast.lastUpdate = Date()
       let newPodcastSeries = try await repo.insertSeries(
         unsavedPodcast,
         unsavedEpisodes: unsavedEpisodes

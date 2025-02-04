@@ -146,7 +146,7 @@ actor PodcastTests {
     #expect(podcastSeries.podcast.subscribed == false)
 
     try await repo.markSubscribed(podcastSeries.id)
-    let fetchedPodcast = try await repo.podcastSeries(podcastID: podcastSeries.id)!
+    let fetchedPodcast = try await repo.podcastSeries(podcastSeries.id)!
     #expect(fetchedPodcast.podcast.subscribed == true)
   }
 }

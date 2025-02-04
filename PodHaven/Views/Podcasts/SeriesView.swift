@@ -61,6 +61,7 @@ struct SeriesView: View {
     }
     .task {
       do {
+        try await viewModel.refreshIfStale()
         try await viewModel.observePodcast()
       } catch {
         alert.andReport(error)

@@ -91,6 +91,9 @@ actor SearchServiceTests {
     #expect(result.feeds.count == 40)
     #expect(result.since == Date(timeIntervalSince1970: TimeInterval(1736102643)))
     #expect(feed.title == "La Venganza Será Terrible (oficial)")
+
+    let unsavedPodcast = try feed.toUnsavedPodcast()
+    #expect(unsavedPodcast.lastUpdate == Date.epoch)
   }
 
   @Test("search trending in News category")

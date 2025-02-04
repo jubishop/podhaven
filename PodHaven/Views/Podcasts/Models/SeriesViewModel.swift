@@ -17,6 +17,15 @@ import IdentifiedCollections
     self.podcastSeries = PodcastSeries(podcast: podcast)
   }
 
+  func refreshIfStale() async throws {
+    if podcastSeries.podcast.lastUpdate < Date.minutesAgo(15),
+      let podcastSeries = try await repo.podcastSeries(podcastSeries.id)
+    {
+      self.podcastSeries = podcastSeries
+      try await refreshSeries()
+    }
+  }
+
   func refreshSeries() async throws {
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
   }
@@ -40,6 +49,8 @@ import IdentifiedCollections
     for try await podcastSeries in observer.values(in: repo.db) {
       guard let podcastSeries = podcastSeries
       else { throw Err.msg("No return from DB for: \(podcast.toString)") }
+
+      if self.podcastSeries == podcastSeries { continue }
       self.podcastSeries = podcastSeries
     }
   }

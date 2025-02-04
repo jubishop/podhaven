@@ -125,7 +125,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         if !podcast.subscribed {
           Task {
             try await repo.markSubscribed(podcast.id)
-            if let series = try await repo.podcastSeries(podcastID: podcast.id) {
+            if let series = try await repo.podcastSeries(podcast.id) {
               try await refreshManager.refreshSeries(podcastSeries: series)
             }
           }

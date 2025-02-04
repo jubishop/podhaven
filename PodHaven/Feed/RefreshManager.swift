@@ -99,7 +99,7 @@ actor RefreshManager: Sendable {
     backgroundRefreshTask = Task(priority: .background) { [unowned self] in
       while !Task.isCancelled {
         try? await performScheduledRefresh()
-        try? await Task.sleep(for: .seconds(900))  // 15 minutes
+        try? await Task.sleep(for: .minutes(15))
       }
     }
   }
@@ -113,7 +113,7 @@ actor RefreshManager: Sendable {
     try await withThrowingDiscardingTaskGroup { group in
       let allStaleSubscribedPodcastSeries: PodcastSeriesArray =
         try await repo.allPodcastSeries {
-          $0.filter(Schema.lastUpdateColumn < Date().addingTimeInterval(-600))  // 10 minutes
+          $0.filter(Schema.lastUpdateColumn < Date.minutesAgo(10))
             .filter(Schema.subscribedColumn == true)
         }
       for podcastSeries in allStaleSubscribedPodcastSeries {

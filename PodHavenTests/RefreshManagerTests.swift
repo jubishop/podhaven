@@ -43,7 +43,7 @@ actor RefreshManagerTests {
     await session.set(podcastSeries.podcast.feedURL, .data(data))
     try await manager.refreshSeries(podcastSeries: podcastSeries)
 
-    let updatedSeries = try await repo.podcastSeries(podcastID: podcastSeries.podcast.id)!
+    let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
     #expect(updatedSeries.podcast.title == "Hard Fork version 2")
     #expect(updatedSeries.episodes.count == 3)
     #expect(

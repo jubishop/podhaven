@@ -72,7 +72,7 @@ actor EpisodeTests {
       existingEpisodes: [episode]
     )
 
-    let fetchedSeries = try await repo.podcastSeries(podcastID: podcastSeries.podcast.id)!
+    let fetchedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
     #expect(fetchedSeries.podcast.title == "new podcast title")
     #expect(fetchedSeries.episodes.count == 2)
     #expect(fetchedSeries.episodes.last!.title == "new title")
