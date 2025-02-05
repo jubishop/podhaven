@@ -39,7 +39,7 @@ actor EpisodeTests {
 
     let podcastSeries = try await repo.db.read { db in
       try Podcast
-        .filter(key: ["feedURL": url])
+        .filter(Schema.feedURLColumn == url)
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)

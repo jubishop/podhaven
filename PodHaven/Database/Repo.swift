@@ -69,7 +69,7 @@ struct Repo: Sendable {
   func podcastSeries(_ feedURL: URL) async throws -> PodcastSeries? {
     try await appDB.db.read { db in
       try Podcast
-        .filter(key: ["feedURL": feedURL])
+        .filter(Schema.feedURLColumn == feedURL)
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
@@ -98,10 +98,10 @@ struct Repo: Sendable {
     }
   }
 
-  func episode(_ url: URL) async throws -> PodcastEpisode? {
+  func episode(_ media: URL) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
-        .filter(Schema.mediaColumn == url)
+        .filter(Schema.mediaColumn == media)
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)
@@ -159,12 +159,7 @@ struct Repo: Sendable {
 
     return try await appDB.db.write { db in
       var unsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
-      let podcast: Podcast
-      if let fetchedPodcast = try Podcast.fetchOne(db, key: ["feedURL": unsavedPodcast.feedURL]) {
-        podcast = fetchedPodcast
-      } else {
-        podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
-      }
+      let podcast: Podcast = try fetchOrInsert(db, unsavedPodcast)
       unsavedEpisode.podcastId = podcast.id
       let episode = try unsavedEpisode.insertAndFetch(db, as: Episode.self)
       return PodcastEpisode(podcast: podcast, episode: episode)
@@ -193,5 +188,15 @@ struct Repo: Sendable {
         .filter(id: podcastID)
         .updateAll(db, Schema.subscribedColumn.set(to: true))
     }
+  }
+
+  // MARK: Private Helpers
+
+  private func fetchOrInsert(_ db: Database, _ unsavedPodcast: UnsavedPodcast) throws -> Podcast {
+    guard
+      let podcast = try Podcast.filter(Schema.feedURLColumn == unsavedPodcast.feedURL).fetchOne(db)
+    else { return try unsavedPodcast.insertAndFetch(db, as: Podcast.self) }
+
+    return podcast
   }
 }
