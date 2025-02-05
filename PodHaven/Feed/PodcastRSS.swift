@@ -30,7 +30,7 @@ struct PodcastRSS: Decodable, Sendable {
   struct Episode: Decodable, Sendable {
     struct TopLevelValues: Decodable, Sendable {
       struct Enclosure: Decodable, Sendable {
-        let url: URL
+        let url: MediaURL
       }
       let title: String
       let enclosure: Enclosure

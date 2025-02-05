@@ -34,13 +34,13 @@ struct NowPlayingInfo: Sendable {
       value: CMTimeGetSeconds(onDeck.duration)
     )
     nowPlayingInfo[MPMediaItemPropertyTitle] = onDeck.episodeTitle
-    nowPlayingInfo[MPNowPlayingInfoCollectionIdentifier] = onDeck.feedURL
-    nowPlayingInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.mediaURL
+    nowPlayingInfo[MPNowPlayingInfoCollectionIdentifier] = onDeck.feedURL.rawValue
+    nowPlayingInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.media.rawValue
     nowPlayingInfo[MPNowPlayingInfoPropertyCurrentPlaybackDate] = onDeck.pubDate
     nowPlayingInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
     nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = Double(0)
     nowPlayingInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] =
-      onDeck.guid
+      onDeck.guid.rawValue
     nowPlayingInfo[MPNowPlayingInfoPropertyExternalUserProfileIdentifier] =
       appIdentifier
     nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = false

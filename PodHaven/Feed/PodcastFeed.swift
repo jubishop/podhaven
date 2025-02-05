@@ -5,7 +5,7 @@ import Foundation
 
 struct EpisodeFeed: Sendable, Equatable {
   let guid: GUID
-  let media: URL
+  let media: MediaURL
 
   private let rssEpisode: PodcastRSS.Episode
 

@@ -50,7 +50,7 @@ struct DebugSection: View {
         episode: Episode(
           from: try UnsavedEpisode(
             guid: "guid",
-            media: URL(string: "https://notreal.com/hi.mp3")!,
+            media: MediaURL(URL(string: "https://notreal.com/hi.mp3")!),
             title: "Stupid Tech Talky Talky"
           )
         )

@@ -76,7 +76,7 @@ final actor PlayManager {
     pause()
     status = .loading
 
-    let avAsset = AVURLAsset(url: podcastEpisode.episode.media)
+    let avAsset = AVURLAsset(url: podcastEpisode.episode.media.rawValue)
 
     let duration: CMTime
     do {
@@ -170,7 +170,7 @@ final actor PlayManager {
       episodeTitle: podcastEpisode.episode.title,
       duration: duration,
       image: try await images.fetchImage(imageURL),
-      mediaURL: podcastEpisode.episode.media,
+      media: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate,
       key: accessKey
     )

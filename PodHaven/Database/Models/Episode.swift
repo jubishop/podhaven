@@ -7,12 +7,13 @@ import IdentifiedCollections
 import Tagged
 
 typealias GUID = Tagged<UnsavedEpisode, String>
+typealias MediaURL = Tagged<UnsavedEpisode, URL>
 typealias EpisodeArray = IdentifiedArray<GUID, Episode>
 
 struct UnsavedEpisode: Savable {
   var podcastId: Podcast.ID?
   let guid: GUID
-  var media: URL
+  var media: MediaURL
   var title: String
   var pubDate: Date
   var duration: CMTime
@@ -26,7 +27,7 @@ struct UnsavedEpisode: Savable {
   init(
     podcastId: Podcast.ID? = nil,
     guid: GUID,
-    media: URL,
+    media: MediaURL,
     title: String,
     pubDate: Date? = nil,
     duration: CMTime? = nil,
@@ -39,7 +40,7 @@ struct UnsavedEpisode: Savable {
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
-    self.media = try media.convertToValidURL()
+    self.media = MediaURL(try media.rawValue.convertToValidURL())
     self.title = title
     self.pubDate = pubDate ?? Date()
     self.duration = duration ?? CMTime.zero

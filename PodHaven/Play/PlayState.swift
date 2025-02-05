@@ -13,7 +13,7 @@ struct OnDeck: Sendable {
   let episodeTitle: String?
   let duration: CMTime
   let image: UIImage?
-  let mediaURL: URL
+  let media: MediaURL
   let pubDate: Date?
 
   init(
@@ -24,7 +24,7 @@ struct OnDeck: Sendable {
     episodeTitle: String?,
     duration: CMTime,
     image: UIImage?,
-    mediaURL: URL,
+    media: MediaURL,
     pubDate: Date?,
     key: PlayManagerAccessKey
   ) {
@@ -35,7 +35,7 @@ struct OnDeck: Sendable {
     self.episodeTitle = episodeTitle
     self.duration = duration
     self.image = image
-    self.mediaURL = mediaURL
+    self.media = media
     self.pubDate = pubDate
   }
 }
@@ -84,7 +84,7 @@ extension Container {
   func isOnDeck(_ podcastEpisode: PodcastEpisode) -> Bool {
     onDeck?.guid == podcastEpisode.episode.guid
       && onDeck?.feedURL == podcastEpisode.podcast.feedURL
-      && onDeck?.mediaURL == podcastEpisode.episode.media
+      && onDeck?.media == podcastEpisode.episode.media
   }
 
   // MARK: - State Setters

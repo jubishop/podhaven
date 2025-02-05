@@ -10,7 +10,7 @@ enum TestHelpers {
   static func unsavedEpisode(
     podcastId: Podcast.ID? = nil,
     guid: GUID = GUID(String.random()),
-    media: URL = URL.valid(),
+    media: MediaURL = MediaURL(URL.valid()),
     title: String = String.random(),
     pubDate: Date? = Date(),
     duration: CMTime? = nil,

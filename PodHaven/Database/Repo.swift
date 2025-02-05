@@ -98,7 +98,7 @@ struct Repo: Sendable {
     }
   }
 
-  func episode(_ media: URL) async throws -> PodcastEpisode? {
+  func episode(_ media: MediaURL) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
         .filter(Schema.mediaColumn == media)
