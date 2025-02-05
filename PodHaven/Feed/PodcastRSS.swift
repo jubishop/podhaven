@@ -34,7 +34,7 @@ struct PodcastRSS: Decodable, Sendable {
       }
       let title: String
       let enclosure: Enclosure
-      let guid: String
+      let guid: GUID
       let link: URL?
       let description: String?
       let pubDate: Date?

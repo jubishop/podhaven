@@ -9,7 +9,7 @@ import Tagged
 enum TestHelpers {
   static func unsavedEpisode(
     podcastId: Podcast.ID? = nil,
-    guid: String = String.random(),
+    guid: GUID = GUID(String.random()),
     media: URL = URL.valid(),
     title: String = String.random(),
     pubDate: Date? = Date(),

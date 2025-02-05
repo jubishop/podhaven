@@ -7,7 +7,7 @@ import SwiftUI
 
 struct OnDeck: Sendable {
   let feedURL: FeedURL
-  let guid: String
+  let guid: GUID
   let podcastTitle: String
   let podcastURL: URL?
   let episodeTitle: String?
@@ -18,7 +18,7 @@ struct OnDeck: Sendable {
 
   init(
     feedURL: FeedURL,
-    guid: String,
+    guid: GUID,
     podcastTitle: String,
     podcastURL: URL?,
     episodeTitle: String?,

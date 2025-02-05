@@ -4,7 +4,7 @@ import AVFoundation
 import Foundation
 
 struct EpisodeFeed: Sendable, Equatable {
-  let guid: String
+  let guid: GUID
   let media: URL
 
   private let rssEpisode: PodcastRSS.Episode

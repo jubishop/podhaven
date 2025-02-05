@@ -6,11 +6,12 @@ import GRDB
 import IdentifiedCollections
 import Tagged
 
-typealias EpisodeArray = IdentifiedArray<String, Episode>  // guid
+typealias GUID = Tagged<UnsavedEpisode, String>
+typealias EpisodeArray = IdentifiedArray<GUID, Episode>
 
 struct UnsavedEpisode: Savable {
   var podcastId: Podcast.ID?
-  let guid: String
+  let guid: GUID
   var media: URL
   var title: String
   var pubDate: Date
@@ -24,7 +25,7 @@ struct UnsavedEpisode: Savable {
 
   init(
     podcastId: Podcast.ID? = nil,
-    guid: String,
+    guid: GUID,
     media: URL,
     title: String,
     pubDate: Date? = nil,

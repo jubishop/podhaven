@@ -81,7 +81,7 @@ actor EpisodeTests {
 
   @Test("that episodes can persist currentTime")
   func persistCurrentTime() async throws {
-    let guid = "guid"
+    let guid = GUID("guid")
     let cmTime = CMTime.inSeconds(30)
 
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
