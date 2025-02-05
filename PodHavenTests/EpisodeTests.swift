@@ -14,7 +14,7 @@ actor EpisodeTests {
   @Test("that episodes are created and fetched in the right order")
   func createSeveralEpisodes() async throws {
     let url = URL.valid()
-    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: url)
+    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: FeedURL(url))
 
     let newestUnsavedEpisode = try TestHelpers.unsavedEpisode()
     let oldUnsavedEpisode = try TestHelpers.unsavedEpisode(

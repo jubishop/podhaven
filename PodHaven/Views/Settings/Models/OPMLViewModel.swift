@@ -14,18 +14,18 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
   let id = UUID()
   var status: Status
-  var feedURL: URL
+  var feedURL: FeedURL
   var text: String
 
   convenience init(status: Status, text: String) {
     self.init(
       status: status,
-      feedURL: URL.placeholder,
+      feedURL: FeedURL(URL.placeholder),
       text: text
     )
   }
 
-  init(status: Status, feedURL: URL, text: String) {
+  init(status: Status, feedURL: FeedURL, text: String) {
     self.status = status
     self.feedURL = feedURL
     self.text = text
@@ -115,7 +115,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     let allPodcasts = try await repo.allPodcasts()
 
     for outline in opml.body.outlines {
-      guard let feedURL = try? outline.xmlUrl.convertToValidURL()
+      guard let feedURL = try? FeedURL(outline.xmlUrl.rawValue.convertToValidURL())
       else {
         opmlFile.failed.insert(OPMLOutline(status: .failed, text: outline.text))
         continue

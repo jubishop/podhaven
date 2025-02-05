@@ -21,7 +21,7 @@ actor RefreshManagerTests {
   @Test("that refreshSeries works")
   func testRefreshSeriesWorks() async throws {
     let podcastFeed = try await PodcastFeed.parse(
-      Bundle.main.url(forResource: "hardfork_short", withExtension: "rss")!
+      FeedURL(Bundle.main.url(forResource: "hardfork_short", withExtension: "rss")!)
     )
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: true)
     let podcastSeries = try await repo.insertSeries(
@@ -40,7 +40,7 @@ actor RefreshManagerTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "hardfork_short_updated", withExtension: "rss")!
     )
-    await session.set(podcastSeries.podcast.feedURL, .data(data))
+    await session.set(podcastSeries.podcast.feedURL.rawValue, .data(data))
     try await manager.refreshSeries(podcastSeries: podcastSeries)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!

@@ -5,7 +5,7 @@ import Foundation
 struct TrendingResult: Sendable, Decodable {
   struct FeedResult: Sendable, Decodable, Identifiable, Hashable {
     let id: Int
-    let url: URL
+    let url: FeedURL
     let image: URL
     let title: String
     let description: String

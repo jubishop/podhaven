@@ -68,11 +68,11 @@ struct EpisodeFeed: Sendable, Equatable {
 struct PodcastFeed: Sendable, Equatable {
   // MARK: - Static Parsing Methods
 
-  static func parse(_ url: URL) async throws -> PodcastFeed {
-    try await parse(try Data(contentsOf: url), from: url)
+  static func parse(_ url: FeedURL) async throws -> PodcastFeed {
+    try await parse(try Data(contentsOf: url.rawValue), from: url)
   }
 
-  static func parse(_ data: Data, from: URL) async throws -> PodcastFeed {
+  static func parse(_ data: Data, from: FeedURL) async throws -> PodcastFeed {
     let rssPodcast = try await PodcastRSS.parse(data)
     return try PodcastFeed(rssPodcast: rssPodcast, from: from)
   }
@@ -82,11 +82,11 @@ struct PodcastFeed: Sendable, Equatable {
   let episodes: [EpisodeFeed]
 
   private let rssPodcast: PodcastRSS.Podcast
-  private let feedURL: URL
+  private let feedURL: FeedURL
   private let link: URL?
   private let image: URL
 
-  private init(rssPodcast: PodcastRSS.Podcast, from: URL) throws {
+  private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL) throws {
     self.rssPodcast = rssPodcast
     self.feedURL = rssPodcast.feedURL ?? from
     self.link = rssPodcast.link

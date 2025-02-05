@@ -38,7 +38,7 @@ enum TestHelpers {
   }
 
   static func unsavedPodcast(
-    feedURL: URL = URL.valid(),
+    feedURL: FeedURL = FeedURL(URL.valid()),
     title: String = String.random(),
     image: URL = URL.valid(),
     description: String = String.random(),

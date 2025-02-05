@@ -3,11 +3,13 @@
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Tagged
 
-typealias PodcastArray = IdentifiedArray<URL, Podcast> // feedURL
+typealias FeedURL = Tagged<UnsavedPodcast, URL>
+typealias PodcastArray = IdentifiedArray<FeedURL, Podcast>
 
 struct UnsavedPodcast: Savable {
-  var feedURL: URL
+  var feedURL: FeedURL
   var title: String
   var image: URL
   var description: String
@@ -16,7 +18,7 @@ struct UnsavedPodcast: Savable {
   var subscribed: Bool
 
   init(
-    feedURL: URL,
+    feedURL: FeedURL,
     title: String,
     image: URL,
     description: String,
@@ -24,7 +26,7 @@ struct UnsavedPodcast: Savable {
     lastUpdate: Date? = nil,
     subscribed: Bool
   ) throws {
-    self.feedURL = try feedURL.convertToValidURL()
+    self.feedURL = FeedURL(try feedURL.rawValue.convertToValidURL())
     self.title = title
     self.image = try image.convertToValidURL()
     self.description = description

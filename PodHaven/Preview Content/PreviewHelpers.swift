@@ -27,8 +27,9 @@ enum PreviewHelpers {
 
     let feedManager = Container.shared.feedManager()
     for outline in opml.body.outlines {
-      guard let feedURL = try? outline.xmlUrl.convertToValidURL()
+      guard let feedURL = try? FeedURL(outline.xmlUrl.rawValue.convertToValidURL())
       else { continue }
+
       if allPodcasts[id: feedURL] != nil { continue }
       await feedManager.addURL(feedURL)
     }
@@ -67,7 +68,7 @@ enum PreviewHelpers {
       return podcastSeries
     }
     let podcastFeed = try await PodcastFeed.parse(
-      Bundle.main.url(forResource: fileName, withExtension: "rss")!
+      FeedURL(Bundle.main.url(forResource: fileName, withExtension: "rss")!)
     )
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: true)
     return try await repo.insertSeries(
@@ -98,7 +99,7 @@ enum PreviewHelpers {
     -> (UnsavedPodcast, [UnsavedEpisode])
   {
     let podcastFeed = try await PodcastFeed.parse(
-      Bundle.main.url(forResource: fileName, withExtension: "rss")!
+      FeedURL(Bundle.main.url(forResource: fileName, withExtension: "rss")!)
     )
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: true)
     return (
@@ -115,7 +116,7 @@ enum PreviewHelpers {
   }
 
   static func loadUnsavedPodcast(fileName: String = seriesFiles.keys.randomElement()!) async throws
-  -> UnsavedPodcast
+    -> UnsavedPodcast
   {
     let (unsavedPodcast, _) = try! await PreviewHelpers.loadUnsavedPodcastEpisodes()
     return unsavedPodcast

@@ -95,7 +95,7 @@ struct PodcastRSS: Decodable, Sendable {
         let href: URL
       }
       let image: Image
-      let newFeedURL: URL?
+      let newFeedURL: FeedURL?
 
       enum CodingKeys: String, CodingKey {
         case image = "itunes:image"
@@ -106,8 +106,11 @@ struct PodcastRSS: Decodable, Sendable {
 
     // MARK: - Convenience Getters
 
-    var feedURL: URL? {
-      self.atomLinks.first(where: { $0.rel == "self" })?.href
+    var feedURL: FeedURL? {
+      guard let url = self.atomLinks.first(where: { $0.rel == "self" })?.href
+      else { return nil }
+
+      return FeedURL(url)
     }
 
     // MARK: - Meta

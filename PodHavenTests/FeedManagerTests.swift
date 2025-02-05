@@ -23,7 +23,7 @@ actor FeedManagerTests {
     )
     let url = URL.valid()
     await session.set(url, .data(data))
-    let feedTask = await manager.addURL(url)
+    let feedTask = await manager.addURL(FeedURL(url))
     let feedResult = await feedTask.feedParsed()
     let feed = feedResult.isSuccessfulWith()!
     let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: true)

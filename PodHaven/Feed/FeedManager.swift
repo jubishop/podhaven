@@ -38,7 +38,10 @@ struct FeedTask: Sendable {
       return .failure(Err.msg("Failed to load: \(downloadTask.url)"))
     case .success(let downloadData):
       do {
-        let podcastFeed = try await PodcastFeed.parse(downloadData.data, from: downloadData.url)
+        let podcastFeed = try await PodcastFeed.parse(
+          downloadData.data,
+          from: FeedURL(downloadData.url)
+        )
         return .success(podcastFeed)
       } catch {
         return .failure(error)
@@ -65,7 +68,7 @@ final actor FeedManager: Sendable {
   private let downloadManager: DownloadManager
   private let asyncStream: AsyncStream<FeedResult>
   private let streamContinuation: AsyncStream<FeedResult>.Continuation
-  private var feedTasks: [URL: FeedTask] = [:]
+  private var feedTasks: [FeedURL: FeedTask] = [:]
 
   var remainingFeeds: Int { feedTasks.count }
 
@@ -85,10 +88,10 @@ final actor FeedManager: Sendable {
   // MARK: - Downloading Feeds
 
   @discardableResult
-  func addURL(_ url: URL) async -> FeedTask {
+  func addURL(_ url: FeedURL) async -> FeedTask {
     if let feedTask = feedTasks[url] { return feedTask }
 
-    let feedTask = FeedTask(await downloadManager.addURL(url))
+    let feedTask = FeedTask(await downloadManager.addURL(url.rawValue))
     feedTasks[url] = feedTask
     Task(priority: .utility) {
       let feedResult = await feedTask.feedParsed()
