@@ -6,7 +6,7 @@ import Foundation
 struct EpisodeResult: Sendable, Decodable {
   struct ItemResult: Sendable, Decodable {
     let id: Int
-    let guid: String
+    let guid: GUID
     let title: String
     @OptionalURL var link: URL?
     let description: String
