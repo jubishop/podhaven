@@ -3,16 +3,16 @@
 import Foundation
 
 struct SearchResult: Sendable, Decodable {
-  struct FeedResult: Sendable, Decodable {
+  struct FeedResult: Sendable, Decodable, Identifiable, Hashable {
     let id: Int
-    let url: URL
+    let url: FeedURL
     let image: URL
     let title: String
     let description: String
     let link: URL
     let lastUpdateTime: Date
     let episodeCount: Int
-    let categories: Dictionary<String, String>
+    let categories: [String: String]
   }
   let feeds: [FeedResult]
 }

@@ -1,5 +1,5 @@
 {
-  "originHash" : "49ee781892ccce868ff6069bb13ab479764bdac8e8eeff3d4cb64adeef09239f",
+  "originHash" : "a75da6c8dcae5a14ef47287f25f11444d907d16b8081568f5eae855e384eb3b1",
   "pins" : [
     {
       "identity" : "factory",
@@ -16,7 +16,7 @@
       "location" : "https://github.com/groue/GRDB.swift",
       "state" : {
         "branch" : "master",
-        "revision" : "3ecb5c54553559217592d21a6d9841becb891b38"
+        "revision" : "ea6d8e0123b0db79cd3cf736f5d9798a89839c51"
       }
     },
     {
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa/",
       "state" : {
-        "revision" : "f45e9c62d7a4d9258ac3cf35a3acf9dbab4481d1",
-        "version" : "8.43.0"
+        "revision" : "0c34e4da899a1dd9183db04082d1ceb6e9c2b301",
+        "version" : "8.44.0"
       }
     },
     {

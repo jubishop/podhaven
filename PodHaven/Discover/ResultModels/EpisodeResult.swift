@@ -11,10 +11,10 @@ struct EpisodeResult: Sendable, Decodable {
     @OptionalURL var link: URL?
     let description: String
     let datePublished: Date
-    let enclosureUrl: URL
+    let enclosureUrl: MediaURL
     let duration: CMTime
     @OptionalURL var image: URL?
-    let feedUrl: URL
+    let feedUrl: FeedURL
     let feedImage: URL
     let feedTitle: String
   }
