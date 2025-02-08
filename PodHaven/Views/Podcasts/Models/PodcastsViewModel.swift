@@ -9,6 +9,8 @@ import IdentifiedCollections
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
 
+  let gridID = "grid"
+
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
   func refreshPodcasts() async throws {
