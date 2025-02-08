@@ -9,6 +9,10 @@ import IdentifiedCollections
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
 
+  var isEditing = false
+  var isSelected = BindableDictionary<Episode, Bool>(defaultValue: false)
+  var anySelected: Bool { isSelected.values.contains(true) }
+
   var podcast: Podcast { podcastSeries.podcast }
   var filteredEpisodes: EpisodeArray {
     let searchTerms =

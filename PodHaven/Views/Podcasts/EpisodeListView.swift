@@ -3,31 +3,35 @@
 import SwiftUI
 
 struct EpisodeListView: View {
-  private let podcastEpisode: PodcastEpisode
-  private var podcast: Podcast { podcastEpisode.podcast }
-  private var episode: Episode { podcastEpisode.episode }
+  private let viewModel: EpisodeListViewModel
 
-  init(podcastEpisode: PodcastEpisode) {
-    self.podcastEpisode = podcastEpisode
+  init(viewModel: EpisodeListViewModel) {
+    self.viewModel = viewModel
   }
 
   var body: some View {
-    Text(episode.toString)
+    Text(viewModel.episode.toString)
   }
 }
 
 #Preview {
-  @Previewable @State var podcastEpisode: PodcastEpisode?
+  @Previewable @State var episode: Episode?
 
   List {
-    if let podcastEpisode = podcastEpisode {
-      EpisodeListView(podcastEpisode: podcastEpisode)
+    if let episode = episode {
+      EpisodeListView(
+        viewModel: EpisodeListViewModel(
+          isSelected: .constant(false),
+          episode: episode,
+          isEditing: .constant(false)
+        )
+      )
     } else {
       Text("No episodes in DB")
     }
   }
   .preview()
   .task {
-    podcastEpisode = try? await PreviewHelpers.loadPodcastEpisode()
+    episode = try? await PreviewHelpers.loadEpisode()
   }
 }

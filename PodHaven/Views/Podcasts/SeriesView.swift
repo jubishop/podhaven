@@ -37,9 +37,10 @@ struct SeriesView: View {
           value: episode,
           label: {
             EpisodeListView(
-              podcastEpisode: PodcastEpisode(
-                podcast: viewModel.podcast,
-                episode: episode
+              viewModel: EpisodeListViewModel(
+                isSelected: $viewModel.isSelected[episode],
+                episode: episode,
+                isEditing: $viewModel.isEditing
               )
             )
           }

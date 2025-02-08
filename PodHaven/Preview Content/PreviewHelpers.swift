@@ -92,6 +92,13 @@ enum PreviewHelpers {
     return PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
   }
 
+  static func loadEpisode(fileName: String = seriesFiles.keys.randomElement()!) async throws
+    -> Episode
+  {
+    let podcastSeries = try await loadSeries(fileName: fileName)
+    return podcastSeries.episodes.randomElement()!
+  }
+
   // MARK: - Importing Unsaved Podcasts/Episodes
 
   static func loadUnsavedPodcastEpisodes(fileName: String = seriesFiles.keys.randomElement()!)
