@@ -9,9 +9,26 @@ import IdentifiedCollections
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
 
-  var podcastSeries: PodcastSeries
   var podcast: Podcast { podcastSeries.podcast }
-  var episodes: EpisodeArray { podcastSeries.episodes }
+  var filteredEpisodes: EpisodeArray {
+    let searchTerms =
+      episodeFilter
+      .lowercased()
+      .components(separatedBy: CharacterSet.whitespacesAndNewlines)
+      .filter { !$0.isEmpty }
+
+    guard !searchTerms.isEmpty else { return podcastSeries.episodes }
+
+    return EpisodeArray(
+      podcastSeries.episodes.filter { episode in
+        let lowercasedTitle = episode.title.lowercased()
+        return searchTerms.allSatisfy { lowercasedTitle.contains($0) }
+      }
+    )
+  }
+  var episodeFilter: String = ""
+
+  private var podcastSeries: PodcastSeries
 
   init(podcast: Podcast) {
     self.podcastSeries = PodcastSeries(podcast: podcast)

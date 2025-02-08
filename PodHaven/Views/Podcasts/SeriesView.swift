@@ -13,9 +13,14 @@ struct SeriesView: View {
 
   var body: some View {
     VStack {
-      HTMLText(viewModel.podcast.description).lineLimit(3).padding()
+      HTMLText(viewModel.podcast.description)
+        .lineLimit(3)
+        .padding(.horizontal)
 
       Text("Last updated: \(viewModel.podcast.formattedLastUpdate)")
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.horizontal)
 
       if !viewModel.podcast.subscribed {
         Button(
@@ -27,7 +32,7 @@ struct SeriesView: View {
           }
         )
       }
-      List(viewModel.episodes) { episode in
+      List(viewModel.filteredEpisodes) { episode in
         NavigationLink(
           value: episode,
           label: {
@@ -40,6 +45,7 @@ struct SeriesView: View {
           }
         )
       }
+      .searchable(text: $viewModel.episodeFilter)
       .refreshable {
         do {
           try await viewModel.refreshSeries()
