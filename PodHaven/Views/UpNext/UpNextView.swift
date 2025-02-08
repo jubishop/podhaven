@@ -11,71 +11,63 @@ struct UpNextView: View {
 
   var body: some View {
     NavigationStack(path: $navigation.upNextPath) {
-      ScrollViewReader { scrollProxy in
-        List {
-          ForEach(viewModel.podcastEpisodes) { podcastEpisode in
-            UpNextListView(
-              viewModel: UpNextListViewModel(
-                isSelected: $viewModel.isSelected[podcastEpisode],
-                podcastEpisode: podcastEpisode,
-                editMode: $viewModel.editMode
-              )
+      List {
+        ForEach(viewModel.podcastEpisodes) { podcastEpisode in
+          UpNextListView(
+            viewModel: UpNextListViewModel(
+              isSelected: $viewModel.isSelected[podcastEpisode],
+              podcastEpisode: podcastEpisode,
+              editMode: $viewModel.editMode
             )
-            .id(podcastEpisode.id)
-            .swipeActions(edge: .leading) {
-              Button(
-                action: { viewModel.moveToTop(podcastEpisode) },
-                label: {
-                  Label("Move to Top", systemImage: "arrow.up")
-                }
-              )
-              .tint(.green)
-            }
-            .swipeActions(edge: .trailing) {
-              Button(
-                action: { viewModel.deleteItem(podcastEpisode) },
-                label: {
-                  Label("Delete", systemImage: "trash")
-                }
-              )
-              .tint(.red)
-            }
-          }
-          .onMove(perform: viewModel.moveItem)
-        }
-        .onAppear {
-          if let firstEpisode = viewModel.podcastEpisodes.first {
-            scrollProxy.scrollTo(firstEpisode.id, anchor: .top)
-          }
-        }
-        .navigationTitle("Up Next")
-        .environment(\.editMode, $viewModel.editMode)
-        .animation(.default, value: Array(viewModel.podcastEpisodes))
-        .toolbar {
-          ToolbarItemGroup(placement: .primaryAction) {
-            if viewModel.isEditing {
-              if viewModel.anySelected {
-                Button(
-                  action: viewModel.deleteSelected,
-                  label: { Text("Delete Selected") }
-                )
-                Button(
-                  action: viewModel.unselectAll,
-                  label: { Text("Unselect All") }
-                )
-              } else {
-                Button(
-                  action: { viewModel.deleteAll() },
-                  label: { Text("Delete All") }
-                )
+          )
+          .swipeActions(edge: .leading) {
+            Button(
+              action: { viewModel.moveToTop(podcastEpisode) },
+              label: {
+                Label("Move to Top", systemImage: "arrow.up")
               }
-            }
-            EditButton()
-              .environment(\.editMode, $viewModel.editMode)
+            )
+            .tint(.green)
+          }
+          .swipeActions(edge: .trailing) {
+            Button(
+              action: { viewModel.deleteItem(podcastEpisode) },
+              label: {
+                Label("Delete", systemImage: "trash")
+              }
+            )
+            .tint(.red)
           }
         }
-        .toolbarRole(.navigationStack)
+        .onMove(perform: viewModel.moveItem)
       }
+      .navigationTitle("Up Next")
+      .environment(\.editMode, $viewModel.editMode)
+      .animation(.default, value: Array(viewModel.podcastEpisodes))
+      .toolbar {
+        ToolbarItemGroup(placement: .primaryAction) {
+          if viewModel.isEditing {
+            if viewModel.anySelected {
+              Button(
+                action: viewModel.deleteSelected,
+                label: { Text("Delete Selected") }
+              )
+              Button(
+                action: viewModel.unselectAll,
+                label: { Text("Unselect All") }
+              )
+            } else {
+              Button(
+                action: { viewModel.deleteAll() },
+                label: { Text("Delete All") }
+              )
+            }
+          }
+          EditButton()
+            .environment(\.editMode, $viewModel.editMode)
+        }
+      }
+      .toolbarRole(.navigationStack)
     }
     .task {
       do {

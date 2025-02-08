@@ -11,25 +11,19 @@ struct PodcastsView: View {
 
   var body: some View {
     NavigationStack(path: $navigation.podcastsPath) {
-      ScrollViewReader { scrollProxy in
-        ScrollView {
-          PodcastGrid(podcasts: viewModel.podcasts)
-            .padding()
-            .id(viewModel.gridID)
-        }
-        .onAppear {
-          scrollProxy.scrollTo(viewModel.gridID, anchor: .top)
-        }
-        .navigationTitle("Podcasts")
-        .navigationDestination(for: Podcast.self) { podcast in
-          SeriesView(viewModel: SeriesViewModel(podcast: podcast))
-        }
-        .refreshable {
-          do {
-            try await viewModel.refreshPodcasts()
-          } catch {
-            alert.andReport("Failed to refresh all podcasts: \(error)")
-          }
+      ScrollView {
+        PodcastGrid(podcasts: viewModel.podcasts)
+          .padding()
+      }
+      .navigationTitle("Podcasts")
+      .navigationDestination(for: Podcast.self) { podcast in
+        SeriesView(viewModel: SeriesViewModel(podcast: podcast))
+      }
+      .refreshable {
+        do {
+          try await viewModel.refreshPodcasts()
+        } catch {
+          alert.andReport("Failed to refresh all podcasts: \(error)")
         }
       }
     }
