@@ -40,7 +40,7 @@ struct SeriesView: View {
               viewModel: EpisodeListViewModel(
                 isSelected: $viewModel.isSelected[episode],
                 episode: episode,
-                isEditing: $viewModel.isEditing
+                isEditing: viewModel.isEditing
               )
             )
           }

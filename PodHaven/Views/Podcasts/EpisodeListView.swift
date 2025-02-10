@@ -23,7 +23,7 @@ struct EpisodeListView: View {
         viewModel: EpisodeListViewModel(
           isSelected: .constant(false),
           episode: episode,
-          isEditing: .constant(false)
+          isEditing: false
         )
       )
     } else {
