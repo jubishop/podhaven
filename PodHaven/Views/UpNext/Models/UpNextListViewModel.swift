@@ -12,16 +12,16 @@ import SwiftUI
 
   let isSelected: Binding<Bool>
   let podcastEpisode: PodcastEpisode
-  let editMode: Binding<EditMode>
+  let editMode: EditMode
 
   var podcast: Podcast { podcastEpisode.podcast }
   var episode: Episode { podcastEpisode.episode }
-  var isEditing: Bool { editMode.wrappedValue.isEditing == true }
+  var isEditing: Bool { editMode.isEditing == true }
 
   init(
     isSelected: Binding<Bool>,
     podcastEpisode: PodcastEpisode,
-    editMode: Binding<EditMode>
+    editMode: EditMode
   ) {
     self.isSelected = isSelected
     self.podcastEpisode = podcastEpisode

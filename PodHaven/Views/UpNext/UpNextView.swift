@@ -17,7 +17,7 @@ struct UpNextView: View {
             viewModel: UpNextListViewModel(
               isSelected: $viewModel.isSelected[podcastEpisode],
               podcastEpisode: podcastEpisode,
-              editMode: $viewModel.editMode
+              editMode: viewModel.editMode
             )
           )
           .swipeActions(edge: .leading) {
