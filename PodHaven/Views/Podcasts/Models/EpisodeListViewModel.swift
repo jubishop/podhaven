@@ -8,15 +8,15 @@ import SwiftUI
 @Observable @MainActor final class EpisodeListViewModel {
   let isSelected: Binding<Bool>
   let episode: Episode
-  let isEditing: Bool
+  let isSelecting: Bool
 
   init(
     isSelected: Binding<Bool>,
     episode: Episode,
-    isEditing: Bool
+    isSelecting: Bool
   ) {
     self.isSelected = isSelected
     self.episode = episode
-    self.isEditing = isEditing
+    self.isSelecting = isSelecting
   }
 }

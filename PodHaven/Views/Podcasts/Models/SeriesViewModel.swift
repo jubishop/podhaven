@@ -4,12 +4,19 @@ import Factory
 import Foundation
 import GRDB
 import IdentifiedCollections
+import SwiftUI
 
 @Observable @MainActor final class SeriesViewModel {
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
 
-  var isEditing = false
+  private var _isSelecting = false
+  var isSelecting: Bool {
+    get { _isSelecting }
+    set {
+      withAnimation { _isSelecting = newValue }
+    }
+  }
   var isSelected = BindableDictionary<Episode, Bool>(defaultValue: false)
   var anySelected: Bool { isSelected.values.contains(true) }
 

@@ -5,6 +5,7 @@ import SwiftUI
 
 struct SeriesView: View {
   @Environment(Alert.self) var alert
+
   @State private var viewModel: SeriesViewModel
 
   init(viewModel: SeriesViewModel) {
@@ -40,7 +41,7 @@ struct SeriesView: View {
               viewModel: EpisodeListViewModel(
                 isSelected: $viewModel.isSelected[episode],
                 episode: episode,
-                isEditing: viewModel.isEditing
+                isSelecting: viewModel.isSelecting
               )
             )
           }
@@ -66,6 +67,33 @@ struct SeriesView: View {
         )
       )
     }
+    .toolbar {
+      ToolbarItemGroup(placement: .primaryAction) {
+        if viewModel.isSelecting {
+          Button(
+            action: {
+              viewModel.isSelecting = false
+            },
+            label: {
+              Text("Done")
+            }
+          )
+          if viewModel.anySelected {
+          } else {
+          }
+        } else {
+          Button(
+            action: {
+              viewModel.isSelecting = true
+            },
+            label: {
+              Text("Select")
+            }
+          )
+        }
+      }
+    }
+    .toolbarRole(.navigationStack)
     .task {
       do {
         try await viewModel.refreshIfStale()
@@ -81,12 +109,8 @@ struct SeriesView: View {
   @Previewable @State var podcast: Podcast?
 
   NavigationStack {
-    Group {
-      if let podcast = podcast {
-        SeriesView(viewModel: SeriesViewModel(podcast: podcast))
-      } else {
-        Text("No podcast in DB")
-      }
+    if let podcast = podcast {
+      SeriesView(viewModel: SeriesViewModel(podcast: podcast))
     }
   }
   .preview()
