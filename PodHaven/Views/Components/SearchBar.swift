@@ -3,27 +3,49 @@
 import SwiftUI
 
 struct SearchBar: View {
-  @Binding var text: String
+  @FocusState private var isFocused: Bool
 
+  private let fontSize = UIFont.preferredFont(forTextStyle: .body).pointSize
+
+  @Binding var text: String
   var placeholder: String = "Search..."
 
   var body: some View {
-    ZStack {
-      let fontSize = UIFont.preferredFont(forTextStyle: .body).pointSize
+    HStack {
+      ZStack {
+        RoundedRectangle(cornerRadius: fontSize * 0.4)
+          .fill(.thinMaterial)
+          .frame(height: fontSize * 2)
 
-      RoundedRectangle(cornerRadius: fontSize * 0.4)
-        .fill(.thinMaterial)
-        .frame(height: fontSize * 2)
+        HStack {
+          Image(systemName: "magnifyingglass")
+            .foregroundColor(.gray)
 
-      HStack {
-        Image(systemName: "magnifyingglass")
-          .foregroundColor(.gray)
-
-        TextField(placeholder, text: $text)
-          .textFieldStyle(.plain)
+          TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .focused($isFocused)
+        }
+        .padding(.horizontal)
       }
-      .padding(.horizontal)
+
+      if isFocused {
+        Button(
+          action: {
+            text = ""
+            isFocused = false
+          },
+          label: {
+            Text("Cancel")
+          }
+        )
+      }
     }
     .padding(.horizontal)
   }
+}
+
+#Preview {
+  @Previewable @State var text: String = ""
+
+  SearchBar(text: $text)
 }

@@ -45,7 +45,7 @@ struct UpNextView: View {
       .environment(\.editMode, $viewModel.editMode)
       .animation(.default, value: Array(viewModel.podcastEpisodes))
       .toolbar {
-        ToolbarItemGroup(placement: .primaryAction) {
+        ToolbarItemGroup(placement: .automatic) {
           if viewModel.isEditing {
             if viewModel.anySelected {
               Button(
@@ -67,7 +67,7 @@ struct UpNextView: View {
             .environment(\.editMode, $viewModel.editMode)
         }
       }
-      .toolbarRole(.navigationStack)
+      .toolbarRole(.editor)
     }
     .task {
       do {

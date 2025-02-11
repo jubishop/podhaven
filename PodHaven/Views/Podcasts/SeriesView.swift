@@ -68,7 +68,7 @@ struct SeriesView: View {
       )
     }
     .toolbar {
-      ToolbarItemGroup(placement: .primaryAction) {
+      ToolbarItemGroup(placement: .automatic) {
         if viewModel.isSelecting {
           Button(
             action: {
@@ -101,7 +101,7 @@ struct SeriesView: View {
         }
       }
     }
-    .toolbarRole(.navigationStack)
+    .toolbarRole(.editor)
     .task {
       do {
         try await viewModel.refreshIfStale()
