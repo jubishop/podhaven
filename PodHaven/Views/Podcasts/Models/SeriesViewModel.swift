@@ -8,6 +8,7 @@ import SwiftUI
 
 @Observable @MainActor final class SeriesViewModel {
   @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
 
   private var _isSelecting = false
@@ -58,8 +59,16 @@ import SwiftUI
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
   }
 
-  func subscribe() async throws {
-    try await repo.markSubscribed(podcast.id)
+  func subscribe() {
+    Task {
+      try await repo.markSubscribed(podcast.id)
+    }
+  }
+
+  func addSelectedEpisodesToTopOfQueue() {
+    for selectedItem in isSelected.keys.filter({ isSelected[$0] }) {
+      print(selectedItem.toString)
+    }
   }
 
   func observePodcast() async throws {

@@ -35,24 +35,26 @@ import Foundation
     }
   }
 
-  func subscribe() async throws {
-    if let podcastSeries = existingPodcastSeries, let podcastFeed = self.podcastFeed {
-      var podcast = podcastSeries.podcast
-      podcast.subscribed = true
-      let updatedPodcastSeries = PodcastSeries(podcast: podcast, episodes: podcastSeries.episodes)
-      try await refreshManager.updateSeriesFromFeed(
-        podcastSeries: updatedPodcastSeries,
-        podcastFeed: podcastFeed
-      )
-      navigation.showPodcast(updatedPodcastSeries)
-    } else {
-      unsavedPodcast.subscribed = true
-      unsavedPodcast.lastUpdate = Date()
-      let newPodcastSeries = try await repo.insertSeries(
-        unsavedPodcast,
-        unsavedEpisodes: unsavedEpisodes
-      )
-      navigation.showPodcast(newPodcastSeries)
+  func subscribe() {
+    Task {
+      if let podcastSeries = existingPodcastSeries, let podcastFeed = self.podcastFeed {
+        var podcast = podcastSeries.podcast
+        podcast.subscribed = true
+        let updatedPodcastSeries = PodcastSeries(podcast: podcast, episodes: podcastSeries.episodes)
+        try await refreshManager.updateSeriesFromFeed(
+          podcastSeries: updatedPodcastSeries,
+          podcastFeed: podcastFeed
+        )
+        navigation.showPodcast(updatedPodcastSeries)
+      } else {
+        unsavedPodcast.subscribed = true
+        unsavedPodcast.lastUpdate = Date()
+        let newPodcastSeries = try await repo.insertSeries(
+          unsavedPodcast,
+          unsavedEpisodes: unsavedEpisodes
+        )
+        navigation.showPodcast(newPodcastSeries)
+      }
     }
   }
 }

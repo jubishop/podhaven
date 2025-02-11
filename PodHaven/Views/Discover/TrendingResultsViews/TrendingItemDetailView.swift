@@ -17,9 +17,7 @@ struct TrendingItemDetailView: View {
 
       if viewModel.subscribable {
         Button(
-          action: {
-            Task { try await viewModel.subscribe() }
-          },
+          action: viewModel.subscribe,
           label: {
             Text("Subscribe")
           }

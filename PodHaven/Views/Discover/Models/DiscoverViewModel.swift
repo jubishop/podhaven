@@ -5,6 +5,7 @@ import Foundation
 import SwiftUI
 
 @Observable @MainActor final class DiscoverViewModel {
+  @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.playState) private var playState
 
   // MARK: - Geometry Management
@@ -82,13 +83,20 @@ import SwiftUI
 
   // MARK: - Events
 
-  func categorySelected(_ category: String) async throws {
+  func categorySelected(_ category: String) {
     guard currentTokens == [.trending]
     else { return }
 
     currentTokens.append(.category(category))
     _searchText = ""
-    try await searchSubmitted()
+
+    Task {
+      do {
+        try await searchSubmitted()
+      } catch {
+        alert.andReport(error)
+      }
+    }
   }
 
   func searchSubmitted() async throws {

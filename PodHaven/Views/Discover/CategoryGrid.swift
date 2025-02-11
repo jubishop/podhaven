@@ -21,13 +21,7 @@ struct CategoryGrid: View {
       ) { category in
         Button(
           action: {
-            Task {
-              do {
-                try await viewModel.categorySelected(category)
-              } catch {
-                alert.andReport(error)
-              }
-            }
+            viewModel.categorySelected(category)
           },
           label: {
             Text(category)

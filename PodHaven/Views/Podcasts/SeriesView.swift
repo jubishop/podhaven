@@ -25,14 +25,15 @@ struct SeriesView: View {
 
       if !viewModel.podcast.subscribed {
         Button(
-          action: {
-            Task { try await viewModel.subscribe() }
-          },
+          action: viewModel.subscribe,
           label: {
             Text("Subscribe")
           }
         )
       }
+
+      SearchBar(text: $viewModel.episodeFilter, placeholder: "Filter episodes")
+
       List(viewModel.filteredEpisodes) { episode in
         NavigationLink(
           value: episode,
@@ -47,7 +48,6 @@ struct SeriesView: View {
           }
         )
       }
-      .searchable(text: $viewModel.episodeFilter)
       .refreshable {
         do {
           try await viewModel.refreshSeries()
@@ -79,6 +79,14 @@ struct SeriesView: View {
             }
           )
           if viewModel.anySelected {
+            Button(
+              action: {
+                viewModel.addSelectedEpisodesToTopOfQueue()
+              },
+              label: {
+                Text("Add To Top Of Queue")
+              }
+            )
           } else {
           }
         } else {
