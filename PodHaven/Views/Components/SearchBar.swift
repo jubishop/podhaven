@@ -19,7 +19,6 @@ struct SearchBar: View {
         .focused($isFocused)
         .textInputAutocapitalization(.never)
         .disableAutocorrection(true)
-        .textFieldStyle(.plain)
 
       if isFocused {
         Button(
