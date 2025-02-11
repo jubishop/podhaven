@@ -34,7 +34,8 @@ struct SeriesView: View {
 
       SearchBar(
         text: $viewModel.episodeFilter,
-        placeholder: "Filter episodes"
+        placeholder: "Filter episodes",
+        imageName: "line.horizontal.3.decrease.circle"
       )
 
       List(viewModel.filteredEpisodes) { episode in

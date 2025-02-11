@@ -9,24 +9,17 @@ struct SearchBar: View {
 
   @Binding var text: String
   var placeholder: String = "Search..."
+  var imageName: String = "magnifyingglass"
 
   var body: some View {
     HStack {
-      ZStack {
-        RoundedRectangle(cornerRadius: fontSize * 0.4)
-          .fill(.thinMaterial)
-          .frame(height: fontSize * 2)
+      Image(systemName: imageName)
 
-        HStack {
-          Image(systemName: "magnifyingglass")
-            .foregroundColor(.gray)
-
-          TextField(placeholder, text: $text)
-            .textFieldStyle(.plain)
-            .focused($isFocused)
-        }
-        .padding(.horizontal)
-      }
+      TextField(placeholder, text: $text)
+        .focused($isFocused)
+        .textInputAutocapitalization(.never)
+        .disableAutocorrection(true)
+        .textFieldStyle(.plain)
 
       if isFocused {
         Button(
