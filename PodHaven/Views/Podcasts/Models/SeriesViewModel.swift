@@ -66,8 +66,11 @@ import SwiftUI
   }
 
   func addSelectedEpisodesToTopOfQueue() {
-    for selectedItem in isSelected.keys.filter({ isSelected[$0] }) {
-      print(selectedItem.toString)
+    Task {
+      try await queue.unshift(
+        isSelected.keys.filter({ isSelected[$0] && filteredEpisodes.contains($0) }).map(\.id)
+      )
+      isSelecting = false
     }
   }
 

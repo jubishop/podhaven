@@ -32,7 +32,10 @@ struct SeriesView: View {
         )
       }
 
-      SearchBar(text: $viewModel.episodeFilter, placeholder: "Filter episodes")
+      SearchBar(
+        text: $viewModel.episodeFilter,
+        placeholder: "Filter episodes"
+      )
 
       List(viewModel.filteredEpisodes) { episode in
         NavigationLink(
@@ -95,7 +98,7 @@ struct SeriesView: View {
               viewModel.isSelecting = true
             },
             label: {
-              Text("Select")
+              Text("Select Episodes")
             }
           )
         }

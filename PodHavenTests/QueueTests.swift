@@ -45,10 +45,13 @@ actor QueueTests {
   @Test("inserting a new episode at top")
   func insertingNewAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
-    try await queue.unshift(topEpisode.id)
+    var middleTopEpisode = try await fetchEpisode("unqmiddle")
+    try await queue.unshift([topEpisode.id, middleTopEpisode.id])
     topEpisode = try await fetchEpisode("unqtop")
+    middleTopEpisode = try await fetchEpisode("unqmiddle")
     #expect(topEpisode.queueOrder == 0)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
+    #expect(middleTopEpisode.queueOrder == 1)
+    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5, 6])
   }
 
   @Test("inserting a new episode at middle")

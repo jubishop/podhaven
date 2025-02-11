@@ -52,10 +52,16 @@ struct Queue: Sendable {
     }
   }
 
-  func unshift(_ episodeID: Episode.ID) async throws {
-    try await appDB.db.write { db in
-      try _insert(db, episodeID: episodeID, at: 0)
+  func unshift(_ episodeIDs: [Episode.ID]) async throws {
+    for episodeID in episodeIDs.reversed() {
+      try await appDB.db.write { db in
+        try _insert(db, episodeID: episodeID, at: 0)
+      }
     }
+  }
+
+  func unshift(_ episodeID: Episode.ID) async throws {
+    try await unshift([episodeID])
   }
 
   func append(_ episodeID: Episode.ID) async throws {
