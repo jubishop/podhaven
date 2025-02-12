@@ -5,7 +5,7 @@ import SwiftUI
 struct TrendingItemDetailView: View {
   @Environment(Alert.self) var alert
 
-  private let viewModel: TrendingItemDetailViewModel
+  @State private var viewModel: TrendingItemDetailViewModel
 
   init(viewModel: TrendingItemDetailViewModel) {
     self.viewModel = viewModel
@@ -51,13 +51,7 @@ struct TrendingItemDetailView: View {
       }
     }
     .navigationTitle(viewModel.unsavedPodcast.title)
-    .task {
-      do {
-        try await viewModel.fetchFeed()
-      } catch {
-        alert.andReport(error)
-      }
-    }
+    .task { await viewModel.execute() }
   }
 }
 

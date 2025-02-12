@@ -4,6 +4,7 @@ import Factory
 import Foundation
 
 @Observable @MainActor class TrendingItemDetailViewModel {
+  @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
@@ -19,6 +20,14 @@ import Foundation
   init(category: String, unsavedPodcast: UnsavedPodcast) {
     self.category = category
     self.unsavedPodcast = unsavedPodcast
+  }
+
+  func execute() async {
+    do {
+      try await fetchFeed()
+    } catch {
+      alert.andReport(error)
+    }
   }
 
   func fetchFeed() async throws {

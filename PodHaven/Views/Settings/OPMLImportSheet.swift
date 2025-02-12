@@ -3,7 +3,8 @@
 import SwiftUI
 
 struct OPMLImportSheet: View {
-  private let viewModel: OPMLViewModel
+  @State private var viewModel: OPMLViewModel
+  
   private let opmlFile: OPMLFile
 
   init(viewModel: OPMLViewModel, opmlFile: OPMLFile) {

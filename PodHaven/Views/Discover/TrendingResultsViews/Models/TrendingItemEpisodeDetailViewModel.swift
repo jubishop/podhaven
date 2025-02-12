@@ -5,6 +5,7 @@ import Foundation
 import GRDB
 
 @Observable @MainActor class TrendingItemEpisodeDetailViewModel {
+  @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
@@ -19,6 +20,14 @@ import GRDB
 
   init(unsavedPodcastEpisode: UnsavedPodcastEpisode) {
     self.unsavedPodcastEpisode = unsavedPodcastEpisode
+  }
+
+  func execute() async {
+    do {
+      try await fetchEpisode()
+    } catch {
+      alert.andReport(error)
+    }
   }
 
   var onDeck: Bool {
