@@ -10,7 +10,7 @@ struct OPMLView: View {
       Button(
         action: {
           #if targetEnvironment(simulator)
-            Task { try await viewModel.importOPMLFileInSimulator("large") }
+            viewModel.importOPMLFileInSimulator("large")
           #else
             viewModel.opmlImporting = true
           #endif
@@ -23,7 +23,7 @@ struct OPMLView: View {
       isPresented: $viewModel.opmlImporting,
       allowedContentTypes: [viewModel.opmlType],
       onCompletion: { result in
-        Task { try await viewModel.opmlFileImporterCompletion(result) }
+        viewModel.opmlFileImporterCompletion(result)
       }
     )
     .sheet(item: $viewModel.opmlFile) { opmlFile in

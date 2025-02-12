@@ -19,13 +19,12 @@ struct OPMLImportSheet: View {
     HStack {
       Group {
         if opmlFile.inProgressCount == 0 {
-          Button("Lets Go") {
-            Task { await viewModel.finishedDownloading() }
-          }
+          Button(action: viewModel.finishedDownloading, label: { Text("Lets Go") })
         } else {
-          Button(opmlFile.finished.count > 0 ? "Stop" : "Cancel") {
-            Task { await viewModel.stopDownloading() }
-          }
+          Button(
+            action: viewModel.stopDownloading,
+            label: { Text(opmlFile.finished.count > 0 ? "Stop" : "Cancel") }
+          )
         }
       }
       .buttonStyle(.bordered)
@@ -62,16 +61,16 @@ struct OPMLImportSheet: View {
 
   Form {
     Button("Import Large") {
-      Task { try await viewModel.importOPMLFileInSimulator("large") }
+      viewModel.importOPMLFileInSimulator("large")
     }
     Button("Import Small") {
-      Task { try await viewModel.importOPMLFileInSimulator("small") }
+      viewModel.importOPMLFileInSimulator("small")
     }
     Button("Import Invalid") {
-      Task { try await viewModel.importOPMLFileInSimulator("invalid") }
+      viewModel.importOPMLFileInSimulator("invalid")
     }
     Button("Import Empty") {
-      Task { try await viewModel.importOPMLFileInSimulator("empty") }
+      viewModel.importOPMLFileInSimulator("empty")
     }
 
     #if DEBUG

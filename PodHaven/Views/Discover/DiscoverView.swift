@@ -20,15 +20,7 @@ struct DiscoverView: View {
         ) { token in
           SearchTokenView(token: token)
         }
-        .onSubmit(of: .search) {
-          Task {
-            do {
-              try await viewModel.searchSubmitted()
-            } catch {
-              alert.andReport(error)
-            }
-          }
-        }
+        .onSubmit(of: .search, viewModel.searchSubmitted)
         .navigationBarTitle("Discover")
         .background(
           SizeReader { size in

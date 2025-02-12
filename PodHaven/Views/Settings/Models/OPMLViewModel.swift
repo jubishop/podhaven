@@ -64,6 +64,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
 @Observable @MainActor final class OPMLViewModel {
   @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
@@ -81,26 +82,34 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     self.opmlType = opmlType
   }
 
-  func opmlFileImporterCompletion(_ result: Result<URL, any Error>) async throws {
-    switch result {
-    case .success(let url):
-      guard url.startAccessingSecurityScopedResource()
-      else { throw Err.msg("Couldn't start accessing security scoped response") }
-      let opml = try await PodcastOPML.parse(url)
-      try await downloadOPMLFile(opml)
-      url.stopAccessingSecurityScopedResource()
-    case .failure(let error):
-      throw error
+  func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
+    Task {
+      do {
+        switch result {
+        case .success(let url):
+          guard url.startAccessingSecurityScopedResource()
+          else { throw Err.msg("Couldn't start accessing security scoped response") }
+          let opml = try await PodcastOPML.parse(url)
+          try await downloadOPMLFile(opml)
+          url.stopAccessingSecurityScopedResource()
+        case .failure(let error):
+          throw error
+        }
+      } catch {
+        alert.andReport(error)
+      }
     }
   }
 
-  func stopDownloading() async {
-    await feedManager.cancelAll()
-    opmlFile = nil
+  func stopDownloading() {
+    Task {
+      await feedManager.cancelAll()
+      opmlFile = nil
+    }
   }
 
-  func finishedDownloading() async {
-    await stopDownloading()
+  func finishedDownloading() {
+    stopDownloading()
     navigation.currentTab = .podcasts
   }
 
@@ -203,13 +212,15 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   // MARK: - Simulator Methods
 
   #if DEBUG
-    public func importOPMLFileInSimulator(_ resource: String) async throws {
+    public func importOPMLFileInSimulator(_ resource: String) {
       let url = Bundle.main.url(
         forResource: resource,
         withExtension: "opml"
       )!
-      let opml = try await PodcastOPML.parse(url)
-      try await downloadOPMLFile(opml)
+      Task {
+        let opml = try await PodcastOPML.parse(url)
+        try await downloadOPMLFile(opml)
+      }
     }
   #endif
 }

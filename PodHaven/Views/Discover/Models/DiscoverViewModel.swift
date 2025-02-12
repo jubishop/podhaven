@@ -90,16 +90,10 @@ import SwiftUI
     currentTokens.append(.category(category))
     _searchText = ""
 
-    Task {
-      do {
-        try await searchSubmitted()
-      } catch {
-        alert.andReport(error)
-      }
-    }
+    searchSubmitted()
   }
 
-  func searchSubmitted() async throws {
+  func searchSubmitted() {
     if currentTokens.isEmpty {
       currentTokens = [.allFields]
     }
@@ -115,7 +109,13 @@ import SwiftUI
     if let currentToken = readyToSearch() {
       searchPresented = false
       currentView = currentToken
-      try await performSearch()
+      Task {
+        do {
+          try await performSearch()
+        } catch {
+          alert.andReport(error)
+        }
+      }
     }
   }
 
