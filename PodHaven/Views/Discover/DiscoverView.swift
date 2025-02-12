@@ -37,13 +37,7 @@ struct DiscoverView: View {
           }
         }
     }
-    .task {
-      do {
-        try await viewModel.performSearch()
-      } catch {
-        alert.andReport(error)
-      }
-    }
+    .task { await viewModel.execute() }
   }
 }
 

@@ -7,6 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor final class UpNextViewModel {
+  @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.queue) private var queue
 
@@ -15,6 +16,14 @@ import SwiftUI
   var isEditing: Bool { editMode == .active }
   var isSelected = BindableDictionary<PodcastEpisode, Bool>(defaultValue: false)
   var anySelected: Bool { isSelected.values.contains(true) }
+
+  func execute() async {
+    do {
+      try await observeQueuedEpisodes()
+    } catch {
+      alert.andReport(error)
+    }
+  }
 
   func moveItem(from: IndexSet, to: Int) {
     precondition(from.count == 1, "Somehow dragged several?")
@@ -50,7 +59,7 @@ import SwiftUI
     isSelected.removeAll()
   }
 
-  func observeQueuedEpisodes() async throws {
+  private func observeQueuedEpisodes() async throws {
     let observer =
       ValueObservation.tracking { db in
         try Episode

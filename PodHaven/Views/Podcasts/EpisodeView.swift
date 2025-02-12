@@ -32,13 +32,7 @@ struct EpisodeView: View {
       }
     }
     .navigationTitle(viewModel.episode.title)
-    .task {
-      do {
-        try await viewModel.observeEpisode()
-      } catch {
-        alert.andReport(error)
-      }
-    }
+    .task { await viewModel.execute() }
   }
 }
 

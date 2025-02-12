@@ -81,6 +81,14 @@ import SwiftUI
     currentTokens = [.trending, .category(Self.allCategoriesName)]
   }
 
+  func execute() async {
+    do {
+      try await performSearch()
+    } catch {
+      alert.andReport(error)
+    }
+  }
+
   // MARK: - Events
 
   func categorySelected(_ category: String) {

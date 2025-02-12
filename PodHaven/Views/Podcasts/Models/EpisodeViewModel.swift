@@ -5,6 +5,7 @@ import Foundation
 import GRDB
 
 @Observable @MainActor final class EpisodeViewModel {
+  @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
@@ -16,6 +17,14 @@ import GRDB
 
   init(podcastEpisode: PodcastEpisode) {
     self.podcastEpisode = podcastEpisode
+  }
+
+  func execute() async {
+    do {
+      try await observeEpisode()
+    } catch {
+      alert.andReport(error)
+    }
   }
 
   var onDeck: Bool { playState.isOnDeck(podcastEpisode) }
@@ -35,7 +44,7 @@ import GRDB
     Task { try await queue.append(episode.id) }
   }
 
-  func observeEpisode() async throws {
+  private func observeEpisode() async throws {
     let observer =
       ValueObservation.tracking(
         Episode

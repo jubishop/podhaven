@@ -106,14 +106,7 @@ struct SeriesView: View {
       }
     }
     .toolbarRole(.editor)
-    .task {
-      do {
-        try await viewModel.refreshIfStale()
-        try await viewModel.observePodcast()
-      } catch {
-        alert.andReport(error)
-      }
-    }
+    .task { await viewModel.execute() }
   }
 }
 

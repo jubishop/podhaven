@@ -6,10 +6,19 @@ import GRDB
 import IdentifiedCollections
 
 @Observable @MainActor final class PodcastsViewModel {
+  @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
 
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
+
+  func execute() async {
+    do {
+      try await observePodcasts()
+    } catch {
+      alert.andReport(error)
+    }
+  }
 
   func refreshPodcasts() async throws {
     let allSeries = try await repo.allPodcastSeries {
@@ -24,7 +33,7 @@ import IdentifiedCollections
     }
   }
 
-  func observePodcasts() async throws {
+  private func observePodcasts() async throws {
     let observer =
       ValueObservation
       .tracking { db in

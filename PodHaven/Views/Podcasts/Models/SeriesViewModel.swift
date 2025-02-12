@@ -7,6 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor final class SeriesViewModel {
+  @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
@@ -46,12 +47,12 @@ import SwiftUI
     self.podcastSeries = PodcastSeries(podcast: podcast)
   }
 
-  func refreshIfStale() async throws {
-    if podcastSeries.podcast.lastUpdate < Date.minutesAgo(15),
-      let podcastSeries = try await repo.podcastSeries(podcastSeries.id)
-    {
-      self.podcastSeries = podcastSeries
-      try await refreshSeries()
+  func execute() async {
+    do {
+      try await refreshIfStale()
+      try await observePodcast()
+    } catch {
+      alert.andReport(error)
     }
   }
 
@@ -74,7 +75,16 @@ import SwiftUI
     }
   }
 
-  func observePodcast() async throws {
+  private func refreshIfStale() async throws {
+    if podcastSeries.podcast.lastUpdate < Date.minutesAgo(15),
+       let podcastSeries = try await repo.podcastSeries(podcastSeries.id)
+    {
+      self.podcastSeries = podcastSeries
+      try await refreshSeries()
+    }
+  }
+
+  private func observePodcast() async throws {
     let observer =
       ValueObservation
       .tracking(

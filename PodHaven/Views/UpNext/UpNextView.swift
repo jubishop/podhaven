@@ -69,13 +69,7 @@ struct UpNextView: View {
       }
       .toolbarRole(.editor)
     }
-    .task {
-      do {
-        try await viewModel.observeQueuedEpisodes()
-      } catch {
-        alert.andReport(error)
-      }
-    }
+    .task { await viewModel.execute() }
   }
 }
 

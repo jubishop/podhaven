@@ -27,13 +27,7 @@ struct PodcastsView: View {
         }
       }
     }
-    .task {
-      do {
-        try await viewModel.observePodcasts()
-      } catch {
-        alert.andReport(error)
-      }
-    }
+    .task { await viewModel.execute() }
   }
 }
 
