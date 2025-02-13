@@ -72,8 +72,8 @@ struct SeriesView: View {
       )
     }
     .toolbar {
-      ToolbarItemGroup(placement: .automatic) {
-        if viewModel.isSelecting {
+      if viewModel.isSelecting {
+        ToolbarItem(placement: .topBarLeading) {
           Button(
             action: {
               viewModel.isSelecting = false
@@ -82,34 +82,46 @@ struct SeriesView: View {
               Text("Done")
             }
           )
-          if viewModel.anySelected {
-            Button(
-              action: {
-                viewModel.addSelectedEpisodesToTopOfQueue()
-              },
-              label: {
-                Text("Add To Top Of Queue")
-              }
-            )
-            Button(
-              action: {
-                viewModel.addSelectedEpisodesToBottomOfQueue()
-              },
-              label: {
-                Text("Add To Bottom Of Queue")
-              }
-            )
-            Button(
-              action: {
-                viewModel.replaceQueue()
-              },
-              label: {
-                Text("Replace Queue")
-              }
-            )
-          } else {
+        }
+      }
+
+      if viewModel.isSelecting {
+        if viewModel.anySelected {
+          ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+              Button(
+                action: {
+                  viewModel.addSelectedEpisodesToTopOfQueue()
+                },
+                label: {
+                  Text("Add To Top Of Queue")
+                }
+              )
+
+              Button(
+                action: {
+                  viewModel.addSelectedEpisodesToBottomOfQueue()
+                },
+                label: {
+                  Text("Add To Bottom Of Queue")
+                }
+              )
+
+              Button(
+                action: {
+                  viewModel.replaceQueue()
+                },
+                label: {
+                  Text("Replace Queue")
+                }
+              )
+            } label: {
+              Image(systemName: "ellipsis.circle")
+            }
           }
-        } else {
+        }
+      } else {
+        ToolbarItem(placement: .topBarTrailing) {
           Button(
             action: {
               viewModel.isSelecting = true

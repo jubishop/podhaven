@@ -45,24 +45,30 @@ struct UpNextView: View {
       .environment(\.editMode, $viewModel.editMode)
       .animation(.default, value: Array(viewModel.podcastEpisodes))
       .toolbar {
-        ToolbarItemGroup(placement: .automatic) {
-          if viewModel.isEditing {
-            if viewModel.anySelected {
+        if viewModel.isEditing {
+          if viewModel.anySelected {
+            ToolbarItemGroup(placement: .topBarTrailing) {
               Button(
                 action: viewModel.deleteSelected,
                 label: { Text("Delete Selected") }
               )
+
               Button(
                 action: viewModel.unselectAll,
                 label: { Text("Unselect All") }
               )
-            } else {
+            }
+          } else {
+            ToolbarItem(placement: .topBarTrailing) {
               Button(
                 action: { viewModel.deleteAll() },
                 label: { Text("Delete All") }
               )
             }
           }
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
           EditButton()
             .environment(\.editMode, $viewModel.editMode)
         }
