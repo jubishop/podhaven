@@ -53,8 +53,8 @@ struct Queue: Sendable {
   }
 
   func unshift(_ episodeIDs: [Episode.ID]) async throws {
-    for episodeID in episodeIDs.reversed() {
-      try await appDB.db.write { db in
+    try await appDB.db.write { db in
+      for episodeID in episodeIDs.reversed() {
         try _insert(db, episodeID: episodeID, at: 0)
       }
     }
@@ -64,14 +64,20 @@ struct Queue: Sendable {
     try await unshift([episodeID])
   }
 
-  func append(_ episodeID: Episode.ID) async throws {
+  func append(_ episodeIDs: [Episode.ID]) async throws {
     try await appDB.db.write { db in
-      let newPosition =
-        (try Episode
-          .select(max(Schema.queueOrderColumn), as: Int.self)
-          .fetchOne(db) ?? -1) + 1
-      try _insert(db, episodeID: episodeID, at: newPosition)
+      for episodeID in episodeIDs {
+        var maxPosition =
+          (try Episode
+            .select(max(Schema.queueOrderColumn), as: Int.self)
+            .fetchOne(db) ?? -1) + 1
+        try _insert(db, episodeID: episodeID, at: maxPosition)
+      }
     }
+  }
+
+  func append(_ episodeID: Episode.ID) async throws {
+    try await append([episodeID])
   }
 
   //MARK: - Private Queue Helpers

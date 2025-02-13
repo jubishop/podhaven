@@ -32,26 +32,40 @@ actor QueueTests {
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
   }
 
-  @Test("appending a new episode")
-  func testAppendingNew() async throws {
-    // Test appending at bottom
-    var bottomEpisode = try await fetchEpisode("unqbottom")
-    try await queue.append(bottomEpisode.id)
-    bottomEpisode = try await fetchEpisode("unqbottom")
-    #expect(bottomEpisode.queueOrder == 5)
+  @Test("inserting new episodes at top")
+  func insertingNewAtTop() async throws {
+    var topEpisode = try await fetchEpisode("unqtop")
+    var middleEpisode = try await fetchEpisode("unqmiddle")
+    try await queue.unshift([topEpisode.id, middleEpisode.id])
+    topEpisode = try await fetchEpisode("unqtop")
+    middleEpisode = try await fetchEpisode("unqmiddle")
+    #expect(topEpisode.queueOrder == 0)
+    #expect(middleEpisode.queueOrder == 1)
+    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5, 6])
+  }
+
+  @Test("inserting a new and existing episode at top")
+  func insertingNewAndExistingAtTop() async throws {
+    var topEpisode = try await fetchEpisode("unqtop")
+    var middleEpisode = try await fetchEpisode("middle")
+    try await queue.unshift([topEpisode.id, middleEpisode.id])
+    topEpisode = try await fetchEpisode("unqtop")
+    middleEpisode = try await fetchEpisode("middle")
+    #expect(topEpisode.queueOrder == 0)
+    #expect(middleEpisode.queueOrder == 1)
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
   }
 
-  @Test("inserting a new episode at top")
-  func insertingNewAtTop() async throws {
-    var topEpisode = try await fetchEpisode("unqtop")
-    var middleTopEpisode = try await fetchEpisode("unqmiddle")
-    try await queue.unshift([topEpisode.id, middleTopEpisode.id])
-    topEpisode = try await fetchEpisode("unqtop")
-    middleTopEpisode = try await fetchEpisode("unqmiddle")
-    #expect(topEpisode.queueOrder == 0)
-    #expect(middleTopEpisode.queueOrder == 1)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5, 6])
+  @Test("inserting existing episodes at top")
+  func insertingExistingAtTop() async throws {
+    var bottomEpisode = try await fetchEpisode("bottom")
+    var middleEpisode = try await fetchEpisode("middle")
+    try await queue.unshift([bottomEpisode.id, middleEpisode.id])
+    bottomEpisode = try await fetchEpisode("bottom")
+    middleEpisode = try await fetchEpisode("middle")
+    #expect(bottomEpisode.queueOrder == 0)
+    #expect(middleEpisode.queueOrder == 1)
+    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
   }
 
   @Test("inserting a new episode at middle")
@@ -81,13 +95,40 @@ actor QueueTests {
     #expect((try await fetchOrder()) == [0, 1, 2, 3])
   }
 
-  @Test("appending an existing episode")
+  @Test("appending existing episodes")
   func testAppendExisting() async throws {
+    var topEpisode = try await fetchEpisode("top")
     var middleEpisode = try await fetchEpisode("middle")
-    try await queue.append(middleEpisode.id)
+    try await queue.append([middleEpisode.id, topEpisode.id])
     middleEpisode = try await fetchEpisode("middle")
-    #expect(middleEpisode.queueOrder == 4)
+    topEpisode = try await fetchEpisode("top")
+    #expect(middleEpisode.queueOrder == 3)
+    #expect(topEpisode.queueOrder == 4)
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
+  }
+
+  @Test("appending new episodes")
+  func testAppendingNew() async throws {
+    var topEpisode = try await fetchEpisode("unqtop")
+    var bottomEpisode = try await fetchEpisode("unqbottom")
+    try await queue.append([topEpisode.id, bottomEpisode.id])
+    topEpisode = try await fetchEpisode("unqtop")
+    bottomEpisode = try await fetchEpisode("unqbottom")
+    #expect(topEpisode.queueOrder == 5)
+    #expect(bottomEpisode.queueOrder == 6)
+    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5, 6])
+  }
+
+  @Test("appending an existing and new episode")
+  func testAppendExistingAndNew() async throws {
+    var middleEpisode = try await fetchEpisode("middle")
+    var topEpisode = try await fetchEpisode("unqtop")
+    try await queue.append([middleEpisode.id, topEpisode.id])
+    middleEpisode = try await fetchEpisode("middle")
+    topEpisode = try await fetchEpisode("unqtop")
+    #expect(middleEpisode.queueOrder == 4)
+    #expect(topEpisode.queueOrder == 5)
+    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
   }
 
   @Test("inserting an existing episode below current location")

@@ -19,10 +19,17 @@ import SwiftUI
       withAnimation { _isSelecting = newValue }
     }
   }
+
   var isSelected = BindableDictionary<Episode, Bool>(defaultValue: false)
   var anySelected: Bool { isSelected.values.contains(true) }
 
-  var podcast: Podcast { podcastSeries.podcast }
+  var selectedEpisodes: EpisodeArray {
+    IdentifiedArray(
+      uniqueElements: isSelected.keys.filter({ isSelected[$0] && filteredEpisodes.contains($0) }),
+      id: \Episode.guid
+    )
+  }
+
   var filteredEpisodes: EpisodeArray {
     let searchTerms =
       episodeFilter
@@ -40,6 +47,8 @@ import SwiftUI
     )
   }
   var episodeFilter: String = ""
+
+  var podcast: Podcast { podcastSeries.podcast }
 
   private var podcastSeries: PodcastSeries
 
@@ -68,16 +77,21 @@ import SwiftUI
 
   func addSelectedEpisodesToTopOfQueue() {
     Task {
-      try await queue.unshift(
-        isSelected.keys.filter({ isSelected[$0] && filteredEpisodes.contains($0) }).map(\.id)
-      )
+      try await queue.unshift(selectedEpisodes.map(\.id))
+      isSelecting = false
+    }
+  }
+
+  func addSelectedEpisodesToBottomOfQueue() {
+    Task {
+      try await queue.append(selectedEpisodes.map(\.id))
       isSelecting = false
     }
   }
 
   private func refreshIfStale() async throws {
     if podcastSeries.podcast.lastUpdate < Date.minutesAgo(15),
-       let podcastSeries = try await repo.podcastSeries(podcastSeries.id)
+      let podcastSeries = try await repo.podcastSeries(podcastSeries.id)
     {
       self.podcastSeries = podcastSeries
       try await refreshSeries()

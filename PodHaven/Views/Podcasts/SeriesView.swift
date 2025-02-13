@@ -91,6 +91,14 @@ struct SeriesView: View {
                 Text("Add To Top Of Queue")
               }
             )
+            Button(
+              action: {
+                viewModel.addSelectedEpisodesToBottomOfQueue()
+              },
+              label: {
+                Text("Add To Bottom Of Queue")
+              }
+            )
           } else {
           }
         } else {
