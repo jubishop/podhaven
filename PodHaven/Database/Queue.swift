@@ -29,9 +29,18 @@ struct Queue: Sendable {
   }
 
   func clear() async throws {
-    _ = try await appDB.db.write { db in
-      try Episode.filter(Schema.queueOrderColumn != nil)
-        .updateAll(db, Schema.queueOrderColumn.set(to: nil))
+    try await appDB.db.write { db in
+      try _clear(db)
+    }
+  }
+
+  func replace(_ episodeIDs: [Episode.ID]) async throws {
+    try await appDB.db.write { db in
+      try _clear(db)
+
+      for (index, episodeID) in episodeIDs.enumerated() {
+        try _setToPosition(db, episodeID: episodeID, position: index)
+      }
     }
   }
 
@@ -67,7 +76,7 @@ struct Queue: Sendable {
   func append(_ episodeIDs: [Episode.ID]) async throws {
     try await appDB.db.write { db in
       for episodeID in episodeIDs {
-        var maxPosition =
+        let maxPosition =
           (try Episode
             .select(max(Schema.queueOrderColumn), as: Int.self)
             .fetchOne(db) ?? -1) + 1
@@ -106,9 +115,7 @@ struct Queue: Sendable {
     let oldPosition = try _fetchOldPosition(db, for: episodeID) ?? Int.max
     let computedNewPosition = newPosition > oldPosition ? newPosition - 1 : newPosition
     try _move (db, episodeID: episodeID, from: oldPosition, to: computedNewPosition)
-    try Episode
-      .filter(id: episodeID)
-      .updateAll(db, Schema.queueOrderColumn.set(to: computedNewPosition))
+    try _setToPosition(db, episodeID: episodeID, position: computedNewPosition)
   }
 
   private func _move(
@@ -134,5 +141,26 @@ struct Queue: Sendable {
       )
       .updateAll(db, Schema.queueOrderColumn += 1)
     }
+  }
+
+  private func _setToPosition(_ db: Database, episodeID: Episode.ID, position: Int) throws {
+    precondition(
+      db.isInsideTransaction,
+      "setToPosition method requires a transaction"
+    )
+
+    try Episode
+      .filter(id: episodeID)
+      .updateAll(db, Schema.queueOrderColumn.set(to: position))
+  }
+
+  private func _clear(_ db: Database) throws {
+    precondition(
+      db.isInsideTransaction,
+      "clear method requires a transaction"
+    )
+
+    try Episode.filter(Schema.queueOrderColumn != nil)
+      .updateAll(db, Schema.queueOrderColumn.set(to: nil))
   }
 }

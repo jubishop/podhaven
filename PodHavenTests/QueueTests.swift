@@ -32,6 +32,21 @@ actor QueueTests {
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
   }
 
+  @Test("replacing entire queue")
+  func replacingQueue() async throws {
+    var topEpisode = try await fetchEpisode("unqtop")
+    var middleEpisode = try await fetchEpisode("unqmiddle")
+    var bottomEpisode = try await fetchEpisode("unqbottom")
+    try await queue.replace([topEpisode.id, middleEpisode.id, bottomEpisode.id])
+    topEpisode = try await fetchEpisode("unqtop")
+    middleEpisode = try await fetchEpisode("unqmiddle")
+    bottomEpisode = try await fetchEpisode("unqbottom")
+    #expect(topEpisode.queueOrder == 0)
+    #expect(middleEpisode.queueOrder == 1)
+    #expect(bottomEpisode.queueOrder == 2)
+    #expect((try await fetchOrder()) == [0, 1, 2])
+  }
+
   @Test("inserting new episodes at top")
   func insertingNewAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
