@@ -89,6 +89,12 @@ import SwiftUI
     }
   }
 
+  func replaceQueue() {
+    Task {
+      try await queue.replace(selectedEpisodes.map(\.id))
+    }
+  }
+
   private func refreshIfStale() async throws {
     if podcastSeries.podcast.lastUpdate < Date.minutesAgo(15),
       let podcastSeries = try await repo.podcastSeries(podcastSeries.id)

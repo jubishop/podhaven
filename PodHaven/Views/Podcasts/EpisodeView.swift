@@ -4,7 +4,8 @@ import SwiftUI
 
 struct EpisodeView: View {
   @Environment(Alert.self) var alert
-  @State private var viewModel: EpisodeViewModel
+
+  private let viewModel: EpisodeViewModel
 
   init(viewModel: EpisodeViewModel) {
     self.viewModel = viewModel

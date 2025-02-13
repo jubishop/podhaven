@@ -5,7 +5,7 @@ import SwiftUI
 struct CategoryGrid: View {
   @Environment(Alert.self) var alert
 
-  @State private var viewModel: DiscoverViewModel
+  private let viewModel: DiscoverViewModel
 
   init(viewModel: DiscoverViewModel) {
     self.viewModel = viewModel

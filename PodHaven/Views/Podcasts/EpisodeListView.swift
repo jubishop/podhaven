@@ -3,7 +3,7 @@
 import SwiftUI
 
 struct EpisodeListView: View {
-  @State private var viewModel: EpisodeListViewModel
+  private let viewModel: EpisodeListViewModel
 
   init(viewModel: EpisodeListViewModel) {
     self.viewModel = viewModel

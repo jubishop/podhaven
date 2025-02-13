@@ -3,7 +3,7 @@
 import SwiftUI
 
 struct SearchView: View {
-  @State private var viewModel: DiscoverViewModel
+  private let viewModel: DiscoverViewModel
 
   init(viewModel: DiscoverViewModel) {
     self.viewModel = viewModel

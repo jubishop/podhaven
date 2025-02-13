@@ -5,7 +5,7 @@ import SwiftUI
 struct TrendingItemDetailView: View {
   @Environment(Alert.self) var alert
 
-  @State private var viewModel: TrendingItemDetailViewModel
+  private let viewModel: TrendingItemDetailViewModel
 
   init(viewModel: TrendingItemDetailViewModel) {
     self.viewModel = viewModel

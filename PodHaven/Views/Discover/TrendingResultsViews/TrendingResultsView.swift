@@ -3,7 +3,7 @@
 import SwiftUI
 
 struct TrendingResultsView: View {
-  @State private var viewModel: TrendingResultsViewModel
+  private let viewModel: TrendingResultsViewModel
 
   init(viewModel: TrendingResultsViewModel) {
     self.viewModel = viewModel

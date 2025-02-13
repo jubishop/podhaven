@@ -99,6 +99,14 @@ struct SeriesView: View {
                 Text("Add To Bottom Of Queue")
               }
             )
+            Button(
+              action: {
+                viewModel.replaceQueue()
+              },
+              label: {
+                Text("Replace Queue")
+              }
+            )
           } else {
           }
         } else {
