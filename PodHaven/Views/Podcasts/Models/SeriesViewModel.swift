@@ -11,6 +11,7 @@ import SwiftUI
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
+  @ObservationIgnored @LazyInjected(\.playManager) private var playManager
 
   private var _isSelecting = false
   var isSelecting: Bool {
@@ -78,20 +79,29 @@ import SwiftUI
   func addSelectedEpisodesToTopOfQueue() {
     Task {
       try await queue.unshift(selectedEpisodes.map(\.id))
-      isSelecting = false
     }
   }
 
   func addSelectedEpisodesToBottomOfQueue() {
     Task {
       try await queue.append(selectedEpisodes.map(\.id))
-      isSelecting = false
     }
   }
 
   func replaceQueue() {
     Task {
       try await queue.replace(selectedEpisodes.map(\.id))
+    }
+  }
+
+  func replaceQueueAndPlay() {
+    Task {
+      if let firstEpisode = selectedEpisodes.first {
+        try await playManager.load(PodcastEpisode(podcast: podcast, episode: firstEpisode))
+        await playManager.play()
+        let allExceptFirst = selectedEpisodes.dropFirst()
+        try await queue.replace(allExceptFirst.map(\.id))
+      }
     }
   }
 

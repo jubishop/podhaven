@@ -115,6 +115,15 @@ struct SeriesView: View {
                   Text("Replace Queue")
                 }
               )
+
+              Button(
+                action: {
+                  viewModel.replaceQueueAndPlay()
+                },
+                label: {
+                  Text("Replace Queue and Play")
+                }
+              )
             } label: {
               Image(systemName: "ellipsis.circle")
             }

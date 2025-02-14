@@ -32,6 +32,18 @@ actor QueueTests {
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
   }
 
+  @Test("clearing queue")
+  func clearQueue() async throws {
+    try await queue.clear()
+    #expect((try await fetchOrder()) == [])
+  }
+
+  @Test("replacing queue with empty list effectively clears queue")
+  func replaceQueueWithEmptyList() async throws {
+    try await queue.replace([])
+    #expect((try await fetchOrder()) == [])
+  }
+
   @Test("replacing entire queue")
   func replacingQueue() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
