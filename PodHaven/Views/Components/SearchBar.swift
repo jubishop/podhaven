@@ -21,15 +21,10 @@ struct SearchBar: View {
         .disableAutocorrection(true)
 
       if isFocused {
-        Button(
-          action: {
-            text = ""
-            isFocused = false
-          },
-          label: {
-            Text("Cancel")
-          }
-        )
+        Button("Cancel") {
+          text = ""
+          isFocused = false
+        }
       }
     }
     .padding(.horizontal)

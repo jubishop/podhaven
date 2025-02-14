@@ -19,12 +19,13 @@ struct OPMLImportSheet: View {
     HStack {
       Group {
         if opmlFile.inProgressCount == 0 {
-          Button(action: viewModel.finishedDownloading, label: { Text("Lets Go") })
+          Button("Lets Go") {
+            viewModel.finishedDownloading()
+          }
         } else {
-          Button(
-            action: viewModel.stopDownloading,
-            label: { Text(opmlFile.finished.count > 0 ? "Stop" : "Cancel") }
-          )
+          Button(opmlFile.finished.count > 0 ? "Stop" : "Cancel") {
+            viewModel.stopDownloading()
+          }
         }
       }
       .buttonStyle(.bordered)

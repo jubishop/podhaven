@@ -24,7 +24,9 @@ struct SeriesView: View {
         .padding(.horizontal)
 
       if !viewModel.podcast.subscribed {
-        Button("Subscribe", action: viewModel.subscribe)
+        Button("Subscribe") {
+          viewModel.subscribe()
+        }
       }
 
       SearchBar(
@@ -72,10 +74,14 @@ struct SeriesView: View {
           Menu(
             content: {
               if viewModel.anyNotSelected {
-                Button("Select All", action: viewModel.selectAllEpisodes)
+                Button("Select All") {
+                  viewModel.selectAllEpisodes()
+                }
               }
               if viewModel.anySelected {
-                Button("Unselect All", action: viewModel.unselectAllEpisodes)
+                Button("Unselect All") {
+                  viewModel.unselectAllEpisodes()
+                }
               }
             },
             label: {
@@ -89,10 +95,15 @@ struct SeriesView: View {
         ToolbarItem(placement: .topBarTrailing) {
           Menu(
             content: {
-              Button("Add To Top Of Queue", action: viewModel.addSelectedEpisodesToTopOfQueue)
-              Button("Add To Bottom Of Queue", action: viewModel.addSelectedEpisodesToBottomOfQueue)
-              Button("Replace Queue", action: viewModel.replaceQueue)
-              Button("Replace Queue and Play", action: viewModel.replaceQueueAndPlay)
+              Button("Add To Bottom Of Queue") {
+                viewModel.addSelectedEpisodesToBottomOfQueue()
+              }
+              Button("Replace Queue") {
+                viewModel.replaceQueue()
+              }
+              Button("Replace Queue and Play") {
+                viewModel.replaceQueueAndPlay()
+              }
             },
             label: {
               Image(systemName: "text.badge.plus")
@@ -103,11 +114,15 @@ struct SeriesView: View {
 
       if viewModel.isSelecting {
         ToolbarItem(placement: .topBarLeading) {
-          Button("Done") { viewModel.isSelecting = false }
+          Button("Done") {
+            viewModel.isSelecting = false
+          }
         }
       } else {
         ToolbarItem(placement: .topBarTrailing) {
-          Button("Select Episodes") { viewModel.isSelecting = true }
+          Button("Select Episodes") {
+            viewModel.isSelecting = true
+          }
         }
       }
     }

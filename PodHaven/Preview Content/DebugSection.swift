@@ -17,28 +17,18 @@ struct DebugSection: View {
           }
         }
       }
-      Button(
-        action: {
-          Task {
-            do {
-              try await playInvalidMedia()
-            } catch {
-              alert.andReport(error)
-            }
+      Button("Load Invalid Episode") {
+        Task {
+          do {
+            try await playInvalidMedia()
+          } catch {
+            alert.andReport(error)
           }
-        },
-        label: {
-          Text("Load Invalid Episode")
         }
-      )
-      Button(
-        action: {
-          Task { try await PreviewHelpers.populateQueue() }
-        },
-        label: {
-          Text("Populate Queue")
-        }
-      )
+      }
+      Button("Populate Queue") {
+        Task { try await PreviewHelpers.populateQueue() }
+      }
     }
   }
 

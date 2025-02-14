@@ -48,22 +48,19 @@ struct UpNextView: View {
         if viewModel.isEditing {
           if viewModel.anySelected {
             ToolbarItemGroup(placement: .topBarTrailing) {
-              Button(
-                action: viewModel.deleteSelected,
-                label: { Text("Delete Selected") }
-              )
+              Button("Delete Selected") {
+                viewModel.deleteSelected()
+              }
 
-              Button(
-                action: viewModel.unselectAll,
-                label: { Text("Unselect All") }
-              )
+              Button("Unselect All") {
+                viewModel.unselectAll()
+              }
             }
           } else {
             ToolbarItem(placement: .topBarTrailing) {
-              Button(
-                action: { viewModel.deleteAll() },
-                label: { Text("Delete All") }
-              )
+              Button("Delete All") {
+                viewModel.deleteAll()
+              }
             }
           }
         }

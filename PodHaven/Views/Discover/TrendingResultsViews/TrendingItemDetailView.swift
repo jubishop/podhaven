@@ -16,12 +16,9 @@ struct TrendingItemDetailView: View {
       HTMLText(viewModel.unsavedPodcast.description)
 
       if viewModel.subscribable {
-        Button(
-          action: viewModel.subscribe,
-          label: {
-            Text("Subscribe")
-          }
-        )
+        Button("Subscribe") {
+          viewModel.subscribe()
+        }
       }
 
       if viewModel.unsavedEpisodes.isEmpty {

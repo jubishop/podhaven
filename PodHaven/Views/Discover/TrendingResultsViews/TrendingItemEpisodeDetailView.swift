@@ -16,18 +16,15 @@ struct TrendingItemEpisodeDetailView: View {
       Text(viewModel.unsavedEpisode.title)
       Text("Duration: \(viewModel.unsavedEpisode.duration.readable())")
       if !viewModel.onDeck {
-        Button(
-          action: viewModel.playNow,
-          label: { Text("Play Now") }
-        )
-        Button(
-          action: viewModel.addToTopOfQueue,
-          label: { Text("Add To Top Of Queue") }
-        )
-        Button(
-          action: viewModel.appendToQueue,
-          label: { Text("Add To Bottom Of Queue") }
-        )
+        Button("Play Now") {
+          viewModel.playNow()
+        }
+        Button("Add To Top Of Queue") {
+          viewModel.addToTopOfQueue()
+        }
+        Button("Add To Bottom Of Queue") {
+          viewModel.appendToQueue()
+        }
       }
     }
     .navigationTitle(viewModel.unsavedEpisode.title)

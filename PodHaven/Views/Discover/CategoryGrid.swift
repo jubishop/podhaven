@@ -19,19 +19,14 @@ struct CategoryGrid: View {
         horizontalSpacing: 8,
         verticalSpacing: 8
       ) { category in
-        Button(
-          action: {
-            viewModel.categorySelected(category)
-          },
-          label: {
-            Text(category)
-              .font(.caption)
-              .padding(4)
-              .background(Color.blue.opacity(0.2))
-              .foregroundColor(.blue)
-              .cornerRadius(4)
-          }
-        )
+        Button(category) {
+          viewModel.categorySelected(category)
+        }
+        .font(.caption)
+        .padding(4)
+        .background(Color.blue.opacity(0.2))
+        .foregroundColor(.blue)
+        .cornerRadius(4)
       }
       .background(Color(.systemBackground))
     }

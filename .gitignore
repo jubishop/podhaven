@@ -18,3 +18,6 @@ playground.xcworkspace
 
 # Sentry
 .sentryclirc
+
+# Aider
+.aider*

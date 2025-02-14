@@ -7,16 +7,13 @@ struct OPMLView: View {
 
   var body: some View {
     Form {
-      Button(
-        action: {
-          #if targetEnvironment(simulator)
-            viewModel.importOPMLFileInSimulator("large")
-          #else
-            viewModel.opmlImporting = true
-          #endif
-        },
-        label: { Text("Import OPML") }
-      )
+      Button("Import OPML") {
+        #if targetEnvironment(simulator)
+          viewModel.importOPMLFileInSimulator("large")
+        #else
+          viewModel.opmlImporting = true
+        #endif
+      }
     }
     .navigationTitle("OPML")
     .fileImporter(
