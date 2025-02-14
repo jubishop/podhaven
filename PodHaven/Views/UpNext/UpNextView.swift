@@ -65,7 +65,7 @@ struct UpNextView: View {
           }
         }
 
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: (viewModel.isEditing ? .topBarLeading : .topBarTrailing)) {
           EditButton()
             .environment(\.editMode, $viewModel.editMode)
         }
