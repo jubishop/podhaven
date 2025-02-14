@@ -24,12 +24,7 @@ struct SeriesView: View {
         .padding(.horizontal)
 
       if !viewModel.podcast.subscribed {
-        Button(
-          action: viewModel.subscribe,
-          label: {
-            Text("Subscribe")
-          }
-        )
+        Button("Subscribe", action: viewModel.subscribe)
       }
 
       SearchBar(
@@ -73,72 +68,46 @@ struct SeriesView: View {
     }
     .toolbar {
       if viewModel.isSelecting {
-        ToolbarItem(placement: .topBarLeading) {
-          Button(
-            action: {
-              viewModel.isSelecting = false
+        ToolbarItem(placement: .topBarTrailing) {
+          Menu(
+            content: {
+              if viewModel.anyNotSelected {
+                Button("Select All", action: viewModel.selectAllEpisodes)
+              }
+              if viewModel.anySelected {
+                Button("Unselect All", action: viewModel.unselectAllEpisodes)
+              }
             },
             label: {
-              Text("Done")
+              Image(systemName: "checklist")
+            }
+          )
+        }
+      }
+
+      if viewModel.isSelecting, viewModel.anySelected {
+        ToolbarItem(placement: .topBarTrailing) {
+          Menu(
+            content: {
+              Button("Add To Top Of Queue", action: viewModel.addSelectedEpisodesToTopOfQueue)
+              Button("Add To Bottom Of Queue", action: viewModel.addSelectedEpisodesToBottomOfQueue)
+              Button("Replace Queue", action: viewModel.replaceQueue)
+              Button("Replace Queue and Play", action: viewModel.replaceQueueAndPlay)
+            },
+            label: {
+              Image(systemName: "text.badge.plus")
             }
           )
         }
       }
 
       if viewModel.isSelecting {
-        if viewModel.anySelected {
-          ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-              Button(
-                action: {
-                  viewModel.addSelectedEpisodesToTopOfQueue()
-                },
-                label: {
-                  Text("Add To Top Of Queue")
-                }
-              )
-
-              Button(
-                action: {
-                  viewModel.addSelectedEpisodesToBottomOfQueue()
-                },
-                label: {
-                  Text("Add To Bottom Of Queue")
-                }
-              )
-
-              Button(
-                action: {
-                  viewModel.replaceQueue()
-                },
-                label: {
-                  Text("Replace Queue")
-                }
-              )
-
-              Button(
-                action: {
-                  viewModel.replaceQueueAndPlay()
-                },
-                label: {
-                  Text("Replace Queue and Play")
-                }
-              )
-            } label: {
-              Image(systemName: "ellipsis.circle")
-            }
-          }
+        ToolbarItem(placement: .topBarLeading) {
+          Button("Done") { viewModel.isSelecting = false }
         }
       } else {
         ToolbarItem(placement: .topBarTrailing) {
-          Button(
-            action: {
-              viewModel.isSelecting = true
-            },
-            label: {
-              Text("Select Episodes")
-            }
-          )
+          Button("Select Episodes") { viewModel.isSelecting = true }
         }
       }
     }

@@ -22,13 +22,10 @@ import SwiftUI
   }
 
   var isSelected = BindableDictionary<Episode, Bool>(defaultValue: false)
-  var anySelected: Bool { isSelected.values.contains(true) }
-
+  var anySelected: Bool { filteredEpisodes.contains(where: { isSelected[$0] }) }
+  var anyNotSelected: Bool { filteredEpisodes.contains(where: { !isSelected[$0] }) }
   var selectedEpisodes: EpisodeArray {
-    IdentifiedArray(
-      uniqueElements: isSelected.keys.filter({ isSelected[$0] && filteredEpisodes.contains($0) }),
-      id: \Episode.guid
-    )
+    IdentifiedArray(uniqueElements: filteredEpisodes.filter({ isSelected[$0] }), id: \Episode.guid)
   }
 
   var filteredEpisodes: EpisodeArray {
@@ -73,6 +70,18 @@ import SwiftUI
   func subscribe() {
     Task {
       try await repo.markSubscribed(podcast.id)
+    }
+  }
+
+  func selectAllEpisodes() {
+    for episode in filteredEpisodes {
+      isSelected[episode] = true
+    }
+  }
+
+  func unselectAllEpisodes() {
+    for episode in filteredEpisodes {
+      isSelected[episode] = false
     }
   }
 
