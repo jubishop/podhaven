@@ -13,6 +13,8 @@ import SwiftUI
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
 
+  // MARK: - State Management
+
   private var _isSelecting = false
   var isSelecting: Bool {
     get { _isSelecting }
@@ -48,6 +50,8 @@ import SwiftUI
 
   private var podcastSeries: PodcastSeries
 
+  // MARK: - Initialization
+
   init(podcast: Podcast) {
     self.podcastSeries = PodcastSeries(podcast: podcast)
   }
@@ -60,6 +64,8 @@ import SwiftUI
       alert.andReport(error)
     }
   }
+
+  // MARK: - Public Functions
 
   func refreshSeries() async throws {
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
@@ -103,6 +109,8 @@ import SwiftUI
       }
     }
   }
+
+  // MARK: - Private Functions
 
   private func refreshIfStale() async throws {
     if podcastSeries.podcast.lastUpdate < Date.minutesAgo(15),
