@@ -16,14 +16,12 @@ import SwiftUI
   private var _isSelecting = false
   var isSelecting: Bool {
     get { _isSelecting }
-    set {
-      withAnimation { _isSelecting = newValue }
-    }
+    set { withAnimation { _isSelecting = newValue } }
   }
 
   var isSelected = BindableDictionary<Episode, Bool>(defaultValue: false)
-  var anySelected: Bool { filteredEpisodes.contains(where: { isSelected[$0] }) }
-  var anyNotSelected: Bool { filteredEpisodes.contains(where: { !isSelected[$0] }) }
+  var anySelected: Bool { filteredEpisodes.contains { isSelected[$0] } }
+  var anyNotSelected: Bool { filteredEpisodes.contains { !isSelected[$0] } }
   var selectedEpisodes: EpisodeArray {
     IdentifiedArray(uniqueElements: filteredEpisodes.filter({ isSelected[$0] }), id: \Episode.guid)
   }
@@ -68,9 +66,7 @@ import SwiftUI
   }
 
   func subscribe() {
-    Task {
-      try await repo.markSubscribed(podcast.id)
-    }
+    Task { try await repo.markSubscribed(podcast.id) }
   }
 
   func selectAllEpisodes() {
@@ -86,21 +82,15 @@ import SwiftUI
   }
 
   func addSelectedEpisodesToTopOfQueue() {
-    Task {
-      try await queue.unshift(selectedEpisodes.map(\.id))
-    }
+    Task { try await queue.unshift(selectedEpisodes.map(\.id)) }
   }
 
   func addSelectedEpisodesToBottomOfQueue() {
-    Task {
-      try await queue.append(selectedEpisodes.map(\.id))
-    }
+    Task { try await queue.append(selectedEpisodes.map(\.id)) }
   }
 
   func replaceQueue() {
-    Task {
-      try await queue.replace(selectedEpisodes.map(\.id))
-    }
+    Task { try await queue.replace(selectedEpisodes.map(\.id)) }
   }
 
   func replaceQueueAndPlay() {
