@@ -60,7 +60,7 @@ final actor DataFetchableMock: DataFetchable {
     mockResponses[url] = response
   }
 
-  // MARK: - Private Methods
+  // MARK: - Private Helpers
 
   private func get(_ url: URL) -> MockResponse {
     mockResponses[

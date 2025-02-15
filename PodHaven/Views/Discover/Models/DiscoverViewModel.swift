@@ -127,15 +127,15 @@ import SwiftUI
     }
   }
 
-  func performSearch() async throws {
+  // MARK: - Private Helpers
+
+  private func performSearch() async throws {
     self.trendingResult = nil
 
     if currentView == .trending {
       self.trendingResult = try await searchTrending()
     }
   }
-
-  // MARK: - Private Helpers
 
   private func searchTrending() async throws -> TrendingResult {
     try await searchService.searchTrending(categories: categoriesToSearch, language: Self.language)

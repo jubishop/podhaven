@@ -26,12 +26,8 @@ import SwiftUI
   }
   var duration: CMTime { playState.onDeck?.duration ?? CMTime.zero }
 
-  var seekBackwardImage: Image {
-    Image(systemName: "gobackward.15")
-  }
-  var seekForwardImage: Image {
-    Image(systemName: "goforward.30")
-  }
+  var seekBackwardImage: Image { Image(systemName: "gobackward.15") }
+  var seekForwardImage: Image { Image(systemName: "goforward.30") }
 
   func playOrPause() {
     guard playState.playable else { return }

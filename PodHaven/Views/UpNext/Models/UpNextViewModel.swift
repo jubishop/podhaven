@@ -59,6 +59,8 @@ import SwiftUI
     isSelected.removeAll()
   }
 
+  // MARK: - Private Helpers
+
   private func observeQueuedEpisodes() async throws {
     let observer =
       ValueObservation.tracking { db in

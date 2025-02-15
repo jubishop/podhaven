@@ -70,7 +70,7 @@ final actor DownloadTask: Sendable {
     return result
   }
 
-  // MARK: - Private Methods
+  // MARK: - Private Helpers
 
   private func haveBegun() {
     guard !begun else { return }
@@ -158,7 +158,7 @@ final actor DownloadManager: Sendable {
     pendingDownloads.removeAll()
   }
 
-  // MARK: - Private Methods
+  // MARK: - Private Helpers
 
   private func startNextDownload() {
     guard

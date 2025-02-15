@@ -44,6 +44,8 @@ import GRDB
     Task { try await queue.append(episode.id) }
   }
 
+  // MARK: - Private Helpers
+
   private func observeEpisode() async throws {
     let observer =
       ValueObservation.tracking(

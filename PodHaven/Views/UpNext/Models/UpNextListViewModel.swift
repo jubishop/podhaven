@@ -36,9 +36,7 @@ import SwiftUI
   }
 
   func playNext() {
-    Task {
-      try await queue.unshift(episode.id)
-    }
+    Task { try await queue.unshift(episode.id) }
   }
 
   func viewDetails() {

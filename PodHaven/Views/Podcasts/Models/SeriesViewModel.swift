@@ -125,7 +125,7 @@ import SwiftUI
     }
   }
 
-  // MARK: - Private Functions
+  // MARK: - Private Helpers
 
   private func refreshIfStale() async throws {
     if podcastSeries.podcast.lastUpdate < Date.minutesAgo(15),

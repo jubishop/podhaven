@@ -89,7 +89,7 @@ struct Queue: Sendable {
     try await append([episodeID])
   }
 
-  //MARK: - Private Queue Helpers
+  //MARK: - Private Helpers
 
   private func _fetchOldPosition(_ db: Database, for episodeID: Episode.ID) throws -> Int? {
     precondition(

@@ -30,20 +30,6 @@ import Foundation
     }
   }
 
-  func fetchFeed() async throws {
-    let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
-    self.podcastFeed = podcastFeed
-    unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false, lastUpdate: Date.epoch)
-    unsavedEpisodes = podcastFeed.toUnsavedEpisodes()
-
-    existingPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)
-    if let podcastSeries = existingPodcastSeries, podcastSeries.podcast.subscribed {
-      navigation.showPodcast(podcastSeries)
-    } else {
-      subscribable = true
-    }
-  }
-
   func subscribe() {
     Task {
       if let podcastSeries = existingPodcastSeries, let podcastFeed = self.podcastFeed {
@@ -64,6 +50,22 @@ import Foundation
         )
         navigation.showPodcast(newPodcastSeries)
       }
+    }
+  }
+
+  // MARK: - Private Helpers
+
+  private func fetchFeed() async throws {
+    let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
+    self.podcastFeed = podcastFeed
+    unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false, lastUpdate: Date.epoch)
+    unsavedEpisodes = podcastFeed.toUnsavedEpisodes()
+
+    existingPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)
+    if let podcastSeries = existingPodcastSeries, podcastSeries.podcast.subscribed {
+      navigation.showPodcast(podcastSeries)
+    } else {
+      subscribable = true
     }
   }
 }

@@ -113,7 +113,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     navigation.currentTab = .podcasts
   }
 
-  // MARK: - Private Methods
+  // MARK: - Private Helpers
 
   private func downloadOPMLFile(_ opml: PodcastOPML) async throws {
     await downloadSemaphor.wait()

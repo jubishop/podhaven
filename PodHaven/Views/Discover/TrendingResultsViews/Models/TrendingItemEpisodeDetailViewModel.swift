@@ -59,7 +59,9 @@ import GRDB
     }
   }
 
-  func fetchOrCreateEpisode() async throws -> PodcastEpisode {
+  // MARK: - Private Helpers
+
+  private func fetchOrCreateEpisode() async throws -> PodcastEpisode {
     try await fetchEpisode()
     if let existingEpisode = self.podcastEpisode {
       return existingEpisode
@@ -70,7 +72,7 @@ import GRDB
     return podcastEpisode
   }
 
-  func fetchEpisode() async throws {
+  private func fetchEpisode() async throws {
     guard !fetchAttempted
     else { return }
 
