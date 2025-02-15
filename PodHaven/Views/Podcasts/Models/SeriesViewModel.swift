@@ -75,6 +75,21 @@ import SwiftUI
     Task { try await repo.markSubscribed(podcast.id) }
   }
 
+  func queueEpisodeOnTop(_ episode: Episode) {
+    Task { try await queue.unshift(episode.id) }
+  }
+
+  func queueEpisodeAtBottom(_ episode: Episode) {
+    Task { try await queue.append(episode.id) }
+  }
+
+  func playEpisode(_ episode: Episode) {
+    Task {
+      try await playManager.load(PodcastEpisode(podcast: podcast, episode: episode))
+      await playManager.play()
+    }
+  }
+
   func selectAllEpisodes() {
     for episode in filteredEpisodes {
       isSelected[episode] = true

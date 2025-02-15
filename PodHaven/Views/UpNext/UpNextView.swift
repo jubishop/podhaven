@@ -31,6 +31,7 @@ struct UpNextView: View {
           }
           .swipeActions(edge: .trailing) {
             Button(
+              role: .destructive,
               action: { viewModel.deleteItem(podcastEpisode) },
               label: {
                 Label("Delete", systemImage: "trash")
