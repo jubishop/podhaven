@@ -30,18 +30,18 @@ struct SeriesView: View {
       }
 
       SearchBar(
-        text: $viewModel.episodeFilter,
+        text: $viewModel.listModel.episodeFilter,
         placeholder: "Filter episodes",
         imageName: "line.horizontal.3.decrease.circle"
       )
 
-      List(viewModel.filteredEpisodes) { episode in
+      List(viewModel.listModel.filteredEpisodes) { episode in
         NavigationLink(
           value: episode,
           label: {
             EpisodeListView(
               viewModel: EpisodeListViewModel(
-                isSelected: $viewModel.isSelected[episode],
+                isSelected: $viewModel.listModel.isSelected[episode],
                 episode: episode,
                 isSelecting: viewModel.isSelecting
               )
@@ -99,14 +99,14 @@ struct SeriesView: View {
         ToolbarItem(placement: .topBarTrailing) {
           Menu(
             content: {
-              if viewModel.anyNotSelected {
+              if viewModel.listModel.anyNotSelected {
                 Button("Select All") {
-                  viewModel.selectAllEpisodes()
+                  viewModel.listModel.selectAllEpisodes()
                 }
               }
-              if viewModel.anySelected {
+              if viewModel.listModel.anySelected {
                 Button("Unselect All") {
-                  viewModel.unselectAllEpisodes()
+                  viewModel.listModel.unselectAllEpisodes()
                 }
               }
             },
@@ -117,7 +117,7 @@ struct SeriesView: View {
         }
       }
 
-      if viewModel.isSelecting, viewModel.anySelected {
+      if viewModel.isSelecting, viewModel.listModel.anySelected {
         ToolbarItem(placement: .topBarTrailing) {
           Menu(
             content: {

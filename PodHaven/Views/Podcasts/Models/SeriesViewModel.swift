@@ -21,39 +21,22 @@ import SwiftUI
     set { withAnimation { _isSelecting = newValue } }
   }
 
-  var isSelected = BindableDictionary<Episode, Bool>(defaultValue: false)
-  var anySelected: Bool { filteredEpisodes.contains { isSelected[$0] } }
-  var anyNotSelected: Bool { filteredEpisodes.contains { !isSelected[$0] } }
-  var selectedEpisodes: EpisodeArray {
-    IdentifiedArray(uniqueElements: filteredEpisodes.filter({ isSelected[$0] }), id: \Episode.guid)
-  }
-
-  var filteredEpisodes: EpisodeArray {
-    let searchTerms =
-      episodeFilter
-      .lowercased()
-      .components(separatedBy: CharacterSet.whitespacesAndNewlines)
-      .filter { !$0.isEmpty }
-
-    guard !searchTerms.isEmpty else { return podcastSeries.episodes }
-
-    return EpisodeArray(
-      podcastSeries.episodes.filter { episode in
-        let lowercasedTitle = episode.title.lowercased()
-        return searchTerms.allSatisfy { lowercasedTitle.contains($0) }
-      }
-    )
-  }
-  var episodeFilter: String = ""
-
+  var listModel: EpisodeListModel = EpisodeListModel()
   var podcast: Podcast { podcastSeries.podcast }
 
-  private var podcastSeries: PodcastSeries
+  private var _podcastSeries: PodcastSeries
+  private var podcastSeries: PodcastSeries {
+    get { _podcastSeries }
+    set {
+      _podcastSeries = newValue
+      listModel.allEpisodes = newValue.episodes
+    }
+  }
 
   // MARK: - Initialization
 
   init(podcast: Podcast) {
-    self.podcastSeries = PodcastSeries(podcast: podcast)
+    self._podcastSeries = PodcastSeries(podcast: podcast)
   }
 
   func execute() async {
@@ -90,36 +73,24 @@ import SwiftUI
     }
   }
 
-  func selectAllEpisodes() {
-    for episode in filteredEpisodes {
-      isSelected[episode] = true
-    }
-  }
-
-  func unselectAllEpisodes() {
-    for episode in filteredEpisodes {
-      isSelected[episode] = false
-    }
-  }
-
   func addSelectedEpisodesToTopOfQueue() {
-    Task { try await queue.unshift(selectedEpisodes.map(\.id)) }
+    Task { try await queue.unshift(listModel.selectedEpisodes.map(\.id)) }
   }
 
   func addSelectedEpisodesToBottomOfQueue() {
-    Task { try await queue.append(selectedEpisodes.map(\.id)) }
+    Task { try await queue.append(listModel.selectedEpisodes.map(\.id)) }
   }
 
   func replaceQueue() {
-    Task { try await queue.replace(selectedEpisodes.map(\.id)) }
+    Task { try await queue.replace(listModel.selectedEpisodes.map(\.id)) }
   }
 
   func replaceQueueAndPlay() {
     Task {
-      if let firstEpisode = selectedEpisodes.first {
+      if let firstEpisode = listModel.selectedEpisodes.first {
         try await playManager.load(PodcastEpisode(podcast: podcast, episode: firstEpisode))
         await playManager.play()
-        let allExceptFirst = selectedEpisodes.dropFirst()
+        let allExceptFirst = listModel.selectedEpisodes.dropFirst()
         try await queue.replace(allExceptFirst.map(\.id))
       }
     }
