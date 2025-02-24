@@ -21,7 +21,7 @@ import SwiftUI
     set { withAnimation { _isSelecting = newValue } }
   }
 
-  var listModel: EpisodeListModel = EpisodeListModel()
+  var episodeList: EpisodeListUseCase = EpisodeListUseCase()
   var podcast: Podcast { podcastSeries.podcast }
 
   private var _podcastSeries: PodcastSeries
@@ -29,7 +29,7 @@ import SwiftUI
     get { _podcastSeries }
     set {
       _podcastSeries = newValue
-      listModel.allEpisodes = newValue.episodes
+      episodeList.allEpisodes = newValue.episodes
     }
   }
 
@@ -74,23 +74,23 @@ import SwiftUI
   }
 
   func addSelectedEpisodesToTopOfQueue() {
-    Task { try await queue.unshift(listModel.selectedEpisodes.map(\.id)) }
+    Task { try await queue.unshift(episodeList.selectedEpisodes.map(\.id)) }
   }
 
   func addSelectedEpisodesToBottomOfQueue() {
-    Task { try await queue.append(listModel.selectedEpisodes.map(\.id)) }
+    Task { try await queue.append(episodeList.selectedEpisodes.map(\.id)) }
   }
 
   func replaceQueue() {
-    Task { try await queue.replace(listModel.selectedEpisodes.map(\.id)) }
+    Task { try await queue.replace(episodeList.selectedEpisodes.map(\.id)) }
   }
 
   func replaceQueueAndPlay() {
     Task {
-      if let firstEpisode = listModel.selectedEpisodes.first {
+      if let firstEpisode = episodeList.selectedEpisodes.first {
         try await playManager.load(PodcastEpisode(podcast: podcast, episode: firstEpisode))
         await playManager.play()
-        let allExceptFirst = listModel.selectedEpisodes.dropFirst()
+        let allExceptFirst = episodeList.selectedEpisodes.dropFirst()
         try await queue.replace(allExceptFirst.map(\.id))
       }
     }
