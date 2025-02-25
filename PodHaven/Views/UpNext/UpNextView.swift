@@ -11,11 +11,17 @@ struct UpNextView: View {
 
   var body: some View {
     NavigationStack(path: $navigation.upNextPath) {
+      SearchBar(
+        text: $viewModel.episodeList.episodeFilter,
+        placeholder: "Filter episodes",
+        imageName: "line.horizontal.3.decrease.circle"
+      )
+
       List {
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
           UpNextListView(
             viewModel: UpNextListViewModel(
-              isSelected: $viewModel.isSelected[podcastEpisode],
+              isSelected: $viewModel.episodeList.isSelected[podcastEpisode.episode],
               podcastEpisode: podcastEpisode,
               editMode: viewModel.editMode
             )
@@ -47,22 +53,8 @@ struct UpNextView: View {
       .animation(.default, value: Array(viewModel.podcastEpisodes))
       .toolbar {
         if viewModel.isEditing {
-          if viewModel.anySelected {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-              Button("Delete Selected") {
-                viewModel.deleteSelected()
-              }
-
-              Button("Unselect All") {
-                viewModel.unselectAll()
-              }
-            }
-          } else {
-            ToolbarItem(placement: .topBarTrailing) {
-              Button("Delete All") {
-                viewModel.deleteAll()
-              }
-            }
+          ToolbarItem(placement: .topBarTrailing) {
+            viewModel.episodeList.selectMenu()
           }
         }
 

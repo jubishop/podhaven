@@ -11,11 +11,28 @@ import SwiftUI
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.queue) private var queue
 
-  var podcastEpisodes: PodcastEpisodeArray = IdentifiedArray(id: \PodcastEpisode.episode.media)
+  // MARK: - State Management
+
   var editMode: EditMode = .inactive
   var isEditing: Bool { editMode == .active }
-  var isSelected = BindableDictionary<PodcastEpisode, Bool>(defaultValue: false)
-  var anySelected: Bool { isSelected.values.contains(true) }
+
+  var episodeList: EpisodeListUseCase = EpisodeListUseCase()
+
+  private var _podcastEpisodes: PodcastEpisodeArray = IdentifiedArray(
+    id: \PodcastEpisode.episode.media
+  )
+  var podcastEpisodes: PodcastEpisodeArray {
+    get { _podcastEpisodes }
+    set {
+      _podcastEpisodes = newValue
+      episodeList.allEpisodes = EpisodeArray(
+        uniqueElements: newValue.map((\.episode)),
+        id: \Episode.guid
+      )
+    }
+  }
+
+  // MARK: - Initialization
 
   func execute() async {
     do {
@@ -24,6 +41,8 @@ import SwiftUI
       alert.andReport(error)
     }
   }
+
+  // MARK: - Public Functions
 
   func moveItem(from: IndexSet, to: Int) {
     precondition(from.count == 1, "Somehow dragged several?")
@@ -36,27 +55,12 @@ import SwiftUI
     Task { try await queue.unshift(podcastEpisode.episode.id) }
   }
 
-  func deleteSelected() {
-    Task {
-      for selectedItem in isSelected.keys.filter({ isSelected[$0] }) {
-        try await queue.dequeue(selectedItem.episode.id)
-      }
-    }
-  }
-
   func deleteItem(_ podcastEpisode: PodcastEpisode) {
     Task { try await queue.dequeue(podcastEpisode.episode.id) }
   }
 
-  func deleteAll() {
-    Task {
-      try await queue.clear()
-      editMode = .inactive
-    }
-  }
-
-  func unselectAll() {
-    isSelected.removeAll()
+  func deleteSelected() {
+    Task { try await queue.dequeue(episodeList.selectedEpisodeIDs) }
   }
 
   // MARK: - Private Helpers
@@ -74,11 +78,6 @@ import SwiftUI
       .removeDuplicates()
     for try await podcastEpisodes in observer.values(in: repo.db) {
       self.podcastEpisodes = podcastEpisodes
-      for podcastEpisode in isSelected.keys {
-        if !podcastEpisodes.contains(podcastEpisode) {
-          isSelected.removeValue(forKey: podcastEpisode)
-        }
-      }
     }
   }
 }

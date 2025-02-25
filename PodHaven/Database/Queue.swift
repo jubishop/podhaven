@@ -44,15 +44,21 @@ struct Queue: Sendable {
     }
   }
 
-  func dequeue(_ episodeID: Episode.ID) async throws {
+  func dequeue(_ episodeIDs: [Episode.ID]) async throws {
     try await appDB.db.write { db in
-      guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
-      else { return }
+      for episodeID in episodeIDs {
+        guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
+        else { continue }
 
-      try _move (db, episodeID: episodeID, from: oldPosition, to: Int.max)
-      try Episode.filter(id: episodeID)
-        .updateAll(db, Schema.queueOrderColumn.set(to: nil))
+        try _move (db, episodeID: episodeID, from: oldPosition, to: Int.max)
+        try Episode.filter(id: episodeID)
+          .updateAll(db, Schema.queueOrderColumn.set(to: nil))
+      }
     }
+  }
+
+  func dequeue(_ episodeID: Episode.ID) async throws {
+    try await dequeue([episodeID])
   }
 
   func insert(_ episodeID: Episode.ID, at newPosition: Int) async throws {

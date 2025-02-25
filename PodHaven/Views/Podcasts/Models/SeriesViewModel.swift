@@ -74,15 +74,15 @@ import SwiftUI
   }
 
   func addSelectedEpisodesToTopOfQueue() {
-    Task { try await queue.unshift(episodeList.selectedEpisodes.map(\.id)) }
+    Task { try await queue.unshift(episodeList.selectedEpisodeIDs) }
   }
 
   func addSelectedEpisodesToBottomOfQueue() {
-    Task { try await queue.append(episodeList.selectedEpisodes.map(\.id)) }
+    Task { try await queue.append(episodeList.selectedEpisodeIDs) }
   }
 
   func replaceQueue() {
-    Task { try await queue.replace(episodeList.selectedEpisodes.map(\.id)) }
+    Task { try await queue.replace(episodeList.selectedEpisodeIDs) }
   }
 
   func replaceQueueAndPlay() {

@@ -94,6 +94,7 @@ struct SeriesView: View {
         )
       )
     }
+    .animation(.default, value: viewModel.episodeList.filteredEpisodes)
     .toolbar {
       if viewModel.isSelecting {
         ToolbarItem(placement: .topBarTrailing) {

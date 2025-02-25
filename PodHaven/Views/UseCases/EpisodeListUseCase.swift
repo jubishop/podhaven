@@ -13,8 +13,18 @@ import SwiftUI
   var selectedEpisodes: EpisodeArray {
     IdentifiedArray(uniqueElements: filteredEpisodes.filter({ isSelected[$0] }), id: \Episode.guid)
   }
+  var selectedEpisodeIDs: [Episode.ID] { selectedEpisodes.map(\.id) }
 
-  var allEpisodes: EpisodeArray
+  private var _allEpisodes: EpisodeArray
+  var allEpisodes: EpisodeArray {
+    get { _allEpisodes }
+    set {
+      _allEpisodes = newValue
+      for episode in isSelected.keys where !allEpisodes.contains(episode) {
+        isSelected.removeValue(forKey: episode)
+      }
+    }
+  }
   var filteredEpisodes: EpisodeArray {
     let searchTerms =
       episodeFilter
@@ -36,7 +46,7 @@ import SwiftUI
   // MARK: - Initialization
 
   init(allEpisodes: EpisodeArray = IdentifiedArray(id: \Episode.guid)) {
-    self.allEpisodes = allEpisodes
+    _allEpisodes = allEpisodes
   }
 
   // MARK: - View Functions
