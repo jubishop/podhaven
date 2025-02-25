@@ -21,7 +21,7 @@ struct UpNextView: View {
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
           UpNextListView(
             viewModel: UpNextListViewModel(
-              isSelected: $viewModel.episodeList.isSelected[podcastEpisode.episode],
+              isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
               podcastEpisode: podcastEpisode,
               editMode: viewModel.editMode
             )

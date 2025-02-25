@@ -116,7 +116,7 @@ struct Repo: Sendable {
   {
     try await appDB.db.write { db in
       let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
-      var episodes: EpisodeArray = IdentifiedArray(id: \Episode.guid)
+      var episodes: EpisodeArray = IdentifiedArray(id: \.guid)
       for var unsavedEpisode in unsavedEpisodes {
         unsavedEpisode.podcastId = podcast.id
         episodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))

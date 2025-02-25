@@ -16,21 +16,8 @@ import SwiftUI
   var editMode: EditMode = .inactive
   var isEditing: Bool { editMode == .active }
 
-  var episodeList: EpisodeListUseCase = EpisodeListUseCase()
-
-  private var _podcastEpisodes: PodcastEpisodeArray = IdentifiedArray(
-    id: \PodcastEpisode.episode.media
-  )
-  var podcastEpisodes: PodcastEpisodeArray {
-    get { _podcastEpisodes }
-    set {
-      _podcastEpisodes = newValue
-      episodeList.allEpisodes = EpisodeArray(
-        uniqueElements: newValue.map((\.episode)),
-        id: \Episode.guid
-      )
-    }
-  }
+  var episodeList = EpisodeListUseCase<PodcastEpisode, MediaURL>(idKeyPath: \.episode.media)
+  var podcastEpisodes: PodcastEpisodeArray { episodeList.allEpisodes }
 
   // MARK: - Initialization
 
@@ -73,11 +60,11 @@ import SwiftUI
           .including(required: Episode.podcast)
           .order(Schema.queueOrderColumn.asc)
           .asRequest(of: PodcastEpisode.self)
-          .fetchIdentifiedArray(db, id: \PodcastEpisode.episode.media)
+          .fetchIdentifiedArray(db, id: \.episode.media)
       }
       .removeDuplicates()
     for try await podcastEpisodes in observer.values(in: repo.db) {
-      self.podcastEpisodes = podcastEpisodes
+      self.episodeList.allEpisodes = podcastEpisodes
     }
   }
 }

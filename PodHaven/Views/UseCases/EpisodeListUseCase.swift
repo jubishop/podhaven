@@ -4,19 +4,19 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor final class EpisodeListUseCase {
+@Observable @MainActor final class EpisodeListUseCase<T: EpisodeIdentifiable, ID: Hashable> {
   // MARK: - State Management
 
-  var isSelected = BindableDictionary<Episode, Bool>(defaultValue: false)
+  var isSelected = BindableDictionary<T, Bool>(defaultValue: false)
   var anySelected: Bool { filteredEpisodes.contains { isSelected[$0] } }
   var anyNotSelected: Bool { filteredEpisodes.contains { !isSelected[$0] } }
-  var selectedEpisodes: EpisodeArray {
-    IdentifiedArray(uniqueElements: filteredEpisodes.filter({ isSelected[$0] }), id: \Episode.guid)
+  var selectedEpisodes: IdentifiedArray<ID, T> {
+    IdentifiedArray(uniqueElements: filteredEpisodes.filter({ isSelected[$0] }), id: idKeyPath)
   }
-  var selectedEpisodeIDs: [Episode.ID] { selectedEpisodes.map(\.id) }
+  var selectedEpisodeIDs: [Episode.ID] { selectedEpisodes.map { $0.id } }
 
-  private var _allEpisodes: EpisodeArray
-  var allEpisodes: EpisodeArray {
+  private var _allEpisodes: IdentifiedArray<ID, T>
+  var allEpisodes: IdentifiedArray<ID, T> {
     get { _allEpisodes }
     set {
       _allEpisodes = newValue
@@ -25,7 +25,8 @@ import SwiftUI
       }
     }
   }
-  var filteredEpisodes: EpisodeArray {
+
+  var filteredEpisodes: IdentifiedArray<ID, T> {
     let searchTerms =
       episodeFilter
       .lowercased()
@@ -34,19 +35,23 @@ import SwiftUI
 
     guard !searchTerms.isEmpty else { return allEpisodes }
 
-    return EpisodeArray(
+    return IdentifiedArray(
       allEpisodes.filter { episode in
         let lowercasedTitle = episode.title.lowercased()
         return searchTerms.allSatisfy { lowercasedTitle.contains($0) }
       }
     )
   }
+
   var episodeFilter: String = ""
+
+  private let idKeyPath: KeyPath<T, ID>
 
   // MARK: - Initialization
 
-  init(allEpisodes: EpisodeArray = IdentifiedArray(id: \Episode.guid)) {
-    _allEpisodes = allEpisodes
+  init(idKeyPath: KeyPath<T, ID>) {
+    self.idKeyPath = idKeyPath
+    self._allEpisodes = IdentifiedArray(id: idKeyPath)
   }
 
   // MARK: - View Functions

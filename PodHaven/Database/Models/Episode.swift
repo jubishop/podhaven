@@ -65,3 +65,7 @@ extension Episode {
     request(for: Self.podcast)
   }
 }
+
+extension Episode: EpisodeIdentifiable {
+  var title: String { value.title }
+}

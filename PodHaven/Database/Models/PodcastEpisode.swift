@@ -7,8 +7,13 @@ import Tagged
 
 typealias PodcastEpisodeArray = IdentifiedArray<MediaURL, PodcastEpisode>
 
-struct PodcastEpisode: Codable, FetchableRecord, Equatable, Identifiable, Hashable {
+struct PodcastEpisode: Codable, EpisodeIdentifiable, Equatable, FetchableRecord {
+  // MARK: - EpisodeIdentifiable
+
   var id: Episode.ID { episode.id }
+  var title: String { episode.title }
+
+  // MARK: - Data
 
   let podcast: Podcast
   let episode: Episode

@@ -21,7 +21,7 @@ import SwiftUI
     set { withAnimation { _isSelecting = newValue } }
   }
 
-  var episodeList: EpisodeListUseCase = EpisodeListUseCase()
+  var episodeList = EpisodeListUseCase<Episode, GUID>(idKeyPath: \.guid)
   var podcast: Podcast { podcastSeries.podcast }
 
   private var _podcastSeries: PodcastSeries
