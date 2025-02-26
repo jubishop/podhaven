@@ -66,6 +66,6 @@ extension Episode {
   }
 }
 
-extension Episode: EpisodeIdentifiable {
+extension Episode: EpisodeRepresentable {
   var title: String { value.title }
 }

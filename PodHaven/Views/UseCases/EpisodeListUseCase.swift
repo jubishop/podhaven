@@ -5,7 +5,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-final class EpisodeListUseCase<T: EpisodeIdentifiable, ID: Hashable>: EpisodeListSelectable {
+final class EpisodeListUseCase<T: EpisodeRepresentable, ID: Hashable>: EpisodeListSelectable {
   // MARK: - State Management
 
   var isSelected = BindableDictionary<T, Bool>(defaultValue: false)
@@ -14,7 +14,6 @@ final class EpisodeListUseCase<T: EpisodeIdentifiable, ID: Hashable>: EpisodeLis
   var selectedEpisodes: IdentifiedArray<ID, T> {
     IdentifiedArray(uniqueElements: filteredEpisodes.filter({ isSelected[$0] }), id: idKeyPath)
   }
-  var selectedEpisodeIDs: [Episode.ID] { selectedEpisodes.map { $0.id } }
 
   private var _allEpisodes: IdentifiedArray<ID, T>
   var allEpisodes: IdentifiedArray<ID, T> {

@@ -18,6 +18,7 @@ import SwiftUI
   var isEditing: Bool { editMode == .active }
 
   var episodeList = EpisodeListUseCase<PodcastEpisode, MediaURL>(idKeyPath: \.episode.media)
+  var selectedEpisodeIDs: [Episode.ID] { episodeList.selectedEpisodes.map { $0.id } }
   var podcastEpisodes: PodcastEpisodeArray { episodeList.allEpisodes }
 
   // MARK: - Initialization
@@ -55,7 +56,7 @@ import SwiftUI
   }
 
   func deleteSelected() {
-    Task { try await queue.dequeue(episodeList.selectedEpisodeIDs) }
+    Task { try await queue.dequeue(selectedEpisodeIDs) }
   }
 
   // MARK: - Private Helpers

@@ -22,6 +22,7 @@ import SwiftUI
   }
 
   var episodeList = EpisodeListUseCase<Episode, GUID>(idKeyPath: \.guid)
+  var selectedEpisodeIDs: [Episode.ID] { episodeList.selectedEpisodes.map { $0.id } }
   var podcast: Podcast { podcastSeries.podcast }
 
   private var _podcastSeries: PodcastSeries
@@ -74,15 +75,15 @@ import SwiftUI
   }
 
   func addSelectedEpisodesToTopOfQueue() {
-    Task { try await queue.unshift(episodeList.selectedEpisodeIDs) }
+    Task { try await queue.unshift(selectedEpisodeIDs) }
   }
 
   func addSelectedEpisodesToBottomOfQueue() {
-    Task { try await queue.append(episodeList.selectedEpisodeIDs) }
+    Task { try await queue.append(selectedEpisodeIDs) }
   }
 
   func replaceQueue() {
-    Task { try await queue.replace(episodeList.selectedEpisodeIDs) }
+    Task { try await queue.replace(selectedEpisodeIDs) }
   }
 
   func replaceQueueAndPlay() {
