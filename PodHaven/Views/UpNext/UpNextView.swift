@@ -27,6 +27,14 @@ struct UpNextView: View {
                 Label("Move to Top", systemImage: "arrow.up")
               }
             )
+            .tint(.blue)
+
+            Button(
+              action: { viewModel.playItem(podcastEpisode) },
+              label: {
+                Label("Play Now", systemImage: "play.fill")
+              }
+            )
             .tint(.green)
           }
           .swipeActions(edge: .trailing) {

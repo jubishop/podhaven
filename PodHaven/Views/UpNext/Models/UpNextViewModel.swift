@@ -9,6 +9,7 @@ import SwiftUI
 @Observable @MainActor final class UpNextViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
 
   // MARK: - State Management
@@ -40,6 +41,13 @@ import SwiftUI
 
   func moveToTop(_ podcastEpisode: PodcastEpisode) {
     Task { try await queue.unshift(podcastEpisode.episode.id) }
+  }
+
+  func playItem(_ podcastEpisode: PodcastEpisode) {
+    Task {
+      try await playManager.load(podcastEpisode)
+      await playManager.play()
+    }
   }
 
   func deleteItem(_ podcastEpisode: PodcastEpisode) {
