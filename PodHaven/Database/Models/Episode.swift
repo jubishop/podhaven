@@ -10,7 +10,7 @@ typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
 typealias EpisodeArray = IdentifiedArray<GUID, Episode>
 
-struct UnsavedEpisode: Savable {
+struct UnsavedEpisode: Savable, EpisodeRepresentable {
   var podcastId: Podcast.ID?
   let guid: GUID
   var media: MediaURL

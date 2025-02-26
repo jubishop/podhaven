@@ -2,6 +2,7 @@
 
 import Factory
 import Foundation
+import IdentifiedCollections
 
 @Observable @MainActor class TrendingItemDetailViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
@@ -13,7 +14,7 @@ import Foundation
 
   let category: String
   var unsavedPodcast: UnsavedPodcast
-  var unsavedEpisodes: [UnsavedEpisode] = []
+  var episodeList = EpisodeListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
   var subscribable: Bool = false
 
   private var existingPodcastSeries: PodcastSeries?
@@ -52,7 +53,7 @@ import Foundation
         unsavedPodcast.lastUpdate = Date()
         let newPodcastSeries = try await repo.insertSeries(
           unsavedPodcast,
-          unsavedEpisodes: unsavedEpisodes
+          unsavedEpisodes: Array(episodeList.allEpisodes)
         )
         navigation.showPodcast(newPodcastSeries)
       }
@@ -65,7 +66,10 @@ import Foundation
     let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
     self.podcastFeed = podcastFeed
     unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false, lastUpdate: Date.epoch)
-    unsavedEpisodes = podcastFeed.toUnsavedEpisodes()
+    episodeList.allEpisodes = IdentifiedArray(
+      uniqueElements: podcastFeed.toUnsavedEpisodes(),
+      id: \.guid
+    )
 
     existingPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)
     if let podcastSeries = existingPodcastSeries, podcastSeries.podcast.subscribed {

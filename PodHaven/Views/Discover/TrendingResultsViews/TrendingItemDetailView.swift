@@ -6,14 +6,14 @@ import SwiftUI
 struct TrendingItemDetailView: View {
   @Environment(Alert.self) var alert
 
-  private let viewModel: TrendingItemDetailViewModel
+  @State private var viewModel: TrendingItemDetailViewModel
 
   init(viewModel: TrendingItemDetailViewModel) {
     self.viewModel = viewModel
   }
 
   var body: some View {
-    VStack(spacing: 40) {
+    VStack {
       HTMLText(viewModel.unsavedPodcast.description)
         .lineLimit(3)
         .padding(.horizontal)
@@ -24,10 +24,16 @@ struct TrendingItemDetailView: View {
         }
       }
 
-      if viewModel.unsavedEpisodes.isEmpty {
+      SearchBar(
+        text: $viewModel.episodeList.episodeFilter,
+        placeholder: "Filter episodes",
+        imageName: "line.horizontal.3.decrease.circle"
+      )
+
+      if viewModel.episodeList.allEpisodes.isEmpty {
         Text("Loading episodes")
       } else {
-        List(viewModel.unsavedEpisodes, id: \.guid) { unsavedEpisode in
+        List(viewModel.episodeList.filteredEpisodes, id: \.guid) { unsavedEpisode in
           NavigationLink(
             value: UnsavedPodcastEpisode(
               unsavedPodcast: viewModel.unsavedPodcast,
