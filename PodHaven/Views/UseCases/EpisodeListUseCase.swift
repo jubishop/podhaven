@@ -4,7 +4,8 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor final class EpisodeListUseCase<T: EpisodeIdentifiable, ID: Hashable> {
+@Observable @MainActor
+final class EpisodeListUseCase<T: EpisodeIdentifiable, ID: Hashable>: EpisodeListSelectable {
   // MARK: - State Management
 
   var isSelected = BindableDictionary<T, Bool>(defaultValue: false)
@@ -54,37 +55,15 @@ import SwiftUI
     self._allEpisodes = IdentifiedArray(id: idKeyPath)
   }
 
-  // MARK: - View Functions
+  // MARK: - Public Functions
 
-  func selectMenu() -> some View {
-    Menu(
-      content: {
-        if anyNotSelected {
-          Button("Select All") {
-            self.selectAllEpisodes()
-          }
-        }
-        if anySelected {
-          Button("Unselect All") {
-            self.unselectAllEpisodes()
-          }
-        }
-      },
-      label: {
-        Image(systemName: "checklist")
-      }
-    )
-  }
-
-  // MARK: - Private Helpers
-
-  private func selectAllEpisodes() {
+  func selectAllEpisodes() {
     for episode in filteredEpisodes {
       isSelected[episode] = true
     }
   }
 
-  private func unselectAllEpisodes() {
+  func unselectAllEpisodes() {
     for episode in filteredEpisodes {
       isSelected[episode] = false
     }

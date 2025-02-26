@@ -98,7 +98,7 @@ struct SeriesView: View {
     .toolbar {
       if viewModel.isSelecting {
         ToolbarItem(placement: .topBarTrailing) {
-          viewModel.episodeList.selectMenu()
+          EpisodeListSelectMenu(episodeList: viewModel.episodeList)
         }
       }
 

@@ -56,7 +56,7 @@ struct UpNextView: View {
       .toolbar {
         if viewModel.isEditing {
           ToolbarItem(placement: .topBarTrailing) {
-            viewModel.episodeList.selectMenu()
+            EpisodeListSelectMenu(episodeList: viewModel.episodeList)
           }
         }
 
