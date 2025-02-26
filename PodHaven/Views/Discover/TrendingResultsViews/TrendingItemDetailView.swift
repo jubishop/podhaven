@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import SwiftUI
 
 struct TrendingItemDetailView: View {
@@ -14,6 +15,8 @@ struct TrendingItemDetailView: View {
   var body: some View {
     VStack(spacing: 40) {
       HTMLText(viewModel.unsavedPodcast.description)
+        .lineLimit(3)
+        .padding(.horizontal)
 
       if viewModel.subscribable {
         Button("Subscribe") {
@@ -54,6 +57,7 @@ struct TrendingItemDetailView: View {
 
 #Preview {
   @Previewable @State var viewModel: TrendingItemDetailViewModel?
+  @ObservationIgnored @LazyInjected(\.repo) var repo
 
   NavigationStack {
     if let viewModel = viewModel {
@@ -62,6 +66,10 @@ struct TrendingItemDetailView: View {
   }
   .preview()
   .task {
+    let unsavedPodcast = try! await PreviewHelpers.loadUnsavedPodcast()
+    if let existingPodcastSeries = try? await repo.podcastSeries(unsavedPodcast.feedURL) {
+      try! await repo.delete(existingPodcastSeries.id)
+    }
     viewModel = TrendingItemDetailViewModel(
       category: "News",
       unsavedPodcast: try! await PreviewHelpers.loadUnsavedPodcast()

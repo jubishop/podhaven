@@ -28,7 +28,7 @@ struct CommandCenter: Sendable {
     return stream
   }
 
-  // MARK: - Public Methods
+  // MARK: - Public Functions
 
   mutating func start() {
     stop()

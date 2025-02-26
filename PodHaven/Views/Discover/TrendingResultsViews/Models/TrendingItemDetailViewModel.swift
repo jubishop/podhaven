@@ -9,6 +9,8 @@ import Foundation
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
 
+  // MARK: - State Management
+
   let category: String
   var unsavedPodcast: UnsavedPodcast
   var unsavedEpisodes: [UnsavedEpisode] = []
@@ -16,6 +18,8 @@ import Foundation
 
   private var existingPodcastSeries: PodcastSeries?
   private var podcastFeed: PodcastFeed?
+
+  // MARK: - Initialization
 
   init(category: String, unsavedPodcast: UnsavedPodcast) {
     self.category = category
@@ -29,6 +33,8 @@ import Foundation
       alert.andReport(error)
     }
   }
+
+  // MARK: - Public Functions
 
   func subscribe() {
     Task {
