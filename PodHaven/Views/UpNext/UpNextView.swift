@@ -11,12 +11,6 @@ struct UpNextView: View {
 
   var body: some View {
     NavigationStack(path: $navigation.upNextPath) {
-      SearchBar(
-        text: $viewModel.episodeList.episodeFilter,
-        placeholder: "Filter episodes",
-        imageName: "line.horizontal.3.decrease.circle"
-      )
-
       List {
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
           UpNextListView(
