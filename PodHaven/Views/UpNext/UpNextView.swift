@@ -60,6 +60,21 @@ struct UpNextView: View {
           }
         }
 
+        if viewModel.isEditing, viewModel.episodeList.anySelected {
+          ToolbarItem(placement: .topBarTrailing) {
+            Menu(
+              content: {
+                Button("Delete Selected") {
+                  viewModel.deleteSelected()
+                }
+              },
+              label: {
+                Image(systemName: "minus.circle")
+              }
+            )
+          }
+        }
+
         ToolbarItem(placement: (viewModel.isEditing ? .topBarLeading : .topBarTrailing)) {
           EditButton()
             .environment(\.editMode, $viewModel.editMode)
