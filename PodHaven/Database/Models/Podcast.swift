@@ -8,7 +8,7 @@ import Tagged
 typealias FeedURL = Tagged<UnsavedPodcast, URL>
 typealias PodcastArray = IdentifiedArray<FeedURL, Podcast>
 
-struct UnsavedPodcast: Savable {
+struct UnsavedPodcast: Savable, Stringable {
   var feedURL: FeedURL
   var title: String
   var image: URL

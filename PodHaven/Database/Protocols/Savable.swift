@@ -3,15 +3,7 @@
 import Foundation
 import GRDB
 
-public protocol Savable:
-  Codable,
-  Hashable,
-  FetchableRecord,
-  PersistableRecord,
-  Sendable
-{
-  var toString: String { get }
-}
+public protocol Savable: Codable, Hashable, FetchableRecord, PersistableRecord, Sendable {}
 
 extension Savable {
   static var databaseTableName: String {

@@ -25,15 +25,15 @@ struct TrendingItemDetailView: View {
       }
 
       SearchBar(
-        text: $viewModel.episodeList.episodeFilter,
+        text: $viewModel.episodeList.entryFilter,
         placeholder: "Filter episodes",
         imageName: "line.horizontal.3.decrease.circle"
       )
 
-      if viewModel.episodeList.allEpisodes.isEmpty {
+      if viewModel.episodeList.allEntries.isEmpty {
         Text("Loading episodes")
       } else {
-        List(viewModel.episodeList.filteredEpisodes, id: \.guid) { unsavedEpisode in
+        List(viewModel.episodeList.filteredEntries, id: \.guid) { unsavedEpisode in
           NavigationLink(
             value: UnsavedPodcastEpisode(
               unsavedPodcast: viewModel.unsavedPodcast,

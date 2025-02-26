@@ -30,12 +30,12 @@ struct SeriesView: View {
       }
 
       SearchBar(
-        text: $viewModel.episodeList.episodeFilter,
+        text: $viewModel.episodeList.entryFilter,
         placeholder: "Filter episodes",
         imageName: "line.horizontal.3.decrease.circle"
       )
 
-      List(viewModel.episodeList.filteredEpisodes) { episode in
+      List(viewModel.episodeList.filteredEntries) { episode in
         NavigationLink(
           value: episode,
           label: {
@@ -94,11 +94,11 @@ struct SeriesView: View {
         )
       )
     }
-    .animation(.default, value: viewModel.episodeList.filteredEpisodes)
+    .animation(.default, value: viewModel.episodeList.filteredEntries)
     .toolbar {
       if viewModel.isSelecting {
         ToolbarItem(placement: .topBarTrailing) {
-          EpisodeListSelectMenu(episodeList: viewModel.episodeList)
+          SelectableListMenu(list: viewModel.episodeList)
         }
       }
 

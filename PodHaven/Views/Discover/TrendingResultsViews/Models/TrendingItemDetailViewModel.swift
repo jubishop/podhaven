@@ -14,7 +14,7 @@ import IdentifiedCollections
 
   let category: String
   var unsavedPodcast: UnsavedPodcast
-  var episodeList = EpisodeListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
+  var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
   var subscribable: Bool = false
 
   private var existingPodcastSeries: PodcastSeries?
@@ -53,7 +53,7 @@ import IdentifiedCollections
         unsavedPodcast.lastUpdate = Date()
         let newPodcastSeries = try await repo.insertSeries(
           unsavedPodcast,
-          unsavedEpisodes: Array(episodeList.allEpisodes)
+          unsavedEpisodes: Array(episodeList.allEntries)
         )
         navigation.showPodcast(newPodcastSeries)
       }
@@ -66,7 +66,7 @@ import IdentifiedCollections
     let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
     self.podcastFeed = podcastFeed
     unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false, lastUpdate: Date.epoch)
-    episodeList.allEpisodes = IdentifiedArray(
+    episodeList.allEntries = IdentifiedArray(
       uniqueElements: podcastFeed.toUnsavedEpisodes(),
       id: \.guid
     )

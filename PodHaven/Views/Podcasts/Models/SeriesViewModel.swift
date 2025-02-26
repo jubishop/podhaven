@@ -21,8 +21,8 @@ import SwiftUI
     set { withAnimation { _isSelecting = newValue } }
   }
 
-  var episodeList = EpisodeListUseCase<Episode, GUID>(idKeyPath: \.guid)
-  var selectedEpisodeIDs: [Episode.ID] { episodeList.selectedEpisodes.map { $0.id } }
+  var episodeList = SelectableListUseCase<Episode, GUID>(idKeyPath: \.guid)
+  var selectedEpisodeIDs: [Episode.ID] { episodeList.selectedEntries.map { $0.id } }
   var podcast: Podcast { podcastSeries.podcast }
 
   private var _podcastSeries: PodcastSeries
@@ -30,7 +30,7 @@ import SwiftUI
     get { _podcastSeries }
     set {
       _podcastSeries = newValue
-      episodeList.allEpisodes = newValue.episodes
+      episodeList.allEntries = newValue.episodes
     }
   }
 
@@ -88,10 +88,10 @@ import SwiftUI
 
   func replaceQueueAndPlay() {
     Task {
-      if let firstEpisode = episodeList.selectedEpisodes.first {
+      if let firstEpisode = episodeList.selectedEntries.first {
         try await playManager.load(PodcastEpisode(podcast: podcast, episode: firstEpisode))
         await playManager.play()
-        let allExceptFirst = episodeList.selectedEpisodes.dropFirst()
+        let allExceptFirst = episodeList.selectedEntries.dropFirst()
         try await queue.replace(allExceptFirst.map(\.id))
       }
     }

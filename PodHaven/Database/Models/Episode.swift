@@ -10,7 +10,7 @@ typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
 typealias EpisodeArray = IdentifiedArray<GUID, Episode>
 
-struct UnsavedEpisode: Savable, EpisodeRepresentable {
+struct UnsavedEpisode: Savable, Stringable {
   var podcastId: Podcast.ID?
   let guid: GUID
   var media: MediaURL
@@ -52,7 +52,7 @@ struct UnsavedEpisode: Savable, EpisodeRepresentable {
     self.queueOrder = queueOrder
   }
 
-  // MARK: - Savable
+  // MARK: - Stringable
 
   var toString: String { self.title }
 }
@@ -64,8 +64,4 @@ extension Episode {
   var podcast: QueryInterfaceRequest<Podcast> {
     request(for: Self.podcast)
   }
-}
-
-extension Episode: EpisodeRepresentable {
-  var title: String { value.title }
 }

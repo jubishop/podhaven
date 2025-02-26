@@ -2,24 +2,24 @@
 
 import SwiftUI
 
-struct EpisodeListSelectMenu: View {
-  private let episodeList: EpisodeListSelectable
+struct SelectableListMenu: View {
+  private let list: SelectableList
 
-  init(episodeList: EpisodeListSelectable) {
-    self.episodeList = episodeList
+  init(list: SelectableList) {
+    self.list = list
   }
 
   var body: some View {
     Menu(
       content: {
-        if episodeList.anyNotSelected {
+        if list.anyNotSelected {
           Button("Select All") {
-            episodeList.selectAllEpisodes()
+            list.selectAllEntries()
           }
         }
-        if episodeList.anySelected {
+        if list.anySelected {
           Button("Unselect All") {
-            episodeList.unselectAllEpisodes()
+            list.unselectAllEntries()
           }
         }
       },

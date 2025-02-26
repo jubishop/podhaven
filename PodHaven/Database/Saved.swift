@@ -5,10 +5,7 @@ import GRDB
 import Tagged
 
 @dynamicMemberLookup
-public struct Saved<V>:
-  Savable,
-  Identifiable
-where V: Savable {
+struct Saved<V>: Savable, Stringable, Identifiable where V: Savable & Stringable {
   public typealias ID = Tagged<Self, Int64>
   public var id: ID
 

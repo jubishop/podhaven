@@ -2,10 +2,10 @@
 
 import Foundation
 
-@MainActor protocol EpisodeListSelectable {
+@MainActor protocol SelectableList {
   var anyNotSelected: Bool { get }
   var anySelected: Bool { get }
 
-  func selectAllEpisodes()
-  func unselectAllEpisodes()
+  func selectAllEntries()
+  func unselectAllEntries()
 }

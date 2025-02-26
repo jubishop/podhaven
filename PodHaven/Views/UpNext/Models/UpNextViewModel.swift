@@ -17,9 +17,9 @@ import SwiftUI
   var editMode: EditMode = .inactive
   var isEditing: Bool { editMode == .active }
 
-  var episodeList = EpisodeListUseCase<PodcastEpisode, MediaURL>(idKeyPath: \.episode.media)
-  var selectedEpisodeIDs: [Episode.ID] { episodeList.selectedEpisodes.map { $0.id } }
-  var podcastEpisodes: PodcastEpisodeArray { episodeList.allEpisodes }
+  var episodeList = SelectableListUseCase<PodcastEpisode, MediaURL>(idKeyPath: \.episode.media)
+  var selectedEpisodeIDs: [Episode.ID] { episodeList.selectedEntries.map { $0.id } }
+  var podcastEpisodes: PodcastEpisodeArray { episodeList.allEntries }
 
   // MARK: - Initialization
 
@@ -73,7 +73,7 @@ import SwiftUI
       }
       .removeDuplicates()
     for try await podcastEpisodes in observer.values(in: repo.db) {
-      self.episodeList.allEpisodes = podcastEpisodes
+      self.episodeList.allEntries = podcastEpisodes
     }
   }
 }
