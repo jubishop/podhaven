@@ -6,10 +6,10 @@ import GRDB
 
 @Observable @MainActor final class EpisodeViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
-  @ObservationIgnored @LazyInjected(\.repo) private var repo
-  @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.playState) private var playState
+  @ObservationIgnored @LazyInjected(\.queue) private var queue
+  @ObservationIgnored @LazyInjected(\.repo) private var repo
 
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }

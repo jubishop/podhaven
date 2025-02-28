@@ -7,8 +7,8 @@ import IdentifiedCollections
 
 @Observable @MainActor final class PodcastsViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
-  @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
+  @ObservationIgnored @LazyInjected(\.repo) private var repo
 
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 

@@ -7,6 +7,7 @@ import SwiftUI
 @Observable @MainActor final class DiscoverViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.playState) private var playState
+  @ObservationIgnored @LazyInjected(\.searchService) private var searchService
 
   // MARK: - Geometry Management
 
@@ -71,8 +72,6 @@ import SwiftUI
   var categories: [String] { [Self.allCategoriesName] + filteredCategories }
 
   // MARK: - Searching and Results
-
-  @ObservationIgnored @LazyInjected(\.searchService) private var searchService
   var trendingResult: TrendingResult?
 
   // MARK: - Initialization

@@ -8,9 +8,9 @@ import SwiftUI
 
 @Observable @MainActor final class UpNextViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
-  @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
+  @ObservationIgnored @LazyInjected(\.repo) private var repo
 
   // MARK: - State Management
 

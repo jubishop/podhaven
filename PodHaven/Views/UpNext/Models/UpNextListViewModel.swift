@@ -6,9 +6,9 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor final class UpNextListViewModel {
-  @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
+  @ObservationIgnored @LazyInjected(\.queue) private var queue
 
   let isSelected: Binding<Bool>
   let podcastEpisode: PodcastEpisode
