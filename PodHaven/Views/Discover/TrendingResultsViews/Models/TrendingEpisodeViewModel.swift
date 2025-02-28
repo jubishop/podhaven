@@ -4,7 +4,7 @@ import Factory
 import Foundation
 import GRDB
 
-@Observable @MainActor class TrendingItemEpisodeDetailViewModel {
+@Observable @MainActor class TrendingEpisodeViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.queue) private var queue

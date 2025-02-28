@@ -75,6 +75,7 @@ struct SeriesView: View {
           .tint(.green)
         }
       }
+      .animation(.default, value: viewModel.episodeList.filteredEntries)
       .refreshable {
         do {
           try await viewModel.refreshSeries()
@@ -94,7 +95,6 @@ struct SeriesView: View {
         )
       )
     }
-    .animation(.default, value: viewModel.episodeList.filteredEntries)
     .toolbar {
       if viewModel.isSelecting {
         ToolbarItem(placement: .topBarTrailing) {
@@ -106,6 +106,9 @@ struct SeriesView: View {
         ToolbarItem(placement: .topBarTrailing) {
           Menu(
             content: {
+              Button("Add To Top Of Queue") {
+                viewModel.addSelectedEpisodesToTopOfQueue()
+              }
               Button("Add To Bottom Of Queue") {
                 viewModel.addSelectedEpisodesToBottomOfQueue()
               }

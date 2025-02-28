@@ -3,14 +3,21 @@
 import Factory
 import Foundation
 import IdentifiedCollections
+import SwiftUI
 
-@Observable @MainActor class TrendingItemDetailViewModel {
+@Observable @MainActor class TrendingPodcastViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.repo) private var repo
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
 
-  // MARK: - State Management
+  // MARK: - State Management6
+
+  private var _isSelecting = false
+  var isSelecting: Bool {
+    get { _isSelecting }
+    set { withAnimation { _isSelecting = newValue } }
+  }
 
   let category: String
   var unsavedPodcast: UnsavedPodcast
@@ -56,6 +63,44 @@ import IdentifiedCollections
           unsavedEpisodes: Array(episodeList.allEntries)
         )
         navigation.showPodcast(newPodcastSeries)
+      }
+    }
+  }
+
+  func queueEpisodeOnTop(_ episode: Episode) {
+    Task { try await queue.unshift(episode.id) }
+  }
+
+  func queueEpisodeAtBottom(_ episode: Episode) {
+    Task { try await queue.append(episode.id) }
+  }
+
+  func playEpisode(_ episode: Episode) {
+    Task {
+      try await playManager.load(PodcastEpisode(podcast: podcast, episode: episode))
+      await playManager.play()
+    }
+  }
+
+  func addSelectedEpisodesToTopOfQueue() {
+    Task { try await queue.unshift(selectedEpisodeIDs) }
+  }
+
+  func addSelectedEpisodesToBottomOfQueue() {
+    Task { try await queue.append(selectedEpisodeIDs) }
+  }
+
+  func replaceQueue() {
+    Task { try await queue.replace(selectedEpisodeIDs) }
+  }
+
+  func replaceQueueAndPlay() {
+    Task {
+      if let firstEpisode = episodeList.selectedEntries.first {
+        try await playManager.load(PodcastEpisode(podcast: podcast, episode: firstEpisode))
+        await playManager.play()
+        let allExceptFirst = episodeList.selectedEntries.dropFirst()
+        try await queue.replace(allExceptFirst.map(\.id))
       }
     }
   }

@@ -2,12 +2,12 @@
 
 import SwiftUI
 
-struct TrendingItemEpisodeDetailView: View {
+struct TrendingEpisodeView: View {
   @Environment(Alert.self) var alert
 
-  private let viewModel: TrendingItemEpisodeDetailViewModel
+  private let viewModel: TrendingEpisodeViewModel
 
-  init(viewModel: TrendingItemEpisodeDetailViewModel) {
+  init(viewModel: TrendingEpisodeViewModel) {
     self.viewModel = viewModel
   }
 
@@ -38,8 +38,8 @@ struct TrendingItemEpisodeDetailView: View {
 
   NavigationStack {
     if let unsavedPodcast = unsavedPodcast, let unsavedEpisodes = unsavedEpisodes {
-      TrendingItemEpisodeDetailView(
-        viewModel: TrendingItemEpisodeDetailViewModel(
+      TrendingEpisodeView(
+        viewModel: TrendingEpisodeViewModel(
           unsavedPodcastEpisode: UnsavedPodcastEpisode(
             unsavedPodcast: unsavedPodcast,
             unsavedEpisode: unsavedEpisodes.randomElement()!
