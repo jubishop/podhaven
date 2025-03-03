@@ -108,6 +108,14 @@ struct Repo: Sendable {
     }
   }
 
+  func episodes(_ mediaURLs: [MediaURL]) async throws -> [Episode] {
+    try await appDB.db.read { db in
+      try Episode
+        .filter(mediaURLs.contains(Schema.mediaColumn))
+        .fetchAll(db)
+    }
+  }
+
   // MARK: - Series Writers
 
   @discardableResult
@@ -116,7 +124,7 @@ struct Repo: Sendable {
   {
     try await appDB.db.write { db in
       let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
-      var episodes: EpisodeArray = IdentifiedArray(id: \.guid)
+      var episodes: IdentifiedArray<GUID, Episode> = IdentifiedArray(id: \.guid)
       for var unsavedEpisode in unsavedEpisodes {
         unsavedEpisode.podcastId = podcast.id
         episodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
