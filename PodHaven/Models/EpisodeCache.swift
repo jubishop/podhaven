@@ -10,12 +10,12 @@ class EpisodeCache {
   // MARK: - State Management
 
   private var attemptedEpisodes: Set<MediaURL> = []
-  private var savedEpisodes: IdentifiedArray<MediaURL, Episode> = IdentifiedArray(id: \.media)
+  private var savedEpisodes: PodcastEpisodeArray = IdentifiedArray(id: \.episode.media)
 
   // MARK: - Public Functions
 
-  func fetch(_ mediaURLs: [MediaURL]) async throws -> [Episode] {
-    var toReturn: [Episode] = []
+  func fetch(_ mediaURLs: [MediaURL]) async throws -> [PodcastEpisode] {
+    var toReturn: [PodcastEpisode] = []
     toReturn.reserveCapacity(mediaURLs.count)
     var toFetch: [MediaURL] = []
     toFetch.reserveCapacity(mediaURLs.count)
@@ -30,11 +30,11 @@ class EpisodeCache {
     }
 
     if !toFetch.isEmpty {
-      let fetchedEpisodes = try await repo.episodes(toFetch)
+      let fetchedPodcastEpisodes = try await repo.episodes(toFetch)
 
-      for episode in fetchedEpisodes {
-        savedEpisodes[id: episode.media] = episode
-        toReturn.append(episode)
+      for podcastEpisode in fetchedPodcastEpisodes {
+        savedEpisodes[id: podcastEpisode.episode.media] = podcastEpisode
+        toReturn.append(podcastEpisode)
       }
     }
 

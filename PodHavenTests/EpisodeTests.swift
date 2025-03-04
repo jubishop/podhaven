@@ -119,18 +119,42 @@ actor EpisodeTests {
   @Test("that multiple episodes can be fetched by their media url")
   func fetchEpisodesByMediaURLs() async throws {
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
-    let unsavedEpisode = try TestHelpers.unsavedEpisode()
+    let unsavedEpisode1 = try TestHelpers.unsavedEpisode()
     let unsavedEpisode2 = try TestHelpers.unsavedEpisode()
-    try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: [unsavedEpisode, unsavedEpisode2])
+    try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode1, unsavedEpisode2]
+    )
+
+    let unsavedPodcast2 = try TestHelpers.unsavedPodcast()
+    let unsavedEpisode21 = try TestHelpers.unsavedEpisode()
+    let unsavedEpisode22 = try TestHelpers.unsavedEpisode()
+    try await repo.insertSeries(
+      unsavedPodcast2,
+      unsavedEpisodes: [unsavedEpisode21, unsavedEpisode22]
+    )
 
     let unsavedEpisodeNeverSaved = try TestHelpers.unsavedEpisode()
-    let episodes = try await repo.episodes([
-      unsavedEpisode.media, unsavedEpisode2.media, unsavedEpisodeNeverSaved.media,
+
+    let podcastEpisodes = try await repo.episodes([
+      unsavedEpisode1.media, unsavedEpisode2.media, unsavedEpisode21.media, unsavedEpisode22.media,
+      unsavedEpisodeNeverSaved.media,
     ])
-    #expect(episodes.count == 2)
+    #expect(podcastEpisodes.count == 4)
     #expect(
-      Set([episodes[0].media, episodes[1].media])
-        == Set([unsavedEpisode.media, unsavedEpisode2.media])
+      Set(podcastEpisodes.map(\.episode.media))
+        == Set(
+          [
+            unsavedEpisode1.media,
+            unsavedEpisode2.media,
+            unsavedEpisode21.media,
+            unsavedEpisode22.media,
+          ]
+        )
+    )
+    #expect(
+      Set(podcastEpisodes.map(\.podcast.feedURL))
+        == Set([unsavedPodcast.feedURL, unsavedPodcast2.feedURL])
     )
   }
 

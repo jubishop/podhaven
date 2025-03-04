@@ -39,7 +39,7 @@ struct Repo: Sendable {
   {
     try await appDB.db.read { db in
       try requestClosure(Podcast.all())
-        .fetchIdentifiedArray(db, id: \Podcast.feedURL)
+        .fetchIdentifiedArray(db, id: \.feedURL)
     }
   }
 
@@ -50,7 +50,7 @@ struct Repo: Sendable {
       try requestClosure(Podcast.all())
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
-        .fetchIdentifiedArray(db, id: \PodcastSeries.podcast.feedURL)
+        .fetchIdentifiedArray(db, id: \.podcast.feedURL)
     }
   }
 
@@ -98,22 +98,29 @@ struct Repo: Sendable {
     }
   }
 
-  func episode(_ media: MediaURL) async throws -> PodcastEpisode? {
+  func episodes(_ mediaURLs: [MediaURL]) async throws -> [PodcastEpisode] {
     try await appDB.db.read { db in
-      try Episode
-        .filter(Schema.mediaColumn == media)
-        .including(required: Episode.podcast)
-        .asRequest(of: PodcastEpisode.self)
-        .fetchOne(db)
+      let episodes =
+        try Episode
+        .filter(mediaURLs.contains(Schema.mediaColumn))
+        .fetchAll(db)
+
+      let podcasts =
+        try Podcast
+        .filter(Set(episodes.map(\.podcastId)).contains(Column("id")))
+        .fetchIdentifiedArray(db, id: \Podcast.id)
+
+      return episodes.compactMap { episode in
+        guard let podcastId = episode.podcastId, let podcast = podcasts[id: podcastId]
+        else { return nil }
+
+        return PodcastEpisode(podcast: podcast, episode: episode)
+      }
     }
   }
 
-  func episodes(_ mediaURLs: [MediaURL]) async throws -> [Episode] {
-    try await appDB.db.read { db in
-      try Episode
-        .filter(mediaURLs.contains(Schema.mediaColumn))
-        .fetchAll(db)
-    }
+  func episode(_ media: MediaURL) async throws -> PodcastEpisode? {
+    try await episodes(Array([media])).first
   }
 
   // MARK: - Series Writers

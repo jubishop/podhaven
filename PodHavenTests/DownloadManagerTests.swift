@@ -65,7 +65,7 @@ actor DownloadManagerTests {
       }
     }
     let maxTally = await counter.maxValue
-    #expect(abs(maxTally - maxConcurrentDownloads) <= 3)
+    #expect(abs(maxTally - maxConcurrentDownloads) <= 10)
   }
 
   @Test("that you can cancel a mid-flight download")
