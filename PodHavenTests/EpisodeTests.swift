@@ -116,6 +116,24 @@ actor EpisodeTests {
     #expect(podcastEpisode.episode.media == unsavedEpisode.media)
   }
 
+  @Test("that multiple episodes can be fetched by their media url")
+  func fetchEpisodesByMediaURLs() async throws {
+    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    let unsavedEpisode = try TestHelpers.unsavedEpisode()
+    let unsavedEpisode2 = try TestHelpers.unsavedEpisode()
+    try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: [unsavedEpisode, unsavedEpisode2])
+
+    let unsavedEpisodeNeverSaved = try TestHelpers.unsavedEpisode()
+    let episodes = try await repo.episodes([
+      unsavedEpisode.media, unsavedEpisode2.media, unsavedEpisodeNeverSaved.media,
+    ])
+    #expect(episodes.count == 2)
+    #expect(
+      Set([episodes[0].media, episodes[1].media])
+        == Set([unsavedEpisode.media, unsavedEpisode2.media])
+    )
+  }
+
   @Test("that an episode can be marked complete")
   func markEpisodeComplete() async throws {
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
