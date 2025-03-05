@@ -107,8 +107,8 @@ struct Repo: Sendable {
 
       let podcasts =
         try Podcast
-        .filter(Set(episodes.map(\.podcastId)).contains(Column("id")))
-        .fetchIdentifiedArray(db, id: \Podcast.id)
+        .filter(Set(episodes.map(\.podcastId)).contains(Schema.idColumn))
+        .fetchIdentifiedArray(db, id: \.id)
 
       return episodes.compactMap { episode in
         guard let podcastId = episode.podcastId, let podcast = podcasts[id: podcastId]
@@ -168,16 +168,44 @@ struct Repo: Sendable {
 
   // MARK: - Episode Writers
 
-  @discardableResult
-  func addEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
-    let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
+  // TODO: Test this
+  func fetchOrInsertEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]) async throws
+    -> [PodcastEpisode]
+  {
+    try await appDB.db.write { db in
+      var existingPodcasts =
+        try Podcast
+        .filter(
+          Set(unsavedPodcastEpisodes.map(\.unsavedPodcast.feedURL)).contains(Schema.feedURLColumn)
+        )
+        .fetchIdentifiedArray(db, id: \.feedURL)
 
-    return try await appDB.db.write { db in
-      var unsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
-      let podcast: Podcast = try fetchOrInsert(db, unsavedPodcast)
-      unsavedEpisode.podcastId = podcast.id
-      let episode = try unsavedEpisode.insertAndFetch(db, as: Episode.self)
-      return PodcastEpisode(podcast: podcast, episode: episode)
+      var existingEpisodes =
+        try Episode
+        .filter(
+          Set(unsavedPodcastEpisodes.map(\.unsavedEpisode.media)).contains(Schema.mediaColumn)
+        )
+        .fetchIdentifiedArray(db, id: \.media)
+
+      return try unsavedPodcastEpisodes.map { unsavedPodcastEpisode in
+        let podcast: Podcast
+        if let existingPodcast = existingPodcasts[id: unsavedPodcastEpisode.unsavedPodcast.feedURL]
+        {
+          podcast = existingPodcast
+        } else {
+          podcast = try unsavedPodcastEpisode.unsavedPodcast.insertAndFetch(db, as: Podcast.self)
+          existingPodcasts.append(podcast)
+        }
+
+        let episode: Episode
+        if let existingEpisode = existingEpisodes[id: unsavedPodcastEpisode.unsavedEpisode.media] {
+          episode = existingEpisode
+        } else {
+          episode = try unsavedPodcastEpisode.unsavedEpisode.insertAndFetch(db, as: Episode.self)
+          existingEpisodes.append(episode)
+        }
+        return PodcastEpisode(podcast: podcast, episode: episode)
+      }
     }
   }
 

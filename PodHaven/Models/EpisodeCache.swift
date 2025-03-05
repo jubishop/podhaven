@@ -33,7 +33,7 @@ class EpisodeCache {
       let fetchedPodcastEpisodes = try await repo.episodes(toFetch)
 
       for podcastEpisode in fetchedPodcastEpisodes {
-        savedEpisodes[id: podcastEpisode.episode.media] = podcastEpisode
+        savedEpisodes.append(podcastEpisode)
         toReturn.append(podcastEpisode)
       }
     }
@@ -41,7 +41,33 @@ class EpisodeCache {
     return toReturn
   }
 
-  //  func fetchOrCreate(_ unsavedEpisodes: [UnsavedEpisode]) async throws -> [Episode] {
-  //
-  //  }
+  func fetchOrCreate(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]) async throws
+    -> [PodcastEpisode]
+  {
+    var toReturn: [PodcastEpisode] = []
+    toReturn.reserveCapacity(unsavedPodcastEpisodes.count)
+    var toFetchOrCreate: [UnsavedPodcastEpisode] = []
+    toFetchOrCreate.reserveCapacity(unsavedPodcastEpisodes.count)
+
+    for unsavedPodcastEpisode in unsavedPodcastEpisodes {
+      let mediaURL = unsavedPodcastEpisode.unsavedEpisode.media
+      if let savedEpisode = savedEpisodes[id: mediaURL] {
+        toReturn.append(savedEpisode)
+      } else if !attemptedEpisodes.contains(mediaURL) {
+        toFetchOrCreate.append(unsavedPodcastEpisode)
+      }
+      attemptedEpisodes.insert(mediaURL)
+    }
+
+    if !toFetchOrCreate.isEmpty {
+      let fetchedPodcastEpisodes = try await repo.episodes(toFetch)
+
+      for podcastEpisode in fetchedPodcastEpisodes {
+        savedEpisodes.append(podcastEpisode)
+        toReturn.append(podcastEpisode)
+      }
+    }
+
+    return toReturn
+  }
 }

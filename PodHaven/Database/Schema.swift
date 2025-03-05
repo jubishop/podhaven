@@ -9,6 +9,7 @@ enum Schema {
   static let completedColumn = Column("completed")
   static let currentTimeColumn = Column("currentTime")
   static let feedURLColumn = Column("feedURL")
+  static let idColumn = Column("id")
   static let lastUpdateColumn = Column("lastUpdate")
   static let mediaColumn = Column("media")
   static let pubDateColumn = Column("pubDate")
