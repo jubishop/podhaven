@@ -208,13 +208,6 @@ actor EpisodeTests {
 
     let firstPodcastEpisode = try await repo.episode(podcastEpisodes[0].id)!
     let secondPodcastEpisode = try await repo.episode(podcastEpisodes[1].id)!
-    #expect(
-      Set(podcastEpisodes.map(\.podcast.id))
-        == Set([firstPodcastEpisode.podcast.id, secondPodcastEpisode.podcast.id])
-    )
-    #expect(
-      Set(podcastEpisodes.map(\.episode.id))
-        == Set([firstPodcastEpisode.episode.id, secondPodcastEpisode.episode.id])
-    )
+    #expect(Set(podcastEpisodes) == Set([firstPodcastEpisode, secondPodcastEpisode]))
   }
 }
