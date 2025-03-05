@@ -201,7 +201,9 @@ struct Repo: Sendable {
         if let existingEpisode = existingEpisodes[id: unsavedPodcastEpisode.unsavedEpisode.media] {
           episode = existingEpisode
         } else {
-          episode = try unsavedPodcastEpisode.unsavedEpisode.insertAndFetch(db, as: Episode.self)
+          var newUnsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
+          newUnsavedEpisode.podcastId = podcast.id
+          episode = try newUnsavedEpisode.insertAndFetch(db, as: Episode.self)
           existingEpisodes.append(episode)
         }
         return PodcastEpisode(podcast: podcast, episode: episode)
@@ -234,12 +236,4 @@ struct Repo: Sendable {
   }
 
   // MARK: Private Helpers
-
-  private func fetchOrInsert(_ db: Database, _ unsavedPodcast: UnsavedPodcast) throws -> Podcast {
-    guard
-      let podcast = try Podcast.filter(Schema.feedURLColumn == unsavedPodcast.feedURL).fetchOne(db)
-    else { return try unsavedPodcast.insertAndFetch(db, as: Podcast.self) }
-
-    return podcast
-  }
 }
