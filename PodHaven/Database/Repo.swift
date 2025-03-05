@@ -168,6 +168,20 @@ struct Repo: Sendable {
 
   // MARK: - Episode Writers
 
+  // TODO: Remove this
+  @discardableResult
+  func addEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
+    let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
+
+    return try await appDB.db.write { db in
+      var unsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
+      let podcast: Podcast = try fetchOrInsert(db, unsavedPodcast)
+      unsavedEpisode.podcastId = podcast.id
+      let episode = try unsavedEpisode.insertAndFetch(db, as: Episode.self)
+      return PodcastEpisode(podcast: podcast, episode: episode)
+    }
+  }
+
   // TODO: Test this
   func fetchOrInsertEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]) async throws
     -> [PodcastEpisode]
@@ -236,4 +250,13 @@ struct Repo: Sendable {
   }
 
   // MARK: Private Helpers
+
+  // TODO: Remove this
+  private func fetchOrInsert(_ db: Database, _ unsavedPodcast: UnsavedPodcast) throws -> Podcast {
+    guard
+      let podcast = try Podcast.filter(Schema.feedURLColumn == unsavedPodcast.feedURL).fetchOne(db)
+    else { return try unsavedPodcast.insertAndFetch(db, as: Podcast.self) }
+
+    return podcast
+  }
 }

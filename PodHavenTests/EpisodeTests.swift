@@ -177,33 +177,44 @@ actor EpisodeTests {
     #expect(podcastEpisode.episode.currentTime == CMTime.zero)
   }
 
-  @Test("that addEpisode works when podcast exists or is new")
-  func testAddEpisode() async throws {
+  @Test("that fetchOrInsertEpisodes works when things exist or are new")
+  func testFetchOrInsertEpisodes() async throws {
+    let insertedPodcast = try TestHelpers.unsavedPodcast()
+    let unsavedEpisodeInsertedPodcast = try TestHelpers.unsavedEpisode()
+    try await repo.insertSeries(insertedPodcast)
+
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
     let unsavedEpisode = try TestHelpers.unsavedEpisode()
-    let insertedPodcastEpisode = try await repo.addEpisode(
+
+    let podcastEpisodes = try await repo.fetchOrInsertEpisodes([
+      UnsavedPodcastEpisode(
+        unsavedPodcast: insertedPodcast,
+        unsavedEpisode: unsavedEpisodeInsertedPodcast
+      ),
       UnsavedPodcastEpisode(
         unsavedPodcast: unsavedPodcast,
         unsavedEpisode: unsavedEpisode
-      )
+      ),
+    ])
+    #expect(podcastEpisodes.count == 2)
+    #expect(
+      Set(podcastEpisodes.map(\.podcast.feedURL))
+        == Set([insertedPodcast.feedURL, unsavedPodcast.feedURL])
     )
-    #expect(insertedPodcastEpisode.podcast.feedURL == unsavedPodcast.feedURL)
-    #expect(insertedPodcastEpisode.episode.media == unsavedEpisode.media)
-
-    let fetchedPodcastEpisode = try await repo.episode(insertedPodcastEpisode.id)!
-    #expect(fetchedPodcastEpisode.podcast.title == insertedPodcastEpisode.podcast.title)
-    #expect(fetchedPodcastEpisode.episode.guid == insertedPodcastEpisode.episode.guid)
-
-    let secondUnsavedEpisode = try TestHelpers.unsavedEpisode()
-    let _ = try await repo.addEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisode: secondUnsavedEpisode
-      )
+    #expect(
+      Set(podcastEpisodes.map(\.episode.media))
+        == Set([unsavedEpisodeInsertedPodcast.media, unsavedEpisode.media])
     )
 
-    let fetchedPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)!
-    #expect(fetchedPodcastSeries.episodes.count == 2)
-
+    let firstPodcastEpisode = try await repo.episode(podcastEpisodes[0].id)!
+    let secondPodcastEpisode = try await repo.episode(podcastEpisodes[1].id)!
+    #expect(
+      Set(podcastEpisodes.map(\.podcast.id))
+        == Set([firstPodcastEpisode.podcast.id, secondPodcastEpisode.podcast.id])
+    )
+    #expect(
+      Set(podcastEpisodes.map(\.episode.id))
+        == Set([firstPodcastEpisode.episode.id, secondPodcastEpisode.episode.id])
+    )
   }
 }

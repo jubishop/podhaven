@@ -4,6 +4,7 @@ import Factory
 import Foundation
 import IdentifiedCollections
 
+// TODO: Test this
 class EpisodeCache {
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
@@ -60,12 +61,12 @@ class EpisodeCache {
     }
 
     if !toFetchOrCreate.isEmpty {
-      let fetchedPodcastEpisodes = try await repo.episodes(toFetch)
-
-      for podcastEpisode in fetchedPodcastEpisodes {
-        savedEpisodes.append(podcastEpisode)
-        toReturn.append(podcastEpisode)
-      }
+//      let fetchedPodcastEpisodes = try await repo.episodes(toFetch)
+//
+//      for podcastEpisode in fetchedPodcastEpisodes {
+//        savedEpisodes.append(podcastEpisode)
+//        toReturn.append(podcastEpisode)
+//      }
     }
 
     return toReturn
