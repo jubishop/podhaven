@@ -4,14 +4,34 @@ import Factory
 import Foundation
 import IdentifiedCollections
 
+extension Container {
+  var episodeCache: Factory<EpisodeCache> {
+    Factory(self) { EpisodeCache() }.scope(.unique)
+  }
+}
+
 // TODO: Test this
 class EpisodeCache {
-  @ObservationIgnored @LazyInjected(\.repo) private var repo
+  // MARK: - Static Helpers
+
+  #if DEBUG
+    static func initForTest(repo: Repo) -> EpisodeCache {
+      EpisodeCache(repo: repo)
+    }
+  #endif
 
   // MARK: - State Management
 
   private var attemptedEpisodes: Set<MediaURL> = []
   private var savedEpisodes: PodcastEpisodeArray = IdentifiedArray(id: \.episode.media)
+
+  // MARK: - Initialization
+
+  private let repo: Repo
+
+  fileprivate init(repo: Repo = Container.shared.repo()) {
+    self.repo = repo
+  }
 
   // MARK: - Public Functions
 
@@ -61,12 +81,12 @@ class EpisodeCache {
     }
 
     if !toFetchOrCreate.isEmpty {
-//      let fetchedPodcastEpisodes = try await repo.episodes(toFetch)
-//
-//      for podcastEpisode in fetchedPodcastEpisodes {
-//        savedEpisodes.append(podcastEpisode)
-//        toReturn.append(podcastEpisode)
-//      }
+      let fetchedPodcastEpisodes = try await repo.fetchOrInsertEpisodes(toFetchOrCreate)
+
+      for podcastEpisode in fetchedPodcastEpisodes {
+        savedEpisodes.append(podcastEpisode)
+        toReturn.append(podcastEpisode)
+      }
     }
 
     return toReturn
