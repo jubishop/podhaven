@@ -40,7 +40,13 @@ struct TrendingPodcastView: View {
               unsavedEpisode: unsavedEpisode
             ),
             label: {
-              TrendingEpisodeListView(unsavedEpisode: unsavedEpisode)
+              TrendingEpisodeListView(
+                viewModel: TrendingEpisodeListViewModel(
+                  isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
+                  unsavedEpisode: unsavedEpisode,
+                  isSelecting: viewModel.isSelecting
+                )
+              )
             }
           )
         }
