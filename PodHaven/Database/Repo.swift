@@ -120,7 +120,7 @@ struct Repo: Sendable {
   }
 
   func episode(_ media: MediaURL) async throws -> PodcastEpisode? {
-    try await episodes(Array([media])).first
+    try await episodes([media]).first
   }
 
   // MARK: - Series Writers

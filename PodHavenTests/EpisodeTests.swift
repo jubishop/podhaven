@@ -134,6 +134,10 @@ actor EpisodeTests {
       unsavedEpisodes: [unsavedEpisode21, unsavedEpisode22]
     )
 
+    let allPodcasts = [unsavedPodcast, unsavedPodcast2]
+    let allEpisodes = [
+      unsavedEpisode1, unsavedEpisode2, unsavedEpisode21, unsavedEpisode22,
+    ]
     let unsavedEpisodeNeverSaved = try TestHelpers.unsavedEpisode()
 
     let podcastEpisodes = try await repo.episodes([
@@ -141,21 +145,8 @@ actor EpisodeTests {
       unsavedEpisodeNeverSaved.media,
     ])
     #expect(podcastEpisodes.count == 4)
-    #expect(
-      Set(podcastEpisodes.map(\.episode.media))
-        == Set(
-          [
-            unsavedEpisode1.media,
-            unsavedEpisode2.media,
-            unsavedEpisode21.media,
-            unsavedEpisode22.media,
-          ]
-        )
-    )
-    #expect(
-      Set(podcastEpisodes.map(\.podcast.feedURL))
-        == Set([unsavedPodcast.feedURL, unsavedPodcast2.feedURL])
-    )
+    #expect(Set(podcastEpisodes.map(\.episode.media)) == Set(allEpisodes.map(\.media)))
+    #expect(Set(podcastEpisodes.map(\.podcast.feedURL)) == Set(allPodcasts.map(\.feedURL)))
   }
 
   @Test("that an episode can be marked complete")
@@ -220,20 +211,23 @@ actor EpisodeTests {
     let allPodcasts = [insertedPodcast, unsavedPodcast]
     let allEpisodes = [insertedEpisode, unsavedEpisodeInsertedPodcast, unsavedEpisode]
 
-    let podcastEpisodes = try await repo.addEpisodes([
-      UnsavedPodcastEpisode(
-        unsavedPodcast: insertedPodcast,
-        unsavedEpisode: insertedEpisode
-      ),
-      UnsavedPodcastEpisode(
-        unsavedPodcast: insertedPodcast,
-        unsavedEpisode: unsavedEpisodeInsertedPodcast
-      ),
-      UnsavedPodcastEpisode(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisode: unsavedEpisode
-      ),
-    ], fetchIfExists: true)
+    let podcastEpisodes = try await repo.addEpisodes(
+      [
+        UnsavedPodcastEpisode(
+          unsavedPodcast: insertedPodcast,
+          unsavedEpisode: insertedEpisode
+        ),
+        UnsavedPodcastEpisode(
+          unsavedPodcast: insertedPodcast,
+          unsavedEpisode: unsavedEpisodeInsertedPodcast
+        ),
+        UnsavedPodcastEpisode(
+          unsavedPodcast: unsavedPodcast,
+          unsavedEpisode: unsavedEpisode
+        ),
+      ],
+      fetchIfExists: true
+    )
     #expect(podcastEpisodes.count == 3)
     #expect(Set(podcastEpisodes.map(\.podcast.feedURL)) == Set(allPodcasts.map(\.feedURL)))
     #expect(Set(podcastEpisodes.map(\.episode.media)) == Set(allEpisodes.map(\.media)))
