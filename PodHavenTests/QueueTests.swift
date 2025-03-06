@@ -113,7 +113,6 @@ actor QueueTests {
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
   }
 
-  // TODO: Test dequeueing an array
   @Test("dequeing an episode")
   func testDequeue() async throws {
     var midTopEpisode = try await fetchEpisode("midtop")
@@ -121,6 +120,21 @@ actor QueueTests {
     midTopEpisode = try await fetchEpisode("midtop")
     #expect(midTopEpisode.queueOrder == nil)
     #expect((try await fetchOrder()) == [0, 1, 2, 3])
+  }
+
+  @Test("dequeing episodes")
+  func testDequeueMultiple() async throws {
+    var topEpisode = try await fetchEpisode("top")
+    var middleEpisode = try await fetchEpisode("middle")
+    var bottomEpisode = try await fetchEpisode("bottom")
+    try await queue.dequeue([topEpisode.id, middleEpisode.id, bottomEpisode.id])
+    topEpisode = try await fetchEpisode("top")
+    middleEpisode = try await fetchEpisode("middle")
+    bottomEpisode = try await fetchEpisode("bottom")
+    #expect(topEpisode.queueOrder == nil)
+    #expect(middleEpisode.queueOrder == nil)
+    #expect(bottomEpisode.queueOrder == nil)
+    #expect((try await fetchOrder()) == [0, 1])
   }
 
   @Test("appending existing episodes")

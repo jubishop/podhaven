@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-struct TrendingItemEpisodeListView: View {
+struct TrendingEpisodeListView: View {
   private let unsavedEpisode: UnsavedEpisode
 
   init(unsavedEpisode: UnsavedEpisode) {
@@ -20,7 +20,7 @@ struct TrendingItemEpisodeListView: View {
   NavigationStack {
     if let unsavedEpisode = unsavedEpisode {
       List {
-        TrendingItemEpisodeListView(unsavedEpisode: unsavedEpisode)
+        TrendingEpisodeListView(unsavedEpisode: unsavedEpisode)
       }
     }
   }

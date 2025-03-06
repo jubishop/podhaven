@@ -4,7 +4,7 @@ import AVFoundation
 import Foundation
 
 @propertyWrapper
-struct OptionalURL: Decodable, Sendable {
+struct OptionalURL: Decodable, Hashable, Sendable {
   private let value: URL?
   var wrappedValue: URL? { value }
   init(wrappedValue: URL?) { self.value = wrappedValue }

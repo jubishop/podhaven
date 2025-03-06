@@ -18,9 +18,9 @@ final actor PlayManager {
   // MARK: - State Management
 
   private var playState = Container.shared.playState()  // Cannot LazyInject because @MainActor
-  @ObservationIgnored @LazyInjected(\.repo) private var repo
-  @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.images) private var images
+  @ObservationIgnored @LazyInjected(\.queue) private var queue
+  @ObservationIgnored @LazyInjected(\.repo) private var repo
 
   private let accessKey = PlayManagerAccessKey()
   private var _status: PlayState.Status = .stopped

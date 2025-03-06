@@ -20,7 +20,7 @@ struct TrendingResultsView: View {
                 category: viewModel.category
               ),
               label: {
-                TrendingItemListView(unsavedPodcast: unsavedPodcast)
+                TrendingPodcastListView(unsavedPodcast: unsavedPodcast)
               }
             )
           }
@@ -28,8 +28,8 @@ struct TrendingResultsView: View {
         .navigationDestination(
           for: TrendingPodcast.self,
           destination: { trendingPodcast in
-            TrendingItemDetailView(
-              viewModel: TrendingItemDetailViewModel(
+            TrendingPodcastView(
+              viewModel: TrendingPodcastViewModel(
                 category: trendingPodcast.category,
                 unsavedPodcast: trendingPodcast.unsavedPodcast
               )

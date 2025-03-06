@@ -83,10 +83,10 @@ actor SearchServiceTests {
       contentsOf: Bundle.main.url(forResource: "trending", withExtension: "json")!
     )
     await session.set(
-      URL(string: Self.baseURLString + "/podcasts/trending")!,
+      URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
       .data(data)
     )
-    let result = try await service.searchTrending()
+    let result = try await service.searchTrending(language: "en")
     let feed = result.feeds.first!
     #expect(result.feeds.count == 40)
     #expect(result.since == Date(timeIntervalSince1970: TimeInterval(1736102643)))
