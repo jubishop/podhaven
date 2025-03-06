@@ -168,7 +168,7 @@ struct Repo: Sendable {
 
   // MARK: - Episode Writers
 
-  // TODO: Remove this
+  // TODO: Make a wrapper of addEpisodes below
   @discardableResult
   func addEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
     let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
@@ -182,6 +182,7 @@ struct Repo: Sendable {
     }
   }
 
+  // TODO: Call this addEpisodes with a fetchIfExists boolean (default false)
   func fetchOrInsertEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]) async throws
     -> [PodcastEpisode]
   {
@@ -192,13 +193,6 @@ struct Repo: Sendable {
           Set(unsavedPodcastEpisodes.map(\.unsavedPodcast.feedURL)).contains(Schema.feedURLColumn)
         )
         .fetchIdentifiedArray(db, id: \.feedURL)
-
-      var existingEpisodes =
-        try Episode
-        .filter(
-          Set(unsavedPodcastEpisodes.map(\.unsavedEpisode.media)).contains(Schema.mediaColumn)
-        )
-        .fetchIdentifiedArray(db, id: \.media)
 
       return try unsavedPodcastEpisodes.map { unsavedPodcastEpisode in
         let podcast: Podcast
@@ -211,13 +205,16 @@ struct Repo: Sendable {
         }
 
         let episode: Episode
-        if let existingEpisode = existingEpisodes[id: unsavedPodcastEpisode.unsavedEpisode.media] {
+        if let existingEpisode =
+          try Episode
+          .filter(Schema.mediaColumn == unsavedPodcastEpisode.unsavedEpisode.media)
+          .fetchOne(db)
+        {
           episode = existingEpisode
         } else {
           var newUnsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
           newUnsavedEpisode.podcastId = podcast.id
           episode = try newUnsavedEpisode.insertAndFetch(db, as: Episode.self)
-          existingEpisodes.append(episode)
         }
         return PodcastEpisode(podcast: podcast, episode: episode)
       }
