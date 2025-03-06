@@ -61,9 +61,7 @@ import GRDB
   // MARK: - Private Helpers
 
   private func fetchOrCreateEpisode() async throws -> PodcastEpisode {
-    if let podcastEpisode = self.podcastEpisode {
-      return podcastEpisode
-    }
+    if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
     let podcastEpisode = try await repo.addEpisode(unsavedPodcastEpisode, fetchIfExists: true)
     self.podcastEpisode = podcastEpisode
