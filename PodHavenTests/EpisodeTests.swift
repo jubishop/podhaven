@@ -207,8 +207,8 @@ actor EpisodeTests {
 
   }
 
-  @Test("that upsertEpisodes works when things exist or are new")
-  func testUpsertEpisodes() async throws {
+  @Test("that addEpisodes works when fetching existing")
+  func testAddEpisodesFetchExisting() async throws {
     let insertedPodcast = try TestHelpers.unsavedPodcast()
     let insertedEpisode = try TestHelpers.unsavedEpisode()
     let unsavedEpisodeInsertedPodcast = try TestHelpers.unsavedEpisode()
@@ -220,7 +220,7 @@ actor EpisodeTests {
     let allPodcasts = [insertedPodcast, unsavedPodcast]
     let allEpisodes = [insertedEpisode, unsavedEpisodeInsertedPodcast, unsavedEpisode]
 
-    let podcastEpisodes = try await repo.fetchOrInsertEpisodes([
+    let podcastEpisodes = try await repo.addEpisodes([
       UnsavedPodcastEpisode(
         unsavedPodcast: insertedPodcast,
         unsavedEpisode: insertedEpisode
@@ -233,7 +233,7 @@ actor EpisodeTests {
         unsavedPodcast: unsavedPodcast,
         unsavedEpisode: unsavedEpisode
       ),
-    ])
+    ], fetchIfExists: true)
     #expect(podcastEpisodes.count == 3)
     #expect(Set(podcastEpisodes.map(\.podcast.feedURL)) == Set(allPodcasts.map(\.feedURL)))
     #expect(Set(podcastEpisodes.map(\.episode.media)) == Set(allEpisodes.map(\.media)))

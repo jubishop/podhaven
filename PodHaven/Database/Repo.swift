@@ -168,22 +168,11 @@ struct Repo: Sendable {
 
   // MARK: - Episode Writers
 
-  // TODO: Make a wrapper of addEpisodes below
   @discardableResult
-  func addEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
-    let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
-
-    return try await appDB.db.write { db in
-      var unsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
-      let podcast: Podcast = try fetchOrInsert(db, unsavedPodcast)
-      unsavedEpisode.podcastId = podcast.id
-      let episode = try unsavedEpisode.insertAndFetch(db, as: Episode.self)
-      return PodcastEpisode(podcast: podcast, episode: episode)
-    }
-  }
-
-  // TODO: Call this addEpisodes with a fetchIfExists boolean (default false)
-  func fetchOrInsertEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]) async throws
+  func addEpisodes(
+    _ unsavedPodcastEpisodes: [UnsavedPodcastEpisode],
+    fetchIfExists: Bool = false
+  ) async throws
     -> [PodcastEpisode]
   {
     try await appDB.db.write { db in
@@ -205,10 +194,11 @@ struct Repo: Sendable {
         }
 
         let episode: Episode
-        if let existingEpisode =
-          try Episode
-          .filter(Schema.mediaColumn == unsavedPodcastEpisode.unsavedEpisode.media)
-          .fetchOne(db)
+        if fetchIfExists,
+          let existingEpisode =
+            try Episode
+            .filter(Schema.mediaColumn == unsavedPodcastEpisode.unsavedEpisode.media)
+            .fetchOne(db)
         {
           episode = existingEpisode
         } else {
@@ -219,6 +209,20 @@ struct Repo: Sendable {
         return PodcastEpisode(podcast: podcast, episode: episode)
       }
     }
+  }
+
+  @discardableResult
+  func addEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode, fetchIfExists: Bool = false)
+    async throws -> PodcastEpisode
+  {
+    let podcastEpisodes = try await addEpisodes(
+      [unsavedPodcastEpisode],
+      fetchIfExists: fetchIfExists
+    )
+    guard let podcastEpisode = podcastEpisodes.first
+    else { fatalError("addEpisode returned no entries somehow") }
+
+    return podcastEpisode
   }
 
   func updateCurrentTime(_ episodeID: Episode.ID, _ currentTime: CMTime) async throws {

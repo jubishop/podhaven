@@ -81,7 +81,7 @@ class EpisodeCache {
     }
 
     if !toFetchOrCreate.isEmpty {
-      let fetchedPodcastEpisodes = try await repo.fetchOrInsertEpisodes(toFetchOrCreate)
+      let fetchedPodcastEpisodes = try await repo.addEpisodes(toFetchOrCreate, fetchIfExists: true)
 
       for podcastEpisode in fetchedPodcastEpisodes {
         savedEpisodes.append(podcastEpisode)
