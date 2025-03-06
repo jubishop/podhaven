@@ -6,14 +6,17 @@ struct TrendingResult: Sendable, Decodable {
   struct FeedResult: Sendable, Decodable, Identifiable, Hashable {
     let id: Int
     let url: FeedURL
-    let image: URL
+    @OptionalURL var image: URL?
     let title: String
     let description: String
     let trendScore: Int
     let categories: [String: String]
 
     func toUnsavedPodcast() throws -> UnsavedPodcast {
-      try UnsavedPodcast(
+      guard let image = image
+      else { throw Err.msg("No image for \(title)") }
+
+      return try UnsavedPodcast(
         feedURL: url,
         title: title,
         image: image,
