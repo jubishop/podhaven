@@ -15,7 +15,6 @@ import GRDB
   var unsavedPodcast: UnsavedPodcast { unsavedPodcastEpisode.unsavedPodcast }
   var unsavedEpisode: UnsavedEpisode { unsavedPodcastEpisode.unsavedEpisode }
 
-  private var fetchAttempted = false
   private var podcastEpisode: PodcastEpisode?
 
   init(unsavedPodcastEpisode: UnsavedPodcastEpisode) {
@@ -62,21 +61,19 @@ import GRDB
   // MARK: - Private Helpers
 
   private func fetchOrCreateEpisode() async throws -> PodcastEpisode {
-    try await fetchEpisode()
-    if let existingEpisode = self.podcastEpisode {
-      return existingEpisode
+    if let podcastEpisode = self.podcastEpisode {
+      return podcastEpisode
     }
 
-    let podcastEpisode = try await repo.addEpisode(unsavedPodcastEpisode)
+    let podcastEpisode = try await repo.addEpisode(unsavedPodcastEpisode, fetchIfExists: true)
     self.podcastEpisode = podcastEpisode
     return podcastEpisode
   }
 
   private func fetchEpisode() async throws {
-    guard !fetchAttempted
+    guard podcastEpisode == nil
     else { return }
 
-    fetchAttempted = true
     podcastEpisode = try await repo.episode(unsavedEpisode.media)
   }
 }

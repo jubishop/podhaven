@@ -250,13 +250,4 @@ struct Repo: Sendable {
   }
 
   // MARK: Private Helpers
-
-  // TODO: Remove this
-  private func fetchOrInsert(_ db: Database, _ unsavedPodcast: UnsavedPodcast) throws -> Podcast {
-    guard
-      let podcast = try Podcast.filter(Schema.feedURLColumn == unsavedPodcast.feedURL).fetchOne(db)
-    else { return try unsavedPodcast.insertAndFetch(db, as: Podcast.self) }
-
-    return podcast
-  }
 }
