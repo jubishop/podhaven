@@ -50,6 +50,7 @@ struct TrendingPodcastView: View {
             }
           )
         }
+        .animation(.default, value: viewModel.episodeList.filteredEntries)
       }
     }
     .navigationTitle(viewModel.unsavedPodcast.title)

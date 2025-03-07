@@ -10,7 +10,25 @@ struct TrendingEpisodeListView: View {
   }
 
   var body: some View {
-    Text(viewModel.unsavedEpisode.title)
+    HStack(spacing: 20) {
+      if viewModel.isSelecting {
+        Button(
+          action: { viewModel.isSelected.wrappedValue.toggle() },
+          label: {
+            Image(
+              systemName: viewModel.isSelected.wrappedValue
+                ? "checkmark.circle.fill" : "circle"
+            )
+          }
+        )
+        .buttonStyle(BorderlessButtonStyle())
+      }
+
+      Text(viewModel.unsavedEpisode.toString)
+        .lineLimit(2)
+
+      Spacer()
+    }
   }
 }
 
