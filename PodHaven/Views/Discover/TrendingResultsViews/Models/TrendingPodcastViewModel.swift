@@ -20,10 +20,18 @@ import SwiftUI
     set { withAnimation { _isSelecting = newValue } }
   }
 
+  var subscribable: Bool = false
   let category: String
   var unsavedPodcast: UnsavedPodcast
   var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
-  var subscribable: Bool = false
+  var filteredUnsavedPodcastEpisodes: [UnsavedPodcastEpisode] {
+    episodeList.selectedEntries.map { unsavedEpisode in
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: unsavedEpisode
+      )
+    }
+  }
 
   private var existingPodcastSeries: PodcastSeries?
   private var podcastFeed: PodcastFeed?
@@ -84,15 +92,24 @@ import SwiftUI
   }
 
   func addSelectedEpisodesToTopOfQueue() {
-    //    Task { try await queue.unshift(selectedEpisodeIDs) }
+    Task {
+      let episodes = try await repo.addEpisodes(filteredUnsavedPodcastEpisodes)
+      try await queue.unshift(episodes.map(\.id))
+    }
   }
 
   func addSelectedEpisodesToBottomOfQueue() {
-    //    Task { try await queue.append(selectedEpisodeIDs) }
+    Task {
+      let episodes = try await repo.addEpisodes(filteredUnsavedPodcastEpisodes)
+      try await queue.append(episodes.map(\.id))
+    }
   }
 
   func replaceQueue() {
-    //    Task { try await queue.replace(selectedEpisodeIDs) }
+    Task {
+      let episodes = try await repo.addEpisodes(filteredUnsavedPodcastEpisodes)
+      try await queue.replace(episodes.map(\.id))
+    }
   }
 
   func replaceQueueAndPlay() {
