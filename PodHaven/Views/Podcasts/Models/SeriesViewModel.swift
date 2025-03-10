@@ -91,8 +91,8 @@ import SwiftUI
       if let firstEpisode = episodeList.selectedEntries.first {
         try await playManager.load(PodcastEpisode(podcast: podcast, episode: firstEpisode))
         await playManager.play()
-        let allExceptFirst = episodeList.selectedEntries.dropFirst()
-        try await queue.replace(allExceptFirst.map(\.id))
+        let allExceptFirstEpisode = episodeList.selectedEntries.dropFirst()
+        try await queue.replace(allExceptFirstEpisode.map(\.id))
       }
     }
   }
