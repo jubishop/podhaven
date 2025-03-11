@@ -14,7 +14,17 @@ import IdentifiedCollections
 
   func execute() async {
     do {
-      try await observePodcasts()
+      let observer =
+        ValueObservation
+        .tracking { db in
+          try Podcast
+            .filter(Schema.subscribedColumn == true)
+            .fetchIdentifiedArray(db, id: \Podcast.feedURL)
+        }
+        .removeDuplicates()
+      for try await podcasts in observer.values(in: repo.db) {
+        self.podcasts = podcasts
+      }
     } catch {
       alert.andReport(error)
     }
@@ -30,20 +40,6 @@ import IdentifiedCollections
           try await self.refreshManager.refreshSeries(podcastSeries: podcastSeries)
         }
       }
-    }
-  }
-
-  private func observePodcasts() async throws {
-    let observer =
-      ValueObservation
-      .tracking { db in
-        try Podcast
-          .filter(Schema.subscribedColumn == true)
-          .fetchIdentifiedArray(db, id: \Podcast.feedURL)
-      }
-      .removeDuplicates()
-    for try await podcasts in observer.values(in: repo.db) {
-      self.podcasts = podcasts
     }
   }
 }

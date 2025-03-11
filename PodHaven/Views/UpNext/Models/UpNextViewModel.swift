@@ -25,7 +25,19 @@ import SwiftUI
 
   func execute() async {
     do {
-      try await observeQueuedEpisodes()
+      let observer =
+        ValueObservation.tracking { db in
+          try Episode
+            .filter(Schema.queueOrderColumn != nil)
+            .including(required: Episode.podcast)
+            .order(Schema.queueOrderColumn.asc)
+            .asRequest(of: PodcastEpisode.self)
+            .fetchIdentifiedArray(db, id: \.episode.media)
+        }
+        .removeDuplicates()
+      for try await podcastEpisodes in observer.values(in: repo.db) {
+        self.episodeList.allEntries = podcastEpisodes
+      }
     } catch {
       alert.andReport(error)
     }
@@ -57,23 +69,5 @@ import SwiftUI
 
   func deleteSelected() {
     Task { try await queue.dequeue(selectedEpisodeIDs) }
-  }
-
-  // MARK: - Private Helpers
-
-  private func observeQueuedEpisodes() async throws {
-    let observer =
-      ValueObservation.tracking { db in
-        try Episode
-          .filter(Schema.queueOrderColumn != nil)
-          .including(required: Episode.podcast)
-          .order(Schema.queueOrderColumn.asc)
-          .asRequest(of: PodcastEpisode.self)
-          .fetchIdentifiedArray(db, id: \.episode.media)
-      }
-      .removeDuplicates()
-    for try await podcastEpisodes in observer.values(in: repo.db) {
-      self.episodeList.allEntries = podcastEpisodes
-    }
   }
 }

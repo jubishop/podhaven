@@ -42,8 +42,31 @@ import SwiftUI
 
   func execute() async {
     do {
-      try await refreshIfStale()
-      try await observePodcast()
+      if podcastSeries.podcast.lastUpdate < Date.minutesAgo(15),
+        let podcastSeries = try await repo.podcastSeries(podcastSeries.id)
+      {
+        self.podcastSeries = podcastSeries
+        try await refreshSeries()
+      }
+
+      let observer =
+        ValueObservation
+        .tracking(
+          Podcast
+            .filter(id: podcast.id)
+            .including(all: Podcast.episodes)
+            .asRequest(of: PodcastSeries.self)
+            .fetchOne
+        )
+        .removeDuplicates()
+
+      for try await podcastSeries in observer.values(in: repo.db) {
+        guard let podcastSeries = podcastSeries
+        else { throw Err.msg("No return from DB for: \(podcast.toString)") }
+
+        if self.podcastSeries == podcastSeries { continue }
+        self.podcastSeries = podcastSeries
+      }
     } catch {
       alert.andReport(error)
     }
@@ -94,38 +117,6 @@ import SwiftUI
         let allExceptFirstEpisode = episodeList.selectedEntries.dropFirst()
         try await queue.replace(allExceptFirstEpisode.map(\.id))
       }
-    }
-  }
-
-  // MARK: - Private Helpers
-
-  private func refreshIfStale() async throws {
-    if podcastSeries.podcast.lastUpdate < Date.minutesAgo(15),
-      let podcastSeries = try await repo.podcastSeries(podcastSeries.id)
-    {
-      self.podcastSeries = podcastSeries
-      try await refreshSeries()
-    }
-  }
-
-  private func observePodcast() async throws {
-    let observer =
-      ValueObservation
-      .tracking(
-        Podcast
-          .filter(id: podcast.id)
-          .including(all: Podcast.episodes)
-          .asRequest(of: PodcastSeries.self)
-          .fetchOne
-      )
-      .removeDuplicates()
-
-    for try await podcastSeries in observer.values(in: repo.db) {
-      guard let podcastSeries = podcastSeries
-      else { throw Err.msg("No return from DB for: \(podcast.toString)") }
-
-      if self.podcastSeries == podcastSeries { continue }
-      self.podcastSeries = podcastSeries
     }
   }
 }

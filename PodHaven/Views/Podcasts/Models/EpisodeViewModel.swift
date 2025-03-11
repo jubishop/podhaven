@@ -21,7 +21,21 @@ import GRDB
 
   func execute() async {
     do {
-      try await observeEpisode()
+      let observer =
+        ValueObservation.tracking(
+          Episode
+            .filter(id: episode.id)
+            .including(required: Episode.podcast)
+            .asRequest(of: PodcastEpisode.self)
+            .fetchOne
+        )
+        .removeDuplicates()
+
+      for try await podcastEpisode in observer.values(in: repo.db) {
+        guard let podcastEpisode = podcastEpisode
+        else { throw Err.msg("No return from DB for: \(episode.toString)") }
+        self.podcastEpisode = podcastEpisode
+      }
     } catch {
       alert.andReport(error)
     }
@@ -42,25 +56,5 @@ import GRDB
 
   func appendToQueue() {
     Task { try await queue.append(episode.id) }
-  }
-
-  // MARK: - Private Helpers
-
-  private func observeEpisode() async throws {
-    let observer =
-      ValueObservation.tracking(
-        Episode
-          .filter(id: episode.id)
-          .including(required: Episode.podcast)
-          .asRequest(of: PodcastEpisode.self)
-          .fetchOne
-      )
-      .removeDuplicates()
-
-    for try await podcastEpisode in observer.values(in: repo.db) {
-      guard let podcastEpisode = podcastEpisode
-      else { throw Err.msg("No return from DB for: \(episode.toString)") }
-      self.podcastEpisode = podcastEpisode
-    }
   }
 }
