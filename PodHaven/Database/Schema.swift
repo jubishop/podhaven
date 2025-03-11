@@ -4,13 +4,18 @@ import Foundation
 import GRDB
 
 enum Schema {
+  // MARK: - Episode Column Names
+
+  static let feedURL = "feedURL"
+  static let lastUpdate = "lastUpdate"
+
   // MARK: - Episode Columns
 
   static let completedColumn = Column("completed")
   static let currentTimeColumn = Column("currentTime")
-  static let feedURLColumn = Column("feedURL")
+  static let feedURLColumn = Column(feedURL)
   static let idColumn = Column("id")
-  static let lastUpdateColumn = Column("lastUpdate")
+  static let lastUpdateColumn = Column(lastUpdate)
   static let mediaColumn = Column("media")
   static let pubDateColumn = Column("pubDate")
   static let queueOrderColumn = Column("queueOrder")
@@ -30,7 +35,7 @@ enum Schema {
         t.autoIncrementedPrimaryKey("id")
 
         // Feed Info (Required)
-        t.column("feedURL", .text).unique(onConflict: .fail).notNull().indexed()
+        t.column(feedURL, .text).unique(onConflict: .fail).notNull().indexed()
         t.column("title", .text).notNull()
         t.column("image", .text).notNull()
         t.column("description", .text).notNull()
@@ -39,7 +44,7 @@ enum Schema {
         t.column("link", .text)
 
         // App Added Metadata
-        t.column("lastUpdate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+        t.column(lastUpdate, .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
         t.column("subscribed", .boolean).notNull()
       }
 

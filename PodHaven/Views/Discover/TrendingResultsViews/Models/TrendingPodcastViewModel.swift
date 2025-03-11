@@ -46,7 +46,23 @@ import SwiftUI
 
   func execute() async {
     do {
-      try await fetchFeed()
+      existingPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)
+      if let podcastSeries = existingPodcastSeries, podcastSeries.podcast.subscribed {
+        navigation.showPodcast(podcastSeries)
+      }
+
+      let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
+      unsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: existingPodcastSeries?.podcast)
+      episodeList.allEntries = IdentifiedArray(
+        uniqueElements: try podcastFeed.episodes.map { episodeFeed in
+          try episodeFeed.toUnsavedEpisode(
+            merging: existingPodcastSeries?.episodes[id: episodeFeed.guid]
+          )
+        },
+        id: \.guid
+      )
+
+      subscribable = true
     } catch {
       alert.andReport(error)
     }
@@ -122,25 +138,6 @@ import SwiftUI
         let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
         try await queue.replace(allExceptFirstPodcastEpisode.map(\.id))
       }
-    }
-  }
-
-  // MARK: - Private Helpers
-
-  private func fetchFeed() async throws {
-    let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
-    self.podcastFeed = podcastFeed
-    unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false, lastUpdate: Date.epoch)
-    episodeList.allEntries = IdentifiedArray(
-      uniqueElements: podcastFeed.toUnsavedEpisodes(),
-      id: \.guid
-    )
-
-    existingPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)
-    if let podcastSeries = existingPodcastSeries, podcastSeries.podcast.subscribed {
-      navigation.showPodcast(podcastSeries)
-    } else {
-      subscribable = true
     }
   }
 }

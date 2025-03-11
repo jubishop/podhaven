@@ -125,13 +125,16 @@ struct PodcastFeed: Sendable, Equatable {
     )
   }
 
-  func toUnsavedPodcast(merging podcast: Podcast) throws -> UnsavedPodcast {
+  func toUnsavedPodcast(merging podcast: Podcast?) throws -> UnsavedPodcast {
     precondition(
-      podcast.feedURL == feedURL,
-      "Merging two podcasts with different feedURLs?: \(feedURL) != \(podcast.feedURL)"
+      podcast == nil || podcast?.feedURL == feedURL,
+      "Merging two podcasts with different feedURLs?"
     )
 
-    return try toUnsavedPodcast(subscribed: podcast.subscribed, lastUpdate: podcast.lastUpdate)
+    return try toUnsavedPodcast(
+      subscribed: podcast?.subscribed ?? false,
+      lastUpdate: podcast?.lastUpdate ?? Date.epoch
+    )
   }
 
   func toUnsavedEpisodes() -> [UnsavedEpisode] {
