@@ -169,58 +169,37 @@ struct Repo: Sendable {
   // MARK: - Episode Writers
 
   @discardableResult
-  func addEpisodes(
-    _ unsavedPodcastEpisodes: [UnsavedPodcastEpisode],
-    fetchIfExists: Bool = false
-  ) async throws
+  func upsertPodcastEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]) async throws
     -> [PodcastEpisode]
   {
     try await appDB.db.write { db in
-      var existingPodcasts =
-        try Podcast
-        .filter(
-          Set(unsavedPodcastEpisodes.map(\.unsavedPodcast.feedURL)).contains(Schema.feedURLColumn)
-        )
-        .fetchIdentifiedArray(db, id: \.feedURL)
+      var upsertedPodcasts: IdentifiedArray<FeedURL, Podcast> = IdentifiedArray(id: \.feedURL)
 
       return try unsavedPodcastEpisodes.map { unsavedPodcastEpisode in
         let podcast: Podcast
-        if let existingPodcast = existingPodcasts[id: unsavedPodcastEpisode.unsavedPodcast.feedURL]
+        if let upsertedPodcast = upsertedPodcasts[id: unsavedPodcastEpisode.unsavedPodcast.feedURL]
         {
-          podcast = existingPodcast
+          podcast = upsertedPodcast
         } else {
-          podcast = try unsavedPodcastEpisode.unsavedPodcast.insertAndFetch(db, as: Podcast.self)
-          existingPodcasts.append(podcast)
+          podcast = try unsavedPodcastEpisode.unsavedPodcast.upsertAndFetch(db, as: Podcast.self)
+          upsertedPodcasts.append(podcast)
         }
 
-        let episode: Episode
-        if fetchIfExists,
-          let existingEpisode =
-            try Episode
-            .filter(Schema.mediaColumn == unsavedPodcastEpisode.unsavedEpisode.media)
-            .fetchOne(db)
-        {
-          episode = existingEpisode
-        } else {
-          var newUnsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
-          newUnsavedEpisode.podcastId = podcast.id
-          episode = try newUnsavedEpisode.insertAndFetch(db, as: Episode.self)
-        }
+        var newUnsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
+        newUnsavedEpisode.podcastId = podcast.id
+        let episode = try newUnsavedEpisode.upsertAndFetch(db, as: Episode.self)
         return PodcastEpisode(podcast: podcast, episode: episode)
       }
     }
   }
 
   @discardableResult
-  func addEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode, fetchIfExists: Bool = false)
-    async throws -> PodcastEpisode
+  func upsertPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws
+    -> PodcastEpisode
   {
-    let podcastEpisodes = try await addEpisodes(
-      [unsavedPodcastEpisode],
-      fetchIfExists: fetchIfExists
-    )
+    let podcastEpisodes = try await upsertPodcastEpisodes([unsavedPodcastEpisode])
     guard let podcastEpisode = podcastEpisodes.first
-    else { fatalError("addEpisode returned no entries somehow") }
+    else { fatalError("upsertPodcastEpisode returned no entries somehow") }
 
     return podcastEpisode
   }

@@ -110,28 +110,28 @@ import SwiftUI
 
   func addSelectedEpisodesToTopOfQueue() {
     Task {
-      let podcastEpisodes = try await repo.addEpisodes(filteredUnsavedPodcastEpisodes)
+      let podcastEpisodes = try await repo.upsertPodcastEpisodes(filteredUnsavedPodcastEpisodes)
       try await queue.unshift(podcastEpisodes.map(\.id))
     }
   }
 
   func addSelectedEpisodesToBottomOfQueue() {
     Task {
-      let podcastEpisodes = try await repo.addEpisodes(filteredUnsavedPodcastEpisodes)
+      let podcastEpisodes = try await repo.upsertPodcastEpisodes(filteredUnsavedPodcastEpisodes)
       try await queue.append(podcastEpisodes.map(\.id))
     }
   }
 
   func replaceQueue() {
     Task {
-      let podcastEpisodes = try await repo.addEpisodes(filteredUnsavedPodcastEpisodes)
+      let podcastEpisodes = try await repo.upsertPodcastEpisodes(filteredUnsavedPodcastEpisodes)
       try await queue.replace(podcastEpisodes.map(\.id))
     }
   }
 
   func replaceQueueAndPlay() {
     Task {
-      let podcastEpisodes = try await repo.addEpisodes(filteredUnsavedPodcastEpisodes)
+      let podcastEpisodes = try await repo.upsertPodcastEpisodes(filteredUnsavedPodcastEpisodes)
       if let firstPodcastEpisode = podcastEpisodes.first {
         try await playManager.load(firstPodcastEpisode)
         await playManager.play()

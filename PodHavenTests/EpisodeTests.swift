@@ -168,11 +168,11 @@ actor EpisodeTests {
     #expect(podcastEpisode.episode.currentTime == CMTime.zero)
   }
 
-  @Test("that addEpisode works when podcast exists or is new")
+  @Test("that upsertPodcastEpisode works when podcast exists or is new")
   func testAddEpisode() async throws {
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
     let unsavedEpisode = try TestHelpers.unsavedEpisode()
-    let insertedPodcastEpisode = try await repo.addEpisode(
+    let insertedPodcastEpisode = try await repo.upsertPodcastEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: unsavedPodcast,
         unsavedEpisode: unsavedEpisode
@@ -186,7 +186,7 @@ actor EpisodeTests {
     #expect(fetchedPodcastEpisode.episode.guid == insertedPodcastEpisode.episode.guid)
 
     let secondUnsavedEpisode = try TestHelpers.unsavedEpisode()
-    let _ = try await repo.addEpisode(
+    let _ = try await repo.upsertPodcastEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: unsavedPodcast,
         unsavedEpisode: secondUnsavedEpisode
@@ -198,7 +198,7 @@ actor EpisodeTests {
 
   }
 
-  @Test("that addEpisodes works when fetching existing")
+  @Test("that upsertPodcastEpisodes works when fetching existing")
   func testAddEpisodesFetchExisting() async throws {
     let insertedPodcast = try TestHelpers.unsavedPodcast()
     let insertedEpisode = try TestHelpers.unsavedEpisode()
@@ -211,7 +211,7 @@ actor EpisodeTests {
     let allPodcasts = [insertedPodcast, unsavedPodcast]
     let allEpisodes = [insertedEpisode, unsavedEpisodeInsertedPodcast, unsavedEpisode]
 
-    let podcastEpisodes = try await repo.addEpisodes(
+    let podcastEpisodes = try await repo.upsertPodcastEpisodes(
       [
         UnsavedPodcastEpisode(
           unsavedPodcast: insertedPodcast,
@@ -225,8 +225,7 @@ actor EpisodeTests {
           unsavedPodcast: unsavedPodcast,
           unsavedEpisode: unsavedEpisode
         ),
-      ],
-      fetchIfExists: true
+      ]
     )
     #expect(podcastEpisodes.count == 3)
     #expect(Set(podcastEpisodes.map(\.podcast.feedURL)) == Set(allPodcasts.map(\.feedURL)))

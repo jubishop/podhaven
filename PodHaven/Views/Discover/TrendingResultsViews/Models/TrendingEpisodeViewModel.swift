@@ -23,7 +23,7 @@ import GRDB
 
   func execute() async {
     do {
-      try await fetchEpisode()
+      podcastEpisode = try await repo.episode(unsavedEpisode.media)
     } catch {
       alert.andReport(error)
     }
@@ -63,15 +63,8 @@ import GRDB
   private func fetchOrCreateEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
-    let podcastEpisode = try await repo.addEpisode(unsavedPodcastEpisode, fetchIfExists: true)
+    let podcastEpisode = try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
     self.podcastEpisode = podcastEpisode
     return podcastEpisode
-  }
-
-  private func fetchEpisode() async throws {
-    guard podcastEpisode == nil
-    else { return }
-
-    podcastEpisode = try await repo.episode(unsavedEpisode.media)
   }
 }
