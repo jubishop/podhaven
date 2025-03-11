@@ -6,7 +6,7 @@ import GRDB
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor final class SeriesViewModel {
+@Observable @MainActor final class SeriesViewModel : QueueableSelectableList {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue

@@ -5,7 +5,7 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor class TrendingPodcastViewModel {
+@Observable @MainActor class TrendingPodcastViewModel: QueueableSelectableList {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager

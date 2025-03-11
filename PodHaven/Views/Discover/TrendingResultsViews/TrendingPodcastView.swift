@@ -73,25 +73,7 @@ struct TrendingPodcastView: View {
 
       if viewModel.isSelecting, viewModel.episodeList.anySelected {
         ToolbarItem(placement: .topBarTrailing) {
-          Menu(
-            content: {
-              Button("Add To Top Of Queue") {
-                viewModel.addSelectedEpisodesToTopOfQueue()
-              }
-              Button("Add To Bottom Of Queue") {
-                viewModel.addSelectedEpisodesToBottomOfQueue()
-              }
-              Button("Replace Queue") {
-                viewModel.replaceQueue()
-              }
-              Button("Replace Queue and Play") {
-                viewModel.replaceQueueAndPlay()
-              }
-            },
-            label: {
-              Image(systemName: "text.badge.plus")
-            }
-          )
+          QueueableSelectableListMenu(list: viewModel)
         }
       }
 
