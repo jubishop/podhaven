@@ -6,12 +6,17 @@ import GRDB
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor final class SeriesViewModel : QueueableSelectableList {
+@Observable @MainActor
+final class SeriesViewModel: QueueableSelectableList, EpisodeQueueable, EpisodePlayable {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.repo) private var repo
+
+  // MARK: - Episode-able protocols
+
+  typealias EpisodeType = Episode
 
   // MARK: - State Management
 

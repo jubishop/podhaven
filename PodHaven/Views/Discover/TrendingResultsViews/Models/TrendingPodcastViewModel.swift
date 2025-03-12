@@ -5,13 +5,18 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor class TrendingPodcastViewModel: QueueableSelectableList {
+@Observable @MainActor
+class TrendingPodcastViewModel: QueueableSelectableList, EpisodeQueueable, EpisodePlayable {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.repo) private var repo
+
+  // MARK: - Episode-able protocols
+
+  typealias EpisodeType = UnsavedEpisode
 
   // MARK: - State Management6
 
@@ -93,19 +98,41 @@ import SwiftUI
     }
   }
 
-  func queueEpisodeOnTop(_ episode: Episode) {
-    //    Task { try await queue.unshift(episode.id) }
+  func queueEpisodeOnTop(_ episode: UnsavedEpisode) {
+    Task {
+      let podcastEpisode = try await repo.upsertPodcastEpisode(
+        UnsavedPodcastEpisode(
+          unsavedPodcast: unsavedPodcast,
+          unsavedEpisode: episode
+        )
+      )
+      try await queue.unshift(podcastEpisode.id)
+    }
   }
 
-  func queueEpisodeAtBottom(_ episode: Episode) {
-    //    Task { try await queue.append(episode.id) }
+  func queueEpisodeAtBottom(_ episode: UnsavedEpisode) {
+    Task {
+      let podcastEpisode = try await repo.upsertPodcastEpisode(
+        UnsavedPodcastEpisode(
+          unsavedPodcast: unsavedPodcast,
+          unsavedEpisode: episode
+        )
+      )
+      try await queue.append(podcastEpisode.id)
+    }
   }
 
-  func playEpisode(_ episode: Episode) {
-    //    Task {
-    //      try await playManager.load(PodcastEpisode(podcast: podcast, episode: episode))
-    //      await playManager.play()
-    //    }
+  func playEpisode(_ episode: UnsavedEpisode) {
+    Task {
+      let podcastEpisode = try await repo.upsertPodcastEpisode(
+        UnsavedPodcastEpisode(
+          unsavedPodcast: unsavedPodcast,
+          unsavedEpisode: episode
+        )
+      )
+      try await playManager.load(podcastEpisode)
+      await playManager.play()
+    }
   }
 
   func addSelectedEpisodesToTopOfQueue() {

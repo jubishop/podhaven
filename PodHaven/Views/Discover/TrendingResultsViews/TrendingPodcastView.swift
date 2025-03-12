@@ -49,6 +49,7 @@ struct TrendingPodcastView: View {
               )
             }
           )
+          .episodeSwipeActions(viewModel: viewModel, episode: unsavedEpisode)
         }
         .animation(.default, value: viewModel.episodeList.filteredEntries)
       }

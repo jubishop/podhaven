@@ -19,7 +19,7 @@ struct PodcastRSS: Decodable, Sendable {
         let rssPodcast = try decoder.decode(PodcastRSS.self, from: data)
         continuation.resume(returning: rssPodcast.channel)
       } catch {
-        continuation.resume(throwing: error)
+        continuation.resume(throwing: Err.msg("Could not parse RSS feed: \(error). "))
       }
     }
   }
