@@ -30,7 +30,15 @@ struct SelectableListMenu: View {
   }
 }
 
-// TODO: Make a preview
-//#Preview {
-//  EpisodeListSelectMenu()
-//}
+#Preview {
+  @Previewable @State var list = MockSelectableList()
+
+  VStack(spacing: 20) {
+    SelectableListMenu(list: list)
+    Divider()
+    Text("Selected: \(list.selected)")
+    Button("Select Some") {
+      list.selectSomeEntries()
+    }
+  }
+}

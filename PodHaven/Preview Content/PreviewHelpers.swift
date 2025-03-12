@@ -3,6 +3,7 @@
 import Factory
 import Foundation
 import GRDB
+import IdentifiedCollections
 
 enum PreviewHelpers {
   private static let seriesFiles = [
@@ -90,6 +91,13 @@ enum PreviewHelpers {
     let podcastSeries = try await loadSeries(fileName: fileName)
     let episode = podcastSeries.episodes.randomElement()!
     return PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
+  }
+
+  static func loadEpisodes(fileName: String = seriesFiles.keys.randomElement()!) async throws
+    -> IdentifiedArray<GUID, Episode>
+  {
+    let podcastSeries = try await loadSeries(fileName: fileName)
+    return podcastSeries.episodes
   }
 
   static func loadEpisode(fileName: String = seriesFiles.keys.randomElement()!) async throws
