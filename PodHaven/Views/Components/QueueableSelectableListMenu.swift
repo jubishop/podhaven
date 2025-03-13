@@ -32,7 +32,6 @@ struct QueueableSelectableListMenu: View {
   }
 }
 
-// TODO: Make a preview
-//#Preview {
-//  EpisodeListSelectMenu()
-//}
+#Preview {
+  QueueableSelectableListMenu(list: MockQueueableSelectableList())
+}
