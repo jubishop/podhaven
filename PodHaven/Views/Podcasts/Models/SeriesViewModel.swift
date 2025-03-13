@@ -25,6 +25,7 @@ final class SeriesViewModel: QueueableSelectableList, EpisodeQueueable, EpisodeP
     get { _isSelecting }
     set { withAnimation { _isSelecting = newValue } }
   }
+  var unplayedOnly: Bool = false
 
   var episodeList = SelectableListUseCase<Episode, GUID>(idKeyPath: \.guid)
   var selectedEpisodeIDs: [Episode.ID] { episodeList.selectedEntries.map { $0.id } }
@@ -43,6 +44,7 @@ final class SeriesViewModel: QueueableSelectableList, EpisodeQueueable, EpisodeP
 
   init(podcast: Podcast) {
     self._podcastSeries = PodcastSeries(podcast: podcast)
+    episodeList.customFilter = { [unowned self] in !self.unplayedOnly || !$0.completed }
   }
 
   func execute() async {

@@ -29,11 +29,25 @@ struct SeriesView: View {
         }
       }
 
-      SearchBar(
-        text: $viewModel.episodeList.entryFilter,
-        placeholder: "Filter episodes",
-        imageName: "line.horizontal.3.decrease.circle"
-      )
+      HStack {
+        SearchBar(
+          text: $viewModel.episodeList.entryFilter,
+          placeholder: "Filter episodes",
+          imageName: "line.horizontal.3.decrease.circle"
+        )
+
+        Menu(
+          content: {
+            Button(viewModel.unplayedOnly ? "Show All" : "Unplayed Only") {
+              viewModel.unplayedOnly.toggle()
+            }
+          },
+          label: {
+            Image(systemName: "line.horizontal.3.decrease.circle")
+          }
+        )
+      }
+      .padding(.horizontal)
 
       List(viewModel.episodeList.filteredEntries) { episode in
         NavigationLink(

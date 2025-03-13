@@ -14,6 +14,7 @@ final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
   var selectedEntries: IdentifiedArray<ID, T> {
     IdentifiedArray(uniqueElements: filteredEntries.filter({ isSelected[$0] }), id: idKeyPath)
   }
+  var customFilter: (T) -> Bool = { _ in true }
 
   private var _allEntries: IdentifiedArray<ID, T>
   var allEntries: IdentifiedArray<ID, T> {
@@ -27,16 +28,18 @@ final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
   }
 
   var filteredEntries: IdentifiedArray<ID, T> {
+    let filteredEntries = allEntries.filter { customFilter($0) }
+
     let searchTerms =
       entryFilter
       .lowercased()
       .components(separatedBy: CharacterSet.whitespacesAndNewlines)
       .filter { !$0.isEmpty }
 
-    guard !searchTerms.isEmpty else { return allEntries }
+    guard !searchTerms.isEmpty else { return filteredEntries }
 
     return IdentifiedArray(
-      allEntries.filter { entry in
+      filteredEntries.filter { entry in
         let lowercasedTitle = entry.toString.lowercased()
         return searchTerms.allSatisfy { lowercasedTitle.contains($0) }
       }
