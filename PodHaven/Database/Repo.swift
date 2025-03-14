@@ -159,6 +159,8 @@ struct Repo: Sendable {
 
   // MARK: - Podcast Writers
 
+  // TODO: This needs to update the queue if this episode is in queue
+  //       Also wha if this episode is currently playing?
   @discardableResult
   func delete(_ podcastID: Podcast.ID) async throws -> Bool {
     try await appDB.db.write { db in
