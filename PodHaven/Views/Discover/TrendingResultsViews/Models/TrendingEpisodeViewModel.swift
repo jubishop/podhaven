@@ -23,7 +23,21 @@ import GRDB
 
   func execute() async {
     do {
-      podcastEpisode = try await repo.episode(unsavedEpisode.media)
+      let observer =
+        ValueObservation
+        .tracking(
+          Episode
+            .filter(Schema.mediaColumn == unsavedEpisode.media)
+            .including(required: Episode.podcast)
+            .asRequest(of: PodcastEpisode.self)
+            .fetchOne
+        )
+        .removeDuplicates()
+
+      for try await podcastEpisode in observer.values(in: repo.db) {
+        if self.podcastEpisode == podcastEpisode { continue }
+        self.podcastEpisode = podcastEpisode
+      }
     } catch {
       alert.andReport(error)
     }

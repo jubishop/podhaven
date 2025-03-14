@@ -2,11 +2,12 @@
 
 import Factory
 import Foundation
+import GRDB
 import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class TrendingPodcastViewModel: QueueableSelectableList, EpisodeQueueable, EpisodePlayable {
+class TrendingPodcastViewModel: QueueableSelectableList, EpisodeQueueable {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
@@ -25,6 +26,7 @@ class TrendingPodcastViewModel: QueueableSelectableList, EpisodeQueueable, Episo
     get { _isSelecting }
     set { withAnimation { _isSelecting = newValue } }
   }
+  var unplayedOnly: Bool = false
 
   var subscribable: Bool = false
   let category: String
@@ -47,27 +49,43 @@ class TrendingPodcastViewModel: QueueableSelectableList, EpisodeQueueable, Episo
   init(category: String, unsavedPodcast: UnsavedPodcast) {
     self.category = category
     self.unsavedPodcast = unsavedPodcast
+    episodeList.customFilter = { [unowned self] in !self.unplayedOnly || !$0.completed }
   }
 
   func execute() async {
     do {
-      existingPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)
-      if let podcastSeries = existingPodcastSeries, podcastSeries.podcast.subscribed {
-        navigation.showPodcast(podcastSeries)
-      }
-
       let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
-      unsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: existingPodcastSeries?.podcast)
-      episodeList.allEntries = IdentifiedArray(
-        uniqueElements: try podcastFeed.episodes.map { episodeFeed in
-          try episodeFeed.toUnsavedEpisode(
-            merging: existingPodcastSeries?.episodes[id: episodeFeed.guid]
-          )
-        },
-        id: \.guid
-      )
 
-      subscribable = true
+      let observer =
+        ValueObservation
+        .tracking(
+          Podcast
+            .filter(Schema.feedURLColumn == unsavedPodcast.feedURL)
+            .including(all: Podcast.episodes)
+            .asRequest(of: PodcastSeries.self)
+            .fetchOne
+        )
+        .removeDuplicates()
+
+      for try await podcastSeries in observer.values(in: repo.db) {
+        if subscribable && existingPodcastSeries == podcastSeries { continue }
+        if let podcastSeries = podcastSeries, podcastSeries.podcast.subscribed {
+          navigation.showPodcast(podcastSeries)
+        }
+
+        existingPodcastSeries = podcastSeries
+        unsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: existingPodcastSeries?.podcast)
+        episodeList.allEntries = IdentifiedArray(
+          uniqueElements: try podcastFeed.episodes.map { episodeFeed in
+            try episodeFeed.toUnsavedEpisode(
+              merging: existingPodcastSeries?.episodes[id: episodeFeed.guid]
+            )
+          },
+          id: \.guid
+        )
+
+        subscribable = true
+      }
     } catch {
       alert.andReport(error)
     }

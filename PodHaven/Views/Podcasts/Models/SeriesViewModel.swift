@@ -7,7 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-final class SeriesViewModel: QueueableSelectableList, EpisodeQueueable, EpisodePlayable {
+final class SeriesViewModel: QueueableSelectableList, EpisodeQueueable {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
@@ -49,7 +49,7 @@ final class SeriesViewModel: QueueableSelectableList, EpisodeQueueable, EpisodeP
 
   func execute() async {
     do {
-      if podcastSeries.podcast.lastUpdate < Date.minutesAgo(15),
+      if Date.minutesAgo(podcastSeries.podcast.lastUpdate) < 15,
         let podcastSeries = try await repo.podcastSeries(podcastSeries.id)
       {
         self.podcastSeries = podcastSeries
