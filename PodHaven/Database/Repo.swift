@@ -28,8 +28,10 @@ struct Repo: Sendable {
 
   var db: any DatabaseReader { appDB.db }
   private let appDB: AppDB
+  private let queue: Queue
   fileprivate init(_ appDB: AppDB) {
     self.appDB = appDB
+    self.queue = Container.shared.queue()
   }
 
   // MARK: - Global Reader
@@ -99,7 +101,10 @@ struct Repo: Sendable {
   }
 
   func episodes(_ mediaURLs: [MediaURL]) async throws -> [PodcastEpisode] {
-    try await appDB.db.read { db in
+    guard !mediaURLs.isEmpty
+    else { return [] }
+
+    return try await appDB.db.read { db in
       let episodes =
         try Episode
         .filter(mediaURLs.contains(Schema.mediaColumn))
@@ -159,12 +164,18 @@ struct Repo: Sendable {
 
   // MARK: - Podcast Writers
 
-  // TODO: This needs to update the queue if this episode is in queue
-  //       Also wha if this episode is currently playing?
+  // TODO: Test that dequeuing works here
   @discardableResult
   func delete(_ podcastID: Podcast.ID) async throws -> Bool {
     try await appDB.db.write { db in
-      try Podcast.deleteOne(db, id: podcastID)
+      let queuedEpisodeIDs =
+        try Episode
+        .select(Schema.idColumn, as: Episode.ID.self)
+        .filter(Schema.podcastIDColumn == podcastID && Schema.queueOrderColumn != nil)
+        .fetchAll(db)
+      try queue.dequeue(db, queuedEpisodeIDs)
+
+      return try Podcast.deleteOne(db, id: podcastID)
     }
   }
 
@@ -174,7 +185,10 @@ struct Repo: Sendable {
   func upsertPodcastEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]) async throws
     -> [PodcastEpisode]
   {
-    try await appDB.db.write { db in
+    guard !unsavedPodcastEpisodes.isEmpty
+    else { return [] }
+
+    return try await appDB.db.write { db in
       var upsertedPodcasts: IdentifiedArray<FeedURL, Podcast> = IdentifiedArray(id: \.feedURL)
 
       return try unsavedPodcastEpisodes.map { unsavedPodcastEpisode in

@@ -44,16 +44,31 @@ struct Queue: Sendable {
     }
   }
 
-  func dequeue(_ episodeIDs: [Episode.ID]) async throws {
-    try await appDB.db.write { db in
-      for episodeID in episodeIDs {
-        guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
-        else { continue }
+  func dequeue(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
+    precondition(
+      db.isInsideTransaction,
+      "dequeue method requires a transaction"
+    )
 
-        try _move (db, episodeID: episodeID, from: oldPosition, to: Int.max)
-        try Episode.filter(id: episodeID)
-          .updateAll(db, Schema.queueOrderColumn.set(to: nil))
-      }
+    guard !episodeIDs.isEmpty
+    else { return }
+
+    for episodeID in episodeIDs {
+      guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
+      else { continue }
+
+      try _move (db, episodeID: episodeID, from: oldPosition, to: Int.max)
+      try Episode.filter(id: episodeID)
+        .updateAll(db, Schema.queueOrderColumn.set(to: nil))
+    }
+  }
+
+  func dequeue(_ episodeIDs: [Episode.ID]) async throws {
+    guard !episodeIDs.isEmpty
+    else { return }
+
+    try await appDB.db.write { db in
+      try dequeue(db, episodeIDs)
     }
   }
 
@@ -68,6 +83,9 @@ struct Queue: Sendable {
   }
 
   func unshift(_ episodeIDs: [Episode.ID]) async throws {
+    guard !episodeIDs.isEmpty
+    else { return }
+
     try await appDB.db.write { db in
       for episodeID in episodeIDs.reversed() {
         try _insert(db, episodeID: episodeID, at: 0)
@@ -80,6 +98,9 @@ struct Queue: Sendable {
   }
 
   func append(_ episodeIDs: [Episode.ID]) async throws {
+    guard !episodeIDs.isEmpty
+    else { return }
+
     try await appDB.db.write { db in
       for episodeID in episodeIDs {
         let maxPosition =
