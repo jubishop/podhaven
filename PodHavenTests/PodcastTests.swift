@@ -14,8 +14,11 @@ actor PodcastTests {
   func createSinglePodcast() async throws {
     let url = URL(string: "https://example.com/data")!
     let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: FeedURL(url))
-
-    let podcastSeries = try await repo.insertSeries(unsavedPodcast)
+    let unsavedEpisode = try TestHelpers.unsavedEpisode()
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode]
+    )
     let podcast = podcastSeries.podcast
     #expect(podcast.title == unsavedPodcast.title)
 
