@@ -128,7 +128,7 @@ struct TrendingPodcastView: View {
     }
     viewModel = TrendingPodcastViewModel(
       category: "News",
-      unsavedPodcast: try! await PreviewHelpers.loadUnsavedPodcast()
+      unsavedPodcast: unsavedPodcast
     )
   }
 }

@@ -20,11 +20,16 @@ struct SearchBar: View {
         .textInputAutocapitalization(.never)
         .disableAutocorrection(true)
 
-      if isFocused {
-        Button("Cancel") {
-          text = ""
-          isFocused = false
-        }
+      if isFocused || !text.isEmpty {
+        Button(
+          action: {
+            text = ""
+            isFocused = false
+          },
+          label: {
+            Image(systemName: "xmark.circle.fill")
+          }
+        )
       }
     }
   }
@@ -32,6 +37,10 @@ struct SearchBar: View {
 
 #Preview {
   @Previewable @State var text: String = ""
+  @Previewable @State var demo: String = ""
 
-  SearchBar(text: $text)
+  VStack(spacing: 20) {
+    SearchBar(text: $text)
+    TextField("Random focus field", text: $demo)
+  }
 }
