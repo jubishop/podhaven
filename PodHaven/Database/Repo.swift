@@ -164,7 +164,6 @@ struct Repo: Sendable {
 
   // MARK: - Podcast Writers
 
-  // TODO: Test that dequeuing works here
   @discardableResult
   func delete(_ podcastID: Podcast.ID) async throws -> Bool {
     try await appDB.db.write { db in
