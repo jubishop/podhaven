@@ -191,6 +191,23 @@ actor QueueTests {
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
   }
 
+  @Test("deleting a podcast series dequeues any episodes")
+  func testDeleteSeries() async throws {
+    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    let otherSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [
+        TestHelpers.unsavedEpisode(guid: "other", queueOrder: 5)
+      ]
+    )
+
+    try await repo.delete(podcastSeries.podcast.id)
+    #expect((try await fetchOrder()) == [0])
+
+    let episode = try await fetchEpisode("other", from: otherSeries)
+    #expect(episode.queueOrder == 0)
+  }
+
   // MARK: - Helpers
 
   private func fetchOrder() async throws -> [Int] {
@@ -203,8 +220,10 @@ actor QueueTests {
     return episodes.map { $0.queueOrder ?? -1 }
   }
 
-  private func fetchEpisode(_ guid: String) async throws -> Episode {
-    let podcastID = podcastSeries.podcast.id
+  private func fetchEpisode(_ guid: String, from series: PodcastSeries? = nil) async throws
+    -> Episode
+  {
+    let podcastID = series?.podcast.id ?? podcastSeries.podcast.id
     return try await repo.db.read { db in
       try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcastID])
     }!
