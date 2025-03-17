@@ -46,9 +46,9 @@ class TrendingPodcastViewModel: QueueableSelectableList, EpisodeQueueable {
 
   // MARK: - Initialization
 
-  init(category: String, unsavedPodcast: UnsavedPodcast) {
-    self.category = category
-    self.unsavedPodcast = unsavedPodcast
+  init(trendingPodcast: TrendingPodcast) {
+    self.category = trendingPodcast.category
+    self.unsavedPodcast = trendingPodcast.unsavedPodcast
     episodeList.customFilter = { [unowned self] in !self.unplayedOnly || !$0.completed }
   }
 

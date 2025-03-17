@@ -30,8 +30,7 @@ struct TrendingResultsView: View {
           destination: { trendingPodcast in
             TrendingPodcastView(
               viewModel: TrendingPodcastViewModel(
-                category: trendingPodcast.category,
-                unsavedPodcast: trendingPodcast.unsavedPodcast
+                trendingPodcast: trendingPodcast
               )
             )
           }
