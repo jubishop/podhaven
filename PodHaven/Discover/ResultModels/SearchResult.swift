@@ -2,11 +2,11 @@
 
 import Foundation
 
-struct SearchResult: Sendable, Decodable {
-  struct FeedResult: Sendable, Decodable, Identifiable, Hashable {
+struct SearchResult: Decodable, Sendable {
+  struct FeedResult: Decodable, Hashable, Identifiable, PodcastConvertible, Sendable {
     let id: Int
     let url: FeedURL
-    let image: URL
+    @OptionalURL var image: URL?
     let title: String
     let description: String
     let link: URL

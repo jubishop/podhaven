@@ -2,8 +2,8 @@
 
 import Foundation
 
-struct TrendingResult: Sendable, Decodable {
-  struct FeedResult: Sendable, Decodable, Identifiable, Hashable {
+struct TrendingResult: Decodable, Sendable {
+  struct FeedResult: Decodable, Hashable, Identifiable, PodcastConvertible, Sendable {
     let id: Int
     let url: FeedURL
     @OptionalURL var image: URL?
@@ -11,20 +11,6 @@ struct TrendingResult: Sendable, Decodable {
     let description: String
     let trendScore: Int
     let categories: [String: String]
-
-    func toUnsavedPodcast() throws -> UnsavedPodcast {
-      guard let image = image
-      else { throw Err.msg("No image for \(title)") }
-
-      return try UnsavedPodcast(
-        feedURL: url,
-        title: title,
-        image: image,
-        description: description,
-        lastUpdate: Date.epoch,
-        subscribed: false
-      )
-    }
   }
   let feeds: [FeedResult]
   let since: Date

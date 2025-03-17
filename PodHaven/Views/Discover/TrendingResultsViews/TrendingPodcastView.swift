@@ -4,8 +4,6 @@ import Factory
 import SwiftUI
 
 struct TrendingPodcastView: View {
-  @Environment(Alert.self) var alert
-
   @State private var viewModel: TrendingPodcastViewModel
 
   init(viewModel: TrendingPodcastViewModel) {
