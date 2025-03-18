@@ -3,6 +3,12 @@
 import SwiftUI
 
 struct TitleResultsView: View {
+  private let viewModel: TitleResultsViewModel
+
+  init(viewModel: TitleResultsViewModel) {
+    self.viewModel = viewModel
+  }
+
   var body: some View {
     Text("Titles").font(.largeTitle).navigationTitle("Titles")
   }

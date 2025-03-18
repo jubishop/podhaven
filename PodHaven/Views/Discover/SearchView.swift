@@ -15,7 +15,7 @@ struct SearchView: View {
       case .allFields:
         AllFieldResultsView()
       case .titles:
-        TitleResultsView()
+        TitleResultsView(viewModel: TitleResultsViewModel(titleResult: viewModel.titleResult))
       case .people:
         PeopleResultsView()
       case .trending:

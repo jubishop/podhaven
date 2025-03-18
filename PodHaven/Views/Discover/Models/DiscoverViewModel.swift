@@ -72,7 +72,9 @@ import SwiftUI
   var categories: [String] { [Self.allCategoriesName] + filteredCategories }
 
   // MARK: - Searching and Results
+
   var trendingResult: TrendingResult?
+  var titleResult: SearchResult?
 
   // MARK: - Initialization
 
@@ -133,11 +135,17 @@ import SwiftUI
 
     if currentView == .trending {
       self.trendingResult = try await searchTrending()
+    } else if currentView == .titles {
+      self.titleResult = try await searchByTitle()
     }
   }
 
   private func searchTrending() async throws -> TrendingResult {
     try await searchService.searchTrending(categories: categoriesToSearch, language: Self.language)
+  }
+
+  private func searchByTitle() async throws -> SearchResult {
+    try await searchService.searchByTitle(searchText)
   }
 
   private var filteredCategories: [String] {
