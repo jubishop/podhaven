@@ -41,18 +41,18 @@ struct TitleResultsView: View {
 }
 
 #Preview {
-  @Previewable @State var viewModel: TrendingResultsViewModel?
+  @Previewable @State var viewModel: TitleResultsViewModel?
 
   NavigationStack {
     if let viewModel = viewModel {
-      TrendingResultsView(viewModel: viewModel)
+      TitleResultsView(viewModel: viewModel)
     }
   }
   .preview()
   .task {
-    viewModel = TrendingResultsViewModel(
-      category: "News",
-      trendingResult: try! await PreviewHelpers.loadTrendingResult()
+    viewModel = TitleResultsViewModel(
+      searchText: "Hello",
+      titleResult: try! await PreviewHelpers.loadTitleResult()
     )
   }
 }

@@ -170,6 +170,14 @@ enum PreviewHelpers {
     )
   }
 
+  static func loadTitleResult() async throws -> TitleResult {
+    try await SearchService.parseForPreview(
+      try Data(
+        contentsOf: Bundle.main.url(forResource: "hello_bytitle", withExtension: "json")!
+      )
+    )
+  }
+
   static func loadFeedResult() async throws -> TrendingResult.FeedResult {
     try await loadTrendingResult().feeds.randomElement()!
   }
