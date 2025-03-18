@@ -4,10 +4,10 @@ import Foundation
 
 @Observable @MainActor class TitleResultsViewModel {
   let searchText: String
-  let titleResult: SearchResult?
+  let titleResult: TitleResult?
   let unsavedPodcasts: [UnsavedPodcast]
 
-  init(searchText: String, titleResult: SearchResult?) {
+  init(searchText: String, titleResult: TitleResult?) {
     self.searchText = searchText
     self.titleResult = titleResult
     if let titleResult = titleResult {

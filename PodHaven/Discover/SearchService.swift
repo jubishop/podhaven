@@ -40,19 +40,19 @@ struct SearchService: Sendable {
 
   // MARK: - Search Methods
 
-  func searchByTerm(_ term: String) async throws -> SearchResult {
+  func searchByTerm(_ term: String) async throws -> TermResult {
     try await Self.parse(
       try await performRequest("/search/byterm", [URLQueryItem(name: "q", value: term)])
     )
   }
 
-  func searchByTitle(_ title: String) async throws -> SearchResult {
+  func searchByTitle(_ title: String) async throws -> TitleResult {
     try await Self.parse(
       try await performRequest("/search/bytitle", [URLQueryItem(name: "q", value: title)])
     )
   }
 
-  func searchByPerson(_ person: String) async throws -> EpisodeResult {
+  func searchByPerson(_ person: String) async throws -> PersonResult {
     try await Self.parse(
       try await performRequest("/search/byperson", [URLQueryItem(name: "q", value: person)])
     )

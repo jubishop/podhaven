@@ -74,7 +74,7 @@ import SwiftUI
   // MARK: - Searching and Results
 
   var trendingResult: TrendingResult?
-  var titleResult: SearchResult?
+  var titleResult: TitleResult?
 
   // MARK: - Initialization
 
@@ -144,7 +144,7 @@ import SwiftUI
     try await searchService.searchTrending(categories: categoriesToSearch, language: Self.language)
   }
 
-  private func searchByTitle() async throws -> SearchResult {
+  private func searchByTitle() async throws -> TitleResult {
     try await searchService.searchByTitle(searchText)
   }
 

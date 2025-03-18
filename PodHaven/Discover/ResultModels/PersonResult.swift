@@ -3,7 +3,7 @@
 import AVFoundation
 import Foundation
 
-struct EpisodeResult: Sendable, Decodable {
+struct PersonResult: Sendable, Decodable {
   struct ItemResult: Sendable, Decodable {
     let id: Int
     let guid: GUID

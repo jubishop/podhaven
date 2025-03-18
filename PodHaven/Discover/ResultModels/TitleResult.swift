@@ -2,7 +2,7 @@
 
 import Foundation
 
-struct SearchResult: Decodable, Sendable {
+struct TitleResult: Decodable, Sendable {
   struct FeedResult: Decodable, Hashable, Identifiable, ResultPodcastConvertible, Sendable {
     let id: Int
     let url: FeedURL
