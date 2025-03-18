@@ -3,7 +3,7 @@
 import Foundation
 
 struct TrendingResult: Decodable, Sendable {
-  struct FeedResult: Decodable, Hashable, Identifiable, PodcastConvertible, Sendable {
+  struct FeedResult: Decodable, Hashable, Identifiable, ResultPodcastConvertible, Sendable {
     let id: Int
     let url: FeedURL
     @OptionalURL var image: URL?
@@ -11,6 +11,10 @@ struct TrendingResult: Decodable, Sendable {
     let description: String
     let trendScore: Int
     let categories: [String: String]
+
+    // MARK: - ResultPodcastConvertible
+
+    var link: URL? { nil }
   }
   let feeds: [FeedResult]
   let since: Date

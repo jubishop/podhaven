@@ -3,13 +3,13 @@
 import Foundation
 
 struct SearchResult: Decodable, Sendable {
-  struct FeedResult: Decodable, Hashable, Identifiable, PodcastConvertible, Sendable {
+  struct FeedResult: Decodable, Hashable, Identifiable, ResultPodcastConvertible, Sendable {
     let id: Int
     let url: FeedURL
     @OptionalURL var image: URL?
     let title: String
     let description: String
-    let link: URL
+    @OptionalURL var link: URL?
     let lastUpdateTime: Date
     let episodeCount: Int
     let categories: [String: String]
