@@ -162,7 +162,10 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           do {
             guard case .success(let podcastFeed) = await feedTask.feedParsed()
             else { throw Err.msg("Failed to parse: \(await outline.text)") }
-            let unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: true)
+            let unsavedPodcast = try podcastFeed.toUnsavedPodcast(
+              subscribed: true,
+              lastUpdate: Date()
+            )
 
             await Task { @MainActor in
               outline.feedURL = unsavedPodcast.feedURL

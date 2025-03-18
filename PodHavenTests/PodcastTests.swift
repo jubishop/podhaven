@@ -116,7 +116,7 @@ actor PodcastTests {
         byAdding: .day,
         value: -10,
         to: Date()
-      )
+      )!
     )
     let unsubscribedPodcast = try TestHelpers.unsavedPodcast(subscribed: false)
     try await repo.insertSeries(freshPodcast)
@@ -131,7 +131,7 @@ actor PodcastTests {
   func testAllPodcastSeries() async throws {
     let freshPodcast = try TestHelpers.unsavedPodcast(lastUpdate: Date())
     let stalePodcast = try TestHelpers.unsavedPodcast(
-      lastUpdate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
+      lastUpdate: Calendar.current.date(byAdding: .day, value: -10, to: Date())!
     )
     let unsubscribedPodcast = try TestHelpers.unsavedPodcast(subscribed: false)
     try await repo.insertSeries(freshPodcast)

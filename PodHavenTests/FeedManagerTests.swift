@@ -26,7 +26,7 @@ actor FeedManagerTests {
     let feedTask = await manager.addURL(FeedURL(url))
     let feedResult = await feedTask.feedParsed()
     let feed = feedResult.isSuccessfulWith()!
-    let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: true)
+    let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: true, lastUpdate: Date())
     #expect(unsavedPodcast.title == "Pod Save America")
     #expect(unsavedPodcast.link == URL(string: "https://crooked.com"))
     #expect(unsavedPodcast.image.absoluteString.contains("simplecastcdn") != nil)

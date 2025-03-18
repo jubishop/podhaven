@@ -43,7 +43,7 @@ enum TestHelpers {
     image: URL = URL.valid(),
     description: String = String.random(),
     link: URL? = nil,
-    lastUpdate: Date? = nil,
+    lastUpdate: Date = Date(),
     subscribed: Bool = true
   ) throws -> UnsavedPodcast {
     try UnsavedPodcast(
