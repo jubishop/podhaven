@@ -10,7 +10,7 @@ enum MockResponse {
   case data(Data)
   case detail(delay: Duration, data: Data)
   case error(Error)
-  case production
+  case production(Bool)
 }
 
 final actor DataFetchableMock: DataFetchable {
@@ -33,8 +33,14 @@ final actor DataFetchableMock: DataFetchable {
     requests.append(url)
 
     switch get(url) {
-    case .production:
-      return try await session.data(for: urlRequest)
+    case .production(let printData):
+      let (data, response) = try await session.data(for: urlRequest)
+      if printData {
+        print("Response for: \(url)")
+        print("URLResponse: \(response)")
+        print("Data: \(String(data: data, encoding: .utf8) ?? "No Data")")
+      }
+      return (data, response)
 
     case .delay(let delay):
       try await Task.sleep(for: delay)

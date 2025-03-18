@@ -12,7 +12,7 @@ struct SearchResult: Decodable, Sendable {
     @OptionalURL var link: URL?
     let lastUpdateTime: Date
     let episodeCount: Int
-    let categories: [String: String]
+    let categories: [String: String]?
   }
   let feeds: [FeedResult]
 }

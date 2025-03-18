@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-struct AllFieldResultsView: View {
+struct AllFieldsResultsView: View {
   var body: some View {
     Text("All Fields").font(.largeTitle).navigationTitle("All Fields")
   }

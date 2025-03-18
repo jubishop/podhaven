@@ -34,7 +34,7 @@ actor SearchServiceTests {
     #expect(feed.title == "Hard Fork")
     #expect(feed.url == FeedURL(URL(string: "https://feeds.simplecast.com/l2i9YnTd")!))
     #expect(feed.lastUpdateTime == Date(timeIntervalSince1970: TimeInterval(1736023489)))
-    #expect(feed.categories["102"] == "Technology")
+    #expect(feed.categories!["102"] == "Technology")
   }
 
   @Test("search by title")
@@ -54,7 +54,24 @@ actor SearchServiceTests {
         == "Adam Devine, Anders Holm, Blake Anderson, and Kyle Newacheck seriously discuss some very important topics."
     )
     #expect(result.feeds.count == 3)
-    #expect(Set(feed.categories.values) == ["Comedy", "Society", "Culture"])
+    #expect(Set(feed.categories!.values) == ["Comedy", "Society", "Culture"])
+  }
+
+  @Test("search by title missing categories")
+  func testSearchByTitleMissingData() async throws {
+    let searchTerm = "Hello"
+    let data = try Data(
+      contentsOf: Bundle.main.url(forResource: "hello_bytitle", withExtension: "json")!
+    )
+    await session.set(
+      URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)")!,
+      .data(data)
+    )
+    let result = try await service.searchByTitle(searchTerm)
+    let feed = result.feeds[3]
+    #expect(feed.description == "Another round of beats for the freaks")
+    #expect(result.feeds.count == 21)
+    #expect(feed.categories == nil)
   }
 
   @Test("search by person")

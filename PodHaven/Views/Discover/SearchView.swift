@@ -13,9 +13,14 @@ struct SearchView: View {
     Group {
       switch viewModel.currentView {
       case .allFields:
-        AllFieldResultsView()
+        AllFieldsResultsView()
       case .titles:
-        TitleResultsView(viewModel: TitleResultsViewModel(titleResult: viewModel.titleResult))
+        TitleResultsView(
+          viewModel: TitleResultsViewModel(
+            searchText: viewModel.searchText,
+            titleResult: viewModel.titleResult
+          )
+        )
       case .people:
         PeopleResultsView()
       case .trending:
