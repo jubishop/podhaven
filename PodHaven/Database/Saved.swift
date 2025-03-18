@@ -8,16 +8,15 @@ import Tagged
 struct Saved<V>: Savable, Stringable, Identifiable where V: Savable & Stringable {
   public typealias ID = Tagged<Self, Int64>
   public var id: ID
-
-  internal var value: V
+  public var unsaved: V
 
   subscript<T>(dynamicMember keyPath: KeyPath<V, T>) -> T {
-    value[keyPath: keyPath]
+    unsaved[keyPath: keyPath]
   }
 
   subscript<T>(dynamicMember keyPath: WritableKeyPath<V, T>) -> T {
-    get { value[keyPath: keyPath] }
-    set { value[keyPath: keyPath] = newValue }
+    get { unsaved[keyPath: keyPath] }
+    set { unsaved[keyPath: keyPath] = newValue }
   }
 
   // MARK: - TableRecord
@@ -28,77 +27,77 @@ struct Saved<V>: Savable, Stringable, Identifiable where V: Savable & Stringable
 
   public init(row: Row) throws {
     id = row[Column(CodingKeys.id)]
-    value = try V(row: row)
+    unsaved = try V(row: row)
   }
 
-  public init(id: Tagged<Self, Int64>, from value: V) {
+  public init(id: Tagged<Self, Int64>, from unsaved: V) {
     self.id = id
-    self.value = value
+    self.unsaved = unsaved
   }
 
-  public init(from value: V) {
+  public init(from unsaved: V) {
     self.id = -1
-    self.value = value
+    self.unsaved = unsaved
   }
 
   // MARK: - PersistableRecord
 
   public func encode(to container: inout PersistenceContainer) throws {
     container[Column(CodingKeys.id)] = id
-    try value.encode(to: &container)
+    try unsaved.encode(to: &container)
   }
 
   // MARK: - Savable
 
   public var toString: String {
-    value.toString
+    unsaved.toString
   }
 
   // MARK: - Persistence Callbacks
 
   public func willDelete(_ db: Database) throws {
-    try value.willDelete(db)
+    try unsaved.willDelete(db)
   }
   public func willInsert(_ db: Database) throws {
-    try value.willInsert(db)
+    try unsaved.willInsert(db)
   }
   public func willSave(_ db: Database) throws {
-    try value.willSave(db)
+    try unsaved.willSave(db)
   }
   public func willUpdate(_ db: Database, columns: Set<String>) throws {
-    try value.willUpdate(db, columns: columns)
+    try unsaved.willUpdate(db, columns: columns)
   }
   public func didDelete(deleted: Bool) {
-    value.didDelete(deleted: deleted)
+    unsaved.didDelete(deleted: deleted)
   }
   public func didInsert(_ inserted: InsertionSuccess) {
-    value.didInsert(inserted)
+    unsaved.didInsert(inserted)
   }
   public func didSave(_ saved: PersistenceSuccess) {
-    value.didSave(saved)
+    unsaved.didSave(saved)
   }
   public func didUpdate(_ updated: PersistenceSuccess) {
-    value.didUpdate(updated)
+    unsaved.didUpdate(updated)
   }
   public func aroundDelete(_ db: Database, delete: () throws -> Bool) throws {
-    try value.aroundDelete(db, delete: delete)
+    try unsaved.aroundDelete(db, delete: delete)
   }
   public func aroundInsert(
     _ db: Database,
     insert: () throws -> InsertionSuccess
   ) throws {
-    try value.aroundInsert(db, insert: insert)
+    try unsaved.aroundInsert(db, insert: insert)
   }
   public func aroundSave(_ db: Database, save: () throws -> PersistenceSuccess)
     throws
   {
-    try value.aroundSave(db, save: save)
+    try unsaved.aroundSave(db, save: save)
   }
   public func aroundUpdate(
     _ db: Database,
     columns: Set<String>,
     update: () throws -> PersistenceSuccess
   ) throws {
-    try value.aroundUpdate(db, columns: columns, update: update)
+    try unsaved.aroundUpdate(db, columns: columns, update: update)
   }
 }

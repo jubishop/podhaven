@@ -51,13 +51,15 @@ actor RefreshManager: Sendable {
   }
 
   func updateSeriesFromFeed(podcastSeries: PodcastSeries, podcastFeed: PodcastFeed) async throws {
-    var newPodcast = try podcastFeed.toPodcast(merging: podcastSeries.podcast)
+    let newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries.podcast.unsaved)
+    var newPodcast = Podcast(id: podcastSeries.id, from: newUnsavedPodcast)
     var unsavedEpisodes: [UnsavedEpisode] = []
     var existingEpisodes: [Episode] = []
     for feedItem in podcastFeed.episodes {
       if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
-        if let newExistingEpisode = try? feedItem.toEpisode(merging: existingEpisode) {
-          existingEpisodes.append(newExistingEpisode)
+        if let newUnsavedExistingEpisode = try? feedItem.toUnsavedEpisode(merging: existingEpisode)
+        {
+          existingEpisodes.append(Episode(id: existingEpisode.id, from: newUnsavedExistingEpisode))
         }
       } else if let newUnsavedEpisode = try? feedItem.toUnsavedEpisode() {
         unsavedEpisodes.append(newUnsavedEpisode)

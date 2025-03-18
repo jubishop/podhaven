@@ -18,7 +18,7 @@ struct EpisodeFeed: Sendable, Equatable {
   func toUnsavedEpisode(merging episode: Episode? = nil) throws -> UnsavedEpisode {
     precondition(
       episode == nil || episode?.guid == guid,
-      "Merging two episodes with different guids?"
+      "Merging two episodes with different guids?: \(String(describing: episode?.guid)), \(guid)"
     )
 
     return try UnsavedEpisode(
@@ -35,10 +35,6 @@ struct EpisodeFeed: Sendable, Equatable {
       currentTime: episode?.currentTime,
       queueOrder: episode?.queueOrder
     )
-  }
-
-  func toEpisode(merging episode: Episode) throws -> Episode {
-    Episode(id: episode.id, from: try toUnsavedEpisode(merging: episode))
   }
 
   // MARK: - Private Helpers
@@ -96,11 +92,6 @@ struct PodcastFeed: Sendable, Equatable {
     }
   }
 
-  func toPodcast(merging podcast: Podcast) throws -> Podcast {
-    let unsavedPodcast = try toUnsavedPodcast(merging: podcast)
-    return Podcast(id: podcast.id, from: unsavedPodcast)
-  }
-
   func toUnsavedPodcast(subscribed: Bool, lastUpdate: Date) throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: rssPodcast.iTunes.newFeedURL ?? feedURL,
@@ -123,22 +114,6 @@ struct PodcastFeed: Sendable, Equatable {
       subscribed: unsavedPodcast.subscribed,
       lastUpdate: unsavedPodcast.lastUpdate
     )
-  }
-
-  func toUnsavedPodcast(merging podcast: Podcast?) throws -> UnsavedPodcast {
-    precondition(
-      podcast == nil || podcast?.feedURL == feedURL,
-      "Merging two podcasts with different feedURLs?"
-    )
-
-    return try toUnsavedPodcast(
-      subscribed: podcast?.subscribed ?? false,
-      lastUpdate: podcast?.lastUpdate ?? Date.epoch
-    )
-  }
-
-  func toUnsavedEpisodes() -> [UnsavedEpisode] {
-    episodes.compactMap { try? $0.toUnsavedEpisode() }
   }
 
   // MARK: - Equatable

@@ -74,7 +74,15 @@ class TrendingPodcastViewModel: QueueableSelectableList, EpisodeQueueable {
         }
 
         existingPodcastSeries = podcastSeries
-        unsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: existingPodcastSeries?.podcast)
+        if let podcastSeries = existingPodcastSeries {
+          unsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries.podcast.unsaved)
+        } else {
+          unsavedPodcast = try podcastFeed.toUnsavedPodcast(
+            subscribed: false,
+            lastUpdate: Date.epoch
+          )
+        }
+
         episodeList.allEntries = IdentifiedArray(
           uniqueElements: try podcastFeed.episodes.map { episodeFeed in
             try episodeFeed.toUnsavedEpisode(

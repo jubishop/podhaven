@@ -25,7 +25,7 @@ actor PodcastFeedTests {
     let url = Bundle.main.url(forResource: "marketplace", withExtension: "rss")!
     let feed = try await PodcastFeed.parse(FeedURL(url))
     let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: false, lastUpdate: Date())
-    let unsavedEpisodes = feed.toUnsavedEpisodes()
+    let unsavedEpisodes = try feed.episodes.map { try $0.toUnsavedEpisode() }
     #expect(unsavedPodcast.title == "Marketplace")
     #expect(unsavedPodcast.subscribed == false)
     #expect(unsavedEpisodes.count == 50)
@@ -38,7 +38,7 @@ actor PodcastFeedTests {
     let url = Bundle.main.url(forResource: "land_of_the_giants", withExtension: "rss")!
     let feed = try await PodcastFeed.parse(FeedURL(url))
     let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: true, lastUpdate: Date())
-    let unsavedEpisodes = feed.toUnsavedEpisodes()
+    let unsavedEpisodes = try feed.episodes.map { try $0.toUnsavedEpisode() }
     #expect(unsavedPodcast.title == "Land of the Giants")
     #expect(unsavedPodcast.subscribed == true)
     #expect(unsavedEpisodes.count == 71)
