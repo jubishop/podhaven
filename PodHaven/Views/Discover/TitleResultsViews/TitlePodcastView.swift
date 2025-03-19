@@ -70,7 +70,11 @@ struct TitlePodcastView: View {
     .navigationDestination(
       for: UnsavedPodcastEpisode.self,
       destination: { unsavedPodcastEpisode in
-        Text("TODO")
+        TitleEpisodeView(
+          viewModel: TitleEpisodeViewModel(
+            unsavedPodcastEpisode: unsavedPodcastEpisode
+          )
+        )
       }
     )
     .toolbar {
