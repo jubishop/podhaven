@@ -7,7 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class TrendingPodcastViewModel: QueueableSelectableList, EpisodeQueueable {
+class TitlePodcastViewModel: QueueableSelectableList, EpisodeQueueable {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
@@ -29,7 +29,7 @@ class TrendingPodcastViewModel: QueueableSelectableList, EpisodeQueueable {
   var unplayedOnly: Bool = false
 
   var subscribable: Bool = false
-  let category: String
+  let searchText: String
   var unsavedPodcast: UnsavedPodcast
   var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
   var filteredUnsavedPodcastEpisodes: [UnsavedPodcastEpisode] {
@@ -46,9 +46,9 @@ class TrendingPodcastViewModel: QueueableSelectableList, EpisodeQueueable {
 
   // MARK: - Initialization
 
-  init(trendingPodcast: TrendingPodcast) {
-    self.category = trendingPodcast.category
-    self.unsavedPodcast = trendingPodcast.unsavedPodcast
+  init(titlePodcast: SearchedPodcastByTitle) {
+    self.searchText = titlePodcast.searchText
+    self.unsavedPodcast = titlePodcast.unsavedPodcast
     episodeList.customFilter = { [unowned self] in !self.unplayedOnly || !$0.completed }
   }
 
