@@ -44,7 +44,7 @@ actor SearchServiceTests {
       contentsOf: Bundle.main.url(forResource: "thisisimportant_bytitle", withExtension: "json")!
     )
     await session.set(
-      URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)")!,
+      URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
       .data(data)
     )
     let result = try await service.searchByTitle(searchTerm)
@@ -64,7 +64,7 @@ actor SearchServiceTests {
       contentsOf: Bundle.main.url(forResource: "hello_bytitle", withExtension: "json")!
     )
     await session.set(
-      URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)")!,
+      URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
       .data(data)
     )
     let result = try await service.searchByTitle(searchTerm)

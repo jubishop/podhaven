@@ -36,7 +36,7 @@ struct TitleResultsView: View {
         Spacer()
       }
     }
-    .navigationTitle("🔍🎙 \(viewModel.searchText)")
+    .navigationTitle("🔍📖 \(viewModel.searchText)")
   }
 }
 

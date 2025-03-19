@@ -48,7 +48,10 @@ struct SearchService: Sendable {
 
   func searchByTitle(_ title: String) async throws -> TitleResult {
     try await Self.parse(
-      try await performRequest("/search/bytitle", [URLQueryItem(name: "q", value: title)])
+      try await performRequest(
+        "/search/bytitle",
+        [URLQueryItem(name: "q", value: title), URLQueryItem(name: "similar", value: "true")]
+      )
     )
   }
 
