@@ -172,7 +172,7 @@ struct Repo: Sendable {
         .select(Schema.idColumn, as: Episode.ID.self)
         .filter(Schema.podcastIDColumn == podcastID && Schema.queueOrderColumn != nil)
         .fetchAll(db)
-      try queue.dequeue(db, queuedEpisodeIDs)
+      try queue.dequeue(db, queuedEpisodeIDs, RepoAccessKey())
 
       return try Podcast.deleteOne(db, id: podcastID)
     }

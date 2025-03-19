@@ -44,23 +44,8 @@ struct Queue: Sendable {
     }
   }
 
-  func dequeue(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
-    precondition(
-      db.isInsideTransaction,
-      "dequeue method requires a transaction"
-    )
-
-    guard !episodeIDs.isEmpty
-    else { return }
-
-    for episodeID in episodeIDs {
-      guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
-      else { continue }
-
-      try _move (db, episodeID: episodeID, from: oldPosition, to: Int.max)
-      try Episode.filter(id: episodeID)
-        .updateAll(db, Schema.queueOrderColumn.set(to: nil))
-    }
+  func dequeue(_ db: Database, _ episodeIDs: [Episode.ID], _ key: RepoAccessKey) throws {
+    try _dequeue(db, episodeIDs)
   }
 
   func dequeue(_ episodeIDs: [Episode.ID]) async throws {
@@ -68,7 +53,7 @@ struct Queue: Sendable {
     else { return }
 
     try await appDB.db.write { db in
-      try dequeue(db, episodeIDs)
+      try _dequeue(db, episodeIDs)
     }
   }
 
@@ -117,6 +102,25 @@ struct Queue: Sendable {
   }
 
   //MARK: - Private Helpers
+
+  private func _dequeue(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
+    precondition(
+      db.isInsideTransaction,
+      "dequeue method requires a transaction"
+    )
+
+    guard !episodeIDs.isEmpty
+    else { return }
+
+    for episodeID in episodeIDs {
+      guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
+      else { continue }
+
+      try _move (db, episodeID: episodeID, from: oldPosition, to: Int.max)
+      try Episode.filter(id: episodeID)
+        .updateAll(db, Schema.queueOrderColumn.set(to: nil))
+    }
+  }
 
   private func _fetchOldPosition(_ db: Database, for episodeID: Episode.ID) throws -> Int? {
     precondition(
