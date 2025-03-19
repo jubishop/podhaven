@@ -52,7 +52,13 @@ struct TitlePodcastView: View {
               unsavedEpisode: unsavedEpisode
             ),
             label: {
-              Text("TODO")
+              TitleEpisodeListView(
+                viewModel: TitleEpisodeListViewModel(
+                  isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
+                  unsavedEpisode: unsavedEpisode,
+                  isSelecting: viewModel.isSelecting
+                )
+              )
             }
           )
           .episodeSwipeActions(viewModel: viewModel, episode: unsavedEpisode)

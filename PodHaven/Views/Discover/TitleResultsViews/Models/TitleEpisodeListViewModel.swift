@@ -5,7 +5,7 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor final class TrendingEpisodeListViewModel {
+@Observable @MainActor final class TitleEpisodeListViewModel {
   let isSelected: Binding<Bool>
   let unsavedEpisode: UnsavedEpisode
   let isSelecting: Bool
