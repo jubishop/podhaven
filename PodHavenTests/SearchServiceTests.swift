@@ -69,9 +69,9 @@ actor SearchServiceTests {
     )
     let result = try await service.searchByTitle(searchTerm)
     let feed = result.feeds[3]
-    #expect(feed.description == "Another round of beats for the freaks")
-    #expect(result.feeds.count == 21)
-    #expect(feed.categories == nil)
+    #expect(feed.description == "Xxx")
+    #expect(result.feeds.count == 60)
+    #expect(feed.categories == ["61": "Christianity", "65": "Religion", "66": "Spirituality"])
   }
 
   @Test("search by person")

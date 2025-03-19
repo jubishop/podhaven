@@ -27,8 +27,12 @@ struct TitleResultsView: View {
         }
         .navigationDestination(
           for: SearchedPodcastByTitle.self,
-          destination: { searchedPodcast in
-            Text("Hello")
+          destination: { titlePodcast in
+            TitlePodcastView(
+              viewModel: TitlePodcastViewModel(
+                titlePodcast: titlePodcast
+              )
+            )
           }
         )
       } else {
