@@ -4,7 +4,7 @@ import Factory
 import Foundation
 import GRDB
 
-@Observable @MainActor class TrendingEpisodeViewModel: QueuableUnsavedEpisodeModel {
+@Observable @MainActor class TrendingEpisodeViewModel: UnsavedEpisodeQueuableModel {
   @ObservationIgnored private let alert = Container.shared.alert()
   @ObservationIgnored private let observer = Container.shared.observer()
 
