@@ -6,6 +6,7 @@ import GRDB
 
 @Observable @MainActor class TrendingEpisodeViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
+  @ObservationIgnored @LazyInjected(\.observer) private var observer
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.playState) private var playState
   @ObservationIgnored @LazyInjected(\.queue) private var queue
@@ -23,18 +24,7 @@ import GRDB
 
   func execute() async {
     do {
-      let observer =
-        ValueObservation
-        .tracking(
-          Episode
-            .filter(Schema.mediaColumn == unsavedEpisode.media)
-            .including(required: Episode.podcast)
-            .asRequest(of: PodcastEpisode.self)
-            .fetchOne
-        )
-        .removeDuplicates()
-
-      for try await podcastEpisode in observer.values(in: repo.db) {
+      for try await podcastEpisode in observer.observePodcastEpisode(unsavedEpisode.media) {
         if self.podcastEpisode == podcastEpisode { continue }
         self.podcastEpisode = podcastEpisode
       }
