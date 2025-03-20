@@ -55,8 +55,8 @@ import GRDB
   private func fetchOrCreateEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
-    let podcastEpisode = try await Container.shared.repo()
-      .upsertPodcastEpisode(unsavedPodcastEpisode)
+    let repo = Container.shared.repo()
+    let podcastEpisode = try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
     self.podcastEpisode = podcastEpisode
     return podcastEpisode
   }

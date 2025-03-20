@@ -7,7 +7,10 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class TrendingPodcastViewModel: QueueableSelectableList, UnsavedPodcastQueueableModel {
+class TrendingPodcastViewModel:
+  UnsavedEpisodeQueueableSelectableListModel,
+  UnsavedPodcastQueueableModel
+{
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
@@ -28,14 +31,6 @@ class TrendingPodcastViewModel: QueueableSelectableList, UnsavedPodcastQueueable
   let category: String
   var unsavedPodcast: UnsavedPodcast
   var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
-  var filteredUnsavedPodcastEpisodes: [UnsavedPodcastEpisode] {
-    episodeList.selectedEntries.map { unsavedEpisode in
-      UnsavedPodcastEpisode(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisode: unsavedEpisode
-      )
-    }
-  }
 
   private var existingPodcastSeries: PodcastSeries?
   private var podcastFeed: PodcastFeed?
@@ -120,38 +115,4 @@ class TrendingPodcastViewModel: QueueableSelectableList, UnsavedPodcastQueueable
     }
   }
 
-
-
-  func addSelectedEpisodesToTopOfQueue() {
-    Task {
-      let podcastEpisodes = try await repo.upsertPodcastEpisodes(filteredUnsavedPodcastEpisodes)
-      try await queue.unshift(podcastEpisodes.map(\.id))
-    }
-  }
-
-  func addSelectedEpisodesToBottomOfQueue() {
-    Task {
-      let podcastEpisodes = try await repo.upsertPodcastEpisodes(filteredUnsavedPodcastEpisodes)
-      try await queue.append(podcastEpisodes.map(\.id))
-    }
-  }
-
-  func replaceQueue() {
-    Task {
-      let podcastEpisodes = try await repo.upsertPodcastEpisodes(filteredUnsavedPodcastEpisodes)
-      try await queue.replace(podcastEpisodes.map(\.id))
-    }
-  }
-
-  func replaceQueueAndPlay() {
-    Task {
-      let podcastEpisodes = try await repo.upsertPodcastEpisodes(filteredUnsavedPodcastEpisodes)
-      if let firstPodcastEpisode = podcastEpisodes.first {
-        try await playManager.load(firstPodcastEpisode)
-        await playManager.play()
-        let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
-        try await queue.replace(allExceptFirstPodcastEpisode.map(\.id))
-      }
-    }
-  }
 }

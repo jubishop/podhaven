@@ -11,13 +11,13 @@ where EpisodeType == UnsavedEpisode {
 @MainActor extension UnsavedPodcastQueueableModel {
   func playEpisode(_ episode: UnsavedEpisode) {
     Task {
-      let podcastEpisode = try await Container.shared.repo()
-        .upsertPodcastEpisode(
-          UnsavedPodcastEpisode(
-            unsavedPodcast: unsavedPodcast,
-            unsavedEpisode: episode
-          )
+      let repo = Container.shared.repo()
+      let podcastEpisode = try await repo.upsertPodcastEpisode(
+        UnsavedPodcastEpisode(
+          unsavedPodcast: unsavedPodcast,
+          unsavedEpisode: episode
         )
+      )
       try await Container.shared.playManager().load(podcastEpisode)
       await Container.shared.playManager().play()
     }
@@ -25,26 +25,26 @@ where EpisodeType == UnsavedEpisode {
 
   func queueEpisodeOnTop(_ episode: UnsavedEpisode) {
     Task {
-      let podcastEpisode = try await Container.shared.repo()
-        .upsertPodcastEpisode(
-          UnsavedPodcastEpisode(
-            unsavedPodcast: unsavedPodcast,
-            unsavedEpisode: episode
-          )
+      let repo = Container.shared.repo()
+      let podcastEpisode = try await repo.upsertPodcastEpisode(
+        UnsavedPodcastEpisode(
+          unsavedPodcast: unsavedPodcast,
+          unsavedEpisode: episode
         )
+      )
       try await Container.shared.queue().unshift(podcastEpisode.id)
     }
   }
 
   func queueEpisodeAtBottom(_ episode: UnsavedEpisode) {
     Task {
-      let podcastEpisode = try await Container.shared.repo()
-        .upsertPodcastEpisode(
-          UnsavedPodcastEpisode(
-            unsavedPodcast: unsavedPodcast,
-            unsavedEpisode: episode
-          )
+      let repo = Container.shared.repo()
+      let podcastEpisode = try await repo.upsertPodcastEpisode(
+        UnsavedPodcastEpisode(
+          unsavedPodcast: unsavedPodcast,
+          unsavedEpisode: episode
         )
+      )
       try await Container.shared.queue().append(podcastEpisode.id)
     }
   }
