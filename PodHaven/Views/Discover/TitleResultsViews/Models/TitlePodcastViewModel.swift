@@ -7,17 +7,13 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class TitlePodcastViewModel: QueueableSelectableList, EpisodeQueueable {
+class TitlePodcastViewModel: QueueableSelectableList, UnsavedPodcastQueueableModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.repo) private var repo
-
-  // MARK: - EpisodeQueuable protocols
-
-  typealias EpisodeType = UnsavedEpisode
 
   // MARK: - State Management
 
@@ -124,42 +120,7 @@ class TitlePodcastViewModel: QueueableSelectableList, EpisodeQueueable {
     }
   }
 
-  func queueEpisodeOnTop(_ episode: UnsavedEpisode) {
-    Task {
-      let podcastEpisode = try await repo.upsertPodcastEpisode(
-        UnsavedPodcastEpisode(
-          unsavedPodcast: unsavedPodcast,
-          unsavedEpisode: episode
-        )
-      )
-      try await queue.unshift(podcastEpisode.id)
-    }
-  }
 
-  func queueEpisodeAtBottom(_ episode: UnsavedEpisode) {
-    Task {
-      let podcastEpisode = try await repo.upsertPodcastEpisode(
-        UnsavedPodcastEpisode(
-          unsavedPodcast: unsavedPodcast,
-          unsavedEpisode: episode
-        )
-      )
-      try await queue.append(podcastEpisode.id)
-    }
-  }
-
-  func playEpisode(_ episode: UnsavedEpisode) {
-    Task {
-      let podcastEpisode = try await repo.upsertPodcastEpisode(
-        UnsavedPodcastEpisode(
-          unsavedPodcast: unsavedPodcast,
-          unsavedEpisode: episode
-        )
-      )
-      try await playManager.load(podcastEpisode)
-      await playManager.play()
-    }
-  }
 
   func addSelectedEpisodesToTopOfQueue() {
     Task {

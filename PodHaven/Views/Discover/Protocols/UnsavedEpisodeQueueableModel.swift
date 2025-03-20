@@ -4,7 +4,7 @@ import Factory
 import Foundation
 import GRDB
 
-@MainActor protocol UnsavedEpisodeQueuableModel: AnyObject, Observable {
+@MainActor protocol UnsavedEpisodeQueueableModel: AnyObject, Observable {
   var unsavedPodcastEpisode: UnsavedPodcastEpisode { get }
   var podcastEpisode: PodcastEpisode? { get set }
 
@@ -17,7 +17,7 @@ import GRDB
   func appendToQueue()
 }
 
-@MainActor extension UnsavedEpisodeQueuableModel {
+@MainActor extension UnsavedEpisodeQueueableModel {
   var unsavedPodcast: UnsavedPodcast { unsavedPodcastEpisode.unsavedPodcast }
   var unsavedEpisode: UnsavedEpisode { unsavedPodcastEpisode.unsavedEpisode }
 
