@@ -14,7 +14,7 @@ final class SeriesViewModel: QueueableSelectableList, EpisodeQueueable {
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
-  // MARK: - Episode-able protocols
+  // MARK: - EpisodeQueuable protocols
 
   typealias EpisodeType = Episode
 
