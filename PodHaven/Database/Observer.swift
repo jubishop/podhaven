@@ -11,24 +11,46 @@ extension Container {
 }
 
 struct Observer {
-  func observePodcastEpisode(_ mediaURL: MediaURL) -> AsyncThrowingStream<PodcastEpisode?, Error> {
-    let repo = Container.shared.repo()
-    let observation =
-      ValueObservation
-      .tracking(
-        Episode
-          .filter(Schema.mediaColumn == mediaURL)
-          .including(required: Episode.podcast)
-          .asRequest(of: PodcastEpisode.self)
-          .fetchOne
-      )
-      .removeDuplicates()
+  // MARK: - Observers
 
-    return AsyncThrowingStream { continuation in
+  func observePodcastEpisode(_ mediaURL: MediaURL) -> AsyncThrowingStream<PodcastEpisode?, Error> {
+    _streamFromObservation(
+      ValueObservation
+        .tracking(
+          Episode
+            .filter(Schema.mediaColumn == mediaURL)
+            .including(required: Episode.podcast)
+            .asRequest(of: PodcastEpisode.self)
+            .fetchOne
+        )
+        .removeDuplicates()
+    )
+  }
+
+  func observePodcastSeries(_ feedURL: FeedURL) -> AsyncThrowingStream<PodcastSeries?, Error> {
+    _streamFromObservation(
+      ValueObservation
+        .tracking(
+          Podcast
+            .filter(Schema.feedURLColumn == feedURL)
+            .including(all: Podcast.episodes)
+            .asRequest(of: PodcastSeries.self)
+            .fetchOne
+        )
+        .removeDuplicates()
+    )
+  }
+
+  // MARK: - Private Helpers
+
+  private func _streamFromObservation<T>(_ observation: ValueObservation<T>)
+    -> AsyncThrowingStream<T.Value, Error>
+  {
+    AsyncThrowingStream { continuation in
       let task = Task {
         do {
-          for try await podcastEpisode in observation.values(in: repo.db) {
-            continuation.yield(podcastEpisode)
+          for try await value in observation.values(in: Container.shared.repo().db) {
+            continuation.yield(value)
           }
           continuation.finish()
         } catch {

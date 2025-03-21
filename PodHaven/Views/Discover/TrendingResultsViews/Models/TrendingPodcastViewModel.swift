@@ -13,6 +13,7 @@ class TrendingPodcastViewModel:
 {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
+  @ObservationIgnored @LazyInjected(\.observer) private var observer
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
@@ -47,18 +48,7 @@ class TrendingPodcastViewModel:
     do {
       let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
 
-      let observer =
-        ValueObservation
-        .tracking(
-          Podcast
-            .filter(Schema.feedURLColumn == unsavedPodcast.feedURL)
-            .including(all: Podcast.episodes)
-            .asRequest(of: PodcastSeries.self)
-            .fetchOne
-        )
-        .removeDuplicates()
-
-      for try await podcastSeries in observer.values(in: repo.db) {
+      for try await podcastSeries in observer.observePodcastSeries(unsavedPodcast.feedURL) {
         if subscribable && existingPodcastSeries == podcastSeries { continue }
         if let podcastSeries = podcastSeries, podcastSeries.podcast.subscribed {
           navigation.showPodcast(podcastSeries)

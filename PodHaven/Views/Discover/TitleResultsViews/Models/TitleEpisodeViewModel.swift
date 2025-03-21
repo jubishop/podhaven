@@ -5,8 +5,8 @@ import Foundation
 import GRDB
 
 @Observable @MainActor class TitleEpisodeViewModel: UnsavedEpisodeQueueableModel {
-  @ObservationIgnored private let alert = Container.shared.alert()
-  @ObservationIgnored private let observer = Container.shared.observer()
+  @ObservationIgnored @LazyInjected(\.alert) private var alert
+  @ObservationIgnored @LazyInjected(\.observer) private var observer
 
   internal let unsavedPodcastEpisode: UnsavedPodcastEpisode
   internal var podcastEpisode: PodcastEpisode?
