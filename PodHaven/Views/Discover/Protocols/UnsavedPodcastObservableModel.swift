@@ -10,12 +10,16 @@ import IdentifiedCollections
   var existingPodcastSeries: PodcastSeries? { get set }
   var podcastFeed: PodcastFeed? { get }
   var unsavedPodcast: UnsavedPodcast { get set }
-  
+
   func processPodcastSeries(_ podcastSeries: PodcastSeries?) throws
 }
 
 @MainActor extension UnsavedPodcastObservableModel {
   func processPodcastSeries(_ podcastSeries: PodcastSeries?) throws {
+    if let podcastSeries = podcastSeries, podcastSeries.podcast.subscribed {
+      Container.shared.navigation().showPodcast(podcastSeries)
+    }
+
     guard let podcastFeed = self.podcastFeed
     else { throw Err.msg("Can't call processPodcastSeries without a podcastFeed") }
 

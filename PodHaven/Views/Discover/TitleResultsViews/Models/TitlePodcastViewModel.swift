@@ -13,7 +13,6 @@ class TitlePodcastViewModel:
   UnsavedPodcastSubscribableModel
 {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
-  @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
 
   // MARK: - State Management
@@ -48,9 +47,6 @@ class TitlePodcastViewModel:
 
       for try await podcastSeries in observatory.podcastSeries(unsavedPodcast.feedURL) {
         if subscribable && existingPodcastSeries == podcastSeries { continue }
-        if let podcastSeries = podcastSeries, podcastSeries.podcast.subscribed {
-          navigation.showPodcast(podcastSeries)
-        }
 
         try processPodcastSeries(podcastSeries)
       }
