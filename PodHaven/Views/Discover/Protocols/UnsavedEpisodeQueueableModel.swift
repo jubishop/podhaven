@@ -7,7 +7,6 @@ import GRDB
 @MainActor protocol UnsavedEpisodeQueueableModel: AnyObject, Observable {
   var unsavedPodcastEpisode: UnsavedPodcastEpisode { get }
   var podcastEpisode: PodcastEpisode? { get set }
-
   var unsavedPodcast: UnsavedPodcast { get }
   var unsavedEpisode: UnsavedEpisode { get }
   var onDeck: Bool { get }

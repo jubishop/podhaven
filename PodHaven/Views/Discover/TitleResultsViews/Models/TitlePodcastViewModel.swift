@@ -48,6 +48,7 @@ class TitlePodcastViewModel:
   func execute() async {
     do {
       let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
+      self.podcastFeed = podcastFeed
 
       for try await podcastSeries in observatory.podcastSeries(unsavedPodcast.feedURL) {
         if subscribable && existingPodcastSeries == podcastSeries { continue }
@@ -55,26 +56,7 @@ class TitlePodcastViewModel:
           navigation.showPodcast(podcastSeries)
         }
 
-        existingPodcastSeries = podcastSeries
-        if let podcastSeries = existingPodcastSeries {
-          unsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries.podcast.unsaved)
-        } else {
-          unsavedPodcast = try podcastFeed.toUnsavedPodcast(
-            subscribed: false,
-            lastUpdate: Date.epoch
-          )
-        }
-
-        episodeList.allEntries = IdentifiedArray(
-          uniqueElements: try podcastFeed.episodes.map { episodeFeed in
-            try episodeFeed.toUnsavedEpisode(
-              merging: existingPodcastSeries?.episodes[id: episodeFeed.guid]
-            )
-          },
-          id: \.guid
-        )
-
-        subscribable = true
+        try processPodcastSeries(podcastSeries)
       }
     } catch {
       alert.andReport(error)
