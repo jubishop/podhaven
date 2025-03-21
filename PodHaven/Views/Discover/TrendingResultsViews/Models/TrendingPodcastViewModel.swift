@@ -10,7 +10,7 @@ import SwiftUI
 class TrendingPodcastViewModel:
   UnsavedEpisodeQueueableSelectableListModel,
   UnsavedPodcastQueueableModel,
-  UnsavedPodcastSubscribableModel
+  UnsavedPodcastObservableModel
 {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
