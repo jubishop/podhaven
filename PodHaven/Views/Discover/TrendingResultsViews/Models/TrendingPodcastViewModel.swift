@@ -8,9 +8,9 @@ import SwiftUI
 
 @Observable @MainActor
 class TrendingPodcastViewModel:
-  UnsavedEpisodeQueueableSelectableListModel,
+  UnsavedPodcastObservableModel,
   UnsavedPodcastQueueableModel,
-  UnsavedPodcastObservableModel
+  UnsavedQueueableSelectableListModel
 {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory

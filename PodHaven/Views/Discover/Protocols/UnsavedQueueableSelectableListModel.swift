@@ -4,13 +4,13 @@ import Factory
 import Foundation
 import IdentifiedCollections
 
-@MainActor protocol UnsavedEpisodeQueueableSelectableListModel: QueueableSelectableList {
+@MainActor protocol UnsavedQueueableSelectableListModel: QueueableSelectableList {
   var unsavedPodcast: UnsavedPodcast { get set }
   var episodeList: SelectableListUseCase<UnsavedEpisode, GUID> { get set }
   var filteredUnsavedPodcastEpisodes: [UnsavedPodcastEpisode] { get }
 }
 
-@MainActor extension UnsavedEpisodeQueueableSelectableListModel {
+@MainActor extension UnsavedQueueableSelectableListModel {
   var filteredUnsavedPodcastEpisodes: [UnsavedPodcastEpisode] {
     episodeList.selectedEntries.map { unsavedEpisode in
       UnsavedPodcastEpisode(
