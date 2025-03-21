@@ -9,7 +9,8 @@ import SwiftUI
 @Observable @MainActor
 class TrendingPodcastViewModel:
   UnsavedEpisodeQueueableSelectableListModel,
-  UnsavedPodcastQueueableModel
+  UnsavedPodcastQueueableModel,
+  UnsavedPodcastSubscribableModel
 {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
@@ -33,8 +34,8 @@ class TrendingPodcastViewModel:
   var unsavedPodcast: UnsavedPodcast
   var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
 
-  private var existingPodcastSeries: PodcastSeries?
-  private var podcastFeed: PodcastFeed?
+  internal var existingPodcastSeries: PodcastSeries?
+  internal var podcastFeed: PodcastFeed?
 
   // MARK: - Initialization
 
@@ -79,30 +80,4 @@ class TrendingPodcastViewModel:
       alert.andReport(error)
     }
   }
-
-  // MARK: - Public Functions
-
-  func subscribe() {
-    Task {
-      if let podcastSeries = existingPodcastSeries, let podcastFeed = self.podcastFeed {
-        var podcast = podcastSeries.podcast
-        podcast.subscribed = true
-        let updatedPodcastSeries = PodcastSeries(podcast: podcast, episodes: podcastSeries.episodes)
-        try await refreshManager.updateSeriesFromFeed(
-          podcastSeries: updatedPodcastSeries,
-          podcastFeed: podcastFeed
-        )
-        navigation.showPodcast(updatedPodcastSeries)
-      } else {
-        unsavedPodcast.subscribed = true
-        unsavedPodcast.lastUpdate = Date()
-        let newPodcastSeries = try await repo.insertSeries(
-          unsavedPodcast,
-          unsavedEpisodes: Array(episodeList.allEntries)
-        )
-        navigation.showPodcast(newPodcastSeries)
-      }
-    }
-  }
-
 }
