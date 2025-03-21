@@ -6,10 +6,10 @@ import GRDB
 import IdentifiedCollections
 
 @MainActor protocol UnsavedPodcastObservableModel: AnyObject, Observable {
-  var unsavedPodcast: UnsavedPodcast { get set }
   var episodeList: SelectableListUseCase<UnsavedEpisode, GUID> { get set }
   var existingPodcastSeries: PodcastSeries? { get set }
   var podcastFeed: PodcastFeed? { get }
+  var unsavedPodcast: UnsavedPodcast { get set }
   
   func processPodcastSeries(_ podcastSeries: PodcastSeries?) throws
 }
