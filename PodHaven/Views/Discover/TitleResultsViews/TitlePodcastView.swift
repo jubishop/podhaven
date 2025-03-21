@@ -42,7 +42,7 @@ struct TitlePodcastView: View {
       }
       .padding(.horizontal)
 
-      if viewModel.episodeList.allEntries.isEmpty {
+      if viewModel.unsavedEpisodes.isEmpty {
         Text("Loading episodes")
       } else {
         List(viewModel.episodeList.filteredEntries, id: \.guid) { unsavedEpisode in
