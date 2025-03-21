@@ -13,7 +13,7 @@ class TitlePodcastViewModel:
 {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
-  @ObservationIgnored @LazyInjected(\.observer) private var observer
+  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
@@ -48,7 +48,7 @@ class TitlePodcastViewModel:
     do {
       let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
 
-      for try await podcastSeries in observer.observePodcastSeries(unsavedPodcast.feedURL) {
+      for try await podcastSeries in observatory.podcastSeries(unsavedPodcast.feedURL) {
         if subscribable && existingPodcastSeries == podcastSeries { continue }
         if let podcastSeries = podcastSeries, podcastSeries.podcast.subscribed {
           navigation.showPodcast(podcastSeries)

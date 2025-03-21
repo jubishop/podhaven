@@ -6,7 +6,7 @@ import GRDB
 
 @Observable @MainActor class TrendingEpisodeViewModel: UnsavedEpisodeQueueableModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
-  @ObservationIgnored @LazyInjected(\.observer) private var observer
+  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
 
   internal let unsavedPodcastEpisode: UnsavedPodcastEpisode
   internal var podcastEpisode: PodcastEpisode?
@@ -17,7 +17,7 @@ import GRDB
 
   func execute() async {
     do {
-      for try await podcastEpisode in observer.observePodcastEpisode(unsavedEpisode.media) {
+      for try await podcastEpisode in observatory.podcastEpisode(unsavedEpisode.media) {
         if self.podcastEpisode == podcastEpisode { continue }
         self.podcastEpisode = podcastEpisode
       }
