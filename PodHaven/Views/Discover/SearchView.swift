@@ -13,7 +13,12 @@ struct SearchView: View {
     Group {
       switch viewModel.currentView {
       case .allFields:
-        AllFieldsResultsView()
+        AllFieldsResultsView(
+          viewModel: AllFieldsResultsViewModel(
+            searchText: viewModel.searchText,
+            termResult: viewModel.termResult
+          )
+        )
       case .titles:
         TitleResultsView(
           viewModel: TitleResultsViewModel(

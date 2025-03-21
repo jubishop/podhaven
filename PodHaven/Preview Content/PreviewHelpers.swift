@@ -178,7 +178,11 @@ enum PreviewHelpers {
     )
   }
 
-  static func loadFeedResult() async throws -> TrendingResult.FeedResult {
-    try await loadTrendingResult().feeds.randomElement()!
+  static func loadTermResult() async throws -> TermResult {
+    try await SearchService.parseForPreview(
+      try Data(
+        contentsOf: Bundle.main.url(forResource: "hardfork_byterm", withExtension: "json")!
+      )
+    )
   }
 }
