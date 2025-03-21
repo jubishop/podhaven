@@ -6,10 +6,10 @@ import GRDB
 import IdentifiedCollections
 
 @MainActor protocol UnsavedPodcastObservableModel: AnyObject, Observable {
-  var episodeList: SelectableListUseCase<UnsavedEpisode, GUID> { get set }
   var existingPodcastSeries: PodcastSeries? { get set }
   var podcastFeed: PodcastFeed? { get }
   var subscribable: Bool { get set }
+  var unsavedEpisodes: [UnsavedEpisode] { get }
   var unsavedPodcast: UnsavedPodcast { get set }
 
   func processPodcastSeries(_ podcastSeries: PodcastSeries?) throws
@@ -31,15 +31,6 @@ import IdentifiedCollections
     } else {
       unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: false, lastUpdate: Date.epoch)
     }
-
-    episodeList.allEntries = IdentifiedArray(
-      uniqueElements: try podcastFeed.episodes.map { episodeFeed in
-        try episodeFeed.toUnsavedEpisode(
-          merging: existingPodcastSeries?.episodes[id: episodeFeed.guid]
-        )
-      },
-      id: \.guid
-    )
 
     subscribable = true
   }
@@ -69,7 +60,7 @@ import IdentifiedCollections
           let newPodcastSeries = try await Container.shared.repo()
             .insertSeries(
               unsavedPodcast,
-              unsavedEpisodes: Array(episodeList.allEntries)
+              unsavedEpisodes: unsavedEpisodes
             )
           Container.shared.navigation().showPodcast(newPodcastSeries)
         }

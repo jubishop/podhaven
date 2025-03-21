@@ -49,6 +49,7 @@ class TrendingPodcastViewModel:
         if subscribable && existingPodcastSeries == podcastSeries { continue }
 
         try processPodcastSeries(podcastSeries)
+        try processEpisodes(from: podcastFeed, merging: podcastSeries)
       }
     } catch {
       alert.andReport(error)

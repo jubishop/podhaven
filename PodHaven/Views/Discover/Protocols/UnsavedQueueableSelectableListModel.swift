@@ -5,12 +5,20 @@ import Foundation
 import IdentifiedCollections
 
 @MainActor protocol UnsavedQueueableSelectableListModel: QueueableSelectableList {
-  var unsavedPodcast: UnsavedPodcast { get set }
   var episodeList: SelectableListUseCase<UnsavedEpisode, GUID> { get set }
   var filteredUnsavedPodcastEpisodes: [UnsavedPodcastEpisode] { get }
+  var unsavedEpisodes: [UnsavedEpisode] { get }
+  var unsavedPodcast: UnsavedPodcast { get set }
+
+  func processEpisodes(
+    from podcastFeed: PodcastFeed,
+    merging existingPodcastSeries: PodcastSeries?
+  ) throws
 }
 
 @MainActor extension UnsavedQueueableSelectableListModel {
+  var unsavedEpisodes: [UnsavedEpisode] { Array(episodeList.allEntries) }
+
   var filteredUnsavedPodcastEpisodes: [UnsavedPodcastEpisode] {
     episodeList.selectedEntries.map { unsavedEpisode in
       UnsavedPodcastEpisode(
@@ -18,6 +26,20 @@ import IdentifiedCollections
         unsavedEpisode: unsavedEpisode
       )
     }
+  }
+
+  func processEpisodes(
+    from podcastFeed: PodcastFeed,
+    merging existingPodcastSeries: PodcastSeries?
+  ) throws {
+    episodeList.allEntries = IdentifiedArray(
+      uniqueElements: try podcastFeed.episodes.map { episodeFeed in
+        try episodeFeed.toUnsavedEpisode(
+          merging: existingPodcastSeries?.episodes[id: episodeFeed.guid]
+        )
+      },
+      id: \.guid
+    )
   }
 
   func addSelectedEpisodesToTopOfQueue() {
