@@ -3,7 +3,7 @@
 import Foundation
 import SwiftUI
 
-@Observable @MainActor final class TitleEpisodeListViewModel {
+@Observable @MainActor final class AllFieldsEpisodeListViewModel {
   let isSelected: Binding<Bool>
   let unsavedEpisode: UnsavedEpisode
   let isSelecting: Bool

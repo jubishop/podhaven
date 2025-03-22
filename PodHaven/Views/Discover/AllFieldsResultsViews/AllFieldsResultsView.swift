@@ -20,7 +20,7 @@ struct AllFieldsResultsView: View {
                 searchText: viewModel.searchText
               ),
               label: {
-                Text("TODO")
+                AllFieldsPodcastListView(unsavedPodcast: unsavedPodcast)
               }
             )
           }
@@ -28,7 +28,11 @@ struct AllFieldsResultsView: View {
         .navigationDestination(
           for: SearchedPodcastByTerm.self,
           destination: { termPodcast in
-            Text("TODO")
+            AllFieldsPodcastView(
+              viewModel: AllFieldsPodcastViewModel(
+                termPodcast: termPodcast
+              )
+            )
           }
         )
       } else {
