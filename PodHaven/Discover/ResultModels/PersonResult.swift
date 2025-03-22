@@ -15,7 +15,7 @@ struct PersonResult: Sendable, Decodable {
     let duration: CMTime
     @OptionalURL var image: URL?
     let feedUrl: FeedURL
-    let feedImage: URL
+    @OptionalURL var feedImage: URL?
     let feedTitle: String
   }
   let items: [ItemResult]
