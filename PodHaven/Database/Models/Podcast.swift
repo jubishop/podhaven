@@ -23,16 +23,16 @@ struct UnsavedPodcast: Savable, Stringable {
     image: URL,
     description: String,
     link: URL? = nil,
-    lastUpdate: Date,
-    subscribed: Bool
+    lastUpdate: Date? = nil,
+    subscribed: Bool? = nil
   ) throws {
     self.feedURL = FeedURL(try feedURL.rawValue.convertToValidURL())
     self.title = title
     self.image = try image.convertToValidURL()
     self.description = description
     self.link = try? link?.convertToValidURL()
-    self.lastUpdate = lastUpdate
-    self.subscribed = subscribed
+    self.lastUpdate = lastUpdate ?? Date.epoch
+    self.subscribed = subscribed ?? false
   }
 
   // MARK: - Savable

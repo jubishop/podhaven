@@ -92,7 +92,7 @@ struct PodcastFeed: Sendable, Equatable {
     }
   }
 
-  func toUnsavedPodcast(subscribed: Bool, lastUpdate: Date) throws -> UnsavedPodcast {
+  func toUnsavedPodcast(subscribed: Bool? = nil, lastUpdate: Date? = nil) throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: rssPodcast.iTunes.newFeedURL ?? feedURL,
       title: rssPodcast.title,

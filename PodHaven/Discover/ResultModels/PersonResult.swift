@@ -17,6 +17,30 @@ struct PersonResult: Sendable, Decodable {
     let feedUrl: FeedURL
     @OptionalURL var feedImage: URL?
     let feedTitle: String
+
+    func toUnsavedPodcastEpisode() throws -> UnsavedPodcastEpisode {
+      guard let feedImage = feedImage
+      else { throw Err.msg("No image for \(title)") }
+
+      return UnsavedPodcastEpisode(
+        unsavedPodcast: try UnsavedPodcast(
+          feedURL: feedUrl,
+          title: feedTitle,
+          image: feedImage,
+          description: "", // Not provided by PodcastIndex API
+          link: link
+        ),
+        unsavedEpisode: try UnsavedEpisode(
+          guid: guid,
+          media: enclosureUrl,
+          title: title,
+          pubDate: datePublished,
+          duration: duration,
+          description: description,
+          image: image
+        )
+      )
+    }
   }
   let items: [ItemResult]
 }

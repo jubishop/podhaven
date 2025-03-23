@@ -12,7 +12,7 @@ actor PodcastFeedTests {
   func parsePodSaveAmericaFeed() async throws {
     let url = Bundle.main.url(forResource: "pod_save_america", withExtension: "rss")!
     let feed = try await PodcastFeed.parse(FeedURL(url))
-    let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: true, lastUpdate: Date())
+    let unsavedPodcast = try feed.toUnsavedPodcast()
     #expect(unsavedPodcast.title == "Pod Save America")
     #expect(unsavedPodcast.link == URL(string: "https://crooked.com"))
     #expect(unsavedPodcast.image.absoluteString.contains("simplecastcdn") != nil)
@@ -24,7 +24,7 @@ actor PodcastFeedTests {
   func parseMarketplaceFeed() async throws {
     let url = Bundle.main.url(forResource: "marketplace", withExtension: "rss")!
     let feed = try await PodcastFeed.parse(FeedURL(url))
-    let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: false, lastUpdate: Date())
+    let unsavedPodcast = try feed.toUnsavedPodcast()
     let unsavedEpisodes = try feed.episodes.map { try $0.toUnsavedEpisode() }
     #expect(unsavedPodcast.title == "Marketplace")
     #expect(unsavedPodcast.subscribed == false)
@@ -37,7 +37,7 @@ actor PodcastFeedTests {
   func parseLandOfTheGiantsFeed() async throws {
     let url = Bundle.main.url(forResource: "land_of_the_giants", withExtension: "rss")!
     let feed = try await PodcastFeed.parse(FeedURL(url))
-    let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: true, lastUpdate: Date())
+    let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: true)
     let unsavedEpisodes = try feed.episodes.map { try $0.toUnsavedEpisode() }
     #expect(unsavedPodcast.title == "Land of the Giants")
     #expect(unsavedPodcast.subscribed == true)

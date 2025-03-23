@@ -22,9 +22,7 @@ extension ResultPodcastConvertible {
       title: title,
       image: image,
       description: description,
-      link: link,
-      lastUpdate: Date.epoch,
-      subscribed: false
+      link: link
     )
   }
 }

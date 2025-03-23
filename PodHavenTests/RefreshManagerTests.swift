@@ -23,7 +23,7 @@ actor RefreshManagerTests {
     let podcastFeed = try await PodcastFeed.parse(
       FeedURL(Bundle.main.url(forResource: "hardfork_short", withExtension: "rss")!)
     )
-    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(subscribed: true, lastUpdate: Date())
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
