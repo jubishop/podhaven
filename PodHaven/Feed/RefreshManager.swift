@@ -39,6 +39,20 @@ actor RefreshManager: Sendable {
 
   // MARK: - Refresh Management
 
+  func performRefresh(stalenessThreshold: Date) async throws {
+    try await withThrowingDiscardingTaskGroup { group in
+      let allStaleSubscribedPodcastSeries: PodcastSeriesArray = try await repo.allPodcastSeries(
+        Schema.lastUpdateColumn < stalenessThreshold
+          && Schema.subscribedColumn == true
+      )
+      for podcastSeries in allStaleSubscribedPodcastSeries {
+        group.addTask {
+          try await self.refreshSeries(podcastSeries: podcastSeries)
+        }
+      }
+    }
+  }
+
   func refreshSeries(podcastSeries: PodcastSeries) async throws {
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
     let feedResult = await feedTask.feedParsed()
@@ -100,7 +114,7 @@ actor RefreshManager: Sendable {
   private func activated() {
     backgroundRefreshTask = Task(priority: .background) { [unowned self] in
       while !Task.isCancelled {
-        try? await performScheduledRefresh()
+        try? await performRefresh(stalenessThreshold: Date.minutesAgo(10))
         try? await Task.sleep(for: .minutes(15))
       }
     }
@@ -109,18 +123,5 @@ actor RefreshManager: Sendable {
   private func backgrounded() {
     backgroundRefreshTask?.cancel()
     backgroundRefreshTask = nil
-  }
-
-  private func performScheduledRefresh() async throws {
-    try await withThrowingDiscardingTaskGroup { group in
-      let allStaleSubscribedPodcastSeries: PodcastSeriesArray = try await repo.allPodcastSeries(
-        Schema.lastUpdateColumn < Date.minutesAgo(10) && Schema.subscribedColumn == true
-      )
-      for podcastSeries in allStaleSubscribedPodcastSeries {
-        group.addTask {
-          try await self.refreshSeries(podcastSeries: podcastSeries)
-        }
-      }
-    }
   }
 }

@@ -6,27 +6,31 @@ import SwiftUI
 struct PodcastsView: View {
   @Environment(Alert.self) var alert
 
-  @State private var navigation = Container.shared.navigation()
-  @State private var viewModel = PodcastsViewModel()
+  private let viewModel: PodcastsViewModel
+
+  init(viewModel: PodcastsViewModel = PodcastsViewModel()) {
+    self.viewModel = viewModel
+  }
 
   var body: some View {
-    NavigationStack(path: $navigation.podcastsPath) {
-      ScrollView {
-        PodcastGrid(podcasts: viewModel.podcasts) { podcast in
-          PodcastGridItem(podcast: podcast)
-        }
-        .padding()
+    ScrollView {
+      PodcastGrid(podcasts: viewModel.podcasts) { podcast in
+        NavigationLink(
+          value: podcast,
+          label: { PodcastGridItem(podcast: podcast) }
+        )
       }
-      .navigationTitle("Podcasts")
-      .navigationDestination(for: Podcast.self) { podcast in
-        SeriesView(viewModel: SeriesViewModel(podcast: podcast))
-      }
-      .refreshable {
-        do {
-          try await viewModel.refreshPodcasts()
-        } catch {
-          alert.andReport("Failed to refresh all podcasts: \(error)")
-        }
+      .padding()
+    }
+    .navigationTitle("Podcast List")
+    .navigationDestination(for: Podcast.self) { podcast in
+      SeriesView(viewModel: SeriesViewModel(podcast: podcast))
+    }
+    .refreshable {
+      do {
+        try await viewModel.refreshPodcasts()
+      } catch {
+        alert.andReport("Failed to refresh all podcasts: \(error)")
       }
     }
     .task { await viewModel.execute() }
@@ -34,11 +38,11 @@ struct PodcastsView: View {
 }
 
 #Preview {
-  PodcastsView()
-    .preview()
-    .task {
-      do {
-        try await PreviewHelpers.importPodcasts()
-      } catch { fatalError("Couldn't preview podcasts view: \(error)") }
-    }
+  NavigationStack {
+    PodcastsView()
+  }
+  .preview()
+  .task {
+    try! await PreviewHelpers.importPodcasts()
+  }
 }

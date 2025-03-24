@@ -19,7 +19,7 @@ struct ContentView: View {
         DiscoverView().tab()
       }
       Tab("Podcasts", systemImage: "dot.radiowaves.left.and.right", value: .podcasts) {
-        PodcastsView().tab()
+        PodcastsFormView().tab()
       }
     }
     .overlay(alignment: .bottom) {

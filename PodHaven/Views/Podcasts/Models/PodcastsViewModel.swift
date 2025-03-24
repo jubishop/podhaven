@@ -11,11 +11,16 @@ import IdentifiedCollections
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
+  let podcastFilter: SQLSpecificExpressible?
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
+
+  init(podcastFilter: SQLSpecificExpressible? = nil) {
+    self.podcastFilter = podcastFilter
+  }
 
   func execute() async {
     do {
-      for try await podcasts in observatory.allPodcasts(Schema.subscribedColumn == true) {
+      for try await podcasts in observatory.allPodcasts(podcastFilter) {
         self.podcasts = podcasts
       }
     } catch {
@@ -24,15 +29,6 @@ import IdentifiedCollections
   }
 
   func refreshPodcasts() async throws {
-    let allSeries = try await repo.allPodcastSeries(
-      Schema.subscribedColumn == true && Schema.lastUpdateColumn < Date.minutesAgo(1)
-    )
-    try await withThrowingDiscardingTaskGroup { group in
-      for podcastSeries in allSeries {
-        group.addTask {
-          try await self.refreshManager.refreshSeries(podcastSeries: podcastSeries)
-        }
-      }
-    }
+    try await refreshManager.performRefresh(stalenessThreshold: Date.minutesAgo(1))
   }
 }
