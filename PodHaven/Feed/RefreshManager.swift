@@ -113,11 +113,9 @@ actor RefreshManager: Sendable {
 
   private func performScheduledRefresh() async throws {
     try await withThrowingDiscardingTaskGroup { group in
-      let allStaleSubscribedPodcastSeries: PodcastSeriesArray =
-        try await repo.allPodcastSeries {
-          $0.filter(Schema.lastUpdateColumn < Date.minutesAgo(10))
-            .filter(Schema.subscribedColumn == true)
-        }
+      let allStaleSubscribedPodcastSeries: PodcastSeriesArray = try await repo.allPodcastSeries(
+        Schema.lastUpdateColumn < Date.minutesAgo(10) && Schema.subscribedColumn == true
+      )
       for podcastSeries in allStaleSubscribedPodcastSeries {
         group.addTask {
           try await self.refreshSeries(podcastSeries: podcastSeries)

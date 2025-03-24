@@ -8,6 +8,7 @@ import SwiftUI
 
 @Observable @MainActor final class UpNextViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
+  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.repo) private var repo
@@ -25,17 +26,7 @@ import SwiftUI
 
   func execute() async {
     do {
-      let observer =
-        ValueObservation.tracking { db in
-          try Episode
-            .filter(Schema.queueOrderColumn != nil)
-            .including(required: Episode.podcast)
-            .order(Schema.queueOrderColumn.asc)
-            .asRequest(of: PodcastEpisode.self)
-            .fetchIdentifiedArray(db, id: \.episode.media)
-        }
-        .removeDuplicates()
-      for try await podcastEpisodes in observer.values(in: repo.db) {
+      for try await podcastEpisodes in observatory.queuedEpisodes() {
         self.episodeList.allEntries = podcastEpisodes
       }
     } catch {

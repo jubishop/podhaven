@@ -9,6 +9,7 @@ import SwiftUI
 @Observable @MainActor
 final class SeriesViewModel: QueueableSelectableList, EpisodeQueueable {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
+  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
@@ -56,18 +57,7 @@ final class SeriesViewModel: QueueableSelectableList, EpisodeQueueable {
         try await refreshSeries()
       }
 
-      let observer =
-        ValueObservation
-        .tracking(
-          Podcast
-            .filter(id: podcast.id)
-            .including(all: Podcast.episodes)
-            .asRequest(of: PodcastSeries.self)
-            .fetchOne
-        )
-        .removeDuplicates()
-
-      for try await podcastSeries in observer.values(in: repo.db) {
+      for try await podcastSeries in observatory.podcastSeries(podcast.id) {
         guard let podcastSeries = podcastSeries
         else { throw Err.msg("No return from DB for: \(podcast.toString)") }
 

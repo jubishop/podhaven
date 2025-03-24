@@ -6,6 +6,7 @@ import GRDB
 
 @Observable @MainActor final class EpisodeViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
+  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.playState) private var playState
   @ObservationIgnored @LazyInjected(\.queue) private var queue
@@ -21,17 +22,7 @@ import GRDB
 
   func execute() async {
     do {
-      let observer =
-        ValueObservation.tracking(
-          Episode
-            .filter(id: episode.id)
-            .including(required: Episode.podcast)
-            .asRequest(of: PodcastEpisode.self)
-            .fetchOne
-        )
-        .removeDuplicates()
-
-      for try await podcastEpisode in observer.values(in: repo.db) {
+      for try await podcastEpisode in observatory.podcastEpisode(episode.id) {
         guard let podcastEpisode = podcastEpisode
         else { throw Err.msg("No return from DB for: \(episode.toString)") }
         self.podcastEpisode = podcastEpisode

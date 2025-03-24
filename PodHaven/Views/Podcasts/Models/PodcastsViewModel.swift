@@ -7,6 +7,7 @@ import IdentifiedCollections
 
 @Observable @MainActor final class PodcastsViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
+  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
@@ -14,15 +15,7 @@ import IdentifiedCollections
 
   func execute() async {
     do {
-      let observer =
-        ValueObservation
-        .tracking { db in
-          try Podcast
-            .filter(Schema.subscribedColumn == true)
-            .fetchIdentifiedArray(db, id: \Podcast.feedURL)
-        }
-        .removeDuplicates()
-      for try await podcasts in observer.values(in: repo.db) {
+      for try await podcasts in observatory.allPodcasts(Schema.subscribedColumn == true) {
         self.podcasts = podcasts
       }
     } catch {
@@ -31,9 +24,9 @@ import IdentifiedCollections
   }
 
   func refreshPodcasts() async throws {
-    let allSeries = try await repo.allPodcastSeries {
-      $0.filter(Schema.subscribedColumn == true && Schema.lastUpdateColumn < Date.minutesAgo(1))
-    }
+    let allSeries = try await repo.allPodcastSeries(
+      Schema.subscribedColumn == true && Schema.lastUpdateColumn < Date.minutesAgo(1)
+    )
     try await withThrowingDiscardingTaskGroup { group in
       for podcastSeries in allSeries {
         group.addTask {
