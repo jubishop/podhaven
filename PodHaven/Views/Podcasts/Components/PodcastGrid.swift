@@ -7,7 +7,6 @@ import SwiftUI
 
 struct PodcastGrid<Content: View>: View {
   private let podcasts: PodcastArray
-  private let numberOfColumns = 3
   private let content: (Podcast) -> Content
 
   init(podcasts: PodcastArray, @ViewBuilder content: @escaping (Podcast) -> Content) {
@@ -16,17 +15,9 @@ struct PodcastGrid<Content: View>: View {
   }
 
   var body: some View {
-    let rows = podcasts.chunked(size: numberOfColumns)
-    Grid {
-      ForEach(rows, id: \.self) { row in
-        GridRow {
-          ForEach(row) { podcast in
-            NavigationLink(
-              value: podcast,
-              label: { content(podcast) }
-            )
-          }
-        }
+    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
+      ForEach(podcasts) { podcast in
+        content(podcast)
       }
     }
   }
@@ -34,6 +25,7 @@ struct PodcastGrid<Content: View>: View {
 
 #Preview {
   @Previewable @State var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
+  let gridSize = 12
 
   PodcastGrid(podcasts: podcasts) { podcast in
     PodcastGridItem(podcast: podcast)
@@ -41,11 +33,12 @@ struct PodcastGrid<Content: View>: View {
   .preview()
   .task {
     do {
+
       let repo = Container.shared.repo()
-      try await PreviewHelpers.importPodcasts(12)
+      try await PreviewHelpers.importPodcasts(gridSize)
       var allPodcasts = try await repo.allPodcasts().shuffled()
-      allPodcasts[Int.random(in: 0...11)].image = URL(string: "http://nope.com/0.jpg")!
-      podcasts = IdentifiedArray(uniqueElements: allPodcasts.prefix(12), id: \Podcast.feedURL)
+      allPodcasts[Int.random(in: 0...(gridSize - 1))].image = URL(string: "http://nope.com/0.jpg")!
+      podcasts = IdentifiedArray(uniqueElements: allPodcasts.prefix(gridSize), id: \Podcast.feedURL)
     } catch { fatalError("Couldn't preview podcast grid: \(error)") }
   }
 }
