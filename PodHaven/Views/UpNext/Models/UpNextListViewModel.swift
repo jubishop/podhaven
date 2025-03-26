@@ -40,7 +40,9 @@ import SwiftUI
   }
 
   func viewDetails() {
-    Task { navigation.showEpisode(podcastEpisode) }
+    Task {
+      navigation.showEpisode(podcastEpisode.podcast.subscribed ? .subscribed : .all, podcastEpisode)
+    }
   }
 
   func delete() {

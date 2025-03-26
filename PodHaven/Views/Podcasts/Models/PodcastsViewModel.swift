@@ -11,10 +11,12 @@ import IdentifiedCollections
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
+  let navigationTitle: String
   let podcastFilter: SQLSpecificExpressible?
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
-  init(podcastFilter: SQLSpecificExpressible? = nil) {
+  init(navigationTitle: String, podcastFilter: SQLSpecificExpressible? = nil) {
+    self.navigationTitle = navigationTitle
     self.podcastFilter = podcastFilter
   }
 

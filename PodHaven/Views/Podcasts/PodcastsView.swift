@@ -8,7 +8,7 @@ struct PodcastsView: View {
 
   private let viewModel: PodcastsViewModel
 
-  init(viewModel: PodcastsViewModel = PodcastsViewModel()) {
+  init(viewModel: PodcastsViewModel) {
     self.viewModel = viewModel
   }
 
@@ -22,7 +22,7 @@ struct PodcastsView: View {
       }
       .padding()
     }
-    .navigationTitle("Podcast List")
+    .navigationTitle(viewModel.navigationTitle)
     .navigationDestination(for: Podcast.self) { podcast in
       SeriesView(viewModel: SeriesViewModel(podcast: podcast))
     }
@@ -39,7 +39,7 @@ struct PodcastsView: View {
 
 #Preview {
   NavigationStack {
-    PodcastsView()
+    PodcastsView(viewModel: PodcastsViewModel(navigationTitle: "Preview Podcasts"))
   }
   .preview()
   .task {

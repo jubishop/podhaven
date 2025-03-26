@@ -14,6 +14,15 @@ extension Container {
     case settings, podcasts, upNext, discover
   }
 
+  enum SettingsView {
+    case opml
+  }
+
+  enum PodcastsView {
+    case all
+    case subscribed
+  }
+
   var settingsPath = NavigationPath()
   var podcastsPath = NavigationPath()
   var upNextPath = NavigationPath()
@@ -24,13 +33,15 @@ extension Container {
     }
   }
 
-  func showPodcast(_ podcastSeries: PodcastSeries) {
+  func showPodcast(_ view: PodcastsView, _ podcastSeries: PodcastSeries) {
     currentTab = .podcasts
+    podcastsPath.append(view)
     podcastsPath.append(podcastSeries.podcast)
   }
 
-  func showEpisode(_ podcastEpisode: PodcastEpisode) {
+  func showEpisode(_ view: PodcastsView, _ podcastEpisode: PodcastEpisode) {
     currentTab = .podcasts
+    podcastsPath.append(view)
     podcastsPath.append(podcastEpisode.podcast)
     podcastsPath.append(podcastEpisode.episode)
   }

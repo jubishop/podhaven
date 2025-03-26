@@ -19,7 +19,7 @@ import IdentifiedCollections
 @MainActor extension UnsavedPodcastObservableModel {
   func processPodcastSeries(_ podcastSeries: PodcastSeries?) throws {
     if let podcastSeries = podcastSeries, podcastSeries.podcast.subscribed {
-      Container.shared.navigation().showPodcast(podcastSeries)
+      Container.shared.navigation().showPodcast(.subscribed, podcastSeries)
     }
 
     guard let podcastFeed = self.podcastFeed
@@ -53,7 +53,7 @@ import IdentifiedCollections
               podcastSeries: updatedPodcastSeries,
               podcastFeed: podcastFeed
             )
-          Container.shared.navigation().showPodcast(updatedPodcastSeries)
+          Container.shared.navigation().showPodcast(.subscribed, updatedPodcastSeries)
         } else {
           unsavedPodcast.subscribed = true
           unsavedPodcast.lastUpdate = Date()
@@ -62,7 +62,7 @@ import IdentifiedCollections
               unsavedPodcast,
               unsavedEpisodes: unsavedEpisodes
             )
-          Container.shared.navigation().showPodcast(newPodcastSeries)
+          Container.shared.navigation().showPodcast(.subscribed, newPodcastSeries)
         }
       } catch {
         Container.shared.alert().andReport(error)
