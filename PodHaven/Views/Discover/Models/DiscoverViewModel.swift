@@ -18,10 +18,10 @@ import SwiftUI
   let allTokens: [SearchToken] = SearchToken.allCases
   var currentTokens: [SearchToken]
   private(set) var currentView: SearchToken = .trending
-  var currentCategory: String { currentTokens[safe: 1]?.text ?? Self.allCategoriesName }
+  var currentCategory: String { currentTokens[safe: 1]?.text ?? allCategoriesName }
 
   var categoriesToSearch: [String] {
-    guard let category = currentTokens[safe: 1], category.text != Self.allCategoriesName
+    guard let category = currentTokens[safe: 1], category.text != allCategoriesName
     else { return [] }
 
     return [category.text]
@@ -67,9 +67,9 @@ import SwiftUI
       && searchText.trimmed().isEmpty
   }
 
-  static private let allCategoriesName: String = "All Categories"
+  private let allCategoriesName: String = "All Categories"
   var showCategories: Bool { searchPresented && currentTokens == [.trending] }
-  var categories: [String] { [Self.allCategoriesName] + filteredCategories }
+  var categories: [String] { [allCategoriesName] + filteredCategories }
 
   // MARK: - Searching and Results
 
@@ -81,7 +81,7 @@ import SwiftUI
   // MARK: - Initialization
 
   init() {
-    currentTokens = [.trending, .category(Self.allCategoriesName)]
+    currentTokens = [.trending, .category(allCategoriesName)]
   }
 
   func execute() async {
