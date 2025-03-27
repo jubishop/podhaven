@@ -14,4 +14,22 @@ struct PersonResultsView: View {
   }
 }
 
-// TODO: Make a preview
+#Preview {
+  @Previewable @State var viewModel: PersonResultsViewModel?
+
+  NavigationStack {
+    if let viewModel = viewModel {
+      PersonResultsView(viewModel: viewModel)
+    }
+  }
+  .preview()
+  .task {
+    let personResult = try! await PreviewHelpers.loadPersonResult()
+    viewModel = PersonResultsViewModel(
+      searchResult: PersonSearchResult(
+        searchedText: "Neil deGrasse Tyson",
+        personResult: personResult
+      )
+    )
+  }
+}

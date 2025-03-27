@@ -185,4 +185,12 @@ enum PreviewHelpers {
       )
     )
   }
+
+  static func loadPersonResult() async throws -> PersonResult {
+    try await SearchService.parseForPreview(
+      try Data(
+        contentsOf: Bundle.main.url(forResource: "ndg_byperson", withExtension: "json")!
+      )
+    )
+  }
 }
