@@ -15,25 +15,25 @@ struct SearchView: View {
       case .allFields:
         AllFieldsResultsView(
           viewModel: AllFieldsResultsViewModel(
-            searchText: viewModel.searchText,
-            termResult: viewModel.termResult
+            searchText: viewModel.termSearchResult.searchedText,
+            termResult: viewModel.termSearchResult.termResult
           )
         )
       case .titles:
         TitleResultsView(
           viewModel: TitleResultsViewModel(
-            searchText: viewModel.searchText,
-            titleResult: viewModel.titleResult
+            searchText: viewModel.titleSearchResult.searchedText,
+            titleResult: viewModel.titleSearchResult.titleResult
           )
         )
       case .people:
-        PeopleResultsView()
+        PersonResultsView()
       case .trending:
         TrendingResultsView(
           viewModel:
             TrendingResultsViewModel(
-              category: viewModel.currentCategory,
-              trendingResult: viewModel.trendingResult
+              category: viewModel.trendingSearchResult.searchedCategory,
+              trendingResult: viewModel.trendingSearchResult.trendingResult
             )
         )
       default: fatalError("viewModel.currentView unknown: \(viewModel.currentView)")

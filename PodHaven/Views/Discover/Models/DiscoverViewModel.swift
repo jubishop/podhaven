@@ -17,7 +17,7 @@ import SwiftUI
 
   let allTokens: [SearchToken] = SearchToken.allCases
   var currentTokens: [SearchToken]
-  var currentView: SearchToken = .trending
+  private(set) var currentView: SearchToken = .trending
   var currentCategory: String { currentTokens[safe: 1]?.text ?? Self.allCategoriesName }
 
   var categoriesToSearch: [String] {
@@ -73,9 +73,10 @@ import SwiftUI
 
   // MARK: - Searching and Results
 
-  var trendingResult: TrendingResult?
-  var titleResult: TitleResult?
-  var termResult: TermResult?
+  var trendingSearchResult = TrendingSearchResult()
+  var titleSearchResult = TitleSearchResult()
+  var termSearchResult = TermSearchResult()
+  var personSearchResult = PersonSearchResult()
 
   // MARK: - Initialization
 
@@ -85,7 +86,7 @@ import SwiftUI
 
   func execute() async {
     do {
-      try await performSearch()
+      try await performSearch(currentView)
     } catch {
       alert.andReport(error)
     }
@@ -118,10 +119,11 @@ import SwiftUI
 
     if let currentToken = readyToSearch() {
       searchPresented = false
-      currentView = currentToken
       Task {
         do {
-          try await performSearch()
+          async let search: Void = performSearch(currentToken)
+          currentView = currentToken
+          try await search
         } catch {
           alert.andReport(error)
         }
@@ -131,28 +133,54 @@ import SwiftUI
 
   // MARK: - Private Helpers
 
-  private func performSearch() async throws {
-    self.trendingResult = nil
-
-    if currentView == .trending {
-      self.trendingResult = try await searchTrending()
-    } else if currentView == .titles {
-      self.titleResult = try await searchByTitle()
-    } else if currentView == .allFields {
-      self.termResult = try await searchByTerm()
+  private func performSearch(_ currentToken: SearchToken) async throws {
+    switch currentToken {
+    case .trending:
+      try await searchTrending(currentCategory)
+    case .titles:
+      try await searchByTitle(searchText)
+    case .allFields:
+      try await searchByTerm(searchText)
+    case .people:
+      try await searchByPerson(searchText)
+    case .category(_):
+      throw Err.msg("Unsupported")
     }
   }
 
-  private func searchTrending() async throws -> TrendingResult {
-    try await searchService.searchTrending(categories: categoriesToSearch, language: Self.language)
+  private func searchTrending(_ currentCategory: String) async throws {
+    self.trendingSearchResult = TrendingSearchResult(searchedCategory: currentCategory)
+    self.trendingSearchResult = TrendingSearchResult(
+      searchedCategory: currentCategory,
+      trendingResult: try await searchService.searchTrending(
+        categories: categoriesToSearch,
+        language: Self.language
+      )
+    )
   }
 
-  private func searchByTitle() async throws -> TitleResult {
-    try await searchService.searchByTitle(searchText)
+  private func searchByTitle(_ searchText: String) async throws {
+    self.titleSearchResult = TitleSearchResult(searchedText: searchText)
+    self.titleSearchResult = TitleSearchResult(
+      searchedText: searchText,
+      titleResult: try await searchService.searchByTitle(searchText)
+    )
   }
 
-  private func searchByTerm() async throws -> TermResult {
-    try await searchService.searchByTerm(searchText)
+  private func searchByTerm(_ searchText: String) async throws {
+    self.termSearchResult = TermSearchResult(searchedText: searchText)
+    self.termSearchResult = TermSearchResult(
+      searchedText: searchText,
+      termResult: try await searchService.searchByTerm(searchText)
+    )
+  }
+
+  private func searchByPerson(_ searchText: String) async throws {
+    self.personSearchResult = PersonSearchResult(searchedText: searchText)
+    self.personSearchResult = PersonSearchResult(
+      searchedText: searchText,
+      personResult: try await searchService.searchByPerson(searchText)
+    )
   }
 
   private var filteredCategories: [String] {
