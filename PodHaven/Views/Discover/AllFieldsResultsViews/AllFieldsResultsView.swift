@@ -54,9 +54,9 @@ struct AllFieldsResultsView: View {
   }
   .preview()
   .task {
+    let termResult = try! await PreviewHelpers.loadTermResult()
     viewModel = AllFieldsResultsViewModel(
-      searchText: "Hard Fork",
-      termResult: try! await PreviewHelpers.loadTermResult()
+      searchResult: TermSearchResult(searchedText: "Hard Fork", termResult: termResult)
     )
   }
 }

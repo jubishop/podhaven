@@ -3,14 +3,15 @@
 import Foundation
 
 @Observable @MainActor class TitleResultsViewModel {
-  let searchText: String
-  let titleResult: TitleResult?
+  private let searchResult: TitleSearchResult
   let unsavedPodcasts: [UnsavedPodcast]
-
-  init(searchText: String, titleResult: TitleResult?) {
-    self.searchText = searchText
-    self.titleResult = titleResult
-    if let titleResult = titleResult {
+  
+  var searchText: String { searchResult.searchedText }
+  var titleResult: TitleResult? { searchResult.titleResult }
+  
+  init(searchResult: TitleSearchResult) {
+    self.searchResult = searchResult
+    if let titleResult = searchResult.titleResult {
       unsavedPodcasts = titleResult.feeds.compactMap { try? $0.toUnsavedPodcast() }
     } else {
       unsavedPodcasts = []

@@ -54,9 +54,9 @@ struct TrendingResultsView: View {
   }
   .preview()
   .task {
+    let trendingResult = try! await PreviewHelpers.loadTrendingResult()
     viewModel = TrendingResultsViewModel(
-      category: "News",
-      trendingResult: try! await PreviewHelpers.loadTrendingResult()
+      searchResult: TrendingSearchResult(searchedCategory: "News", trendingResult: trendingResult)
     )
   }
 }

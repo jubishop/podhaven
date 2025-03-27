@@ -54,9 +54,9 @@ struct TitleResultsView: View {
   }
   .preview()
   .task {
+    let titleResult = try! await PreviewHelpers.loadTitleResult()
     viewModel = TitleResultsViewModel(
-      searchText: "Hello",
-      titleResult: try! await PreviewHelpers.loadTitleResult()
+      searchResult: TitleSearchResult(searchedText: "Hello", titleResult: titleResult)
     )
   }
 }

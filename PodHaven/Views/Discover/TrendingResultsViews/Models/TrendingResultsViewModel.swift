@@ -3,14 +3,15 @@
 import Foundation
 
 @Observable @MainActor class TrendingResultsViewModel {
-  let category: String
-  let trendingResult: TrendingResult?
+  private let searchResult: TrendingSearchResult
   let unsavedPodcasts: [UnsavedPodcast]
-
-  init(category: String, trendingResult: TrendingResult?) {
-    self.category = category
-    self.trendingResult = trendingResult
-    if let trendingResult = trendingResult {
+  
+  var category: String { searchResult.searchedCategory }
+  var trendingResult: TrendingResult? { searchResult.trendingResult }
+  
+  init(searchResult: TrendingSearchResult) {
+    self.searchResult = searchResult
+    if let trendingResult = searchResult.trendingResult {
       unsavedPodcasts = trendingResult.feeds.compactMap { try? $0.toUnsavedPodcast() }
     } else {
       unsavedPodcasts = []
