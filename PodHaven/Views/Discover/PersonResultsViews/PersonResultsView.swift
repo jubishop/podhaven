@@ -30,8 +30,22 @@ struct PersonResultsView: View {
         )
       }
       .padding(.horizontal)
+
+      List(viewModel.episodeList.filteredEntries) { unsavedPodcastEpisode in
+        NavigationLink(
+          value: unsavedPodcastEpisode,
+          label: {
+            Text("TODO")
+          }
+        )
+        .episodeSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
+      }
+      .animation(.default, value: viewModel.episodeList.filteredEntries)
     }
     .navigationTitle("🕵️ \(viewModel.searchText)")
+    .navigationDestination(for: UnsavedPodcastEpisode.self) { unsavedPodcastEpisode in
+      Text("TODO")
+    }
     .task { await viewModel.execute() }
   }
 }

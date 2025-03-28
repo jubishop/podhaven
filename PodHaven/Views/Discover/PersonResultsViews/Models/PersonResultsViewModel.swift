@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor class PersonResultsViewModel: QueueableSelectableList, EpisodeQueueable {
@@ -13,7 +14,7 @@ import SwiftUI
 
   // MARK: - EpisodeQueuable protocols
 
-  typealias EpisodeType = Episode
+  typealias EpisodeType = UnsavedPodcastEpisode
 
   // MARK: - State Management
 
@@ -37,6 +38,10 @@ import SwiftUI
     } else {
       unsavedPodcastEpisodes = []
     }
+    episodeList.allEntries = IdentifiedArray(
+      uniqueElements: unsavedPodcastEpisodes,
+      id: \.unsavedEpisode.media
+    )
   }
 
   func execute() async {
@@ -44,13 +49,13 @@ import SwiftUI
 
   // MARK: - Public Functions
 
-  func queueEpisodeOnTop(_ episode: Episode) {
+  func queueEpisodeOnTop(_ episode: UnsavedPodcastEpisode) {
   }
 
-  func queueEpisodeAtBottom(_ episode: Episode) {
+  func queueEpisodeAtBottom(_ episode: UnsavedPodcastEpisode) {
   }
 
-  func playEpisode(_ episode: Episode) {
+  func playEpisode(_ episode: UnsavedPodcastEpisode) {
   }
 
   func addSelectedEpisodesToTopOfQueue() {
