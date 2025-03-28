@@ -35,7 +35,13 @@ struct PersonResultsView: View {
         NavigationLink(
           value: unsavedPodcastEpisode,
           label: {
-            Text("TODO")
+            PersonEpisodeListView(
+              viewModel: PersonEpisodeListViewModel(
+                isSelected: $viewModel.episodeList.isSelected[unsavedPodcastEpisode],
+                unsavedEpisode: unsavedPodcastEpisode.unsavedEpisode,
+                isSelecting: viewModel.isSelecting
+              )
+            )
           }
         )
         .episodeSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
@@ -44,7 +50,9 @@ struct PersonResultsView: View {
     }
     .navigationTitle("🕵️ \(viewModel.searchText)")
     .navigationDestination(for: UnsavedPodcastEpisode.self) { unsavedPodcastEpisode in
-      Text("TODO")
+      PersonEpisodeView(
+        viewModel: PersonEpisodeViewModel(unsavedPodcastEpisode: unsavedPodcastEpisode)
+      )
     }
     .task { await viewModel.execute() }
   }

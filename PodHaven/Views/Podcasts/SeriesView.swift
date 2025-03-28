@@ -77,10 +77,7 @@ struct SeriesView: View {
     .navigationDestination(for: Episode.self) { episode in
       EpisodeView(
         viewModel: EpisodeViewModel(
-          podcastEpisode: PodcastEpisode(
-            podcast: viewModel.podcast,
-            episode: episode
-          )
+          podcastEpisode: PodcastEpisode(podcast: viewModel.podcast, episode: episode)
         )
       )
     }

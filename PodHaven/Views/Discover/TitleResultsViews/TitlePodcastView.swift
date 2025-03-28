@@ -71,9 +71,7 @@ struct TitlePodcastView: View {
       for: UnsavedPodcastEpisode.self,
       destination: { unsavedPodcastEpisode in
         TitleEpisodeView(
-          viewModel: TitleEpisodeViewModel(
-            unsavedPodcastEpisode: unsavedPodcastEpisode
-          )
+          viewModel: TitleEpisodeViewModel(unsavedPodcastEpisode: unsavedPodcastEpisode)
         )
       }
     )
