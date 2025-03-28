@@ -8,7 +8,6 @@ import SwiftUI
   // MARK: - Data
 
   private let searchResult: PersonSearchResult
-  let unsavedPodcastEpisodes: [UnsavedPodcastEpisode]
   var searchText: String { searchResult.searchedText }
   var personResult: PersonResult? { searchResult.personResult }
 
@@ -34,14 +33,11 @@ import SwiftUI
   init(searchResult: PersonSearchResult) {
     self.searchResult = searchResult
     if let personResult = searchResult.personResult {
-      unsavedPodcastEpisodes = personResult.items.compactMap { try? $0.toUnsavedPodcastEpisode() }
-    } else {
-      unsavedPodcastEpisodes = []
+      episodeList.allEntries = IdentifiedArray(
+        uniqueElements: personResult.items.compactMap { try? $0.toUnsavedPodcastEpisode() },
+        id: \.unsavedEpisode.media
+      )
     }
-    episodeList.allEntries = IdentifiedArray(
-      uniqueElements: unsavedPodcastEpisodes,
-      id: \.unsavedEpisode.media
-    )
   }
 
   func execute() async {
