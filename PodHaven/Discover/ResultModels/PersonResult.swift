@@ -18,8 +18,25 @@ struct PersonResult: Sendable, Decodable {
     @OptionalURL var feedImage: URL?
     let feedTitle: String
 
-    func toUnsavedPodcastEpisode() throws -> UnsavedPodcastEpisode {
-      guard let feedImage = feedImage
+    func toUnsavedPodcastEpisode(merging podcastEpisode: PodcastEpisode? = nil) throws
+      -> UnsavedPodcastEpisode
+    {
+      precondition(
+        podcastEpisode == nil || podcastEpisode?.episode.media == enclosureUrl,
+        """
+        Merging two podcastEpisodes with different mediaURLs?:
+        \(String(describing: podcastEpisode?.episode.media)), \(enclosureUrl)
+        """
+      )
+      precondition(
+        podcastEpisode == nil || podcastEpisode?.podcast.feedURL == feedUrl,
+        """
+        Merging two podcastEpisodes with different feedURLs?:
+        \(String(describing: podcastEpisode?.podcast.feedURL)), \(feedUrl)
+        """
+      )
+
+      guard let feedImage = feedImage ?? podcastEpisode?.podcast.image
       else { throw Err.msg("No image for \(title)") }
 
       return UnsavedPodcastEpisode(
@@ -27,8 +44,10 @@ struct PersonResult: Sendable, Decodable {
           feedURL: feedUrl,
           title: feedTitle,
           image: feedImage,
-          description: "", // Not provided by PodcastIndex API
-          link: link
+          description: podcastEpisode?.podcast.description ?? "",  // Not in PodcastIndex API
+          link: link ?? podcastEpisode?.podcast.link,
+          lastUpdate: podcastEpisode?.podcast.lastUpdate,
+          subscribed: podcastEpisode?.podcast.subscribed
         ),
         unsavedEpisode: try UnsavedEpisode(
           guid: guid,
@@ -37,7 +56,10 @@ struct PersonResult: Sendable, Decodable {
           pubDate: datePublished,
           duration: duration,
           description: description,
-          image: image
+          image: image ?? podcastEpisode?.episode.image,
+          completed: podcastEpisode?.episode.completed,
+          currentTime: podcastEpisode?.episode.currentTime,
+          queueOrder: podcastEpisode?.episode.queueOrder
         )
       )
     }
