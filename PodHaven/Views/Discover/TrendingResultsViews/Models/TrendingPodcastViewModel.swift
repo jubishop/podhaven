@@ -8,7 +8,7 @@ import SwiftUI
 
 @Observable @MainActor
 class TrendingPodcastViewModel:
-  UnsavedEpisodeConverter,
+  QueueableUnsavedEpisodeConverter,
   UnsavedPodcastObservableModel,
   UnsavedPodcastQueueableModel,
   UnsavedQueueableSelectableListModel
