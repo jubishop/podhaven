@@ -7,7 +7,7 @@ import SwiftUI
 
 @Observable @MainActor
 class PersonResultsViewModel:
-  QueueableEpisodeConverter,
+  EpisodeUpserter,
   QueueableSelectableListModel,
   UnsavedPodcastQueueableModel
 {
@@ -67,13 +67,13 @@ class PersonResultsViewModel:
 
   // MARK: - QueueableSelectableListModel
 
-  func upsertSelectedEpisodesToPodcastEpisodes() async throws -> [PodcastEpisode] {
+  func upsertSelectedEpisodes() async throws -> [PodcastEpisode] {
     try await repo.upsertPodcastEpisodes(selectedEpisodes)
   }
 
-  // MARK: - QueueableEpisodeConverter
+  // MARK: - EpisodeUpserter
 
-  func upsertToPodcastEpisode(_ episode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
+  func upsert(_ episode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
     try await repo.upsertPodcastEpisode(episode)
   }
 }

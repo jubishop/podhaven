@@ -11,7 +11,7 @@ import IdentifiedCollections
   var episodeList: SelectableListUseCase<EpisodeType, EpisodeID> { get set }
   var selectedEpisodes: [EpisodeType] { get }
 
-  func upsertSelectedEpisodesToPodcastEpisodes() async throws -> [PodcastEpisode]
+  func upsertSelectedEpisodes() async throws -> [PodcastEpisode]
 }
 
 @MainActor extension QueueableSelectableListModel {
@@ -19,28 +19,28 @@ import IdentifiedCollections
 
   func addSelectedEpisodesToBottomOfQueue() {
     Task {
-      let podcastEpisodes = try await upsertSelectedEpisodesToPodcastEpisodes()
+      let podcastEpisodes = try await upsertSelectedEpisodes()
       try await Container.shared.queue().append(podcastEpisodes.map(\.id))
     }
   }
 
   func addSelectedEpisodesToTopOfQueue() {
     Task {
-      let podcastEpisodes = try await upsertSelectedEpisodesToPodcastEpisodes()
+      let podcastEpisodes = try await upsertSelectedEpisodes()
       try await Container.shared.queue().unshift(podcastEpisodes.map(\.id))
     }
   }
 
   func replaceQueue() {
     Task {
-      let podcastEpisodes = try await upsertSelectedEpisodesToPodcastEpisodes()
+      let podcastEpisodes = try await upsertSelectedEpisodes()
       try await Container.shared.queue().replace(podcastEpisodes.map(\.id))
     }
   }
 
   func replaceQueueAndPlay() {
     Task {
-      let podcastEpisodes = try await upsertSelectedEpisodesToPodcastEpisodes()
+      let podcastEpisodes = try await upsertSelectedEpisodes()
       if let firstPodcastEpisode = podcastEpisodes.first {
         try await Container.shared.playManager().load(firstPodcastEpisode)
         await Container.shared.playManager().play()

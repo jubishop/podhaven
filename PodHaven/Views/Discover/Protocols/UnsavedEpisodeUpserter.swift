@@ -3,13 +3,12 @@
 import Factory
 import Foundation
 
-@MainActor protocol QueueableUnsavedEpisodeConverter: QueueableEpisodeConverter
-where EpisodeType == UnsavedEpisode {
+@MainActor protocol UnsavedEpisodeUpserter: EpisodeUpserter where EpisodeType == UnsavedEpisode {
   var unsavedPodcast: UnsavedPodcast { get }
 }
 
-@MainActor extension QueueableUnsavedEpisodeConverter {
-  func upsertToPodcastEpisode(_ episode: UnsavedEpisode) async throws -> PodcastEpisode {
+@MainActor extension UnsavedEpisodeUpserter {
+  func upsert(_ episode: UnsavedEpisode) async throws -> PodcastEpisode {
     let repo = Container.shared.repo()
     return try await repo.upsertPodcastEpisode(
       UnsavedPodcastEpisode(

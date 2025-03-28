@@ -27,7 +27,7 @@ where EpisodeType == UnsavedEpisode, EpisodeID == GUID {
     }
   }
 
-  func upsertSelectedEpisodesToPodcastEpisodes() async throws -> [PodcastEpisode] {
+  func upsertSelectedEpisodes() async throws -> [PodcastEpisode] {
     let repo = Container.shared.repo()
     return try await repo.upsertPodcastEpisodes(selectedUnsavedPodcastEpisodes)
   }

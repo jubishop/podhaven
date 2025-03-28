@@ -6,7 +6,7 @@ import GRDB
 
 @Observable @MainActor
 class PersonEpisodeViewModel:
-  QueueableUnsavedEpisodeConverter,
+  UnsavedEpisodeUpserter,
   UnsavedEpisodeQueueableModel
 {
   @ObservationIgnored @LazyInjected(\.alert) private var alert

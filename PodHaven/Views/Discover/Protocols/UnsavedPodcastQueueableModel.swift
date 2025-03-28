@@ -3,12 +3,12 @@
 import Factory
 import Foundation
 
-@MainActor protocol UnsavedPodcastQueueableModel: EpisodeQueueable, QueueableEpisodeConverter {}
+@MainActor protocol UnsavedPodcastQueueableModel: EpisodeQueueable, EpisodeUpserter {}
 
 @MainActor extension UnsavedPodcastQueueableModel {
   func playEpisode(_ episode: EpisodeType) {
     Task {
-      let podcastEpisode = try await upsertToPodcastEpisode(episode)
+      let podcastEpisode = try await upsert(episode)
       try await Container.shared.playManager().load(podcastEpisode)
       await Container.shared.playManager().play()
     }
@@ -16,14 +16,14 @@ import Foundation
 
   func queueEpisodeOnTop(_ episode: EpisodeType) {
     Task {
-      let podcastEpisode = try await upsertToPodcastEpisode(episode)
+      let podcastEpisode = try await upsert(episode)
       try await Container.shared.queue().unshift(podcastEpisode.id)
     }
   }
 
   func queueEpisodeAtBottom(_ episode: EpisodeType) {
     Task {
-      let podcastEpisode = try await upsertToPodcastEpisode(episode)
+      let podcastEpisode = try await upsert(episode)
       try await Container.shared.queue().append(podcastEpisode.id)
     }
   }
