@@ -4,7 +4,11 @@ import Factory
 import Foundation
 import GRDB
 
-@Observable @MainActor class PersonEpisodeViewModel: UnsavedEpisodeQueueableModel {
+@Observable @MainActor
+class PersonEpisodeViewModel:
+  UnsavedEpisodeConverter,
+  UnsavedEpisodeQueueableModel
+{
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
 

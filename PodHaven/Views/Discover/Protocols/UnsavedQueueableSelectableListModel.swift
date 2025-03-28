@@ -4,8 +4,8 @@ import Factory
 import Foundation
 import IdentifiedCollections
 
-@MainActor protocol UnsavedQueueableSelectableListModel: QueueableSelectableList {
-  var episodeList: SelectableListUseCase<UnsavedEpisode, GUID> { get set }
+@MainActor protocol UnsavedQueueableSelectableListModel: QueueableSelectableListModel
+where EpisodeType == UnsavedEpisode, EpisodeID == GUID {
   var unsavedEpisodes: [UnsavedEpisode] { get }
   var unsavedPodcast: UnsavedPodcast { get set }
 
@@ -27,6 +27,11 @@ import IdentifiedCollections
     }
   }
 
+  func upsertSelectedEpisodesToPodcastEpisodes() async throws -> [PodcastEpisode] {
+    let repo = Container.shared.repo()
+    return try await repo.upsertPodcastEpisodes(selectedUnsavedPodcastEpisodes)
+  }
+
   func processEpisodes(
     from podcastFeed: PodcastFeed,
     merging existingPodcastSeries: PodcastSeries?
@@ -39,42 +44,5 @@ import IdentifiedCollections
       },
       id: \.guid
     )
-  }
-
-  func addSelectedEpisodesToTopOfQueue() {
-    Task {
-      let repo = Container.shared.repo()
-      let podcastEpisodes = try await repo.upsertPodcastEpisodes(selectedUnsavedPodcastEpisodes)
-      try await Container.shared.queue().unshift(podcastEpisodes.map(\.id))
-    }
-  }
-
-  func addSelectedEpisodesToBottomOfQueue() {
-    Task {
-      let repo = Container.shared.repo()
-      let podcastEpisodes = try await repo.upsertPodcastEpisodes(selectedUnsavedPodcastEpisodes)
-      try await Container.shared.queue().append(podcastEpisodes.map(\.id))
-    }
-  }
-
-  func replaceQueue() {
-    Task {
-      let repo = Container.shared.repo()
-      let podcastEpisodes = try await repo.upsertPodcastEpisodes(selectedUnsavedPodcastEpisodes)
-      try await Container.shared.queue().replace(podcastEpisodes.map(\.id))
-    }
-  }
-
-  func replaceQueueAndPlay() {
-    Task {
-      let repo = Container.shared.repo()
-      let podcastEpisodes = try await repo.upsertPodcastEpisodes(selectedUnsavedPodcastEpisodes)
-      if let firstPodcastEpisode = podcastEpisodes.first {
-        try await Container.shared.playManager().load(firstPodcastEpisode)
-        await Container.shared.playManager().play()
-        let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
-        try await Container.shared.queue().replace(allExceptFirstPodcastEpisode.map(\.id))
-      }
-    }
   }
 }

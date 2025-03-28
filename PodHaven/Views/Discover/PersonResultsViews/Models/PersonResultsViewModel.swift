@@ -5,7 +5,12 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor class PersonResultsViewModel: QueueableSelectableList, EpisodeQueueable {
+@Observable @MainActor
+class PersonResultsViewModel:
+  QueueableEpisodeConverter,
+  QueueableSelectableListModel,
+  UnsavedPodcastQueueableModel
+{
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
@@ -15,8 +20,9 @@ import SwiftUI
   var searchText: String { searchResult.searchedText }
   var personResult: PersonResult? { searchResult.personResult }
 
-  // MARK: - EpisodeQueuable protocols
+  // MARK: - Protocol Conformance
 
+  typealias EpisodeId = MediaURL
   typealias EpisodeType = UnsavedPodcastEpisode
 
   // MARK: - State Management
@@ -59,26 +65,15 @@ import SwiftUI
     }
   }
 
-  // MARK: - Public Functions
+  // MARK: - QueueableSelectableListModel
 
-  func queueEpisodeOnTop(_ episode: UnsavedPodcastEpisode) {
+  func upsertSelectedEpisodesToPodcastEpisodes() async throws -> [PodcastEpisode] {
+    try await repo.upsertPodcastEpisodes(selectedEpisodes)
   }
 
-  func queueEpisodeAtBottom(_ episode: UnsavedPodcastEpisode) {
-  }
+  // MARK: - QueueableEpisodeConverter
 
-  func playEpisode(_ episode: UnsavedPodcastEpisode) {
-  }
-
-  func addSelectedEpisodesToTopOfQueue() {
-  }
-
-  func addSelectedEpisodesToBottomOfQueue() {
-  }
-
-  func replaceQueue() {
-  }
-
-  func replaceQueueAndPlay() {
+  func upsertToPodcastEpisode(_ episode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
+    try await repo.upsertPodcastEpisode(episode)
   }
 }

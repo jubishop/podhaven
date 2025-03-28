@@ -3,6 +3,7 @@
 import SwiftUI
 
 struct PersonResultsView: View {
+  // TODO(Bug): This cant be a state var.
   @State private var viewModel: PersonResultsViewModel
 
   init(viewModel: PersonResultsViewModel) {
@@ -54,6 +55,34 @@ struct PersonResultsView: View {
         viewModel: PersonEpisodeViewModel(unsavedPodcastEpisode: unsavedPodcastEpisode)
       )
     }
+    .toolbar {
+      if viewModel.isSelecting {
+        ToolbarItem(placement: .topBarTrailing) {
+          SelectableListMenu(list: viewModel.episodeList)
+        }
+      }
+
+      if viewModel.isSelecting, viewModel.episodeList.anySelected {
+        ToolbarItem(placement: .topBarTrailing) {
+          QueueableSelectableListMenu(list: viewModel)
+        }
+      }
+
+      if viewModel.isSelecting {
+        ToolbarItem(placement: .topBarLeading) {
+          Button("Done") {
+            viewModel.isSelecting = false
+          }
+        }
+      } else {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button("Select Episodes") {
+            viewModel.isSelecting = true
+          }
+        }
+      }
+    }
+    .toolbarRole(.editor)
     .task { await viewModel.execute() }
   }
 }

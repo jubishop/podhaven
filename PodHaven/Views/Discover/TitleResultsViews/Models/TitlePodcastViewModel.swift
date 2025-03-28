@@ -8,6 +8,7 @@ import SwiftUI
 
 @Observable @MainActor
 class TitlePodcastViewModel:
+  UnsavedEpisodeConverter,
   UnsavedPodcastObservableModel,
   UnsavedPodcastQueueableModel,
   UnsavedQueueableSelectableListModel
