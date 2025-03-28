@@ -3,14 +3,36 @@
 import SwiftUI
 
 struct PersonResultsView: View {
-  private let viewModel: PersonResultsViewModel
+  @State private var viewModel: PersonResultsViewModel
 
   init(viewModel: PersonResultsViewModel) {
     self.viewModel = viewModel
   }
 
   var body: some View {
-    Text("People").font(.largeTitle).navigationTitle("People")
+    VStack {
+      HStack {
+        SearchBar(
+          text: $viewModel.episodeList.entryFilter,
+          placeholder: "Filter episodes",
+          imageName: "line.horizontal.3.decrease.circle"
+        )
+
+        Menu(
+          content: {
+            Button(viewModel.unplayedOnly ? "Show All" : "Unplayed Only") {
+              viewModel.unplayedOnly.toggle()
+            }
+          },
+          label: {
+            Image(systemName: "line.horizontal.3.decrease.circle")
+          }
+        )
+      }
+      .padding(.horizontal)
+    }
+    .navigationTitle("🕵️ \(viewModel.searchText)")
+    .task { await viewModel.execute() }
   }
 }
 
