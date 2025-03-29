@@ -8,7 +8,7 @@ import SwiftUI
 final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
   // MARK: - State Management
 
-  // TODO: Make isSelected private
+  // TODO: Make isSelected private or remove selectionBinding?
   var isSelected = BindableDictionary<T, Bool>(defaultValue: false)
   func selectionBinding(for key: T) -> Binding<Bool> {
     Binding<Bool>(
@@ -59,6 +59,7 @@ final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
     )
   }
 
+  // TODO: Once PersonResultsView is nested can we make this back to a plain string?
   private var _entryFilter: String = ""
   var entryFilter: Binding<String> {
     Binding(
