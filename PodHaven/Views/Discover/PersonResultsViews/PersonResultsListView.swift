@@ -1,34 +1,17 @@
 // Copyright Justin Bishop, 2025
 
-import GRDB
+import Foundation
 import SwiftUI
 
-struct SeriesView: View {
-  @Environment(Alert.self) var alert
+struct PersonResultsListView: View {
+  @State private var viewModel: PersonResultsListViewModel
 
-  @State private var viewModel: SeriesViewModel
-
-  init(viewModel: SeriesViewModel) {
+  init(viewModel: PersonResultsListViewModel) {
     self.viewModel = viewModel
   }
 
   var body: some View {
     VStack {
-      HTMLText(viewModel.podcast.description)
-        .lineLimit(3)
-        .padding(.horizontal)
-
-      Text("Last updated: \(viewModel.podcast.formattedLastUpdate)")
-        .font(.caption)
-        .frame(maxWidth: .infinity, alignment: .trailing)
-        .padding(.horizontal)
-
-      if !viewModel.podcast.subscribed {
-        Button("Subscribe") {
-          viewModel.subscribe()
-        }
-      }
-
       HStack {
         SearchBar(
           text: $viewModel.episodeList.entryFilter,
@@ -49,36 +32,26 @@ struct SeriesView: View {
       }
       .padding(.horizontal)
 
-      List(viewModel.episodeList.filteredEntries) { episode in
+      List(viewModel.episodeList.filteredEntries) { unsavedPodcastEpisode in
         NavigationLink(
-          value: episode,
+          value: unsavedPodcastEpisode,
           label: {
-            EpisodeListView(
-              viewModel: EpisodeListViewModel(
-                isSelected: $viewModel.episodeList.isSelected[episode],
-                episode: episode,
+            PersonEpisodeListView(
+              viewModel: PersonEpisodeListViewModel(
+                isSelected: $viewModel.episodeList.isSelected[unsavedPodcastEpisode],
+                unsavedEpisode: unsavedPodcastEpisode.unsavedEpisode,
                 isSelecting: viewModel.isSelecting
               )
             )
           }
         )
-        .episodeSwipeActions(viewModel: viewModel, episode: episode)
+        .episodeSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
       }
       .animation(.default, value: viewModel.episodeList.filteredEntries)
-      .refreshable {
-        do {
-          try await viewModel.refreshSeries()
-        } catch {
-          alert.andReport("Failed to refresh series: \(viewModel.podcast.toString)")
-        }
-      }
     }
-    .navigationTitle(viewModel.podcast.title)
-    .navigationDestination(for: Episode.self) { episode in
-      EpisodeView(
-        viewModel: EpisodeViewModel(
-          podcastEpisode: PodcastEpisode(podcast: viewModel.podcast, episode: episode)
-        )
+    .navigationDestination(for: UnsavedPodcastEpisode.self) { unsavedPodcastEpisode in
+      PersonEpisodeView(
+        viewModel: PersonEpisodeViewModel(unsavedPodcastEpisode: unsavedPodcastEpisode)
       )
     }
     .toolbar {
@@ -114,15 +87,21 @@ struct SeriesView: View {
 }
 
 #Preview {
-  @Previewable @State var podcast: Podcast?
+  @Previewable @State var viewModel: PersonResultsListViewModel?
 
   NavigationStack {
-    if let podcast = podcast {
-      SeriesView(viewModel: SeriesViewModel(podcast: podcast))
+    if let viewModel = viewModel {
+      PersonResultsListView(viewModel: viewModel)
     }
   }
   .preview()
   .task {
-    podcast = try? await PreviewHelpers.loadSeries().podcast
+    let personResult = try! await PreviewHelpers.loadPersonResult()
+    viewModel = PersonResultsListViewModel(
+      searchResult: PersonSearchResult(
+        searchedText: "Neil deGrasse Tyson",
+        personResult: personResult
+      )
+    )
   }
 }

@@ -8,20 +8,7 @@ import SwiftUI
 final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
   // MARK: - State Management
 
-  // TODO: Make isSelected private or remove selectionBinding?
   var isSelected = BindableDictionary<T, Bool>(defaultValue: false)
-  func selectionBinding(for key: T) -> Binding<Bool> {
-    Binding<Bool>(
-      get: { [weak self] in
-        guard let self = self else { return false }
-        return self.isSelected[key]
-      },
-      set: { [weak self] newValue in
-        guard let self = self else { return }
-        self.isSelected[key] = newValue
-      }
-    )
-  }
   var anySelected: Bool { filteredEntries.contains { isSelected[$0] } }
   var anyNotSelected: Bool { filteredEntries.contains { !isSelected[$0] } }
   var selectedEntries: IdentifiedArray<ID, T> {
@@ -59,14 +46,7 @@ final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
     )
   }
 
-  // TODO: Once PersonResultsView is nested can we make this back to a plain string?
-  private var _entryFilter: String = ""
-  var entryFilter: Binding<String> {
-    Binding(
-      get: { self._entryFilter },
-      set: { self._entryFilter = $0 }
-    )
-  }
+  var entryFilter: String = ""
 
   private let idKeyPath: KeyPath<T, ID>
 

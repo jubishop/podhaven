@@ -5,7 +5,7 @@ import Foundation
 @Observable @MainActor class TrendingResultsViewModel {
   private let searchResult: TrendingSearchResult
   let unsavedPodcasts: [UnsavedPodcast]
-  
+
   var category: String { searchResult.searchedCategory }
   var trendingResult: TrendingResult? { searchResult.trendingResult }
   

@@ -24,17 +24,19 @@ struct PersonResult: Sendable, Decodable {
       precondition(
         podcastEpisode == nil || podcastEpisode?.episode.media == enclosureUrl,
         """
-        Merging two podcastEpisodes with different mediaURLs?:
+        Merging two podcastEpisodes with different mediaURLs?: \
         \(String(describing: podcastEpisode?.episode.media)), \(enclosureUrl)
         """
       )
-      precondition(
-        podcastEpisode == nil || podcastEpisode?.podcast.feedURL == feedUrl,
-        """
-        Merging two podcastEpisodes with different feedURLs?:
-        \(String(describing: podcastEpisode?.podcast.feedURL)), \(feedUrl)
-        """
-      )
+      guard podcastEpisode == nil || podcastEpisode?.podcast.feedURL == feedUrl
+      else {
+        throw Err.msg(
+          """
+          Merging two podcastEpisodes with different feedURLs?: \
+          \(String(describing: podcastEpisode?.podcast.feedURL)), \(feedUrl)
+          """
+        )
+      }
 
       guard let feedImage = feedImage ?? podcastEpisode?.podcast.image
       else { throw Err.msg("No image for \(title)") }
