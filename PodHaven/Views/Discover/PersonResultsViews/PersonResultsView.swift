@@ -3,8 +3,26 @@
 import SwiftUI
 
 struct PersonResultsView: View {
-  // TODO(Bug): This cant be a state var.
-  @State private var viewModel: PersonResultsViewModel
+  private let viewModel: PersonResultsViewModel
+
+  init(viewModel: PersonResultsViewModel) {
+    self.viewModel = viewModel
+  }
+
+  var body: some View {
+    if viewModel.personResult != nil {
+      PersonResultsListView(viewModel: viewModel)
+    } else {
+      Text("Still searching")
+      Spacer()
+    }
+  }
+}
+
+// TODO: Move this into its own file with its own ViewModel.
+//       Move most/all of what PersonResultsViewModel is doing into this new model.
+struct PersonResultsListView: View {
+  private let viewModel: PersonResultsViewModel
 
   init(viewModel: PersonResultsViewModel) {
     self.viewModel = viewModel
@@ -14,7 +32,7 @@ struct PersonResultsView: View {
     VStack {
       HStack {
         SearchBar(
-          text: $viewModel.episodeList.entryFilter,
+          text: viewModel.episodeList.entryFilter,
           placeholder: "Filter episodes",
           imageName: "line.horizontal.3.decrease.circle"
         )
@@ -38,7 +56,7 @@ struct PersonResultsView: View {
           label: {
             PersonEpisodeListView(
               viewModel: PersonEpisodeListViewModel(
-                isSelected: $viewModel.episodeList.isSelected[unsavedPodcastEpisode],
+                isSelected: viewModel.episodeList.selectionBinding(for: unsavedPodcastEpisode),
                 unsavedEpisode: unsavedPodcastEpisode.unsavedEpisode,
                 isSelecting: viewModel.isSelecting
               )

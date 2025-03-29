@@ -24,7 +24,7 @@ struct TrendingPodcastView: View {
 
       HStack {
         SearchBar(
-          text: $viewModel.episodeList.entryFilter,
+          text: viewModel.episodeList.entryFilter,
           placeholder: "Filter episodes",
           imageName: "line.horizontal.3.decrease.circle"
         )
