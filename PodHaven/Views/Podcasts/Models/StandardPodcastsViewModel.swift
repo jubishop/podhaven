@@ -12,10 +12,10 @@ import IdentifiedCollections
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
   let title: String
-  let podcastFilter: SQLSpecificExpressible?
+  let podcastFilter: SQLSpecificExpressible
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
-  init(title: String, podcastFilter: SQLSpecificExpressible? = nil) {
+  init(title: String, podcastFilter: SQLSpecificExpressible = true.sqlExpression) {
     self.title = title
     self.podcastFilter = podcastFilter
   }
@@ -31,6 +31,15 @@ import IdentifiedCollections
   }
 
   func refreshPodcasts() async throws {
-    try await refreshManager.performRefresh(stalenessThreshold: Date.minutesAgo(1))
+    try await withThrowingDiscardingTaskGroup { group in
+      let allStaleSubscribedPodcastSeries: PodcastSeriesArray = try await repo.allPodcastSeries(
+        Schema.lastUpdateColumn < Date.minutesAgo(1) && podcastFilter
+      )
+      for podcastSeries in allStaleSubscribedPodcastSeries {
+        group.addTask {
+          try await Container.shared.refreshManager().refreshSeries(podcastSeries: podcastSeries)
+        }
+      }
+    }
   }
 }
