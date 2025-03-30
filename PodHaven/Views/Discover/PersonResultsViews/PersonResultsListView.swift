@@ -51,7 +51,7 @@ struct PersonResultsListView: View {
     }
     .navigationDestination(for: UnsavedPodcastEpisode.self) { unsavedPodcastEpisode in
       PersonEpisodeView(
-        viewModel: PersonEpisodeViewModel(unsavedPodcastEpisode: unsavedPodcastEpisode)
+        viewModel: EpisodeResultsViewModel(unsavedPodcastEpisode: unsavedPodcastEpisode)
       )
     }
     .toolbar {

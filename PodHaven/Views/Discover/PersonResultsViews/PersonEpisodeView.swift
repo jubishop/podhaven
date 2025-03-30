@@ -5,9 +5,9 @@ import SwiftUI
 struct PersonEpisodeView: View {
   @Environment(Alert.self) var alert
 
-  private let viewModel: PersonEpisodeViewModel
+  private let viewModel: EpisodeResultsViewModel
 
-  init(viewModel: PersonEpisodeViewModel) {
+  init(viewModel: EpisodeResultsViewModel) {
     self.viewModel = viewModel
   }
 
@@ -39,7 +39,7 @@ struct PersonEpisodeView: View {
   NavigationStack {
     if let unsavedPodcast = unsavedPodcast, let unsavedEpisodes = unsavedEpisodes {
       PersonEpisodeView(
-        viewModel: PersonEpisodeViewModel(
+        viewModel: EpisodeResultsViewModel(
           unsavedPodcastEpisode: UnsavedPodcastEpisode(
             unsavedPodcast: unsavedPodcast,
             unsavedEpisode: unsavedEpisodes.randomElement()!
