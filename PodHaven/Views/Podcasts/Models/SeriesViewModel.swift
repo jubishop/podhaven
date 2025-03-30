@@ -50,7 +50,7 @@ final class SeriesViewModel: QueueableSelectableList, EpisodeQueueable {
 
   func execute() async {
     do {
-      if Date.minutesAgo(podcastSeries.podcast.lastUpdate) > 15,
+      if podcastSeries.podcast.lastUpdate < Date.minutesAgo(15),
         let podcastSeries = try await repo.podcastSeries(podcastSeries.id)
       {
         self.podcastSeries = podcastSeries

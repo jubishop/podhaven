@@ -16,8 +16,4 @@ extension Date {
   static func minutesAgo(_ minutes: Int) -> Date {
     Date().addingTimeInterval(-TimeInterval(minutes * 60))
   }
-
-  static func minutesAgo(_ date: Date) -> Int {
-    Int(Date().timeIntervalSince(date) / 60)
-  }
 }
