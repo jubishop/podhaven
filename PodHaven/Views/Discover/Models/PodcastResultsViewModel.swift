@@ -7,7 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class TrendingPodcastViewModel:
+class PodcastResultsViewModel:
   UnsavedEpisodeUpserter,
   UnsavedPodcastObservableModel,
   UnsavedPodcastQueueableModel,
@@ -26,7 +26,7 @@ class TrendingPodcastViewModel:
   var unplayedOnly: Bool = false
 
   var subscribable: Bool = false
-  let category: String
+  let contextLabel: String
   var unsavedPodcast: UnsavedPodcast
   var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
 
@@ -35,9 +35,9 @@ class TrendingPodcastViewModel:
 
   // MARK: - Initialization
 
-  init(trendingPodcast: TrendingPodcast) {
-    self.category = trendingPodcast.category
-    self.unsavedPodcast = trendingPodcast.unsavedPodcast
+  init(context: PodcastSearchContext) {
+    self.contextLabel = context.contextLabel
+    self.unsavedPodcast = context.unsavedPodcast
     episodeList.customFilter = { [unowned self] in !self.unplayedOnly || !$0.completed }
   }
 

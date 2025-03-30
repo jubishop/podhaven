@@ -2,7 +2,8 @@
 
 import Foundation
 
-struct SearchedPodcastByTitle: Sendable, Hashable {
-  let unsavedPodcast: UnsavedPodcast
+struct SearchedPodcastByTitle: PodcastSearchContext, Sendable, Hashable {
+  var contextLabel: String { searchText }
   let searchText: String
+  let unsavedPodcast: UnsavedPodcast
 }

@@ -2,7 +2,8 @@
 
 import Foundation
 
-struct TrendingPodcast: Sendable, Hashable {
-  let unsavedPodcast: UnsavedPodcast
+struct TrendingPodcast: PodcastSearchContext, Sendable, Hashable {
   let category: String
+  var contextLabel: String { category }
+  let unsavedPodcast: UnsavedPodcast
 }

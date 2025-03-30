@@ -5,9 +5,9 @@ import SwiftUI
 struct TitleEpisodeView: View {
   @Environment(Alert.self) var alert
 
-  private let viewModel: TitleEpisodeViewModel
+  private let viewModel: EpisodeResultsViewModel
 
-  init(viewModel: TitleEpisodeViewModel) {
+  init(viewModel: EpisodeResultsViewModel) {
     self.viewModel = viewModel
   }
 
@@ -39,7 +39,7 @@ struct TitleEpisodeView: View {
   NavigationStack {
     if let unsavedPodcast = unsavedPodcast, let unsavedEpisodes = unsavedEpisodes {
       TitleEpisodeView(
-        viewModel: TitleEpisodeViewModel(
+        viewModel: EpisodeResultsViewModel(
           unsavedPodcastEpisode: UnsavedPodcastEpisode(
             unsavedPodcast: unsavedPodcast,
             unsavedEpisode: unsavedEpisodes.randomElement()!

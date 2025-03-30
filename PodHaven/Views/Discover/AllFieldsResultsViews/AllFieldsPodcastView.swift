@@ -4,9 +4,9 @@ import Factory
 import SwiftUI
 
 struct AllFieldsPodcastView: View {
-  @State private var viewModel: AllFieldsPodcastViewModel
+  @State private var viewModel: PodcastResultsViewModel
 
-  init(viewModel: AllFieldsPodcastViewModel) {
+  init(viewModel: PodcastResultsViewModel) {
     self.viewModel = viewModel
   }
 
@@ -71,7 +71,7 @@ struct AllFieldsPodcastView: View {
       for: UnsavedPodcastEpisode.self,
       destination: { unsavedPodcastEpisode in
         AllFieldsEpisodeView(
-          viewModel: AllFieldsEpisodeViewModel(
+          viewModel: EpisodeResultsViewModel(
             unsavedPodcastEpisode: unsavedPodcastEpisode
           )
         )
@@ -110,7 +110,7 @@ struct AllFieldsPodcastView: View {
 }
 
 #Preview {
-  @Previewable @State var viewModel: AllFieldsPodcastViewModel?
+  @Previewable @State var viewModel: PodcastResultsViewModel?
   @ObservationIgnored @LazyInjected(\.repo) var repo
 
   NavigationStack {
@@ -124,10 +124,10 @@ struct AllFieldsPodcastView: View {
     if let existingPodcastSeries = try? await repo.podcastSeries(unsavedPodcast.feedURL) {
       try! await repo.delete(existingPodcastSeries.id)
     }
-    viewModel = AllFieldsPodcastViewModel(
-      termPodcast: SearchedPodcastByTerm(
-        unsavedPodcast: unsavedPodcast,
-        searchText: "News"
+    viewModel = PodcastResultsViewModel(
+      context: SearchedPodcastByTerm(
+        searchText: "News",
+        unsavedPodcast: unsavedPodcast
       )
     )
   }

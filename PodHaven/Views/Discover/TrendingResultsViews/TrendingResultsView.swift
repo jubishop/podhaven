@@ -16,8 +16,8 @@ struct TrendingResultsView: View {
           ForEach(viewModel.unsavedPodcasts, id: \.feedURL) { unsavedPodcast in
             NavigationLink(
               value: TrendingPodcast(
-                unsavedPodcast: unsavedPodcast,
-                category: viewModel.category
+                category: viewModel.category,
+                unsavedPodcast: unsavedPodcast
               ),
               label: {
                 TrendingPodcastListView(unsavedPodcast: unsavedPodcast)
@@ -29,8 +29,8 @@ struct TrendingResultsView: View {
           for: TrendingPodcast.self,
           destination: { trendingPodcast in
             TrendingPodcastView(
-              viewModel: TrendingPodcastViewModel(
-                trendingPodcast: trendingPodcast
+              viewModel: PodcastResultsViewModel(
+                context: trendingPodcast
               )
             )
           }

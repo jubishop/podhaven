@@ -5,9 +5,9 @@ import SwiftUI
 struct TrendingEpisodeView: View {
   @Environment(Alert.self) var alert
 
-  private let viewModel: TrendingEpisodeViewModel
+  private let viewModel: EpisodeResultsViewModel
 
-  init(viewModel: TrendingEpisodeViewModel) {
+  init(viewModel: EpisodeResultsViewModel) {
     self.viewModel = viewModel
   }
 
@@ -39,7 +39,7 @@ struct TrendingEpisodeView: View {
   NavigationStack {
     if let unsavedPodcast = unsavedPodcast, let unsavedEpisodes = unsavedEpisodes {
       TrendingEpisodeView(
-        viewModel: TrendingEpisodeViewModel(
+        viewModel: EpisodeResultsViewModel(
           unsavedPodcastEpisode: UnsavedPodcastEpisode(
             unsavedPodcast: unsavedPodcast,
             unsavedEpisode: unsavedEpisodes.randomElement()!

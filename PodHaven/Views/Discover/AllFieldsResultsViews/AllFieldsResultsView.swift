@@ -16,8 +16,8 @@ struct AllFieldsResultsView: View {
           ForEach(viewModel.unsavedPodcasts, id: \.feedURL) { unsavedPodcast in
             NavigationLink(
               value: SearchedPodcastByTerm(
-                unsavedPodcast: unsavedPodcast,
-                searchText: viewModel.searchText
+                searchText: viewModel.searchText,
+                unsavedPodcast: unsavedPodcast
               ),
               label: {
                 AllFieldsPodcastListView(unsavedPodcast: unsavedPodcast)
@@ -29,8 +29,8 @@ struct AllFieldsResultsView: View {
           for: SearchedPodcastByTerm.self,
           destination: { termPodcast in
             AllFieldsPodcastView(
-              viewModel: AllFieldsPodcastViewModel(
-                termPodcast: termPodcast
+              viewModel: PodcastResultsViewModel(
+                context: termPodcast
               )
             )
           }
