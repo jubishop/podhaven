@@ -5,18 +5,18 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 
-@Observable @MainActor final class PodcastsViewModel {
+@Observable @MainActor final class StandardPodcastsViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
-  let navigationTitle: String
+  let title: String
   let podcastFilter: SQLSpecificExpressible?
   var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
 
-  init(navigationTitle: String, podcastFilter: SQLSpecificExpressible? = nil) {
-    self.navigationTitle = navigationTitle
+  init(title: String, podcastFilter: SQLSpecificExpressible? = nil) {
+    self.title = title
     self.podcastFilter = podcastFilter
   }
 

@@ -1,48 +1,39 @@
 // Copyright Justin Bishop, 2025
 
 import Factory
+import GRDB
 import SwiftUI
 
 struct PodcastsView: View {
-  @Environment(Alert.self) var alert
-
-  private let viewModel: PodcastsViewModel
-
-  init(viewModel: PodcastsViewModel) {
-    self.viewModel = viewModel
-  }
+  @State private var navigation = Container.shared.navigation()
 
   var body: some View {
-    ScrollView {
-      PodcastGrid(podcasts: viewModel.podcasts) { podcast in
-        NavigationLink(
-          value: podcast,
-          label: { PodcastGridItem(podcast: podcast) }
-        )
+    NavigationStack(path: $navigation.podcastsPath) {
+      Form {
+        Section("Standard") {
+          NavigationLink(value: Navigation.PodcastsView.all, label: { Text("All") })
+          NavigationLink(value: Navigation.PodcastsView.subscribed, label: { Text("Subscribed") })
+        }
       }
-      .padding()
-    }
-    .navigationTitle(viewModel.navigationTitle)
-    .navigationDestination(for: Podcast.self) { podcast in
-      SeriesView(viewModel: SeriesViewModel(podcast: podcast))
-    }
-    .refreshable {
-      do {
-        try await viewModel.refreshPodcasts()
-      } catch {
-        alert.andReport("Failed to refresh all podcasts: \(error)")
+      .navigationTitle("All Lists")
+      .navigationDestination(for: Navigation.PodcastsView.self) { list in
+        switch list {
+        case .all:
+          StandardPodcastsView(viewModel: StandardPodcastsViewModel(title: "All Podcasts"))
+        case .subscribed:
+          StandardPodcastsView(
+            viewModel: StandardPodcastsViewModel(
+              title: "Subscribed",
+              podcastFilter: Schema.subscribedColumn == true
+            )
+          )
+        }
       }
     }
-    .task { await viewModel.execute() }
   }
 }
 
 #Preview {
-  NavigationStack {
-    PodcastsView(viewModel: PodcastsViewModel(navigationTitle: "Preview Podcasts"))
-  }
-  .preview()
-  .task {
-    try! await PreviewHelpers.importPodcasts()
-  }
+  PodcastsView()
+    .preview()
 }
