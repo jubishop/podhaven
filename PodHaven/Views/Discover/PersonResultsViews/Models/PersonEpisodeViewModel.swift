@@ -5,10 +5,7 @@ import Foundation
 import GRDB
 
 @Observable @MainActor
-class PersonEpisodeViewModel:
-  UnsavedEpisodeUpserter,
-  UnsavedEpisodeQueueableModel
-{
+class PersonEpisodeViewModel: UnsavedEpisodeQueueableModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
 
