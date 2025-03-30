@@ -33,7 +33,7 @@ import IdentifiedCollections
   func refreshPodcasts() async throws {
     try await withThrowingDiscardingTaskGroup { group in
       let allStaleSubscribedPodcastSeries: PodcastSeriesArray = try await repo.allPodcastSeries(
-        Schema.lastUpdateColumn < Date.minutesAgo(1) && podcastFilter
+        Schema.lastUpdateColumn < 1.minutesAgo && podcastFilter
       )
       for podcastSeries in allStaleSubscribedPodcastSeries {
         group.addTask {
