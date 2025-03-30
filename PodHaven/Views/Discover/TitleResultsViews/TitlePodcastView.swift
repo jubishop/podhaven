@@ -53,7 +53,7 @@ struct TitlePodcastView: View {
             ),
             label: {
               TitleEpisodeListView(
-                viewModel: TitleEpisodeListViewModel(
+                viewModel: EpisodeListResultsViewModel(
                   isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
                   unsavedEpisode: unsavedEpisode,
                   isSelecting: viewModel.isSelecting

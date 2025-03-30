@@ -3,9 +3,9 @@
 import SwiftUI
 
 struct TitleEpisodeListView: View {
-  private let viewModel: TitleEpisodeListViewModel
+  private let viewModel: EpisodeListResultsViewModel
 
-  init(viewModel: TitleEpisodeListViewModel) {
+  init(viewModel: EpisodeListResultsViewModel) {
     self.viewModel = viewModel
   }
 
@@ -40,7 +40,7 @@ struct TitleEpisodeListView: View {
   List {
     if let unsavedEpisode = unsavedEpisode {
       TitleEpisodeListView(
-        viewModel: TitleEpisodeListViewModel(
+        viewModel: EpisodeListResultsViewModel(
           isSelected: .constant(false),
           unsavedEpisode: unsavedEpisode,
           isSelecting: false
@@ -49,7 +49,7 @@ struct TitleEpisodeListView: View {
     }
     if let selectedUnsavedEpisode = selectedUnsavedEpisode {
       TitleEpisodeListView(
-        viewModel: TitleEpisodeListViewModel(
+        viewModel: EpisodeListResultsViewModel(
           isSelected: $isSelected,
           unsavedEpisode: selectedUnsavedEpisode,
           isSelecting: true

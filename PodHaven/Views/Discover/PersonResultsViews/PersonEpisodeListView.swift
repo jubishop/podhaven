@@ -3,9 +3,9 @@
 import SwiftUI
 
 struct PersonEpisodeListView: View {
-  private let viewModel: PersonEpisodeListViewModel
+  private let viewModel: EpisodeListResultsViewModel
 
-  init(viewModel: PersonEpisodeListViewModel) {
+  init(viewModel: EpisodeListResultsViewModel) {
     self.viewModel = viewModel
   }
 
@@ -40,7 +40,7 @@ struct PersonEpisodeListView: View {
   List {
     if let unsavedEpisode = unsavedEpisode {
       PersonEpisodeListView(
-        viewModel: PersonEpisodeListViewModel(
+        viewModel: EpisodeListResultsViewModel(
           isSelected: .constant(false),
           unsavedEpisode: unsavedEpisode,
           isSelecting: false
@@ -49,7 +49,7 @@ struct PersonEpisodeListView: View {
     }
     if let selectedUnsavedEpisode = selectedUnsavedEpisode {
       PersonEpisodeListView(
-        viewModel: PersonEpisodeListViewModel(
+        viewModel: EpisodeListResultsViewModel(
           isSelected: $isSelected,
           unsavedEpisode: selectedUnsavedEpisode,
           isSelecting: true
