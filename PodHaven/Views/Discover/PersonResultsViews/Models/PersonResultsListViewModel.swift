@@ -22,7 +22,6 @@ class PersonResultsListViewModel:
 
   // MARK: - Protocol Conformance
 
-  typealias EpisodeId = MediaURL
   typealias EpisodeType = UnsavedPodcastEpisode
 
   // MARK: - State Management
