@@ -32,9 +32,9 @@ struct AppDB: Sendable {
     static let onDisk = { _onDisk }()
   #endif
 
-  // MARK: - Shorthand Expressions
+  // MARK: - Shorthand Expression Constants
 
-  static let noOpFilter = true.sqlExpression
+  static let NoOpFilter = true.sqlExpression
 
   // MARK: - Private Static Helpers
 
