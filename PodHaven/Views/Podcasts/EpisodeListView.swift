@@ -2,6 +2,8 @@
 
 import SwiftUI
 
+typealias EpisodeListViewModel = SelectableListItemModel<Episode>
+
 struct EpisodeListView: View {
   private let viewModel: EpisodeListViewModel
 
@@ -24,7 +26,7 @@ struct EpisodeListView: View {
         .buttonStyle(BorderlessButtonStyle())
       }
 
-      Text(viewModel.episode.toString)
+      Text(viewModel.item.toString)
         .lineLimit(2)
 
       Spacer()
@@ -42,7 +44,7 @@ struct EpisodeListView: View {
       EpisodeListView(
         viewModel: EpisodeListViewModel(
           isSelected: .constant(false),
-          episode: episode,
+          item: episode,
           isSelecting: false
         )
       )
@@ -51,7 +53,7 @@ struct EpisodeListView: View {
       EpisodeListView(
         viewModel: EpisodeListViewModel(
           isSelected: $isSelected,
-          episode: selectedEpisode,
+          item: selectedEpisode,
           isSelecting: true
         )
       )

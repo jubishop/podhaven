@@ -3,14 +3,14 @@
 import Foundation
 import SwiftUI
 
-@Observable @MainActor final class EpisodeListViewModel {
+@Observable @MainActor final class SelectableListItemModel<Item: Stringable> {
   let isSelected: Binding<Bool>
-  let episode: Episode
+  let item: Item
   let isSelecting: Bool
 
-  init(isSelected: Binding<Bool>, episode: Episode, isSelecting: Bool) {
+  init(isSelected: Binding<Bool>, item: Item, isSelecting: Bool) {
     self.isSelected = isSelected
-    self.episode = episode
+    self.item = item
     self.isSelecting = isSelecting
   }
 }

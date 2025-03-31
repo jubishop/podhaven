@@ -24,7 +24,7 @@ struct TrendingEpisodeListView: View {
         .buttonStyle(BorderlessButtonStyle())
       }
 
-      Text(viewModel.unsavedEpisode.toString)
+      Text(viewModel.item.toString)
         .lineLimit(2)
 
       Spacer()
@@ -42,7 +42,7 @@ struct TrendingEpisodeListView: View {
       TrendingEpisodeListView(
         viewModel: EpisodeListResultsViewModel(
           isSelected: .constant(false),
-          unsavedEpisode: unsavedEpisode,
+          item: unsavedEpisode,
           isSelecting: false
         )
       )
@@ -51,7 +51,7 @@ struct TrendingEpisodeListView: View {
       TrendingEpisodeListView(
         viewModel: EpisodeListResultsViewModel(
           isSelected: $isSelected,
-          unsavedEpisode: selectedUnsavedEpisode,
+          item: selectedUnsavedEpisode,
           isSelecting: true
         )
       )

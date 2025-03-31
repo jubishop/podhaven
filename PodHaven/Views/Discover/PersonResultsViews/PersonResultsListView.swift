@@ -39,7 +39,7 @@ struct PersonResultsListView: View {
             PersonEpisodeListView(
               viewModel: EpisodeListResultsViewModel(
                 isSelected: $viewModel.episodeList.isSelected[unsavedPodcastEpisode],
-                unsavedEpisode: unsavedPodcastEpisode.unsavedEpisode,
+                item: unsavedPodcastEpisode.unsavedEpisode,
                 isSelecting: viewModel.isSelecting
               )
             )

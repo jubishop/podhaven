@@ -24,7 +24,7 @@ struct PersonEpisodeListView: View {
         .buttonStyle(BorderlessButtonStyle())
       }
 
-      Text(viewModel.unsavedEpisode.toString)
+      Text(viewModel.item.toString)
         .lineLimit(2)
 
       Spacer()
@@ -42,7 +42,7 @@ struct PersonEpisodeListView: View {
       PersonEpisodeListView(
         viewModel: EpisodeListResultsViewModel(
           isSelected: .constant(false),
-          unsavedEpisode: unsavedEpisode,
+          item: unsavedEpisode,
           isSelecting: false
         )
       )
@@ -51,7 +51,7 @@ struct PersonEpisodeListView: View {
       PersonEpisodeListView(
         viewModel: EpisodeListResultsViewModel(
           isSelected: $isSelected,
-          unsavedEpisode: selectedUnsavedEpisode,
+          item: selectedUnsavedEpisode,
           isSelecting: true
         )
       )

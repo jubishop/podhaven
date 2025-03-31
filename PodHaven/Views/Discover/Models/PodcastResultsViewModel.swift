@@ -6,6 +6,8 @@ import GRDB
 import IdentifiedCollections
 import SwiftUI
 
+typealias EpisodeListResultsViewModel = SelectableListItemModel<UnsavedEpisode>
+
 @Observable @MainActor
 class PodcastResultsViewModel:
   UnsavedEpisodeUpserter,

@@ -56,7 +56,7 @@ struct PodcastView: View {
             EpisodeListView(
               viewModel: EpisodeListViewModel(
                 isSelected: $viewModel.episodeList.isSelected[episode],
-                episode: episode,
+                item: episode,
                 isSelecting: viewModel.isSelecting
               )
             )

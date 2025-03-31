@@ -55,7 +55,7 @@ struct TitlePodcastView: View {
               TitleEpisodeListView(
                 viewModel: EpisodeListResultsViewModel(
                   isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
-                  unsavedEpisode: unsavedEpisode,
+                  item: unsavedEpisode,
                   isSelecting: viewModel.isSelecting
                 )
               )

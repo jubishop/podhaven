@@ -55,7 +55,7 @@ struct TrendingPodcastView: View {
               TrendingEpisodeListView(
                 viewModel: EpisodeListResultsViewModel(
                   isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
-                  unsavedEpisode: unsavedEpisode,
+                  item: unsavedEpisode,
                   isSelecting: viewModel.isSelecting
                 )
               )
