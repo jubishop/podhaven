@@ -39,6 +39,21 @@ actor RefreshManager: Sendable {
 
   // MARK: - Refresh Management
 
+  func performRefresh(stalenessThreshold: Date, filter: SQLSpecificExpressible = true.sqlExpression)
+    async throws
+  {
+    try await withThrowingDiscardingTaskGroup { group in
+      let allStaleSubscribedPodcastSeries: PodcastSeriesArray = try await repo.allPodcastSeries(
+        Schema.lastUpdateColumn < stalenessThreshold && filter
+      )
+      for podcastSeries in allStaleSubscribedPodcastSeries {
+        group.addTask {
+          try await self.refreshSeries(podcastSeries: podcastSeries)
+        }
+      }
+    }
+  }
+
   func refreshSeries(podcastSeries: PodcastSeries) async throws {
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
     let feedResult = await feedTask.feedParsed()
@@ -99,23 +114,13 @@ actor RefreshManager: Sendable {
 
   // MARK: - Private Helpers
 
-  private func performRefresh(stalenessThreshold: Date) async throws {
-    try await withThrowingDiscardingTaskGroup { group in
-      let allStaleSubscribedPodcastSeries: PodcastSeriesArray = try await repo.allPodcastSeries(
-        Schema.lastUpdateColumn < stalenessThreshold && Schema.subscribedColumn == true
-      )
-      for podcastSeries in allStaleSubscribedPodcastSeries {
-        group.addTask {
-          try await self.refreshSeries(podcastSeries: podcastSeries)
-        }
-      }
-    }
-  }
-
   private func activated() {
     backgroundRefreshTask = Task(priority: .background) { [unowned self] in
       while !Task.isCancelled {
-        try? await performRefresh(stalenessThreshold: 10.minutesAgo)
+        try? await performRefresh(
+          stalenessThreshold: 10.minutesAgo,
+          filter: Schema.subscribedColumn == true
+        )
         try? await Task.sleep(for: .minutes(15))
       }
     }

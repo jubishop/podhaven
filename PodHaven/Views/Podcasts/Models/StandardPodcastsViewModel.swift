@@ -31,15 +31,9 @@ import IdentifiedCollections
   }
 
   func refreshPodcasts() async throws {
-    try await withThrowingDiscardingTaskGroup { group in
-      let stalePodcastSeries: PodcastSeriesArray = try await repo.allPodcastSeries(
-        Schema.lastUpdateColumn < 1.minutesAgo && podcastFilter
-      )
-      for podcastSeries in stalePodcastSeries {
-        group.addTask {
-          try await Container.shared.refreshManager().refreshSeries(podcastSeries: podcastSeries)
-        }
-      }
-    }
+    try await refreshManager.performRefresh(
+      stalenessThreshold: 1.minutesAgo,
+      filter: podcastFilter.sqlExpression
+    )
   }
 }
