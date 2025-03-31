@@ -13,7 +13,7 @@ import IdentifiedCollections
 
   let title: String
   let podcastFilter: SQLSpecificExpressible
-  var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
+  var podcastList = SelectableListUseCase<Podcast, FeedURL>(idKeyPath: \.feedURL)
 
   init(title: String, podcastFilter: SQLSpecificExpressible = true.sqlExpression) {
     self.title = title
@@ -23,7 +23,7 @@ import IdentifiedCollections
   func execute() async {
     do {
       for try await podcasts in observatory.allPodcasts(podcastFilter) {
-        self.podcasts = podcasts
+        self.podcastList.allEntries = podcasts
       }
     } catch {
       alert.andReport(error)

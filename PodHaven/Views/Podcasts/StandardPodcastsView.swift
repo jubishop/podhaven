@@ -14,7 +14,7 @@ struct StandardPodcastsView: View {
 
   var body: some View {
     ScrollView {
-      PodcastGrid(podcasts: viewModel.podcasts) { podcast in
+      PodcastGrid(podcasts: viewModel.podcastList.filteredEntries) { podcast in
         NavigationLink(
           value: podcast,
           label: { PodcastGridItem(podcast: podcast) }

@@ -1,8 +1,6 @@
 // Copyright Justin Bishop, 2025
 
-import Factory
 import Foundation
-import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor final class EpisodeListViewModel {
@@ -10,11 +8,7 @@ import SwiftUI
   let episode: Episode
   let isSelecting: Bool
 
-  init(
-    isSelected: Binding<Bool>,
-    episode: Episode,
-    isSelecting: Bool
-  ) {
+  init(isSelected: Binding<Bool>, episode: Episode, isSelecting: Bool) {
     self.isSelected = isSelected
     self.episode = episode
     self.isSelecting = isSelecting
