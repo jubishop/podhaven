@@ -12,10 +12,10 @@ import IdentifiedCollections
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
   let title: String
-  let podcastFilter: SendableSQLSpecificExpressible
+  let podcastFilter: SQLExpression
   var podcastList = SelectableListUseCase<Podcast, FeedURL>(idKeyPath: \.feedURL)
 
-  init(title: String, podcastFilter: SendableSQLSpecificExpressible = AppDB.nullFilter) {
+  init(title: String, podcastFilter: SQLExpression = AppDB.nullFilter) {
     self.title = title
     self.podcastFilter = podcastFilter
   }

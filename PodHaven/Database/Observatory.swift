@@ -11,9 +11,7 @@ extension Container {
 }
 
 struct Observatory {
-  func allPodcasts(_ sqlExpression: SendableSQLSpecificExpressible? = nil) -> AsyncValueObservation<
-    PodcastArray
-  > {
+  func allPodcasts(_ sqlExpression: SQLExpression? = nil) -> AsyncValueObservation<PodcastArray> {
     let request = Podcast.all().filtered(with: sqlExpression)
     return _observe { db in
       try request.fetchIdentifiedArray(db, id: \Podcast.feedURL)

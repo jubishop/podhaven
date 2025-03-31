@@ -4,8 +4,6 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 
-typealias SendableSQLSpecificExpressible = SQLSpecificExpressible & Sendable
-
 extension DerivableRequest {
   func shuffled() -> Self {
     order(sql: "RANDOM()")
@@ -13,22 +11,19 @@ extension DerivableRequest {
 }
 
 extension FetchRequest where RowDecoder: FetchableRecord & Identifiable {
-  public func fetchIdentifiedArray(_ db: Database)
-    throws -> IdentifiedArrayOf<RowDecoder>
-  {
+  public func fetchIdentifiedArray(_ db: Database) throws -> IdentifiedArrayOf<RowDecoder> {
     try IdentifiedArray(uniqueElements: fetchAll(db))
   }
 
-  public func fetchIdentifiedArray<Key: Hashable>(
-    _ db: Database,
-    id: KeyPath<RowDecoder, Key>
-  ) throws -> IdentifiedArray<Key, RowDecoder> {
+  public func fetchIdentifiedArray<Key: Hashable>(_ db: Database, id: KeyPath<RowDecoder, Key>)
+    throws -> IdentifiedArray<Key, RowDecoder>
+  {
     try IdentifiedArray(uniqueElements: fetchAll(db), id: id)
   }
 }
 
 extension QueryInterfaceRequest {
-  func filtered(with sqlExpression: SendableSQLSpecificExpressible?) -> Self {
+  func filtered(with sqlExpression: SQLExpression?) -> Self {
     guard let sqlExpression = sqlExpression else { return self }
     return self.filter(sqlExpression)
   }
