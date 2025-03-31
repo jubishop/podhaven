@@ -15,7 +15,7 @@ import IdentifiedCollections
   let podcastFilter: SendableSQLSpecificExpressible
   var podcastList = SelectableListUseCase<Podcast, FeedURL>(idKeyPath: \.feedURL)
 
-  init(title: String, podcastFilter: SendableSQLSpecificExpressible = AppDB.nullExpression) {
+  init(title: String, podcastFilter: SendableSQLSpecificExpressible = AppDB.nullFilter) {
     self.title = title
     self.podcastFilter = podcastFilter
   }

@@ -34,7 +34,7 @@ struct AppDB: Sendable {
 
   // MARK: - Shorthand Expressions
 
-  static let nullExpression = true.sqlExpression
+  static let nullFilter = true.sqlExpression
 
   // MARK: - Private Static Helpers
 

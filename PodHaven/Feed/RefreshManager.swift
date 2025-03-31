@@ -41,7 +41,7 @@ actor RefreshManager: Sendable {
 
   func performRefresh(
     stalenessThreshold: Date,
-    filter: SendableSQLSpecificExpressible = AppDB.nullExpression
+    filter: SendableSQLSpecificExpressible = AppDB.nullFilter
   )
     async throws
   {
