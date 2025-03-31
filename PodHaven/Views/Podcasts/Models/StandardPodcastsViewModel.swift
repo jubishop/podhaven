@@ -15,7 +15,7 @@ import IdentifiedCollections
   let podcastFilter: SQLExpression
   var podcastList = SelectableListUseCase<Podcast, FeedURL>(idKeyPath: \.feedURL)
 
-  init(title: String, podcastFilter: SQLExpression = AppDB.nullFilter) {
+  init(title: String, podcastFilter: SQLExpression = AppDB.noOpFilter) {
     self.title = title
     self.podcastFilter = podcastFilter
   }
