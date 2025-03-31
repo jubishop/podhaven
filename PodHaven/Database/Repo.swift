@@ -36,14 +36,16 @@ struct Repo: Sendable {
 
   // MARK: - Global Reader
 
-  func allPodcasts(_ sqlExpression: SQLSpecificExpressible? = nil) async throws -> PodcastArray {
+  func allPodcasts(_ sqlExpression: SendableSQLSpecificExpressible? = nil) async throws
+    -> PodcastArray
+  {
     let request = Podcast.all().filtered(with: sqlExpression)
     return try await appDB.db.read { db in
       try request.fetchIdentifiedArray(db, id: \.feedURL)
     }
   }
 
-  func allPodcastSeries(_ sqlExpression: SQLSpecificExpressible? = nil) async throws
+  func allPodcastSeries(_ sqlExpression: SendableSQLSpecificExpressible? = nil) async throws
     -> PodcastSeriesArray
   {
     let request = Podcast.all().filtered(with: sqlExpression)

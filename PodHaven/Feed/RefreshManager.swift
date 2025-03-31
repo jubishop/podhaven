@@ -39,7 +39,10 @@ actor RefreshManager: Sendable {
 
   // MARK: - Refresh Management
 
-  func performRefresh(stalenessThreshold: Date, filter: SQLSpecificExpressible = true.sqlExpression)
+  func performRefresh(
+    stalenessThreshold: Date,
+    filter: SendableSQLSpecificExpressible = AppDB.nullExpression
+  )
     async throws
   {
     try await withThrowingDiscardingTaskGroup { group in

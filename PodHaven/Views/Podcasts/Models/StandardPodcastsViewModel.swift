@@ -12,10 +12,10 @@ import IdentifiedCollections
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
   let title: String
-  let podcastFilter: SQLSpecificExpressible
+  let podcastFilter: SendableSQLSpecificExpressible
   var podcastList = SelectableListUseCase<Podcast, FeedURL>(idKeyPath: \.feedURL)
 
-  init(title: String, podcastFilter: SQLSpecificExpressible = true.sqlExpression) {
+  init(title: String, podcastFilter: SendableSQLSpecificExpressible = AppDB.nullExpression) {
     self.title = title
     self.podcastFilter = podcastFilter
   }
@@ -31,9 +31,6 @@ import IdentifiedCollections
   }
 
   func refreshPodcasts() async throws {
-    try await refreshManager.performRefresh(
-      stalenessThreshold: 1.minutesAgo,
-      filter: podcastFilter.sqlExpression
-    )
+    try await refreshManager.performRefresh(stalenessThreshold: 1.minutesAgo, filter: podcastFilter)
   }
 }

@@ -32,6 +32,10 @@ struct AppDB: Sendable {
     static let onDisk = { _onDisk }()
   #endif
 
+  // MARK: - Shorthand Expressions
+
+  static let nullExpression = true.sqlExpression
+
   // MARK: - Private Static Helpers
 
   private static func makeConfiguration() -> Configuration {
