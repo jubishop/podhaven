@@ -1,11 +1,9 @@
 // Copyright Justin Bishop, 2025
 
-import Factory
 import Foundation
-import IdentifiedCollections
-import SwiftUI
 
-@Observable @MainActor
+@Observable
+@MainActor
 class PersonResultsViewModel {
   // MARK: - Data
 

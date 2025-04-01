@@ -2,13 +2,19 @@
 
 import Foundation
 
-@Observable @MainActor class TitleResultsViewModel {
+@Observable
+@MainActor
+class TitleResultsViewModel {
+  // MARK: - Data
+
   private let searchResult: TitleSearchResult
   let unsavedPodcasts: [UnsavedPodcast]
-  
+
   var searchText: String { searchResult.searchedText }
   var titleResult: TitleResult? { searchResult.titleResult }
-  
+
+  // MARK: - Initialization
+
   init(searchResult: TitleSearchResult) {
     self.searchResult = searchResult
     if let titleResult = searchResult.titleResult {
