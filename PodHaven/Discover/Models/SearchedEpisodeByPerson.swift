@@ -3,6 +3,6 @@
 import Foundation
 
 struct SearchedEpisodeByPerson: Sendable, Hashable {
+  let searchedText: String
   let unsavedPodcastEpisode: UnsavedPodcastEpisode
-  let searchText: String
 }

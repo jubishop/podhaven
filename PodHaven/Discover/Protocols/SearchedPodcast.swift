@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol PodcastSearchContext {
-  var contextLabel: String { get }
+protocol SearchedPodcast {
+  var searchedText: String { get }
   var unsavedPodcast: UnsavedPodcast { get }
 }

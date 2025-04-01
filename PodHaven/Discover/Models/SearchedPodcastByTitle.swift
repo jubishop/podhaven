@@ -1,9 +1,8 @@
-// Copyright Justin Bishop, 2025 
+// Copyright Justin Bishop, 2025
 
 import Foundation
 
-struct SearchedPodcastByTitle: PodcastSearchContext, Sendable, Hashable {
-  var contextLabel: String { searchText }
-  let searchText: String
+struct SearchedPodcastByTitle: SearchedPodcast, Sendable, Hashable {
+  let searchedText: String
   let unsavedPodcast: UnsavedPodcast
 }

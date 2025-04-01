@@ -2,12 +2,15 @@
 
 import Foundation
 
-struct TrendingSearchResult {
-  let searchedCategory: String
+struct TrendingSearchResult: PodcastSearchResult {
+  let searchCategory: String
   var trendingResult: TrendingResult?
 
-  init(searchedCategory: String = "", trendingResult: TrendingResult? = nil) {
-    self.searchedCategory = searchedCategory
+  var searchText: String { searchCategory }
+  var result: PodcastResultConvertible? { trendingResult }
+
+  init(searchCategory: String = "", trendingResult: TrendingResult? = nil) {
+    self.searchCategory = searchCategory
     self.trendingResult = trendingResult
   }
 }

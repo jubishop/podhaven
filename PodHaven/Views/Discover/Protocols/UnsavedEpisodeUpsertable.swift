@@ -3,11 +3,12 @@
 import Factory
 import Foundation
 
-@MainActor protocol UnsavedEpisodeUpserter: EpisodeUpserter where EpisodeType == UnsavedEpisode {
+@MainActor protocol UnsavedEpisodeUpsertable: EpisodeUpsertable
+where EpisodeType == UnsavedEpisode {
   var unsavedPodcast: UnsavedPodcast { get }
 }
 
-@MainActor extension UnsavedEpisodeUpserter {
+@MainActor extension UnsavedEpisodeUpsertable {
   func upsert(_ episode: UnsavedEpisode) async throws -> PodcastEpisode {
     let repo = Container.shared.repo()
     return try await repo.upsertPodcastEpisode(

@@ -10,7 +10,7 @@ typealias EpisodeListResultsViewModel = SelectableListItemModel<UnsavedEpisode>
 
 @Observable @MainActor
 class PodcastResultsViewModel:
-  UnsavedEpisodeUpserter,
+  UnsavedEpisodeUpsertable,
   UnsavedPodcastObservableModel,
   UnsavedPodcastQueueableModel,
   UnsavedQueueableSelectableListModel
@@ -28,7 +28,7 @@ class PodcastResultsViewModel:
   var unplayedOnly: Bool = false
 
   var subscribable: Bool = false
-  let contextLabel: String
+  let searchedText: String
   var unsavedPodcast: UnsavedPodcast
   var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
 
@@ -37,9 +37,9 @@ class PodcastResultsViewModel:
 
   // MARK: - Initialization
 
-  init(context: PodcastSearchContext) {
-    self.contextLabel = context.contextLabel
-    self.unsavedPodcast = context.unsavedPodcast
+  init(searchedPodcast: SearchedPodcast) {
+    self.searchedText = searchedPodcast.searchedText
+    self.unsavedPodcast = searchedPodcast.unsavedPodcast
     episodeList.customFilter = { [unowned self] in !self.unplayedOnly || !$0.completed }
   }
 

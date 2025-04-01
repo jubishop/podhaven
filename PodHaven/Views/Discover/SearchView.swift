@@ -14,11 +14,11 @@ struct SearchView: View {
       switch viewModel.currentView {
       case .allFields:
         AllFieldsResultsView(
-          viewModel: AllFieldsResultsViewModel(searchResult: viewModel.termSearchResult)
+          viewModel: ResultsViewModel(searchResult: viewModel.termSearchResult)
         )
       case .titles:
         TitleResultsView(
-          viewModel: TitleResultsViewModel(searchResult: viewModel.titleSearchResult)
+          viewModel: ResultsViewModel(searchResult: viewModel.titleSearchResult)
         )
       case .people:
         PersonResultsView(
@@ -26,7 +26,7 @@ struct SearchView: View {
         )
       case .trending:
         TrendingResultsView(
-          viewModel: TrendingResultsViewModel(searchResult: viewModel.trendingSearchResult)
+          viewModel: ResultsViewModel(searchResult: viewModel.trendingSearchResult)
         )
       default: fatalError("viewModel.currentView unknown: \(viewModel.currentView)")
       }

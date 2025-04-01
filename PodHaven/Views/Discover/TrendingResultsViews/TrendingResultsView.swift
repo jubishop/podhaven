@@ -3,34 +3,34 @@
 import SwiftUI
 
 struct TrendingResultsView: View {
-  private let viewModel: TrendingResultsViewModel
+  private let viewModel: ResultsViewModel
 
-  init(viewModel: TrendingResultsViewModel) {
+  init(viewModel: ResultsViewModel) {
     self.viewModel = viewModel
   }
 
   var body: some View {
     VStack {
-      if viewModel.trendingResult != nil {
+      if viewModel.result != nil {
         List {
           ForEach(viewModel.unsavedPodcasts, id: \.feedURL) { unsavedPodcast in
             NavigationLink(
-              value: TrendingPodcast(
-                category: viewModel.category,
+              value: SearchedPodcastByTrending(
+                category: viewModel.searchText,
                 unsavedPodcast: unsavedPodcast
               ),
               label: {
-                TrendingPodcastListView(unsavedPodcast: unsavedPodcast)
+                SearchedPodcastByTrendingListView(unsavedPodcast: unsavedPodcast)
               }
             )
           }
         }
         .navigationDestination(
-          for: TrendingPodcast.self,
+          for: SearchedPodcastByTrending.self,
           destination: { trendingPodcast in
-            TrendingPodcastView(
+            SearchedPodcastByTrendingView(
               viewModel: PodcastResultsViewModel(
-                context: trendingPodcast
+                searchedPodcast: trendingPodcast
               )
             )
           }
@@ -40,12 +40,12 @@ struct TrendingResultsView: View {
         Spacer()
       }
     }
-    .navigationTitle("📈 \(viewModel.category)")
+    .navigationTitle("📈 \(viewModel.searchText)")
   }
 }
 
 #Preview {
-  @Previewable @State var viewModel: TrendingResultsViewModel?
+  @Previewable @State var viewModel: ResultsViewModel?
 
   NavigationStack {
     if let viewModel = viewModel {
@@ -55,8 +55,8 @@ struct TrendingResultsView: View {
   .preview()
   .task {
     let trendingResult = try! await PreviewHelpers.loadTrendingResult()
-    viewModel = TrendingResultsViewModel(
-      searchResult: TrendingSearchResult(searchedCategory: "News", trendingResult: trendingResult)
+    viewModel = ResultsViewModel(
+      searchResult: TrendingSearchResult(searchCategory: "News", trendingResult: trendingResult)
     )
   }
 }

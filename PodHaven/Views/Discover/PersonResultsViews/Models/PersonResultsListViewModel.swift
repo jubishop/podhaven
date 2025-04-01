@@ -7,7 +7,7 @@ import SwiftUI
 
 @Observable @MainActor
 class PersonResultsListViewModel:
-  EpisodeUpserter,
+  EpisodeUpsertable,
   QueueableSelectableListModel,
   UnsavedPodcastQueueableModel
 {
@@ -17,7 +17,7 @@ class PersonResultsListViewModel:
   // MARK: - Data
 
   private let searchResult: PersonSearchResult
-  var searchText: String { searchResult.searchedText }
+  var searchText: String { searchResult.searchText }
   var personResult: PersonResult? { searchResult.personResult }
 
   // MARK: - Protocol Conformance

@@ -3,7 +3,7 @@
 import Factory
 import Foundation
 
-@MainActor protocol UnsavedPodcastQueueableModel: EpisodeQueueable, EpisodeUpserter {}
+@MainActor protocol UnsavedPodcastQueueableModel: EpisodeQueueable, EpisodeUpsertable {}
 
 @MainActor extension UnsavedPodcastQueueableModel {
   func playEpisode(_ episode: EpisodeType) {

@@ -73,7 +73,7 @@ import SwiftUI
 
   // MARK: - Searching and Results
 
-  var trendingSearchResult = TrendingSearchResult(searchedCategory: allCategoriesName)
+  var trendingSearchResult = TrendingSearchResult(searchCategory: allCategoriesName)
   var titleSearchResult = TitleSearchResult()
   var termSearchResult = TermSearchResult()
   var personSearchResult = PersonSearchResult()
@@ -149,9 +149,9 @@ import SwiftUI
   }
 
   private func searchTrending(_ currentCategory: String) async throws {
-    self.trendingSearchResult = TrendingSearchResult(searchedCategory: currentCategory)
+    self.trendingSearchResult = TrendingSearchResult(searchCategory: currentCategory)
     self.trendingSearchResult = TrendingSearchResult(
-      searchedCategory: currentCategory,
+      searchCategory: currentCategory,
       trendingResult: try await searchService.searchTrending(
         categories: categoriesToSearch,
         language: Self.language
@@ -160,25 +160,25 @@ import SwiftUI
   }
 
   private func searchByTitle(_ searchText: String) async throws {
-    self.titleSearchResult = TitleSearchResult(searchedText: searchText)
+    self.titleSearchResult = TitleSearchResult(searchText: searchText)
     self.titleSearchResult = TitleSearchResult(
-      searchedText: searchText,
+      searchText: searchText,
       titleResult: try await searchService.searchByTitle(searchText)
     )
   }
 
   private func searchByTerm(_ searchText: String) async throws {
-    self.termSearchResult = TermSearchResult(searchedText: searchText)
+    self.termSearchResult = TermSearchResult(searchText: searchText)
     self.termSearchResult = TermSearchResult(
-      searchedText: searchText,
+      searchText: searchText,
       termResult: try await searchService.searchByTerm(searchText)
     )
   }
 
   private func searchByPerson(_ searchText: String) async throws {
-    self.personSearchResult = PersonSearchResult(searchedText: searchText)
+    self.personSearchResult = PersonSearchResult(searchText: searchText)
     self.personSearchResult = PersonSearchResult(
-      searchedText: searchText,
+      searchText: searchText,
       personResult: try await searchService.searchByPerson(searchText)
     )
   }

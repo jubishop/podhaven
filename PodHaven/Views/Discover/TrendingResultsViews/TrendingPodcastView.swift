@@ -3,7 +3,7 @@
 import Factory
 import SwiftUI
 
-struct TrendingPodcastView: View {
+struct SearchedPodcastByTrendingView: View {
   @State private var viewModel: PodcastResultsViewModel
 
   init(viewModel: PodcastResultsViewModel) {
@@ -115,7 +115,7 @@ struct TrendingPodcastView: View {
 
   NavigationStack {
     if let viewModel = viewModel {
-      TrendingPodcastView(viewModel: viewModel)
+      SearchedPodcastByTrendingView(viewModel: viewModel)
     }
   }
   .preview()
@@ -125,7 +125,7 @@ struct TrendingPodcastView: View {
       try! await repo.delete(existingPodcastSeries.id)
     }
     viewModel = PodcastResultsViewModel(
-      context: TrendingPodcast(
+      searchedPodcast: SearchedPodcastByTrending(
         category: "News",
         unsavedPodcast: unsavedPodcast
       )

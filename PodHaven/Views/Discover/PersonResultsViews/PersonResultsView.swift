@@ -37,7 +37,7 @@ struct PersonResultsView: View {
     let personResult = try! await PreviewHelpers.loadPersonResult()
     viewModel = PersonResultsViewModel(
       searchResult: PersonSearchResult(
-        searchedText: "Neil deGrasse Tyson",
+        searchText: "Neil deGrasse Tyson",
         personResult: personResult
       )
     )

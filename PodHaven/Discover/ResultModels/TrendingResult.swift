@@ -2,8 +2,8 @@
 
 import Foundation
 
-struct TrendingResult: Decodable, Sendable {
-  struct FeedResult: Decodable, Hashable, Identifiable, ResultPodcastConvertible, Sendable {
+struct TrendingResult: Decodable, PodcastResultConvertible, Sendable {
+  struct FeedResult: Decodable, Hashable, Identifiable, FeedResultConvertible, Sendable {
     let id: Int
     let url: FeedURL
     @OptionalURL var image: URL?
@@ -12,10 +12,12 @@ struct TrendingResult: Decodable, Sendable {
     let trendScore: Int
     let categories: [String: String]
 
-    // MARK: - ResultPodcastConvertible
+    // MARK: - FeedResultConvertible
 
     var link: URL? { nil }
   }
   let feeds: [FeedResult]
   let since: Date
+
+  var convertibleFeeds: [FeedResultConvertible] { feeds }
 }

@@ -3,7 +3,7 @@
 import Factory
 import Foundation
 
-@MainActor protocol EpisodeUpserter {
+@MainActor protocol EpisodeUpsertable {
   associatedtype EpisodeType
 
   func upsert(_ episode: EpisodeType) async throws -> PodcastEpisode

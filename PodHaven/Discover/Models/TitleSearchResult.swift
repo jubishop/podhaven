@@ -2,12 +2,14 @@
 
 import Foundation
 
-struct TitleSearchResult {
-  let searchedText: String
+struct TitleSearchResult: PodcastSearchResult {
+  let searchText: String
   let titleResult: TitleResult?
 
-  init(searchedText: String = "", titleResult: TitleResult? = nil) {
-    self.searchedText = searchedText
+  var result: PodcastResultConvertible? { titleResult }
+
+  init(searchText: String = "", titleResult: TitleResult? = nil) {
+    self.searchText = searchText
     self.titleResult = titleResult
   }
 }

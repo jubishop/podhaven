@@ -6,7 +6,7 @@ import Foundation
   // MARK: - Data
 
   let searchResult: PersonSearchResult
-  var searchText: String { searchResult.searchedText }
+  var searchText: String { searchResult.searchText }
   var personResult: PersonResult? { searchResult.personResult }
 
   // MARK: - Initialization

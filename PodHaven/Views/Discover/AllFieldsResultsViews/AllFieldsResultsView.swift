@@ -3,20 +3,20 @@
 import SwiftUI
 
 struct AllFieldsResultsView: View {
-  private let viewModel: AllFieldsResultsViewModel
+  private let viewModel: ResultsViewModel
 
-  init(viewModel: AllFieldsResultsViewModel) {
+  init(viewModel: ResultsViewModel) {
     self.viewModel = viewModel
   }
 
   var body: some View {
     VStack {
-      if viewModel.termResult != nil {
+      if viewModel.result != nil {
         List {
           ForEach(viewModel.unsavedPodcasts, id: \.feedURL) { unsavedPodcast in
             NavigationLink(
               value: SearchedPodcastByTerm(
-                searchText: viewModel.searchText,
+                searchedText: viewModel.searchText,
                 unsavedPodcast: unsavedPodcast
               ),
               label: {
@@ -30,7 +30,7 @@ struct AllFieldsResultsView: View {
           destination: { termPodcast in
             AllFieldsPodcastView(
               viewModel: PodcastResultsViewModel(
-                context: termPodcast
+                searchedPodcast: termPodcast
               )
             )
           }
@@ -45,7 +45,7 @@ struct AllFieldsResultsView: View {
 }
 
 #Preview {
-  @Previewable @State var viewModel: AllFieldsResultsViewModel?
+  @Previewable @State var viewModel: ResultsViewModel?
 
   NavigationStack {
     if let viewModel = viewModel {
@@ -55,8 +55,8 @@ struct AllFieldsResultsView: View {
   .preview()
   .task {
     let termResult = try! await PreviewHelpers.loadTermResult()
-    viewModel = AllFieldsResultsViewModel(
-      searchResult: TermSearchResult(searchedText: "Hard Fork", termResult: termResult)
+    viewModel = ResultsViewModel(
+      searchResult: TermSearchResult(searchText: "Hard Fork", termResult: termResult)
     )
   }
 }

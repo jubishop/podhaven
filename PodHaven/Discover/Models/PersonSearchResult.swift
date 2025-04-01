@@ -3,11 +3,11 @@
 import Foundation
 
 struct PersonSearchResult {
-  let searchedText: String
+  let searchText: String
   let personResult: PersonResult?
 
-  init(searchedText: String = "", personResult: PersonResult? = nil) {
-    self.searchedText = searchedText
+  init(searchText: String = "", personResult: PersonResult? = nil) {
+    self.searchText = searchText
     self.personResult = personResult
   }
 }

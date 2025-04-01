@@ -125,8 +125,8 @@ struct AllFieldsPodcastView: View {
       try! await repo.delete(existingPodcastSeries.id)
     }
     viewModel = PodcastResultsViewModel(
-      context: SearchedPodcastByTerm(
-        searchText: "News",
+      searchedPodcast: SearchedPodcastByTerm(
+        searchedText: "News",
         unsavedPodcast: unsavedPodcast
       )
     )

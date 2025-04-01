@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol ResultPodcastConvertible {
+protocol FeedResultConvertible {
   var url: FeedURL { get }
   var image: URL? { get }
   var title: String { get }
@@ -12,7 +12,7 @@ protocol ResultPodcastConvertible {
   func toUnsavedPodcast() throws -> UnsavedPodcast
 }
 
-extension ResultPodcastConvertible {
+extension FeedResultConvertible {
   func toUnsavedPodcast() throws -> UnsavedPodcast {
     guard let image = image
     else { throw Err.msg("No image for \(title)") }
