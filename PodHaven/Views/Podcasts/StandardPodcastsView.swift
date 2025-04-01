@@ -6,13 +6,19 @@ import SwiftUI
 struct StandardPodcastsView: View {
   @Environment(Alert.self) var alert
 
-  private let viewModel: StandardPodcastsViewModel
+  @State private var viewModel: StandardPodcastsViewModel
 
   init(viewModel: StandardPodcastsViewModel) {
     self.viewModel = viewModel
   }
 
   var body: some View {
+    SearchBar(
+      text: $viewModel.podcastList.entryFilter,
+      placeholder: "Filter podcasts",
+      imageName: "line.horizontal.3.decrease.circle"
+    )
+
     ScrollView {
       PodcastGrid(podcasts: viewModel.podcastList.filteredEntries) { podcast in
         NavigationLink(
