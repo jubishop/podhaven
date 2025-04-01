@@ -2,9 +2,7 @@
 
 import Foundation
 
-@Observable
-@MainActor
-class TrendingResultsViewModel {
+@Observable @MainActor class TrendingResultsViewModel {
   // MARK: - Data
 
   private let searchResult: TrendingSearchResult

@@ -2,9 +2,7 @@
 
 import Foundation
 
-@Observable
-@MainActor
-class AllFieldsResultsViewModel {
+@Observable @MainActor class AllFieldsResultsViewModel {
   // MARK: - Data
 
   private let searchResult: TermSearchResult

@@ -2,9 +2,7 @@
 
 import Foundation
 
-@Observable
-@MainActor
-class PersonResultsViewModel {
+@Observable @MainActor class PersonResultsViewModel {
   // MARK: - Data
 
   let searchResult: PersonSearchResult
