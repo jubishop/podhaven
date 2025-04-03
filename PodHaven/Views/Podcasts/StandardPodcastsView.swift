@@ -24,8 +24,8 @@ struct StandardPodcastsView: View {
         NavigationLink(
           value: podcast,
           label: {
-            PodcastGridItem(
-              viewModel: PodcastGridItemViewModel(
+            SelectablePodcastGridItem(
+              viewModel: SelectablePodcastGridItemViewModel(
                 isSelected: $viewModel.podcastList.isSelected[podcast],
                 item: podcast,
                 isSelecting: viewModel.isSelecting

@@ -3,15 +3,15 @@
 import NukeUI
 import SwiftUI
 
-typealias PodcastGridItemViewModel = SelectableListItemModel<Podcast>
+typealias SelectablePodcastGridItemViewModel = SelectableListItemModel<Podcast>
 
-struct PodcastGridItem: View {
+struct SelectablePodcastGridItem: View {
   @State private var width: CGFloat = 0
 
-  private let viewModel: PodcastGridItemViewModel
+  private let viewModel: SelectablePodcastGridItemViewModel
   private let cornerRadius: CGFloat = 8
 
-  init(viewModel: PodcastGridItemViewModel) {
+  init(viewModel: SelectablePodcastGridItemViewModel) {
     self.viewModel = viewModel
   }
 
@@ -99,15 +99,15 @@ struct PodcastGridItem: View {
     if let podcast = podcast, let invalidPodcast = invalidPodcast {
       ForEach([true, false], id: \.self) { isSelected in
         ForEach([true, false], id: \.self) { isSelecting in
-          PodcastGridItem(
-            viewModel: PodcastGridItemViewModel(
+          SelectablePodcastGridItem(
+            viewModel: SelectablePodcastGridItemViewModel(
               isSelected: .constant(isSelected),
               item: podcast,
               isSelecting: isSelecting
             )
           )
-          PodcastGridItem(
-            viewModel: PodcastGridItemViewModel(
+          SelectablePodcastGridItem(
+            viewModel: SelectablePodcastGridItemViewModel(
               isSelected: .constant(isSelected),
               item: invalidPodcast,
               isSelecting: isSelecting
@@ -123,6 +123,6 @@ struct PodcastGridItem: View {
       podcast = try await PreviewHelpers.loadPodcast()
       invalidPodcast = try await PreviewHelpers.loadPodcast()
       invalidPodcast?.image = URL(string: "http://nope.com/0.jpg")!
-    } catch { fatalError("Couldn't preview podcast thumbnail: \(error)") }
+    } catch { fatalError("Couldn't preview podcast thumbnail: \\(error)") }
   }
 }

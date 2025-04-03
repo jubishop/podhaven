@@ -28,7 +28,7 @@ struct PodcastGrid<Content: View>: View {
   let gridSize = 12
 
   PodcastGrid(podcasts: podcasts) { podcast in
-    PodcastGridItem(viewModel: PodcastGridItemViewModel(
+    SelectablePodcastGridItem(viewModel: SelectablePodcastGridItemViewModel(
       isSelected: .constant(false),
       item: podcast,
       isSelecting: false
