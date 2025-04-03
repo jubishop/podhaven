@@ -59,14 +59,23 @@ struct PodcastGridItem: View {
             Spacer()
             HStack {
               Spacer()
-              Image(
-                systemName: viewModel.isSelected.wrappedValue ? "checkmark.circle.fill" : "circle"
-              )
-              .foregroundColor(viewModel.isSelected.wrappedValue ? .blue : .white)
-              .background(
-                Circle()
-                  .fill(Color.black.opacity(0.5))
-                  .padding(-2)
+              Button(
+                action: {
+                  viewModel.isSelected.wrappedValue.toggle()
+                },
+                label: {
+                  Image(
+                    systemName: viewModel.isSelected.wrappedValue
+                      ? "checkmark.circle.fill" : "circle"
+                  )
+                  .font(.system(size: 24))
+                  .foregroundColor(viewModel.isSelected.wrappedValue ? .blue : .white)
+                  .background(
+                    Circle()
+                      .fill(Color.black.opacity(0.5))
+                      .padding(-3)
+                  )
+                }
               )
               .padding(8)
             }
