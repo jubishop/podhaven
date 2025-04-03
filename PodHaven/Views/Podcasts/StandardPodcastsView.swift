@@ -23,7 +23,15 @@ struct StandardPodcastsView: View {
       PodcastGrid(podcasts: viewModel.podcastList.filteredEntries) { podcast in
         NavigationLink(
           value: podcast,
-          label: { PodcastGridItem(podcast: podcast) }
+          label: {
+            PodcastGridItem(
+              viewModel: PodcastGridItemViewModel(
+                isSelected: $viewModel.podcastList.isSelected[podcast],
+                item: podcast,
+                isSelecting: viewModel.isSelecting
+              )
+            )
+          }
         )
       }
       .padding()

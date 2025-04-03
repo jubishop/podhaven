@@ -3,20 +3,22 @@
 import NukeUI
 import SwiftUI
 
+typealias PodcastGridItemViewModel = SelectableListItemModel<Podcast>
+
 struct PodcastGridItem: View {
   @State private var width: CGFloat = 0
 
-  private let podcast: Podcast
+  private let viewModel: PodcastGridItemViewModel
   private let cornerRadius: CGFloat = 8
 
-  init(podcast: Podcast) {
-    self.podcast = podcast
+  init(viewModel: PodcastGridItemViewModel) {
+    self.viewModel = viewModel
   }
 
   var body: some View {
     VStack {
       Group {
-        LazyImage(url: podcast.image) { state in
+        LazyImage(url: viewModel.item.image) { state in
           if let image = state.image {
             image
               .resizable()
@@ -46,7 +48,7 @@ struct PodcastGridItem: View {
       }
       .frame(height: width)
 
-      Text(podcast.title)
+      Text(viewModel.item.title)
         .font(.caption)
         .lineLimit(1)
     }
@@ -59,10 +61,18 @@ struct PodcastGridItem: View {
 
   VStack {
     if let podcast = podcast {
-      PodcastGridItem(podcast: podcast).padding()
+      PodcastGridItem(viewModel: PodcastGridItemViewModel(
+        isSelected: .constant(false),
+        item: podcast,
+        isSelecting: false
+      )).padding()
     }
     if let invalidPodcast = invalidPodcast {
-      PodcastGridItem(podcast: invalidPodcast).padding()
+      PodcastGridItem(viewModel: PodcastGridItemViewModel(
+        isSelected: .constant(false),
+        item: invalidPodcast,
+        isSelecting: false
+      )).padding()
     }
   }
   .padding()

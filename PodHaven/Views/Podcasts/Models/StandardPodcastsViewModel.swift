@@ -4,6 +4,7 @@ import Factory
 import Foundation
 import GRDB
 import IdentifiedCollections
+import SwiftUI
 
 @Observable @MainActor final class StandardPodcastsViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
@@ -11,9 +12,19 @@ import IdentifiedCollections
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
+  // MARK: - State Management
+
+  private var _isSelecting = false
+  var isSelecting: Bool {
+    get { _isSelecting }
+    set { withAnimation { _isSelecting = newValue } }
+  }
+
   let title: String
   let podcastFilter: SQLExpression
   var podcastList = SelectableListUseCase<Podcast, FeedURL>(idKeyPath: \.feedURL)
+
+  // MARK: - Initialization
 
   init(title: String, podcastFilter: SQLExpression = AppDB.NoOpFilter) {
     self.title = title
