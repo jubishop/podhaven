@@ -51,7 +51,7 @@ struct SelectablePodcastGridItem: View {
 
         if viewModel.isSelecting {
           Rectangle()
-            .fill(Color.black.opacity(viewModel.isSelected.wrappedValue ? 0.0 : 0.3))
+            .fill(Color.black.opacity(viewModel.isSelected.wrappedValue ? 0.0 : 0.5))
             .cornerRadius(cornerRadius)
             .frame(height: width)
 

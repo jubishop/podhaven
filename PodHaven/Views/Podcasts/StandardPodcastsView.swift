@@ -47,6 +47,28 @@ struct StandardPodcastsView: View {
         alert.andReport("Failed to refresh all podcasts: \(error)")
       }
     }
+    .toolbar {
+      if viewModel.isSelecting {
+        ToolbarItem(placement: .topBarTrailing) {
+          SelectableListMenu(list: viewModel.podcastList)
+        }
+      }
+
+      if viewModel.isSelecting {
+        ToolbarItem(placement: .topBarLeading) {
+          Button("Done") {
+            viewModel.isSelecting = false
+          }
+        }
+      } else {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button("Select Podcasts") {
+            viewModel.isSelecting = true
+          }
+        }
+      }
+    }
+    .toolbarRole(.editor)
     .task { await viewModel.execute() }
   }
 }
