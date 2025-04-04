@@ -41,7 +41,10 @@ import SwiftUI
 
   func viewDetails() {
     Task {
-      navigation.showEpisode(podcastEpisode.podcast.subscribed ? .subscribed : .all, podcastEpisode)
+      navigation.showEpisode(
+        podcastEpisode.podcast.subscribed ? .subscribed : .unsubscribed,
+        podcastEpisode
+      )
     }
   }
 

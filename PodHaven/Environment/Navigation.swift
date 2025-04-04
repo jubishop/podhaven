@@ -21,6 +21,7 @@ extension Container {
   enum PodcastsView {
     case all
     case subscribed
+    case unsubscribed
   }
 
   var settingsPath = NavigationPath()

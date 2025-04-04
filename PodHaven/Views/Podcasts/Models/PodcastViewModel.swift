@@ -9,6 +9,7 @@ import SwiftUI
 @Observable @MainActor
 final class PodcastViewModel: QueueableSelectableList, EpisodeQueueable {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
+  @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
@@ -76,7 +77,10 @@ final class PodcastViewModel: QueueableSelectableList, EpisodeQueueable {
   }
 
   func subscribe() {
-    Task { try await repo.markSubscribed(podcast.id) }
+    Task {
+      try await repo.markSubscribed(podcast.id)
+      navigation.showPodcast(.subscribed, podcastSeries)
+    }
   }
 
   func queueEpisodeOnTop(_ episode: Episode) {
