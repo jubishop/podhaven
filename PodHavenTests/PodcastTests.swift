@@ -66,14 +66,14 @@ actor PodcastTests {
   func failToInsertInvalidFeedURL() async throws {
     // Bad scheme
     await #expect(throws: URLError.self) {
-      try await repo.insertSeries(
+      try await self.repo.insertSeries(
         TestHelpers.unsavedPodcast(feedURL: FeedURL(URL(string: "file://example.com/data")!))
       )
     }
 
     // Not absolute
     await #expect(throws: URLError.self) {
-      try await repo.insertSeries(
+      try await self.repo.insertSeries(
         TestHelpers.unsavedPodcast(feedURL: FeedURL(URL(string: "https:/path/to/data")!))
       )
     }
@@ -104,7 +104,7 @@ actor PodcastTests {
     _ = try await repo.insertSeries(unsavedPodcast)
     let unsavedPodcast2 = try TestHelpers.unsavedPodcast(feedURL: FeedURL(url), title: "New Title")
     await #expect(throws: (any Error).self) {
-      _ = try await repo.insertSeries(unsavedPodcast2)
+      _ = try await self.repo.insertSeries(unsavedPodcast2)
     }
   }
 

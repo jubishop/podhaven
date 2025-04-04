@@ -29,6 +29,6 @@ actor FeedManagerTests {
     let unsavedPodcast = try feed.toUnsavedPodcast()
     #expect(unsavedPodcast.title == "Pod Save America")
     #expect(unsavedPodcast.link == URL(string: "https://crooked.com"))
-    #expect(unsavedPodcast.image.absoluteString.contains("simplecastcdn") != nil)
+    #expect(unsavedPodcast.image.absoluteString.contains("simplecastcdn"))
   }
 }

@@ -162,17 +162,22 @@ struct Repo: Sendable {
   // MARK: - Podcast Writers
 
   @discardableResult
-  func delete(_ podcastID: Podcast.ID) async throws -> Bool {
+  func delete(_ podcastIDs: [Podcast.ID]) async throws -> Int {
     try await appDB.db.write { db in
       let queuedEpisodeIDs =
         try Episode
         .select(Schema.idColumn, as: Episode.ID.self)
-        .filter(Schema.podcastIDColumn == podcastID && Schema.queueOrderColumn != nil)
+        .filter(podcastIDs.contains(Schema.podcastIDColumn) && Schema.queueOrderColumn != nil)
         .fetchAll(db)
       try queue.dequeue(db, queuedEpisodeIDs, RepoAccessKey())
 
-      return try Podcast.deleteOne(db, id: podcastID)
+      return try Podcast.filter(ids: podcastIDs).deleteAll(db)
     }
+  }
+
+  @discardableResult
+  func delete(_ podcastID: Podcast.ID) async throws -> Bool {
+    try await delete([podcastID]) > 0
   }
 
   // MARK: - Episode Writers

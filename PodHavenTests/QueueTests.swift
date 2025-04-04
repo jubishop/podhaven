@@ -193,15 +193,20 @@ actor QueueTests {
 
   @Test("deleting a podcast series dequeues any episodes")
   func testDeleteSeries() async throws {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
     let otherSeries = try await repo.insertSeries(
-      unsavedPodcast,
+      try TestHelpers.unsavedPodcast(),
       unsavedEpisodes: [
         TestHelpers.unsavedEpisode(guid: "other", queueOrder: 5)
       ]
     )
+    let otherSeriesToDelete = try await repo.insertSeries(
+      try TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [
+        TestHelpers.unsavedEpisode(guid: "other2", queueOrder: 6)
+      ]
+    )
 
-    try await repo.delete(podcastSeries.podcast.id)
+    try await repo.delete([podcastSeries.podcast.id, otherSeriesToDelete.podcast.id])
     #expect((try await fetchOrder()) == [0])
 
     let episode = try await fetchEpisode("other", from: otherSeries)
