@@ -8,12 +8,12 @@ import SwiftUI
 struct PodcastGrid<Content: View>: View {
   private let podcasts: PodcastArray
   private let content: (Podcast) -> Content
-
+  
   init(podcasts: PodcastArray, @ViewBuilder content: @escaping (Podcast) -> Content) {
     self.podcasts = podcasts
     self.content = content
   }
-
+  
   var body: some View {
     LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
       ForEach(podcasts) { podcast in
@@ -24,20 +24,28 @@ struct PodcastGrid<Content: View>: View {
 }
 
 #Preview {
+  @Previewable @State var isSelecting: Bool = false
+  @Previewable @State var isSelected = BindableDictionary<Podcast, Bool>(defaultValue: false)
   @Previewable @State var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
   let gridSize = 12
-
-  PodcastGrid(podcasts: podcasts) { podcast in
-    SelectablePodcastGridItem(viewModel: SelectablePodcastGridItemViewModel(
-      isSelected: .constant(false),
-      item: podcast,
-      isSelecting: false
-    ))
+  
+  VStack {
+    Button(isSelecting ? "Stop Selecting" : "Start Selecting") {
+      isSelecting.toggle()
+    }
+    PodcastGrid(podcasts: podcasts) { podcast in
+      SelectablePodcastGridItem(
+        viewModel: SelectablePodcastGridItemViewModel(
+          isSelected: $isSelected[podcast],
+          item: podcast,
+          isSelecting: isSelecting
+        )
+      )
+    }
   }
   .preview()
   .task {
     do {
-
       let repo = Container.shared.repo()
       try await PreviewHelpers.importPodcasts(gridSize)
       var allPodcasts = try await repo.allPodcasts().shuffled()
