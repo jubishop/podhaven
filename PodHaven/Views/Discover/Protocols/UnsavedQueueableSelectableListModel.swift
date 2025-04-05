@@ -16,7 +16,7 @@ where EpisodeType == UnsavedEpisode, EpisodeID == GUID {
 }
 
 @MainActor extension UnsavedQueueableSelectableListModel {
-  var unsavedEpisodes: [UnsavedEpisode] { Array(episodeList.allEntries) }
+  var unsavedEpisodes: [UnsavedEpisode] { episodeList.allEntries.elements }
 
   var selectedUnsavedPodcastEpisodes: [UnsavedPodcastEpisode] {
     episodeList.selectedEntries.map { unsavedEpisode in

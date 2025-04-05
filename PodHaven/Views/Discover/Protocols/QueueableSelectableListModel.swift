@@ -15,7 +15,7 @@ import IdentifiedCollections
 }
 
 @MainActor extension QueueableSelectableListModel {
-  var selectedEpisodes: [EpisodeType] { Array(episodeList.selectedEntries) }
+  var selectedEpisodes: [EpisodeType] { episodeList.selectedEntries.elements }
 
   func addSelectedEpisodesToBottomOfQueue() {
     Task {

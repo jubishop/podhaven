@@ -41,7 +41,15 @@ import SwiftUI
     }
   }
 
+  // MARK: - Public Functions
+
   func refreshPodcasts() async throws {
     try await refreshManager.performRefresh(stalenessThreshold: 1.minutesAgo, filter: podcastFilter)
+  }
+
+  func deleteSelectedPodcasts() {
+    Task {
+      try await repo.delete(podcastList.selectedEntries.elements.map(\.id))
+    }
   }
 }

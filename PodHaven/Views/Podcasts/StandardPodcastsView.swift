@@ -54,6 +54,21 @@ struct StandardPodcastsView: View {
         }
       }
 
+      if viewModel.isSelecting, viewModel.podcastList.anySelected {
+        ToolbarItem(placement: .topBarTrailing) {
+          Menu(
+            content: {
+              Button("Delete") {
+                viewModel.deleteSelectedPodcasts()
+              }
+            },
+            label: {
+              Image(systemName: "ellipsis.circle")
+            }
+          )
+        }
+      }
+
       if viewModel.isSelecting {
         ToolbarItem(placement: .topBarLeading) {
           Button("Done") {
