@@ -237,13 +237,35 @@ struct Repo: Sendable {
     }
   }
 
-  func markSubscribed(_ podcastID: Podcast.ID) async throws {
-    _ = try await appDB.db.write { db in
-      try Podcast
-        .filter(id: podcastID)
-        .updateAll(db, Schema.subscribedColumn.set(to: true))
-    }
+  @discardableResult
+  func markSubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int {
+    try await _setSubscribedColumn(podcastIDs, to: true)
+  }
+
+  @discardableResult
+  func markSubscribed(_ podcastID: Podcast.ID) async throws -> Bool {
+    try await markSubscribed([podcastID]) > 0
+  }
+
+  @discardableResult
+  func markUnsubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int {
+    try await _setSubscribedColumn(podcastIDs, to: false)
+  }
+
+  @discardableResult
+  func markUnsubscribed(_ podcastID: Podcast.ID) async throws -> Bool {
+    try await markUnsubscribed([podcastID]) > 0
   }
 
   // MARK: Private Helpers
+
+  private func _setSubscribedColumn(_ podcastIDs: [Podcast.ID], to subscribed: Bool) async throws
+    -> Int
+  {
+    try await appDB.db.write { db in
+      try Podcast
+        .filter(podcastIDs.contains(Schema.idColumn))
+        .updateAll(db, Schema.subscribedColumn.set(to: subscribed))
+    }
+  }
 }

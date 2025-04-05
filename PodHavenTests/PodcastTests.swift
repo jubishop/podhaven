@@ -142,14 +142,41 @@ actor PodcastTests {
     #expect(allPodcastSeries.count == 3)
   }
 
-  @Test("markSubscribed() successfully marks a podcast as subscribed")
+  @Test("markSubscribed() successfully marks multiple podcasts as subscribed")
   func testMarkSubscribed() async throws {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast(subscribed: false)
-    let podcastSeries = try await repo.insertSeries(unsavedPodcast)
-    #expect(podcastSeries.podcast.subscribed == false)
+    let podcastSeries1 = try await repo.insertSeries(
+      try TestHelpers.unsavedPodcast(subscribed: false)
+    )
+    #expect(podcastSeries1.podcast.subscribed == false)
+    let podcastSeries2 = try await repo.insertSeries(
+      try TestHelpers.unsavedPodcast(subscribed: false)
+    )
+    #expect(podcastSeries2.podcast.subscribed == false)
 
-    try await repo.markSubscribed(podcastSeries.id)
-    let fetchedPodcast = try await repo.podcastSeries(podcastSeries.id)!
-    #expect(fetchedPodcast.podcast.subscribed == true)
+    try await repo.markSubscribed([podcastSeries1.id, podcastSeries2.id])
+
+    let fetchedPodcast1 = try await repo.podcastSeries(podcastSeries1.id)!
+    #expect(fetchedPodcast1.podcast.subscribed == true)
+    let fetchedPodcast2 = try await repo.podcastSeries(podcastSeries2.id)!
+    #expect(fetchedPodcast2.podcast.subscribed == true)
+  }
+
+  @Test("markUnsubscribed() successfully marks multiple podcasts as subscribed")
+  func testMarkUnsubscribed() async throws {
+    let podcastSeries1 = try await repo.insertSeries(
+      try TestHelpers.unsavedPodcast(subscribed: true)
+    )
+    #expect(podcastSeries1.podcast.subscribed == true)
+    let podcastSeries2 = try await repo.insertSeries(
+      try TestHelpers.unsavedPodcast(subscribed: true)
+    )
+    #expect(podcastSeries2.podcast.subscribed == true)
+
+    try await repo.markUnsubscribed([podcastSeries1.id, podcastSeries2.id])
+
+    let fetchedPodcast1 = try await repo.podcastSeries(podcastSeries1.id)!
+    #expect(fetchedPodcast1.podcast.subscribed == false)
+    let fetchedPodcast2 = try await repo.podcastSeries(podcastSeries2.id)!
+    #expect(fetchedPodcast2.podcast.subscribed == false)
   }
 }
