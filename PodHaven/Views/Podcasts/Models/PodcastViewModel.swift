@@ -29,8 +29,7 @@ final class PodcastViewModel: QueueableSelectableList, EpisodeQueueable {
   }
   var unplayedOnly: Bool = false
 
-  var episodeList = SelectableListUseCase<Episode, GUID>(idKeyPath: \.guid)
-  var selectedEpisodeIDs: [Episode.ID] { episodeList.selectedEntries.map { $0.id } }
+  var episodeList = SelectableListUseCase<Episode, Episode.ID>(idKeyPath: \.id)
   var podcast: Podcast { podcastSeries.podcast }
 
   private var _podcastSeries: PodcastSeries
@@ -38,7 +37,7 @@ final class PodcastViewModel: QueueableSelectableList, EpisodeQueueable {
     get { _podcastSeries }
     set {
       _podcastSeries = newValue
-      episodeList.allEntries = newValue.episodes
+      episodeList.allEntries = IdentifiedArray(uniqueElements: newValue.episodes)
     }
   }
 
@@ -99,15 +98,15 @@ final class PodcastViewModel: QueueableSelectableList, EpisodeQueueable {
   }
 
   func addSelectedEpisodesToTopOfQueue() {
-    Task { try await queue.unshift(selectedEpisodeIDs) }
+    Task { try await queue.unshift(episodeList.selectedEntryIDs) }
   }
 
   func addSelectedEpisodesToBottomOfQueue() {
-    Task { try await queue.append(selectedEpisodeIDs) }
+    Task { try await queue.append(episodeList.selectedEntryIDs) }
   }
 
   func replaceQueue() {
-    Task { try await queue.replace(selectedEpisodeIDs) }
+    Task { try await queue.replace(episodeList.selectedEntryIDs) }
   }
 
   func replaceQueueAndPlay() {

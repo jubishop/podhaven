@@ -17,7 +17,7 @@ enum PreviewHelpers {
 
   static func importPodcasts(_ number: Int = 20, from fileName: String = "large") async throws {
     let repo = Container.shared.repo()
-    let allPodcasts = try await repo.allPodcasts()
+    let allPodcasts = IdentifiedArray(uniqueElements: try await repo.allPodcasts(), id: \.feedURL)
     if allPodcasts.count >= number { return }
 
     let url = Bundle.main.url(

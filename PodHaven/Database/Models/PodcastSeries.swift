@@ -4,8 +4,6 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 
-typealias PodcastSeriesArray = IdentifiedArray<FeedURL, PodcastSeries>
-
 struct PodcastSeries: Decodable, FetchableRecord, Equatable, Identifiable, Hashable {
   var id: Podcast.ID { podcast.id }
 

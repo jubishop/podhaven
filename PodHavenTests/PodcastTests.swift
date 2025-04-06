@@ -123,7 +123,7 @@ actor PodcastTests {
     try await repo.insertSeries(stalePodcast)
     try await repo.insertSeries(unsubscribedPodcast)
 
-    let allPodcasts: PodcastArray = try await repo.allPodcasts()
+    let allPodcasts = try await repo.allPodcasts()
     #expect(allPodcasts.count == 3)
   }
 
@@ -138,7 +138,7 @@ actor PodcastTests {
     try await repo.insertSeries(stalePodcast)
     try await repo.insertSeries(unsubscribedPodcast)
 
-    let allPodcastSeries: PodcastSeriesArray = try await repo.allPodcastSeries()
+    let allPodcastSeries = try await repo.allPodcastSeries()
     #expect(allPodcastSeries.count == 3)
   }
 
@@ -152,16 +152,22 @@ actor PodcastTests {
       try TestHelpers.unsavedPodcast(subscribed: false)
     )
     #expect(podcastSeries2.podcast.subscribed == false)
+    let podcastSeries3 = try await repo.insertSeries(
+      try TestHelpers.unsavedPodcast(subscribed: true)
+    )
+    #expect(podcastSeries3.podcast.subscribed == true)
 
-    try await repo.markSubscribed([podcastSeries1.id, podcastSeries2.id])
+    try await repo.markSubscribed([podcastSeries1.id, podcastSeries2.id, podcastSeries3.id])
 
     let fetchedPodcast1 = try await repo.podcastSeries(podcastSeries1.id)!
     #expect(fetchedPodcast1.podcast.subscribed == true)
     let fetchedPodcast2 = try await repo.podcastSeries(podcastSeries2.id)!
     #expect(fetchedPodcast2.podcast.subscribed == true)
+    let fetchedPodcast3 = try await repo.podcastSeries(podcastSeries3.id)!
+    #expect(fetchedPodcast3.podcast.subscribed == true)
   }
 
-  @Test("markUnsubscribed() successfully marks multiple podcasts as subscribed")
+  @Test("markUnsubscribed() successfully marks multiple podcasts as unsubscribed")
   func testMarkUnsubscribed() async throws {
     let podcastSeries1 = try await repo.insertSeries(
       try TestHelpers.unsavedPodcast(subscribed: true)
@@ -171,12 +177,18 @@ actor PodcastTests {
       try TestHelpers.unsavedPodcast(subscribed: true)
     )
     #expect(podcastSeries2.podcast.subscribed == true)
+    let podcastSeries3 = try await repo.insertSeries(
+      try TestHelpers.unsavedPodcast(subscribed: false)
+    )
+    #expect(podcastSeries3.podcast.subscribed == false)
 
-    try await repo.markUnsubscribed([podcastSeries1.id, podcastSeries2.id])
+    try await repo.markUnsubscribed([podcastSeries1.id, podcastSeries2.id, podcastSeries3.id])
 
     let fetchedPodcast1 = try await repo.podcastSeries(podcastSeries1.id)!
     #expect(fetchedPodcast1.podcast.subscribed == false)
     let fetchedPodcast2 = try await repo.podcastSeries(podcastSeries2.id)!
     #expect(fetchedPodcast2.podcast.subscribed == false)
+    let fetchedPodcast3 = try await repo.podcastSeries(podcastSeries3.id)!
+    #expect(fetchedPodcast3.podcast.subscribed == false)
   }
 }

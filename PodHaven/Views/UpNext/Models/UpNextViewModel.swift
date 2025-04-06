@@ -18,16 +18,15 @@ import SwiftUI
   var editMode: EditMode = .inactive
   var isEditing: Bool { editMode == .active }
 
-  var episodeList = SelectableListUseCase<PodcastEpisode, MediaURL>(idKeyPath: \.episode.media)
-  var selectedEpisodeIDs: [Episode.ID] { episodeList.selectedEntries.map { $0.id } }
-  var podcastEpisodes: PodcastEpisodeArray { episodeList.allEntries }
+  var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
+  var podcastEpisodes: IdentifiedArray<Episode.ID, PodcastEpisode> { episodeList.allEntries }
 
   // MARK: - Initialization
 
   func execute() async {
     do {
       for try await podcastEpisodes in observatory.queuedEpisodes() {
-        self.episodeList.allEntries = podcastEpisodes
+        self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }
     } catch {
       alert.andReport(error)
@@ -59,6 +58,6 @@ import SwiftUI
   }
 
   func deleteSelected() {
-    Task { try await queue.dequeue(selectedEpisodeIDs) }
+    Task { try await queue.dequeue(episodeList.selectedEntryIDs) }
   }
 }

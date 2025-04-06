@@ -20,7 +20,7 @@ struct StandardPodcastsView: View {
     )
 
     ScrollView {
-      PodcastGrid(podcasts: viewModel.podcastList.filteredEntries) { podcast in
+      PodcastGrid(podcasts: viewModel.podcastList.filteredEntries.elements) { podcast in
         NavigationLink(
           value: podcast,
           label: {
@@ -60,6 +60,16 @@ struct StandardPodcastsView: View {
             content: {
               Button("Delete") {
                 viewModel.deleteSelectedPodcasts()
+              }
+              if viewModel.anySelectedUnsubscribed {
+                Button("Subscribe") {
+                  viewModel.subscribeSelectedPodcasts()
+                }
+              }
+              if viewModel.anySelectedSubscribed {
+                Button("Unsubscribe") {
+                  viewModel.unsubscribeSelectedPodcasts()
+                }
               }
             },
             label: {

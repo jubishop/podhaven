@@ -14,6 +14,8 @@ final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
   var selectedEntries: IdentifiedArray<ID, T> {
     IdentifiedArray(uniqueElements: filteredEntries.filter({ isSelected[$0] }), id: idKeyPath)
   }
+  var selectedEntryIDs: [ID] { selectedEntries.ids.elements }
+
   var customFilter: (T) -> Bool = { _ in true }
 
   private var _allEntries: IdentifiedArray<ID, T>

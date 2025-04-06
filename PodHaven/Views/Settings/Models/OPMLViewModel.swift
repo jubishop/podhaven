@@ -3,6 +3,7 @@
 import Factory
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Semaphore
 import UniformTypeIdentifiers
 
@@ -120,8 +121,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     defer { downloadSemaphor.signal() }
 
     let opmlFile = OPMLFile(title: opml.head.title ?? "Podcast Subscriptions")
-
-    let allPodcasts = try await repo.allPodcasts()
+    let allPodcasts = IdentifiedArray(uniqueElements: try await repo.allPodcasts(), id: \.feedURL)
 
     for outline in opml.body.outlines {
       guard let feedURL = try? FeedURL(outline.xmlUrl.rawValue.convertToValidURL())

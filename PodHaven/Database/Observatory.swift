@@ -11,21 +11,23 @@ extension Container {
 }
 
 struct Observatory {
-  func allPodcasts(_ sqlExpression: SQLExpression? = nil) -> AsyncValueObservation<PodcastArray> {
-    let request = Podcast.all().filtered(with: sqlExpression)
-    return _observe { db in
-      try request.fetchIdentifiedArray(db, id: \Podcast.feedURL)
+  func allPodcasts(_ sqlExpression: SQLExpression? = nil) -> AsyncValueObservation<[Podcast]> {
+    _observe { db in
+      try Podcast
+        .all()
+        .filtered(with: sqlExpression)
+        .fetchAll(db)
     }
   }
 
-  func queuedEpisodes() -> AsyncValueObservation<PodcastEpisodeArray> {
+  func queuedEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
     _observe { db in
       try Episode
         .filter(Schema.queueOrderColumn != nil)
         .including(required: Episode.podcast)
         .order(Schema.queueOrderColumn.asc)
         .asRequest(of: PodcastEpisode.self)
-        .fetchIdentifiedArray(db, id: \.episode.media)
+        .fetchAll(db)
     }
   }
 

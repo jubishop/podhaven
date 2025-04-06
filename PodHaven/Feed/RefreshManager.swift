@@ -43,7 +43,7 @@ actor RefreshManager: Sendable {
     async throws
   {
     try await withThrowingDiscardingTaskGroup { group in
-      let allStaleSubscribedPodcastSeries: PodcastSeriesArray = try await repo.allPodcastSeries(
+      let allStaleSubscribedPodcastSeries = try await repo.allPodcastSeries(
         Schema.lastUpdateColumn < stalenessThreshold && filter
       )
       for podcastSeries in allStaleSubscribedPodcastSeries {

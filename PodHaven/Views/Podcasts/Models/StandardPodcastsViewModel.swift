@@ -22,7 +22,13 @@ import SwiftUI
 
   let title: String
   let podcastFilter: SQLExpression
-  var podcastList = SelectableListUseCase<Podcast, FeedURL>(idKeyPath: \.feedURL)
+  var podcastList = SelectableListUseCase<Podcast, Podcast.ID>(idKeyPath: \.id)
+  var anySelectedSubscribed: Bool {
+    podcastList.selectedEntries.contains { $0.subscribed == true }
+  }
+  var anySelectedUnsubscribed: Bool {
+    podcastList.selectedEntries.contains { $0.subscribed == false }
+  }
 
   // MARK: - Initialization
 
@@ -34,7 +40,7 @@ import SwiftUI
   func execute() async {
     do {
       for try await podcasts in observatory.allPodcasts(podcastFilter) {
-        self.podcastList.allEntries = podcasts
+        self.podcastList.allEntries = IdentifiedArray(uniqueElements: podcasts)
       }
     } catch {
       alert.andReport(error)
@@ -49,7 +55,19 @@ import SwiftUI
 
   func deleteSelectedPodcasts() {
     Task {
-      try await repo.delete(podcastList.selectedEntries.elements.map(\.id))
+      try await repo.delete(podcastList.selectedEntryIDs)
+    }
+  }
+
+  func subscribeSelectedPodcasts() {
+    Task {
+      try await repo.markSubscribed(podcastList.selectedEntryIDs)
+    }
+  }
+
+  func unsubscribeSelectedPodcasts() {
+    Task {
+      try await repo.markUnsubscribed(podcastList.selectedEntryIDs)
     }
   }
 }

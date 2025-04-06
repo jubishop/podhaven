@@ -8,7 +8,6 @@ import Tagged
 
 typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
-typealias EpisodeArray = IdentifiedArray<MediaURL, Episode>
 
 struct UnsavedEpisode: Savable, Stringable {
   var podcastId: Podcast.ID?

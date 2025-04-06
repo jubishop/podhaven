@@ -6,14 +6,14 @@ import IdentifiedCollections
 import SwiftUI
 
 struct PodcastGrid<Content: View>: View {
-  private let podcasts: PodcastArray
+  private let podcasts: [Podcast]
   private let content: (Podcast) -> Content
-  
-  init(podcasts: PodcastArray, @ViewBuilder content: @escaping (Podcast) -> Content) {
+
+  init(podcasts: [Podcast], @ViewBuilder content: @escaping (Podcast) -> Content) {
     self.podcasts = podcasts
     self.content = content
   }
-  
+
   var body: some View {
     LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
       ForEach(podcasts) { podcast in
@@ -26,9 +26,9 @@ struct PodcastGrid<Content: View>: View {
 #Preview {
   @Previewable @State var isSelecting: Bool = false
   @Previewable @State var isSelected = BindableDictionary<Podcast, Bool>(defaultValue: false)
-  @Previewable @State var podcasts: PodcastArray = IdentifiedArray(id: \Podcast.feedURL)
+  @Previewable @State var podcasts: [Podcast] = []
   let gridSize = 12
-  
+
   VStack {
     Button(isSelecting ? "Stop Selecting" : "Start Selecting") {
       isSelecting.toggle()
@@ -50,7 +50,7 @@ struct PodcastGrid<Content: View>: View {
       try await PreviewHelpers.importPodcasts(gridSize)
       var allPodcasts = try await repo.allPodcasts().shuffled()
       allPodcasts[Int.random(in: 0...(gridSize - 1))].image = URL(string: "http://nope.com/0.jpg")!
-      podcasts = IdentifiedArray(uniqueElements: allPodcasts.prefix(gridSize), id: \Podcast.feedURL)
+      podcasts = Array(allPodcasts.prefix(gridSize))
     } catch { fatalError("Couldn't preview podcast grid: \(error)") }
   }
 }
