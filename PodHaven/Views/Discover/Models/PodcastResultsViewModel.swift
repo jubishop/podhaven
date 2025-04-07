@@ -8,7 +8,6 @@ import SwiftUI
 
 @Observable @MainActor
 class PodcastResultsViewModel:
-  UnsavedEpisodeUpsertable,
   UnsavedPodcastObservableModel,
   UnsavedPodcastQueueableModel,
   UnsavedQueueableSelectableListModel
@@ -55,5 +54,17 @@ class PodcastResultsViewModel:
     } catch {
       alert.andReport(error)
     }
+  }
+
+  // MARK: - EpisodeUpsertable
+
+  func upsert(_ episode: UnsavedEpisode) async throws -> PodcastEpisode {
+    let repo = Container.shared.repo()
+    return try await repo.upsertPodcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: episode
+      )
+    )
   }
 }

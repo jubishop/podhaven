@@ -10,8 +10,8 @@ struct PodcastSeries: Decodable, FetchableRecord, Equatable, Identifiable, Hasha
   let podcast: Podcast
   let episodes: IdentifiedArray<GUID, Episode>
 
-  init(podcast: Podcast) {
-    self.init(podcast: podcast, episodes: IdentifiedArray(id: \.guid))
+  init(podcast: Podcast, episodes: [Episode] = []) {
+    self.init(podcast: podcast, episodes: IdentifiedArray(uniqueElements: episodes, id: \.guid))
   }
 
   init(podcast: Podcast, episodes: IdentifiedArray<GUID, Episode>) {
