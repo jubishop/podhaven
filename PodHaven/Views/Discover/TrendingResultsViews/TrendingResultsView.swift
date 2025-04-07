@@ -28,7 +28,7 @@ struct TrendingResultsView: View {
         .navigationDestination(
           for: SearchedPodcastByTrending.self,
           destination: { trendingPodcast in
-            SearchedPodcastByTrendingView(
+            PodcastResultsView(
               viewModel: PodcastResultsViewModel(
                 searchedPodcast: trendingPodcast
               )

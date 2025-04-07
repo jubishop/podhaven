@@ -28,7 +28,7 @@ struct AllFieldsResultsView: View {
         .navigationDestination(
           for: SearchedPodcastByTerm.self,
           destination: { termPodcast in
-            AllFieldsPodcastView(
+            PodcastResultsView(
               viewModel: PodcastResultsViewModel(
                 searchedPodcast: termPodcast
               )

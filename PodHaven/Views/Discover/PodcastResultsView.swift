@@ -3,7 +3,7 @@
 import Factory
 import SwiftUI
 
-struct SearchedPodcastByTrendingView: View {
+struct PodcastResultsView: View {
   @State private var viewModel: PodcastResultsViewModel
 
   init(viewModel: PodcastResultsViewModel) {
@@ -115,7 +115,7 @@ struct SearchedPodcastByTrendingView: View {
 
   NavigationStack {
     if let viewModel = viewModel {
-      SearchedPodcastByTrendingView(viewModel: viewModel)
+      PodcastResultsView(viewModel: viewModel)
     }
   }
   .preview()
