@@ -2,16 +2,11 @@
 
 import SwiftUI
 
-struct ResultsContentView<SearchedPodcastType: SearchedPodcast>: View {
+struct ResultsContentView: View {
   private let viewModel: ResultsViewModel
-  private let createSearchedPodcast: (String, UnsavedPodcast) -> SearchedPodcastType
 
-  init(
-    viewModel: ResultsViewModel,
-    createSearchedPodcast: @escaping (String, UnsavedPodcast) -> SearchedPodcastType
-  ) {
+  init(viewModel: ResultsViewModel) {
     self.viewModel = viewModel
-    self.createSearchedPodcast = createSearchedPodcast
   }
 
   var body: some View {
@@ -20,9 +15,9 @@ struct ResultsContentView<SearchedPodcastType: SearchedPodcast>: View {
         List {
           ForEach(viewModel.unsavedPodcasts, id: \.feedURL) { unsavedPodcast in
             NavigationLink(
-              value: createSearchedPodcast(
-                viewModel.searchText,
-                unsavedPodcast
+              value: SearchedPodcast(
+                searchedText: viewModel.searchText,
+                unsavedPodcast: unsavedPodcast
               ),
               label: {
                 PodcastListResultsView(unsavedPodcast: unsavedPodcast)
@@ -31,13 +26,9 @@ struct ResultsContentView<SearchedPodcastType: SearchedPodcast>: View {
           }
         }
         .navigationDestination(
-          for: SearchedPodcastType.self,
+          for: SearchedPodcast.self,
           destination: { searchedPodcast in
-            PodcastResultsView(
-              viewModel: PodcastResultsViewModel(
-                searchedPodcast: searchedPodcast
-              )
-            )
+            PodcastResultsView(viewModel: PodcastResultsViewModel(searchedPodcast: searchedPodcast))
           }
         )
       } else {
@@ -53,15 +44,8 @@ struct ResultsContentView<SearchedPodcastType: SearchedPodcast>: View {
 
   NavigationStack {
     if let viewModel = viewModel {
-      ResultsContentView<SearchedPodcastByTerm>(
-        viewModel: viewModel
-      ) { searchText, unsavedPodcast in
-        SearchedPodcastByTerm(
-          searchedText: searchText,
-          unsavedPodcast: unsavedPodcast
-        )
-      }
-      .navigationTitle("🔍 Preview")
+      ResultsContentView(viewModel: viewModel)
+        .navigationTitle("🔍 Preview")
     }
   }
   .preview()

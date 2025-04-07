@@ -10,15 +10,8 @@ struct AllFieldsResultsView: View {
   }
 
   var body: some View {
-    ResultsContentView<SearchedPodcastByTerm>(
-      viewModel: viewModel
-    ) { searchText, unsavedPodcast in
-      SearchedPodcastByTerm(
-        searchedText: searchText,
-        unsavedPodcast: unsavedPodcast
-      )
-    }
-    .navigationTitle("🔍📖 \(viewModel.searchText)")
+    ResultsContentView(viewModel: viewModel)
+      .navigationTitle("🔍📖 \(viewModel.searchText)")
   }
 }
 

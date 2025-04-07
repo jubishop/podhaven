@@ -2,7 +2,7 @@
 
 import Foundation
 
-struct SearchedPodcastByTitle: SearchedPodcast, Sendable, Hashable {
+struct SearchedPodcast: Hashable {
   let searchedText: String
   let unsavedPodcast: UnsavedPodcast
 }

@@ -10,15 +10,8 @@ struct TrendingResultsView: View {
   }
 
   var body: some View {
-    ResultsContentView<SearchedPodcastByTrending>(
-      viewModel: viewModel
-    ) { searchText, unsavedPodcast in
-      SearchedPodcastByTrending(
-        category: searchText,
-        unsavedPodcast: unsavedPodcast
-      )
-    }
-    .navigationTitle("📈 \(viewModel.searchText)")
+    ResultsContentView(viewModel: viewModel)
+      .navigationTitle("📈 \(viewModel.searchText)")
   }
 }
 

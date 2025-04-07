@@ -125,10 +125,7 @@ struct PodcastResultsView: View {
       try! await repo.delete(existingPodcastSeries.id)
     }
     viewModel = PodcastResultsViewModel(
-      searchedPodcast: SearchedPodcastByTrending(
-        category: "News",
-        unsavedPodcast: unsavedPodcast
-      )
+      searchedPodcast: SearchedPodcast(searchedText: "News", unsavedPodcast: unsavedPodcast)
     )
   }
 }
