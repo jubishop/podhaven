@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol SearchedPodcast {
+protocol SearchedPodcast: Hashable {
   var searchedText: String { get }
   var unsavedPodcast: UnsavedPodcast { get }
 }

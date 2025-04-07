@@ -10,35 +10,13 @@ struct AllFieldsResultsView: View {
   }
 
   var body: some View {
-    VStack {
-      if viewModel.result != nil {
-        List {
-          ForEach(viewModel.unsavedPodcasts, id: \.feedURL) { unsavedPodcast in
-            NavigationLink(
-              value: SearchedPodcastByTerm(
-                searchedText: viewModel.searchText,
-                unsavedPodcast: unsavedPodcast
-              ),
-              label: {
-                PodcastListResultsView(unsavedPodcast: unsavedPodcast)
-              }
-            )
-          }
-        }
-        .navigationDestination(
-          for: SearchedPodcastByTerm.self,
-          destination: { termPodcast in
-            PodcastResultsView(
-              viewModel: PodcastResultsViewModel(
-                searchedPodcast: termPodcast
-              )
-            )
-          }
-        )
-      } else {
-        Text("Still searching")
-        Spacer()
-      }
+    ResultsContentView<SearchedPodcastByTerm>(
+      viewModel: viewModel
+    ) { searchText, unsavedPodcast in
+      SearchedPodcastByTerm(
+        searchedText: searchText,
+        unsavedPodcast: unsavedPodcast
+      )
     }
     .navigationTitle("🔍📖 \(viewModel.searchText)")
   }

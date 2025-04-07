@@ -35,7 +35,7 @@ class PodcastResultsViewModel:
 
   // MARK: - Initialization
 
-  init(searchedPodcast: SearchedPodcast) {
+  init(searchedPodcast: any SearchedPodcast) {
     self.searchedText = searchedPodcast.searchedText
     self.unsavedPodcast = searchedPodcast.unsavedPodcast
     episodeList.customFilter = { [unowned self] in !self.unplayedOnly || !$0.completed }
