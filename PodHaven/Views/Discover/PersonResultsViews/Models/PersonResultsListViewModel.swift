@@ -76,7 +76,7 @@ class PersonResultsListViewModel:
     try await repo.upsertPodcastEpisodes(selectedEpisodes)
   }
 
-  // MARK: - EpisodeUpserter
+  // MARK: - EpisodeUpsertable
 
   func upsert(_ episode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
     try await repo.upsertPodcastEpisode(episode)
