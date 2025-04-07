@@ -20,7 +20,7 @@ struct TitleResultsView: View {
                 unsavedPodcast: unsavedPodcast
               ),
               label: {
-                TitlePodcastListView(unsavedPodcast: unsavedPodcast)
+                PodcastListResultsView(unsavedPodcast: unsavedPodcast)
               }
             )
           }

@@ -20,7 +20,7 @@ struct TrendingResultsView: View {
                 unsavedPodcast: unsavedPodcast
               ),
               label: {
-                SearchedPodcastByTrendingListView(unsavedPodcast: unsavedPodcast)
+                PodcastListResultsView(unsavedPodcast: unsavedPodcast)
               }
             )
           }
