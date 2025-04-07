@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-struct TitleEpisodeView: View {
+struct EpisodeResultsView: View {
   @Environment(Alert.self) var alert
 
   private let viewModel: EpisodeResultsViewModel
@@ -38,7 +38,7 @@ struct TitleEpisodeView: View {
 
   NavigationStack {
     if let unsavedPodcast = unsavedPodcast, let unsavedEpisodes = unsavedEpisodes {
-      TitleEpisodeView(
+      EpisodeResultsView(
         viewModel: EpisodeResultsViewModel(
           unsavedPodcastEpisode: UnsavedPodcastEpisode(
             unsavedPodcast: unsavedPodcast,

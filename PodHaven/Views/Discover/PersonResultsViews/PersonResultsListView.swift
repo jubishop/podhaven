@@ -50,7 +50,7 @@ struct PersonResultsListView: View {
       .animation(.default, value: viewModel.episodeList.filteredEntries)
     }
     .navigationDestination(for: UnsavedPodcastEpisode.self) { unsavedPodcastEpisode in
-      PersonEpisodeView(
+      EpisodeResultsView(
         viewModel: EpisodeResultsViewModel(unsavedPodcastEpisode: unsavedPodcastEpisode)
       )
     }

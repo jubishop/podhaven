@@ -70,7 +70,7 @@ struct SearchedPodcastByTrendingView: View {
     .navigationDestination(
       for: UnsavedPodcastEpisode.self,
       destination: { unsavedPodcastEpisode in
-        TrendingEpisodeView(
+        EpisodeResultsView(
           viewModel: EpisodeResultsViewModel(
             unsavedPodcastEpisode: unsavedPodcastEpisode
           )

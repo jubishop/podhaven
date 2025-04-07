@@ -70,7 +70,7 @@ struct TitlePodcastView: View {
     .navigationDestination(
       for: UnsavedPodcastEpisode.self,
       destination: { unsavedPodcastEpisode in
-        TitleEpisodeView(
+        EpisodeResultsView(
           viewModel: EpisodeResultsViewModel(unsavedPodcastEpisode: unsavedPodcastEpisode)
         )
       }

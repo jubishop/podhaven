@@ -70,7 +70,7 @@ struct AllFieldsPodcastView: View {
     .navigationDestination(
       for: UnsavedPodcastEpisode.self,
       destination: { unsavedPodcastEpisode in
-        AllFieldsEpisodeView(
+        EpisodeResultsView(
           viewModel: EpisodeResultsViewModel(
             unsavedPodcastEpisode: unsavedPodcastEpisode
           )
