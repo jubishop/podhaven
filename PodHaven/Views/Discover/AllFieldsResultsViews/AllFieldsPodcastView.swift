@@ -52,7 +52,7 @@ struct AllFieldsPodcastView: View {
               unsavedEpisode: unsavedEpisode
             ),
             label: {
-              AllFieldsEpisodeListView(
+              EpisodeListResultsView(
                 viewModel: EpisodeListResultsViewModel(
                   isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
                   item: unsavedEpisode,

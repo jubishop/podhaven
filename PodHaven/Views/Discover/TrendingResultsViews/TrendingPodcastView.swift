@@ -52,7 +52,7 @@ struct SearchedPodcastByTrendingView: View {
               unsavedEpisode: unsavedEpisode
             ),
             label: {
-              TrendingEpisodeListView(
+              EpisodeListResultsView(
                 viewModel: EpisodeListResultsViewModel(
                   isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
                   item: unsavedEpisode,

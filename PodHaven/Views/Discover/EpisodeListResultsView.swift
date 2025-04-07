@@ -2,7 +2,9 @@
 
 import SwiftUI
 
-struct AllFieldsEpisodeListView: View {
+typealias EpisodeListResultsViewModel = SelectableListItemModel<UnsavedEpisode>
+
+struct EpisodeListResultsView: View {
   private let viewModel: EpisodeListResultsViewModel
 
   init(viewModel: EpisodeListResultsViewModel) {
@@ -39,7 +41,7 @@ struct AllFieldsEpisodeListView: View {
 
   List {
     if let unsavedEpisode = unsavedEpisode {
-      AllFieldsEpisodeListView(
+      EpisodeListResultsView(
         viewModel: EpisodeListResultsViewModel(
           isSelected: .constant(false),
           item: unsavedEpisode,
@@ -48,7 +50,7 @@ struct AllFieldsEpisodeListView: View {
       )
     }
     if let selectedUnsavedEpisode = selectedUnsavedEpisode {
-      AllFieldsEpisodeListView(
+      EpisodeListResultsView(
         viewModel: EpisodeListResultsViewModel(
           isSelected: $isSelected,
           item: selectedUnsavedEpisode,
