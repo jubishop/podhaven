@@ -4,43 +4,44 @@ import Factory
 import Foundation
 import IdentifiedCollections
 
-@MainActor protocol QueueableSelectableListModel: QueueableSelectableList {
+@MainActor protocol QueueableSelectableEpisodeList: QueueableSelectableList {
   associatedtype EpisodeType: Stringable
   associatedtype EpisodeID: Hashable
 
   var episodeList: SelectableListUseCase<EpisodeType, EpisodeID> { get set }
   var selectedEpisodes: [EpisodeType] { get }
 
-  func upsertSelectedEpisodes() async throws -> [PodcastEpisode]
+  var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
+  var selectedEpisodeIDs: [Episode.ID] { get async throws }
 }
 
-@MainActor extension QueueableSelectableListModel {
+@MainActor extension QueueableSelectableEpisodeList {
   var selectedEpisodes: [EpisodeType] { episodeList.selectedEntries.elements }
 
   func addSelectedEpisodesToBottomOfQueue() {
     Task {
-      let podcastEpisodes = try await upsertSelectedEpisodes()
-      try await Container.shared.queue().append(podcastEpisodes.map(\.id))
+      let episodeIDs = try await selectedEpisodeIDs
+      try await Container.shared.queue().append(episodeIDs)
     }
   }
 
   func addSelectedEpisodesToTopOfQueue() {
     Task {
-      let podcastEpisodes = try await upsertSelectedEpisodes()
-      try await Container.shared.queue().unshift(podcastEpisodes.map(\.id))
+      let episodeIDs = try await selectedEpisodeIDs
+      try await Container.shared.queue().unshift(episodeIDs)
     }
   }
 
   func replaceQueue() {
     Task {
-      let podcastEpisodes = try await upsertSelectedEpisodes()
-      try await Container.shared.queue().replace(podcastEpisodes.map(\.id))
+      let episodeIDs = try await selectedEpisodeIDs
+      try await Container.shared.queue().replace(episodeIDs)
     }
   }
 
   func replaceQueueAndPlay() {
     Task {
-      let podcastEpisodes = try await upsertSelectedEpisodes()
+      let podcastEpisodes = try await selectedPodcastEpisodes
       if let firstPodcastEpisode = podcastEpisodes.first {
         try await Container.shared.playManager().load(firstPodcastEpisode)
         await Container.shared.playManager().play()

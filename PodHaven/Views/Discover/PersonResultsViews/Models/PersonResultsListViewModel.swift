@@ -8,7 +8,7 @@ import SwiftUI
 @Observable @MainActor
 class PersonResultsListViewModel:
   EpisodeUpsertable,
-  QueueableSelectableListModel,
+  QueueableSelectableEpisodeList,
   UnsavedPodcastQueueableModel
 {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
@@ -70,10 +70,18 @@ class PersonResultsListViewModel:
     }
   }
 
-  // MARK: - QueueableSelectableListModel
+  // MARK: - QueueableSelectableEpisodeList
 
-  func upsertSelectedEpisodes() async throws -> [PodcastEpisode] {
-    try await repo.upsertPodcastEpisodes(selectedEpisodes)
+  var selectedPodcastEpisodes: [PodcastEpisode] {
+    get async throws {
+      try await repo.upsertPodcastEpisodes(selectedEpisodes)
+    }
+  }
+
+  var selectedEpisodeIDs: [Episode.ID] {
+    get async throws {
+      try await selectedPodcastEpisodes.map(\.id)
+    }
   }
 
   // MARK: - EpisodeUpsertable

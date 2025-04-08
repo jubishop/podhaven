@@ -7,7 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-final class PodcastViewModel: QueueableSelectableList, EpisodeQueueable {
+final class PodcastViewModel: QueueableSelectableEpisodeList, EpisodeQueueable {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
@@ -69,6 +69,25 @@ final class PodcastViewModel: QueueableSelectableList, EpisodeQueueable {
     }
   }
 
+  // MARK: - QueueableSelectableEpisodeList
+
+  var selectedPodcastEpisodes: [PodcastEpisode] {
+    get async throws {
+      selectedEpisodes.map { episode in
+        PodcastEpisode(
+          podcast: podcast,
+          episode: episode
+        )
+      }
+    }
+  }
+
+  var selectedEpisodeIDs: [Episode.ID] {
+    get async throws {
+      selectedEpisodes.map(\.id)
+    }
+  }
+
   // MARK: - Public Functions
 
   func refreshSeries() async throws {
@@ -94,29 +113,6 @@ final class PodcastViewModel: QueueableSelectableList, EpisodeQueueable {
     Task {
       try await playManager.load(PodcastEpisode(podcast: podcast, episode: episode))
       await playManager.play()
-    }
-  }
-
-  func addSelectedEpisodesToTopOfQueue() {
-    Task { try await queue.unshift(episodeList.selectedEntryIDs) }
-  }
-
-  func addSelectedEpisodesToBottomOfQueue() {
-    Task { try await queue.append(episodeList.selectedEntryIDs) }
-  }
-
-  func replaceQueue() {
-    Task { try await queue.replace(episodeList.selectedEntryIDs) }
-  }
-
-  func replaceQueueAndPlay() {
-    Task {
-      if let firstEpisode = episodeList.selectedEntries.first {
-        try await playManager.load(PodcastEpisode(podcast: podcast, episode: firstEpisode))
-        await playManager.play()
-        let allExceptFirstEpisode = episodeList.selectedEntries.dropFirst()
-        try await queue.replace(allExceptFirstEpisode.map(\.id))
-      }
     }
   }
 }

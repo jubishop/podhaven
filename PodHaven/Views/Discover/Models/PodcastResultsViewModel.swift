@@ -7,7 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class PodcastResultsViewModel: QueueableSelectableListModel, UnsavedPodcastQueueableModel {
+class PodcastResultsViewModel: QueueableSelectableEpisodeList, UnsavedPodcastQueueableModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
@@ -87,17 +87,25 @@ class PodcastResultsViewModel: QueueableSelectableListModel, UnsavedPodcastQueue
     )
   }
 
-  // MARK: - QueueableSelectableListModel
+  // MARK: - QueueableSelectableEpisodeList
 
-  func upsertSelectedEpisodes() async throws -> [PodcastEpisode] {
-    try await repo.upsertPodcastEpisodes(
-      episodeList.selectedEntries.map { unsavedEpisode in
-        UnsavedPodcastEpisode(
-          unsavedPodcast: unsavedPodcast,
-          unsavedEpisode: unsavedEpisode
-        )
-      }
-    )
+  var selectedPodcastEpisodes: [PodcastEpisode] {
+    get async throws {
+      try await repo.upsertPodcastEpisodes(
+        selectedEpisodes.map { unsavedEpisode in
+          UnsavedPodcastEpisode(
+            unsavedPodcast: unsavedPodcast,
+            unsavedEpisode: unsavedEpisode
+          )
+        }
+      )
+    }
+  }
+
+  var selectedEpisodeIDs: [Episode.ID] {
+    get async throws {
+      try await selectedPodcastEpisodes.map(\.id)
+    }
   }
 
   // MARK: - Public Functions
