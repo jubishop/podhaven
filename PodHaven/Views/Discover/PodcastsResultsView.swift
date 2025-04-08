@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-struct ResultsContentView: View {
+struct PodcastsResultsView: View {
   private let viewModel: ResultsViewModel
 
   init(viewModel: ResultsViewModel) {
@@ -36,6 +36,7 @@ struct ResultsContentView: View {
         Spacer()
       }
     }
+    .navigationTitle(viewModel.title)
   }
 }
 
@@ -44,15 +45,15 @@ struct ResultsContentView: View {
 
   NavigationStack {
     if let viewModel = viewModel {
-      ResultsContentView(viewModel: viewModel)
-        .navigationTitle("🔍 Preview")
+      PodcastsResultsView(viewModel: viewModel)
     }
   }
   .preview()
   .task {
     let termResult = try! await PreviewHelpers.loadTermResult()
     viewModel = ResultsViewModel(
-      searchResult: TermSearchResult(searchText: "Preview Test", termResult: termResult)
+      title: "🔍📖 Hard Fork",
+      searchResult: TermSearchResult(searchText: "Hard Fork", termResult: termResult)
     )
   }
 }

@@ -20,7 +20,7 @@ struct PersonResultsView: View {
         Spacer()
       }
     }
-    .navigationTitle("🕵️ \(viewModel.searchText)")
+    .navigationTitle(viewModel.title)
   }
 }
 
@@ -36,6 +36,7 @@ struct PersonResultsView: View {
   .task {
     let personResult = try! await PreviewHelpers.loadPersonResult()
     viewModel = PersonResultsViewModel(
+      title: "🕵️ Neil deGrasse Tyson",
       searchResult: PersonSearchResult(
         searchText: "Neil deGrasse Tyson",
         personResult: personResult

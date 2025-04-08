@@ -6,6 +6,7 @@ import Foundation
   // MARK: - Data
 
   private let searchResult: PodcastSearchResult
+  let title: String
   let unsavedPodcasts: [UnsavedPodcast]
 
   var searchText: String { searchResult.searchText }
@@ -13,7 +14,8 @@ import Foundation
 
   // MARK: - Initialization
 
-  init(searchResult: PodcastSearchResult) {
+  init(title: String, searchResult: PodcastSearchResult) {
+    self.title = title
     self.searchResult = searchResult
     if let result = searchResult.result {
       unsavedPodcasts = result.convertibleFeeds.compactMap { try? $0.toUnsavedPodcast() }
