@@ -73,9 +73,7 @@ import SwiftUI
 
   // MARK: - Searching and Results
 
-  var trendingSearchResult = TrendingSearchResult(searchCategory: allCategoriesName)
-  var titleSearchResult = TitleSearchResult()
-  var termSearchResult = TermSearchResult()
+  var podcastSearchResult: PodcastSearchResult = TrendingSearchResult(searchCategory: allCategoriesName)
   var personSearchResult = PersonSearchResult()
 
   // MARK: - Initialization
@@ -149,8 +147,8 @@ import SwiftUI
   }
 
   private func searchTrending(_ currentCategory: String) async throws {
-    self.trendingSearchResult = TrendingSearchResult(searchCategory: currentCategory)
-    self.trendingSearchResult = TrendingSearchResult(
+    self.podcastSearchResult = TrendingSearchResult(searchCategory: currentCategory)
+    self.podcastSearchResult = TrendingSearchResult(
       searchCategory: currentCategory,
       trendingResult: try await searchService.searchTrending(
         categories: categoriesToSearch,
@@ -160,16 +158,16 @@ import SwiftUI
   }
 
   private func searchByTitle(_ searchText: String) async throws {
-    self.titleSearchResult = TitleSearchResult(searchText: searchText)
-    self.titleSearchResult = TitleSearchResult(
+    self.podcastSearchResult = TitleSearchResult(searchText: searchText)
+    self.podcastSearchResult = TitleSearchResult(
       searchText: searchText,
       titleResult: try await searchService.searchByTitle(searchText)
     )
   }
 
   private func searchByTerm(_ searchText: String) async throws {
-    self.termSearchResult = TermSearchResult(searchText: searchText)
-    self.termSearchResult = TermSearchResult(
+    self.podcastSearchResult = TermSearchResult(searchText: searchText)
+    self.podcastSearchResult = TermSearchResult(
       searchText: searchText,
       termResult: try await searchService.searchByTerm(searchText)
     )

@@ -15,15 +15,15 @@ struct SearchView: View {
       case .allFields:
         PodcastsResultsView(
           viewModel: ResultsViewModel(
-            title: "🔍📖 \(viewModel.termSearchResult.searchText)",
-            searchResult: viewModel.termSearchResult
+            title: "🔍📖 \(viewModel.podcastSearchResult.searchText)",
+            searchResult: viewModel.podcastSearchResult
           )
         )
       case .titles:
         PodcastsResultsView(
           viewModel: ResultsViewModel(
-            title: "🔍 \(viewModel.titleSearchResult.searchText)",
-            searchResult: viewModel.titleSearchResult
+            title: "🔍 \(viewModel.podcastSearchResult.searchText)",
+            searchResult: viewModel.podcastSearchResult
           )
         )
       case .people:
@@ -36,8 +36,8 @@ struct SearchView: View {
       case .trending:
         PodcastsResultsView(
           viewModel: ResultsViewModel(
-            title: "📈 \(viewModel.trendingSearchResult.searchText)",
-            searchResult: viewModel.trendingSearchResult
+            title: "📈 \(viewModel.podcastSearchResult.searchText)",
+            searchResult: viewModel.podcastSearchResult
           )
         )
       default: fatalError("viewModel.currentView unknown: \(viewModel.currentView)")
