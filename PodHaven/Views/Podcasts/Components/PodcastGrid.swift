@@ -5,11 +5,11 @@ import GRDB
 import IdentifiedCollections
 import SwiftUI
 
-struct PodcastGrid<Content: View>: View {
-  private let podcasts: [Podcast]
+struct PodcastGrid<P: RandomAccessCollection, Content: View>: View where P.Element == Podcast {
+  private let podcasts: P
   private let content: (Podcast) -> Content
 
-  init(podcasts: [Podcast], @ViewBuilder content: @escaping (Podcast) -> Content) {
+  init(podcasts: P, @ViewBuilder content: @escaping (Podcast) -> Content) {
     self.podcasts = podcasts
     self.content = content
   }
