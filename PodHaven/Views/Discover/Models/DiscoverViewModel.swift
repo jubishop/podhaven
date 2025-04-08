@@ -73,7 +73,7 @@ import SwiftUI
 
   // MARK: - Searching and Results
 
-  var podcastSearchResult: PodcastSearchResult = TrendingSearchResult(searchCategory: allCategoriesName)
+  var podcastSearchResult: PodcastSearchResult = PodcastSearchResult(searchText: allCategoriesName)
   var personSearchResult = PersonSearchResult()
 
   // MARK: - Initialization
@@ -147,10 +147,10 @@ import SwiftUI
   }
 
   private func searchTrending(_ currentCategory: String) async throws {
-    self.podcastSearchResult = TrendingSearchResult(searchCategory: currentCategory)
-    self.podcastSearchResult = TrendingSearchResult(
-      searchCategory: currentCategory,
-      trendingResult: try await searchService.searchTrending(
+    self.podcastSearchResult = PodcastSearchResult(searchText: currentCategory)
+    self.podcastSearchResult = PodcastSearchResult(
+      searchText: currentCategory,
+      result: try await searchService.searchTrending(
         categories: categoriesToSearch,
         language: Self.language
       )
@@ -158,18 +158,18 @@ import SwiftUI
   }
 
   private func searchByTitle(_ searchText: String) async throws {
-    self.podcastSearchResult = TitleSearchResult(searchText: searchText)
-    self.podcastSearchResult = TitleSearchResult(
+    self.podcastSearchResult = PodcastSearchResult(searchText: searchText)
+    self.podcastSearchResult = PodcastSearchResult(
       searchText: searchText,
-      titleResult: try await searchService.searchByTitle(searchText)
+      result: try await searchService.searchByTitle(searchText)
     )
   }
 
   private func searchByTerm(_ searchText: String) async throws {
-    self.podcastSearchResult = TermSearchResult(searchText: searchText)
-    self.podcastSearchResult = TermSearchResult(
+    self.podcastSearchResult = PodcastSearchResult(searchText: searchText)
+    self.podcastSearchResult = PodcastSearchResult(
       searchText: searchText,
-      termResult: try await searchService.searchByTerm(searchText)
+      result: try await searchService.searchByTerm(searchText)
     )
   }
 

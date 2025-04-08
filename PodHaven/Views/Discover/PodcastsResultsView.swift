@@ -53,7 +53,7 @@ struct PodcastsResultsView: View {
     let termResult = try! await PreviewHelpers.loadTermResult()
     viewModel = ResultsViewModel(
       title: "🔍📖 Hard Fork",
-      searchResult: TermSearchResult(searchText: "Hard Fork", termResult: termResult)
+      searchResult: PodcastSearchResult(searchText: "Hard Fork", result: termResult)
     )
   }
 }
