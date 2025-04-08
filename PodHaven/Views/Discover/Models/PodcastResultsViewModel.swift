@@ -7,7 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class PodcastResultsViewModel: QueueableSelectableEpisodeList, UnsavedPodcastQueueableModel {
+class PodcastResultsViewModel: QueueableSelectableEpisodeList, PodcastQueueableModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
@@ -76,15 +76,19 @@ class PodcastResultsViewModel: QueueableSelectableEpisodeList, UnsavedPodcastQue
     }
   }
 
-  // MARK: - EpisodeUpsertable
+  // MARK: - PodcastQueueableModel
 
-  func upsert(_ episode: UnsavedEpisode) async throws -> PodcastEpisode {
+  func getPodcastEpisode(_ episode: UnsavedEpisode) async throws -> PodcastEpisode {
     try await repo.upsertPodcastEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: unsavedPodcast,
         unsavedEpisode: episode
       )
     )
+  }
+
+  func getEpisodeID(_ episode: UnsavedEpisode) async throws -> Episode.ID {
+    try await getPodcastEpisode(episode).id
   }
 
   // MARK: - QueueableSelectableEpisodeList

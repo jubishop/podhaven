@@ -7,7 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-final class PodcastViewModel: QueueableSelectableEpisodeList, EpisodeQueueable {
+final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
@@ -69,6 +69,14 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, EpisodeQueueable {
     }
   }
 
+  // MARK: - PodcastQueueableModel
+
+  func getPodcastEpisode(_ episode: Episode) async throws -> PodcastEpisode {
+    PodcastEpisode(podcast: podcast, episode: episode)
+  }
+
+  func getEpisodeID(_ episode: Episode) async throws -> Episode.ID { episode.id }
+
   // MARK: - QueueableSelectableEpisodeList
 
   var selectedPodcastEpisodes: [PodcastEpisode] {
@@ -98,21 +106,6 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, EpisodeQueueable {
     Task {
       try await repo.markSubscribed(podcast.id)
       navigation.showPodcast(.subscribed, podcastSeries)
-    }
-  }
-
-  func queueEpisodeOnTop(_ episode: Episode) {
-    Task { try await queue.unshift(episode.id) }
-  }
-
-  func queueEpisodeAtBottom(_ episode: Episode) {
-    Task { try await queue.append(episode.id) }
-  }
-
-  func playEpisode(_ episode: Episode) {
-    Task {
-      try await playManager.load(PodcastEpisode(podcast: podcast, episode: episode))
-      await playManager.play()
     }
   }
 }

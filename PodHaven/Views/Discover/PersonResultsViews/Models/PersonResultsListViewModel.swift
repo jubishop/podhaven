@@ -7,9 +7,9 @@ import SwiftUI
 
 @Observable @MainActor
 class PersonResultsListViewModel:
-  EpisodeUpsertable,
-  QueueableSelectableEpisodeList,
-  UnsavedPodcastQueueableModel
+  PodcastEpisodeGettable,
+  PodcastQueueableModel,
+  QueueableSelectableEpisodeList
 {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.repo) private var repo
@@ -70,6 +70,16 @@ class PersonResultsListViewModel:
     }
   }
 
+  // MARK: - PodcastQueueableModel
+
+  func getPodcastEpisode(_ episode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
+    try await repo.upsertPodcastEpisode(episode)
+  }
+
+  func getEpisodeID(_ episode: UnsavedPodcastEpisode) async throws -> Episode.ID {
+    try await getPodcastEpisode(episode).id
+  }
+
   // MARK: - QueueableSelectableEpisodeList
 
   var selectedPodcastEpisodes: [PodcastEpisode] {
@@ -82,11 +92,5 @@ class PersonResultsListViewModel:
     get async throws {
       try await selectedPodcastEpisodes.map(\.id)
     }
-  }
-
-  // MARK: - EpisodeUpsertable
-
-  func upsert(_ episode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
-    try await repo.upsertPodcastEpisode(episode)
   }
 }
