@@ -6,17 +6,15 @@ import SwiftUI
 
 @Observable @MainActor
 final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
-  // MARK: - State Management
+  // MARK: - Selection State Management
 
   var isSelected = BindableDictionary<T, Bool>(defaultValue: false)
   var anySelected: Bool { filteredEntries.contains { isSelected[$0] } }
   var anyNotSelected: Bool { filteredEntries.contains { !isSelected[$0] } }
-  var selectedEntries: IdentifiedArray<ID, T> {
-    IdentifiedArray(uniqueElements: filteredEntries.filter({ isSelected[$0] }), id: idKeyPath)
-  }
+  var selectedEntries: IdentifiedArray<ID, T> { filteredEntries.filter({ isSelected[$0] }) }
   var selectedEntryIDs: [ID] { selectedEntries.ids.elements }
 
-  var customFilter: (T) -> Bool = { _ in true }
+  // MARK: - Entry List Getters / Setters
 
   private var _allEntries: IdentifiedArray<ID, T>
   var allEntries: IdentifiedArray<ID, T> {
@@ -28,9 +26,8 @@ final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
       }
     }
   }
-
   var filteredEntries: IdentifiedArray<ID, T> {
-    let filteredEntries = allEntries.filter { customFilter($0) }
+    let filteredEntries = allEntries.filter { filterMethod($0) }
 
     let searchTerms =
       _entryFilter
@@ -47,7 +44,12 @@ final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
       }
     )
   }
+  var filteredSortedEntries: [T] { filteredEntries.sorted(by: sortMethod) }
 
+  // MARK: - Customization Parameters
+
+  var filterMethod: (T) -> Bool = { _ in true }
+  var sortMethod: (T, T) -> Bool = { $0.toString < $1.toString }
   var entryFilter: String = ""
 
   private let idKeyPath: KeyPath<T, ID>
