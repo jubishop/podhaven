@@ -47,7 +47,7 @@ actor ObservatoryTests {
 
     let allPodcastsWithLatestEpisodeDate =
       IdentifiedArray(
-        uniqueElements: try await observatory.allPodcastsWithLatestEpisodeDate().first(),
+        uniqueElements: try await observatory.allPodcastsWithLatestEpisodeDate().get(),
         id: \.podcast.feedURL
       )
 
@@ -78,7 +78,7 @@ actor ObservatoryTests {
       ]
     )
 
-    let queuedEpisodes = try await observatory.queuedEpisodes().first()
+    let queuedEpisodes = try await observatory.queuedEpisodes().get()
     #expect(queuedEpisodes.count == 5)
     #expect(
       queuedEpisodes.map(\.episode.guid) == [
