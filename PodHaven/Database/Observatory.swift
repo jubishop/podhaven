@@ -37,8 +37,7 @@ struct Observatory {
     let request = Podcast.all().filtered(with: sqlExpression)
       .annotated(
         with:
-          Podcast
-          .episodes
+          Podcast.episodes
           .filter(Schema.completedColumn == false)
           .max(Schema.pubDateColumn)
           .forKey(PodcastWithLatestEpisodeDate.LatestEpisodeKey)
