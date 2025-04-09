@@ -20,10 +20,6 @@ class PersonResultsListViewModel:
   var searchText: String { searchResult.searchText }
   var personResult: PersonResult? { searchResult.personResult }
 
-  // MARK: - Protocol Conformance
-
-  typealias EpisodeType = UnsavedPodcastEpisode
-
   // MARK: - State Management
 
   private var _isSelecting = false

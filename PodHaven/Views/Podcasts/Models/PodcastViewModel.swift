@@ -16,10 +16,6 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
-  // MARK: - EpisodeQueuable protocols
-
-  typealias EpisodeType = Episode
-
   // MARK: - State Management
 
   private var _isSelecting = false
