@@ -13,11 +13,25 @@ struct StandardPodcastsView: View {
   }
 
   var body: some View {
-    SearchBar(
-      text: $viewModel.podcastList.entryFilter,
-      placeholder: "Filter podcasts",
-      imageName: "line.horizontal.3.decrease.circle"
-    )
+    HStack {
+      SearchBar(
+        text: $viewModel.podcastList.entryFilter,
+        placeholder: "Filter podcasts",
+        imageName: "line.horizontal.3.decrease.circle"
+      )
+
+      Menu(
+        content: {
+          //          Button(viewModel.unplayedOnly ? "Show All" : "Unplayed Only") {
+          //            viewModel.unplayedOnly.toggle()
+          //          }
+        },
+        label: {
+          Image(systemName: "line.horizontal.3.decrease.circle")
+        }
+      )
+    }
+    .padding(.horizontal)
 
     ScrollView {
       PodcastGrid(podcasts: viewModel.podcastList.filteredEntries) { podcast in

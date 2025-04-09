@@ -6,17 +6,46 @@ import GRDB
 
 extension Container {
   var observatory: Factory<Observatory> {
-    Factory(self) { Observatory() }.scope(.singleton)
+    Factory(self) { Observatory(Container.shared.repo()) }.scope(.singleton)
   }
 }
 
 struct Observatory {
+  #if DEBUG
+    static func inMemory() -> Observatory { Observatory(.inMemory()) }
+    static func initForTest(_ repo: Repo) -> Observatory { Observatory(repo) }
+  #endif
+
+  // MARK: - Initialization
+
+  private let repo: Repo
+  fileprivate init(_ repo: Repo) {
+    self.repo = repo
+  }
+
+  // MARK: - Public Functions
+
   func allPodcasts(_ sqlExpression: SQLExpression? = nil) -> AsyncValueObservation<[Podcast]> {
     _observe { db in
-      try Podcast
-        .all()
-        .filtered(with: sqlExpression)
-        .fetchAll(db)
+      try Podcast.all().filtered(with: sqlExpression).fetchAll(db)
+    }
+  }
+
+  func allPodcastsWithLatestEpisodeDate(_ sqlExpression: SQLExpression? = nil)
+    -> AsyncValueObservation<[PodcastWithLatestEpisodeDate]>
+  {
+    let request = Podcast.all().filtered(with: sqlExpression)
+      .annotated(
+        with:
+          Podcast
+          .episodes
+          .filter(Schema.completedColumn == false)
+          .max(Schema.pubDateColumn)
+          .forKey(PodcastWithLatestEpisodeDate.LatestEpisodeKey)
+      )
+
+    return _observe { db in
+      try PodcastWithLatestEpisodeDate.fetchAll(db, request)
     }
   }
 
@@ -78,6 +107,6 @@ struct Observatory {
   {
     ValueObservation.tracking(block)
       .removeDuplicates()
-      .values(in: Container.shared.repo().db)
+      .values(in: repo.db)
   }
 }

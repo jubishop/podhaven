@@ -17,15 +17,9 @@ actor EpisodeTests {
     let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: FeedURL(url))
 
     let newestUnsavedEpisode = try TestHelpers.unsavedEpisode()
-    let oldUnsavedEpisode = try TestHelpers.unsavedEpisode(
-      pubDate: Calendar.current.date(byAdding: .day, value: -10, to: Date())
-    )
-    let middleUnsavedEpisode = try TestHelpers.unsavedEpisode(
-      pubDate: Calendar.current.date(byAdding: .day, value: -5, to: Date())
-    )
-    let ancientUnsavedEpisode = try TestHelpers.unsavedEpisode(
-      pubDate: Calendar.current.date(byAdding: .day, value: -1000, to: Date())
-    )
+    let oldUnsavedEpisode = try TestHelpers.unsavedEpisode(pubDate: 10.minutesAgo)
+    let middleUnsavedEpisode = try TestHelpers.unsavedEpisode(pubDate: 5.minutesAgo)
+    let ancientUnsavedEpisode = try TestHelpers.unsavedEpisode(pubDate: 1000.minutesAgo)
 
     try await repo.insertSeries(
       unsavedPodcast,

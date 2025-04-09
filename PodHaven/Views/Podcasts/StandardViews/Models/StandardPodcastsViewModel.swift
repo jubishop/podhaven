@@ -22,6 +22,7 @@ import SwiftUI
 
   let title: String
   let podcastFilter: SQLExpression
+
   var podcastList = SelectableListUseCase<Podcast, Podcast.ID>(idKeyPath: \.id)
   var anySelectedSubscribed: Bool {
     podcastList.selectedEntries.contains { $0.subscribed == true }
@@ -29,6 +30,20 @@ import SwiftUI
   var anySelectedUnsubscribed: Bool {
     podcastList.selectedEntries.contains { $0.subscribed == false }
   }
+
+  enum SortMethod {
+    case byTitle
+    case byMostRecentUnplayed
+  }
+  //  private let sortMethods: Dictionary<SortMethod, (Podcast, Podcast) -> Bool> = [
+  //    .byTitle: { $0.title < $1.title },
+  //    .byMostRecentUnplayed: {
+  ////      $0.mostRecentUnplayedEpisodeDate ?? Date.distantPast
+  ////      < $1.mostRecentUnplayedEpisodeDate ?? Date.distantPast
+  //      true
+  //    },
+  //  ]
+  var currentSortMethod = SortMethod.byTitle
 
   // MARK: - Initialization
 

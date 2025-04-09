@@ -34,7 +34,7 @@ struct Repo: Sendable {
     self.queue = Container.shared.queue()
   }
 
-  // MARK: - Global Reader
+  // MARK: - Global Readers
 
   func allPodcasts(_ sqlExpression: SQLExpression? = nil) async throws -> [Podcast] {
     let request = Podcast.all().filtered(with: sqlExpression)

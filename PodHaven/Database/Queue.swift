@@ -28,6 +28,8 @@ struct Queue: Sendable {
     self.appDB = appDB
   }
 
+  // MARK: - Public Functions
+
   func clear() async throws {
     try await appDB.db.write { db in
       try _clear(db)
@@ -101,7 +103,7 @@ struct Queue: Sendable {
     try await append([episodeID])
   }
 
-  //MARK: - Private Helpers
+  // MARK: - Private Helpers
 
   private func _dequeue(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
     precondition(
