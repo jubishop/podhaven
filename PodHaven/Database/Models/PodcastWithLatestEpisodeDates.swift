@@ -4,7 +4,6 @@ import Foundation
 import GRDB
 
 struct PodcastWithLatestEpisodeDates: Decodable, Equatable, FetchableRecord {
-  // TODO: How to infer this?
   enum CodingKeys: String, CodingKey {
     case podcast
     case latestUnfinishedEpisodeDate
