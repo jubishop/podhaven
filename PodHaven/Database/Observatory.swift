@@ -31,46 +31,36 @@ struct Observatory {
     }
   }
 
-  func allPodcastsWithLatestEpisodeDate(_ sqlExpression: SQLExpression? = nil)
+  func allPodcastsWithLatestEpisodeDates(_ sqlExpression: SQLExpression? = nil)
     -> AsyncValueObservation<[PodcastWithLatestEpisodeDates]>
   {
     _observe { db in
-      // TODO: Clean this up
-      // Use forKey to isolate each aggregate with its own association key
-      // This prevents the different aggregates from interfering with each other
-
-      // For unfinished episodes (not completed)
-      let unfinishedEpisodes = Podcast.episodes
+      let unfinishedEpisodeDate = Podcast.episodes
         .filter(Schema.completedColumn == false)
-        .forKey("unfinishedEpisodes")
+        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnfinishedEpisodeDate)
+        .max(Schema.pubDateColumn)
+        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnfinishedEpisodeDate)
 
-      // For unstarted episodes (not completed AND currentTime = 0)
-      let unstartedEpisodes = Podcast.episodes
+      let unstartedEpisodeDate = Podcast.episodes
         .filter(Schema.completedColumn == false)
         .filter(Schema.currentTimeColumn == 0)
-        .forKey("unstartedEpisodes")
+        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnstartedEpisodeDate)
+        .max(Schema.pubDateColumn)
+        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnstartedEpisodeDate)
 
-      // For unqueued episodes (not completed AND no queue order)
-      let unqueuedEpisodes = Podcast.episodes
+      let unqueuedEpisodeDate = Podcast.episodes
         .filter(Schema.completedColumn == false)
         .filter(Schema.currentTimeColumn == 0)
         .filter(Schema.queueOrderColumn == nil)
-        .forKey("unqueuedEpisodes")
+        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnqueuedEpisodeDate)
+        .max(Schema.pubDateColumn)
+        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnqueuedEpisodeDate)
 
       return try Podcast.all()
         .filtered(with: sqlExpression)
-        .annotated(
-          with: unfinishedEpisodes.max(Schema.pubDateColumn)
-            .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnfinishedEpisodeDate)
-        )
-        .annotated(
-          with: unstartedEpisodes.max(Schema.pubDateColumn)
-            .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnstartedEpisodeDate)
-        )
-        .annotated(
-          with: unqueuedEpisodes.max(Schema.pubDateColumn)
-            .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnqueuedEpisodeDate)
-        )
+        .annotated(with: unfinishedEpisodeDate)
+        .annotated(with: unstartedEpisodeDate)
+        .annotated(with: unqueuedEpisodeDate)
         .asRequest(of: PodcastWithLatestEpisodeDates.self)
         .fetchAll(db)
     }

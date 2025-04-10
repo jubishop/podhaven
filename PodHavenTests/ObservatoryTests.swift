@@ -61,7 +61,7 @@ actor ObservatoryTests {
 
     let allPodcastsWithLatestEpisodeDate =
       IdentifiedArray(
-        uniqueElements: try await observatory.allPodcastsWithLatestEpisodeDate().get(),
+        uniqueElements: try await observatory.allPodcastsWithLatestEpisodeDates().get(),
         id: \.podcast.feedURL
       )
     #expect(allPodcastsWithLatestEpisodeDate.count == 2)
