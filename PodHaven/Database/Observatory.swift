@@ -34,17 +34,17 @@ struct Observatory {
   func allPodcastsWithLatestEpisodeDate(_ sqlExpression: SQLExpression? = nil)
     -> AsyncValueObservation<[PodcastWithLatestEpisodeDate]>
   {
-    let request = Podcast.all().filtered(with: sqlExpression)
-      .annotated(
-        with:
-          Podcast.episodes
-          .filter(Schema.completedColumn == false)
-          .max(Schema.pubDateColumn)
-          .forKey(PodcastWithLatestEpisodeDate.LatestEpisodeKey)
-      )
-
-    return _observe { db in
-      try PodcastWithLatestEpisodeDate.fetchAll(db, request)
+    _observe { db in
+      try Podcast.all().filtered(with: sqlExpression)
+        .annotated(
+          with:
+            Podcast.episodes
+            .filter(Schema.completedColumn == false)
+            .max(Schema.pubDateColumn)
+            .forKey(PodcastWithLatestEpisodeDate.LatestEpisodeKey)
+        )
+        .asRequest(of: PodcastWithLatestEpisodeDate.self)
+        .fetchAll(db)
     }
   }
 
