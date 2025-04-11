@@ -12,14 +12,23 @@ struct PodcastWithLatestEpisodeDates:
   Stringable
 {
   static func all() -> QueryInterfaceRequest<PodcastWithLatestEpisodeDates> {
-    Podcast.all()
-      .annotated(
-        with: [
-          Podcast.unfinishedEpisodes.forKey("unfinishedEpisode").max(Schema.pubDateColumn),
-          Podcast.unstartedEpisodes.forKey("unstartedEpisode").max(Schema.pubDateColumn),
-          Podcast.unqueuedEpisodes.forKey("unqueuedEpisode").max(Schema.pubDateColumn),
-        ]
-      )
+    let unfinishedMaxSQL = 
+      "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = 0)"
+    
+    let unstartedMaxSQL = 
+      "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = 0 " +
+      "AND episode.currentTime = 0)"
+    
+    let unqueuedMaxSQL = 
+      "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = 0 " +
+      "AND episode.currentTime = 0 AND episode.queueOrder IS NULL)"
+    
+    return Podcast.all()
+      .annotated(with: [
+        SQL(sql: unfinishedMaxSQL).forKey("maxUnfinishedEpisodePubDate"),
+        SQL(sql: unstartedMaxSQL).forKey("maxUnstartedEpisodePubDate"),
+        SQL(sql: unqueuedMaxSQL).forKey("maxUnqueuedEpisodePubDate")
+      ])
       .asRequest(of: PodcastWithLatestEpisodeDates.self)
   }
 
