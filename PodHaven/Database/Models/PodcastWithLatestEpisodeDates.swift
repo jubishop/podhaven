@@ -12,22 +12,29 @@ struct PodcastWithLatestEpisodeDates:
   Stringable
 {
   static func all() -> QueryInterfaceRequest<PodcastWithLatestEpisodeDates> {
-    let unfinishedMaxSQL = 
-      "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = 0)"
-    
-    let unstartedMaxSQL = 
-      "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = 0 " +
-      "AND episode.currentTime = 0)"
-    
-    let unqueuedMaxSQL = 
-      "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = 0 " +
-      "AND episode.currentTime = 0 AND episode.queueOrder IS NULL)"
-    
+    let unfinishedSQL = SQL(
+      sql:
+        "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = ?)",
+      arguments: [false]
+    )
+
+    let unstartedSQL = SQL(
+      sql:
+        "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = ? AND episode.currentTime = ?)",
+      arguments: [false, 0]
+    )
+
+    let unqueuedSQL = SQL(
+      sql:
+        "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = ? AND episode.currentTime = ? AND episode.queueOrder IS ?)",
+      arguments: [false, 0, nil]
+    )
+
     return Podcast.all()
       .annotated(with: [
-        SQL(sql: unfinishedMaxSQL).forKey("maxUnfinishedEpisodePubDate"),
-        SQL(sql: unstartedMaxSQL).forKey("maxUnstartedEpisodePubDate"),
-        SQL(sql: unqueuedMaxSQL).forKey("maxUnqueuedEpisodePubDate")
+        unfinishedSQL.forKey("maxUnfinishedEpisodePubDate"),
+        unstartedSQL.forKey("maxUnstartedEpisodePubDate"),
+        unqueuedSQL.forKey("maxUnqueuedEpisodePubDate"),
       ])
       .asRequest(of: PodcastWithLatestEpisodeDates.self)
   }

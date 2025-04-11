@@ -18,8 +18,8 @@ actor ObservatoryTests {
     self.observatory = .initForTest(repo)
   }
 
-  @Test("allPodcastsWithLatestEpisode()")
-  func testAllWithLatestEpisode() async throws {
+  @Test("allPodcastsWithLatestEpisodeDates()")
+  func testAllPodcastsWithLatestEpisodeDates() async throws {
     let podcast = try TestHelpers.unsavedPodcast()
     let newestUnfinishedEpisode = try TestHelpers.unsavedEpisode(
       pubDate: 10.minutesAgo,
