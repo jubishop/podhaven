@@ -58,9 +58,7 @@ struct Observatory {
 
       return try Podcast.all()
         .filtered(with: sqlExpression)
-        .annotated(with: unfinishedEpisodeDate)
-        .annotated(with: unstartedEpisodeDate)
-        .annotated(with: unqueuedEpisodeDate)
+        .annotated(with: unfinishedEpisodeDate, unstartedEpisodeDate, unqueuedEpisodeDate)
         .asRequest(of: PodcastWithLatestEpisodeDates.self)
         .fetchAll(db)
     }
