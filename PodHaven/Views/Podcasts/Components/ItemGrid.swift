@@ -5,19 +5,20 @@ import GRDB
 import IdentifiedCollections
 import SwiftUI
 
-struct PodcastGrid<P: RandomAccessCollection, Content: View>: View where P.Element == Podcast {
-  private let podcasts: P
-  private let content: (Podcast) -> Content
+struct ItemGrid<P: RandomAccessCollection, T: Identifiable, Content: View>: View
+where P.Element == T {
+  private let items: P
+  private let content: (T) -> Content
 
-  init(podcasts: P, @ViewBuilder content: @escaping (Podcast) -> Content) {
-    self.podcasts = podcasts
+  init(items: P, @ViewBuilder content: @escaping (T) -> Content) {
+    self.items = items
     self.content = content
   }
 
   var body: some View {
     LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
-      ForEach(podcasts) { podcast in
-        content(podcast)
+      ForEach(items) { item in
+        content(item)
       }
     }
   }
@@ -33,7 +34,7 @@ struct PodcastGrid<P: RandomAccessCollection, Content: View>: View where P.Eleme
     Button(isSelecting ? "Stop Selecting" : "Start Selecting") {
       isSelecting.toggle()
     }
-    PodcastGrid(podcasts: podcasts) { podcast in
+    ItemGrid(items: podcasts) { podcast in
       SelectablePodcastGridItem(
         viewModel: SelectablePodcastGridItemViewModel(
           isSelected: $isSelected[podcast],

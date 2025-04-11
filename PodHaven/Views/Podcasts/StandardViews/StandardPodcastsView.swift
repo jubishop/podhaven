@@ -20,28 +20,29 @@ struct StandardPodcastsView: View {
         imageName: "line.horizontal.3.decrease.circle"
       )
 
-      Menu(
-        content: {
-          //          Button(viewModel.unplayedOnly ? "Show All" : "Unplayed Only") {
-          //            viewModel.unplayedOnly.toggle()
-          //          }
-        },
-        label: {
-          Image(systemName: "line.horizontal.3.decrease.circle")
-        }
-      )
+      //      Menu(
+      //        content: {
+      //                    Button(viewModel.unplayedOnly ? "Show All" : "Unplayed Only") {
+      //                      viewModel.unplayedOnly.toggle()
+      //                    }
+      //        },
+      //        label: {
+      //          Text("Sort by")
+      //        }
+      //      )
     }
     .padding(.horizontal)
 
     ScrollView {
-      PodcastGrid(podcasts: viewModel.podcastList.filteredEntries) { podcast in
+      ItemGrid(items: viewModel.podcastList.filteredEntries) {
+        podcastWithLatestEpisodeDates in
         NavigationLink(
-          value: podcast,
+          value: podcastWithLatestEpisodeDates.podcast,
           label: {
             SelectablePodcastGridItem(
               viewModel: SelectablePodcastGridItemViewModel(
-                isSelected: $viewModel.podcastList.isSelected[podcast],
-                item: podcast,
+                isSelected: $viewModel.podcastList.isSelected[podcastWithLatestEpisodeDates],
+                item: podcastWithLatestEpisodeDates.podcast,
                 isSelecting: viewModel.isSelecting
               )
             )

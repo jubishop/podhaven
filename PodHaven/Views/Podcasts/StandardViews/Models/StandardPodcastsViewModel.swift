@@ -23,7 +23,9 @@ import SwiftUI
   let title: String
   let podcastFilter: SQLExpression
 
-  var podcastList = SelectableListUseCase<Podcast, Podcast.ID>(idKeyPath: \.id)
+  var podcastList = SelectableListUseCase<PodcastWithLatestEpisodeDates, Podcast.ID>(
+    idKeyPath: \.id
+  )
   var anySelectedSubscribed: Bool {
     podcastList.selectedEntries.contains { $0.subscribed == true }
   }
@@ -54,10 +56,18 @@ import SwiftUI
 
   func execute() async {
     do {
-      for try await podcasts in observatory.allPodcasts(podcastFilter) {
-        self.podcastList.allEntries = IdentifiedArray(uniqueElements: podcasts)
+      print("awaiting podcasts")
+      for try await podcastsWithLatestEpisodeDates in observatory.allPodcastsWithLatestEpisodeDates(
+        podcastFilter
+      ) {
+        print("got episodes")
+        print(podcastsWithLatestEpisodeDates)
+        self.podcastList.allEntries = IdentifiedArray(
+          uniqueElements: podcastsWithLatestEpisodeDates
+        )
       }
     } catch {
+      print("caught error")
       alert.andReport(error)
     }
   }

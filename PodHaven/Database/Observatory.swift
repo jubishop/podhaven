@@ -35,7 +35,7 @@ struct Observatory {
     -> AsyncValueObservation<[PodcastWithLatestEpisodeDates]>
   {
     _observe { db in
-      try PodcastWithLatestEpisodeDates.all().fetchAll(db)
+      try PodcastWithLatestEpisodeDates.all().filtered(with: sqlExpression).fetchAll(db)
     }
   }
 

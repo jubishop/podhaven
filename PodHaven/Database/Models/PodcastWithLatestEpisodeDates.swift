@@ -3,12 +3,16 @@
 import Foundation
 import GRDB
 
-struct PodcastWithLatestEpisodeDates: Decodable, Equatable, FetchableRecord {
-  static func all(_ sqlExpression: SQLExpression? = nil) -> QueryInterfaceRequest<
-    PodcastWithLatestEpisodeDates
-  > {
+@dynamicMemberLookup
+struct PodcastWithLatestEpisodeDates:
+  Decodable,
+  Equatable,
+  FetchableRecord,
+  Identifiable,
+  Stringable
+{
+  static func all() -> QueryInterfaceRequest<PodcastWithLatestEpisodeDates> {
     Podcast.all()
-      .filtered(with: sqlExpression)
       .annotated(
         with: [
           Podcast.unfinishedEpisodes.forKey("unfinishedEpisode").max(Schema.pubDateColumn),
@@ -17,6 +21,13 @@ struct PodcastWithLatestEpisodeDates: Decodable, Equatable, FetchableRecord {
         ]
       )
       .asRequest(of: PodcastWithLatestEpisodeDates.self)
+  }
+
+  var id: Podcast.ID { podcast.id }
+  var toString: String { podcast.toString }
+
+  subscript<T>(dynamicMember keyPath: KeyPath<Podcast, T>) -> T {
+    podcast[keyPath: keyPath]
   }
 
   let podcast: Podcast
