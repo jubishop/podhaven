@@ -56,18 +56,14 @@ import SwiftUI
 
   func execute() async {
     do {
-      print("awaiting podcasts")
       for try await podcastsWithLatestEpisodeDates in observatory.allPodcastsWithLatestEpisodeDates(
         podcastFilter
       ) {
-        print("got episodes")
-        print(podcastsWithLatestEpisodeDates)
         self.podcastList.allEntries = IdentifiedArray(
           uniqueElements: podcastsWithLatestEpisodeDates
         )
       }
     } catch {
-      print("caught error")
       alert.andReport(error)
     }
   }

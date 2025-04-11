@@ -42,6 +42,9 @@ struct AppDB: Sendable {
     var config = Configuration()
     #if DEBUG
       config.publicStatementArguments = true
+      config.prepareDatabase { db in
+        db.trace { print($0) }
+      }
     #endif
     return config
   }
