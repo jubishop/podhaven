@@ -35,32 +35,7 @@ struct Observatory {
     -> AsyncValueObservation<[PodcastWithLatestEpisodeDates]>
   {
     _observe { db in
-      let unfinishedEpisodeDate = Podcast.episodes
-        .filter(Schema.completedColumn == false)
-        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnfinishedEpisodeDate)
-        .max(Schema.pubDateColumn)
-        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnfinishedEpisodeDate)
-
-      let unstartedEpisodeDate = Podcast.episodes
-        .filter(Schema.completedColumn == false)
-        .filter(Schema.currentTimeColumn == 0)
-        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnstartedEpisodeDate)
-        .max(Schema.pubDateColumn)
-        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnstartedEpisodeDate)
-
-      let unqueuedEpisodeDate = Podcast.episodes
-        .filter(Schema.completedColumn == false)
-        .filter(Schema.currentTimeColumn == 0)
-        .filter(Schema.queueOrderColumn == nil)
-        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnqueuedEpisodeDate)
-        .max(Schema.pubDateColumn)
-        .forKey(PodcastWithLatestEpisodeDates.CodingKeys.latestUnqueuedEpisodeDate)
-
-      return try Podcast.all()
-        .filtered(with: sqlExpression)
-        .annotated(with: unfinishedEpisodeDate, unstartedEpisodeDate, unqueuedEpisodeDate)
-        .asRequest(of: PodcastWithLatestEpisodeDates.self)
-        .fetchAll(db)
+      try PodcastWithLatestEpisodeDates.all().fetchAll(db)
     }
   }
 

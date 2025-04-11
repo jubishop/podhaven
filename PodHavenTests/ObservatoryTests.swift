@@ -68,22 +68,22 @@ actor ObservatoryTests {
 
     let podcastWithLatestEpisodes = allPodcastsWithLatestEpisodeDate[id: podcast.feedURL]!
     #expect(
-      podcastWithLatestEpisodes.latestUnfinishedEpisodeDate!
+      podcastWithLatestEpisodes.maxUnfinishedEpisodePubDate!
         .approximatelyEquals(newestUnfinishedEpisode.pubDate)
     )
     #expect(
-      podcastWithLatestEpisodes.latestUnstartedEpisodeDate!
+      podcastWithLatestEpisodes.maxUnstartedEpisodePubDate!
         .approximatelyEquals(newestUnstartedEpisode.pubDate)
     )
     #expect(
-      podcastWithLatestEpisodes.latestUnqueuedEpisodeDate!
+      podcastWithLatestEpisodes.maxUnqueuedEpisodePubDate!
         .approximatelyEquals(newestUnqueuedEpisode.pubDate)
     )
 
     let fetchedPodcastAllPlayed = allPodcastsWithLatestEpisodeDate[id: podcastAllPlayed.feedURL]!
-    #expect(fetchedPodcastAllPlayed.latestUnfinishedEpisodeDate == nil)
-    #expect(fetchedPodcastAllPlayed.latestUnstartedEpisodeDate == nil)
-    #expect(fetchedPodcastAllPlayed.latestUnqueuedEpisodeDate == nil)
+    #expect(fetchedPodcastAllPlayed.maxUnfinishedEpisodePubDate == nil)
+    #expect(fetchedPodcastAllPlayed.maxUnstartedEpisodePubDate == nil)
+    #expect(fetchedPodcastAllPlayed.maxUnqueuedEpisodePubDate == nil)
   }
 
   @Test("queuedEpisodes()")

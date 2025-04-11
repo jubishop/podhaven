@@ -54,4 +54,19 @@ extension Podcast {
   var episodes: QueryInterfaceRequest<Episode> {
     request(for: Self.episodes)
   }
+
+  static let unfinishedEpisodes = episodes.filter(Schema.completedColumn == false)
+  var unfinishedEpisodes: QueryInterfaceRequest<Episode> {
+    request(for: Self.unfinishedEpisodes)
+  }
+
+  static let unstartedEpisodes = unfinishedEpisodes.filter(Schema.currentTimeColumn == 0)
+  var unstartedEpisodes: QueryInterfaceRequest<Episode> {
+    request(for: Self.unstartedEpisodes)
+  }
+
+  static let unqueuedEpisodes = unstartedEpisodes.filter(Schema.queueOrderColumn == nil)
+  var unqueuedEpisodes: QueryInterfaceRequest<Episode> {
+    request(for: Self.unqueuedEpisodes)
+  }
 }
