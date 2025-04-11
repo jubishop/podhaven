@@ -59,14 +59,14 @@ actor ObservatoryTests {
     let playedEpisode = try TestHelpers.unsavedEpisode(completed: true)
     try await repo.insertSeries(podcastAllPlayed, unsavedEpisodes: [playedEpisode])
 
-    let allPodcastsWithLatestEpisodeDate =
+    let allPodcastsWithLatestEpisodeDates =
       IdentifiedArray(
         uniqueElements: try await observatory.allPodcastsWithLatestEpisodeDates().get(),
         id: \.podcast.feedURL
       )
-    #expect(allPodcastsWithLatestEpisodeDate.count == 2)
+    #expect(allPodcastsWithLatestEpisodeDates.count == 2)
 
-    let podcastWithLatestEpisodes = allPodcastsWithLatestEpisodeDate[id: podcast.feedURL]!
+    let podcastWithLatestEpisodes = allPodcastsWithLatestEpisodeDates[id: podcast.feedURL]!
     #expect(
       podcastWithLatestEpisodes.maxUnfinishedEpisodePubDate!
         .approximatelyEquals(newestUnfinishedEpisode.pubDate)
@@ -80,7 +80,7 @@ actor ObservatoryTests {
         .approximatelyEquals(newestUnqueuedEpisode.pubDate)
     )
 
-    let fetchedPodcastAllPlayed = allPodcastsWithLatestEpisodeDate[id: podcastAllPlayed.feedURL]!
+    let fetchedPodcastAllPlayed = allPodcastsWithLatestEpisodeDates[id: podcastAllPlayed.feedURL]!
     #expect(fetchedPodcastAllPlayed.maxUnfinishedEpisodePubDate == nil)
     #expect(fetchedPodcastAllPlayed.maxUnstartedEpisodePubDate == nil)
     #expect(fetchedPodcastAllPlayed.maxUnqueuedEpisodePubDate == nil)
