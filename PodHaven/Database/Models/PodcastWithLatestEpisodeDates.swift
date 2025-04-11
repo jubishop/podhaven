@@ -14,27 +14,39 @@ struct PodcastWithLatestEpisodeDates:
   static func all() -> QueryInterfaceRequest<PodcastWithLatestEpisodeDates> {
     let unfinishedSQL = SQL(
       sql:
-        "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = ?)",
-      arguments: [false]
+        """
+          (SELECT MAX(pubDate) FROM episode WHERE
+          episode.podcastId = podcast.id AND 
+          episode.completed = 0)
+        """
     )
 
     let unstartedSQL = SQL(
       sql:
-        "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = ? AND episode.currentTime = ?)",
-      arguments: [false, 0]
+        """
+          (SELECT MAX(pubDate) FROM episode WHERE 
+          episode.podcastId = podcast.id AND 
+          episode.completed = 0 AND 
+          episode.currentTime = 0)
+        """
     )
 
     let unqueuedSQL = SQL(
       sql:
-        "(SELECT MAX(pubDate) FROM episode WHERE episode.podcastId = podcast.id AND episode.completed = ? AND episode.currentTime = ? AND episode.queueOrder IS ?)",
-      arguments: [false, 0, nil]
+        """
+          (SELECT MAX(pubDate) FROM episode WHERE 
+          episode.podcastId = podcast.id AND 
+          episode.completed = 0 AND 
+          episode.currentTime = 0 AND 
+          episode.queueOrder IS NULL)
+        """
     )
 
     return Podcast.all()
       .annotated(with: [
-        unfinishedSQL.forKey("maxUnfinishedEpisodePubDate"),
-        unstartedSQL.forKey("maxUnstartedEpisodePubDate"),
-        unqueuedSQL.forKey("maxUnqueuedEpisodePubDate"),
+        unfinishedSQL.forKey(CodingKeys.maxUnfinishedEpisodePubDate),
+        unstartedSQL.forKey(CodingKeys.maxUnstartedEpisodePubDate),
+        unqueuedSQL.forKey(CodingKeys.maxUnqueuedEpisodePubDate),
       ])
       .asRequest(of: PodcastWithLatestEpisodeDates.self)
   }
