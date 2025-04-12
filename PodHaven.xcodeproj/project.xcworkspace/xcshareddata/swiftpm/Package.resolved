@@ -7,7 +7,7 @@
       "location" : "https://github.com/hmlongco/Factory",
       "state" : {
         "branch" : "main",
-        "revision" : "f2679ac998718e54e4bab899e69a17d261575863"
+        "revision" : "c8110886836ab4dd1136dbac0c04f0f36cd68540"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/groue/GRDB.swift",
       "state" : {
         "branch" : "master",
-        "revision" : "ea6d8e0123b0db79cd3cf736f5d9798a89839c51"
+        "revision" : "04e73c26c4ce8218ab85aaf791942bb0b204f330"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/kean/Nuke",
       "state" : {
         "branch" : "main",
-        "revision" : "1d748d4eac8db894ea3c4abfc504a87c902834bf"
+        "revision" : "c7ba4833b1b38f09e9708858aeaf91babc69f65c"
       }
     },
     {
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa/",
       "state" : {
-        "revision" : "0c34e4da899a1dd9183db04082d1ceb6e9c2b301",
-        "version" : "8.44.0"
+        "revision" : "2c6c1b81d9f6e6178064b4e9b457abe1c118bcda",
+        "version" : "8.49.0"
       }
     },
     {
@@ -52,7 +52,7 @@
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
         "branch" : "main",
-        "revision" : "52a1f698d5faa632df0e1219b1bbffa07cf65260"
+        "revision" : "78b544fbe20995ef5310337a86917c7ec40c863a"
       }
     },
     {

@@ -51,7 +51,4 @@ typealias Podcast = Saved<UnsavedPodcast>
 
 extension Podcast {
   static let episodes = hasMany(Episode.self).order(Schema.pubDateColumn.desc)
-  static let unfinishedEpisodes = episodes.filter(Schema.completedColumn == false)
-  static let unstartedEpisodes = unfinishedEpisodes.filter(Schema.currentTimeColumn == 0)
-  static let unqueuedEpisodes = unstartedEpisodes.filter(Schema.queueOrderColumn == nil)
 }
