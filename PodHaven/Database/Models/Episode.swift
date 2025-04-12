@@ -60,7 +60,4 @@ typealias Episode = Saved<UnsavedEpisode>
 
 extension Episode {
   static let podcast = belongsTo(Podcast.self)
-  var podcast: QueryInterfaceRequest<Podcast> {
-    request(for: Self.podcast)
-  }
 }

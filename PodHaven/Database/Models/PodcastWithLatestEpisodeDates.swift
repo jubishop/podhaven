@@ -12,34 +12,11 @@ struct PodcastWithLatestEpisodeDates:
   Stringable
 {
   static func all() -> QueryInterfaceRequest<PodcastWithLatestEpisodeDates> {
-    let podcastTable = TableAlias()
-
-    let unfinishedSubquery =
-      Episode
-      .select(max(Schema.pubDateColumn))
-      .filter(Schema.podcastIDColumn == podcastTable[Schema.idColumn])
-      .filter(Schema.completedColumn == false)
-
-    let unstartedSubquery =
-      Episode
-      .select(max(Schema.pubDateColumn))
-      .filter(Schema.podcastIDColumn == podcastTable[Schema.idColumn])
-      .filter(Schema.completedColumn == false)
-      .filter(Schema.currentTimeColumn == 0)
-
-    let unqueuedSubquery =
-      Episode
-      .select(max(Schema.pubDateColumn))
-      .filter(Schema.podcastIDColumn == podcastTable[Schema.idColumn])
-      .filter(Schema.completedColumn == false)
-      .filter(Schema.currentTimeColumn == 0)
-      .filter(Schema.queueOrderColumn == nil)
-
-    return Podcast.aliased(podcastTable).all()
+    Podcast.all()
       .annotated(with: [
-        unfinishedSubquery.forKey(CodingKeys.maxUnfinishedEpisodePubDate),
-        unstartedSubquery.forKey(CodingKeys.maxUnstartedEpisodePubDate),
-        unqueuedSubquery.forKey(CodingKeys.maxUnqueuedEpisodePubDate),
+        EpisodeAnnotations.latestUnfinished.forKey(CodingKeys.maxUnfinishedEpisodePubDate),
+        EpisodeAnnotations.latestUnstarted.forKey(CodingKeys.maxUnstartedEpisodePubDate),
+        EpisodeAnnotations.latestUnqueued.forKey(CodingKeys.maxUnqueuedEpisodePubDate),
       ])
       .asRequest(of: PodcastWithLatestEpisodeDates.self)
   }
