@@ -24,7 +24,8 @@ import SwiftUI
   let podcastFilter: SQLExpression
 
   var podcastList = SelectableListUseCase<PodcastWithLatestEpisodeDates, Podcast.ID>(
-    idKeyPath: \.id
+    idKeyPath: \.id,
+    sortMethod: sortMethod(for: .byTitle)
   )
   var anySelectedSubscribed: Bool {
     podcastList.selectedEntries.contains { $0.subscribed == true }
@@ -33,19 +34,45 @@ import SwiftUI
     podcastList.selectedEntries.contains { $0.subscribed == false }
   }
 
-  enum SortMethod {
-    case byTitle
-    case byMostRecentUnplayed
+  enum SortMethod: String, CaseIterable {
+    case byTitle = "Title"
+    case byMostRecentUnfinished = "Most Recent Unfinished"
+    case byMostRecentUnstarted = "Most Recent Unstarted"
+    case byMostRecentUnqueued = "Most Recent Unqueued"
   }
-  //  private let sortMethods: Dictionary<SortMethod, (Podcast, Podcast) -> Bool> = [
-  //    .byTitle: { $0.title < $1.title },
-  //    .byMostRecentUnplayed: {
-  ////      $0.mostRecentUnplayedEpisodeDate ?? Date.distantPast
-  ////      < $1.mostRecentUnplayedEpisodeDate ?? Date.distantPast
-  //      true
-  //    },
-  //  ]
-  var currentSortMethod = SortMethod.byTitle
+
+  private static func sortMethod(for sortMethod: SortMethod) -> (
+    PodcastWithLatestEpisodeDates, PodcastWithLatestEpisodeDates
+  ) -> Bool {
+    switch sortMethod {
+    case .byTitle:
+      return { lhs, rhs in lhs.title < rhs.title }
+    case .byMostRecentUnfinished:
+      return { lhs, rhs in
+        let lhsDate = lhs.maxUnfinishedEpisodePubDate ?? Date.distantPast
+        let rhsDate = rhs.maxUnfinishedEpisodePubDate ?? Date.distantPast
+        return lhsDate > rhsDate
+      }
+    case .byMostRecentUnstarted:
+      return { lhs, rhs in
+        let lhsDate = lhs.maxUnstartedEpisodePubDate ?? Date.distantPast
+        let rhsDate = rhs.maxUnstartedEpisodePubDate ?? Date.distantPast
+        return lhsDate > rhsDate
+      }
+    case .byMostRecentUnqueued:
+      return { lhs, rhs in
+        let lhsDate = lhs.maxUnqueuedEpisodePubDate ?? Date.distantPast
+        let rhsDate = rhs.maxUnqueuedEpisodePubDate ?? Date.distantPast
+        return lhsDate > rhsDate
+      }
+    }
+  }
+
+  var currentSortMethod = SortMethod.byTitle {
+    didSet {
+      podcastList.sortMethod = Self.sortMethod(for: currentSortMethod)
+    }
+  }
 
   // MARK: - Initialization
 

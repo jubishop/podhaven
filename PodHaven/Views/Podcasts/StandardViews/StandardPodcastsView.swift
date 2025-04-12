@@ -20,21 +20,24 @@ struct StandardPodcastsView: View {
         imageName: "line.horizontal.3.decrease.circle"
       )
 
-      //      Menu(
-      //        content: {
-      //                    Button(viewModel.unplayedOnly ? "Show All" : "Unplayed Only") {
-      //                      viewModel.unplayedOnly.toggle()
-      //                    }
-      //        },
-      //        label: {
-      //          Text("Sort by")
-      //        }
-      //      )
+      Menu(
+        content: {
+          ForEach(StandardPodcastsViewModel.SortMethod.allCases, id: \.self) { method in
+            Button(method.rawValue) {
+              viewModel.currentSortMethod = method
+            }
+            .disabled(viewModel.currentSortMethod == method)
+          }
+        },
+        label: {
+          Text("Sort by")
+        }
+      )
     }
     .padding(.horizontal)
 
     ScrollView {
-      ItemGrid(items: viewModel.podcastList.filteredEntries) {
+      ItemGrid(items: viewModel.podcastList.filteredSortedEntries) {
         podcastWithLatestEpisodeDates in
         NavigationLink(
           value: podcastWithLatestEpisodeDates.podcast,

@@ -48,16 +48,22 @@ final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
 
   // MARK: - Customization Parameters
 
-  var filterMethod: (T) -> Bool = { _ in true }
-  var sortMethod: (T, T) -> Bool = { $0.toString < $1.toString }
+  var filterMethod: (T) -> Bool
+  var sortMethod: (T, T) -> Bool
   var entryFilter: String = ""
 
   private let idKeyPath: KeyPath<T, ID>
 
   // MARK: - Initialization
 
-  init(idKeyPath: KeyPath<T, ID>) {
+  init(
+    idKeyPath: KeyPath<T, ID>,
+    filterMethod: @escaping (T) -> Bool = { _ in true },
+    sortMethod: @escaping (T, T) -> Bool = { $0.toString < $1.toString }
+  ) {
     self.idKeyPath = idKeyPath
+    self.filterMethod = filterMethod
+    self.sortMethod = sortMethod
     self._allEntries = IdentifiedArray(id: idKeyPath)
   }
 
