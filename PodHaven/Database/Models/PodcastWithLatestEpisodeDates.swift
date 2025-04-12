@@ -12,41 +12,34 @@ struct PodcastWithLatestEpisodeDates:
   Stringable
 {
   static func all() -> QueryInterfaceRequest<PodcastWithLatestEpisodeDates> {
-    let unfinishedSQL = SQL(
-      sql:
-        """
-          (SELECT MAX(pubDate) FROM episode WHERE
-          episode.podcastId = podcast.id AND 
-          episode.completed = 0)
-        """
-    )
+    let podcastTable = TableAlias()
 
-    let unstartedSQL = SQL(
-      sql:
-        """
-          (SELECT MAX(pubDate) FROM episode WHERE 
-          episode.podcastId = podcast.id AND 
-          episode.completed = 0 AND 
-          episode.currentTime = 0)
-        """
-    )
+    let unfinishedSubquery =
+      Episode
+      .select(max(Schema.pubDateColumn))
+      .filter(Schema.podcastIDColumn == podcastTable[Schema.idColumn])
+      .filter(Schema.completedColumn == false)
 
-    let unqueuedSQL = SQL(
-      sql:
-        """
-          (SELECT MAX(pubDate) FROM episode WHERE 
-          episode.podcastId = podcast.id AND 
-          episode.completed = 0 AND 
-          episode.currentTime = 0 AND 
-          episode.queueOrder IS NULL)
-        """
-    )
+    let unstartedSubquery =
+      Episode
+      .select(max(Schema.pubDateColumn))
+      .filter(Schema.podcastIDColumn == podcastTable[Schema.idColumn])
+      .filter(Schema.completedColumn == false)
+      .filter(Schema.currentTimeColumn == 0)
 
-    return Podcast.all()
+    let unqueuedSubquery =
+      Episode
+      .select(max(Schema.pubDateColumn))
+      .filter(Schema.podcastIDColumn == podcastTable[Schema.idColumn])
+      .filter(Schema.completedColumn == false)
+      .filter(Schema.currentTimeColumn == 0)
+      .filter(Schema.queueOrderColumn == nil)
+
+    return Podcast.aliased(podcastTable).all()
       .annotated(with: [
-        unfinishedSQL.forKey(CodingKeys.maxUnfinishedEpisodePubDate),
-        unstartedSQL.forKey(CodingKeys.maxUnstartedEpisodePubDate),
-        unqueuedSQL.forKey(CodingKeys.maxUnqueuedEpisodePubDate),
+        unfinishedSubquery.forKey(CodingKeys.maxUnfinishedEpisodePubDate),
+        unstartedSubquery.forKey(CodingKeys.maxUnstartedEpisodePubDate),
+        unqueuedSubquery.forKey(CodingKeys.maxUnqueuedEpisodePubDate),
       ])
       .asRequest(of: PodcastWithLatestEpisodeDates.self)
   }
