@@ -41,8 +41,8 @@ struct Observatory {
 
   func queuedEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
     _observe { db in
-      try Episode
-        .filter(Schema.queueOrderColumn != nil)
+      try Episode.all()
+        .inQueue()
         .including(required: Episode.podcast)
         .order(Schema.queueOrderColumn.asc)
         .asRequest(of: PodcastEpisode.self)
@@ -53,7 +53,7 @@ struct Observatory {
   func podcastSeries(_ podcastID: Podcast.ID) -> AsyncValueObservation<PodcastSeries?> {
     _observe { db in
       try Podcast
-        .filter(id: podcastID)
+        .withID(podcastID)
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
@@ -63,7 +63,7 @@ struct Observatory {
   func podcastEpisode(_ episodeID: Episode.ID) -> AsyncValueObservation<PodcastEpisode?> {
     _observe { db in
       try Episode
-        .filter(id: episodeID)
+        .withID(episodeID)
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)

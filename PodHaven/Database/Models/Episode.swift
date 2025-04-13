@@ -61,3 +61,13 @@ typealias Episode = Saved<UnsavedEpisode>
 extension Episode {
   static let podcast = belongsTo(Podcast.self)
 }
+
+extension DerivableRequest<Episode> {
+  func maxPubDate() -> Self {
+    select(max(Schema.pubDateColumn))
+  }
+
+  func inQueue() -> Self {
+    filter(Schema.queueOrderColumn != nil)
+  }
+}

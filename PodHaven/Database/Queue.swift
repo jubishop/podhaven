@@ -119,8 +119,7 @@ struct Queue: Sendable {
       else { continue }
 
       try _move (db, episodeID: episodeID, from: oldPosition, to: Int.max)
-      try Episode.filter(id: episodeID)
-        .updateAll(db, Schema.queueOrderColumn.set(to: nil))
+      try Episode.withID(episodeID).updateAll(db, Schema.queueOrderColumn.set(to: nil))
     }
   }
 
@@ -129,11 +128,7 @@ struct Queue: Sendable {
       db.isInsideTransaction,
       "fetchOldPosition method requires a transaction"
     )
-    return
-      try Episode
-      .filter(id: episodeID)
-      .select(Schema.queueOrderColumn, as: Int.self)
-      .fetchOne(db)
+    return try Episode.withID(episodeID).select(Schema.queueOrderColumn).fetchOne(db)
   }
 
   private func _insert(
@@ -182,9 +177,7 @@ struct Queue: Sendable {
       "setToPosition method requires a transaction"
     )
 
-    try Episode
-      .filter(id: episodeID)
-      .updateAll(db, Schema.queueOrderColumn.set(to: position))
+    try Episode.withID(episodeID).updateAll(db, Schema.queueOrderColumn.set(to: position))
   }
 
   private func _clear(_ db: Database) throws {
@@ -193,7 +186,6 @@ struct Queue: Sendable {
       "clear method requires a transaction"
     )
 
-    try Episode.filter(Schema.queueOrderColumn != nil)
-      .updateAll(db, Schema.queueOrderColumn.set(to: nil))
+    try Episode.all().inQueue().updateAll(db, Schema.queueOrderColumn.set(to: nil))
   }
 }

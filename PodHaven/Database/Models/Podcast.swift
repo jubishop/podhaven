@@ -55,13 +55,7 @@ extension Podcast {
   // MARK: - Annotation Queries
 
   static let annotatedEpisodes = hasManyAnnotation(Episode.self)
-
   static let unfinishedEpisodes = Podcast.annotatedEpisodes.filter(Schema.completedColumn == false)
-  static let latestUnfinishedEpisodeDate = unfinishedEpisodes.select(max(Schema.pubDateColumn))
-
   static let unstartedEpisodes = unfinishedEpisodes.filter(Schema.currentTimeColumn == 0)
-  static let latestUnstartedEpisodeDate = unstartedEpisodes.select(max(Schema.pubDateColumn))
-
   static let unqueuedEpisodes = unstartedEpisodes.filter(Schema.queueOrderColumn == nil)
-  static let latestUnqueuedEpisodeDate = unqueuedEpisodes.select(max(Schema.pubDateColumn))
 }

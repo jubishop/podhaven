@@ -14,9 +14,9 @@ struct PodcastWithLatestEpisodeDates:
   static func all() -> QueryInterfaceRequest<PodcastWithLatestEpisodeDates> {
     Podcast.all()
       .annotated(with: [
-        Podcast.latestUnfinishedEpisodeDate.forKey(CodingKeys.maxUnfinishedEpisodePubDate),
-        Podcast.latestUnstartedEpisodeDate.forKey(CodingKeys.maxUnstartedEpisodePubDate),
-        Podcast.latestUnqueuedEpisodeDate.forKey(CodingKeys.maxUnqueuedEpisodePubDate),
+        Podcast.unfinishedEpisodes.maxPubDate().forKey(CodingKeys.maxUnfinishedEpisodePubDate),
+        Podcast.unstartedEpisodes.maxPubDate().forKey(CodingKeys.maxUnstartedEpisodePubDate),
+        Podcast.unqueuedEpisodes.maxPubDate().forKey(CodingKeys.maxUnqueuedEpisodePubDate),
       ])
       .asRequest(of: PodcastWithLatestEpisodeDates.self)
   }

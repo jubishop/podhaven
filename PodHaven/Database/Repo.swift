@@ -58,7 +58,7 @@ struct Repo: Sendable {
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
     try await appDB.db.read { db in
       try Podcast
-        .filter(id: podcastID)
+        .withID(podcastID)
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
@@ -90,7 +90,7 @@ struct Repo: Sendable {
   func episode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
-        .filter(id: episodeID)
+        .withID(episodeID)
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)
@@ -165,9 +165,10 @@ struct Repo: Sendable {
   func delete(_ podcastIDs: [Podcast.ID]) async throws -> Int {
     try await appDB.db.write { db in
       let queuedEpisodeIDs =
-        try Episode
-        .select(Schema.idColumn, as: Episode.ID.self)
-        .filter(podcastIDs.contains(Schema.podcastIDColumn) && Schema.queueOrderColumn != nil)
+        try Episode.all()
+        .inQueue()
+        .filter(podcastIDs.contains(Schema.podcastIDColumn))
+        .selectID()
         .fetchAll(db)
       try queue.dequeue(db, queuedEpisodeIDs, RepoAccessKey())
 
@@ -221,20 +222,22 @@ struct Repo: Sendable {
     return podcastEpisode
   }
 
-  func updateCurrentTime(_ episodeID: Episode.ID, _ currentTime: CMTime) async throws {
-    _ = try await appDB.db.write { db in
+  @discardableResult
+  func updateCurrentTime(_ episodeID: Episode.ID, _ currentTime: CMTime) async throws -> Bool {
+    try await appDB.db.write { db in
       try Episode
-        .filter(id: episodeID)
+        .withID(episodeID)
         .updateAll(db, Schema.currentTimeColumn.set(to: currentTime.seconds))
-    }
+    } > 0
   }
 
-  func markComplete(_ episodeID: Episode.ID) async throws {
-    _ = try await appDB.db.write { db in
+  @discardableResult
+  func markComplete(_ episodeID: Episode.ID) async throws -> Bool {
+    try await appDB.db.write { db in
       try Episode
-        .filter(id: episodeID)
+        .withID(episodeID)
         .updateAll(db, Schema.completedColumn.set(to: true), Schema.currentTimeColumn.set(to: 0))
-    }
+    } > 0
   }
 
   @discardableResult

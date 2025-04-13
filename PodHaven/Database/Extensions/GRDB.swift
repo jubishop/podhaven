@@ -28,3 +28,18 @@ extension QueryInterfaceRequest {
     return self.filter(sqlExpression)
   }
 }
+
+extension TableRecord where Self: Identifiable, Self.ID: DatabaseValueConvertible {
+  static func hasManyAnnotation<Destination>(
+    _ destination: Destination.Type,
+    using foreignKeyColumn: Column? = nil
+  ) -> QueryInterfaceRequest<Destination> where Self: Identifiable, Destination: TableRecord {
+    let foreignKeyColumn = foreignKeyColumn ?? Column("\(Self.databaseTableName)Id")
+    let tableAlias = TableAlias(name: Self.databaseTableName)
+    return Destination.filter(foreignKeyColumn == tableAlias[Column("id")])
+  }
+
+  static func withID(_ id: ID) -> QueryInterfaceRequest<Self> {
+    filter(id: id)
+  }
+}

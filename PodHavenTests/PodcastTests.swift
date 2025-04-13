@@ -23,7 +23,7 @@ actor PodcastTests {
     #expect(podcast.title == unsavedPodcast.title)
 
     let fetchedPodcast = try await repo.db.read { [podcast] db in
-      try Podcast.filter(id: podcast.id).fetchOne(db)
+      try Podcast.withID(podcast.id).fetchOne(db)
     }
     #expect(fetchedPodcast == podcast)
 

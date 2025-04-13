@@ -311,7 +311,9 @@ final actor PlayManager {
       ) {
         if Task.isCancelled { break }
         if let episodeID = self.episodeID {
-          try? await repo.markComplete(episodeID)
+          do {
+            try await repo.markComplete(episodeID)
+          } catch {}
         }
         clearOnDeck()
         if let nextEpisode = try? await repo.nextEpisode() {
