@@ -85,13 +85,38 @@ actor SearchServiceTests {
       .data(data)
     )
     let result = try await service.searchByPerson(searchTerm)
-    let item = result.items.first!
+    let unsavedPodcastEpisode = try result.items.first!.toUnsavedPodcastEpisode()
     #expect(result.items.count == 60)
     #expect(
-      item.title
-        == "Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women"
+      unsavedPodcastEpisode
+        == UnsavedPodcastEpisode(
+          unsavedPodcast: try UnsavedPodcast(
+            feedURL: FeedURL(URL(string: "https://feeds.buzzsprout.com/1733776.rss")!),
+            title: "Homo Erectus Walks Amongst Us Podcast #HomoErectus",
+            image: URL(string: "https://storage.buzzsprout.com/x5q2k148xhspu9dkzhvx6m7pb1ji?.jpg")!,
+            description: ""
+          ),
+          unsavedEpisode: try UnsavedEpisode(
+            guid: "Buzzsprout-16162072",
+            media: MediaURL(
+              URL(
+                string:
+                  "https://www.buzzsprout.com/1733776/episodes/16162072-bill-maher-clashes-with-neil-degrasse-tyson-for-refusing-to-admit-men-s-sports-advantage-over-women.mp3"
+              )!
+            ),
+            title:
+              "Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women",
+            pubDate: Date(timeIntervalSince1970: 1732406400),
+            duration: CMTime.inSeconds(887),
+            description:
+              "<h1>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women</h1><h1>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women</h1><h1>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women</h1><p>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women<br/>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women<br/>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit..."
+          )
+        )
     )
-    #expect(item.duration == CMTime.inSeconds(887))
+
+    #expect(throws: (any Error).self) {
+      try result.items.last!.toUnsavedPodcastEpisode()
+    }
   }
 
   @Test("search trending")
