@@ -4,12 +4,6 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 
-extension DerivableRequest {
-  func shuffled() -> Self {
-    order(sql: "RANDOM()")
-  }
-}
-
 extension FetchRequest where RowDecoder: FetchableRecord & Identifiable {
   public func fetchIdentifiedArray(_ db: Database) throws -> IdentifiedArrayOf<RowDecoder> {
     try IdentifiedArray(uniqueElements: fetchAll(db))
@@ -22,10 +16,14 @@ extension FetchRequest where RowDecoder: FetchableRecord & Identifiable {
   }
 }
 
-extension QueryInterfaceRequest {
+extension DerivableRequest {
   func filtered(with sqlExpression: SQLExpression?) -> Self {
     guard let sqlExpression = sqlExpression else { return self }
     return self.filter(sqlExpression)
+  }
+
+  func shuffled() -> Self {
+    order(sql: "RANDOM()")
   }
 }
 
