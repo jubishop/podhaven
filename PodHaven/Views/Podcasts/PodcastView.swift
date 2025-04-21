@@ -113,6 +113,7 @@ struct PodcastView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var podcast: Podcast?
 
@@ -126,3 +127,4 @@ struct PodcastView: View {
     podcast = try? await PreviewHelpers.loadSeries().podcast
   }
 }
+#endif

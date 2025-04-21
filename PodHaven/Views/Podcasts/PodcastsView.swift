@@ -50,7 +50,9 @@ struct PodcastsView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   PodcastsView()
     .preview()
 }
+#endif

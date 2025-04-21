@@ -44,6 +44,7 @@ struct CircularProgressView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var greenAmount: Double = 30
   @Previewable @State var redAmount: Double = 50
@@ -84,3 +85,4 @@ struct CircularProgressView: View {
       .accentColor(.gray)
   }
 }
+#endif

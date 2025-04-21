@@ -35,6 +35,7 @@ struct SearchBar: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var text: String = ""
   @Previewable @State var demo: String = ""
@@ -44,3 +45,4 @@ struct SearchBar: View {
     TextField("Random focus field", text: $demo)
   }
 }
+#endif

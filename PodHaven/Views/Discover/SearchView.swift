@@ -46,9 +46,11 @@ struct SearchView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   NavigationStack {
     SearchView(viewModel: DiscoverViewModel())
   }
   .preview()
 }
+#endif

@@ -106,6 +106,7 @@ struct HTMLText: View {
   }
 }
 
+#if DEBUG
 #Preview {
   VStack {
     HTMLText(
@@ -128,3 +129,4 @@ struct HTMLText: View {
     .padding()
   }
 }
+#endif

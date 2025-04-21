@@ -27,7 +27,9 @@ struct SettingsView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   SettingsView()
     .preview()
 }
+#endif

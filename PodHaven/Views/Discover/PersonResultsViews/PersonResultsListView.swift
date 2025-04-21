@@ -86,6 +86,7 @@ struct PersonResultsListView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var viewModel: PersonResultsListViewModel?
 
@@ -105,3 +106,4 @@ struct PersonResultsListView: View {
     )
   }
 }
+#endif

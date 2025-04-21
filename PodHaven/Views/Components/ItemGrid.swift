@@ -24,6 +24,7 @@ where P.Element == T {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var isSelecting: Bool = false
   @Previewable @State var isSelected = BindableDictionary<Podcast, Bool>(defaultValue: false)
@@ -55,3 +56,4 @@ where P.Element == T {
     } catch { fatalError("Couldn't preview podcast grid: \(error)") }
   }
 }
+#endif

@@ -65,6 +65,7 @@ struct PlayBar: View {
   }
 }
 
+#if DEBUG
 #Preview {
   PlayBar()
     .preview()
@@ -73,3 +74,4 @@ struct PlayBar: View {
       try? await Container.shared.playManager().load(podcastEpisode)
     }
 }
+#endif

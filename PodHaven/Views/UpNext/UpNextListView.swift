@@ -65,6 +65,7 @@ struct UpNextListView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var podcastEpisode: PodcastEpisode?
   @Previewable @State var editMode: EditMode = .inactive
@@ -99,3 +100,4 @@ struct UpNextListView: View {
     podcastEpisode = try? await PreviewHelpers.loadPodcastEpisode()
   }
 }
+#endif

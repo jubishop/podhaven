@@ -14,6 +14,7 @@ struct PodcastListResultsView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var unsavedPodcast: UnsavedPodcast?
 
@@ -31,4 +32,5 @@ struct PodcastListResultsView: View {
     unsavedPodcast = try! await PreviewHelpers.loadUnsavedPodcast()
   }
 }
+#endif
 

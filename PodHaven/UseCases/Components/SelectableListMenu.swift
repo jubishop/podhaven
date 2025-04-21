@@ -30,6 +30,7 @@ struct SelectableListMenu: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var list = MockSelectableList()
 
@@ -42,3 +43,4 @@ struct SelectableListMenu: View {
     }
   }
 }
+#endif

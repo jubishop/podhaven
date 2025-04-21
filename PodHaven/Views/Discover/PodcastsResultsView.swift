@@ -40,6 +40,7 @@ struct PodcastsResultsView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var viewModel: ResultsViewModel?
 
@@ -57,3 +58,4 @@ struct PodcastsResultsView: View {
     )
   }
 }
+#endif

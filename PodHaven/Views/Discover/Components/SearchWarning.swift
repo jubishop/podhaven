@@ -16,7 +16,9 @@ struct SearchWarning: View {
   }
 }
 
+#if DEBUG
 #Preview {
   SearchWarning(warning: "Test Warning")
     .preview()
 }
+#endif

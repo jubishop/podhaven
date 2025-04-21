@@ -52,6 +52,7 @@ struct OPMLImportSheetSection: View {
   }
 }
 
+#if DEBUG
 #Preview {
   List {
     // Should display nothing...
@@ -71,3 +72,4 @@ struct OPMLImportSheetSection: View {
   }
   .preview()
 }
+#endif

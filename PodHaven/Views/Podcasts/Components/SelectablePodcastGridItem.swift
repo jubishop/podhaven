@@ -91,6 +91,7 @@ struct SelectablePodcastGridItem: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var podcast: Podcast?
   @Previewable @State var invalidPodcast: Podcast?
@@ -126,3 +127,4 @@ struct SelectablePodcastGridItem: View {
     } catch { fatalError("Couldn't preview podcast thumbnail: \\(error)") }
   }
 }
+#endif

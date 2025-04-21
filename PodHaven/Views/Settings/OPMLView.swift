@@ -29,7 +29,9 @@ struct OPMLView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   OPMLView()
     .preview()
 }
+#endif

@@ -51,6 +51,7 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var width: CGFloat = 400
   @Previewable @State var horizontalSpacing: CGFloat = 4
@@ -115,3 +116,4 @@ struct TokenGridView<Token: Hashable, Content: View>: View {
   .padding()
   .preview()
 }
+#endif

@@ -57,6 +57,7 @@ struct OPMLImportSheet: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var viewModel = OPMLViewModel()
 
@@ -91,3 +92,4 @@ struct OPMLImportSheet: View {
     OPMLImportSheet(viewModel: viewModel, opmlFile: opmlFile)
   }
 }
+#endif

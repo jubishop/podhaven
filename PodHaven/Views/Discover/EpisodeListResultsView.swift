@@ -34,6 +34,7 @@ struct EpisodeListResultsView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var unsavedEpisode: UnsavedEpisode?
   @Previewable @State var selectedUnsavedEpisode: UnsavedEpisode?
@@ -65,3 +66,4 @@ struct EpisodeListResultsView: View {
     selectedUnsavedEpisode = try? await PreviewHelpers.loadUnsavedEpisode()
   }
 }
+#endif

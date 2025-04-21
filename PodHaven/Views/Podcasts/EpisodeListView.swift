@@ -34,6 +34,7 @@ struct EpisodeListView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var episode: Episode?
   @Previewable @State var selectedEpisode: Episode?
@@ -65,3 +66,4 @@ struct EpisodeListView: View {
     selectedEpisode = try? await PreviewHelpers.loadEpisode()
   }
 }
+#endif

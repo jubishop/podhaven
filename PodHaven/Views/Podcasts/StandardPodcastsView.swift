@@ -116,6 +116,7 @@ struct StandardPodcastsView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   NavigationStack {
     StandardPodcastsView(viewModel: StandardPodcastsViewModel(title: "Preview Podcasts"))
@@ -125,3 +126,4 @@ struct StandardPodcastsView: View {
     try! await PreviewHelpers.importPodcasts()
   }
 }
+#endif

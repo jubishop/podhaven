@@ -30,6 +30,7 @@ struct SearchTokenView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   VStack(spacing: 32) {
     SearchTokenView(token: .trending)
@@ -40,3 +41,4 @@ struct SearchTokenView: View {
   }
   .preview()
 }
+#endif

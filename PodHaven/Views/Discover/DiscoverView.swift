@@ -41,7 +41,9 @@ struct DiscoverView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   DiscoverView()
     .preview()
 }
+#endif

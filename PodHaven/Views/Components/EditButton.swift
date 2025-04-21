@@ -32,6 +32,7 @@ struct EditButton<Label: View>: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var defaultText: String = "Unclicked"
   @Previewable @State var customText: String = "Unclicked"
@@ -92,3 +93,4 @@ struct EditButton<Label: View>: View {
   }
   .padding()
 }
+#endif

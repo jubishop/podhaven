@@ -24,6 +24,7 @@ struct PersonResultsView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var viewModel: PersonResultsViewModel?
 
@@ -44,3 +45,4 @@ struct PersonResultsView: View {
     )
   }
 }
+#endif

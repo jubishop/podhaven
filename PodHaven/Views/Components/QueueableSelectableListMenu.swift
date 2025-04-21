@@ -32,6 +32,8 @@ struct QueueableSelectableListMenu: View {
   }
 }
 
+#if DEBUG
 #Preview {
   QueueableSelectableListMenu(list: MockQueueableSelectableList())
 }
+#endif

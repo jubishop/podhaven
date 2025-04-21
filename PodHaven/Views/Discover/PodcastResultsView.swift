@@ -109,6 +109,7 @@ struct PodcastResultsView: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var viewModel: PodcastResultsViewModel?
   @ObservationIgnored @LazyInjected(\.repo) var repo
@@ -129,3 +130,4 @@ struct PodcastResultsView: View {
     )
   }
 }
+#endif

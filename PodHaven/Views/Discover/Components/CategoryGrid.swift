@@ -33,6 +33,7 @@ struct CategoryGrid: View {
   }
 }
 
+#if DEBUG
 #Preview {
   @Previewable @State var viewModel = DiscoverViewModel()
 
@@ -49,3 +50,4 @@ struct CategoryGrid: View {
   .padding()
   .preview()
 }
+#endif
