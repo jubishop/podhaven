@@ -18,11 +18,6 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
 
   // MARK: - State Management
 
-  private var _isSelecting = false
-  var isSelecting: Bool {
-    get { _isSelecting }
-    set { withAnimation { _isSelecting = newValue } }
-  }
   var unplayedOnly: Bool = false
 
   var episodeList = SelectableListUseCase<Episode, Episode.ID>(idKeyPath: \.id)

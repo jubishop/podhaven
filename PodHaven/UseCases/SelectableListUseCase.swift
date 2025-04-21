@@ -8,6 +8,11 @@ import SwiftUI
 final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
   // MARK: - Selection State Management
 
+  private var _isSelecting = false
+  var isSelecting: Bool {
+    get { _isSelecting }
+    set { withAnimation { _isSelecting = newValue } }
+  }
   var isSelected = BindableDictionary<T, Bool>(defaultValue: false)
   var anySelected: Bool { filteredEntries.contains { isSelected[$0] } }
   var anyNotSelected: Bool { filteredEntries.contains { !isSelected[$0] } }

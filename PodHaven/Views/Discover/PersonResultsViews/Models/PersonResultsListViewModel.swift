@@ -22,11 +22,6 @@ class PersonResultsListViewModel:
 
   // MARK: - State Management
 
-  private var _isSelecting = false
-  var isSelecting: Bool {
-    get { _isSelecting }
-    set { withAnimation { _isSelecting = newValue } }
-  }
   var unplayedOnly: Bool = false
 
   var episodeList = SelectableListUseCase<UnsavedPodcastEpisode, MediaURL>(

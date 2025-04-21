@@ -13,8 +13,6 @@ import IdentifiedCollections
 
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
   var selectedEpisodeIDs: [Episode.ID] { get async throws }
-
-  var isSelecting: Bool { get set }
 }
 
 @MainActor extension QueueableSelectableEpisodeList {

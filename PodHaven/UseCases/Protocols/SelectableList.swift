@@ -3,6 +3,7 @@
 import Foundation
 
 @MainActor protocol SelectableList {
+  var isSelecting: Bool { get set }
   var anyNotSelected: Bool { get }
   var anySelected: Bool { get }
 

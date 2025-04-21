@@ -12,6 +12,7 @@ final class MockSelectableList: SelectableList {
   }
   var selected: Selected = .some
 
+  var isSelecting: Bool = false
   var anyNotSelected: Bool = true
   var anySelected: Bool = true
 

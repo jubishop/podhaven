@@ -57,7 +57,7 @@ struct PodcastView: View {
               viewModel: EpisodeListViewModel(
                 isSelected: $viewModel.episodeList.isSelected[episode],
                 item: episode,
-                isSelecting: viewModel.isSelecting
+                isSelecting: viewModel.episodeList.isSelecting
               )
             )
           }
@@ -82,28 +82,28 @@ struct PodcastView: View {
       )
     }
     .toolbar {
-      if viewModel.isSelecting {
+      if viewModel.episodeList.isSelecting {
         ToolbarItem(placement: .topBarTrailing) {
           SelectableListMenu(list: viewModel.episodeList)
         }
       }
 
-      if viewModel.isSelecting, viewModel.episodeList.anySelected {
+      if viewModel.episodeList.isSelecting, viewModel.episodeList.anySelected {
         ToolbarItem(placement: .topBarTrailing) {
           QueueableSelectableListMenu(list: viewModel)
         }
       }
 
-      if viewModel.isSelecting {
+      if viewModel.episodeList.isSelecting {
         ToolbarItem(placement: .topBarLeading) {
           Button("Done") {
-            viewModel.isSelecting = false
+            viewModel.episodeList.isSelecting = false
           }
         }
       } else {
         ToolbarItem(placement: .topBarTrailing) {
           Button("Select Episodes") {
-            viewModel.isSelecting = true
+            viewModel.episodeList.isSelecting = true
           }
         }
       }
