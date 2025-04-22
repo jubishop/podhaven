@@ -15,9 +15,9 @@ actor RefreshManager: Sendable {
   // MARK: - Static Helpers
 
   #if DEBUG
-    static func initForTest(feedManager: FeedManager, repo: Repo) -> RefreshManager {
-      RefreshManager(feedManager: feedManager, repo: repo)
-    }
+  static func initForTest(feedManager: FeedManager, repo: Repo) -> RefreshManager {
+    RefreshManager(feedManager: feedManager, repo: repo)
+  }
   #endif
 
   // MARK: - State Management
@@ -95,19 +95,21 @@ actor RefreshManager: Sendable {
       activated()
     }
 
-    Task(priority: .utility) { [unowned self] in
+    Task(priority: .utility) { [weak self] in
       for await _ in NotificationCenter.default.notifications(
         named: UIApplication.didBecomeActiveNotification
       ) {
-        self.activated()
+        let refreshManager = self ?? Container.shared.refreshManager()
+        await refreshManager.activated()
       }
     }
 
-    Task(priority: .utility) { [unowned self] in
+    Task(priority: .utility) { [weak self] in
       for await _ in NotificationCenter.default.notifications(
         named: UIApplication.willResignActiveNotification
       ) {
-        self.backgrounded()
+        let refreshManager = self ?? Container.shared.refreshManager()
+        await refreshManager.backgrounded()
       }
     }
   }
@@ -115,9 +117,10 @@ actor RefreshManager: Sendable {
   // MARK: - Private Helpers
 
   private func activated() {
-    backgroundRefreshTask = Task(priority: .background) { [unowned self] in
+    backgroundRefreshTask = Task(priority: .background) { [weak self] in
       while !Task.isCancelled {
-        try? await performRefresh(
+        let refreshManager = self ?? Container.shared.refreshManager()
+        try? await refreshManager.performRefresh(
           stalenessThreshold: 10.minutesAgo,
           filter: Schema.subscribedColumn == true
         )
