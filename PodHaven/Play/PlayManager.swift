@@ -92,7 +92,6 @@ final actor PlayManager {
     }
 
     let avPlayerItem = AVPlayerItem(asset: avAsset)
-    avPlayer.removeAllItems()
     avPlayer.insert(avPlayerItem, after: nil)
 
     do {
@@ -112,10 +111,11 @@ final actor PlayManager {
     let episodeID = self.episodeID
     self.episodeID = nil
 
-    guard let episodeID = episodeID, let podcastEpisode = try? await repo.episode(episodeID)
-    else { return }
-
-    try? await load(podcastEpisode)
+    if let episodeID = episodeID, let podcastEpisode = try? await repo.episode(episodeID) {
+      try? await load(podcastEpisode)
+    } else {
+      clearOnDeck()
+    }
   }
 
   // MARK: - Playback Controls

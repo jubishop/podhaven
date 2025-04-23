@@ -81,6 +81,7 @@ extension Container {
 
   fileprivate init() {}
 
+  // TODO: Use an == operator for onDeck to PodcastEpisode here instead.
   func isOnDeck(_ podcastEpisode: PodcastEpisode) -> Bool {
     onDeck?.guid == podcastEpisode.episode.guid
       && onDeck?.feedURL == podcastEpisode.podcast.feedURL
