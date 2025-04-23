@@ -78,41 +78,28 @@ final actor PlayManager {
     pause()
     status = .loading
 
+    if let episodeID = self.episodeID {
+      try? await queue.unshift(episodeID)
+    }
+    self.episodeID = nil
+
     let avAsset: AVURLAsset
     let duration: CMTime
     do {
-      (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
       try audioSession.setActive(true)
+      (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
     } catch {
-      await reload()
+      status = .stopped
       throw Err.msg("Can't load episode: \(podcastEpisode.episode.toString)")
     }
 
     let avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.insert(avPlayerItem, after: nil)
 
-    do {
-      try await setOnDeck(podcastEpisode, duration)
-    } catch {
-      await reload()
-      throw Err.msg("Failed to set on deck: \(podcastEpisode.episode.toString)")
-    }
+    await setOnDeck(podcastEpisode, duration)
 
     status = .active
     startTracking()
-  }
-
-  private func reload() async {
-    status = .stopped
-
-    let episodeID = self.episodeID
-    self.episodeID = nil
-
-    if let episodeID = episodeID, let podcastEpisode = try? await repo.episode(episodeID) {
-      try? await load(podcastEpisode)
-    } else {
-      clearOnDeck()
-    }
   }
 
   // MARK: - Playback Controls
@@ -149,14 +136,10 @@ final actor PlayManager {
 
   // MARK: - Private State Management
 
-  private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async throws {
+  private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async {
     guard podcastEpisode.id != episodeID else { return }
 
-    if let episodeID = self.episodeID {
-      try await queue.unshift(episodeID)
-    }
-    try await queue.dequeue(podcastEpisode.id)
-
+    try? await queue.dequeue(podcastEpisode.id)
     self.episodeID = podcastEpisode.id
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
@@ -167,7 +150,7 @@ final actor PlayManager {
       podcastURL: podcastEpisode.podcast.link,
       episodeTitle: podcastEpisode.episode.title,
       duration: duration,
-      image: try await images.fetchImage(imageURL),
+      image: try? await images.fetchImage(imageURL),
       media: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate,
       key: accessKey
