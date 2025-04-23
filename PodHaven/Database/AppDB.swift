@@ -5,14 +5,14 @@ import GRDB
 
 struct AppDB: Sendable {
   #if DEBUG
-    static func inMemory() -> AppDB {
-      do {
-        let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
-        return try AppDB(dbQueue)
-      } catch {
-        fatalError("Failed to initialize inMemory AppDB: \(error)")
-      }
+  static func inMemory() -> AppDB {
+    do {
+      let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
+      return try AppDB(dbQueue)
+    } catch {
+      fatalError("Failed to initialize inMemory AppDB: \(error)")
     }
+  }
   #endif
 
   private static let _onDisk = {
@@ -28,8 +28,9 @@ struct AppDB: Sendable {
   }()
   static func onDisk(_ key: RepoAccessKey) -> AppDB { _onDisk }
   static func onDisk(_ key: QueueAccessKey) -> AppDB { _onDisk }
+
   #if DEBUG
-    static let onDisk = { _onDisk }()
+  static let onDisk = { _onDisk }()
   #endif
 
   // MARK: - Shorthand Expression Constants
@@ -40,12 +41,14 @@ struct AppDB: Sendable {
 
   private static func makeConfiguration() -> Configuration {
     var config = Configuration()
+
     #if DEBUG
-      config.publicStatementArguments = true
-      config.prepareDatabase { db in
-        db.trace { print($0) }
-      }
+    config.publicStatementArguments = true
+    //      config.prepareDatabase { db in
+    //        db.trace { print($0) }
+    //      }
     #endif
+
     return config
   }
 
