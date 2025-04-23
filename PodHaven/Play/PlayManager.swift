@@ -35,7 +35,7 @@ final actor PlayManager {
     }
   }
   var episodeID: Episode.ID?
-  private var avPlayer = AVPlayer()
+  private var avPlayer = AVQueuePlayer()
   private var nowPlayingInfo: NowPlayingInfo?
   private var commandCenter: CommandCenter
   private var commandObservingTask: Task<Void, Never>?
@@ -92,7 +92,8 @@ final actor PlayManager {
     }
 
     let avPlayerItem = AVPlayerItem(asset: avAsset)
-    avPlayer.replaceCurrentItem(with: avPlayerItem)
+    avPlayer.removeAllItems()
+    avPlayer.insert(avPlayerItem, after: nil)
 
     do {
       try await setOnDeck(podcastEpisode, duration)
