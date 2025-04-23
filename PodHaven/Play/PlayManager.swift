@@ -50,45 +50,36 @@ final actor PlayManager {
   }
 
   func resume() async {
-    do {
-      guard let episodeID: Episode.ID = Persistence.currentEpisodeID.load(),
-        let podcastEpisode = try await repo.episode(episodeID)
-      else { return }
+    guard let episodeID: Episode.ID = Persistence.currentEpisodeID.load(),
+      let podcastEpisode = try? await repo.episode(episodeID)
+    else { return }
 
-      try await load(podcastEpisode)
-    } catch {
-      // Do nothing
-    }
+    try? await load(podcastEpisode)
   }
 
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async throws {
     if status == .loading { return }
+    setStatus(.loading)
+    defer {
+      if status != .active { setStatus(.stopped) }
+    }
 
     stopTracking()
     pause()
-    setStatus(.loading)
+
+    try audioSession.setActive(true)
+    let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
+
+    let avPlayerItem = AVPlayerItem(asset: avAsset)
+    avPlayer.removeAllItems()
+    avPlayer.insert(avPlayerItem, after: nil)
 
     if let episodeID = self.episodeID {
       try? await queue.unshift(episodeID)
     }
     self.episodeID = nil
-
-    let avAsset: AVURLAsset
-    let duration: CMTime
-    do {
-      try audioSession.setActive(true)
-      (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
-    } catch {
-      avPlayer.removeAllItems()
-      setStatus(.stopped)
-      throw Err.msg("Can't load episode: \(podcastEpisode.episode.toString)")
-    }
-
-    let avPlayerItem = AVPlayerItem(asset: avAsset)
-    avPlayer.insert(avPlayerItem, after: nil)
-
     await setOnDeck(podcastEpisode, duration)
 
     setStatus(.active)
@@ -202,18 +193,10 @@ final actor PlayManager {
 
   private func loadAsset(for mediaURL: MediaURL) async throws -> (AVURLAsset, CMTime) {
     let avAsset = AVURLAsset(url: mediaURL.rawValue)
+    let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
 
-    let duration: CMTime
-    do {
-      let (isPlayable, loadedDuration) = try await avAsset.load(.isPlayable, .duration)
-
-      guard isPlayable
-      else { throw Err.msg("\(mediaURL) is not playable") }
-
-      duration = loadedDuration
-    } catch {
-      throw Err.msg("Failed to load \(mediaURL): \(error.localizedDescription)")
-    }
+    guard isPlayable
+    else { throw Err.msg("\(mediaURL) is not playable") }
 
     return (avAsset, duration)
   }
