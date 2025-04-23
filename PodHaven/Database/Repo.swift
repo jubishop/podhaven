@@ -20,8 +20,8 @@ struct RepoAccessKey { fileprivate init() {} }
 
 struct Repo: Sendable {
   #if DEBUG
-    static func inMemory() -> Repo { Repo(.inMemory()) }
-    static func initForTest(_ appDB: AppDB) -> Repo { Repo(appDB) }
+  static func inMemory() -> Repo { Repo(.inMemory()) }
+  static func initForTest(_ appDB: AppDB) -> Repo { Repo(appDB) }
   #endif
 
   // MARK: - Initialization
@@ -76,16 +76,6 @@ struct Repo: Sendable {
   }
 
   // MARK: - Episode Readers
-
-  func nextEpisode() async throws -> PodcastEpisode? {
-    try await appDB.db.read { db in
-      try Episode
-        .filter(Schema.queueOrderColumn == 0)
-        .including(required: Episode.podcast)
-        .asRequest(of: PodcastEpisode.self)
-        .fetchOne(db)
-    }
-  }
 
   func episode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in

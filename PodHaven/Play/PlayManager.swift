@@ -19,6 +19,7 @@ final actor PlayManager {
 
   private var playState = Container.shared.playState()  // Cannot LazyInject because @MainActor
   @ObservationIgnored @LazyInjected(\.images) private var images
+  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
@@ -53,6 +54,7 @@ final actor PlayManager {
 
   fileprivate init() {
     commandCenter = CommandCenter(accessKey)
+    Task { try await observeNextEpisode() }
   }
 
   func resume() async {
@@ -76,19 +78,14 @@ final actor PlayManager {
     pause()
     status = .loading
 
-    let avAsset = AVURLAsset(url: podcastEpisode.episode.media.rawValue)
-
+    let avAsset: AVURLAsset
     let duration: CMTime
     do {
-      let (isPlayable, loadedDuration) = try await avAsset.load(.isPlayable, .duration)
-      guard isPlayable
-      else { throw Err.msg("\(podcastEpisode.episode.toString) is not playable") }
-
-      duration = loadedDuration
+      (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
       try audioSession.setActive(true)
     } catch {
       await reload()
-      throw Err.msg("Can't play \(podcastEpisode.episode.toString)")
+      throw Err.msg("Can't load episode: \(podcastEpisode.episode.toString)")
     }
 
     let avPlayerItem = AVPlayerItem(asset: avAsset)
@@ -98,7 +95,7 @@ final actor PlayManager {
       try await setOnDeck(podcastEpisode, duration)
     } catch {
       await reload()
-      throw Err.msg("Failed to set \(podcastEpisode.episode.toString) on deck")
+      throw Err.msg("Failed to set on deck: \(podcastEpisode.episode.toString)")
     }
 
     status = .active
@@ -203,6 +200,46 @@ final actor PlayManager {
 
       try await repo.updateCurrentTime(episodeID, currentTime)
     }
+  }
+
+  // MARK: - Private Helpers
+
+  private func observeNextEpisode() async throws {
+    for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
+      guard let podcastEpisode = nextPodcastEpisode
+      else {
+        // TODO: Nothing in queue, clear our avPlayer
+        continue
+      }
+
+      let avAsset: AVURLAsset
+      do {
+        (avAsset, _) = try await loadAsset(for: podcastEpisode.episode.media)
+      } catch {
+        // TODO: Remove episode from queue since it can't be loaded
+        continue
+      }
+
+      // TODO: Add avAsset to our avPlayer
+    }
+  }
+
+  private func loadAsset(for mediaURL: MediaURL) async throws -> (AVURLAsset, CMTime) {
+    let avAsset = AVURLAsset(url: mediaURL.rawValue)
+
+    let duration: CMTime
+    do {
+      let (isPlayable, loadedDuration) = try await avAsset.load(.isPlayable, .duration)
+
+      guard isPlayable
+      else { throw Err.msg("\(mediaURL) is not playable") }
+
+      duration = loadedDuration
+    } catch {
+      throw Err.msg("Failed to load \(mediaURL): \(error.localizedDescription)")
+    }
+
+    return (avAsset, duration)
   }
 
   // MARK: - Private Tracking
@@ -316,13 +353,7 @@ final actor PlayManager {
             try await repo.markComplete(episodeID)
           } catch {}
         }
-        clearOnDeck()
-        if let nextEpisode = try? await repo.nextEpisode() {
-          Task {
-            try await load(nextEpisode)
-            play()
-          }
-        }
+        // TODO: Set new episode on deck
       }
     }
   }
