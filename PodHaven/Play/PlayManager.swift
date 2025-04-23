@@ -25,16 +25,8 @@ final actor PlayManager {
 
   private let accessKey = PlayManagerAccessKey()
   private var _status: PlayState.Status = .stopped
-  private var status: PlayState.Status {
-    get { _status }
-    set {
-      guard newValue != _status else { return }
+  private var status: PlayState.Status { _status }
 
-      _status = newValue
-      nowPlayingInfo?.playing(newValue.playing)
-      Task { await playState.setStatus(newValue, accessKey) }
-    }
-  }
   var episodeID: Episode.ID?
   private var avPlayer = AVQueuePlayer()
   private var nowPlayingInfo: NowPlayingInfo?
@@ -76,7 +68,7 @@ final actor PlayManager {
 
     stopTracking()
     pause()
-    status = .loading
+    setStatus(.loading)
 
     if let episodeID = self.episodeID {
       try? await queue.unshift(episodeID)
@@ -89,7 +81,8 @@ final actor PlayManager {
       try audioSession.setActive(true)
       (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
     } catch {
-      status = .stopped
+      avPlayer.removeAllItems()
+      setStatus(.stopped)
       throw Err.msg("Can't load episode: \(podcastEpisode.episode.toString)")
     }
 
@@ -98,7 +91,7 @@ final actor PlayManager {
 
     await setOnDeck(podcastEpisode, duration)
 
-    status = .active
+    setStatus(.active)
     startTracking()
   }
 
@@ -228,7 +221,11 @@ final actor PlayManager {
   // MARK: - Private Tracking
 
   private func setStatus(_ status: PlayState.Status) {
-    self.status = status
+    guard status != _status else { return }
+
+    nowPlayingInfo?.playing(status.playing)
+    Task { await playState.setStatus(status, accessKey) }
+    _status = status
   }
 
   private func startTracking() {
