@@ -27,7 +27,7 @@ final actor PlayManager {
   private var _status: PlayState.Status = .stopped
   private var status: PlayState.Status { _status }
 
-  private var episodeID: Episode.ID?
+  private var currentEpisodeID: Episode.ID?
 
   private struct PodcastEpisodeWithDuration {
     let podcastEpisode: PodcastEpisode
@@ -57,8 +57,8 @@ final actor PlayManager {
   }
 
   func resume() async {
-    guard let episodeID: Episode.ID = Persistence.currentEpisodeID.load(),
-      let podcastEpisode = try? await repo.episode(episodeID)
+    guard let currentEpisodeID: Episode.ID = Persistence.currentEpisodeID.load(),
+      let podcastEpisode = try? await repo.episode(currentEpisodeID)
     else { return }
 
     try? await load(podcastEpisode)
@@ -67,6 +67,8 @@ final actor PlayManager {
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async throws {
+    guard podcastEpisode.id != currentEpisodeID else { return }
+
     if status == .loading { return }
     setStatus(.loading)
     defer {
@@ -83,10 +85,6 @@ final actor PlayManager {
     avPlayer.removeAllItems()
     avPlayer.insert(avPlayerItem, after: nil)
 
-    if let episodeID = self.episodeID {
-      try? await queue.unshift(episodeID)
-    }
-    self.episodeID = nil
     await setOnDeck(podcastEpisode, duration)
 
     setStatus(.active)
@@ -128,10 +126,14 @@ final actor PlayManager {
   // MARK: - Private State Management
 
   private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async {
-    guard podcastEpisode.id != episodeID else { return }
+    guard podcastEpisode.id != currentEpisodeID else { return }
 
+    if let currentEpisodeID = self.currentEpisodeID {
+      try? await queue.unshift(currentEpisodeID)
+    }
+    self.currentEpisodeID = nil
     try? await queue.dequeue(podcastEpisode.id)
-    self.episodeID = podcastEpisode.id
+    self.currentEpisodeID = podcastEpisode.id
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
@@ -149,7 +151,7 @@ final actor PlayManager {
 
     nowPlayingInfo = NowPlayingInfo(onDeck, accessKey)
     Task { await playState.setOnDeck(onDeck, accessKey) }
-    Task(priority: .utility) { Persistence.currentEpisodeID.save(episodeID) }
+    Task(priority: .utility) { Persistence.currentEpisodeID.save(currentEpisodeID) }
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
       seek(to: podcastEpisode.episode.currentTime)
@@ -159,7 +161,7 @@ final actor PlayManager {
   }
 
   private func clearOnDeck() {
-    episodeID = nil
+    currentEpisodeID = nil
     setCurrentTime(CMTime.zero)
     nowPlayingInfo = nil
     Task { await playState.setOnDeck(nil, accessKey) }
@@ -170,9 +172,9 @@ final actor PlayManager {
     nowPlayingInfo?.currentTime(currentTime)
     Task { await playState.setCurrentTime(currentTime, accessKey) }
     Task(priority: .utility) {
-      guard let episodeID = self.episodeID else { return }
+      guard let currentEpisodeID = self.currentEpisodeID else { return }
 
-      try await repo.updateCurrentTime(episodeID, currentTime)
+      try await repo.updateCurrentTime(currentEpisodeID, currentTime)
     }
   }
 
@@ -320,13 +322,13 @@ final actor PlayManager {
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {
         if Task.isCancelled { break }
-        if let episodeID = self.episodeID {
+        if let currentEpisodeID = self.currentEpisodeID {
           do {
-            try await repo.markComplete(episodeID)
+            try await repo.markComplete(currentEpisodeID)
           } catch {}
         }
         // TODO: Set new episode on deck
-        print("episode finished: \(String(describing: self.episodeID))")
+        print("episode finished: \(String(describing: self.currentEpisodeID))")
       }
     }
   }
