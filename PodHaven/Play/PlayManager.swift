@@ -175,7 +175,7 @@ final actor PlayManager {
     for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
       guard let podcastEpisode = nextPodcastEpisode
       else {
-        // TODO: Nothing in queue, clear our avPlayer
+        // TODO: Nothing in queue, clear any entry except the one playing
         continue
       }
 
@@ -183,7 +183,7 @@ final actor PlayManager {
       do {
         (avAsset, _) = try await loadAsset(for: podcastEpisode.episode.media)
       } catch {
-        // TODO: Remove episode from queue since it can't be loaded
+        // TODO: Remove episode from queue since it can't be loaded, and report error
         continue
       }
 
