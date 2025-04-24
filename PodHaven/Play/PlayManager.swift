@@ -27,7 +27,9 @@ final actor PlayManager {
   private var _status: PlayState.Status = .stopped
   private var status: PlayState.Status { _status }
 
-  var episodeID: Episode.ID?
+  private var episodeID: Episode.ID?
+  private var nextPodcastEpisode: PodcastEpisode?
+
   private var avPlayer = AVQueuePlayer()
   private var nowPlayingInfo: NowPlayingInfo?
   private var commandCenter: CommandCenter
@@ -172,22 +174,21 @@ final actor PlayManager {
   // MARK: - Private Helpers
 
   private func observeNextEpisode() async throws {
-    for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
-      guard let podcastEpisode = nextPodcastEpisode
-      else {
+    for try await nextPodcastEpisode in observatory.nextPodcastEpisode()
+    where nextPodcastEpisode != self.nextPodcastEpisode {
+      self.nextPodcastEpisode = nextPodcastEpisode
+
+      print("next episode is \(String(describing: nextPodcastEpisode))")
+      if let podcastEpisode = nextPodcastEpisode {
+        do {
+          let (avAsset, _) = try await loadAsset(for: podcastEpisode.episode.media)
+          // TODO: Add avAsset to our avPlayer
+        } catch {
+          // TODO: Remove episode from queue since it can't be loaded, and report error
+        }
+      } else {
         // TODO: Nothing in queue, clear any entry except the one playing
-        continue
       }
-
-      let avAsset: AVURLAsset
-      do {
-        (avAsset, _) = try await loadAsset(for: podcastEpisode.episode.media)
-      } catch {
-        // TODO: Remove episode from queue since it can't be loaded, and report error
-        continue
-      }
-
-      // TODO: Add avAsset to our avPlayer
     }
   }
 
@@ -317,6 +318,7 @@ final actor PlayManager {
           } catch {}
         }
         // TODO: Set new episode on deck
+        print("episode finished: \(String(describing: self.episodeID))")
       }
     }
   }
