@@ -28,7 +28,12 @@ final actor PlayManager {
   private var status: PlayState.Status { _status }
 
   private var episodeID: Episode.ID?
-  private var nextPodcastEpisode: PodcastEpisode?
+
+  private struct PodcastEpisodeWithDuration {
+    let podcastEpisode: PodcastEpisode
+    let duration: CMTime
+  }
+  private var nextPodcastEpisode: PodcastEpisodeWithDuration?
 
   private var avPlayer = AVQueuePlayer()
   private var nowPlayingInfo: NowPlayingInfo?
@@ -175,18 +180,21 @@ final actor PlayManager {
 
   private func observeNextEpisode() async throws {
     for try await nextPodcastEpisode in observatory.nextPodcastEpisode()
-    where nextPodcastEpisode != self.nextPodcastEpisode {
-      self.nextPodcastEpisode = nextPodcastEpisode
-
-      print("next episode is \(String(describing: nextPodcastEpisode))")
+    where nextPodcastEpisode != self.nextPodcastEpisode?.podcastEpisode {
       if let podcastEpisode = nextPodcastEpisode {
         do {
-          let (avAsset, _) = try await loadAsset(for: podcastEpisode.episode.media)
+          let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
+          self.nextPodcastEpisode = PodcastEpisodeWithDuration(
+            podcastEpisode: podcastEpisode,
+            duration: duration
+          )
           // TODO: Add avAsset to our avPlayer
         } catch {
+          self.nextPodcastEpisode = nil
           // TODO: Remove episode from queue since it can't be loaded, and report error
         }
       } else {
+        self.nextPodcastEpisode = nil
         // TODO: Nothing in queue, clear any entry except the one playing
       }
     }
