@@ -33,11 +33,11 @@ final actor PlayManager {
     }
   }
 
-  private struct PodcastEpisodeWithDuration {
+  private struct LoadedPodcastEpisode {
     let podcastEpisode: PodcastEpisode
     let duration: CMTime
   }
-  private var loadedNextPodcastEpisode: PodcastEpisodeWithDuration?
+  private var loadedNextPodcastEpisode: LoadedPodcastEpisode?
 
   private var avPlayer = AVQueuePlayer()
   private var nowPlayingInfo: NowPlayingInfo?
@@ -193,7 +193,7 @@ final actor PlayManager {
       if let podcastEpisode = nextPodcastEpisode {
         do {
           let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
-          self.loadedNextPodcastEpisode = PodcastEpisodeWithDuration(
+          self.loadedNextPodcastEpisode = LoadedPodcastEpisode(
             podcastEpisode: podcastEpisode,
             duration: duration
           )
