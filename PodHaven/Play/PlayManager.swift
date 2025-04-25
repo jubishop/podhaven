@@ -34,7 +34,7 @@ final actor PlayManager {
   }
 
   private struct LoadedPodcastEpisode {
-    let item: AVPlayerItem
+    let asset: AVURLAsset
     let podcastEpisode: PodcastEpisode
     let duration: CMTime
   }
@@ -58,6 +58,7 @@ final actor PlayManager {
 
   fileprivate init() {
     commandCenter = CommandCenter(accessKey)
+    print("init of playmanager")
     Task {
       try await observeNextEpisode()
     }
@@ -84,6 +85,7 @@ final actor PlayManager {
       }
     }
 
+    print("currentepisode in load is \(String(describing: currentPodcastEpisode?.toString))")
     if let currentPodcastEpisode = self.currentPodcastEpisode {
       try? await queue.unshift(currentPodcastEpisode.id)
     }
@@ -93,11 +95,11 @@ final actor PlayManager {
     let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
 
     avPlayer.removeAllItems()
-    let avPlayerItem = AVPlayerItem(asset: avAsset)
-    avPlayer.insert(avPlayerItem, after: nil)
+    avPlayer.insert(AVPlayerItem(asset: avAsset), after: nil)
 
     await setOnDeck(podcastEpisode, duration)
     try? await queue.dequeue(podcastEpisode.id)
+    print("loaded and dequeued: \(podcastEpisode.toString)")
     updateNextPodcastEpisodeInAVPlayer()
 
     await setStatus(.active)
@@ -189,12 +191,13 @@ final actor PlayManager {
 
   private func observeNextEpisode() async throws {
     for try await nextPodcastEpisode in observatory.nextPodcastEpisode()
-    where nextPodcastEpisode != self.loadedNextPodcastEpisode?.podcastEpisode {
+    where nextPodcastEpisode?.id != self.loadedNextPodcastEpisode?.podcastEpisode.id {
+      print("new next episode?: \(String(describing: nextPodcastEpisode?.toString))")
       if let podcastEpisode = nextPodcastEpisode {
         do {
           let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
           self.loadedNextPodcastEpisode = LoadedPodcastEpisode(
-            item: AVPlayerItem(asset: avAsset),
+            asset: avAsset,
             podcastEpisode: podcastEpisode,
             duration: duration
           )
@@ -209,6 +212,16 @@ final actor PlayManager {
   }
 
   private func updateNextPodcastEpisodeInAVPlayer() {
+    Task { @MainActor in
+      let items = await avPlayer.items().enumerated()
+      print("top of update func")
+      for (index, playerItem) in items {
+        if let urlAsset = playerItem.asset as? AVURLAsset {
+          print("Item \(index) URL: \(urlAsset.url)")
+        }
+      }
+    }
+
     guard !avPlayer.items().isEmpty
     else { return }
 
@@ -217,7 +230,20 @@ final actor PlayManager {
     }
 
     if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
-      avPlayer.insert(loadedNextPodcastEpisode.item, after: avPlayer.items().first)
+      avPlayer.insert(
+        AVPlayerItem(asset: loadedNextPodcastEpisode.asset),
+        after: avPlayer.items().first
+      )
+    }
+
+    Task { @MainActor in
+      let items = await avPlayer.items().enumerated()
+      print("bottom of update func")
+      for (index, playerItem) in items {
+        if let urlAsset = playerItem.asset as? AVURLAsset {
+          print("Item \(index) URL: \(urlAsset.url)")
+        }
+      }
     }
   }
 
@@ -341,6 +367,7 @@ final actor PlayManager {
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {
         if Task.isCancelled { break }
+        print("current episode ended: \(String(describing: self.currentPodcastEpisode?.toString))")
         if let currentPodcastEpisode = self.currentPodcastEpisode {
           do { try await repo.markComplete(currentPodcastEpisode.id) } catch {}
         }
@@ -348,8 +375,14 @@ final actor PlayManager {
         if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
           let nextPodcastEpisode = loadedNextPodcastEpisode.podcastEpisode
           let duration = loadedNextPodcastEpisode.duration
+          print("loading next episode: \(String(describing: nextPodcastEpisode.toString))")
           await setOnDeck(nextPodcastEpisode, duration)
-          try? await queue.dequeue(nextPodcastEpisode.id)
+          print("dequeuing next episode: \(String(describing: nextPodcastEpisode.toString))")
+          do {
+            try await queue.dequeue(nextPodcastEpisode.id)
+          } catch {
+            print("dequeue error: \(error)")
+          }
         }
       }
     }
