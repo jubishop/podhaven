@@ -43,11 +43,8 @@ final actor PlayManager {
   private var avPlayer = AVQueuePlayer()
   private var nowPlayingInfo: NowPlayingInfo?
   private var commandCenter: CommandCenter
-  private var commandObservingTask: Task<Void, Never>?
-  private var interruptionObservingTask: Task<Void, Never>?
-  private var playToEndObservingTask: Task<Void, Never>?
-  private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
-  private var timeObserver: Any?
+  var timeControlStatusObserver: NSKeyValueObservation?
+  private var periodicTimeObserver: Any?
 
   // MARK: - Convenience Getters
 
@@ -58,8 +55,8 @@ final actor PlayManager {
 
   fileprivate init() {
     commandCenter = CommandCenter(accessKey)
-    print("init of playmanager")
     Task {
+      await startTracking()
       try await observeNextEpisode()
     }
   }
@@ -85,7 +82,6 @@ final actor PlayManager {
       }
     }
 
-    print("currentepisode in load is \(String(describing: currentPodcastEpisode?.toString))")
     if let currentPodcastEpisode = self.currentPodcastEpisode {
       try? await queue.unshift(currentPodcastEpisode.id)
     }
@@ -99,7 +95,6 @@ final actor PlayManager {
 
     await setOnDeck(podcastEpisode, duration)
     try? await queue.dequeue(podcastEpisode.id)
-    print("loaded and dequeued: \(podcastEpisode.toString)")
     updateNextPodcastEpisodeInAVPlayer()
 
     await setStatus(.active)
@@ -108,7 +103,8 @@ final actor PlayManager {
   // MARK: - Playback Controls
 
   func play() {
-    guard status.playable else { return }
+    guard status.playable
+    else { return }
 
     avPlayer.play()
   }
@@ -137,13 +133,23 @@ final actor PlayManager {
     }
   }
 
+  // MARK: - Private Loading Helpers
+
+  private func loadAsset(for mediaURL: MediaURL) async throws -> (AVURLAsset, CMTime) {
+    let avAsset = AVURLAsset(url: mediaURL.rawValue)
+    let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
+
+    guard isPlayable
+    else { throw Err.msg("\(mediaURL) is not playable") }
+
+    return (avAsset, duration)
+  }
+
   // MARK: - Private State Management
 
   private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async {
     guard podcastEpisode != currentPodcastEpisode else { return }
     currentPodcastEpisode = podcastEpisode
-
-    startTracking()
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
@@ -162,6 +168,7 @@ final actor PlayManager {
     nowPlayingInfo = NowPlayingInfo(onDeck, accessKey)
     await playState.setOnDeck(onDeck, accessKey)
 
+    addTimeObserver()
     if podcastEpisode.episode.currentTime != CMTime.zero {
       await seek(to: podcastEpisode.episode.currentTime)
     } else {
@@ -173,8 +180,15 @@ final actor PlayManager {
     nowPlayingInfo = nil
     await playState.setOnDeck(nil, accessKey)
     await setCurrentTime(CMTime.zero)
-    stopTracking()
     currentPodcastEpisode = nil
+  }
+
+  private func setStatus(_ status: PlayState.Status) async {
+    guard status != _status else { return }
+
+    nowPlayingInfo?.playing(status.playing)
+    await playState.setStatus(status, accessKey)
+    _status = status
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
@@ -187,12 +201,11 @@ final actor PlayManager {
     }
   }
 
-  // MARK: - Private Helpers
+  // MARK: - Private Next Episode Management
 
   private func observeNextEpisode() async throws {
     for try await nextPodcastEpisode in observatory.nextPodcastEpisode()
     where nextPodcastEpisode?.id != self.loadedNextPodcastEpisode?.podcastEpisode.id {
-      print("new next episode?: \(String(describing: nextPodcastEpisode?.toString))")
       if let podcastEpisode = nextPodcastEpisode {
         do {
           let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
@@ -212,16 +225,6 @@ final actor PlayManager {
   }
 
   private func updateNextPodcastEpisodeInAVPlayer() {
-    Task { @MainActor in
-      let items = await avPlayer.items().enumerated()
-      print("top of update func")
-      for (index, playerItem) in items {
-        if let urlAsset = playerItem.asset as? AVURLAsset {
-          print("Item \(index) URL: \(urlAsset.url)")
-        }
-      }
-    }
-
     guard !avPlayer.items().isEmpty
     else { return }
 
@@ -235,37 +238,9 @@ final actor PlayManager {
         after: avPlayer.items().first
       )
     }
-
-    Task { @MainActor in
-      let items = await avPlayer.items().enumerated()
-      print("bottom of update func")
-      for (index, playerItem) in items {
-        if let urlAsset = playerItem.asset as? AVURLAsset {
-          print("Item \(index) URL: \(urlAsset.url)")
-        }
-      }
-    }
-  }
-
-  private func loadAsset(for mediaURL: MediaURL) async throws -> (AVURLAsset, CMTime) {
-    let avAsset = AVURLAsset(url: mediaURL.rawValue)
-    let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
-
-    guard isPlayable
-    else { throw Err.msg("\(mediaURL) is not playable") }
-
-    return (avAsset, duration)
   }
 
   // MARK: - Private Tracking
-
-  private func setStatus(_ status: PlayState.Status) async {
-    guard status != _status else { return }
-
-    nowPlayingInfo?.playing(status.playing)
-    await playState.setStatus(status, accessKey)
-    _status = status
-  }
 
   private func startTracking() {
     addKVObservers()
@@ -275,17 +250,9 @@ final actor PlayManager {
     startPlayToEndNotifications()
   }
 
-  private func stopTracking() {
-    removeKVObservers()
-    removeTimeObserver()
-    stopCommandCenter()
-    stopInterruptionNotifications()
-    stopPlayToEndNotifications()
-  }
-
   private func addTimeObserver() {
     removeTimeObserver()
-    self.timeObserver = avPlayer.addPeriodicTimeObserver(
+    self.periodicTimeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
     ) { currentTime in
@@ -296,18 +263,16 @@ final actor PlayManager {
   }
 
   private func removeTimeObserver() {
-    if let timeObserver = self.timeObserver {
-      avPlayer.removeTimeObserver(timeObserver)
-      self.timeObserver = nil
+    if let periodicTimeObserver = self.periodicTimeObserver {
+      avPlayer.removeTimeObserver(periodicTimeObserver)
+      self.periodicTimeObserver = nil
     }
   }
 
   private func startCommandCenter() {
-    stopCommandCenter()
     commandCenter.start()
-    self.commandObservingTask = Task {
+    Task {
       for await command in commandCenter.commands() {
-        if Task.isCancelled { break }
         switch command {
         case .play:
           play()
@@ -326,21 +291,11 @@ final actor PlayManager {
     }
   }
 
-  private func stopCommandCenter() {
-    commandCenter.stop()
-    if let commandObservingTask = self.commandObservingTask {
-      commandObservingTask.cancel()
-      self.commandObservingTask = nil
-    }
-  }
-
   private func startInterruptionNotifications() {
-    stopInterruptionNotifications()
-    self.interruptionObservingTask = Task {
+    Task {
       for await notification in notificationCenter.notifications(
         named: AVAudioSession.interruptionNotification
       ) {
-        if Task.isCancelled { break }
         switch AudioInterruption.parse(notification) {
         case .pause:
           pause()
@@ -353,74 +308,44 @@ final actor PlayManager {
     }
   }
 
-  private func stopInterruptionNotifications() {
-    if let interruptionObservingTask = self.interruptionObservingTask {
-      interruptionObservingTask.cancel()
-      self.interruptionObservingTask = nil
-    }
-  }
-
   private func startPlayToEndNotifications() {
-    stopPlayToEndNotifications()
-    self.playToEndObservingTask = Task {
+    Task {
       for await _ in notificationCenter.notifications(
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {
-        if Task.isCancelled { break }
-        print("current episode ended: \(String(describing: self.currentPodcastEpisode?.toString))")
         if let currentPodcastEpisode = self.currentPodcastEpisode {
-          do { try await repo.markComplete(currentPodcastEpisode.id) } catch {}
+          self.currentPodcastEpisode = nil
+          _ = try? await repo.markComplete(currentPodcastEpisode.id)
         }
-        self.currentPodcastEpisode = nil
         if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
-          let nextPodcastEpisode = loadedNextPodcastEpisode.podcastEpisode
+          self.loadedNextPodcastEpisode = nil
+          let podcastEpisode = loadedNextPodcastEpisode.podcastEpisode
           let duration = loadedNextPodcastEpisode.duration
-          print("loading next episode: \(String(describing: nextPodcastEpisode.toString))")
-          await setOnDeck(nextPodcastEpisode, duration)
-          print("dequeuing next episode: \(String(describing: nextPodcastEpisode.toString))")
-          do {
-            try await queue.dequeue(nextPodcastEpisode.id)
-          } catch {
-            print("dequeue error: \(error)")
-          }
+          await setOnDeck(podcastEpisode, duration)
+          try? await queue.dequeue(podcastEpisode.id)
         }
       }
     }
   }
 
-  private func stopPlayToEndNotifications() {
-    if let playToEndObservingTask = self.playToEndObservingTask {
-      playToEndObservingTask.cancel()
-      self.playToEndObservingTask = nil
-    }
-  }
-
   private func addKVObservers() {
-    removeKVObservers()
-    keyValueObservers.append(
-      avPlayer.observe(
-        \.timeControlStatus,
-        options: [.initial, .new],
-        changeHandler: { [unowned self] playerItem, _ in
-          Task {
-            switch playerItem.timeControlStatus {
-            case AVPlayer.TimeControlStatus.paused:
-              await self.setStatus(.paused)
-            case AVPlayer.TimeControlStatus.playing:
-              await self.setStatus(.playing)
-            case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
-              await self.setStatus(.waiting)
-            @unknown default:
-              fatalError("Time control status unknown?")
-            }
+    self.timeControlStatusObserver = avPlayer.observe(
+      \.timeControlStatus,
+      options: [.initial, .new],
+      changeHandler: { [unowned self] playerItem, _ in
+        Task {
+          switch playerItem.timeControlStatus {
+          case AVPlayer.TimeControlStatus.paused:
+            await self.setStatus(.paused)
+          case AVPlayer.TimeControlStatus.playing:
+            await self.setStatus(.playing)
+          case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
+            await self.setStatus(.waiting)
+          @unknown default:
+            fatalError("Time control status unknown?")
           }
         }
-      )
+      }
     )
-  }
-
-  private func removeKVObservers() {
-    for keyValueObserver in keyValueObservers { keyValueObserver.invalidate() }
-    keyValueObservers.removeAll(keepingCapacity: true)
   }
 }
