@@ -17,8 +17,8 @@ struct QueueAccessKey { fileprivate init() {} }
 
 struct Queue: Sendable {
   #if DEBUG
-    static func inMemory() -> Queue { Queue(.inMemory()) }
-    static func initForTest(_ appDB: AppDB) -> Queue { Queue(appDB) }
+  static func inMemory() -> Queue { Queue(.inMemory()) }
+  static func initForTest(_ appDB: AppDB) -> Queue { Queue(appDB) }
   #endif
 
   // MARK: - Initialization
@@ -106,10 +106,7 @@ struct Queue: Sendable {
   // MARK: - Private Helpers
 
   private func _dequeue(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
-    precondition(
-      db.isInsideTransaction,
-      "dequeue method requires a transaction"
-    )
+    precondition(db.isInsideTransaction, "dequeue method requires a transaction")
 
     guard !episodeIDs.isEmpty
     else { return }
@@ -124,10 +121,8 @@ struct Queue: Sendable {
   }
 
   private func _fetchOldPosition(_ db: Database, for episodeID: Episode.ID) throws -> Int? {
-    precondition(
-      db.isInsideTransaction,
-      "fetchOldPosition method requires a transaction"
-    )
+    precondition(db.isInsideTransaction, "fetchOldPosition method requires a transaction")
+
     return try Episode.withID(episodeID).select(Schema.queueOrderColumn).fetchOne(db)
   }
 
@@ -136,10 +131,8 @@ struct Queue: Sendable {
     episodeID: Episode.ID,
     at newPosition: Int
   ) throws {
-    precondition(
-      db.isInsideTransaction,
-      "insertToQueue method requires a transaction"
-    )
+    precondition(db.isInsideTransaction, "insertToQueue method requires a transaction")
+
     let oldPosition = try _fetchOldPosition(db, for: episodeID) ?? Int.max
     let computedNewPosition = newPosition > oldPosition ? newPosition - 1 : newPosition
     try _move (db, episodeID: episodeID, from: oldPosition, to: computedNewPosition)
@@ -153,10 +146,7 @@ struct Queue: Sendable {
     to newPosition: Int
   ) throws {
     guard newPosition != oldPosition else { return }
-    precondition(
-      db.isInsideTransaction,
-      "moveInQueue method requires a transaction"
-    )
+    precondition(db.isInsideTransaction, "moveInQueue method requires a transaction")
 
     if newPosition > oldPosition {
       try Episode.filter(
@@ -172,19 +162,13 @@ struct Queue: Sendable {
   }
 
   private func _setToPosition(_ db: Database, episodeID: Episode.ID, position: Int) throws {
-    precondition(
-      db.isInsideTransaction,
-      "setToPosition method requires a transaction"
-    )
+    precondition(db.isInsideTransaction, "setToPosition method requires a transaction")
 
     try Episode.withID(episodeID).updateAll(db, Schema.queueOrderColumn.set(to: position))
   }
 
   private func _clear(_ db: Database) throws {
-    precondition(
-      db.isInsideTransaction,
-      "clear method requires a transaction"
-    )
+    precondition(db.isInsideTransaction, "clear method requires a transaction")
 
     try Episode.all().inQueue().updateAll(db, Schema.queueOrderColumn.set(to: nil))
   }
