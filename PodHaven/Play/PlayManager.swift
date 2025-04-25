@@ -53,7 +53,9 @@ final actor PlayManager {
 
   fileprivate init() {
     commandCenter = CommandCenter(accessKey)
-    Task { try await observeNextEpisode() }
+    Task {
+      try await observeNextEpisode()
+    }
   }
 
   func resume() async {
@@ -70,24 +72,26 @@ final actor PlayManager {
     guard podcastEpisode != currentPodcastEpisode else { return }
 
     if status == .loading { return }
-    setStatus(.loading)
+    await setStatus(.loading)
     defer {
-      if status != .active { setStatus(.stopped) }
+      if status != .active {
+        Task { await setStatus(.stopped) }
+      }
     }
 
     stopTracking()
     pause()
+    await clearOnDeck()
 
     try audioSession.setActive(true)
     let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
 
     let avPlayerItem = AVPlayerItem(asset: avAsset)
-    avPlayer.removeAllItems()
     avPlayer.insert(avPlayerItem, after: nil)
 
     await setOnDeck(podcastEpisode, duration)
-
-    setStatus(.active)
+    // TODO: If nextPodcastEpisode but queue length is 1, add item
+    await setStatus(.active)
     startTracking()
   }
 
@@ -105,17 +109,17 @@ final actor PlayManager {
 
   // MARK: - Seeking
 
-  func seekForward(_ duration: CMTime) {
-    seek(to: avPlayer.currentTime() + duration)
+  func seekForward(_ duration: CMTime) async {
+    await seek(to: avPlayer.currentTime() + duration)
   }
 
-  func seekBackward(_ duration: CMTime) {
-    seek(to: avPlayer.currentTime() - duration)
+  func seekBackward(_ duration: CMTime) async {
+    await seek(to: avPlayer.currentTime() - duration)
   }
 
-  func seek(to time: CMTime) {
+  func seek(to time: CMTime) async {
     removeTimeObserver()
-    setCurrentTime(time)
+    await setCurrentTime(time)
     avPlayer.seek(to: time) { [unowned self] completed in
       if completed {
         Task { await addTimeObserver() }
@@ -151,27 +155,28 @@ final actor PlayManager {
     )
 
     nowPlayingInfo = NowPlayingInfo(onDeck, accessKey)
-    Task { await playState.setOnDeck(onDeck, accessKey) }
-    Task(priority: .utility) { Persistence.currentEpisodeID.save(podcastEpisode.id) }
+    await playState.setOnDeck(onDeck, accessKey)
+    Persistence.currentEpisodeID.save(podcastEpisode.id)
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
-      seek(to: podcastEpisode.episode.currentTime)
+      await seek(to: podcastEpisode.episode.currentTime)
     } else {
-      setCurrentTime(CMTime.zero)
+      await setCurrentTime(CMTime.zero)
     }
   }
 
-  private func clearOnDeck() {
+  private func clearOnDeck() async {
+    avPlayer.removeAllItems()
     currentPodcastEpisode = nil
-    setCurrentTime(CMTime.zero)
+    await setCurrentTime(CMTime.zero)
     nowPlayingInfo = nil
-    Task { await playState.setOnDeck(nil, accessKey) }
-    Task(priority: .utility) { Persistence.currentEpisodeID.save(nil) }
+    await playState.setOnDeck(nil, accessKey)
+    Persistence.currentEpisodeID.save(nil)
   }
 
-  private func setCurrentTime(_ currentTime: CMTime) {
+  private func setCurrentTime(_ currentTime: CMTime) async {
     nowPlayingInfo?.currentTime(currentTime)
-    Task { await playState.setCurrentTime(currentTime, accessKey) }
+    await playState.setCurrentTime(currentTime, accessKey)
     Task(priority: .utility) {
       guard let currentPodcastEpisode = self.currentPodcastEpisode else { return }
 
@@ -215,11 +220,11 @@ final actor PlayManager {
 
   // MARK: - Private Tracking
 
-  private func setStatus(_ status: PlayState.Status) {
+  private func setStatus(_ status: PlayState.Status) async {
     guard status != _status else { return }
 
     nowPlayingInfo?.playing(status.playing)
-    Task { await playState.setStatus(status, accessKey) }
+    await playState.setStatus(status, accessKey)
     _status = status
   }
 
@@ -272,11 +277,11 @@ final actor PlayManager {
         case .togglePlayPause:
           if status.playing { pause() } else { play() }
         case .skipForward(let interval):
-          seekForward(CMTime.inSeconds(interval))
+          await seekForward(CMTime.inSeconds(interval))
         case .skipBackward(let interval):
-          seekBackward(CMTime.inSeconds(interval))
+          await seekBackward(CMTime.inSeconds(interval))
         case .playbackPosition(let position):
-          seek(to: CMTime.inSeconds(position))
+          await seek(to: CMTime.inSeconds(position))
         }
       }
     }
@@ -328,7 +333,7 @@ final actor PlayManager {
             try await repo.markComplete(currentPodcastEpisode.id)
           } catch {}
         }
-        // TODO: Set new episode on deck
+        // TODO: Set new episode on deck or clear deck
         print("episode finished: \(String(describing: self.currentPodcastEpisode))")
       }
     }
@@ -348,15 +353,17 @@ final actor PlayManager {
         \.timeControlStatus,
         options: [.initial, .new],
         changeHandler: { [unowned self] playerItem, _ in
-          switch playerItem.timeControlStatus {
-          case AVPlayer.TimeControlStatus.paused:
-            Task { await self.setStatus(.paused) }
-          case AVPlayer.TimeControlStatus.playing:
-            Task { await self.setStatus(.playing) }
-          case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
-            Task { await self.setStatus(.waiting) }
-          @unknown default:
-            fatalError("Time control status unknown?")
+          Task {
+            switch playerItem.timeControlStatus {
+            case AVPlayer.TimeControlStatus.paused:
+              await self.setStatus(.paused)
+            case AVPlayer.TimeControlStatus.playing:
+              await self.setStatus(.playing)
+            case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
+              await self.setStatus(.waiting)
+            @unknown default:
+              fatalError("Time control status unknown?")
+            }
           }
         }
       )
