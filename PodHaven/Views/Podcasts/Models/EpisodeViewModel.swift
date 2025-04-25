@@ -32,7 +32,10 @@ import GRDB
     }
   }
 
-  var onDeck: Bool { playState.isOnDeck(podcastEpisode) }
+  var onDeck: Bool { 
+    guard let onDeck = playState.onDeck else { return false }
+    return onDeck == podcastEpisode
+  }
 
   func playNow() {
     Task {

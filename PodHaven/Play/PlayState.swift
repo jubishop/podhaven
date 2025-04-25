@@ -38,6 +38,14 @@ struct OnDeck: Sendable {
     self.media = media
     self.pubDate = pubDate
   }
+  
+  // MARK: - Equatable
+  
+  static func == (lhs: OnDeck, rhs: PodcastEpisode) -> Bool {
+    lhs.guid == rhs.episode.guid && 
+    lhs.feedURL == rhs.podcast.feedURL && 
+    lhs.media == rhs.episode.media
+  }
 }
 
 extension Container {
@@ -80,12 +88,6 @@ extension Container {
   private(set) var onDeck: OnDeck?
 
   fileprivate init() {}
-
-  func isOnDeck(_ podcastEpisode: PodcastEpisode) -> Bool {
-    onDeck?.guid == podcastEpisode.episode.guid
-      && onDeck?.feedURL == podcastEpisode.podcast.feedURL
-      && onDeck?.media == podcastEpisode.episode.media
-  }
 
   // MARK: - State Setters
 

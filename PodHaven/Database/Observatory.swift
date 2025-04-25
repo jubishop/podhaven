@@ -12,8 +12,8 @@ extension Container {
 
 struct Observatory {
   #if DEBUG
-    static func inMemory() -> Observatory { Observatory(.inMemory()) }
-    static func initForTest(_ repo: Repo) -> Observatory { Observatory(repo) }
+  static func inMemory() -> Observatory { Observatory(.inMemory()) }
+  static func initForTest(_ repo: Repo) -> Observatory { Observatory(repo) }
   #endif
 
   // MARK: - Initialization
@@ -86,6 +86,16 @@ struct Observatory {
         .filter(Schema.feedURLColumn == feedURL)
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
+        .fetchOne(db)
+    }
+  }
+
+  func nextPodcastEpisode() -> AsyncValueObservation<PodcastEpisode?> {
+    _observe { db in
+      try Episode
+        .filter(Schema.queueOrderColumn == 0)
+        .including(required: Episode.podcast)
+        .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)
     }
   }

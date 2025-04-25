@@ -18,10 +18,11 @@ import GRDB
   var unsavedEpisode: UnsavedEpisode { unsavedPodcastEpisode.unsavedEpisode }
 
   var onDeck: Bool {
-    guard let podcastEpisode = self.podcastEpisode
+    guard let podcastEpisode = self.podcastEpisode,
+          let onDeck = playState.onDeck
     else { return false }
-
-    return playState.isOnDeck(podcastEpisode)
+    
+    return onDeck == podcastEpisode
   }
 
   private var podcastEpisode: PodcastEpisode?

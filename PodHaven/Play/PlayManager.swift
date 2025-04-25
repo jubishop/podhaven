@@ -19,30 +19,32 @@ final actor PlayManager {
 
   private var playState = Container.shared.playState()  // Cannot LazyInject because @MainActor
   @ObservationIgnored @LazyInjected(\.images) private var images
+  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
   private let accessKey = PlayManagerAccessKey()
   private var _status: PlayState.Status = .stopped
-  private var status: PlayState.Status {
-    get { _status }
-    set {
-      guard newValue != _status else { return }
+  private var status: PlayState.Status { _status }
 
-      _status = newValue
-      nowPlayingInfo?.playing(newValue.playing)
-      Task { await playState.setStatus(newValue, accessKey) }
+  private var currentPodcastEpisode: PodcastEpisode? {
+    didSet {
+      Persistence.currentEpisodeID.save(currentPodcastEpisode?.id)
     }
   }
-  var episodeID: Episode.ID?
+
+  private struct LoadedPodcastEpisode {
+    let asset: AVURLAsset
+    let podcastEpisode: PodcastEpisode
+    let duration: CMTime
+  }
+  private var loadedNextPodcastEpisode: LoadedPodcastEpisode?
+
   private var avPlayer = AVQueuePlayer()
   private var nowPlayingInfo: NowPlayingInfo?
   private var commandCenter: CommandCenter
-  private var commandObservingTask: Task<Void, Never>?
-  private var interruptionObservingTask: Task<Void, Never>?
-  private var playToEndObservingTask: Task<Void, Never>?
-  private var keyValueObservers = [NSKeyValueObservation](capacity: 1)
-  private var timeObserver: Any?
+  var timeControlStatusObserver: NSKeyValueObservation?
+  private var periodicTimeObserver: Any?
 
   // MARK: - Convenience Getters
 
@@ -53,75 +55,56 @@ final actor PlayManager {
 
   fileprivate init() {
     commandCenter = CommandCenter(accessKey)
+    Task {
+      await startTracking()
+      try await observeNextEpisode()
+    }
   }
 
   func resume() async {
-    do {
-      guard let episodeID: Episode.ID = Persistence.currentEpisodeID.load(),
-        let podcastEpisode = try await repo.episode(episodeID)
-      else { return }
-
-      try await load(podcastEpisode)
-    } catch {
-      // Do nothing
-    }
-  }
-
-  // MARK: - Loading
-
-  func load(_ podcastEpisode: PodcastEpisode) async throws {
-    if status == .loading { return }
-
-    stopTracking()
-    pause()
-    status = .loading
-
-    let avAsset = AVURLAsset(url: podcastEpisode.episode.media.rawValue)
-
-    let duration: CMTime
-    do {
-      let (isPlayable, loadedDuration) = try await avAsset.load(.isPlayable, .duration)
-      guard isPlayable
-      else { throw Err.msg("\(podcastEpisode.episode.toString) is not playable") }
-
-      duration = loadedDuration
-      try audioSession.setActive(true)
-    } catch {
-      await reload()
-      throw Err.msg("Can't play \(podcastEpisode.episode.toString)")
-    }
-
-    let avPlayerItem = AVPlayerItem(asset: avAsset)
-    avPlayer.removeAllItems()
-    avPlayer.insert(avPlayerItem, after: nil)
-
-    do {
-      try await setOnDeck(podcastEpisode, duration)
-    } catch {
-      await reload()
-      throw Err.msg("Failed to set \(podcastEpisode.episode.toString) on deck")
-    }
-
-    status = .active
-    startTracking()
-  }
-
-  private func reload() async {
-    status = .stopped
-
-    let episodeID = self.episodeID
-    self.episodeID = nil
-
-    guard let episodeID = episodeID, let podcastEpisode = try? await repo.episode(episodeID)
+    guard let currentEpisodeID: Episode.ID = Persistence.currentEpisodeID.load(),
+      let podcastEpisode = try? await repo.episode(currentEpisodeID)
     else { return }
 
     try? await load(podcastEpisode)
   }
 
+  // MARK: - Loading
+
+  func load(_ podcastEpisode: PodcastEpisode) async throws {
+    guard podcastEpisode != currentPodcastEpisode else { return }
+
+    if status == .loading { return }
+    await setStatus(.loading)
+    defer {
+      if status != .active {
+        Task { await setStatus(.stopped) }
+      }
+    }
+
+    if let currentPodcastEpisode = self.currentPodcastEpisode {
+      try? await queue.unshift(currentPodcastEpisode.id)
+    }
+    await clearOnDeck()
+
+    try audioSession.setActive(true)
+    let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
+
+    avPlayer.removeAllItems()
+    avPlayer.insert(AVPlayerItem(asset: avAsset), after: nil)
+
+    await setOnDeck(podcastEpisode, duration)
+    try? await queue.dequeue(podcastEpisode.id)
+    updateNextPodcastEpisodeInAVPlayer()
+
+    await setStatus(.active)
+  }
+
   // MARK: - Playback Controls
 
   func play() {
-    guard status.playable else { return }
+    guard status.playable
+    else { return }
 
     avPlayer.play()
   }
@@ -132,17 +115,17 @@ final actor PlayManager {
 
   // MARK: - Seeking
 
-  func seekForward(_ duration: CMTime) {
-    seek(to: avPlayer.currentTime() + duration)
+  func seekForward(_ duration: CMTime) async {
+    await seek(to: avPlayer.currentTime() + duration)
   }
 
-  func seekBackward(_ duration: CMTime) {
-    seek(to: avPlayer.currentTime() - duration)
+  func seekBackward(_ duration: CMTime) async {
+    await seek(to: avPlayer.currentTime() - duration)
   }
 
-  func seek(to time: CMTime) {
+  func seek(to time: CMTime) async {
     removeTimeObserver()
-    setCurrentTime(time)
+    await setCurrentTime(time)
     avPlayer.seek(to: time) { [unowned self] completed in
       if completed {
         Task { await addTimeObserver() }
@@ -150,17 +133,23 @@ final actor PlayManager {
     }
   }
 
+  // MARK: - Private Loading Helpers
+
+  private func loadAsset(for mediaURL: MediaURL) async throws -> (AVURLAsset, CMTime) {
+    let avAsset = AVURLAsset(url: mediaURL.rawValue)
+    let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
+
+    guard isPlayable
+    else { throw Err.msg("\(mediaURL) is not playable") }
+
+    return (avAsset, duration)
+  }
+
   // MARK: - Private State Management
 
-  private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async throws {
-    guard podcastEpisode.id != episodeID else { return }
-
-    if let episodeID = self.episodeID {
-      try await queue.unshift(episodeID)
-    }
-    try await queue.dequeue(podcastEpisode.id)
-
-    self.episodeID = podcastEpisode.id
+  private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async {
+    guard podcastEpisode != currentPodcastEpisode else { return }
+    currentPodcastEpisode = podcastEpisode
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
@@ -170,46 +159,88 @@ final actor PlayManager {
       podcastURL: podcastEpisode.podcast.link,
       episodeTitle: podcastEpisode.episode.title,
       duration: duration,
-      image: try await images.fetchImage(imageURL),
+      image: try? await images.fetchImage(imageURL),
       media: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate,
       key: accessKey
     )
 
     nowPlayingInfo = NowPlayingInfo(onDeck, accessKey)
-    Task { await playState.setOnDeck(onDeck, accessKey) }
-    Task(priority: .utility) { Persistence.currentEpisodeID.save(episodeID) }
+    await playState.setOnDeck(onDeck, accessKey)
 
+    addTimeObserver()
     if podcastEpisode.episode.currentTime != CMTime.zero {
-      seek(to: podcastEpisode.episode.currentTime)
+      await seek(to: podcastEpisode.episode.currentTime)
     } else {
-      setCurrentTime(CMTime.zero)
+      await setCurrentTime(CMTime.zero)
     }
   }
 
-  private func clearOnDeck() {
-    episodeID = nil
-    setCurrentTime(CMTime.zero)
+  private func clearOnDeck() async {
     nowPlayingInfo = nil
-    Task { await playState.setOnDeck(nil, accessKey) }
-    Task(priority: .utility) { Persistence.currentEpisodeID.save(nil) }
+    await playState.setOnDeck(nil, accessKey)
+    await setCurrentTime(CMTime.zero)
+    currentPodcastEpisode = nil
   }
 
-  private func setCurrentTime(_ currentTime: CMTime) {
-    nowPlayingInfo?.currentTime(currentTime)
-    Task { await playState.setCurrentTime(currentTime, accessKey) }
-    Task(priority: .utility) {
-      guard let episodeID = self.episodeID else { return }
+  private func setStatus(_ status: PlayState.Status) async {
+    guard status != _status else { return }
 
-      try await repo.updateCurrentTime(episodeID, currentTime)
+    nowPlayingInfo?.playing(status.playing)
+    await playState.setStatus(status, accessKey)
+    _status = status
+  }
+
+  private func setCurrentTime(_ currentTime: CMTime) async {
+    nowPlayingInfo?.currentTime(currentTime)
+    await playState.setCurrentTime(currentTime, accessKey)
+    Task(priority: .utility) {
+      guard let currentPodcastEpisode = self.currentPodcastEpisode else { return }
+
+      try await repo.updateCurrentTime(currentPodcastEpisode.id, currentTime)
+    }
+  }
+
+  // MARK: - Private Next Episode Management
+
+  private func observeNextEpisode() async throws {
+    for try await nextPodcastEpisode in observatory.nextPodcastEpisode()
+    where nextPodcastEpisode?.id != self.loadedNextPodcastEpisode?.podcastEpisode.id {
+      if let podcastEpisode = nextPodcastEpisode {
+        do {
+          let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
+          self.loadedNextPodcastEpisode = LoadedPodcastEpisode(
+            asset: avAsset,
+            podcastEpisode: podcastEpisode,
+            duration: duration
+          )
+        } catch {
+          self.loadedNextPodcastEpisode = nil
+        }
+      } else {
+        self.loadedNextPodcastEpisode = nil
+      }
+      updateNextPodcastEpisodeInAVPlayer()
+    }
+  }
+
+  private func updateNextPodcastEpisodeInAVPlayer() {
+    guard !avPlayer.items().isEmpty
+    else { return }
+
+    while avPlayer.items().count > 1, let lastItem = avPlayer.items().last {
+      avPlayer.remove(lastItem)
+    }
+
+    if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
+      avPlayer.insert(
+        AVPlayerItem(asset: loadedNextPodcastEpisode.asset),
+        after: avPlayer.items().first
+      )
     }
   }
 
   // MARK: - Private Tracking
-
-  private func setStatus(_ status: PlayState.Status) {
-    self.status = status
-  }
 
   private func startTracking() {
     addKVObservers()
@@ -219,17 +250,9 @@ final actor PlayManager {
     startPlayToEndNotifications()
   }
 
-  private func stopTracking() {
-    removeKVObservers()
-    removeTimeObserver()
-    stopCommandCenter()
-    stopInterruptionNotifications()
-    stopPlayToEndNotifications()
-  }
-
   private func addTimeObserver() {
     removeTimeObserver()
-    self.timeObserver = avPlayer.addPeriodicTimeObserver(
+    self.periodicTimeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
     ) { currentTime in
@@ -240,18 +263,16 @@ final actor PlayManager {
   }
 
   private func removeTimeObserver() {
-    if let timeObserver = self.timeObserver {
-      avPlayer.removeTimeObserver(timeObserver)
-      self.timeObserver = nil
+    if let periodicTimeObserver = self.periodicTimeObserver {
+      avPlayer.removeTimeObserver(periodicTimeObserver)
+      self.periodicTimeObserver = nil
     }
   }
 
   private func startCommandCenter() {
-    stopCommandCenter()
     commandCenter.start()
-    self.commandObservingTask = Task {
+    Task {
       for await command in commandCenter.commands() {
-        if Task.isCancelled { break }
         switch command {
         case .play:
           play()
@@ -260,31 +281,21 @@ final actor PlayManager {
         case .togglePlayPause:
           if status.playing { pause() } else { play() }
         case .skipForward(let interval):
-          seekForward(CMTime.inSeconds(interval))
+          await seekForward(CMTime.inSeconds(interval))
         case .skipBackward(let interval):
-          seekBackward(CMTime.inSeconds(interval))
+          await seekBackward(CMTime.inSeconds(interval))
         case .playbackPosition(let position):
-          seek(to: CMTime.inSeconds(position))
+          await seek(to: CMTime.inSeconds(position))
         }
       }
     }
   }
 
-  private func stopCommandCenter() {
-    commandCenter.stop()
-    if let commandObservingTask = self.commandObservingTask {
-      commandObservingTask.cancel()
-      self.commandObservingTask = nil
-    }
-  }
-
   private func startInterruptionNotifications() {
-    stopInterruptionNotifications()
-    self.interruptionObservingTask = Task {
+    Task {
       for await notification in notificationCenter.notifications(
         named: AVAudioSession.interruptionNotification
       ) {
-        if Task.isCancelled { break }
         switch AudioInterruption.parse(notification) {
         case .pause:
           pause()
@@ -297,67 +308,44 @@ final actor PlayManager {
     }
   }
 
-  private func stopInterruptionNotifications() {
-    if let interruptionObservingTask = self.interruptionObservingTask {
-      interruptionObservingTask.cancel()
-      self.interruptionObservingTask = nil
-    }
-  }
-
   private func startPlayToEndNotifications() {
-    stopPlayToEndNotifications()
-    self.playToEndObservingTask = Task {
+    Task {
       for await _ in notificationCenter.notifications(
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {
-        if Task.isCancelled { break }
-        if let episodeID = self.episodeID {
-          do {
-            try await repo.markComplete(episodeID)
-          } catch {}
+        if let currentPodcastEpisode = self.currentPodcastEpisode {
+          self.currentPodcastEpisode = nil
+          _ = try? await repo.markComplete(currentPodcastEpisode.id)
         }
-        clearOnDeck()
-        if let nextEpisode = try? await repo.nextEpisode() {
-          Task {
-            try await load(nextEpisode)
-            play()
-          }
+        if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
+          self.loadedNextPodcastEpisode = nil
+          let podcastEpisode = loadedNextPodcastEpisode.podcastEpisode
+          let duration = loadedNextPodcastEpisode.duration
+          await setOnDeck(podcastEpisode, duration)
+          try? await queue.dequeue(podcastEpisode.id)
         }
       }
     }
   }
 
-  private func stopPlayToEndNotifications() {
-    if let playToEndObservingTask = self.playToEndObservingTask {
-      playToEndObservingTask.cancel()
-      self.playToEndObservingTask = nil
-    }
-  }
-
   private func addKVObservers() {
-    removeKVObservers()
-    keyValueObservers.append(
-      avPlayer.observe(
-        \.timeControlStatus,
-        options: [.initial, .new],
-        changeHandler: { [unowned self] playerItem, _ in
+    self.timeControlStatusObserver = avPlayer.observe(
+      \.timeControlStatus,
+      options: [.initial, .new],
+      changeHandler: { [unowned self] playerItem, _ in
+        Task {
           switch playerItem.timeControlStatus {
           case AVPlayer.TimeControlStatus.paused:
-            Task { await self.setStatus(.paused) }
+            await self.setStatus(.paused)
           case AVPlayer.TimeControlStatus.playing:
-            Task { await self.setStatus(.playing) }
+            await self.setStatus(.playing)
           case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
-            Task { await self.setStatus(.waiting) }
+            await self.setStatus(.waiting)
           @unknown default:
             fatalError("Time control status unknown?")
           }
         }
-      )
+      }
     )
-  }
-
-  private func removeKVObservers() {
-    for keyValueObserver in keyValueObservers { keyValueObserver.invalidate() }
-    keyValueObservers.removeAll(keepingCapacity: true)
   }
 }
