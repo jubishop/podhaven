@@ -33,7 +33,7 @@ final actor PlayManager {
     let podcastEpisode: PodcastEpisode
     let duration: CMTime
   }
-  private var nextPodcastEpisode: PodcastEpisodeWithDuration?
+  private var loadedNextPodcastEpisode: PodcastEpisodeWithDuration?
 
   private var avPlayer = AVQueuePlayer()
   private var nowPlayingInfo: NowPlayingInfo?
@@ -137,6 +137,8 @@ final actor PlayManager {
     guard podcastEpisode != currentPodcastEpisode else { return }
     self.currentPodcastEpisode = podcastEpisode
 
+    startTracking()
+
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
       feedURL: podcastEpisode.podcast.feedURL,
@@ -153,7 +155,6 @@ final actor PlayManager {
 
     nowPlayingInfo = NowPlayingInfo(onDeck, accessKey)
     await playState.setOnDeck(onDeck, accessKey)
-    Persistence.currentEpisodeID.save(podcastEpisode.id)
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
       await seek(to: podcastEpisode.episode.currentTime)
@@ -161,15 +162,15 @@ final actor PlayManager {
       await setCurrentTime(CMTime.zero)
     }
 
-    startTracking()
+    Persistence.currentEpisodeID.save(podcastEpisode.id)
   }
 
   private func clearOnDeck() async {
-    stopTracking()
-    currentPodcastEpisode = nil
-    await setCurrentTime(CMTime.zero)
     nowPlayingInfo = nil
     await playState.setOnDeck(nil, accessKey)
+    await setCurrentTime(CMTime.zero)
+    stopTracking()
+    currentPodcastEpisode = nil
     Persistence.currentEpisodeID.save(nil)
   }
 
@@ -187,21 +188,21 @@ final actor PlayManager {
 
   private func observeNextEpisode() async throws {
     for try await nextPodcastEpisode in observatory.nextPodcastEpisode()
-    where nextPodcastEpisode != self.nextPodcastEpisode?.podcastEpisode {
+    where nextPodcastEpisode != self.loadedNextPodcastEpisode?.podcastEpisode {
       if let podcastEpisode = nextPodcastEpisode {
         do {
           let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
-          self.nextPodcastEpisode = PodcastEpisodeWithDuration(
+          self.loadedNextPodcastEpisode = PodcastEpisodeWithDuration(
             podcastEpisode: podcastEpisode,
             duration: duration
           )
           // TODO: Add avAsset to our avPlayer
         } catch {
-          self.nextPodcastEpisode = nil
+          self.loadedNextPodcastEpisode = nil
           // TODO: Remove episode from queue since it can't be loaded, and report error
         }
       } else {
-        self.nextPodcastEpisode = nil
+        self.loadedNextPodcastEpisode = nil
         // TODO: Nothing in queue, clear any entry except the one playing
       }
     }
@@ -332,8 +333,12 @@ final actor PlayManager {
             try await repo.markComplete(currentPodcastEpisode.id)
           } catch {}
         }
-        // TODO: Set new episode on deck or clear deck
-        print("episode finished: \(String(describing: self.currentPodcastEpisode))")
+        if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
+          let nextPodcastEpisode = loadedNextPodcastEpisode.podcastEpisode
+          let duration = loadedNextPodcastEpisode.duration
+          try? await queue.dequeue(nextPodcastEpisode.id)
+          await setOnDeck(nextPodcastEpisode, duration)
+        }
       }
     }
   }
