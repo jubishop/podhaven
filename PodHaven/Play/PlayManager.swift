@@ -80,24 +80,13 @@ final actor PlayManager {
       }
     }
 
-    print("clearing on deck for: \(podcastEpisode.episode.title)")
     await clearOnDeck()
 
     try audioSession.setActive(true)
-    print("set audio session active for: \(podcastEpisode.episode.title)")
-    let avAsset: AVURLAsset
-    let duration: CMTime
-    do {
-      (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
-    } catch {
-      print("caught error: \(error)")
-      throw error
-    }
+    let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
 
-    print("loaded asset: \(podcastEpisode.episode.title)")
     let avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.insert(avPlayerItem, after: nil)
-    print("Loaded \(podcastEpisode.episode.title)")
 
     await setOnDeck(podcastEpisode, duration)
     // TODO: If nextPodcastEpisode but queue length is 1, add item
