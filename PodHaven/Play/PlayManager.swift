@@ -69,7 +69,6 @@ final actor PlayManager {
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async throws {
-    print("beginning load of \(podcastEpisode.episode.title)")
     guard podcastEpisode != currentPodcastEpisode else { return }
 
     if status == .loading { return }
@@ -80,16 +79,24 @@ final actor PlayManager {
       }
     }
 
+    if let currentPodcastEpisode = self.currentPodcastEpisode {
+      try? await queue.unshift(currentPodcastEpisode.id)
+    }
     await clearOnDeck()
 
     try audioSession.setActive(true)
     let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
 
+    avPlayer.removeAllItems()
     let avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.insert(avPlayerItem, after: nil)
 
+    try? await queue.dequeue(podcastEpisode.id)
     await setOnDeck(podcastEpisode, duration)
+
     // TODO: If nextPodcastEpisode but queue length is 1, add item
+
+    await setStatus(.active)
   }
 
   // MARK: - Playback Controls
@@ -128,14 +135,7 @@ final actor PlayManager {
 
   private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async {
     guard podcastEpisode != currentPodcastEpisode else { return }
-
-    let oldPodcastEpisode = self.currentPodcastEpisode
     self.currentPodcastEpisode = podcastEpisode
-
-    if let oldPodcastEpisode = oldPodcastEpisode {
-      try? await queue.unshift(oldPodcastEpisode.id)
-    }
-    try? await queue.dequeue(podcastEpisode.id)
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
@@ -161,12 +161,10 @@ final actor PlayManager {
       await setCurrentTime(CMTime.zero)
     }
 
-    await setStatus(.active)
     startTracking()
   }
 
   private func clearOnDeck() async {
-    avPlayer.removeAllItems()
     stopTracking()
     currentPodcastEpisode = nil
     await setCurrentTime(CMTime.zero)
