@@ -34,6 +34,7 @@ final actor PlayManager {
   }
 
   private struct LoadedPodcastEpisode {
+    let item: AVPlayerItem
     let podcastEpisode: PodcastEpisode
     let duration: CMTime
   }
@@ -95,10 +96,9 @@ final actor PlayManager {
     let avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.insert(avPlayerItem, after: nil)
 
-    try? await queue.dequeue(podcastEpisode.id)
     await setOnDeck(podcastEpisode, duration)
-
-    // TODO: If nextPodcastEpisode but queue length is 1, add item
+    try? await queue.dequeue(podcastEpisode.id)
+    updateNextPodcastEpisodeInAVPlayer()
 
     await setStatus(.active)
   }
@@ -194,18 +194,30 @@ final actor PlayManager {
         do {
           let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
           self.loadedNextPodcastEpisode = LoadedPodcastEpisode(
+            item: AVPlayerItem(asset: avAsset),
             podcastEpisode: podcastEpisode,
             duration: duration
           )
-          // TODO: Add avAsset to our avPlayer
         } catch {
           self.loadedNextPodcastEpisode = nil
-          // TODO: Remove episode from queue since it can't be loaded, and report error
         }
       } else {
         self.loadedNextPodcastEpisode = nil
-        // TODO: Nothing in queue, clear any entry except the one playing
       }
+      updateNextPodcastEpisodeInAVPlayer()
+    }
+  }
+
+  private func updateNextPodcastEpisodeInAVPlayer() {
+    guard !avPlayer.items().isEmpty
+    else { return }
+
+    while avPlayer.items().count > 1, let lastItem = avPlayer.items().last {
+      avPlayer.remove(lastItem)
+    }
+
+    if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
+      avPlayer.insert(loadedNextPodcastEpisode.item, after: avPlayer.items().first)
     }
   }
 
@@ -337,8 +349,8 @@ final actor PlayManager {
         if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
           let nextPodcastEpisode = loadedNextPodcastEpisode.podcastEpisode
           let duration = loadedNextPodcastEpisode.duration
-          try? await queue.dequeue(nextPodcastEpisode.id)
           await setOnDeck(nextPodcastEpisode, duration)
+          try? await queue.dequeue(nextPodcastEpisode.id)
         }
       }
     }
