@@ -342,10 +342,9 @@ final actor PlayManager {
       ) {
         if Task.isCancelled { break }
         if let currentPodcastEpisode = self.currentPodcastEpisode {
-          do {
-            try await repo.markComplete(currentPodcastEpisode.id)
-          } catch {}
+          do { try await repo.markComplete(currentPodcastEpisode.id) } catch {}
         }
+        self.currentPodcastEpisode = nil
         if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
           let nextPodcastEpisode = loadedNextPodcastEpisode.podcastEpisode
           let duration = loadedNextPodcastEpisode.duration
