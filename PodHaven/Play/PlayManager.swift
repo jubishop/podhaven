@@ -27,7 +27,11 @@ final actor PlayManager {
   private var _status: PlayState.Status = .stopped
   private var status: PlayState.Status { _status }
 
-  private var currentPodcastEpisode: PodcastEpisode?
+  private var currentPodcastEpisode: PodcastEpisode? {
+    didSet {
+      Persistence.currentEpisodeID.save(currentPodcastEpisode?.id)
+    }
+  }
 
   private struct PodcastEpisodeWithDuration {
     let podcastEpisode: PodcastEpisode
@@ -135,7 +139,7 @@ final actor PlayManager {
 
   private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async {
     guard podcastEpisode != currentPodcastEpisode else { return }
-    self.currentPodcastEpisode = podcastEpisode
+    currentPodcastEpisode = podcastEpisode
 
     startTracking()
 
@@ -161,8 +165,6 @@ final actor PlayManager {
     } else {
       await setCurrentTime(CMTime.zero)
     }
-
-    Persistence.currentEpisodeID.save(podcastEpisode.id)
   }
 
   private func clearOnDeck() async {
@@ -171,7 +173,6 @@ final actor PlayManager {
     await setCurrentTime(CMTime.zero)
     stopTracking()
     currentPodcastEpisode = nil
-    Persistence.currentEpisodeID.save(nil)
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
