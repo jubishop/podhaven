@@ -69,6 +69,7 @@ final actor PlayManager {
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async throws {
+    print("beginning load of \(podcastEpisode.episode.title)")
     guard podcastEpisode != currentPodcastEpisode else { return }
 
     if status == .loading { return }
@@ -79,20 +80,27 @@ final actor PlayManager {
       }
     }
 
-    stopTracking()
-    pause()
+    print("clearing on deck for: \(podcastEpisode.episode.title)")
     await clearOnDeck()
 
     try audioSession.setActive(true)
-    let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
+    print("set audio session active for: \(podcastEpisode.episode.title)")
+    let avAsset: AVURLAsset
+    let duration: CMTime
+    do {
+      (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
+    } catch {
+      print("caught error: \(error)")
+      throw error
+    }
 
+    print("loaded asset: \(podcastEpisode.episode.title)")
     let avPlayerItem = AVPlayerItem(asset: avAsset)
     avPlayer.insert(avPlayerItem, after: nil)
+    print("Loaded \(podcastEpisode.episode.title)")
 
     await setOnDeck(podcastEpisode, duration)
     // TODO: If nextPodcastEpisode but queue length is 1, add item
-    await setStatus(.active)
-    startTracking()
   }
 
   // MARK: - Playback Controls
@@ -163,10 +171,14 @@ final actor PlayManager {
     } else {
       await setCurrentTime(CMTime.zero)
     }
+
+    await setStatus(.active)
+    startTracking()
   }
 
   private func clearOnDeck() async {
     avPlayer.removeAllItems()
+    stopTracking()
     currentPodcastEpisode = nil
     await setCurrentTime(CMTime.zero)
     nowPlayingInfo = nil
