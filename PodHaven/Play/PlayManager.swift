@@ -188,7 +188,10 @@ final actor PlayManager {
   private func clearOnDeck() async {
     nowPlayingInfo = nil
     await playState.setOnDeck(nil, accessKey)
+
+    removePeriodicTimeObserver()
     await setCurrentTime(CMTime.zero)
+
     currentPodcastEpisode = nil
   }
 
@@ -240,6 +243,9 @@ final actor PlayManager {
       let duration = loadedNextPodcastEpisode.duration
       await setOnDeck(podcastEpisode, duration)
       try? await queue.dequeue(podcastEpisode.id)
+    } else {
+      await clearOnDeck()
+      await setStatus(.stopped)
     }
   }
 
@@ -273,7 +279,9 @@ final actor PlayManager {
   }
 
   private func addPeriodicTimeObserver() {
-    removePeriodicTimeObserver()
+    guard self.periodicTimeObserver == nil
+    else { return }
+
     self.periodicTimeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
