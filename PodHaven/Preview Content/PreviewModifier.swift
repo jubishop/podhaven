@@ -11,6 +11,7 @@ struct PreviewModifier: ViewModifier {
     content
       .customAlert($alert.config)
       .environment(alert)
+      .task {}
   }
 }
 

@@ -17,7 +17,9 @@ extension Container {
 final actor PlayManager {
   // MARK: - State Management
 
-  private var playState = Container.shared.playState()  // Cannot LazyInject because @MainActor
+  // Cannot LazyInject because @MainActor
+  private var playState = Container.shared.playState()
+
   @ObservationIgnored @LazyInjected(\.images) private var images
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.queue) private var queue
@@ -55,13 +57,11 @@ final actor PlayManager {
 
   fileprivate init() {
     commandCenter = CommandCenter(accessKey)
-    Task {
-      await startTracking()
-      try await observeNextEpisode()
-    }
   }
 
-  func resume() async {
+  func begin() async {
+    startTracking()
+
     guard let currentEpisodeID: Episode.ID = Persistence.currentEpisodeID.load(),
       let podcastEpisode = try? await repo.episode(currentEpisodeID)
     else { return }
@@ -100,6 +100,27 @@ final actor PlayManager {
     await setStatus(.active)
   }
 
+  private func loadAsset(for podcastEpisode: PodcastEpisode) async throws -> (AVURLAsset, CMTime) {
+    let avAsset = AVURLAsset(url: podcastEpisode.episode.media.rawValue)
+    let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
+
+    guard isPlayable
+    else {
+      throw Err.andPrint(
+        .msg(
+          """
+          [Playback Error]
+            PodcastEpisode: \(podcastEpisode.toString)
+            MediaURL: \(podcastEpisode.episode.media)
+            Reason: URL is not playable.
+          """
+        )
+      )
+    }
+
+    return (avAsset, duration)
+  }
+
   // MARK: - Playback Controls
 
   func play() {
@@ -124,36 +145,13 @@ final actor PlayManager {
   }
 
   func seek(to time: CMTime) async {
-    removeTimeObserver()
+    removePeriodicTimeObserver()
     await setCurrentTime(time)
     avPlayer.seek(to: time) { [unowned self] completed in
       if completed {
-        Task { await addTimeObserver() }
+        Task { await addPeriodicTimeObserver() }
       }
     }
-  }
-
-  // MARK: - Private Loading Helpers
-
-  private func loadAsset(for podcastEpisode: PodcastEpisode) async throws -> (AVURLAsset, CMTime) {
-    let avAsset = AVURLAsset(url: podcastEpisode.episode.media.rawValue)
-    let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
-
-    guard isPlayable
-    else {
-      throw Err.andPrint(
-        .msg(
-          """
-          [Playback Error]
-            PodcastEpisode: \(podcastEpisode.toString)
-            MediaURL: \(podcastEpisode.episode.media)
-            Reason: URL is not playable.
-          """
-        )
-      )
-    }
-
-    return (avAsset, duration)
   }
 
   // MARK: - Private State Management
@@ -179,7 +177,7 @@ final actor PlayManager {
     nowPlayingInfo = NowPlayingInfo(onDeck, accessKey)
     await playState.setOnDeck(onDeck, accessKey)
 
-    addTimeObserver()
+    addPeriodicTimeObserver()
     if podcastEpisode.episode.currentTime != CMTime.zero {
       await seek(to: podcastEpisode.episode.currentTime)
     } else {
@@ -192,6 +190,22 @@ final actor PlayManager {
     await playState.setOnDeck(nil, accessKey)
     await setCurrentTime(CMTime.zero)
     currentPodcastEpisode = nil
+  }
+
+  private func updateNextPodcastEpisodeInAVPlayer() {
+    guard !avPlayer.items().isEmpty
+    else { return }
+
+    while avPlayer.items().count > 1, let lastItem = avPlayer.items().last {
+      avPlayer.remove(lastItem)
+    }
+
+    if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
+      avPlayer.insert(
+        AVPlayerItem(asset: loadedNextPodcastEpisode.asset),
+        after: avPlayer.items().first
+      )
+    }
   }
 
   private func setStatus(_ status: PlayState.Status) async {
@@ -212,57 +226,19 @@ final actor PlayManager {
     }
   }
 
-  // MARK: - Private Next Episode Management
-
-  private func observeNextEpisode() async throws {
-    for try await nextPodcastEpisode in observatory.nextPodcastEpisode()
-    where nextPodcastEpisode?.id != self.loadedNextPodcastEpisode?.podcastEpisode.id {
-      if let podcastEpisode = nextPodcastEpisode {
-        do {
-          let (avAsset, duration) = try await loadAsset(for: podcastEpisode)
-          self.loadedNextPodcastEpisode = LoadedPodcastEpisode(
-            asset: avAsset,
-            podcastEpisode: podcastEpisode,
-            duration: duration
-          )
-        } catch {
-          self.loadedNextPodcastEpisode = nil
-        }
-      } else {
-        self.loadedNextPodcastEpisode = nil
-      }
-      updateNextPodcastEpisodeInAVPlayer()
-    }
-  }
-
-  private func updateNextPodcastEpisodeInAVPlayer() {
-    guard !avPlayer.items().isEmpty
-    else { return }
-
-    while avPlayer.items().count > 1, let lastItem = avPlayer.items().last {
-      avPlayer.remove(lastItem)
-    }
-
-    if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
-      avPlayer.insert(
-        AVPlayerItem(asset: loadedNextPodcastEpisode.asset),
-        after: avPlayer.items().first
-      )
-    }
-  }
-
   // MARK: - Private Tracking
 
   private func startTracking() {
-    addKVObservers()
-    addTimeObserver()
+    addTimeControlStatusObserver()
+    addPeriodicTimeObserver()
+    observeNextEpisode()
     startCommandCenter()
     startInterruptionNotifications()
-    startPlayToEndNotifications()
+    startPlayToEndTimeNotifications()
   }
 
-  private func addTimeObserver() {
-    removeTimeObserver()
+  private func addPeriodicTimeObserver() {
+    removePeriodicTimeObserver()
     self.periodicTimeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
@@ -273,10 +249,33 @@ final actor PlayManager {
     }
   }
 
-  private func removeTimeObserver() {
+  private func removePeriodicTimeObserver() {
     if let periodicTimeObserver = self.periodicTimeObserver {
       avPlayer.removeTimeObserver(periodicTimeObserver)
       self.periodicTimeObserver = nil
+    }
+  }
+
+  private func observeNextEpisode() {
+    Task {
+      for try await nextPodcastEpisode in observatory.nextPodcastEpisode()
+      where nextPodcastEpisode?.id != self.loadedNextPodcastEpisode?.podcastEpisode.id {
+        if let podcastEpisode = nextPodcastEpisode {
+          do {
+            let (avAsset, duration) = try await loadAsset(for: podcastEpisode)
+            self.loadedNextPodcastEpisode = LoadedPodcastEpisode(
+              asset: avAsset,
+              podcastEpisode: podcastEpisode,
+              duration: duration
+            )
+          } catch {
+            self.loadedNextPodcastEpisode = nil
+          }
+        } else {
+          self.loadedNextPodcastEpisode = nil
+        }
+        updateNextPodcastEpisodeInAVPlayer()
+      }
     }
   }
 
@@ -319,7 +318,7 @@ final actor PlayManager {
     }
   }
 
-  private func startPlayToEndNotifications() {
+  private func startPlayToEndTimeNotifications() {
     Task {
       for await _ in notificationCenter.notifications(
         named: AVPlayerItem.didPlayToEndTimeNotification
@@ -339,7 +338,7 @@ final actor PlayManager {
     }
   }
 
-  private func addKVObservers() {
+  private func addTimeControlStatusObserver() {
     self.timeControlStatusObserver = avPlayer.observe(
       \.timeControlStatus,
       options: [.initial, .new],
