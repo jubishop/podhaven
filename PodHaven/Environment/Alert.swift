@@ -4,7 +4,7 @@ import Factory
 import SwiftUI
 
 #if !DEBUG
-  import Sentry
+import Sentry
 #endif
 
 extension Container {
@@ -46,7 +46,7 @@ extension Container {
   static func report(_ message: String) {
     print("Reporting: \(message)")
     #if !DEBUG
-      SentrySDK.capture(message: message)
+    SentrySDK.capture(message: message)
     #endif
   }
 
@@ -70,14 +70,16 @@ extension Container {
   static func report(_ error: any Error) {
     print("Error: \(message(error))")
     #if !DEBUG
-      SentrySDK.capture(error: error)
+    SentrySDK.capture(error: error)
     #endif
   }
 
   // MARK: - Private Helpers
 
   private static func message(_ error: any Error) -> String {
-    guard let err = error as? Err else { return error.localizedDescription }
+    guard let err = error as? Err
+    else { return error.localizedDescription }
+
     return err.localizedDescription
   }
 }

@@ -88,7 +88,7 @@ final actor PlayManager {
     await clearOnDeck()
 
     try audioSession.setActive(true)
-    let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
+    let (avAsset, duration) = try await loadAsset(for: podcastEpisode)
 
     avPlayer.removeAllItems()
     avPlayer.insert(AVPlayerItem(asset: avAsset), after: nil)
@@ -135,12 +135,23 @@ final actor PlayManager {
 
   // MARK: - Private Loading Helpers
 
-  private func loadAsset(for mediaURL: MediaURL) async throws -> (AVURLAsset, CMTime) {
-    let avAsset = AVURLAsset(url: mediaURL.rawValue)
+  private func loadAsset(for podcastEpisode: PodcastEpisode) async throws -> (AVURLAsset, CMTime) {
+    let avAsset = AVURLAsset(url: podcastEpisode.episode.media.rawValue)
     let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
 
     guard isPlayable
-    else { throw Err.msg("\(mediaURL) is not playable") }
+    else {
+      throw Err.andPrint(
+        .msg(
+          """
+          [Playback Error]
+            PodcastEpisode: \(podcastEpisode.toString)
+            MediaURL: \(podcastEpisode.episode.media)
+            Reason: URL is not playable.
+          """
+        )
+      )
+    }
 
     return (avAsset, duration)
   }
@@ -208,7 +219,7 @@ final actor PlayManager {
     where nextPodcastEpisode?.id != self.loadedNextPodcastEpisode?.podcastEpisode.id {
       if let podcastEpisode = nextPodcastEpisode {
         do {
-          let (avAsset, duration) = try await loadAsset(for: podcastEpisode.episode.media)
+          let (avAsset, duration) = try await loadAsset(for: podcastEpisode)
           self.loadedNextPodcastEpisode = LoadedPodcastEpisode(
             asset: avAsset,
             podcastEpisode: podcastEpisode,
