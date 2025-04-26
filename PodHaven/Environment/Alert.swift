@@ -44,7 +44,13 @@ extension Container {
   }
 
   static func report(_ message: String) {
-    print("Reporting: \(message)")
+    print(
+      """
+      Reporting Message:
+        \(message)
+      """
+    )
+
     #if !DEBUG
     SentrySDK.capture(message: message)
     #endif
@@ -68,7 +74,13 @@ extension Container {
   }
 
   static func report(_ error: any Error) {
-    print("Error: \(message(error))")
+    print(
+      """
+      Reporting Error: 
+        \(message(error))
+      """
+    )
+    
     #if !DEBUG
     SentrySDK.capture(error: error)
     #endif
