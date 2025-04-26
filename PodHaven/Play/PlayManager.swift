@@ -226,6 +226,41 @@ final actor PlayManager {
     }
   }
 
+  // MARK: - Private Change Handlers
+
+  private func handleCurrentEpisodeFinished() async {
+    if let currentPodcastEpisode = self.currentPodcastEpisode {
+      self.currentPodcastEpisode = nil
+      _ = try? await repo.markComplete(currentPodcastEpisode.id)
+    }
+
+    if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
+      self.loadedNextPodcastEpisode = nil
+      let podcastEpisode = loadedNextPodcastEpisode.podcastEpisode
+      let duration = loadedNextPodcastEpisode.duration
+      await setOnDeck(podcastEpisode, duration)
+      try? await queue.dequeue(podcastEpisode.id)
+    }
+  }
+
+  private func handleNextEpisodeChange(_ nextPodcastEpisode: PodcastEpisode?) async {
+    if let podcastEpisode = nextPodcastEpisode {
+      do {
+        let (avAsset, duration) = try await loadAsset(for: podcastEpisode)
+        self.loadedNextPodcastEpisode = LoadedPodcastEpisode(
+          asset: avAsset,
+          podcastEpisode: podcastEpisode,
+          duration: duration
+        )
+      } catch {
+        self.loadedNextPodcastEpisode = nil
+      }
+    } else {
+      self.loadedNextPodcastEpisode = nil
+    }
+    updateNextPodcastEpisodeInAVPlayer()
+  }
+
   // MARK: - Private Tracking
 
   private func startTracking() {
@@ -256,25 +291,32 @@ final actor PlayManager {
     }
   }
 
+  private func addTimeControlStatusObserver() {
+    self.timeControlStatusObserver = avPlayer.observe(
+      \.timeControlStatus,
+      options: [.initial, .new],
+      changeHandler: { [unowned self] playerItem, _ in
+        Task {
+          switch playerItem.timeControlStatus {
+          case AVPlayer.TimeControlStatus.paused:
+            await self.setStatus(.paused)
+          case AVPlayer.TimeControlStatus.playing:
+            await self.setStatus(.playing)
+          case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
+            await self.setStatus(.waiting)
+          @unknown default:
+            fatalError("Time control status unknown?")
+          }
+        }
+      }
+    )
+  }
+
   private func observeNextEpisode() {
     Task {
       for try await nextPodcastEpisode in observatory.nextPodcastEpisode()
       where nextPodcastEpisode?.id != self.loadedNextPodcastEpisode?.podcastEpisode.id {
-        if let podcastEpisode = nextPodcastEpisode {
-          do {
-            let (avAsset, duration) = try await loadAsset(for: podcastEpisode)
-            self.loadedNextPodcastEpisode = LoadedPodcastEpisode(
-              asset: avAsset,
-              podcastEpisode: podcastEpisode,
-              duration: duration
-            )
-          } catch {
-            self.loadedNextPodcastEpisode = nil
-          }
-        } else {
-          self.loadedNextPodcastEpisode = nil
-        }
-        updateNextPodcastEpisodeInAVPlayer()
+        await handleNextEpisodeChange(nextPodcastEpisode)
       }
     }
   }
@@ -323,39 +365,8 @@ final actor PlayManager {
       for await _ in notificationCenter.notifications(
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {
-        if let currentPodcastEpisode = self.currentPodcastEpisode {
-          self.currentPodcastEpisode = nil
-          _ = try? await repo.markComplete(currentPodcastEpisode.id)
-        }
-        if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
-          self.loadedNextPodcastEpisode = nil
-          let podcastEpisode = loadedNextPodcastEpisode.podcastEpisode
-          let duration = loadedNextPodcastEpisode.duration
-          await setOnDeck(podcastEpisode, duration)
-          try? await queue.dequeue(podcastEpisode.id)
-        }
+        await handleCurrentEpisodeFinished()
       }
     }
-  }
-
-  private func addTimeControlStatusObserver() {
-    self.timeControlStatusObserver = avPlayer.observe(
-      \.timeControlStatus,
-      options: [.initial, .new],
-      changeHandler: { [unowned self] playerItem, _ in
-        Task {
-          switch playerItem.timeControlStatus {
-          case AVPlayer.TimeControlStatus.paused:
-            await self.setStatus(.paused)
-          case AVPlayer.TimeControlStatus.playing:
-            await self.setStatus(.playing)
-          case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
-            await self.setStatus(.waiting)
-          @unknown default:
-            fatalError("Time control status unknown?")
-          }
-        }
-      }
-    )
   }
 }
