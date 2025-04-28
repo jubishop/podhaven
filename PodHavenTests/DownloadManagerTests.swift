@@ -46,26 +46,55 @@ actor DownloadManagerTests {
       maxConcurrentDownloads: maxConcurrentDownloads
     )
 
+    // Use a longer delay to ensure stable observation
+    let downloadDelay = Duration.milliseconds(500)
     let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
     var tasks: [DownloadTask] = []
+
     for url in urls {
-      await session.set(url, .delay(.milliseconds(20)))
+      await session.set(url, .delay(downloadDelay))
       let task = await downloadManager.addURL(url)
       tasks.append(task)
     }
-    let counter = Counter()
+
+    let activeDownloads = Counter()
+    let taskStarted = AsyncSemaphore(value: 0)
+    
+    // Create a controlled environment for observation
     await withDiscardingTaskGroup { group in
       for task in tasks {
         group.addTask {
           await task.downloadBegan()
-          await counter.increment()
+          await activeDownloads.increment()
+          taskStarted.signal()
+          
           _ = await task.downloadFinished()
-          await counter.decrement()
+          await activeDownloads.decrement()
         }
       }
+      
+      // Wait for enough tasks to start
+      for _ in 1...maxConcurrentDownloads + 5 {
+        await taskStarted.wait()
+      }
+      
+      // Give time for download manager to enforce limits
+      try? await Task.sleep(for: .milliseconds(100))
+      
+      // Check active downloads after stabilization
+      let concurrent = await activeDownloads.value
+      #expect(concurrent == maxConcurrentDownloads)
+      
+      // Double-check with multiple observations
+      var counts = [Int]()
+      for _ in 1...5 {
+        try? await Task.sleep(for: .milliseconds(50))
+        counts.append(await activeDownloads.value)
+      }
+      
+      let allEqual = counts.allSatisfy { $0 == maxConcurrentDownloads }
+      #expect(allEqual, "Expected stable count of \(maxConcurrentDownloads), got \(counts)")
     }
-    let maxTally = await counter.maxValue
-    #expect(abs(maxTally - maxConcurrentDownloads) <= 10)
   }
 
   @Test("that you can cancel a mid-flight download")
