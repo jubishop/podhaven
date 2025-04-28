@@ -59,7 +59,7 @@ actor DownloadManagerTests {
 
     let activeDownloads = Counter()
     let taskStarted = AsyncSemaphore(value: 0)
-    
+
     // Create a controlled environment for observation
     await withDiscardingTaskGroup { group in
       for task in tasks {
@@ -67,31 +67,31 @@ actor DownloadManagerTests {
           await task.downloadBegan()
           await activeDownloads.increment()
           taskStarted.signal()
-          
+
           _ = await task.downloadFinished()
           await activeDownloads.decrement()
         }
       }
-      
+
       // Wait for enough tasks to start
       for _ in 1...maxConcurrentDownloads + 5 {
         await taskStarted.wait()
       }
-      
+
       // Give time for download manager to enforce limits
       try? await Task.sleep(for: .milliseconds(100))
-      
+
       // Check active downloads after stabilization
       let concurrent = await activeDownloads.value
       #expect(concurrent == maxConcurrentDownloads)
-      
+
       // Double-check with multiple observations
-      var counts = [Int]()
+      var counts: [Int] = []
       for _ in 1...5 {
         try? await Task.sleep(for: .milliseconds(50))
         counts.append(await activeDownloads.value)
       }
-      
+
       let allEqual = counts.allSatisfy { $0 == maxConcurrentDownloads }
       #expect(allEqual, "Expected stable count of \(maxConcurrentDownloads), got \(counts)")
     }
