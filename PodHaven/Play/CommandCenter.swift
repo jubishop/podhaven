@@ -27,9 +27,7 @@ struct CommandCenter: Sendable {
 
   // MARK: - Public Functions
 
-  mutating func start() {
-    stop()
-    print("starting command center")
+  func start() {
     let continuation = self.continuation
     commandCenter.playCommand.addTarget { event in
       continuation.yield(.play)
@@ -66,15 +64,5 @@ struct CommandCenter: Sendable {
       continuation.yield(.playbackPosition(positionEvent.positionTime))
       return .success
     }
-  }
-
-  mutating func stop() {
-    print("stopping command center")
-    commandCenter.playCommand.removeTarget(nil)
-    commandCenter.pauseCommand.removeTarget(nil)
-    commandCenter.togglePlayPauseCommand.removeTarget(nil)
-    commandCenter.skipForwardCommand.removeTarget(nil)
-    commandCenter.skipBackwardCommand.removeTarget(nil)
-    commandCenter.changePlaybackPositionCommand.removeTarget(nil)
   }
 }

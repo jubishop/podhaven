@@ -49,9 +49,9 @@ final actor PlayManager {
         nowPlayingInfo?.clear()
       }
     }
-    didSet {
-      nowPlayingInfo == nil ? commandCenter.stop() : commandCenter.start()
-    }
+    //    didSet {
+    //      nowPlayingInfo == nil ? commandCenter.stop() : commandCenter.start()
+    //    }
   }
 
   private var commandCenter: CommandCenter
@@ -224,7 +224,6 @@ final actor PlayManager {
   private func setStatus(_ status: PlayState.Status) async {
     guard status != _status else { return }
 
-    print("setting status: \(status)")
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status, accessKey)
     _status = status
@@ -284,7 +283,7 @@ final actor PlayManager {
     addTimeControlStatusObserver()
     addPeriodicTimeObserver()
     observeNextEpisode()
-    startListeningToCommandCenter()
+    startCommandCenter()
     startInterruptionNotifications()
     startPlayToEndTimeNotifications()
   }
@@ -341,7 +340,8 @@ final actor PlayManager {
     }
   }
 
-  private func startListeningToCommandCenter() {
+  private func startCommandCenter() {
+    commandCenter.start()
     Task {
       for await command in commandCenter.commandStream() {
         switch command {
