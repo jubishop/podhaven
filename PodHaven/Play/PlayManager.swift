@@ -57,7 +57,6 @@ final actor PlayManager {
 
   // MARK: - Convenience Getters
 
-  private var audioSession: AVAudioSession { AVAudioSession.sharedInstance() }
   private var notificationCenter: NotificationCenter { NotificationCenter.default }
 
   // MARK: - Initialization
@@ -94,7 +93,6 @@ final actor PlayManager {
     }
     await clearOnDeck()
 
-    try audioSession.setActive(true)
     let (avAsset, duration) = try await loadAsset(for: podcastEpisode)
 
     avPlayer.removeAllItems()
