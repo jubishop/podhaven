@@ -49,9 +49,6 @@ final actor PlayManager {
         nowPlayingInfo?.clear()
       }
     }
-    //    didSet {
-    //      nowPlayingInfo == nil ? commandCenter.stop() : commandCenter.start()
-    //    }
   }
 
   private var commandCenter: CommandCenter
