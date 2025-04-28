@@ -43,7 +43,17 @@ final actor PlayManager {
   private var loadedNextPodcastEpisode: LoadedPodcastEpisode?
 
   private var avPlayer = AVQueuePlayer()
-  private var nowPlayingInfo: NowPlayingInfo?
+  private var nowPlayingInfo: NowPlayingInfo? {
+    willSet {
+      if newValue == nil {
+        nowPlayingInfo?.clear()
+      }
+    }
+    didSet {
+      nowPlayingInfo == nil ? commandCenter.stop() : commandCenter.start()
+    }
+  }
+
   private var commandCenter: CommandCenter
   var timeControlStatusObserver: NSKeyValueObservation?
   private var periodicTimeObserver: Any?
@@ -214,6 +224,7 @@ final actor PlayManager {
   private func setStatus(_ status: PlayState.Status) async {
     guard status != _status else { return }
 
+    print("setting status: \(status)")
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status, accessKey)
     _status = status
@@ -273,7 +284,7 @@ final actor PlayManager {
     addTimeControlStatusObserver()
     addPeriodicTimeObserver()
     observeNextEpisode()
-    startCommandCenter()
+    startListeningToCommandCenter()
     startInterruptionNotifications()
     startPlayToEndTimeNotifications()
   }
@@ -305,6 +316,7 @@ final actor PlayManager {
       options: [.initial, .new],
       changeHandler: { [unowned self] playerItem, _ in
         Task {
+          if !(await status.playable) { return }
           switch playerItem.timeControlStatus {
           case AVPlayer.TimeControlStatus.paused:
             await self.setStatus(.paused)
@@ -329,10 +341,9 @@ final actor PlayManager {
     }
   }
 
-  private func startCommandCenter() {
-    commandCenter.start()
+  private func startListeningToCommandCenter() {
     Task {
-      for await command in commandCenter.commands() {
+      for await command in commandCenter.commandStream() {
         switch command {
         case .play:
           play()

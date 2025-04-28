@@ -56,6 +56,10 @@ struct NowPlayingInfo: Sendable {
     infoCenter.nowPlayingInfo = nowPlayingInfo
   }
 
+  func clear() {
+    infoCenter.nowPlayingInfo = nil
+  }
+
   func currentTime(_ currentTime: CMTime) {
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
       NSNumber(value: CMTimeGetSeconds(currentTime))
