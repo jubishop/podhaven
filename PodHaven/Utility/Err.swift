@@ -22,7 +22,7 @@ struct Err: Error, LocalizedError, Sendable {
       ⚡️ Error from: [\(fileName):\(line) \(function)]:
       \(errorDescription)
 
-      Call Stack:
+      🧱 Call Stack:
       \(StackTracer.capture())
 
       ----------------------------------------------------------------------------------------------
