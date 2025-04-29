@@ -47,7 +47,7 @@ extension Container {
   }
 
   func start() async {
-    guard let currentEpisodeID: Episode.ID = Persistence.currentEpisodeID.load(),
+    guard let currentEpisodeID: Episode.ID = Persistence.load(for: Persistence.currentEpisodeID),
       let podcastEpisode = try? await repo.episode(currentEpisodeID)
     else { return }
 
