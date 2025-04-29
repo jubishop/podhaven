@@ -105,15 +105,15 @@ extension Container {
     line: UInt
   ) {
     let fileName = "\(file)".components(separatedBy: "/").last ?? "\(file)"
-    let stackTrace = StackTracer.capture().dropFirst().joined(separator: "\n")
+    let stackTrace = StackTracer.capture(limit: 10, drop: 2).joined(separator: "\n")
 
     print(
       """
       ----------------------------------------------------------------------------------------------
-      ❗️ Reporting Error from: [\(fileName):\(line) \(function)]
+      ❗️ Reporting error from: [\(fileName):\(line) \(function)]
       \(message)
 
-      🧱 Call Stack:
+      🧱 Call stack:
       \(stackTrace)
 
       ----------------------------------------------------------------------------------------------

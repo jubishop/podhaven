@@ -15,15 +15,15 @@ struct Err: Error, LocalizedError, Sendable {
 
     #if DEBUG
     let fileName = "\(file)".components(separatedBy: "/").last ?? "\(file)"
-    let stackTrace = StackTracer.capture(limit: 10).dropFirst().joined(separator: "\n")
+    let stackTrace = StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n")
 
     print(
       """
       ----------------------------------------------------------------------------------------------
-      ⚡️ Error from: [\(fileName):\(line) \(function)]:
+      ⚡️ Error thrown from: [\(fileName):\(line) \(function)]:
       \(errorDescription)
 
-      🧱 Call Stack:
+      🧱 Call stack:
       \(stackTrace)
 
       ----------------------------------------------------------------------------------------------

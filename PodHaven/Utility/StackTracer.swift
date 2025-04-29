@@ -3,13 +3,23 @@
 import Foundation
 
 struct StackTracer {
-  static func capture(limit: Int? = nil) -> [String] {
+  static func capture(limit: Int = 20, drop: Int = 0) -> [String] {
     let symbols = Thread.callStackSymbols
-      .filter { !$0.contains("libswift") && !$0.contains("libsystem") }
+      .filter { line in
+        let unwantedLibraries = ["libswift", "libsystem", "SwiftUI"]
+        if unwantedLibraries.contains(where: { line.contains($0) }) {
+          return false
+        }
+        if line.range(of: #"0x[0-9a-fA-F]+ [0-9A-F\-]+ \+"#, options: .regularExpression) != nil {
+          return false
+        }
+        return true
+      }
 
     let processed =
       symbols
-      .prefix(limit ?? symbols.count)
+      .dropFirst(drop)
+      .prefix(limit)
       .enumerated()
       .map { (index, line) -> String in
         let components = line.components(separatedBy: " ").filter { !$0.isEmpty }
