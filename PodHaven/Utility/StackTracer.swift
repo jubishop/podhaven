@@ -3,7 +3,7 @@
 import Foundation
 
 struct StackTracer {
-  static func capture(limit: Int? = nil) -> String {
+  static func capture(limit: Int? = nil) -> [String] {
     let symbols = Thread.callStackSymbols
       .filter { !$0.contains("libswift") && !$0.contains("libsystem") }
 
@@ -21,7 +21,7 @@ struct StackTracer {
         return "    #\(index) \(cleaned)"
       }
 
-    return processed.joined(separator: "\n")
+    return processed
   }
 
   // MARK: - Internal Helpers

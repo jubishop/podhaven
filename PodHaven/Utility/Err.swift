@@ -15,6 +15,7 @@ struct Err: Error, LocalizedError, Sendable {
 
     #if DEBUG
     let fileName = "\(file)".components(separatedBy: "/").last ?? "\(file)"
+    let stackTrace = StackTracer.capture(limit: 10).dropFirst().joined(separator: "\n")
 
     print(
       """
@@ -23,7 +24,7 @@ struct Err: Error, LocalizedError, Sendable {
       \(errorDescription)
 
       🧱 Call Stack:
-      \(StackTracer.capture())
+      \(stackTrace)
 
       ----------------------------------------------------------------------------------------------
       """
