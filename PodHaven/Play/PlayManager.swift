@@ -26,16 +26,16 @@ extension Container {
   @WrappedShared(
     Shared<Int?>(.appStorage("currentEpisodeID")),
     get: {
-      guard let currentEpisodeID = $0
+      guard let currentEpisodeInt = $0, let currentEpisodeInt64 = Int64(exactly: currentEpisodeInt)
       else { return nil }
 
-      return Episode.ID(rawValue: Int64(currentEpisodeID))
+      return Episode.ID(rawValue: currentEpisodeInt64)
     },
     set: {
-      guard let newValue = $0
+      guard let newEpisodeID = $0
       else { return nil }
 
-      return Int(exactly: newValue.rawValue)
+      return Int(exactly: newEpisodeID.rawValue)
     }
   )
   private var currentEpisodeID: Episode.ID?
