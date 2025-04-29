@@ -29,6 +29,14 @@
         "identifier" : "8BD7F92F2CF2A49100CEDAA7",
         "name" : "PodHavenTests"
       }
+    },
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:PodHaven.xcodeproj",
+        "identifier" : "8B405E672DC0AA1000D590EF",
+        "name" : "PlayManagerTests"
+      }
     }
   ],
   "version" : 1

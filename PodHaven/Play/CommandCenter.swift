@@ -13,21 +13,19 @@ struct CommandCenter: Sendable {
 
   // MARK: - State Management
 
-  private var stream: AsyncStream<Command>
-  private var continuation: AsyncStream<Command>.Continuation
+  let stream: AsyncStream<Command>
+  private let continuation: AsyncStream<Command>.Continuation
 
   // MARK: - Convenience Getters
 
   var commandCenter: MPRemoteCommandCenter { MPRemoteCommandCenter.shared() }
   init(_ key: PlayManagerAccessKey) {
     (self.stream, self.continuation) = AsyncStream.makeStream(of: Command.self)
+
+    start()
   }
 
-  func commandStream() -> AsyncStream<Command> { stream }
-
-  // MARK: - Public Functions
-
-  func start() {
+  private func start() {
     let continuation = self.continuation
     commandCenter.playCommand.addTarget { event in
       continuation.yield(.play)

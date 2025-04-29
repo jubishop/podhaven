@@ -38,13 +38,12 @@ struct OnDeck: Sendable {
     self.media = media
     self.pubDate = pubDate
   }
-  
+
   // MARK: - Equatable
-  
+
   static func == (lhs: OnDeck, rhs: PodcastEpisode) -> Bool {
-    lhs.guid == rhs.episode.guid && 
-    lhs.feedURL == rhs.podcast.feedURL && 
-    lhs.media == rhs.episode.media
+    lhs.guid == rhs.episode.guid && lhs.feedURL == rhs.podcast.feedURL
+      && lhs.media == rhs.episode.media
   }
 }
 

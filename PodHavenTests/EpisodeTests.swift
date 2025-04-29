@@ -8,7 +8,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of Episode model tests")
-actor EpisodeTests {
+struct EpisodeTests {
   private let repo: Repo = .inMemory()
 
   @Test("that episodes are created and fetched in the right order")

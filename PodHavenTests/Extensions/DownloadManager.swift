@@ -11,8 +11,8 @@ extension DownloadData {
 }
 
 extension DownloadResult {
-  var isCancelled: Bool {
-    if case .failure(Err.cancelled) = self { return true }
+  var isFailure: Bool {
+    if case .failure = self { return true }
     return false
   }
 

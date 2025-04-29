@@ -7,7 +7,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of DownloadManager tests")
-actor DownloadManagerTests {
+struct DownloadManagerTests {
   private let session: DataFetchableMock
 
   init() {
@@ -109,12 +109,12 @@ actor DownloadManagerTests {
       await task.cancel()
     }
     var result = await task.downloadFinished()
-    #expect(result.isCancelled)
+    #expect(result.isFailure)
 
     // Even after the url data has returned, the result remains cancelled.
     try await Task.sleep(for: .milliseconds(100))
     result = await task.downloadFinished()
-    #expect(result.isCancelled)
+    #expect(result.isFailure)
   }
 
   @Test("that you can cancel all downloads")
@@ -133,16 +133,16 @@ actor DownloadManagerTests {
     // At this point: task should be active, task2 should be pending
     await downloadManager.cancelAllDownloads()
     var result = await task.downloadFinished()
-    #expect(result.isCancelled)
+    #expect(result.isFailure)
     var result2 = await task2.downloadFinished()
-    #expect(result2.isCancelled)
+    #expect(result2.isFailure)
 
     // Even after the url data has returned, the results remains cancelled.
     try await Task.sleep(for: .milliseconds(100))
     result = await task.downloadFinished()
-    #expect(result.isCancelled)
+    #expect(result.isFailure)
     result2 = await task2.downloadFinished()
-    #expect(result2.isCancelled)
+    #expect(result2.isFailure)
   }
 
   @Test("that url's are fetched in the order they're received")

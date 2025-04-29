@@ -1,7 +1,226 @@
-// Copyright Justin Bishop, 2025 
+// Copyright Justin Bishop, 2025
 
+import AVFoundation
+import Factory
 import Foundation
 
-struct PodAVPlayer : Sendable {
+@PlayActor final class PodAVPlayer: Sendable {
+  // MARK: - Convenience Getters
 
+  var podcastEpisode: PodcastEpisode? { loadedCurrentPodcastEpisode?.podcastEpisode }
+  var nextPodcastEpisode: PodcastEpisode? { loadedNextPodcastEpisode?.podcastEpisode }
+
+  // MARK: - State Management
+
+  private var loadedNextPodcastEpisode: LoadedPodcastEpisode?
+  private var loadedCurrentPodcastEpisode: LoadedPodcastEpisode?
+
+  let currentTimeStream: AsyncStream<CMTime>
+  let controlStatusStream: AsyncStream<AVPlayer.TimeControlStatus>
+  let playToEndStream: AsyncStream<(PodcastEpisode, LoadedPodcastEpisode?)>
+  private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
+  private let controlStatusContinuation: AsyncStream<AVPlayer.TimeControlStatus>.Continuation
+  private let playToEndContinuation:
+    AsyncStream<(PodcastEpisode, LoadedPodcastEpisode?)>.Continuation
+
+  private var timeControlStatusObserver: NSKeyValueObservation?
+  private var periodicTimeObserver: Any?
+
+  private var avPlayer = AVQueuePlayer()
+
+  // MARK: - Initialization
+
+  init(_ key: PlayManagerAccessKey) {
+    (self.currentTimeStream, self.currentTimeContinuation) = AsyncStream.makeStream(
+      of: CMTime.self
+    )
+    (self.controlStatusStream, self.controlStatusContinuation) = AsyncStream.makeStream(
+      of: AVPlayer.TimeControlStatus.self
+    )
+    (self.playToEndStream, self.playToEndContinuation) = AsyncStream.makeStream(
+      of: (PodcastEpisode, LoadedPodcastEpisode?).self
+    )
+
+    startTracking()
+  }
+
+  // MARK: - Loading
+
+  func stop() {
+    removePeriodicTimeObserver()
+    avPlayer.removeAllItems()
+    self.loadedCurrentPodcastEpisode = nil
+  }
+
+  func load(_ podcastEpisode: PodcastEpisode) async throws -> CMTime {
+    let loadedPodcastEpisode = try await loadAsset(for: podcastEpisode)
+    self.loadedCurrentPodcastEpisode = loadedPodcastEpisode
+
+    avPlayer.removeAllItems()
+    avPlayer.insert(loadedPodcastEpisode.item, after: nil)
+    insertNextPodcastEpisode(self.loadedNextPodcastEpisode)
+    addPeriodicTimeObserver()
+
+    return loadedPodcastEpisode.duration
+  }
+
+  private func loadAsset(for podcastEpisode: PodcastEpisode) async throws -> LoadedPodcastEpisode {
+    let avAsset = AVURLAsset(url: podcastEpisode.episode.media.rawValue)
+    let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
+
+    guard isPlayable
+    else {
+      throw Err(
+        """
+        [Playback Error]
+          PodcastEpisode: \(podcastEpisode.toString)
+          MediaURL: \(podcastEpisode.episode.media)
+          Reason: URL is not playable.
+        """
+      )
+    }
+
+    return LoadedPodcastEpisode(
+      item: AVPlayerItem(asset: avAsset),
+      podcastEpisode: podcastEpisode,
+      duration: duration
+    )
+  }
+
+  // MARK: - Playback Controls
+
+  func play() {
+    avPlayer.play()
+  }
+
+  func pause() {
+    avPlayer.pause()
+  }
+
+  // MARK: - Seeking
+
+  func seekForward(_ duration: CMTime) async {
+    await seek(to: avPlayer.currentTime() + duration)
+  }
+
+  func seekBackward(_ duration: CMTime) async {
+    await seek(to: avPlayer.currentTime() - duration)
+  }
+
+  func seek(to time: CMTime) async {
+    removePeriodicTimeObserver()
+    currentTimeContinuation.yield(time)
+    avPlayer.seek(to: time) { [unowned self] completed in
+      if completed {
+        Task { await addPeriodicTimeObserver() }
+      }
+    }
+  }
+
+  // MARK: - State Setters
+
+  func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?) async {
+    guard nextPodcastEpisode?.id != self.nextPodcastEpisode?.id
+    else { return }
+
+    if let podcastEpisode = nextPodcastEpisode {
+      do {
+        insertNextPodcastEpisode(try await loadAsset(for: podcastEpisode))
+      } catch {
+        insertNextPodcastEpisode(nil)
+      }
+    } else {
+      insertNextPodcastEpisode(nil)
+    }
+  }
+
+  // MARK: - Private State Management
+
+  private func insertNextPodcastEpisode(_ loadedNextPodcastEpisode: LoadedPodcastEpisode?) {
+    self.loadedNextPodcastEpisode = loadedNextPodcastEpisode
+
+    if (avPlayer.items().isEmpty)
+      || (avPlayer.items().count == 1 && loadedNextPodcastEpisode == nil)
+      || (avPlayer.items().count == 2 && avPlayer.items().last == loadedNextPodcastEpisode?.item)
+    {
+      return
+    }
+
+    while avPlayer.items().count > 1, let lastItem = avPlayer.items().last {
+      avPlayer.remove(lastItem)
+    }
+
+    if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
+      avPlayer.insert(loadedNextPodcastEpisode.item, after: avPlayer.items().first)
+    }
+  }
+
+  // MARK: - Private Change Handlers
+
+  private func handleEpisodeFinished() async {
+    guard let finishedPodcastEpisode = self.podcastEpisode
+    else { fatalError("Finished episode but podcastEpisode is nil?") }
+
+    loadedCurrentPodcastEpisode = loadedNextPodcastEpisode
+    loadedNextPodcastEpisode = nil
+
+    if podcastEpisode != nil {
+      addPeriodicTimeObserver()
+    } else {
+      removePeriodicTimeObserver()
+    }
+
+    playToEndContinuation.yield((finishedPodcastEpisode, loadedCurrentPodcastEpisode))
+  }
+
+  // MARK: - Private Tracking
+
+  private func startTracking() {
+    addPeriodicTimeObserver()
+    addTimeControlStatusObserver()
+    startPlayToEndTimeNotifications()
+  }
+
+  private func addPeriodicTimeObserver() {
+    guard self.periodicTimeObserver == nil
+    else { return }
+
+    self.periodicTimeObserver = avPlayer.addPeriodicTimeObserver(
+      forInterval: CMTime.inSeconds(1),
+      queue: .global(qos: .utility)
+    ) { currentTime in
+      Task { [unowned self] in
+        currentTimeContinuation.yield(currentTime)
+      }
+    }
+  }
+
+  private func removePeriodicTimeObserver() {
+    if let periodicTimeObserver = self.periodicTimeObserver {
+      avPlayer.removeTimeObserver(periodicTimeObserver)
+      self.periodicTimeObserver = nil
+    }
+  }
+
+  private func addTimeControlStatusObserver() {
+    self.timeControlStatusObserver = avPlayer.observe(
+      \.timeControlStatus,
+      options: [.initial, .new],
+      changeHandler: { [unowned self] playerItem, _ in
+        Task {
+          controlStatusContinuation.yield(playerItem.timeControlStatus)
+        }
+      }
+    )
+  }
+
+  private func startPlayToEndTimeNotifications() {
+    Task {
+      for await _ in NotificationCenter.default.notifications(
+        named: AVPlayerItem.didPlayToEndTimeNotification
+      ) {
+        await handleEpisodeFinished()
+      }
+    }
+  }
 }

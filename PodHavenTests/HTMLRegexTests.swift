@@ -6,7 +6,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of HTML Regex tests")
-actor HTMLRegexTests {
+struct HTMLRegexTests {
   @Test("that HTML regexes work")
   func testHTMLRegexes() throws {
     #expect("Words with <br/> making new lines".isHTML() == true)

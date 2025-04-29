@@ -11,9 +11,7 @@ struct NowPlayingInfo: Sendable {
   // MARK: - Convenience Getters
 
   private let appIdentifier = "com.artisanal.podhaven"
-  private var infoCenter: MPNowPlayingInfoCenter {
-    MPNowPlayingInfoCenter.default()
-  }
+  private var infoCenter: MPNowPlayingInfoCenter { MPNowPlayingInfoCenter.default() }
 
   // MARK: - Initializing
 

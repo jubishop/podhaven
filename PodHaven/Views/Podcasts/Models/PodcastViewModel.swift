@@ -50,7 +50,7 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
 
       for try await podcastSeries in observatory.podcastSeries(podcast.id) {
         guard let podcastSeries = podcastSeries
-        else { throw Err.msg("No return from DB for: \(podcast.toString)") }
+        else { throw Err("No return from DB for: \(podcast.toString)") }
 
         if self.podcastSeries == podcastSeries { continue }
         self.podcastSeries = podcastSeries

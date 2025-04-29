@@ -6,7 +6,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of PodcastOPML Parsing tests")
-actor PodcastOPMLTests {
+struct PodcastOPMLTests {
   @Test("parsing large OPML file")
   func parseLargeOPMLFile() async throws {
     let url = Bundle.main.url(forResource: "large", withExtension: "opml")!

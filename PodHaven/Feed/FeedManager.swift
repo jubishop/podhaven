@@ -35,7 +35,7 @@ struct FeedTask: Sendable {
     let downloadResult = await downloadTask.downloadFinished()
     switch downloadResult {
     case .failure:
-      return .failure(Err.msg("Failed to load: \(downloadTask.url)"))
+      return .failure(Err("Failed to load: \(downloadTask.url)"))
     case .success(let downloadData):
       do {
         let podcastFeed = try await PodcastFeed.parse(

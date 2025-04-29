@@ -15,7 +15,7 @@ protocol FeedResultConvertible {
 extension FeedResultConvertible {
   func toUnsavedPodcast() throws -> UnsavedPodcast {
     guard let image = image
-    else { throw Err.msg("No image for \(title)") }
+    else { throw Err("No image for \(title)") }
 
     return try UnsavedPodcast(
       feedURL: url,
