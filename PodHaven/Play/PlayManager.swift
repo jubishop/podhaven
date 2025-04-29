@@ -130,6 +130,8 @@ extension Container {
     } else {
       await setCurrentTime(CMTime.zero)
     }
+
+    Persistence.save(podcastEpisode.id, for: Persistence.currentEpisodeID)
   }
 
   private func stopAndClearOnDeck() async {
