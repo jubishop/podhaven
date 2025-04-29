@@ -4,6 +4,7 @@ import Foundation
 
 struct Err: Error, LocalizedError, Sendable {
   private let message: String
+
   init(
     _ message: String,
     file: StaticString = #file,
@@ -14,10 +15,17 @@ struct Err: Error, LocalizedError, Sendable {
 
     #if DEBUG
     let fileName = "\(file)".components(separatedBy: "/").last ?? "\(file)"
+
     print(
       """
+      ----------------------------------------------------------------------------------------------
       ⚡️ Error from: [\(fileName):\(line) \(function)]:
       \(errorDescription)
+
+      Call Stack:
+      \(StackTracer.capture())
+
+      ----------------------------------------------------------------------------------------------
       """
     )
     #endif
