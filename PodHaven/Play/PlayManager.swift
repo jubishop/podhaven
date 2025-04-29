@@ -238,7 +238,8 @@ extension Container {
     }
 
     Task {
-      for await (finishedPodcastEpisode, currentLoadedPodcastEpisode) in podAVPlayer.playToEndStream {
+      for await (finishedPodcastEpisode, currentLoadedPodcastEpisode) in podAVPlayer.playToEndStream
+      {
         await handleEpisodeFinished(
           finishedPodcastEpisode: finishedPodcastEpisode,
           currentLoadedPodcastEpisode: currentLoadedPodcastEpisode
