@@ -41,14 +41,14 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		8B8475D02DC0B87200C6C2A5 /* PlayManagerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PlayManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8B8475D02DC0B87200C6C2A5 /* SerialTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SerialTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BD0C2362CF638C700B7DC07 /* PodHaven.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = PodHaven.xctestplan; sourceTree = "<group>"; };
 		8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PodHaven.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PodHavenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8BD7F9302CF2A49100CEDAA7 /* ParallelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ParallelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		8B8475D12DC0B87200C6C2A5 /* Exceptions for "PodHavenTests" folder in "PlayManagerTests" target */ = {
+		8B8475D12DC0B87200C6C2A5 /* Exceptions for "PodHavenTests" folder in "SerialTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				DownloadManagerTests.swift,
@@ -71,14 +71,14 @@
 				Utility/Counter.swift,
 				Utility/TestHelpers.swift,
 			);
-			target = 8B8475C32DC0B87200C6C2A5 /* PlayManagerTests */;
+			target = 8B8475C32DC0B87200C6C2A5 /* SerialTests */;
 		};
-		8B8475D32DC0B88E00C6C2A5 /* Exceptions for "PodHavenTests" folder in "PodHavenTests" target */ = {
+		8B8475D32DC0B88E00C6C2A5 /* Exceptions for "PodHavenTests" folder in "ParallelTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				PlayManagerTests.swift,
 			);
-			target = 8BD7F92F2CF2A49100CEDAA7 /* PodHavenTests */;
+			target = 8BD7F92F2CF2A49100CEDAA7 /* ParallelTests */;
 		};
 		8BCAF0922D07E231002F069D /* Exceptions for "PodHaven" folder in "PodHaven" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -101,8 +101,8 @@
 		8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				8B8475D32DC0B88E00C6C2A5 /* Exceptions for "PodHavenTests" folder in "PodHavenTests" target */,
-				8B8475D12DC0B87200C6C2A5 /* Exceptions for "PodHavenTests" folder in "PlayManagerTests" target */,
+				8B8475D32DC0B88E00C6C2A5 /* Exceptions for "PodHavenTests" folder in "ParallelTests" target */,
+				8B8475D12DC0B87200C6C2A5 /* Exceptions for "PodHavenTests" folder in "SerialTests" target */,
 			);
 			path = PodHavenTests;
 			sourceTree = "<group>";
@@ -162,8 +162,8 @@
 			isa = PBXGroup;
 			children = (
 				8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */,
-				8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */,
-				8B8475D02DC0B87200C6C2A5 /* PlayManagerTests.xctest */,
+				8BD7F9302CF2A49100CEDAA7 /* ParallelTests.xctest */,
+				8B8475D02DC0B87200C6C2A5 /* SerialTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -171,9 +171,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		8B8475C32DC0B87200C6C2A5 /* PlayManagerTests */ = {
+		8B8475C32DC0B87200C6C2A5 /* SerialTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 8B8475CD2DC0B87200C6C2A5 /* Build configuration list for PBXNativeTarget "PlayManagerTests" */;
+			buildConfigurationList = 8B8475CD2DC0B87200C6C2A5 /* Build configuration list for PBXNativeTarget "SerialTests" */;
 			buildPhases = (
 				8B8475C82DC0B87200C6C2A5 /* Sources */,
 				8B8475C92DC0B87200C6C2A5 /* Frameworks */,
@@ -187,12 +187,12 @@
 			fileSystemSynchronizedGroups = (
 				8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */,
 			);
-			name = PlayManagerTests;
+			name = SerialTests;
 			packageProductDependencies = (
 				8B8475C62DC0B87200C6C2A5 /* XMLCoder */,
 			);
 			productName = PodHavenTests;
-			productReference = 8B8475D02DC0B87200C6C2A5 /* PlayManagerTests.xctest */;
+			productReference = 8B8475D02DC0B87200C6C2A5 /* SerialTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		8BD7F91F2CF2A49000CEDAA7 /* PodHaven */ = {
@@ -228,9 +228,9 @@
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
 			productType = "com.apple.product-type.application";
 		};
-		8BD7F92F2CF2A49100CEDAA7 /* PodHavenTests */ = {
+		8BD7F92F2CF2A49100CEDAA7 /* ParallelTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 8BD7F9472CF2A49100CEDAA7 /* Build configuration list for PBXNativeTarget "PodHavenTests" */;
+			buildConfigurationList = 8BD7F9472CF2A49100CEDAA7 /* Build configuration list for PBXNativeTarget "ParallelTests" */;
 			buildPhases = (
 				8BD7F92C2CF2A49100CEDAA7 /* Sources */,
 				8BD7F92D2CF2A49100CEDAA7 /* Frameworks */,
@@ -244,12 +244,12 @@
 			fileSystemSynchronizedGroups = (
 				8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */,
 			);
-			name = PodHavenTests;
+			name = ParallelTests;
 			packageProductDependencies = (
 				8B2AC0462D25D77900DB7FE5 /* XMLCoder */,
 			);
 			productName = PodHavenTests;
-			productReference = 8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */;
+			productReference = 8BD7F9302CF2A49100CEDAA7 /* ParallelTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -297,8 +297,8 @@
 			projectRoot = "";
 			targets = (
 				8BD7F91F2CF2A49000CEDAA7 /* PodHaven */,
-				8BD7F92F2CF2A49100CEDAA7 /* PodHavenTests */,
-				8B8475C32DC0B87200C6C2A5 /* PlayManagerTests */,
+				8BD7F92F2CF2A49100CEDAA7 /* ParallelTests */,
+				8B8475C32DC0B87200C6C2A5 /* SerialTests */,
 			);
 		};
 /* End PBXProject section */
@@ -670,7 +670,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		8B8475CD2DC0B87200C6C2A5 /* Build configuration list for PBXNativeTarget "PlayManagerTests" */ = {
+		8B8475CD2DC0B87200C6C2A5 /* Build configuration list for PBXNativeTarget "SerialTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				8B8475CE2DC0B87200C6C2A5 /* Debug */,
@@ -697,7 +697,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		8BD7F9472CF2A49100CEDAA7 /* Build configuration list for PBXNativeTarget "PodHavenTests" */ = {
+		8BD7F9472CF2A49100CEDAA7 /* Build configuration list for PBXNativeTarget "ParallelTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				8BD7F9482CF2A49100CEDAA7 /* Debug */,

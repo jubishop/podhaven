@@ -23,11 +23,11 @@
   },
   "testTargets" : [
     {
-      "parallelizable" : true,
+      "parallelizable" : false,
       "target" : {
         "containerPath" : "container:PodHaven.xcodeproj",
         "identifier" : "8B8475C32DC0B87200C6C2A5",
-        "name" : "PlayManagerTests"
+        "name" : "SerialTests"
       }
     },
     {
@@ -35,7 +35,7 @@
       "target" : {
         "containerPath" : "container:PodHaven.xcodeproj",
         "identifier" : "8BD7F92F2CF2A49100CEDAA7",
-        "name" : "PodHavenTests"
+        "name" : "ParallelTests"
       }
     }
   ],
