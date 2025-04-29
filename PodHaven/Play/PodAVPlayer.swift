@@ -46,6 +46,12 @@ import Foundation
 
   // MARK: - Loading
 
+  func stop() {
+    removePeriodicTimeObserver()
+    avPlayer.removeAllItems()
+    self.loadedCurrentPodcastEpisode = nil
+  }
+
   func load(_ podcastEpisode: PodcastEpisode) async throws -> CMTime {
     let loadedPodcastEpisode = try await loadAsset(for: podcastEpisode)
     self.loadedCurrentPodcastEpisode = loadedPodcastEpisode

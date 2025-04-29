@@ -70,7 +70,7 @@ extension Container {
     if let outgoingPodcastEpisode = podAVPlayer.podcastEpisode {
       try? await queue.unshift(outgoingPodcastEpisode.id)
     }
-    await clearOnDeck()
+    await stopAndClearOnDeck()
     let duration = try await podAVPlayer.load(podcastEpisode)
     await setOnDeck(podcastEpisode, duration)
     try? await queue.dequeue(podcastEpisode.id)
@@ -132,7 +132,8 @@ extension Container {
     }
   }
 
-  private func clearOnDeck() async {
+  private func stopAndClearOnDeck() async {
+    podAVPlayer.stop()
     nowPlayingInfo = nil
     await playState.setOnDeck(nil, accessKey)
     await setCurrentTime(CMTime.zero)
@@ -150,7 +151,8 @@ extension Container {
     nowPlayingInfo?.currentTime(currentTime)
     await playState.setCurrentTime(currentTime, accessKey)
     Task(priority: .utility) {
-      guard let currentPodcastEpisode = podAVPlayer.podcastEpisode else { return }
+      guard let currentPodcastEpisode = podAVPlayer.podcastEpisode
+      else { return }
 
       try await repo.updateCurrentTime(currentPodcastEpisode.id, currentTime)
     }
@@ -170,7 +172,7 @@ extension Container {
       await setOnDeck(podcastEpisode, duration)
       try? await queue.dequeue(podcastEpisode.id)
     } else {
-      await clearOnDeck()
+      await stopAndClearOnDeck()
       await setStatus(.stopped)
     }
   }
