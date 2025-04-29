@@ -108,8 +108,6 @@ extension Container {
   // MARK: - Private State Management
 
   private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async {
-    guard podcastEpisode != podAVPlayer.podcastEpisode else { return }
-
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
       feedURL: podcastEpisode.podcast.feedURL,
