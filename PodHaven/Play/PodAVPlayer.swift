@@ -31,7 +31,9 @@ import Foundation
   // MARK: - Initialization
 
   init(_ key: PlayManagerAccessKey) {
-    (self.currentTimeStream, self.currentTimeContinuation) = AsyncStream.makeStream(of: CMTime.self)
+    (self.currentTimeStream, self.currentTimeContinuation) = AsyncStream.makeStream(
+      of: CMTime.self
+    )
     (self.controlStatusStream, self.controlStatusContinuation) = AsyncStream.makeStream(
       of: AVPlayer.TimeControlStatus.self
     )

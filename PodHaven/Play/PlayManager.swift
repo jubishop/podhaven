@@ -181,6 +181,7 @@ extension Container {
     observeNextEpisode()
     startListeningToCommandCenter()
     startInterruptionNotifications()
+    startListeningToPodAVPlayer()
   }
 
   private func observeNextEpisode() {
