@@ -172,10 +172,10 @@ struct DownloadManagerTests {
     let downloadManager = DownloadManager(session: session)
 
     let url = URL.valid()
-    await session.set(url, .delay(.milliseconds(100)))
+    await session.set(url, .delay(.milliseconds(50)))
     let task = await downloadManager.addURL(url)
-    let downloadCount = Counter()
     let taskCount = 5
+    let downloadCount = Counter(expected: taskCount)
     for _ in 0..<taskCount {
       Task {
         let result = await task.downloadFinished()
@@ -183,9 +183,9 @@ struct DownloadManagerTests {
         await downloadCount.increment()
       }
     }
-    try await Task.sleep(for: .milliseconds(200))
-    let tally = await downloadCount.value
-    #expect(tally == taskCount)
+
+    await downloadCount.waitForExpected()
+    #expect(await downloadCount.reachedExpected)
   }
 
   @Test("that as long as a task exists the Manager won't deallocate")

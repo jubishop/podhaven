@@ -59,8 +59,17 @@ struct QueueTests {
     #expect((try await fetchOrder()) == [0, 1, 2])
   }
 
-  @Test("inserting new episodes at top")
+  @Test("inserting new episode at top")
   func insertingNewAtTop() async throws {
+    var topEpisode = try await fetchEpisode("unqtop")
+    try await queue.unshift(topEpisode.id)
+    topEpisode = try await fetchEpisode("unqtop")
+    #expect(topEpisode.queueOrder == 0)
+    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
+  }
+
+  @Test("inserting new episodes at top")
+  func insertingNewEpisodesAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
     var middleEpisode = try await fetchEpisode("unqmiddle")
     try await queue.unshift([topEpisode.id, middleEpisode.id])
@@ -69,6 +78,15 @@ struct QueueTests {
     #expect(topEpisode.queueOrder == 0)
     #expect(middleEpisode.queueOrder == 1)
     #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5, 6])
+  }
+
+  @Test("inserting existing episode at top")
+  func insertingExistingAtTop() async throws {
+    var bottomEpisode = try await fetchEpisode("bottom")
+    try await queue.unshift(bottomEpisode.id)
+    bottomEpisode = try await fetchEpisode("bottom")
+    #expect(bottomEpisode.queueOrder == 0)
+    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
   }
 
   @Test("inserting a new and existing episode at top")
@@ -84,7 +102,7 @@ struct QueueTests {
   }
 
   @Test("inserting existing episodes at top")
-  func insertingExistingAtTop() async throws {
+  func insertingExistingEpisodesAtTop() async throws {
     var bottomEpisode = try await fetchEpisode("bottom")
     var middleEpisode = try await fetchEpisode("middle")
     try await queue.unshift([bottomEpisode.id, middleEpisode.id])
