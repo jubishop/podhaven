@@ -23,6 +23,7 @@
   },
   "testTargets" : [
     {
+      "parallelizable" : true,
       "target" : {
         "containerPath" : "container:PodHaven.xcodeproj",
         "identifier" : "8B8475C32DC0B87200C6C2A5",
