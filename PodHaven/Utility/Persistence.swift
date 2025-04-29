@@ -2,42 +2,37 @@
 
 import Foundation
 
-struct PersistenceKey<T> {
-  enum KeyName : StringLiteralType {
-    case currentEpisodeID
-    case currentSortOrder
-    case seekForwardLength
-  }
-  let key: KeyName
-}
-
 struct Persistence {
-  static let currentEpisodeID = PersistenceKey<Episode.ID>(key: .currentEpisodeID)
-  static let currentSortOrder = PersistenceKey<String>(key: .currentSortOrder)
-  static let seekForwardLength = PersistenceKey<Int>(key: .seekForwardLength)
+  struct Key<T> {
+    let name: String
 
-  static func save<T>(_ value: T, for key: PersistenceKey<T>) {
-    UserDefaults.standard.set(value, forKey: key.key.rawValue)
-  }
-
-  static func load<T>(for key: PersistenceKey<T>) -> T? {
-    UserDefaults.standard.object(forKey: key.key.rawValue) as? T
-  }
-
-  static func save<T: Codable>(_ value: T, for key: PersistenceKey<T>) {
-    let encoder = JSONEncoder()
-    if let encoded = try? encoder.encode(value) {
-      UserDefaults.standard.set(encoded, forKey: key.key.rawValue)
+    init(_ name: String) {
+      self.name = name
     }
   }
 
-  static func load<T: Codable>(for key: PersistenceKey<T>) -> T? {
+  static func save<T>(_ value: T, for key: Key<T>) {
+    UserDefaults.standard.set(value, forKey: key.name)
+  }
+
+  static func load<T>(for key: Key<T>) -> T? {
+    UserDefaults.standard.object(forKey: key.name) as? T
+  }
+
+  static func save<T: Codable>(_ value: T, for key: Key<T>) {
+    let encoder = JSONEncoder()
+    if let encoded = try? encoder.encode(value) {
+      UserDefaults.standard.set(encoded, forKey: key.name)
+    }
+  }
+
+  static func load<T: Codable>(for key: Key<T>) -> T? {
     let decoder = JSONDecoder()
-    if let data = UserDefaults.standard.data(forKey: key.key.rawValue),
-       let decoded = try? decoder.decode(T.self, from: data) {
+    if let data = UserDefaults.standard.data(forKey: key.name),
+      let decoded = try? decoder.decode(T.self, from: data)
+    {
       return decoded
     }
     return nil
   }
 }
-

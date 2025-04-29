@@ -14,6 +14,8 @@ extension Container {
 }
 
 @PlayActor final class PlayManager {
+  private static let currentEpisodeIDKey = Persistence.Key<Episode.ID>("currentEpisodeID")
+
   // Cannot LazyInject because @MainActor
   private var playState = Container.shared.playState()
 
@@ -47,7 +49,7 @@ extension Container {
   }
 
   func start() async {
-    guard let currentEpisodeID: Episode.ID = Persistence.load(for: Persistence.currentEpisodeID),
+    guard let currentEpisodeID: Episode.ID = Persistence.load(for: Self.currentEpisodeIDKey),
       let podcastEpisode = try? await repo.episode(currentEpisodeID)
     else { return }
 
