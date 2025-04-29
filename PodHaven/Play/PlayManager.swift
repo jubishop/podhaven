@@ -179,8 +179,8 @@ extension Container {
 
   private func startTracking() {
     observeNextEpisode()
-    startListeningToCommandCenter()
     startInterruptionNotifications()
+    startListeningToCommandCenter()
     startListeningToPodAVPlayer()
   }
 
@@ -222,7 +222,7 @@ extension Container {
 
     Task {
       for await controlStatus in podAVPlayer.controlStatusStream {
-        if !status.playable { return }
+        if !status.playable { continue }
         switch controlStatus {
         case AVPlayer.TimeControlStatus.paused:
           await self.setStatus(.paused)
