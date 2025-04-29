@@ -7,7 +7,7 @@ import XMLCoder
 @testable import PodHaven
 
 @Suite("of PodcastRSS tests")
-actor PodcastRSSTests {
+struct PodcastRSSTests {
   @Test("parsing the Changelog feed")
   func parseChangelogFeed() async throws {
     let url = Bundle.main.url(forResource: "changelog", withExtension: "rss")!

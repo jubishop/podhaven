@@ -9,7 +9,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of Observatory tests")
-actor ObservatoryTests {
+struct ObservatoryTests {
   private let repo: Repo
   private let observatory: Observatory
 

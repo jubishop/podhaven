@@ -8,7 +8,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of RefreshManager tests")
-actor RefreshManagerTests {
+struct RefreshManagerTests {
   private let session: DataFetchableMock = DataFetchableMock()
   private let repo: Repo = .inMemory()
   private let manager: RefreshManager

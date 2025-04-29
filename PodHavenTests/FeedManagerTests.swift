@@ -8,7 +8,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of FeedManager tests")
-actor FeedManagerTests {
+struct FeedManagerTests {
   private let session: DataFetchableMock = DataFetchableMock()
   private let manager: FeedManager
 

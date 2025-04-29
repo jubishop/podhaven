@@ -8,7 +8,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of SearchService tests")
-actor SearchServiceTests {
+struct SearchServiceTests {
   static private let baseURLString = "https://api.podcastindex.org/api/1.0"
 
   private let session: DataFetchableMock = DataFetchableMock()

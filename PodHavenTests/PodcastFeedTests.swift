@@ -7,7 +7,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of PodcastFeed tests")
-actor PodcastFeedTests {
+struct PodcastFeedTests {
   @Test("parsing the Pod Save America feed")
   func parsePodSaveAmericaFeed() async throws {
     let url = Bundle.main.url(forResource: "pod_save_america", withExtension: "rss")!

@@ -11,7 +11,7 @@ extension Container {
   }
 }
 
-actor RefreshManager: Sendable {
+final actor RefreshManager: Sendable {
   // MARK: - Static Helpers
 
   #if DEBUG

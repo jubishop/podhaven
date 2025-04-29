@@ -5,7 +5,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of Queue repo tests")
-actor QueueTests {
+struct QueueTests {
   private let repo: Repo
   private let queue: Queue
   private let podcastSeries: PodcastSeries

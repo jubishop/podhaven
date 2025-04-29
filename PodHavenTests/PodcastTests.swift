@@ -7,7 +7,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of Podcast model tests")
-actor PodcastTests {
+struct PodcastTests {
   private let repo: Repo = .inMemory()
 
   @Test("that a podcast can be created, fetched, and deleted")
