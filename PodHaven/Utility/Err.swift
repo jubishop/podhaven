@@ -3,12 +3,8 @@
 import Foundation
 
 struct Err: Error, LocalizedError, Sendable {
-  static func msg(_ message: String) -> Self {
-    Err(message)
-  }
-
   private let message: String
-  fileprivate init(_ message: String) {
+  init(_ message: String) {
     self.message = message
 
     #if DEBUG

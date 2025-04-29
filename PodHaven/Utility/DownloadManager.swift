@@ -35,7 +35,7 @@ final actor DownloadTask: Sendable {
   }
 
   func cancel() {
-    haveFinished(.failure(Err.msg("Cancelled")))
+    haveFinished(.failure(Err("Cancelled")))
   }
 
   // MARK: - Fileprivate Methods
@@ -51,15 +51,15 @@ final actor DownloadTask: Sendable {
       haveBegun()
       let (data, response) = try await session.data(from: url)
       guard let httpResponse = response as? HTTPURLResponse else {
-        throw Err.msg("Invalid HTTP Response")
+        throw Err("Invalid HTTP Response")
       }
       guard (200...299).contains(httpResponse.statusCode) else {
-        throw Err.msg("Invalid Status Code: \(httpResponse.statusCode)")
+        throw Err("Invalid Status Code: \(httpResponse.statusCode)")
       }
       haveFinished(.success(DownloadData(url: url, data: data)))
     } catch {
       if error is CancellationError {
-        haveFinished(.failure(Err.msg("Cancelled")))
+        haveFinished(.failure(Err("Cancelled")))
       } else {
         haveFinished(.failure(error))
       }

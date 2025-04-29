@@ -31,7 +31,7 @@ struct PersonResult: Sendable, Decodable {
 
       guard podcastEpisode == nil || podcastEpisode?.podcast.feedURL == feedUrl
       else {
-        throw Err.msg(
+        throw Err(
           """
           Merging two podcastEpisodes with different feedURLs?: \
           \(String(describing: podcastEpisode?.podcast.feedURL)), \(feedUrl)
@@ -40,7 +40,7 @@ struct PersonResult: Sendable, Decodable {
       }
 
       guard let feedImage = feedImage ?? podcastEpisode?.podcast.image
-      else { throw Err.msg("No image for \(title)") }
+      else { throw Err("No image for \(title)") }
 
       return UnsavedPodcastEpisode(
         unsavedPodcast: try UnsavedPodcast(

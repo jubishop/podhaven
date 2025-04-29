@@ -89,7 +89,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         switch result {
         case .success(let url):
           guard url.startAccessingSecurityScopedResource()
-          else { throw Err.msg("Couldn't start accessing security scoped response") }
+          else { throw Err("Couldn't start accessing security scoped response") }
           let opml = try await PodcastOPML.parse(url)
           try await downloadOPMLFile(opml)
           url.stopAccessingSecurityScopedResource()
@@ -161,7 +161,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
           do {
             guard case .success(let podcastFeed) = await feedTask.feedParsed()
-            else { throw Err.msg("Failed to parse: \(await outline.text)") }
+            else { throw Err("Failed to parse: \(await outline.text)") }
             let unsavedPodcast = try podcastFeed.toUnsavedPodcast(
               subscribed: true,
               lastUpdate: Date()

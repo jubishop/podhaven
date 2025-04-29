@@ -142,7 +142,7 @@ import SwiftUI
     case .people:
       try await searchByPerson(searchText)
     case .category(_):
-      throw Err.msg("Unsupported")
+      throw Err("Unsupported")
     }
   }
 

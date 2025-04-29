@@ -24,7 +24,7 @@ import GRDB
     do {
       for try await podcastEpisode in observatory.podcastEpisode(episode.id) {
         guard let podcastEpisode = podcastEpisode
-        else { throw Err.msg("No return from DB for: \(episode.toString)") }
+        else { throw Err("No return from DB for: \(episode.toString)") }
         self.podcastEpisode = podcastEpisode
       }
     } catch {
