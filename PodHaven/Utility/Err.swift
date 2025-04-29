@@ -25,8 +25,8 @@ struct Err: Error, LocalizedError, Sendable {
 
       🧱 Call stack:
       \(stackTrace)
-
       ----------------------------------------------------------------------------------------------
+
       """
     )
     #endif
