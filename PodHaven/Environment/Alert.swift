@@ -18,6 +18,8 @@ extension Container {
 
   fileprivate init() {}
 
+  // MARK: - Public Alert Presentation
+
   func callAsFunction<Actions: View, Message: View>(
     title: String = "Error",
     @ViewBuilder actions: @escaping () -> Actions = { Button("Ok") {} },
@@ -37,23 +39,13 @@ extension Container {
   func andReport<Actions: View>(
     title: String = "Error",
     @ViewBuilder actions: @escaping () -> Actions = { Button("Ok") {} },
-    _ message: String
+    _ message: String,
+    file: StaticString = #file,
+    function: StaticString = #function,
+    line: UInt = #line
   ) {
-    Self.report(message)
+    Self.report(message, file: file, function: function, line: line)
     self(title: title, actions: actions, message: { Text(message) })
-  }
-
-  static func report(_ message: String) {
-    print(
-      """
-      Reporting Message:
-        \(message)
-      """
-    )
-
-    #if !DEBUG
-    SentrySDK.capture(message: message)
-    #endif
   }
 
   func callAsFunction<Actions: View>(
@@ -67,26 +59,67 @@ extension Container {
   func andReport<Actions: View>(
     title: String = "Error",
     @ViewBuilder actions: @escaping () -> Actions = { Button("Ok") {} },
-    _ error: any Error
+    _ error: any Error,
+    file: StaticString = #file,
+    function: StaticString = #function,
+    line: UInt = #line
   ) {
-    Self.report(error)
+    Self.report(error, file: file, function: function, line: line)
     self(title: title, actions: actions, message: { Text(Self.message(error)) })
   }
 
-  static func report(_ error: any Error) {
-    print(
-      """
-      Reporting Error: 
-        \(message(error))
-      """
-    )
-    
-    #if !DEBUG
+  // MARK: - Public Reporting API
+
+  static func report(
+    _ message: String,
+    file: StaticString = #file,
+    function: StaticString = #function,
+    line: UInt = #line
+  ) {
+    #if DEBUG
+    logReport(message, file: file, function: function, line: line)
+    #else
+    SentrySDK.capture(message: message)
+    #endif
+  }
+
+  static func report(
+    _ error: any Error,
+    file: StaticString = #file,
+    function: StaticString = #function,
+    line: UInt = #line
+  ) {
+    #if DEBUG
+    logReport(message(error), file: file, function: function, line: line)
+    #else
     SentrySDK.capture(error: error)
     #endif
   }
 
   // MARK: - Private Helpers
+
+  private static func logReport(
+    _ message: String,
+    file: StaticString,
+    function: StaticString,
+    line: UInt
+  ) {
+    let fileName = "\(file)".components(separatedBy: "/").last ?? "\(file)"
+    let stackTrace = StackTracer.capture().dropFirst().joined(separator: "\n")
+
+    print(
+      """
+      ----------------------------------------------------------------------------------------------
+      ❗️ Reporting Error from: [\(fileName):\(line) \(function)]
+      \(message)
+
+      🧱 Call Stack:
+      \(stackTrace)
+
+      ----------------------------------------------------------------------------------------------
+      """
+    )
+  }
 
   private static func message(_ error: any Error) -> String {
     guard let err = error as? Err
