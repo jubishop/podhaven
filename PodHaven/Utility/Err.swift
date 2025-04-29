@@ -2,25 +2,34 @@
 
 import Foundation
 
-enum Err: Error, LocalizedError, Sendable {
-  case msg(String)
-  case cancelled(String? = nil)
-
-  static func andPrint(_ error: Err) -> Self {
-    print(error.errorDescription)
-    return error
+struct Err: Error, LocalizedError, Sendable {
+  static func msg(_ message: String) -> Self {
+    Err(message)
   }
 
-  var errorDescription: String {
-    switch self {
-    case .msg(let message): return message
-    case .cancelled(let message):
-      guard let message = message
-      else { return "Cancelled" }
+  private let message: String
+  fileprivate init(_ message: String) {
+    self.message = message
 
-      return "Cancelled: \(message)"
-    }
+    #if DEBUG
+    debugPrint()
+    #endif
   }
 
+  private func debugPrint(
+    file: StaticString = #file,
+    function: StaticString = #function,
+    line: UInt = #line
+  ) {
+    let fileName = "\(file)".components(separatedBy: "/").last ?? "\(file)"
+    print(
+      """
+      ⚡️ Error from: [\(fileName):\(line) \(function)]:
+      \(errorDescription)
+      """
+    )
+  }
+
+  var errorDescription: String { message }
   var localizedDescription: String { errorDescription }
 }

@@ -35,7 +35,7 @@ final actor DownloadTask: Sendable {
   }
 
   func cancel() {
-    haveFinished(.failure(Err.cancelled()))
+    haveFinished(.failure(Err.msg("Cancelled")))
   }
 
   // MARK: - Fileprivate Methods
@@ -59,7 +59,7 @@ final actor DownloadTask: Sendable {
       haveFinished(.success(DownloadData(url: url, data: data)))
     } catch {
       if error is CancellationError {
-        haveFinished(.failure(Err.cancelled()))
+        haveFinished(.failure(Err.msg("Cancelled")))
       } else {
         haveFinished(.failure(error))
       }
