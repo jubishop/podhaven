@@ -3,10 +3,12 @@
 import Foundation
 
 struct Persistence {
+  static let currentEpisodeID = Key<Episode.ID>("currentEpisodeID")
+
   struct Key<T> {
     let name: String
 
-    init(_ name: String) {
+    fileprivate init(_ name: String) {
       self.name = name
     }
   }
@@ -15,7 +17,7 @@ struct Persistence {
     UserDefaults.standard.set(value, forKey: key.name)
   }
 
-  static func load<T>(for key: Key<T>) -> T? {
+  static func load<T>(_ key: Key<T>) -> T? {
     UserDefaults.standard.object(forKey: key.name) as? T
   }
 
@@ -26,7 +28,7 @@ struct Persistence {
     }
   }
 
-  static func load<T: Codable>(for key: Key<T>) -> T? {
+  static func load<T: Codable>(_ key: Key<T>) -> T? {
     let decoder = JSONDecoder()
     if let data = UserDefaults.standard.data(forKey: key.name),
       let decoded = try? decoder.decode(T.self, from: data)
