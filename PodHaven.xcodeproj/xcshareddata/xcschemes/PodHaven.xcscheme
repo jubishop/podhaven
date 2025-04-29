@@ -21,29 +21,19 @@
                ReferencedContainer = "container:PodHaven.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8B405E672DC0AA1000D590EF"
-               BuildableName = "PlayManagerTests.xctest"
-               BlueprintName = "PlayManagerTests"
-               ReferencedContainer = "container:PodHaven.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES"
-      enableTestabilityWhenProfilingTests = "YES"
-      codeCoverageEnabled = "YES">
+      shouldUseLaunchSchemeArgsEnv = "YES">
+      <TestPlans>
+         <TestPlanReference
+            reference = "container:PodHaven.xctestplan"
+            default = "YES">
+         </TestPlanReference>
+      </TestPlans>
       <Testables>
          <TestableReference
             skipped = "NO"
@@ -57,13 +47,13 @@
             </BuildableReference>
          </TestableReference>
          <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
+            skipped = "YES"
+            parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8B405E672DC0AA1000D590EF"
-               BuildableName = "PlayManagerTests.xctest"
-               BlueprintName = "PlayManagerTests"
+               BlueprintIdentifier = "8BD7F9392CF2A49100CEDAA7"
+               BuildableName = "PodHavenUITests.xctest"
+               BlueprintName = "PodHavenUITests"
                ReferencedContainer = "container:PodHaven.xcodeproj">
             </BuildableReference>
          </TestableReference>

@@ -5,10 +5,9 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of PlayManager Tests", .serialized)
-struct PlayManagerTests {
+class PlayManagerTests {
   @Test("example")
   func example() throws {
-    #expect(true)
+    #expect("Test" == "Hello, World!")
   }
 }
