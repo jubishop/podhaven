@@ -4,6 +4,7 @@ import AVFoundation
 import Factory
 import Foundation
 import GRDB
+import Sharing
 
 struct PlayManagerAccessKey { fileprivate init() {} }
 
@@ -14,13 +15,34 @@ extension Container {
 }
 
 @PlayActor final class PlayManager {
-  // Cannot LazyInject because @MainActor
-  private var playState = Container.shared.playState()
-
+  private var playState = Container.shared.playState()  // Cannot LazyInject because @MainActor
   @ObservationIgnored @LazyInjected(\.images) private var images
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.repo) private var repo
+
+  // MARK: - AppStorage
+
+  @Shared(.appStorage("currentEpisodeID")) private var _currentEpisodeID: Int?
+  var currentEpisodeID: Episode.ID? {
+    get {
+      guard let _currentEpisodeID = _currentEpisodeID
+      else { return nil }
+
+      return Episode.ID(rawValue: Int64(_currentEpisodeID))
+    }
+    set {
+      $_currentEpisodeID.withLock {
+        guard let newValue = newValue
+        else {
+          $0 = nil
+          return
+        }
+
+        $0 = Int(exactly: newValue.rawValue)
+      }
+    }
+  }
 
   // MARK: - State Management
 
@@ -47,7 +69,7 @@ extension Container {
   }
 
   func start() async {
-    guard let currentEpisodeID: Episode.ID = Persistence.load(Persistence.currentEpisodeID),
+    guard let currentEpisodeID = currentEpisodeID,
       let podcastEpisode = try? await repo.episode(currentEpisodeID)
     else { return }
 
@@ -131,7 +153,7 @@ extension Container {
       await setCurrentTime(CMTime.zero)
     }
 
-    Persistence.save(podcastEpisode.id, for: Persistence.currentEpisodeID)
+    currentEpisodeID = podcastEpisode.id
   }
 
   private func stopAndClearOnDeck() async {
