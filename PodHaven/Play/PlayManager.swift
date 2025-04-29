@@ -23,26 +23,22 @@ extension Container {
 
   // MARK: - AppStorage
 
-  @Shared(.appStorage("currentEpisodeID")) private var _currentEpisodeID: Int?
-  var currentEpisodeID: Episode.ID? {
-    get {
-      guard let _currentEpisodeID = _currentEpisodeID
+  @WrappedShared(
+    Shared<Int?>(.appStorage("currentEpisodeID")),
+    get: {
+      guard let currentEpisodeID = $0
       else { return nil }
 
-      return Episode.ID(rawValue: Int64(_currentEpisodeID))
-    }
-    set {
-      $_currentEpisodeID.withLock {
-        guard let newValue = newValue
-        else {
-          $0 = nil
-          return
-        }
+      return Episode.ID(rawValue: Int64(currentEpisodeID))
+    },
+    set: {
+      guard let newValue = $0
+      else { return nil }
 
-        $0 = Int(exactly: newValue.rawValue)
-      }
+      return Int(exactly: newValue.rawValue)
     }
-  }
+  )
+  private var currentEpisodeID: Episode.ID?
 
   // MARK: - State Management
 
