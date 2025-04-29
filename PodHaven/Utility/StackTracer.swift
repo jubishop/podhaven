@@ -3,7 +3,7 @@
 import Foundation
 
 struct StackTracer {
-  static func capture(limit: Int = 20, drop: Int = 0) -> [String] {
+  static func capture(limit: Int = 10, drop: Int = 1) -> [String] {
     let symbols = Thread.callStackSymbols
       .filter { line in
         let unwantedLibraries = ["libswift", "libsystem", "SwiftUI"]
