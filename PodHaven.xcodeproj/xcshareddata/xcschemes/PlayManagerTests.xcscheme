@@ -10,6 +10,20 @@
          <BuildActionEntry
             buildForTesting = "YES"
             buildForRunning = "YES"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "8B405E672DC0AA1000D590EF"
+               BuildableName = "PlayManagerTests.xctest"
+               BlueprintName = "PlayManagerTests"
+               ReferencedContainer = "container:PodHaven.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
             buildForProfiling = "YES"
             buildForArchiving = "YES"
             buildForAnalyzing = "YES">
@@ -21,41 +35,14 @@
                ReferencedContainer = "container:PodHaven.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8B405E672DC0AA1000D590EF"
-               BuildableName = "PlayManagerTests.xctest"
-               BlueprintName = "PlayManagerTests"
-               ReferencedContainer = "container:PodHaven.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES"
-      enableTestabilityWhenProfilingTests = "YES"
-      codeCoverageEnabled = "YES">
+      shouldUseLaunchSchemeArgsEnv = "YES">
       <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8BD7F92F2CF2A49100CEDAA7"
-               BuildableName = "PodHavenTests.xctest"
-               BlueprintName = "PodHavenTests"
-               ReferencedContainer = "container:PodHaven.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
          <TestableReference
             skipped = "NO"
             parallelizable = "NO">
@@ -96,16 +83,15 @@
       savedToolIdentifier = ""
       useCustomWorkingDirectory = "NO"
       debugDocumentVersioning = "YES">
-      <BuildableProductRunnable
-         runnableDebuggingMode = "0">
+      <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "8BD7F91F2CF2A49000CEDAA7"
-            BuildableName = "PodHaven.app"
-            BlueprintName = "PodHaven"
+            BlueprintIdentifier = "8B405E672DC0AA1000D590EF"
+            BuildableName = "PlayManagerTests.xctest"
+            BlueprintName = "PlayManagerTests"
             ReferencedContainer = "container:PodHaven.xcodeproj">
          </BuildableReference>
-      </BuildableProductRunnable>
+      </MacroExpansion>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">
