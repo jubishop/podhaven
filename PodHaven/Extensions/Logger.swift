@@ -1,37 +1,30 @@
 // Copyright Justin Bishop, 2025
 
+import ErrorKit
 import Foundation
+import OSLog
 
-struct Err: Error, LocalizedError, Sendable {
-  private let message: String
-
-  init(
-    _ message: String,
-    file: StaticString = #file,
-    function: StaticString = #function,
-    line: UInt = #line
+extension Logger {
+  func logError(
+    _ error: Throwable & Catching,
+    file: String = #file,
+    function: String = #function,
+    line: Int = #line
   ) {
-    self.message = message
-
-    #if DEBUG
     let fileName = "\(file)".components(separatedBy: "/").last ?? "\(file)"
     let stackTrace = StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n")
+    let errorChain = ErrorKit.errorChainDescription(for: error)
 
-    print(
+    self.error(
       """
       ----------------------------------------------------------------------------------------------
       ⚡️ Error thrown from: [\(fileName):\(line) \(function)]:
-      \(errorDescription)
+        \(errorChain)
 
       🧱 Call stack:
-      \(stackTrace)
+        \(stackTrace)
       ----------------------------------------------------------------------------------------------
-
       """
     )
-    #endif
   }
-
-  var errorDescription: String { message }
-  var localizedDescription: String { errorDescription }
 }

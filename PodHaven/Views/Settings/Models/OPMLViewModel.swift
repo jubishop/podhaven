@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import ErrorKit
 import Factory
 import Foundation
 import GRDB
@@ -89,7 +90,8 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         switch result {
         case .success(let url):
           guard url.startAccessingSecurityScopedResource()
-          else { throw Err("Couldn't start accessing security scoped response") }
+          else { throw PermissionError.restricted(permission: "SecurityScopedResource") }
+
           let opml = try await PodcastOPML.parse(url)
           try await downloadOPMLFile(opml)
           url.stopAccessingSecurityScopedResource()
@@ -97,7 +99,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           throw error
         }
       } catch {
-        alert.andReport(error)
+        alert.andReport("Couldn't import OPML file")
       }
     }
   }
@@ -159,28 +161,31 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           await feedTask.downloadBegan()
           await self.updateOutlineStatus(outline, in: opmlFile, to: .downloading)
 
-          do {
-            guard case .success(let podcastFeed) = await feedTask.feedParsed()
-            else { throw Err("Failed to parse: \(await outline.text)") }
-            let unsavedPodcast = try podcastFeed.toUnsavedPodcast(
-              subscribed: true,
-              lastUpdate: Date()
-            )
+          switch await feedTask.feedParsed() {
+          case .success(let podcastFeed):
+            do {
+              let unsavedPodcast = try podcastFeed.toUnsavedPodcast(
+                subscribed: true,
+                lastUpdate: Date()
+              )
 
-            await Task { @MainActor in
-              outline.feedURL = unsavedPodcast.feedURL
-              outline.text = unsavedPodcast.toString
+              await Task { @MainActor in
+                outline.feedURL = unsavedPodcast.feedURL
+                outline.text = unsavedPodcast.toString
+              }
+              .value
+
+              try await self.repo.insertSeries(
+                unsavedPodcast,
+                unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
+              )
+              await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
+            } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
+              await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
+            } catch {
+              await self.updateOutlineStatus(outline, in: opmlFile, to: .failed)
             }
-            .value
-
-            try await self.repo.insertSeries(
-              unsavedPodcast,
-              unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
-            )
-            await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
-          } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
-            await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
-          } catch {
+          case .failure:
             await self.updateOutlineStatus(outline, in: opmlFile, to: .failed)
           }
         }
@@ -215,15 +220,15 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   // MARK: - Simulator Methods
 
   #if DEBUG
-    public func importOPMLFileInSimulator(_ resource: String) {
-      let url = Bundle.main.url(
-        forResource: resource,
-        withExtension: "opml"
-      )!
-      Task {
-        let opml = try await PodcastOPML.parse(url)
-        try await downloadOPMLFile(opml)
-      }
+  public func importOPMLFileInSimulator(_ resource: String) {
+    let url = Bundle.main.url(
+      forResource: resource,
+      withExtension: "opml"
+    )!
+    Task {
+      let opml = try await PodcastOPML.parse(url)
+      try await downloadOPMLFile(opml)
     }
+  }
   #endif
 }

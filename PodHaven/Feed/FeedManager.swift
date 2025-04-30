@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import ErrorKit
 import Factory
 import Foundation
 
@@ -18,7 +19,7 @@ extension Container {
   }
 }
 
-typealias FeedResult = Result<PodcastFeed, any Error>
+typealias FeedResult = Result<PodcastFeed, FeedError>
 
 struct FeedTask: Sendable {
   let downloadTask: DownloadTask
@@ -34,8 +35,8 @@ struct FeedTask: Sendable {
   func feedParsed() async -> FeedResult {
     let downloadResult = await downloadTask.downloadFinished()
     switch downloadResult {
-    case .failure:
-      return .failure(Err("Failed to load: \(downloadTask.url)"))
+    case .failure(let error):
+      return .failure(FeedError.downloadFailure(error))
     case .success(let downloadData):
       do {
         let podcastFeed = try await PodcastFeed.parse(
@@ -43,8 +44,10 @@ struct FeedTask: Sendable {
           from: FeedURL(downloadData.url)
         )
         return .success(podcastFeed)
-      } catch {
+      } catch let error as FeedError {
         return .failure(error)
+      } catch {
+        return .failure(FeedError.caught(error))
       }
     }
   }
@@ -58,9 +61,9 @@ final actor FeedManager: Sendable {
   // MARK: - Static Helpers
 
   #if DEBUG
-    static func initForTest(session: DataFetchable) -> FeedManager {
-      FeedManager(session: session)
-    }
+  static func initForTest(session: DataFetchable) -> FeedManager {
+    FeedManager(session: session)
+  }
   #endif
 
   // MARK: - Concurrent Download Management

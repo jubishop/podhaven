@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import ErrorKit
 import Factory
 import Foundation
 import GRDB
@@ -50,13 +51,18 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
 
       for try await podcastSeries in observatory.podcastSeries(podcast.id) {
         guard let podcastSeries = podcastSeries
-        else { throw Err("No return from DB for: \(podcast.toString)") }
+        else {
+          throw DatabaseError.recordNotFound(
+            entity: podcast.toString,
+            identifier: String(podcast.id)
+          )
+        }
 
         if self.podcastSeries == podcastSeries { continue }
         self.podcastSeries = podcastSeries
       }
     } catch {
-      alert.andReport(error)
+      alert.andReport("Couldn't execute PodcastViewModel")
     }
   }
 

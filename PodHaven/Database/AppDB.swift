@@ -2,6 +2,7 @@
 
 import Foundation
 import GRDB
+import OSLog
 
 struct AppDB: Sendable {
   #if DEBUG
@@ -33,6 +34,8 @@ struct AppDB: Sendable {
   static let onDisk = { _onDisk }()
   #endif
 
+  private static let logger = Logger()
+
   // MARK: - Shorthand Expression Constants
 
   static let NoOpFilter = true.sqlExpression
@@ -44,9 +47,16 @@ struct AppDB: Sendable {
 
     #if DEBUG
     config.publicStatementArguments = true
-    //      config.prepareDatabase { db in
-    //        db.trace { print($0) }
-    //      }
+    config.prepareDatabase { db in
+      db.trace {
+        logger.trace(
+          """
+          SQL:
+            \($0)
+          """
+        )
+      }
+    }
     #endif
 
     return config

@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import ErrorKit
 import Factory
 import Foundation
 
@@ -69,16 +70,7 @@ import Foundation
     let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
 
     guard isPlayable
-    else {
-      throw Err(
-        """
-        [Playback Error]
-          PodcastEpisode: \(podcastEpisode.toString)
-          MediaURL: \(podcastEpisode.episode.media)
-          Reason: URL is not playable.
-        """
-      )
-    }
+    else { throw PlaybackError.mediaNotPlayable(podcastEpisode) }
 
     return LoadedPodcastEpisode(
       item: AVPlayerItem(asset: avAsset),

@@ -29,7 +29,7 @@ import SwiftUI
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }
     } catch {
-      alert.andReport(error)
+      alert.andReport("Couldn't execute UpNextViewModel")
     }
   }
 

@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import ErrorKit
 import Foundation
 import XMLCoder
 
@@ -18,8 +19,8 @@ struct PodcastRSS: Decodable, Sendable {
         decoder.dateDecodingStrategy = .formatted(Date.rfc2822)
         let rssPodcast = try decoder.decode(PodcastRSS.self, from: data)
         continuation.resume(returning: rssPodcast.channel)
-      } catch {
-        continuation.resume(throwing: Err("Could not parse RSS feed: \(error). "))
+      } catch let error {
+        continuation.resume(throwing: error)
       }
     }
   }

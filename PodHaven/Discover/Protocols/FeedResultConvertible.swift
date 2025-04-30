@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import ErrorKit
 import Foundation
 
 protocol FeedResultConvertible {
@@ -15,7 +16,7 @@ protocol FeedResultConvertible {
 extension FeedResultConvertible {
   func toUnsavedPodcast() throws -> UnsavedPodcast {
     guard let image = image
-    else { throw Err("No image for \(title)") }
+    else { throw ParsingError.missingField(field: "image") }
 
     return try UnsavedPodcast(
       feedURL: url,

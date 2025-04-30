@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import ErrorKit
 import Foundation
 
 struct PersonResult: Sendable, Decodable {
@@ -31,16 +32,17 @@ struct PersonResult: Sendable, Decodable {
 
       guard podcastEpisode == nil || podcastEpisode?.podcast.feedURL == feedUrl
       else {
-        throw Err(
-          """
-          Merging two podcastEpisodes with different feedURLs?: \
-          \(String(describing: podcastEpisode?.podcast.feedURL)), \(feedUrl)
-          """
+        throw StateError.preconditionFailed(
+          description:
+            """
+            Two podcastEpisodes with different feedURLs?: \
+            \(String(describing: podcastEpisode?.podcast.feedURL)), \(feedUrl)
+            """
         )
       }
 
       guard let feedImage = feedImage ?? podcastEpisode?.podcast.image
-      else { throw Err("No image for \(title)") }
+      else { throw ParsingError.missingField(field: "feedImage || image") }
 
       return UnsavedPodcastEpisode(
         unsavedPodcast: try UnsavedPodcast(

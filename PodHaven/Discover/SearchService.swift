@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import ErrorKit
 import Factory
 import Foundation
 
@@ -22,12 +23,12 @@ struct SearchService: Sendable {
   // MARK: - Static Helpers
 
   #if DEBUG
-    static func initForTest(session: DataFetchable) -> SearchService {
-      SearchService(session: session)
-    }
-    static func parseForPreview<T: Decodable>(_ data: Data) async throws -> T {
-      try await parse(data)
-    }
+  static func initForTest(session: DataFetchable) -> SearchService {
+    SearchService(session: session)
+  }
+  static func parseForPreview<T: Decodable>(_ data: Data) async throws -> T {
+    try await parse(data)
+  }
   #endif
 
   // MARK: - Initialization
@@ -98,10 +99,13 @@ struct SearchService: Sendable {
     let request = try buildRequest(path, query)
     let (data, response) = try await session.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {
-      throw Err("Invalid HTTP Response")
+      throw NetworkError.decodingFailure
     }
     guard (200...299).contains(httpResponse.statusCode) else {
-      throw Err("Invalid Status Code: \(httpResponse.statusCode)")
+      throw NetworkError.serverError(
+        code: httpResponse.statusCode,
+        message: "Invalid response code for: \(request)"
+      )
     }
     return data
   }

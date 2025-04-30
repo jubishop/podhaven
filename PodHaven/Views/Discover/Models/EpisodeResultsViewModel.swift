@@ -19,9 +19,9 @@ import GRDB
 
   var onDeck: Bool {
     guard let podcastEpisode = self.podcastEpisode,
-          let onDeck = playState.onDeck
+      let onDeck = playState.onDeck
     else { return false }
-    
+
     return onDeck == podcastEpisode
   }
 
@@ -41,7 +41,7 @@ import GRDB
         self.podcastEpisode = podcastEpisode
       }
     } catch {
-      alert.andReport(error)
+      alert.andReport("Couldn't observe podcast episode: \(unsavedPodcastEpisode.toString)")
     }
   }
 

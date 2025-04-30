@@ -86,7 +86,7 @@ import SwiftUI
     do {
       try await performSearch(currentView)
     } catch {
-      alert.andReport(error)
+      alert.andReport("Couldn't execute DiscoverViewModel")
     }
   }
 
@@ -123,7 +123,7 @@ import SwiftUI
           currentView = currentToken
           try await search
         } catch {
-          alert.andReport(error)
+          alert.andReport("Couldn't perform search")
         }
       }
     }
@@ -142,7 +142,7 @@ import SwiftUI
     case .people:
       try await searchByPerson(searchText)
     case .category(_):
-      throw Err("Unsupported")
+      fatalError("Trying to perform search on category?")
     }
   }
 

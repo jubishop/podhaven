@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import ErrorKit
 import Factory
 import Foundation
 import GRDB
@@ -24,15 +25,20 @@ import GRDB
     do {
       for try await podcastEpisode in observatory.podcastEpisode(episode.id) {
         guard let podcastEpisode = podcastEpisode
-        else { throw Err("No return from DB for: \(episode.toString)") }
+        else {
+          throw DatabaseError.recordNotFound(
+            entity: episode.toString,
+            identifier: String(episode.id)
+          )
+        }
         self.podcastEpisode = podcastEpisode
       }
     } catch {
-      alert.andReport(error)
+      alert.andReport("Couldn't execute EpisodeViewModel")
     }
   }
 
-  var onDeck: Bool { 
+  var onDeck: Bool {
     guard let onDeck = playState.onDeck else { return false }
     return onDeck == podcastEpisode
   }
