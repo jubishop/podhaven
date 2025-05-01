@@ -27,12 +27,13 @@ final actor DownloadTask: Sendable {
     }
   }
 
-  func downloadFinished() async -> DownloadResult {
-    if let result = result { return result }
+  func downloadFinished() async throws(DownloadError) -> DownloadData {
+    if let result = result { return try result.get() }
 
-    return await withCheckedContinuation { continuation in
+    let result = await withCheckedContinuation { continuation in
       finishedContinuations.append(continuation)
     }
+    return try result.get()
   }
 
   func cancel() {
@@ -77,7 +78,9 @@ final actor DownloadTask: Sendable {
   // MARK: - Private Helpers
 
   private func haveBegun() {
-    guard !begun else { return }
+    guard !begun
+    else { return }
+
     begun = true
     for beganContinuation in beganContinuations {
       beganContinuation.resume()
@@ -86,7 +89,9 @@ final actor DownloadTask: Sendable {
   }
 
   private func haveFinished(_ result: DownloadResult) {
-    guard self.result == nil else { return }
+    guard self.result == nil
+    else { return }
+
     self.result = result
     haveBegun()
     for finishedContinuation in finishedContinuations {

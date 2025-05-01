@@ -161,31 +161,27 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           await feedTask.downloadBegan()
           await self.updateOutlineStatus(outline, in: opmlFile, to: .downloading)
 
-          switch await feedTask.feedParsed() {
-          case .success(let podcastFeed):
-            do {
-              let unsavedPodcast = try podcastFeed.toUnsavedPodcast(
-                subscribed: true,
-                lastUpdate: Date()
-              )
+          do {
+            let podcastFeed = try await feedTask.feedParsed()
+            let unsavedPodcast = try podcastFeed.toUnsavedPodcast(
+              subscribed: true,
+              lastUpdate: Date()
+            )
 
-              await Task { @MainActor in
-                outline.feedURL = unsavedPodcast.feedURL
-                outline.text = unsavedPodcast.toString
-              }
-              .value
-
-              try await self.repo.insertSeries(
-                unsavedPodcast,
-                unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
-              )
-              await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
-            } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
-              await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
-            } catch {
-              await self.updateOutlineStatus(outline, in: opmlFile, to: .failed)
+            await Task { @MainActor in
+              outline.feedURL = unsavedPodcast.feedURL
+              outline.text = unsavedPodcast.toString
             }
-          case .failure:
+            .value
+
+            try await self.repo.insertSeries(
+              unsavedPodcast,
+              unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
+            )
+            await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
+          } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
+            await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
+          } catch {
             await self.updateOutlineStatus(outline, in: opmlFile, to: .failed)
           }
         }

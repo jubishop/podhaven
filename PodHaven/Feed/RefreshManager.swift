@@ -56,13 +56,8 @@ final actor RefreshManager: Sendable {
 
   func refreshSeries(podcastSeries: PodcastSeries) async throws {
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
-    let feedResult = await feedTask.feedParsed()
-    switch feedResult {
-    case .failure(let error):
-      throw error
-    case .success(let podcastFeed):
-      try await updateSeriesFromFeed(podcastSeries: podcastSeries, podcastFeed: podcastFeed)
-    }
+    let podcastFeed = try await feedTask.feedParsed()
+    try await updateSeriesFromFeed(podcastSeries: podcastSeries, podcastFeed: podcastFeed)
   }
 
   func updateSeriesFromFeed(podcastSeries: PodcastSeries, podcastFeed: PodcastFeed) async throws {

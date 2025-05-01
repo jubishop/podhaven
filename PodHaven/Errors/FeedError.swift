@@ -3,7 +3,7 @@
 import ErrorKit
 import Foundation
 
-enum FeedError: Throwable, Catching {
+enum FeedError: KittedError {
   case downloadFailure(DownloadError)
   case caught(Error)
 

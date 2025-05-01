@@ -3,7 +3,7 @@
 import ErrorKit
 import Foundation
 
-enum PlaybackError: Throwable, Catching {
+enum PlaybackError: KittedError {
   case mediaNotPlayable(PodcastEpisode)
   case caught(Error)
 

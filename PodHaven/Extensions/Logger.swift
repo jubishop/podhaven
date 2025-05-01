@@ -6,7 +6,7 @@ import OSLog
 
 extension Logger {
   func logError(
-    _ error: Throwable & Catching,
+    _ error: any KittedError,
     file: String = #file,
     function: String = #function,
     line: Int = #line

@@ -32,23 +32,17 @@ struct FeedTask: Sendable {
     await downloadTask.downloadBegan()
   }
 
-  func feedParsed() async -> FeedResult {
-    let downloadResult = await downloadTask.downloadFinished()
-    switch downloadResult {
-    case .failure(let error):
-      return .failure(FeedError.downloadFailure(error))
-    case .success(let downloadData):
-      do {
-        let podcastFeed = try await PodcastFeed.parse(
-          downloadData.data,
-          from: FeedURL(downloadData.url)
-        )
-        return .success(podcastFeed)
-      } catch let error as FeedError {
-        return .failure(error)
-      } catch {
-        return .failure(FeedError.caught(error))
-      }
+  func feedParsed() async throws(FeedError) -> PodcastFeed {
+    do {
+      let downloadData = try await downloadTask.downloadFinished()
+      return try await PodcastFeed.parse(
+        downloadData.data,
+        from: FeedURL(downloadData.url)
+      )
+    } catch let error as DownloadError {
+      throw FeedError.downloadFailure(error)
+    } catch {
+      throw FeedError.caught(error)
     }
   }
 
@@ -77,9 +71,7 @@ final actor FeedManager: Sendable {
 
   fileprivate init(session: DataFetchable) {
     downloadManager = DownloadManager(session: session)
-    (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(
-      of: FeedResult.self
-    )
+    (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(of: FeedResult.self)
   }
 
   deinit {
@@ -97,8 +89,12 @@ final actor FeedManager: Sendable {
     let feedTask = FeedTask(await downloadManager.addURL(url.rawValue))
     feedTasks[url] = feedTask
     Task(priority: .utility) {
-      let feedResult = await feedTask.feedParsed()
-      streamContinuation.yield(feedResult)
+      do {
+        let podcastFeed = try await feedTask.feedParsed()
+        streamContinuation.yield(.success(podcastFeed))
+      } catch let error as FeedError {
+        streamContinuation.yield(.failure(error))
+      }
       feedTasks.removeValue(forKey: url)
     }
     return feedTask

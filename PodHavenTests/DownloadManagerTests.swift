@@ -15,31 +15,31 @@ struct DownloadManagerTests {
   }
 
   @Test("that a single download works successfully")
-  func singleSuccessfulDownload() async {
+  func singleSuccessfulDownload() async throws {
     let downloadManager = DownloadManager(session: session)
 
     let url = URL.valid()
     let downloadTask = await downloadManager.addURL(url)
-    let result = await downloadTask.downloadFinished()
-    #expect(result.isSuccessfulWith(DownloadData(url: url)))
+    let downloadData = try await downloadTask.downloadFinished()
+    #expect(downloadData == DownloadData(url: url))
     #expect(await downloadTask.finished)
   }
 
   @Test("that an array of downloads work successfully")
-  func arrayOfSuccessfulDownloads() async {
+  func arrayOfSuccessfulDownloads() async throws {
     let downloadManager = DownloadManager(session: session)
 
     let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
     let downloadTasks = await downloadManager.addURLs(urls)
-    var results = [DownloadResult](capacity: urls.count)
+    var results = [DownloadData](capacity: urls.count)
     for downloadTask in downloadTasks {
-      results.append(await downloadTask.downloadFinished())
+      results.append(try await downloadTask.downloadFinished())
     }
     #expect(results.count == urls.count)
   }
 
   @Test("that maxConcurrentDownloads is respected and downloadBegan() works")
-  func maxConcurrentDownloads() async {
+  func maxConcurrentDownloads() async throws {
     let maxConcurrentDownloads = 20
     let downloadManager = DownloadManager(
       session: session,
@@ -61,14 +61,14 @@ struct DownloadManagerTests {
     let taskStarted = AsyncSemaphore(value: 0)
 
     // Create a controlled environment for observation
-    await withDiscardingTaskGroup { group in
+    try await withThrowingDiscardingTaskGroup { group in
       for task in tasks {
         group.addTask {
           await task.downloadBegan()
           await activeDownloads.increment()
           taskStarted.signal()
 
-          _ = await task.downloadFinished()
+          _ = try await task.downloadFinished()
           await activeDownloads.decrement()
         }
       }
@@ -108,13 +108,16 @@ struct DownloadManagerTests {
       try await Task.sleep(for: .milliseconds(10))
       await task.cancel()
     }
-    var result = await task.downloadFinished()
-    #expect(result.isFailure)
+
+    await #expect(throws: DownloadError.cancelled(url).self) {
+      try await task.downloadFinished()
+    }
 
     // Even after the url data has returned, the result remains cancelled.
     try await Task.sleep(for: .milliseconds(100))
-    result = await task.downloadFinished()
-    #expect(result.isFailure)
+    await #expect(throws: DownloadError.cancelled(url).self) {
+      try await task.downloadFinished()
+    }
   }
 
   @Test("that you can cancel all downloads")
@@ -132,17 +135,21 @@ struct DownloadManagerTests {
 
     // At this point: task should be active, task2 should be pending
     await downloadManager.cancelAllDownloads()
-    var result = await task.downloadFinished()
-    #expect(result.isFailure)
-    var result2 = await task2.downloadFinished()
-    #expect(result2.isFailure)
+    await #expect(throws: DownloadError.cancelled(url).self) {
+      try await task.downloadFinished()
+    }
+    await #expect(throws: DownloadError.cancelled(url2).self) {
+      try await task2.downloadFinished()
+    }
 
     // Even after the url data has returned, the results remains cancelled.
     try await Task.sleep(for: .milliseconds(100))
-    result = await task.downloadFinished()
-    #expect(result.isFailure)
-    result2 = await task2.downloadFinished()
-    #expect(result2.isFailure)
+    await #expect(throws: DownloadError.cancelled(url).self) {
+      try await task.downloadFinished()
+    }
+    await #expect(throws: DownloadError.cancelled(url2).self) {
+      try await task2.downloadFinished()
+    }
   }
 
   @Test("that url's are fetched in the order they're received")
@@ -161,7 +168,7 @@ struct DownloadManagerTests {
     }
     // Reversed download awaits, ensure URL's still downloaded in order.
     for task in tasks.reversed() {
-      _ = await task.downloadFinished()
+      _ = try await task.downloadFinished()
     }
     let requests = await session.requests
     #expect(requests == urls)
@@ -178,8 +185,8 @@ struct DownloadManagerTests {
     let downloadCount = Counter(expected: taskCount)
     for _ in 0..<taskCount {
       Task {
-        let result = await task.downloadFinished()
-        #expect(result.isSuccessfulWith(DownloadData(url: url)))
+        let downloadData = try await task.downloadFinished()
+        #expect(downloadData == DownloadData(url: url))
         await downloadCount.increment()
       }
     }
@@ -207,8 +214,8 @@ struct DownloadManagerTests {
     // created inside makeTask().  And since it had to wait for the first
     // url to finish (concurrentTasks = 1, delay = 100ms), it would've never
     // actually start()'d the second downloadTask.
-    let result = await task.downloadFinished()
-    #expect(result.isSuccessfulWith(DownloadData(url: url2)))
+    let downloadData = try await task.downloadFinished()
+    #expect(downloadData == DownloadData(url: url2))
   }
 
   @Test("that you can use the AsyncStream to get results")

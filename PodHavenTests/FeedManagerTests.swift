@@ -24,9 +24,8 @@ struct FeedManagerTests {
     let url = URL.valid()
     await session.set(url, .data(data))
     let feedTask = await manager.addURL(FeedURL(url))
-    let feedResult = await feedTask.feedParsed()
-    let feed = feedResult.isSuccessfulWith()!
-    let unsavedPodcast = try feed.toUnsavedPodcast()
+    let podcastFeed = try await feedTask.feedParsed()
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
     #expect(unsavedPodcast.title == "Pod Save America")
     #expect(unsavedPodcast.link == URL(string: "https://crooked.com"))
     #expect(unsavedPodcast.image.absoluteString.contains("simplecastcdn"))
