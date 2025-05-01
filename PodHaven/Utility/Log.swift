@@ -72,6 +72,7 @@ struct Log {
     }
   }
 
+  @discardableResult
   func error(
     _ error: any KittedError,
     file: String = #file,
