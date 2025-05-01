@@ -33,16 +33,12 @@ struct FeedTask: Sendable {
   }
 
   func feedParsed() async throws(FeedError) -> PodcastFeed {
-    do {
+    try await FeedError.catch {
       let downloadData = try await downloadTask.downloadFinished()
       return try await PodcastFeed.parse(
         downloadData.data,
         from: FeedURL(downloadData.url)
       )
-    } catch let error as DownloadError {
-      throw FeedError.downloadFailure(error)
-    } catch {
-      throw FeedError.caught(error)
     }
   }
 
