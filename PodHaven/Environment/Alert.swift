@@ -43,7 +43,7 @@ extension Container {
     title: String = "Error",
     @ViewBuilder actions: @escaping () -> Actions = { Button("Ok") {} },
     _ message: String,
-    file: StaticString = #file,
+    file: String = #file,
     function: StaticString = #function,
     line: UInt = #line
   ) {
@@ -55,7 +55,7 @@ extension Container {
 
   static func report(
     _ message: String,
-    file: StaticString = #file,
+    file: String = #file,
     function: StaticString = #function,
     line: UInt = #line
   ) {
@@ -70,17 +70,16 @@ extension Container {
 
   private static func logReport(
     _ message: String,
-    file: StaticString,
+    file: String,
     function: StaticString,
     line: UInt
   ) {
-    let fileName = "\(file)".components(separatedBy: "/").last ?? "\(file)"
     let stackTrace = StackTracer.capture(limit: 10, drop: 2).joined(separator: "\n")
 
     log.warning(
       """
       ----------------------------------------------------------------------------------------------
-      ❗️ Reporting error from: [\(fileName):\(line) \(function)]
+      ❗️ Reporting error from: [\(Log.fileName(from: file)):\(line) \(function)]
       \(message)
 
       🧱 Call stack:

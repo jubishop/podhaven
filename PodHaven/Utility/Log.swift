@@ -30,6 +30,12 @@ struct Log {
 
   private let logger: Logger
 
+  // MARK: - Static Helpers
+
+  static func fileName(from filePath: String) -> String {
+    filePath.components(separatedBy: "/").suffix(2).joined(separator: "/")
+  }
+
   // MARK: - Initialization
 
   init() {
@@ -69,20 +75,19 @@ struct Log {
   func error(
     _ error: any KittedError,
     file: String = #file,
-    function: String = #function,
+    function: StaticString = #function,
     line: Int = #line
   ) -> any KittedError {
     guard shouldLog(.error)
     else { return error }
 
-    let fileName = "\(file)".components(separatedBy: "/").last ?? "\(file)"
     let stackTrace = StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n")
     let errorChain = ErrorKit.errorChainDescription(for: error)
 
     logger.error(
       """
       ----------------------------------------------------------------------------------------------
-      ⚡️ Error thrown from: [\(fileName):\(line) \(function)]:
+      ⚡️ Error thrown from: [\(Self.fileName(from: file)):\(line) \(function)]:
         \(errorChain)
 
       🧱 Call stack:
