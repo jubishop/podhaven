@@ -119,7 +119,9 @@ struct SearchService: Sendable {
     if !queryItems.isEmpty {
       components.queryItems = queryItems
     }
-    guard let url = components.url else { fatalError("Can't make url from: \(components)?") }
+    guard let url = components.url
+    else { Log.fatal("Can't make url from: \(components)?") }
+
     var request = URLRequest(url: url)
     request.httpMethod = "GET"
 

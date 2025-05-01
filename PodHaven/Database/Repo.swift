@@ -207,7 +207,7 @@ struct Repo: Sendable {
   {
     let podcastEpisodes = try await upsertPodcastEpisodes([unsavedPodcastEpisode])
     guard let podcastEpisode = podcastEpisodes.first
-    else { fatalError("upsertPodcastEpisode returned no entries somehow") }
+    else { Log.fatal("upsertPodcastEpisode returned no entries somehow") }
 
     return podcastEpisode
   }

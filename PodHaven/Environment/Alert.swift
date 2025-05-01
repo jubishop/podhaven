@@ -4,10 +4,6 @@ import Factory
 import OSLog
 import SwiftUI
 
-#if !DEBUG
-import Sentry
-#endif
-
 extension Container {
   var alert: Factory<Alert> {
     Factory(self) { @MainActor in Alert() }.scope(.singleton)
@@ -15,8 +11,6 @@ extension Container {
 }
 
 @Observable @MainActor final class Alert {
-  private static let log = Log()
-
   var config: AlertConfig?
 
   fileprivate init() {}
@@ -47,47 +41,11 @@ extension Container {
     function: StaticString = #function,
     line: UInt = #line
   ) {
-    Self.report(message, file: file, function: function, line: line)
+    Log.report(message, file: file, function: function, line: line)
     self(title: title, actions: actions, message: { Text(message) })
   }
 
-  // MARK: - Public Reporting API
-
-  static func report(
-    _ message: String,
-    file: String = #file,
-    function: StaticString = #function,
-    line: UInt = #line
-  ) {
-    #if DEBUG
-    logReport(message, file: file, function: function, line: line)
-    #else
-    SentrySDK.capture(message: message)
-    #endif
-  }
-
   // MARK: - Private Helpers
-
-  private static func logReport(
-    _ message: String,
-    file: String,
-    function: StaticString,
-    line: UInt
-  ) {
-    let stackTrace = StackTracer.capture(limit: 10, drop: 2).joined(separator: "\n")
-
-    log.warning(
-      """
-      ----------------------------------------------------------------------------------------------
-      ❗️ Reporting error from: [\(Log.fileName(from: file)):\(line) \(function)]
-      \(message)
-
-      🧱 Call stack:
-      \(stackTrace)
-      ----------------------------------------------------------------------------------------------
-      """
-    )
-  }
 }
 
 @Observable @MainActor final class AlertConfig {

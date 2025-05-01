@@ -11,7 +11,7 @@ struct AppDB: Sendable {
       let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
       return try AppDB(dbQueue)
     } catch {
-      fatalError("Failed to initialize inMemory AppDB: \(error)")
+      Log.fatal("Failed to initialize inMemory AppDB: \(error)")
     }
   }
   #endif
@@ -24,7 +24,7 @@ struct AppDB: Sendable {
       )
       return try AppDB(dbPool)
     } catch {
-      fatalError("Failed to initialize onDisk AppDB: \(error)")
+      Log.fatal("Failed to initialize onDisk AppDB: \(error)")
     }
   }()
   static func onDisk(_ key: RepoAccessKey) -> AppDB { _onDisk }

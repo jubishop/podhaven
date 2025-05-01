@@ -40,7 +40,7 @@ struct SearchView: View {
             searchResult: viewModel.podcastSearchResult
           )
         )
-      default: fatalError("viewModel.currentView unknown: \(viewModel.currentView)")
+      default: Log.fatal("viewModel.currentView unknown: \(viewModel.currentView)")
       }
     }
   }

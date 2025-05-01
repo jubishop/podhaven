@@ -36,8 +36,8 @@ import SwiftUI
   // MARK: - Public Functions
 
   func moveItem(from: IndexSet, to: Int) {
-    precondition(from.count == 1, "Somehow dragged several?")
-    guard let from = from.first else { fatalError("No from in drag?") }
+    guard from.count == 1, let from = from.first
+    else { Log.fatal("Somehow dragged none or several?") }
 
     Task { try await queue.insert(podcastEpisodes[from].episode.id, at: to) }
   }

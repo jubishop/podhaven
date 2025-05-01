@@ -22,13 +22,15 @@ struct PersonResult: Sendable, Decodable {
     func toUnsavedPodcastEpisode(merging podcastEpisode: PodcastEpisode? = nil) throws
       -> UnsavedPodcastEpisode
     {
-      precondition(
-        podcastEpisode == nil || podcastEpisode?.episode.media == enclosureUrl,
-        """
-        Merging two podcastEpisodes with different mediaURLs?: \
-        \(String(describing: podcastEpisode?.episode.media)), \(enclosureUrl)
-        """
-      )
+      guard podcastEpisode == nil || podcastEpisode?.episode.media == enclosureUrl
+      else {
+        Log.fatal(
+          """
+          Two podcastEpisodes with different mediaURLs?: \
+            \(String(describing: podcastEpisode?.episode.media)), \(enclosureUrl)
+          """
+        )
+      }
 
       guard podcastEpisode == nil || podcastEpisode?.podcast.feedURL == feedUrl
       else {
@@ -36,7 +38,7 @@ struct PersonResult: Sendable, Decodable {
           description:
             """
             Two podcastEpisodes with different feedURLs?: \
-            \(String(describing: podcastEpisode?.podcast.feedURL)), \(feedUrl)
+              \(String(describing: podcastEpisode?.podcast.feedURL)), \(feedUrl)
             """
         )
       }

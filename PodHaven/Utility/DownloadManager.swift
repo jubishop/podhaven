@@ -69,9 +69,9 @@ final actor DownloadTask: Sendable {
     } catch {
       haveFinished(.failure(DownloadError.caught(error)))
     }
-    guard let result = self.result else {
-      fatalError("No result by the end of download()?!")
-    }
+    guard let result = self.result
+    else { Log.fatal("No result by the end of download()?!") }
+
     return result
   }
 

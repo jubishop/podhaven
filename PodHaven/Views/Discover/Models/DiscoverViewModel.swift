@@ -142,7 +142,7 @@ import SwiftUI
     case .people:
       try await searchByPerson(searchText)
     case .category(_):
-      fatalError("Trying to perform search on category?")
+      Log.fatal("Trying to perform search on category?")
     }
   }
 

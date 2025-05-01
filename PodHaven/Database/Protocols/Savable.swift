@@ -13,18 +13,11 @@ extension Savable {
     guard
       let typeName = structName.components(separatedBy: ".").last,
       typeName.hasPrefix(prefix)
-    else {
-      fatalError(
-        "Type: \"\(structName)\" must start with \"\(prefix)\"."
-      )
-    }
+    else { Log.fatal("Type: \"\(structName)\" must start with \"\(prefix)\".") }
 
     let suffix = typeName.dropFirst(prefix.count)
-    guard let firstCharacter = suffix.first else {
-      fatalError(
-        "Struct name: \"\(structName)\" after \"\(prefix)\" prefix is empty."
-      )
-    }
+    guard let firstCharacter = suffix.first
+    else { Log.fatal("Struct name: \"\(structName)\" after \"\(prefix)\" prefix is empty.") }
 
     return firstCharacter.lowercased() + suffix.dropFirst()
   }
