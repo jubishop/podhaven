@@ -34,7 +34,7 @@ struct AppDB: Sendable {
   static let onDisk = { _onDisk }()
   #endif
 
-  private static let logger = Logger()
+  private static let log = Log()
 
   // MARK: - Shorthand Expression Constants
 
@@ -49,7 +49,7 @@ struct AppDB: Sendable {
     config.publicStatementArguments = true
     config.prepareDatabase { db in
       db.trace {
-        logger.trace(
+        log.trace(
           """
           SQL:
             \($0)

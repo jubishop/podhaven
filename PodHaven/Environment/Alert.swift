@@ -15,7 +15,7 @@ extension Container {
 }
 
 @Observable @MainActor final class Alert {
-  private static let logger = Logger()
+  private static let log = Log()
 
   var config: AlertConfig?
 
@@ -77,7 +77,7 @@ extension Container {
     let fileName = "\(file)".components(separatedBy: "/").last ?? "\(file)"
     let stackTrace = StackTracer.capture(limit: 10, drop: 2).joined(separator: "\n")
 
-    logger.warning(
+    log.warning(
       """
       ----------------------------------------------------------------------------------------------
       ❗️ Reporting error from: [\(fileName):\(line) \(function)]
