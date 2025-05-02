@@ -26,7 +26,7 @@ struct SearchService: Sendable {
   static func initForTest(session: DataFetchable) -> SearchService {
     SearchService(session: session)
   }
-  static func parseForPreview<T: Decodable>(_ data: Data) async throws -> T {
+  static func parseForPreview<T: Decodable>(_ data: Data) async throws(SearchError) -> T {
     try await parse(data)
   }
   #endif
@@ -41,28 +41,40 @@ struct SearchService: Sendable {
 
   // MARK: - Search Methods
 
-  func searchByTerm(_ term: String) async throws -> TermResult {
-    try await Self.parse(
-      try await performRequest("/search/byterm", [URLQueryItem(name: "q", value: term)])
-    )
-  }
-
-  func searchByTitle(_ title: String) async throws -> TitleResult {
-    try await Self.parse(
-      try await performRequest(
-        "/search/bytitle",
-        [URLQueryItem(name: "q", value: title), URLQueryItem(name: "similar", value: "true")]
+  func searchByTerm(_ term: String) async throws(SearchError) -> TermResult {
+    do {
+      return try await Self.parse(
+        try await performRequest("/search/byterm", [URLQueryItem(name: "q", value: term)])
       )
-    )
+    } catch {
+      throw SearchError.termFailure(term)
+    }
   }
 
-  func searchByPerson(_ person: String) async throws -> PersonResult {
-    try await Self.parse(
-      try await performRequest("/search/byperson", [URLQueryItem(name: "q", value: person)])
-    )
+  func searchByTitle(_ title: String) async throws(SearchError) -> TitleResult {
+    do {
+      return try await Self.parse(
+        try await performRequest(
+          "/search/bytitle",
+          [URLQueryItem(name: "q", value: title), URLQueryItem(name: "similar", value: "true")]
+        )
+      )
+    } catch {
+      throw SearchError.titleFailure(title)
+    }
   }
 
-  func searchTrending(categories: [String] = [], language: String? = nil) async throws
+  func searchByPerson(_ person: String) async throws(SearchError) -> PersonResult {
+    do {
+      return try await Self.parse(
+        try await performRequest("/search/byperson", [URLQueryItem(name: "q", value: person)])
+      )
+    } catch {
+      throw SearchError.personFailure(person)
+    }
+  }
+
+  func searchTrending(categories: [String] = [], language: String? = nil) async throws(SearchError)
     -> TrendingResult
   {
     var queryItems: [URLQueryItem] = []
@@ -72,7 +84,11 @@ struct SearchService: Sendable {
     if let language = language {
       queryItems.append(URLQueryItem(name: "lang", value: language))
     }
-    return try await Self.parse(try await performRequest("/podcasts/trending", queryItems))
+    do {
+      return try await Self.parse(try await performRequest("/podcasts/trending", queryItems))
+    } catch {
+      throw SearchError.trendingFailure(categories)
+    }
   }
 
   // MARK: - Private Helpers
@@ -82,36 +98,47 @@ struct SearchService: Sendable {
   static private let baseHost = "api.podcastindex.org"
   static private let basePath = "/api/1.0"
 
-  private static func parse<T: Decodable>(_ data: Data) async throws -> T {
-    try await withCheckedThrowingContinuation { continuation in
-      do {
+  private static func parse<T: Decodable>(_ data: Data) async throws(SearchError) -> T {
+    do {
+      return try await withCheckedThrowingContinuation { continuation in
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
-        let searchResult = try decoder.decode(T.self, from: data)
-        continuation.resume(returning: searchResult)
-      } catch {
-        continuation.resume(throwing: error)
+        do {
+          let searchResult = try decoder.decode(T.self, from: data)
+          continuation.resume(returning: searchResult)
+        } catch {
+          continuation.resume(throwing: error)
+        }
       }
+    } catch {
+      throw SearchError.parseFailure(data)
     }
   }
 
-  private func performRequest(_ path: String, _ query: [URLQueryItem] = []) async throws -> Data {
-    let request = try buildRequest(path, query)
-    let (data, response) = try await session.data(for: request)
-    guard let httpResponse = response as? HTTPURLResponse else {
-      throw NetworkError.decodingFailure
-    }
-    guard (200...299).contains(httpResponse.statusCode) else {
-      throw NetworkError.serverError(
-        code: httpResponse.statusCode,
-        message: "Invalid response code for: \(request)"
-      )
-    }
-    return data
-  }
-
-  private func buildRequest(_ path: String, _ queryItems: [URLQueryItem] = []) throws -> URLRequest
+  private func performRequest(_ path: String, _ query: [URLQueryItem] = [])
+    async throws(SearchError) -> Data
   {
+    let request = buildRequest(path, query)
+    do {
+      return try await NetworkError.catch {
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+          throw NetworkError.decodingFailure
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+          throw NetworkError.serverError(
+            code: httpResponse.statusCode,
+            message: "Invalid response code for: \(request)"
+          )
+        }
+        return data
+      }
+    } catch (let networkError) {
+      throw SearchError.fetchFailure(request: request, networkError: networkError)
+    }
+  }
+
+  private func buildRequest(_ path: String, _ queryItems: [URLQueryItem] = []) -> URLRequest {
     var components = URLComponents()
     components.scheme = "https"
     components.host = Self.baseHost

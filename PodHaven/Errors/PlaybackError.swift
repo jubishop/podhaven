@@ -12,7 +12,7 @@ enum PlaybackError: KittedError {
     case .mediaNotPlayable(let podcastEpisode):
       return
         """
-        MediaURL Not Playable.
+        MediaURL Not Playable
           PodcastEpisode: \(podcastEpisode.toString)
           MediaURL: \(podcastEpisode.episode.media)
         """

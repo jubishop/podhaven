@@ -86,6 +86,7 @@ import SwiftUI
     do {
       try await performSearch(currentView)
     } catch {
+      Log.report(error)
       alert("Couldn't execute DiscoverViewModel")
     }
   }
@@ -131,7 +132,7 @@ import SwiftUI
 
   // MARK: - Private Helpers
 
-  private func performSearch(_ currentToken: SearchToken) async throws {
+  private func performSearch(_ currentToken: SearchToken) async throws(SearchError) {
     switch currentToken {
     case .trending:
       try await searchTrending(currentCategory)
@@ -146,7 +147,7 @@ import SwiftUI
     }
   }
 
-  private func searchTrending(_ currentCategory: String) async throws {
+  private func searchTrending(_ currentCategory: String) async throws(SearchError) {
     self.podcastSearchResult = PodcastSearchResult(searchText: currentCategory)
     self.podcastSearchResult = PodcastSearchResult(
       searchText: currentCategory,
@@ -157,7 +158,7 @@ import SwiftUI
     )
   }
 
-  private func searchByTitle(_ searchText: String) async throws {
+  private func searchByTitle(_ searchText: String) async throws(SearchError) {
     self.podcastSearchResult = PodcastSearchResult(searchText: searchText)
     self.podcastSearchResult = PodcastSearchResult(
       searchText: searchText,
@@ -165,7 +166,7 @@ import SwiftUI
     )
   }
 
-  private func searchByTerm(_ searchText: String) async throws {
+  private func searchByTerm(_ searchText: String) async throws(SearchError) {
     self.podcastSearchResult = PodcastSearchResult(searchText: searchText)
     self.podcastSearchResult = PodcastSearchResult(
       searchText: searchText,
@@ -173,7 +174,7 @@ import SwiftUI
     )
   }
 
-  private func searchByPerson(_ searchText: String) async throws {
+  private func searchByPerson(_ searchText: String) async throws(SearchError) {
     self.personSearchResult = PersonSearchResult(searchText: searchText)
     self.personSearchResult = PersonSearchResult(
       searchText: searchText,

@@ -34,8 +34,6 @@ struct AppDB: Sendable {
   static let onDisk = { _onDisk }()
   #endif
 
-  private static let log = Log()
-
   // MARK: - Shorthand Expression Constants
 
   static let NoOpFilter = true.sqlExpression
@@ -49,7 +47,7 @@ struct AppDB: Sendable {
     config.publicStatementArguments = true
     config.prepareDatabase { db in
       db.trace {
-        log.trace(
+        Log.trace(
           """
           SQL:
             \($0)
