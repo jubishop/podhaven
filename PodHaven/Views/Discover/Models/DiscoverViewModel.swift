@@ -87,7 +87,7 @@ import SwiftUI
       try await performSearch(currentView)
     } catch {
       Log.report(error)
-      alert("Couldn't execute DiscoverViewModel")
+      alert("Failed to make initial search, this has been reported.")
     }
   }
 
@@ -123,8 +123,9 @@ import SwiftUI
           async let search: Void = performSearch(currentToken)
           currentView = currentToken
           try await search
-        } catch {
-          alert("Couldn't perform search")
+        } catch let error as SearchError {
+          Log.report(error)
+          alert("Couldn't perform search, this has been reported.")
         }
       }
     }
