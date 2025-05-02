@@ -41,7 +41,7 @@ import GRDB
         self.podcastEpisode = podcastEpisode
       }
     } catch {
-      alert.andReport("Couldn't observe podcast episode: \(unsavedPodcastEpisode.toString)")
+      alert("Couldn't observe podcast episode: \(unsavedPodcastEpisode.toString)")
     }
   }
 

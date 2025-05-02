@@ -22,7 +22,7 @@ struct DebugSection: View {
           do {
             try await playInvalidMedia()
           } catch {
-            alert.andReport("Couldn't load invalid episode")
+            alert("Couldn't load invalid episode")
           }
         }
       }

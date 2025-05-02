@@ -100,7 +100,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
           throw error
         }
       } catch {
-        alert.andReport("Couldn't import OPML file")
+        alert("Couldn't import OPML file")
       }
     }
   }

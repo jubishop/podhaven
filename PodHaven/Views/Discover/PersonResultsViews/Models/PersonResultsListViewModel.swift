@@ -57,7 +57,7 @@ class PersonResultsListViewModel:
         self.existingEpisodes = existingEpisodes
       }
     } catch {
-      alert.andReport("Couldn't execute PersonResultsListViewModel")
+      alert("Couldn't execute PersonResultsListViewModel")
     }
   }
 

@@ -62,7 +62,7 @@ struct StandardPodcastsView: View {
       do {
         try await viewModel.refreshPodcasts()
       } catch {
-        alert.andReport("Failed to refresh all podcasts: \(error)")
+        alert("Failed to refresh all podcasts: \(error)")
       }
     }
     .toolbar {

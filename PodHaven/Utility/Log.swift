@@ -88,9 +88,31 @@ struct Log {
     line: UInt = #line
   ) {
     #if DEBUG
-    error(message, file: file, function: function, line: line)
+    self.error(message, file: file, function: function, line: line)
     #else
     SentrySDK.capture(message: message)
+    #endif
+  }
+
+  static func report(
+    _ error: any KittedError,
+    file: String = #file,
+    function: StaticString = #function,
+    line: UInt = #line
+  ) {
+    shared.report(error, file: file, function: function, line: line)
+  }
+
+  func report(
+    _ error: any KittedError,
+    file: String = #file,
+    function: StaticString = #function,
+    line: UInt = #line
+  ) {
+    #if DEBUG
+    self.error(error, file: file, function: function, line: line)
+    #else
+    SentrySDK.capture(error: error)
     #endif
   }
 

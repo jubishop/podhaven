@@ -34,7 +34,7 @@ import GRDB
         self.podcastEpisode = podcastEpisode
       }
     } catch {
-      alert.andReport("Couldn't execute EpisodeViewModel")
+      alert("Couldn't execute EpisodeViewModel")
     }
   }
 

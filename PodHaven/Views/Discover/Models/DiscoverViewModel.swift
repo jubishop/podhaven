@@ -86,7 +86,7 @@ import SwiftUI
     do {
       try await performSearch(currentView)
     } catch {
-      alert.andReport("Couldn't execute DiscoverViewModel")
+      alert("Couldn't execute DiscoverViewModel")
     }
   }
 
@@ -123,7 +123,7 @@ import SwiftUI
           currentView = currentToken
           try await search
         } catch {
-          alert.andReport("Couldn't perform search")
+          alert("Couldn't perform search")
         }
       }
     }

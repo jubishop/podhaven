@@ -67,7 +67,7 @@ class PodcastResultsViewModel: QueueableSelectableEpisodeList, PodcastQueueableM
         subscribable = true
       }
     } catch {
-      alert.andReport("Couldn't execute PodcastResultsViewModel")
+      alert("Couldn't execute PodcastResultsViewModel")
     }
   }
 
@@ -137,7 +137,7 @@ class PodcastResultsViewModel: QueueableSelectableEpisodeList, PodcastQueueableM
           navigation.showPodcast(.subscribed, newPodcastSeries)
         }
       } catch {
-        alert.andReport("Couldn't subscribe")
+        alert("Couldn't subscribe")
       }
     }
   }

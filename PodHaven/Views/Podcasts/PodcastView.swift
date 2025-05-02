@@ -69,7 +69,7 @@ struct PodcastView: View {
         do {
           try await viewModel.refreshSeries()
         } catch {
-          alert.andReport("Failed to refresh series: \(viewModel.podcast.toString)")
+          alert("Failed to refresh series: \(viewModel.podcast.toString)")
         }
       }
     }

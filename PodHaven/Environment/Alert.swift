@@ -33,18 +33,6 @@ extension Container {
     self(title: title, actions: actions, message: { Text(message) })
   }
 
-  func andReport<Actions: View>(
-    title: String = "Error",
-    @ViewBuilder actions: @escaping () -> Actions = { Button("Ok") {} },
-    _ message: String,
-    file: String = #file,
-    function: StaticString = #function,
-    line: UInt = #line
-  ) {
-    Log.report(message, file: file, function: function, line: line)
-    self(title: title, actions: actions, message: { Text(message) })
-  }
-
   // MARK: - Private Helpers
 }
 

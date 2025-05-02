@@ -91,7 +91,7 @@ import SwiftUI
         )
       }
     } catch {
-      alert.andReport("Couldn't execute StandardPodcastsViewModel")
+      alert("Couldn't execute StandardPodcastsViewModel")
     }
   }
 

@@ -23,7 +23,7 @@ struct PodHavenApp: App {
       try audioSession.setMode(.spokenAudio)
       try audioSession.setActive(true)
     } catch {
-      alert.andReport("Failed to initialize the audio session")
+      alert("Failed to initialize the audio session")
     }
   }
 

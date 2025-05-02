@@ -62,7 +62,7 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
         self.podcastSeries = podcastSeries
       }
     } catch {
-      alert.andReport("Couldn't execute PodcastViewModel")
+      alert("Couldn't execute PodcastViewModel")
     }
   }
 
