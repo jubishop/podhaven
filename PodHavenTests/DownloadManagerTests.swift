@@ -109,13 +109,13 @@ struct DownloadManagerTests {
       await task.cancel()
     }
 
-    await #expect(throws: DownloadError.cancelled(url).self) {
+    await #expect(throws: DownloadError.cancelled(url)) {
       try await task.downloadFinished()
     }
 
     // Even after the url data has returned, the result remains cancelled.
     try await Task.sleep(for: .milliseconds(100))
-    await #expect(throws: DownloadError.cancelled(url).self) {
+    await #expect(throws: DownloadError.cancelled(url)) {
       try await task.downloadFinished()
     }
   }
@@ -135,19 +135,19 @@ struct DownloadManagerTests {
 
     // At this point: task should be active, task2 should be pending
     await downloadManager.cancelAllDownloads()
-    await #expect(throws: DownloadError.cancelled(url).self) {
+    await #expect(throws: DownloadError.cancelled(url)) {
       try await task.downloadFinished()
     }
-    await #expect(throws: DownloadError.cancelled(url2).self) {
+    await #expect(throws: DownloadError.cancelled(url2)) {
       try await task2.downloadFinished()
     }
 
     // Even after the url data has returned, the results remains cancelled.
     try await Task.sleep(for: .milliseconds(100))
-    await #expect(throws: DownloadError.cancelled(url).self) {
+    await #expect(throws: DownloadError.cancelled(url)) {
       try await task.downloadFinished()
     }
-    await #expect(throws: DownloadError.cancelled(url2).self) {
+    await #expect(throws: DownloadError.cancelled(url2)) {
       try await task2.downloadFinished()
     }
   }

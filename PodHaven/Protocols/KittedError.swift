@@ -7,6 +7,7 @@ protocol KittedError: Throwable, Catching, Equatable {}
 
 extension KittedError {
   static func == (_ lhs: Self, _ rhs: Self) -> Bool {
-    ErrorKit.errorChainDescription(for: lhs) == ErrorKit.errorChainDescription(for: lhs)
+    lhs.userFriendlyMessage == rhs.userFriendlyMessage
+      && ErrorKit.errorChainDescription(for: lhs) == ErrorKit.errorChainDescription(for: lhs)
   }
 }
