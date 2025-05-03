@@ -18,6 +18,7 @@
 		8B8475CB2DC0B87200C6C2A5 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		8B84776B2DC167A200C6C2A5 /* Sharing in Frameworks */ = {isa = PBXBuildFile; productRef = 8B84776A2DC167A200C6C2A5 /* Sharing */; };
 		8B8479292DC3409F00C6C2A5 /* ErrorKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8B8479282DC3409F00C6C2A5 /* ErrorKit */; };
+		8B9B8B052DC5D83C00E574E6 /* ErrorKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9B8B042DC5D83C00E574E6 /* ErrorKit */; };
 		8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DEE2D01722E00742C6C /* Nuke */; };
 		8B9E8DF12D01722E00742C6C /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DF02D01722E00742C6C /* NukeUI */; };
 		8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */; };
@@ -125,6 +126,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8B9B8B052DC5D83C00E574E6 /* ErrorKit in Frameworks */,
 				8B7DAA1E2D3F1294000E9153 /* Tagged in Frameworks */,
 				8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */,
 				8B2AC03D2D25D2F700DB7FE5 /* XMLCoder in Frameworks */,
@@ -229,6 +231,7 @@
 				8B7DAA1D2D3F1294000E9153 /* Tagged */,
 				8B84776A2DC167A200C6C2A5 /* Sharing */,
 				8B8479282DC3409F00C6C2A5 /* ErrorKit */,
+				8B9B8B042DC5D83C00E574E6 /* ErrorKit */,
 			);
 			productName = PodHaven;
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
@@ -297,7 +300,7 @@
 				8B2510D92D3317840033A510 /* XCRemoteSwiftPackageReference "Factory" */,
 				8B7DAA1C2D3F1294000E9153 /* XCRemoteSwiftPackageReference "swift-tagged" */,
 				8B8477692DC167A200C6C2A5 /* XCRemoteSwiftPackageReference "swift-sharing" */,
-				8B8479272DC3409400C6C2A5 /* XCLocalSwiftPackageReference "../ErrorKit" */,
+				8B9B8B032DC5D83C00E574E6 /* XCRemoteSwiftPackageReference "ErrorKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8BD7F9212CF2A49000CEDAA7 /* Products */;
@@ -712,13 +715,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		8B8479272DC3409400C6C2A5 /* XCLocalSwiftPackageReference "../ErrorKit" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../ErrorKit;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
 		5712A9FBAD044D6D9F8BAEBD /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -792,6 +788,14 @@
 				kind = branch;
 			};
 		};
+		8B9B8B032DC5D83C00E574E6 /* XCRemoteSwiftPackageReference "ErrorKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FlineDev/ErrorKit";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		8BD0CF382CF51BD900BD9236 /* XCRemoteSwiftPackageReference "GRDB" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/groue/GRDB.swift";
@@ -858,6 +862,11 @@
 		};
 		8B8479282DC3409F00C6C2A5 /* ErrorKit */ = {
 			isa = XCSwiftPackageProductDependency;
+			productName = ErrorKit;
+		};
+		8B9B8B042DC5D83C00E574E6 /* ErrorKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B9B8B032DC5D83C00E574E6 /* XCRemoteSwiftPackageReference "ErrorKit" */;
 			productName = ErrorKit;
 		};
 		8B9E8DEE2D01722E00742C6C /* Nuke */ = {

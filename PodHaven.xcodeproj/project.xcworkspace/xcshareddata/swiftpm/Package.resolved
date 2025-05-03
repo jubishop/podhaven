@@ -1,5 +1,5 @@
 {
-  "originHash" : "e2a37288ef9b337a5d59dee611aa65c4279d74f54fdc621fdc160f5a5f12f732",
+  "originHash" : "e89c63da6ffa9209e2122cbf55d4d8a53dc6534242a4df0981f9144127af9463",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "5928286acce13def418ec36d05a001a9641086f2",
         "version" : "1.0.3"
+      }
+    },
+    {
+      "identity" : "errorkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FlineDev/ErrorKit",
+      "state" : {
+        "branch" : "main",
+        "revision" : "4fa4af8ec1bcf22d49e74b565c2043f27f72e55c"
       }
     },
     {
