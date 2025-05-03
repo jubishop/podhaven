@@ -27,17 +27,17 @@ extension DerivableRequest {
   }
 }
 
-extension TableRecord where Self: Identifiable, Self.ID: DatabaseValueConvertible {
-  static func hasManyAnnotation<Destination>(
+extension TableRecord where Self: Identifiable {
+  static func hasManySubquery<Destination: TableRecord>(
     _ destination: Destination.Type,
-    using foreignKeyColumn: Column? = nil
-  ) -> QueryInterfaceRequest<Destination> where Self: Identifiable, Destination: TableRecord {
-    let foreignKeyColumn = foreignKeyColumn ?? Column("\(Self.databaseTableName)Id")
+    using foreignKeyColumn: Column = Column("\(Self.databaseTableName)Id")
+  ) -> QueryInterfaceRequest<Destination> {
     let tableAlias = TableAlias(name: Self.databaseTableName)
     return Destination.filter(foreignKeyColumn == tableAlias[Column("id")])
   }
 
-  static func withID(_ id: ID) -> QueryInterfaceRequest<Self> {
+  static func withID(_ id: ID) -> QueryInterfaceRequest<Self>
+  where Self.ID: DatabaseValueConvertible {
     filter(id: id)
   }
 }

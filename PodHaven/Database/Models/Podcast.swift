@@ -54,8 +54,8 @@ extension Podcast {
 
   // MARK: - Annotation Queries
 
-  static let annotatedEpisodes = hasManyAnnotation(Episode.self)
-  static let unfinishedEpisodes = Podcast.annotatedEpisodes.filter(Schema.completedColumn == false)
+  static let episodesSubquery = hasManySubquery(Episode.self)
+  static let unfinishedEpisodes = episodesSubquery.filter(Schema.completedColumn == false)
   static let unstartedEpisodes = unfinishedEpisodes.filter(Schema.currentTimeColumn == 0)
   static let unqueuedEpisodes = unstartedEpisodes.filter(Schema.queueOrderColumn == nil)
 }
