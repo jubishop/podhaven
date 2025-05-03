@@ -26,11 +26,10 @@ import GRDB
       for try await podcastEpisode in observatory.podcastEpisode(episode.id) {
         guard let podcastEpisode = podcastEpisode
         else {
-          throw DatabaseError.recordNotFound(
-            entity: episode.toString,
-            identifier: String(episode.id)
-          )
+          throw ObservatoryError.recordNotFound(type: PodcastEpisode.self, id: episode.id.rawValue)
         }
+
+        if self.podcastEpisode == podcastEpisode { continue }
         self.podcastEpisode = podcastEpisode
       }
     } catch {

@@ -25,9 +25,8 @@ enum SearchError: KittedError {
     case .fetchFailure(let request, let networkError):
       return
         """
-        Failed to fetch URL
-          Request URL: \(request)
-          Network Error: \(ErrorKit.userFriendlyMessage(for: networkError))
+        SearchError.fetchFailure(request: \(request))
+          Network Error: \(ErrorKit.errorChainDescription(for: networkError))
         """
     case .parseFailure:
       return "Failed to parse search response"

@@ -55,13 +55,17 @@ struct Repo: Sendable {
 
   // MARK: - Series Readers
 
-  func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
-    try await appDB.db.read { db in
-      try Podcast
-        .withID(podcastID)
-        .including(all: Podcast.episodes)
-        .asRequest(of: PodcastSeries.self)
-        .fetchOne(db)
+  func podcastSeries(_ podcastID: Podcast.ID) async throws(RepoError) -> PodcastSeries? {
+    do {
+      return try await appDB.db.read { db in
+        try Podcast
+          .withID(podcastID)
+          .including(all: Podcast.episodes)
+          .asRequest(of: PodcastSeries.self)
+          .fetchOne(db)
+      }
+    } catch {
+      throw RepoError.readError(type: Podcast.self, id: podcastID.rawValue)
     }
   }
 

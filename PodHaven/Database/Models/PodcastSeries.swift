@@ -4,7 +4,7 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 
-struct PodcastSeries: Decodable, FetchableRecord, Equatable, Identifiable, Hashable {
+struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifiable, Stringable {
   var id: Podcast.ID { podcast.id }
 
   let podcast: Podcast
@@ -33,4 +33,8 @@ struct PodcastSeries: Decodable, FetchableRecord, Equatable, Identifiable, Hasha
   private enum CodingKeys: String, CodingKey {
     case podcast, episodes
   }
+
+  // MARK: - Stringable
+
+  var toString: String { podcast.toString }
 }

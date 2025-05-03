@@ -52,10 +52,7 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
       for try await podcastSeries in observatory.podcastSeries(podcast.id) {
         guard let podcastSeries = podcastSeries
         else {
-          throw DatabaseError.recordNotFound(
-            entity: podcast.toString,
-            identifier: String(podcast.id)
-          )
+          throw ObservatoryError.recordNotFound(type: PodcastSeries.self, id: podcast.id.rawValue)
         }
 
         if self.podcastSeries == podcastSeries { continue }
