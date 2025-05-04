@@ -10,16 +10,6 @@ extension KittedError {
     lhs.userFriendlyMessage == rhs.userFriendlyMessage
   }
 
-  static func nested(_ message: String) -> String {
-    message
-      .components(separatedBy: .newlines)
-      .joined(separator: "\n  ")
-  }
-
-  static func nestedUserFriendlyMessage(for error: Error) -> String {
-    nested(ErrorKit.userFriendlyMessage(for: error))
-  }
-
   static func typeName(for error: Error) -> String {
     String(describing: type(of: error))
   }
@@ -30,6 +20,16 @@ extension KittedError {
 
     guard let caseName = mirror.children.first?.label else { return typeName }
     return "\(typeName).\(caseName)"
+  }
+
+  static func nested(_ message: String) -> String {
+    message
+      .components(separatedBy: .newlines)
+      .joined(separator: "\n  ")
+  }
+
+  static func nestedUserFriendlyMessage(for error: Error) -> String {
+    nested(ErrorKit.userFriendlyMessage(for: error))
   }
 
   func nestedUserFriendlyCaughtMessage(_ caught: Error) -> String {
