@@ -44,7 +44,7 @@ enum FakeFormattedError: KittedError {
   }
 }
 
-@Suite("of KittedError tests")
+@Suite("of KittedError formatting tests")
 struct KittedErrorFormattingTests {
   private let repo: Repo = .inMemory()
 
@@ -60,16 +60,15 @@ struct KittedErrorFormattingTests {
       )
     )
 
-    let expected =
-      """
-      Failure
+    #expect(
+      error.userFriendlyMessage == """
         Failure
           Failure
-            FakeFormattedError
-              └─ Generic edge case
-      """
-
-    #expect(error.userFriendlyMessage == expected)
+            Failure
+              FakeFormattedError
+                └─ Generic edge case
+        """
+    )
   }
 
   @Test("messages with caught kitted at end")
@@ -84,16 +83,15 @@ struct KittedErrorFormattingTests {
       )
     )
 
-    let expected =
-      """
-      Failure
+    #expect(
+      error.userFriendlyMessage == """
         Failure
           Failure
-            FakeFormattedError
-              └─ Leaf
-      """
-
-    #expect(error.userFriendlyMessage == expected)
+            Failure
+              FakeFormattedError
+                └─ Leaf
+        """
+    )
   }
 
   @Test("messages with caught kitted in middle")
@@ -114,19 +112,18 @@ struct KittedErrorFormattingTests {
       )
     )
 
-    let expected =
-      """
-      Failure
+    #expect(
+      error.userFriendlyMessage == """
         Failure
           Failure
-            FakeFormattedError
-              └─ Failure
-                Failure
-                  Leaf
-                    Generic edge case
-      """
-
-    #expect(error.userFriendlyMessage == expected)
+            Failure
+              FakeFormattedError
+                └─ Failure
+                  Failure
+                    Leaf
+                      Generic edge case
+        """
+    )
   }
 
   @Test("messages with double failure")
@@ -152,22 +149,21 @@ struct KittedErrorFormattingTests {
       )
     )
 
-    let expected =
-      """
-      Failure
+    #expect(
+      error.userFriendlyMessage == """
         Failure
           Failure
-            One: FakeFormattedError
-              └─ Failure
+            Failure
+              One: FakeFormattedError
+                └─ Failure
+                  Failure
+                    Leaf
+                      Generic edge case
+              Two: Failure
                 Failure
                   Leaf
-                    Generic edge case
-            Two: Failure
-              Failure
-                Leaf
-      """
-
-    #expect(error.userFriendlyMessage == expected)
+        """
+    )
   }
 
   @Test("playback error media not playable formatting")
