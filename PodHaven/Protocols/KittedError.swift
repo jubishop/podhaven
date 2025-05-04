@@ -39,7 +39,5 @@ extension KittedError {
       .joined(separator: "\n" + "  ")
   }
 
-  var userFriendlyMessage: String {
-    nestedUserFriendlyMessage
-  }
+  var userFriendlyMessage: String { nestedUserFriendlyMessage }
 }
