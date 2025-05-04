@@ -12,7 +12,7 @@ enum RepoError: KittedError {
     case .readError(let type, let id):
       return "Failed to read record of type \(String(describing: type)) with ID \(id)"
     case .caught(let error):
-      return userFriendlyCaughtMessage(caught: error)
+      return userFriendlyCaughtMessage(error)
     }
   }
 }

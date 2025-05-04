@@ -19,7 +19,7 @@ enum SearchError: KittedError {
     case .parseFailure:
       return "Failed to parse search response"
     case .caught(let error):
-      return userFriendlyCaughtMessage(caught: error)
+      return userFriendlyCaughtMessage(error)
     }
   }
 }

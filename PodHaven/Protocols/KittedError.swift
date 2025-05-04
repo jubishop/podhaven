@@ -31,7 +31,7 @@ extension KittedError {
     return "\(typeName).\(caseName)"
   }
 
-  func userFriendlyCaughtMessage(caught: Error) -> String {
+  func userFriendlyCaughtMessage(_ caught: Error) -> String {
     Self.typeName(for: self) + " ->\n  " + Self.userFriendlyMessage(for: caught)
   }
 

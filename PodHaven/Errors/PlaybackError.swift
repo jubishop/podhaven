@@ -17,7 +17,7 @@ enum PlaybackError: KittedError {
           MediaURL: \(podcastEpisode.episode.media)
         """
     case .caught(let error):
-      return userFriendlyCaughtMessage(caught: error)
+      return userFriendlyCaughtMessage(error)
     }
   }
 }

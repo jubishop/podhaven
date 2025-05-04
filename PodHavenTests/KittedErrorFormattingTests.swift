@@ -39,7 +39,7 @@ enum FakeFormattedError: KittedError {
           \(ErrorKit.userFriendlyMessage(for: underlying))
         """
     case .caught(let error):
-      return userFriendlyCaughtMessage(caught: error)
+      return userFriendlyCaughtMessage(error)
     }
   }
 }

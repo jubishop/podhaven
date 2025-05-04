@@ -15,7 +15,7 @@ enum DownloadError: KittedError {
     case .loadFailure(let url):
       return "Failed to load \(url)"
     case .caught(let error):
-      return userFriendlyCaughtMessage(caught: error)
+      return userFriendlyCaughtMessage(error)
     }
   }
 }

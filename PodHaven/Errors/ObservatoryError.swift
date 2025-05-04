@@ -12,7 +12,7 @@ enum ObservatoryError: KittedError {
     case .recordNotFound(let type, let id):
       return "Expected record of type \(String(describing: type)) with ID \(id) not found"
     case .caught(let error):
-      return userFriendlyCaughtMessage(caught: error)
+      return userFriendlyCaughtMessage(error)
     }
   }
 }
