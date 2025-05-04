@@ -8,7 +8,7 @@ import Testing
 
 @testable import PodHaven
 
-enum FakeError: KittedError {
+enum FakeFormattedError: KittedError {
   case doubleFailure(one: any KittedError, two: any KittedError)
   case failure(underlying: any KittedError)
   case leaf
@@ -45,15 +45,15 @@ enum FakeError: KittedError {
 }
 
 @Suite("of KittedError tests")
-struct KittedErrorTests {
+struct KittedErrorFormattingTests {
   private let repo: Repo = .inMemory()
 
   @Test("messages with caught generic at end")
   func testMessagesCaughtGenericAtEnd() {
-    let error = FakeError.failure(
-      underlying: FakeError.failure(
-        underlying: FakeError.failure(
-          underlying: FakeError.caught(
+    let error = FakeFormattedError.failure(
+      underlying: FakeFormattedError.failure(
+        underlying: FakeFormattedError.failure(
+          underlying: FakeFormattedError.caught(
             GenericError(userFriendlyMessage: "Generic edge case")
           )
         )
@@ -65,7 +65,7 @@ struct KittedErrorTests {
       Failure
         Failure
           Failure
-            FakeError
+            FakeFormattedError
               └─ Generic edge case
       """
 
@@ -74,11 +74,11 @@ struct KittedErrorTests {
 
   @Test("messages with caught kitted at end")
   func testMessagesCaughtKittedAtEnd() {
-    let error = FakeError.failure(
-      underlying: FakeError.failure(
-        underlying: FakeError.failure(
-          underlying: FakeError.caught(
-            FakeError.leaf
+    let error = FakeFormattedError.failure(
+      underlying: FakeFormattedError.failure(
+        underlying: FakeFormattedError.failure(
+          underlying: FakeFormattedError.caught(
+            FakeFormattedError.leaf
           )
         )
       )
@@ -89,7 +89,7 @@ struct KittedErrorTests {
       Failure
         Failure
           Failure
-            FakeError
+            FakeFormattedError
               └─ Leaf
       """
 
@@ -98,13 +98,13 @@ struct KittedErrorTests {
 
   @Test("messages with caught kitted in middle")
   func testFormattingNestedUserFriendlyMessagesKittedAtEnd() {
-    let error = FakeError.failure(
-      underlying: FakeError.failure(
-        underlying: FakeError.failure(
-          underlying: FakeError.caught(
-            FakeError.failure(
-              underlying: FakeError.failure(
-                underlying: FakeError.leafUnderlying(
+    let error = FakeFormattedError.failure(
+      underlying: FakeFormattedError.failure(
+        underlying: FakeFormattedError.failure(
+          underlying: FakeFormattedError.caught(
+            FakeFormattedError.failure(
+              underlying: FakeFormattedError.failure(
+                underlying: FakeFormattedError.leafUnderlying(
                   underlying: GenericError(userFriendlyMessage: "Generic edge case")
                 )
               )
@@ -119,7 +119,7 @@ struct KittedErrorTests {
       Failure
         Failure
           Failure
-            FakeError
+            FakeFormattedError
               └─ Failure
                 Failure
                   Leaf
@@ -131,21 +131,21 @@ struct KittedErrorTests {
 
   @Test("messages with double failure")
   func testFormattingDoubleFailure() {
-    let error = FakeError.failure(
-      underlying: FakeError.failure(
-        underlying: FakeError.doubleFailure(
-          one: FakeError.caught(
-            FakeError.failure(
-              underlying: FakeError.failure(
-                underlying: FakeError.leafUnderlying(
+    let error = FakeFormattedError.failure(
+      underlying: FakeFormattedError.failure(
+        underlying: FakeFormattedError.doubleFailure(
+          one: FakeFormattedError.caught(
+            FakeFormattedError.failure(
+              underlying: FakeFormattedError.failure(
+                underlying: FakeFormattedError.leafUnderlying(
                   underlying: GenericError(userFriendlyMessage: "Generic edge case")
                 )
               )
             )
           ),
-          two: FakeError.failure(
-            underlying: FakeError.failure(
-              underlying: FakeError.leaf
+          two: FakeFormattedError.failure(
+            underlying: FakeFormattedError.failure(
+              underlying: FakeFormattedError.leaf
             )
           )
         )
@@ -157,7 +157,7 @@ struct KittedErrorTests {
       Failure
         Failure
           Failure
-            One: FakeError
+            One: FakeFormattedError
               └─ Failure
                 Failure
                   Leaf

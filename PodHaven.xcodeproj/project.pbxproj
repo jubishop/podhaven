@@ -62,7 +62,7 @@
 				Extensions/URL.swift,
 				FeedManagerTests.swift,
 				HTMLRegexTests.swift,
-				KittedErrorTests.swift,
+				KittedErrorFormattingTests.swift,
 				Mocks/DataFetchableMock.swift,
 				ObservatoryTests.swift,
 				PodcastFeedTests.swift,
