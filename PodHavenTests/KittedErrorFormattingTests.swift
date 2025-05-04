@@ -21,14 +21,14 @@ enum FakeFormattedError: KittedError {
       return
         """
         Failure
-        One: \(one.nestedUserFriendlyMessage)
-        Two: \(two.nestedUserFriendlyMessage)
+          One: \(one.nestedUserFriendlyMessage())
+          Two: \(two.nestedUserFriendlyMessage())
         """
     case .failure(let underlying):
       return
         """
         Failure
-        \(underlying.nestedUserFriendlyMessage)
+          \(underlying.nestedUserFriendlyMessage())
         """
     case .leaf:
       return "Leaf"
@@ -36,7 +36,7 @@ enum FakeFormattedError: KittedError {
       return
         """
         Leaf
-        \(ErrorKit.userFriendlyMessage(for: underlying))
+          \(ErrorKit.userFriendlyMessage(for: underlying))
         """
     case .caught(let error):
       return userFriendlyCaughtMessage(caught: error)
@@ -65,8 +65,8 @@ struct KittedErrorFormattingTests {
         Failure
           Failure
             Failure
-              FakeFormattedError
-                └─ Generic edge case
+              FakeFormattedError ->
+                Generic edge case
         """
     )
   }
@@ -88,8 +88,8 @@ struct KittedErrorFormattingTests {
         Failure
           Failure
             Failure
-              FakeFormattedError
-                └─ Leaf
+              FakeFormattedError ->
+                Leaf
         """
     )
   }
@@ -117,8 +117,8 @@ struct KittedErrorFormattingTests {
         Failure
           Failure
             Failure
-              FakeFormattedError
-                └─ Failure
+              FakeFormattedError ->
+                Failure
                   Failure
                     Leaf
                       Generic edge case
@@ -154,8 +154,8 @@ struct KittedErrorFormattingTests {
         Failure
           Failure
             Failure
-              One: FakeFormattedError
-                └─ Failure
+              One: FakeFormattedError ->
+                Failure
                   Failure
                     Leaf
                       Generic edge case
@@ -180,12 +180,18 @@ struct KittedErrorFormattingTests {
       podcast: podcastSeries.podcast,
       episode: podcastSeries.episodes.first!
     )
-    let error = PlaybackError.mediaNotPlayable(podcastEpisode)
+    let error = FakeFormattedError.failure(
+      underlying: FakeFormattedError.caught(
+        PlaybackError.mediaNotPlayable(podcastEpisode)
+      )
+    )
     #expect(
       error.userFriendlyMessage == """
-        MediaURL Not Playable
-          PodcastEpisode: Test Episode
-          MediaURL: https://example.com/data
+        Failure
+          FakeFormattedError ->
+            MediaURL Not Playable
+              PodcastEpisode: Test Episode
+              MediaURL: https://example.com/data
         """
     )
   }
@@ -198,8 +204,8 @@ struct KittedErrorFormattingTests {
     )
     #expect(
       error.userFriendlyMessage == """
-        Failed to fetch url: https://example.com/search
-          └─ Failed to fetch
+        Failed to fetch url: https://example.com/search ->
+          Failed to fetch
         """
     )
   }

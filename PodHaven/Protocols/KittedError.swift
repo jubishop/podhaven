@@ -12,11 +12,18 @@ extension KittedError {
     lhs.userFriendlyMessage == rhs.userFriendlyMessage
   }
 
-  static func typeName(for error: any Error) -> String {
+  static func userFriendlyMessage(for error: Error) -> String {
+    guard let kittedError = error as? (any KittedError)
+    else { return ErrorKit.userFriendlyMessage(for: error) }
+
+    return kittedError.nestedUserFriendlyMessage()
+  }
+
+  static func typeName(for error: Error) -> String {
     String(describing: type(of: error))
   }
 
-  static func typeAndCaseName(for error: any Error) -> String {
+  static func typeAndCaseName(for error: Error) -> String {
     let mirror = Mirror(reflecting: error)
     let typeName = String(describing: type(of: error))
 
@@ -25,19 +32,14 @@ extension KittedError {
   }
 
   func userFriendlyCaughtMessage(caught: Error) -> String {
-    let message = Self.typeName(for: self) + "\n└─ "
-
-    guard let kittedError = caught as? (any KittedError)
-    else { return message + ErrorKit.userFriendlyMessage(for: caught) }
-
-    return message + kittedError.nestedUserFriendlyMessage
+    Self.typeName(for: self) + " ->\n  " + Self.userFriendlyMessage(for: caught)
   }
 
-  var nestedUserFriendlyMessage: String {
+  func nestedUserFriendlyMessage(_ indent: Bool = true) -> String {
     nestableUserFriendlyMessage
       .components(separatedBy: .newlines)
-      .joined(separator: "\n" + "  ")
+      .joined(separator: "\n" + (indent ? "  " : ""))
   }
 
-  var userFriendlyMessage: String { nestedUserFriendlyMessage }
+  var userFriendlyMessage: String { nestedUserFriendlyMessage(false) }
 }

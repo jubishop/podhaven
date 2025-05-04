@@ -85,7 +85,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     self.opmlType = opmlType
   }
 
-  func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
+  func opmlFileImporterCompletion(_ result: Result<URL, Error>) {
     Task {
       do {
         switch result {

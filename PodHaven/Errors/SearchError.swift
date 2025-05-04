@@ -13,8 +13,8 @@ enum SearchError: KittedError {
     case .fetchFailure(let request, let networkError):
       return
         """
-        Failed to fetch url: \(request)
-        └─ \(networkError.userFriendlyMessage)
+        Failed to fetch url: \(request) ->
+          \(Self.userFriendlyMessage(for: networkError))
         """
     case .parseFailure:
       return "Failed to parse search response"
