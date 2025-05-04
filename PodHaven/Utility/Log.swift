@@ -210,13 +210,13 @@ struct Log {
     else { return }
 
     let stackTrace = StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n  ")
-    let errorChain = ErrorKit.errorChainDescription(for: error)
+    let errorMessage = ErrorKit.userFriendlyMessage(for: error)
 
     logger.error(
       """
       ----------------------------------------------------------------------------------------------
       ⚡️ Error from: [\(Self.fileName(from: file)):\(line) \(function)]:
-        \(errorChain)
+        \(errorMessage)
 
       🧱 Call stack:
         \(stackTrace)

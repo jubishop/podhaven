@@ -9,6 +9,7 @@ import Testing
 @testable import PodHaven
 
 enum FakeError: KittedError {
+  case doubleFailure(one: any KittedError, two: any KittedError)
   case failure(underlying: any KittedError)
   case leaf
   case leafUnderlying(underlying: Error)
@@ -16,6 +17,13 @@ enum FakeError: KittedError {
 
   var nestableUserFriendlyMessage: String {
     switch self {
+    case .doubleFailure(let one, let two):
+      return
+        """
+        Failure
+        One: \(one.nestedUserFriendlyMessage)
+        Two: \(two.nestedUserFriendlyMessage)
+        """
     case .failure(let underlying):
       return
         """
@@ -116,6 +124,47 @@ struct KittedErrorTests {
                 Failure
                   Leaf
                     Generic edge case
+      """
+
+    #expect(error.userFriendlyMessage == expected)
+  }
+
+  @Test("messages with double failure")
+  func testFormattingDoubleFailure() {
+    let error = FakeError.failure(
+      underlying: FakeError.failure(
+        underlying: FakeError.doubleFailure(
+          one: FakeError.caught(
+            FakeError.failure(
+              underlying: FakeError.failure(
+                underlying: FakeError.leafUnderlying(
+                  underlying: GenericError(userFriendlyMessage: "Generic edge case")
+                )
+              )
+            )
+          ),
+          two: FakeError.failure(
+            underlying: FakeError.failure(
+              underlying: FakeError.leaf
+            )
+          )
+        )
+      )
+    )
+
+    let expected =
+      """
+      Failure
+        Failure
+          Failure
+            One: FakeError
+              └─ Failure
+                Failure
+                  Leaf
+                    Generic edge case
+            Two: Failure
+              Failure
+                Leaf
       """
 
     #expect(error.userFriendlyMessage == expected)
