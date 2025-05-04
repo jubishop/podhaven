@@ -42,36 +42,24 @@ struct SearchService: Sendable {
   // MARK: - Search Methods
 
   func searchByTerm(_ term: String) async throws(SearchError) -> TermResult {
-    do {
-      return try await Self.parse(
-        try await performRequest("/search/byterm", [URLQueryItem(name: "q", value: term)])
-      )
-    } catch {
-      throw SearchError.termFailure(term)
-    }
+    try await Self.parse(
+      try await performRequest("/search/byterm", [URLQueryItem(name: "q", value: term)])
+    )
   }
 
   func searchByTitle(_ title: String) async throws(SearchError) -> TitleResult {
-    do {
-      return try await Self.parse(
-        try await performRequest(
-          "/search/bytitle",
-          [URLQueryItem(name: "q", value: title), URLQueryItem(name: "similar", value: "true")]
-        )
+    try await Self.parse(
+      try await performRequest(
+        "/search/bytitle",
+        [URLQueryItem(name: "q", value: title), URLQueryItem(name: "similar", value: "true")]
       )
-    } catch {
-      throw SearchError.titleFailure(title)
-    }
+    )
   }
 
   func searchByPerson(_ person: String) async throws(SearchError) -> PersonResult {
-    do {
-      return try await Self.parse(
-        try await performRequest("/search/byperson", [URLQueryItem(name: "q", value: person)])
-      )
-    } catch {
-      throw SearchError.personFailure(person)
-    }
+    try await Self.parse(
+      try await performRequest("/search/byperson", [URLQueryItem(name: "q", value: person)])
+    )
   }
 
   func searchTrending(categories: [String] = [], language: String? = nil) async throws(SearchError)
@@ -84,11 +72,7 @@ struct SearchService: Sendable {
     if let language = language {
       queryItems.append(URLQueryItem(name: "lang", value: language))
     }
-    do {
-      return try await Self.parse(try await performRequest("/podcasts/trending", queryItems))
-    } catch {
-      throw SearchError.trendingFailure(categories)
-    }
+    return try await Self.parse(try await performRequest("/podcasts/trending", queryItems))
   }
 
   // MARK: - Private Helpers

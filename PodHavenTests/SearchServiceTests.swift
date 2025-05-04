@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import ErrorKit
 import Factory
 import Foundation
 import Testing
@@ -152,5 +153,16 @@ struct SearchServiceTests {
     #expect(result.feeds.count == 40)
     #expect(result.since == Date(timeIntervalSince1970: TimeInterval(1736208810)))
     #expect(feed.title == "Thinking Crypto News & Interviews")
+  }
+
+  @Test("search with failed request")
+  func testSearchWithFailedRequest() async throws {
+    await session.set(
+      URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
+      .error(URLError(.badServerResponse))
+    )
+    await #expect(throws: SearchError.self) {
+      _ = try await service.searchTrending(language: "en")
+    }
   }
 }
