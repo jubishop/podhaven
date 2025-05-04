@@ -7,7 +7,7 @@ enum PlaybackError: KittedError {
   case mediaNotPlayable(PodcastEpisode)
   case caught(Error)
 
-  var nestableUserFriendlyMessage: String {
+  var userFriendlyMessage: String {
     switch self {
     case .mediaNotPlayable(let podcastEpisode):
       return
@@ -17,7 +17,7 @@ enum PlaybackError: KittedError {
           MediaURL: \(podcastEpisode.episode.media)
         """
     case .caught(let error):
-      return userFriendlyCaughtMessage(error)
+      return nestedUserFriendlyCaughtMessage(error)
     }
   }
 }

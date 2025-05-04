@@ -3,9 +3,7 @@
 import ErrorKit
 import Foundation
 
-protocol KittedError: Throwable, Catching, Equatable {
-  var nestableUserFriendlyMessage: String { get }
-}
+protocol KittedError: Throwable, Catching, Equatable {}
 
 extension KittedError {
   static func == (_ lhs: Self, _ rhs: Self) -> Bool {
@@ -18,7 +16,7 @@ extension KittedError {
       .joined(separator: "\n  ")
   }
 
-  static func userFriendlyMessage(for error: Error) -> String {
+  static func nestedUserFriendlyMessage(for error: Error) -> String {
     nested(ErrorKit.userFriendlyMessage(for: error))
   }
 
@@ -34,13 +32,11 @@ extension KittedError {
     return "\(typeName).\(caseName)"
   }
 
-  func userFriendlyCaughtMessage(_ caught: Error) -> String {
-    Self.typeName(for: self) + " ->\n  " + Self.userFriendlyMessage(for: caught)
+  func nestedUserFriendlyCaughtMessage(_ caught: Error) -> String {
+    Self.typeName(for: self) + " ->\n  " + Self.nestedUserFriendlyMessage(for: caught)
   }
 
   func nestedUserFriendlyMessage() -> String {
-    Self.nested(nestableUserFriendlyMessage)
+    Self.nested(userFriendlyMessage)
   }
-
-  var userFriendlyMessage: String { nestableUserFriendlyMessage }
 }

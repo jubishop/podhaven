@@ -8,18 +8,18 @@ enum SearchError: KittedError {
   case parseFailure(Data)
   case caught(Error)
 
-  var nestableUserFriendlyMessage: String {
+  var userFriendlyMessage: String {
     switch self {
     case .fetchFailure(let request, let networkError):
       return
         """
         Failed to fetch url: \(request) ->
-          \(Self.userFriendlyMessage(for: networkError))
+          \(Self.nestedUserFriendlyMessage(for: networkError))
         """
     case .parseFailure:
       return "Failed to parse search response"
     case .caught(let error):
-      return userFriendlyCaughtMessage(error)
+      return nestedUserFriendlyCaughtMessage(error)
     }
   }
 }

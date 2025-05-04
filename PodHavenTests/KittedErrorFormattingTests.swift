@@ -15,7 +15,7 @@ enum FakeFormattedError: KittedError {
   case leafUnderlying(underlying: Error)
   case caught(Error)
 
-  var nestableUserFriendlyMessage: String {
+  var userFriendlyMessage: String {
     switch self {
     case .doubleFailure(let one, let two):
       return
@@ -43,10 +43,10 @@ enum FakeFormattedError: KittedError {
         """
         Leaf
         Wrapping:
-          \(Self.userFriendlyMessage(for: underlying))
+          \(Self.nestedUserFriendlyMessage(for: underlying))
         """
     case .caught(let error):
-      return userFriendlyCaughtMessage(error)
+      return nestedUserFriendlyCaughtMessage(error)
     }
   }
 }

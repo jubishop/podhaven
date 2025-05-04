@@ -8,14 +8,14 @@ enum DownloadError: KittedError {
   case loadFailure(URL)
   case caught(Error)
 
-  var nestableUserFriendlyMessage: String {
+  var userFriendlyMessage: String {
     switch self {
     case .cancelled(let url):
       return "Cancelled load of \(url)"
     case .loadFailure(let url):
       return "Failed to load \(url)"
     case .caught(let error):
-      return userFriendlyCaughtMessage(error)
+      return nestedUserFriendlyCaughtMessage(error)
     }
   }
 }

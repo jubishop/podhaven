@@ -6,10 +6,10 @@ import Foundation
 enum RefreshError: KittedError {
   case caught(Error)
 
-  var nestableUserFriendlyMessage: String {
+  var userFriendlyMessage: String {
     switch self {
     case .caught(let error):
-      return userFriendlyCaughtMessage(error)
+      return nestedUserFriendlyCaughtMessage(error)
     }
   }
 }
