@@ -6,10 +6,10 @@ import Foundation
 enum FeedError: KittedError {
   case caught(Error)
 
-  var userFriendlyMessage: String {
+  var nestableUserFriendlyMessage: String {
     switch self {
     case .caught(let error):
-      return ErrorKit.userFriendlyMessage(for: error)
+      return userFriendlyCaughtMessage(caught: error)
     }
   }
 }
