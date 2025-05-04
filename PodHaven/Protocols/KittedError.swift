@@ -19,10 +19,7 @@ extension KittedError {
   }
 
   static func userFriendlyMessage(for error: Error) -> String {
-    guard let kittedError = error as? (any KittedError)
-    else { return nested(ErrorKit.userFriendlyMessage(for: error)) }
-
-    return kittedError.nestedUserFriendlyMessage()
+    nested(ErrorKit.userFriendlyMessage(for: error))
   }
 
   static func typeName(for error: Error) -> String {
@@ -42,7 +39,7 @@ extension KittedError {
   }
 
   func nestedUserFriendlyMessage() -> String {
-    return Self.nested(nestableUserFriendlyMessage)
+    Self.nested(nestableUserFriendlyMessage)
   }
 
   var userFriendlyMessage: String { nestableUserFriendlyMessage }
