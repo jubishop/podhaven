@@ -23,6 +23,7 @@ enum FakeFormattedError: KittedError {
         Failure
           One: \(one.nestedUserFriendlyMessage())
           Two: \(two.nestedUserFriendlyMessage())
+        Done
         """
     case .failure(let underlying):
       return
@@ -31,12 +32,18 @@ enum FakeFormattedError: KittedError {
           \(underlying.nestedUserFriendlyMessage())
         """
     case .leaf:
-      return "Leaf"
+      return
+        """
+        Leaf
+        Line Two
+          Indented Line
+        """
     case .leafUnderlying(let underlying):
       return
         """
         Leaf
-          \(ErrorKit.userFriendlyMessage(for: underlying))
+        Wrapping:
+          \(Self.userFriendlyMessage(for: underlying))
         """
     case .caught(let error):
       return userFriendlyCaughtMessage(error)
@@ -90,6 +97,8 @@ struct KittedErrorFormattingTests {
             Failure
               FakeFormattedError ->
                 Leaf
+                Line Two
+                  Indented Line
         """
     )
   }
@@ -121,6 +130,7 @@ struct KittedErrorFormattingTests {
                 Failure
                   Failure
                     Leaf
+                    Wrapping:
                       Generic edge case
         """
     )
@@ -135,7 +145,14 @@ struct KittedErrorFormattingTests {
             FakeFormattedError.failure(
               underlying: FakeFormattedError.failure(
                 underlying: FakeFormattedError.leafUnderlying(
-                  underlying: GenericError(userFriendlyMessage: "Generic edge case")
+                  underlying: GenericError(
+                    userFriendlyMessage:
+                      """
+                      Generic edge case
+                      Heyo
+                        Indented
+                      """
+                  )
                 )
               )
             )
@@ -158,10 +175,16 @@ struct KittedErrorFormattingTests {
                 Failure
                   Failure
                     Leaf
+                    Wrapping:
                       Generic edge case
+                      Heyo
+                        Indented
               Two: Failure
                 Failure
                   Leaf
+                  Line Two
+                    Indented Line
+            Done
         """
     )
   }

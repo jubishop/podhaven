@@ -12,9 +12,15 @@ extension KittedError {
     lhs.userFriendlyMessage == rhs.userFriendlyMessage
   }
 
+  static func nested(_ message: String) -> String {
+    message
+      .components(separatedBy: .newlines)
+      .joined(separator: "\n  ")
+  }
+
   static func userFriendlyMessage(for error: Error) -> String {
     guard let kittedError = error as? (any KittedError)
-    else { return ErrorKit.userFriendlyMessage(for: error) }
+    else { return nested(ErrorKit.userFriendlyMessage(for: error)) }
 
     return kittedError.nestedUserFriendlyMessage()
   }
@@ -35,11 +41,9 @@ extension KittedError {
     Self.typeName(for: self) + " ->\n  " + Self.userFriendlyMessage(for: caught)
   }
 
-  func nestedUserFriendlyMessage(_ indent: Bool = true) -> String {
-    nestableUserFriendlyMessage
-      .components(separatedBy: .newlines)
-      .joined(separator: "\n" + (indent ? "  " : ""))
+  func nestedUserFriendlyMessage() -> String {
+    return Self.nested(nestableUserFriendlyMessage)
   }
 
-  var userFriendlyMessage: String { nestedUserFriendlyMessage(false) }
+  var userFriendlyMessage: String { nestableUserFriendlyMessage }
 }
