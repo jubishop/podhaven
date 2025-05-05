@@ -15,8 +15,7 @@ enum RefreshError: KittedError {
         Failed to refresh podcast series
           PodcastSeries: \(podcastSeries.toString)
           FeedURL: \(podcastSeries.podcast.feedURL)
-        Caught ->
-          \(Self.nestedUserFriendlyMessage(for: error))
+        \(Self.nestedUserFriendlyCaughtMessage(for: error))
         """
     case .caught(let error):
       return nestedUserFriendlyCaughtMessage(error)

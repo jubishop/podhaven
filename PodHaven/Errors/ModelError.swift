@@ -15,8 +15,7 @@ enum ModelError: KittedError {
         Failed to create podcast
           FeedURL: \(feedURL)
           Title: \(title)
-        Caught ->
-          \(Self.nestedUserFriendlyMessage(for: error))
+        \(Self.nestedUserFriendlyCaughtMessage(for: error))
         """
     case .caught(let error):
       return nestedUserFriendlyCaughtMessage(error)

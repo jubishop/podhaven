@@ -28,12 +28,16 @@ extension KittedError {
       .joined(separator: "\n  ")
   }
 
+  static func nestedUserFriendlyCaughtMessage(for error: Error) -> String {
+    "Caught ->\n  " + Self.nestedUserFriendlyMessage(for: error)
+  }
+
   static func nestedUserFriendlyMessage(for error: Error) -> String {
     nested(ErrorKit.userFriendlyMessage(for: error))
   }
 
-  func nestedUserFriendlyCaughtMessage(_ caught: Error) -> String {
-    Self.typeName(for: self) + " ->\n  " + Self.nestedUserFriendlyMessage(for: caught)
+  func nestedUserFriendlyCaughtMessage(_ error: Error) -> String {
+    Self.typeName(for: self) + " ->\n  " + Self.nestedUserFriendlyMessage(for: error)
   }
 
   var nestedUserFriendlyMessage: String { Self.nested(userFriendlyMessage) }
