@@ -10,7 +10,7 @@ protocol KittedError: Equatable, LocalizedError, Sendable {
 
 extension KittedError {
   static func == (_ lhs: Self, _ rhs: Self) -> Bool {
-    lhs.errorDescription == rhs.errorDescription
+    lhs.userFriendlyMessage == rhs.userFriendlyMessage
   }
 
   static func `catch`<ReturnType>(_ operation: () throws -> ReturnType) throws(Self)
