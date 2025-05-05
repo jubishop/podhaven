@@ -21,7 +21,7 @@ extension KittedError {
     } catch let error as Self {
       throw error
     } catch {
-      throw Self.caught(error)
+      throw caught(error)
     }
   }
 
@@ -33,7 +33,7 @@ extension KittedError {
     } catch let error as Self {
       throw error
     } catch {
-      throw Self.caught(error)
+      throw caught(error)
     }
   }
 
@@ -70,14 +70,14 @@ extension KittedError {
   }
 
   static func nestedUserFriendlyCaughtMessage(for error: Error) -> String {
-    "Caught ->\n  " + Self.nestedUserFriendlyMessage(for: error)
+    "Caught ->\n  " + nestedUserFriendlyMessage(for: error)
   }
 
   static func nestedUserFriendlyMessage(for error: Error) -> String {
-    nested(Self.userFriendlyMessage(for: error))
+    nested(userFriendlyMessage(for: error))
   }
 
-  var errorDescription: String? { self.userFriendlyMessage }
+  var errorDescription: String? { userFriendlyMessage }
 
   func nestedUserFriendlyCaughtMessage(_ error: Error) -> String {
     Self.typeName(for: self) + " ->\n  " + Self.nestedUserFriendlyMessage(for: error)
