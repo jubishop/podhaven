@@ -14,7 +14,8 @@ enum SearchError: KittedError {
       return
         """
         Failed to fetch url: \(request) ->
-          Caught: \(Self.nestedUserFriendlyMessage(for: error))
+        Caught ->
+          \(Self.nestedUserFriendlyMessage(for: error))
         """
     case .parseFailure:
       return "Failed to parse search response"

@@ -16,7 +16,8 @@ enum RepoError: KittedError {
         """
         Failed to insert record.
           Description: \(description)
-          Caught: \(Self.nestedUserFriendlyMessage(for: error))
+        Caught ->
+          \(Self.nestedUserFriendlyMessage(for: error))
         """
     case .readFailure(let type, let id, let error):
       return
@@ -24,7 +25,8 @@ enum RepoError: KittedError {
         Failed to read record.
           Type: \(String(describing: type))
           ID: \(id)
-          Caught: \(Self.nestedUserFriendlyMessage(for: error))
+        Caught ->
+          \(Self.nestedUserFriendlyMessage(for: error))
         """
     case .updateFailure(let type, let id, let error):
       return
@@ -32,7 +34,8 @@ enum RepoError: KittedError {
         Failed to update record.
           Type: \(String(describing: type))
           ID: \(id)
-          Caught: \(Self.nestedUserFriendlyMessage(for: error))
+        Caught ->
+          \(Self.nestedUserFriendlyMessage(for: error))
         """
     case .caught(let error):
       return nestedUserFriendlyCaughtMessage(error)

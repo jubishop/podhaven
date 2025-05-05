@@ -228,7 +228,8 @@ struct KittedErrorFormattingTests {
     #expect(
       error.userFriendlyMessage == """
         Failed to fetch url: https://example.com/search ->
-          Caught: Failed to fetch
+        Caught ->
+          Failed to fetch
         """
     )
   }

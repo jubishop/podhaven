@@ -92,7 +92,7 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
 
   // MARK: - Public Functions
 
-  func refreshSeries() async throws {
+  func refreshSeries() async throws(RefreshError) {
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
   }
 

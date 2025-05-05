@@ -13,7 +13,8 @@ enum ParseError: KittedError {
         """
         Invalid data
           Data: \(String(decoding: data, as: UTF8.self))
-          Caught: \(Self.nestedUserFriendlyMessage(for: error))
+        Caught ->
+          \(Self.nestedUserFriendlyMessage(for: error))
         """
     case .caught(let error):
       return nestedUserFriendlyCaughtMessage(error)

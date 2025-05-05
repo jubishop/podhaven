@@ -13,7 +13,8 @@ enum FeedError: KittedError {
       return
         """
         Failed to parse feed at \(url)
-          Caught: \(Self.nestedUserFriendlyMessage(for: error))
+        Caught ->
+          \(Self.nestedUserFriendlyMessage(for: error))
         """
     case .caught(let error):
       return nestedUserFriendlyCaughtMessage(error)
