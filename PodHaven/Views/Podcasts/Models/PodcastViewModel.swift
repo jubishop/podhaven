@@ -58,7 +58,7 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
         self.podcastSeries = podcastSeries
       }
     } catch {
-      alert("Couldn't execute PodcastViewModel")
+      Log.report(ObservatoryError.caught(error))
     }
   }
 
