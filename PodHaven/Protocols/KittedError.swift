@@ -36,7 +36,5 @@ extension KittedError {
     Self.typeName(for: self) + " ->\n  " + Self.nestedUserFriendlyMessage(for: caught)
   }
 
-  func nestedUserFriendlyMessage() -> String {
-    Self.nested(userFriendlyMessage)
-  }
+  var nestedUserFriendlyMessage: String { Self.nested(userFriendlyMessage) }
 }

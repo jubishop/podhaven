@@ -1,20 +1,18 @@
 // Copyright Justin Bishop, 2025
 
-import ErrorKit
 import Foundation
 
-enum RefreshError: KittedError {
-  case parseFailure(podcastSeries: PodcastSeries, caught: Error)
+enum ParseError: KittedError {
+  case invalidData(data: Data, caught: Error)
   case caught(Error)
 
   var userFriendlyMessage: String {
     switch self {
-    case .parseFailure(let podcastSeries, let error):
+    case .invalidData(let data, let error):
       return
         """
-        Failed to refresh podcast series
-          PodcastSeries: \(podcastSeries.toString)
-          FeedURL: \(podcastSeries.podcast.feedURL)
+        Invalid data
+          Data: \(String(decoding: data, as: UTF8.self))
           Caught: \(Self.nestedUserFriendlyMessage(for: error))
         """
     case .caught(let error):

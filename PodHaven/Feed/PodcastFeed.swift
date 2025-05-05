@@ -73,9 +73,13 @@ struct PodcastFeed: Sendable, Equatable {
     try await parse(try Data(contentsOf: url.rawValue), from: url)
   }
 
-  static func parse(_ data: Data, from: FeedURL) async throws -> PodcastFeed {
-    let rssPodcast = try await PodcastRSS.parse(data)
-    return try PodcastFeed(rssPodcast: rssPodcast, from: from)
+  static func parse(_ data: Data, from: FeedURL) async throws(FeedError) -> PodcastFeed {
+    do {
+      let rssPodcast = try await PodcastRSS.parse(data)
+      return PodcastFeed(rssPodcast: rssPodcast, from: from)
+    } catch {
+      throw FeedError.parseFailure(url: from, caught: error)
+    }
   }
 
   // MARK: - Instance Definition
@@ -87,7 +91,7 @@ struct PodcastFeed: Sendable, Equatable {
   private let link: URL?
   private let image: URL
 
-  private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL) throws {
+  private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL) {
     self.rssPodcast = rssPodcast
     self.feedURL = rssPodcast.feedURL ?? from
     self.link = rssPodcast.link
@@ -97,19 +101,24 @@ struct PodcastFeed: Sendable, Equatable {
     }
   }
 
-  func toUnsavedPodcast(subscribed: Bool? = nil, lastUpdate: Date? = nil) throws -> UnsavedPodcast {
-    try UnsavedPodcast(
-      feedURL: rssPodcast.iTunes.newFeedURL ?? feedURL,
-      title: rssPodcast.title,
-      image: image,
-      description: rssPodcast.description,
-      link: link,
-      lastUpdate: lastUpdate,
-      subscribed: subscribed
-    )
+  func toUnsavedPodcast(subscribed: Bool? = nil, lastUpdate: Date? = nil) throws(FeedError)
+    -> UnsavedPodcast
+  {
+    try FeedError.catch {
+      try UnsavedPodcast(
+        feedURL: rssPodcast.iTunes.newFeedURL ?? feedURL,
+        title: rssPodcast.title,
+        image: image,
+        description: rssPodcast.description,
+        link: link,
+        lastUpdate: lastUpdate,
+        subscribed: subscribed
+      )
+    }
   }
 
-  func toUnsavedPodcast(merging unsavedPodcast: UnsavedPodcast) throws -> UnsavedPodcast {
+  func toUnsavedPodcast(merging unsavedPodcast: UnsavedPodcast) throws(FeedError) -> UnsavedPodcast
+  {
     guard unsavedPodcast.feedURL == feedURL
     else {
       Log.fatal(

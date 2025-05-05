@@ -54,33 +54,40 @@ final actor RefreshManager: Sendable {
     }
   }
 
-  func refreshSeries(podcastSeries: PodcastSeries) async throws {
+  func refreshSeries(podcastSeries: PodcastSeries) async throws(RefreshError) {
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
-    let podcastFeed = try await feedTask.feedParsed()
+    let podcastFeed: PodcastFeed
+    do {
+      podcastFeed = try await feedTask.feedParsed()
+    } catch {
+      throw RefreshError.parseFailure(podcastSeries: podcastSeries, caught: error)
+    }
     try await updateSeriesFromFeed(podcastSeries: podcastSeries, podcastFeed: podcastFeed)
   }
 
-  func updateSeriesFromFeed(podcastSeries: PodcastSeries, podcastFeed: PodcastFeed) async throws {
-    let newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries.podcast.unsaved)
-    var newPodcast = Podcast(id: podcastSeries.id, from: newUnsavedPodcast)
-    var unsavedEpisodes: [UnsavedEpisode] = []
-    var existingEpisodes: [Episode] = []
-    for feedItem in podcastFeed.episodes {
-      if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
-        if let newUnsavedExistingEpisode = try? feedItem.toUnsavedEpisode(merging: existingEpisode)
-        {
-          existingEpisodes.append(Episode(id: existingEpisode.id, from: newUnsavedExistingEpisode))
+  func updateSeriesFromFeed(podcastSeries: PodcastSeries, podcastFeed: PodcastFeed) async throws(RefreshError) {
+    return try await RefreshError.catch {
+      let newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries.podcast.unsaved)
+      var newPodcast = Podcast(id: podcastSeries.id, from: newUnsavedPodcast)
+      var unsavedEpisodes: [UnsavedEpisode] = []
+      var existingEpisodes: [Episode] = []
+      for feedItem in podcastFeed.episodes {
+        if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
+          if let newUnsavedExistingEpisode = try? feedItem.toUnsavedEpisode(merging: existingEpisode)
+          {
+            existingEpisodes.append(Episode(id: existingEpisode.id, from: newUnsavedExistingEpisode))
+          }
+        } else if let newUnsavedEpisode = try? feedItem.toUnsavedEpisode() {
+          unsavedEpisodes.append(newUnsavedEpisode)
         }
-      } else if let newUnsavedEpisode = try? feedItem.toUnsavedEpisode() {
-        unsavedEpisodes.append(newUnsavedEpisode)
       }
+      newPodcast.lastUpdate = Date()
+      try await repo.updateSeries(
+        newPodcast,
+        unsavedEpisodes: unsavedEpisodes,
+        existingEpisodes: existingEpisodes
+      )
     }
-    newPodcast.lastUpdate = Date()
-    try await repo.updateSeries(
-      newPodcast,
-      unsavedEpisodes: unsavedEpisodes,
-      existingEpisodes: existingEpisodes
-    )
   }
 
   // MARK: - Background Refreshing

@@ -9,8 +9,8 @@ import Testing
 @testable import PodHaven
 
 enum FakeFormattedError: KittedError {
-  case doubleFailure(one: any KittedError, two: any KittedError)
-  case failure(underlying: any KittedError)
+  case doubleFailure(one: Error, two: Error)
+  case failure(underlying: Error)
   case leaf
   case leafUnderlying(underlying: Error)
   case caught(Error)
@@ -21,15 +21,15 @@ enum FakeFormattedError: KittedError {
       return
         """
         Failure
-          One: \(one.nestedUserFriendlyMessage())
-          Two: \(two.nestedUserFriendlyMessage())
+          One: \(Self.nestedUserFriendlyMessage(for: one))
+          Two: \(Self.nestedUserFriendlyMessage(for: two))
         Done
         """
     case .failure(let underlying):
       return
         """
         Failure
-          \(underlying.nestedUserFriendlyMessage())
+          \(Self.nestedUserFriendlyMessage(for: underlying))
         """
     case .leaf:
       return
@@ -223,12 +223,12 @@ struct KittedErrorFormattingTests {
   func testSearchErrorFetchFailureFormatting() async throws {
     let error = SearchError.fetchFailure(
       request: URLRequest(url: URL(string: "https://example.com/search")!),
-      networkError: NetworkError.generic(userFriendlyMessage: "Failed to fetch")
+      caught: NetworkError.generic(userFriendlyMessage: "Failed to fetch")
     )
     #expect(
       error.userFriendlyMessage == """
         Failed to fetch url: https://example.com/search ->
-          Failed to fetch
+          Caught: Failed to fetch
         """
     )
   }

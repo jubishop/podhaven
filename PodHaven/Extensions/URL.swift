@@ -5,7 +5,7 @@ import Foundation
 extension URL {
   static let placeholder = URL(string: "about:blank")!
 
-  func convertToValidURL() throws -> URL {
+  func convertToValidURL() throws(URLError) -> URL {
     guard var components = URLComponents(url: self, resolvingAgainstBaseURL: false)
     else { throw URLError(.badURL, userInfo: ["message": "URL: \(self) cannot be components."]) }
 
@@ -23,10 +23,10 @@ extension URL {
     return url
   }
 
-  func validate() throws {
+  func validate() throws(URLError) {
     guard let scheme = self.scheme, scheme == "https"
     else { throw URLError(.badURL, userInfo: ["message": "URL: \(self) must use https scheme."]) }
     guard let host = self.host, !host.isEmpty
-    else { throw URLError(.badURL, userInfo: ["message": "URL: \(self) must have  a valid host."]) }
+    else { throw URLError(.badURL, userInfo: ["message": "URL: \(self) must have a valid host."]) }
   }
 }

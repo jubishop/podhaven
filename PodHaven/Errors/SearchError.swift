@@ -4,17 +4,17 @@ import ErrorKit
 import Foundation
 
 enum SearchError: KittedError {
-  case fetchFailure(request: URLRequest, networkError: NetworkError)
+  case fetchFailure(request: URLRequest, caught: Error)
   case parseFailure(Data)
   case caught(Error)
 
   var userFriendlyMessage: String {
     switch self {
-    case .fetchFailure(let request, let networkError):
+    case .fetchFailure(let request, let error):
       return
         """
         Failed to fetch url: \(request) ->
-          \(Self.nestedUserFriendlyMessage(for: networkError))
+          Caught: \(Self.nestedUserFriendlyMessage(for: error))
         """
     case .parseFailure:
       return "Failed to parse search response"

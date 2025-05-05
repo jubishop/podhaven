@@ -24,14 +24,18 @@ struct UnsavedPodcast: Savable, Stringable {
     link: URL? = nil,
     lastUpdate: Date? = nil,
     subscribed: Bool? = nil
-  ) throws {
-    self.feedURL = FeedURL(try feedURL.rawValue.convertToValidURL())
-    self.title = title
-    self.image = try image.convertToValidURL()
-    self.description = description
-    self.link = try? link?.convertToValidURL()
-    self.lastUpdate = lastUpdate ?? Date.epoch
-    self.subscribed = subscribed ?? false
+  ) throws(ModelError) {
+    do {
+      self.feedURL = FeedURL(try feedURL.rawValue.convertToValidURL())
+      self.title = title
+      self.image = try image.convertToValidURL()
+      self.description = description
+      self.link = try? link?.convertToValidURL()
+      self.lastUpdate = lastUpdate ?? Date.epoch
+      self.subscribed = subscribed ?? false
+    } catch {
+      throw ModelError.podcastInitializationFailure(feedURL: feedURL, title: title, caught: error)
+    }
   }
 
   // MARK: - Savable

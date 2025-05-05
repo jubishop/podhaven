@@ -65,16 +65,38 @@ struct PodcastTests {
   @Test("that a podcast feedURL must be valid")
   func failToInsertInvalidFeedURL() async throws {
     // Bad scheme
-    await #expect(throws: URLError.self) {
-      try await self.repo.insertSeries(
-        TestHelpers.unsavedPodcast(feedURL: FeedURL(URL(string: "file://example.com/data")!))
+    let schemeTitle = "Scheme title"
+    let schemeURL = URL(string: "file://example.com/data")!
+    await #expect(
+      throws: ModelError.podcastInitializationFailure(
+        feedURL: FeedURL(schemeURL),
+        title: schemeTitle,
+        caught: URLError(.badURL, userInfo: ["message": "URL: \(schemeURL) must use https scheme."])
+      )
+    ) {
+      try await repo.insertSeries(
+        TestHelpers.unsavedPodcast(
+          feedURL: FeedURL(schemeURL),
+          title: schemeTitle
+        )
       )
     }
 
     // Not absolute
-    await #expect(throws: URLError.self) {
-      try await self.repo.insertSeries(
-        TestHelpers.unsavedPodcast(feedURL: FeedURL(URL(string: "https:/path/to/data")!))
+    let relativeTitle = "Relative title"
+    let relativeURL = URL(string: "https:/path/to/data")!
+    await #expect(
+      throws: ModelError.podcastInitializationFailure(
+        feedURL: FeedURL(relativeURL),
+        title: relativeTitle,
+        caught: URLError(
+          .badURL,
+          userInfo: ["message": "URL: \(relativeURL) must have a valid host."]
+        )
+      )
+    ) {
+      try await repo.insertSeries(
+        TestHelpers.unsavedPodcast(feedURL: FeedURL(relativeURL), title: relativeTitle)
       )
     }
   }

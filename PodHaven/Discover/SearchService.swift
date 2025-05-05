@@ -117,8 +117,8 @@ struct SearchService: Sendable {
         }
         return data
       }
-    } catch (let networkError) {
-      throw SearchError.fetchFailure(request: request, networkError: networkError)
+    } catch {
+      throw SearchError.fetchFailure(request: request, caught: error)
     }
   }
 

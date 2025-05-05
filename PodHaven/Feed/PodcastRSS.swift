@@ -12,16 +12,20 @@ struct PodcastRSS: Decodable, Sendable {
     return try await parse(data)
   }
 
-  static func parse(_ data: Data) async throws -> Podcast {
-    try await withCheckedThrowingContinuation { continuation in
-      do {
-        let decoder = XMLDecoder()
-        decoder.dateDecodingStrategy = .formatted(Date.rfc2822)
-        let rssPodcast = try decoder.decode(PodcastRSS.self, from: data)
-        continuation.resume(returning: rssPodcast.channel)
-      } catch let error {
-        continuation.resume(throwing: error)
+  static func parse(_ data: Data) async throws(ParseError) -> Podcast {
+    do {
+      return try await withCheckedThrowingContinuation { continuation in
+        do {
+          let decoder = XMLDecoder()
+          decoder.dateDecodingStrategy = .formatted(Date.rfc2822)
+          let rssPodcast = try decoder.decode(PodcastRSS.self, from: data)
+          continuation.resume(returning: rssPodcast.channel)
+        } catch let error {
+          continuation.resume(throwing: error)
+        }
       }
+    } catch {
+      throw ParseError.invalidData(data: data, caught: error)
     }
   }
 

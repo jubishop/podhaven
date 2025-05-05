@@ -3,18 +3,18 @@
 import ErrorKit
 import Foundation
 
-enum RefreshError: KittedError {
-  case parseFailure(podcastSeries: PodcastSeries, caught: Error)
+enum ModelError: KittedError {
+  case podcastInitializationFailure(feedURL: FeedURL, title: String, caught: Error)
   case caught(Error)
 
   var userFriendlyMessage: String {
     switch self {
-    case .parseFailure(let podcastSeries, let error):
+    case .podcastInitializationFailure(let feedURL, let title, let error):
       return
         """
-        Failed to refresh podcast series
-          PodcastSeries: \(podcastSeries.toString)
-          FeedURL: \(podcastSeries.podcast.feedURL)
+        Failed to create podcast
+          FeedURL: \(feedURL)
+          Title: \(title)
           Caught: \(Self.nestedUserFriendlyMessage(for: error))
         """
     case .caught(let error):

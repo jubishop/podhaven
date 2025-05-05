@@ -65,7 +65,7 @@ struct Repo: Sendable {
           .fetchOne(db)
       }
     } catch {
-      throw RepoError.readError(type: Podcast.self, id: podcastID.rawValue)
+      throw RepoError.readFailure(type: Podcast.self, id: podcastID.rawValue, caught: error)
     }
   }
 
@@ -123,16 +123,23 @@ struct Repo: Sendable {
 
   @discardableResult
   func insertSeries(_ unsavedPodcast: UnsavedPodcast, unsavedEpisodes: [UnsavedEpisode] = [])
-    async throws -> PodcastSeries
+    async throws(RepoError) -> PodcastSeries
   {
-    try await appDB.db.write { db in
-      let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
-      var episodes: IdentifiedArray<GUID, Episode> = IdentifiedArray(id: \.guid)
-      for var unsavedEpisode in unsavedEpisodes {
-        unsavedEpisode.podcastId = podcast.id
-        episodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
+    do {
+      return try await appDB.db.write { db in
+        let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
+        var episodes: IdentifiedArray<GUID, Episode> = IdentifiedArray(id: \.guid)
+        for var unsavedEpisode in unsavedEpisodes {
+          unsavedEpisode.podcastId = podcast.id
+          episodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
+        }
+        return PodcastSeries(podcast: podcast, episodes: episodes)
       }
-      return PodcastSeries(podcast: podcast, episodes: episodes)
+    } catch {
+      throw RepoError.insertFailure(
+        description: "PodcastSeries with title: \(unsavedPodcast.title)",
+        caught: error
+      )
     }
   }
 
@@ -140,16 +147,24 @@ struct Repo: Sendable {
     _ podcast: Podcast,
     unsavedEpisodes: [UnsavedEpisode] = [],
     existingEpisodes: [Episode] = []
-  ) async throws {
-    try await appDB.db.write { db in
-      try podcast.update(db)
-      for existingEpisode in existingEpisodes {
-        try existingEpisode.update(db)
+  ) async throws(RepoError) {
+    do {
+      try await appDB.db.write { db in
+        try podcast.update(db)
+        for existingEpisode in existingEpisodes {
+          try existingEpisode.update(db)
+        }
+        for var unsavedEpisode in unsavedEpisodes {
+          unsavedEpisode.podcastId = podcast.id
+          try unsavedEpisode.insert(db)
+        }
       }
-      for var unsavedEpisode in unsavedEpisodes {
-        unsavedEpisode.podcastId = podcast.id
-        try unsavedEpisode.insert(db)
-      }
+    } catch {
+      throw RepoError.updateFailure(
+        type: PodcastSeries.self,
+        id: podcast.id.rawValue,
+        caught: error
+      )
     }
   }
 
