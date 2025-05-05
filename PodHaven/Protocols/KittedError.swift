@@ -87,5 +87,5 @@ extension KittedError {
 }
 
 extension KittedError where Self: RawRepresentable, RawValue == String {
-  var userFriendlyMessage: String { self.rawValue }
+  var userFriendlyMessage: String { rawValue }
 }
