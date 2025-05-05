@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import ErrorKit
 import Factory
 import Foundation
 
@@ -102,18 +101,15 @@ struct SearchService: Sendable {
   private func performRequest(_ path: String, _ query: [URLQueryItem] = [])
     async throws(SearchError) -> Data
   {
-    let request = buildRequest(path, query)
+    let (url, request) = buildRequest(path, query)
     do {
-      return try await NetworkError.catch {
+      return try await DownloadError.catch {
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
-          throw NetworkError.decodingFailure
+          throw DownloadError.notHTTPURLResponse(url)
         }
         guard (200...299).contains(httpResponse.statusCode) else {
-          throw NetworkError.serverError(
-            code: httpResponse.statusCode,
-            message: "Invalid response code for: \(request)"
-          )
+          throw DownloadError.notOKResponseCode(code: httpResponse.statusCode, url: url)
         }
         return data
       }
@@ -122,7 +118,8 @@ struct SearchService: Sendable {
     }
   }
 
-  private func buildRequest(_ path: String, _ queryItems: [URLQueryItem] = []) -> URLRequest {
+  private func buildRequest(_ path: String, _ queryItems: [URLQueryItem] = []) -> (URL, URLRequest)
+  {
     var components = URLComponents()
     components.scheme = "https"
     components.host = Self.baseHost
@@ -145,6 +142,6 @@ struct SearchService: Sendable {
     let hash = (Self.apiKey + Self.apiSecret + apiHeaderTime).sha1()
     request.addValue(hash, forHTTPHeaderField: "Authorization")
 
-    return request
+    return (url, request)
   }
 }

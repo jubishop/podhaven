@@ -1,4 +1,5 @@
-import ErrorKit
+// Copyright Justin Bishop, 2025
+
 import Foundation
 import OrderedCollections
 
@@ -53,13 +54,10 @@ final actor DownloadTask: Sendable {
       haveBegun()
       let (data, response) = try await session.data(from: url)
       guard let httpResponse = response as? HTTPURLResponse else {
-        throw NetworkError.decodingFailure
+        throw DownloadError.notHTTPURLResponse(url)
       }
       guard (200...299).contains(httpResponse.statusCode) else {
-        throw NetworkError.serverError(
-          code: httpResponse.statusCode,
-          message: "Invalid response code for: \(url)"
-        )
+        throw DownloadError.notOKResponseCode(code: httpResponse.statusCode, url: url)
       }
       haveFinished(.success(DownloadData(url: url, data: data)))
     } catch is CancellationError {

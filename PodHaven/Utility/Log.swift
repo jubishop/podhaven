@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import ErrorKit
 import Foundation
 import OSLog
 
@@ -210,7 +209,7 @@ struct Log {
     else { return }
 
     let stackTrace = StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n  ")
-    let errorMessage = ErrorKit.userFriendlyMessage(for: error)
+    let errorMessage = error.userFriendlyMessage
 
     logger.error(
       """

@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
-import ErrorKit
 import Factory
 import Foundation
 import Testing
@@ -13,6 +12,7 @@ enum FakeFormattedError: KittedError {
   case failure(underlying: Error)
   case leaf
   case leafUnderlying(underlying: Error)
+  case simple(String)
   case caught(Error)
 
   var userFriendlyMessage: String {
@@ -45,6 +45,8 @@ enum FakeFormattedError: KittedError {
         Wrapping:
           \(Self.nestedUserFriendlyMessage(for: underlying))
         """
+    case .simple(let message):
+      return message
     case .caught(let error):
       return nestedUserFriendlyCaughtMessage(error)
     }
@@ -61,7 +63,7 @@ struct KittedErrorFormattingTests {
       underlying: FakeFormattedError.failure(
         underlying: FakeFormattedError.failure(
           underlying: FakeFormattedError.caught(
-            GenericError(userFriendlyMessage: "Generic edge case")
+            FakeFormattedError.simple("Generic edge case")
           )
         )
       )
@@ -112,7 +114,7 @@ struct KittedErrorFormattingTests {
             FakeFormattedError.failure(
               underlying: FakeFormattedError.failure(
                 underlying: FakeFormattedError.leafUnderlying(
-                  underlying: GenericError(userFriendlyMessage: "Generic edge case")
+                  underlying: FakeFormattedError.simple("Generic edge case")
                 )
               )
             )
@@ -145,13 +147,12 @@ struct KittedErrorFormattingTests {
             FakeFormattedError.failure(
               underlying: FakeFormattedError.failure(
                 underlying: FakeFormattedError.leafUnderlying(
-                  underlying: GenericError(
-                    userFriendlyMessage:
-                      """
-                      Generic edge case
-                      Heyo
-                        Indented
-                      """
+                  underlying: FakeFormattedError.simple(
+                    """
+                    Generic edge case
+                    Heyo
+                      Indented
+                    """
                   )
                 )
               )
@@ -223,7 +224,7 @@ struct KittedErrorFormattingTests {
   func testSearchErrorFetchFailureFormatting() async throws {
     let error = SearchError.fetchFailure(
       request: URLRequest(url: URL(string: "https://example.com/search")!),
-      caught: NetworkError.generic(userFriendlyMessage: "Failed to fetch")
+      caught: FakeFormattedError.simple("Failed to fetch")
     )
     #expect(
       error.userFriendlyMessage == """

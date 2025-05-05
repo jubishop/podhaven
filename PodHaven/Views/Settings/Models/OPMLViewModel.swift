@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import ErrorKit
 import Factory
 import Foundation
 import GRDB
@@ -91,7 +90,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         switch result {
         case .success(let url):
           guard url.startAccessingSecurityScopedResource()
-          else { throw PermissionError.restricted(permission: "SecurityScopedResource") }
+          else { throw PermissionError.denied("SecurityScopedResource") }
 
           let opml = try await PodcastOPML.parse(url)
           try await downloadOPMLFile(opml)

@@ -1,13 +1,40 @@
 // Copyright Justin Bishop, 2025
 
-import ErrorKit
 import Foundation
 
-protocol KittedError: Throwable, Catching, Equatable {}
+protocol KittedError: Equatable, LocalizedError, Sendable {
+  static func caught(_ error: Error) -> Self
+
+  var userFriendlyMessage: String { get }
+}
 
 extension KittedError {
   static func == (_ lhs: Self, _ rhs: Self) -> Bool {
-    lhs.userFriendlyMessage == rhs.userFriendlyMessage
+    lhs.errorDescription == rhs.errorDescription
+  }
+
+  static func `catch`<ReturnType>(_ operation: () throws -> ReturnType) throws(Self)
+    -> ReturnType
+  {
+    do {
+      return try operation()
+    } catch let error as Self {
+      throw error
+    } catch {
+      throw Self.caught(error)
+    }
+  }
+
+  static func `catch`<ReturnType>(_ operation: @Sendable () async throws -> ReturnType)
+    async throws(Self) -> ReturnType
+  {
+    do {
+      return try await operation()
+    } catch let error as Self {
+      throw error
+    } catch {
+      throw Self.caught(error)
+    }
   }
 
   static func typeName(for error: Error) -> String {
@@ -22,6 +49,20 @@ extension KittedError {
     return "\(typeName).\(caseName)"
   }
 
+  static func userFriendlyMessage(for error: Error) -> String {
+    if let kittedError = error as? any KittedError {
+      return kittedError.userFriendlyMessage
+    }
+
+    if let localizedError = error as? LocalizedError,
+      let errorDescription = localizedError.errorDescription
+    {
+      return errorDescription
+    }
+
+    return error.localizedDescription
+  }
+
   static func nested(_ message: String) -> String {
     message
       .components(separatedBy: .newlines)
@@ -33,12 +74,18 @@ extension KittedError {
   }
 
   static func nestedUserFriendlyMessage(for error: Error) -> String {
-    nested(ErrorKit.userFriendlyMessage(for: error))
+    nested(Self.userFriendlyMessage(for: error))
   }
+
+  var errorDescription: String? { self.userFriendlyMessage }
 
   func nestedUserFriendlyCaughtMessage(_ error: Error) -> String {
     Self.typeName(for: self) + " ->\n  " + Self.nestedUserFriendlyMessage(for: error)
   }
 
   var nestedUserFriendlyMessage: String { Self.nested(userFriendlyMessage) }
+}
+
+extension KittedError where Self: RawRepresentable, RawValue == String {
+  var userFriendlyMessage: String { self.rawValue }
 }

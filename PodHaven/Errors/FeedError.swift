@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import ErrorKit
 import Foundation
 
 enum FeedError: KittedError {
