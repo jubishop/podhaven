@@ -145,8 +145,6 @@ extension Container {
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
       await seek(to: podcastEpisode.episode.currentTime)
-    } else {
-      await setCurrentTime(CMTime.zero)
     }
 
     currentEpisodeID = podcastEpisode.id
