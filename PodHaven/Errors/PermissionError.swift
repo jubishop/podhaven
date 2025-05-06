@@ -2,16 +2,13 @@
 
 import Foundation
 
-enum PermissionError: KittedError {
+enum PermissionError: ReadableError {
   case denied(String)
-  case caught(Error)
 
-  var userFriendlyMessage: String {
+  var message: String {
     switch self {
     case .denied(let permission):
       return "Denied permission: \(permission)"
-    case .caught(let error):
-      return nestedUserFriendlyCaughtMessage(error)
     }
   }
 }

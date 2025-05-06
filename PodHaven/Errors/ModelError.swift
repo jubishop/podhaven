@@ -2,11 +2,10 @@
 
 import Foundation
 
-enum ModelError: KittedError {
+enum ModelError: ReadableError {
   case podcastInitializationFailure(feedURL: FeedURL, title: String, caught: Error)
-  case caught(Error)
 
-  var userFriendlyMessage: String {
+  var message: String {
     switch self {
     case .podcastInitializationFailure(let feedURL, let title, let error):
       return
@@ -14,10 +13,8 @@ enum ModelError: KittedError {
         Failed to create podcast
           FeedURL: \(feedURL)
           Title: \(title)
-        \(Self.nestedUserFriendlyCaughtMessage(for: error))
+        \(ErrorKit.nestedCaughtMessage(for: error))
         """
-    case .caught(let error):
-      return nestedUserFriendlyCaughtMessage(error)
     }
   }
 }

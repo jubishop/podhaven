@@ -2,14 +2,14 @@
 
 import Foundation
 
-enum DownloadError: KittedError {
+enum DownloadError: ReadableError, CatchingError {
   case cancelled(URL)
   case loadFailure(URL)
   case notHTTPURLResponse(URL)
   case notOKResponseCode(code: Int, url: URL)
   case caught(Error)
 
-  var userFriendlyMessage: String {
+  var message: String {
     switch self {
     case .cancelled(let url):
       return "Cancelled load of \(url)"
@@ -20,7 +20,7 @@ enum DownloadError: KittedError {
     case .notOKResponseCode(let code, let url):
       return "Received HTTP response code: \(code), for: \(url)"
     case .caught(let error):
-      return nestedUserFriendlyCaughtMessage(error)
+      return ErrorKit.nestedCaughtMessage(for: error)
     }
   }
 }

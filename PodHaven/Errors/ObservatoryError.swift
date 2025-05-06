@@ -2,16 +2,13 @@
 
 import Foundation
 
-enum ObservatoryError: KittedError {
+enum ObservatoryError: ReadableError {
   case recordNotFound(type: Any.Type, id: Int64)
-  case caught(Error)
 
-  var userFriendlyMessage: String {
+  var message: String {
     switch self {
     case .recordNotFound(let type, let id):
       return "Expected record of type \(String(describing: type)) with ID \(id) not found"
-    case .caught(let error):
-      return nestedUserFriendlyCaughtMessage(error)
     }
   }
 }

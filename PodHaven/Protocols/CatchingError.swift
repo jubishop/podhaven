@@ -1,0 +1,33 @@
+// Copyright Justin Bishop, 2025
+
+import Foundation
+
+protocol CatchingError: Error, Sendable {
+  static func caught(_ error: Error) -> Self
+}
+
+extension CatchingError {
+  static func `catch`<ReturnType>(_ operation: () throws -> ReturnType) throws(Self)
+    -> ReturnType
+  {
+    do {
+      return try operation()
+    } catch let error as Self {
+      throw error
+    } catch {
+      throw caught(error)
+    }
+  }
+
+  static func `catch`<ReturnType>(_ operation: @Sendable () async throws -> ReturnType)
+    async throws(Self) -> ReturnType
+  {
+    do {
+      return try await operation()
+    } catch let error as Self {
+      throw error
+    } catch {
+      throw caught(error)
+    }
+  }
+}

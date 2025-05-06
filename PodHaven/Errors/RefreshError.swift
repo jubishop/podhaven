@@ -2,11 +2,11 @@
 
 import Foundation
 
-enum RefreshError: KittedError {
+enum RefreshError: ReadableError, CatchingError {
   case parseFailure(podcastSeries: PodcastSeries, caught: Error)
   case caught(Error)
 
-  var userFriendlyMessage: String {
+  var message: String {
     switch self {
     case .parseFailure(let podcastSeries, let error):
       return
@@ -14,10 +14,10 @@ enum RefreshError: KittedError {
         Failed to refresh podcast series
           PodcastSeries: \(podcastSeries.toString)
           FeedURL: \(podcastSeries.podcast.feedURL)
-        \(Self.nestedUserFriendlyCaughtMessage(for: error))
+        \(ErrorKit.nestedCaughtMessage(for: error))
         """
     case .caught(let error):
-      return nestedUserFriendlyCaughtMessage(error)
+      return ErrorKit.nestedCaughtMessage(for: error)
     }
   }
 }

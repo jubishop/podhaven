@@ -56,16 +56,14 @@ struct Log {
     SentrySDK.capture(message: message)
     #endif
 
-    let stackTrace = StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n  ")
-
     fatalError(
       """
       ----------------------------------------------------------------------------------------------
       ❗️ Fatal from: [\(fileName(from: file)):\(line) \(function)]
-        \(message)
+      \(message)
 
       🧱 Call stack:
-        \(stackTrace)
+        \(StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n  "))
       ----------------------------------------------------------------------------------------------
       """
     )
@@ -94,7 +92,7 @@ struct Log {
   }
 
   static func report(
-    _ error: any KittedError,
+    _ error: Error,
     file: String = #file,
     function: StaticString = #function,
     line: UInt = #line
@@ -103,7 +101,7 @@ struct Log {
   }
 
   func report(
-    _ error: any KittedError,
+    _ error: Error,
     file: String = #file,
     function: StaticString = #function,
     line: UInt = #line
@@ -175,23 +173,21 @@ struct Log {
     guard shouldLog(.error)
     else { return }
 
-    let stackTrace = StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n  ")
-
     logger.error(
       """
       ----------------------------------------------------------------------------------------------
       ⚡️ Error from: [\(Self.fileName(from: file)):\(line) \(function)]:
-        \(message)
+      \(message)
 
       🧱 Call stack:
-        \(stackTrace)
+        \(StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n  "))
       ----------------------------------------------------------------------------------------------
       """
     )
   }
 
   static func error(
-    _ error: any KittedError,
+    _ error: Error,
     file: String = #file,
     function: StaticString = #function,
     line: UInt = #line
@@ -200,7 +196,7 @@ struct Log {
   }
 
   func error(
-    _ error: any KittedError,
+    _ error: Error,
     file: String = #file,
     function: StaticString = #function,
     line: UInt = #line
@@ -208,17 +204,14 @@ struct Log {
     guard shouldLog(.error)
     else { return }
 
-    let stackTrace = StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n  ")
-    let errorMessage = error.userFriendlyMessage
-
     logger.error(
       """
       ----------------------------------------------------------------------------------------------
       ⚡️ Error from: [\(Self.fileName(from: file)):\(line) \(function)]:
-        \(errorMessage)
+      \(ErrorKit.loggableMessage(for: error))
 
       🧱 Call stack:
-        \(stackTrace)
+        \(StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n  "))
       ----------------------------------------------------------------------------------------------
       """
     )

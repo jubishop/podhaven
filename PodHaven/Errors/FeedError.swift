@@ -2,20 +2,20 @@
 
 import Foundation
 
-enum FeedError: KittedError {
+enum FeedError: ReadableError, CatchingError {
   case parseFailure(url: FeedURL, caught: Error)
   case caught(Error)
 
-  var userFriendlyMessage: String {
+  var message: String {
     switch self {
     case .parseFailure(let url, let error):
       return
         """
         Failed to parse feed at \(url)
-        \(Self.nestedUserFriendlyCaughtMessage(for: error))
+        \(ErrorKit.nestedCaughtMessage(for: error))
         """
     case .caught(let error):
-      return nestedUserFriendlyCaughtMessage(error)
+      return ErrorKit.nestedCaughtMessage(for: error)
     }
   }
 }

@@ -2,23 +2,20 @@
 
 import Foundation
 
-enum SearchError: KittedError {
+enum SearchError: ReadableError {
   case fetchFailure(request: URLRequest, caught: Error)
   case parseFailure(Data)
-  case caught(Error)
 
-  var userFriendlyMessage: String {
+  var message: String {
     switch self {
     case .fetchFailure(let request, let error):
       return
         """
         Failed to fetch url: \(request) ->
-        \(Self.nestedUserFriendlyCaughtMessage(for: error))
+        \(ErrorKit.nestedCaughtMessage(for: error))
         """
     case .parseFailure:
       return "Failed to parse search response"
-    case .caught(let error):
-      return nestedUserFriendlyCaughtMessage(error)
     }
   }
 }

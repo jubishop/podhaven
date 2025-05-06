@@ -2,11 +2,10 @@
 
 import Foundation
 
-enum PlaybackError: KittedError {
+enum PlaybackError: ReadableError {
   case mediaNotPlayable(PodcastEpisode)
-  case caught(Error)
 
-  var userFriendlyMessage: String {
+  var message: String {
     switch self {
     case .mediaNotPlayable(let podcastEpisode):
       return
@@ -15,8 +14,6 @@ enum PlaybackError: KittedError {
           PodcastEpisode: \(podcastEpisode.toString)
           MediaURL: \(podcastEpisode.episode.media)
         """
-    case .caught(let error):
-      return nestedUserFriendlyCaughtMessage(error)
     }
   }
 }

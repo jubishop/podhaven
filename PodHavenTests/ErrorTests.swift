@@ -7,7 +7,7 @@ import Testing
 
 @testable import PodHaven
 
-enum FakeFormattedError: KittedError {
+enum FakeError: ReadableError, CatchingError {
   case doubleFailure(one: Error, two: Error)
   case failure(underlying: Error)
   case leaf
@@ -15,21 +15,21 @@ enum FakeFormattedError: KittedError {
   case simple(String)
   case caught(Error)
 
-  var userFriendlyMessage: String {
+  var message: String {
     switch self {
     case .doubleFailure(let one, let two):
       return
         """
         Failure
-          One: \(Self.nestedUserFriendlyMessage(for: one))
-          Two: \(Self.nestedUserFriendlyMessage(for: two))
+        One: \(ErrorKit.nestedCaughtMessage(for: one))
+        Two: \(ErrorKit.nestedCaughtMessage(for: two))
         Done
         """
     case .failure(let underlying):
       return
         """
         Failure
-          \(Self.nestedUserFriendlyMessage(for: underlying))
+        \(ErrorKit.nestedCaughtMessage(for: underlying))
         """
     case .leaf:
       return
@@ -43,38 +43,42 @@ enum FakeFormattedError: KittedError {
         """
         Leaf
         Wrapping:
-          \(Self.nestedUserFriendlyMessage(for: underlying))
+        \(ErrorKit.nestedCaughtMessage(for: underlying))
         """
     case .simple(let message):
       return message
     case .caught(let error):
-      return nestedUserFriendlyCaughtMessage(error)
+      return ErrorKit.nestedCaughtMessage(for: error)
     }
   }
 }
 
-@Suite("of KittedError formatting tests")
-struct KittedErrorFormattingTests {
+@Suite("of error tests")
+struct ErrorTests {
   private let repo: Repo = .inMemory()
 
   @Test("messages with caught generic at end")
   func testMessagesCaughtGenericAtEnd() {
-    let error = FakeFormattedError.failure(
-      underlying: FakeFormattedError.failure(
-        underlying: FakeFormattedError.failure(
-          underlying: FakeFormattedError.caught(
-            FakeFormattedError.simple("Generic edge case")
+    let error = FakeError.failure(
+      underlying: FakeError.failure(
+        underlying: FakeError.failure(
+          underlying: FakeError.caught(
+            FakeError.simple("Generic edge case")
           )
         )
       )
     )
 
     #expect(
-      error.userFriendlyMessage == """
+      ErrorKit.loggableMessage(for: error) == """
+        [FakeError.failure]
         Failure
+        FakeError.failure ->
           Failure
+          FakeError.failure ->
             Failure
-              FakeFormattedError ->
+            FakeError.caught ->
+              FakeError.simple ->
                 Generic edge case
         """
     )
@@ -82,22 +86,26 @@ struct KittedErrorFormattingTests {
 
   @Test("messages with caught kitted at end")
   func testMessagesCaughtKittedAtEnd() {
-    let error = FakeFormattedError.failure(
-      underlying: FakeFormattedError.failure(
-        underlying: FakeFormattedError.failure(
-          underlying: FakeFormattedError.caught(
-            FakeFormattedError.leaf
+    let error = FakeError.failure(
+      underlying: FakeError.failure(
+        underlying: FakeError.failure(
+          underlying: FakeError.caught(
+            FakeError.leaf
           )
         )
       )
     )
 
     #expect(
-      error.userFriendlyMessage == """
+      ErrorKit.loggableMessage(for: error) == """
+        [FakeError.failure]
         Failure
+        FakeError.failure ->
           Failure
+          FakeError.failure ->
             Failure
-              FakeFormattedError ->
+            FakeError.caught ->
+              FakeError.leaf ->
                 Leaf
                 Line Two
                   Indented Line
@@ -107,14 +115,14 @@ struct KittedErrorFormattingTests {
 
   @Test("messages with caught kitted in middle")
   func testFormattingNestedUserFriendlyMessagesKittedAtEnd() {
-    let error = FakeFormattedError.failure(
-      underlying: FakeFormattedError.failure(
-        underlying: FakeFormattedError.failure(
-          underlying: FakeFormattedError.caught(
-            FakeFormattedError.failure(
-              underlying: FakeFormattedError.failure(
-                underlying: FakeFormattedError.leafUnderlying(
-                  underlying: FakeFormattedError.simple("Generic edge case")
+    let error = FakeError.failure(
+      underlying: FakeError.failure(
+        underlying: FakeError.failure(
+          underlying: FakeError.caught(
+            FakeError.failure(
+              underlying: FakeError.failure(
+                underlying: FakeError.leafUnderlying(
+                  underlying: FakeError.simple("Generic edge case")
                 )
               )
             )
@@ -124,15 +132,22 @@ struct KittedErrorFormattingTests {
     )
 
     #expect(
-      error.userFriendlyMessage == """
+      ErrorKit.loggableMessage(for: error) == """
+        [FakeError.failure]
         Failure
+        FakeError.failure ->
           Failure
+          FakeError.failure ->
             Failure
-              FakeFormattedError ->
+            FakeError.caught ->
+              FakeError.failure ->
                 Failure
+                FakeError.failure ->
                   Failure
+                  FakeError.leafUnderlying ->
                     Leaf
                     Wrapping:
+                    FakeError.simple ->
                       Generic edge case
         """
     )
@@ -140,14 +155,14 @@ struct KittedErrorFormattingTests {
 
   @Test("messages with double failure")
   func testFormattingDoubleFailure() {
-    let error = FakeFormattedError.failure(
-      underlying: FakeFormattedError.failure(
-        underlying: FakeFormattedError.doubleFailure(
-          one: FakeFormattedError.caught(
-            FakeFormattedError.failure(
-              underlying: FakeFormattedError.failure(
-                underlying: FakeFormattedError.leafUnderlying(
-                  underlying: FakeFormattedError.simple(
+    let error = FakeError.failure(
+      underlying: FakeError.failure(
+        underlying: FakeError.doubleFailure(
+          one: FakeError.caught(
+            FakeError.failure(
+              underlying: FakeError.failure(
+                underlying: FakeError.leafUnderlying(
+                  underlying: FakeError.simple(
                     """
                     Generic edge case
                     Heyo
@@ -158,9 +173,9 @@ struct KittedErrorFormattingTests {
               )
             )
           ),
-          two: FakeFormattedError.failure(
-            underlying: FakeFormattedError.failure(
-              underlying: FakeFormattedError.leaf
+          two: FakeError.failure(
+            underlying: FakeError.failure(
+              underlying: FakeError.leaf
             )
           )
         )
@@ -168,26 +183,58 @@ struct KittedErrorFormattingTests {
     )
 
     #expect(
-      error.userFriendlyMessage == """
+      ErrorKit.loggableMessage(for: error) == """
+        [FakeError.failure]
         Failure
+        FakeError.failure ->
           Failure
+          FakeError.doubleFailure ->
             Failure
-              One: FakeFormattedError ->
+            One: FakeError.caught ->
+              FakeError.failure ->
                 Failure
+                FakeError.failure ->
                   Failure
+                  FakeError.leafUnderlying ->
                     Leaf
                     Wrapping:
+                    FakeError.simple ->
                       Generic edge case
                       Heyo
                         Indented
-              Two: Failure
+            Two: FakeError.failure ->
+              Failure
+              FakeError.failure ->
                 Failure
+                FakeError.leaf ->
                   Leaf
                   Line Two
                     Indented Line
             Done
         """
     )
+  }
+
+  @Test("simple catching pass through")
+  func testSimpleCatchingPassThrough() {
+    #expect(throws: FakeError.simple("Hello")) {
+      try FakeError.catch {
+        throw FakeError.simple("Hello")
+      }
+    }
+  }
+
+  @Test("catching wraps in caught")
+  func testCatchingWrapsInCaught() {
+    enum CaughtError: Error {
+      case hello
+    }
+
+    #expect(throws: FakeError.caught(CaughtError.hello)) {
+      try FakeError.catch {
+        throw CaughtError.hello
+      }
+    }
   }
 
   @Test("playback error media not playable formatting")
@@ -204,15 +251,17 @@ struct KittedErrorFormattingTests {
       podcast: podcastSeries.podcast,
       episode: podcastSeries.episodes.first!
     )
-    let error = FakeFormattedError.failure(
-      underlying: FakeFormattedError.caught(
+    let error = FakeError.failure(
+      underlying: FakeError.caught(
         PlaybackError.mediaNotPlayable(podcastEpisode)
       )
     )
     #expect(
-      error.userFriendlyMessage == """
+      ErrorKit.loggableMessage(for: error) == """
+        [FakeError.failure]
         Failure
-          FakeFormattedError ->
+        FakeError.caught ->
+          PlaybackError.mediaNotPlayable ->
             MediaURL Not Playable
               PodcastEpisode: Test Episode
               MediaURL: https://example.com/data
@@ -224,12 +273,13 @@ struct KittedErrorFormattingTests {
   func testSearchErrorFetchFailureFormatting() async throws {
     let error = SearchError.fetchFailure(
       request: URLRequest(url: URL(string: "https://example.com/search")!),
-      caught: FakeFormattedError.simple("Failed to fetch")
+      caught: FakeError.simple("Failed to fetch")
     )
     #expect(
-      error.userFriendlyMessage == """
+      ErrorKit.loggableMessage(for: error) == """
+        [SearchError.fetchFailure]
         Failed to fetch url: https://example.com/search ->
-        Caught ->
+        FakeError.simple ->
           Failed to fetch
         """
     )

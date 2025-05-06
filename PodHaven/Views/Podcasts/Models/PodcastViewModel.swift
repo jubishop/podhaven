@@ -58,7 +58,7 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
         self.podcastSeries = podcastSeries
       }
     } catch {
-      Log.report(WrappedError(error))
+      Log.report(error)
     }
   }
 
