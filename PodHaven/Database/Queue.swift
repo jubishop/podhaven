@@ -74,9 +74,35 @@ struct Queue: Sendable {
     else { return }
 
     try await appDB.db.write { db in
-      for episodeID in episodeIDs.reversed() {
-        try _insert(db, episodeID, at: 0)
-      }
+      // Remove any existing episodes
+      try _dequeue(db, episodeIDs)
+
+      // Make space for the new episodes at the beginning of the queue
+      try Episode
+        .filter(Schema.queueOrderColumn != nil)
+        .updateAll(db, Schema.queueOrderColumn += episodeIDs.count)
+
+      // Use a single SQL statement to insert all episodes at once (AI Magic)
+      let positionedEpisodes = episodeIDs.enumerated()
+        .map { (index, id) -> (Episode.ID, Int) in
+          (id, index)
+        }
+      let updates =
+        positionedEpisodes.map { id, position in
+          "WHEN '\(id)' THEN \(position)"
+        }
+        .joined(separator: " ")
+
+      let sql = """
+        UPDATE \(Episode.databaseTableName)
+        SET \(Schema.queueOrderColumn.name.quotedDatabaseIdentifier) = 
+          CASE \(Schema.idColumn.name.quotedDatabaseIdentifier) 
+          \(updates)
+          END
+        WHERE \(Schema.idColumn.name.quotedDatabaseIdentifier) IN (\(episodeIDs.map { "'\($0)'" }.joined(separator: ", ")))
+        """
+
+      try db.execute(sql: sql)
     }
   }
 

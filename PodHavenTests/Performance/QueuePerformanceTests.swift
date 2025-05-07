@@ -49,7 +49,25 @@ class QueuePerformanceTests {
     let endTime = Date()
 
     let duration = endTime.timeIntervalSince(startTime)
-    #expect(duration < 0.5)
+    #expect(duration < 0.5, "Appending episodes took too long")
+
+    let count = try await fetchQueueCount()
+    #expect(count == 5000)
+  }
+
+  @Test("performance of unshifting episodes")
+  func testUnshiftPerformance() async throws {
+    let queuedEpisodeIDs = try await fillQueue(2500)
+    let unqueuedEpisodeIDs = try await makeEpisodes(2500)
+
+    let episodeIDs = (queuedEpisodeIDs + unqueuedEpisodeIDs).shuffled()
+
+    let startTime = Date()
+    try await queue.unshift(episodeIDs)
+    let endTime = Date()
+
+    let duration = endTime.timeIntervalSince(startTime)
+    #expect(duration < 0.5, "Unsifting episodes took too long")
 
     let count = try await fetchQueueCount()
     #expect(count == 5000)

@@ -63,17 +63,7 @@ struct QueueTests {
     #expect(fetchOrder == [0, 1, 2])
   }
 
-  @Test("inserting new episode at top")
-  func insertingNewAtTop() async throws {
-    var topEpisode = try await fetchEpisode("unqtop")
-    try await queue.unshift(topEpisode.id)
-    topEpisode = try await fetchEpisode("unqtop")
-    #expect(topEpisode.queueOrder == 0)
-    let fetchOrder = try await fetchOrder()
-    #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
-  }
-
-  @Test("inserting new episodes at top")
+  @Test("unshifting new episodes")
   func insertingNewEpisodesAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
     var middleEpisode = try await fetchEpisode("unqmiddle")
@@ -86,17 +76,7 @@ struct QueueTests {
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5, 6])
   }
 
-  @Test("inserting existing episode at top")
-  func insertingExistingAtTop() async throws {
-    var bottomEpisode = try await fetchEpisode("bottom")
-    try await queue.unshift(bottomEpisode.id)
-    bottomEpisode = try await fetchEpisode("bottom")
-    #expect(bottomEpisode.queueOrder == 0)
-    let fetchOrder = try await fetchOrder()
-    #expect(fetchOrder == [0, 1, 2, 3, 4])
-  }
-
-  @Test("inserting a new and existing episode at top")
+  @Test("unshifting a new and existing episode")
   func insertingNewAndExistingAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
     var middleEpisode = try await fetchEpisode("middle")
@@ -109,7 +89,7 @@ struct QueueTests {
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
   }
 
-  @Test("inserting existing episodes at top")
+  @Test("unshifting existing episodes")
   func insertingExistingEpisodesAtTop() async throws {
     var bottomEpisode = try await fetchEpisode("bottom")
     var middleEpisode = try await fetchEpisode("middle")
@@ -120,6 +100,16 @@ struct QueueTests {
     #expect(middleEpisode.queueOrder == 1)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4])
+  }
+
+  @Test("inserting a new episode at top")
+  func insertingNewAtTop() async throws {
+    var topEpisode = try await fetchEpisode("unqtop")
+    try await queue.insert(topEpisode.id, at: 0)
+    topEpisode = try await fetchEpisode("unqtop")
+    #expect(topEpisode.queueOrder == 0)
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
   }
 
   @Test("inserting a new episode at middle")
