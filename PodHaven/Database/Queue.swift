@@ -89,13 +89,37 @@ struct Queue: Sendable {
     else { return }
 
     try await appDB.db.write { db in
-      for episodeID in episodeIDs {
-        let maxPosition =
-          (try Episode
-            .select(max(Schema.queueOrderColumn), as: Int.self)
-            .fetchOne(db) ?? -1) + 1
-        try _insert(db, episodeID, at: maxPosition)
-      }
+      try _dequeue(db, episodeIDs)
+
+      // Get the current max position after potential removals
+      let maxPosition =
+        try Episode
+        .select(max(Schema.queueOrderColumn), as: Int.self)
+        .fetchOne(db) ?? -1
+
+      // Add all episodes to the end in one batch operation
+      let positionedEpisodes = episodeIDs.enumerated()
+        .map { (index, id) -> (Episode.ID, Int) in
+          (id, maxPosition + 1 + index)
+        }
+
+      // Use a single SQL statement to update all episodes at once
+      let updates =
+        positionedEpisodes.map { id, position in
+          "WHEN '\(id)' THEN \(position)"
+        }
+        .joined(separator: " ")
+
+      let sql = """
+        UPDATE \(Episode.databaseTableName)
+        SET \(Schema.queueOrderColumn.name.quotedDatabaseIdentifier) = 
+          CASE \(Schema.idColumn.name.quotedDatabaseIdentifier) 
+          \(updates)
+          END
+        WHERE \(Schema.idColumn.name.quotedDatabaseIdentifier) IN (\(episodeIDs.map { "'\($0)'" }.joined(separator: ", ")))
+        """
+
+      try db.execute(sql: sql)
     }
   }
 
