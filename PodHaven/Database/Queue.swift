@@ -38,7 +38,11 @@ struct Queue: Sendable {
 
   func replace(_ episodeIDs: [Episode.ID]) async throws {
     try await appDB.db.write { db in
-      try _replace(db, episodeIDs)
+      try _clear(db)
+
+      for (index, episodeID) in episodeIDs.enumerated() {
+        try _setToPosition(db, episodeID: episodeID, position: index)
+      }
     }
   }
 
@@ -182,17 +186,6 @@ struct Queue: Sendable {
     else { Log.fatal("setToPosition method requires a transaction") }
 
     try Episode.withID(episodeID).updateAll(db, Schema.queueOrderColumn.set(to: position))
-  }
-
-  private func _replace(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
-    guard db.isInsideTransaction
-    else { Log.fatal("replace method requires a transaction") }
-
-    try _clear(db)
-
-    for (index, episodeID) in episodeIDs.enumerated() {
-      try _setToPosition(db, episodeID: episodeID, position: index)
-    }
   }
 
   private func _clear(_ db: Database) throws {
