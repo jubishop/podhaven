@@ -2,7 +2,6 @@
 
 import Foundation
 import GRDB
-import OSLog
 
 struct AppDB: Sendable {
   #if DEBUG
@@ -11,7 +10,7 @@ struct AppDB: Sendable {
       let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
       return try AppDB(dbQueue)
     } catch {
-      Log.fatal("Failed to initialize inMemory AppDB: \(error)")
+      Log.fatal("Failed to initialize inMemory AppDB queue: \(error)")
     }
   }
   #endif
@@ -24,7 +23,7 @@ struct AppDB: Sendable {
       )
       return try AppDB(dbPool)
     } catch {
-      Log.fatal("Failed to initialize onDisk AppDB: \(error)")
+      Log.fatal("Failed to initialize onDisk AppDB pool: \(error)")
     }
   }()
   static func onDisk(_ key: RepoAccessKey) -> AppDB { _onDisk }
@@ -32,6 +31,17 @@ struct AppDB: Sendable {
 
   #if DEBUG
   static let onDisk = { _onDisk }()
+  static func onDisk(_ fileName: String) -> AppDB {
+    do {
+      let dbQueue = try DatabaseQueue(
+        path: URL.temporaryDirectory.appendingPathComponent(fileName).path,
+        configuration: makeConfiguration()
+      )
+      return try AppDB(dbQueue)
+    } catch {
+      Log.fatal("Failed to initialize onDisk AppDB queue: \(error)")
+    }
+  }
   #endif
 
   // MARK: - Shorthand Expression Constants
@@ -67,4 +77,14 @@ struct AppDB: Sendable {
     self.db = db
     try Schema.makeMigrator().migrate(db)
   }
+
+  #if DEBUG
+  func tearDown() {
+    do {
+      try db.erase()
+    } catch {
+      Log.fatal("Failed to erase db in tearDown: \(error)")
+    }
+  }
+  #endif
 }

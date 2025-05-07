@@ -7,21 +7,27 @@ import Testing
 @testable import PodHaven
 
 @Suite("of Queue performance tests", .serialized)
-struct QueuePerformanceTests {
+class QueuePerformanceTests {
+  private let appDB: AppDB
   private let repo: Repo
   private let queue: Queue
 
   init() async throws {
-    let appDB = AppDB.inMemory()
+    appDB = AppDB.onDisk("queuePerformanceTests.sqlite")
     repo = Repo.initForTest(appDB)
     queue = Queue.initForTest(appDB)
   }
 
-  @Test("performance of dequeuing 2000 episodes")
+  deinit {
+    appDB.tearDown()
+  }
+
+  @Test("performance of dequeuing episodes")
   func testDequeuePerformance() async throws {
+    let numberOfEpisodes = 2000
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
-    var unsavedEpisodes: [UnsavedEpisode] = []
-    for index in 0..<2000 {
+    var unsavedEpisodes: [UnsavedEpisode] = Array(capacity: numberOfEpisodes)
+    for index in 0..<numberOfEpisodes {
       unsavedEpisodes.append(
         try TestHelpers.unsavedEpisode(guid: "perf_\(index)", queueOrder: index)
       )
@@ -29,7 +35,7 @@ struct QueuePerformanceTests {
     let series = try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
     let episodeIDs = series.episodes.map(\.id).shuffled()
 
-    #expect((try await fetchOrder()).count == 2000)
+    #expect((try await fetchOrder()).count == numberOfEpisodes)
 
     // Measure dequeue performance
     let startTime = Date()
@@ -38,10 +44,9 @@ struct QueuePerformanceTests {
 
     // Calculate and print duration
     let duration = endTime.timeIntervalSince(startTime)
-    print("Dequeuing 2000 episodes took \(duration) seconds")
+    print("Dequeuing \(numberOfEpisodes) episodes took \(duration) seconds")
 
     // Verify queue is empty
-    print(try await fetchOrder())
     #expect((try await fetchOrder()).isEmpty)
   }
 
