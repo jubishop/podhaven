@@ -38,11 +38,7 @@ struct Queue: Sendable {
 
   func replace(_ episodeIDs: [Episode.ID]) async throws {
     try await appDB.db.write { db in
-      try _clear(db)
-
-      for (index, episodeID) in episodeIDs.enumerated() {
-        try _setToPosition(db, episodeID: episodeID, position: index)
-      }
+      try _replace(db, episodeIDs)
     }
   }
 
@@ -65,7 +61,7 @@ struct Queue: Sendable {
 
   func insert(_ episodeID: Episode.ID, at newPosition: Int) async throws {
     try await appDB.db.write { db in
-      try _insert(db, episodeID: episodeID, at: newPosition)
+      try _insert(db, episodeID, at: newPosition)
     }
   }
 
@@ -75,7 +71,7 @@ struct Queue: Sendable {
 
     try await appDB.db.write { db in
       for episodeID in episodeIDs.reversed() {
-        try _insert(db, episodeID: episodeID, at: 0)
+        try _insert(db, episodeID, at: 0)
       }
     }
   }
@@ -94,7 +90,7 @@ struct Queue: Sendable {
           (try Episode
             .select(max(Schema.queueOrderColumn), as: Int.self)
             .fetchOne(db) ?? -1) + 1
-        try _insert(db, episodeID: episodeID, at: maxPosition)
+        try _insert(db, episodeID, at: maxPosition)
       }
     }
   }
@@ -112,12 +108,35 @@ struct Queue: Sendable {
     guard !episodeIDs.isEmpty
     else { return }
 
-    for episodeID in episodeIDs {
-      guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
-      else { continue }
+    guard episodeIDs.count > 1 else {
+      guard let episodeID = episodeIDs.first
+      else { return }
 
-      try _move (db, episodeID: episodeID, from: oldPosition, to: Int.max)
+      guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
+      else { return }
+
+      try _move (db, episodeID, from: oldPosition, to: Int.max)
       try Episode.withID(episodeID).updateAll(db, Schema.queueOrderColumn.set(to: nil))
+      return
+    }
+
+    let episodeIDSet = Set(episodeIDs)
+    let queuedEpisodeIDs = try Episode.all()
+      .inQueue()
+      .order(Schema.queueOrderColumn.asc)
+      .select(Schema.idColumn, as: Episode.ID.self)
+      .fetchAll(db)
+
+    var currentQueuePosition = 0
+    for queuedEpisodeID in queuedEpisodeIDs {
+      if episodeIDSet.contains(queuedEpisodeID) {
+        try Episode.withID(queuedEpisodeID).updateAll(db, Schema.queueOrderColumn.set(to: nil))
+      } else {
+        try Episode
+          .withID(queuedEpisodeID)
+          .updateAll(db, Schema.queueOrderColumn.set(to: currentQueuePosition))
+        currentQueuePosition += 1
+      }
     }
   }
 
@@ -130,7 +149,7 @@ struct Queue: Sendable {
 
   private func _insert(
     _ db: Database,
-    episodeID: Episode.ID,
+    _ episodeID: Episode.ID,
     at newPosition: Int
   ) throws {
     guard db.isInsideTransaction
@@ -138,13 +157,13 @@ struct Queue: Sendable {
 
     let oldPosition = try _fetchOldPosition(db, for: episodeID) ?? Int.max
     let computedNewPosition = newPosition > oldPosition ? newPosition - 1 : newPosition
-    try _move (db, episodeID: episodeID, from: oldPosition, to: computedNewPosition)
+    try _move (db, episodeID, from: oldPosition, to: computedNewPosition)
     try _setToPosition(db, episodeID: episodeID, position: computedNewPosition)
   }
 
   private func _move(
     _ db: Database,
-    episodeID: Episode.ID,
+    _ episodeID: Episode.ID,
     from oldPosition: Int,
     to newPosition: Int
   ) throws {
@@ -170,6 +189,17 @@ struct Queue: Sendable {
     else { Log.fatal("setToPosition method requires a transaction") }
 
     try Episode.withID(episodeID).updateAll(db, Schema.queueOrderColumn.set(to: position))
+  }
+
+  private func _replace(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
+    guard db.isInsideTransaction
+    else { Log.fatal("replace method requires a transaction") }
+
+    try _clear(db)
+
+    for (index, episodeID) in episodeIDs.enumerated() {
+      try _setToPosition(db, episodeID: episodeID, position: index)
+    }
   }
 
   private func _clear(_ db: Database) throws {
