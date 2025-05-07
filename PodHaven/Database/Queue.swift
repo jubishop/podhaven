@@ -82,27 +82,12 @@ struct Queue: Sendable {
         .filter(Schema.queueOrderColumn != nil)
         .updateAll(db, Schema.queueOrderColumn += episodeIDs.count)
 
-      // Use a single SQL statement to insert all episodes at once (AI Magic)
-      let positionedEpisodes = episodeIDs.enumerated()
-        .map { (index, id) -> (Episode.ID, Int) in
-          (id, index)
-        }
-      let updates =
-        positionedEpisodes.map { id, position in
-          "WHEN '\(id)' THEN \(position)"
-        }
-        .joined(separator: " ")
-
-      let sql = """
-        UPDATE \(Episode.databaseTableName)
-        SET \(Schema.queueOrderColumn.name.quotedDatabaseIdentifier) = 
-          CASE \(Schema.idColumn.name.quotedDatabaseIdentifier) 
-          \(updates)
-          END
-        WHERE \(Schema.idColumn.name.quotedDatabaseIdentifier) IN (\(episodeIDs.map { "'\($0)'" }.joined(separator: ", ")))
-        """
-
-      try db.execute(sql: sql)
+      // Assign queue positions to the incoming episodes
+      for (index, id) in episodeIDs.enumerated() {
+        try Episode
+          .filter(Schema.idColumn == id)
+          .updateAll(db, Schema.queueOrderColumn.set(to: index))
+      }
     }
   }
 
