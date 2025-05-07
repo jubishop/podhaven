@@ -102,42 +102,35 @@ struct Queue: Sendable {
   // MARK: - Private Helpers
 
   private func _dequeue(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
-    guard db.isInsideTransaction
-    else { Log.fatal("dequeue method requires a transaction") }
+    // 1) Nothing to do?
+    guard !episodeIDs.isEmpty else { return }
 
-    guard !episodeIDs.isEmpty
-    else { return }
+    // 2) Clear queueOrder for the dequeued episodes
+    try Episode
+      .filter(episodeIDs.contains(Schema.idColumn))
+      .updateAll(db, Schema.queueOrderColumn.set(to: nil))
 
-    guard episodeIDs.count > 1 else {
-      guard let episodeID = episodeIDs.first
-      else { return }
+    // 3) Use a row numbered CTE to efficiently reorder remaining episodes (AI magic)
+    let sql = """
+      WITH numbered_rows AS (
+        SELECT 
+          ROW_NUMBER() OVER (ORDER BY \(Schema.queueOrderColumn.name.quotedDatabaseIdentifier)) - 1 AS new_position,
+          \(Schema.idColumn.name.quotedDatabaseIdentifier) AS episode_id
+        FROM \(Episode.databaseTableName)
+        WHERE \(Schema.queueOrderColumn.name.quotedDatabaseIdentifier) IS NOT NULL
+      )
+      UPDATE \(Episode.databaseTableName)
+      SET \(Schema.queueOrderColumn.name.quotedDatabaseIdentifier) = (
+        SELECT new_position
+        FROM numbered_rows
+        WHERE numbered_rows.episode_id = \(Episode.databaseTableName).\(Schema.idColumn.name.quotedDatabaseIdentifier)
+      )
+      WHERE \(Schema.idColumn.name.quotedDatabaseIdentifier) IN (
+        SELECT episode_id FROM numbered_rows
+      )
+      """
 
-      guard let oldPosition = try _fetchOldPosition(db, for: episodeID)
-      else { return }
-
-      try _move (db, episodeID, from: oldPosition, to: Int.max)
-      try Episode.withID(episodeID).updateAll(db, Schema.queueOrderColumn.set(to: nil))
-      return
-    }
-
-    let episodeIDSet = Set(episodeIDs)
-    let queuedEpisodeIDs = try Episode.all()
-      .inQueue()
-      .order(Schema.queueOrderColumn.asc)
-      .select(Schema.idColumn, as: Episode.ID.self)
-      .fetchAll(db)
-
-    var currentQueuePosition = 0
-    for queuedEpisodeID in queuedEpisodeIDs {
-      if episodeIDSet.contains(queuedEpisodeID) {
-        try Episode.withID(queuedEpisodeID).updateAll(db, Schema.queueOrderColumn.set(to: nil))
-      } else {
-        try Episode
-          .withID(queuedEpisodeID)
-          .updateAll(db, Schema.queueOrderColumn.set(to: currentQueuePosition))
-        currentQueuePosition += 1
-      }
-    }
+    try db.execute(sql: sql)
   }
 
   private func _fetchOldPosition(_ db: Database, for episodeID: Episode.ID) throws -> Int? {

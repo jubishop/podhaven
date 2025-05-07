@@ -29,19 +29,22 @@ struct QueueTests {
         TestHelpers.unsavedEpisode(guid: "unqtop"),
       ]
     )
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4])
   }
 
   @Test("clearing queue")
   func clearQueue() async throws {
     try await queue.clear()
-    #expect((try await fetchOrder()) == [])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [])
   }
 
   @Test("replacing queue with empty list effectively clears queue")
   func replaceQueueWithEmptyList() async throws {
     try await queue.replace([])
-    #expect((try await fetchOrder()) == [])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [])
   }
 
   @Test("replacing entire queue")
@@ -56,7 +59,8 @@ struct QueueTests {
     #expect(topEpisode.queueOrder == 0)
     #expect(middleEpisode.queueOrder == 1)
     #expect(bottomEpisode.queueOrder == 2)
-    #expect((try await fetchOrder()) == [0, 1, 2])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2])
   }
 
   @Test("inserting new episode at top")
@@ -65,7 +69,8 @@ struct QueueTests {
     try await queue.unshift(topEpisode.id)
     topEpisode = try await fetchEpisode("unqtop")
     #expect(topEpisode.queueOrder == 0)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
   }
 
   @Test("inserting new episodes at top")
@@ -77,7 +82,8 @@ struct QueueTests {
     middleEpisode = try await fetchEpisode("unqmiddle")
     #expect(topEpisode.queueOrder == 0)
     #expect(middleEpisode.queueOrder == 1)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5, 6])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4, 5, 6])
   }
 
   @Test("inserting existing episode at top")
@@ -86,7 +92,8 @@ struct QueueTests {
     try await queue.unshift(bottomEpisode.id)
     bottomEpisode = try await fetchEpisode("bottom")
     #expect(bottomEpisode.queueOrder == 0)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4])
   }
 
   @Test("inserting a new and existing episode at top")
@@ -98,7 +105,8 @@ struct QueueTests {
     middleEpisode = try await fetchEpisode("middle")
     #expect(topEpisode.queueOrder == 0)
     #expect(middleEpisode.queueOrder == 1)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
   }
 
   @Test("inserting existing episodes at top")
@@ -110,7 +118,8 @@ struct QueueTests {
     middleEpisode = try await fetchEpisode("middle")
     #expect(bottomEpisode.queueOrder == 0)
     #expect(middleEpisode.queueOrder == 1)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4])
   }
 
   @Test("inserting a new episode at middle")
@@ -119,7 +128,8 @@ struct QueueTests {
     try await queue.insert(middleEpisode.id, at: 3)
     middleEpisode = try await fetchEpisode("unqmiddle")
     #expect(middleEpisode.queueOrder == 3)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
   }
 
   @Test("inserting a new episode at bottom")
@@ -128,7 +138,8 @@ struct QueueTests {
     try await queue.insert(bottomEpisode.id, at: 5)
     bottomEpisode = try await fetchEpisode("unqbottom")
     #expect(bottomEpisode.queueOrder == 5)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
   }
 
   @Test("dequeing an episode")
@@ -137,7 +148,8 @@ struct QueueTests {
     try await queue.dequeue(midTopEpisode.id)
     midTopEpisode = try await fetchEpisode("midtop")
     #expect(midTopEpisode.queueOrder == nil)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3])
   }
 
   @Test("dequeing episodes")
@@ -152,7 +164,8 @@ struct QueueTests {
     #expect(topEpisode.queueOrder == nil)
     #expect(middleEpisode.queueOrder == nil)
     #expect(bottomEpisode.queueOrder == nil)
-    #expect((try await fetchOrder()) == [0, 1])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1])
   }
 
   @Test("appending existing episodes")
@@ -164,7 +177,8 @@ struct QueueTests {
     topEpisode = try await fetchEpisode("top")
     #expect(middleEpisode.queueOrder == 3)
     #expect(topEpisode.queueOrder == 4)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4])
   }
 
   @Test("appending new episodes")
@@ -176,7 +190,8 @@ struct QueueTests {
     bottomEpisode = try await fetchEpisode("unqbottom")
     #expect(topEpisode.queueOrder == 5)
     #expect(bottomEpisode.queueOrder == 6)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5, 6])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4, 5, 6])
   }
 
   @Test("appending an existing and new episode")
@@ -188,7 +203,8 @@ struct QueueTests {
     topEpisode = try await fetchEpisode("unqtop")
     #expect(middleEpisode.queueOrder == 4)
     #expect(topEpisode.queueOrder == 5)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4, 5])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
   }
 
   @Test("inserting an existing episode below current location")
@@ -197,7 +213,8 @@ struct QueueTests {
     try await queue.insert(midTopEpisode.id, at: 3)
     midTopEpisode = try await fetchEpisode("midtop")
     #expect(midTopEpisode.queueOrder == 2)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4])
   }
 
   @Test("inserting an existing episode above current location")
@@ -206,7 +223,8 @@ struct QueueTests {
     try await queue.insert(midBottomEpisode.id, at: 1)
     midBottomEpisode = try await fetchEpisode("midbottom")
     #expect(midBottomEpisode.queueOrder == 1)
-    #expect((try await fetchOrder()) == [0, 1, 2, 3, 4])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3, 4])
   }
 
   @Test("deleting a podcast series dequeues any episodes")
@@ -225,7 +243,8 @@ struct QueueTests {
     )
 
     try await repo.delete([podcastSeries.podcast.id, otherSeriesToDelete.podcast.id])
-    #expect((try await fetchOrder()) == [0])
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0])
 
     let episode = try await fetchEpisode("other", from: otherSeries)
     #expect(episode.queueOrder == 0)

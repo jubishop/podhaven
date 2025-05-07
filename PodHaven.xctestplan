@@ -23,57 +23,22 @@
   },
   "testTargets" : [
     {
-      "enabled" : false,
-      "parallelizable" : true,
+      "skippedTests" : {
+        "suites" : [
+          {
+            "name" : "DownloadManagerTests",
+            "testFunctions" : [
+              "maxConcurrentDownloads()"
+            ]
+          }
+        ]
+      },
       "target" : {
         "containerPath" : "container:PodHaven.xcodeproj",
         "identifier" : "8BD7F92F2CF2A49100CEDAA7",
         "name" : "ParallelTests"
       }
-    },
-    {
-      "enabled" : false,
-      "parallelizable" : false,
-      "selectedTests" : {
-        "suites" : [
-          {
-            "name" : "PlayManagerTests",
-            "testFunctions" : [
-              "example()"
-            ]
-          }
-        ]
-      },
-      "target" : {
-        "containerPath" : "container:PodHaven.xcodeproj",
-        "identifier" : "8B8475C32DC0B87200C6C2A5",
-        "name" : "SerialTests"
-      }
-    },
-    {
-      "parallelizable" : false,
-      "selectedTests" : {
-        "suites" : [
-          {
-            "name" : "PlayManagerTests",
-            "testFunctions" : [
-              "testDequeuePerformance()"
-            ]
-          },
-          {
-            "name" : "QueuePerformanceTests",
-            "testFunctions" : [
-              "testDequeuePerformance()"
-            ]
-          }
-        ]
-      },
-      "target" : {
-        "containerPath" : "container:PodHaven.xcodeproj",
-        "identifier" : "8B9B8B252DCBB25500E574E6",
-        "name" : "PerformanceTests"
-      }
     }
   ],
-  "version" : 1
+  "version" : 2
 }

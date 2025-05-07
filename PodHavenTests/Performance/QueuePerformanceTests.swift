@@ -24,7 +24,7 @@ class QueuePerformanceTests {
 
   @Test("performance of dequeuing episodes")
   func testDequeuePerformance() async throws {
-    let numberOfEpisodes = 2000
+    let numberOfEpisodes = 10000
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
     var unsavedEpisodes: [UnsavedEpisode] = Array(capacity: numberOfEpisodes)
     for index in 0..<numberOfEpisodes {
@@ -32,21 +32,20 @@ class QueuePerformanceTests {
         try TestHelpers.unsavedEpisode(guid: "perf_\(index)", queueOrder: index)
       )
     }
+
     let series = try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
     let episodeIDs = series.episodes.map(\.id).shuffled()
 
     #expect((try await fetchOrder()).count == numberOfEpisodes)
 
-    // Measure dequeue performance
     let startTime = Date()
     try await queue.dequeue(episodeIDs)
     let endTime = Date()
 
-    // Calculate and print duration
     let duration = endTime.timeIntervalSince(startTime)
-    print("Dequeuing \(numberOfEpisodes) episodes took \(duration) seconds")
+    Log.info("Dequeuing \(numberOfEpisodes) episodes took \(duration) seconds")
+    #expect(duration < 0.1)
 
-    // Verify queue is empty
     #expect((try await fetchOrder()).isEmpty)
   }
 
