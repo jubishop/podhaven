@@ -39,8 +39,8 @@ class QueuePerformanceTests {
 
   @Test("performance of appending episodes")
   func testAppendPerformance() async throws {
-    let queuedEpisodeIDs = try await fillQueue(1000)
-    let unqueuedEpisodeIDs = try await makeEpisodes(1000)
+    let queuedEpisodeIDs = try await fillQueue(2500)
+    let unqueuedEpisodeIDs = try await makeEpisodes(2500)
 
     let episodeIDs = (queuedEpisodeIDs + unqueuedEpisodeIDs).shuffled()
 
@@ -49,11 +49,10 @@ class QueuePerformanceTests {
     let endTime = Date()
 
     let duration = endTime.timeIntervalSince(startTime)
-    Log.info("Appending episodes took \(duration) seconds")
-    // #expect(duration < 0.1)
+    #expect(duration < 0.5)
 
     let count = try await fetchQueueCount()
-    #expect(count == 2000)
+    #expect(count == 5000)
   }
 
   // MARK: - Helpers
