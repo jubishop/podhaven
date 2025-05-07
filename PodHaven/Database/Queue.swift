@@ -89,6 +89,7 @@ struct Queue: Sendable {
     else { return }
 
     try await appDB.db.write { db in
+      // Remove any existing episodes
       try _dequeue(db, episodeIDs)
 
       // Get the current max position after potential removals
@@ -97,13 +98,11 @@ struct Queue: Sendable {
         .select(max(Schema.queueOrderColumn), as: Int.self)
         .fetchOne(db) ?? -1
 
-      // Add all episodes to the end in one batch operation
+      // Use a single SQL statement to append all episodes at once (AI Magic)
       let positionedEpisodes = episodeIDs.enumerated()
         .map { (index, id) -> (Episode.ID, Int) in
           (id, maxPosition + 1 + index)
         }
-
-      // Use a single SQL statement to update all episodes at once
       let updates =
         positionedEpisodes.map { id, position in
           "WHEN '\(id)' THEN \(position)"
@@ -130,15 +129,15 @@ struct Queue: Sendable {
   // MARK: - Private Helpers
 
   private func _dequeue(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
-    // 1) Nothing to do?
-    guard !episodeIDs.isEmpty else { return }
+    guard !episodeIDs.isEmpty
+    else { return }
 
-    // 2) Clear queueOrder for the dequeued episodes
+    // Clear queueOrder for the dequeued episodes
     try Episode
       .filter(episodeIDs.contains(Schema.idColumn))
       .updateAll(db, Schema.queueOrderColumn.set(to: nil))
 
-    // 3) Use a row numbered CTE to efficiently reorder remaining episodes (AI magic)
+    // Use a row numbered CTE to efficiently reorder remaining episodes (AI magic)
     let sql = """
       WITH numbered_rows AS (
         SELECT 
