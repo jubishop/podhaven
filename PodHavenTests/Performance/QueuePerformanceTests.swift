@@ -24,40 +24,76 @@ class QueuePerformanceTests {
 
   @Test("performance of dequeuing episodes")
   func testDequeuePerformance() async throws {
-    let numberOfEpisodes = 10000
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
-    var unsavedEpisodes: [UnsavedEpisode] = Array(capacity: numberOfEpisodes)
-    for index in 0..<numberOfEpisodes {
-      unsavedEpisodes.append(
-        try TestHelpers.unsavedEpisode(guid: "perf_\(index)", queueOrder: index)
-      )
-    }
-
-    let series = try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
-    let episodeIDs = series.episodes.map(\.id).shuffled()
-
-    #expect((try await fetchOrder()).count == numberOfEpisodes)
+    let episodeIDs = try await fillQueue(10000)
 
     let startTime = Date()
     try await queue.dequeue(episodeIDs)
     let endTime = Date()
 
     let duration = endTime.timeIntervalSince(startTime)
-    Log.info("Dequeuing \(numberOfEpisodes) episodes took \(duration) seconds")
+    Log.info("Dequeuing episodes took \(duration) seconds")
     #expect(duration < 0.1)
 
-    #expect((try await fetchOrder()).isEmpty)
+    let count = try await fetchQueueCount()
+    #expect(count == 0)
+  }
+
+  @Test("performance of appending episodes")
+  func testAppendPerformance() async throws {
+    let queuedEpisodeIDs = try await fillQueue(1000)
+    let unqueuedEpisodeIDs = try await makeEpisodes(1000)
+
+    let episodeIDs = (queuedEpisodeIDs + unqueuedEpisodeIDs).shuffled()
+
+    let startTime = Date()
+    try await queue.append(episodeIDs)
+    let endTime = Date()
+
+    let duration = endTime.timeIntervalSince(startTime)
+    Log.info("Appending episodes took \(duration) seconds")
+    // #expect(duration < 0.1)
+
+    let count = try await fetchQueueCount()
+    #expect(count == 2000)
   }
 
   // MARK: - Helpers
 
-  private func fetchOrder() async throws -> [Int] {
-    let episodes = try await repo.db.read { db in
+  private func makeEpisodes(_ numberOfEpisodes: Int) async throws -> [Episode.ID] {
+    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    var unsavedEpisodes: [UnsavedEpisode] = Array(capacity: numberOfEpisodes)
+    for _ in 0..<numberOfEpisodes {
+      unsavedEpisodes.append(
+        try TestHelpers.unsavedEpisode()
+      )
+    }
+
+    let series = try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
+    return series.episodes.map(\.id)
+  }
+
+  private func fillQueue(_ numberOfEpisodes: Int) async throws -> [Episode.ID] {
+    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    var unsavedEpisodes: [UnsavedEpisode] = Array(capacity: numberOfEpisodes)
+    for index in 0..<numberOfEpisodes {
+      unsavedEpisodes.append(
+        try TestHelpers.unsavedEpisode(queueOrder: index)
+      )
+    }
+
+    let series = try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
+
+    let count = try await fetchQueueCount()
+    #expect(count == numberOfEpisodes)
+
+    return series.episodes.map(\.id).shuffled()
+  }
+
+  private func fetchQueueCount() async throws -> Int {
+    try await repo.db.read { db in
       try Episode
         .filter(Column("queueOrder") != nil)
-        .order(Column("queueOrder").asc)
-        .fetchAll(db)
+        .fetchCount(db)
     }
-    return episodes.map { $0.queueOrder ?? -1 }
   }
 }
