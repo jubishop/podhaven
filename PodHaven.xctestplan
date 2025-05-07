@@ -40,7 +40,6 @@
       }
     },
     {
-      "enabled" : false,
       "parallelizable" : false,
       "target" : {
         "containerPath" : "container:PodHaven.xcodeproj",

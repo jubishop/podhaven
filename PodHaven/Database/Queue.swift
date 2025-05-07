@@ -128,32 +128,32 @@ struct Queue: Sendable {
     guard !episodeIDs.isEmpty
     else { return }
 
-    // Clear queueOrder for the dequeued episodes
+    // Remove episodes from queue
     try Episode
       .filter(episodeIDs.contains(Schema.idColumn))
       .updateAll(db, Schema.queueOrderColumn.set(to: nil))
 
-    // Use a row numbered CTE to efficiently reorder remaining episodes (AI magic)
-    let sql = """
-      WITH numbered_rows AS (
-        SELECT 
-          ROW_NUMBER() OVER (ORDER BY \(Schema.queueOrderColumn.name.quotedDatabaseIdentifier)) - 1 AS new_position,
-          \(Schema.idColumn.name.quotedDatabaseIdentifier) AS episode_id
-        FROM \(Episode.databaseTableName)
-        WHERE \(Schema.queueOrderColumn.name.quotedDatabaseIdentifier) IS NOT NULL
-      )
-      UPDATE \(Episode.databaseTableName)
-      SET \(Schema.queueOrderColumn.name.quotedDatabaseIdentifier) = (
-        SELECT new_position
-        FROM numbered_rows
-        WHERE numbered_rows.episode_id = \(Episode.databaseTableName).\(Schema.idColumn.name.quotedDatabaseIdentifier)
-      )
-      WHERE \(Schema.idColumn.name.quotedDatabaseIdentifier) IN (
-        SELECT episode_id FROM numbered_rows
-      )
-      """
-
-    try db.execute(sql: sql)
+    // Renumber remaining episodes
+    try db.execute(
+      sql: """
+          WITH numbered_rows AS (
+            SELECT 
+              ROW_NUMBER() OVER (ORDER BY queueOrder) - 1 AS new_position,
+              id AS episode_id
+            FROM episode
+            WHERE queueOrder IS NOT NULL
+          )
+          UPDATE episode
+          SET queueOrder = (
+            SELECT new_position
+            FROM numbered_rows
+            WHERE numbered_rows.episode_id = episode.id
+          )
+          WHERE id IN (
+            SELECT episode_id FROM numbered_rows
+          )
+        """
+    )
   }
 
   private func _fetchOldPosition(_ db: Database, for episodeID: Episode.ID) throws -> Int? {
