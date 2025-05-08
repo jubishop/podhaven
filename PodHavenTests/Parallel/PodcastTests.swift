@@ -1,14 +1,16 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
+import FactoryTesting
 import Foundation
 import GRDB
 import Testing
 
 @testable import PodHaven
 
-@Suite("of Podcast model tests")
-struct PodcastTests {
-  private let repo: Repo = .inMemory()
+@Suite("of Podcast model tests", .container)
+class PodcastTests {
+  @LazyInjected(\.repo) private var repo
 
   @Test("that a podcast can be created, fetched, and deleted")
   func createSinglePodcast() async throws {
@@ -74,7 +76,7 @@ struct PodcastTests {
         caught: URLError(.badURL, userInfo: ["message": "URL: \(schemeURL) must use https scheme."])
       )
     ) {
-      try await repo.insertSeries(
+      try await self.repo.insertSeries(
         TestHelpers.unsavedPodcast(
           feedURL: FeedURL(schemeURL),
           title: schemeTitle
@@ -95,7 +97,7 @@ struct PodcastTests {
         )
       )
     ) {
-      try await repo.insertSeries(
+      try await self.repo.insertSeries(
         TestHelpers.unsavedPodcast(feedURL: FeedURL(relativeURL), title: relativeTitle)
       )
     }

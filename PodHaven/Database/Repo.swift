@@ -12,18 +12,11 @@ typealias RequestClosure =
 
 extension Container {
   var repo: Factory<Repo> {
-    Factory(self) { Repo(.onDisk(RepoAccessKey())) }.scope(.cached)
+    Factory(self) { Repo(self.appDB()) }.scope(.cached)
   }
 }
 
-struct RepoAccessKey { fileprivate init() {} }
-
 struct Repo: Sendable {
-  #if DEBUG
-  static func inMemory() -> Repo { Repo(.inMemory()) }
-  static func initForTest(_ appDB: AppDB) -> Repo { Repo(appDB) }
-  #endif
-
   // MARK: - Initialization
 
   var db: any DatabaseReader { appDB.db }
@@ -179,7 +172,7 @@ struct Repo: Sendable {
         .filter(podcastIDs.contains(Schema.podcastIDColumn))
         .selectID()
         .fetchAll(db)
-      try queue.dequeue(db, queuedEpisodeIDs, RepoAccessKey())
+      try queue.dequeue(db, queuedEpisodeIDs)
 
       return try Podcast.filter(ids: podcastIDs).deleteAll(db)
     }

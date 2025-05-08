@@ -7,6 +7,6 @@ import Foundation
 
 extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
-    repo.context(.test) { Repo.inMemory() }.scope(.unique)
+    appDB.context(.test) { AppDB.inMemory() }.scope(.cached)
   }
 }

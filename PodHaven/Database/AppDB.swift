@@ -2,6 +2,13 @@
 
 import Foundation
 import GRDB
+import Factory
+
+extension Container {
+  var appDB: Factory<AppDB> {
+    Factory(self) { AppDB._onDisk }.scope(.cached)
+  }
+}
 
 struct AppDB: Sendable {
   #if DEBUG
@@ -15,7 +22,7 @@ struct AppDB: Sendable {
   }
   #endif
 
-  private static let _onDisk = {
+  fileprivate static let _onDisk = {
     do {
       let dbPool = try DatabasePool(
         path: URL.documentsDirectory.appendingPathComponent("db.sqlite").path,
@@ -26,8 +33,6 @@ struct AppDB: Sendable {
       Log.fatal("Failed to initialize onDisk AppDB pool: \(error)")
     }
   }()
-  static func onDisk(_ key: RepoAccessKey) -> AppDB { _onDisk }
-  static func onDisk(_ key: QueueAccessKey) -> AppDB { _onDisk }
 
   #if DEBUG
   static let onDisk = { _onDisk }()

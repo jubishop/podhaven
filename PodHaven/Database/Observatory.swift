@@ -6,16 +6,11 @@ import GRDB
 
 extension Container {
   var observatory: Factory<Observatory> {
-    Factory(self) { Observatory(Container.shared.repo()) }.scope(.cached)
+    Factory(self) { Observatory(self.repo()) }.scope(.cached)
   }
 }
 
 struct Observatory {
-  #if DEBUG
-  static func inMemory() -> Observatory { Observatory(.inMemory()) }
-  static func initForTest(_ repo: Repo) -> Observatory { Observatory(repo) }
-  #endif
-
   // MARK: - Initialization
 
   private let repo: Repo

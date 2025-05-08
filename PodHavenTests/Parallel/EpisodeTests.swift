@@ -1,15 +1,17 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import Factory
+import FactoryTesting
 import Foundation
 import GRDB
 import Testing
 
 @testable import PodHaven
 
-@Suite("of Episode model tests")
-struct EpisodeTests {
-  private let repo: Repo = .inMemory()
+@Suite("of Episode model tests", .container)
+class EpisodeTests {
+  @LazyInjected(\.repo) private var repo
 
   @Test("that episodes are created and fetched in the right order")
   func createSeveralEpisodes() async throws {

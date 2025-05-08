@@ -5,18 +5,15 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Testing
+import Factory
+import FactoryTesting
 
 @testable import PodHaven
 
-@Suite("of Observatory tests")
-struct ObservatoryTests {
-  private let repo: Repo
-  private let observatory: Observatory
-
-  init() {
-    self.repo = .inMemory()
-    self.observatory = .initForTest(repo)
-  }
+@Suite("of Observatory tests", .container)
+class ObservatoryTests {
+  @LazyInjected(\.observatory) private var observatory
+  @LazyInjected(\.repo) private var repo
 
   @Test("allPodcastsWithLatestEpisodeDates()")
   func testAllPodcastsWithLatestEpisodeDates() async throws {

@@ -1,20 +1,19 @@
+import Factory
+import FactoryTesting
 import Foundation
 import GRDB
 import Testing
 
 @testable import PodHaven
 
-@Suite("of Queue repo tests")
-struct QueueTests {
-  private let repo: Repo
-  private let queue: Queue
+@Suite("of Queue repo tests", .container)
+class QueueTests {
+  @LazyInjected(\.queue) private var queue
+
+  private let repo = Container.shared.repo()
   private let podcastSeries: PodcastSeries
 
   init() async throws {
-    let appDB = AppDB.inMemory()
-    repo = Repo.initForTest(appDB)
-    queue = Queue.initForTest(appDB)
-
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
     podcastSeries = try await repo.insertSeries(
       unsavedPodcast,

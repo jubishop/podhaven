@@ -1,25 +1,24 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
+import FactoryTesting
 import Foundation
 import GRDB
 import Testing
 
 @testable import PodHaven
 
-@Suite("of Queue performance tests", .serialized)
+@Suite("of Queue performance tests", .serialized, .container)
 class QueuePerformanceTests {
-  private let appDB: AppDB
-  private let repo: Repo
-  private let queue: Queue
+  @LazyInjected(\.queue) private var queue
+  @LazyInjected(\.repo) private var repo
 
   init() async throws {
-    appDB = AppDB.onDisk("queuePerformanceTests.sqlite")
-    repo = Repo.initForTest(appDB)
-    queue = Queue.initForTest(appDB)
+    Container.shared.appDB.register { AppDB.onDisk("queuePerformanceTests.sqlite") }.scope(.cached)
   }
 
   deinit {
-    appDB.tearDown()
+    Container.shared.appDB().tearDown()
   }
 
   @Test("performance of dequeuing episodes")

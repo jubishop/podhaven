@@ -2,6 +2,7 @@
 
 import AVFoundation
 import Factory
+import FactoryTesting
 import Foundation
 import Testing
 
@@ -53,9 +54,9 @@ enum FakeError: ReadableError, CatchingError {
   }
 }
 
-@Suite("of error tests")
-struct ErrorTests {
-  private let repo: Repo = .inMemory()
+@Suite("of error tests", .container)
+class ErrorTests {
+  @LazyInjected(\.repo) private var repo
 
   @Test("messages with caught generic at end")
   func testMessagesCaughtGenericAtEnd() {

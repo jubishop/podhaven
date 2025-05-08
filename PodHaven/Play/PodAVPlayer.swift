@@ -30,7 +30,7 @@ import Foundation
 
   // MARK: - Initialization
 
-  init(_ key: PlayManagerAccessKey) {
+  init() {
     (self.currentTimeStream, self.currentTimeContinuation) = AsyncStream.makeStream(
       of: CMTime.self
     )

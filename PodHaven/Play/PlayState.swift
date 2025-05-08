@@ -25,8 +25,7 @@ struct OnDeck: Sendable {
     duration: CMTime,
     image: UIImage?,
     media: MediaURL,
-    pubDate: Date?,
-    key: PlayManagerAccessKey
+    pubDate: Date?
   ) {
     self.feedURL = feedURL
     self.guid = guid
@@ -90,15 +89,15 @@ extension Container {
 
   // MARK: - State Setters
 
-  func setStatus(_ status: Status, _ key: PlayManagerAccessKey) {
+  func setStatus(_ status: Status) {
     self.status = status
   }
 
-  func setCurrentTime(_ currentTime: CMTime, _ key: PlayManagerAccessKey) {
+  func setCurrentTime(_ currentTime: CMTime) {
     self.currentTime = currentTime
   }
 
-  func setOnDeck(_ onDeck: OnDeck?, _ key: PlayManagerAccessKey) {
+  func setOnDeck(_ onDeck: OnDeck?) {
     self.onDeck = onDeck
   }
 }

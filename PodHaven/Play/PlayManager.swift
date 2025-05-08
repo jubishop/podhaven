@@ -6,8 +6,6 @@ import Foundation
 import GRDB
 import Sharing
 
-struct PlayManagerAccessKey { fileprivate init() {} }
-
 extension Container {
   var playManager: Factory<PlayManager> {
     Factory(self) { @PlayActor in PlayManager() }.scope(.cached)
@@ -42,7 +40,6 @@ extension Container {
 
   // MARK: - State Management
 
-  private let accessKey = PlayManagerAccessKey()
   private var _status: PlayState.Status = .stopped
   private var status: PlayState.Status { _status }
 
@@ -53,14 +50,12 @@ extension Container {
       }
     }
   }
-  private var commandCenter: CommandCenter
-  private var podAVPlayer: PodAVPlayer
+  private var commandCenter = CommandCenter()
+  private var podAVPlayer = PodAVPlayer()
 
   // MARK: - Initialization
 
   fileprivate init() {
-    commandCenter = CommandCenter(accessKey)
-    podAVPlayer = PodAVPlayer(accessKey)
     startTracking()
   }
 
@@ -136,12 +131,11 @@ extension Container {
       duration: duration,
       image: try? await images.fetchImage(imageURL),
       media: podcastEpisode.episode.media,
-      pubDate: podcastEpisode.episode.pubDate,
-      key: accessKey
+      pubDate: podcastEpisode.episode.pubDate
     )
 
-    nowPlayingInfo = NowPlayingInfo(onDeck, accessKey)
-    await playState.setOnDeck(onDeck, accessKey)
+    nowPlayingInfo = NowPlayingInfo(onDeck)
+    await playState.setOnDeck(onDeck)
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
       await seek(to: podcastEpisode.episode.currentTime)
@@ -153,7 +147,7 @@ extension Container {
   private func stopAndClearOnDeck() async {
     podAVPlayer.stop()
     nowPlayingInfo = nil
-    await playState.setOnDeck(nil, accessKey)
+    await playState.setOnDeck(nil)
     await setCurrentTime(CMTime.zero)
   }
 
@@ -161,13 +155,13 @@ extension Container {
     guard status != _status else { return }
 
     nowPlayingInfo?.playing(status.playing)
-    await playState.setStatus(status, accessKey)
+    await playState.setStatus(status)
     _status = status
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
     nowPlayingInfo?.currentTime(currentTime)
-    await playState.setCurrentTime(currentTime, accessKey)
+    await playState.setCurrentTime(currentTime)
     Task(priority: .utility) {
       guard let currentPodcastEpisode = podAVPlayer.podcastEpisode
       else { return }

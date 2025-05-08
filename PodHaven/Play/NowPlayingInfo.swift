@@ -15,7 +15,7 @@ struct NowPlayingInfo: Sendable {
 
   // MARK: - Initializing
 
-  init(_ onDeck: OnDeck, _ key: PlayManagerAccessKey) {
+  init(_ onDeck: OnDeck) {
     self.onDeck = onDeck
 
     var nowPlayingInfo: [String: Any] = [:]

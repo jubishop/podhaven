@@ -19,7 +19,7 @@ struct CommandCenter: Sendable {
   // MARK: - Convenience Getters
 
   var commandCenter: MPRemoteCommandCenter { MPRemoteCommandCenter.shared() }
-  init(_ key: PlayManagerAccessKey) {
+  init() {
     (self.stream, self.continuation) = AsyncStream.makeStream(of: Command.self)
 
     start()

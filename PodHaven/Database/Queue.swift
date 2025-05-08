@@ -9,18 +9,11 @@ import Tagged
 
 extension Container {
   var queue: Factory<Queue> {
-    Factory(self) { Queue(.onDisk(QueueAccessKey())) }.scope(.cached)
+    Factory(self) { Queue(self.appDB()) }.scope(.cached)
   }
 }
 
-struct QueueAccessKey { fileprivate init() {} }
-
 struct Queue: Sendable {
-  #if DEBUG
-  static func inMemory() -> Queue { Queue(.inMemory()) }
-  static func initForTest(_ appDB: AppDB) -> Queue { Queue(appDB) }
-  #endif
-
   // MARK: - Initialization
 
   private let appDB: AppDB
@@ -46,7 +39,7 @@ struct Queue: Sendable {
     }
   }
 
-  func dequeue(_ db: Database, _ episodeIDs: [Episode.ID], _ key: RepoAccessKey) throws {
+  func dequeue(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
     try _dequeue(db, episodeIDs)
   }
 
