@@ -9,19 +9,15 @@ import Testing
 @testable import PodHaven
 
 @Suite("of RefreshManager tests", .container)
-struct RefreshManagerTests {
+class RefreshManagerTests {
+  @LazyInjected(\.refreshManager) private var refreshManager
+  @LazyInjected(\.repo) private var repo
+
   private let session: DataFetchableMock = DataFetchableMock()
-  private let repo: Repo = Repo.inMemory()
-  private let manager: RefreshManager
 
   init() {
-    let repo = repo
-    Container.shared.repo.register { repo }.scope(.cached)
-
     let feedManager = FeedManager.initForTest(session: session)
     Container.shared.feedManager.register { feedManager }.scope(.unique)
-
-    manager = Container.shared.refreshManager()
   }
 
   @Test("that refreshSeries works")
@@ -48,7 +44,7 @@ struct RefreshManagerTests {
       contentsOf: Bundle.main.url(forResource: "hardfork_short_updated", withExtension: "rss")!
     )
     await session.set(podcastSeries.podcast.feedURL.rawValue, .data(data))
-    try await manager.refreshSeries(podcastSeries: podcastSeries)
+    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
     #expect(updatedSeries.podcast.title == "Hard Fork version 2")
