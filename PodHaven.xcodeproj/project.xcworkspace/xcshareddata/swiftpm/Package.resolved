@@ -16,7 +16,7 @@
       "location" : "https://github.com/hmlongco/Factory",
       "state" : {
         "branch" : "main",
-        "revision" : "c8110886836ab4dd1136dbac0c04f0f36cd68540"
+        "revision" : "f1e35a1672fcb71a40ef6b7aaf1ea38a458c4485"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/groue/GRDB.swift",
       "state" : {
         "branch" : "master",
-        "revision" : "04e73c26c4ce8218ab85aaf791942bb0b204f330"
+        "revision" : "0aaa2a4f3774c3e0541adfa07465e4220f72d1c2"
       }
     },
     {
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa/",
       "state" : {
-        "revision" : "2c6c1b81d9f6e6178064b4e9b457abe1c118bcda",
-        "version" : "8.49.0"
+        "revision" : "491c87a32af58414bd03825b3029526640d3e73d",
+        "version" : "8.50.0"
       }
     },
     {
@@ -124,7 +124,7 @@
       "location" : "https://github.com/pointfreeco/swift-sharing",
       "state" : {
         "branch" : "main",
-        "revision" : "2c41085ebcb859ef74802b07367c433c1000100a"
+        "revision" : "2298167d3a98b4bf0fed0a4e6bcf01544f5b1e2b"
       }
     },
     {
