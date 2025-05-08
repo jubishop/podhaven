@@ -4,12 +4,12 @@ import Foundation
 
 enum ErrorKit {
   static func typeName(for error: Error) -> String {
-    let type = String(describing: type(of: error))  // Strips module name
+    let type = String(describing: type(of: error))
     let fullCase = String(describing: error)
 
     let caseName: String
-    if let parenIndex = fullCase.firstIndex(of: "(") {
-      caseName = String(fullCase[..<parenIndex])
+    if let range = fullCase.range(of: "[ (]", options: .regularExpression) {
+      caseName = String(fullCase[..<range.lowerBound])
     } else {
       caseName = fullCase
     }

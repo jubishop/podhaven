@@ -6,7 +6,7 @@ import SwiftUI
 
 extension Container {
   var alert: Factory<Alert> {
-    Factory(self) { @MainActor in Alert() }.scope(.singleton)
+    Factory(self) { @MainActor in Alert() }.scope(.cached)
   }
 }
 

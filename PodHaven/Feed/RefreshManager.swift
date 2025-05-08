@@ -7,35 +7,17 @@ import UIKit
 
 extension Container {
   var refreshManager: Factory<RefreshManager> {
-    Factory(self) { RefreshManager() }.scope(.singleton)
+    Factory(self) { RefreshManager() }.scope(.cached)
   }
 }
 
 final actor RefreshManager: Sendable {
-  // MARK: - Static Helpers
-
-  #if DEBUG
-  static func initForTest(feedManager: FeedManager, repo: Repo) -> RefreshManager {
-    RefreshManager(feedManager: feedManager, repo: repo)
-  }
-  #endif
+  @LazyInjected(\.feedManager) private var feedManager
+  @LazyInjected(\.repo) private var repo
 
   // MARK: - State Management
 
   private var backgroundRefreshTask: Task<Void, Never>?
-
-  // MARK: - Initialization
-
-  private let feedManager: FeedManager
-  private let repo: Repo
-
-  fileprivate init(
-    feedManager: FeedManager = Container.shared.feedManager(),
-    repo: Repo = Container.shared.repo()
-  ) {
-    self.feedManager = feedManager
-    self.repo = repo
-  }
 
   // MARK: - Refresh Management
 
@@ -65,17 +47,24 @@ final actor RefreshManager: Sendable {
     try await updateSeriesFromFeed(podcastSeries: podcastSeries, podcastFeed: podcastFeed)
   }
 
-  func updateSeriesFromFeed(podcastSeries: PodcastSeries, podcastFeed: PodcastFeed) async throws(RefreshError) {
-    return try await RefreshError.catch {
-      let newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries.podcast.unsaved)
+  func updateSeriesFromFeed(podcastSeries: PodcastSeries, podcastFeed: PodcastFeed)
+    async throws(RefreshError)
+  {
+    try await RefreshError.catch {
+      let newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(
+        merging: podcastSeries.podcast.unsaved
+      )
       var newPodcast = Podcast(id: podcastSeries.id, from: newUnsavedPodcast)
       var unsavedEpisodes: [UnsavedEpisode] = []
       var existingEpisodes: [Episode] = []
       for feedItem in podcastFeed.episodes {
         if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
-          if let newUnsavedExistingEpisode = try? feedItem.toUnsavedEpisode(merging: existingEpisode)
-          {
-            existingEpisodes.append(Episode(id: existingEpisode.id, from: newUnsavedExistingEpisode))
+          if let newUnsavedExistingEpisode = try? feedItem.toUnsavedEpisode(
+            merging: existingEpisode
+          ) {
+            existingEpisodes.append(
+              Episode(id: existingEpisode.id, from: newUnsavedExistingEpisode)
+            )
           }
         } else if let newUnsavedEpisode = try? feedItem.toUnsavedEpisode() {
           unsavedEpisodes.append(newUnsavedEpisode)

@@ -5,7 +5,7 @@ import SwiftUI
 
 extension Container {
   var navigation: Factory<Navigation> {
-    Factory(self) { @MainActor in Navigation() }.scope(.singleton)
+    Factory(self) { @MainActor in Navigation() }.scope(.cached)
   }
 }
 

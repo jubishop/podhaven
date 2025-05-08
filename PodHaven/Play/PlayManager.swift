@@ -10,16 +10,16 @@ struct PlayManagerAccessKey { fileprivate init() {} }
 
 extension Container {
   var playManager: Factory<PlayManager> {
-    Factory(self) { @PlayActor in PlayManager() }.scope(.singleton)
+    Factory(self) { @PlayActor in PlayManager() }.scope(.cached)
   }
 }
 
 @PlayActor final class PlayManager {
   private var playState = Container.shared.playState()  // Cannot LazyInject because @MainActor
-  @ObservationIgnored @LazyInjected(\.images) private var images
-  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
-  @ObservationIgnored @LazyInjected(\.queue) private var queue
-  @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @LazyInjected(\.images) private var images
+  @LazyInjected(\.observatory) private var observatory
+  @LazyInjected(\.queue) private var queue
+  @LazyInjected(\.repo) private var repo
 
   // MARK: - AppStorage
 

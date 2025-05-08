@@ -12,7 +12,7 @@ typealias RequestClosure =
 
 extension Container {
   var repo: Factory<Repo> {
-    Factory(self) { Repo(.onDisk(RepoAccessKey())) }.scope(.singleton)
+    Factory(self) { Repo(.onDisk(RepoAccessKey())) }.scope(.cached)
   }
 }
 

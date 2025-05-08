@@ -6,7 +6,7 @@ import GRDB
 
 extension Container {
   var observatory: Factory<Observatory> {
-    Factory(self) { Observatory(Container.shared.repo()) }.scope(.singleton)
+    Factory(self) { Observatory(Container.shared.repo()) }.scope(.cached)
   }
 }
 

@@ -2,20 +2,26 @@
 
 import AVFoundation
 import Factory
+import FactoryTesting
 import Foundation
 import Testing
 
 @testable import PodHaven
 
-@Suite("of RefreshManager tests")
+@Suite("of RefreshManager tests", .container)
 struct RefreshManagerTests {
   private let session: DataFetchableMock = DataFetchableMock()
-  private let repo: Repo = .inMemory()
+  private let repo: Repo = Repo.inMemory()
   private let manager: RefreshManager
 
   init() {
+    let repo = repo
+    Container.shared.repo.register { repo }.scope(.cached)
+
     let feedManager = FeedManager.initForTest(session: session)
-    manager = RefreshManager.initForTest(feedManager: feedManager, repo: repo)
+    Container.shared.feedManager.register { feedManager }.scope(.unique)
+
+    manager = Container.shared.refreshManager()
   }
 
   @Test("that refreshSeries works")
@@ -28,6 +34,7 @@ struct RefreshManagerTests {
       unsavedPodcast,
       unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
     )
+
     #expect(podcastSeries.podcast.title == "Hard Fork")
     #expect(podcastSeries.episodes.count == 2)
     #expect(

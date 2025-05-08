@@ -9,7 +9,7 @@ import Tagged
 
 extension Container {
   var queue: Factory<Queue> {
-    Factory(self) { Queue(.onDisk(QueueAccessKey())) }.scope(.singleton)
+    Factory(self) { Queue(.onDisk(QueueAccessKey())) }.scope(.cached)
   }
 }
 

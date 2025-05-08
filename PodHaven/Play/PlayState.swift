@@ -49,7 +49,7 @@ struct OnDeck: Sendable {
 
 extension Container {
   var playState: Factory<PlayState> {
-    Factory(self) { @MainActor in PlayState() }.scope(.singleton)
+    Factory(self) { @MainActor in PlayState() }.scope(.cached)
   }
 }
 

@@ -63,7 +63,7 @@ struct Log {
       \(message)
 
       🧱 Call stack:
-        \(StackTracer.capture(limit: 10, drop: 1).joined(separator: "\n  "))
+        \(StackTracer.capture(limit: 20, drop: 1).joined(separator: "\n  "))
       ----------------------------------------------------------------------------------------------
       """
     )

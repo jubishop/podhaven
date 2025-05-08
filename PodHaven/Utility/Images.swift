@@ -7,7 +7,7 @@ import SwiftUI
 
 extension Container {
   var images: Factory<Images> {
-    Factory(self) { Images() }.scope(.singleton)
+    Factory(self) { Images() }.scope(.cached)
   }
 }
 

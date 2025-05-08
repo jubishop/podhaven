@@ -14,7 +14,7 @@ extension Container {
       configuration.timeoutIntervalForResource = timeout
       return SearchService(session: URLSession(configuration: configuration))
     }
-    .scope(.singleton)
+    .scope(.cached)
   }
 }
 
