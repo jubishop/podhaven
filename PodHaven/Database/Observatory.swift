@@ -49,7 +49,7 @@ struct Observatory {
     _observe { db in
       try Episode
         .all()
-        .filter(Schema.completedColumn == true)
+        .completed()
         .including(required: Episode.podcast)
         .order(Schema.pubDateColumn.desc)
         .asRequest(of: PodcastEpisode.self)

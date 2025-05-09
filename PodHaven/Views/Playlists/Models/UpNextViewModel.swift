@@ -42,10 +42,6 @@ import SwiftUI
     Task { try await queue.insert(podcastEpisodes[from].episode.id, at: to) }
   }
 
-  func moveToTop(_ podcastEpisode: PodcastEpisode) {
-    Task { try await queue.unshift(podcastEpisode.episode.id) }
-  }
-
   func playItem(_ podcastEpisode: PodcastEpisode) {
     Task {
       try await playManager.load(podcastEpisode)

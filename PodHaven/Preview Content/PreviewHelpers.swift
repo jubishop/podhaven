@@ -13,7 +13,7 @@ enum PreviewHelpers {
   ]
   private static let opmlFiles = ["large", "small"]
 
-  // MARK: - Full Importing
+  // MARK: - Full Importing From OPML
 
   static func importPodcasts(_ number: Int = 20, from fileName: String = "large") async throws {
     let repo = Container.shared.repo()
@@ -55,23 +55,35 @@ enum PreviewHelpers {
 
   // MARK: - Loading Podcasts/Episodes
 
+  static func loadAllSeries() async throws -> [PodcastSeries] {
+    var allPodcastSeries = [PodcastSeries](capacity: seriesFiles.count)
+    for seriesFile in seriesFiles.keys {
+      if let podcastSeries = try? await loadSeries(fileName: seriesFile) {
+        allPodcastSeries.append(podcastSeries)
+      }
+    }
+    return allPodcastSeries
+  }
+
   static func loadSeries(fileName: String = seriesFiles.keys.randomElement()!) async throws
     -> PodcastSeries
   {
+    let podcastFeed = try await PodcastFeed.parse(
+      FeedURL(Bundle.main.url(forResource: fileName, withExtension: "rss")!)
+    )
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+
     let repo = Container.shared.repo()
     if let podcastSeries = try? await repo.db.read({ db in
       try Podcast
+        .filter(Schema.feedURLColumn == unsavedPodcast.feedURL)
         .including(all: Podcast.episodes)
-        .shuffled()
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
     }) {
       return podcastSeries
     }
-    let podcastFeed = try await PodcastFeed.parse(
-      FeedURL(Bundle.main.url(forResource: fileName, withExtension: "rss")!)
-    )
-    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+
     return try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
@@ -137,26 +149,38 @@ enum PreviewHelpers {
     return unsavedPodcast
   }
 
-  // MARK: Queue Management
+  // MARK: Playlist Management
 
   static func populateQueue(queueSize: Int = 20) async throws {
     let repo = Container.shared.repo()
+    var currentSize = try await repo.db.read { db in
+      try Episode.all().inQueue().fetchCount(db)
+    }
+    if currentSize >= queueSize { return }
+
     let queue = Container.shared.queue()
-    var allPodcastSeries: [PodcastSeries] = []
-    for seriesFile in seriesFiles.keys {
-      if let podcastSeries = try? await loadSeries(fileName: seriesFile) {
-        allPodcastSeries.append(podcastSeries)
+    for episode in (try await loadAllSeries()).flatMap({ $0.episodes }) {
+      if currentSize >= queueSize { break }
+      if episode.queueOrder == nil {
+        try await queue.append(episode.id)
+        currentSize += 1
       }
     }
-    let currentSize: Int = min(
-      try await repo.db.read { db in
-        try Episode.all().inQueue().fetchCount(db)
-      },
-      queueSize
-    )
-    for _ in currentSize...queueSize {
-      let episode = allPodcastSeries.randomElement()!.episodes.randomElement()!
-      try await queue.append(episode.id)
+  }
+
+  static func populateCompletedPodcastEpisodes(listSize: Int = 20) async throws {
+    let repo = Container.shared.repo()
+    var currentSize = try await repo.db.read { db in
+      try Episode.all().completed().fetchCount(db)
+    }
+    if currentSize >= listSize { return }
+
+    for episode in (try await loadAllSeries()).flatMap({ $0.episodes }) {
+      if currentSize >= listSize { break }
+      if !episode.completed {
+        try await repo.markComplete(episode.id)
+        currentSize += 1
+      }
     }
   }
 

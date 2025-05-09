@@ -7,27 +7,19 @@ struct CompletedView: View {
   @Environment(Alert.self) var alert
 
   @State private var navigation = Container.shared.navigation()
-  @State private var viewModel = UpNextViewModel()
+  @State private var viewModel = CompletedViewModel()
 
   var body: some View {
     List {
       ForEach(viewModel.podcastEpisodes) { podcastEpisode in
-        UpNextListView(
-          viewModel: UpNextListViewModel(
+        CompletedListView(
+          viewModel: CompletedListViewModel(
             isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
             podcastEpisode: podcastEpisode,
             editMode: viewModel.editMode
           )
         )
         .swipeActions(edge: .leading) {
-          Button(
-            action: { viewModel.moveToTop(podcastEpisode) },
-            label: {
-              Label("Move to Top", systemImage: "arrow.up")
-            }
-          )
-          .tint(.blue)
-
           Button(
             action: { viewModel.playItem(podcastEpisode) },
             label: {
@@ -37,30 +29,14 @@ struct CompletedView: View {
           .tint(.green)
         }
       }
-      .onMove(perform: viewModel.moveItem)
     }
-    .navigationTitle("Up Next")
+    .navigationTitle("Completed Episodes")
     .environment(\.editMode, $viewModel.editMode)
     .animation(.default, value: viewModel.podcastEpisodes.elements)
     .toolbar {
       if viewModel.isEditing {
         ToolbarItem(placement: .topBarTrailing) {
           SelectableListMenu(list: viewModel.episodeList)
-        }
-      }
-
-      if viewModel.isEditing, viewModel.episodeList.anySelected {
-        ToolbarItem(placement: .topBarTrailing) {
-          Menu(
-            content: {
-              Button("Delete Selected") {
-                viewModel.deleteSelected()
-              }
-            },
-            label: {
-              Image(systemName: "minus.circle")
-            }
-          )
         }
       }
 
@@ -77,10 +53,10 @@ struct CompletedView: View {
 #if DEBUG
 #Preview {
   NavigationStack {
-    UpNextView()
+    CompletedView()
   }
   .preview()
-  .task { try? await PreviewHelpers.populateQueue() }
+  .task { try? await PreviewHelpers.populateCompletedPodcastEpisodes() }
 }
 #endif
 
