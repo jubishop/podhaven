@@ -77,34 +77,7 @@ struct PodcastResultsView: View {
         )
       }
     )
-    .toolbar {
-      if viewModel.episodeList.isSelecting {
-        ToolbarItem(placement: .topBarTrailing) {
-          SelectableListMenu(list: viewModel.episodeList)
-        }
-      }
-
-      if viewModel.episodeList.isSelecting, viewModel.episodeList.anySelected {
-        ToolbarItem(placement: .topBarTrailing) {
-          QueueableSelectableListMenu(list: viewModel)
-        }
-      }
-
-      if viewModel.episodeList.isSelecting {
-        ToolbarItem(placement: .topBarLeading) {
-          Button("Done") {
-            viewModel.episodeList.isSelecting = false
-          }
-        }
-      } else {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button("Select Episodes") {
-            viewModel.episodeList.isSelecting = true
-          }
-        }
-      }
-    }
-    .toolbarRole(.editor)
+    .selectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task { await viewModel.execute() }
   }
 }
