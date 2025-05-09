@@ -36,7 +36,10 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
 
   init(podcast: Podcast) {
     self._podcastSeries = PodcastSeries(podcast: podcast)
-    episodeList.filterMethod = { [unowned self] in !self.unplayedOnly || !$0.completed }
+    episodeList.filterMethod = { [weak self] in
+      guard let self else { return true }
+      return !unplayedOnly || !$0.completed
+    }
   }
 
   func execute() async {

@@ -101,7 +101,8 @@ import Foundation
   func seek(to time: CMTime) async {
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
-    avPlayer.seek(to: time) { [unowned self] completed in
+    avPlayer.seek(to: time) { [weak self] completed in
+      guard let self else { return }
       if completed {
         Task { await addPeriodicTimeObserver() }
       }
@@ -180,7 +181,8 @@ import Foundation
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
     ) { currentTime in
-      Task { [unowned self] in
+      Task { [weak self] in
+        guard let self else { return }
         currentTimeContinuation.yield(currentTime)
       }
     }
@@ -197,7 +199,8 @@ import Foundation
     self.timeControlStatusObserver = avPlayer.observe(
       \.timeControlStatus,
       options: [.initial, .new],
-      changeHandler: { [unowned self] playerItem, _ in
+      changeHandler: { [weak self] playerItem, _ in
+        guard let self else { return }
         Task {
           controlStatusContinuation.yield(playerItem.timeControlStatus)
         }

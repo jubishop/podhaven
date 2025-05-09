@@ -33,7 +33,10 @@ class PodcastResultsViewModel: QueueableSelectableEpisodeList, PodcastQueueableM
   init(searchedPodcast: SearchedPodcast) {
     self.searchedText = searchedPodcast.searchedText
     self.unsavedPodcast = searchedPodcast.unsavedPodcast
-    episodeList.filterMethod = { [unowned self] in !self.unplayedOnly || !$0.completed }
+    episodeList.filterMethod = { [weak self] in
+      guard let self else { return true }
+      return !unplayedOnly || !$0.completed
+    }
   }
 
   func execute() async {
