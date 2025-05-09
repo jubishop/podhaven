@@ -10,24 +10,22 @@ struct CompletedView: View {
   @State private var viewModel = CompletedViewModel()
 
   var body: some View {
-    List {
-      ForEach(viewModel.podcastEpisodes) { podcastEpisode in
-        CompletedListView(
-          viewModel: CompletedListViewModel(
-            isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
-            podcastEpisode: podcastEpisode,
-            editMode: viewModel.editMode
-          )
+    List(viewModel.podcastEpisodes) { podcastEpisode in
+      CompletedListView(
+        viewModel: CompletedListViewModel(
+          isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
+          podcastEpisode: podcastEpisode,
+          editMode: viewModel.editMode
         )
-        .swipeActions(edge: .leading) {
-          Button(
-            action: { viewModel.playItem(podcastEpisode) },
-            label: {
-              Label("Play Now", systemImage: "play.fill")
-            }
-          )
-          .tint(.green)
-        }
+      )
+      .swipeActions(edge: .leading) {
+        Button(
+          action: { viewModel.playItem(podcastEpisode) },
+          label: {
+            Label("Play Now", systemImage: "play.fill")
+          }
+        )
+        .tint(.green)
       }
     }
     .navigationTitle("Completed Episodes")
@@ -59,4 +57,3 @@ struct CompletedView: View {
   .task { try? await PreviewHelpers.populateCompletedPodcastEpisodes() }
 }
 #endif
-
