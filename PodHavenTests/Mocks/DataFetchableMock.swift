@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -11,6 +12,7 @@ enum MockResponse {
   case detail(delay: Duration, data: Data)
   case error(Error)
   case production(Bool)
+  case custom(@Sendable (URL) async throws -> (Data, URLResponse))
 }
 
 final actor DataFetchableMock: DataFetchable {
@@ -37,25 +39,28 @@ final actor DataFetchableMock: DataFetchable {
     case .production(let printData):
       let (data, response) = try await session.data(for: urlRequest)
       if printData {
-        print("Response for: \(url)")
-        print("URLResponse: \(response)")
-        print("Data: \(String(data: data, encoding: .utf8) ?? "No Data")")
+        Log.debug("Response for: \(url)")
+        Log.debug("URLResponse: \(response)")
+        Log.debug("Data: \(String(data: data, encoding: .utf8) ?? "No Data")")
       }
       return (data, response)
 
     case .delay(let delay):
       try await Task.sleep(for: delay)
-      return (url.dataRepresentation, response(url))
+      return (url.dataRepresentation, URL.response(url))
 
     case .data(let data):
-      return (data, response(url))
+      return (data, URL.response(url))
 
     case .detail(let delay, let data):
       try await Task.sleep(for: delay)
-      return (data, response(url))
+      return (data, URL.response(url))
 
     case .error(let error):
       throw error
+
+    case .custom(let closure):
+      return try await closure(url)
     }
   }
 
@@ -74,14 +79,5 @@ final actor DataFetchableMock: DataFetchable {
       url,
       default: .detail(delay: .zero, data: url.dataRepresentation)
     ]
-  }
-
-  private func response(_ url: URL, statusCode: Int = 200) -> HTTPURLResponse {
-    HTTPURLResponse(
-      url: url,
-      statusCode: statusCode,
-      httpVersion: nil,
-      headerFields: [:]
-    )!
   }
 }

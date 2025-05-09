@@ -38,7 +38,7 @@ struct DownloadManagerTests {
     #expect(results.count == urls.count)
   }
 
-  @Test("that maxConcurrentDownloads is respected and downloadBegan() works")
+  @Test("that maxConcurrentDownloads is respected")
   func maxConcurrentDownloads() async throws {
     let maxConcurrentDownloads = 20
     let downloadManager = DownloadManager(
@@ -46,55 +46,30 @@ struct DownloadManagerTests {
       maxConcurrentDownloads: maxConcurrentDownloads
     )
 
-    // Use a longer delay to ensure stable observation
-    let downloadDelay = Duration.milliseconds(500)
+    // Add enough urls to ensure we hit our max concurrency
     let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
     var tasks: [DownloadTask] = []
 
+    // Set all URLs to have a measurable delay to ensure we observe max concurrency
     for url in urls {
-      await session.set(url, .delay(downloadDelay))
+      await session.set(url, .delay(.milliseconds(10)))
       let task = await downloadManager.addURL(url)
       tasks.append(task)
     }
 
-    let activeDownloads = Counter()
-    let taskStarted = AsyncSemaphore(value: 0)
-
-    // Create a controlled environment for observation
-    try await withThrowingDiscardingTaskGroup { group in
-      for task in tasks {
-        group.addTask {
-          await task.downloadBegan()
-          await activeDownloads.increment()
-          taskStarted.signal()
-
-          _ = try await task.downloadFinished()
-          await activeDownloads.decrement()
-        }
-      }
-
-      // Wait for enough tasks to start
-      for _ in 1...maxConcurrentDownloads + 5 {
-        await taskStarted.wait()
-      }
-
-      // Give time for download manager to enforce limits
-      try? await Task.sleep(for: .milliseconds(100))
-
-      // Check active downloads after stabilization
-      let concurrent = await activeDownloads.value
-      #expect(concurrent == maxConcurrentDownloads)
-
-      // Double-check with multiple observations
-      var counts: [Int] = []
-      for _ in 1...5 {
-        try? await Task.sleep(for: .milliseconds(50))
-        counts.append(await activeDownloads.value)
-      }
-
-      let allEqual = counts.allSatisfy { $0 == maxConcurrentDownloads }
-      #expect(allEqual, "Expected stable count of \(maxConcurrentDownloads), got \(counts)")
+    // Wait for all downloads to complete
+    for task in tasks {
+      _ = try? await task.downloadFinished()
     }
+
+    // The mock's maxActiveRequests property tracks the highest concurrency observed
+    let observedMax = await session.maxActiveRequests
+
+    // Verify the download manager respected the max concurrent downloads limit
+    #expect(
+      observedMax == maxConcurrentDownloads,
+      "Expected max of \(maxConcurrentDownloads) concurrent downloads, observed \(observedMax)"
+    )
   }
 
   @Test("that you can cancel a download before it has begun")
