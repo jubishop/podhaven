@@ -23,9 +23,9 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "hardfork_byterm", withExtension: "json")!
     )
-    await session.set(
-      URL(string: Self.baseURLString + "/search/byterm?q=\(searchTerm)")!,
-      .data(data)
+    await session.respondWithData(
+      to: URL(string: Self.baseURLString + "/search/byterm?q=\(searchTerm)")!,
+      data: data
     )
     let result = try await searchService.searchByTerm(searchTerm)
     let feed = result.feeds.first!
@@ -42,9 +42,9 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "thisisimportant_bytitle", withExtension: "json")!
     )
-    await session.set(
-      URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
-      .data(data)
+    await session.respondWithData(
+      to: URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
+      data: data
     )
     let result = try await searchService.searchByTitle(searchTerm)
     let feed = result.feeds.first!
@@ -62,9 +62,9 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "hello_bytitle", withExtension: "json")!
     )
-    await session.set(
-      URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
-      .data(data)
+    await session.respondWithData(
+      to: URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
+      data: data
     )
     let result = try await searchService.searchByTitle(searchTerm)
     let feed = result.feeds[3]
@@ -79,9 +79,9 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "ndg_byperson", withExtension: "json")!
     )
-    await session.set(
-      URL(string: Self.baseURLString + "/search/byperson?q=\(searchTerm)")!,
-      .data(data)
+    await session.respondWithData(
+      to: URL(string: Self.baseURLString + "/search/byperson?q=\(searchTerm)")!,
+      data: data
     )
     let result = try await searchService.searchByPerson(searchTerm)
     let unsavedPodcastEpisode = try result.items.first!.toUnsavedPodcastEpisode()
@@ -123,9 +123,9 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "trending", withExtension: "json")!
     )
-    await session.set(
-      URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
-      .data(data)
+    await session.respondWithData(
+      to: URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
+      data: data
     )
     let result = try await searchService.searchTrending(language: "en")
     let feed = result.feeds.first!
@@ -142,9 +142,9 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "trending_in_news", withExtension: "json")!
     )
-    await session.set(
-      URL(string: Self.baseURLString + "/podcasts/trending?cat=News")!,
-      .data(data)
+    await session.respondWithData(
+      to: URL(string: Self.baseURLString + "/podcasts/trending?cat=News")!,
+      data: data
     )
     let result = try await searchService.searchTrending(categories: ["News"])
     let feed = result.feeds.first!
@@ -155,9 +155,9 @@ class SearchServiceTests {
 
   @Test("search with failed request")
   func testSearchWithFailedRequest() async throws {
-    await session.set(
-      URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
-      .error(URLError(.badServerResponse))
+    await session.respondWithError(
+      to: URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
+      error: URLError(.badServerResponse)
     )
     await #expect(throws: SearchError.self) {
       _ = try await self.searchService.searchTrending(language: "en")

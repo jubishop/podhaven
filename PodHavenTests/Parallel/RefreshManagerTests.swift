@@ -39,7 +39,7 @@ class RefreshManagerTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "hardfork_short_updated", withExtension: "rss")!
     )
-    await session.set(podcastSeries.podcast.feedURL.rawValue, .data(data))
+    await session.respondWithData(to: podcastSeries.podcast.feedURL.rawValue, data: data)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!

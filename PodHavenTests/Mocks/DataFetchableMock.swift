@@ -6,18 +6,9 @@ import Testing
 
 @testable import PodHaven
 
-enum MockResponse {
-  case delay(Duration)
-  case data(Data)
-  case detail(delay: Duration, data: Data)
-  case error(Error)
-  case production(Bool)
-  case custom(@Sendable (URL) async throws -> (Data, URLResponse))
-}
-
 final actor DataFetchableMock: DataFetchable {
   private let session: URLSession
-  private var mockResponses: [URL: MockResponse] = [:]
+  private var mockHandlers: [URL: @Sendable (URL) async throws -> (Data, URLResponse)] = [:]
   private(set) var requests: [URL] = []
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
@@ -35,49 +26,42 @@ final actor DataFetchableMock: DataFetchable {
     maxActiveRequests = max(maxActiveRequests, activeRequests)
     requests.append(url)
 
-    switch get(url) {
-    case .production(let printData):
-      let (data, response) = try await session.data(for: urlRequest)
-      if printData {
-        Log.debug("Response for: \(url)")
-        Log.debug("URLResponse: \(response)")
-        Log.debug("Data: \(String(data: data, encoding: .utf8) ?? "No Data")")
-      }
-      return (data, response)
-
-    case .delay(let delay):
-      try await Task.sleep(for: delay)
-      return (url.dataRepresentation, URL.response(url))
-
-    case .data(let data):
-      return (data, URL.response(url))
-
-    case .detail(let delay, let data):
-      try await Task.sleep(for: delay)
-      return (data, URL.response(url))
-
-    case .error(let error):
-      throw error
-
-    case .custom(let closure):
-      return try await closure(url)
+    if let handler = mockHandlers[url] {
+      return try await handler(url)
     }
+
+    // Default fallback behavior if no handler is set
+    return (url.dataRepresentation, URL.response(url))
   }
 
   func data(from url: URL) async throws -> (Data, URLResponse) {
     try await data(for: URLRequest(url: url))
   }
 
-  func set(_ url: URL, _ response: MockResponse) {
-    mockResponses[url] = response
+  func respond(
+    to url: URL,
+    with handler: @Sendable @escaping (URL) async throws -> (Data, URLResponse)
+  ) {
+    mockHandlers[url] = handler
   }
 
-  // MARK: - Private Helpers
+  // Convenience methods for common test patterns
+  func respondWithData(to url: URL, data: Data) {
+    respond(to: url) { url in
+      (data, URL.response(url))
+    }
+  }
 
-  private func get(_ url: URL) -> MockResponse {
-    mockResponses[
-      url,
-      default: .detail(delay: .zero, data: url.dataRepresentation)
-    ]
+  func respondWithDelay(to url: URL, delay: Duration) {
+    respond(to: url) { url in
+      try await Task.sleep(for: delay)
+      return (url.dataRepresentation, URL.response(url))
+    }
+  }
+
+  func respondWithError(to url: URL, error: Error) {
+    respond(to: url) { _ in
+      throw error
+    }
   }
 }
