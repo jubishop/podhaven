@@ -14,7 +14,11 @@ class QueuePerformanceTests {
   @LazyInjected(\.repo) private var repo
 
   init() async throws {
-    Container.shared.appDB.register { AppDB.onDisk("queuePerformanceTests.sqlite") }.scope(.cached)
+    Container.shared.appDB
+      .context(.test) {
+        AppDB.onDisk("queuePerformanceTests.sqlite")
+      }
+      .scope(.cached)
   }
 
   deinit {
@@ -105,7 +109,7 @@ class QueuePerformanceTests {
   }
 
   private func fetchQueueCount() async throws -> Int {
-    try await repo.db.read { db in
+    return try await repo.db.read { db in
       try Episode
         .filter(Column("queueOrder") != nil)
         .fetchCount(db)

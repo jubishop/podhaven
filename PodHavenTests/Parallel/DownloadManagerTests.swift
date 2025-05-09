@@ -97,6 +97,26 @@ struct DownloadManagerTests {
     }
   }
 
+  @Test("that you can cancel a download before it has begun")
+  func cancelPendingDownload() async throws {
+    let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
+
+    // Since maxConcurrentDownloads is 1 this task holds up the queue
+    let url = URL.valid()
+    await session.set(url, .delay(.milliseconds(500)))
+    await downloadManager.addURL(url)
+
+    // This task is stuck waiting on the first url
+    let url2 = URL.valid()
+    let task2 = await downloadManager.addURL(url2)
+
+    // This task has had no chance to begin yet
+    await task2.cancel()
+    await #expect(throws: DownloadError.cancelled(url2)) {
+      try await task2.downloadFinished()
+    }
+  }
+
   @Test("that you can cancel a mid-flight download")
   func cancelActiveDownload() async throws {
     let downloadManager = DownloadManager(session: session)
@@ -104,17 +124,19 @@ struct DownloadManagerTests {
     let url = URL.valid()
     await session.set(url, .delay(.milliseconds(50)))
     let task = await downloadManager.addURL(url)
+
+    // Cancels the task, not immediately but before it is done
     Task {
-      try await Task.sleep(for: .milliseconds(10))
+      await task.downloadBegan()
       await task.cancel()
     }
 
+    // Task throws cancelled after being cancelled mid-flight
     await #expect(throws: DownloadError.cancelled(url)) {
       try await task.downloadFinished()
     }
 
-    // Even after the url data has returned, the result remains cancelled.
-    try await Task.sleep(for: .milliseconds(100))
+    // The result always remains cancelled.
     await #expect(throws: DownloadError.cancelled(url)) {
       try await task.downloadFinished()
     }
@@ -142,8 +164,7 @@ struct DownloadManagerTests {
       try await task2.downloadFinished()
     }
 
-    // Even after the url data has returned, the results remains cancelled.
-    try await Task.sleep(for: .milliseconds(100))
+    // The results always remain cancelled.
     await #expect(throws: DownloadError.cancelled(url)) {
       try await task.downloadFinished()
     }

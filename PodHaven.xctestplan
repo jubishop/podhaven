@@ -24,16 +24,6 @@
   "testTargets" : [
     {
       "parallelizable" : true,
-      "skippedTests" : {
-        "suites" : [
-          {
-            "name" : "DownloadManagerTests",
-            "testFunctions" : [
-              "maxConcurrentDownloads()"
-            ]
-          }
-        ]
-      },
       "target" : {
         "containerPath" : "container:PodHaven.xcodeproj",
         "identifier" : "8BD7F92F2CF2A49100CEDAA7",
