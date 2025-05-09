@@ -11,16 +11,10 @@ import Testing
 @Suite("of RefreshManager tests", .container)
 class RefreshManagerTests {
   @LazyInjected(\.repo) private var repo
+  @LazyInjected(\.feedManagerSession) private var feedManagerSession
+  @LazyInjected(\.refreshManager) private var refreshManager
 
-  private let session: DataFetchableMock = DataFetchableMock()
-  private let refreshManager: RefreshManager
-
-  init() {
-    let feedManager = FeedManager.initForTest(session: session)
-    Container.shared.feedManager.register { feedManager }.scope(.unique)
-
-    refreshManager = Container.shared.refreshManager()
-  }
+  var session: DataFetchableMock { feedManagerSession as! DataFetchableMock }
 
   @Test("that refreshSeries works")
   func testRefreshSeriesWorks() async throws {

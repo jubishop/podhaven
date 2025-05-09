@@ -2,19 +2,18 @@
 
 import AVFoundation
 import Factory
+import FactoryTesting
 import Foundation
 import Testing
 
 @testable import PodHaven
 
-@Suite("of FeedManager tests")
-struct FeedManagerTests {
-  private let session: DataFetchableMock = DataFetchableMock()
-  private let manager: FeedManager
+@Suite("of FeedManager tests", .container)
+class FeedManagerTests {
+  @LazyInjected(\.feedManagerSession) private var feedManagerSession
+  @LazyInjected(\.feedManager) private var feedManager
 
-  init() {
-    manager = FeedManager.initForTest(session: session)
-  }
+  var session: DataFetchableMock { feedManagerSession as! DataFetchableMock }
 
   @Test("parsing the Pod Save America feed")
   func parsePodSaveAmericaFeed() async throws {
@@ -23,7 +22,7 @@ struct FeedManagerTests {
     )
     let url = URL.valid()
     await session.set(url, .data(data))
-    let feedTask = await manager.addURL(FeedURL(url))
+    let feedTask = await feedManager.addURL(FeedURL(url))
     let podcastFeed = try await feedTask.feedParsed()
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
     #expect(unsavedPodcast.title == "Pod Save America")

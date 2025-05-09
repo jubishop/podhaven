@@ -19,12 +19,6 @@ extension Container {
 
   var searchService: Factory<SearchService> {
     Factory(self) {
-      let configuration = URLSessionConfiguration.ephemeral
-      configuration.allowsCellularAccess = true
-      configuration.waitsForConnectivity = true
-      let timeout = Double(10)
-      configuration.timeoutIntervalForRequest = timeout
-      configuration.timeoutIntervalForResource = timeout
       return SearchService(session: self.searchServiceSession())
     }
     .scope(.cached)
@@ -35,9 +29,6 @@ struct SearchService: Sendable {
   // MARK: - Static Helpers
 
   #if DEBUG
-  static func initForTest(session: DataFetchable) -> SearchService {
-    SearchService(session: session)
-  }
   static func parseForPreview<T: Decodable>(_ data: Data) async throws(SearchError) -> T {
     try await parse(data)
   }

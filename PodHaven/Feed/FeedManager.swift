@@ -4,7 +4,7 @@ import Factory
 import Foundation
 
 extension Container {
-  var feedManager: Factory<FeedManager> {
+  var feedManagerSession: Factory<DataFetchable> {
     Factory(self) {
       let configuration = URLSessionConfiguration.ephemeral
       configuration.allowsCellularAccess = true
@@ -12,7 +12,14 @@ extension Container {
       let timeout = Double(10)
       configuration.timeoutIntervalForRequest = timeout
       configuration.timeoutIntervalForResource = timeout
-      return FeedManager(session: URLSession(configuration: configuration))
+      return URLSession(configuration: configuration)
+    }
+    .scope(.cached)
+  }
+
+  var feedManager: Factory<FeedManager> {
+    Factory(self) {
+      return FeedManager(session: self.feedManagerSession())
     }
     .scope(.unique)
   }
@@ -47,14 +54,6 @@ struct FeedTask: Sendable {
 }
 
 final actor FeedManager: Sendable {
-  // MARK: - Static Helpers
-
-  #if DEBUG
-  static func initForTest(session: DataFetchable) -> FeedManager {
-    FeedManager(session: session)
-  }
-  #endif
-
   // MARK: - Concurrent Download Management
 
   private let downloadManager: DownloadManager
