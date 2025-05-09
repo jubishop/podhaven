@@ -2,21 +2,20 @@
 
 import AVFoundation
 import Factory
+import FactoryTesting
 import Foundation
 import Testing
 
 @testable import PodHaven
 
-@Suite("of SearchService tests")
-struct SearchServiceTests {
+@Suite("of SearchService tests", .container)
+class SearchServiceTests {
   static private let baseURLString = "https://api.podcastindex.org/api/1.0"
 
-  private let session: DataFetchableMock = DataFetchableMock()
-  private let service: SearchService
+  @LazyInjected(\.searchServiceSession) private var searchServiceSession
+  @LazyInjected(\.searchService) private var searchService
 
-  init() {
-    service = SearchService.initForTest(session: session)
-  }
+  var session: DataFetchableMock { searchServiceSession as! DataFetchableMock }
 
   @Test("basic search query")
   func testBasicSearchQuery() async throws {
@@ -28,7 +27,7 @@ struct SearchServiceTests {
       URL(string: Self.baseURLString + "/search/byterm?q=\(searchTerm)")!,
       .data(data)
     )
-    let result = try await service.searchByTerm(searchTerm)
+    let result = try await searchService.searchByTerm(searchTerm)
     let feed = result.feeds.first!
     #expect(result.feeds.count == 5)
     #expect(feed.title == "Hard Fork")
@@ -47,7 +46,7 @@ struct SearchServiceTests {
       URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
       .data(data)
     )
-    let result = try await service.searchByTitle(searchTerm)
+    let result = try await searchService.searchByTitle(searchTerm)
     let feed = result.feeds.first!
     #expect(
       feed.description
@@ -67,7 +66,7 @@ struct SearchServiceTests {
       URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
       .data(data)
     )
-    let result = try await service.searchByTitle(searchTerm)
+    let result = try await searchService.searchByTitle(searchTerm)
     let feed = result.feeds[3]
     #expect(feed.description == "Xxx")
     #expect(result.feeds.count == 60)
@@ -84,7 +83,7 @@ struct SearchServiceTests {
       URL(string: Self.baseURLString + "/search/byperson?q=\(searchTerm)")!,
       .data(data)
     )
-    let result = try await service.searchByPerson(searchTerm)
+    let result = try await searchService.searchByPerson(searchTerm)
     let unsavedPodcastEpisode = try result.items.first!.toUnsavedPodcastEpisode()
     #expect(result.items.count == 60)
     #expect(
@@ -128,7 +127,7 @@ struct SearchServiceTests {
       URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
       .data(data)
     )
-    let result = try await service.searchTrending(language: "en")
+    let result = try await searchService.searchTrending(language: "en")
     let feed = result.feeds.first!
     #expect(result.feeds.count == 40)
     #expect(result.since == Date(timeIntervalSince1970: TimeInterval(1736102643)))
@@ -147,7 +146,7 @@ struct SearchServiceTests {
       URL(string: Self.baseURLString + "/podcasts/trending?cat=News")!,
       .data(data)
     )
-    let result = try await service.searchTrending(categories: ["News"])
+    let result = try await searchService.searchTrending(categories: ["News"])
     let feed = result.feeds.first!
     #expect(result.feeds.count == 40)
     #expect(result.since == Date(timeIntervalSince1970: TimeInterval(1736208810)))
@@ -161,7 +160,7 @@ struct SearchServiceTests {
       .error(URLError(.badServerResponse))
     )
     await #expect(throws: SearchError.self) {
-      _ = try await service.searchTrending(language: "en")
+      _ = try await self.searchService.searchTrending(language: "en")
     }
   }
 }

@@ -4,6 +4,19 @@ import Factory
 import Foundation
 
 extension Container {
+  var searchServiceSession: Factory<DataFetchable> {
+    Factory(self) {
+      let configuration = URLSessionConfiguration.ephemeral
+      configuration.allowsCellularAccess = true
+      configuration.waitsForConnectivity = true
+      let timeout = Double(10)
+      configuration.timeoutIntervalForRequest = timeout
+      configuration.timeoutIntervalForResource = timeout
+      return URLSession(configuration: configuration)
+    }
+    .scope(.cached)
+  }
+
   var searchService: Factory<SearchService> {
     Factory(self) {
       let configuration = URLSessionConfiguration.ephemeral
@@ -12,7 +25,7 @@ extension Container {
       let timeout = Double(10)
       configuration.timeoutIntervalForRequest = timeout
       configuration.timeoutIntervalForResource = timeout
-      return SearchService(session: URLSession(configuration: configuration))
+      return SearchService(session: self.searchServiceSession())
     }
     .scope(.cached)
   }
