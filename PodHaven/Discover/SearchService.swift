@@ -26,14 +26,6 @@ extension Container {
 }
 
 struct SearchService: Sendable {
-  // MARK: - Static Helpers
-
-  #if DEBUG
-  static func parseForPreview<T: Decodable>(_ data: Data) async throws(SearchError) -> T {
-    try await parse(data)
-  }
-  #endif
-
   // MARK: - Initialization
 
   private let session: DataFetchable
@@ -78,14 +70,9 @@ struct SearchService: Sendable {
     return try await Self.parse(try await performRequest("/podcasts/trending", queryItems))
   }
 
-  // MARK: - Private Helpers
+  // MARK: - Parsing
 
-  static private let apiKey = "G3SPKHRKRLCU7Z2PJXEW"
-  static private let apiSecret = "tQcZQATRC5Yg#zG^s7jyaVsMU8fQx5rpuGU6nqC7"
-  static private let baseHost = "api.podcastindex.org"
-  static private let basePath = "/api/1.0"
-
-  private static func parse<T: Decodable>(_ data: Data) async throws(SearchError) -> T {
+  static func parse<T: Decodable>(_ data: Data) async throws(SearchError) -> T {
     do {
       return try await withCheckedThrowingContinuation { continuation in
         let decoder = JSONDecoder()
@@ -101,6 +88,13 @@ struct SearchService: Sendable {
       throw SearchError.parseFailure(data)
     }
   }
+
+  // MARK: - Private Helpers
+
+  static private let apiKey = "G3SPKHRKRLCU7Z2PJXEW"
+  static private let apiSecret = "tQcZQATRC5Yg#zG^s7jyaVsMU8fQx5rpuGU6nqC7"
+  static private let baseHost = "api.podcastindex.org"
+  static private let basePath = "/api/1.0"
 
   private func performRequest(_ path: String, _ query: [URLQueryItem] = [])
     async throws(SearchError) -> Data

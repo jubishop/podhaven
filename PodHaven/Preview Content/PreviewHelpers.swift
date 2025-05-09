@@ -163,7 +163,7 @@ enum PreviewHelpers {
   // MARK: - Searching
 
   static func loadTrendingResult() async throws -> TrendingResult {
-    try await SearchService.parseForPreview(
+    try await SearchService.parse(
       try Data(
         contentsOf: Bundle.main.url(forResource: "trending_in_news", withExtension: "json")!
       )
@@ -171,7 +171,7 @@ enum PreviewHelpers {
   }
 
   static func loadTitleResult() async throws -> TitleResult {
-    try await SearchService.parseForPreview(
+    try await SearchService.parse(
       try Data(
         contentsOf: Bundle.main.url(forResource: "hello_bytitle", withExtension: "json")!
       )
@@ -179,7 +179,7 @@ enum PreviewHelpers {
   }
 
   static func loadTermResult() async throws -> TermResult {
-    try await SearchService.parseForPreview(
+    try await SearchService.parse(
       try Data(
         contentsOf: Bundle.main.url(forResource: "hardfork_byterm", withExtension: "json")!
       )
@@ -187,7 +187,7 @@ enum PreviewHelpers {
   }
 
   static func loadPersonResult() async throws -> PersonResult {
-    try await SearchService.parseForPreview(
+    try await SearchService.parse(
       try Data(
         contentsOf: Bundle.main.url(forResource: "ndg_byperson", withExtension: "json")!
       )
