@@ -34,12 +34,24 @@ struct Observatory {
     }
   }
 
-  func queuedEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
+  func queuedPodcastEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
     _observe { db in
       try Episode.all()
         .inQueue()
         .including(required: Episode.podcast)
         .order(Schema.queueOrderColumn.asc)
+        .asRequest(of: PodcastEpisode.self)
+        .fetchAll(db)
+    }
+  }
+
+  func completedPodcastEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
+    _observe { db in
+      try Episode
+        .all()
+        .filter(Schema.completedColumn == true)
+        .including(required: Episode.podcast)
+        .order(Schema.pubDateColumn.desc)
         .asRequest(of: PodcastEpisode.self)
         .fetchAll(db)
     }

@@ -1,12 +1,12 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import Factory
+import FactoryTesting
 import Foundation
 import GRDB
 import IdentifiedCollections
 import Testing
-import Factory
-import FactoryTesting
 
 @testable import PodHaven
 
@@ -83,8 +83,8 @@ class ObservatoryTests {
     #expect(fetchedPodcastAllPlayed.maxUnqueuedEpisodePubDate == nil)
   }
 
-  @Test("queuedEpisodes()")
-  func testQueuedEpisodes() async throws {
+  @Test("queuedPodcastEpisodes()")
+  func testQueuedPodcastEpisodes() async throws {
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
     try await repo.insertSeries(
       unsavedPodcast,
@@ -100,12 +100,32 @@ class ObservatoryTests {
       ]
     )
 
-    let queuedEpisodes = try await observatory.queuedEpisodes().get()
+    let queuedEpisodes = try await observatory.queuedPodcastEpisodes().get()
     #expect(queuedEpisodes.count == 5)
     #expect(
       queuedEpisodes.map(\.episode.guid) == [
         "top", "midtop", "middle", "midbottom", "bottom",
       ]
     )
+  }
+
+  @Test("completedPodcastEpisodes()")
+  func testCompletedPodcastEpisodes() async throws {
+    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [
+        TestHelpers.unsavedEpisode(guid: "top", pubDate: 5.minutesAgo, completed: true),
+        TestHelpers.unsavedEpisode(guid: "topUncompleted"),
+        TestHelpers.unsavedEpisode(guid: "bottom", pubDate: 15.minutesAgo, completed: true),
+        TestHelpers.unsavedEpisode(guid: "bottomUncompleted"),
+        TestHelpers.unsavedEpisode(guid: "middle", pubDate: 10.minutesAgo, completed: true),
+        TestHelpers.unsavedEpisode(guid: "middleUncompleted"),
+      ]
+    )
+
+    let completedEpisodes = try await observatory.completedPodcastEpisodes().get()
+    #expect(completedEpisodes.count == 3)
+    #expect(completedEpisodes.map(\.episode.guid) == ["top", "middle", "bottom"])
   }
 }

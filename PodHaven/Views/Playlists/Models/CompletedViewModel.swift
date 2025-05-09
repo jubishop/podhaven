@@ -6,7 +6,7 @@ import GRDB
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor final class UpNextViewModel {
+@Observable @MainActor final class CompletedViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
@@ -25,11 +25,11 @@ import SwiftUI
 
   func execute() async {
     do {
-      for try await podcastEpisodes in observatory.queuedPodcastEpisodes() {
+      for try await podcastEpisodes in observatory.completedPodcastEpisodes() {
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }
     } catch {
-      alert("Couldn't execute UpNextViewModel")
+      alert("Couldn't execute CompletedViewModel")
     }
   }
 
@@ -61,3 +61,4 @@ import SwiftUI
     Task { try await queue.dequeue(episodeList.selectedEntryIDs) }
   }
 }
+
