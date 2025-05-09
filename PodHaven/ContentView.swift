@@ -12,8 +12,8 @@ struct ContentView: View {
       Tab("Settings", systemImage: "gear", value: .settings) {
         SettingsView().tab()
       }
-      Tab("Up Next", systemImage: "list.bullet", value: .upNext) {
-        UpNextView().tab()
+      Tab("Playlists", systemImage: "list.bullet", value: .playlists) {
+        PlaylistsView().tab()
       }
       Tab("Discover", systemImage: "magnifyingglass", value: .discover, role: .search) {
         DiscoverView().tab()

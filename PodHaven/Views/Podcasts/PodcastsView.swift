@@ -25,7 +25,7 @@ struct PodcastsView: View {
           )
         }
       }
-      .navigationTitle("All Lists")
+      .navigationTitle("All Podcast Lists")
       .navigationDestination(for: Navigation.PodcastsView.self) { list in
         switch list {
         case .all:
