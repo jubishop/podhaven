@@ -28,3 +28,12 @@ import Foundation
     }
   }
 }
+
+@MainActor extension PodcastQueueableModel where EpisodeType == PodcastEpisode {
+  func getPodcastEpisode(_ episode: PodcastEpisode) async throws -> PodcastEpisode { episode }
+  func getEpisodeID(_ episode: PodcastEpisode) async throws -> Episode.ID { episode.id }
+}
+
+@MainActor extension PodcastQueueableModel where EpisodeType == Episode {
+  func getEpisodeID(_ episode: Episode) async throws -> Episode.ID { episode.id }
+}

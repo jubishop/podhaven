@@ -33,14 +33,4 @@ class CompletedViewModel:
       alert("Couldn't execute CompletedViewModel")
     }
   }
-
-  // MARK: - PodcastQueueableModel
-
-  func getPodcastEpisode(_ episode: PodcastEpisode) async throws -> PodcastEpisode { episode }
-  func getEpisodeID(_ episode: PodcastEpisode) async throws -> Episode.ID { episode.id }
-
-  // MARK: - QueueableSelectableEpisodeList
-
-  var selectedPodcastEpisodes: [PodcastEpisode] { selectedEpisodes }
-  var selectedEpisodeIDs: [Episode.ID] { selectedPodcastEpisodes.map(\.id) }
 }

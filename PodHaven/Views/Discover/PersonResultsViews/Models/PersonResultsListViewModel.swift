@@ -77,10 +77,4 @@ class PersonResultsListViewModel:
       try await repo.upsertPodcastEpisodes(selectedEpisodes)
     }
   }
-
-  var selectedEpisodeIDs: [Episode.ID] {
-    get async throws {
-      try await selectedPodcastEpisodes.map(\.id)
-    }
-  }
 }

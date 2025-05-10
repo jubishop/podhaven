@@ -104,12 +104,6 @@ class PodcastResultsViewModel: QueueableSelectableEpisodeList, PodcastQueueableM
     }
   }
 
-  var selectedEpisodeIDs: [Episode.ID] {
-    get async throws {
-      try await selectedPodcastEpisodes.map(\.id)
-    }
-  }
-
   // MARK: - Public Functions
 
   func subscribe() {

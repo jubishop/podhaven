@@ -50,4 +50,14 @@ import IdentifiedCollections
       }
     }
   }
+
+  var selectedEpisodeIDs: [Episode.ID] {
+    get async throws {
+      try await selectedPodcastEpisodes.map(\.id)
+    }
+  }
+}
+
+@MainActor extension QueueableSelectableEpisodeList where EpisodeType == PodcastEpisode {
+  var selectedPodcastEpisodes: [PodcastEpisode] { get async throws { selectedEpisodes } }
 }

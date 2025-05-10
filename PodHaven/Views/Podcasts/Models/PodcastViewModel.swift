@@ -71,8 +71,6 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
     PodcastEpisode(podcast: podcast, episode: episode)
   }
 
-  func getEpisodeID(_ episode: Episode) async throws -> Episode.ID { episode.id }
-
   // MARK: - QueueableSelectableEpisodeList
 
   var selectedPodcastEpisodes: [PodcastEpisode] {
@@ -83,12 +81,6 @@ final class PodcastViewModel: QueueableSelectableEpisodeList, PodcastQueueableMo
           episode: episode
         )
       }
-    }
-  }
-
-  var selectedEpisodeIDs: [Episode.ID] {
-    get async throws {
-      selectedEpisodes.map(\.id)
     }
   }
 
