@@ -3,7 +3,7 @@
 import Foundation
 import SwiftUI
 
-struct EpisodeSwipeModifier<ViewModel: EpisodeQueueable>: ViewModifier {
+struct EpisodeQueueableSwipeModifier<ViewModel: EpisodeQueueable>: ViewModifier {
   let viewModel: ViewModel
   let episode: ViewModel.EpisodeType
 
@@ -39,10 +39,10 @@ struct EpisodeSwipeModifier<ViewModel: EpisodeQueueable>: ViewModifier {
 }
 
 extension View {
-  func episodeSwipeActions<ViewModel: EpisodeQueueable>(
+  func episodeQueueableSwipeActions<ViewModel: EpisodeQueueable>(
     viewModel: ViewModel,
     episode: ViewModel.EpisodeType
   ) -> some View {
-    self.modifier(EpisodeSwipeModifier(viewModel: viewModel, episode: episode))
+    self.modifier(EpisodeQueueableSwipeModifier(viewModel: viewModel, episode: episode))
   }
 }

@@ -25,7 +25,7 @@ struct PlaylistsView: View {
         case .upNext:
           UpNextView()
         case .completed:
-          Log.fatal("Not implemented")
+          CompletedView()
         }
       }
     }

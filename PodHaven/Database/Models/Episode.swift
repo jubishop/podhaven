@@ -70,4 +70,20 @@ extension DerivableRequest<Episode> {
   func inQueue() -> Self {
     filter(Schema.queueOrderColumn != nil)
   }
+
+  func unqueued() -> Self {
+    filter(Schema.queueOrderColumn == nil)
+  }
+
+  func completed() -> Self {
+    filter(Schema.completedColumn == true)
+  }
+
+  func uncompleted() -> Self {
+    filter(Schema.completedColumn == false)
+  }
+
+  func unstarted() -> Self {
+    filter(Schema.currentTimeColumn == 0)
+  }
 }

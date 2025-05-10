@@ -25,7 +25,7 @@ import SwiftUI
 
   func execute() async {
     do {
-      for try await podcastEpisodes in observatory.queuedEpisodes() {
+      for try await podcastEpisodes in observatory.queuedPodcastEpisodes() {
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }
     } catch {
@@ -40,10 +40,6 @@ import SwiftUI
     else { Log.fatal("Somehow dragged none or several?") }
 
     Task { try await queue.insert(podcastEpisodes[from].episode.id, at: to) }
-  }
-
-  func moveToTop(_ podcastEpisode: PodcastEpisode) {
-    Task { try await queue.unshift(podcastEpisode.episode.id) }
   }
 
   func playItem(_ podcastEpisode: PodcastEpisode) {

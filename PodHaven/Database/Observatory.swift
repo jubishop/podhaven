@@ -20,26 +20,38 @@ struct Observatory {
 
   // MARK: - Public Functions
 
-  func allPodcasts(_ sqlExpression: SQLExpression? = nil) -> AsyncValueObservation<[Podcast]> {
+  func allPodcasts(_ filter: SQLExpression = AppDB.NoOp) -> AsyncValueObservation<[Podcast]> {
     _observe { db in
-      try Podcast.all().filtered(with: sqlExpression).fetchAll(db)
+      try Podcast.all().filter(filter).fetchAll(db)
     }
   }
 
-  func allPodcastsWithLatestEpisodeDates(_ sqlExpression: SQLExpression? = nil)
+  func allPodcastsWithLatestEpisodeDates(_ filter: SQLExpression = AppDB.NoOp)
     -> AsyncValueObservation<[PodcastWithLatestEpisodeDates]>
   {
     _observe { db in
-      try PodcastWithLatestEpisodeDates.all().filtered(with: sqlExpression).fetchAll(db)
+      try PodcastWithLatestEpisodeDates.all().filter(filter).fetchAll(db)
     }
   }
 
-  func queuedEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
+  func queuedPodcastEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
     _observe { db in
       try Episode.all()
         .inQueue()
         .including(required: Episode.podcast)
         .order(Schema.queueOrderColumn.asc)
+        .asRequest(of: PodcastEpisode.self)
+        .fetchAll(db)
+    }
+  }
+
+  func completedPodcastEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
+    _observe { db in
+      try Episode
+        .all()
+        .completed()
+        .including(required: Episode.podcast)
+        .order(Schema.pubDateColumn.desc)
         .asRequest(of: PodcastEpisode.self)
         .fetchAll(db)
     }

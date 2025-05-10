@@ -7,7 +7,6 @@ import SwiftUI
 
 @Observable @MainActor
 class PersonResultsListViewModel:
-  PodcastEpisodeGettable,
   PodcastQueueableModel,
   QueueableSelectableEpisodeList
 {

@@ -59,7 +59,7 @@ extension Podcast {
   // MARK: - Annotation Queries
 
   static let episodesSubquery = hasManySubquery(Episode.self)
-  static let unfinishedEpisodes = episodesSubquery.filter(Schema.completedColumn == false)
-  static let unstartedEpisodes = unfinishedEpisodes.filter(Schema.currentTimeColumn == 0)
-  static let unqueuedEpisodes = unstartedEpisodes.filter(Schema.queueOrderColumn == nil)
+  static let unfinishedEpisodes = episodesSubquery.uncompleted()
+  static let unstartedEpisodes = unfinishedEpisodes.unstarted()
+  static let unqueuedEpisodes = unstartedEpisodes.unqueued()
 }
