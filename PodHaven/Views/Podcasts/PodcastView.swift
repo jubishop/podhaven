@@ -62,7 +62,7 @@ struct PodcastView: View {
             )
           }
         )
-        .episodeSwipeActions(viewModel: viewModel, episode: episode)
+        .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
       }
       .animation(.default, value: viewModel.episodeList.filteredEntries)
       .refreshable {
@@ -81,7 +81,7 @@ struct PodcastView: View {
         )
       )
     }
-    .selectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
+    .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task { await viewModel.execute() }
   }
 }

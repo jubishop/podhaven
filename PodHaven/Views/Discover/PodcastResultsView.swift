@@ -61,7 +61,7 @@ struct PodcastResultsView: View {
               )
             }
           )
-          .episodeSwipeActions(viewModel: viewModel, episode: unsavedEpisode)
+          .episodeQueueableSwipeActions(viewModel: viewModel, episode: unsavedEpisode)
         }
         .animation(.default, value: viewModel.episodeList.filteredEntries)
       }
@@ -77,7 +77,7 @@ struct PodcastResultsView: View {
         )
       }
     )
-    .selectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
+    .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task { await viewModel.execute() }
   }
 }
