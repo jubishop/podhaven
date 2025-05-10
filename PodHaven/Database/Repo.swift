@@ -7,9 +7,6 @@ import GRDB
 import IdentifiedCollections
 import Tagged
 
-typealias RequestClosure =
-  @Sendable (QueryInterfaceRequest<Podcast>) -> QueryInterfaceRequest<Podcast>
-
 extension Container {
   var repo: Factory<Repo> {
     Factory(self) { Repo(self.appDB()) }.scope(.cached)

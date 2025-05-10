@@ -34,14 +34,14 @@ struct PodcastsView: View {
           StandardPodcastsView(
             viewModel: StandardPodcastsViewModel(
               title: "Subscribed",
-              podcastFilter: Schema.subscribedColumn == true
+              filter: Schema.subscribedColumn == true
             )
           )
         case .unsubscribed:
           StandardPodcastsView(
             viewModel: StandardPodcastsViewModel(
               title: "Unsubscribed",
-              podcastFilter: Schema.subscribedColumn == false
+              filter: Schema.subscribedColumn == false
             )
           )
         }
