@@ -17,11 +17,6 @@ extension FetchRequest where RowDecoder: FetchableRecord & Identifiable {
 }
 
 extension DerivableRequest {
-  func filtered(with sqlExpression: SQLExpression?) -> Self {
-    guard let sqlExpression = sqlExpression else { return self }
-    return self.filter(sqlExpression)
-  }
-
   func shuffled() -> Self {
     order(sql: "RANDOM()")
   }

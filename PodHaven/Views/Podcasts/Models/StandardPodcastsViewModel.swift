@@ -21,7 +21,7 @@ import SwiftUI
   }
 
   let title: String
-  let podcastFilter: SQLExpression
+  let filter: SQLExpression
 
   var podcastList = SelectableListUseCase<PodcastWithLatestEpisodeDates, Podcast.ID>(
     idKeyPath: \.id,
@@ -76,15 +76,15 @@ import SwiftUI
 
   // MARK: - Initialization
 
-  init(title: String, podcastFilter: SQLExpression = AppDB.NoOpFilter) {
+  init(title: String, filter: SQLExpression = AppDB.NoOp) {
     self.title = title
-    self.podcastFilter = podcastFilter
+    self.filter = filter
   }
 
   func execute() async {
     do {
       for try await podcastsWithLatestEpisodeDates in observatory.allPodcastsWithLatestEpisodeDates(
-        podcastFilter
+        filter
       ) {
         self.podcastList.allEntries = IdentifiedArray(
           uniqueElements: podcastsWithLatestEpisodeDates
@@ -98,7 +98,7 @@ import SwiftUI
   // MARK: - Public Functions
 
   func refreshPodcasts() async throws {
-    try await refreshManager.performRefresh(stalenessThreshold: 1.minutesAgo, filter: podcastFilter)
+    try await refreshManager.performRefresh(stalenessThreshold: 1.minutesAgo, filter: filter)
   }
 
   func deleteSelectedPodcasts() {

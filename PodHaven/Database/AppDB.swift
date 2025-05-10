@@ -1,8 +1,8 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import Foundation
 import GRDB
-import Factory
 
 extension Container {
   var appDB: Factory<AppDB> {
@@ -51,7 +51,7 @@ struct AppDB: Sendable {
 
   // MARK: - Shorthand Expression Constants
 
-  static let NoOpFilter = true.sqlExpression
+  static let NoOp = true.sqlExpression
 
   // MARK: - Private Static Helpers
 

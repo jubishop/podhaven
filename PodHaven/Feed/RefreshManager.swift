@@ -21,9 +21,7 @@ final actor RefreshManager: Sendable {
 
   // MARK: - Refresh Management
 
-  func performRefresh(stalenessThreshold: Date, filter: SQLExpression = AppDB.NoOpFilter)
-    async throws
-  {
+  func performRefresh(stalenessThreshold: Date, filter: SQLExpression = AppDB.NoOp) async throws {
     try await withThrowingDiscardingTaskGroup { group in
       let allStaleSubscribedPodcastSeries = try await repo.allPodcastSeries(
         Schema.lastUpdateColumn < stalenessThreshold && filter
