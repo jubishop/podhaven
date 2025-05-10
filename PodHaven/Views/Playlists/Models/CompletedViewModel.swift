@@ -6,7 +6,11 @@ import GRDB
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor final class CompletedViewModel {
+@Observable @MainActor
+class CompletedViewModel:
+  PodcastQueueableModel,
+  QueueableSelectableEpisodeList
+{
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
@@ -14,9 +18,6 @@ import SwiftUI
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
   // MARK: - State Management
-
-  var editMode: EditMode = .inactive
-  var isEditing: Bool { editMode == .active }
 
   var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
   var podcastEpisodes: IdentifiedArray<Episode.ID, PodcastEpisode> { episodeList.allEntries }
@@ -33,13 +34,13 @@ import SwiftUI
     }
   }
 
-  // MARK: - Public Functions
+  // MARK: - PodcastQueueableModel
 
-  func playItem(_ podcastEpisode: PodcastEpisode) {
-    Task {
-      try await playManager.load(podcastEpisode)
-      await playManager.play()
-    }
-  }
+  func getPodcastEpisode(_ episode: PodcastEpisode) async throws -> PodcastEpisode { episode }
+  func getEpisodeID(_ episode: PodcastEpisode) async throws -> Episode.ID { episode.id }
+
+  // MARK: - QueueableSelectableEpisodeList
+
+  var selectedPodcastEpisodes: [PodcastEpisode] { selectedEpisodes }
+  var selectedEpisodeIDs: [Episode.ID] { selectedPodcastEpisodes.map(\.id) }
 }
-

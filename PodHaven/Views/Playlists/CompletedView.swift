@@ -11,39 +11,18 @@ struct CompletedView: View {
 
   var body: some View {
     List(viewModel.podcastEpisodes) { podcastEpisode in
-      CompletedListView(
-        viewModel: CompletedListViewModel(
+      PodcastEpisodeListView(
+        viewModel: PodcastEpisodeListViewModel(
           isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
-          podcastEpisode: podcastEpisode,
-          editMode: viewModel.editMode
+          item: podcastEpisode,
+          isSelecting: viewModel.episodeList.isSelecting
         )
       )
-      .swipeActions(edge: .leading) {
-        Button(
-          action: { viewModel.playItem(podcastEpisode) },
-          label: {
-            Label("Play Now", systemImage: "play.fill")
-          }
-        )
-        .tint(.green)
-      }
+      .episodeQueueableSwipeActions(viewModel: viewModel, episode: podcastEpisode)
     }
-    .navigationTitle("Completed Episodes")
-    .environment(\.editMode, $viewModel.editMode)
     .animation(.default, value: viewModel.podcastEpisodes.elements)
-    .toolbar {
-      if viewModel.isEditing {
-        ToolbarItem(placement: .topBarTrailing) {
-          SelectableListMenu(list: viewModel.episodeList)
-        }
-      }
-
-      ToolbarItem(placement: (viewModel.isEditing ? .topBarLeading : .topBarTrailing)) {
-        EditButton()
-          .environment(\.editMode, $viewModel.editMode)
-      }
-    }
-    .toolbarRole(.editor)
+    .navigationTitle("Completed Episodes")
+    .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task { await viewModel.execute() }
   }
 }
