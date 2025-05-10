@@ -43,7 +43,7 @@ struct UpNextView: View {
     }
     .navigationTitle("Up Next")
     .environment(\.editMode, $viewModel.editMode)
-    .animation(.default, value: viewModel.podcastEpisodes.elements)
+    .animation(.default, value: viewModel.podcastEpisodes)
     .toolbar {
       if viewModel.isEditing {
         ToolbarItem(placement: .topBarTrailing) {

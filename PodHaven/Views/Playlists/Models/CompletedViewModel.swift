@@ -20,7 +20,6 @@ class CompletedViewModel:
   // MARK: - State Management
 
   var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
-  var podcastEpisodes: IdentifiedArray<Episode.ID, PodcastEpisode> { episodeList.allEntries }
 
   // MARK: - Initialization
 

@@ -10,7 +10,7 @@ struct CompletedView: View {
   @State private var viewModel = CompletedViewModel()
 
   var body: some View {
-    List(viewModel.podcastEpisodes) { podcastEpisode in
+    List(viewModel.episodeList.allEntries) { podcastEpisode in
       PodcastEpisodeListView(
         viewModel: PodcastEpisodeListViewModel(
           isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
@@ -20,7 +20,7 @@ struct CompletedView: View {
       )
       .episodeQueueableSwipeActions(viewModel: viewModel, episode: podcastEpisode)
     }
-    .animation(.default, value: viewModel.podcastEpisodes.elements)
+    .animation(.default, value: viewModel.episodeList.filteredEntries)
     .navigationTitle("Completed Episodes")
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task { await viewModel.execute() }
