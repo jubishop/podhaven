@@ -5,7 +5,7 @@ import Foundation
 enum RepoError: ReadableError {
   case insertFailure(description: String, caught: Error)
   case readFailure(type: Any.Type, id: Int64, caught: Error)
-  case updateFailure(type: Any.Type, id: Int64, caught: Error)
+  case updateFailure(type: Any.Type, id: Int64, description: String, caught: Error)
 
   var message: String {
     switch self {
@@ -24,12 +24,13 @@ enum RepoError: ReadableError {
           ID: \(id)
         \(ErrorKit.nestedCaughtMessage(for: error))
         """
-    case .updateFailure(let type, let id, let error):
+    case .updateFailure(let type, let description, let id, let error):
       return
         """
         Failed to update record.
           Type: \(String(describing: type))
           ID: \(id)
+          Description: \(description)
         \(ErrorKit.nestedCaughtMessage(for: error))
         """
     }

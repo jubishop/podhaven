@@ -153,6 +153,7 @@ struct Repo: Sendable {
       throw RepoError.updateFailure(
         type: PodcastSeries.self,
         id: podcast.id.rawValue,
+        description: podcast.toString,
         caught: error
       )
     }
