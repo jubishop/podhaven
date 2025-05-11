@@ -109,7 +109,7 @@ struct Log {
     #if DEBUG
     self.error(error, file: file, function: function, line: line)
     #else
-    SentrySDK.capture(error: error)
+    SentrySDK.capture(error: error, message: ErrorKit.loggableMessage(for: error))
     #endif
   }
 
