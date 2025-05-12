@@ -2,12 +2,12 @@
 
 import SwiftUI
 
-struct EpisodeView: View {
+struct EpisodeDetailView: View {
   @Environment(Alert.self) var alert
 
-  private let viewModel: EpisodeViewModel
+  private let viewModel: EpisodeDetailViewModel
 
-  init(viewModel: EpisodeViewModel) {
+  init(viewModel: EpisodeDetailViewModel) {
     self.viewModel = viewModel
   }
 
@@ -41,7 +41,7 @@ struct EpisodeView: View {
   NavigationStack {
     Group {
       if let podcastEpisode = podcastEpisode {
-        EpisodeView(viewModel: EpisodeViewModel(podcastEpisode: podcastEpisode))
+        EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
       } else {
         Text("No episodes in DB")
       }

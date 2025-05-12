@@ -36,8 +36,8 @@ struct PersonResultsListView: View {
         NavigationLink(
           value: unsavedPodcastEpisode,
           label: {
-            EpisodeListResultsView(
-              viewModel: EpisodeListResultsViewModel(
+            EpisodeResultsListView(
+              viewModel: EpisodeResultsListViewModel(
                 isSelected: $viewModel.episodeList.isSelected[unsavedPodcastEpisode],
                 item: unsavedPodcastEpisode.unsavedEpisode,
                 isSelecting: viewModel.episodeList.isSelecting
@@ -50,8 +50,8 @@ struct PersonResultsListView: View {
       .animation(.default, value: viewModel.episodeList.filteredEntries)
     }
     .navigationDestination(for: UnsavedPodcastEpisode.self) { unsavedPodcastEpisode in
-      EpisodeResultsView(
-        viewModel: EpisodeResultsViewModel(unsavedPodcastEpisode: unsavedPodcastEpisode)
+      EpisodeResultsDetailView(
+        viewModel: EpisodeResultsDetailViewModel(unsavedPodcastEpisode: unsavedPodcastEpisode)
       )
     }
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)

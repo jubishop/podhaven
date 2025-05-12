@@ -7,7 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class PodcastResultsViewModel: QueueableSelectableEpisodeList, PodcastQueueableModel {
+class PodcastResultsDetailViewModel: QueueableSelectableEpisodeList, PodcastQueueableModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.navigation) private var navigation
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
@@ -70,7 +70,7 @@ class PodcastResultsViewModel: QueueableSelectableEpisodeList, PodcastQueueableM
         subscribable = true
       }
     } catch {
-      alert("Couldn't execute PodcastResultsViewModel")
+      alert("Couldn't execute PodcastResultsDetailViewModel")
     }
   }
 

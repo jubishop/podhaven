@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-struct PodcastListResultsView: View {
+struct PodcastResultsListView: View {
   private let unsavedPodcast: UnsavedPodcast
 
   init(unsavedPodcast: UnsavedPodcast) {
@@ -21,7 +21,7 @@ struct PodcastListResultsView: View {
   NavigationStack {
     List {
       if let unsavedPodcast = unsavedPodcast {
-        PodcastListResultsView(unsavedPodcast: unsavedPodcast)
+        PodcastResultsListView(unsavedPodcast: unsavedPodcast)
       } else {
         Text("No trending result found")
       }

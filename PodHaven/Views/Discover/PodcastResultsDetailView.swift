@@ -3,10 +3,10 @@
 import Factory
 import SwiftUI
 
-struct PodcastResultsView: View {
-  @State private var viewModel: PodcastResultsViewModel
+struct PodcastResultsDetailView: View {
+  @State private var viewModel: PodcastResultsDetailViewModel
 
-  init(viewModel: PodcastResultsViewModel) {
+  init(viewModel: PodcastResultsDetailViewModel) {
     self.viewModel = viewModel
   }
 
@@ -52,8 +52,8 @@ struct PodcastResultsView: View {
               unsavedEpisode: unsavedEpisode
             ),
             label: {
-              EpisodeListResultsView(
-                viewModel: EpisodeListResultsViewModel(
+              EpisodeResultsListView(
+                viewModel: EpisodeResultsListViewModel(
                   isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
                   item: unsavedEpisode,
                   isSelecting: viewModel.episodeList.isSelecting
@@ -70,8 +70,8 @@ struct PodcastResultsView: View {
     .navigationDestination(
       for: UnsavedPodcastEpisode.self,
       destination: { unsavedPodcastEpisode in
-        EpisodeResultsView(
-          viewModel: EpisodeResultsViewModel(
+        EpisodeResultsDetailView(
+          viewModel: EpisodeResultsDetailViewModel(
             unsavedPodcastEpisode: unsavedPodcastEpisode
           )
         )
@@ -84,12 +84,12 @@ struct PodcastResultsView: View {
 
 #if DEBUG
 #Preview {
-  @Previewable @State var viewModel: PodcastResultsViewModel?
+  @Previewable @State var viewModel: PodcastResultsDetailViewModel?
   @ObservationIgnored @LazyInjected(\.repo) var repo
 
   NavigationStack {
     if let viewModel = viewModel {
-      PodcastResultsView(viewModel: viewModel)
+      PodcastResultsDetailView(viewModel: viewModel)
     }
   }
   .preview()
@@ -98,7 +98,7 @@ struct PodcastResultsView: View {
     if let existingPodcastSeries = try? await repo.podcastSeries(unsavedPodcast.feedURL) {
       try! await repo.delete(existingPodcastSeries.id)
     }
-    viewModel = PodcastResultsViewModel(
+    viewModel = PodcastResultsDetailViewModel(
       searchedPodcast: SearchedPodcast(searchedText: "News", unsavedPodcast: unsavedPodcast)
     )
   }

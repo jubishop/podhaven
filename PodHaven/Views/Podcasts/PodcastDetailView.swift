@@ -3,12 +3,12 @@
 import GRDB
 import SwiftUI
 
-struct PodcastView: View {
+struct PodcastDetailView: View {
   @Environment(Alert.self) var alert
 
-  @State private var viewModel: PodcastViewModel
+  @State private var viewModel: PodcastDetailViewModel
 
-  init(viewModel: PodcastViewModel) {
+  init(viewModel: PodcastDetailViewModel) {
     self.viewModel = viewModel
   }
 
@@ -75,8 +75,8 @@ struct PodcastView: View {
     }
     .navigationTitle(viewModel.podcast.title)
     .navigationDestination(for: Episode.self) { episode in
-      EpisodeView(
-        viewModel: EpisodeViewModel(
+      EpisodeDetailView(
+        viewModel: EpisodeDetailViewModel(
           podcastEpisode: PodcastEpisode(podcast: viewModel.podcast, episode: episode)
         )
       )
@@ -92,7 +92,7 @@ struct PodcastView: View {
 
   NavigationStack {
     if let podcast = podcast {
-      PodcastView(viewModel: PodcastViewModel(podcast: podcast))
+      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
     }
   }
   .preview()

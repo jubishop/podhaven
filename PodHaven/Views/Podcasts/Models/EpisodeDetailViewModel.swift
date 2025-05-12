@@ -4,7 +4,7 @@ import Factory
 import Foundation
 import GRDB
 
-@Observable @MainActor final class EpisodeViewModel {
+@Observable @MainActor final class EpisodeDetailViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
@@ -32,7 +32,7 @@ import GRDB
         self.podcastEpisode = podcastEpisode
       }
     } catch {
-      alert("Couldn't execute EpisodeViewModel")
+      alert("Couldn't execute EpisodeDetailViewModel")
     }
   }
 

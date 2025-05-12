@@ -20,7 +20,7 @@ struct PodcastsResultsView: View {
                 unsavedPodcast: unsavedPodcast
               ),
               label: {
-                PodcastListResultsView(unsavedPodcast: unsavedPodcast)
+                PodcastResultsListView(unsavedPodcast: unsavedPodcast)
               }
             )
           }
@@ -28,7 +28,7 @@ struct PodcastsResultsView: View {
         .navigationDestination(
           for: SearchedPodcast.self,
           destination: { searchedPodcast in
-            PodcastResultsView(viewModel: PodcastResultsViewModel(searchedPodcast: searchedPodcast))
+            PodcastResultsDetailView(viewModel: PodcastResultsDetailViewModel(searchedPodcast: searchedPodcast))
           }
         )
       } else {

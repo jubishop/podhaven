@@ -56,7 +56,7 @@ struct StandardPodcastsView: View {
     }
     .navigationTitle(viewModel.title)
     .navigationDestination(for: Podcast.self) { podcast in
-      PodcastView(viewModel: PodcastViewModel(podcast: podcast))
+      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
     }
     .refreshable {
       do {

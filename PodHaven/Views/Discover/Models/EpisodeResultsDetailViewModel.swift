@@ -4,7 +4,7 @@ import Factory
 import Foundation
 import GRDB
 
-@Observable @MainActor class EpisodeResultsViewModel {
+@Observable @MainActor class EpisodeResultsDetailViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
   @ObservationIgnored @LazyInjected(\.playManager) private var playManager
