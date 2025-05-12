@@ -12,11 +12,19 @@ struct ContentView: View {
       Tab("Settings", systemImage: "gear", value: .settings) {
         SettingsView().tab()
       }
+      Tab("Search", systemImage: "magnifyingglass", value: .search, role: .search) {
+        SearchView().tab()
+      }
+      Tab(
+        "Up Next",
+        systemImage: "text.line.first.and.arrowtriangle.forward",
+        value: .upNext,
+        role: .search
+      ) {
+        UpNextView().tab()
+      }
       Tab("Playlists", systemImage: "list.bullet", value: .playlists) {
         PlaylistsView().tab()
-      }
-      Tab("Discover", systemImage: "magnifyingglass", value: .discover, role: .search) {
-        DiscoverView().tab()
       }
       Tab("Podcasts", systemImage: "dot.radiowaves.left.and.right", value: .podcasts) {
         PodcastsView().tab()

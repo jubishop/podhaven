@@ -4,7 +4,7 @@ import Factory
 import Foundation
 import SwiftUI
 
-@Observable @MainActor final class DiscoverViewModel {
+@Observable @MainActor final class SearchViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.playState) private var playState
   @ObservationIgnored @LazyInjected(\.searchService) private var searchService

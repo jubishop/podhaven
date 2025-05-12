@@ -11,10 +11,6 @@ struct PlaylistsView: View {
     NavigationStack(path: $navigation.playlistsPath) {
       Form {
         NavigationLink(
-          value: Navigation.PlaylistsView.upNext,
-          label: { Text("Up Next") }
-        )
-        NavigationLink(
           value: Navigation.PlaylistsView.completed,
           label: { Text("Completed") }
         )
@@ -22,8 +18,6 @@ struct PlaylistsView: View {
       .navigationTitle("All Playlists")
       .navigationDestination(for: Navigation.PlaylistsView.self) { list in
         switch list {
-        case .upNext:
-          UpNextView()
         case .completed:
           CompletedView()
         }

@@ -1,56 +1,49 @@
 // Copyright Justin Bishop, 2025
 
+import Factory
 import SwiftUI
 
 struct SearchView: View {
-  private let viewModel: DiscoverViewModel
+  @Environment(Alert.self) var alert
 
-  init(viewModel: DiscoverViewModel) {
-    self.viewModel = viewModel
-  }
+  @State private var navigation = Container.shared.navigation()
+  @State private var viewModel = SearchViewModel()
 
   var body: some View {
-    Group {
-      switch viewModel.currentView {
-      case .allFields:
-        PodcastsResultsView(
-          viewModel: ResultsViewModel(
-            title: "🔍📖 \(viewModel.podcastSearchResult.searchText)",
-            searchResult: viewModel.podcastSearchResult
-          )
+    NavigationStack(path: $navigation.searchPath) {
+      ResultsView(viewModel: viewModel)
+        .searchable(
+          text: $viewModel.searchText,
+          tokens: $viewModel.currentTokens,
+          suggestedTokens: .constant(viewModel.allTokens),
+          isPresented: $viewModel.searchPresented
+        ) { token in
+          SearchTokenView(token: token)
+        }
+        .onSubmit(of: .search, viewModel.searchSubmitted)
+        .navigationBarTitle("Search")
+        .background(
+          SizeReader { size in
+            viewModel.width = size.width
+          }
+          .padding()
         )
-      case .titles:
-        PodcastsResultsView(
-          viewModel: ResultsViewModel(
-            title: "🔍 \(viewModel.podcastSearchResult.searchText)",
-            searchResult: viewModel.podcastSearchResult
-          )
-        )
-      case .people:
-        PersonResultsView(
-          viewModel: PersonResultsViewModel(
-            title: "🕵️ \(viewModel.personSearchResult.searchText)",
-            searchResult: viewModel.personSearchResult
-          )
-        )
-      case .trending:
-        PodcastsResultsView(
-          viewModel: ResultsViewModel(
-            title: "📈 \(viewModel.podcastSearchResult.searchText)",
-            searchResult: viewModel.podcastSearchResult
-          )
-        )
-      default: Log.fatal("viewModel.currentView unknown: \(viewModel.currentView)")
-      }
+        .overlay(alignment: .top) {
+          if viewModel.showSearchWarning {
+            SearchWarning(warning: "Must Enter A Search Query")
+          }
+          if viewModel.showCategories {
+            CategoryGrid(viewModel: viewModel)
+          }
+        }
     }
+    .task { await viewModel.execute() }
   }
 }
 
 #if DEBUG
 #Preview {
-  NavigationStack {
-    SearchView(viewModel: DiscoverViewModel())
-  }
-  .preview()
+  SearchView()
+    .preview()
 }
 #endif

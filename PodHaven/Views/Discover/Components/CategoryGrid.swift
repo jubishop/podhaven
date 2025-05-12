@@ -5,9 +5,9 @@ import SwiftUI
 struct CategoryGrid: View {
   @Environment(Alert.self) var alert
 
-  private let viewModel: DiscoverViewModel
+  private let viewModel: SearchViewModel
 
-  init(viewModel: DiscoverViewModel) {
+  init(viewModel: SearchViewModel) {
     self.viewModel = viewModel
   }
 
@@ -35,7 +35,7 @@ struct CategoryGrid: View {
 
 #if DEBUG
 #Preview {
-  @Previewable @State var viewModel = DiscoverViewModel()
+  @Previewable @State var viewModel = SearchViewModel()
 
   NavigationStack {
     if viewModel.width > 0 {

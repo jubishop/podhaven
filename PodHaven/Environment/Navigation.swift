@@ -11,7 +11,7 @@ extension Container {
 
 @Observable @MainActor final class Navigation: Sendable {
   enum Tab {
-    case settings, podcasts, playlists, discover
+    case settings, search, upNext, playlists, podcasts
   }
 
   enum SettingsView {
@@ -25,14 +25,14 @@ extension Container {
   }
 
   enum PlaylistsView {
-    case upNext
     case completed
   }
 
   var settingsPath = NavigationPath()
-  var podcastsPath = NavigationPath()
+  var searchPath = NavigationPath()
+  var upNextPath = NavigationPath()
   var playlistsPath = NavigationPath()
-  var discoverPath = NavigationPath()
+  var podcastsPath = NavigationPath()
   var currentTab: Tab = .settings {
     willSet {
       clearPaths(newValue)
@@ -63,12 +63,14 @@ extension Container {
     switch tab {
     case .settings:
       settingsPath = NavigationPath()
-    case .podcasts:
-      podcastsPath = NavigationPath()
+    case .search:
+      searchPath = NavigationPath()
+    case .upNext:
+      upNextPath = NavigationPath()
     case .playlists:
       playlistsPath = NavigationPath()
-    case .discover:
-      discoverPath = NavigationPath()
+    case .podcasts:
+      podcastsPath = NavigationPath()
     }
   }
 }
