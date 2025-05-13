@@ -1,14 +1,20 @@
-// Copyright Justin Bishop, 2025 
+// Copyright Justin Bishop, 2025
 
 import Foundation
 
-protocol ReadableError: Equatable, LocalizedError, Sendable {
+protocol ReadableError: CustomNSError, Equatable, LocalizedError, Sendable {
   var message: String { get }
 }
 
 extension ReadableError {
+  static var errorDomain: String { "artisanalsoftware.com" }
+
   static func == (_ lhs: Self, _ rhs: Self) -> Bool {
     lhs.message == rhs.message
+  }
+
+  var errorUserInfo: [String: Any] {
+    [NSDebugDescriptionErrorKey: ErrorKit.loggableMessage(for: self)]
   }
 
   var errorDescription: String? { message }
