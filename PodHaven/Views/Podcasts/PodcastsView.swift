@@ -29,19 +29,23 @@ struct PodcastsView: View {
       .navigationDestination(for: Navigation.PodcastsView.self) { list in
         switch list {
         case .all:
-          StandardPodcastsView(viewModel: StandardPodcastsViewModel(title: "All Podcasts"))
+          StandardPodcastsView(
+            viewModel: StandardPodcastsViewModel(
+              title: "All Podcasts"
+            )
+          )
         case .subscribed:
           StandardPodcastsView(
             viewModel: StandardPodcastsViewModel(
               title: "Subscribed",
-              filter: Schema.subscribedColumn == true
+              filter: Podcast.subscribed
             )
           )
         case .unsubscribed:
           StandardPodcastsView(
             viewModel: StandardPodcastsViewModel(
               title: "Unsubscribed",
-              filter: Schema.subscribedColumn == false
+              filter: Podcast.unsubscribed
             )
           )
         }

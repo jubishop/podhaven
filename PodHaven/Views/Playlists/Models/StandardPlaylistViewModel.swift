@@ -7,7 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class CompletedViewModel:
+class StandardPlaylistViewModel:
   PodcastQueueableModel,
   QueueableSelectableEpisodeList
 {
@@ -20,12 +20,19 @@ class CompletedViewModel:
   // MARK: - State Management
 
   var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
+  let title: String
+  let filter: SQLExpression
 
   // MARK: - Initialization
 
+  init(title: String, filter: SQLExpression = AppDB.NoOp) {
+    self.title = title
+    self.filter = filter
+  }
+
   func execute() async {
     do {
-      for try await podcastEpisodes in observatory.completedPodcastEpisodes() {
+      for try await podcastEpisodes in observatory.podcastEpisodes(filter) {
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }
     } catch {

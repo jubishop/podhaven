@@ -72,7 +72,8 @@ struct Queue: Sendable {
 
       // Make space for the new episodes at the beginning of the queue
       try Episode
-        .filter(Schema.queueOrderColumn != nil)
+        .all()
+        .queued()
         .updateAll(db, Schema.queueOrderColumn += episodeIDs.count)
 
       // Assign queue positions to the incoming episodes
@@ -204,6 +205,6 @@ struct Queue: Sendable {
     guard db.isInsideTransaction
     else { Log.fatal("clear method requires a transaction") }
 
-    try Episode.all().inQueue().updateAll(db, Schema.queueOrderColumn.set(to: nil))
+    try Episode.all().queued().updateAll(db, Schema.queueOrderColumn.set(to: nil))
   }
 }

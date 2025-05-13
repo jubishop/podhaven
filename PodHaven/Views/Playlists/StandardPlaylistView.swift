@@ -1,13 +1,15 @@
 // Copyright Justin Bishop, 2025
 
-import Factory
 import SwiftUI
 
-struct CompletedView: View {
+struct StandardPlaylistView: View {
   @Environment(Alert.self) var alert
 
-  @State private var navigation = Container.shared.navigation()
-  @State private var viewModel = CompletedViewModel()
+  @State private var viewModel: StandardPlaylistViewModel
+
+  init(viewModel: StandardPlaylistViewModel) {
+    self.viewModel = viewModel
+  }
 
   var body: some View {
     List(viewModel.episodeList.allEntries) { podcastEpisode in
@@ -21,7 +23,7 @@ struct CompletedView: View {
       .episodeQueueableSwipeActions(viewModel: viewModel, episode: podcastEpisode)
     }
     .animation(.default, value: viewModel.episodeList.filteredEntries)
-    .navigationTitle("Completed Episodes")
+    .navigationTitle(viewModel.title)
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task { await viewModel.execute() }
   }
@@ -30,7 +32,9 @@ struct CompletedView: View {
 #if DEBUG
 #Preview {
   NavigationStack {
-    CompletedView()
+    StandardPlaylistView(
+      viewModel: StandardPlaylistViewModel(title: "Completed", filter: Episode.completed)
+    )
   }
   .preview()
   .task { try? await PreviewHelpers.populateCompletedPodcastEpisodes() }

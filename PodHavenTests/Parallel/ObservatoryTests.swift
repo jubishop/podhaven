@@ -109,7 +109,7 @@ class ObservatoryTests {
     )
   }
 
-  @Test("completedPodcastEpisodes()")
+  @Test("podcastEpisodes(Episode.completed)")
   func testCompletedPodcastEpisodes() async throws {
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
     try await repo.insertSeries(
@@ -124,7 +124,7 @@ class ObservatoryTests {
       ]
     )
 
-    let completedEpisodes = try await observatory.completedPodcastEpisodes().get()
+    let completedEpisodes = try await observatory.podcastEpisodes(Episode.completed).get()
     #expect(completedEpisodes.count == 3)
     #expect(completedEpisodes.map(\.episode.guid) == ["top", "middle", "bottom"])
   }

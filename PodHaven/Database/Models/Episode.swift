@@ -60,6 +60,13 @@ typealias Episode = Saved<UnsavedEpisode>
 
 extension Episode {
   static let podcast = belongsTo(Podcast.self)
+
+  // MARK: - SQL Expressions
+
+  static let queued: SQLExpression = Schema.queueOrderColumn != nil
+  static let completed: SQLExpression = Schema.completedColumn == true
+  static let uncompleted: SQLExpression = Schema.completedColumn == false
+  static let started: SQLExpression = Schema.currentTimeColumn > 0
 }
 
 extension DerivableRequest<Episode> {
@@ -67,8 +74,8 @@ extension DerivableRequest<Episode> {
     select(max(Schema.pubDateColumn))
   }
 
-  func inQueue() -> Self {
-    filter(Schema.queueOrderColumn != nil)
+  func queued() -> Self {
+    filter(Episode.queued)
   }
 
   func unqueued() -> Self {
@@ -76,11 +83,11 @@ extension DerivableRequest<Episode> {
   }
 
   func completed() -> Self {
-    filter(Schema.completedColumn == true)
+    filter(Episode.completed)
   }
 
   func uncompleted() -> Self {
-    filter(Schema.completedColumn == false)
+    filter(Episode.uncompleted)
   }
 
   func unstarted() -> Self {

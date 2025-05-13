@@ -166,7 +166,7 @@ struct Repo: Sendable {
     try await appDB.db.write { db in
       let queuedEpisodeIDs =
         try Episode.all()
-        .inQueue()
+        .queued()
         .filter(podcastIDs.contains(Schema.podcastIDColumn))
         .selectID()
         .fetchAll(db)

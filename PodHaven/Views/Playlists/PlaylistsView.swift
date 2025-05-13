@@ -14,12 +14,28 @@ struct PlaylistsView: View {
           value: Navigation.PlaylistsView.completed,
           label: { Text("Completed") }
         )
+        NavigationLink(
+          value: Navigation.PlaylistsView.unfinished,
+          label: { Text("Unfinished") }
+        )
       }
       .navigationTitle("All Playlists")
       .navigationDestination(for: Navigation.PlaylistsView.self) { list in
         switch list {
         case .completed:
-          CompletedView()
+          StandardPlaylistView(
+            viewModel: StandardPlaylistViewModel(
+              title: "Completed",
+              filter: Episode.completed
+            )
+          )
+        case .unfinished:
+          StandardPlaylistView(
+            viewModel: StandardPlaylistViewModel(
+              title: "Unfinished",
+              filter: Episode.started && Episode.uncompleted
+            )
+          )
         }
       }
     }

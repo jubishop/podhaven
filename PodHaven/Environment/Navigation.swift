@@ -25,7 +25,7 @@ extension Container {
   }
 
   enum PlaylistsView {
-    case completed
+    case completed, unfinished
   }
 
   var settingsPath = NavigationPath()

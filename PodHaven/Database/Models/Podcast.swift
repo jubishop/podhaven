@@ -62,4 +62,19 @@ extension Podcast {
   static let unfinishedEpisodes = episodesSubquery.uncompleted()
   static let unstartedEpisodes = unfinishedEpisodes.unstarted()
   static let unqueuedEpisodes = unstartedEpisodes.unqueued()
+
+  // MARK: - SQL Expressions
+
+  static let subscribed: SQLExpression = Schema.subscribedColumn == true
+  static let unsubscribed: SQLExpression = Schema.subscribedColumn == false
+}
+
+extension DerivableRequest<Podcast> {
+  func subscribed() -> Self {
+    filter(Podcast.subscribed)
+  }
+
+  func unsubscribed() -> Self {
+    filter(Podcast.unsubscribed)
+  }
 }

@@ -154,7 +154,7 @@ enum PreviewHelpers {
   static func populateQueue(queueSize: Int = 20) async throws {
     let repo = Container.shared.repo()
     var currentSize = try await repo.db.read { db in
-      try Episode.all().inQueue().fetchCount(db)
+      try Episode.all().queued().fetchCount(db)
     }
     if currentSize >= queueSize { return }
 
