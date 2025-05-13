@@ -86,8 +86,8 @@ struct PodcastFeed: Sendable, Equatable {
 
   let episodes: [EpisodeFeed]
 
+  let feedURL: FeedURL
   private let rssPodcast: PodcastRSS.Podcast
-  private let feedURL: FeedURL
   private let link: URL?
   private let image: URL
 

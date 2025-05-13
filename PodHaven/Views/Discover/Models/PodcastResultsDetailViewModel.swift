@@ -44,7 +44,7 @@ class PodcastResultsDetailViewModel: QueueableSelectableEpisodeList, PodcastQueu
       let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
       self.podcastFeed = podcastFeed
 
-      for try await podcastSeries in observatory.podcastSeries(unsavedPodcast.feedURL) {
+      for try await podcastSeries in observatory.podcastSeries(podcastFeed.feedURL) {
         if subscribable && existingPodcastSeries == podcastSeries { continue }
 
         if let podcastSeries = podcastSeries, podcastSeries.podcast.subscribed {
