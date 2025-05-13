@@ -84,10 +84,15 @@ class SearchServiceTests {
       data: data
     )
     let result = try await searchService.searchByPerson(searchTerm)
-    let unsavedPodcastEpisode = try result.items.first!.toUnsavedPodcastEpisode()
-    #expect(result.items.count == 60)
+
+    // Three less in our PodcastEpisode array because there are dupes
+    let podcastEpisodes = result.toPodcastEpisodeArray()
+    #expect(result.items.count == 62)
+    #expect(podcastEpisodes.count == 59)
+
+    // The first three are all dupes but Date(timeIntervalSince1970: 1732406400) is the newest.
     #expect(
-      unsavedPodcastEpisode
+      podcastEpisodes.first!
         == UnsavedPodcastEpisode(
           unsavedPodcast: try UnsavedPodcast(
             feedURL: FeedURL(URL(string: "https://feeds.buzzsprout.com/1733776.rss")!),
@@ -113,7 +118,7 @@ class SearchServiceTests {
         )
     )
 
-    #expect(throws: (any Error).self) {
+    #expect(throws: ParseError.missingField("feedImage || image")) {
       try result.items.last!.toUnsavedPodcastEpisode()
     }
   }

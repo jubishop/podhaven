@@ -4494,13 +4494,35 @@
       <media:content url="https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/d1c976ea-8565-49b9-a603-aeac013215b6/70a195a9-2d24-45ab-9ed6-aeac013215d2/image.jpg?t=1654540470&amp;size=Large" type="image/jpeg" />
       <guid isPermaLink="false">178f32e0-7246-11ec-b14e-19521896ea35</guid>
       <omny:clipId>04b674ca-37fd-43ac-987c-aeac0132cb09</omny:clipId>
-      <pubDate>Mon, 10 Jan 2022 18:49:51 +0000</pubDate>
+      <pubDate>Mon, 10 Jan 2020 18:49:51 +0000</pubDate>
       <itunes:duration>1158</itunes:duration>
       <enclosure url="https://podtrac.com/pts/redirect.mp3/traffic.omny.fm/d/clips/e73c998e-6e60-432f-8610-ae210140c5b1/d1c976ea-8565-49b9-a603-aeac013215b6/04b674ca-37fd-43ac-987c-aeac0132cb09/audio.mp3?utm_source=Podcast&amp;in_playlist=70a195a9-2d24-45ab-9ed6-aeac013215d2" length="18559666" type="audio/mpeg" />
       <link>https://omny.fm/shows/official-seattle-seahawks-podcasts/recapping-week-18-seahawks-at-cardinals</link>
       <podcast:transcript url="https://api.omny.fm/orgs/e73c998e-6e60-432f-8610-ae210140c5b1/clips/04b674ca-37fd-43ac-987c-aeac0132cb09/transcript?format=SubRip&amp;t=1700533281" type="application/srt" language="en-us" />
       <podcast:transcript url="https://api.omny.fm/orgs/e73c998e-6e60-432f-8610-ae210140c5b1/clips/04b674ca-37fd-43ac-987c-aeac0132cb09/transcript?format=WebVTT&amp;t=1700533281" type="text/vtt" language="en-us" />
       <podcast:transcript url="https://api.omny.fm/orgs/e73c998e-6e60-432f-8610-ae210140c5b1/clips/04b674ca-37fd-43ac-987c-aeac0132cb09/transcript?format=TextWithTimestamps&amp;t=1700533281" type="text/plain" language="en-us" />
+    </item>
+    <item>
+      <title>Recapping Week 18: Seahawks at Cardinals</title>
+      <itunes:title>Recapping Week 18: Seahawks at Cardinals</itunes:title>
+      <description><![CDATA[The Seahawks finished the 2021 season with a statement win on the road vs. the Cardinals. Today’s show: What Had Happened Was (00:45), Playmakers (04:56), WR Round up (12:22), Coaches Corner (12:48), and Victory Formation (15:45).<p>See <a href="https://omnystudio.com/listener">omnystudio.com/listener</a> for privacy information.</p>]]></description>
+      <content:encoded><![CDATA[The Seahawks finished the 2021 season with a statement win on the road vs. the Cardinals. Today’s show: What Had Happened Was (00:45), Playmakers (04:56), WR Round up (12:22), Coaches Corner (12:48), and Victory Formation (15:45).<p>See <a href="https://omnystudio.com/listener">omnystudio.com/listener</a> for privacy information.</p>]]></content:encoded>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:author>Seattle Seahawks</itunes:author>
+      <itunes:image href="https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/d1c976ea-8565-49b9-a603-aeac013215b6/70a195a9-2d24-45ab-9ed6-aeac013215d2/image.jpg?t=1654540470&amp;size=Large" />
+      <media:content url="https://podtrac.com/pts/redirect.mp3/traffic.omny.fm/d/clips/e73c998e-6e60-432f-8610-ae210140c5b1/5ea337e1-0349-4fe5-aa0f-aeac013216eb/e1c5759b-4e9a-400a-b897-aeac01322539/audio.mp3?utm_source=Podcast&amp;in_playlist=70a195a9-2d24-45ab-9ed6-aeac013215d2" type="audio/mpeg">
+        <media:player url="https://omny.fm/shows/hawk-talk/recapping-week-18-seahawks-at-cardinals/embed" />
+      </media:content>
+      <media:content url="https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/d1c976ea-8565-49b9-a603-aeac013215b6/70a195a9-2d24-45ab-9ed6-aeac013215d2/image.jpg?t=1654540470&amp;size=Large" type="image/jpeg" />
+      <guid isPermaLink="false">178f32e0-7246-11ec-b14e-19521896ea35</guid>
+      <omny:clipId>e1c5759b-4e9a-400a-b897-aeac01322539</omny:clipId>
+      <pubDate>Mon, 10 Jan 2024 18:49:51 +0000</pubDate>
+      <itunes:duration>1158</itunes:duration>
+      <enclosure url="https://podtrac.com/pts/redirect.mp3/traffic.omny.fm/d/clips/e73c998e-6e60-432f-8610-ae210140c5b1/5ea337e1-0349-4fe5-aa0f-aeac013216eb/e1c5759b-4e9a-400a-b897-aeac01322539/audio.mp3?utm_source=Podcast&amp;in_playlist=70a195a9-2d24-45ab-9ed6-aeac013215d2" length="18564626" type="audio/mpeg" />
+      <link>https://omny.fm/shows/hawk-talk/recapping-week-18-seahawks-at-cardinals</link>
+      <podcast:transcript url="https://api.omny.fm/orgs/e73c998e-6e60-432f-8610-ae210140c5b1/clips/e1c5759b-4e9a-400a-b897-aeac01322539/transcript?format=SubRip&amp;t=1700528452" type="application/srt" language="en-us" />
+      <podcast:transcript url="https://api.omny.fm/orgs/e73c998e-6e60-432f-8610-ae210140c5b1/clips/e1c5759b-4e9a-400a-b897-aeac01322539/transcript?format=WebVTT&amp;t=1700528452" type="text/vtt" language="en-us" />
+      <podcast:transcript url="https://api.omny.fm/orgs/e73c998e-6e60-432f-8610-ae210140c5b1/clips/e1c5759b-4e9a-400a-b897-aeac01322539/transcript?format=TextWithTimestamps&amp;t=1700528452" type="text/plain" language="en-us" />
     </item>
     <item>
       <title>Recapping Week 18: Seahawks at Cardinals</title>

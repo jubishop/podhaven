@@ -2,6 +2,7 @@
 
 import AVFoundation
 import Foundation
+import IdentifiedCollections
 
 struct EpisodeFeed: Sendable, Equatable {
   let guid: GUID
@@ -69,8 +70,10 @@ struct EpisodeFeed: Sendable, Equatable {
 struct PodcastFeed: Sendable, Equatable {
   // MARK: - Static Parsing Methods
 
-  static func parse(_ url: FeedURL) async throws -> PodcastFeed {
-    try await parse(try Data(contentsOf: url.rawValue), from: url)
+  static func parse(_ url: FeedURL) async throws(FeedError) -> PodcastFeed {
+    try await FeedError.catch {
+      try await parse(try Data(contentsOf: url.rawValue), from: url)
+    }
   }
 
   static func parse(_ data: Data, from: FeedURL) async throws(FeedError) -> PodcastFeed {
@@ -132,6 +135,24 @@ struct PodcastFeed: Sendable, Equatable {
     return try toUnsavedPodcast(
       subscribed: unsavedPodcast.subscribed,
       lastUpdate: unsavedPodcast.lastUpdate
+    )
+  }
+
+  func toEpisodeArray(merging podcastSeries: PodcastSeries? = nil)
+    -> IdentifiedArray<GUID, UnsavedEpisode>
+  {
+    // Two UnsavedEpisodes may have the same GUID
+    IdentifiedArray(
+      episodes.compactMap { episodeFeed in
+        try? episodeFeed.toUnsavedEpisode(
+          merging: podcastSeries?.episodes[id: episodeFeed.guid]
+        )
+      },
+      id: \.guid,
+      uniquingIDsWith: { a, b in
+        // Keep whichever is the newest
+        a.pubDate >= b.pubDate ? a : b
+      }
     )
   }
 

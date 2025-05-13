@@ -52,27 +52,27 @@
 		8B8475D32DC0B88E00C6C2A5 /* Exceptions for "PodHavenTests" folder in "ParallelTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Performance/QueuePerformanceTests.swift,
+				PerformanceTests/QueuePerformanceTests.swift,
 			);
 			target = 8BD7F92F2CF2A49100CEDAA7 /* ParallelTests */;
 		};
 		8B9B8B332DCBB25500E574E6 /* Exceptions for "PodHavenTests" folder in "PerformanceTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Parallel/DownloadManagerTests.swift,
-				Parallel/EpisodeTests.swift,
-				Parallel/ErrorTests.swift,
-				Parallel/FeedManagerTests.swift,
-				Parallel/HTMLRegexTests.swift,
-				Parallel/ObservatoryTests.swift,
-				Parallel/PlayManagerTests.swift,
-				Parallel/PodcastFeedTests.swift,
-				Parallel/PodcastOPMLTests.swift,
-				Parallel/PodcastRSSTests.swift,
-				Parallel/PodcastTests.swift,
-				Parallel/QueueTests.swift,
-				Parallel/RefreshManagerTests.swift,
-				Parallel/SearchServiceTests.swift,
+				DownloadManagerTests.swift,
+				EpisodeTests.swift,
+				ErrorTests.swift,
+				FeedManagerTests.swift,
+				HTMLRegexTests.swift,
+				ObservatoryTests.swift,
+				PlayManagerTests.swift,
+				PodcastFeedTests.swift,
+				PodcastOPMLTests.swift,
+				PodcastRSSTests.swift,
+				PodcastTests.swift,
+				QueueTests.swift,
+				RefreshManagerTests.swift,
+				SearchServiceTests.swift,
 			);
 			target = 8B9B8B252DCBB25500E574E6 /* PerformanceTests */;
 		};

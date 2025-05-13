@@ -2,6 +2,7 @@
 
 import AVFoundation
 import Foundation
+import IdentifiedCollections
 
 struct PersonResult: Sendable, Decodable {
   struct ItemResult: Sendable, Decodable {
@@ -69,5 +70,24 @@ struct PersonResult: Sendable, Decodable {
       )
     }
   }
+
   let items: [ItemResult]
+
+  func toPodcastEpisodeArray(
+    merging podcastEpisodes: IdentifiedArray<MediaURL, PodcastEpisode>? = nil
+  )
+    -> IdentifiedArray<MediaURL, UnsavedPodcastEpisode>
+  {
+    // Two PodcastEpisodes returned may have the same MediaURL
+    IdentifiedArray(
+      items.compactMap {
+        try? $0.toUnsavedPodcastEpisode(merging: podcastEpisodes?[id: $0.enclosureUrl])
+      },
+      id: \.unsavedEpisode.media,
+      uniquingIDsWith: { a, b in
+        // Keep whichever is the newest
+        a.unsavedEpisode.pubDate >= b.unsavedEpisode.pubDate ? a : b
+      }
+    )
+  }
 }

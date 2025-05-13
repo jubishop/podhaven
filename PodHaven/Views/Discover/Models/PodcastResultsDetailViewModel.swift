@@ -58,15 +58,7 @@ class PodcastResultsDetailViewModel: QueueableSelectableEpisodeList, PodcastQueu
           unsavedPodcast = try podcastFeed.toUnsavedPodcast()
         }
 
-        episodeList.allEntries = IdentifiedArray(
-          uniqueElements: try podcastFeed.episodes.map { episodeFeed in
-            try episodeFeed.toUnsavedEpisode(
-              merging: existingPodcastSeries?.episodes[id: episodeFeed.guid]
-            )
-          },
-          id: \.guid
-        )
-
+        episodeList.allEntries = podcastFeed.toEpisodeArray(merging: existingPodcastSeries)
         subscribable = true
       }
     } catch {

@@ -49,8 +49,26 @@ struct PodcastFeedTests {
   @Test("parsing the invalid Game Informer feed")
   func parseInvalidGameInformerFeed() async {
     let url = Bundle.main.url(forResource: "game_informer_invalid", withExtension: "rss")!
-    await #expect(throws: (any Error).self) {
+    await #expect {
       try await PodcastFeed.parse(FeedURL(url))
+    } throws: { error in
+      guard let error = error as? FeedError
+      else { return false }
+
+      if case .parseFailure(let thrownURL, _) = error {
+        return thrownURL.rawValue == url
+      }
+
+      return false
     }
+  }
+
+  @Test("parsing the seattle official feed with duplicate guids")
+  func parseSeattleOfficialFeedWithDuplicateGuids() async throws {
+    let url = Bundle.main.url(forResource: "seattle_official", withExtension: "rss")!
+    let feed = try await PodcastFeed.parse(FeedURL(url))
+    let episodes = feed.toEpisodeArray()
+    let duplicatedEpisode = episodes[id: "178f32e0-7246-11ec-b14e-19521896ea35"]!
+    #expect(Calendar.current.component(.year, from: duplicatedEpisode.pubDate) == 2024)
   }
 }

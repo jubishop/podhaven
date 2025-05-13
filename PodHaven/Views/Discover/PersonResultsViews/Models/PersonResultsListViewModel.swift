@@ -26,7 +26,7 @@ class PersonResultsListViewModel:
   var episodeList = SelectableListUseCase<UnsavedPodcastEpisode, MediaURL>(
     idKeyPath: \.unsavedEpisode.media
   )
-  private var existingEpisodes: IdentifiedArray<MediaURL, PodcastEpisode>?
+  private var existingPodcastEpisodes: IdentifiedArray<MediaURL, PodcastEpisode>?
 
   // MARK: - Initialization
 
@@ -37,23 +37,13 @@ class PersonResultsListViewModel:
   func execute() async {
     do {
       if let personResult = personResult {
-        let existingEpisodes = IdentifiedArray(
+        existingPodcastEpisodes = IdentifiedArray(
           uniqueElements: try await repo.episodes(personResult.items.map(\.enclosureUrl)),
           id: \.episode.media
         )
-        episodeList.allEntries = IdentifiedArray(
-          personResult.items.compactMap {
-            try? $0.toUnsavedPodcastEpisode(merging: existingEpisodes[id: $0.enclosureUrl])
-          },
-          id: \.unsavedEpisode.media,
-          uniquingIDsWith: { old, new in
-            guard let existingEpisode = existingEpisodes[id: old.unsavedEpisode.media]
-            else { return new }
-
-            return (old.unsavedPodcast.feedURL == existingEpisode.podcast.feedURL) ? old : new
-          }
+        episodeList.allEntries = personResult.toPodcastEpisodeArray(
+          merging: existingPodcastEpisodes
         )
-        self.existingEpisodes = existingEpisodes
       }
     } catch {
       alert("Couldn't execute PersonResultsListViewModel")

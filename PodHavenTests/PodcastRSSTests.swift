@@ -70,4 +70,11 @@ struct PodcastRSSTests {
       try await PodcastRSS.parse(url)
     }
   }
+
+  @Test("parsing the seattle official feed with duplicate guids")
+  func parseSeattleOfficialFeedWithDuplicateGuids() async throws {
+    let url = Bundle.main.url(forResource: "seattle_official", withExtension: "rss")!
+    let podcast = try await PodcastRSS.parse(url)
+    #expect(podcast.title == "Official Seattle Seahawks Podcasts")
+  }
 }
