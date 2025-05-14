@@ -51,22 +51,26 @@ struct UnsavedPodcast: Savable, Stringable {
   }
 }
 
-typealias Podcast = Saved<UnsavedPodcast>
+struct Podcast: Saved {
+  // MARK: - Associations
 
-extension Podcast {
   static let episodes = hasMany(Episode.self).order(Schema.Episode.pubDate.desc)
-
-  // MARK: - Annotation Queries
-
-  static let episodesSubquery = hasManySubquery(Episode.self)
-  static let unfinishedEpisodes = episodesSubquery.uncompleted()
-  static let unstartedEpisodes = unfinishedEpisodes.unstarted()
-  static let unqueuedEpisodes = unstartedEpisodes.unqueued()
 
   // MARK: - SQL Expressions
 
   static let subscribed: SQLExpression = Schema.Podcast.subscribed == true
   static let unsubscribed: SQLExpression = Schema.Podcast.subscribed == false
+
+  // MARK: - Saved
+
+  public typealias ID = Tagged<Self, Int64>
+  var id: ID
+  var unsaved: UnsavedPodcast
+
+  init(id: ID, from unsaved: UnsavedPodcast) {
+    self.id = id
+    self.unsaved = unsaved
+  }
 }
 
 extension DerivableRequest<Podcast> {

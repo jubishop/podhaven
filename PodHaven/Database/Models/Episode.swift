@@ -56,9 +56,9 @@ struct UnsavedEpisode: Savable, Stringable {
   var toString: String { self.title }
 }
 
-typealias Episode = Saved<UnsavedEpisode>
+struct Episode: Saved {
+  // MARK: - Associations
 
-extension Episode {
   static let podcast = belongsTo(Podcast.self)
   var podcastID: Podcast.ID { self.podcastId! }
 
@@ -70,6 +70,17 @@ extension Episode {
   static let uncompleted: SQLExpression = Schema.Episode.completed == false
   static let unstarted: SQLExpression = Schema.Episode.currentTime == 0
   static let started: SQLExpression = Schema.Episode.currentTime > 0
+
+  // MARK: - Saved
+
+  public typealias ID = Tagged<Self, Int64>
+  var id: ID
+  var unsaved: UnsavedEpisode
+
+  init(id: ID, from unsaved: UnsavedEpisode) {
+    self.id = id
+    self.unsaved = unsaved
+  }
 }
 
 extension DerivableRequest<Episode> {
@@ -96,7 +107,7 @@ extension DerivableRequest<Episode> {
   func started() -> Self {
     filter(Episode.started)
   }
-  
+
   func unstarted() -> Self {
     filter(Episode.unstarted)
   }
