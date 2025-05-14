@@ -3,36 +3,30 @@
 import SwiftUI
 
 struct HTMLText: View {
-  @State private var attributedString: AttributedString?
-
   private let html: String
   private var color: Color
   private var font: Font
+  private var attributedString: AttributedString?
 
   init(_ html: String, color: Color = .primary, font: Font = .body) {
     self.html = html
     self.color = color
     self.font = font
+    self.attributedString = buildAttributedString()
   }
 
   var body: some View {
-    Group {
-      if let attributedString = attributedString {
-        Text(attributedString)
-      } else {
-        Text(html)
-          .foregroundStyle(color)
-          .font(font)
-      }
-    }
-    .onAppear {
-      // This must be done in `onAppear` to avoid AttributeGraph cycles...
-      buildAttributedString()
+    if let attributedString = attributedString {
+      Text(attributedString)
+    } else {
+      Text(html)
+        .foregroundStyle(color)
+        .font(font)
     }
   }
 
-  private func buildAttributedString() {
-    if html.isHTML(),
+  private func buildAttributedString() -> AttributedString? {
+    guard html.isHTML(),
       let data = html.data(using: .utf8),
       let nsAttributedString = try? NSMutableAttributedString(
         data: data,
@@ -42,13 +36,10 @@ struct HTMLText: View {
         ],
         documentAttributes: nil
       )
-    {
-      print("making html out of \(html)")
-      let modifiedAttributedString = applyCustomStyles(to: nsAttributedString)
-      self.attributedString = AttributedString(modifiedAttributedString)
-    } else {
-      print("not html: \(html)")
-    }
+    else { return nil }
+
+    let modifiedAttributedString = applyCustomStyles(to: nsAttributedString)
+    return AttributedString(modifiedAttributedString)
   }
 
   // MARK: - Private Helpers

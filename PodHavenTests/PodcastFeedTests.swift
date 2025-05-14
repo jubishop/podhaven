@@ -71,4 +71,15 @@ struct PodcastFeedTests {
     let duplicatedEpisode = episodes[id: "178f32e0-7246-11ec-b14e-19521896ea35"]!
     #expect(Calendar.current.component(.year, from: duplicatedEpisode.pubDate) == 2024)
   }
+
+  @Test("parsing the seattlenow feed with a <p> tagged description")
+  func parseSeattleNowFeedWithPTagInDescription() async throws {
+    let url = Bundle.main.url(forResource: "seattlenow", withExtension: "rss")!
+    let feed = try await PodcastFeed.parse(FeedURL(url))
+    let unsavedPodcast = try feed.toUnsavedPodcast()
+    #expect(
+      unsavedPodcast.description
+        == "<p>A daily news podcast for a curious city. Seattle Now brings you quick, informal, and hyper-local news updates every weekday.</p>"
+    )
+  }
 }

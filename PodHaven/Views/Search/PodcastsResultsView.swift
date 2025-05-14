@@ -28,7 +28,9 @@ struct PodcastsResultsView: View {
         .navigationDestination(
           for: SearchedPodcast.self,
           destination: { searchedPodcast in
-            PodcastResultsDetailView(viewModel: PodcastResultsDetailViewModel(searchedPodcast: searchedPodcast))
+            PodcastResultsDetailView(
+              viewModel: PodcastResultsDetailViewModel(searchedPodcast: searchedPodcast)
+            )
           }
         )
       } else {

@@ -77,4 +77,14 @@ struct PodcastRSSTests {
     let podcast = try await PodcastRSS.parse(url)
     #expect(podcast.title == "Official Seattle Seahawks Podcasts")
   }
+
+  @Test("parsing the seattlenow feed with a <p> in its description")
+  func parseSeattleNowFeedWithPTagInDescription() async throws {
+    let url = Bundle.main.url(forResource: "seattlenow", withExtension: "rss")!
+    let podcast = try await PodcastRSS.parse(url)
+    #expect(
+      podcast.description
+        == "<p>A daily news podcast for a curious city. Seattle Now brings you quick, informal, and hyper-local news updates every weekday.</p>"
+    )
+  }
 }
