@@ -41,9 +41,12 @@ struct EpisodeResultsDetailView: View {
     if let unsavedPodcast = unsavedPodcast, let unsavedEpisodes = unsavedEpisodes {
       EpisodeResultsDetailView(
         viewModel: EpisodeResultsDetailViewModel(
-          unsavedPodcastEpisode: UnsavedPodcastEpisode(
-            unsavedPodcast: unsavedPodcast,
-            unsavedEpisode: unsavedEpisodes.randomElement()!
+          searchedPodcastEpisode: SearchedPodcastEpisode(
+            searchedText: "Bill Maher",
+            unsavedPodcastEpisode: UnsavedPodcastEpisode(
+              unsavedPodcast: unsavedPodcast,
+              unsavedEpisode: unsavedEpisodes.randomElement()!
+            )
           )
         )
       )

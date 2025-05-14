@@ -14,14 +14,15 @@ class PodcastResultsDetailViewModel: QueueableSelectableEpisodeList, PodcastQueu
   @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @LazyInjected(\.repo) private var repo
 
+  // MARK: - Data
+
+  let searchedText: String
+  var unsavedPodcast: UnsavedPodcast
+
   // MARK: - State Management
 
   var unplayedOnly: Bool = false
-
   var subscribable: Bool = false
-  let searchedText: String
-
-  var unsavedPodcast: UnsavedPodcast
   var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
   var unsavedEpisodes: [UnsavedEpisode] { episodeList.allEntries.elements }
 

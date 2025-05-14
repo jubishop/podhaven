@@ -43,8 +43,11 @@ struct HTMLText: View {
         documentAttributes: nil
       )
     {
+      print("making html out of \(html)")
       let modifiedAttributedString = applyCustomStyles(to: nsAttributedString)
       self.attributedString = AttributedString(modifiedAttributedString)
+    } else {
+      print("not html: \(html)")
     }
   }
 
@@ -111,7 +114,7 @@ struct HTMLText: View {
   VStack {
     HTMLText(
       """
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla facilisi.
+      Lorem ipsum dolor sit amet, <p>consectetur adipiscing elit.</p> Nulla facilisi.
       <b>Quisque</b> <i>phasellus</i> <u>finibus</u> <strong>elementum</strong> <em>sollicitudin</em>.
       """,
       color: .blue,
@@ -119,13 +122,22 @@ struct HTMLText: View {
     )
     .padding()
 
-    Text(
+    HTMLText(
       """
       Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla facilisi.
-      """
+      """,
+      color: .red,
+      font: .footnote
     )
-    .foregroundStyle(.blue)
-    .font(.largeTitle)
+    .padding()
+
+    HTMLText(
+      """
+      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla facilisi.</p>
+      """,
+      color: .blue,
+      font: .title
+    )
     .padding()
   }
 }

@@ -14,6 +14,7 @@ import GRDB
 
   // MARK: - State Management
 
+  let searchedText: String
   var unsavedPodcast: UnsavedPodcast { unsavedPodcastEpisode.unsavedPodcast }
   var unsavedEpisode: UnsavedEpisode { unsavedPodcastEpisode.unsavedEpisode }
 
@@ -30,8 +31,9 @@ import GRDB
 
   // MARK: - Initialization
 
-  init(unsavedPodcastEpisode: UnsavedPodcastEpisode) {
-    self.unsavedPodcastEpisode = unsavedPodcastEpisode
+  init(searchedPodcastEpisode: SearchedPodcastEpisode) {
+    self.searchedText = searchedPodcastEpisode.searchedText
+    self.unsavedPodcastEpisode = searchedPodcastEpisode.unsavedPodcastEpisode
   }
 
   func execute() async {

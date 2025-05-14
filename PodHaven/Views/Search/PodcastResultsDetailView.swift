@@ -47,9 +47,12 @@ struct PodcastResultsDetailView: View {
       } else {
         List(viewModel.episodeList.filteredEntries, id: \.guid) { unsavedEpisode in
           NavigationLink(
-            value: UnsavedPodcastEpisode(
-              unsavedPodcast: viewModel.unsavedPodcast,
-              unsavedEpisode: unsavedEpisode
+            value: SearchedPodcastEpisode(
+              searchedText: viewModel.searchedText,
+              unsavedPodcastEpisode: UnsavedPodcastEpisode(
+                unsavedPodcast: viewModel.unsavedPodcast,
+                unsavedEpisode: unsavedEpisode
+              )
             ),
             label: {
               EpisodeResultsListView(
@@ -68,12 +71,10 @@ struct PodcastResultsDetailView: View {
     }
     .navigationTitle(viewModel.unsavedPodcast.title)
     .navigationDestination(
-      for: UnsavedPodcastEpisode.self,
-      destination: { unsavedPodcastEpisode in
+      for: SearchedPodcastEpisode.self,
+      destination: { searchedPodcastEpisode in
         EpisodeResultsDetailView(
-          viewModel: EpisodeResultsDetailViewModel(
-            unsavedPodcastEpisode: unsavedPodcastEpisode
-          )
+          viewModel: EpisodeResultsDetailViewModel(searchedPodcastEpisode: searchedPodcastEpisode)
         )
       }
     )

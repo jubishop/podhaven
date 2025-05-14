@@ -15,9 +15,10 @@ class PersonResultsListViewModel:
 
   // MARK: - Data
 
-  private let searchResult: PersonSearchResult
   var searchText: String { searchResult.searchText }
   var personResult: PersonResult? { searchResult.personResult }
+
+  private let searchResult: PersonSearchResult
 
   // MARK: - State Management
 
