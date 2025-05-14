@@ -6,8 +6,9 @@ import GRDB
 enum Schema {
   // MARK: - Columns
 
+  static let id = Column("id")
+
   enum Podcast {
-    static let id = Column("id")
     static let feedURL = Column("feedURL")
     static let title = Column("title")
     static let image = Column("image")
@@ -18,7 +19,6 @@ enum Schema {
   }
 
   enum Episode {
-    static let id = Column("id")
     static let podcastId = Column("podcastId")
     static let guid = Column("guid")
     static let media = Column("media")

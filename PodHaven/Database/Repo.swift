@@ -93,11 +93,11 @@ struct Repo: Sendable {
 
       let podcasts =
         try Podcast
-        .filter(Set(episodes.map(\.podcastId)).contains(Schema.Podcast.id))
+        .withIDs(episodes.map(\.podcastID))
         .fetchIdentifiedArray(db, id: \.id)
 
       return episodes.compactMap { episode in
-        guard let podcastId = episode.podcastId, let podcast = podcasts[id: podcastId]
+        guard let podcast = podcasts[id: episode.podcastID]
         else { return nil }
 
         return PodcastEpisode(podcast: podcast, episode: episode)
@@ -267,7 +267,7 @@ struct Repo: Sendable {
   {
     try await appDB.db.write { db in
       try Podcast
-        .filter(podcastIDs.contains(Schema.Podcast.id))
+        .withIDs(podcastIDs)
         .updateAll(db, Schema.Podcast.subscribed.set(to: subscribed))
     }
   }

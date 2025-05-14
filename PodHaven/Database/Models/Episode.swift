@@ -60,6 +60,7 @@ typealias Episode = Saved<UnsavedEpisode>
 
 extension Episode {
   static let podcast = belongsTo(Podcast.self)
+  var podcastID: Podcast.ID { self.podcastId! }
 
   // MARK: - SQL Expressions
 

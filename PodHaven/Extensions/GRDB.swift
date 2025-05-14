@@ -27,12 +27,17 @@ extension TableRecord where Self: Identifiable {
     _ destination: Destination.Type,
     using foreignKeyColumn: Column = Column("\(Self.databaseTableName)Id")
   ) -> QueryInterfaceRequest<Destination> {
-    let tableAlias = TableAlias(name: Self.databaseTableName)
-    return Destination.filter(foreignKeyColumn == tableAlias[Column("id")])
+    let tableAlias = TableAlias<Self>(name: Self.databaseTableName)
+    return Destination.filter(foreignKeyColumn == tableAlias[Schema.id])
   }
 
   static func withID(_ id: ID) -> QueryInterfaceRequest<Self>
   where Self.ID: DatabaseValueConvertible {
     filter(id: id)
+  }
+
+  static func withIDs(_ ids: any Collection<ID>) -> QueryInterfaceRequest<Self>
+  where Self.ID: DatabaseValueConvertible {
+    filter(ids.contains(Schema.id))
   }
 }

@@ -79,7 +79,7 @@ struct Queue: Sendable {
       // Assign queue positions to the incoming episodes
       for (index, id) in episodeIDs.enumerated() {
         try Episode
-          .filter(Schema.Episode.id == id)
+          .withID(id)
           .updateAll(db, Schema.Episode.queueOrder.set(to: index))
       }
     }
@@ -106,7 +106,7 @@ struct Queue: Sendable {
       // Assign queue positions to the incoming episodes
       for (index, id) in episodeIDs.enumerated() {
         try Episode
-          .filter(Schema.Episode.id == id)
+          .withID(id)
           .updateAll(db, Schema.Episode.queueOrder.set(to: index + maxPosition + 1))
       }
     }
@@ -124,7 +124,7 @@ struct Queue: Sendable {
 
     // Remove episodes from queue
     try Episode
-      .filter(episodeIDs.contains(Schema.Episode.id))
+      .withIDs(episodeIDs)
       .updateAll(db, Schema.Episode.queueOrder.set(to: nil))
 
     // Renumber remaining episodes
