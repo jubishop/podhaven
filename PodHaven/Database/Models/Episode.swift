@@ -51,7 +51,7 @@ struct UnsavedEpisode: Savable, Stringable {
     self.queueOrder = queueOrder
   }
 
-  // MARK: - Stringable
+  // MARK: - Savable
 
   var toString: String { self.title }
 }
@@ -63,15 +63,17 @@ extension Episode {
 
   // MARK: - SQL Expressions
 
-  static let queued: SQLExpression = Schema.queueOrderColumn != nil
-  static let completed: SQLExpression = Schema.completedColumn == true
-  static let uncompleted: SQLExpression = Schema.completedColumn == false
-  static let started: SQLExpression = Schema.currentTimeColumn > 0
+  static let queued: SQLExpression = Schema.Episode.queueOrder != nil
+  static let unqueued: SQLExpression = Schema.Episode.queueOrder == nil
+  static let completed: SQLExpression = Schema.Episode.completed == true
+  static let uncompleted: SQLExpression = Schema.Episode.completed == false
+  static let unstarted: SQLExpression = Schema.Episode.currentTime == 0
+  static let started: SQLExpression = Schema.Episode.currentTime > 0
 }
 
 extension DerivableRequest<Episode> {
   func maxPubDate() -> Self {
-    select(max(Schema.pubDateColumn))
+    select(max(Schema.Episode.pubDate))
   }
 
   func queued() -> Self {
@@ -79,7 +81,7 @@ extension DerivableRequest<Episode> {
   }
 
   func unqueued() -> Self {
-    filter(Schema.queueOrderColumn == nil)
+    filter(Episode.unqueued)
   }
 
   func completed() -> Self {
@@ -90,7 +92,11 @@ extension DerivableRequest<Episode> {
     filter(Episode.uncompleted)
   }
 
+  func started() -> Self {
+    filter(Episode.started)
+  }
+  
   func unstarted() -> Self {
-    filter(Schema.currentTimeColumn == 0)
+    filter(Episode.unstarted)
   }
 }

@@ -6,16 +6,32 @@ import GRDB
 enum Schema {
   // MARK: - Columns
 
-  static let completedColumn = Column("completed")
-  static let currentTimeColumn = Column("currentTime")
-  static let feedURLColumn = Column("feedURL")
-  static let idColumn = Column("id")
-  static let lastUpdateColumn = Column("lastUpdate")
-  static let mediaColumn = Column("media")
-  static let podcastIDColumn = Column("podcastId")
-  static let pubDateColumn = Column("pubDate")
-  static let queueOrderColumn = Column("queueOrder")
-  static let subscribedColumn = Column("subscribed")
+  enum Podcast {
+    static let id = Column("id")
+    static let feedURL = Column("feedURL")
+    static let title = Column("title")
+    static let image = Column("image")
+    static let description = Column("description")
+    static let link = Column("link")
+    static let lastUpdate = Column("lastUpdate")
+    static let subscribed = Column("subscribed")
+  }
+
+  enum Episode {
+    static let id = Column("id")
+    static let podcastId = Column("podcastId")
+    static let guid = Column("guid")
+    static let media = Column("media")
+    static let title = Column("title")
+    static let pubDate = Column("pubDate")
+    static let duration = Column("duration")
+    static let description = Column("description")
+    static let link = Column("link")
+    static let image = Column("image")
+    static let completed = Column("completed")
+    static let currentTime = Column("currentTime")
+    static let queueOrder = Column("queueOrder")
+  }
 
   // MARK: - Migrator
 

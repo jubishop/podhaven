@@ -62,7 +62,7 @@ struct Repo: Sendable {
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
     try await appDB.db.read { db in
       try Podcast
-        .filter(Schema.feedURLColumn == feedURL)
+        .filter(Schema.Podcast.feedURL == feedURL)
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
@@ -88,12 +88,12 @@ struct Repo: Sendable {
     return try await appDB.db.read { db in
       let episodes =
         try Episode
-        .filter(mediaURLs.contains(Schema.mediaColumn))
+        .filter(mediaURLs.contains(Schema.Episode.media))
         .fetchAll(db)
 
       let podcasts =
         try Podcast
-        .filter(Set(episodes.map(\.podcastId)).contains(Schema.idColumn))
+        .filter(Set(episodes.map(\.podcastId)).contains(Schema.Podcast.id))
         .fetchIdentifiedArray(db, id: \.id)
 
       return episodes.compactMap { episode in
@@ -167,7 +167,7 @@ struct Repo: Sendable {
       let queuedEpisodeIDs =
         try Episode.all()
         .queued()
-        .filter(podcastIDs.contains(Schema.podcastIDColumn))
+        .filter(podcastIDs.contains(Schema.Episode.podcastId))
         .selectID()
         .fetchAll(db)
       try queue.dequeue(db, queuedEpisodeIDs)
@@ -227,7 +227,7 @@ struct Repo: Sendable {
     try await appDB.db.write { db in
       try Episode
         .withID(episodeID)
-        .updateAll(db, Schema.currentTimeColumn.set(to: currentTime.seconds))
+        .updateAll(db, Schema.Episode.currentTime.set(to: currentTime.seconds))
     } > 0
   }
 
@@ -236,7 +236,7 @@ struct Repo: Sendable {
     try await appDB.db.write { db in
       try Episode
         .withID(episodeID)
-        .updateAll(db, Schema.completedColumn.set(to: true), Schema.currentTimeColumn.set(to: 0))
+        .updateAll(db, Schema.Episode.completed.set(to: true), Schema.Episode.currentTime.set(to: 0))
     } > 0
   }
 
@@ -267,8 +267,8 @@ struct Repo: Sendable {
   {
     try await appDB.db.write { db in
       try Podcast
-        .filter(podcastIDs.contains(Schema.idColumn))
-        .updateAll(db, Schema.subscribedColumn.set(to: subscribed))
+        .filter(podcastIDs.contains(Schema.Podcast.id))
+        .updateAll(db, Schema.Podcast.subscribed.set(to: subscribed))
     }
   }
 }

@@ -24,7 +24,7 @@ final actor RefreshManager: Sendable {
   func performRefresh(stalenessThreshold: Date, filter: SQLExpression = AppDB.NoOp) async throws {
     try await withThrowingDiscardingTaskGroup { group in
       let allStaleSubscribedPodcastSeries = try await repo.allPodcastSeries(
-        Schema.lastUpdateColumn < stalenessThreshold && filter
+        Schema.Podcast.lastUpdate < stalenessThreshold && filter
       )
       for podcastSeries in allStaleSubscribedPodcastSeries {
         group.addTask {
@@ -111,7 +111,7 @@ final actor RefreshManager: Sendable {
         let refreshManager = self ?? Container.shared.refreshManager()
         try? await refreshManager.performRefresh(
           stalenessThreshold: 10.minutesAgo,
-          filter: Schema.subscribedColumn == true
+          filter: Podcast.subscribed
         )
         try? await Task.sleep(for: .minutes(15))
       }

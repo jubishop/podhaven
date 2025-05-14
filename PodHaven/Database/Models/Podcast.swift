@@ -54,7 +54,7 @@ struct UnsavedPodcast: Savable, Stringable {
 typealias Podcast = Saved<UnsavedPodcast>
 
 extension Podcast {
-  static let episodes = hasMany(Episode.self).order(Schema.pubDateColumn.desc)
+  static let episodes = hasMany(Episode.self).order(Schema.Episode.pubDate.desc)
 
   // MARK: - Annotation Queries
 
@@ -65,8 +65,8 @@ extension Podcast {
 
   // MARK: - SQL Expressions
 
-  static let subscribed: SQLExpression = Schema.subscribedColumn == true
-  static let unsubscribed: SQLExpression = Schema.subscribedColumn == false
+  static let subscribed: SQLExpression = Schema.Podcast.subscribed == true
+  static let unsubscribed: SQLExpression = Schema.Podcast.subscribed == false
 }
 
 extension DerivableRequest<Podcast> {

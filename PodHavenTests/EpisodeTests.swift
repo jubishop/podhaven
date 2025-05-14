@@ -35,7 +35,7 @@ class EpisodeTests {
 
     let podcastSeries = try await repo.db.read { db in
       try Podcast
-        .filter(Schema.feedURLColumn == url)
+        .filter(Schema.Podcast.feedURL == url)
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
