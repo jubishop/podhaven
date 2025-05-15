@@ -15,10 +15,6 @@ let package = Package(
       name: "SavedMacros",
       targets: ["SavedMacros"]
     ),
-    .executable(
-      name: "SavedMacrosClient",
-      targets: ["SavedMacrosClient"]
-    ),
   ],
   dependencies: [
     .package(url: "https://github.com/swiftlang/swift-syntax", branch: "main"),
@@ -36,13 +32,6 @@ let package = Package(
       name: "SavedMacros",
       dependencies: [
         "SavedMacrosPlugin",
-        .product(name: "Tagged", package: "swift-tagged")
-      ]
-    ),
-    .executableTarget(
-      name: "SavedMacrosClient",
-      dependencies: [
-        "SavedMacros",
         .product(name: "Tagged", package: "swift-tagged")
       ]
     ),

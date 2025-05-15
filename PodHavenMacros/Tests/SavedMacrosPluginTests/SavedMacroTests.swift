@@ -40,9 +40,5 @@ struct UnsavedTest {}
       macros: ["Saved": SavedMacro.self],
       indentationWidth: .spaces(2)
     )
-    
-    // Since we can't directly get the expanded source to inspect it,
-    // we're just checking that the macro expands without throwing errors
-    XCTAssert(true, "Macro expansion succeeded")
   }
 }
