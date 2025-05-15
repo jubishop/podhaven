@@ -4,6 +4,7 @@ import AVFoundation
 import Foundation
 import GRDB
 import IdentifiedCollections
+import SavedMacros
 import Tagged
 
 typealias GUID = Tagged<UnsavedEpisode, String>
@@ -56,6 +57,7 @@ struct UnsavedEpisode: Savable, Stringable {
   var toString: String { self.title }
 }
 
+@Saved<UnsavedEpisode>
 struct Episode: Saved {
   // MARK: - Associations
 
@@ -87,17 +89,6 @@ struct Episode: Saved {
     static let completed = Column("completed")
     static let currentTime = Column("currentTime")
     static let queueOrder = Column("queueOrder")
-  }
-
-  // MARK: - Saved
-
-  typealias ID = Tagged<Self, Int64>
-  var id: ID
-  var unsaved: UnsavedEpisode
-
-  init(id: ID, from unsaved: UnsavedEpisode) {
-    self.id = id
-    self.unsaved = unsaved
   }
 }
 

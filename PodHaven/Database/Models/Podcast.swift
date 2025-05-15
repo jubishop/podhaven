@@ -3,6 +3,7 @@
 import Foundation
 import GRDB
 import IdentifiedCollections
+import SavedMacros
 import Tagged
 
 typealias FeedURL = Tagged<UnsavedPodcast, URL>
@@ -51,6 +52,7 @@ struct UnsavedPodcast: Savable, Stringable {
   }
 }
 
+@Saved<UnsavedPodcast>
 struct Podcast: Saved {
   // MARK: - Associations
 
@@ -72,17 +74,6 @@ struct Podcast: Saved {
     static let link = Column("link")
     static let lastUpdate = Column("lastUpdate")
     static let subscribed = Column("subscribed")
-  }
-
-  // MARK: - Saved
-
-  typealias ID = Tagged<Self, Int64>
-  var id: ID
-  var unsaved: UnsavedPodcast
-
-  init(id: ID, from unsaved: UnsavedPodcast) {
-    self.id = id
-    self.unsaved = unsaved
   }
 }
 
