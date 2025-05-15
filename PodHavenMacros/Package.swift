@@ -7,8 +7,8 @@ import CompilerPluginSupport
 let package = Package(
   name: "PodHavenMacros",
   platforms: [
-    .macOS(.v13),
-    .iOS(.v16),
+    .macOS(.v15),
+    .iOS(.v18),
   ],
   products: [
     .library(
@@ -19,6 +19,7 @@ let package = Package(
   dependencies: [
     .package(url: "https://github.com/swiftlang/swift-syntax", branch: "main"),
     .package(url: "https://github.com/pointfreeco/swift-tagged", branch: "main"),
+    .package(url: "https://github.com/apple/swift-testing", branch: "main"),
   ],
   targets: [
     .macro(
@@ -39,7 +40,8 @@ let package = Package(
       name: "SavedMacrosPluginTests",
       dependencies: [
         "SavedMacrosPlugin",
-        .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax")
+        .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
+        .product(name: "Testing", package: "swift-testing")
       ]
     ),
   ]
