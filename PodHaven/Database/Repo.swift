@@ -62,7 +62,7 @@ struct Repo: Sendable {
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
     try await appDB.db.read { db in
       try Podcast
-        .filter(Schema.Podcast.feedURL == feedURL)
+        .filter { $0.feedURL == feedURL }
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
@@ -88,7 +88,7 @@ struct Repo: Sendable {
     return try await appDB.db.read { db in
       let episodes =
         try Episode
-        .filter(mediaURLs.contains(Schema.Episode.media))
+        .filter { mediaURLs.contains($0.media) }
         .fetchAll(db)
 
       let podcasts =
@@ -167,12 +167,12 @@ struct Repo: Sendable {
       let queuedEpisodeIDs =
         try Episode.all()
         .queued()
-        .filter(podcastIDs.contains(Schema.Episode.podcastId))
+        .filter { podcastIDs.contains($0.podcastId) }
         .selectID()
         .fetchAll(db)
       try queue.dequeue(db, queuedEpisodeIDs)
 
-      return try Podcast.filter(ids: podcastIDs).deleteAll(db)
+      return try Podcast.withIDs(podcastIDs).deleteAll(db)
     }
   }
 
@@ -227,7 +227,7 @@ struct Repo: Sendable {
     try await appDB.db.write { db in
       try Episode
         .withID(episodeID)
-        .updateAll(db, Schema.Episode.currentTime.set(to: currentTime.seconds))
+        .updateAll(db, Episode.Columns.currentTime.set(to: currentTime.seconds))
     } > 0
   }
 
@@ -236,7 +236,11 @@ struct Repo: Sendable {
     try await appDB.db.write { db in
       try Episode
         .withID(episodeID)
-        .updateAll(db, Schema.Episode.completed.set(to: true), Schema.Episode.currentTime.set(to: 0))
+        .updateAll(
+          db,
+          Episode.Columns.completed.set(to: true),
+          Episode.Columns.currentTime.set(to: 0)
+        )
     } > 0
   }
 
@@ -268,7 +272,7 @@ struct Repo: Sendable {
     try await appDB.db.write { db in
       try Podcast
         .withIDs(podcastIDs)
-        .updateAll(db, Schema.Podcast.subscribed.set(to: subscribed))
+        .updateAll(db, Podcast.Columns.subscribed.set(to: subscribed))
     }
   }
 }

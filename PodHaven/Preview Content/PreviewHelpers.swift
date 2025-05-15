@@ -76,7 +76,7 @@ enum PreviewHelpers {
     let repo = Container.shared.repo()
     if let podcastSeries = try? await repo.db.read({ db in
       try Podcast
-        .filter(Schema.Podcast.feedURL == unsavedPodcast.feedURL)
+        .filter { $0.feedURL == unsavedPodcast.feedURL }
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)

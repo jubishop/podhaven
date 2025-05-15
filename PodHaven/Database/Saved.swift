@@ -5,45 +5,41 @@ import GRDB
 import Tagged
 
 @dynamicMemberLookup
-struct Saved<V>: Savable, Identifiable where V: Savable {
-  public typealias ID = Tagged<Self, Int64>
-  public var id: ID
-  public var unsaved: V
+protocol Saved: Savable, Identifiable where ID == Tagged<Self, Int64> {
+  associatedtype Unsaved: Savable
+  var id: ID { get set }
+  var unsaved: Unsaved { get set }
+  init(id: ID, from unsaved: Unsaved)
+}
 
-  subscript<T>(dynamicMember keyPath: KeyPath<V, T>) -> T {
+extension Saved {
+  subscript<T>(dynamicMember keyPath: KeyPath<Unsaved, T>) -> T {
     unsaved[keyPath: keyPath]
   }
 
-  subscript<T>(dynamicMember keyPath: WritableKeyPath<V, T>) -> T {
+  subscript<T>(dynamicMember keyPath: WritableKeyPath<Unsaved, T>) -> T {
     get { unsaved[keyPath: keyPath] }
     set { unsaved[keyPath: keyPath] = newValue }
   }
 
   // MARK: - TableRecord
 
-  public static var databaseTableName: String { V.databaseTableName }
+  public static var databaseTableName: String { Unsaved.databaseTableName }
 
   // MARK: - FetchableRecord
 
   public init(row: Row) throws {
-    id = row[Column(CodingKeys.id)]
-    unsaved = try V(row: row)
+    self.init(id: row[Schema.id], from: try Unsaved(row: row))
   }
 
-  public init(id: Tagged<Self, Int64>, from unsaved: V) {
-    self.id = id
-    self.unsaved = unsaved
-  }
-
-  public init(from unsaved: V) {
-    self.id = -1
-    self.unsaved = unsaved
+  public init(from unsaved: Unsaved) {
+    self.init(id: -1, from: unsaved)
   }
 
   // MARK: - PersistableRecord
 
   public func encode(to container: inout PersistenceContainer) throws {
-    container[Column(CodingKeys.id)] = id
+    container[Schema.id] = id
     try unsaved.encode(to: &container)
   }
 
@@ -51,53 +47,5 @@ struct Saved<V>: Savable, Identifiable where V: Savable {
 
   public var toString: String {
     unsaved.toString
-  }
-
-  // MARK: - Persistence Callbacks
-
-  public func willDelete(_ db: Database) throws {
-    try unsaved.willDelete(db)
-  }
-  public func willInsert(_ db: Database) throws {
-    try unsaved.willInsert(db)
-  }
-  public func willSave(_ db: Database) throws {
-    try unsaved.willSave(db)
-  }
-  public func willUpdate(_ db: Database, columns: Set<String>) throws {
-    try unsaved.willUpdate(db, columns: columns)
-  }
-  public func didDelete(deleted: Bool) {
-    unsaved.didDelete(deleted: deleted)
-  }
-  public func didInsert(_ inserted: InsertionSuccess) {
-    unsaved.didInsert(inserted)
-  }
-  public func didSave(_ saved: PersistenceSuccess) {
-    unsaved.didSave(saved)
-  }
-  public func didUpdate(_ updated: PersistenceSuccess) {
-    unsaved.didUpdate(updated)
-  }
-  public func aroundDelete(_ db: Database, delete: () throws -> Bool) throws {
-    try unsaved.aroundDelete(db, delete: delete)
-  }
-  public func aroundInsert(
-    _ db: Database,
-    insert: () throws -> InsertionSuccess
-  ) throws {
-    try unsaved.aroundInsert(db, insert: insert)
-  }
-  public func aroundSave(_ db: Database, save: () throws -> PersistenceSuccess)
-    throws
-  {
-    try unsaved.aroundSave(db, save: save)
-  }
-  public func aroundUpdate(
-    _ db: Database,
-    columns: Set<String>,
-    update: () throws -> PersistenceSuccess
-  ) throws {
-    try unsaved.aroundUpdate(db, columns: columns, update: update)
   }
 }

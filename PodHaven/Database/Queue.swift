@@ -74,13 +74,13 @@ struct Queue: Sendable {
       try Episode
         .all()
         .queued()
-        .updateAll(db, Schema.Episode.queueOrder += episodeIDs.count)
+        .updateAll(db, Episode.Columns.queueOrder += episodeIDs.count)
 
       // Assign queue positions to the incoming episodes
       for (index, id) in episodeIDs.enumerated() {
         try Episode
           .withID(id)
-          .updateAll(db, Schema.Episode.queueOrder.set(to: index))
+          .updateAll(db, Episode.Columns.queueOrder.set(to: index))
       }
     }
   }
@@ -100,14 +100,14 @@ struct Queue: Sendable {
       // Get the current max position after potential removals
       let maxPosition =
         try Episode
-        .select(max(Schema.Episode.queueOrder), as: Int.self)
+        .select(max(Episode.Columns.queueOrder), as: Int.self)
         .fetchOne(db) ?? -1
 
       // Assign queue positions to the incoming episodes
       for (index, id) in episodeIDs.enumerated() {
         try Episode
           .withID(id)
-          .updateAll(db, Schema.Episode.queueOrder.set(to: index + maxPosition + 1))
+          .updateAll(db, Episode.Columns.queueOrder.set(to: index + maxPosition + 1))
       }
     }
   }
@@ -125,7 +125,7 @@ struct Queue: Sendable {
     // Remove episodes from queue
     try Episode
       .withIDs(episodeIDs)
-      .updateAll(db, Schema.Episode.queueOrder.set(to: nil))
+      .updateAll(db, Episode.Columns.queueOrder.set(to: nil))
 
     // Renumber remaining episodes
     try db.execute(
@@ -154,7 +154,7 @@ struct Queue: Sendable {
     guard db.isInsideTransaction
     else { Log.fatal("fetchOldPosition method requires a transaction") }
 
-    return try Episode.withID(episodeID).select(Schema.Episode.queueOrder).fetchOne(db)
+    return try Episode.withID(episodeID).select(Episode.Columns.queueOrder).fetchOne(db)
   }
 
   private func _insert(
@@ -182,15 +182,15 @@ struct Queue: Sendable {
     else { Log.fatal("moveInQueue method requires a transaction") }
 
     if newPosition > oldPosition {
-      try Episode.filter(
-        Schema.Episode.queueOrder > oldPosition && Schema.Episode.queueOrder <= newPosition
-      )
-      .updateAll(db, Schema.Episode.queueOrder -= 1)
+      try Episode.filter {
+        $0.queueOrder > oldPosition && $0.queueOrder <= newPosition
+      }
+      .updateAll(db, Episode.Columns.queueOrder -= 1)
     } else {
-      try Episode.filter(
-        Schema.Episode.queueOrder >= newPosition && Schema.Episode.queueOrder < oldPosition
-      )
-      .updateAll(db, Schema.Episode.queueOrder += 1)
+      try Episode.filter {
+        $0.queueOrder >= newPosition && $0.queueOrder < oldPosition
+      }
+      .updateAll(db, Episode.Columns.queueOrder += 1)
     }
   }
 
@@ -198,13 +198,13 @@ struct Queue: Sendable {
     guard db.isInsideTransaction
     else { Log.fatal("setToPosition method requires a transaction") }
 
-    try Episode.withID(episodeID).updateAll(db, Schema.Episode.queueOrder.set(to: position))
+    try Episode.withID(episodeID).updateAll(db, Episode.Columns.queueOrder.set(to: position))
   }
 
   private func _clear(_ db: Database) throws {
     guard db.isInsideTransaction
     else { Log.fatal("clear method requires a transaction") }
 
-    try Episode.all().queued().updateAll(db, Schema.Episode.queueOrder.set(to: nil))
+    try Episode.all().queued().updateAll(db, Episode.Columns.queueOrder.set(to: nil))
   }
 }

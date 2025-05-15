@@ -11,15 +11,28 @@ struct PodcastWithLatestEpisodeDates:
   Identifiable,
   Stringable
 {
+
+  // MARK: - Annotation Queries
+
+  static let episodesSubquery = Podcast.hasManySubquery(Episode.self)
+  static let unfinishedEpisodes = episodesSubquery.uncompleted()
+  static let unstartedEpisodes = unfinishedEpisodes.unstarted()
+  static let unqueuedEpisodes = unstartedEpisodes.unqueued()
+
+  // MARK: - QueryInterfaceRequest
+
   static func all() -> QueryInterfaceRequest<PodcastWithLatestEpisodeDates> {
     Podcast.all()
       .annotated(with: [
-        Podcast.unfinishedEpisodes.maxPubDate().forKey(CodingKeys.maxUnfinishedEpisodePubDate),
-        Podcast.unstartedEpisodes.maxPubDate().forKey(CodingKeys.maxUnstartedEpisodePubDate),
-        Podcast.unqueuedEpisodes.maxPubDate().forKey(CodingKeys.maxUnqueuedEpisodePubDate),
+        unfinishedEpisodes.maxPubDate().forKey(CodingKeys.maxUnfinishedEpisodePubDate),
+        unstartedEpisodes.maxPubDate().forKey(CodingKeys.maxUnstartedEpisodePubDate),
+        unqueuedEpisodes.maxPubDate().forKey(CodingKeys.maxUnqueuedEpisodePubDate),
       ])
       .asRequest(of: PodcastWithLatestEpisodeDates.self)
   }
+
+
+  // MARK: - Data
 
   var id: Podcast.ID { podcast.id }
   var toString: String { podcast.toString }

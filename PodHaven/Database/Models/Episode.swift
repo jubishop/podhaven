@@ -4,6 +4,7 @@ import AVFoundation
 import Foundation
 import GRDB
 import IdentifiedCollections
+import SavedMacros
 import Tagged
 
 typealias GUID = Tagged<UnsavedEpisode, String>
@@ -56,25 +57,44 @@ struct UnsavedEpisode: Savable, Stringable {
   var toString: String { self.title }
 }
 
-typealias Episode = Saved<UnsavedEpisode>
+@Saved<UnsavedEpisode>
+struct Episode: Saved {
+  // MARK: - Associations
 
-extension Episode {
   static let podcast = belongsTo(Podcast.self)
   var podcastID: Podcast.ID { self.podcastId! }
 
   // MARK: - SQL Expressions
 
-  static let queued: SQLExpression = Schema.Episode.queueOrder != nil
-  static let unqueued: SQLExpression = Schema.Episode.queueOrder == nil
-  static let completed: SQLExpression = Schema.Episode.completed == true
-  static let uncompleted: SQLExpression = Schema.Episode.completed == false
-  static let unstarted: SQLExpression = Schema.Episode.currentTime == 0
-  static let started: SQLExpression = Schema.Episode.currentTime > 0
+  static let queued: SQLExpression = Episode.Columns.queueOrder != nil
+  static let unqueued: SQLExpression = Episode.Columns.queueOrder == nil
+  static let completed: SQLExpression = Episode.Columns.completed == true
+  static let uncompleted: SQLExpression = Episode.Columns.completed == false
+  static let unstarted: SQLExpression = Episode.Columns.currentTime == 0
+  static let started: SQLExpression = Episode.Columns.currentTime > 0
+
+  // MARK: - Columns
+
+  enum Columns {
+    static let id = Column("id")
+    static let podcastId = Column("podcastId")
+    static let guid = Column("guid")
+    static let media = Column("media")
+    static let title = Column("title")
+    static let pubDate = Column("pubDate")
+    static let duration = Column("duration")
+    static let description = Column("description")
+    static let link = Column("link")
+    static let image = Column("image")
+    static let completed = Column("completed")
+    static let currentTime = Column("currentTime")
+    static let queueOrder = Column("queueOrder")
+  }
 }
 
 extension DerivableRequest<Episode> {
   func maxPubDate() -> Self {
-    select(max(Schema.Episode.pubDate))
+    select(max(Episode.Columns.pubDate))
   }
 
   func queued() -> Self {
@@ -96,7 +116,7 @@ extension DerivableRequest<Episode> {
   func started() -> Self {
     filter(Episode.started)
   }
-  
+
   func unstarted() -> Self {
     filter(Episode.unstarted)
   }

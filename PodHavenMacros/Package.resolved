@@ -1,0 +1,24 @@
+{
+  "originHash" : "dffb03ad383cee402e3b6cca759b2117ace92ffe1780e8b31fa1851a3db68fb6",
+  "pins" : [
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-syntax",
+      "state" : {
+        "branch" : "main",
+        "revision" : "eda5e2f96546bbe7c6a3a1dbd127f22f1385f0b2"
+      }
+    },
+    {
+      "identity" : "swift-tagged",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-tagged",
+      "state" : {
+        "branch" : "main",
+        "revision" : "7061233809f745e2ba6c3e8c6f984a8f36257226"
+      }
+    }
+  ],
+  "version" : 3
+}

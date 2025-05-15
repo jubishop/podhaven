@@ -111,7 +111,8 @@ class QueuePerformanceTests {
   private func fetchQueueCount() async throws -> Int {
     return try await repo.db.read { db in
       try Episode
-        .filter(Column("queueOrder") != nil)
+        .all()
+        .queued()
         .fetchCount(db)
     }
   }

@@ -24,7 +24,7 @@ final actor RefreshManager: Sendable {
   func performRefresh(stalenessThreshold: Date, filter: SQLExpression = AppDB.NoOp) async throws {
     try await withThrowingDiscardingTaskGroup { group in
       let allStaleSubscribedPodcastSeries = try await repo.allPodcastSeries(
-        Schema.Podcast.lastUpdate < stalenessThreshold && filter
+        Podcast.Columns.lastUpdate < stalenessThreshold && filter
       )
       for podcastSeries in allStaleSubscribedPodcastSeries {
         group.addTask {

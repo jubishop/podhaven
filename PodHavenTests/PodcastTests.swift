@@ -59,7 +59,7 @@ class PodcastTests {
     #expect(allCount == 0)
 
     let titleCount = try await repo.db.read { [podcast] db in
-      try Podcast.filter(Column("title") == podcast.title).fetchCount(db)
+      try Podcast.filter { $0.title == podcast.title }.fetchCount(db)
     }
     #expect(titleCount == 0)
   }

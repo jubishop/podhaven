@@ -34,7 +34,7 @@ struct Observatory {
     }
   }
 
-  func podcastEpisodes(_ filter: SQLExpression, order: SQLOrdering = Schema.Episode.pubDate.desc)
+  func podcastEpisodes(_ filter: SQLExpression, order: SQLOrdering = Episode.Columns.pubDate.desc)
     -> AsyncValueObservation<[PodcastEpisode]>
   {
     _observe { db in
@@ -51,7 +51,7 @@ struct Observatory {
   func queuedPodcastEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
     podcastEpisodes(
       Episode.queued,
-      order: Schema.Episode.queueOrder.asc
+      order: Episode.Columns.queueOrder.asc
     )
   }
 
@@ -78,7 +78,7 @@ struct Observatory {
   func podcastEpisode(_ mediaURL: MediaURL) -> AsyncValueObservation<PodcastEpisode?> {
     _observe { db in
       try Episode
-        .filter(Schema.Episode.media == mediaURL)
+        .filter { $0.media == mediaURL }
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)
@@ -88,7 +88,7 @@ struct Observatory {
   func podcastSeries(_ feedURL: FeedURL) -> AsyncValueObservation<PodcastSeries?> {
     _observe { db in
       try Podcast
-        .filter(Schema.Podcast.feedURL == feedURL)
+        .filter { $0.feedURL == feedURL }
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
@@ -98,7 +98,7 @@ struct Observatory {
   func nextPodcastEpisode() -> AsyncValueObservation<PodcastEpisode?> {
     _observe { db in
       try Episode
-        .filter(Schema.Episode.queueOrder == 0)
+        .filter { $0.queueOrder == 0 }
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)

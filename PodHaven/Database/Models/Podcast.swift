@@ -3,6 +3,7 @@
 import Foundation
 import GRDB
 import IdentifiedCollections
+import SavedMacros
 import Tagged
 
 typealias FeedURL = Tagged<UnsavedPodcast, URL>
@@ -51,22 +52,29 @@ struct UnsavedPodcast: Savable, Stringable {
   }
 }
 
-typealias Podcast = Saved<UnsavedPodcast>
+@Saved<UnsavedPodcast>
+struct Podcast: Saved {
+  // MARK: - Associations
 
-extension Podcast {
-  static let episodes = hasMany(Episode.self).order(Schema.Episode.pubDate.desc)
-
-  // MARK: - Annotation Queries
-
-  static let episodesSubquery = hasManySubquery(Episode.self)
-  static let unfinishedEpisodes = episodesSubquery.uncompleted()
-  static let unstartedEpisodes = unfinishedEpisodes.unstarted()
-  static let unqueuedEpisodes = unstartedEpisodes.unqueued()
+  static let episodes = hasMany(Episode.self).order(\.pubDate.desc)
 
   // MARK: - SQL Expressions
 
-  static let subscribed: SQLExpression = Schema.Podcast.subscribed == true
-  static let unsubscribed: SQLExpression = Schema.Podcast.subscribed == false
+  static let subscribed: SQLExpression = Columns.subscribed == true
+  static let unsubscribed: SQLExpression = Columns.subscribed == false
+
+  // MARK: - Columns
+
+  enum Columns {
+    static let id = Column("id")
+    static let feedURL = Column("feedURL")
+    static let title = Column("title")
+    static let image = Column("image")
+    static let description = Column("description")
+    static let link = Column("link")
+    static let lastUpdate = Column("lastUpdate")
+    static let subscribed = Column("subscribed")
+  }
 }
 
 extension DerivableRequest<Podcast> {
