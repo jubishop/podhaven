@@ -3,8 +3,8 @@
 import AVFoundation
 import Foundation
 import GRDB
-import GRDBSavedMacro
 import IdentifiedCollections
+import SavedMacro
 import Tagged
 
 typealias GUID = Tagged<UnsavedEpisode, String>
@@ -57,7 +57,7 @@ struct UnsavedEpisode: Savable, Stringable {
   var toString: String { self.title }
 }
 
-@GRDBSaved<UnsavedEpisode>
+@Saved<UnsavedEpisode>
 struct Episode: Saved {
   // MARK: - Associations
 

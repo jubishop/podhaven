@@ -12,8 +12,8 @@ let package = Package(
   ],
   products: [
     .library(
-      name: "GRDBSavedMacro",
-      targets: ["GRDBSavedMacro"]
+      name: "SavedMacro",
+      targets: ["SavedMacro"]
     ),
   ],
   dependencies: [
@@ -23,24 +23,24 @@ let package = Package(
   ],
   targets: [
     .macro(
-      name: "GRDBSavedMacroPlugin",
+      name: "SavedMacroPlugin",
       dependencies: [
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
         .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
       ]
     ),
     .target(
-      name: "GRDBSavedMacro",
+      name: "SavedMacro",
       dependencies: [
-        "GRDBSavedMacroPlugin",
+        "SavedMacroPlugin",
         .product(name: "Tagged", package: "swift-tagged")
       ]
     ),
     .testTarget(
-      name: "GRDBSavedMacroPluginTests",
+      name: "SavedMacroPluginTests",
       dependencies: [
-        "GRDBSavedMacro",
-        "GRDBSavedMacroPlugin",
+        "SavedMacro",
+        "SavedMacroPlugin",
         .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
         .product(name: "Testing", package: "swift-testing")
       ]
