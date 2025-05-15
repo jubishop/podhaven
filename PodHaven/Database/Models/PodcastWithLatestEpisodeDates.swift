@@ -14,8 +14,7 @@ struct PodcastWithLatestEpisodeDates:
 
   // MARK: - Annotation Queries
 
-  static let episodesSubquery = Podcast.hasManySubquery(Episode.self)
-  static let unfinishedEpisodes = episodesSubquery.uncompleted()
+  static let unfinishedEpisodes = Podcast.episodesSubquery.uncompleted()
   static let unstartedEpisodes = unfinishedEpisodes.unstarted()
   static let unqueuedEpisodes = unstartedEpisodes.unqueued()
 

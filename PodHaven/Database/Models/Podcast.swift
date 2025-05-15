@@ -57,7 +57,8 @@ struct Podcast: Saved {
   // MARK: - Associations
 
   static let episodes = hasMany(Episode.self).order(\.pubDate.desc)
-
+  static let episodesSubquery = hasManySubquery(Episode.self)
+  
   // MARK: - SQL Expressions
 
   static let subscribed: SQLExpression = Columns.subscribed == true
