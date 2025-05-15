@@ -16,7 +16,7 @@
       "location" : "https://github.com/hmlongco/Factory",
       "state" : {
         "branch" : "main",
-        "revision" : "83a29fad559a670a27409609181a1859f09f502d"
+        "revision" : "22157b88670bbeac591895c0fc8b8f7f340cf757"
       }
     },
     {
@@ -70,7 +70,7 @@
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
         "branch" : "main",
-        "revision" : "78b544fbe20995ef5310337a86917c7ec40c863a"
+        "revision" : "302b122f618166f3a0a3e29224cc48bad49cb45e"
       }
     },
     {

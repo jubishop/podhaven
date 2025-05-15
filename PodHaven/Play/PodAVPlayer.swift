@@ -1,7 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
-import Factory
+import FactoryKit
 import Foundation
 
 @PlayActor final class PodAVPlayer: Sendable {

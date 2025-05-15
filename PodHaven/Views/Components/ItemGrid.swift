@@ -1,6 +1,6 @@
 // Copyright Justin Bishop, 2025
 
-import Factory
+import FactoryKit
 import GRDB
 import IdentifiedCollections
 import SwiftUI
