@@ -2,8 +2,8 @@
 
 import Foundation
 import GRDB
+import GRDBSavedMacro
 import IdentifiedCollections
-import SavedMacros
 import Tagged
 
 typealias FeedURL = Tagged<UnsavedPodcast, URL>
@@ -52,7 +52,7 @@ struct UnsavedPodcast: Savable, Stringable {
   }
 }
 
-@Saved<UnsavedPodcast>
+@GRDBSaved<UnsavedPodcast>
 struct Podcast: Saved {
   // MARK: - Associations
 

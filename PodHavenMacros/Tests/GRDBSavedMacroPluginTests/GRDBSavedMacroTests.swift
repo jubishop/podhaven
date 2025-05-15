@@ -3,17 +3,17 @@
 import SwiftSyntaxMacrosTestSupport
 import Testing
 
-@testable import SavedMacrosPlugin
-@testable import SavedMacros
+@testable import GRDBSavedMacroPlugin
+@testable import GRDBSavedMacro
 
-struct SavedMacroTests {
-  @Test("Saved macro expansion for struct with unsaved type")
-  func testSavedMacroExpansion() throws {
+struct GRDBSavedMacroTests {
+  @Test("GRDBSaved macro expansion for struct with unsaved type")
+  func testGRDBSavedMacroExpansion() throws {
     // Test input code
     let inputSource = """
     import Tagged
 
-    @Saved<UnsavedTest>
+    @GRDBSaved<UnsavedTest>
     struct Test {}
 
     struct UnsavedTest {}
@@ -43,7 +43,7 @@ struct SavedMacroTests {
     #expect(assertMacroExpansion(
       inputSource,
       expandedSource: expectedExpansion,
-      macros: ["Saved": SavedMacro.self],
+      macros: ["GRDBSaved": GRDBSavedMacro.self],
       indentationWidth: .spaces(2)
     ) == (), "Macro expansion should succeed without errors")
   }

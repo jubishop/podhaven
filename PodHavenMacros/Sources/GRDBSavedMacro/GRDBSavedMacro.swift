@@ -7,7 +7,7 @@ import Tagged
 /// Apply this macro to a struct that should conform to the Saved protocol:
 ///
 /// ```swift
-/// @Saved<UnsavedYourType>
+/// @GRDBSaved<UnsavedYourType>
 /// struct YourType {
 ///   // Other properties and methods
 /// }
@@ -19,4 +19,4 @@ import Tagged
 /// - var unsaved: UnsavedType
 /// - init(id:from:) implementation
 @attached(member, names: named(ID), named(id), named(unsaved), named(init(id:from:)))
-public macro Saved<T>() = #externalMacro(module: "SavedMacrosPlugin", type: "SavedMacro")
+public macro GRDBSaved<T>() = #externalMacro(module: "GRDBSavedMacroPlugin", type: "GRDBSavedMacro")

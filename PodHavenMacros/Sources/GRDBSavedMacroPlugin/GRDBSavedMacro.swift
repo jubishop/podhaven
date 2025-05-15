@@ -5,7 +5,7 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-public struct SavedMacro: MemberMacro {
+public struct GRDBSavedMacro: MemberMacro {
   public static func expansion(
     of node: AttributeSyntax,
     providingMembersOf declaration: some DeclGroupSyntax,
@@ -45,14 +45,14 @@ enum MacroError: Error, CustomStringConvertible {
   var description: String {
     switch self {
     case .noGenericParameter:
-      return "@Saved requires a generic parameter specifying the unsaved type"
+      return "@GRDBSaved requires a generic parameter specifying the unsaved type"
     }
   }
 }
 
 @main
-struct SavedMacroPlugin: CompilerPlugin {
+struct GRDBSavedMacroPlugin: CompilerPlugin {
   let providingMacros: [Macro.Type] = [
-    SavedMacro.self,
+    GRDBSavedMacro.self,
   ]
 }
