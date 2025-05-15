@@ -244,8 +244,9 @@ class QueueTests {
   private func fetchOrder() async throws -> [Int] {
     let episodes = try await repo.db.read { db in
       try Episode
-        .filter(Column("queueOrder") != nil)
-        .order(Column("queueOrder").asc)
+        .all()
+        .queued()
+        .order(\.queueOrder.asc)
         .fetchAll(db)
     }
     return episodes.map { $0.queueOrder ?? -1 }
