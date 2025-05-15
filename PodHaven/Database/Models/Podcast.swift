@@ -76,7 +76,7 @@ struct Podcast: Saved {
 
   // MARK: - Saved
 
-  public typealias ID = Tagged<Self, Int64>
+  typealias ID = Tagged<Self, Int64>
   var id: ID
   var unsaved: UnsavedPodcast
 
