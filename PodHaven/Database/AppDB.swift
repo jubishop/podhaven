@@ -12,10 +12,10 @@ extension Container {
 
 struct AppDB: Sendable {
   #if DEBUG
-  static func inMemory() -> AppDB {
+  static func inMemory(migrate: Bool = true) -> AppDB {
     do {
       let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
-      return try AppDB(dbQueue)
+      return try AppDB(dbQueue, migrate: migrate)
     } catch {
       Log.fatal("Failed to initialize inMemory AppDB queue: \(error)")
     }
@@ -78,9 +78,11 @@ struct AppDB: Sendable {
   // MARK: - Initialization
 
   let db: DatabaseWriter
-  private init(_ db: some DatabaseWriter) throws {
+  private init(_ db: some DatabaseWriter, migrate: Bool = true) throws {
     self.db = db
-    try Schema.makeMigrator().migrate(db)
+    if migrate {
+      try Schema.makeMigrator().migrate(db)
+    }
   }
 
   #if DEBUG

@@ -37,7 +37,7 @@ struct EpisodeFeed: Sendable, Equatable {
       description: rssEpisode.description ?? episode?.description,
       link: rssEpisode.link ?? episode?.link,
       image: rssEpisode.iTunes.image?.href ?? episode?.image,
-      completed: episode?.completed,
+      completionDate: episode?.completionDate,
       currentTime: episode?.currentTime,
       queueOrder: episode?.queueOrder
     )

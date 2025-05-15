@@ -17,7 +17,7 @@ enum TestHelpers {
     description: String? = nil,
     link: URL? = nil,
     image: URL? = nil,
-    completed: Bool? = nil,
+    completionDate: Date? = nil,
     currentTime: CMTime? = nil,
     queueOrder: Int? = nil
   ) throws -> UnsavedEpisode {
@@ -31,7 +31,7 @@ enum TestHelpers {
       description: description,
       link: link,
       image: image,
-      completed: completed,
+      completionDate: completionDate,
       currentTime: currentTime,
       queueOrder: queueOrder
     )

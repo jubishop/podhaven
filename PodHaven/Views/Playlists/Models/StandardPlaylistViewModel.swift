@@ -22,17 +22,23 @@ class StandardPlaylistViewModel:
   var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
   let title: String
   let filter: SQLExpression
+  let order: SQLOrdering
 
   // MARK: - Initialization
 
-  init(title: String, filter: SQLExpression = AppDB.NoOp) {
+  init(
+    title: String,
+    filter: SQLExpression = AppDB.NoOp,
+    order: SQLOrdering = Episode.Columns.pubDate.desc
+  ) {
     self.title = title
     self.filter = filter
+    self.order = order
   }
 
   func execute() async {
     do {
-      for try await podcastEpisodes in observatory.podcastEpisodes(filter) {
+      for try await podcastEpisodes in observatory.podcastEpisodes(filter: filter, order: order) {
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }
     } catch {

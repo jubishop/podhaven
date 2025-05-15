@@ -238,7 +238,7 @@ struct Repo: Sendable {
         .withID(episodeID)
         .updateAll(
           db,
-          Episode.Columns.completed.set(to: true),
+          Episode.Columns.completionDate.set(to: Date()),
           Episode.Columns.currentTime.set(to: 0)
         )
     } > 0

@@ -20,7 +20,7 @@ struct UnsavedEpisode: Savable, Stringable {
   var description: String?
   var link: URL?
   var image: URL?
-  var completed: Bool
+  var completionDate: Date?
   var currentTime: CMTime
   var queueOrder: Int?
 
@@ -34,7 +34,7 @@ struct UnsavedEpisode: Savable, Stringable {
     description: String? = nil,
     link: URL? = nil,
     image: URL? = nil,
-    completed: Bool? = nil,
+    completionDate: Date? = nil,
     currentTime: CMTime? = nil,
     queueOrder: Int? = nil
   ) throws {
@@ -47,7 +47,7 @@ struct UnsavedEpisode: Savable, Stringable {
     self.description = description
     self.link = try? link?.convertToValidURL()
     self.image = try? image?.convertToValidURL()
-    self.completed = completed ?? false
+    self.completionDate = completionDate
     self.currentTime = currentTime ?? CMTime.zero
     self.queueOrder = queueOrder
   }
@@ -55,6 +55,12 @@ struct UnsavedEpisode: Savable, Stringable {
   // MARK: - Savable
 
   var toString: String { self.title }
+
+  // MARK: - State Getters
+
+  var queued: Bool { self.queueOrder != nil }
+  var completed: Bool { self.completionDate != nil }
+  var started: Bool { self.currentTime.seconds > 0 }
 }
 
 @Saved<UnsavedEpisode>
@@ -68,8 +74,8 @@ struct Episode: Saved {
 
   static let queued: SQLExpression = Episode.Columns.queueOrder != nil
   static let unqueued: SQLExpression = Episode.Columns.queueOrder == nil
-  static let completed: SQLExpression = Episode.Columns.completed == true
-  static let uncompleted: SQLExpression = Episode.Columns.completed == false
+  static let completed: SQLExpression = Episode.Columns.completionDate != nil
+  static let uncompleted: SQLExpression = Episode.Columns.completionDate == nil
   static let unstarted: SQLExpression = Episode.Columns.currentTime == 0
   static let started: SQLExpression = Episode.Columns.currentTime > 0
 
@@ -86,7 +92,7 @@ struct Episode: Saved {
     static let description = Column("description")
     static let link = Column("link")
     static let image = Column("image")
-    static let completed = Column("completed")
+    static let completionDate = Column("completionDate")
     static let currentTime = Column("currentTime")
     static let queueOrder = Column("queueOrder")
   }

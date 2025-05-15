@@ -26,7 +26,8 @@ struct PlaylistsView: View {
           StandardPlaylistView(
             viewModel: StandardPlaylistViewModel(
               title: "Completed",
-              filter: Episode.completed
+              filter: Episode.completed,
+              order: Episode.Columns.completionDate.desc
             )
           )
         case .unfinished:

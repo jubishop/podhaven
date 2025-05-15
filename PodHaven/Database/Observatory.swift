@@ -34,7 +34,7 @@ struct Observatory {
     }
   }
 
-  func podcastEpisodes(_ filter: SQLExpression, order: SQLOrdering = Episode.Columns.pubDate.desc)
+  func podcastEpisodes(filter: SQLExpression, order: SQLOrdering = Episode.Columns.pubDate.desc)
     -> AsyncValueObservation<[PodcastEpisode]>
   {
     _observe { db in
@@ -50,7 +50,7 @@ struct Observatory {
 
   func queuedPodcastEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
     podcastEpisodes(
-      Episode.queued,
+      filter: Episode.queued,
       order: Episode.Columns.queueOrder.asc
     )
   }

@@ -161,7 +161,7 @@ enum PreviewHelpers {
     let queue = Container.shared.queue()
     for episode in (try await loadAllSeries()).flatMap({ $0.episodes }) {
       if currentSize >= queueSize { break }
-      if episode.queueOrder == nil {
+      if !episode.queued {
         try await queue.append(episode.id)
         currentSize += 1
       }

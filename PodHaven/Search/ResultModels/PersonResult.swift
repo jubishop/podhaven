@@ -63,7 +63,7 @@ struct PersonResult: Sendable, Decodable {
           duration: duration,
           description: description,
           image: image ?? podcastEpisode?.episode.image,
-          completed: podcastEpisode?.episode.completed,
+          completionDate: podcastEpisode?.episode.completionDate,
           currentTime: podcastEpisode?.episode.currentTime,
           queueOrder: podcastEpisode?.episode.queueOrder
         )

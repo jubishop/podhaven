@@ -14,7 +14,7 @@ enum Schema {
     var migrator = DatabaseMigrator()
 
     #if DEBUG
-      migrator.eraseDatabaseOnSchemaChange = true
+    migrator.eraseDatabaseOnSchemaChange = true
     #endif
 
     migrator.registerMigration("v1") { db in
@@ -56,6 +56,18 @@ enum Schema {
         t.column("completed", .boolean).notNull().defaults(to: false)
         t.column("currentTime", .integer).notNull().defaults(to: 0)
         t.column("queueOrder", .integer).check { $0 >= 0 }
+      }
+    }
+
+    migrator.registerMigration("v2") { db in
+      try db.alter(table: "episode") { t in
+        t.add(column: "completionDate", .datetime)
+      }
+
+      try db.execute(sql: "UPDATE episode SET completionDate = pubDate WHERE completed = 1")
+
+      try db.alter(table: "episode") { t in
+        t.drop(column: "completed")
       }
     }
 

@@ -136,7 +136,7 @@ class QueueTests {
     var midTopEpisode = try await fetchEpisode("midtop")
     try await queue.dequeue(midTopEpisode.id)
     midTopEpisode = try await fetchEpisode("midtop")
-    #expect(midTopEpisode.queueOrder == nil)
+    #expect(!midTopEpisode.queued)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3])
   }
@@ -150,9 +150,9 @@ class QueueTests {
     topEpisode = try await fetchEpisode("top")
     middleEpisode = try await fetchEpisode("middle")
     bottomEpisode = try await fetchEpisode("bottom")
-    #expect(topEpisode.queueOrder == nil)
-    #expect(middleEpisode.queueOrder == nil)
-    #expect(bottomEpisode.queueOrder == nil)
+    #expect(!topEpisode.queued)
+    #expect(!middleEpisode.queued)
+    #expect(!bottomEpisode.queued)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1])
   }
