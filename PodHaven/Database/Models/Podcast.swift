@@ -42,14 +42,6 @@ struct UnsavedPodcast: Savable, Stringable {
   // MARK: - Savable
 
   var toString: String { self.title }
-
-  // MARK: - Helpers
-
-  var formattedLastUpdate: String {
-    let dateFormatter = DateFormatter()
-    dateFormatter.dateFormat = "MM/dd/yyyy"
-    return dateFormatter.string(from: lastUpdate)
-  }
 }
 
 @Saved<UnsavedPodcast>
@@ -58,7 +50,7 @@ struct Podcast: Saved {
 
   static let episodes = hasMany(Episode.self).order(\.pubDate.desc)
   static let episodesSubquery = hasManySubquery(Episode.self)
-  
+
   // MARK: - SQL Expressions
 
   static let subscribed: SQLExpression = Columns.subscribed == true
