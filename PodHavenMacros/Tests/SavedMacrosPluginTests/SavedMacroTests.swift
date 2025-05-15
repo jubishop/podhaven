@@ -1,8 +1,10 @@
 // Copyright Justin Bishop, 2025
 
-import SavedMacrosPlugin
 import SwiftSyntaxMacrosTestSupport
 import Testing
+
+@testable import SavedMacrosPlugin
+@testable import SavedMacros
 
 struct SavedMacroTests {
   @Test("Saved macro expansion for struct with unsaved type")
