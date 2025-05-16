@@ -8,7 +8,7 @@ import Testing
 
 @Suite("of Queue repo tests", .container)
 class QueueTests {
-  @LazyInjected(\.queue) private var queue
+  @DynamicInjected(\.queue) private var queue
 
   private let repo = Container.shared.repo()
   private let podcastSeries: PodcastSeries

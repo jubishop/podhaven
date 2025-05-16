@@ -12,8 +12,8 @@ import Testing
 class SearchServiceTests {
   static private let baseURLString = "https://api.podcastindex.org/api/1.0"
 
-  @LazyInjected(\.searchServiceSession) private var searchServiceSession
-  @LazyInjected(\.searchService) private var searchService
+  @DynamicInjected(\.searchServiceSession) private var searchServiceSession
+  @DynamicInjected(\.searchService) private var searchService
 
   var session: DataFetchableMock { searchServiceSession as! DataFetchableMock }
 

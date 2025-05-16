@@ -56,7 +56,7 @@ enum FakeError: ReadableError, CatchingError {
 
 @Suite("of error tests", .container)
 class ErrorTests {
-  @LazyInjected(\.repo) private var repo
+  @DynamicInjected(\.repo) private var repo
 
   @Test("messages with caught generic at end")
   func testMessagesCaughtGenericAtEnd() {

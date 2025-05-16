@@ -11,7 +11,7 @@ import Testing
 
 @Suite("of Episode model tests", .container)
 class EpisodeTests {
-  @LazyInjected(\.repo) private var repo
+  @DynamicInjected(\.repo) private var repo
 
   @Test("that episodes are created and fetched in the right order")
   func createSeveralEpisodes() async throws {

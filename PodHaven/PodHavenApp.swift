@@ -10,7 +10,7 @@ import Sentry
 
 @main
 struct PodHavenApp: App {
-  let refreshManager = Container.shared.refreshManager()
+  @DynamicInjected(\.refreshManager) private var refreshManager
   var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   @State private var alert = Container.shared.alert()

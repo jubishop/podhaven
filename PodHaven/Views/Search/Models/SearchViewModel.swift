@@ -5,9 +5,9 @@ import Foundation
 import SwiftUI
 
 @Observable @MainActor final class SearchViewModel {
-  @ObservationIgnored @LazyInjected(\.alert) private var alert
-  @ObservationIgnored @LazyInjected(\.playState) private var playState
-  @ObservationIgnored @LazyInjected(\.searchService) private var searchService
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.playState) private var playState
+  @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
 
   // MARK: - Geometry Management
 

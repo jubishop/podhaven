@@ -14,10 +14,10 @@ extension Container {
 }
 
 @PlayActor final class PlayManager {
-  @LazyInjected(\.images) private var images
-  @LazyInjected(\.observatory) private var observatory
-  @LazyInjected(\.queue) private var queue
-  @LazyInjected(\.repo) private var repo
+  @DynamicInjected(\.images) private var images
+  @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.queue) private var queue
+  @DynamicInjected(\.repo) private var repo
   var playState: PlayState { get async { await Container.shared.playState() } }
 
   // MARK: - AppStorage

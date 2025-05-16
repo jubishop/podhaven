@@ -10,8 +10,8 @@ import Testing
 
 @Suite("of Queue performance tests", .serialized, .container)
 class QueuePerformanceTests {
-  @LazyInjected(\.queue) private var queue
-  @LazyInjected(\.repo) private var repo
+  @DynamicInjected(\.queue) private var queue
+  @DynamicInjected(\.repo) private var repo
 
   init() async throws {
     Container.shared.appDB

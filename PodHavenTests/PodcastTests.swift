@@ -10,7 +10,7 @@ import Testing
 
 @Suite("of Podcast model tests", .container)
 class PodcastTests {
-  @LazyInjected(\.repo) private var repo
+  @DynamicInjected(\.repo) private var repo
 
   @Test("that a podcast can be created, fetched, and deleted")
   func createSinglePodcast() async throws {

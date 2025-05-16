@@ -8,12 +8,12 @@ import SwiftUI
 
 @Observable @MainActor
 final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueueableModel {
-  @ObservationIgnored @LazyInjected(\.alert) private var alert
-  @ObservationIgnored @LazyInjected(\.navigation) private var navigation
-  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
-  @ObservationIgnored @LazyInjected(\.queue) private var queue
-  @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
-  @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
+  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
+  @ObservationIgnored @DynamicInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
+  @ObservationIgnored @DynamicInjected(\.repo) private var repo
   var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   // MARK: - State Management

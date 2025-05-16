@@ -6,8 +6,8 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor final class UpNextListViewModel {
-  @ObservationIgnored @LazyInjected(\.navigation) private var navigation
-  @ObservationIgnored @LazyInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
+  @ObservationIgnored @DynamicInjected(\.queue) private var queue
   var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   let isSelected: Binding<Bool>

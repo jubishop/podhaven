@@ -10,8 +10,8 @@ class PersonResultsListViewModel:
   PodcastQueueableModel,
   QueueableSelectableEpisodeList
 {
-  @ObservationIgnored @LazyInjected(\.alert) private var alert
-  @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
   // MARK: - Data
 

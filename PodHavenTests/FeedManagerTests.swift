@@ -10,7 +10,7 @@ import Testing
 
 @Suite("of FeedManager tests", .container)
 class FeedManagerTests {
-  @LazyInjected(\.feedManagerSession) private var feedManagerSession
+  @DynamicInjected(\.feedManagerSession) private var feedManagerSession
   @LazyInjected(\.feedManager) private var feedManager
 
   var session: DataFetchableMock { feedManagerSession as! DataFetchableMock }

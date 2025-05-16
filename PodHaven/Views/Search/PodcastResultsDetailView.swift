@@ -86,7 +86,7 @@ struct PodcastResultsDetailView: View {
 #if DEBUG
 #Preview {
   @Previewable @State var viewModel: PodcastResultsDetailViewModel?
-  @ObservationIgnored @LazyInjected(\.repo) var repo
+  @ObservationIgnored @DynamicInjected(\.repo) var repo
 
   NavigationStack {
     if let viewModel = viewModel {

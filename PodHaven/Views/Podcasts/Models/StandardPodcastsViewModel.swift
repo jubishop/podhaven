@@ -7,10 +7,10 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor final class StandardPodcastsViewModel {
-  @ObservationIgnored @LazyInjected(\.alert) private var alert
-  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
-  @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
-  @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
+  @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
+  @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
   // MARK: - State Management
 

@@ -12,8 +12,8 @@ import Testing
 
 @Suite("of Observatory tests", .container)
 class ObservatoryTests {
-  @LazyInjected(\.observatory) private var observatory
-  @LazyInjected(\.repo) private var repo
+  @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.repo) private var repo
 
   @Test("allPodcastsWithLatestEpisodeDates()")
   func testAllPodcastsWithLatestEpisodeDates() async throws {

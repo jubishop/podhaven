@@ -64,11 +64,11 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 }
 
 @Observable @MainActor final class OPMLViewModel {
-  @ObservationIgnored @LazyInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
-  @ObservationIgnored @LazyInjected(\.navigation) private var navigation
-  @ObservationIgnored @LazyInjected(\.refreshManager) private var refreshManager
-  @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
+  @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
+  @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
   let opmlType: UTType
 

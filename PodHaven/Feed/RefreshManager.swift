@@ -13,7 +13,7 @@ extension Container {
 
 final actor RefreshManager: Sendable {
   @LazyInjected(\.feedManager) private var feedManager
-  @LazyInjected(\.repo) private var repo
+  @DynamicInjected(\.repo) private var repo
 
   // MARK: - State Management
 

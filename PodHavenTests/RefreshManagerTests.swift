@@ -10,8 +10,8 @@ import Testing
 
 @Suite("of RefreshManager tests", .container)
 class RefreshManagerTests {
-  @LazyInjected(\.repo) private var repo
-  @LazyInjected(\.feedManagerSession) private var feedManagerSession
+  @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.feedManagerSession) private var feedManagerSession
   @LazyInjected(\.refreshManager) private var refreshManager
 
   var session: DataFetchableMock { feedManagerSession as! DataFetchableMock }

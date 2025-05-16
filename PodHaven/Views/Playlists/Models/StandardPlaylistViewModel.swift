@@ -11,10 +11,10 @@ class StandardPlaylistViewModel:
   PodcastQueueableModel,
   QueueableSelectableEpisodeList
 {
-  @ObservationIgnored @LazyInjected(\.alert) private var alert
-  @ObservationIgnored @LazyInjected(\.observatory) private var observatory
-  @ObservationIgnored @LazyInjected(\.queue) private var queue
-  @ObservationIgnored @LazyInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
+  @ObservationIgnored @DynamicInjected(\.queue) private var queue
+  @ObservationIgnored @DynamicInjected(\.repo) private var repo
   var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   // MARK: - State Management
