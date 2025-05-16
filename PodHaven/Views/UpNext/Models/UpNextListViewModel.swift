@@ -8,7 +8,7 @@ import SwiftUI
 @Observable @MainActor final class UpNextListViewModel {
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
-  var playManager: PlayManager { get async { await Container.shared.playManager() } }
+  private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   let isSelected: Binding<Bool>
   let podcastEpisode: PodcastEpisode

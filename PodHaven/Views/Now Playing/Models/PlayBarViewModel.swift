@@ -7,7 +7,7 @@ import SwiftUI
 
 @Observable @MainActor final class PlayBarViewModel {
   @ObservationIgnored @DynamicInjected(\.playState) private var playState
-  var playManager: PlayManager { get async { await Container.shared.playManager() } }
+  private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   var barWidth: CGFloat = 0
   var isDragging = false

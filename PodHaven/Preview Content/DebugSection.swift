@@ -6,7 +6,7 @@ import SwiftUI
 struct DebugSection: View {
   @Environment(Alert.self) var alert
 
-  var playManager: PlayManager { get async { await Container.shared.playManager() } }
+  private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   var body: some View {
     Section("Debugging") {

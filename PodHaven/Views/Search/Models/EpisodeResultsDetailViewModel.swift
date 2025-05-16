@@ -10,7 +10,7 @@ import GRDB
   @ObservationIgnored @DynamicInjected(\.playState) private var playState
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
-  var playManager: PlayManager { get async { await Container.shared.playManager() } }
+  private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   // MARK: - State Management
 
