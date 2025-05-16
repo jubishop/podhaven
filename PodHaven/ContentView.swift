@@ -10,10 +10,10 @@ struct ContentView: View {
   var body: some View {
     TabView(selection: $navigation.currentTab) {
       Tab("Settings", systemImage: "gear", value: .settings) {
-        SettingsView().tab()
+        TabContentView { SettingsView() }
       }
       Tab("Search", systemImage: "magnifyingglass", value: .search, role: .search) {
-        SearchView().tab()
+        TabContentView { SearchView() }
       }
       Tab(
         "Up Next",
@@ -21,19 +21,13 @@ struct ContentView: View {
         value: .upNext,
         role: .search
       ) {
-        UpNextView().tab()
+        TabContentView { UpNextView() }
       }
       Tab("Playlists", systemImage: "list.bullet", value: .playlists) {
-        PlaylistsView().tab()
+        TabContentView { PlaylistsView() }
       }
       Tab("Podcasts", systemImage: "dot.radiowaves.left.and.right", value: .podcasts) {
-        PodcastsView().tab()
-      }
-    }
-    .overlay(alignment: .bottom) {
-      if playState.playbarVisible {
-        PlayBar()
-          .padding(.bottom, 50)
+        TabContentView { PodcastsView() }
       }
     }
   }

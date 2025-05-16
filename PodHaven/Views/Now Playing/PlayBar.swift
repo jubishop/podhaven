@@ -5,7 +5,7 @@ import FactoryKit
 import SwiftUI
 
 struct PlayBar: View {
-  @State private var viewModel = Container.shared.playBarViewModel()
+  @State private var viewModel = PlayBarViewModel()
 
   var body: some View {
     VStack {
@@ -54,10 +54,8 @@ struct PlayBar: View {
     }
     .padding()
     .background(Color.blue)
-    .backgroundSizeReader { size in
-      viewModel.height = size.height
-    }
     .frame(maxWidth: .infinity)
+    .padding(.bottom, 2)
   }
 }
 
