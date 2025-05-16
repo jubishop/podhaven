@@ -6,25 +6,28 @@ import Foundation
 @MainActor protocol PodcastQueueableModel: EpisodeQueueable, PodcastEpisodeGettable {}
 
 @MainActor extension PodcastQueueableModel {
+  private var queue: Queue { Container.shared.queue() }
+  private var playManager: PlayManager { get async { await Container.shared.playManager() } }
+
   func playEpisode(_ episode: EpisodeType) {
     Task {
       let podcastEpisode = try await getPodcastEpisode(episode)
-      try await Container.shared.playManager().load(podcastEpisode)
-      await Container.shared.playManager().play()
+      try await playManager.load(podcastEpisode)
+      await playManager.play()
     }
   }
 
   func queueEpisodeOnTop(_ episode: EpisodeType) {
     Task {
       let episodeID = try await getEpisodeID(episode)
-      try await Container.shared.queue().unshift(episodeID)
+      try await queue.unshift(episodeID)
     }
   }
 
   func queueEpisodeAtBottom(_ episode: EpisodeType) {
     Task {
       let episodeID = try await getEpisodeID(episode)
-      try await Container.shared.queue().append(episodeID)
+      try await queue.append(episodeID)
     }
   }
 }

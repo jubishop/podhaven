@@ -14,14 +14,14 @@ extension Container {
 }
 
 struct Repo: Sendable {
+  private let queue = Container.shared.queue()
+
   // MARK: - Initialization
 
   var db: any DatabaseReader { appDB.db }
   private let appDB: AppDB
-  private let queue: Queue
   fileprivate init(_ appDB: AppDB) {
     self.appDB = appDB
-    self.queue = Container.shared.queue()
   }
 
   // MARK: - Global Readers

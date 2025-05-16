@@ -12,7 +12,7 @@ import Testing
 class RefreshManagerTests {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
-  @LazyInjected(\.refreshManager) private var refreshManager
+  @DynamicInjected(\.refreshManager) private var refreshManager
 
   var session: DataFetchableMock { feedManagerSession as! DataFetchableMock }
 

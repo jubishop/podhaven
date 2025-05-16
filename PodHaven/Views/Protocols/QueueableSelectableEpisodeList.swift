@@ -16,26 +16,29 @@ import IdentifiedCollections
 }
 
 @MainActor extension QueueableSelectableEpisodeList {
+  private var queue: Queue { Container.shared.queue() }
+  private var playManager: PlayManager { get async { await Container.shared.playManager() } }
+
   var selectedEpisodes: [EpisodeType] { episodeList.selectedEntries.elements }
 
   func addSelectedEpisodesToBottomOfQueue() {
     Task {
       let episodeIDs = try await selectedEpisodeIDs
-      try await Container.shared.queue().append(episodeIDs)
+      try await queue.append(episodeIDs)
     }
   }
 
   func addSelectedEpisodesToTopOfQueue() {
     Task {
       let episodeIDs = try await selectedEpisodeIDs
-      try await Container.shared.queue().unshift(episodeIDs)
+      try await queue.unshift(episodeIDs)
     }
   }
 
   func replaceQueue() {
     Task {
       let episodeIDs = try await selectedEpisodeIDs
-      try await Container.shared.queue().replace(episodeIDs)
+      try await queue.replace(episodeIDs)
     }
   }
 
@@ -43,10 +46,10 @@ import IdentifiedCollections
     Task {
       let podcastEpisodes = try await selectedPodcastEpisodes
       if let firstPodcastEpisode = podcastEpisodes.first {
-        try await Container.shared.playManager().load(firstPodcastEpisode)
-        await Container.shared.playManager().play()
+        try await playManager.load(firstPodcastEpisode)
+        await playManager.play()
         let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
-        try await Container.shared.queue().replace(allExceptFirstPodcastEpisode.map(\.id))
+        try await queue.replace(allExceptFirstPodcastEpisode.map(\.id))
       }
     }
   }
