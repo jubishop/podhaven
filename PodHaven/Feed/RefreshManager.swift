@@ -108,7 +108,8 @@ final actor RefreshManager: Sendable {
   // MARK: - Private Helpers
 
   private func activated() {
-    backgroundRefreshTask = Task(priority: .background) { [unowned self] in
+    backgroundRefreshTask?.cancel()
+    backgroundRefreshTask = Task(priority: .utility) { [unowned self] in
       while !Task.isCancelled {
         try? await performRefresh(
           stalenessThreshold: 10.minutesAgo,
