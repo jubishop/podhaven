@@ -5,7 +5,7 @@ import FactoryKit
 import SwiftUI
 
 struct PlayBar: View {
-  @State private var viewModel = PlayBarViewModel()
+  @State private var viewModel = Container.shared.playBarViewModel()
 
   var body: some View {
     VStack {
@@ -53,7 +53,7 @@ struct PlayBar: View {
       .disabled(!viewModel.playable)
     }
     .padding()
-    .background(Color.blue)
+    .background(Color.accentColor)
     .frame(maxWidth: .infinity)
     .padding(.bottom, 2)
   }
