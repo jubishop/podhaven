@@ -42,11 +42,9 @@ struct CategoryGrid: View {
       CategoryGrid(viewModel: viewModel)
     }
   }
-  .background(
-    SizeReader { size in
-      viewModel.width = size.width
-    }
-  )
+  .backgroundSizeReader { size in
+    viewModel.width = size.width
+  }
   .padding()
   .preview()
 }

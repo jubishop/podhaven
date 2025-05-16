@@ -5,15 +5,14 @@ import FactoryKit
 import SwiftUI
 
 struct PlayBar: View {
-  @State private var viewModel = PlayBarViewModel()
+  @State private var viewModel = Container.shared.playBarViewModel()
 
   var body: some View {
     VStack {
       if let episodeTitle = viewModel.episodeTitle {
         Text(episodeTitle)
           .lineLimit(1)
-          .padding(.bottom)
-          .frame(width: viewModel.barWidth)
+          .padding(.bottom, 4)
       }
       HStack {
         Group {
@@ -44,11 +43,6 @@ struct PlayBar: View {
         }
         .padding(.horizontal)
       }
-      .onGeometryChange(for: CGFloat.self) { geometry in
-        geometry.size.width
-      } action: { newWidth in
-        viewModel.barWidth = newWidth
-      }
       Slider(
         value: $viewModel.sliderValue,
         in: 0...Double(viewModel.duration.seconds),
@@ -57,11 +51,13 @@ struct PlayBar: View {
         }
       )
       .disabled(!viewModel.playable)
-      .frame(width: viewModel.barWidth)
     }
     .padding()
     .background(Color.blue)
-    .cornerRadius(16)
+    .backgroundSizeReader { size in
+      viewModel.height = size.height
+    }
+    .frame(maxWidth: .infinity)
   }
 }
 

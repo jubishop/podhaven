@@ -4,7 +4,7 @@ import Foundation
 import SwiftUI
 
 struct SizeReader: View {
-  var onSizeChange: (CGSize) -> Void
+  let onSizeChange: (CGSize) -> Void
 
   var body: some View {
     GeometryReader { geometry in
