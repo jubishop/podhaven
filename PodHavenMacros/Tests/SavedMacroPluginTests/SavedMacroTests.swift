@@ -11,14 +11,14 @@ struct SavedMacroTests {
   func testSavedMacroExpansion() throws {
     // Test input code
     let inputSource = """
-    import Tagged
+      import Tagged
 
-    @Saved<UnsavedTest>
-    struct Test {}
+      @Saved<UnsavedTest>
+      struct Test {}
 
-    struct UnsavedTest {}
-    """
-    
+      struct UnsavedTest {}
+      """
+
     // Expected expanded code
     let expectedExpansion = """
       import Tagged
@@ -38,13 +38,16 @@ struct SavedMacroTests {
 
       struct UnsavedTest {}
       """
-    
+
     // Perform the test using modern Swift testing syntax
-    #expect(assertMacroExpansion(
-      inputSource,
-      expandedSource: expectedExpansion,
-      macros: ["Saved": SavedMacro.self],
-      indentationWidth: .spaces(2)
-    ) == (), "Macro expansion should succeed without errors")
+    #expect(
+      assertMacroExpansion(
+        inputSource,
+        expandedSource: expectedExpansion,
+        macros: ["Saved": SavedMacro.self],
+        indentationWidth: .spaces(2)
+      ) == (),
+      "Macro expansion should succeed without errors"
+    )
   }
 }
