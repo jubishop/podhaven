@@ -194,7 +194,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     in opmlFile: OPMLFile,
     to newStatus: OPMLOutline.Status
   ) async {
-    await Task { @MainActor in
+    await Task {
       outline.status = newStatus
       switch newStatus {
       case .finished:

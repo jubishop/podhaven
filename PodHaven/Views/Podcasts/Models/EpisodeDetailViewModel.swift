@@ -7,10 +7,10 @@ import GRDB
 @Observable @MainActor final class EpisodeDetailViewModel {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
-  @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.playState) private var playState
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.repo) private var repo
+  var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }

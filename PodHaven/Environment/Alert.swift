@@ -5,6 +5,7 @@ import OSLog
 import SwiftUI
 
 extension Container {
+  @MainActor
   var alert: Factory<Alert> {
     Factory(self) { @MainActor in Alert() }.scope(.cached)
   }

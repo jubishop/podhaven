@@ -4,6 +4,7 @@ import FactoryKit
 import SwiftUI
 
 extension Container {
+  @MainActor
   var navigation: Factory<Navigation> {
     Factory(self) { @MainActor in Navigation() }.scope(.cached)
   }

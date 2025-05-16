@@ -10,10 +10,10 @@ import Sentry
 
 @main
 struct PodHavenApp: App {
-  @State private var alert = Container.shared.alert()
-
   let refreshManager = Container.shared.refreshManager()
-  let playManager = Container.shared.playManager()
+  var playManager: PlayManager { get async { await Container.shared.playManager() } }
+
+  @State private var alert = Container.shared.alert()
 
   private var audioSession: AVAudioSession { AVAudioSession.sharedInstance() }
 

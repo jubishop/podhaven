@@ -13,9 +13,9 @@ class StandardPlaylistViewModel:
 {
   @ObservationIgnored @LazyInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.observatory) private var observatory
-  @ObservationIgnored @LazyInjected(\.playManager) private var playManager
   @ObservationIgnored @LazyInjected(\.queue) private var queue
   @ObservationIgnored @LazyInjected(\.repo) private var repo
+  var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   // MARK: - State Management
 

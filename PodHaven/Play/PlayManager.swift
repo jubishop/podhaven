@@ -7,17 +7,18 @@ import GRDB
 import Sharing
 
 extension Container {
+  @PlayActor
   var playManager: Factory<PlayManager> {
     Factory(self) { @PlayActor in PlayManager() }.scope(.cached)
   }
 }
 
 @PlayActor final class PlayManager {
-  private var playState = Container.shared.playState()  // Cannot LazyInject because @MainActor
   @LazyInjected(\.images) private var images
   @LazyInjected(\.observatory) private var observatory
   @LazyInjected(\.queue) private var queue
   @LazyInjected(\.repo) private var repo
+  var playState: PlayState { get async { await Container.shared.playState() } }
 
   // MARK: - AppStorage
 
