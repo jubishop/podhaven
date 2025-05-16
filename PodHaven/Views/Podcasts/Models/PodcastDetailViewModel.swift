@@ -91,7 +91,8 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
   }
 
   func subscribe() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       try await repo.markSubscribed(podcast.id)
       navigation.showPodcast(.subscribed, podcastSeries)
     }

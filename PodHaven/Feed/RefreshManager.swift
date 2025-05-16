@@ -19,6 +19,10 @@ final actor RefreshManager: Sendable {
 
   private var backgroundRefreshTask: Task<Void, Never>?
 
+  // MARK: - Initialization
+
+  fileprivate init() {}
+
   // MARK: - Refresh Management
 
   func performRefresh(stalenessThreshold: Date, filter: SQLExpression = AppDB.NoOp) async throws {
@@ -27,7 +31,7 @@ final actor RefreshManager: Sendable {
         Podcast.Columns.lastUpdate < stalenessThreshold && filter
       )
       for podcastSeries in allStaleSubscribedPodcastSeries {
-        group.addTask {
+        group.addTask { [unowned self] in
           try await self.refreshSeries(podcastSeries: podcastSeries)
         }
       }
@@ -84,21 +88,19 @@ final actor RefreshManager: Sendable {
       activated()
     }
 
-    Task(priority: .utility) { [weak self] in
+    Task(priority: .utility) { [unowned self] in
       for await _ in NotificationCenter.default.notifications(
         named: UIApplication.didBecomeActiveNotification
       ) {
-        let refreshManager = self ?? Container.shared.refreshManager()
-        await refreshManager.activated()
+        activated()
       }
     }
 
-    Task(priority: .utility) { [weak self] in
+    Task(priority: .utility) { [unowned self] in
       for await _ in NotificationCenter.default.notifications(
         named: UIApplication.willResignActiveNotification
       ) {
-        let refreshManager = self ?? Container.shared.refreshManager()
-        await refreshManager.backgrounded()
+        backgrounded()
       }
     }
   }
@@ -106,10 +108,9 @@ final actor RefreshManager: Sendable {
   // MARK: - Private Helpers
 
   private func activated() {
-    backgroundRefreshTask = Task(priority: .background) { [weak self] in
+    backgroundRefreshTask = Task(priority: .background) { [unowned self] in
       while !Task.isCancelled {
-        let refreshManager = self ?? Container.shared.refreshManager()
-        try? await refreshManager.performRefresh(
+        try? await performRefresh(
           stalenessThreshold: 10.minutesAgo,
           filter: Podcast.subscribed
         )

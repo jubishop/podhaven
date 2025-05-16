@@ -50,23 +50,26 @@ import GRDB
   // MARK: - Public Functions
 
   func playNow() {
-    Task {
-      let podcastEpisode = try await self.fetchOrCreateEpisode()
+    Task { [weak self] in
+      guard let self else { return }
+      let podcastEpisode = try await fetchOrCreateEpisode()
       try await playManager.load(podcastEpisode)
       await playManager.play()
     }
   }
 
   func addToTopOfQueue() {
-    Task {
-      let podcastEpisode = try await self.fetchOrCreateEpisode()
+    Task { [weak self] in
+      guard let self else { return }
+      let podcastEpisode = try await fetchOrCreateEpisode()
       try await queue.unshift(podcastEpisode.episode.id)
     }
   }
 
   func appendToQueue() {
-    Task {
-      let podcastEpisode = try await self.fetchOrCreateEpisode()
+    Task { [weak self] in
+      guard let self else { return }
+      let podcastEpisode = try await fetchOrCreateEpisode()
       try await queue.append(podcastEpisode.episode.id)
     }
   }

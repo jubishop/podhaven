@@ -42,17 +42,24 @@ import GRDB
   }
 
   func playNow() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       try await playManager.load(podcastEpisode)
       await playManager.play()
     }
   }
 
   func addToTopOfQueue() {
-    Task { try await queue.unshift(episode.id) }
+    Task { [weak self] in
+      guard let self else { return }
+      try await queue.unshift(episode.id)
+    }
   }
 
   func appendToQueue() {
-    Task { try await queue.append(episode.id) }
+    Task { [weak self] in
+      guard let self else { return }
+      try await queue.append(episode.id)
+    }
   }
 }

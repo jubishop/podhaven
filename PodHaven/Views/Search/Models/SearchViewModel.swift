@@ -118,7 +118,8 @@ import SwiftUI
 
     if let currentToken = readyToSearch() {
       searchPresented = false
-      Task {
+      Task { [weak self] in
+        guard let self else { return }
         do {
           async let search: Void = performSearch(currentToken)
           currentView = currentToken

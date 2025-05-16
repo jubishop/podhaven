@@ -3,14 +3,15 @@
 import FactoryKit
 import Foundation
 
-@MainActor protocol PodcastQueueableModel: EpisodeQueueable, PodcastEpisodeGettable {}
+@MainActor protocol PodcastQueueableModel: AnyObject, EpisodeQueueable, PodcastEpisodeGettable {}
 
 @MainActor extension PodcastQueueableModel {
   private var queue: Queue { Container.shared.queue() }
   private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   func playEpisode(_ episode: EpisodeType) {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       let podcastEpisode = try await getPodcastEpisode(episode)
       try await playManager.load(podcastEpisode)
       await playManager.play()
@@ -18,14 +19,16 @@ import Foundation
   }
 
   func queueEpisodeOnTop(_ episode: EpisodeType) {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       let episodeID = try await getEpisodeID(episode)
       try await queue.unshift(episodeID)
     }
   }
 
   func queueEpisodeAtBottom(_ episode: EpisodeType) {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       let episodeID = try await getEpisodeID(episode)
       try await queue.append(episodeID)
     }

@@ -4,7 +4,7 @@ import FactoryKit
 import Foundation
 import IdentifiedCollections
 
-@MainActor protocol QueueableSelectableEpisodeList: QueueableSelectableList {
+@MainActor protocol QueueableSelectableEpisodeList: AnyObject, QueueableSelectableList {
   associatedtype EpisodeType: Stringable
   associatedtype EpisodeID: Hashable
 
@@ -22,28 +22,32 @@ import IdentifiedCollections
   var selectedEpisodes: [EpisodeType] { episodeList.selectedEntries.elements }
 
   func addSelectedEpisodesToBottomOfQueue() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       let episodeIDs = try await selectedEpisodeIDs
       try await queue.append(episodeIDs)
     }
   }
 
   func addSelectedEpisodesToTopOfQueue() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       let episodeIDs = try await selectedEpisodeIDs
       try await queue.unshift(episodeIDs)
     }
   }
 
   func replaceQueue() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       let episodeIDs = try await selectedEpisodeIDs
       try await queue.replace(episodeIDs)
     }
   }
 
   func replaceQueueAndPlay() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       let podcastEpisodes = try await selectedPodcastEpisodes
       if let firstPodcastEpisode = podcastEpisodes.first {
         try await playManager.load(firstPodcastEpisode)

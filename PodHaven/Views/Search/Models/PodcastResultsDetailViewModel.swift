@@ -103,9 +103,10 @@ class PodcastResultsDetailViewModel: QueueableSelectableEpisodeList, PodcastQueu
     guard subscribable
     else { return }
 
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       do {
-        if let podcastSeries = existingPodcastSeries, let podcastFeed = self.podcastFeed {
+        if let podcastSeries = existingPodcastSeries, let podcastFeed = podcastFeed {
           var podcast = podcastSeries.podcast
           podcast.subscribed = true
           let updatedPodcastSeries = PodcastSeries(

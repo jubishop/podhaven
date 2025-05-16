@@ -29,18 +29,24 @@ import SwiftUI
   }
 
   func playNow() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       try await playManager.load(podcastEpisode)
       await playManager.play()
     }
   }
 
   func playNext() {
-    Task { try await queue.unshift(episode.id) }
+    Task { [weak self] in
+      guard let self else { return }
+      try await queue.unshift(episode.id)
+    }
+
   }
 
   func viewDetails() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       navigation.showEpisode(
         podcastEpisode.podcast.subscribed ? .subscribed : .unsubscribed,
         podcastEpisode
@@ -49,6 +55,10 @@ import SwiftUI
   }
 
   func delete() {
-    Task { try await queue.dequeue(episode.id) }
+    Task { [weak self] in
+      guard let self else { return }
+      try await queue.dequeue(episode.id)
+    }
+
   }
 }

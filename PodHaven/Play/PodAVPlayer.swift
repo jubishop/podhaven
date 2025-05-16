@@ -101,10 +101,9 @@ import Foundation
   func seek(to time: CMTime) async {
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
-    avPlayer.seek(to: time) { [weak self] completed in
-      guard let self else { return }
+    avPlayer.seek(to: time) { [unowned self] completed in
       if completed {
-        Task { await addPeriodicTimeObserver() }
+        Task { [unowned self] in await addPeriodicTimeObserver() }
       }
     }
   }
@@ -180,11 +179,8 @@ import Foundation
     self.periodicTimeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
-    ) { currentTime in
-      Task { [weak self] in
-        guard let self else { return }
-        currentTimeContinuation.yield(currentTime)
-      }
+    ) { [unowned self] currentTime in
+      currentTimeContinuation.yield(currentTime)
     }
   }
 
@@ -199,17 +195,14 @@ import Foundation
     self.timeControlStatusObserver = avPlayer.observe(
       \.timeControlStatus,
       options: [.initial, .new],
-      changeHandler: { [weak self] playerItem, _ in
-        guard let self else { return }
-        Task {
-          controlStatusContinuation.yield(playerItem.timeControlStatus)
-        }
+      changeHandler: { [unowned self] playerItem, _ in
+        controlStatusContinuation.yield(playerItem.timeControlStatus)
       }
     )
   }
 
   private func startPlayToEndTimeNotifications() {
-    Task {
+    Task { [unowned self] in
       for await _ in NotificationCenter.default.notifications(
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {

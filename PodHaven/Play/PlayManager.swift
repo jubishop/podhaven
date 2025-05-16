@@ -51,8 +51,8 @@ extension Container {
       }
     }
   }
-  private var commandCenter = CommandCenter()
-  private var podAVPlayer = PodAVPlayer()
+  private let commandCenter = CommandCenter()
+  private let podAVPlayer = PodAVPlayer()
 
   // MARK: - Initialization
 
@@ -77,7 +77,7 @@ extension Container {
     await setStatus(.loading)
     defer {
       if status != .active {
-        Task { await setStatus(.stopped) }
+        Task { [unowned self] in await setStatus(.stopped) }
       }
     }
 
@@ -163,7 +163,7 @@ extension Container {
   private func setCurrentTime(_ currentTime: CMTime) async {
     nowPlayingInfo?.currentTime(currentTime)
     await playState.setCurrentTime(currentTime)
-    Task(priority: .utility) {
+    Task(priority: .utility) { [unowned self] in
       guard let currentPodcastEpisode = podAVPlayer.podcastEpisode
       else { return }
 
@@ -200,7 +200,7 @@ extension Container {
   }
 
   private func observeNextEpisode() {
-    Task {
+    Task { [unowned self] in
       for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
         await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
       }
@@ -208,7 +208,7 @@ extension Container {
   }
 
   private func startListeningToCommandCenter() {
-    Task {
+    Task { [unowned self] in
       for await command in commandCenter.stream {
         switch command {
         case .play:
@@ -229,13 +229,13 @@ extension Container {
   }
 
   private func startListeningToPodAVPlayer() {
-    Task {
+    Task { [unowned self] in
       for await currentTime in podAVPlayer.currentTimeStream {
         await self.setCurrentTime(currentTime)
       }
     }
 
-    Task {
+    Task { [unowned self] in
       for await controlStatus in podAVPlayer.controlStatusStream {
         if !status.playable { continue }
         switch controlStatus {
@@ -251,7 +251,7 @@ extension Container {
       }
     }
 
-    Task {
+    Task { [unowned self] in
       for await (finishedPodcastEpisode, currentLoadedPodcastEpisode) in podAVPlayer.playToEndStream
       {
         await handleEpisodeFinished(
@@ -263,7 +263,7 @@ extension Container {
   }
 
   private func startInterruptionNotifications() {
-    Task {
+    Task { [unowned self] in
       for await notification in NotificationCenter.default.notifications(
         named: AVAudioSession.interruptionNotification
       ) {

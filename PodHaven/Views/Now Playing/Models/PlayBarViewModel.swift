@@ -29,7 +29,10 @@ extension Container {
     get { isDragging ? _sliderValue : playState.currentTime.seconds }
     set {
       self._sliderValue = newValue
-      Task { await playManager.seek(to: CMTime.inSeconds(_sliderValue)) }
+      Task { [weak self] in
+        guard let self else { return }
+        await playManager.seek(to: CMTime.inSeconds(_sliderValue))
+      }
     }
   }
   var duration: CMTime { playState.onDeck?.duration ?? CMTime.zero }
@@ -41,17 +44,29 @@ extension Container {
     guard playState.playable else { return }
 
     if playState.playing {
-      Task { await playManager.pause() }
+      Task { [weak self] in
+        guard let self else { return }
+        await playManager.pause()
+      }
     } else {
-      Task { await playManager.play() }
+      Task { [weak self] in
+        guard let self else { return }
+        await playManager.play()
+      }
     }
   }
 
   func seekBackward() {
-    Task { await playManager.seekBackward(CMTime.inSeconds(15)) }
+    Task { [weak self] in
+      guard let self else { return }
+      await playManager.seekBackward(CMTime.inSeconds(15))
+    }
   }
 
   func seekForward() {
-    Task { await playManager.seekForward(CMTime.inSeconds(30)) }
+    Task { [weak self] in
+      guard let self else { return }
+      await playManager.seekForward(CMTime.inSeconds(30))
+    }
   }
 }

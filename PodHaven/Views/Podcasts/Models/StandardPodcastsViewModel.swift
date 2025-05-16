@@ -115,19 +115,22 @@ import SwiftUI
   }
 
   func deleteSelectedPodcasts() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       try await repo.delete(podcastList.selectedEntryIDs)
     }
   }
 
   func subscribeSelectedPodcasts() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       try await repo.markSubscribed(podcastList.selectedEntryIDs)
     }
   }
 
   func unsubscribeSelectedPodcasts() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       try await repo.markUnsubscribed(podcastList.selectedEntryIDs)
     }
   }

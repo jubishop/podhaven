@@ -85,7 +85,8 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   }
 
   func opmlFileImporterCompletion(_ result: Result<URL, Error>) {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       do {
         switch result {
         case .success(let url):
@@ -105,7 +106,8 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   }
 
   func stopDownloading() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       await feedManager.cancelAll()
       opmlFile = nil
     }
@@ -134,7 +136,8 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
       if let podcast = allPodcasts[id: feedURL] {
         if !podcast.subscribed {
-          Task {
+          Task { [weak self] in
+            guard let self else { return }
             try await repo.markSubscribed(podcast.id)
             if let series = try await repo.podcastSeries(podcast.id) {
               try await refreshManager.refreshSeries(podcastSeries: series)
@@ -156,7 +159,8 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
     self.opmlFile = opmlFile
     await withDiscardingTaskGroup { group in
       for outline in opmlFile.waiting {
-        group.addTask {
+        group.addTask { [weak self] in
+          guard let self = self else { return }
           let feedTask = await self.feedManager.addURL(outline.feedURL)
           await feedTask.downloadBegan()
           await self.updateOutlineStatus(outline, in: opmlFile, to: .downloading)
@@ -221,7 +225,8 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
       forResource: resource,
       withExtension: "opml"
     )!
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       let opml = try await PodcastOPML.parse(url)
       try await downloadOPMLFile(opml)
     }

@@ -39,21 +39,31 @@ import SwiftUI
     guard from.count == 1, let from = from.first
     else { Log.fatal("Somehow dragged none or several?") }
 
-    Task { try await queue.insert(podcastEpisodes[from].episode.id, at: to) }
+    Task { [weak self] in
+      guard let self else { return }
+      try await queue.insert(podcastEpisodes[from].episode.id, at: to)
+    }
   }
 
   func playItem(_ podcastEpisode: PodcastEpisode) {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       try await playManager.load(podcastEpisode)
       await playManager.play()
     }
   }
 
   func deleteItem(_ podcastEpisode: PodcastEpisode) {
-    Task { try await queue.dequeue(podcastEpisode.episode.id) }
+    Task { [weak self] in
+      guard let self else { return }
+      try await queue.dequeue(podcastEpisode.episode.id)
+    }
   }
 
   func deleteSelected() {
-    Task { try await queue.dequeue(episodeList.selectedEntryIDs) }
+    Task { [weak self] in
+      guard let self else { return }
+      try await queue.dequeue(episodeList.selectedEntryIDs)
+    }
   }
 }

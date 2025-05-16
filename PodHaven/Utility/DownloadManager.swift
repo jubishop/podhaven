@@ -178,7 +178,7 @@ final actor DownloadManager: Sendable {
   }
 
   private func executeDownload(_ downloadTask: DownloadTask) {
-    Task {
+    Task { // No [unowned self] because we want to outlive our container to finish all downloads.
       let downloadResult = await downloadTask.download()
       streamContinuation.yield(downloadResult)
       activeDownloads.removeValue(forKey: downloadTask.url)
