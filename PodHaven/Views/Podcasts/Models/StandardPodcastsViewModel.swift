@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Sharing
 import SwiftUI
 
 @Observable @MainActor final class StandardPodcastsViewModel {
@@ -23,10 +24,7 @@ import SwiftUI
   let title: String
   let filter: SQLExpression
 
-  var podcastList = SelectableListUseCase<PodcastWithLatestEpisodeDates, Podcast.ID>(
-    idKeyPath: \.id,
-    sortMethod: sortMethod(for: .byTitle)
-  )
+  var podcastList: SelectableListUseCase<PodcastWithLatestEpisodeDates, Podcast.ID>
   var anySelectedSubscribed: Bool {
     podcastList.selectedEntries.contains { $0.subscribed == true }
   }
@@ -68,17 +66,32 @@ import SwiftUI
     }
   }
 
-  var currentSortMethod = SortMethod.byTitle {
-    didSet {
-      podcastList.sortMethod = Self.sortMethod(for: currentSortMethod)
+  @ObservationIgnored @Shared private var storedSortMethod: SortMethod
+  private var _currentSortMethod: SortMethod
+  var currentSortMethod: SortMethod {
+    get { _currentSortMethod }
+    set {
+      _currentSortMethod = newValue
+      $storedSortMethod.withLock { $0 = newValue }
+      podcastList.sortMethod = Self.sortMethod(for: newValue)
     }
   }
 
   // MARK: - Initialization
 
   init(title: String, filter: SQLExpression = AppDB.NoOp) {
+    let sortMethod = Shared(
+      wrappedValue: SortMethod.byTitle,
+      .appStorage("sortMethodForPodcastsView\(title)")
+    )
+    self._storedSortMethod = sortMethod
+    self._currentSortMethod = sortMethod.wrappedValue
     self.title = title
     self.filter = filter
+    self.podcastList = SelectableListUseCase<PodcastWithLatestEpisodeDates, Podcast.ID>(
+      idKeyPath: \.id,
+      sortMethod: Self.sortMethod(for: sortMethod.wrappedValue)
+    )
   }
 
   func execute() async {
