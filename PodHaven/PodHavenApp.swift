@@ -47,7 +47,7 @@ struct PodHavenApp: App {
         .task {
           await configureAudioSession()
           await playManager.start()
-          await refreshManager.startBackgroundRefreshing()
+          await refreshManager.startBackgroundRefreshing() // Never returns
         }
     }
   }

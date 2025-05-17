@@ -32,7 +32,7 @@ final actor RefreshManager: Sendable {
       )
       for podcastSeries in allStaleSubscribedPodcastSeries {
         group.addTask {  // No [unowned self], run to completion.
-          try await self.refreshSeries(podcastSeries: podcastSeries)
+          try? await self.refreshSeries(podcastSeries: podcastSeries)
         }
       }
     }
