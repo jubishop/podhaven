@@ -120,7 +120,7 @@ extension Container {
 
     Task {
       for await _ in NotificationCenter.default.notifications(
-        named: UIResponder.keyboardWillHideNotification
+        named: UIResponder.keyboardDidHideNotification
       ) {
         keyboardVisible = false
       }
