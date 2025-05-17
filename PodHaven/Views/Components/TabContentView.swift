@@ -15,7 +15,7 @@ struct TabContentView<Content: View>: View {
   var body: some View {
     VStack(spacing: 0) {
       content
-      if playState.playbarVisible {
+      if playState.showPlaybar {
         PlayBar()
       }
     }

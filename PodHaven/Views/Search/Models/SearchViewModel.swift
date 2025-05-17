@@ -54,11 +54,7 @@ import SwiftUI
     }
   }
 
-  var searchPresented: Bool = false {
-    didSet {
-      playState.playbarVisible = !searchPresented
-    }
-  }
+  var searchPresented: Bool = false
 
   var showSearchWarning: Bool {
     searchPresented

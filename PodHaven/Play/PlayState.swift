@@ -81,12 +81,14 @@ extension Container {
     var waiting: Bool { self == .waiting }
   }
 
-  var playbarVisible = true
+  var keyboardVisible = false
   private(set) var status: Status = .stopped
   private(set) var currentTime = CMTime.zero
   private(set) var onDeck: OnDeck?
 
-  fileprivate init() {}
+  var showPlaybar: Bool {
+    !keyboardVisible && status.playable
+  }
 
   // MARK: - State Setters
 
@@ -100,5 +102,25 @@ extension Container {
 
   func setOnDeck(_ onDeck: OnDeck?) {
     self.onDeck = onDeck
+  }
+
+  // MARK: - Initialization
+
+  fileprivate init() {
+    Task { [unowned self] in
+      for await _ in NotificationCenter.default.notifications(
+        named: UIResponder.keyboardWillShowNotification
+      ) {
+        keyboardVisible = true
+      }
+    }
+
+    Task { [unowned self] in
+      for await _ in NotificationCenter.default.notifications(
+        named: UIResponder.keyboardWillHideNotification
+      ) {
+        keyboardVisible = false
+      }
+    }
   }
 }
