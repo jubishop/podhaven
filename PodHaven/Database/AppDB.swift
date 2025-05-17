@@ -11,6 +11,8 @@ extension Container {
 }
 
 struct AppDB: Sendable {
+  private static let log = Log(.database(.appDB))
+
   #if DEBUG
   static func inMemory(migrate: Bool = true) -> AppDB {
     do {
@@ -62,7 +64,7 @@ struct AppDB: Sendable {
     config.publicStatementArguments = true
     config.prepareDatabase { db in
       db.trace {
-        Log.trace(
+        log.debug(
           """
           SQL:
             \($0)
