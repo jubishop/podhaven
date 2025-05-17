@@ -10,6 +10,7 @@ import Sentry
 
 @main
 struct PodHavenApp: App {
+  @DynamicInjected(\.playState) private var playState
   @DynamicInjected(\.refreshManager) private var refreshManager
   private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
@@ -46,8 +47,9 @@ struct PodHavenApp: App {
         .environment(alert)
         .task {
           await configureAudioSession()
+          await playState.start()
           await playManager.start()
-          await refreshManager.startBackgroundRefreshing() // Never returns
+          await refreshManager.start()
         }
     }
   }

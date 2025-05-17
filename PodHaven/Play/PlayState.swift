@@ -106,7 +106,9 @@ extension Container {
 
   // MARK: - Initialization
 
-  fileprivate init() {
+  fileprivate init() {}
+
+  func start() async {
     Task {
       for await _ in NotificationCenter.default.notifications(
         named: UIResponder.keyboardWillShowNotification

@@ -23,6 +23,28 @@ final actor RefreshManager: Sendable {
 
   fileprivate init() {}
 
+  func start() async {
+    if await UIApplication.shared.applicationState == .active {
+      activated()
+    }
+
+    Task {
+      for await _ in NotificationCenter.default.notifications(
+        named: UIApplication.didBecomeActiveNotification
+      ) {
+        activated()
+      }
+    }
+
+    Task {
+      for await _ in NotificationCenter.default.notifications(
+        named: UIApplication.willResignActiveNotification
+      ) {
+        backgrounded()
+      }
+    }
+  }
+
   // MARK: - Refresh Management
 
   func performRefresh(stalenessThreshold: Date, filter: SQLExpression = AppDB.NoOp) async throws {
@@ -78,32 +100,6 @@ final actor RefreshManager: Sendable {
         unsavedEpisodes: unsavedEpisodes,
         existingEpisodes: existingEpisodes
       )
-    }
-  }
-
-  // MARK: - Background Refreshing
-
-  func startBackgroundRefreshing() async {
-    if await UIApplication.shared.applicationState == .active {
-      activated()
-    }
-
-    await withTaskGroup { group in
-      group.addTask {
-        for await _ in NotificationCenter.default.notifications(
-          named: UIApplication.didBecomeActiveNotification
-        ) {
-          await self.activated()
-        }
-      }
-
-      group.addTask {
-        for await _ in NotificationCenter.default.notifications(
-          named: UIApplication.willResignActiveNotification
-        ) {
-          await self.backgrounded()
-        }
-      }
     }
   }
 
