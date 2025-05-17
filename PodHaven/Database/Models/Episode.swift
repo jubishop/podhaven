@@ -11,6 +11,8 @@ typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
 
 struct UnsavedEpisode: Savable, Stringable {
+  static let databaseTableName: String = "episode"
+
   var podcastId: Podcast.ID?
   let guid: GUID
   var media: MediaURL

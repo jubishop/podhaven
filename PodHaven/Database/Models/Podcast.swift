@@ -9,6 +9,8 @@ import Tagged
 typealias FeedURL = Tagged<UnsavedPodcast, URL>
 
 struct UnsavedPodcast: Savable, Stringable {
+  static let databaseTableName: String = "podcast"
+
   var feedURL: FeedURL
   var title: String
   var image: URL
