@@ -13,10 +13,11 @@ struct TabContentWithPlayBar<Content: View>: View {
   }
 
   var body: some View {
-    VStack(spacing: 0) {
+    VStack(spacing: 2) {
       content
       if playState.showPlayBar {
         PlayBar()
+          .padding(.bottom, 2)
       }
     }
     .tab()

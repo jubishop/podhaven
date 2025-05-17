@@ -55,7 +55,6 @@ struct PlayBar: View {
     .padding()
     .background(Color.accentColor)
     .frame(maxWidth: .infinity)
-    .padding(.bottom, 2)
   }
 }
 
