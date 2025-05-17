@@ -1,11 +1,18 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import OSLog
 
 #if !DEBUG
 import Sentry
 #endif
+
+extension Container {
+  var log: Factory<Log> {
+    Factory(self) { Log() }.scope(.cached)
+  }
+}
 
 enum LogLevel: Int, Comparable {
   case debug = 0
@@ -50,14 +57,14 @@ struct Log {
     }
   }
 
-  private static let shared: Log = Log()
+  private static let shared: Log = Container.shared.log()
 
   private let logger: Logger
   private let level: LogLevel
 
   // MARK: - Initialization
 
-  init(level: LogLevel = .debug) {
+  fileprivate init(level: LogLevel = .debug) {
     self.logger = Logger()
     self.level = level
   }
