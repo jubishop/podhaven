@@ -31,7 +31,7 @@ final actor RefreshManager: Sendable {
         Podcast.Columns.lastUpdate < stalenessThreshold && filter
       )
       for podcastSeries in allStaleSubscribedPodcastSeries {
-        group.addTask { [unowned self] in
+        group.addTask {  // No [unowned self], run to completion.
           try await self.refreshSeries(podcastSeries: podcastSeries)
         }
       }
@@ -88,19 +88,21 @@ final actor RefreshManager: Sendable {
       activated()
     }
 
-    Task(priority: .utility) { [unowned self] in
-      for await _ in NotificationCenter.default.notifications(
-        named: UIApplication.didBecomeActiveNotification
-      ) {
-        activated()
+    await withTaskGroup(of: Void.self) { group in
+      group.addTask {  // No [unowned self], run forever.
+        for await _ in NotificationCenter.default.notifications(
+          named: UIApplication.didBecomeActiveNotification
+        ) {
+          await self.activated()
+        }
       }
-    }
 
-    Task(priority: .utility) { [unowned self] in
-      for await _ in NotificationCenter.default.notifications(
-        named: UIApplication.willResignActiveNotification
-      ) {
-        backgrounded()
+      group.addTask {  // No [unowned self], run forever.
+        for await _ in NotificationCenter.default.notifications(
+          named: UIApplication.willResignActiveNotification
+        ) {
+          await self.backgrounded()
+        }
       }
     }
   }
@@ -109,9 +111,9 @@ final actor RefreshManager: Sendable {
 
   private func activated() {
     backgroundRefreshTask?.cancel()
-    backgroundRefreshTask = Task(priority: .utility) { [unowned self] in
+    backgroundRefreshTask = Task(priority: .utility) {  // No [unowned self], run forever.
       while !Task.isCancelled {
-        try? await performRefresh(
+        try? await self.performRefresh(
           stalenessThreshold: 10.minutesAgo,
           filter: Podcast.subscribed
         )
