@@ -88,7 +88,7 @@ final actor RefreshManager: Sendable {
       activated()
     }
 
-    await withTaskGroup(of: Void.self) { group in
+    await withTaskGroup { group in
       group.addTask {  // No [unowned self], run forever.
         for await _ in NotificationCenter.default.notifications(
           named: UIApplication.didBecomeActiveNotification
