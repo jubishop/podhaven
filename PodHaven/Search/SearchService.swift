@@ -18,10 +18,7 @@ extension Container {
   }
 
   var searchService: Factory<SearchService> {
-    Factory(self) {
-      return SearchService(session: self.searchServiceSession())
-    }
-    .scope(.cached)
+    Factory(self) { SearchService(session: self.searchServiceSession()) }.scope(.cached)
   }
 }
 

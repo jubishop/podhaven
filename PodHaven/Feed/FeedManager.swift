@@ -18,7 +18,7 @@ extension Container {
   }
 
   var feedManager: Factory<FeedManager> {
-    Factory(self) { return FeedManager(session: self.feedManagerSession()) }.scope(.unique)
+    Factory(self) { FeedManager(session: self.feedManagerSession()) }.scope(.unique)
   }
 }
 
