@@ -77,7 +77,7 @@ extension Container {
     await setStatus(.loading)
     defer {
       if status != .active {
-        Task { [unowned self] in await setStatus(.stopped) }
+        Task { await setStatus(.stopped) }
       }
     }
 
@@ -163,7 +163,7 @@ extension Container {
   private func setCurrentTime(_ currentTime: CMTime) async {
     nowPlayingInfo?.currentTime(currentTime)
     await playState.setCurrentTime(currentTime)
-    Task(priority: .utility) { [unowned self] in
+    Task(priority: .utility) {
       guard let currentPodcastEpisode = podAVPlayer.podcastEpisode
       else { return }
 
@@ -200,7 +200,7 @@ extension Container {
   }
 
   private func observeNextEpisode() {
-    Task { [unowned self] in
+    Task {
       for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
         await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
       }
@@ -208,7 +208,7 @@ extension Container {
   }
 
   private func startListeningToCommandCenter() {
-    Task { [unowned self] in
+    Task {
       for await command in commandCenter.stream {
         switch command {
         case .play:
@@ -229,13 +229,13 @@ extension Container {
   }
 
   private func startListeningToPodAVPlayer() {
-    Task { [unowned self] in
+    Task {
       for await currentTime in podAVPlayer.currentTimeStream {
         await self.setCurrentTime(currentTime)
       }
     }
 
-    Task { [unowned self] in
+    Task {
       for await controlStatus in podAVPlayer.controlStatusStream {
         if !status.playable { continue }
         switch controlStatus {
@@ -251,7 +251,7 @@ extension Container {
       }
     }
 
-    Task { [unowned self] in
+    Task {
       for await (finishedPodcastEpisode, currentLoadedPodcastEpisode) in podAVPlayer.playToEndStream
       {
         await handleEpisodeFinished(
@@ -263,7 +263,7 @@ extension Container {
   }
 
   private func startInterruptionNotifications() {
-    Task { [unowned self] in
+    Task {
       for await notification in NotificationCenter.default.notifications(
         named: AVAudioSession.interruptionNotification
       ) {

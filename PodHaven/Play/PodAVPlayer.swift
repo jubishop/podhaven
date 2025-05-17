@@ -103,7 +103,7 @@ import Foundation
     currentTimeContinuation.yield(time)
     avPlayer.seek(to: time) { [unowned self] completed in
       if completed {
-        Task { [unowned self] in await addPeriodicTimeObserver() }
+        Task { await addPeriodicTimeObserver() }
       }
     }
   }
@@ -202,7 +202,7 @@ import Foundation
   }
 
   private func startPlayToEndTimeNotifications() {
-    Task { [unowned self] in
+    Task {
       for await _ in NotificationCenter.default.notifications(
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {

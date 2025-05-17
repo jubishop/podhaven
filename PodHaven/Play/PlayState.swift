@@ -107,7 +107,7 @@ extension Container {
   // MARK: - Initialization
 
   fileprivate init() {
-    Task { [unowned self] in
+    Task {
       for await _ in NotificationCenter.default.notifications(
         named: UIResponder.keyboardWillShowNotification
       ) {
@@ -115,7 +115,7 @@ extension Container {
       }
     }
 
-    Task { [unowned self] in
+    Task {
       for await _ in NotificationCenter.default.notifications(
         named: UIResponder.keyboardWillHideNotification
       ) {
