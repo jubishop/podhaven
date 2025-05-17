@@ -87,7 +87,7 @@ extension Container {
   
   private var keyboardVisible = false
 
-  var showPlaybar: Bool {
+  var showPlayBar: Bool {
     !keyboardVisible && status.playable
   }
 

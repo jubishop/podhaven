@@ -3,7 +3,7 @@
 import FactoryKit
 import SwiftUI
 
-struct TabContentView<Content: View>: View {
+struct TabContentWithPlayBar<Content: View>: View {
   @State private var playState = Container.shared.playState()
 
   private let content: Content
@@ -15,7 +15,7 @@ struct TabContentView<Content: View>: View {
   var body: some View {
     VStack(spacing: 0) {
       content
-      if playState.showPlaybar {
+      if playState.showPlayBar {
         PlayBar()
       }
     }
