@@ -81,10 +81,10 @@ extension Container {
     var waiting: Bool { self == .waiting }
   }
 
-  var keyboardVisible = false
   private(set) var status: Status = .stopped
   private(set) var currentTime = CMTime.zero
   private(set) var onDeck: OnDeck?
+  private var keyboardVisible = false
 
   var showPlaybar: Bool {
     !keyboardVisible && status.playable
