@@ -17,10 +17,8 @@ extension Container {
 enum LogLevel: Int, Comparable {
   case debug = 0
   case info = 1
-  case notice = 2
-  case warning = 3
-  case critical = 4
-  case ignore = 99
+  case warning = 2
+  case critical = 3
 
   static func < (lhs: LogLevel, rhs: LogLevel) -> Bool {
     lhs.rawValue < rhs.rawValue
@@ -31,6 +29,10 @@ struct Log {
   enum SubsystemAndCategory {
     case database(Database)
 
+    enum Database: String {
+      case appDB
+    }
+    
     var subsystem: String {
       switch self {
       case .database: return "database"
@@ -50,10 +52,6 @@ struct Log {
         case .appDB: return .info
         }
       }
-    }
-
-    enum Database: String {
-      case appDB
     }
   }
 
@@ -178,16 +176,6 @@ struct Log {
   func info(_ message: String) {
     if shouldLog(.info) {
       logger.info("\(message)")
-    }
-  }
-
-  static func notice(_ message: String) {
-    Self.shared.notice(message)
-  }
-
-  func notice(_ message: String) {
-    if shouldLog(.notice) {
-      logger.notice("\(message)")
     }
   }
 
