@@ -12,7 +12,7 @@ struct OPMLImportSheet: View {
   }
 
   var body: some View {
-    Text(String(opmlFile.title))
+    Text(opmlFile.title)
       .font(.headline)
       .padding([.top])
 
