@@ -24,6 +24,10 @@ struct Log {
   enum SubsystemAndCategory {
     case database(Database)
 
+    enum Database: String {
+      case appDB
+    }
+    
     var subsystem: String {
       switch self {
       case .database: return "database"
@@ -43,10 +47,6 @@ struct Log {
         case .appDB: return .info
         }
       }
-    }
-
-    enum Database: String {
-      case appDB
     }
   }
 
