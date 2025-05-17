@@ -178,7 +178,7 @@ final actor DownloadManager: Sendable {
   }
 
   private func executeDownload(_ downloadTask: DownloadTask) {
-    Task {  // No [unowned self], finish all downloads.
+    Task {
       let downloadResult = await downloadTask.download()
       streamContinuation.yield(downloadResult)
       activeDownloads.removeValue(forKey: downloadTask.url)
