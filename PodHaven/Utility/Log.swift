@@ -12,7 +12,6 @@ enum LogLevel: Int, Comparable {
   case info = 1
   case warning = 2
   case critical = 3
-  case ignore = 99
 
   static func < (lhs: LogLevel, rhs: LogLevel) -> Bool {
     lhs.rawValue < rhs.rawValue
