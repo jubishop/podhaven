@@ -32,7 +32,7 @@ struct Log {
     enum Database: String {
       case appDB
     }
-    
+
     var subsystem: String {
       switch self {
       case .database: return "database"
