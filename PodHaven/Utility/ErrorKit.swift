@@ -28,7 +28,8 @@ enum ErrorKit {
       return errorDescription
     }
 
-    return error.localizedDescription
+    let nsError = error as NSError
+    return "[\(nsError.domain): \(nsError.code)] \(nsError.localizedDescription)"
   }
 
   static func loggableMessage(for error: Error) -> String {
