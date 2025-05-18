@@ -7,8 +7,6 @@ protocol ReadableError: CustomNSError, Equatable, LocalizedError, Sendable {
 }
 
 extension ReadableError {
-  static var errorDomain: String { "artisanalsoftware.com" }
-
   static func == (_ lhs: Self, _ rhs: Self) -> Bool {
     lhs.message == rhs.message
   }
