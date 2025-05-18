@@ -84,7 +84,11 @@ import SwiftUI
     do {
       try await performSearch(currentView)
     } catch {
-      if isUnremarkable(error) { return }
+      if isUnremarkable(error) {
+        log.info(error)
+        return
+      }
+
       log.report(error)
       alert(ErrorKit.message(for: error))
     }
@@ -124,7 +128,11 @@ import SwiftUI
           currentView = currentToken
           try await search
         } catch let error as SearchError {
-          if isUnremarkable(error) { return }
+          if isUnremarkable(error) {
+            log.info(error)
+            return
+          }
+
           log.report(error)
           alert(ErrorKit.message(for: error))
         }

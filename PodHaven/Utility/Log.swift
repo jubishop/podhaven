@@ -87,7 +87,7 @@ struct Log {
     self.level = id.level
   }
 
-  // MARK: - Special Logging
+  // MARK: - Sentry Reporting
 
   func report(
     _ message: String,
@@ -98,6 +98,7 @@ struct Log {
     #if !DEBUG
     SentrySDK.capture(message: message)
     #endif
+
     critical(message, file: file, function: function, line: line)
   }
 
@@ -110,19 +111,15 @@ struct Log {
     #if !DEBUG
     SentrySDK.capture(error: error)
     #endif
-    caught(error, file: file, function: function, line: line)
-  }
 
-  func caught(
-    _ error: Error,
-    file: String = #file,
-    function: StaticString = #function,
-    line: UInt = #line
-  ) {
-    critical(ErrorKit.loggableMessage(for: error), file: file, function: function, line: line)
+    critical(error, file: file, function: function, line: line)
   }
 
   // MARK: - Basic Logging
+
+  func debug(_ error: Error) {
+    debug(ErrorKit.loggableMessage(for: error))
+  }
 
   func debug(_ message: String) {
     if shouldLog(.debug) {
@@ -130,10 +127,18 @@ struct Log {
     }
   }
 
+  func info(_ error: Error) {
+    info(ErrorKit.loggableMessage(for: error))
+  }
+
   func info(_ message: String) {
     if shouldLog(.info) {
       logger.info("\(message)")
     }
+  }
+
+  func warning(_ error: Error) {
+    warning(ErrorKit.loggableMessage(for: error))
   }
 
   func warning(_ message: String) {
@@ -143,14 +148,20 @@ struct Log {
   }
 
   func critical(
+    _ error: Error,
+    file: String = #file,
+    function: StaticString = #function,
+    line: UInt = #line
+  ) {
+    critical(ErrorKit.loggableMessage(for: error), file: file, function: function, line: line)
+  }
+
+  func critical(
     _ message: String,
     file: String = #file,
     function: StaticString = #function,
     line: UInt = #line
   ) {
-    guard shouldLog(.critical)
-    else { return }
-
     logger.critical(
       """
       ----------------------------------------------------------------------------------------------
