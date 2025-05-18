@@ -5,7 +5,7 @@ import GRDB
 import SwiftUI
 
 struct PodcastsView: View {
-  @State private var navigation = Container.shared.navigation()
+  @InjectedObservable(\.navigation) private var navigation
 
   var body: some View {
     NavigationStack(path: $navigation.podcastsPath) {

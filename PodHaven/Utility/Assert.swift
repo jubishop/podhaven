@@ -1,0 +1,86 @@
+import FactoryKit
+import Foundation
+
+#if !DEBUG
+import Sentry
+#endif
+
+extension Container {
+  var assert: Factory<Assert> {
+    Factory(self) { Assert() }.scope(.cached)
+  }
+}
+
+struct Assert {
+  private static let shared: Assert = Container.shared.assert()
+
+  static func fatal(
+    _ message: String,
+    file: String = #file,
+    function: StaticString = #function,
+    line: UInt = #line
+  ) -> Never {
+    shared.fatal(message, file: file, function: function, line: line)
+  }
+
+  static func precondition(
+    _ condition: Bool,
+    _ message: String,
+    file: String = #file,
+    function: StaticString = #function,
+    line: UInt = #line
+  ) {
+    shared.precondition(condition, message, file: file, function: function, line: line)
+  }
+
+  fileprivate init() {}
+
+  func fatal(
+    _ message: String,
+    file: String = #file,
+    function: StaticString = #function,
+    line: UInt = #line
+  ) -> Never {
+    #if !DEBUG
+    SentrySDK.capture(message: message)
+    #endif
+
+    fatalError(
+      """
+      ----------------------------------------------------------------------------------------------
+      ❗️ Fatal from: [\(Log.fileName(from: file)):\(line) \(function)]
+      \(message)
+
+      🧱 Call stack:
+        \(StackTracer.capture(limit: 20, drop: 1).joined(separator: "\n  "))
+      ----------------------------------------------------------------------------------------------
+      """
+    )
+  }
+
+  func precondition(
+    _ condition: Bool,
+    _ message: String,
+    file: String = #file,
+    function: StaticString = #function,
+    line: UInt = #line
+  ) {
+    guard !condition else { return }
+
+    #if !DEBUG
+    SentrySDK.capture(message: message)
+    #endif
+
+    fatalError(
+      """
+      ----------------------------------------------------------------------------------------------
+      ❗️ Failed precondition from: [\(Log.fileName(from: file)):\(line) \(function)]
+      \(message)
+
+      🧱 Call stack:
+        \(StackTracer.capture(limit: 20, drop: 1).joined(separator: "\n  "))
+      ----------------------------------------------------------------------------------------------
+      """
+    )
+  }
+}

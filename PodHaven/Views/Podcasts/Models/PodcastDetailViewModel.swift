@@ -16,6 +16,8 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
+  private let log = Log(.podcasts(.detail))
+
   // MARK: - State Management
 
   var unplayedOnly: Bool = false
@@ -61,7 +63,7 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
         self.podcastSeries = podcastSeries
       }
     } catch {
-      Log.report(error)
+      log.report(error)
     }
   }
 

@@ -123,7 +123,7 @@ struct SearchService: Sendable {
       components.queryItems = queryItems
     }
     guard let url = components.url
-    else { Log.fatal("Can't make url from: \(components)?") }
+    else { Assert.fatal("Can't make url from: \(components)?") }
 
     var request = URLRequest(url: url)
     request.httpMethod = "GET"

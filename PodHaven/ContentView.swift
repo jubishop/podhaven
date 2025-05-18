@@ -4,8 +4,8 @@ import FactoryKit
 import SwiftUI
 
 struct ContentView: View {
-  @State private var navigation = Container.shared.navigation()
-  @State private var playState = Container.shared.playState()
+  @InjectedObservable(\.navigation) private var navigation
+  @InjectedObservable(\.playState) private var playState
 
   var body: some View {
     TabView(selection: $navigation.currentTab) {

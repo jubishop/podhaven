@@ -5,6 +5,6 @@ import Foundation
 extension AsyncSequence {
   func get() async throws -> Element {
     for try await value in self { return value }
-    Log.fatal("Sequence ended without yielding a value")
+    Assert.fatal("Sequence ended without yielding a value")
   }
 }

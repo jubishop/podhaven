@@ -5,8 +5,8 @@ import SwiftUI
 
 struct SearchView: View {
   @Environment(Alert.self) var alert
+  @InjectedObservable(\.navigation) private var navigation
 
-  @State private var navigation = Container.shared.navigation()
   @State private var viewModel = SearchViewModel()
 
   var body: some View {

@@ -19,7 +19,7 @@ final actor DataFetchableMock: DataFetchable {
 
   func data(for urlRequest: URLRequest) async throws -> (Data, URLResponse) {
     guard let url = urlRequest.url
-    else { Log.fatal("No URL in URLRequest: \(urlRequest)??") }
+    else { Assert.fatal("No URL in URLRequest: \(urlRequest)??") }
 
     activeRequests += 1
     defer { activeRequests -= 1 }

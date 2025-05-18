@@ -19,7 +19,7 @@ struct AppDB: Sendable {
       let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
       return try AppDB(dbQueue, migrate: migrate)
     } catch {
-      Log.fatal("Failed to initialize inMemory AppDB queue: \(error)")
+      Assert.fatal("Failed to initialize inMemory AppDB queue: \(error)")
     }
   }
   #endif
@@ -32,7 +32,7 @@ struct AppDB: Sendable {
       )
       return try AppDB(dbPool)
     } catch {
-      Log.fatal("Failed to initialize onDisk AppDB pool: \(error)")
+      Assert.fatal("Failed to initialize onDisk AppDB pool: \(error)")
     }
   }()
 
@@ -46,7 +46,7 @@ struct AppDB: Sendable {
       )
       return try AppDB(dbQueue)
     } catch {
-      Log.fatal("Failed to initialize onDisk AppDB queue: \(error)")
+      Assert.fatal("Failed to initialize onDisk AppDB queue: \(error)")
     }
   }
   #endif
@@ -92,7 +92,7 @@ struct AppDB: Sendable {
     do {
       try db.erase()
     } catch {
-      Log.fatal("Failed to erase db in tearDown: \(error)")
+      Assert.fatal("Failed to erase db in tearDown: \(error)")
     }
   }
   #endif

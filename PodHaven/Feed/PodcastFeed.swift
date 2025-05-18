@@ -17,15 +17,13 @@ struct EpisodeFeed: Sendable, Equatable {
   }
 
   func toUnsavedEpisode(merging episode: Episode? = nil) throws -> UnsavedEpisode {
-    guard episode == nil || episode?.guid == guid
-    else {
-      Log.fatal(
-        """
-        Merging two episodes with different guids?:
-          \(String(describing: episode?.guid)), \(guid)
-        """
-      )
-    }
+    Assert.precondition(
+      episode == nil || episode?.guid == guid,
+      """
+      Merging two episodes with different guids?:
+        \(String(describing: episode?.guid)), \(guid)
+      """
+    )
 
     return try UnsavedEpisode(
       podcastId: episode?.podcastId,
@@ -122,15 +120,13 @@ struct PodcastFeed: Sendable, Equatable {
 
   func toUnsavedPodcast(merging unsavedPodcast: UnsavedPodcast) throws(FeedError) -> UnsavedPodcast
   {
-    guard unsavedPodcast.feedURL == feedURL
-    else {
-      Log.fatal(
-        """
-        Merging two podcasts with different feedURLs?:
-          \(feedURL) != \(unsavedPodcast.feedURL)
-        """
-      )
-    }
+    Assert.precondition(
+      unsavedPodcast.feedURL == feedURL,
+      """
+      Merging two podcasts with different feedURLs?:
+        \(feedURL) != \(unsavedPodcast.feedURL)
+      """
+    )
 
     return try toUnsavedPodcast(
       subscribed: unsavedPodcast.subscribed,

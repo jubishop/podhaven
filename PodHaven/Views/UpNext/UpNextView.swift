@@ -5,8 +5,8 @@ import SwiftUI
 
 struct UpNextView: View {
   @Environment(Alert.self) var alert
-
-  @State private var navigation = Container.shared.navigation()
+  @InjectedObservable(\.navigation) private var navigation
+  
   @State private var viewModel = UpNextViewModel()
 
   var body: some View {

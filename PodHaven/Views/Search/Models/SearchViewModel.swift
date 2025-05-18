@@ -9,6 +9,8 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.playState) private var playState
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
 
+  private let log = Log(.search(.main))
+
   // MARK: - Geometry Management
 
   var width: CGFloat = 0
@@ -83,7 +85,7 @@ import SwiftUI
       try await performSearch(currentView)
     } catch {
       if isUnremarkable(error) { return }
-      Log.report(error)
+      log.report(error)
       alert(ErrorKit.message(for: error))
     }
   }
@@ -123,7 +125,7 @@ import SwiftUI
           try await search
         } catch let error as SearchError {
           if isUnremarkable(error) { return }
-          Log.report(error)
+          log.report(error)
           alert(ErrorKit.message(for: error))
         }
       }
@@ -143,7 +145,7 @@ import SwiftUI
     case .people:
       try await searchByPerson(searchText)
     case .category(_):
-      Log.fatal("Trying to perform search on category?")
+      Assert.fatal("Trying to perform search on category?")
     }
   }
 

@@ -5,7 +5,7 @@ import FactoryKit
 import SwiftUI
 
 struct PlayBar: View {
-  @State private var viewModel = Container.shared.playBarViewModel()
+  @InjectedObservable(\.playBarViewModel) private var viewModel
 
   var body: some View {
     VStack {

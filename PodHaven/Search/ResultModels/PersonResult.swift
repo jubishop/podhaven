@@ -24,7 +24,7 @@ struct PersonResult: Sendable, Decodable {
     {
       guard podcastEpisode == nil || podcastEpisode?.episode.media == enclosureUrl
       else {
-        Log.fatal(
+        Assert.fatal(
           """
           Two podcastEpisodes with different mediaURLs?: \
             \(String(describing: podcastEpisode?.episode.media)), \(enclosureUrl)

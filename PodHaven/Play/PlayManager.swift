@@ -246,7 +246,7 @@ extension Container {
         case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
           await self.setStatus(.waiting)
         @unknown default:
-          Log.fatal("Time control status unknown?")
+          Assert.fatal("Time control status unknown?")
         }
       }
     }

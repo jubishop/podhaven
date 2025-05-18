@@ -151,8 +151,7 @@ struct Queue: Sendable {
   }
 
   private func _fetchOldPosition(_ db: Database, for episodeID: Episode.ID) throws -> Int? {
-    guard db.isInsideTransaction
-    else { Log.fatal("fetchOldPosition method requires a transaction") }
+    Assert.precondition(db.isInsideTransaction, "fetchOldPosition method requires a transaction")
 
     return try Episode.withID(episodeID).select(Episode.Columns.queueOrder).fetchOne(db)
   }
@@ -162,8 +161,7 @@ struct Queue: Sendable {
     _ episodeID: Episode.ID,
     at newPosition: Int
   ) throws {
-    guard db.isInsideTransaction
-    else { Log.fatal("insertToQueue method requires a transaction") }
+    Assert.precondition(db.isInsideTransaction, "insertToQueue method requires a transaction")
 
     let oldPosition = try _fetchOldPosition(db, for: episodeID) ?? Int.max
     let computedNewPosition = newPosition > oldPosition ? newPosition - 1 : newPosition
@@ -178,8 +176,7 @@ struct Queue: Sendable {
     to newPosition: Int
   ) throws {
     guard newPosition != oldPosition else { return }
-    guard db.isInsideTransaction
-    else { Log.fatal("moveInQueue method requires a transaction") }
+    Assert.precondition(db.isInsideTransaction, "moveInQueue method requires a transaction")
 
     if newPosition > oldPosition {
       try Episode.filter {
@@ -195,15 +192,13 @@ struct Queue: Sendable {
   }
 
   private func _setToPosition(_ db: Database, episodeID: Episode.ID, position: Int) throws {
-    guard db.isInsideTransaction
-    else { Log.fatal("setToPosition method requires a transaction") }
+    Assert.precondition(db.isInsideTransaction, "setToPosition method requires a transaction")
 
     try Episode.withID(episodeID).updateAll(db, Episode.Columns.queueOrder.set(to: position))
   }
 
   private func _clear(_ db: Database) throws {
-    guard db.isInsideTransaction
-    else { Log.fatal("clear method requires a transaction") }
+    Assert.precondition(db.isInsideTransaction, "clear method requires a transaction")
 
     try Episode.all().queued().updateAll(db, Episode.Columns.queueOrder.set(to: nil))
   }

@@ -8,12 +8,6 @@ import OSLog
 import Sentry
 #endif
 
-extension Container {
-  var log: Factory<Log> {
-    Factory(self) { Log() }.scope(.cached)
-  }
-}
-
 enum LogLevel: Int, Comparable {
   case debug = 0
   case info = 1
@@ -28,20 +22,34 @@ enum LogLevel: Int, Comparable {
 struct Log {
   enum SubsystemAndCategory {
     case database(Database)
+    case search(Search)
+    case podcasts(Podcasts)
 
     enum Database: String {
       case appDB
     }
 
+    enum Search: String {
+      case main
+    }
+
+    enum Podcasts: String {
+      case detail
+    }
+
     var subsystem: String {
       switch self {
       case .database: return "database"
+      case .search: return "search"
+      case .podcasts: return "podcasts"
       }
     }
 
     var category: String {
       switch self {
       case .database(let category): return category.rawValue
+      case .search(let category): return category.rawValue
+      case .podcasts(let category): return category.rawValue
       }
     }
 
@@ -51,21 +59,28 @@ struct Log {
         switch category {
         case .appDB: return .info
         }
+      case .search(let category):
+        switch category {
+        case .main: return .debug
+        }
+      case .podcasts(let category):
+        switch category {
+        case .detail: return .debug
+        }
       }
     }
   }
 
-  private static let shared: Log = Container.shared.log()
+  // MARK: - Static Helpers
 
-  private let logger: Logger
-  private let level: LogLevel
+  static func fileName(from filePath: String) -> String {
+    filePath.components(separatedBy: "/").suffix(2).joined(separator: "/")
+  }
 
   // MARK: - Initialization
 
-  fileprivate init(level: LogLevel = .debug) {
-    self.logger = Logger()
-    self.level = level
-  }
+  private let logger: Logger
+  private let level: LogLevel
 
   init(_ id: SubsystemAndCategory) {
     self.logger = Logger(subsystem: id.subsystem, category: id.category)
@@ -73,38 +88,6 @@ struct Log {
   }
 
   // MARK: - Special Logging
-
-  static func fatal(
-    _ message: String,
-    file: String = #file,
-    function: StaticString = #function,
-    line: UInt = #line
-  ) -> Never {
-    #if !DEBUG
-    SentrySDK.capture(message: message)
-    #endif
-
-    fatalError(
-      """
-      ----------------------------------------------------------------------------------------------
-      ❗️ Fatal from: [\(fileName(from: file)):\(line) \(function)]
-      \(message)
-
-      🧱 Call stack:
-        \(StackTracer.capture(limit: 20, drop: 1).joined(separator: "\n  "))
-      ----------------------------------------------------------------------------------------------
-      """
-    )
-  }
-
-  static func report(
-    _ message: String,
-    file: String = #file,
-    function: StaticString = #function,
-    line: UInt = #line
-  ) {
-    shared.report(message, file: file, function: function, line: line)
-  }
 
   func report(
     _ message: String,
@@ -115,16 +98,7 @@ struct Log {
     #if !DEBUG
     SentrySDK.capture(message: message)
     #endif
-    self.critical(message, file: file, function: function, line: line)
-  }
-
-  static func report(
-    _ error: Error,
-    file: String = #file,
-    function: StaticString = #function,
-    line: UInt = #line
-  ) {
-    shared.report(error, file: file, function: function, line: line)
+    critical(message, file: file, function: function, line: line)
   }
 
   func report(
@@ -136,16 +110,7 @@ struct Log {
     #if !DEBUG
     SentrySDK.capture(error: error)
     #endif
-    self.caught(error, file: file, function: function, line: line)
-  }
-
-  static func caught(
-    _ error: Error,
-    file: String = #file,
-    function: StaticString = #function,
-    line: UInt = #line
-  ) {
-    Self.shared.caught(error, file: file, function: function, line: line)
+    caught(error, file: file, function: function, line: line)
   }
 
   func caught(
@@ -159,18 +124,10 @@ struct Log {
 
   // MARK: - Basic Logging
 
-  static func debug(_ message: String) {
-    Self.shared.debug(message)
-  }
-
   func debug(_ message: String) {
     if shouldLog(.debug) {
       logger.debug("\(message)")
     }
-  }
-
-  static func info(_ message: String) {
-    Self.shared.info(message)
   }
 
   func info(_ message: String) {
@@ -179,23 +136,10 @@ struct Log {
     }
   }
 
-  static func warning(_ message: String) {
-    Self.shared.warning(message)
-  }
-
   func warning(_ message: String) {
     if shouldLog(.warning) {
       logger.warning("\(message)")
     }
-  }
-
-  static func critical(
-    _ message: String,
-    file: String = #file,
-    function: StaticString = #function,
-    line: UInt = #line
-  ) {
-    Self.shared.critical(message, file: file, function: function, line: line)
   }
 
   func critical(
@@ -221,10 +165,6 @@ struct Log {
   }
 
   // MARK: - Private Helpers
-
-  private static func fileName(from filePath: String) -> String {
-    filePath.components(separatedBy: "/").suffix(2).joined(separator: "/")
-  }
 
   private func shouldLog(_ level: LogLevel) -> Bool {
     level >= self.level

@@ -79,7 +79,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
   init() {
     guard let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)
-    else { Log.fatal("Couldn't initialize opml UTType?") }
+    else { Assert.fatal("Couldn't initialize opml UTType?") }
 
     self.opmlType = opmlType
   }
@@ -211,7 +211,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         opmlFile.waiting.remove(outline)
         opmlFile.downloading.insert(outline)
       case .waiting:
-        Log.fatal("Updated status back to waiting?!")
+        Assert.fatal("Updated status back to waiting?!")
       }
     }
     .value

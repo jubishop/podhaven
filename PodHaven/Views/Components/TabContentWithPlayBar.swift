@@ -4,7 +4,7 @@ import FactoryKit
 import SwiftUI
 
 struct TabContentWithPlayBar<Content: View>: View {
-  @State private var playState = Container.shared.playState()
+  @InjectedObservable(\.playState) private var playState
 
   private let content: Content
 

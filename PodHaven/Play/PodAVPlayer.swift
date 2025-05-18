@@ -150,7 +150,7 @@ import Foundation
 
   private func handleEpisodeFinished() async {
     guard let finishedPodcastEpisode = self.podcastEpisode
-    else { Log.fatal("Finished episode but podcastEpisode is nil?") }
+    else { Assert.fatal("Finished episode but podcastEpisode is nil?") }
 
     loadedCurrentPodcastEpisode = loadedNextPodcastEpisode
     loadedNextPodcastEpisode = nil

@@ -40,7 +40,7 @@ struct ResultsView: View {
             searchResult: viewModel.podcastSearchResult
           )
         )
-      default: Log.fatal("viewModel.currentView unknown: \(viewModel.currentView)")
+      default: Assert.fatal("viewModel.currentView unknown: \(viewModel.currentView)")
       }
     }
   }

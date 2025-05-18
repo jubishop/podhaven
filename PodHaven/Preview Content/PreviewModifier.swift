@@ -5,7 +5,7 @@ import Foundation
 import SwiftUI
 
 struct PreviewModifier: ViewModifier {
-  @State private var alert = Container.shared.alert()
+  @InjectedObservable(\.alert) private var alert
 
   func body(content: Content) -> some View {
     content

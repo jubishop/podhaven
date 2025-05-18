@@ -4,7 +4,7 @@ import FactoryKit
 import SwiftUI
 
 struct SettingsView: View {
-  @State private var navigation = Container.shared.navigation()
+  @InjectedObservable(\.navigation) private var navigation
 
   var body: some View {
     NavigationStack(path: $navigation.settingsPath) {
@@ -14,7 +14,7 @@ struct SettingsView: View {
         }
 
         #if DEBUG
-          DebugSection()
+        DebugSection()
         #endif
       }
       .navigationTitle("Settings")

@@ -37,7 +37,7 @@ import SwiftUI
 
   func moveItem(from: IndexSet, to: Int) {
     guard from.count == 1, let from = from.first
-    else { Log.fatal("Somehow dragged none or several?") }
+    else { Assert.fatal("Somehow dragged none or several?") }
 
     Task { [weak self] in
       guard let self else { return }
