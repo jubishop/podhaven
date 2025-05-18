@@ -82,8 +82,9 @@ import SwiftUI
     do {
       try await performSearch(currentView)
     } catch {
+      if isUnremarkable(error) { return }
       Log.report(error)
-      alert("Failed to make initial search, this has been reported.")
+      alert(ErrorKit.message(for: error))
     }
   }
 
@@ -121,8 +122,9 @@ import SwiftUI
           currentView = currentToken
           try await search
         } catch let error as SearchError {
+          if isUnremarkable(error) { return }
           Log.report(error)
-          alert("Couldn't perform search, this has been reported.")
+          alert(ErrorKit.message(for: error))
         }
       }
     }
@@ -198,5 +200,19 @@ import SwiftUI
     if currentToken.isCategory { return nil }
 
     return currentToken
+  }
+
+  private func isUnremarkable(_ error: SearchError) -> Bool {
+    // Simple request timed out or cancelled
+    if case .fetchFailure(_, let caughtFetchError) = error,
+      let downloadError = caughtFetchError as? DownloadError,
+      case .caught(let caughtDownloadError) = downloadError,
+      let caughtDownloadURLError = caughtDownloadError as? URLError,
+      caughtDownloadURLError.code == .cancelled || caughtDownloadURLError.code == .timedOut
+    {
+      return true
+    }
+
+    return false
   }
 }

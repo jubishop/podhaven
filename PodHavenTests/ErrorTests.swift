@@ -285,4 +285,39 @@ class ErrorTests {
         """
     )
   }
+
+  @Test("typeName() looks good for NSURLError errors")
+  func testTypeNameLooksGoodForNSURLErrorErrors() async throws {
+    await #expect {
+      _ = try await URLSession.shared.data(
+        for: URLRequest(url: URL(string: "https://127.0.0.1")!, timeoutInterval: 0.0001)
+      )
+    } throws: { error in
+      #expect(ErrorKit.typeName(for: error) == "NSURLError.Error")
+      #expect(ErrorKit.domain(for: error) == "NSURLErrorDomain")
+      #expect(ErrorKit.code(for: error) == -1001)
+      #expect(ErrorKit.message(for: error) == "[NSURLErrorDomain: -1001] The request timed out.")
+      guard let urlError = error as? URLError, urlError.code == .timedOut
+      else { return false }
+      return true
+    }
+
+    let task = Task {
+      await #expect {
+        _ = try await URLSession.shared.data(
+          for: URLRequest(url: URL(string: "https://example.com")!)
+        )
+      } throws: { error in
+        #expect(ErrorKit.typeName(for: error) == "NSURLError.Error")
+        #expect(ErrorKit.domain(for: error) == "NSURLErrorDomain")
+        #expect(ErrorKit.code(for: error) == -999)
+        #expect(ErrorKit.message(for: error) == "[NSURLErrorDomain: -999] cancelled")
+        guard let urlError = error as? URLError, urlError.code == .cancelled
+        else { return false }
+        return true
+      }
+    }
+    try await Task.sleep(nanoseconds: 100_000_000)
+    task.cancel()
+  }
 }

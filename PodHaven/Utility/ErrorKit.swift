@@ -4,14 +4,18 @@ import Foundation
 
 enum ErrorKit {
   static func typeName(for error: Error) -> String {
+    let mirror = Mirror(reflecting: error)
     let type = String(describing: type(of: error))
-    let fullCase = String(describing: error)
 
-    let caseName: String
-    if let range = fullCase.range(of: "[ (]", options: .regularExpression) {
-      caseName = String(fullCase[..<range.lowerBound])
-    } else {
-      caseName = fullCase
+    // For enums, ezpz
+    if mirror.displayStyle == .enum, let label = mirror.children.first?.label {
+      return "\(type).\(label)"
+    }
+
+    // Shorten the caseName to just prefix before any [ or (
+    var caseName = String(describing: error)
+    if let range = caseName.range(of: "[ (]", options: .regularExpression) {
+      caseName = String(caseName[..<range.lowerBound])
     }
 
     return "\(type).\(caseName)"
@@ -28,8 +32,17 @@ enum ErrorKit {
       return errorDescription
     }
 
+    return "[\(domain(for: error)): \(code(for: error))] \(error.localizedDescription)"
+  }
+
+  static func domain(for error: Error) -> String {
     let nsError = error as NSError
-    return "[\(nsError.domain): \(nsError.code)] \(nsError.localizedDescription)"
+    return nsError.domain
+  }
+
+  static func code(for error: Error) -> Int {
+    let nsError = error as NSError
+    return nsError.code
   }
 
   static func loggableMessage(for error: Error) -> String {
