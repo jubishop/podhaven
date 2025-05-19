@@ -49,15 +49,65 @@ PodHaven uses Swift and SwiftUI for the UI layer with the following dependencies
 - OrderedCollections: Foundation collection extensions
 - Semaphore: Concurrency utilities
 
+## Dependency Injection
+
+PodHaven uses the Factory package for dependency injection:
+- Use `@LazyInjected` macro in classes (e.g., `@LazyInjected private var repo: Repository`)
+- Only use `Container.shared` directly in protocols where `@LazyInjected` cannot be used
+- Each ViewModel should have an `execute()` function in the Initialization section
+
+## Error Handling
+
+PodHaven uses a structured approach to error handling:
+
+### Error Protocols
+- `ReadableError`: Base protocol for all domain errors, providing readable error messages
+- `CatchingError`: Protocol for errors that can catch and transform other errors
+
+### Error Implementation
+1. Define domain-specific error enums that conform to `ReadableError`:
+   ```swift
+   enum SearchError: ReadableError {
+     case noResults
+     case networkFailure(String)
+   }
+   ```
+
+2. For errors that need to wrap other errors, also conform to `CatchingError`:
+   ```swift
+   enum FeedError: ReadableError, CatchingError {
+     case invalidURL
+     case parsingFailure(String)
+     case wrapped(Error)
+     
+     static func caught(_ error: Error) -> Self {
+       .wrapped(error)
+     }
+   }
+   ```
+
+3. Use the `catch` method to automatically wrap errors:
+   ```swift
+   func fetchFeed() async throws(FeedError) -> Feed {
+     try await FeedError.catch {
+       // Code that may throw other error types
+     }
+   }
+   ```
+
+4. Use `ErrorKit` utilities for logging and presenting errors
+
 ## Code Style Guidelines
 
-- File organization: Group related functionality in subfolders with descriptive names
+- File organization: Each top-level type should be in its own file with the same name
 - Imports: Import only what's needed, organize by framework then project imports
 - Copyright header: Include "Copyright Justin Bishop, 2025" at file start
 - Type names: PascalCase (e.g., `PodcastFeed`, `EpisodeViewModel`)
 - Variables/functions: camelCase (e.g., `feedURL`, `makeMigrator()`)
-- Section markers: Use `// MARK: - Section Name` for code organization
+- Section markers: Use `// MARK: - Section Name` for code organization (only for major sections)
 - Tagged types: Use for type-safe identifiers (e.g., `Podcast.ID`, `GUID`, `MediaURL`)
-- Error handling: Use custom `Err` enum, with descriptive error messages
-- Test naming: Descriptive (`testHTMLRegexes`), use #expect for assertions
+- Protocol conformances: List in alphabetical order
+- Protocol attributes: Sort alphabetically, followed by a line of whitespace, then functions
+- Database operations: Use GRDB's query builder APIs rather than raw SQL
 - Concurrency: Use Swift concurrency (async/await) with proper error handling
+- Test naming: Descriptive (`testHTMLRegexes`), use #expect for assertions
