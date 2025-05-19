@@ -71,10 +71,20 @@ PodHaven integrates with the [PodcastIndex API](https://podcastindex.org/) for p
 
 ## Dependency Injection
 
-PodHaven uses the Factory package for dependency injection:
-- Use `@LazyInjected` macro in classes (e.g., `@LazyInjected private var repo: Repository`)
-- Only use `Container.shared` directly in protocols where `@LazyInjected` cannot be used
+PodHaven uses the FactoryKit package for dependency injection:
+- Use `@DynamicInjected` macro in ViewModels for cached dependencies (e.g., `@ObservationIgnored @DynamicInjected(\.repo) private var repo`)
+- Use `@InjectedObservable` for observable dependencies in Views (e.g., `@InjectedObservable(\.navigation) private var navigation`)
+- Use `@LazyInjected` only for dependencies with `.scope(.unique)` instead of `.scope(.cached)`
+- Only use `Container.shared` directly when necessary for actor-isolated properties or in protocols
 - Each ViewModel should have an `execute()` function in the Initialization section
+
+### Testing with FactoryKit
+
+Tests utilize the FactoryKit and FactoryTesting packages:
+- Mark test suites with `@Suite(..., .container)` to enable container-based dependency injection
+- The Container extension implements `AutoRegistering` to override dependencies for testing
+- Use `context(.test)` to register test mocks (e.g., `.context(.test) { DataFetchableMock() }.scope(.cached)`)
+- In test classes, use `@DynamicInjected` and `@LazyInjected` to access dependencies, following the same patterns as production code
 
 ## Error Handling
 
