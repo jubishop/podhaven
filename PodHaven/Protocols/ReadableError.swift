@@ -19,7 +19,7 @@ extension ReadableError {
 
   var errorDescription: String? { message }
 
-  var caughtError: Error? { return nil }
+  var caughtError: Error? { nil }
 
   var baseError: Error {
     guard let next = caughtError else { return self }
