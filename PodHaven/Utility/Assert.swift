@@ -12,7 +12,7 @@ extension Container {
 }
 
 struct Assert {
-  private static let shared: Assert = Container.shared.assert()
+  private static var shared: Assert { Container.shared.assert() }
 
   static func fatal(
     _ message: String,
