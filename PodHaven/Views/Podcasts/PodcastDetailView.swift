@@ -69,7 +69,13 @@ struct PodcastDetailView: View {
         do {
           try await viewModel.refreshSeries()
         } catch {
-          alert("Failed to refresh series: \(viewModel.podcast.toString)")
+          if ErrorKit.baseError(for: error) is CancellationError { return }
+          if viewModel.isRemarkable(error) {
+            viewModel.log.report(error)
+          } else {
+            viewModel.log.info(error)
+          }
+          alert(ErrorKit.loggableMessage(for: error))
         }
       }
     }

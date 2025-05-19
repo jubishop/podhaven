@@ -350,7 +350,7 @@ class ErrorTests {
       )
     )
 
-    let baseError = error.baseError
+    let baseError = ErrorKit.baseError(for: error)
     #expect(ErrorKit.message(for: baseError) == "At bottom")
   }
 }

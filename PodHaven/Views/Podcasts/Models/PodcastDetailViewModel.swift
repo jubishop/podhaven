@@ -16,7 +16,7 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
-  private let log = Log(as: LogSubsystem.Podcasts.detail)
+  let log = Log(as: LogSubsystem.Podcasts.detail)
 
   // MARK: - State Management
 
@@ -63,7 +63,14 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
         self.podcastSeries = podcastSeries
       }
     } catch {
+      if ErrorKit.baseError(for: error) is CancellationError { return }
+      guard isRemarkable(error) else {
+        log.info(error)
+        return
+      }
+
       log.report(error)
+      alert(ErrorKit.loggableMessage(for: error))
     }
   }
 
@@ -86,7 +93,7 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
     }
   }
 
-  // MARK: - Public Functions
+  // MARK: - Public Actions
 
   func refreshSeries() async throws(RefreshError) {
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
@@ -98,5 +105,20 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
       try await repo.markSubscribed(podcast.id)
       navigation.showPodcast(.subscribed, podcastSeries)
     }
+  }
+
+  // MARK: - Helpers
+
+  func isRemarkable(_ error: Error) -> Bool {
+    let baseError = ErrorKit.baseError(for: error)
+    if baseError is CancellationError { return false }
+
+    if let urlError = baseError as? URLError,
+      urlError.code == .cancelled || urlError.code == .timedOut
+    {
+      return false
+    }
+
+    return true
   }
 }

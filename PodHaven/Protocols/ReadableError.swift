@@ -24,7 +24,7 @@ extension ReadableError {
   var baseError: Error {
     guard let next = caughtError else { return self }
 
-    return (next as? Self)?.baseError ?? next
+    return (next as? any ReadableError)?.baseError ?? next
   }
 }
 

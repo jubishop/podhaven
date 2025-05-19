@@ -84,13 +84,14 @@ import SwiftUI
     do {
       try await performSearch(currentView)
     } catch {
-      if isUnremarkable(error) {
+      if ErrorKit.baseError(for: error) is CancellationError { return }
+      guard isRemarkable(error) else {
         log.info(error)
         return
       }
 
       log.report(error)
-      alert(ErrorKit.message(for: error))
+      alert(ErrorKit.loggableMessage(for: error))
     }
   }
 
@@ -128,13 +129,14 @@ import SwiftUI
           currentView = currentToken
           try await search
         } catch let error as SearchError {
-          if isUnremarkable(error) {
+          if ErrorKit.baseError(for: error) is CancellationError { return }
+          guard isRemarkable(error) else {
             log.info(error)
             return
           }
 
           log.report(error)
-          alert(ErrorKit.message(for: error))
+          alert(ErrorKit.loggableMessage(for: error))
         }
       }
     }
@@ -212,14 +214,16 @@ import SwiftUI
     return currentToken
   }
 
-  private func isUnremarkable(_ error: SearchError) -> Bool {
-    // Simple request timed out or cancelled
-    if let urlError = error.baseError as? URLError,
+  private func isRemarkable(_ error: Error) -> Bool {
+    let baseError = ErrorKit.baseError(for: error)
+    if baseError is CancellationError { return false }
+    
+    if let urlError = baseError as? URLError,
       urlError.code == .cancelled || urlError.code == .timedOut
     {
-      return true
+      return false
     }
 
-    return false
+    return true
   }
 }

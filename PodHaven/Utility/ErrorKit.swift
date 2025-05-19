@@ -52,6 +52,10 @@ enum ErrorKit {
     """
   }
 
+  static func baseError(for error: Error) -> Error {
+    (error as? any ReadableError)?.baseError ?? error
+  }
+
   static func nested(_ message: String) -> String {
     message
       .components(separatedBy: .newlines)
