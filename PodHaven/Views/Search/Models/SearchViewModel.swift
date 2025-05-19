@@ -9,7 +9,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.playState) private var playState
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
 
-  private let log = Log(.search(.main))
+  private let log = Log(LogContext.Search.main)
 
   // MARK: - Geometry Management
 

@@ -65,6 +65,7 @@
 				ErrorTests.swift,
 				FeedManagerTests.swift,
 				HTMLRegexTests.swift,
+				LogTests.swift,
 				MigrationTests.swift,
 				ObservatoryTests.swift,
 				PlayManagerTests.swift,

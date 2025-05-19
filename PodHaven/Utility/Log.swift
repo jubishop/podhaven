@@ -19,58 +19,55 @@ enum LogLevel: Int, Comparable {
   }
 }
 
-struct Log {
-  enum SubsystemAndCategory {
-    case database(Database)
-    case search(Search)
-    case podcasts(Podcasts)
+protocol LogIdentifiable {
+  var subsystem: String { get }
+  var level: LogLevel { get }
+  var category: String { get }
+}
 
-    enum Database: String {
-      case appDB
-    }
+extension LogIdentifiable where Self: RawRepresentable, RawValue == String {
+  var category: String { self.rawValue }
+}
 
-    enum Search: String {
-      case main
-    }
+enum LogContext {
+  enum Search: String, LogIdentifiable {
+    case main
 
-    enum Podcasts: String {
-      case detail
-    }
-
-    var subsystem: String {
-      switch self {
-      case .database: return "database"
-      case .search: return "search"
-      case .podcasts: return "podcasts"
-      }
-    }
-
-    var category: String {
-      switch self {
-      case .database(let category): return category.rawValue
-      case .search(let category): return category.rawValue
-      case .podcasts(let category): return category.rawValue
-      }
-    }
+    var subsystem: String { "search" }
 
     var level: LogLevel {
       switch self {
-      case .database(let category):
-        switch category {
-        case .appDB: return .info
-        }
-      case .search(let category):
-        switch category {
-        case .main: return .debug
-        }
-      case .podcasts(let category):
-        switch category {
-        case .detail: return .debug
-        }
+      case .main: return .debug
       }
     }
   }
 
+  enum Database: String, LogIdentifiable {
+    case appDB
+
+    var subsystem: String { "database" }
+
+    var level: LogLevel {
+      switch self {
+      case .appDB: return .info
+      }
+    }
+  }
+
+  enum Podcasts: String, LogIdentifiable {
+    case detail
+
+    var subsystem: String { "podcasts" }
+
+    var level: LogLevel {
+      switch self {
+      case .detail: return .debug
+      }
+    }
+  }
+}
+
+struct Log {
   // MARK: - Static Helpers
 
   static func fileName(from filePath: String) -> String {
@@ -82,9 +79,9 @@ struct Log {
   private let logger: Logger
   private let level: LogLevel
 
-  init(_ id: SubsystemAndCategory) {
-    self.logger = Logger(subsystem: id.subsystem, category: id.category)
-    self.level = id.level
+  init(_ context: LogIdentifiable) {
+    self.logger = Logger(subsystem: context.subsystem, category: context.category)
+    self.level = context.level
   }
 
   // MARK: - Sentry Reporting
