@@ -10,7 +10,7 @@ enum LogSubsystem {
 
     var level: LogLevel {
       switch self {
-      case .main: return .debug
+      case .main: return .info
       }
     }
   }
@@ -34,7 +34,7 @@ enum LogSubsystem {
 
     var level: LogLevel {
       switch self {
-      case .detail: return .debug
+      case .detail: return .info
       }
     }
   }
