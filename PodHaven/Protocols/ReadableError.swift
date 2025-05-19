@@ -4,6 +4,8 @@ import Foundation
 
 protocol ReadableError: CustomNSError, Equatable, LocalizedError, Sendable {
   var message: String { get }
+  var caughtError: Error? { get }
+  var baseError: Error { get }
 }
 
 extension ReadableError {
@@ -16,6 +18,14 @@ extension ReadableError {
   }
 
   var errorDescription: String? { message }
+
+  var caughtError: Error? { return nil }
+
+  var baseError: Error {
+    guard let next = caughtError else { return self }
+
+    return (next as? Self)?.baseError ?? next
+  }
 }
 
 extension ReadableError where Self: RawRepresentable, RawValue == String {

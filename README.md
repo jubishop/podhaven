@@ -49,6 +49,26 @@ PodHaven uses Swift and SwiftUI for the UI layer with the following dependencies
 - [OrderedCollections](https://github.com/apple/swift-collections): Foundation collection extensions
 - [Semaphore](https://github.com/groue/Semaphore): Concurrency utilities
 
+## PodcastIndex Integration
+
+PodHaven integrates with the [PodcastIndex API](https://podcastindex.org/) for podcast discovery and search functionality:
+
+### API Integration
+- Uses RESTful API calls to PodcastIndex.org endpoints
+- Authenticated with API key and SHA-1 hashed authorization headers
+- Custom URLSession configuration for efficient network requests
+
+### Search Features
+- **Term Search**: Find podcasts matching general query terms
+- **Title Search**: Search specifically for podcasts by title (with similar results option)
+- **Person Search**: Discover podcasts by host or guest name
+- **Trending**: Get currently trending podcasts with optional category filtering
+
+### Search Result Models
+- Uses domain-specific models that conform to `FeedResultConvertible` and `PodcastResultConvertible` protocols
+- Converts API responses into app-specific data structures (`TermResult`, `TitleResult`, `PersonResult`, `TrendingResult`)
+- Handles parsing with proper error handling through `SearchError` types
+
 ## Dependency Injection
 
 PodHaven uses the Factory package for dependency injection:

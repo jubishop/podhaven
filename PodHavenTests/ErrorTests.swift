@@ -13,6 +13,7 @@ enum FakeError: ReadableError, CatchingError {
   case failure(underlying: Error)
   case leaf
   case leafUnderlying(underlying: Error)
+  case complexCaught(String, Error)
   case simple(String)
   case caught(Error)
 
@@ -45,6 +46,12 @@ enum FakeError: ReadableError, CatchingError {
         Leaf
         Wrapping:
         \(ErrorKit.nestedCaughtMessage(for: underlying))
+        """
+    case .complexCaught(let message, let error):
+      return
+        """
+        Complex: \(message)
+        \(ErrorKit.nestedCaughtMessage(for: error))
         """
     case .simple(let message):
       return message
@@ -319,5 +326,29 @@ class ErrorTests {
     }
     try await Task.sleep(nanoseconds: 100_000_000)
     task.cancel()
+  }
+
+  @Test("baseError recurses all the way down")
+  func testBaseErrorRecursesAllTheWayDown() async throws {
+    let error = FakeError.failure(
+      underlying: FakeError.complexCaught(
+        "hello world",
+        FakeError.failure(
+          underlying: FakeError.caught(
+            FakeError.failure(
+              underlying: FakeError.complexCaught(
+                "keep going",
+                FakeError.leafUnderlying(
+                  underlying: FakeError.simple("At bottom")
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+    
+    let baseError = error.baseError
+    #expect(ErrorKit.message(for: baseError) == "At bottom")
   }
 }
