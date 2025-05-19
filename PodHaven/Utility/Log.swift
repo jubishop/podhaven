@@ -31,9 +31,9 @@ struct Log {
   private let logger: Logger
   private let level: LogLevel
 
-  init(as subsystem: any LogCategorizable) {
-    self.logger = Logger(subsystem: subsystem.name, category: subsystem.category)
-    self.level = subsystem.level
+  init(as categorizable: any LogCategorizable) {
+    self.logger = Logger(subsystem: categorizable.subsystem, category: categorizable.category)
+    self.level = categorizable.level
   }
 
   // MARK: - Sentry Reporting

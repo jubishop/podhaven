@@ -3,7 +3,7 @@
 import Foundation
 
 protocol LogCategorizable: RawRepresentable {
-  var name: String { get }
+  var subsystem: String { get }
   var level: LogLevel { get }
   var category: String { get }
 }

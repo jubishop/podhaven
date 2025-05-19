@@ -6,7 +6,7 @@ enum LogSubsystem {
   enum Search: String, LogCategorizable {
     case main
 
-    var name: String { "search" }
+    var subsystem: String { "search" }
 
     var level: LogLevel {
       switch self {
@@ -18,7 +18,7 @@ enum LogSubsystem {
   enum Database: String, LogCategorizable {
     case appDB
 
-    var name: String { "database" }
+    var subsystem: String { "database" }
 
     var level: LogLevel {
       switch self {
@@ -30,7 +30,7 @@ enum LogSubsystem {
   enum Podcasts: String, LogCategorizable {
     case detail
 
-    var name: String { "podcasts" }
+    var subsystem: String { "podcasts" }
 
     var level: LogLevel {
       switch self {

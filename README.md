@@ -39,15 +39,15 @@ PodHaven is a Swift-based podcast application that allows users to discover, sub
 ## Project Architecture
 
 PodHaven uses Swift and SwiftUI for the UI layer with the following dependencies:
-- GRDB: Database management
-- XMLCoder: For parsing podcast RSS feeds
-- Nuke/NukeUI: Image loading and caching
-- Factory: Dependency injection
-- Tagged: Type-safe identifiers
-- Sentry: Error reporting (Production builds only)
-- IdentifiedCollections: Collection utilities
-- OrderedCollections: Foundation collection extensions
-- Semaphore: Concurrency utilities
+- [GRDB](https://github.com/groue/GRDB.swift): Database management
+- [XMLCoder](https://github.com/MaxDesiatov/XMLCoder): For parsing podcast RSS feeds
+- [Nuke/NukeUI](https://github.com/kean/Nuke): Image loading and caching
+- [Factory](https://github.com/hmlongco/Factory): Dependency injection
+- [Tagged](https://github.com/pointfreeco/swift-tagged): Type-safe identifiers
+- [Sentry](https://github.com/getsentry/sentry-cocoa): Error reporting (Production builds only)
+- [IdentifiedCollections](https://github.com/pointfreeco/swift-identified-collections): Collection utilities
+- [OrderedCollections](https://github.com/apple/swift-collections): Foundation collection extensions
+- [Semaphore](https://github.com/groue/Semaphore): Concurrency utilities
 
 ## Dependency Injection
 
@@ -96,6 +96,40 @@ PodHaven uses a structured approach to error handling:
    ```
 
 4. Use `ErrorKit` utilities for logging and presenting errors
+
+## Logging
+
+PodHaven uses a structured logging system:
+
+### Components
+- Uses Apple's `OSLog` for system-level logging
+- Integrates with `Sentry` for error reporting in production builds
+- Custom `LogLevel` enum with debug, info, warning, critical levels
+
+### Usage
+
+1. Conform types to `LogCategorizable` to define subsystem, category and level:
+   ```swift
+   extension YourType: LogCategorizable {
+     static let subsystem = "com.jubishop.PodHaven"
+     static let category = "YourCategory"
+     static let level: LogLevel = .info
+   }
+   ```
+
+2. Initialize and use the Log structure:
+   ```swift
+   private let log = Log(as: Self.self)
+   
+   func someFunction() {
+     log.debug("Debug message")
+     log.info("Info message")
+     log.warning("Warning message")
+     log.critical("Critical message")
+   }
+   ```
+
+3. Critical errors are automatically reported to Sentry in production builds
 
 ## Code Style Guidelines
 
