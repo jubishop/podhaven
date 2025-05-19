@@ -8,6 +8,8 @@ struct PodcastDetailView: View {
 
   @State private var viewModel: PodcastDetailViewModel
 
+  private let log = Log(as: LogSubsystem.Podcasts.detail)
+
   init(viewModel: PodcastDetailViewModel) {
     self.viewModel = viewModel
   }
@@ -71,9 +73,9 @@ struct PodcastDetailView: View {
         } catch {
           if ErrorKit.baseError(for: error) is CancellationError { return }
           if viewModel.isRemarkable(error) {
-            viewModel.log.report(error)
+            log.report(error)
           } else {
-            viewModel.log.info(error)
+            log.info(error)
           }
           alert(ErrorKit.loggableMessage(for: error))
         }
