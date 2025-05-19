@@ -1,7 +1,9 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import ReadableErrorMacro
 
+@ReadableError
 enum DownloadError: ReadableError, CatchingError {
   case cancelled(URL)
   case loadFailure(URL)

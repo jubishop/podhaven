@@ -4,10 +4,12 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import ReadableErrorMacro
 import Testing
 
 @testable import PodHaven
 
+@ReadableError
 enum FakeError: ReadableError, CatchingError {
   case doubleFailure(one: Error, two: Error)
   case failure(underlying: Error)
@@ -347,7 +349,7 @@ class ErrorTests {
         )
       )
     )
-    
+
     let baseError = error.baseError
     #expect(ErrorKit.message(for: baseError) == "At bottom")
   }

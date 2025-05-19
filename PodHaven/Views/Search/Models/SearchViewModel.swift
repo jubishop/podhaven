@@ -214,11 +214,8 @@ import SwiftUI
 
   private func isUnremarkable(_ error: SearchError) -> Bool {
     // Simple request timed out or cancelled
-    if case .fetchFailure(_, let caughtFetchError) = error,
-      let downloadError = caughtFetchError as? DownloadError,
-      case .caught(let caughtDownloadError) = downloadError,
-      let caughtDownloadURLError = caughtDownloadError as? URLError,
-      caughtDownloadURLError.code == .cancelled || caughtDownloadURLError.code == .timedOut
+    if let urlError = error.baseError as? URLError,
+      urlError.code == .cancelled || urlError.code == .timedOut
     {
       return true
     }

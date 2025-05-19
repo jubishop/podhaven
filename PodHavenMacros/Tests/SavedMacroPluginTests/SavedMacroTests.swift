@@ -20,7 +20,7 @@ struct SavedMacroTests {
       """
 
     // Expected expanded code
-    let expectedExpansion = """
+    let expected = """
       import Tagged
       struct Test {
 
@@ -39,15 +39,11 @@ struct SavedMacroTests {
       struct UnsavedTest {}
       """
 
-    // Perform the test using modern Swift testing syntax
-    #expect(
-      assertMacroExpansion(
-        inputSource,
-        expandedSource: expectedExpansion,
-        macros: ["Saved": SavedMacro.self],
-        indentationWidth: .spaces(2)
-      ) == (),
-      "Macro expansion should succeed without errors"
+    assertMacroExpansion(
+      inputSource,
+      expandedSource: expected,
+      macros: ["Saved": SavedMacro.self],
+      indentationWidth: .spaces(2)
     )
   }
 }

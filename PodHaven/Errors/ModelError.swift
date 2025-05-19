@@ -1,7 +1,9 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import ReadableErrorMacro
 
+@ReadableError
 enum ModelError: ReadableError {
   case podcastInitializationFailure(feedURL: FeedURL, title: String, caught: Error)
 

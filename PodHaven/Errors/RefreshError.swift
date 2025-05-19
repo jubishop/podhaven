@@ -1,7 +1,9 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import ReadableErrorMacro
 
+@ReadableError
 enum RefreshError: ReadableError, CatchingError {
   case parseFailure(podcastSeries: PodcastSeries, caught: Error)
   case caught(Error)

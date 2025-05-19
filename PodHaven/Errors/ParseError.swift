@@ -1,7 +1,9 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import ReadableErrorMacro
 
+@ReadableError
 enum ParseError: ReadableError {
   case invalidData(data: Data, caught: Error)
   case mergePreconditionFailed(String)

@@ -12,6 +12,10 @@ let package = Package(
   ],
   products: [
     .library(
+      name: "ReadableErrorMacro",
+      targets: ["ReadableErrorMacro"]
+    ),
+    .library(
       name: "SavedMacro",
       targets: ["SavedMacro"]
     ),
@@ -22,6 +26,19 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-testing", branch: "main"),
   ],
   targets: [
+    .macro(
+      name: "ReadableErrorMacroPlugin",
+      dependencies: [
+        .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+        .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
+      ]
+    ),
+    .target(
+      name: "ReadableErrorMacro",
+      dependencies: [
+        "ReadableErrorMacroPlugin"
+      ]
+    ),
     .macro(
       name: "SavedMacroPlugin",
       dependencies: [
@@ -34,6 +51,15 @@ let package = Package(
       dependencies: [
         "SavedMacroPlugin",
         .product(name: "Tagged", package: "swift-tagged")
+      ]
+    ),
+    .testTarget(
+      name: "ReadableErrorMacroPluginTests",
+      dependencies: [
+        "ReadableErrorMacro",
+        "ReadableErrorMacroPlugin",
+        .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
+        .product(name: "Testing", package: "swift-testing")
       ]
     ),
     .testTarget(

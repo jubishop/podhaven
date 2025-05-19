@@ -1,7 +1,9 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import ReadableErrorMacro
 
+@ReadableError
 enum RepoError: ReadableError {
   case insertFailure(description: String, caught: Error)
   case readFailure(type: Any.Type, id: Int64, caught: Error)

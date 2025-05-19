@@ -1,7 +1,9 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import ReadableErrorMacro
 
+@ReadableError
 enum FeedError: ReadableError, CatchingError {
   case parseFailure(url: FeedURL, caught: Error)
   case caught(Error)
