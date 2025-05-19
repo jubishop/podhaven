@@ -4,9 +4,8 @@ PodHaven is a Swift-based podcast application that allows users to discover, sub
 
 ## Project Requirements
 
-- Xcode 16.1 or later
-- macOS 13.0 or later
-- Swift 5.10 or later
+- Xcode 16.3 or later
+- Swift 6.10 or later
 
 ## Build & Test Commands
 
