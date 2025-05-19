@@ -11,7 +11,7 @@ extension Container {
 }
 
 struct AppDB: Sendable {
-  private static let log = Log(LogContext.Database.appDB)
+  private static let log = Log(as: LogSubsystem.Database.appDB)
 
   #if DEBUG
   static func inMemory(migrate: Bool = true) -> AppDB {

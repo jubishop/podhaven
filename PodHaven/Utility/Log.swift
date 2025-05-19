@@ -19,54 +19,6 @@ enum LogLevel: Int, Comparable {
   }
 }
 
-protocol LogIdentifiable {
-  var subsystem: String { get }
-  var level: LogLevel { get }
-  var category: String { get }
-}
-
-extension LogIdentifiable where Self: RawRepresentable, RawValue == String {
-  var category: String { self.rawValue }
-}
-
-enum LogContext {
-  enum Search: String, LogIdentifiable {
-    case main
-
-    var subsystem: String { "search" }
-
-    var level: LogLevel {
-      switch self {
-      case .main: return .debug
-      }
-    }
-  }
-
-  enum Database: String, LogIdentifiable {
-    case appDB
-
-    var subsystem: String { "database" }
-
-    var level: LogLevel {
-      switch self {
-      case .appDB: return .info
-      }
-    }
-  }
-
-  enum Podcasts: String, LogIdentifiable {
-    case detail
-
-    var subsystem: String { "podcasts" }
-
-    var level: LogLevel {
-      switch self {
-      case .detail: return .debug
-      }
-    }
-  }
-}
-
 struct Log {
   // MARK: - Static Helpers
 
@@ -79,9 +31,9 @@ struct Log {
   private let logger: Logger
   private let level: LogLevel
 
-  init(_ context: LogIdentifiable) {
-    self.logger = Logger(subsystem: context.subsystem, category: context.category)
-    self.level = context.level
+  init(as subsystem: any LogCategorizable) {
+    self.logger = Logger(subsystem: subsystem.name, category: subsystem.category)
+    self.level = subsystem.level
   }
 
   // MARK: - Sentry Reporting

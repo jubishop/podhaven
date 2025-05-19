@@ -8,12 +8,12 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of error tests", .container)
+@Suite("of Log tests", .container)
 class LogTests {
   @Test("log enum values")
   func logEnumValues() async throws {
-    let appDBEnum = LogContext.Database.appDB
-    #expect(appDBEnum.subsystem == "database")
+    let appDBEnum = LogSubsystem.Database.appDB
+    #expect(appDBEnum.name == "database")
     #expect(appDBEnum.category == "appDB")
   }
 }
