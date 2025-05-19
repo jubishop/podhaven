@@ -3,6 +3,8 @@
 import Foundation
 
 enum ErrorKit {
+  // MARK: - Messaging
+
   static func typeName(for error: Error) -> String {
     let mirror = Mirror(reflecting: error)
     let type = String(describing: type(of: error))
@@ -52,9 +54,26 @@ enum ErrorKit {
     """
   }
 
+  // MARK: - Analysis
+
   static func baseError(for error: Error) -> Error {
     (error as? any ReadableError)?.baseError ?? error
   }
+
+  static func isRemarkable(_ error: Error) -> Bool {
+    let baseError = baseError(for: error)
+    if baseError is CancellationError { return false }
+
+    if let urlError = baseError as? URLError,
+       urlError.code == .cancelled || urlError.code == .timedOut
+    {
+      return false
+    }
+
+    return true
+  }
+
+  // MARK: - Formatting
 
   static func nested(_ message: String) -> String {
     message

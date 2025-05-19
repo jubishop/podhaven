@@ -64,7 +64,7 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
       }
     } catch {
       if ErrorKit.baseError(for: error) is CancellationError { return }
-      guard isRemarkable(error) else {
+      guard ErrorKit.isRemarkable(error) else {
         log.info(error)
         return
       }
@@ -105,20 +105,5 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
       try await repo.markSubscribed(podcast.id)
       navigation.showPodcast(.subscribed, podcastSeries)
     }
-  }
-
-  // MARK: - Helpers
-
-  func isRemarkable(_ error: Error) -> Bool {
-    let baseError = ErrorKit.baseError(for: error)
-    if baseError is CancellationError { return false }
-
-    if let urlError = baseError as? URLError,
-      urlError.code == .cancelled || urlError.code == .timedOut
-    {
-      return false
-    }
-
-    return true
   }
 }

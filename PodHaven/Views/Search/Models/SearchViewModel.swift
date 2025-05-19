@@ -85,7 +85,7 @@ import SwiftUI
       try await performSearch(currentView)
     } catch {
       if ErrorKit.baseError(for: error) is CancellationError { return }
-      guard isRemarkable(error) else {
+      guard ErrorKit.isRemarkable(error) else {
         log.info(error)
         return
       }
@@ -130,7 +130,7 @@ import SwiftUI
           try await search
         } catch let error as SearchError {
           if ErrorKit.baseError(for: error) is CancellationError { return }
-          guard isRemarkable(error) else {
+          guard ErrorKit.isRemarkable(error) else {
             log.info(error)
             return
           }
@@ -212,18 +212,5 @@ import SwiftUI
     if currentToken.isCategory { return nil }
 
     return currentToken
-  }
-
-  private func isRemarkable(_ error: Error) -> Bool {
-    let baseError = ErrorKit.baseError(for: error)
-    if baseError is CancellationError { return false }
-    
-    if let urlError = baseError as? URLError,
-      urlError.code == .cancelled || urlError.code == .timedOut
-    {
-      return false
-    }
-
-    return true
   }
 }
