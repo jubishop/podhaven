@@ -33,7 +33,9 @@ struct Repo: Sendable {
     }
   }
 
-  func allPodcastSeries(_ filter: SQLExpression = AppDB.NoOp) async throws(RepoError) -> [PodcastSeries] {
+  func allPodcastSeries(_ filter: SQLExpression = AppDB.NoOp) async throws(RepoError)
+    -> [PodcastSeries]
+  {
     do {
       let request = Podcast.all().filter(filter)
       return try await appDB.db.read { db in
@@ -43,7 +45,7 @@ struct Repo: Sendable {
           .fetchAll(db)
       }
     } catch {
-      throw RepoError.readAllFailure(type: PodcastSeries.self, filter: filter , caught: error)
+      throw RepoError.readAllFailure(type: PodcastSeries.self, filter: filter, caught: error)
     }
   }
 
@@ -131,6 +133,7 @@ struct Repo: Sendable {
       }
     } catch {
       throw RepoError.insertFailure(
+        type: PodcastSeries.self,
         description: "PodcastSeries with title: \(unsavedPodcast.title)",
         caught: error
       )
@@ -188,35 +191,44 @@ struct Repo: Sendable {
   // MARK: - Episode Writers
 
   @discardableResult
-  func upsertPodcastEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]) async throws
-    -> [PodcastEpisode]
+  func upsertPodcastEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode])
+    async throws(RepoError) -> [PodcastEpisode]
   {
     guard !unsavedPodcastEpisodes.isEmpty
     else { return [] }
 
-    return try await appDB.db.write { db in
-      var upsertedPodcasts: IdentifiedArray<FeedURL, Podcast> = IdentifiedArray(id: \.feedURL)
+    do {
+      return try await appDB.db.write { db in
+        var upsertedPodcasts: IdentifiedArray<FeedURL, Podcast> = IdentifiedArray(id: \.feedURL)
 
-      return try unsavedPodcastEpisodes.map { unsavedPodcastEpisode in
-        let podcast: Podcast
-        if let upsertedPodcast = upsertedPodcasts[id: unsavedPodcastEpisode.unsavedPodcast.feedURL]
-        {
-          podcast = upsertedPodcast
-        } else {
-          podcast = try unsavedPodcastEpisode.unsavedPodcast.upsertAndFetch(db, as: Podcast.self)
-          upsertedPodcasts.append(podcast)
+        return try unsavedPodcastEpisodes.map { unsavedPodcastEpisode in
+          let podcast: Podcast
+          if let upsertedPodcast = upsertedPodcasts[
+            id: unsavedPodcastEpisode.unsavedPodcast.feedURL
+          ] {
+            podcast = upsertedPodcast
+          } else {
+            podcast = try unsavedPodcastEpisode.unsavedPodcast.upsertAndFetch(db, as: Podcast.self)
+            upsertedPodcasts.append(podcast)
+          }
+
+          var newUnsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
+          newUnsavedEpisode.podcastId = podcast.id
+          let episode = try newUnsavedEpisode.upsertAndFetch(db, as: Episode.self)
+          return PodcastEpisode(podcast: podcast, episode: episode)
         }
-
-        var newUnsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
-        newUnsavedEpisode.podcastId = podcast.id
-        let episode = try newUnsavedEpisode.upsertAndFetch(db, as: Episode.self)
-        return PodcastEpisode(podcast: podcast, episode: episode)
       }
+    } catch {
+      throw RepoError.upsertFailure(
+        type: PodcastEpisode.self,
+        description: unsavedPodcastEpisodes.map(\.toString).joined(separator: ","),
+        caught: error
+      )
     }
   }
 
   @discardableResult
-  func upsertPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws
+  func upsertPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws(RepoError)
     -> PodcastEpisode
   {
     let podcastEpisodes = try await upsertPodcastEpisodes([unsavedPodcastEpisode])

@@ -15,6 +15,18 @@ enum LogSubsystem {
     }
   }
 
+  enum Play: String, LogCategorizable {
+    case manager
+
+    var subsystem: String { "play" }
+
+    var level: LogLevel {
+      switch self {
+        case .manager: return .debug
+      }
+    }
+  }
+
   enum PodcastsView: String, LogCategorizable {
     case detail
     case standard
