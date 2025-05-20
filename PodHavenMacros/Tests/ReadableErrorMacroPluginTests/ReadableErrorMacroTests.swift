@@ -3,6 +3,7 @@
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import Testing
+import XCTest
 
 @testable import ReadableErrorMacro
 @testable import ReadableErrorMacroPlugin
@@ -17,7 +18,6 @@ struct ReadableErrorMacroTests {
         case invalidData(Data, Error)
         case failure(caught: Error)
         case noError
-        case multipleErrors(Error, String, Error)
       }
       """
 
@@ -26,12 +26,10 @@ struct ReadableErrorMacroTests {
         case invalidData(Data, Error)
         case failure(caught: Error)
         case noError
-        case multipleErrors(Error, String, Error)
         var caughtError: Error? {
           switch self {
             case .invalidData(_, let error): return error
             case .failure(let error): return error
-            case .multipleErrors(let error, _, _): return error
             default: return nil
           }
         }
@@ -132,6 +130,32 @@ struct ReadableErrorMacroTests {
     assertMacroExpansion(
       inputSource,
       expandedSource: expected,
+      macros: ["ReadableError": ReadableErrorMacro.self],
+      indentationWidth: .spaces(2)
+    )
+  }
+  
+  @Test
+  func testReadableErrorThrowsOnMultipleErrorParameters() throws {
+    // Setup test input with multiple Error parameters in a single case
+    let inputSource = """
+      @ReadableError
+      enum TestError: ReadableError {
+        case multipleErrors(Error, Error)
+      }
+      """
+
+    // Should throw a diagnostic, not expand properly
+    assertMacroExpansion(
+      inputSource,
+      expandedSource: inputSource,  // Source should remain unchanged
+      diagnostics: [
+        DiagnosticSpec(
+          message: "@ReadableError found multiple error parameters in case 'multipleErrors'. Only one error parameter is allowed per case.",
+          line: 3,
+          column: 9
+        )
+      ],
       macros: ["ReadableError": ReadableErrorMacro.self],
       indentationWidth: .spaces(2)
     )

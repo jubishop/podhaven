@@ -37,14 +37,20 @@ public struct ReadableErrorMacro: MemberMacro {
           let parameters = parameterClause.parameters
 
           // Check if any parameter is of type Error
-          var errorIndex: Int? = nil
+          var errorIndices: [Int] = []
 
           for (index, param) in parameters.enumerated() {
             if param.type.description.hasSuffix("Error") {
-              errorIndex = index
-              break
+              errorIndices.append(index)
             }
           }
+          
+          // Throw an error if more than one associated error value is found
+          if errorIndices.count > 1 {
+            throw MacroError.multipleErrorParameters(caseName: caseName)
+          }
+          
+          let errorIndex = errorIndices.first
 
           if let errorIndex = errorIndex {
             // Create parameter bindings based on the errorIndex
@@ -101,11 +107,14 @@ public struct ReadableErrorMacro: MemberMacro {
 
 enum MacroError: Error, CustomStringConvertible {
   case notAnEnum
+  case multipleErrorParameters(caseName: String)
 
   var description: String {
     switch self {
     case .notAnEnum:
       return "@ReadableError can only be applied to enums"
+    case .multipleErrorParameters(let caseName):
+      return "@ReadableError found multiple error parameters in case '\(caseName)'. Only one error parameter is allowed per case."
     }
   }
 }
