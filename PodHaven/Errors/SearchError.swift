@@ -10,12 +10,8 @@ enum SearchError: ReadableError {
 
   var message: String {
     switch self {
-    case .fetchFailure(let request, let error):
-      return
-        """
-        Failed to fetch url: \(request) ->
-        \(ErrorKit.nestedCaughtMessage(for: error))
-        """
+    case .fetchFailure(let request, _):
+      return "Failed to fetch url: \(request)"
     case .parseFailure:
       return "Failed to parse search response"
     }

@@ -10,14 +10,9 @@ enum FeedError: ReadableError, CatchingError {
 
   var message: String {
     switch self {
-    case .parseFailure(let url, let error):
-      return
-        """
-        Failed to parse feed at \(url)
-        \(ErrorKit.nestedCaughtMessage(for: error))
-        """
-    case .caught(let error):
-      return ErrorKit.nestedCaughtMessage(for: error)
+    case .parseFailure(let url, _):
+      return "Failed to parse feed at \(url)"
+    default: return ""
     }
   }
 }

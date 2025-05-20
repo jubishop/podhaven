@@ -5,24 +5,6 @@ import Foundation
 enum ErrorKit {
   // MARK: - Messaging
 
-  static func typeName(for error: Error) -> String {
-    let mirror = Mirror(reflecting: error)
-    let type = String(describing: type(of: error))
-
-    // For enums, ezpz
-    if mirror.displayStyle == .enum, let label = mirror.children.first?.label {
-      return "\(type).\(label)"
-    }
-
-    // Shorten the caseName to just prefix before any [ or (
-    var caseName = String(describing: error)
-    if let range = caseName.range(of: "[ (]", options: .regularExpression) {
-      caseName = String(caseName[..<range.lowerBound])
-    }
-
-    return "\(type).\(caseName)"
-  }
-
   static func message(for error: Error) -> String {
     if let readableError = error as? any ReadableError {
       return readableError.message
@@ -37,20 +19,10 @@ enum ErrorKit {
     return "[\(domain(for: error)): \(code(for: error))] \(error.localizedDescription)"
   }
 
-  static func domain(for error: Error) -> String {
-    let nsError = error as NSError
-    return nsError.domain
-  }
-
-  static func code(for error: Error) -> Int {
-    let nsError = error as NSError
-    return nsError.code
-  }
-
   static func loggableMessage(for error: Error) -> String {
     """
     [\(typeName(for: error))]
-    \(message(for: error))
+    \(recursingMessage(for: error))
     """
   }
 
@@ -77,19 +49,66 @@ enum ErrorKit {
     return true
   }
 
-  // MARK: - Formatting
+  // MARK: - Private Formatting Helpers
 
-  static func nested(_ message: String) -> String {
+  private static func typeName(for error: Error) -> String {
+    let mirror = Mirror(reflecting: error)
+    let type = String(describing: type(of: error))
+
+    // For enums, ezpz
+    if mirror.displayStyle == .enum, let label = mirror.children.first?.label {
+      return "\(type).\(label)"
+    }
+
+    // Shorten the caseName to just prefix before any [ or (
+    var caseName = String(describing: error)
+    if let range = caseName.range(of: "[ (]", options: .regularExpression) {
+      caseName = String(caseName[..<range.lowerBound])
+    }
+
+    return "\(type).\(caseName)"
+  }
+
+  static func domain(for error: Error) -> String {
+    let nsError = error as NSError
+    return nsError.domain
+  }
+
+  static func code(for error: Error) -> Int {
+    let nsError = error as NSError
+    return nsError.code
+  }
+
+  // MARK: - Private Messaging Helpers
+
+  private static func recursingMessage(for error: Error) -> String {
+    let message = message(for: error)
+
+    guard let readableError = error as? any ReadableError,
+      let caughtError = readableError.caughtError
+    else { return message }
+
+    if message.isEmpty {
+      return nestedCaughtMessage(for: caughtError)
+    }
+
+    return """
+      \(message)
+      \(nestedCaughtMessage(for: caughtError))
+      """
+  }
+
+  private static func nested(_ message: String) -> String {
     message
       .components(separatedBy: .newlines)
       .joined(separator: "\n  ")
   }
 
-  static func nestedMessage(for error: Error) -> String {
-    nested(message(for: error))
+  private static func nestedRecursingMessage(for error: Error) -> String {
+    nested(recursingMessage(for: error))
   }
 
-  static func nestedCaughtMessage(for error: Error) -> String {
-    "\(typeName(for: error)) ->\n  \(nestedMessage(for: error))"
+  private static func nestedCaughtMessage(for error: Error) -> String {
+    "\(typeName(for: error)) ->\n  \(nestedRecursingMessage(for: error))"
   }
 }

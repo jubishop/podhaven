@@ -9,13 +9,12 @@ enum ModelError: ReadableError {
 
   var message: String {
     switch self {
-    case .podcastInitializationFailure(let feedURL, let title, let error):
+    case .podcastInitializationFailure(let feedURL, let title, _):
       return
         """
         Failed to create podcast
           FeedURL: \(feedURL)
           Title: \(title)
-        \(ErrorKit.nestedCaughtMessage(for: error))
         """
     }
   }

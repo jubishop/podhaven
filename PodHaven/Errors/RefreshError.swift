@@ -10,16 +10,14 @@ enum RefreshError: ReadableError, CatchingError {
 
   var message: String {
     switch self {
-    case .parseFailure(let podcastSeries, let error):
+    case .parseFailure(let podcastSeries, _):
       return
         """
         Failed to refresh podcast series
           PodcastSeries: \(podcastSeries.toString)
           FeedURL: \(podcastSeries.podcast.feedURL)
-        \(ErrorKit.nestedCaughtMessage(for: error))
         """
-    case .caught(let error):
-      return ErrorKit.nestedCaughtMessage(for: error)
+    default: return ""
     }
   }
 }

@@ -91,7 +91,7 @@ import SwiftUI
       }
 
       log.report(error)
-      alert(ErrorKit.loggableMessage(for: error))
+      alert(ErrorKit.message(for: error))
     }
   }
 
@@ -136,7 +136,7 @@ import SwiftUI
           }
 
           log.report(error)
-          alert(ErrorKit.loggableMessage(for: error))
+          alert(ErrorKit.message(for: error))
         }
       }
     }

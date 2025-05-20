@@ -11,12 +11,11 @@ enum ParseError: ReadableError {
 
   var message: String {
     switch self {
-    case .invalidData(let data, let error):
+    case .invalidData(let data, _):
       return
         """
         Invalid data
           Data: \(String(decoding: data, as: UTF8.self))
-        \(ErrorKit.nestedCaughtMessage(for: error))
         """
     case .mergePreconditionFailed(let message):
       return "Parsed item merge precondition failed: \(message)"

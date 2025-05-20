@@ -11,29 +11,26 @@ enum RepoError: ReadableError {
 
   var message: String {
     switch self {
-    case .insertFailure(let description, let error):
+    case .insertFailure(let description, _):
       return
         """
         Failed to insert record.
           Description: \(description)
-        \(ErrorKit.nestedCaughtMessage(for: error))
         """
-    case .readFailure(let type, let id, let error):
+    case .readFailure(let type, let id, _):
       return
         """
         Failed to read record.
           Type: \(String(describing: type))
           ID: \(id)
-        \(ErrorKit.nestedCaughtMessage(for: error))
         """
-    case .updateFailure(let type, let description, let id, let error):
+    case .updateFailure(let type, let description, let id, _):
       return
         """
         Failed to update record.
           Type: \(String(describing: type))
           ID: \(id)
           Description: \(description)
-        \(ErrorKit.nestedCaughtMessage(for: error))
         """
     }
   }

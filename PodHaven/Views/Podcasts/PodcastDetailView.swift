@@ -77,7 +77,7 @@ struct PodcastDetailView: View {
           } else {
             log.info(error)
           }
-          alert(ErrorKit.loggableMessage(for: error))
+          alert(ErrorKit.message(for: error))
         }
       }
     }
