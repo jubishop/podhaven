@@ -5,12 +5,12 @@ import ReadableErrorMacro
 
 @ReadableError
 enum PlaybackError: ReadableError {
-  case finisheEpisodeIsNil
+  case finishedEpisodeIsNil
   case mediaNotPlayable(PodcastEpisode)
 
   var message: String {
     switch self {
-    case .finisheEpisodeIsNil:
+    case .finishedEpisodeIsNil:
       return "Finished episode but current episode is nil?"
     case .mediaNotPlayable(let podcastEpisode):
       return

@@ -25,6 +25,7 @@ import Foundation
 
   private var timeControlStatusObserver: NSKeyValueObservation?
   private var periodicTimeObserver: Any?
+  private var playToEndNotificationTask: Task<Void, Never>?
 
   private var avPlayer = AVQueuePlayer()
 
@@ -150,7 +151,7 @@ import Foundation
 
   private func handleEpisodeFinished() async throws(PlaybackError) {
     guard let finishedPodcastEpisode = self.podcastEpisode
-    else { throw PlaybackError.finisheEpisodeIsNil }
+    else { throw PlaybackError.finishedEpisodeIsNil }
 
     loadedCurrentPodcastEpisode = loadedNextPodcastEpisode
     loadedNextPodcastEpisode = nil
@@ -192,6 +193,11 @@ import Foundation
   }
 
   private func addTimeControlStatusObserver() {
+    Assert.precondition(
+      self.timeControlStatusObserver == nil,
+      "timeControlStatusObserver already exists?"
+    )
+
     self.timeControlStatusObserver = avPlayer.observe(
       \.timeControlStatus,
       options: [.initial, .new],
@@ -202,11 +208,16 @@ import Foundation
   }
 
   private func startPlayToEndTimeNotifications() {
-    Task {
+    Assert.precondition(
+      self.playToEndNotificationTask == nil,
+      "playToEndNotificationTask already exists?"
+    )
+
+    self.playToEndNotificationTask = Task {
       for await _ in NotificationCenter.default.notifications(
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {
-        try await handleEpisodeFinished()
+        try? await handleEpisodeFinished()
       }
     }
   }
