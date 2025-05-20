@@ -124,6 +124,8 @@ extension Container {
   // MARK: - Private State Management
 
   private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async {
+    log.debug("Setting on deck: \(podcastEpisode.toString), with duration: \(duration)")
+
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
       feedURL: podcastEpisode.podcast.feedURL,
@@ -141,7 +143,16 @@ extension Container {
     await playState.setOnDeck(onDeck)
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
+      log.debug(
+        """
+        setOnDeck: Seeking \(podcastEpisode.toString), to \
+        currentTime: \(podcastEpisode.episode.currentTime)
+        """
+      )
+
       await seek(to: podcastEpisode.episode.currentTime)
+    } else {
+      log.debug("setOnDeck: \(podcastEpisode.toString) has no currentTime")
     }
 
     currentEpisodeID = podcastEpisode.id
