@@ -7,6 +7,8 @@ struct StandardPodcastsView: View {
 
   @State private var viewModel: StandardPodcastsViewModel
 
+  private let log = Log(as: LogSubsystem.PodcastsView.standard)
+
   init(viewModel: StandardPodcastsViewModel) {
     self.viewModel = viewModel
   }
@@ -61,7 +63,13 @@ struct StandardPodcastsView: View {
       do {
         try await viewModel.refreshPodcasts()
       } catch {
-        alert("Failed to refresh all podcasts: \(error)")
+        if ErrorKit.baseError(for: error) is CancellationError { return }
+        if ErrorKit.isRemarkable(error) {
+          log.report(error)
+        } else {
+          log.info(error)
+        }
+        alert(ErrorKit.message(for: error))
       }
     }
     .toolbar {

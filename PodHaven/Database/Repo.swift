@@ -33,13 +33,17 @@ struct Repo: Sendable {
     }
   }
 
-  func allPodcastSeries(_ filter: SQLExpression = AppDB.NoOp) async throws -> [PodcastSeries] {
-    let request = Podcast.all().filter(filter)
-    return try await appDB.db.read { db in
-      try request
-        .including(all: Podcast.episodes)
-        .asRequest(of: PodcastSeries.self)
-        .fetchAll(db)
+  func allPodcastSeries(_ filter: SQLExpression = AppDB.NoOp) async throws(RepoError) -> [PodcastSeries] {
+    do {
+      let request = Podcast.all().filter(filter)
+      return try await appDB.db.read { db in
+        try request
+          .including(all: Podcast.episodes)
+          .asRequest(of: PodcastSeries.self)
+          .fetchAll(db)
+      }
+    } catch {
+      throw RepoError.readAllFailure(type: PodcastSeries.self, filter: filter , caught: error)
     }
   }
 

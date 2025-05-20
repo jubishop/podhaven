@@ -13,6 +13,8 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
+  private let log = Log(as: LogSubsystem.PodcastsView.standard)
+
   // MARK: - State Management
 
   private var _isSelecting = false
@@ -104,13 +106,20 @@ import SwiftUI
         )
       }
     } catch {
-      alert("Couldn't execute StandardPodcastsViewModel")
+      if ErrorKit.baseError(for: error) is CancellationError { return }
+      guard ErrorKit.isRemarkable(error) else {
+        log.info(error)
+        return
+      }
+
+      log.report(error)
+      alert(ErrorKit.message(for: error))
     }
   }
 
   // MARK: - Public Functions
 
-  func refreshPodcasts() async throws {
+  func refreshPodcasts() async throws(RefreshError) {
     try await refreshManager.performRefresh(stalenessThreshold: 1.minutesAgo, filter: filter)
   }
 

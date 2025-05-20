@@ -47,14 +47,18 @@ final actor RefreshManager: Sendable {
 
   // MARK: - Refresh Management
 
-  func performRefresh(stalenessThreshold: Date, filter: SQLExpression = AppDB.NoOp) async throws {
-    try await withThrowingDiscardingTaskGroup { group in
-      let allStaleSubscribedPodcastSeries = try await repo.allPodcastSeries(
-        Podcast.Columns.lastUpdate < stalenessThreshold && filter
-      )
-      for podcastSeries in allStaleSubscribedPodcastSeries {
-        group.addTask {
-          try? await self.refreshSeries(podcastSeries: podcastSeries)
+  func performRefresh(stalenessThreshold: Date, filter: SQLExpression = AppDB.NoOp)
+    async throws(RefreshError)
+  {
+    try await RefreshError.catch {
+      try await withThrowingDiscardingTaskGroup { group in
+        let allStaleSubscribedPodcastSeries = try await repo.allPodcastSeries(
+          Podcast.Columns.lastUpdate < stalenessThreshold && filter
+        )
+        for podcastSeries in allStaleSubscribedPodcastSeries {
+          group.addTask {
+            try? await self.refreshSeries(podcastSeries: podcastSeries)
+          }
         }
       }
     }

@@ -17,12 +17,14 @@ enum LogSubsystem {
 
   enum PodcastsView: String, LogCategorizable {
     case detail
+    case standard
 
     var subsystem: String { "podcasts-view" }
 
     var level: LogLevel {
       switch self {
       case .detail: return .info
+      case .standard: return .info
       }
     }
   }
