@@ -17,7 +17,7 @@ enum RefreshError: ReadableError, CatchingError {
           PodcastSeries: \(podcastSeries.toString)
           FeedURL: \(podcastSeries.podcast.feedURL)
         """
-    default: return ""
+    case .caught: return ""
     }
   }
 }

@@ -45,7 +45,7 @@ enum FakeError: ReadableError, CatchingError {
         """
     case .simple(let message):
       return message
-    default: return ""
+    case .caught: return ""
     }
   }
 }

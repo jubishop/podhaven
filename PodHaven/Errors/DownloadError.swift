@@ -21,7 +21,7 @@ enum DownloadError: ReadableError, CatchingError {
       return "Received non-HTTP URL response for: \(url)"
     case .notOKResponseCode(let code, let url):
       return "Received HTTP response code: \(code), for: \(url)"
-    default: return ""
+    case .caught: return ""
     }
   }
 }

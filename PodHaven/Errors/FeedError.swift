@@ -12,7 +12,7 @@ enum FeedError: ReadableError, CatchingError {
     switch self {
     case .parseFailure(let url, _):
       return "Failed to parse feed at \(url)"
-    default: return ""
+    case .caught: return ""
     }
   }
 }
