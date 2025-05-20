@@ -3,18 +3,6 @@
 import Foundation
 
 enum LogSubsystem {
-  enum Search: String, LogCategorizable {
-    case main
-
-    var subsystem: String { "search" }
-
-    var level: LogLevel {
-      switch self {
-      case .main: return .info
-      }
-    }
-  }
-
   enum Database: String, LogCategorizable {
     case appDB
 
@@ -27,14 +15,26 @@ enum LogSubsystem {
     }
   }
 
-  enum Podcasts: String, LogCategorizable {
+  enum PodcastsView: String, LogCategorizable {
     case detail
 
-    var subsystem: String { "podcasts" }
+    var subsystem: String { "podcasts-view" }
 
     var level: LogLevel {
       switch self {
       case .detail: return .info
+      }
+    }
+  }
+
+  enum SearchView: String, LogCategorizable {
+    case main
+
+    var subsystem: String { "search-view" }
+
+    var level: LogLevel {
+      switch self {
+      case .main: return .info
       }
     }
   }

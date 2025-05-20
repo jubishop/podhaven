@@ -16,7 +16,7 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
-  private let log = Log(as: LogSubsystem.Podcasts.detail)
+  private let log = Log(as: LogSubsystem.PodcastsView.detail)
 
   // MARK: - State Management
 

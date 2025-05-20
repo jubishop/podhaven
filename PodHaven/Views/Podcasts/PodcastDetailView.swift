@@ -8,7 +8,7 @@ struct PodcastDetailView: View {
 
   @State private var viewModel: PodcastDetailViewModel
 
-  private let log = Log(as: LogSubsystem.Podcasts.detail)
+  private let log = Log(as: LogSubsystem.PodcastsView.detail)
 
   init(viewModel: PodcastDetailViewModel) {
     self.viewModel = viewModel
