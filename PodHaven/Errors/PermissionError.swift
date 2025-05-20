@@ -5,12 +5,12 @@ import ReadableErrorMacro
 
 @ReadableError
 enum PermissionError: ReadableError {
-  case denied(String)
+  case securityScopedResourceDenied
 
   var message: String {
     switch self {
-    case .denied(let permission):
-      return "Denied permission: \(permission)"
+    case .securityScopedResourceDenied:
+      return "Denied SecurityScopedResource"
     }
   }
 }

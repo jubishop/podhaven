@@ -91,7 +91,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
         switch result {
         case .success(let url):
           guard url.startAccessingSecurityScopedResource()
-          else { throw PermissionError.denied("SecurityScopedResource") }
+          else { throw PermissionError.securityScopedResourceDenied }
 
           let opml = try await PodcastOPML.parse(url)
           try await downloadOPMLFile(opml)
