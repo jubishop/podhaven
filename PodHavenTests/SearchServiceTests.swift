@@ -118,7 +118,7 @@ class SearchServiceTests {
         )
     )
 
-    #expect(throws: ParseError.missingField("feedImage || image")) {
+    #expect(throws: ParseError.missingImageField) {
       try result.items.last!.toUnsavedPodcastEpisode()
     }
   }

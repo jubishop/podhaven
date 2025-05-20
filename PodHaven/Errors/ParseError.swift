@@ -6,8 +6,9 @@ import ReadableErrorMacro
 @ReadableError
 enum ParseError: ReadableError {
   case invalidData(data: Data, caught: Error)
-  case mergePreconditionFailed(String)
-  case missingField(String)
+  case mergingDifferentFeedURLs(parsing: FeedURL, merging: FeedURL?)
+  case mergingDifferentMediaURLs(parsing: MediaURL, merging: MediaURL?)
+  case missingImageField
 
   var message: String {
     switch self {
@@ -17,10 +18,22 @@ enum ParseError: ReadableError {
         Invalid data
           Data: \(String(decoding: data, as: UTF8.self))
         """
-    case .mergePreconditionFailed(let message):
-      return "Parsed item merge precondition failed: \(message)"
-    case .missingField(let field):
-      return "Missing required field: \(field)"
+    case .mergingDifferentFeedURLs(let parsing, let merging):
+      return
+        """
+        Merging divergent FeedURLs:
+          Parsing: \(parsing)
+          Merging: \(String(describing: merging))
+        """
+    case .mergingDifferentMediaURLs(let parsing, let merging):
+      return
+        """
+        Merging divergent MediaURLs:
+          Parsing: \(parsing)
+          Merging: \(String(describing: merging))
+        """
+    case .missingImageField:
+      return "Missing required image field"
     }
   }
 }

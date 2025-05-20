@@ -1,18 +1,11 @@
-import FactoryKit
 import Foundation
 
 #if !DEBUG
 import Sentry
 #endif
 
-extension Container {
-  var assert: Factory<Assert> {
-    Factory(self) { Assert() }.scope(.cached)
-  }
-}
-
 struct Assert {
-  private static var shared: Assert { Container.shared.assert() }
+  private static let shared: Assert = Assert()
 
   static func fatal(
     _ message: String,

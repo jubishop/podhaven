@@ -24,26 +24,22 @@ struct PersonResult: Sendable, Decodable {
     {
       guard podcastEpisode == nil || podcastEpisode?.episode.media == enclosureUrl
       else {
-        Assert.fatal(
-          """
-          Two podcastEpisodes with different mediaURLs?: \
-            \(String(describing: podcastEpisode?.episode.media)), \(enclosureUrl)
-          """
+        throw ParseError.mergingDifferentMediaURLs(
+          parsing: enclosureUrl,
+          merging: podcastEpisode?.episode.media
         )
       }
 
       guard podcastEpisode == nil || podcastEpisode?.podcast.feedURL == feedUrl
       else {
-        throw ParseError.mergePreconditionFailed(
-          """
-          Two podcastEpisodes with different feedURLs?: \
-            \(String(describing: podcastEpisode?.podcast.feedURL)), \(feedUrl)
-          """
+        throw ParseError.mergingDifferentFeedURLs(
+          parsing: feedUrl,
+          merging: podcastEpisode?.podcast.feedURL
         )
       }
 
       guard let feedImage = feedImage ?? podcastEpisode?.podcast.image
-      else { throw ParseError.missingField("feedImage || image") }
+      else { throw ParseError.missingImageField }
 
       return UnsavedPodcastEpisode(
         unsavedPodcast: try UnsavedPodcast(

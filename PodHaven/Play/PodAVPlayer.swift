@@ -148,9 +148,9 @@ import Foundation
 
   // MARK: - Private Change Handlers
 
-  private func handleEpisodeFinished() async {
+  private func handleEpisodeFinished() async throws(PlaybackError) {
     guard let finishedPodcastEpisode = self.podcastEpisode
-    else { Assert.fatal("Finished episode but podcastEpisode is nil?") }
+    else { throw PlaybackError.finisheEpisodeIsNil }
 
     loadedCurrentPodcastEpisode = loadedNextPodcastEpisode
     loadedNextPodcastEpisode = nil
@@ -206,7 +206,7 @@ import Foundation
       for await _ in NotificationCenter.default.notifications(
         named: AVPlayerItem.didPlayToEndTimeNotification
       ) {
-        await handleEpisodeFinished()
+        try await handleEpisodeFinished()
       }
     }
   }
