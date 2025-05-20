@@ -57,7 +57,11 @@ enum ErrorKit {
   // MARK: - Analysis
 
   static func baseError(for error: Error) -> Error {
-    (error as? any ReadableError)?.baseError ?? error
+    guard let readableError = error as? any ReadableError,
+      let caughtError = readableError.caughtError
+    else { return error }
+
+    return baseError(for: caughtError)
   }
 
   static func isRemarkable(_ error: Error) -> Bool {
@@ -65,7 +69,7 @@ enum ErrorKit {
     if baseError is CancellationError { return false }
 
     if let urlError = baseError as? URLError,
-       urlError.code == .cancelled || urlError.code == .timedOut
+      urlError.code == .cancelled || urlError.code == .timedOut
     {
       return false
     }
