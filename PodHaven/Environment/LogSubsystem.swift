@@ -5,12 +5,14 @@ import Foundation
 enum LogSubsystem {
   enum Database: String, LogCategorizable {
     case appDB
+    case queue
 
     var subsystem: String { "database" }
 
     var level: LogLevel {
       switch self {
       case .appDB: return .info
+      case .queue: return .debug
       }
     }
   }
@@ -22,7 +24,7 @@ enum LogSubsystem {
 
     var level: LogLevel {
       switch self {
-        case .manager: return .debug
+      case .manager: return .debug
       }
     }
   }

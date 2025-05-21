@@ -53,7 +53,7 @@ import Foundation
     self.loadedCurrentPodcastEpisode = nil
   }
 
-  func load(_ podcastEpisode: PodcastEpisode) async throws -> CMTime {
+  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> CMTime {
     let loadedPodcastEpisode = try await loadAsset(for: podcastEpisode)
     self.loadedCurrentPodcastEpisode = loadedPodcastEpisode
 
@@ -65,9 +65,16 @@ import Foundation
     return loadedPodcastEpisode.duration
   }
 
-  private func loadAsset(for podcastEpisode: PodcastEpisode) async throws -> LoadedPodcastEpisode {
+  private func loadAsset(for podcastEpisode: PodcastEpisode) async throws(PlaybackError)
+    -> LoadedPodcastEpisode
+  {
     let avAsset = AVURLAsset(url: podcastEpisode.episode.media.rawValue)
-    let (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
+    let (isPlayable, duration): (Bool, CMTime)
+    do {
+      (isPlayable, duration) = try await avAsset.load(.isPlayable, .duration)
+    } catch {
+      throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
+    }
 
     guard isPlayable
     else { throw PlaybackError.mediaNotPlayable(podcastEpisode) }

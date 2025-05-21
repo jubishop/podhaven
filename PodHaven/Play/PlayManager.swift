@@ -72,10 +72,16 @@ extension Container {
 
   // MARK: - Loading
 
-  func load(_ podcastEpisode: PodcastEpisode) async throws {
-    guard podcastEpisode != podAVPlayer.podcastEpisode else { return }
+  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) {
+    guard podcastEpisode != podAVPlayer.podcastEpisode
+    else { throw PlaybackError.loadingPodcastAlreadyPlaying(podcastEpisode) }
 
-    if status == .loading { return }
+    if status == .loading {
+      throw PlaybackError.loadingPodcastWhenAlreadyLoading(
+        currentPodcastEpisode: podAVPlayer.podcastEpisode,
+        loadingPodcastEpisode: podcastEpisode
+      )
+    }
     await setStatus(.loading)
     defer {
       if status != .active {
@@ -159,6 +165,7 @@ extension Container {
   }
 
   private func stopAndClearOnDeck() async {
+    log.debug("stopAndClearOnDeck: executing")
     podAVPlayer.stop()
     nowPlayingInfo = nil
     await playState.setOnDeck(nil)
