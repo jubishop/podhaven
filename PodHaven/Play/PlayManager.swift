@@ -183,12 +183,11 @@ extension Container {
   private func setCurrentTime(_ currentTime: CMTime) async {
     nowPlayingInfo?.currentTime(currentTime)
     await playState.setCurrentTime(currentTime)
-    Task(priority: .utility) {
-      guard let currentPodcastEpisode = podAVPlayer.podcastEpisode
-      else { return }
 
-      try await repo.updateCurrentTime(currentPodcastEpisode.id, currentTime)
-    }
+    guard let currentPodcastEpisode = podAVPlayer.podcastEpisode
+    else { return }
+
+    _ = try? await repo.updateCurrentTime(currentPodcastEpisode.id, currentTime)
   }
 
   // MARK: - Private Change Handlers
