@@ -2,6 +2,7 @@
 
 import AVFoundation
 import FactoryKit
+import Logging
 import SwiftUI
 
 #if !DEBUG
@@ -28,7 +29,10 @@ struct PodHavenApp: App {
   }
 
   init() {
-    #if !DEBUG
+    #if DEBUG
+    LoggingSystem.bootstrap(ConsoleLogHandler.init)
+    #else
+    LoggingSystem.bootstrap(FileLogHandler.init)
     SentrySDK.start { options in
       options.dsn =
         "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"

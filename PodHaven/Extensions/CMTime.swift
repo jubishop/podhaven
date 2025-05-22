@@ -3,16 +3,16 @@
 import AVFoundation
 import GRDB
 
-extension CMTime: Codable {
+extension CMTime: Codable, @retroactive CustomStringConvertible {
   // MARK: - Static Methods
 
   static func inSeconds(_ seconds: Double) -> CMTime {
     CMTime(seconds: seconds, preferredTimescale: 60)
   }
 
-  // MARK: - Instance Methods
+  // MARK: - CustomStringConvertible
 
-  func readable() -> String {
+  public var description: String {
     let totalSeconds = CMTimeGetSeconds(self)
     guard !totalSeconds.isNaN && totalSeconds.isFinite
     else { return "Unknown" }

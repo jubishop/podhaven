@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import Foundation
 import GRDB
+import Logging
 import Sharing
 
 extension Container {
@@ -20,7 +21,7 @@ extension Container {
   @DynamicInjected(\.repo) private var repo
   var playState: PlayState { get async { await Container.shared.playState() } }
 
-  private let log = Log(as: LogSubsystem.Play.manager)
+  private let log = Log.as(LogSubsystem.Play.manager)
 
   // MARK: - AppStorage
 

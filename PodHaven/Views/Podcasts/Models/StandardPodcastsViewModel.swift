@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Logging
 import Sharing
 import SwiftUI
 
@@ -13,7 +14,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private let log = Log(as: LogSubsystem.PodcastsView.standard)
+  private let log = Log.as(LogSubsystem.PodcastsView.standard)
 
   // MARK: - State Management
 
@@ -108,7 +109,7 @@ import SwiftUI
     } catch {
       if ErrorKit.baseError(for: error) is CancellationError { return }
       guard ErrorKit.isRemarkable(error) else {
-        log.info(error)
+        log.info(ErrorKit.loggableMessage(for: error))
         return
       }
 

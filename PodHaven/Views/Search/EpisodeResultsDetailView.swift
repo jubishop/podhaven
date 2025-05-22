@@ -14,7 +14,7 @@ struct EpisodeResultsDetailView: View {
   var body: some View {
     VStack {
       Text(viewModel.unsavedEpisode.title)
-      Text("Duration: \(viewModel.unsavedEpisode.duration.readable())")
+      Text("Duration: \(viewModel.unsavedEpisode.duration)")
       if !viewModel.onDeck {
         Button("Play Now") {
           viewModel.playNow()

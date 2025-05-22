@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import Logging
 import SwiftUI
 
 struct StandardPodcastsView: View {
@@ -7,7 +8,7 @@ struct StandardPodcastsView: View {
 
   @State private var viewModel: StandardPodcastsViewModel
 
-  private let log = Log(as: LogSubsystem.PodcastsView.standard)
+  private let log = Log.as(LogSubsystem.PodcastsView.standard)
 
   init(viewModel: StandardPodcastsViewModel) {
     self.viewModel = viewModel
@@ -67,7 +68,7 @@ struct StandardPodcastsView: View {
         if ErrorKit.isRemarkable(error) {
           log.report(error)
         } else {
-          log.info(error)
+          log.info(ErrorKit.loggableMessage(for: error))
         }
         alert(ErrorKit.message(for: error))
       }

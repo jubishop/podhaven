@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 #if !DEBUG
 import Sentry

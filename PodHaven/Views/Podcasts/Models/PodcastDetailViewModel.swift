@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Logging
 import SwiftUI
 
 @Observable @MainActor
@@ -16,7 +17,7 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
-  private let log = Log(as: LogSubsystem.PodcastsView.detail)
+  private let log = Log.as(LogSubsystem.PodcastsView.detail)
 
   // MARK: - State Management
 
@@ -65,7 +66,7 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
     } catch {
       if ErrorKit.baseError(for: error) is CancellationError { return }
       guard ErrorKit.isRemarkable(error) else {
-        log.info(error)
+        log.info(ErrorKit.loggableMessage(for: error))
         return
       }
 

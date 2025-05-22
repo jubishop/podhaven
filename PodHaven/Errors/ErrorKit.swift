@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import Logging
 
 enum ErrorKit {
   // MARK: - Messaging
@@ -19,11 +20,13 @@ enum ErrorKit {
     return "[\(domain(for: error)): \(code(for: error))] \(error.localizedDescription)"
   }
 
-  static func loggableMessage(for error: Error) -> String {
-    """
-    [\(typeName(for: error))]
-    \(recursingMessage(for: error))
-    """
+  static func loggableMessage(for error: Error) -> Logger.Message {
+    Logger.Message(
+      stringLiteral: """
+        [\(typeName(for: error))]
+        \(recursingMessage(for: error))
+        """
+    )
   }
 
   // MARK: - Analysis

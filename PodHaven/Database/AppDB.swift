@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import GRDB
+import Logging
 
 extension Container {
   var appDB: Factory<AppDB> {
@@ -11,7 +12,7 @@ extension Container {
 }
 
 struct AppDB: Sendable {
-  private static let log = Log(as: LogSubsystem.Database.appDB)
+  private static let log = Log.as(LogSubsystem.Database.appDB)
 
   #if DEBUG
   static func inMemory(migrate: Bool = true) -> AppDB {

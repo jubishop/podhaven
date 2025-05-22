@@ -16,7 +16,7 @@ struct EpisodeDetailView: View {
       Text(viewModel.podcast.toString)
         .font(.largeTitle)
       Text(viewModel.episode.toString)
-      Text("Duration: \(viewModel.episode.duration.readable())")
+      Text("Duration: \(viewModel.episode.duration)")
       if !viewModel.onDeck {
         Button("Play Now") {
           viewModel.playNow()

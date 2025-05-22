@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Logging
 import SwiftUI
 
 @Observable @MainActor final class SearchViewModel {
@@ -9,7 +10,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.playState) private var playState
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
 
-  private let log = Log(as: LogSubsystem.SearchView.main)
+  private let log = Log.as(LogSubsystem.SearchView.main)
 
   // MARK: - Geometry Management
 
@@ -86,7 +87,7 @@ import SwiftUI
     } catch {
       if ErrorKit.baseError(for: error) is CancellationError { return }
       guard ErrorKit.isRemarkable(error) else {
-        log.info(error)
+        log.info(ErrorKit.loggableMessage(for: error))
         return
       }
 
@@ -131,7 +132,7 @@ import SwiftUI
         } catch let error as SearchError {
           if ErrorKit.baseError(for: error) is CancellationError { return }
           guard ErrorKit.isRemarkable(error) else {
-            log.info(error)
+            log.info(ErrorKit.loggableMessage(for: error))
             return
           }
 

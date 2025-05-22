@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import Logging
 
 enum LogSubsystem {
   enum Database: String, LogCategorizable {
@@ -9,7 +10,7 @@ enum LogSubsystem {
 
     var subsystem: String { "database" }
 
-    var level: LogLevel {
+    var level: Logger.Level {
       switch self {
       case .appDB: return .info
       case .queue: return .debug
@@ -22,7 +23,7 @@ enum LogSubsystem {
 
     var subsystem: String { "play" }
 
-    var level: LogLevel {
+    var level: Logger.Level {
       switch self {
       case .manager: return .debug
       }
@@ -35,7 +36,7 @@ enum LogSubsystem {
 
     var subsystem: String { "podcasts-view" }
 
-    var level: LogLevel {
+    var level: Logger.Level {
       switch self {
       case .detail: return .info
       case .standard: return .info
@@ -48,7 +49,7 @@ enum LogSubsystem {
 
     var subsystem: String { "search-view" }
 
-    var level: LogLevel {
+    var level: Logger.Level {
       switch self {
       case .main: return .info
       }

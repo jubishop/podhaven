@@ -1,6 +1,6 @@
 // Copyright Justin Bishop, 2025
 
-import GRDB
+import Logging
 import SwiftUI
 
 struct PodcastDetailView: View {
@@ -8,7 +8,7 @@ struct PodcastDetailView: View {
 
   @State private var viewModel: PodcastDetailViewModel
 
-  private let log = Log(as: LogSubsystem.PodcastsView.detail)
+  private let log = Log.as(LogSubsystem.PodcastsView.detail)
 
   init(viewModel: PodcastDetailViewModel) {
     self.viewModel = viewModel
@@ -75,7 +75,7 @@ struct PodcastDetailView: View {
           if ErrorKit.isRemarkable(error) {
             log.report(error)
           } else {
-            log.info(error)
+            log.info(ErrorKit.loggableMessage(for: error))
           }
           alert(ErrorKit.message(for: error))
         }
