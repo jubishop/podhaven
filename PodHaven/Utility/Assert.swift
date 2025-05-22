@@ -45,9 +45,6 @@ struct Assert {
       ----------------------------------------------------------------------------------------------
       ❗️ Fatal from: [\(String(describing: file.stem)):\(line) \(function)]
       \(message)
-
-      🧱 Call stack:
-        \(StackTracer.capture(limit: 20, drop: 1).joined(separator: "\n  "))
       ----------------------------------------------------------------------------------------------
       """
     )
@@ -71,9 +68,6 @@ struct Assert {
       ----------------------------------------------------------------------------------------------
       ❗️ Failed precondition from: [\(String(describing: file.stem)):\(line) \(function)]
       \(message)
-
-      🧱 Call stack:
-        \(StackTracer.capture(limit: 20, drop: 1).joined(separator: "\n  "))
       ----------------------------------------------------------------------------------------------
       """
     )

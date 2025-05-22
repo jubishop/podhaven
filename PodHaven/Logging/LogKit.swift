@@ -25,4 +25,13 @@ enum LogKit {
 
   // MARK: - Formatting Helpers
 
+  static func label(for metadata: Logger.Metadata) -> String {
+    guard let subsystem = metadata[Log.subsystemKey]
+    else { Assert.fatal("Log message with no subsystem in metadata?") }
+
+    guard let category = metadata[Log.categoryKey]
+    else { Assert.fatal("Log message with no category in metadata?") }
+
+    return "\(subsystem)/\(category)"
+  }
 }
