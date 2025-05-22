@@ -5,7 +5,7 @@ import Foundation
 import Logging
 import System
 
-public struct ConsoleLogHandler: LogHandler {
+public struct PrintLogHandler: LogHandler {
   public var metadata: Logger.Metadata = [:]
   public var metadataProvider: Logger.MetadataProvider?
   public subscript(metadataKey metadataKey: String) -> Logger.Metadata.Value? {
@@ -14,7 +14,12 @@ public struct ConsoleLogHandler: LogHandler {
   }
   public var logLevel: Logger.Level = .debug
 
-  public init(label: String) {}
+  private let category: String
+  private let subsystem: String
+
+  init(label: String) {
+    (category, subsystem) = LogKit.destructureLabel(from: label)
+  }
 
   public func log(
     level: Logger.Level,
@@ -25,12 +30,6 @@ public struct ConsoleLogHandler: LogHandler {
     function: String,
     line: UInt
   ) {
-    let metadata = LogKit.merge(
-      handler: self.metadata,
-      provider: self.metadataProvider,
-      oneOff: metadata
-    )
-
-    print("[\(level)] \(LogKit.label(for: metadata)): \(message)")
+    print("[\(level)] \(LogKit.label(category: category, subsystem: subsystem)): \(message)")
   }
 }

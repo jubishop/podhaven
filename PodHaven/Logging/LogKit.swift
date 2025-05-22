@@ -6,32 +6,33 @@ import Logging
 enum LogKit {
   // MARK: - LogHandler Helpers
 
+  private static let labelSeparator = ":::"
+
   static func merge(
     handler: Logger.Metadata,
     provider: Logger.MetadataProvider?,
     oneOff: Logger.Metadata?
   ) -> Logger.Metadata {
     var merged = handler
-
-    if let provider = provider {
-      merged.merge(provider.get()) { (_, new) in new }
-    }
-    if let oneOff = oneOff {
-      merged.merge(oneOff) { (_, new) in new }
-    }
-
+    if let provider = provider { merged.merge(provider.get()) { (_, new) in new } }
+    if let oneOff = oneOff { merged.merge(oneOff) { (_, new) in new } }
     return merged
+  }
+
+  static func structureLabel(from categorizable: any LogCategorizable) -> String {
+    "\(categorizable.subsystem)\(labelSeparator)\(categorizable.category)"
+  }
+
+  static func destructureLabel(from label: String) -> (subsystem: String, category: String) {
+    let parts = label.split(separator: labelSeparator, maxSplits: 1).map(String.init)
+    Assert.precondition(parts.count == 2, "Invalid label format: \(label)")
+
+    return (parts[0], parts[1])
   }
 
   // MARK: - Formatting Helpers
 
-  static func label(for metadata: Logger.Metadata) -> String {
-    guard let subsystem = metadata[Log.subsystemKey]
-    else { Assert.fatal("Log message with no subsystem in metadata?") }
-
-    guard let category = metadata[Log.categoryKey]
-    else { Assert.fatal("Log message with no category in metadata?") }
-
-    return "\(subsystem)/\(category)"
+  static func label(category: String, subsystem: String) -> String {
+    "\(subsystem)/\(category)"
   }
 }

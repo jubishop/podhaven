@@ -44,8 +44,7 @@ extension Container {
 
   // MARK: - State Management
 
-  private var _status: PlayState.Status = .stopped
-  private var status: PlayState.Status { _status }
+  private var status: PlayState.Status = .stopped
 
   private var nowPlayingInfo: NowPlayingInfo? {
     willSet {
@@ -174,11 +173,11 @@ extension Container {
   }
 
   private func setStatus(_ status: PlayState.Status) async {
-    guard status != _status else { return }
+    guard status != self.status else { return }
 
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status)
-    _status = status
+    self.status = status
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
