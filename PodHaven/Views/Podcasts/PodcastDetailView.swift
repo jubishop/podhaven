@@ -90,7 +90,7 @@ struct PodcastDetailView: View {
       )
     }
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
-    .task { await viewModel.execute() }
+    .task(viewModel.execute)
   }
 }
 

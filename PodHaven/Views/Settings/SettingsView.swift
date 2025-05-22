@@ -6,6 +6,8 @@ import SwiftUI
 struct SettingsView: View {
   @InjectedObservable(\.navigation) private var navigation
 
+  private let viewModel = SettingsViewModel()
+
   var body: some View {
     NavigationStack(path: $navigation.settingsPath) {
       Form {
@@ -13,9 +15,9 @@ struct SettingsView: View {
           NavigationLink(value: Navigation.SettingsView.opml, label: { Text("OPML") })
         }
 
-        #if DEBUG
-        DebugSection()
-        #endif
+        if viewModel.currentEnvironment != .appStore {
+          DebugSection(environmentType: viewModel.currentEnvironment)
+        }
       }
       .navigationTitle("Settings")
       .navigationDestination(for: Navigation.SettingsView.self) { section in
@@ -23,7 +25,7 @@ struct SettingsView: View {
         case .opml: OPMLView()
         }
       }
-    }
+    }.task(viewModel.execute)
   }
 }
 

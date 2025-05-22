@@ -74,7 +74,7 @@ struct UpNextView: View {
       }
       .toolbarRole(.editor)
     }
-    .task { await viewModel.execute() }
+    .task(viewModel.execute)
   }
 }
 

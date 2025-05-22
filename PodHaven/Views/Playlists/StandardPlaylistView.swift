@@ -25,7 +25,7 @@ struct StandardPlaylistView: View {
     .animation(.default, value: viewModel.episodeList.filteredEntries)
     .navigationTitle(viewModel.title)
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
-    .task { await viewModel.execute() }
+    .task(viewModel.execute)
   }
 }
 

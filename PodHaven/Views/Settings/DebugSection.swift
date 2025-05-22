@@ -8,6 +8,11 @@ struct DebugSection: View {
 
   private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
+  private let environmentType: EnvironmentType
+  init(environmentType: EnvironmentType) {
+    self.environmentType = environmentType
+  }
+
   var body: some View {
     Section("Debugging") {
       Button("Clear DB") {
@@ -29,6 +34,8 @@ struct DebugSection: View {
       Button("Populate Queue") {
         Task { try await PreviewHelpers.populateQueue() }
       }
+
+      Text("Environment: \(environmentType)")
     }
   }
 
@@ -50,6 +57,6 @@ struct DebugSection: View {
 }
 
 #Preview {
-  DebugSection()
+  DebugSection(environmentType: EnvironmentType.appStore)
     .preview()
 }

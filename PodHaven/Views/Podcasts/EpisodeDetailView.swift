@@ -30,7 +30,7 @@ struct EpisodeDetailView: View {
       }
     }
     .navigationTitle(viewModel.episode.title)
-    .task { await viewModel.execute() }
+    .task(viewModel.execute)
   }
 }
 

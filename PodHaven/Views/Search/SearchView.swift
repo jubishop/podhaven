@@ -37,7 +37,7 @@ struct SearchView: View {
           }
         }
     }
-    .task { await viewModel.execute() }
+    .task(viewModel.execute)
   }
 }
 

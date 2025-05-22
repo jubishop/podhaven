@@ -28,7 +28,7 @@ struct EpisodeResultsDetailView: View {
       }
     }
     .navigationTitle(viewModel.unsavedEpisode.title)
-    .task { await viewModel.execute() }
+    .task(viewModel.execute)
   }
 }
 
