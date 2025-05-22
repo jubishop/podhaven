@@ -8,8 +8,10 @@ enum Log {
 
   static func `as`(_ categorizable: any LogCategorizable) -> Logger {
     var logger = Logger(label: "com.artisanalsoftware.PodHaven")
-    logger[metadataKey: "subsystem"] = Logger.MetadataValue(stringLiteral: categorizable.subsystem)
-    logger[metadataKey: "category"] = Logger.MetadataValue(stringLiteral: categorizable.category)
+    logger[metadataKey: LogKit.subsystemKey] =
+      Logger.MetadataValue(stringLiteral: categorizable.subsystem)
+    logger[metadataKey: LogKit.categoryKey] =
+      Logger.MetadataValue(stringLiteral: categorizable.category)
     logger.logLevel = categorizable.level
     return logger
   }

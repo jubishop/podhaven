@@ -6,6 +6,9 @@ import Logging
 enum LogKit {
   // MARK: - LogHandler Helpers
 
+  static let subsystemKey = "subsystem"
+  static let categoryKey = "category"
+  
   static func merge(
     handler: Logger.Metadata,
     provider: Logger.MetadataProvider?,
