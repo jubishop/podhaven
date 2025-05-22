@@ -1,4 +1,4 @@
-// Copyright Justin Bishop, 2025 
+// Copyright Justin Bishop, 2025
 
 import Foundation
 import Logging
@@ -6,31 +6,23 @@ import Logging
 enum LogKit {
   // MARK: - LogHandler Helpers
 
-  static let subsystemKey = "subsystem"
-  static let categoryKey = "category"
-  
   static func merge(
     handler: Logger.Metadata,
     provider: Logger.MetadataProvider?,
     oneOff: Logger.Metadata?
   ) -> Logger.Metadata {
     var merged = handler
+
     if let provider = provider {
-      for (key, value) in provider.get() {
-        merged[key] = value
-      }
+      merged.merge(provider.get()) { (_, new) in new }
     }
     if let oneOff = oneOff {
-      for (key, value) in oneOff {
-        merged[key] = value
-      }
+      merged.merge(oneOff) { (_, new) in new }
     }
+
     return merged
   }
 
   // MARK: - Formatting Helpers
-  
-  static func fileName(from filePath: String) -> String {
-    filePath.components(separatedBy: "/").suffix(2).joined(separator: "/")
-  }
+
 }

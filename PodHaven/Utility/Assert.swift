@@ -1,5 +1,6 @@
 import Foundation
 import Logging
+import System
 
 #if !DEBUG
 import Sentry
@@ -10,7 +11,7 @@ struct Assert {
 
   static func fatal(
     _ message: String,
-    file: String = #file,
+    file: FilePath = #file,
     function: StaticString = #function,
     line: UInt = #line
   ) -> Never {
@@ -20,7 +21,7 @@ struct Assert {
   static func precondition(
     _ condition: Bool,
     _ message: String,
-    file: String = #file,
+    file: FilePath = #file,
     function: StaticString = #function,
     line: UInt = #line
   ) {
@@ -31,7 +32,7 @@ struct Assert {
 
   func fatal(
     _ message: String,
-    file: String = #file,
+    file: FilePath = #file,
     function: StaticString = #function,
     line: UInt = #line
   ) -> Never {
@@ -42,7 +43,7 @@ struct Assert {
     fatalError(
       """
       ----------------------------------------------------------------------------------------------
-      ❗️ Fatal from: [\(LogKit.fileName(from: file)):\(line) \(function)]
+      ❗️ Fatal from: [\(String(describing: file.stem)):\(line) \(function)]
       \(message)
 
       🧱 Call stack:
@@ -55,7 +56,7 @@ struct Assert {
   func precondition(
     _ condition: Bool,
     _ message: String,
-    file: String = #file,
+    file: FilePath = #fileID,
     function: StaticString = #function,
     line: UInt = #line
   ) {
@@ -68,7 +69,7 @@ struct Assert {
     fatalError(
       """
       ----------------------------------------------------------------------------------------------
-      ❗️ Failed precondition from: [\(LogKit.fileName(from: file)):\(line) \(function)]
+      ❗️ Failed precondition from: [\(String(describing: file.stem)):\(line) \(function)]
       \(message)
 
       🧱 Call stack:
