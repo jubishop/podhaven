@@ -6,7 +6,8 @@ import Logging
 
 public struct FileLogHandler: LogHandler {
   public var metadata: Logger.Metadata = [:]
-
+  public var metadataProvider: Logger.MetadataProvider?
+  
   public init(label: String) {}
 
   public var logLevel: Logger.Level = .debug

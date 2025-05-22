@@ -42,7 +42,7 @@ struct Assert {
     fatalError(
       """
       ----------------------------------------------------------------------------------------------
-      ❗️ Fatal from: [\(Log.fileName(from: file)):\(line) \(function)]
+      ❗️ Fatal from: [\(LogKit.fileName(from: file)):\(line) \(function)]
       \(message)
 
       🧱 Call stack:
@@ -68,7 +68,7 @@ struct Assert {
     fatalError(
       """
       ----------------------------------------------------------------------------------------------
-      ❗️ Failed precondition from: [\(Log.fileName(from: file)):\(line) \(function)]
+      ❗️ Failed precondition from: [\(LogKit.fileName(from: file)):\(line) \(function)]
       \(message)
 
       🧱 Call stack:

@@ -21,7 +21,7 @@ public struct ConsoleLogHandler: LogHandler {
     function: String,
     line: UInt
   ) {
-    let currentMetadata = Log.merge(
+    let currentMetadata = LogKit.merge(
       handler: self.metadata,
       provider: self.metadataProvider,
       oneOff: metadata
