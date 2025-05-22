@@ -150,7 +150,7 @@ extension Container {
     await playState.setOnDeck(onDeck)
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
-      log.debug(
+      log.trace(
         """
         setOnDeck: Seeking \(podcastEpisode.toString), to \
         currentTime: \(podcastEpisode.episode.currentTime)
@@ -159,7 +159,7 @@ extension Container {
 
       await seek(to: podcastEpisode.episode.currentTime)
     } else {
-      log.debug("setOnDeck: \(podcastEpisode.toString) has no currentTime")
+      log.trace("setOnDeck: \(podcastEpisode.toString) has no currentTime")
     }
 
     currentEpisodeID = podcastEpisode.id

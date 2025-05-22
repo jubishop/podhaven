@@ -65,7 +65,7 @@ struct AppDB: Sendable {
     config.publicStatementArguments = true
     config.prepareDatabase { db in
       db.trace {
-        log.debug(
+        log.trace(
           """
           SQL:
             \($0)
