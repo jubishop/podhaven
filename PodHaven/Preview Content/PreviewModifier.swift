@@ -10,7 +10,6 @@ struct PreviewModifier: ViewModifier {
   func body(content: Content) -> some View {
     content
       .customAlert($alert.config)
-      .task {}
   }
 }
 

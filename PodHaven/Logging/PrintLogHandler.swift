@@ -5,7 +5,7 @@ import Foundation
 import Logging
 import System
 
-public struct PrintLogHandler: LogHandler {
+struct PrintLogHandler: LogHandler {
   public var metadata: Logger.Metadata = [:]
   public var metadataProvider: Logger.MetadataProvider?
   public subscript(metadataKey metadataKey: String) -> Logger.Metadata.Value? {
