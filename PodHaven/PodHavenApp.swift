@@ -55,22 +55,24 @@ struct PodHavenApp: App {
         options.enableAutoBreadcrumbTracking = true
         options.swiftAsyncStacktraces = true
         options.maxBreadcrumbs = 150
+
+        // Excessive Error noise
         options.enableSigtermReporting = false
+        options.enableCaptureFailedRequests = false
+        options.enableNetworkBreadcrumbs = false
+        options.enableNetworkTracking = false
+        options.enableSpotlight = false
 
         // Visual context
         options.attachScreenshot = true
         options.attachViewHierarchy = true
 
         // Performance features disabled
-        options.enableSpotlight = false
         options.enableSwizzling = false
         options.tracesSampleRate = 0
         options.enableAutoPerformanceTracing = false
         options.enablePerformanceV2 = false
         options.enableUIViewControllerTracing = false
-        options.enableCaptureFailedRequests = false
-        options.enableNetworkBreadcrumbs = false
-        options.enableNetworkTracking = false
         options.enableFileIOTracing = false
         options.enableCoreDataTracing = false
       }
