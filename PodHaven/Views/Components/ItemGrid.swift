@@ -53,7 +53,7 @@ where P.Element == T {
       var allPodcasts = try await repo.allPodcasts().shuffled()
       allPodcasts[Int.random(in: 0...(gridSize - 1))].image = URL(string: "http://nope.com/0.jpg")!
       podcasts = Array(allPodcasts.prefix(gridSize))
-    } catch { Assert.fatal("Couldn't preview podcast grid: \(error)") }
+    } catch { Assert.fatal("Couldn't preview podcast grid: \(ErrorKit.message(for: error))") }
   }
 }
 #endif

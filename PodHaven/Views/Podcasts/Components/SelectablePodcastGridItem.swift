@@ -124,7 +124,7 @@ struct SelectablePodcastGridItem: View {
       podcast = try await PreviewHelpers.loadPodcast()
       invalidPodcast = try await PreviewHelpers.loadPodcast()
       invalidPodcast?.image = URL(string: "http://nope.com/0.jpg")!
-    } catch { Assert.fatal("Couldn't preview podcast thumbnail: \\(error)") }
+    } catch { Assert.fatal("Couldn't preview podcast thumbnail: \(ErrorKit.message(for: error))") }
   }
 }
 #endif
