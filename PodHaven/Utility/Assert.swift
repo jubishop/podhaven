@@ -2,10 +2,6 @@ import Foundation
 import Logging
 import System
 
-#if !DEBUG
-import Sentry
-#endif
-
 struct Assert {
   private static let shared: Assert = Assert()
 
@@ -36,10 +32,6 @@ struct Assert {
     function: StaticString = #function,
     line: UInt = #line
   ) -> Never {
-    #if !DEBUG
-    SentrySDK.capture(message: message)
-    #endif
-
     fatalError(
       """
       ----------------------------------------------------------------------------------------------
@@ -58,10 +50,6 @@ struct Assert {
     line: UInt = #line
   ) {
     guard !condition else { return }
-
-    #if !DEBUG
-    SentrySDK.capture(message: message)
-    #endif
 
     fatalError(
       """

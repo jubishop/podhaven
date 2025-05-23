@@ -3,27 +3,19 @@
 import Foundation
 import Logging
 
-#if !DEBUG
-import Sentry
-#endif
-
 extension Logger {
-  // MARK: - Sentry Reporting
+  // MARK: - Error Logging
 
-  func report(
-    _ message: @autoclosure () -> Logger.Message,
+  func error(
+    _ error: Error,
     metadata: @autoclosure () -> Logger.Metadata? = nil,
     source: @autoclosure () -> String? = nil,
     file: String = #fileID,
     function: String = #function,
     line: UInt = #line
   ) {
-    #if !DEBUG
-    SentrySDK.capture(message: message)
-    #endif
-
-    critical(
-      message(),
+    self.error(
+      ErrorKit.loggableMessage(for: error),
       metadata: metadata(),
       source: source(),
       file: file,
@@ -32,7 +24,7 @@ extension Logger {
     )
   }
 
-  func report(
+  func critical(
     _ error: Error,
     metadata: @autoclosure () -> Logger.Metadata? = nil,
     source: @autoclosure () -> String? = nil,
@@ -40,11 +32,7 @@ extension Logger {
     function: String = #function,
     line: UInt = #line
   ) {
-    #if !DEBUG
-    SentrySDK.capture(error: error)
-    #endif
-
-    critical(
+    self.critical(
       ErrorKit.loggableMessage(for: error),
       metadata: metadata(),
       source: source(),

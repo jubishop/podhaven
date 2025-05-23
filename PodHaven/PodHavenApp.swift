@@ -3,11 +3,8 @@
 import AVFoundation
 import FactoryKit
 import Logging
-import SwiftUI
-
-#if !DEBUG
 import Sentry
-#endif
+import SwiftUI
 
 @main
 struct PodHavenApp: App {
@@ -31,20 +28,25 @@ struct PodHavenApp: App {
   }
 
   private static func configureLogging() async {
-    #if !DEBUG
-    SentrySDK.start { options in
-      options.dsn =
-        "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
-      options.enableAutoPerformanceTracing = true
-      options.tracesSampleRate = 1.0
-      options.profilesSampleRate = 1.0
-    }
-    #endif
-
     let environment = await Container.shared.appInfo().environment
-    if case .preview = environment {
+    switch environment {
+    case .appStore, .onIPhone:
+      SentrySDK.start { options in
+        options.dsn =
+          "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
+        options.enableAutoPerformanceTracing = true
+        options.tracesSampleRate = 1.0
+        options.profilesSampleRate = 1.0
+      }
+      LoggingSystem.bootstrap { label in
+        MultiplexLogHandler([
+          OSLogHandler(label: label),
+          CrashReportHandler(),
+        ])
+      }
+    case .preview:
       LoggingSystem.bootstrap(PrintLogHandler.init)
-    } else {
+    case .simulator, .onMac:
       LoggingSystem.bootstrap(OSLogHandler.init)
     }
   }
