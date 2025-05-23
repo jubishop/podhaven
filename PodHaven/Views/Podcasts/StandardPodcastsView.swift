@@ -1,10 +1,11 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Logging
 import SwiftUI
 
 struct StandardPodcastsView: View {
-  @Environment(Alert.self) var alert
+  @DynamicInjected(\.alert) private var alert
 
   @State private var viewModel: StandardPodcastsViewModel
 

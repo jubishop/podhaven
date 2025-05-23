@@ -1,9 +1,10 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import SwiftUI
 
 struct CategoryGrid: View {
-  @Environment(Alert.self) var alert
+  @DynamicInjected(\.alert) private var alert
 
   private let viewModel: SearchViewModel
 

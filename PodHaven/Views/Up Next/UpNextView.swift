@@ -4,7 +4,7 @@ import FactoryKit
 import SwiftUI
 
 struct UpNextView: View {
-  @Environment(Alert.self) var alert
+  @DynamicInjected(\.alert) private var alert
   @InjectedObservable(\.navigation) private var navigation
   
   @State private var viewModel = UpNextViewModel()

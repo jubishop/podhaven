@@ -4,7 +4,7 @@ import FactoryKit
 import SwiftUI
 
 struct DebugSection: View {
-  @Environment(Alert.self) var alert
+  @DynamicInjected(\.alert) private var alert
 
   private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 

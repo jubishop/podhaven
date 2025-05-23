@@ -47,7 +47,6 @@ struct PodHavenApp: App {
     WindowGroup {
       ContentView()
         .customAlert($alert.config)
-        .environment(alert)
         .task {
           await configureAudioSession()
           await playState.start()

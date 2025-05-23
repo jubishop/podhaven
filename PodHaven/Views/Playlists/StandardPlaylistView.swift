@@ -1,9 +1,10 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import SwiftUI
 
 struct StandardPlaylistView: View {
-  @Environment(Alert.self) var alert
+  @DynamicInjected(\.alert) private var alert
 
   @State private var viewModel: StandardPlaylistViewModel
 
