@@ -12,40 +12,14 @@ extension Container {
 
 enum EnvironmentType: String {
   case appStore
-  case onMac
-  case onIPhone
+  case mac
+  case iPhone
   case preview
   case simulator
-
-  var inDebugger: Bool {
-    switch self {
-    case .preview, .simulator:
-      return true
-    default:
-      return false
-    }
-  }
-
-  var onDevice: Bool {
-    switch self {
-    case .onIPhone, .appStore, .onMac:
-      return true
-    default:
-      return false
-    }
-  }
 }
 
 final actor AppInfo: Sendable {
   // MARK: - Environment Info
-
-  static var isDebug: Bool {
-    #if DEBUG
-    true
-    #else
-    false
-    #endif
-  }
 
   static var isPreview: Bool {
     ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -83,7 +57,7 @@ final actor AppInfo: Sendable {
       case .verified(let appTransaction):
         switch appTransaction.environment {
         case .sandbox:
-          return .onIPhone
+          return .iPhone
         case .production:
           return .appStore
         default:
@@ -93,7 +67,7 @@ final actor AppInfo: Sendable {
         Assert.fatal("Could not verify appTransaction")
       }
     } catch {
-      return .onMac
+      return .mac
     }
   }
 }
