@@ -36,6 +36,12 @@ struct DebugSection: View {
       }
 
       Text("Environment: \(environmentType)")
+
+      #if DEBUG
+      Text("in DEBUG")
+      #else
+      Text("NOT in DEBUG")
+      #endif
     }
   }
 

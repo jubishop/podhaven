@@ -1,19 +1,21 @@
-// Copyright Justin Bishop, 2025 
+// Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import SwiftUI
 
 @Observable @MainActor final class SettingsViewModel {
+  @ObservationIgnored @DynamicInjected(\.appInfo) private var appInfo
+
   // MARK: - State Management
 
   var currentEnvironment = EnvironmentType.appStore
 
   // MARK: - Initialization
 
-  init() {
-  }
+  init() {}
 
   func execute() async {
-    currentEnvironment = await AppEnvironment.current
+    currentEnvironment = await appInfo.environment
   }
 }

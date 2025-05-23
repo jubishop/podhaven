@@ -89,6 +89,8 @@ extension Container {
       }
     }
 
+    log.info("Now loading: \(podcastEpisode.toString)")
+
     if let outgoingPodcastEpisode = podAVPlayer.podcastEpisode {
       try? await queue.unshift(outgoingPodcastEpisode.id)
     }
