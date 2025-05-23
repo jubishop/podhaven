@@ -49,6 +49,8 @@ struct PodHavenApp: App {
         options.swiftAsyncStacktraces = true
 
         // Turning off
+        options.enableSpotlight = false
+        options.enableSwizzling = false
         options.tracesSampleRate = 0
         options.enableSigtermReporting = false
         options.enableAutoPerformanceTracing = false

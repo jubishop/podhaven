@@ -15,6 +15,7 @@ struct DebugSection: View {
 
   var body: some View {
     Section("Debugging") {
+      #if DEBUG
       Button("Clear DB") {
         Task {
           try AppDB.onDisk.db.write { db in
@@ -34,6 +35,7 @@ struct DebugSection: View {
       Button("Populate Queue") {
         Task { try await PreviewHelpers.populateQueue() }
       }
+      #endif
 
       Text("Environment: \(environmentType)")
 
@@ -45,6 +47,7 @@ struct DebugSection: View {
     }
   }
 
+  #if DEBUG
   func playInvalidMedia() async throws {
     let podcastEpisode = try await PreviewHelpers.loadPodcastEpisode()
     try await playManager.load(
@@ -60,9 +63,12 @@ struct DebugSection: View {
       )
     )
   }
+  #endif
 }
 
+#if DEBUG
 #Preview {
   DebugSection(environmentType: EnvironmentType.appStore)
     .preview()
 }
+#endif
