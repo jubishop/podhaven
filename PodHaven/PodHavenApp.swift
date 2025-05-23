@@ -32,7 +32,7 @@ struct PodHavenApp: App {
     let environment = await Container.shared.appInfo().environment
     switch environment {
     case .appStore:
-      // Nothing
+      break
     case .iPhone:
       configureShipbook(environment)
       configureSentry(environment)
