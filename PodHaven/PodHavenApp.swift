@@ -34,9 +34,16 @@ struct PodHavenApp: App {
       SentrySDK.start { options in
         options.dsn =
           "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
-        options.environment = environment.rawValue
 
-        // Turning on
+        // Environment Info
+        options.environment = environment.rawValue
+        let version =
+          Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        options.releaseName = "podhaven@\(version)"
+        options.dist = buildNumber
+
+        // Error reporting configuration
         options.enabled = true
         options.enableCrashHandler = true
         options.sampleRate = 1
@@ -47,12 +54,17 @@ struct PodHavenApp: App {
         options.enableReportNonFullyBlockingAppHangs = true
         options.enableAutoBreadcrumbTracking = true
         options.swiftAsyncStacktraces = true
+        options.maxBreadcrumbs = 150
+        options.enableSigtermReporting = false
 
-        // Turning off
+        // Visual context
+        options.attachScreenshot = true
+        options.attachViewHierarchy = true
+
+        // Performance features disabled
         options.enableSpotlight = false
         options.enableSwizzling = false
         options.tracesSampleRate = 0
-        options.enableSigtermReporting = false
         options.enableAutoPerformanceTracing = false
         options.enablePerformanceV2 = false
         options.enableUIViewControllerTracing = false
