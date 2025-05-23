@@ -39,6 +39,26 @@ enum EnvironmentType: String {
 final actor AppInfo: Sendable {
   // MARK: - Environment Info
 
+  static var isDebug: Bool {
+    #if DEBUG
+    true
+    #else
+    false
+    #endif
+  }
+
+  static var isPreview: Bool {
+    ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+  }
+
+  static var isSimulator: Bool {
+    #if targetEnvironment(simulator)
+    true
+    #else
+    false
+    #endif
+  }
+
   private var _environment: EnvironmentType?
   var environment: EnvironmentType {
     get async {
@@ -54,13 +74,9 @@ final actor AppInfo: Sendable {
   // MARK: - Private Helpers
 
   private func _getEnvironment() async -> EnvironmentType {
-    if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
-      return .preview
-    }
+    if Self.isPreview { return .preview }
+    if Self.isSimulator { return .simulator }
 
-    #if targetEnvironment(simulator)
-    return .simulator
-    #else
     do {
       let result = try await AppTransaction.shared
       switch result {
@@ -79,6 +95,5 @@ final actor AppInfo: Sendable {
     } catch {
       return .onMac
     }
-    #endif
   }
 }
