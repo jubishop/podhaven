@@ -56,7 +56,7 @@ extension Container {
 extension View {
   func customAlert(_ config: Binding<AlertConfig?>) -> some View {
     alert(
-      config.wrappedValue?.title ?? "",
+      config.wrappedValue?.title ?? "Error",
       isPresented: Binding(
         get: { config.wrappedValue != nil },
         set: { if !$0 { config.wrappedValue = nil } }
