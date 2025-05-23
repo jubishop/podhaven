@@ -31,7 +31,9 @@ struct PodHavenApp: App {
   private static func configureLogging() async {
     let environment = await Container.shared.appInfo().environment
     switch environment {
-    case .appStore, .onIPhone:
+    case .appStore:
+      // Nothing
+    case .iPhone:
       configureShipbook(environment)
       configureSentry(environment)
 
@@ -43,7 +45,7 @@ struct PodHavenApp: App {
       }
     case .preview:
       LoggingSystem.bootstrap(PrintLogHandler.init)
-    case .simulator, .onMac:
+    case .simulator, .mac:
       LoggingSystem.bootstrap(OSLogHandler.init)
     }
   }
