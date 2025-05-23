@@ -24,6 +24,7 @@ extension Logging.Logger.Level {
     }
   }
 }
+
 struct OSLogHandler: LogHandler {
   public var metadata: Logging.Logger.Metadata = [:]
   public var metadataProvider: Logging.Logger.MetadataProvider?
