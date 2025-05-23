@@ -74,6 +74,7 @@ struct PodHavenApp: App {
         options.enableFileIOTracing = false
         options.enableCoreDataTracing = false
       }
+
       LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
           OSLogHandler(label: label),
