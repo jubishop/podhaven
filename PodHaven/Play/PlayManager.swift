@@ -45,10 +45,10 @@ extension Container {
   // MARK: - State Management
 
   private var status: PlayState.Status = .stopped
-
   private var nowPlayingInfo: NowPlayingInfo? {
     willSet {
       if newValue == nil {
+        log.debug("Clearing nowPlayingInfo")
         nowPlayingInfo?.clear()
       }
     }
@@ -56,10 +56,22 @@ extension Container {
   private let commandCenter = CommandCenter()
   private let podAVPlayer = PodAVPlayer()
 
+  private var nextEpisodeTask: Task<Void, any Error>?
+  private var interruptionTask: Task<Void, Never>?
+  private var commandCenterTask: Task<Void, Never>?
+  private var currentTimeTask: Task<Void, Never>?
+  private var controlStatusTask: Task<Void, Never>?
+  private var playToEndTask: Task<Void, Never>?
+
   // MARK: - Initialization
 
   fileprivate init() {
-    startTracking()
+    observeNextEpisode()
+    startInterruptionNotifications()
+    startListeningToCommandCenter()
+    startListeningToCurrentTime()
+    startListeningToControlStatus()
+    startListeningToPlayToEnd()
   }
 
   func start() async {
@@ -85,6 +97,7 @@ extension Container {
     await setStatus(.loading)
     defer {
       if status != .active {
+        log.notice("load.defer: Status in load never became active, going back to stopped")
         Task { await setStatus(.stopped) }
       }
     }
@@ -92,6 +105,7 @@ extension Container {
     log.info("Now loading: \(podcastEpisode.toString)")
 
     if let outgoingPodcastEpisode = podAVPlayer.podcastEpisode {
+      log.trace("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
       try? await queue.unshift(outgoingPodcastEpisode.id)
     }
     await stopAndClearOnDeck()
@@ -106,7 +120,10 @@ extension Container {
 
   func play() {
     guard status.playable
-    else { return }
+    else {
+      log.debug("play: status is \(status) which is not playable")
+      return
+    }
 
     podAVPlayer.play()
   }
@@ -175,7 +192,11 @@ extension Container {
   }
 
   private func setStatus(_ status: PlayState.Status) async {
-    guard status != self.status else { return }
+    guard status != self.status
+    else {
+      log.debug("setStatus: status is already \(status) so nothing to do")
+      return
+    }
 
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status)
@@ -187,7 +208,15 @@ extension Container {
     await playState.setCurrentTime(currentTime)
 
     guard let currentPodcastEpisode = podAVPlayer.podcastEpisode
-    else { return }
+    else {
+      log.notice(
+        """
+        setCurrentTime: tried to set current time to: \
+        \(currentTime) but there is no current episode
+        """
+      )
+      return
+    }
 
     _ = try? await repo.updateCurrentTime(currentPodcastEpisode.id, currentTime)
   }
@@ -201,11 +230,18 @@ extension Container {
     _ = try? await repo.markComplete(finishedPodcastEpisode.id)
 
     if let currentLoadedPodcastEpisode = currentLoadedPodcastEpisode {
+      log.debug(
+        """
+        handleEpisodeFinished: enqueuing next episode: \
+        \(currentLoadedPodcastEpisode.toString)
+        """
+      )
       let podcastEpisode = currentLoadedPodcastEpisode.podcastEpisode
       let duration = currentLoadedPodcastEpisode.duration
       await setOnDeck(podcastEpisode, duration)
       try? await queue.dequeue(podcastEpisode.id)
     } else {
+      log.debug("handleEpisodeFinished: no more episodes to play")
       await stopAndClearOnDeck()
       await setStatus(.stopped)
     }
@@ -213,23 +249,48 @@ extension Container {
 
   // MARK: - Private Tracking
 
-  private func startTracking() {
-    observeNextEpisode()
-    startInterruptionNotifications()
-    startListeningToCommandCenter()
-    startListeningToPodAVPlayer()
-  }
-
   private func observeNextEpisode() {
-    Task {
+    Assert.precondition(
+      self.nextEpisodeTask == nil,
+      "nextEpisodeTask already exists?"
+    )
+
+    self.nextEpisodeTask = Task {
       for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
         await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
       }
     }
   }
 
+  private func startInterruptionNotifications() {
+    Assert.precondition(
+      self.interruptionTask == nil,
+      "interruptionTask already exists?"
+    )
+
+    self.interruptionTask = Task {
+      for await notification in NotificationCenter.default.notifications(
+        named: AVAudioSession.interruptionNotification
+      ) {
+        switch AudioInterruption.parse(notification) {
+        case .pause:
+          pause()
+        case .resume:
+          play()
+        case .ignore:
+          break
+        }
+      }
+    }
+  }
+
   private func startListeningToCommandCenter() {
-    Task {
+    Assert.precondition(
+      self.commandCenterTask == nil,
+      "commandCenterTask already exists?"
+    )
+
+    self.commandCenterTask = Task {
       for await command in commandCenter.stream {
         switch command {
         case .play:
@@ -249,14 +310,26 @@ extension Container {
     }
   }
 
-  private func startListeningToPodAVPlayer() {
-    Task {
+  private func startListeningToCurrentTime() {
+    Assert.precondition(
+      self.currentTimeTask == nil,
+      "currentTimeTask already exists?"
+    )
+
+    self.currentTimeTask = Task {
       for await currentTime in podAVPlayer.currentTimeStream {
         await self.setCurrentTime(currentTime)
       }
     }
+  }
 
-    Task {
+  private func startListeningToControlStatus() {
+    Assert.precondition(
+      self.controlStatusTask == nil,
+      "controlStatusTask already exists?"
+    )
+
+    self.controlStatusTask = Task {
       for await controlStatus in podAVPlayer.controlStatusStream {
         if !status.playable { continue }
         switch controlStatus {
@@ -271,31 +344,21 @@ extension Container {
         }
       }
     }
+  }
 
-    Task {
+  private func startListeningToPlayToEnd() {
+    Assert.precondition(
+      self.playToEndTask == nil,
+      "playToEndTask already exists?"
+    )
+
+    self.playToEndTask = Task {
       for await (finishedPodcastEpisode, currentLoadedPodcastEpisode) in podAVPlayer.playToEndStream
       {
         await handleEpisodeFinished(
           finishedPodcastEpisode: finishedPodcastEpisode,
           currentLoadedPodcastEpisode: currentLoadedPodcastEpisode
         )
-      }
-    }
-  }
-
-  private func startInterruptionNotifications() {
-    Task {
-      for await notification in NotificationCenter.default.notifications(
-        named: AVAudioSession.interruptionNotification
-      ) {
-        switch AudioInterruption.parse(notification) {
-        case .pause:
-          pause()
-        case .resume:
-          play()
-        case .ignore:
-          break
-        }
       }
     }
   }
