@@ -34,9 +34,31 @@ struct PodHavenApp: App {
       SentrySDK.start { options in
         options.dsn =
           "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
-        options.enableAutoPerformanceTracing = true
-        options.tracesSampleRate = 1.0
-        options.profilesSampleRate = 1.0
+        options.environment = environment.rawValue
+
+        // Turning on
+        options.enabled = true
+        options.enableCrashHandler = true
+        options.sampleRate = 1
+        options.enableAutoSessionTracking = true
+        options.attachStacktrace = true
+        options.sendDefaultPii = true
+        options.enableAppHangTrackingV2 = true
+        options.enableReportNonFullyBlockingAppHangs = true
+        options.enableAutoBreadcrumbTracking = true
+        options.swiftAsyncStacktraces = true
+
+        // Turning off
+        options.tracesSampleRate = 0
+        options.enableSigtermReporting = false
+        options.enableAutoPerformanceTracing = false
+        options.enablePerformanceV2 = false
+        options.enableUIViewControllerTracing = false
+        options.enableCaptureFailedRequests = false
+        options.enableNetworkBreadcrumbs = false
+        options.enableNetworkTracking = false
+        options.enableFileIOTracing = false
+        options.enableCoreDataTracing = false
       }
       LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
