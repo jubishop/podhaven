@@ -34,14 +34,7 @@ struct PodHavenApp: App {
       SentrySDK.start { options in
         options.dsn =
           "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
-
-        // Environment Info
         options.environment = environment.rawValue
-        let version =
-          Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
-        let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
-        options.releaseName = "podhaven@\(version)"
-        options.dist = buildNumber
 
         // Error reporting configuration
         options.enabled = true
