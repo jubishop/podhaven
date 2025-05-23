@@ -1,5 +1,5 @@
 {
-  "originHash" : "7c735e0a02e466bc31068eb363cf4a030e3861916d75aaddda52c5a2f2aeaf7e",
+  "originHash" : "f49a294ded9121c9b40c387946da611eaf572c6cb5fffd4f260001de6999d841",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -53,6 +53,15 @@
       "state" : {
         "branch" : "main",
         "revision" : "765dd7022c2a5bef9fcf984cbd9d50361cc89b62"
+      }
+    },
+    {
+      "identity" : "shipbooksdk-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ShipBook/ShipBookSDK-iOS.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "8f75dd21e9a6d5a33d87a7037ca0be8adab84700"
       }
     },
     {

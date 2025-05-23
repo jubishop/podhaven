@@ -22,6 +22,7 @@
 		8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DEE2D01722E00742C6C /* Nuke */; };
 		8B9E8DF12D01722E00742C6C /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DF02D01722E00742C6C /* NukeUI */; };
 		8BAE003C2DDE79A4008E40B2 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 8BAE003B2DDE79A4008E40B2 /* Logging */; };
+		8BCE2A872DE105A5006C37A6 /* ShipBookSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 8BCE2A862DE105A5006C37A6 /* ShipBookSDK */; };
 		8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */; };
 		8BD728BE2DDBAE9B00763D7F /* ReadableErrorMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD728BD2DDBAE9B00763D7F /* ReadableErrorMacro */; };
 		8BD728C02DDBAEA500763D7F /* ReadableErrorMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD728BF2DDBAEA500763D7F /* ReadableErrorMacro */; };
@@ -127,6 +128,7 @@
 			files = (
 				8B7DAA1E2D3F1294000E9153 /* Tagged in Frameworks */,
 				8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */,
+				8BCE2A872DE105A5006C37A6 /* ShipBookSDK in Frameworks */,
 				8BAE003C2DDE79A4008E40B2 /* Logging in Frameworks */,
 				8B2AC03D2D25D2F700DB7FE5 /* XMLCoder in Frameworks */,
 				8B4C20062DD5A3770027FCDA /* SavedMacro in Frameworks */,
@@ -219,6 +221,7 @@
 				8BD7F91D2CF2A49000CEDAA7 /* Frameworks */,
 				8BD7F91E2CF2A49000CEDAA7 /* Resources */,
 				39E22D98602E4E34B0A8541B /* Upload Debug Symbols to Sentry */,
+				8BCE2A8B2DE10B22006C37A6 /* Upload Debug Symbols to Shipbook */,
 			);
 			buildRules = (
 			);
@@ -243,6 +246,7 @@
 				8B4C20052DD5A3770027FCDA /* SavedMacro */,
 				8BD728BD2DDBAE9B00763D7F /* ReadableErrorMacro */,
 				8BAE003B2DDE79A4008E40B2 /* Logging */,
+				8BCE2A862DE105A5006C37A6 /* ShipBookSDK */,
 			);
 			productName = PodHaven;
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
@@ -315,6 +319,7 @@
 				8B8477692DC167A200C6C2A5 /* XCRemoteSwiftPackageReference "swift-sharing" */,
 				8B4866C32DD57215004D78DC /* XCLocalSwiftPackageReference "PodHavenMacros" */,
 				8BAE003A2DDE79A4008E40B2 /* XCRemoteSwiftPackageReference "swift-log" */,
+				8BCE2A852DE105A5006C37A6 /* XCRemoteSwiftPackageReference "ShipBookSDK-iOS" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8BD7F9212CF2A49000CEDAA7 /* Products */;
@@ -360,14 +365,33 @@
 			files = (
 			);
 			inputPaths = (
-				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}\n",
 			);
 			name = "Upload Debug Symbols to Sentry";
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# This script is responsible to upload debug symbols and source context for Sentry.\nif which sentry-cli >/dev/null; then\nexport SENTRY_ORG=artisanal-software\nexport SENTRY_PROJECT=podhaven\nERROR=$(sentry-cli debug-files upload --include-sources \"$DWARF_DSYM_FOLDER_PATH\" 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"warning: sentry-cli - $ERROR\"\nfi\nelse\necho \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi\n";
+			shellScript = "if [[ \"$(uname -m)\" == arm64 ]]; then\n    export PATH=\"/opt/homebrew/bin:$PATH\"\nfi\nif which sentry-cli >/dev/null; then\nexport SENTRY_ORG=artisanal-software\nexport SENTRY_PROJECT=podhaven\nexport SENTRY_AUTH_TOKEN=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\nERROR=$(sentry-cli debug-files upload \\\n\"$DWARF_DSYM_FOLDER_PATH\" --force-foreground 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"error: sentry-cli - $ERROR\"\nfi\nelse\necho \"error: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi\n";
+		};
+		8BCE2A8B2DE10B22006C37A6 /* Upload Debug Symbols to Shipbook */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 12;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Upload Debug Symbols to Shipbook";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "appId=\"6830cdcd0d271000102299b5\"\nsymbolsKey=\"dbcc65141b25303f0d6c900dd8ab9c3a\"\n\necho $BUILT_PRODUCTS_DIR\necho UPLOADING...\n\nbuildProd=$BUILT_PRODUCTS_DIR\nprodName=$PRODUCT_NAME\nfilePath=$buildProd'/'$prodName'.app.dSYM'\nbuildNumber=$CURRENT_PROJECT_VERSION\nmarketingVersion=$MARKETING_VERSION\n\ncurl -X POST -H \"Authorization: Bearer $symbolsKey\" -F \"data=@$filePath/Contents/Resources/DWARF/$PRODUCT_NAME\" \\\n\"https://api.shipbook.io/v1/apps/$appId/upload/dsym?version=$marketingVersion&build=$buildNumber\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -485,11 +509,11 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 34TKMKM889;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -555,7 +579,7 @@
 				DEVELOPMENT_TEAM = 34TKMKM889;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -583,7 +607,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"PodHaven/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -817,6 +841,14 @@
 				kind = branch;
 			};
 		};
+		8BCE2A852DE105A5006C37A6 /* XCRemoteSwiftPackageReference "ShipBookSDK-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ShipBook/ShipBookSDK-iOS.git";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
 		8BD0CF382CF51BD900BD9236 /* XCRemoteSwiftPackageReference "GRDB" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/groue/GRDB.swift";
@@ -909,6 +941,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8BAE003A2DDE79A4008E40B2 /* XCRemoteSwiftPackageReference "swift-log" */;
 			productName = Logging;
+		};
+		8BCE2A862DE105A5006C37A6 /* ShipBookSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8BCE2A852DE105A5006C37A6 /* XCRemoteSwiftPackageReference "ShipBookSDK-iOS" */;
+			productName = ShipBookSDK;
 		};
 		8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */ = {
 			isa = XCSwiftPackageProductDependency;

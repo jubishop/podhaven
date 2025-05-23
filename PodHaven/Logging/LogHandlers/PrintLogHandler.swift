@@ -1,9 +1,7 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import Foundation
 import Logging
-import System
 
 struct PrintLogHandler: LogHandler {
   public var metadata: Logger.Metadata = [:]

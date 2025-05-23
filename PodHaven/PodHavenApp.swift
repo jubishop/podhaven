@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import Logging
 import Sentry
+import ShipBookSDK
 import SwiftUI
 
 @main
@@ -31,48 +32,12 @@ struct PodHavenApp: App {
     let environment = await Container.shared.appInfo().environment
     switch environment {
     case .appStore, .onIPhone:
-      SentrySDK.start { options in
-        options.dsn =
-          "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
-        options.environment = environment.rawValue
-
-        // Error reporting configuration
-        options.enabled = true
-        options.enableCrashHandler = true
-        options.sampleRate = 1
-        options.enableAutoSessionTracking = true
-        options.attachStacktrace = true
-        options.sendDefaultPii = true
-        options.enableAppHangTrackingV2 = true
-        options.enableReportNonFullyBlockingAppHangs = true
-        options.enableAutoBreadcrumbTracking = true
-        options.swiftAsyncStacktraces = true
-        options.maxBreadcrumbs = 150
-
-        // Excessive Error noise
-        options.enableSigtermReporting = false
-        options.enableCaptureFailedRequests = false
-        options.enableNetworkBreadcrumbs = false
-        options.enableNetworkTracking = false
-        options.enableSpotlight = false
-
-        // Visual context
-        options.attachScreenshot = true
-        options.attachViewHierarchy = true
-
-        // Performance features disabled
-        options.enableSwizzling = false
-        options.tracesSampleRate = 0
-        options.enableAutoPerformanceTracing = false
-        options.enablePerformanceV2 = false
-        options.enableUIViewControllerTracing = false
-        options.enableFileIOTracing = false
-        options.enableCoreDataTracing = false
-      }
+      configureShipbook(environment)
+      configureSentry(environment)
 
       LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
-          OSLogHandler(label: label),
+          RemoteLogHandler(label: label),
           CrashReportHandler(),
         ])
       }
@@ -91,6 +56,51 @@ struct PodHavenApp: App {
       try audioSession.setActive(true)
     } catch {
       Assert.fatal("Failed to initialize the audio session")
+    }
+  }
+
+  private static func configureShipbook(_ environment: EnvironmentType) {
+    ShipBook.start(appId: "6830cdcd0d271000102299b5", appKey: "dbcc65141b25303f0d6c900dd8ab9c3a")
+  }
+
+  private static func configureSentry(_ environment: EnvironmentType) {
+    SentrySDK.start { options in
+      options.dsn =
+        "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
+      options.environment = environment.rawValue
+
+      // Error reporting configuration
+      options.enabled = true
+      options.enableCrashHandler = true
+      options.sampleRate = 1
+      options.enableAutoSessionTracking = true
+      options.attachStacktrace = true
+      options.sendDefaultPii = true
+      options.enableAppHangTrackingV2 = true
+      options.enableReportNonFullyBlockingAppHangs = true
+      options.enableAutoBreadcrumbTracking = true
+      options.swiftAsyncStacktraces = true
+      options.maxBreadcrumbs = 150
+
+      // Excessive Error noise
+      options.enableSigtermReporting = false
+      options.enableCaptureFailedRequests = false
+      options.enableNetworkBreadcrumbs = false
+      options.enableNetworkTracking = false
+      options.enableSpotlight = false
+
+      // Visual context
+      options.attachScreenshot = true
+      options.attachViewHierarchy = true
+
+      // Performance features disabled
+      options.enableSwizzling = false
+      options.tracesSampleRate = 0
+      options.enableAutoPerformanceTracing = false
+      options.enablePerformanceV2 = false
+      options.enableUIViewControllerTracing = false
+      options.enableFileIOTracing = false
+      options.enableCoreDataTracing = false
     }
   }
 }

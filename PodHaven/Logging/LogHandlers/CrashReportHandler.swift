@@ -1,10 +1,8 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import Foundation
 import Logging
 import Sentry
-import System
 
 struct CrashReportHandler: LogHandler {
   public var metadata: Logger.Metadata = [:]
