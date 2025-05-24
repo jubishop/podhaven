@@ -109,7 +109,13 @@ extension Container {
       try? await queue.unshift(outgoingPodcastEpisode.id)
     }
     await stopAndClearOnDeck()
-    let duration = try await podAVPlayer.load(podcastEpisode)
+    let duration: CMTime
+    do {
+      duration = try await podAVPlayer.load(podcastEpisode)
+    } catch {
+      log.error(error)
+      throw (error)
+    }
     await setOnDeck(podcastEpisode, duration)
     try? await queue.dequeue(podcastEpisode.id)
 
@@ -256,8 +262,12 @@ extension Container {
     )
 
     self.nextEpisodeTask = Task {
-      for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
-        await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
+      do {
+        for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
+          await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
+        }
+      } catch {
+        log.error(error)
       }
     }
   }
