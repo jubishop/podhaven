@@ -18,6 +18,8 @@ final actor RefreshManager: Sendable {
   // MARK: - State Management
 
   private var backgroundRefreshTask: Task<Void, Never>?
+  private var activationTask: Task<Void, Never>?
+  private var deactivationTask: Task<Void, Never>?
 
   // MARK: - Initialization
 
@@ -28,21 +30,8 @@ final actor RefreshManager: Sendable {
       activated()
     }
 
-    Task {
-      for await _ in NotificationCenter.default.notifications(
-        named: UIApplication.didBecomeActiveNotification
-      ) {
-        activated()
-      }
-    }
-
-    Task {
-      for await _ in NotificationCenter.default.notifications(
-        named: UIApplication.willResignActiveNotification
-      ) {
-        backgrounded()
-      }
-    }
+    startListeningToActivation()
+    startListeningToDeactivation()
   }
 
   // MARK: - Refresh Management
@@ -125,5 +114,35 @@ final actor RefreshManager: Sendable {
   private func backgrounded() {
     backgroundRefreshTask?.cancel()
     backgroundRefreshTask = nil
+  }
+
+  private func startListeningToActivation() {
+    Assert.precondition(
+      self.activationTask == nil,
+      "activationTask already exists?"
+    )
+
+    self.activationTask = Task {
+      for await _ in NotificationCenter.default.notifications(
+        named: UIApplication.didBecomeActiveNotification
+      ) {
+        activated()
+      }
+    }
+  }
+
+  private func startListeningToDeactivation() {
+    Assert.precondition(
+      self.deactivationTask == nil,
+      "deactivationTask already exists?"
+    )
+
+    self.deactivationTask = Task {
+      for await _ in NotificationCenter.default.notifications(
+        named: UIApplication.willResignActiveNotification
+      ) {
+        backgrounded()
+      }
+    }
   }
 }
