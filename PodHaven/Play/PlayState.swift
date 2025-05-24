@@ -112,9 +112,7 @@ extension Container {
 
   // MARK: - Initialization
 
-  fileprivate init() {}
-
-  func start() async {
+  fileprivate init() {
     startListeningToKeyboardShow()
     startListeningToKeyboardHide()
   }

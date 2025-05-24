@@ -15,7 +15,6 @@ struct PodHavenApp: App {
     Task {
       await Self.configureLogging()
       Self.configureAudioSession()
-      await Container.shared.playState().start()
       await Container.shared.playManager().start()
       await Container.shared.refreshManager().start()
     }

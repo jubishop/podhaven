@@ -42,7 +42,9 @@ import Foundation
       of: (PodcastEpisode, LoadedPodcastEpisode?).self
     )
 
-    startTracking()
+    addPeriodicTimeObserver()
+    addTimeControlStatusObserver()
+    startPlayToEndTimeNotifications()
   }
 
   // MARK: - Loading
@@ -173,12 +175,6 @@ import Foundation
   }
 
   // MARK: - Private Tracking
-
-  private func startTracking() {
-    addPeriodicTimeObserver()
-    addTimeControlStatusObserver()
-    startPlayToEndTimeNotifications()
-  }
 
   private func addPeriodicTimeObserver() {
     guard self.periodicTimeObserver == nil

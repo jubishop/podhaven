@@ -22,10 +22,6 @@ struct CommandCenter: Sendable {
   init() {
     (self.stream, self.continuation) = AsyncStream.makeStream(of: Command.self)
 
-    start()
-  }
-
-  private func start() {
     let continuation = self.continuation
     commandCenter.playCommand.addTarget { event in
       continuation.yield(.play)
