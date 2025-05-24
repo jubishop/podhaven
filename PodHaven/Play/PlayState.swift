@@ -61,6 +61,11 @@ extension Container {
     status[keyPath: keyPath]
   }
 
+  // MARK: - State Management
+
+  private var keyboardShowTask: Task<Void, Never>?
+  private var keyboardHideTask: Task<Void, Never>?
+
   // MARK: - State Getters
 
   enum Status: Sendable {
@@ -84,7 +89,7 @@ extension Container {
   private(set) var status: Status = .stopped
   private(set) var currentTime = CMTime.zero
   private(set) var onDeck: OnDeck?
-  
+
   private var keyboardVisible = false
 
   var showPlayBar: Bool {
@@ -110,15 +115,32 @@ extension Container {
   fileprivate init() {}
 
   func start() async {
-    Task {
+    startListeningToKeyboardShow()
+    startListeningToKeyboardHide()
+  }
+
+  private func startListeningToKeyboardShow() {
+    Assert.precondition(
+      self.keyboardShowTask == nil,
+      "keyboardShowTask already exists?"
+    )
+
+    self.keyboardShowTask = Task {
       for await _ in NotificationCenter.default.notifications(
         named: UIResponder.keyboardWillShowNotification
       ) {
         keyboardVisible = true
       }
     }
+  }
 
-    Task {
+  private func startListeningToKeyboardHide() {
+    Assert.precondition(
+      self.keyboardHideTask == nil,
+      "keyboardHideTask already exists?"
+    )
+
+    self.keyboardHideTask = Task {
       for await _ in NotificationCenter.default.notifications(
         named: UIResponder.keyboardDidHideNotification
       ) {
