@@ -170,7 +170,7 @@ extension Container {
       pubDate: podcastEpisode.episode.pubDate
     )
 
-    nowPlayingInfo = NowPlayingInfo(onDeck)
+    nowPlayingInfo = Container.shared.nowPlayingInfo(onDeck)
     await playState.setOnDeck(onDeck)
 
     if podcastEpisode.episode.currentTime != CMTime.zero {

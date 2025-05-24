@@ -1,7 +1,14 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import MediaPlayer
+
+extension Container {
+  var nowPlayingInfo: ParameterFactory<OnDeck, NowPlayingInfo> {
+    ParameterFactory(self) { NowPlayingInfo($0) }.scope(.shared)
+  }
+}
 
 struct NowPlayingInfo: Sendable {
   // MARK: - State Management
@@ -15,7 +22,7 @@ struct NowPlayingInfo: Sendable {
 
   // MARK: - Initializing
 
-  init(_ onDeck: OnDeck) {
+  fileprivate init(_ onDeck: OnDeck) {
     self.onDeck = onDeck
 
     var nowPlayingInfo: [String: Any] = [:]
