@@ -12,11 +12,10 @@ struct PrintLogHandler: LogHandler {
   }
   public var logLevel: Logger.Level = .debug
 
-  private let category: String
-  private let subsystem: String
+  private let label: String
 
   init(label: String) {
-    (category, subsystem) = LogKit.destructureLabel(from: label)
+    self.label = label
   }
 
   public func log(
@@ -28,6 +27,6 @@ struct PrintLogHandler: LogHandler {
     function: String,
     line: UInt
   ) {
-    print("[\(level)] \(LogKit.label(category: category, subsystem: subsystem)): \(message)")
+    print("[\(level)] \(label): \(message)")
   }
 }

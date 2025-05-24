@@ -6,7 +6,7 @@ import Logging
 enum LogKit {
   // MARK: - LogHandler Helpers
 
-  private static let labelSeparator = ":::"
+  private static let labelSeparator = "/"
 
   static func merge(
     handler: Logger.Metadata,
@@ -19,10 +19,6 @@ enum LogKit {
     return merged
   }
 
-  static func structureLabel(from categorizable: any LogCategorizable) -> String {
-    "\(categorizable.subsystem)\(labelSeparator)\(categorizable.category)"
-  }
-
   static func destructureLabel(from label: String) -> (subsystem: String, category: String) {
     let parts = label.split(separator: labelSeparator, maxSplits: 1).map(String.init)
     Assert.precondition(parts.count == 2, "Invalid label format: \(label)")
@@ -32,7 +28,7 @@ enum LogKit {
 
   // MARK: - Formatting Helpers
 
-  static func label(category: String, subsystem: String) -> String {
-    "\(subsystem)/\(category)"
+  static func buildLabel(category: String, subsystem: String) -> String {
+    "\(subsystem)\(labelSeparator)\(category)"
   }
 }
