@@ -114,7 +114,7 @@ extension Container {
       duration = try await podAVPlayer.load(podcastEpisode)
     } catch {
       log.error(error)
-      throw (error)
+      throw error
     }
     await setOnDeck(podcastEpisode, duration)
     try? await queue.dequeue(podcastEpisode.id)
