@@ -1,7 +1,14 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import MediaPlayer
+
+extension Container {
+  var commandCenter: Factory<CommandCenter> {
+    Factory(self) { CommandCenter() }.scope(.cached)
+  }
+}
 
 struct CommandCenter: Sendable {
   enum Command {
@@ -19,7 +26,7 @@ struct CommandCenter: Sendable {
   // MARK: - Convenience Getters
 
   var commandCenter: MPRemoteCommandCenter { MPRemoteCommandCenter.shared() }
-  init() {
+  fileprivate init() {
     (self.stream, self.continuation) = AsyncStream.makeStream(of: Command.self)
 
     let continuation = self.continuation

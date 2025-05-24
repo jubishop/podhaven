@@ -4,6 +4,13 @@ import AVFoundation
 import FactoryKit
 import Foundation
 
+extension Container {
+  @PlayActor
+  var podAVPlayer: Factory<PodAVPlayer> {
+    Factory(self) { @PlayActor in PodAVPlayer() }.scope(.cached)
+  }
+}
+
 @PlayActor final class PodAVPlayer: Sendable {
   // MARK: - Convenience Getters
 
@@ -31,7 +38,7 @@ import Foundation
 
   // MARK: - Initialization
 
-  init() {
+  fileprivate init() {
     (self.currentTimeStream, self.currentTimeContinuation) = AsyncStream.makeStream(
       of: CMTime.self
     )

@@ -15,8 +15,10 @@ extension Container {
 }
 
 @PlayActor final class PlayManager {
+  @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.images) private var images
   @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.podAVPlayer) private var podAVPlayer
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   var playState: PlayState { get async { await Container.shared.playState() } }
@@ -53,8 +55,6 @@ extension Container {
       }
     }
   }
-  private let commandCenter = CommandCenter()
-  private let podAVPlayer = PodAVPlayer()
 
   private var nextEpisodeTask: Task<Void, any Error>?
   private var interruptionTask: Task<Void, Never>?
