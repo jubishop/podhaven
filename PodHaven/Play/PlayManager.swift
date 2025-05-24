@@ -127,7 +127,7 @@ extension Container {
   func play() {
     guard status.playable
     else {
-      log.debug("play: status is \(status) which is not playable")
+      log.warning("play: status is \(status) which is not playable")
       return
     }
 
@@ -200,7 +200,7 @@ extension Container {
   private func setStatus(_ status: PlayState.Status) async {
     guard status != self.status
     else {
-      log.debug("setStatus: status is already \(status) so nothing to do")
+      log.warning("setStatus: status is already \(status) so nothing to do")
       return
     }
 
@@ -215,12 +215,14 @@ extension Container {
 
     guard let currentPodcastEpisode = podAVPlayer.podcastEpisode
     else {
-      log.notice(
-        """
-        setCurrentTime: tried to set current time to: \
-        \(currentTime) but there is no current episode
-        """
-      )
+      if currentTime != .zero {
+        log.warning(
+          """
+          setCurrentTime: tried to set current time to: \
+          \(currentTime) but there is no current episode
+          """
+        )
+      }
       return
     }
 
