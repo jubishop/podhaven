@@ -69,40 +69,15 @@ struct PodHavenApp: App {
     SentrySDK.start { options in
       options.dsn =
         "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
-      options.environment = environment.rawValue
 
-      // Error reporting configuration
-      options.enabled = true
-      options.enableCrashHandler = true
-      options.sampleRate = 1
-      options.enableAutoSessionTracking = true
-      options.attachStacktrace = true
+      // Maximum info
       options.sendDefaultPii = true
-      options.enableAppHangTrackingV2 = true
-      options.enableReportNonFullyBlockingAppHangs = true
-      options.enableAutoBreadcrumbTracking = true
-      options.swiftAsyncStacktraces = true
-      options.maxBreadcrumbs = 150
-
-      // Excessive Error noise
-      options.enableSigtermReporting = false
-      options.enableCaptureFailedRequests = false
-      options.enableNetworkBreadcrumbs = false
-      options.enableNetworkTracking = false
-      options.enableSpotlight = false
-
-      // Visual context
       options.attachScreenshot = true
       options.attachViewHierarchy = true
 
-      // Performance features disabled
+      // Excessive crap
+      options.enableAppHangTracking = false
       options.enableSwizzling = false
-      options.tracesSampleRate = 0
-      options.enableAutoPerformanceTracing = false
-      options.enablePerformanceV2 = false
-      options.enableUIViewControllerTracing = false
-      options.enableFileIOTracing = false
-      options.enableCoreDataTracing = false
     }
   }
 }
