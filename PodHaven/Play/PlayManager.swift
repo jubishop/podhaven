@@ -102,7 +102,7 @@ extension Container {
       }
     }
 
-    log.info("load: now loading \(podcastEpisode.toString)")
+    log.info("playManager loading: \(podcastEpisode.toString)")
 
     if let outgoingPodcastEpisode = podAVPlayer.podcastEpisode {
       log.debug("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")

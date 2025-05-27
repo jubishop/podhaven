@@ -179,7 +179,7 @@ extension Container {
 
   private func insertNextPodcastEpisode(_ loadedNextPodcastEpisode: LoadedPodcastEpisode?) {
     defer {
-      if log.logLevel >= .debug {
+      if log.logLevel <= .debug {
         Task(priority: .utility) { @MainActor in
           await mainActorLogSemaphore.wait()
 
@@ -227,7 +227,7 @@ extension Container {
     }
 
     if avPlayer.items().count == 1 && loadedNextPodcastEpisode == nil {
-      if log.logLevel >= .debug {
+      if log.logLevel <= .debug {
         Task(priority: .utility) { @MainActor in
           await mainActorLogSemaphore.wait()
 
@@ -260,7 +260,7 @@ extension Container {
     }
 
     while avPlayer.items().count > 1, let lastItem = avPlayer.items().last {
-      if log.logLevel >= .debug {
+      if log.logLevel <= .debug {
         Task(priority: .utility) { @MainActor in
           await mainActorLogSemaphore.wait()
 
