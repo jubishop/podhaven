@@ -3,6 +3,7 @@
 import AVFoundation
 import BugfenderSDK
 import FactoryKit
+import Honeybadger
 import Logging
 import Sentry
 import SwiftUI
@@ -56,6 +57,7 @@ struct PodHavenApp: App {
     switch AppInfo.environment {
     case .iPhone:
       configureBugFender()
+      configureHoneyBadger()
       configureSentry()
 
       LoggingSystem.bootstrap { label in
@@ -76,6 +78,10 @@ struct PodHavenApp: App {
     Bugfender.activateLogger("DHXOFyzIYy2lzznaFpku5oXaiGwqqDXE")
     Bugfender.setPrintToConsole(false)
     Bugfender.enableCrashReporting()
+  }
+
+  private static func configureHoneyBadger() {
+    Honeybadger.configure(apiKey: "hbp_68rhjE7H6WYfVhV7deZldmErGXTjrz10H9QR")
   }
 
   private static func configureSentry() {

@@ -37,7 +37,7 @@ struct OSLogHandler: LogHandler {
   private let logger: os.Logger
 
   init(label: String) {
-    let (category, subsystem) = LogKit.destructureLabel(from: label)
+    let (subsystem, category) = LogKit.destructureLabel(from: label)
     logger = os.Logger(subsystem: subsystem, category: category)
   }
 

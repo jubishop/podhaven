@@ -2,6 +2,7 @@
 
 import BugfenderSDK
 import Foundation
+import Honeybadger
 import Logging
 import Sentry
 import System
@@ -18,6 +19,13 @@ struct CrashReportHandler: LogHandler {
     set {}  // Ignore
   }
 
+  private let category: String
+  private let subsystem: String
+
+  init(label: String) {
+    (subsystem, category) = LogKit.destructureLabel(from: label)
+  }
+
   public func log(
     level: Logger.Level,
     message: Logger.Message,
@@ -30,6 +38,10 @@ struct CrashReportHandler: LogHandler {
     let filePath = FilePath(file)
 
     SentrySDK.capture(message: message.description)
+    Honeybadger.notify(
+      errorString: message.description,
+      context: ["subsystem": subsystem, "category": category]
+    )
     Bugfender.sendIssueReturningUrl(
       withTitle: "[\(String(describing: filePath.stem)):\(line) \(function)]",
       text: message.description
