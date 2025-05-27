@@ -1,8 +1,10 @@
 // Copyright Justin Bishop, 2025
 
+import BugfenderSDK
 import Foundation
 import Logging
 import Sentry
+import System
 
 struct CrashReportHandler: LogHandler {
   public var metadata: Logger.Metadata = [:]
@@ -25,6 +27,12 @@ struct CrashReportHandler: LogHandler {
     function: String,
     line: UInt
   ) {
+    let filePath = FilePath(file)
+
     SentrySDK.capture(message: message.description)
+    Bugfender.sendIssueReturningUrl(
+      withTitle: "[\(String(describing: filePath.stem)):\(line) \(function)]",
+      text: message.description
+    )
   }
 }

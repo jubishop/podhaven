@@ -1,27 +1,27 @@
 // Copyright Justin Bishop, 2025
 
+import BugfenderSDK
 import Foundation
 import Logging
-@preconcurrency import ShipBookSDK
 import System
 
 extension Logger.Level {
-  fileprivate var shipBookLogLevel: Severity {
+  fileprivate var bugFenderLogLevel: BFLogLevel {
     switch self {
     case .trace:
-      return .Verbose
+      return .trace
     case .debug:
-      return .Debug
+      return .default
     case .info:
-      return .Info
+      return .info
     case .notice:
-      return .Warning
+      return .info
     case .warning:
-      return .Warning
+      return .warning
     case .error:
-      return .Error
+      return .error
     case .critical:
-      return .Error
+      return .fatal
     }
   }
 }
@@ -35,10 +35,10 @@ struct RemoteLogHandler: LogHandler {
   }
   public var logLevel: Logger.Level = .debug
 
-  private let log: ShipBookSDK.Log
+  private let label: String
 
   init(label: String) {
-    self.log = ShipBook.getLogger(label)
+    self.label = label
   }
 
   public func log(
@@ -50,12 +50,13 @@ struct RemoteLogHandler: LogHandler {
     function: String,
     line: UInt
   ) {
-    log.message(
-      msg: message.description,
-      severity: level.shipBookLogLevel,
-      function: function,
+    Bugfender.log(
+      lineNumber: Int(line),
+      method: function,
       file: file,
-      line: Int(line)
+      level: level.bugFenderLogLevel,
+      tag: label,
+      message: message.description
     )
   }
 }

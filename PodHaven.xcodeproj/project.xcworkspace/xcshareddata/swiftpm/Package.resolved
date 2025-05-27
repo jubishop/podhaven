@@ -1,6 +1,15 @@
 {
-  "originHash" : "f49a294ded9121c9b40c387946da611eaf572c6cb5fffd4f260001de6999d841",
+  "originHash" : "23a242cdfb47c3670a28f5da022b4391e205cbae3710e32529838f2d2abcd60d",
   "pins" : [
+    {
+      "identity" : "bugfendersdk-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/bugfender/BugfenderSDK-iOS",
+      "state" : {
+        "branch" : "main",
+        "revision" : "2e92940c702c9182352fa5a213e472da62ad69c1"
+      }
+    },
     {
       "identity" : "combine-schedulers",
       "kind" : "remoteSourceControl",
@@ -53,15 +62,6 @@
       "state" : {
         "branch" : "main",
         "revision" : "765dd7022c2a5bef9fcf984cbd9d50361cc89b62"
-      }
-    },
-    {
-      "identity" : "shipbooksdk-ios",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ShipBook/ShipBookSDK-iOS.git",
-      "state" : {
-        "branch" : "master",
-        "revision" : "8f75dd21e9a6d5a33d87a7037ca0be8adab84700"
       }
     },
     {

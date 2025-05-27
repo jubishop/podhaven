@@ -1,10 +1,10 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import BugfenderSDK
 import FactoryKit
 import Logging
 import Sentry
-import ShipBookSDK
 import SwiftUI
 
 @main
@@ -33,7 +33,7 @@ struct PodHavenApp: App {
     case .appStore:
       break
     case .iPhone:
-      configureShipbook(environment)
+      configureBugFender()
       configureSentry(environment)
 
       LoggingSystem.bootstrap { label in
@@ -60,8 +60,9 @@ struct PodHavenApp: App {
     }
   }
 
-  private static func configureShipbook(_ environment: EnvironmentType) {
-    ShipBook.start(appId: "6830cdcd0d271000102299b5", appKey: "dbcc65141b25303f0d6c900dd8ab9c3a")
+  private static func configureBugFender() {
+    Bugfender.activateLogger("DHXOFyzIYy2lzznaFpku5oXaiGwqqDXE")
+    Bugfender.enableCrashReporting()  // optional, log crashes automatically
   }
 
   private static func configureSentry(_ environment: EnvironmentType) {
