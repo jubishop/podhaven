@@ -5,6 +5,7 @@ import FactoryKit
 import Foundation
 import GRDB
 import Logging
+import Semaphore
 import Sharing
 
 extension Container {
@@ -57,6 +58,7 @@ extension Container {
   }
 
   private var nextEpisodeTask: Task<Void, any Error>?
+  private let nextEpisodeSemaphore = AsyncSemaphore(value: 1)
   private var interruptionTask: Task<Void, Never>?
   private var commandCenterTask: Task<Void, Never>?
   private var currentTimeTask: Task<Void, Never>?
@@ -266,7 +268,9 @@ extension Container {
     self.nextEpisodeTask = Task {
       do {
         for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
+          await nextEpisodeSemaphore.wait()
           await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
+          nextEpisodeSemaphore.signal()
         }
       } catch {
         log.error(error)
