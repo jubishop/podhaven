@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import Foundation
 import Logging
+import Semaphore
 
 extension Container {
   @PlayActor
@@ -19,6 +20,10 @@ extension Container {
   var nextPodcastEpisode: PodcastEpisode? { loadedNextPodcastEpisode?.podcastEpisode }
 
   private let log = Log.as(LogSubsystem.Play.avPlayer)
+
+  // MARK: - Debugging
+
+  private let mainActorLogSemaphore = AsyncSemaphore(value: 1)
 
   // MARK: - State Management
 
@@ -174,11 +179,31 @@ extension Container {
 
   private func insertNextPodcastEpisode(_ loadedNextPodcastEpisode: LoadedPodcastEpisode?) {
     defer {
-      Task(priority: .utility) { @MainActor in
-        let assetDescriptions = await avPlayer.items()
-          .map { "\($0.asset)" }
-          .joined(separator: "\n  ")
-        log.debug("insertNextPodcastEpisode: AVPlayer assets are:\n  \(assetDescriptions)")
+      if log.logLevel >= .debug {
+        Task(priority: .utility) { @MainActor in
+          await mainActorLogSemaphore.wait()
+
+          let mediaURLs = await avPlayer.items()
+            .map {
+              guard let urlAsset = $0.asset as? AVURLAsset
+              else { Assert.fatal("\($0.asset) is not an AVURLAsset") }
+              return MediaURL(urlAsset.url)
+            }
+          let podcastEpisodes = try await Container.shared.repo().episodes(mediaURLs)
+          precondition(
+            mediaURLs.count == podcastEpisodes.count,
+            "Not every mediaURL in queue has a podcastEpisode?"
+          )
+
+          log.debug(
+            """
+            insertNextPodcastEpisode: AVPlayer assets at end of function are:
+              \(podcastEpisodes.map(\.toString).joined(separator: "\n  "))
+            """
+          )
+
+          mainActorLogSemaphore.signal()
+        }
       }
     }
 
@@ -202,15 +227,24 @@ extension Container {
     }
 
     if avPlayer.items().count == 1 && loadedNextPodcastEpisode == nil {
-      Task(priority: .utility) { @MainActor in
-        let assetDescription = String(describing: await avPlayer.items().first?.asset)
-        log.debug(
-          """
-          insertNextPodcastEpisode: nothing to do because the incoming next episode is nil and \
-          there's only one in the avPlayer, which is \(assetDescription), which must be the one \
-          playing
-          """
-        )
+      if log.logLevel >= .debug {
+        Task(priority: .utility) { @MainActor in
+          await mainActorLogSemaphore.wait()
+
+          guard let urlAsset = await avPlayer.items().first?.asset as? AVURLAsset,
+            let podcastEpisode = try await Container.shared.repo().episode(MediaURL(urlAsset.url))
+          else { Assert.fatal("Could not find episode for first and only AVURLAsset") }
+
+          log.debug(
+            """
+            insertNextPodcastEpisode: nothing to do because the incoming next episode is nil and \
+            there's only one in the avPlayer, which is \(podcastEpisode.toString), which must be \
+            the one playing
+            """
+          )
+
+          mainActorLogSemaphore.signal()
+        }
       }
       return
     }
@@ -226,10 +260,23 @@ extension Container {
     }
 
     while avPlayer.items().count > 1, let lastItem = avPlayer.items().last {
-      Task(priority: .utility) { @MainActor in
-        log.debug(
-          "insertNextPodcastEpisode: Removing item from end of avPlayer queue: \(lastItem.asset)"
-        )
+      if log.logLevel >= .debug {
+        Task(priority: .utility) { @MainActor in
+          await mainActorLogSemaphore.wait()
+
+          guard let urlAsset = lastItem.asset as? AVURLAsset,
+            let podcastEpisode = try await Container.shared.repo().episode(MediaURL(urlAsset.url))
+          else { Assert.fatal("Could not find episode for last AVURLAsset") }
+
+          log.debug(
+            """
+            insertNextPodcastEpisode: Removing item from end of avPlayer queue: \
+            \(podcastEpisode.toString)
+            """
+          )
+
+          mainActorLogSemaphore.signal()
+        }
       }
       avPlayer.remove(lastItem)
     }
