@@ -6,7 +6,7 @@ import SwiftUI
 struct SettingsView: View {
   @InjectedObservable(\.navigation) private var navigation
 
-  private let viewModel = SettingsViewModel()
+  @State private var viewModel = SettingsViewModel()
 
   var body: some View {
     NavigationStack(path: $navigation.settingsPath) {
