@@ -205,9 +205,32 @@ extension Container {
               return MediaURL(urlAsset.url)
             }
           let podcastEpisodes = try await Container.shared.repo().episodes(mediaURLs)
-          precondition(
-            mediaURLs.count == podcastEpisodes.count,
-            "Not every mediaURL in queue has a podcastEpisode?"
+          var podcastEpisodesFound: [PodcastEpisode] = []
+          var mediaURLsNotFound: [MediaURL] = []
+          for mediaURL in mediaURLs {
+            if let podcastEpisode = podcastEpisodes.first(where: { $0.episode.media == mediaURL }) {
+              podcastEpisodesFound.append(podcastEpisode)
+            } else {
+              mediaURLsNotFound.append(mediaURL)
+            }
+          }
+          Assert.precondition(
+            mediaURLsNotFound.isEmpty,
+            """
+            \(mediaURLs.count) media URLs but \(podcastEpisodes.count) podcast episodes)
+            MediaURLsNotFound:
+              \(mediaURLsNotFound.map({ "\($0)" }).joined(separator: "\n  "))
+            PodcastEpisodesFound: 
+              \(podcastEpisodesFound.map(\.toString).joined(separator: "\n  "))
+            LoadedCurrentPodcastEpisode:
+              \(String(describing: await self.loadedCurrentPodcastEpisode?.toString))
+              MediaURL: \(String(describing:
+                await self.loadedCurrentPodcastEpisode?.podcastEpisode.episode.media))
+            LoadedNextPodcastEpisode:
+              \(String(describing: await self.loadedNextPodcastEpisode?.toString))
+              MediaURL: \(String(describing:
+                await self.loadedNextPodcastEpisode?.podcastEpisode.episode.media))
+            """
           )
 
           log.debug(
