@@ -14,12 +14,12 @@ extension Container {
 }
 
 @PlayActor final class PodAVPlayer: Sendable {
+  private let log = Log.as(LogSubsystem.Play.avPlayer)
+
   // MARK: - Convenience Getters
 
   var podcastEpisode: PodcastEpisode? { loadedCurrentPodcastEpisode?.podcastEpisode }
   var nextPodcastEpisode: PodcastEpisode? { loadedNextPodcastEpisode?.podcastEpisode }
-
-  private let log = Log.as(LogSubsystem.Play.avPlayer)
 
   // MARK: - Debugging
 

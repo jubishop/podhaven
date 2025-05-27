@@ -14,6 +14,8 @@ extension Container {
 }
 
 struct Queue: Sendable {
+  private let log = Log.as(LogSubsystem.Database.queue)
+
   // MARK: - Initialization
 
   private let appDB: AppDB
@@ -45,7 +47,9 @@ struct Queue: Sendable {
 
   func dequeue(_ episodeIDs: [Episode.ID]) async throws {
     guard !episodeIDs.isEmpty
-    else { return }
+    else { Assert.fatal("Calling dequeue with empty episodeIDs?") }
+
+    log.debug("queue: dequeueing \(episodeIDs)")
 
     try await appDB.db.write { db in
       try _dequeue(db, episodeIDs)
@@ -64,7 +68,9 @@ struct Queue: Sendable {
 
   func unshift(_ episodeIDs: [Episode.ID]) async throws {
     guard !episodeIDs.isEmpty
-    else { return }
+    else { Assert.fatal("Calling unshift with empty episodeIDs?") }
+
+    log.debug("queue: unshifting \(episodeIDs)")
 
     try await appDB.db.write { db in
       // Remove any existing episodes
