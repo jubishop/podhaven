@@ -102,10 +102,10 @@ extension Container {
       }
     }
 
-    log.info("Now loading: \(podcastEpisode.toString)")
+    log.info("load: now loading \(podcastEpisode.toString)")
 
     if let outgoingPodcastEpisode = podAVPlayer.podcastEpisode {
-      log.trace("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
+      log.debug("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
       try? await queue.unshift(outgoingPodcastEpisode.id)
     }
     await stopAndClearOnDeck()
@@ -174,7 +174,7 @@ extension Container {
     await playState.setOnDeck(onDeck)
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
-      log.trace(
+      log.debug(
         """
         setOnDeck: Seeking \(podcastEpisode.toString), to \
         currentTime: \(podcastEpisode.episode.currentTime)
@@ -183,7 +183,7 @@ extension Container {
 
       await seek(to: podcastEpisode.episode.currentTime)
     } else {
-      log.trace("setOnDeck: \(podcastEpisode.toString) has no currentTime")
+      log.debug("setOnDeck: \(podcastEpisode.toString) has no currentTime")
     }
 
     currentEpisodeID = podcastEpisode.id

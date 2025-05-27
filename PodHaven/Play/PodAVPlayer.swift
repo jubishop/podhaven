@@ -3,6 +3,7 @@
 import AVFoundation
 import FactoryKit
 import Foundation
+import Logging
 
 extension Container {
   @PlayActor
@@ -16,6 +17,8 @@ extension Container {
 
   var podcastEpisode: PodcastEpisode? { loadedCurrentPodcastEpisode?.podcastEpisode }
   var nextPodcastEpisode: PodcastEpisode? { loadedNextPodcastEpisode?.podcastEpisode }
+
+  private let log = Log.as(LogSubsystem.Play.avPlayer)
 
   // MARK: - State Management
 
@@ -57,12 +60,15 @@ extension Container {
   // MARK: - Loading
 
   func stop() {
+    log.debug("stop: executing")
     removePeriodicTimeObserver()
     avPlayer.removeAllItems()
     self.loadedCurrentPodcastEpisode = nil
   }
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> CMTime {
+    log.debug("avPlayer loading: \(podcastEpisode.toString)")
+
     let loadedPodcastEpisode = try await loadAsset(for: podcastEpisode)
     self.loadedCurrentPodcastEpisode = loadedPodcastEpisode
 
@@ -98,29 +104,39 @@ extension Container {
   // MARK: - Playback Controls
 
   func play() {
+    log.debug("play: executing")
     avPlayer.play()
   }
 
   func pause() {
+    log.debug("pause: executing")
     avPlayer.pause()
   }
 
   // MARK: - Seeking
 
   func seekForward(_ duration: CMTime) async {
+    log.debug("seekForward: seeking forward by \(duration)")
     await seek(to: avPlayer.currentTime() + duration)
   }
 
   func seekBackward(_ duration: CMTime) async {
+    log.debug("seekBackward: seeking backward by \(duration)")
     await seek(to: avPlayer.currentTime() - duration)
   }
 
   func seek(to time: CMTime) async {
+    log.debug("seek: seeking to time \(time)")
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
-    avPlayer.seek(to: time) { completed in
+    avPlayer.seek(to: time) { [weak self] completed in
+      guard let self else { return }
+
       if completed {
+        self.log.debug("seek completed")
         Task { await self.addPeriodicTimeObserver() }
+      } else {
+        self.log.debug("seek interrupted")
       }
     }
   }
@@ -128,13 +144,25 @@ extension Container {
   // MARK: - State Setters
 
   func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?) async {
+    log.debug("setNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))")
+
     guard nextPodcastEpisode?.id != self.nextPodcastEpisode?.id
-    else { return }
+    else {
+      log.warning(
+        """
+        setNextPodcastEpisode: Trying to set next episode to \
+        \(String(describing: nextPodcastEpisode?.toString)) \
+        but it is the same as the current episode
+        """
+      )
+      return
+    }
 
     if let podcastEpisode = nextPodcastEpisode {
       do {
         insertNextPodcastEpisode(try await loadAsset(for: podcastEpisode))
       } catch {
+        log.error(error)
         insertNextPodcastEpisode(nil)
       }
     } else {
@@ -145,20 +173,74 @@ extension Container {
   // MARK: - Private State Management
 
   private func insertNextPodcastEpisode(_ loadedNextPodcastEpisode: LoadedPodcastEpisode?) {
+    defer {
+      Task(priority: .utility) { @MainActor in
+        let assetDescriptions = await avPlayer.items()
+          .map { "\($0.asset)" }
+          .joined(separator: "\n  ")
+        log.debug("insertNextPodcastEpisode: AVPlayer assets are:\n  \(assetDescriptions)")
+      }
+    }
+
+    log.debug(
+      """
+      insertNextPodcastEpisode: Inserting next episode: \
+      \(String(describing: loadedNextPodcastEpisode?.podcastEpisode.toString))
+      """
+    )
+
     self.loadedNextPodcastEpisode = loadedNextPodcastEpisode
 
-    if (avPlayer.items().isEmpty)
-      || (avPlayer.items().count == 1 && loadedNextPodcastEpisode == nil)
-      || (avPlayer.items().count == 2 && avPlayer.items().last == loadedNextPodcastEpisode?.item)
-    {
+    if avPlayer.items().isEmpty {
+      log.debug(
+        """
+        insertNextPodcastEpisode: nothing to do because the avPlayer queue is empty right now, \
+        so nothing must be playing to start with
+        """
+      )
+      return
+    }
+
+    if avPlayer.items().count == 1 && loadedNextPodcastEpisode == nil {
+      Task(priority: .utility) { @MainActor in
+        let assetDescription = String(describing: await avPlayer.items().first?.asset)
+        log.debug(
+          """
+          insertNextPodcastEpisode: nothing to do because the incoming next episode is nil and \
+          there's only one in the avPlayer, which is \(assetDescription), which must be the one \
+          playing
+          """
+        )
+      }
+      return
+    }
+
+    if avPlayer.items().count == 2 && avPlayer.items().last == loadedNextPodcastEpisode?.item {
+      log.debug(
+        """
+        insertNextPodcastEpisode: nothing to do because the avPlayer queue already is the right \
+        length of 2 and the incoming next episode is already in the #2 slot
+        """
+      )
       return
     }
 
     while avPlayer.items().count > 1, let lastItem = avPlayer.items().last {
+      Task(priority: .utility) { @MainActor in
+        log.debug(
+          "insertNextPodcastEpisode: Removing item from end of avPlayer queue: \(lastItem.asset)"
+        )
+      }
       avPlayer.remove(lastItem)
     }
 
     if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
+      log.debug(
+        """
+        insertNextPodcastEpisode: Adding \(loadedNextPodcastEpisode.podcastEpisode.toString) \
+        to avPlayer queue
+        """
+      )
       avPlayer.insert(loadedNextPodcastEpisode.item, after: avPlayer.items().first)
     }
   }
@@ -169,12 +251,21 @@ extension Container {
     guard let finishedPodcastEpisode = self.podcastEpisode
     else { throw PlaybackError.finishedEpisodeIsNil }
 
+    log.debug("handleEpisodeFinished: Episode finished: \(finishedPodcastEpisode.toString)")
+
     loadedCurrentPodcastEpisode = loadedNextPodcastEpisode
     loadedNextPodcastEpisode = nil
 
-    if podcastEpisode != nil {
+    if let podcastEpisode = podcastEpisode {
+      log.debug(
+        """
+        handleEpisodeFinished: new episode is \(podcastEpisode.toString) \
+        Adding periodic time observer for next episode
+        """
+      )
       addPeriodicTimeObserver()
     } else {
+      log.debug("handleEpisodeFinished: No next episode, removing periodic time observer")
       removePeriodicTimeObserver()
     }
 
@@ -185,20 +276,28 @@ extension Container {
 
   private func addPeriodicTimeObserver() {
     guard self.periodicTimeObserver == nil
-    else { return }
+    else {
+      log.notice("addPeriodicTimeObserver: Observer already exists, skipping")
+      return
+    }
 
+    log.debug("addPeriodicTimeObserver: Adding periodic time observer")
     self.periodicTimeObserver = avPlayer.addPeriodicTimeObserver(
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
-    ) { currentTime in
+    ) { [weak self] currentTime in
+      guard let self else { return }
       self.currentTimeContinuation.yield(currentTime)
     }
   }
 
   private func removePeriodicTimeObserver() {
     if let periodicTimeObserver = self.periodicTimeObserver {
+      log.debug("removePeriodicTimeObserver: Removing periodic time observer")
       avPlayer.removeTimeObserver(periodicTimeObserver)
       self.periodicTimeObserver = nil
+    } else {
+      log.notice("removePeriodicTimeObserver: No observer to remove")
     }
   }
 

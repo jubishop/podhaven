@@ -20,12 +20,14 @@ enum LogSubsystem {
 
   enum Play: String, LogCategorizable {
     case manager
+    case avPlayer
 
     var subsystem: String { "play" }
 
     var level: Logger.Level {
       switch self {
       case .manager: return .trace
+      case .avPlayer: return .trace
       }
     }
   }
