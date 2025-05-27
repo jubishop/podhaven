@@ -13,17 +13,6 @@ struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
   @State private var isInitialized = false
 
-  init() {}
-
-  private func start() async {
-    await AppInfo.initializeEnvironment()
-    await Self.configureLogging()
-    isInitialized = true
-    Self.configureAudioSession()
-    await Container.shared.playManager().start()
-    await Container.shared.refreshManager().start()
-  }
-
   var body: some Scene {
     WindowGroup {
       Group {
@@ -34,7 +23,14 @@ struct PodHavenApp: App {
           ProgressView("Loading...")
         }
       }
-      .task(start)
+      .task {
+        await AppInfo.initializeEnvironment()
+        Self.configureLogging()
+        isInitialized = true
+        Self.configureAudioSession()
+        await Container.shared.playManager().start()
+        await Container.shared.refreshManager().start()
+      }
     }
   }
 
@@ -53,7 +49,7 @@ struct PodHavenApp: App {
 
   // MARK: - Logging
 
-  private static func configureLogging() async {
+  static func configureLogging() {
     switch AppInfo.environment {
     case .iPhone:
       configureBugFender()
@@ -64,7 +60,7 @@ struct PodHavenApp: App {
         MultiplexLogHandler([
           OSLogHandler(label: label),
           RemoteLogHandler(label: label),
-          CrashReportHandler(),
+          CrashReportHandler(label: label),
         ])
       }
     case .preview:
