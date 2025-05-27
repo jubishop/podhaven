@@ -109,29 +109,44 @@ extension Container {
   // MARK: - Playback Controls
 
   func play() {
-    log.debug("play: executing")
+    log.debug("play: executing, playing \(String(describing: podcastEpisode?.toString))")
     avPlayer.play()
   }
 
   func pause() {
-    log.debug("pause: executing")
+    log.debug("pause: executing, pausing \(String(describing: podcastEpisode?.toString))")
     avPlayer.pause()
   }
 
   // MARK: - Seeking
 
   func seekForward(_ duration: CMTime) async {
-    log.debug("seekForward: seeking forward by \(duration)")
+    log.debug(
+      """
+      seekForward: seeking forward by \(duration) for \
+      \(String(describing: podcastEpisode?.toString))
+      """
+    )
     await seek(to: avPlayer.currentTime() + duration)
   }
 
   func seekBackward(_ duration: CMTime) async {
-    log.debug("seekBackward: seeking backward by \(duration)")
+    log.debug(
+      """
+      seekForward: seeking backward by \(duration) for \
+      \(String(describing: podcastEpisode?.toString))
+      """
+    )
     await seek(to: avPlayer.currentTime() - duration)
   }
 
   func seek(to time: CMTime) async {
-    log.debug("seek: seeking to time \(time)")
+    log.debug(
+      """
+      seek: seeking to time \(time) for \
+      \(String(describing: podcastEpisode?.toString))
+      """
+    )
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
     avPlayer.seek(to: time) { [weak self] completed in
