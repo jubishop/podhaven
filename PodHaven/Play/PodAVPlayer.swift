@@ -255,12 +255,7 @@ extension Container {
     self.loadedNextPodcastEpisode = loadedNextPodcastEpisode
 
     if avPlayer.items().isEmpty {
-      log.debug(
-        """
-        insertNextPodcastEpisode: nothing to do because the avPlayer queue is empty right now, \
-        so nothing must be playing to start with
-        """
-      )
+      log.debug("insertNextPodcastEpisode: avPlayer queue is empty")
       return
     }
 
