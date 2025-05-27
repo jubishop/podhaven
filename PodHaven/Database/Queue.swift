@@ -97,7 +97,9 @@ struct Queue: Sendable {
 
   func append(_ episodeIDs: [Episode.ID]) async throws {
     guard !episodeIDs.isEmpty
-    else { return }
+    else { Assert.fatal("Calling append with empty episodeIDs?") }
+
+    log.debug("queue: appending \(episodeIDs)")
 
     try await appDB.db.write { db in
       // Remove any existing episodes
