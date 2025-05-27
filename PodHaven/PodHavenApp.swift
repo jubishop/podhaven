@@ -31,13 +31,14 @@ struct PodHavenApp: App {
     let environment = await Container.shared.appInfo().environment
     switch environment {
     case .appStore:
-      break
+      break  // Nothing so app is stable and fast
     case .iPhone:
       configureBugFender()
       configureSentry(environment)
 
       LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
+          OSLogHandler(label: label),
           RemoteLogHandler(label: label),
           CrashReportHandler(),
         ])
@@ -62,6 +63,7 @@ struct PodHavenApp: App {
 
   private static func configureBugFender() {
     Bugfender.activateLogger("DHXOFyzIYy2lzznaFpku5oXaiGwqqDXE")
+    Bugfender.setPrintToConsole(false)
     Bugfender.enableCrashReporting()  // optional, log crashes automatically
   }
 
