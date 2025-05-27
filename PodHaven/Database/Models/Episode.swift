@@ -57,6 +57,7 @@ struct UnsavedEpisode: Savable, Stringable {
   // MARK: - Savable
 
   var toString: String { self.title }
+  var searchableString: String { self.title }
 
   // MARK: - State Getters
 

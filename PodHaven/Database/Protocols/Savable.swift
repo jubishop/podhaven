@@ -3,4 +3,12 @@
 import Foundation
 import GRDB
 
-protocol Savable: Codable, Hashable, FetchableRecord, PersistableRecord, Sendable, Stringable {}
+protocol Savable:
+  Codable,
+  Hashable,
+  FetchableRecord,
+  PersistableRecord,
+  Searchable,
+  Sendable,
+  Stringable
+{}

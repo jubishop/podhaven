@@ -9,6 +9,7 @@ struct PodcastWithLatestEpisodeDates:
   Equatable,
   FetchableRecord,
   Identifiable,
+  Searchable,
   Stringable
 {
 
@@ -30,11 +31,14 @@ struct PodcastWithLatestEpisodeDates:
       .asRequest(of: PodcastWithLatestEpisodeDates.self)
   }
 
+  // MARK: - Stringable / Searchable
+  
+  var toString: String { podcast.toString }
+  var searchableString: String { podcast.searchableString }
 
   // MARK: - Data
 
   var id: Podcast.ID { podcast.id }
-  var toString: String { "[\(id)] - \(podcast.toString)" }
 
   subscript<T>(dynamicMember keyPath: KeyPath<Podcast, T>) -> T {
     podcast[keyPath: keyPath]

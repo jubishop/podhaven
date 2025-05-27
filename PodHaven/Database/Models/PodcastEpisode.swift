@@ -5,12 +5,21 @@ import GRDB
 import IdentifiedCollections
 import Tagged
 
-struct PodcastEpisode: Codable, Equatable, FetchableRecord, Hashable, Identifiable, Stringable {
+struct PodcastEpisode:
+  Codable,
+  Equatable,
+  FetchableRecord,
+  Hashable,
+  Identifiable,
+  Searchable,
+  Stringable
+{
   var id: Episode.ID { episode.id }
 
-  // MARK: - Stringable
+  // MARK: - Stringable / Searchable
 
-  var toString: String { "[\(id)] - \(episode.title)" }
+  var toString: String { episode.toString }
+  var searchableString: String { episode.searchableString }
 
   // MARK: - Data
 

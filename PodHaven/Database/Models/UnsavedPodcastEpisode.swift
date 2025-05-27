@@ -2,12 +2,13 @@
 
 import Foundation
 
-struct UnsavedPodcastEpisode: Codable, Equatable, Hashable, Identifiable, Stringable {
+struct UnsavedPodcastEpisode: Codable, Equatable, Hashable, Identifiable, Searchable, Stringable {
   var id: MediaURL { unsavedEpisode.media }
 
-  // MARK: - Stringable
+  // MARK: - Stringable / Searchable
 
-  var toString: String { unsavedEpisode.title }
+  var toString: String { unsavedEpisode.toString }
+  var searchableString: String { unsavedEpisode.searchableString }
 
   // MARK: - Data
 

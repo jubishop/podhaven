@@ -5,7 +5,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
+final class SelectableListUseCase<T: Searchable, ID: Hashable>: SelectableList {
   // MARK: - Selection State Management
 
   private var _isSelecting = false
@@ -44,8 +44,7 @@ final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
 
     return IdentifiedArray(
       filteredEntries.filter { entry in
-        let lowercasedTitle = entry.toString.lowercased()
-        return searchTerms.allSatisfy { lowercasedTitle.contains($0) }
+        return searchTerms.allSatisfy { entry.searchableString.lowercased().contains($0) }
       }
     )
   }
@@ -64,7 +63,7 @@ final class SelectableListUseCase<T: Stringable, ID: Hashable>: SelectableList {
   init(
     idKeyPath: KeyPath<T, ID>,
     filterMethod: @escaping (T) -> Bool = { _ in true },
-    sortMethod: @escaping (T, T) -> Bool = { $0.toString < $1.toString }
+    sortMethod: @escaping (T, T) -> Bool = { $0.searchableString < $1.searchableString }
   ) {
     self.idKeyPath = idKeyPath
     self.filterMethod = filterMethod

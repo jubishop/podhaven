@@ -44,6 +44,7 @@ struct UnsavedPodcast: Savable, Stringable {
   // MARK: - Savable
 
   var toString: String { self.title }
+  var searchableString: String { self.title }
 }
 
 @Saved<UnsavedPodcast>
