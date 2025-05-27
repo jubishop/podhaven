@@ -1,14 +1,7 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import Foundation
 import StoreKit
-
-extension Container {
-  var appInfo: Factory<AppInfo> {
-    Factory(self) { AppInfo() }.scope(.cached)
-  }
-}
 
 enum EnvironmentType: String {
   case appStore
@@ -21,36 +14,18 @@ enum EnvironmentType: String {
 final actor AppInfo: Sendable {
   // MARK: - Environment Info
 
-  static var isPreview: Bool {
-    ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+  static var environment: EnvironmentType = .appStore
+
+  static func initializeEnvironment() async {
+    environment = await _getEnvironment()
   }
 
-  static var isSimulator: Bool {
+  private static func _getEnvironment() async -> EnvironmentType {
+    if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" { return .preview }
+
     #if targetEnvironment(simulator)
-    true
+    return .simulator
     #else
-    false
-    #endif
-  }
-
-  private var _environment: EnvironmentType?
-  var environment: EnvironmentType {
-    get async {
-      if let environment = _environment {
-        return environment
-      }
-      let environment = await _getEnvironment()
-      _environment = environment
-      return environment
-    }
-  }
-
-  // MARK: - Private Helpers
-
-  private func _getEnvironment() async -> EnvironmentType {
-    if Self.isPreview { return .preview }
-    if Self.isSimulator { return .simulator }
-
     do {
       let result = try await AppTransaction.shared
       switch result {
@@ -69,5 +44,6 @@ final actor AppInfo: Sendable {
     } catch {
       return .mac
     }
+    #endif
   }
 }

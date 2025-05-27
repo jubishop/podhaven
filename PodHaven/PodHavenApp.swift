@@ -10,45 +10,34 @@ import SwiftUI
 @main
 struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
+  @State private var isInitialized = false
 
-  init() {
-    Task {
-      await Self.configureLogging()
-      Self.configureAudioSession()
-      await Container.shared.playManager().start()
-      await Container.shared.refreshManager().start()
-    }
+  init() {}
+
+  private func start() async {
+    await AppInfo.initializeEnvironment()
+    await Self.configureLogging()
+    isInitialized = true
+    Self.configureAudioSession()
+    await Container.shared.playManager().start()
+    await Container.shared.refreshManager().start()
   }
 
   var body: some Scene {
     WindowGroup {
-      ContentView()
-        .customAlert($alert.config)
-    }
-  }
-
-  private static func configureLogging() async {
-    let environment = await Container.shared.appInfo().environment
-    switch environment {
-    case .appStore:
-      break  // Nothing so app is stable and fast
-    case .iPhone:
-      configureBugFender()
-      configureSentry(environment)
-
-      LoggingSystem.bootstrap { label in
-        MultiplexLogHandler([
-          OSLogHandler(label: label),
-          RemoteLogHandler(label: label),
-          CrashReportHandler(),
-        ])
+      Group {
+        if isInitialized {
+          ContentView()
+            .customAlert($alert.config)
+        } else {
+          ProgressView("Loading...")
+        }
       }
-    case .preview:
-      LoggingSystem.bootstrap(PrintLogHandler.init)
-    case .simulator, .mac:
-      LoggingSystem.bootstrap(OSLogHandler.init)
+      .task(start)
     }
   }
+
+  // MARK: - System Permissions
 
   private static func configureAudioSession() {
     let audioSession = AVAudioSession.sharedInstance()
@@ -61,13 +50,35 @@ struct PodHavenApp: App {
     }
   }
 
+  // MARK: - Logging
+
+  private static func configureLogging() async {
+    switch AppInfo.environment {
+    case .iPhone:
+      configureBugFender()
+      configureSentry()
+
+      LoggingSystem.bootstrap { label in
+        MultiplexLogHandler([
+          OSLogHandler(label: label),
+          RemoteLogHandler(label: label),
+          CrashReportHandler(),
+        ])
+      }
+    case .preview:
+      LoggingSystem.bootstrap(PrintLogHandler.init)
+    case .simulator, .mac, .appStore:
+      LoggingSystem.bootstrap(OSLogHandler.init)
+    }
+  }
+
   private static func configureBugFender() {
     Bugfender.activateLogger("DHXOFyzIYy2lzznaFpku5oXaiGwqqDXE")
     Bugfender.setPrintToConsole(false)
-    Bugfender.enableCrashReporting()  // optional, log crashes automatically
+    Bugfender.enableCrashReporting()
   }
 
-  private static func configureSentry(_ environment: EnvironmentType) {
+  private static func configureSentry() {
     SentrySDK.start { options in
       options.dsn =
         "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"

@@ -8,11 +8,6 @@ struct DebugSection: View {
 
   private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
-  private let environmentType: EnvironmentType
-  init(environmentType: EnvironmentType) {
-    self.environmentType = environmentType
-  }
-
   var body: some View {
     Section("Debugging") {
       #if DEBUG
@@ -37,7 +32,7 @@ struct DebugSection: View {
       }
       #endif
 
-      Text("Environment: \(environmentType)")
+      Text("Environment: \(AppInfo.environment)")
 
       #if DEBUG
       Text("in DEBUG")
@@ -68,7 +63,6 @@ struct DebugSection: View {
 
 #if DEBUG
 #Preview {
-  DebugSection(environmentType: EnvironmentType.appStore)
-    .preview()
+  DebugSection().preview()
 }
 #endif

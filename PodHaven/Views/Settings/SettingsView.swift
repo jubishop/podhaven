@@ -6,7 +6,7 @@ import SwiftUI
 struct SettingsView: View {
   @InjectedObservable(\.navigation) private var navigation
 
-  @State private var viewModel = SettingsViewModel()
+  private let viewModel = SettingsViewModel()
 
   var body: some View {
     NavigationStack(path: $navigation.settingsPath) {
@@ -15,8 +15,8 @@ struct SettingsView: View {
           NavigationLink(value: Navigation.SettingsView.opml, label: { Text("OPML") })
         }
 
-        if viewModel.currentEnvironment != .appStore {
-          DebugSection(environmentType: viewModel.currentEnvironment)
+        if AppInfo.environment != .appStore {
+          DebugSection()
         }
       }
       .navigationTitle("Settings")
@@ -25,7 +25,7 @@ struct SettingsView: View {
         case .opml: OPMLView()
         }
       }
-    }.task(viewModel.execute)
+    }
   }
 }
 
