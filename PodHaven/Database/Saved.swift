@@ -45,7 +45,5 @@ extension Saved {
 
   // MARK: - Savable
 
-  public var toString: String {
-    unsaved.toString
-  }
+  public var toString: String { "[\(id)] - \(unsaved.toString)" }
 }

@@ -36,5 +36,5 @@ struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifia
 
   // MARK: - Stringable
 
-  var toString: String { podcast.toString }
+  var toString: String { "[\(id)] - \(podcast.toString)" }
 }

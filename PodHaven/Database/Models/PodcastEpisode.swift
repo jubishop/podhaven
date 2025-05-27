@@ -10,18 +10,17 @@ struct PodcastEpisode: Codable, Equatable, FetchableRecord, Hashable, Identifiab
 
   // MARK: - Stringable
 
-  var toString: String { episode.title }
+  var toString: String { "[\(id)] - \(episode.title)" }
 
   // MARK: - Data
 
   let podcast: Podcast
   let episode: Episode
-  
+
   // MARK: - Equatable
-  
+
   static func == (lhs: PodcastEpisode, rhs: OnDeck) -> Bool {
-    lhs.episode.guid == rhs.guid &&
-    lhs.podcast.feedURL == rhs.feedURL &&
-    lhs.episode.media == rhs.media
+    lhs.episode.guid == rhs.guid && lhs.podcast.feedURL == rhs.feedURL
+      && lhs.episode.media == rhs.media
   }
 }
