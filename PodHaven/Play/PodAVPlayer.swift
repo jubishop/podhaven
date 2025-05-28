@@ -333,7 +333,7 @@ extension Container {
 
   private func handleEpisodeFinished() async throws(PlaybackError) {
     guard let finishedPodcastEpisode = self.podcastEpisode
-    else { throw PlaybackError.finishedEpisodeIsNil }
+    else { Assert.fatal("Finished episode but current episode is nil?") }
 
     log.debug("handleEpisodeFinished: Episode finished: \(finishedPodcastEpisode.toString)")
 

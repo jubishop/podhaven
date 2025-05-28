@@ -89,7 +89,7 @@ extension Container {
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) {
     guard podcastEpisode != podAVPlayer.podcastEpisode
-    else { throw PlaybackError.loadingPodcastAlreadyPlaying(podcastEpisode) }
+    else { Assert.fatal("Loading podcast \(podcastEpisode.toString) that's already loaded") }
 
     if status == .loading {
       guard let loadingTask = loadingTask
