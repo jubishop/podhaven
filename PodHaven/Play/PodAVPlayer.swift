@@ -3,6 +3,7 @@
 import AVFoundation
 import FactoryKit
 import Foundation
+import IdentifiedCollections
 import Logging
 import Semaphore
 
@@ -204,11 +205,14 @@ extension Container {
               else { Assert.fatal("\($0.asset) is not an AVURLAsset") }
               return MediaURL(urlAsset.url)
             }
-          let podcastEpisodes = try await Container.shared.repo().episodes(mediaURLs)
+          let podcastEpisodes = IdentifiedArray(
+            uniqueElements: try await Container.shared.repo().episodes(mediaURLs),
+            id: \.episode.media
+          )
           var podcastEpisodesFound: [PodcastEpisode] = []
           var mediaURLsNotFound: [MediaURL] = []
           for mediaURL in mediaURLs {
-            if let podcastEpisode = podcastEpisodes.first(where: { $0.episode.media == mediaURL }) {
+            if let podcastEpisode = podcastEpisodes[id: mediaURL] {
               podcastEpisodesFound.append(podcastEpisode)
             } else {
               mediaURLsNotFound.append(mediaURL)
@@ -236,7 +240,7 @@ extension Container {
           log.debug(
             """
             insertNextPodcastEpisode: AVPlayer assets at end of function are:
-              \(podcastEpisodes.map(\.toString).joined(separator: "\n  "))
+              \(podcastEpisodesFound.map(\.toString).joined(separator: "\n  "))
             """
           )
 
