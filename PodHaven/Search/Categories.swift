@@ -102,7 +102,7 @@ extension SearchService {
     "Tennis",
     "Travel",
     "True Crime",
-    "Video-Games",
+    "Video Games",
     "Volleyball",
     "Weather",
     "Wilderness",
