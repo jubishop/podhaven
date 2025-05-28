@@ -57,6 +57,7 @@ extension Container {
     }
   }
 
+  private var loadingTask: Task<Void, any Error>?
   private var nextEpisodeTask: Task<Void, any Error>?
   private let nextEpisodeSemaphore = AsyncSemaphore(value: 1)
   private var interruptionTask: Task<Void, Never>?
@@ -91,37 +92,43 @@ extension Container {
     else { throw PlaybackError.loadingPodcastAlreadyPlaying(podcastEpisode) }
 
     if status == .loading {
-      throw PlaybackError.loadingPodcastWhenAlreadyLoading(
-        currentPodcastEpisode: podAVPlayer.podcastEpisode,
-        loadingPodcastEpisode: podcastEpisode
-      )
+      guard let loadingTask = loadingTask
+      else { Assert.fatal("loadingTask should not be nil if status is loading still") }
+
+      loadingTask.cancel()
     }
-    await setStatus(.loading)
+
     defer {
+      self.loadingTask = nil
       if status != .active {
         log.notice("load.defer: Status in load never became active, going back to stopped")
         Task { await setStatus(.stopped) }
       }
     }
 
-    log.info("playManager loading: \(podcastEpisode.toString)")
+    let task = Task {
+      await setStatus(.loading)
 
-    if let outgoingPodcastEpisode = podAVPlayer.podcastEpisode {
-      log.debug("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
-      try? await queue.unshift(outgoingPodcastEpisode.id)
-    }
-    await stopAndClearOnDeck()
-    let duration: CMTime
-    do {
-      duration = try await podAVPlayer.load(podcastEpisode)
-    } catch {
-      log.error(error)
-      throw error
-    }
-    await setOnDeck(podcastEpisode, duration)
-    try? await queue.dequeue(podcastEpisode.id)
+      log.info("playManager loading: \(podcastEpisode.toString)")
 
-    await setStatus(.active)
+      if let outgoingPodcastEpisode = podAVPlayer.podcastEpisode {
+        log.debug("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
+        try? await queue.unshift(outgoingPodcastEpisode.id)
+      }
+
+      await stopAndClearOnDeck()
+
+      let duration = try await podAVPlayer.load(podcastEpisode)
+      await setOnDeck(podcastEpisode, duration)
+      try? await queue.dequeue(podcastEpisode.id)
+
+      await setStatus(.active)
+    }
+
+    self.loadingTask = task
+    try await PlaybackError.catch {
+      try await task.value
+    }
   }
 
   // MARK: - Playback Controls
