@@ -11,6 +11,7 @@ import SwiftUI
 @main
 struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
+
   @State private var isInitialized = false
 
   var body: some Scene {

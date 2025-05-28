@@ -5,11 +5,16 @@ import Foundation
 import SwiftUI
 
 struct PreviewModifier: ViewModifier {
+  private static var isInitialized: Bool = false
+
   @InjectedObservable(\.alert) private var alert
 
   init() {
-    AppInfo.environment = .preview
-    PodHavenApp.configureLogging()
+    if !Self.isInitialized {
+      AppInfo.environment = .preview
+      PodHavenApp.configureLogging()
+      Self.isInitialized = true
+    }
   }
 
   func body(content: Content) -> some View {
