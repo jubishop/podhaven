@@ -7,5 +7,7 @@ import SwiftUI
 @Observable @MainActor final class SettingsViewModel {
   // MARK: - Initialization
 
-  init() {}
+  init() {
+
+  }
 }

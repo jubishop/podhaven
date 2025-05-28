@@ -34,6 +34,12 @@ struct DebugSection: View {
 
       Text("Environment: \(AppInfo.environment)")
 
+      Text("Device ID: \(AppInfo.deviceIdentifier)")
+
+      if AppInfo.myPhone {
+        Text("This is my phone")
+      }
+
       #if DEBUG
       Text("in DEBUG")
       #else
