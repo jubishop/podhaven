@@ -5,7 +5,7 @@ import Foundation
 import IdentifiedCollections
 
 @MainActor protocol QueueableSelectableEpisodeList: AnyObject, QueueableSelectableList {
-  associatedtype EpisodeType: Stringable & Searchable
+  associatedtype EpisodeType: Searchable
   associatedtype EpisodeID: Hashable
 
   var episodeList: SelectableListUseCase<EpisodeType, EpisodeID> { get set }

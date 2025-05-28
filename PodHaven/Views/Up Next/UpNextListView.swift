@@ -24,7 +24,7 @@ struct UpNextListView: View {
         .buttonStyle(BorderlessButtonStyle())
       }
 
-      Text(viewModel.episode.toString)
+      Text(viewModel.episode.title)
         .lineLimit(2)
 
       Spacer()

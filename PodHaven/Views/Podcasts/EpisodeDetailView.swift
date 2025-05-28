@@ -14,9 +14,9 @@ struct EpisodeDetailView: View {
 
   var body: some View {
     VStack(spacing: 40) {
-      Text(viewModel.podcast.toString)
+      Text(viewModel.podcast.title)
         .font(.largeTitle)
-      Text(viewModel.episode.toString)
+      Text(viewModel.episode.title)
       Text("Duration: \(viewModel.episode.duration)")
       if !viewModel.onDeck {
         Button("Play Now") {

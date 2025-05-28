@@ -174,7 +174,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
 
             await Task { @MainActor in
               outline.feedURL = unsavedPodcast.feedURL
-              outline.text = unsavedPodcast.toString
+              outline.text = unsavedPodcast.title
             }
             .value
 

@@ -26,7 +26,7 @@ struct EpisodeResultsListView: View {
         .buttonStyle(BorderlessButtonStyle())
       }
 
-      Text(viewModel.item.toString)
+      Text(viewModel.item.title)
         .lineLimit(2)
 
       Spacer()
