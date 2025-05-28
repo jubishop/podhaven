@@ -61,6 +61,8 @@ struct Queue: Sendable {
   }
 
   func insert(_ episodeID: Episode.ID, at newPosition: Int) async throws {
+    log.debug("queue: inserting \(episodeID) at position \(newPosition)")
+
     try await appDB.db.write { db in
       try _insert(db, episodeID, at: newPosition)
     }
@@ -185,6 +187,8 @@ struct Queue: Sendable {
   ) throws {
     guard newPosition != oldPosition else { return }
     Assert.precondition(db.isInsideTransaction, "moveInQueue method requires a transaction")
+
+    log.debug("queue: moving episode \(episodeID) from position \(oldPosition) to \(newPosition)")
 
     if newPosition > oldPosition {
       try Episode.filter {
