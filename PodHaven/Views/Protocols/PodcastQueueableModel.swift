@@ -6,8 +6,8 @@ import Foundation
 @MainActor protocol PodcastQueueableModel: AnyObject, EpisodeQueueable, PodcastEpisodeGettable {}
 
 @MainActor extension PodcastQueueableModel {
+  private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: Queue { Container.shared.queue() }
-  private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   func playEpisode(_ episode: EpisodeType) {
     Task { [weak self] in

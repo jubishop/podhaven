@@ -12,10 +12,10 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
+  @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
-  private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   private let log = Log.as(LogSubsystem.PodcastsView.detail)
 

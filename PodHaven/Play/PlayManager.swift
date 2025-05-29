@@ -9,20 +9,19 @@ import Semaphore
 import Sharing
 
 extension Container {
-  @PlayActor
   var playManager: Factory<PlayManager> {
-    Factory(self) { @PlayActor in PlayManager() }.scope(.cached)
+    Factory(self) { PlayManager() }.scope(.cached)
   }
 }
 
-@PlayActor final class PlayManager {
+actor PlayManager {
   @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.images) private var images
   @DynamicInjected(\.observatory) private var observatory
-  @DynamicInjected(\.podAVPlayer) private var podAVPlayer
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   var playState: PlayState { get async { await Container.shared.playState() } }
+  var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
 
   private let log = Log.as(LogSubsystem.Play.manager)
 
@@ -68,16 +67,16 @@ extension Container {
 
   // MARK: - Initialization
 
-  fileprivate init() {
+  fileprivate init() {}
+
+  func start() async {
     observeNextEpisode()
     startInterruptionNotifications()
     startListeningToCommandCenter()
     startListeningToCurrentTime()
     startListeningToControlStatus()
     startListeningToPlayToEnd()
-  }
 
-  func start() async {
     guard let currentEpisodeID = currentEpisodeID,
       let podcastEpisode = try? await repo.episode(currentEpisodeID)
     else { return }
@@ -88,7 +87,7 @@ extension Container {
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) {
-    guard podcastEpisode != podAVPlayer.podcastEpisode
+    guard await podAVPlayer.podcastEpisode != podcastEpisode
     else { Assert.fatal("Loading podcast \(podcastEpisode.toString) that's already loaded") }
 
     if status == .loading {
@@ -111,15 +110,13 @@ extension Container {
 
       log.info("playManager loading: \(podcastEpisode.toString)")
 
-      if let outgoingPodcastEpisode = podAVPlayer.podcastEpisode {
+      if let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode {
         log.debug("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
         try? await queue.unshift(outgoingPodcastEpisode.id)
       }
 
       await stopAndClearOnDeck()
-
-      let duration = try await podAVPlayer.load(podcastEpisode)
-      await setOnDeck(podcastEpisode, duration)
+      await setOnDeck(try await podAVPlayer.load(podcastEpisode))
       try? await queue.dequeue(podcastEpisode.id)
 
       await setStatus(.active)
@@ -139,11 +136,11 @@ extension Container {
       "tried to play but status is \(status) which is not playable"
     )
 
-    podAVPlayer.play()
+    Task { await podAVPlayer.play() }
   }
 
   func pause() {
-    podAVPlayer.pause()
+    Task { await podAVPlayer.pause() }
   }
 
   // MARK: - Seeking
@@ -162,8 +159,10 @@ extension Container {
 
   // MARK: - Private State Management
 
-  private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async {
-    log.debug("Setting on deck: \(podcastEpisode.toString), with duration: \(duration)")
+  private func setOnDeck(_ loadedPodcastEpisode: LoadedPodcastEpisode) async {
+    log.debug("Setting on deck: \(loadedPodcastEpisode.toString)")
+
+    let podcastEpisode = loadedPodcastEpisode.podcastEpisode
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
@@ -172,7 +171,7 @@ extension Container {
       podcastTitle: podcastEpisode.podcast.title,
       podcastURL: podcastEpisode.podcast.link,
       episodeTitle: podcastEpisode.episode.title,
-      duration: duration,
+      duration: loadedPodcastEpisode.duration,
       image: try? await images.fetchImage(imageURL),
       media: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate
@@ -199,7 +198,7 @@ extension Container {
 
   private func stopAndClearOnDeck() async {
     log.debug("stopAndClearOnDeck: executing")
-    podAVPlayer.stop()
+    await podAVPlayer.stop()
     nowPlayingInfo = nil
     await playState.setOnDeck(nil)
     await setCurrentTime(CMTime.zero)
@@ -221,7 +220,7 @@ extension Container {
     nowPlayingInfo?.currentTime(currentTime)
     await playState.setCurrentTime(currentTime)
 
-    guard let currentPodcastEpisode = podAVPlayer.podcastEpisode
+    guard let currentPodcastEpisode = await podAVPlayer.podcastEpisode
     else {
       Assert.precondition(
         currentTime == .zero,
@@ -237,21 +236,19 @@ extension Container {
 
   private func handleEpisodeFinished(
     finishedPodcastEpisode: PodcastEpisode,
-    currentLoadedPodcastEpisode: LoadedPodcastEpisode?
+    loadedCurrentPodcastEpisode: LoadedPodcastEpisode?
   ) async {
     _ = try? await repo.markComplete(finishedPodcastEpisode.id)
 
-    if let currentLoadedPodcastEpisode = currentLoadedPodcastEpisode {
+    if let loadedCurrentPodcastEpisode = loadedCurrentPodcastEpisode {
       log.debug(
         """
         handleEpisodeFinished: enqueuing next episode: \
-        \(currentLoadedPodcastEpisode.toString)
+        \(loadedCurrentPodcastEpisode.toString)
         """
       )
-      let podcastEpisode = currentLoadedPodcastEpisode.podcastEpisode
-      let duration = currentLoadedPodcastEpisode.duration
-      await setOnDeck(podcastEpisode, duration)
-      try? await queue.dequeue(podcastEpisode.id)
+      await setOnDeck(loadedCurrentPodcastEpisode)
+      try? await queue.dequeue(loadedCurrentPodcastEpisode.id)
     } else {
       log.debug("handleEpisodeFinished: no more episodes to play")
       await stopAndClearOnDeck()
@@ -335,7 +332,7 @@ extension Container {
     )
 
     self.currentTimeTask = Task {
-      for await currentTime in podAVPlayer.currentTimeStream {
+      for await currentTime in await podAVPlayer.currentTimeStream {
         await self.setCurrentTime(currentTime)
       }
     }
@@ -348,7 +345,7 @@ extension Container {
     )
 
     self.controlStatusTask = Task {
-      for await controlStatus in podAVPlayer.controlStatusStream {
+      for await controlStatus in await podAVPlayer.controlStatusStream {
         if !status.playable { continue }
         switch controlStatus {
         case AVPlayer.TimeControlStatus.paused:
@@ -371,11 +368,12 @@ extension Container {
     )
 
     self.playToEndTask = Task {
-      for await (finishedPodcastEpisode, currentLoadedPodcastEpisode) in podAVPlayer.playToEndStream
+      for await (finishedPodcastEpisode, loadedCurrentPodcastEpisode)
+        in await podAVPlayer.playToEndStream
       {
         await handleEpisodeFinished(
           finishedPodcastEpisode: finishedPodcastEpisode,
-          currentLoadedPodcastEpisode: currentLoadedPodcastEpisode
+          loadedCurrentPodcastEpisode: loadedCurrentPodcastEpisode
         )
       }
     }
