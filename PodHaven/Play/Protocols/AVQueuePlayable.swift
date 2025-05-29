@@ -1,7 +1,14 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import FactoryKit
 import Foundation
+
+extension Container {
+  var avQueuePlayer: Factory<any AVQueuePlayable> {
+    Factory(self) { AVQueuePlayer() }.scope(.cached)
+  }
+}
 
 @MainActor
 protocol AVQueuePlayable {

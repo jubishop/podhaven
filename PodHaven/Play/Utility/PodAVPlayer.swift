@@ -7,14 +7,17 @@ import IdentifiedCollections
 import Logging
 import Semaphore
 
+@MainActor
+struct EpisodeAsset {
+  let playerItem: any AVPlayableItem
+  let duration: CMTime
+  let isPlayable: Bool
+}
+
 extension Container {
   @MainActor
   var podAVPlayer: Factory<PodAVPlayer> {
     Factory(self) { @MainActor in PodAVPlayer() }.scope(.cached)
-  }
-
-  var avQueuePlayer: Factory<any AVQueuePlayable> {
-    Factory(self) { AVQueuePlayer() }.scope(.cached)
   }
 
   var loadEpisodeAsset: Factory<(_ url: URL) async throws -> EpisodeAsset> {
