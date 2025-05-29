@@ -5,7 +5,7 @@ import Foundation
 
 @MainActor protocol PodcastQueueableModel: AnyObject, EpisodeQueueable, PodcastEpisodeGettable {}
 
-@MainActor extension PodcastQueueableModel {
+extension PodcastQueueableModel {
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: Queue { Container.shared.queue() }
 
@@ -35,11 +35,11 @@ import Foundation
   }
 }
 
-@MainActor extension PodcastQueueableModel where EpisodeType == PodcastEpisode {
+extension PodcastQueueableModel where EpisodeType == PodcastEpisode {
   func getPodcastEpisode(_ episode: PodcastEpisode) async throws -> PodcastEpisode { episode }
   func getEpisodeID(_ episode: PodcastEpisode) async throws -> Episode.ID { episode.id }
 }
 
-@MainActor extension PodcastQueueableModel where EpisodeType == Episode {
+extension PodcastQueueableModel where EpisodeType == Episode {
   func getEpisodeID(_ episode: Episode) async throws -> Episode.ID { episode.id }
 }

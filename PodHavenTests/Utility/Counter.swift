@@ -3,7 +3,7 @@
 import Foundation
 import Semaphore
 
-final actor Counter: Sendable {
+actor Counter: Sendable {
   private(set) var maxValue: Int = 0
   private(set) var minValue: Int = 0
   private(set) var value: Int = 0

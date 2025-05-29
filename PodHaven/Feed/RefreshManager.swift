@@ -11,7 +11,7 @@ extension Container {
   }
 }
 
-final actor RefreshManager: Sendable {
+actor RefreshManager {
   @LazyInjected(\.feedManager) private var feedManager
   @DynamicInjected(\.repo) private var repo
 

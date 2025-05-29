@@ -11,7 +11,7 @@ extension Container {
   }
 }
 
-struct AppDB: Sendable {
+struct AppDB {
   private static let log = Log.as(LogSubsystem.Database.appDB)
 
   #if DEBUG

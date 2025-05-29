@@ -5,13 +5,12 @@ import OSLog
 import SwiftUI
 
 extension Container {
-  @MainActor
-  var alert: Factory<Alert> {
+  @MainActor var alert: Factory<Alert> {
     Factory(self) { @MainActor in Alert() }.scope(.cached)
   }
 }
 
-@Observable @MainActor final class Alert {
+@Observable @MainActor class Alert {
   var config: AlertConfig?
 
   fileprivate init() {}
@@ -37,7 +36,7 @@ extension Container {
   // MARK: - Private Helpers
 }
 
-@Observable @MainActor final class AlertConfig {
+@Observable @MainActor class AlertConfig {
   let title: String
   let actions: AnyView
   let message: AnyView

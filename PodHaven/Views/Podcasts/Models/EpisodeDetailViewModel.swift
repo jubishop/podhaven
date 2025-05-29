@@ -4,7 +4,7 @@ import FactoryKit
 import Foundation
 import GRDB
 
-@Observable @MainActor final class EpisodeDetailViewModel {
+@Observable @MainActor class EpisodeDetailViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager

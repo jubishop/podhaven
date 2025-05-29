@@ -4,8 +4,7 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor
-final class SelectableListUseCase<T: Searchable, ID: Hashable>: SelectableList {
+@Observable @MainActor class SelectableListUseCase<T: Searchable, ID: Hashable>: SelectableList {
   // MARK: - Selection State Management
 
   private var _isSelecting = false

@@ -22,7 +22,7 @@ extension Container {
   }
 }
 
-struct SearchService: Sendable {
+struct SearchService {
   // MARK: - Initialization
 
   private let session: DataFetchable

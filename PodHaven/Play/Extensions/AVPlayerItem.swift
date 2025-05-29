@@ -3,7 +3,7 @@
 import AVFoundation
 import Foundation
 
-extension AVPlayerItem {
+extension AVPlayerItem: AVPlayableItem {
   var assetURL: URL {
     guard let urlAsset = asset as? AVURLAsset
     else { fatalError("\(asset) is not an AVURLAsset") }

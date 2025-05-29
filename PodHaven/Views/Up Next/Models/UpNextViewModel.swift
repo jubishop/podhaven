@@ -6,7 +6,7 @@ import GRDB
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor final class UpNextViewModel {
+@Observable @MainActor class UpNextViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager

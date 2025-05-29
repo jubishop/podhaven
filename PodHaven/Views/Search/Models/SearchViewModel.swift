@@ -5,7 +5,7 @@ import Foundation
 import Logging
 import SwiftUI
 
-@Observable @MainActor final class SearchViewModel {
+@Observable @MainActor class SearchViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.playState) private var playState
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService

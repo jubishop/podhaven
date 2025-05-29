@@ -13,7 +13,7 @@ extension Container {
   }
 }
 
-struct Queue: Sendable {
+struct Queue {
   private let log = Log.as(LogSubsystem.Database.queue)
 
   // MARK: - Initialization

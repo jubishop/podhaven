@@ -3,8 +3,7 @@
 import Foundation
 import SwiftUI
 
-@Observable @MainActor
-final class FakeSelectableList: SelectableList {
+@Observable @MainActor class FakeSelectableList: SelectableList {
   enum Selected: String {
     case all
     case none

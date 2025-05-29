@@ -13,7 +13,7 @@ extension Container {
   }
 }
 
-struct Repo: Sendable {
+struct Repo {
   private let queue = Container.shared.queue()
 
   // MARK: - Initialization

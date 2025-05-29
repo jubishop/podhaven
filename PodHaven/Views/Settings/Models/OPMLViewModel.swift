@@ -7,8 +7,7 @@ import IdentifiedCollections
 import Semaphore
 import UniformTypeIdentifiers
 
-@Observable @MainActor
-final class OPMLOutline: Equatable, Hashable, Identifiable {
+@Observable @MainActor class OPMLOutline: Hashable, Identifiable {
   enum Status {
     case failed, waiting, downloading, finished
   }
@@ -41,7 +40,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   }
 }
 
-@Observable @MainActor final class OPMLFile: Identifiable {
+@Observable @MainActor class OPMLFile: Identifiable {
   let id = UUID()
   let title: String
   var totalCount: Int {
@@ -63,7 +62,7 @@ final class OPMLOutline: Equatable, Hashable, Identifiable {
   }
 }
 
-@Observable @MainActor final class OPMLViewModel {
+@Observable @MainActor class OPMLViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation

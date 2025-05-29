@@ -4,13 +4,12 @@ import FactoryKit
 import SwiftUI
 
 extension Container {
-  @MainActor
-  var navigation: Factory<Navigation> {
+  @MainActor var navigation: Factory<Navigation> {
     Factory(self) { @MainActor in Navigation() }.scope(.cached)
   }
 }
 
-@Observable @MainActor final class Navigation: Sendable {
+@Observable @MainActor class Navigation {
   enum Tab {
     case settings, search, upNext, playlists, podcasts
   }

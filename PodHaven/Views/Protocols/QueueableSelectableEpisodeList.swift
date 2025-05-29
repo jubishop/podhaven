@@ -15,7 +15,7 @@ import IdentifiedCollections
   var selectedEpisodeIDs: [Episode.ID] { get async throws }
 }
 
-@MainActor extension QueueableSelectableEpisodeList {
+extension QueueableSelectableEpisodeList {
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: Queue { Container.shared.queue() }
 
@@ -65,6 +65,6 @@ import IdentifiedCollections
   }
 }
 
-@MainActor extension QueueableSelectableEpisodeList where EpisodeType == PodcastEpisode {
+extension QueueableSelectableEpisodeList where EpisodeType == PodcastEpisode {
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws { selectedEpisodes } }
 }

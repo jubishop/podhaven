@@ -5,12 +5,12 @@ import OrderedCollections
 
 typealias DownloadResult = Result<DownloadData, DownloadError>
 
-struct DownloadData: Sendable, Equatable, Hashable {
+struct DownloadData: Equatable, Hashable {
   let url: URL
   let data: Data
 }
 
-final actor DownloadTask: Sendable {
+actor DownloadTask {
   let url: URL
   var finished: Bool { result != nil }
 
@@ -99,7 +99,7 @@ final actor DownloadTask: Sendable {
   }
 }
 
-final actor DownloadManager: Sendable {
+actor DownloadManager {
   private var activeDownloads: [URL: DownloadTask] = [:]
   private var pendingDownloads: OrderedDictionary<URL, DownloadTask> = [:]
   private let session: DataFetchable

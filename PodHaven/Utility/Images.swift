@@ -11,7 +11,7 @@ extension Container {
   }
 }
 
-struct Images: Sendable {
+struct Images {
   private let pipeline = ImagePipeline.shared
   private let prefetcher = ImagePrefetcher()
 

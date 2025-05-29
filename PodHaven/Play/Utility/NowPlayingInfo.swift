@@ -10,7 +10,7 @@ extension Container {
   }
 }
 
-struct NowPlayingInfo: Sendable {
+struct NowPlayingInfo {
   // MARK: - State Management
 
   private let onDeck: OnDeck

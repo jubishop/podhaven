@@ -6,7 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-final actor FakeDataFetchable: DataFetchable {
+actor FakeDataFetchable: DataFetchable {
   private let session: URLSession
   private var mockHandlers: [URL: @Sendable (URL) async throws -> (Data, URLResponse)] = [:]
   private(set) var requests: [URL] = []

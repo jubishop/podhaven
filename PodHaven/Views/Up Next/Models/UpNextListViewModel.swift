@@ -5,7 +5,7 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor final class UpNextListViewModel {
+@Observable @MainActor class UpNextListViewModel {
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue

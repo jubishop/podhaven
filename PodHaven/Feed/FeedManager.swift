@@ -24,7 +24,7 @@ extension Container {
 
 typealias FeedResult = Result<PodcastFeed, FeedError>
 
-struct FeedTask: Sendable {
+struct FeedTask {
   let downloadTask: DownloadTask
 
   fileprivate init(_ downloadTask: DownloadTask) {
@@ -50,7 +50,7 @@ struct FeedTask: Sendable {
   }
 }
 
-final actor FeedManager: Sendable {
+actor FeedManager {
   // MARK: - Concurrent Download Management
 
   private let downloadManager: DownloadManager

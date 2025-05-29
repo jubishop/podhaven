@@ -3,9 +3,6 @@
 import AVFoundation
 import Foundation
 
-@MainActor
-protocol AVPlayableItem {
+@MainActor protocol AVPlayableItem {
   var assetURL: URL { get }
 }
-
-extension AVPlayerItem: AVPlayableItem {}

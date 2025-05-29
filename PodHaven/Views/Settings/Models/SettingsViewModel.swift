@@ -4,7 +4,7 @@ import FactoryKit
 import Foundation
 import SwiftUI
 
-@Observable @MainActor final class SettingsViewModel {
+@Observable @MainActor class SettingsViewModel {
   // MARK: - Initialization
 
   init() {

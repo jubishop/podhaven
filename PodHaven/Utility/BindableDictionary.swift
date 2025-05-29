@@ -3,7 +3,7 @@
 import Foundation
 
 @Observable
-final class BindableDictionary<Key: Hashable, Value>: Sequence {
+class BindableDictionary<Key: Hashable, Value>: Sequence {
   private var dictionary: [Key: Value] = [:]
   private let defaultValue: Value
 

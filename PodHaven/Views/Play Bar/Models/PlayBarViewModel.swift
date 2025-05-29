@@ -6,13 +6,12 @@ import Foundation
 import SwiftUI
 
 extension Container {
-  @MainActor
-  var playBarViewModel: Factory<PlayBarViewModel> {
+  @MainActor var playBarViewModel: Factory<PlayBarViewModel> {
     Factory(self) { @MainActor in PlayBarViewModel() }.scope(.cached)
   }
 }
 
-@Observable @MainActor final class PlayBarViewModel {
+@Observable @MainActor class PlayBarViewModel {
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.playState) private var playState
 

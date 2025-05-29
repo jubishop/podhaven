@@ -8,7 +8,7 @@ import Logging
 import Sharing
 import SwiftUI
 
-@Observable @MainActor final class StandardPodcastsViewModel {
+@Observable @MainActor class StandardPodcastsViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager

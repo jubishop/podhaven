@@ -7,16 +7,8 @@ import IdentifiedCollections
 import Logging
 import Semaphore
 
-@MainActor
-struct EpisodeAsset {
-  let playerItem: any AVPlayableItem
-  let duration: CMTime
-  let isPlayable: Bool
-}
-
 extension Container {
-  @MainActor
-  var podAVPlayer: Factory<PodAVPlayer> {
+  @MainActor var podAVPlayer: Factory<PodAVPlayer> {
     Factory(self) { @MainActor in PodAVPlayer() }.scope(.cached)
   }
 
@@ -35,7 +27,7 @@ extension Container {
   }
 }
 
-@MainActor final class PodAVPlayer {
+@MainActor class PodAVPlayer {
   @DynamicInjected(\.avQueuePlayer) var avQueuePlayer
   @DynamicInjected(\.loadEpisodeAsset) var loadEpisodeAsset
 

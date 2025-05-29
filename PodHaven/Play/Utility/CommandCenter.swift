@@ -10,7 +10,7 @@ extension Container {
   }
 }
 
-struct CommandCenter: Sendable {
+struct CommandCenter {
   enum Command {
     case play, pause, togglePlayPause
     case skipBackward(TimeInterval)

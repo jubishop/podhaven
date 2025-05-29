@@ -6,8 +6,7 @@ import GRDB
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor
-class StandardPlaylistViewModel:
+@Observable @MainActor class StandardPlaylistViewModel:
   PodcastQueueableModel,
   QueueableSelectableEpisodeList
 {

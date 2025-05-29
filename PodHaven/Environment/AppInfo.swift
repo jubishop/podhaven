@@ -12,7 +12,7 @@ enum EnvironmentType: String {
   case simulator
 }
 
-final actor AppInfo: Sendable {
+actor AppInfo {
   // MARK: - Environment Info
 
   private static let key = "com.artisanalsoftware.PodHaven"
