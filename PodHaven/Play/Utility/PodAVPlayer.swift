@@ -17,14 +17,24 @@ extension Container {
     Factory(self) { AVQueuePlayer() }.scope(.cached)
   }
 
-  var episodeAssetLoader: Factory<any EpisodeAssetLoadable> {
-    Factory(self) { AVFoundationEpisodeAssetLoader() }
+  var loadEpisodeAsset: Factory<(_ url: URL) async throws -> EpisodeAsset> {
+    Factory(self) {
+      { url in
+        let asset = AVURLAsset(url: url)
+        let (isPlayable, duration) = try await asset.load(.isPlayable, .duration)
+        return await EpisodeAsset(
+          playerItem: AVPlayerItem(asset: asset),
+          duration: duration,
+          isPlayable: isPlayable
+        )
+      }
+    }
   }
 }
 
 @MainActor final class PodAVPlayer {
   @DynamicInjected(\.avQueuePlayer) var avQueuePlayer
-  @DynamicInjected(\.episodeAssetLoader) var episodeAssetLoader
+  @DynamicInjected(\.loadEpisodeAsset) var loadEpisodeAsset
 
   private let log = Log.as(LogSubsystem.Play.avPlayer)
 
@@ -106,7 +116,7 @@ extension Container {
   {
     let episodeAsset: EpisodeAsset
     do {
-      episodeAsset = try await episodeAssetLoader.load(for: podcastEpisode.episode.media.rawValue)
+      episodeAsset = try await loadEpisodeAsset(podcastEpisode.episode.media.rawValue)
     } catch {
       throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
     }
