@@ -134,7 +134,10 @@ extension Container {
   // MARK: - Playback Controls
 
   func play() {
-    Assert.precondition(status.playable, "play: status is \(status) which is not playable")
+    Assert.precondition(
+      status.playable,
+      "tried to play but status is \(status) which is not playable"
+    )
 
     podAVPlayer.play()
   }
@@ -222,10 +225,7 @@ extension Container {
     else {
       Assert.precondition(
         currentTime == .zero,
-        """
-        setCurrentTime: tried to set current time to: \
-        \(currentTime) but there is no current episode?
-        """
+        "tried to set current time to: \(currentTime) but there is no current episode?"
       )
       return
     }
