@@ -4,7 +4,7 @@ import Foundation
 import SwiftUI
 
 @Observable @MainActor
-final class MockSelectableList: SelectableList {
+final class FakeSelectableList: SelectableList {
   enum Selected: String {
     case all
     case none

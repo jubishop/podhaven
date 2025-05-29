@@ -4,7 +4,7 @@ import Foundation
 import SwiftUI
 
 @Observable @MainActor
-final class MockQueueableSelectableList: QueueableSelectableList {
+final class StubQueueableSelectableList: QueueableSelectableList {
   func addSelectedEpisodesToTopOfQueue() {}
   func addSelectedEpisodesToBottomOfQueue() {}
   func replaceQueue() {}

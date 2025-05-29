@@ -15,7 +15,7 @@ class SearchServiceTests {
   @DynamicInjected(\.searchServiceSession) private var searchServiceSession
   @DynamicInjected(\.searchService) private var searchService
 
-  var session: DataFetchableMock { searchServiceSession as! DataFetchableMock }
+  var session: FakeDataFetchable { searchServiceSession as! FakeDataFetchable }
 
   @Test("basic search query")
   func testBasicSearchQuery() async throws {

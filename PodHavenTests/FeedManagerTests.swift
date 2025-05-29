@@ -13,7 +13,7 @@ class FeedManagerTests {
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
   @LazyInjected(\.feedManager) private var feedManager
 
-  var session: DataFetchableMock { feedManagerSession as! DataFetchableMock }
+  var session: FakeDataFetchable { feedManagerSession as! FakeDataFetchable }
 
   @Test("parsing the Pod Save America feed")
   func parsePodSaveAmericaFeed() async throws {

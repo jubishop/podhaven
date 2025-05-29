@@ -32,7 +32,7 @@ struct SelectableListMenu: View {
 
 #if DEBUG
 #Preview {
-  @Previewable @State var list = MockSelectableList()
+  @Previewable @State var list = FakeSelectableList()
 
   VStack(spacing: 20) {
     SelectableListMenu(list: list)

@@ -8,10 +8,10 @@ import Testing
 
 @Suite("of DownloadManager tests")
 struct DownloadManagerTests {
-  private let session: DataFetchableMock
+  private let session: FakeDataFetchable
 
   init() {
-    session = DataFetchableMock()
+    session = FakeDataFetchable()
   }
 
   @Test("that a single download works successfully")

@@ -14,7 +14,7 @@ class RefreshManagerTests {
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
   @DynamicInjected(\.refreshManager) private var refreshManager
 
-  var session: DataFetchableMock { feedManagerSession as! DataFetchableMock }
+  var session: FakeDataFetchable { feedManagerSession as! FakeDataFetchable }
 
   @Test("that refreshSeries works")
   func testRefreshSeriesWorks() async throws {

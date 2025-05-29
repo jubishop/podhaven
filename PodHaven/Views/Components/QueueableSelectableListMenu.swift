@@ -34,6 +34,6 @@ struct QueueableSelectableListMenu: View {
 
 #if DEBUG
 #Preview {
-  QueueableSelectableListMenu(list: MockQueueableSelectableList())
+  QueueableSelectableListMenu(list: StubQueueableSelectableList())
 }
 #endif
