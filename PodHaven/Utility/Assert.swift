@@ -3,7 +3,7 @@ import Logging
 import System
 
 enum Assert {
-  private static let log = Log.as("assert")
+  private static let log = Log.as("assert", level: .critical)
 
   static func fatal(
     _ message: String,
