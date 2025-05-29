@@ -8,8 +8,6 @@ enum LogSubsystem {
     case appDB
     case queue
 
-    var subsystem: String { "database" }
-
     var level: Logger.Level {
       switch self {
       case .appDB: return .info
@@ -22,8 +20,6 @@ enum LogSubsystem {
     case manager
     case avPlayer
 
-    var subsystem: String { "play" }
-
     var level: Logger.Level {
       switch self {
       case .manager: return .trace
@@ -35,26 +31,9 @@ enum LogSubsystem {
   enum PodcastsView: String, LogCategorizable {
     case detail
     case standard
-
-    var subsystem: String { "podcasts-view" }
-
-    var level: Logger.Level {
-      switch self {
-      case .detail: return .info
-      case .standard: return .info
-      }
-    }
   }
 
   enum SearchView: String, LogCategorizable {
     case main
-
-    var subsystem: String { "search-view" }
-
-    var level: Logger.Level {
-      switch self {
-      case .main: return .info
-      }
-    }
   }
 }

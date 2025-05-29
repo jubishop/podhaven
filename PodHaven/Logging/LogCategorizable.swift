@@ -9,6 +9,11 @@ protocol LogCategorizable: Sendable {
   var level: Logger.Level { get }
 }
 
+extension LogCategorizable {
+  var subsystem: String { String(describing: type(of: self)) }
+  var level: Logger.Level { .info }
+}
+
 extension LogCategorizable where Self: RawRepresentable, RawValue == String {
   var category: String { rawValue }
 }
