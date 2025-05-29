@@ -187,7 +187,7 @@ extension Container {
       do {
         insertNextPodcastEpisode(try await loadAsset(for: podcastEpisode))
       } catch {
-        log.error(error)
+        log.error(ErrorKit.loggableMessage(for: error))
         insertNextPodcastEpisode(nil)
       }
     } else {

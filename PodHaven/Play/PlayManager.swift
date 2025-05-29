@@ -275,7 +275,7 @@ extension Container {
           nextEpisodeSemaphore.signal()
         }
       } catch {
-        log.error(error)
+        log.error(ErrorKit.loggableMessage(for: error))
       }
     }
   }

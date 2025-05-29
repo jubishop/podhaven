@@ -35,15 +35,13 @@ struct CrashReportHandler: LogHandler {
     function: String,
     line: UInt
   ) {
-    let filePath = FilePath(file)
-
     SentrySDK.capture(message: message.description)
     Honeybadger.notify(
       errorString: message.description,
       context: ["subsystem": subsystem, "category": category]
     )
     Bugfender.sendIssueReturningUrl(
-      withTitle: "[\(String(describing: filePath.stem)):\(line) \(function)]",
+      withTitle: "[\(String(describing: FilePath(file).stem)):\(line) \(function)]",
       text: message.description
     )
   }

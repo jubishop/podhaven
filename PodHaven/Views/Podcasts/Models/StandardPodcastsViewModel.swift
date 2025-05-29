@@ -113,7 +113,7 @@ import SwiftUI
         return
       }
 
-      log.error(error)
+      log.error(ErrorKit.loggableMessage(for: error))
       alert(ErrorKit.message(for: error))
     }
   }

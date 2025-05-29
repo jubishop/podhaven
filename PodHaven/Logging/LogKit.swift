@@ -28,7 +28,7 @@ enum LogKit {
 
   // MARK: - Formatting Helpers
 
-  static func buildLabel(category: String, subsystem: String) -> String {
+  static func buildLabel(subsystem: String, category: String) -> String {
     "\(subsystem)\(labelSeparator)\(category)"
   }
 }

@@ -70,7 +70,7 @@ final class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueue
         return
       }
 
-      log.error(error)
+      log.error(ErrorKit.loggableMessage(for: error))
       alert(ErrorKit.message(for: error))
     }
   }

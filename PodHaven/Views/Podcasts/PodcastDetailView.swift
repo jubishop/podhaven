@@ -74,7 +74,7 @@ struct PodcastDetailView: View {
         } catch {
           if ErrorKit.baseError(for: error) is CancellationError { return }
           if ErrorKit.isRemarkable(error) {
-            log.error(error)
+            log.error(ErrorKit.loggableMessage(for: error))
           } else {
             log.info(ErrorKit.loggableMessage(for: error))
           }
