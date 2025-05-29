@@ -207,12 +207,7 @@ extension Container {
         Task(priority: .utility) { @MainActor in
           await mainActorLogSemaphore.wait()
 
-          let mediaURLs = await avQueuePlayer.items()
-            .map {
-              guard let urlAsset = $0.asset as? AVURLAsset
-              else { Assert.fatal("\($0.asset) is not an AVURLAsset") }
-              return MediaURL(urlAsset.url)
-            }
+          let mediaURLs = await avQueuePlayer.items().map { MediaURL($0.assetURL) }
           let podcastEpisodes = IdentifiedArray(
             uniqueElements: try await Container.shared.repo().episodes(mediaURLs),
             id: \.episode.media
@@ -276,8 +271,8 @@ extension Container {
         Task(priority: .utility) { @MainActor in
           await mainActorLogSemaphore.wait()
 
-          guard let urlAsset = await avQueuePlayer.items().first?.asset as? AVURLAsset,
-            let podcastEpisode = try await Container.shared.repo().episode(MediaURL(urlAsset.url))
+          guard let assetURL = await avQueuePlayer.items().first?.assetURL,
+            let podcastEpisode = try await Container.shared.repo().episode(MediaURL(assetURL))
           else { Assert.fatal("Could not find episode for first and only AVURLAsset") }
 
           log.debug(
@@ -311,8 +306,9 @@ extension Container {
         Task(priority: .utility) { @MainActor in
           await mainActorLogSemaphore.wait()
 
-          guard let urlAsset = lastItem.asset as? AVURLAsset,
-            let podcastEpisode = try await Container.shared.repo().episode(MediaURL(urlAsset.url))
+          guard
+            let podcastEpisode = try await Container.shared.repo()
+              .episode(MediaURL(lastItem.assetURL))
           else { Assert.fatal("Could not find episode for last AVURLAsset") }
 
           log.debug(
