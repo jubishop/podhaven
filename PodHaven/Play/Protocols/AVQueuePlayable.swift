@@ -27,18 +27,21 @@ protocol AVQueuePlayable {
 
 extension AVQueuePlayer: AVQueuePlayable {
   func insert(_ item: any AVPlayableItem, after afterItem: (any AVPlayableItem)?) {
-    guard let playerItem = item as? AVPlayerItem else { return }
-    let afterPlayerItem = afterItem as? AVPlayerItem
+    guard let playerItem = item as? AVPlayerItem,
+      let afterPlayerItem = afterItem as? AVPlayerItem
+    else { Assert.fatal("Inserting non AVPlayerItem into queue player?") }
+
     insert(playerItem, after: afterPlayerItem)
   }
 
   func items() -> [any AVPlayableItem] {
-    let playerItems: [AVPlayerItem] = (self as AVQueuePlayer).items()
-    return playerItems
+    (self as AVQueuePlayer).items() as [AVPlayerItem]
   }
 
   func remove(_ item: any AVPlayableItem) {
-    guard let playerItem = item as? AVPlayerItem else { return }
+    guard let playerItem = item as? AVPlayerItem
+    else { Assert.fatal("Removing non AVPlayerItem from queue player?") }
+
     remove(playerItem)
   }
 
