@@ -3,37 +3,15 @@
 import AVFoundation
 import Foundation
 
-struct EpisodeInfo: Stringable {
+struct LoadedPodcastEpisode: Identifiable, Stringable {
+  var id: Episode.ID { podcastEpisode.id }
+
   let podcastEpisode: PodcastEpisode
   let duration: CMTime
 
-  // MARK: - Stringable
-
-  var toString: String { podcastEpisode.toString }
-}
-
-struct LoadedPodcastEpisode: Stringable {
-  let item: any AVPlayableItem
-  let podcastEpisode: PodcastEpisode
-  let duration: CMTime
-
-  var episodeInfo: EpisodeInfo {
-    EpisodeInfo(podcastEpisode: podcastEpisode, duration: duration)
-  }
+  var assetURL: URL { podcastEpisode.episode.media.rawValue }
 
   // MARK: - Stringable
 
-  var toString: String { podcastEpisode.toString }
-
-  // MARK: - Hashable
-
-  func hash(into hasher: inout Hasher) {
-    hasher.combine(podcastEpisode)
-  }
-
-  // MARK: - Equatable
-
-  static func == (lhs: LoadedPodcastEpisode, rhs: LoadedPodcastEpisode) -> Bool {
-    lhs.podcastEpisode == rhs.podcastEpisode
-  }
+  var toString: String { "[\(duration)]: \(podcastEpisode.toString)" }
 }

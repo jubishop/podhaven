@@ -39,15 +39,22 @@ extension Container {
 
   // MARK: - State Management
 
-  private var loadedNextPodcastEpisode: LoadedPodcastEpisode?
+  typealias FinishedAndLoadedCurrent = (PodcastEpisode, LoadedPodcastEpisode?)
+  typealias LoadedPodcastEpisodeBundle = (
+    loadedPodcastEpisode: LoadedPodcastEpisode,
+    playableItem: any AVPlayableItem
+  )
+  private var nextBundle: LoadedPodcastEpisodeBundle?
+
+  private var loadedNextPodcastEpisode: LoadedPodcastEpisode? { nextBundle?.loadedPodcastEpisode }
   private var loadedCurrentPodcastEpisode: LoadedPodcastEpisode?
 
   let currentTimeStream: AsyncStream<CMTime>
   let controlStatusStream: AsyncStream<AVPlayer.TimeControlStatus>
-  let playToEndStream: AsyncStream<(PodcastEpisode, EpisodeInfo?)>
+  let playToEndStream: AsyncStream<FinishedAndLoadedCurrent>
   private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
   private let controlStatusContinuation: AsyncStream<AVPlayer.TimeControlStatus>.Continuation
-  private let playToEndContinuation: AsyncStream<(PodcastEpisode, EpisodeInfo?)>.Continuation
+  private let playToEndContinuation: AsyncStream<FinishedAndLoadedCurrent>.Continuation
 
   private var timeControlStatusObserver: NSKeyValueObservation?
   private var periodicTimeObserver: Any?
@@ -63,7 +70,7 @@ extension Container {
       of: AVPlayer.TimeControlStatus.self
     )
     (self.playToEndStream, self.playToEndContinuation) = AsyncStream.makeStream(
-      of: (PodcastEpisode, EpisodeInfo?).self
+      of: FinishedAndLoadedCurrent.self
     )
 
     addPeriodicTimeObserver()
@@ -80,22 +87,22 @@ extension Container {
     self.loadedCurrentPodcastEpisode = nil
   }
 
-  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> CMTime {
+  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> LoadedPodcastEpisode {
     log.debug("avQueuePlayer loading: \(podcastEpisode.toString)")
 
-    let loadedPodcastEpisode = try await loadAsset(for: podcastEpisode)
+    let (loadedPodcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
     self.loadedCurrentPodcastEpisode = loadedPodcastEpisode
 
     avQueuePlayer.removeAllItems()
-    avQueuePlayer.insert(loadedPodcastEpisode.item, after: nil)
-    insertNextPodcastEpisode(self.loadedNextPodcastEpisode)
+    avQueuePlayer.insert(playableItem, after: nil)
+    insertNextPodcastEpisode(nextBundle)
     addPeriodicTimeObserver()
 
-    return loadedPodcastEpisode.duration
+    return loadedPodcastEpisode
   }
 
   private func loadAsset(for podcastEpisode: PodcastEpisode) async throws(PlaybackError)
-    -> LoadedPodcastEpisode
+    -> LoadedPodcastEpisodeBundle
   {
     let episodeAsset: EpisodeAsset
     do {
@@ -107,10 +114,12 @@ extension Container {
     guard episodeAsset.isPlayable
     else { throw PlaybackError.mediaNotPlayable(podcastEpisode) }
 
-    return LoadedPodcastEpisode(
-      item: episodeAsset.playerItem,
-      podcastEpisode: podcastEpisode,
-      duration: episodeAsset.duration
+    return (
+      LoadedPodcastEpisode(
+        podcastEpisode: podcastEpisode,
+        duration: episodeAsset.duration
+      ),
+      episodeAsset.playerItem
     )
   }
 
@@ -200,7 +209,7 @@ extension Container {
 
   // MARK: - Private State Management
 
-  private func insertNextPodcastEpisode(_ loadedNextPodcastEpisode: LoadedPodcastEpisode?) {
+  private func insertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) {
     defer {
       if log.wouldLog(.debug) {
         Task(priority: .utility) {
@@ -254,11 +263,11 @@ extension Container {
     log.debug(
       """
       insertNextPodcastEpisode: Inserting next episode: \
-      \(String(describing: loadedNextPodcastEpisode?.podcastEpisode.toString))
+      \(String(describing: nextBundle?.loadedPodcastEpisode.toString))
       """
     )
 
-    self.loadedNextPodcastEpisode = loadedNextPodcastEpisode
+    self.nextBundle = nextBundle
 
     if avQueuePlayer.items().isEmpty {
       log.debug("insertNextPodcastEpisode: avQueuePlayer queue is empty")
@@ -289,11 +298,11 @@ extension Container {
     }
 
     if avQueuePlayer.items().count == 2,
-      EpisodeAsset.equals(avQueuePlayer.items().last, loadedNextPodcastEpisode?.item)
+      avQueuePlayer.items().last?.assetURL == loadedNextPodcastEpisode?.assetURL
     {
       log.debug(
         """
-        insertNextPodcastEpisode: nothing to do because the avQueuePlayer queue already is the right \
+        insertNextPodcastEpisode: nothing to do because the avQueuePlayer queue is the right \
         length of 2 and the incoming next episode is already in the #2 slot
         """
       )
@@ -323,14 +332,14 @@ extension Container {
       avQueuePlayer.remove(lastItem)
     }
 
-    if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
+    if let nextBundle = self.nextBundle {
       log.debug(
         """
-        insertNextPodcastEpisode: Adding \(loadedNextPodcastEpisode.podcastEpisode.toString) \
+        insertNextPodcastEpisode: Adding \(nextBundle.loadedPodcastEpisode.toString) \
         to avQueuePlayer queue
         """
       )
-      avQueuePlayer.insert(loadedNextPodcastEpisode.item, after: avQueuePlayer.items().first)
+      avQueuePlayer.insert(nextBundle.playableItem, after: avQueuePlayer.items().first)
     }
   }
 
@@ -343,7 +352,7 @@ extension Container {
     log.debug("handleEpisodeFinished: Episode finished: \(finishedPodcastEpisode.toString)")
 
     loadedCurrentPodcastEpisode = loadedNextPodcastEpisode
-    loadedNextPodcastEpisode = nil
+    nextBundle = nil
 
     if let podcastEpisode = podcastEpisode {
       log.debug(
@@ -358,7 +367,7 @@ extension Container {
       removePeriodicTimeObserver()
     }
 
-    playToEndContinuation.yield((finishedPodcastEpisode, loadedCurrentPodcastEpisode?.episodeInfo))
+    playToEndContinuation.yield((finishedPodcastEpisode, loadedCurrentPodcastEpisode))
   }
 
   // MARK: - Private Tracking

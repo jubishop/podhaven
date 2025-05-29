@@ -116,9 +116,7 @@ actor PlayManager {
       }
 
       await stopAndClearOnDeck()
-
-      let duration = try await podAVPlayer.load(podcastEpisode)
-      await setOnDeck(podcastEpisode, duration)
+      await setOnDeck(try await podAVPlayer.load(podcastEpisode))
       try? await queue.dequeue(podcastEpisode.id)
 
       await setStatus(.active)
@@ -161,8 +159,10 @@ actor PlayManager {
 
   // MARK: - Private State Management
 
-  private func setOnDeck(_ podcastEpisode: PodcastEpisode, _ duration: CMTime) async {
-    log.debug("Setting on deck: \(podcastEpisode.toString), with duration: \(duration)")
+  private func setOnDeck(_ loadedPodcastEpisode: LoadedPodcastEpisode) async {
+    log.debug("Setting on deck: \(loadedPodcastEpisode.toString)")
+
+    let podcastEpisode = loadedPodcastEpisode.podcastEpisode
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
@@ -171,7 +171,7 @@ actor PlayManager {
       podcastTitle: podcastEpisode.podcast.title,
       podcastURL: podcastEpisode.podcast.link,
       episodeTitle: podcastEpisode.episode.title,
-      duration: duration,
+      duration: loadedPodcastEpisode.duration,
       image: try? await images.fetchImage(imageURL),
       media: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate
@@ -236,21 +236,19 @@ actor PlayManager {
 
   private func handleEpisodeFinished(
     finishedPodcastEpisode: PodcastEpisode,
-    currentEpisodeInfo: EpisodeInfo?
+    loadedCurrentPodcastEpisode: LoadedPodcastEpisode?
   ) async {
     _ = try? await repo.markComplete(finishedPodcastEpisode.id)
 
-    if let currentEpisodeInfo = currentEpisodeInfo {
+    if let loadedCurrentPodcastEpisode = loadedCurrentPodcastEpisode {
       log.debug(
         """
         handleEpisodeFinished: enqueuing next episode: \
-        \(currentEpisodeInfo.toString)
+        \(loadedCurrentPodcastEpisode.toString)
         """
       )
-      let podcastEpisode = currentEpisodeInfo.podcastEpisode
-      let duration = currentEpisodeInfo.duration
-      await setOnDeck(podcastEpisode, duration)
-      try? await queue.dequeue(podcastEpisode.id)
+      await setOnDeck(loadedCurrentPodcastEpisode)
+      try? await queue.dequeue(loadedCurrentPodcastEpisode.id)
     } else {
       log.debug("handleEpisodeFinished: no more episodes to play")
       await stopAndClearOnDeck()
@@ -370,12 +368,12 @@ actor PlayManager {
     )
 
     self.playToEndTask = Task {
-      for await (finishedPodcastEpisode, currentEpisodeInfo)
+      for await (finishedPodcastEpisode, loadedCurrentPodcastEpisode)
         in await podAVPlayer.playToEndStream
       {
         await handleEpisodeFinished(
           finishedPodcastEpisode: finishedPodcastEpisode,
-          currentEpisodeInfo: currentEpisodeInfo
+          loadedCurrentPodcastEpisode: loadedCurrentPodcastEpisode
         )
       }
     }
