@@ -10,28 +10,6 @@ struct DebugSection: View {
 
   var body: some View {
     Section("Debugging") {
-      #if DEBUG
-      Button("Clear DB") {
-        Task {
-          try AppDB.onDisk.db.write { db in
-            try Podcast.deleteAll(db)
-          }
-        }
-      }
-      Button("Load Invalid Episode") {
-        Task {
-          do {
-            try await playInvalidMedia()
-          } catch {
-            alert("Couldn't load invalid episode")
-          }
-        }
-      }
-      Button("Populate Queue") {
-        Task { try await PreviewHelpers.populateQueue() }
-      }
-      #endif
-
       Text("Environment: \(AppInfo.environment)")
 
       Text("Device ID: \(AppInfo.deviceIdentifier)")
@@ -47,24 +25,6 @@ struct DebugSection: View {
       #endif
     }
   }
-
-  #if DEBUG
-  func playInvalidMedia() async throws {
-    let podcastEpisode = try await PreviewHelpers.loadPodcastEpisode()
-    try await playManager.load(
-      PodcastEpisode(
-        podcast: podcastEpisode.podcast,
-        episode: Episode(
-          from: try UnsavedEpisode(
-            guid: "guid",
-            media: MediaURL(URL(string: "https://notreal.com/hi.mp3")!),
-            title: "Stupid Tech Talky Talky"
-          )
-        )
-      )
-    )
-  }
-  #endif
 }
 
 #if DEBUG
