@@ -53,16 +53,20 @@ struct PodHavenApp: App {
   static func configureLogging() {
     switch AppInfo.environment {
     case .iPhone:
-      configureBugFender()
-      configureHoneyBadger()
-      configureSentry()
+      if AppInfo.myPhone {
+        configureBugFender()
+        configureHoneyBadger()
+        configureSentry()
 
-      LoggingSystem.bootstrap { label in
-        MultiplexLogHandler([
-          OSLogHandler(label: label),
-          RemoteLogHandler(label: label),
-          CrashReportHandler(label: label),
-        ])
+        LoggingSystem.bootstrap { label in
+          MultiplexLogHandler([
+            OSLogHandler(label: label),
+            RemoteLogHandler(label: label),
+            CrashReportHandler(label: label),
+          ])
+        }
+      } else {
+        LoggingSystem.bootstrap(OSLogHandler.init)
       }
     case .preview:
       LoggingSystem.bootstrap(PrintLogHandler.init)
@@ -73,26 +77,15 @@ struct PodHavenApp: App {
 
   private static func configureBugFender() {
     Bugfender.activateLogger("DHXOFyzIYy2lzznaFpku5oXaiGwqqDXE")
-    Bugfender.setDeviceString(AppInfo.deviceIdentifier, forKey: "deviceIdentifier")
     Bugfender.setPrintToConsole(false)
     Bugfender.enableCrashReporting()
   }
 
   private static func configureHoneyBadger() {
     Honeybadger.configure(apiKey: "hbp_68rhjE7H6WYfVhV7deZldmErGXTjrz10H9QR")
-    Honeybadger.setContext(context: ["deviceIdentifier": AppInfo.deviceIdentifier])
   }
 
   private static func configureSentry() {
-    SentrySDK.configureScope { scope in
-      scope.setContext(
-        value: [
-          "name": "com.artisanalsoftware.PodHaven",
-          "device_unique_identifier": AppInfo.deviceIdentifier,
-        ],
-        key: "device"
-      )
-    }
     SentrySDK.start { options in
       options.dsn =
         "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
