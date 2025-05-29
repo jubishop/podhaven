@@ -13,7 +13,7 @@ class LogTests {
   @Test("log enum values")
   func logEnumValues() async throws {
     let appDBEnum = LogSubsystem.Database.appDB
-    #expect(appDBEnum.subsystem == "database")
+    #expect(appDBEnum.subsystem == "Database")
     #expect(appDBEnum.category == "appDB")
   }
 }
