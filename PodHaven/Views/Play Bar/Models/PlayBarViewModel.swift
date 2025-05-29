@@ -13,8 +13,8 @@ extension Container {
 }
 
 @Observable @MainActor final class PlayBarViewModel {
+  @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.playState) private var playState
-  private var playManager: PlayManager { get async { await Container.shared.playManager() } }
 
   // MARK: - State Management
 

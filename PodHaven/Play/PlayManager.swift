@@ -9,13 +9,12 @@ import Semaphore
 import Sharing
 
 extension Container {
-  @PlayActor
   var playManager: Factory<PlayManager> {
-    Factory(self) { @PlayActor in PlayManager() }.scope(.cached)
+    Factory(self) { PlayManager() }.scope(.cached)
   }
 }
 
-@PlayActor final class PlayManager {
+actor PlayManager {
   @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.images) private var images
   @DynamicInjected(\.observatory) private var observatory
@@ -68,16 +67,16 @@ extension Container {
 
   // MARK: - Initialization
 
-  fileprivate init() {
+  fileprivate init() {}
+
+  func start() async {
     observeNextEpisode()
     startInterruptionNotifications()
     startListeningToCommandCenter()
     startListeningToCurrentTime()
     startListeningToControlStatus()
     startListeningToPlayToEnd()
-  }
 
-  func start() async {
     guard let currentEpisodeID = currentEpisodeID,
       let podcastEpisode = try? await repo.episode(currentEpisodeID)
     else { return }

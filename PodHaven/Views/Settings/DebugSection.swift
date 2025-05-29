@@ -5,8 +5,7 @@ import SwiftUI
 
 struct DebugSection: View {
   @DynamicInjected(\.alert) private var alert
-
-  private var playManager: PlayManager { get async { await Container.shared.playManager() } }
+  @DynamicInjected(\.playManager) private var playManager
 
   var body: some View {
     Section("Debugging") {
