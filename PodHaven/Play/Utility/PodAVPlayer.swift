@@ -8,9 +8,9 @@ import Logging
 import Semaphore
 
 extension Container {
-  @PlayActor
+  @MainActor
   var podAVPlayer: Factory<PodAVPlayer> {
-    Factory(self) { @PlayActor in PodAVPlayer() }.scope(.cached)
+    Factory(self) { @MainActor in PodAVPlayer() }.scope(.cached)
   }
 
   var avQueuePlayer: Factory<any AVQueuePlayable> {
@@ -22,7 +22,7 @@ extension Container {
   }
 }
 
-@PlayActor final class PodAVPlayer: Sendable {
+@MainActor final class PodAVPlayer {
   @DynamicInjected(\.avQueuePlayer) var avQueuePlayer
   @DynamicInjected(\.episodeAssetLoader) var episodeAssetLoader
 
@@ -35,7 +35,7 @@ extension Container {
 
   // MARK: - Debugging
 
-  private let mainActorLogSemaphore = AsyncSemaphore(value: 1)
+  private let logSemaphor = AsyncSemaphore(value: 1)
 
   // MARK: - State Management
 
@@ -44,11 +44,10 @@ extension Container {
 
   let currentTimeStream: AsyncStream<CMTime>
   let controlStatusStream: AsyncStream<AVPlayer.TimeControlStatus>
-  let playToEndStream: AsyncStream<(PodcastEpisode, LoadedPodcastEpisode?)>
+  let playToEndStream: AsyncStream<(PodcastEpisode, EpisodeInfo?)>
   private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
   private let controlStatusContinuation: AsyncStream<AVPlayer.TimeControlStatus>.Continuation
-  private let playToEndContinuation:
-    AsyncStream<(PodcastEpisode, LoadedPodcastEpisode?)>.Continuation
+  private let playToEndContinuation: AsyncStream<(PodcastEpisode, EpisodeInfo?)>.Continuation
 
   private var timeControlStatusObserver: NSKeyValueObservation?
   private var periodicTimeObserver: Any?
@@ -64,7 +63,7 @@ extension Container {
       of: AVPlayer.TimeControlStatus.self
     )
     (self.playToEndStream, self.playToEndContinuation) = AsyncStream.makeStream(
-      of: (PodcastEpisode, LoadedPodcastEpisode?).self
+      of: (PodcastEpisode, EpisodeInfo?).self
     )
 
     addPeriodicTimeObserver()
@@ -204,10 +203,10 @@ extension Container {
   private func insertNextPodcastEpisode(_ loadedNextPodcastEpisode: LoadedPodcastEpisode?) {
     defer {
       if log.wouldLog(.debug) {
-        Task(priority: .utility) { @MainActor in
-          await mainActorLogSemaphore.wait()
+        Task(priority: .utility) {
+          await logSemaphor.wait()
 
-          let mediaURLs = await avQueuePlayer.items().map { MediaURL($0.assetURL) }
+          let mediaURLs = avQueuePlayer.items().map { MediaURL($0.assetURL) }
           let podcastEpisodes = IdentifiedArray(
             uniqueElements: try await Container.shared.repo().episodes(mediaURLs),
             id: \.episode.media
@@ -230,13 +229,13 @@ extension Container {
             PodcastEpisodesFound: 
               \(podcastEpisodesFound.map(\.toString).joined(separator: "\n  "))
             LoadedCurrentPodcastEpisode:
-              \(String(describing: await self.loadedCurrentPodcastEpisode?.toString))
+              \(String(describing: self.loadedCurrentPodcastEpisode?.toString))
               MediaURL: \(String(describing:
-                await self.loadedCurrentPodcastEpisode?.podcastEpisode.episode.media))
+                self.loadedCurrentPodcastEpisode?.podcastEpisode.episode.media))
             LoadedNextPodcastEpisode:
-              \(String(describing: await self.loadedNextPodcastEpisode?.toString))
+              \(String(describing: self.loadedNextPodcastEpisode?.toString))
               MediaURL: \(String(describing:
-                await self.loadedNextPodcastEpisode?.podcastEpisode.episode.media))
+                self.loadedNextPodcastEpisode?.podcastEpisode.episode.media))
             """
           )
 
@@ -247,7 +246,7 @@ extension Container {
             """
           )
 
-          mainActorLogSemaphore.signal()
+          logSemaphor.signal()
         }
       }
     }
@@ -268,10 +267,10 @@ extension Container {
 
     if avQueuePlayer.items().count == 1 && loadedNextPodcastEpisode == nil {
       if log.wouldLog(.debug) {
-        Task(priority: .utility) { @MainActor in
-          await mainActorLogSemaphore.wait()
+        Task(priority: .utility) {
+          await logSemaphor.wait()
 
-          guard let assetURL = await avQueuePlayer.items().first?.assetURL,
+          guard let assetURL = avQueuePlayer.items().first?.assetURL,
             let podcastEpisode = try await Container.shared.repo().episode(MediaURL(assetURL))
           else { Assert.fatal("Could not find episode for first and only AVURLAsset") }
 
@@ -283,14 +282,14 @@ extension Container {
             """
           )
 
-          mainActorLogSemaphore.signal()
+          logSemaphor.signal()
         }
       }
       return
     }
 
-    if avQueuePlayer.items().count == 2
-      && avQueuePlayer.items().last == loadedNextPodcastEpisode?.item
+    if avQueuePlayer.items().count == 2,
+      EpisodeAsset.equals(avQueuePlayer.items().last, loadedNextPodcastEpisode?.item)
     {
       log.debug(
         """
@@ -303,8 +302,8 @@ extension Container {
 
     while avQueuePlayer.items().count > 1, let lastItem = avQueuePlayer.items().last {
       if log.wouldLog(.debug) {
-        Task(priority: .utility) { @MainActor in
-          await mainActorLogSemaphore.wait()
+        Task(priority: .utility) {
+          await logSemaphor.wait()
 
           guard
             let podcastEpisode = try await Container.shared.repo()
@@ -318,7 +317,7 @@ extension Container {
             """
           )
 
-          mainActorLogSemaphore.signal()
+          logSemaphor.signal()
         }
       }
       avQueuePlayer.remove(lastItem)
@@ -359,7 +358,7 @@ extension Container {
       removePeriodicTimeObserver()
     }
 
-    playToEndContinuation.yield((finishedPodcastEpisode, loadedCurrentPodcastEpisode))
+    playToEndContinuation.yield((finishedPodcastEpisode, loadedCurrentPodcastEpisode?.episodeInfo))
   }
 
   // MARK: - Private Tracking

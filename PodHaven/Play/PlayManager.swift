@@ -19,10 +19,10 @@ extension Container {
   @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.images) private var images
   @DynamicInjected(\.observatory) private var observatory
-  @DynamicInjected(\.podAVPlayer) private var podAVPlayer
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   var playState: PlayState { get async { await Container.shared.playState() } }
+  var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
 
   private let log = Log.as(LogSubsystem.Play.manager)
 
@@ -88,7 +88,7 @@ extension Container {
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) {
-    guard podcastEpisode != podAVPlayer.podcastEpisode
+    guard await podAVPlayer.podcastEpisode != podcastEpisode
     else { Assert.fatal("Loading podcast \(podcastEpisode.toString) that's already loaded") }
 
     if status == .loading {
@@ -111,7 +111,7 @@ extension Container {
 
       log.info("playManager loading: \(podcastEpisode.toString)")
 
-      if let outgoingPodcastEpisode = podAVPlayer.podcastEpisode {
+      if let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode {
         log.debug("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
         try? await queue.unshift(outgoingPodcastEpisode.id)
       }
@@ -139,11 +139,11 @@ extension Container {
       "tried to play but status is \(status) which is not playable"
     )
 
-    podAVPlayer.play()
+    Task { await podAVPlayer.play() }
   }
 
   func pause() {
-    podAVPlayer.pause()
+    Task { await podAVPlayer.pause() }
   }
 
   // MARK: - Seeking
@@ -199,7 +199,7 @@ extension Container {
 
   private func stopAndClearOnDeck() async {
     log.debug("stopAndClearOnDeck: executing")
-    podAVPlayer.stop()
+    await podAVPlayer.stop()
     nowPlayingInfo = nil
     await playState.setOnDeck(nil)
     await setCurrentTime(CMTime.zero)
@@ -221,7 +221,7 @@ extension Container {
     nowPlayingInfo?.currentTime(currentTime)
     await playState.setCurrentTime(currentTime)
 
-    guard let currentPodcastEpisode = podAVPlayer.podcastEpisode
+    guard let currentPodcastEpisode = await podAVPlayer.podcastEpisode
     else {
       Assert.precondition(
         currentTime == .zero,
@@ -237,19 +237,19 @@ extension Container {
 
   private func handleEpisodeFinished(
     finishedPodcastEpisode: PodcastEpisode,
-    currentLoadedPodcastEpisode: LoadedPodcastEpisode?
+    currentEpisodeInfo: EpisodeInfo?
   ) async {
     _ = try? await repo.markComplete(finishedPodcastEpisode.id)
 
-    if let currentLoadedPodcastEpisode = currentLoadedPodcastEpisode {
+    if let currentEpisodeInfo = currentEpisodeInfo {
       log.debug(
         """
         handleEpisodeFinished: enqueuing next episode: \
-        \(currentLoadedPodcastEpisode.toString)
+        \(currentEpisodeInfo.toString)
         """
       )
-      let podcastEpisode = currentLoadedPodcastEpisode.podcastEpisode
-      let duration = currentLoadedPodcastEpisode.duration
+      let podcastEpisode = currentEpisodeInfo.podcastEpisode
+      let duration = currentEpisodeInfo.duration
       await setOnDeck(podcastEpisode, duration)
       try? await queue.dequeue(podcastEpisode.id)
     } else {
@@ -335,7 +335,7 @@ extension Container {
     )
 
     self.currentTimeTask = Task {
-      for await currentTime in podAVPlayer.currentTimeStream {
+      for await currentTime in await podAVPlayer.currentTimeStream {
         await self.setCurrentTime(currentTime)
       }
     }
@@ -348,7 +348,7 @@ extension Container {
     )
 
     self.controlStatusTask = Task {
-      for await controlStatus in podAVPlayer.controlStatusStream {
+      for await controlStatus in await podAVPlayer.controlStatusStream {
         if !status.playable { continue }
         switch controlStatus {
         case AVPlayer.TimeControlStatus.paused:
@@ -371,11 +371,12 @@ extension Container {
     )
 
     self.playToEndTask = Task {
-      for await (finishedPodcastEpisode, currentLoadedPodcastEpisode) in podAVPlayer.playToEndStream
+      for await (finishedPodcastEpisode, currentEpisodeInfo)
+        in await podAVPlayer.playToEndStream
       {
         await handleEpisodeFinished(
           finishedPodcastEpisode: finishedPodcastEpisode,
-          currentLoadedPodcastEpisode: currentLoadedPodcastEpisode
+          currentEpisodeInfo: currentEpisodeInfo
         )
       }
     }
