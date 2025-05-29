@@ -12,9 +12,15 @@ extension Container {
   var podAVPlayer: Factory<PodAVPlayer> {
     Factory(self) { @PlayActor in PodAVPlayer() }.scope(.cached)
   }
+
+  var avQueuePlayer: Factory<any AVQueuePlayable> {
+    Factory(self) { AVQueuePlayer() }.scope(.cached)
+  }
 }
 
 @PlayActor final class PodAVPlayer: Sendable {
+  @DynamicInjected(\.avQueuePlayer) var avQueuePlayer
+
   private let log = Log.as(LogSubsystem.Play.avPlayer)
 
   // MARK: - Convenience Getters
@@ -43,8 +49,6 @@ extension Container {
   private var periodicTimeObserver: Any?
   private var playToEndNotificationTask: Task<Void, Never>?
 
-  private var avPlayer = AVQueuePlayer()
-
   // MARK: - Initialization
 
   fileprivate init() {
@@ -68,18 +72,18 @@ extension Container {
   func stop() {
     log.debug("stop: executing")
     removePeriodicTimeObserver()
-    avPlayer.removeAllItems()
+    avQueuePlayer.removeAllItems()
     self.loadedCurrentPodcastEpisode = nil
   }
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> CMTime {
-    log.debug("avPlayer loading: \(podcastEpisode.toString)")
+    log.debug("avQueuePlayer loading: \(podcastEpisode.toString)")
 
     let loadedPodcastEpisode = try await loadAsset(for: podcastEpisode)
     self.loadedCurrentPodcastEpisode = loadedPodcastEpisode
 
-    avPlayer.removeAllItems()
-    avPlayer.insert(loadedPodcastEpisode.item, after: nil)
+    avQueuePlayer.removeAllItems()
+    avQueuePlayer.insert(loadedPodcastEpisode.item, after: nil)
     insertNextPodcastEpisode(self.loadedNextPodcastEpisode)
     addPeriodicTimeObserver()
 
@@ -111,12 +115,12 @@ extension Container {
 
   func play() {
     log.debug("play: executing, playing \(String(describing: podcastEpisode?.toString))")
-    avPlayer.play()
+    avQueuePlayer.play()
   }
 
   func pause() {
     log.debug("pause: executing, pausing \(String(describing: podcastEpisode?.toString))")
-    avPlayer.pause()
+    avQueuePlayer.pause()
   }
 
   // MARK: - Seeking
@@ -128,7 +132,7 @@ extension Container {
       \(String(describing: podcastEpisode?.toString))
       """
     )
-    await seek(to: avPlayer.currentTime() + duration)
+    await seek(to: avQueuePlayer.currentTime() + duration)
   }
 
   func seekBackward(_ duration: CMTime) async {
@@ -138,7 +142,7 @@ extension Container {
       \(String(describing: podcastEpisode?.toString))
       """
     )
-    await seek(to: avPlayer.currentTime() - duration)
+    await seek(to: avQueuePlayer.currentTime() - duration)
   }
 
   func seek(to time: CMTime) async {
@@ -150,7 +154,7 @@ extension Container {
     )
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
-    avPlayer.seek(to: time) { [weak self] completed in
+    avQueuePlayer.seek(to: time) { [weak self] completed in
       guard let self else { return }
 
       if completed {
@@ -199,7 +203,7 @@ extension Container {
         Task(priority: .utility) { @MainActor in
           await mainActorLogSemaphore.wait()
 
-          let mediaURLs = await avPlayer.items()
+          let mediaURLs = await avQueuePlayer.items()
             .map {
               guard let urlAsset = $0.asset as? AVURLAsset
               else { Assert.fatal("\($0.asset) is not an AVURLAsset") }
@@ -258,24 +262,24 @@ extension Container {
 
     self.loadedNextPodcastEpisode = loadedNextPodcastEpisode
 
-    if avPlayer.items().isEmpty {
-      log.debug("insertNextPodcastEpisode: avPlayer queue is empty")
+    if avQueuePlayer.items().isEmpty {
+      log.debug("insertNextPodcastEpisode: avQueuePlayer queue is empty")
       return
     }
 
-    if avPlayer.items().count == 1 && loadedNextPodcastEpisode == nil {
+    if avQueuePlayer.items().count == 1 && loadedNextPodcastEpisode == nil {
       if log.wouldLog(.debug) {
         Task(priority: .utility) { @MainActor in
           await mainActorLogSemaphore.wait()
 
-          guard let urlAsset = await avPlayer.items().first?.asset as? AVURLAsset,
+          guard let urlAsset = await avQueuePlayer.items().first?.asset as? AVURLAsset,
             let podcastEpisode = try await Container.shared.repo().episode(MediaURL(urlAsset.url))
           else { Assert.fatal("Could not find episode for first and only AVURLAsset") }
 
           log.debug(
             """
             insertNextPodcastEpisode: nothing to do because the incoming next episode is nil and \
-            there's only one in the avPlayer, which is \(podcastEpisode.toString), which must be \
+            there's only one in the avQueuePlayer, which is \(podcastEpisode.toString), which must be \
             the one playing
             """
           )
@@ -286,17 +290,19 @@ extension Container {
       return
     }
 
-    if avPlayer.items().count == 2 && avPlayer.items().last == loadedNextPodcastEpisode?.item {
+    if avQueuePlayer.items().count == 2
+      && avQueuePlayer.items().last == loadedNextPodcastEpisode?.item
+    {
       log.debug(
         """
-        insertNextPodcastEpisode: nothing to do because the avPlayer queue already is the right \
+        insertNextPodcastEpisode: nothing to do because the avQueuePlayer queue already is the right \
         length of 2 and the incoming next episode is already in the #2 slot
         """
       )
       return
     }
 
-    while avPlayer.items().count > 1, let lastItem = avPlayer.items().last {
+    while avQueuePlayer.items().count > 1, let lastItem = avQueuePlayer.items().last {
       if log.wouldLog(.debug) {
         Task(priority: .utility) { @MainActor in
           await mainActorLogSemaphore.wait()
@@ -307,7 +313,7 @@ extension Container {
 
           log.debug(
             """
-            insertNextPodcastEpisode: Removing item from end of avPlayer queue: \
+            insertNextPodcastEpisode: Removing item from end of avQueuePlayer queue: \
             \(podcastEpisode.toString)
             """
           )
@@ -315,17 +321,17 @@ extension Container {
           mainActorLogSemaphore.signal()
         }
       }
-      avPlayer.remove(lastItem)
+      avQueuePlayer.remove(lastItem)
     }
 
     if let loadedNextPodcastEpisode = self.loadedNextPodcastEpisode {
       log.debug(
         """
         insertNextPodcastEpisode: Adding \(loadedNextPodcastEpisode.podcastEpisode.toString) \
-        to avPlayer queue
+        to avQueuePlayer queue
         """
       )
-      avPlayer.insert(loadedNextPodcastEpisode.item, after: avPlayer.items().first)
+      avQueuePlayer.insert(loadedNextPodcastEpisode.item, after: avQueuePlayer.items().first)
     }
   }
 
@@ -366,7 +372,7 @@ extension Container {
     }
 
     log.debug("addPeriodicTimeObserver: Adding periodic time observer")
-    self.periodicTimeObserver = avPlayer.addPeriodicTimeObserver(
+    self.periodicTimeObserver = avQueuePlayer.addPeriodicTimeObserver(
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
     ) { [weak self] currentTime in
@@ -378,7 +384,7 @@ extension Container {
   private func removePeriodicTimeObserver() {
     if let periodicTimeObserver = self.periodicTimeObserver {
       log.debug("removePeriodicTimeObserver: Removing periodic time observer")
-      avPlayer.removeTimeObserver(periodicTimeObserver)
+      avQueuePlayer.removeTimeObserver(periodicTimeObserver)
       self.periodicTimeObserver = nil
     } else {
       log.notice("removePeriodicTimeObserver: No observer to remove")
@@ -391,13 +397,11 @@ extension Container {
       "timeControlStatusObserver already exists?"
     )
 
-    self.timeControlStatusObserver = avPlayer.observe(
-      \.timeControlStatus,
-      options: [.initial, .new],
-      changeHandler: { playerItem, _ in
-        self.controlStatusContinuation.yield(playerItem.timeControlStatus)
-      }
-    )
+    self.timeControlStatusObserver = avQueuePlayer.observeTimeControlStatus(
+      options: [.initial, .new]
+    ) { status in
+      self.controlStatusContinuation.yield(status)
+    }
   }
 
   private func startPlayToEndTimeNotifications() {
