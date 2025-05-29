@@ -169,11 +169,11 @@ extension Container {
 
     guard nextPodcastEpisode?.id != self.nextPodcastEpisode?.id
     else {
-      log.warning(
+      log.info(
         """
         setNextPodcastEpisode: Trying to set next episode to \
         \(String(describing: nextPodcastEpisode?.toString)) \
-        but it is the same as the current episode
+        but it is the same as the current next episode
         """
       )
       return
