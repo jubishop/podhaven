@@ -221,7 +221,7 @@ extension Container {
     guard let currentPodcastEpisode = podAVPlayer.podcastEpisode
     else {
       Assert.precondition(
-        currentTime != .zero,
+        currentTime == .zero,
         """
         setCurrentTime: tried to set current time to: \
         \(currentTime) but there is no current episode?
