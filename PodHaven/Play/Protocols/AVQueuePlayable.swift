@@ -27,10 +27,10 @@ protocol AVQueuePlayable {
 
 extension AVQueuePlayer: AVQueuePlayable {
   func insert(_ item: any AVPlayableItem, after afterItem: (any AVPlayableItem)?) {
-    guard let playerItem = item as? AVPlayerItem,
-      let afterPlayerItem = afterItem as? AVPlayerItem
+    guard let playerItem = item as? AVPlayerItem
     else { Assert.fatal("Inserting non AVPlayerItem into queue player?") }
 
+    let afterPlayerItem = afterItem as? AVPlayerItem
     insert(playerItem, after: afterPlayerItem)
   }
 
