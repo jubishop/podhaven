@@ -14,7 +14,7 @@ struct DebugSection: View {
       Text("Device ID: \(AppInfo.deviceIdentifier)")
 
       if AppInfo.myPhone {
-        Text("This is my phone")
+        Text("This is Jubi's phone")
       } else {
         Text("This is NOT Jubi's phone ")
       }
