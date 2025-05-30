@@ -2,6 +2,8 @@
 
 import Foundation
 
+@testable import PodHaven
+
 actor Notifier {
   private static var continuations: [Notification.Name: AsyncStream<Notification>.Continuation] =
     [:]

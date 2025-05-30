@@ -55,13 +55,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		8B6D63882DEA1E2600CFD2AF /* Exceptions for "PodHavenTests" folder in "PodHaven" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Utility/Notifier.swift,
-			);
-			target = 8BD7F91F2CF2A49000CEDAA7 /* PodHaven */;
-		};
 		8B8475D32DC0B88E00C6C2A5 /* Exceptions for "PodHavenTests" folder in "ParallelTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -112,7 +105,6 @@
 		8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				8B6D63882DEA1E2600CFD2AF /* Exceptions for "PodHavenTests" folder in "PodHaven" target */,
 				8B8475D32DC0B88E00C6C2A5 /* Exceptions for "PodHavenTests" folder in "ParallelTests" target */,
 				8B9B8B332DCBB25500E574E6 /* Exceptions for "PodHavenTests" folder in "PerformanceTests" target */,
 			);
