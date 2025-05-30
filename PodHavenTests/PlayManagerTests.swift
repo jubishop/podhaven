@@ -1,5 +1,7 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
+import FactoryKit
 import FactoryTesting
 import Foundation
 import Testing
@@ -7,9 +9,14 @@ import Testing
 @testable import PodHaven
 
 @Suite("of PlayManager tests", .container)
-struct PlayManagerTests {
+actor PlayManagerTests {
   @Test("example")
-  func example() throws {
+  func example() async throws {
+    let playManager = Container.shared.playManager()
+    await playManager.start()
+    //    let continuation = await Notifier.get(AVAudioSession.interruptionNotification)
+    //continuation.yield(Notification(name: .init("Test")))
+
     #expect("Test" == "Test")
   }
 }

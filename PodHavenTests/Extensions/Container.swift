@@ -10,5 +10,8 @@ extension Container: @retroactive AutoRegistering {
     appDB.context(.test) { AppDB.inMemory() }.scope(.cached)
     searchServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     feedManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
+    notifications.context(.test) {
+      { name in AsyncStream { continuation in Notifier.set(name, continuation) } }
+    }
   }
 }

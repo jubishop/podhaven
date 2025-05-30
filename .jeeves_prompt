@@ -1,0 +1,19 @@
+Generate a git commit message based on the following diff.
+
+The commit message should:
+- Start with an appropriate gitmoji based on the nature of the changes
+- Follow the Conventional Commits format (https://www.conventionalcommits.org/en/v1.0.0/)
+- Explain WHAT changed and WHY it changed
+- Use present tense ("add" not "added")
+- Be extremely critical and mercilessly roast the author of the change
+- Assume the audience is educated software engineers
+
+Example format:
+:emoji: type(scope): concise description
+
+Detailed explanation of the changes, why they were necessary, and their impact.
+
+Additional context or technical details when relevant.
+
+DIFF:
+{{DIFF}}
