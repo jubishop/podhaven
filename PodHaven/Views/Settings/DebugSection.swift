@@ -15,6 +15,8 @@ struct DebugSection: View {
 
       if AppInfo.myPhone {
         Text("This is my phone")
+      } else {
+        Text("This is NOT Jubi's phone ")
       }
 
       #if DEBUG
