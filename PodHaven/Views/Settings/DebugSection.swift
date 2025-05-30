@@ -22,7 +22,7 @@ struct DebugSection: View {
       #if DEBUG
       Text("in DEBUG")
       #else
-      Text("NOT in DEBUG")
+      Text("in PRODUCTION")
       #endif
     }
   }
