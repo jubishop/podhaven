@@ -19,8 +19,8 @@ actor RefreshManager {
   // MARK: - State Management
 
   private var backgroundRefreshTask: Task<Void, Never>?
-  private var activationTask: Task<Void, any Error>?
-  private var deactivationTask: Task<Void, any Error>?
+  private var activationTask: Task<Void, Never>?
+  private var deactivationTask: Task<Void, Never>?
 
   // MARK: - Initialization
 
@@ -124,7 +124,7 @@ actor RefreshManager {
     )
 
     self.activationTask = Task {
-      for try await _ in notifications(UIApplication.didBecomeActiveNotification) {
+      for await _ in notifications(UIApplication.didBecomeActiveNotification) {
         activated()
       }
     }
@@ -137,7 +137,7 @@ actor RefreshManager {
     )
 
     self.deactivationTask = Task {
-      for try await _ in notifications(UIApplication.willResignActiveNotification) {
+      for await _ in notifications(UIApplication.willResignActiveNotification) {
         backgrounded()
       }
     }

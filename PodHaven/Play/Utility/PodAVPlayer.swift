@@ -65,7 +65,7 @@ extension Container {
 
   private var timeControlStatusObserver: NSKeyValueObservation?
   private var periodicTimeObserver: Any?
-  private var playToEndNotificationTask: Task<Void, any Error>?
+  private var playToEndNotificationTask: Task<Void, Never>?
 
   // MARK: - Initialization
 
@@ -426,7 +426,7 @@ extension Container {
     )
 
     self.playToEndNotificationTask = Task {
-      for try await _ in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
+      for await _ in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
         try? await handleEpisodeFinished()
       }
     }
