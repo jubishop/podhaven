@@ -12,7 +12,8 @@ extension Container {
     Factory(self) { @MainActor in PodAVPlayer() }.scope(.cached)
   }
 
-  var loadEpisodeAsset: Factory<(_ url: URL) async throws -> EpisodeAsset> {
+  typealias EpisodeLoading = (_ url: URL) async throws -> EpisodeAsset
+  var loadEpisodeAsset: Factory<EpisodeLoading> {
     Factory(self) {
       { url in
         let asset = AVURLAsset(url: url)
@@ -30,6 +31,7 @@ extension Container {
 @MainActor class PodAVPlayer {
   @DynamicInjected(\.avQueuePlayer) var avQueuePlayer
   @DynamicInjected(\.loadEpisodeAsset) var loadEpisodeAsset
+  @DynamicInjected(\.notifications) private var notifications
 
   private let log = Log.as(LogSubsystem.Play.avPlayer)
 
@@ -63,7 +65,7 @@ extension Container {
 
   private var timeControlStatusObserver: NSKeyValueObservation?
   private var periodicTimeObserver: Any?
-  private var playToEndNotificationTask: Task<Void, Never>?
+  private var playToEndNotificationTask: Task<Void, any Error>?
 
   // MARK: - Initialization
 
@@ -424,9 +426,7 @@ extension Container {
     )
 
     self.playToEndNotificationTask = Task {
-      for await _ in NotificationCenter.default.notifications(
-        named: AVPlayerItem.didPlayToEndTimeNotification
-      ) {
+      for try await _ in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
         try? await handleEpisodeFinished()
       }
     }

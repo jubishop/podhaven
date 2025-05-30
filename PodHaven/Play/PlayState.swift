@@ -11,8 +11,9 @@ extension Container {
   }
 }
 
-@dynamicMemberLookup
-@Observable @MainActor class PlayState {
+@dynamicMemberLookup @Observable @MainActor class PlayState {
+  @ObservationIgnored @DynamicInjected(\.notifications) private var notifications
+
   // MARK: - Meta
 
   subscript<T>(dynamicMember keyPath: KeyPath<PlayState.Status, T>) -> T {
@@ -82,9 +83,7 @@ extension Container {
     )
 
     self.keyboardShowTask = Task {
-      for await _ in NotificationCenter.default.notifications(
-        named: UIResponder.keyboardWillShowNotification
-      ) {
+      for await _ in notifications(UIResponder.keyboardWillShowNotification) {
         keyboardVisible = true
       }
     }
@@ -97,9 +96,7 @@ extension Container {
     )
 
     self.keyboardHideTask = Task {
-      for await _ in NotificationCenter.default.notifications(
-        named: UIResponder.keyboardDidHideNotification
-      ) {
+      for await _ in notifications(UIResponder.keyboardDidHideNotification) {
         keyboardVisible = false
       }
     }

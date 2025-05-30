@@ -4,8 +4,7 @@ import Foundation
 import GRDB
 import Tagged
 
-@dynamicMemberLookup
-protocol Saved: Savable, Identifiable where ID == Tagged<Self, Int64> {
+@dynamicMemberLookup protocol Saved: Savable, Identifiable where ID == Tagged<Self, Int64> {
   associatedtype Unsaved: Savable
   var id: ID { get set }
   var unsaved: Unsaved { get set }

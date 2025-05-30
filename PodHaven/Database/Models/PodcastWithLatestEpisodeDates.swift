@@ -3,8 +3,7 @@
 import Foundation
 import GRDB
 
-@dynamicMemberLookup
-struct PodcastWithLatestEpisodeDates:
+@dynamicMemberLookup struct PodcastWithLatestEpisodeDates:
   Decodable,
   Equatable,
   FetchableRecord,

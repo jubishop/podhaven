@@ -13,13 +13,14 @@ extension Container {
 
 actor RefreshManager {
   @LazyInjected(\.feedManager) private var feedManager
+  @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.repo) private var repo
 
   // MARK: - State Management
 
   private var backgroundRefreshTask: Task<Void, Never>?
-  private var activationTask: Task<Void, Never>?
-  private var deactivationTask: Task<Void, Never>?
+  private var activationTask: Task<Void, any Error>?
+  private var deactivationTask: Task<Void, any Error>?
 
   // MARK: - Initialization
 
@@ -123,9 +124,7 @@ actor RefreshManager {
     )
 
     self.activationTask = Task {
-      for await _ in NotificationCenter.default.notifications(
-        named: UIApplication.didBecomeActiveNotification
-      ) {
+      for try await _ in notifications(UIApplication.didBecomeActiveNotification) {
         activated()
       }
     }
@@ -138,9 +137,7 @@ actor RefreshManager {
     )
 
     self.deactivationTask = Task {
-      for await _ in NotificationCenter.default.notifications(
-        named: UIApplication.willResignActiveNotification
-      ) {
+      for try await _ in notifications(UIApplication.willResignActiveNotification) {
         backgrounded()
       }
     }

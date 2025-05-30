@@ -17,6 +17,7 @@ extension Container {
 actor PlayManager {
   @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.images) private var images
+  @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
@@ -284,9 +285,7 @@ actor PlayManager {
     )
 
     self.interruptionTask = Task {
-      for await notification in NotificationCenter.default.notifications(
-        named: AVAudioSession.interruptionNotification
-      ) {
+      for await notification in notifications(AVAudioSession.interruptionNotification) {
         switch AudioInterruption.parse(notification) {
         case .pause:
           pause()

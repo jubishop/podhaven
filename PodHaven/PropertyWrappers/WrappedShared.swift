@@ -3,9 +3,7 @@
 import Foundation
 import Sharing
 
-@dynamicMemberLookup
-@propertyWrapper
-struct WrappedShared<Stored, Value> {
+@dynamicMemberLookup @propertyWrapper struct WrappedShared<Stored, Value> {
   @Shared private var storage: Stored
   private let get: (Stored) -> Value
   private let set: (Value) -> Stored

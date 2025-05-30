@@ -30,8 +30,7 @@ struct PodcastRSS: Decodable, Sendable {
 
   // MARK: - Models
 
-  @dynamicMemberLookup
-  struct Episode: Decodable, Sendable {
+  @dynamicMemberLookup struct Episode: Decodable, Sendable {
     struct TopLevelValues: Decodable, Sendable {
       struct Enclosure: Decodable, Sendable {
         let url: MediaURL
@@ -71,8 +70,7 @@ struct PodcastRSS: Decodable, Sendable {
     }
   }
 
-  @dynamicMemberLookup
-  struct Podcast: Decodable, Sendable {
+  @dynamicMemberLookup struct Podcast: Decodable, Sendable {
     // Mark: - Attributes
 
     struct TopLevelValues: Decodable, Sendable {
