@@ -4,12 +4,6 @@ import FactoryKit
 import Foundation
 import MediaPlayer
 
-extension Container {
-  var nowPlayingInfo: ParameterFactory<OnDeck, NowPlayingInfo> {
-    ParameterFactory(self) { NowPlayingInfo($0) }.scope(.shared)
-  }
-}
-
 struct NowPlayingInfo {
   // MARK: - State Management
 
@@ -22,7 +16,7 @@ struct NowPlayingInfo {
 
   // MARK: - Initializing
 
-  fileprivate init(_ onDeck: OnDeck) {
+  init(_ onDeck: OnDeck) {
     self.onDeck = onDeck
 
     var nowPlayingInfo: [String: Any] = [:]

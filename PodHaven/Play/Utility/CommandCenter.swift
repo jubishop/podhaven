@@ -4,12 +4,6 @@ import FactoryKit
 import Foundation
 import MediaPlayer
 
-extension Container {
-  var commandCenter: Factory<CommandCenter> {
-    Factory(self) { CommandCenter() }.scope(.cached)
-  }
-}
-
 struct CommandCenter {
   enum Command {
     case play, pause, togglePlayPause
@@ -26,7 +20,7 @@ struct CommandCenter {
   // MARK: - Convenience Getters
 
   var commandCenter: MPRemoteCommandCenter { MPRemoteCommandCenter.shared() }
-  fileprivate init() {
+  init() {
     (self.stream, self.continuation) = AsyncStream.makeStream(of: Command.self)
 
     let continuation = self.continuation
