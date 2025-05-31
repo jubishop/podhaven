@@ -4,7 +4,13 @@ import FactoryKit
 import Foundation
 import MediaPlayer
 
-struct CommandCenter {
+extension Container {
+  var commandCenter: Factory<CommandableCenter> {
+    Factory(self) { CommandCenter() }.scope(.cached)
+  }
+}
+
+struct CommandCenter: CommandableCenter {
   enum Command {
     case play, pause, togglePlayPause
     case skipBackward(TimeInterval)

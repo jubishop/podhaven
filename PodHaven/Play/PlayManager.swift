@@ -15,6 +15,7 @@ extension Container {
 }
 
 actor PlayManager {
+  @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.images) private var images
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.observatory) private var observatory
@@ -46,7 +47,6 @@ actor PlayManager {
 
   // MARK: - State Management
 
-  private let commandCenter = CommandCenter()
   private var status: PlayState.Status = .stopped
   private var nowPlayingInfo: NowPlayingInfo? {
     willSet {
@@ -212,6 +212,7 @@ actor PlayManager {
       return
     }
 
+    log.debug("setStatus: setting status to: \(status)")
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status)
     self.status = status
