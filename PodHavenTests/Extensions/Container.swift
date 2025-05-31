@@ -13,5 +13,6 @@ extension Container: @retroactive AutoRegistering {
     notifications.context(.test) {
       { name in AsyncStream { continuation in Notifier.set(name, continuation) } }
     }
+    commandCenter.context(.test) { FakeCommandCenter() }.scope(.cached)
   }
 }

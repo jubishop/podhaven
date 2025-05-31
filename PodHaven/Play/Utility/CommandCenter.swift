@@ -21,15 +21,17 @@ struct CommandCenter: CommandableCenter {
   // MARK: - State Management
 
   let stream: AsyncStream<Command>
-  private let continuation: AsyncStream<Command>.Continuation
 
   // MARK: - Convenience Getters
 
   var commandCenter: MPRemoteCommandCenter { MPRemoteCommandCenter.shared() }
-  init() {
-    (self.stream, self.continuation) = AsyncStream.makeStream(of: Command.self)
 
-    let continuation = self.continuation
+  // MARK: - Initialization
+
+  init() {
+    let (stream, continuation) = AsyncStream.makeStream(of: Command.self)
+    self.stream = stream
+
     commandCenter.playCommand.addTarget { event in
       continuation.yield(.play)
       return .success
