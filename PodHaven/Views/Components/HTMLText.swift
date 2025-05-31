@@ -27,12 +27,14 @@ struct HTMLText: View {
 
   // MARK: - Main Parsing
 
-  private static func buildAttributedString(html: String, color: Color, font: Font) -> AttributedString? {
+  private static func buildAttributedString(html: String, color: Color, font: Font)
+    -> AttributedString?
+  {
     guard html.isHTML() else { return nil }
-    
+
     let cleanedHTML = preprocessHTML(html)
     let textParts = parseTextParts(cleanedHTML)
-    
+
     return buildAttributedString(from: textParts, color: color, font: font)
   }
 
@@ -142,7 +144,9 @@ struct HTMLText: View {
 
   // MARK: - AttributedString Building
 
-  private static func buildAttributedString(from parts: [TextPart], color: Color, font: Font) -> AttributedString {
+  private static func buildAttributedString(from parts: [TextPart], color: Color, font: Font)
+    -> AttributedString
+  {
     var result = AttributedString()
     let baseFont = uiFont(for: font)
 
@@ -162,7 +166,9 @@ struct HTMLText: View {
     return result
   }
 
-  private static func fontWithTraits(_ baseFont: UIFont, traits: UIFontDescriptor.SymbolicTraits) -> UIFont {
+  private static func fontWithTraits(_ baseFont: UIFont, traits: UIFontDescriptor.SymbolicTraits)
+    -> UIFont
+  {
     guard !traits.isEmpty else { return baseFont }
 
     let descriptor = baseFont.fontDescriptor.withSymbolicTraits(traits) ?? baseFont.fontDescriptor
