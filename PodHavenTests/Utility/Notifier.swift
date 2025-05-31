@@ -13,13 +13,14 @@ actor Notifier {
     self.continuations[name] = continuation
   }
 
-  static func get(_ name: Notification.Name) async -> AsyncStream<Notification>.Continuation {
+  static func get(_ name: Notification.Name) async throws -> AsyncStream<Notification>.Continuation
+  {
     var count = 0
     while count < 10 {
       if let continuation = continuations[name] { return continuation }
       try? await Task.sleep(nanoseconds: 10_000_000)
       count += 1
     }
-    Assert.fatal("Could not find continuation for \(name)")
+    throw NSError()
   }
 }

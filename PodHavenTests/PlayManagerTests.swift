@@ -14,7 +14,7 @@ actor PlayManagerTests {
   func example() async throws {
     let playManager = Container.shared.playManager()
     await playManager.start()
-    //    let continuation = await Notifier.get(AVAudioSession.interruptionNotification)
+    //    let continuation = try await Notifier.get(AVAudioSession.interruptionNotification)
     //continuation.yield(Notification(name: .init("Test")))
 
     #expect("Test" == "Test")
