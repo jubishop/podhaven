@@ -117,7 +117,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     let currentTimeValue = self.currentTimeValue
     for observer in timeObservers {
       if let queue = observer.queue {
-        queue.async {
+        queue.sync {
           observer.block(currentTimeValue)
         }
       } else {
