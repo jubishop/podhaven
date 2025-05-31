@@ -1,4 +1,5 @@
 // Copyright Justin Bishop, 2025
+// Created by Claude Sonnet 4
 
 import SwiftUI
 
