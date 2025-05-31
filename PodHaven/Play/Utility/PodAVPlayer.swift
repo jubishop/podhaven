@@ -219,7 +219,7 @@ extension Container {
     defer {
       if log.wouldLog(.debug) {
         Task(priority: .utility) {
-          await logSemaphor.wait()
+          try await logSemaphor.waitUnlessCancelled()
 
           let mediaURLs = avQueuePlayer.items().map { MediaURL($0.assetURL) }
           let podcastEpisodes = IdentifiedArray(
@@ -283,7 +283,7 @@ extension Container {
     if avQueuePlayer.items().count == 1 && loadedNextPodcastEpisode == nil {
       if log.wouldLog(.debug) {
         Task(priority: .utility) {
-          await logSemaphor.wait()
+          try await logSemaphor.waitUnlessCancelled()
 
           guard let assetURL = avQueuePlayer.items().first?.assetURL,
             let podcastEpisode = try await Container.shared.repo().episode(MediaURL(assetURL))
@@ -318,7 +318,7 @@ extension Container {
     while avQueuePlayer.items().count > 1, let lastItem = avQueuePlayer.items().last {
       if log.wouldLog(.debug) {
         Task(priority: .utility) {
-          await logSemaphor.wait()
+          try await logSemaphor.waitUnlessCancelled()
 
           guard
             let podcastEpisode = try await Container.shared.repo()

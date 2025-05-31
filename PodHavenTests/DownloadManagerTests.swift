@@ -187,7 +187,7 @@ struct DownloadManagerTests {
       }
     }
 
-    await downloadCount.waitForExpected()
+    try await downloadCount.waitForExpected()
     #expect(await downloadCount.reachedExpected)
   }
 

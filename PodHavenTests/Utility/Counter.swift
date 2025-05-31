@@ -23,9 +23,9 @@ actor Counter: Sendable {
     maxValue = max(maxValue, value)
   }
 
-  func waitForExpected() async {
+  func waitForExpected() async throws {
     for _ in 0..<expected {
-      await semaphore.wait()
+      try await semaphore.waitUnlessCancelled()
     }
   }
 

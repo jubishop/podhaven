@@ -269,7 +269,7 @@ actor PlayManager {
     self.nextEpisodeTask = Task {
       do {
         for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
-          await nextEpisodeSemaphore.wait()
+          try await nextEpisodeSemaphore.waitUnlessCancelled()
           await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
           nextEpisodeSemaphore.signal()
         }

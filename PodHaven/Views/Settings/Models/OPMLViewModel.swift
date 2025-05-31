@@ -120,7 +120,7 @@ import UniformTypeIdentifiers
   // MARK: - Private Helpers
 
   private func downloadOPMLFile(_ opml: PodcastOPML) async throws {
-    await downloadSemaphor.wait()
+    try await downloadSemaphor.waitUnlessCancelled()
     defer { downloadSemaphor.signal() }
 
     let opmlFile = OPMLFile(title: opml.head.title ?? "Podcast Subscriptions")
