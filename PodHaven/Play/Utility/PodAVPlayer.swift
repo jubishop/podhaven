@@ -12,8 +12,7 @@ extension Container {
     Factory(self) { @MainActor in PodAVPlayer() }.scope(.cached)
   }
 
-  typealias EpisodeLoading = (_ url: URL) async throws -> EpisodeAsset
-  var loadEpisodeAsset: Factory<EpisodeLoading> {
+  var loadEpisodeAsset: Factory<(_ url: URL) async throws -> EpisodeAsset> {
     Factory(self) {
       { url in
         let asset = AVURLAsset(url: url)
