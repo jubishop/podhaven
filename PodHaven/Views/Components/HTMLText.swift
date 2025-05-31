@@ -6,15 +6,17 @@ struct HTMLText: View {
   private let html: String
   private let color: Color
   private let font: Font
+  private let attributedString: AttributedString?
 
   init(_ html: String, color: Color = .primary, font: Font = .body) {
     self.html = html
     self.color = color
     self.font = font
+    self.attributedString = Self.buildAttributedString(html: html, color: color, font: font)
   }
 
   var body: some View {
-    if let attributedString = buildAttributedString() {
+    if let attributedString = attributedString {
       Text(attributedString)
     } else {
       Text(html)
@@ -25,18 +27,18 @@ struct HTMLText: View {
 
   // MARK: - Main Parsing
 
-  private func buildAttributedString() -> AttributedString? {
+  private static func buildAttributedString(html: String, color: Color, font: Font) -> AttributedString? {
     guard html.isHTML() else { return nil }
-
+    
     let cleanedHTML = preprocessHTML(html)
     let textParts = parseTextParts(cleanedHTML)
-
-    return buildAttributedString(from: textParts)
+    
+    return buildAttributedString(from: textParts, color: color, font: font)
   }
 
   // MARK: - HTML Preprocessing
 
-  private func preprocessHTML(_ htmlString: String) -> String {
+  private static func preprocessHTML(_ htmlString: String) -> String {
     var result = htmlString
 
     // Handle paragraph tags with intelligent spacing
@@ -51,7 +53,7 @@ struct HTMLText: View {
     return result
   }
 
-  private func handleParagraphTags(_ text: String) -> String {
+  private static func handleParagraphTags(_ text: String) -> String {
     var result = text
 
     // Replace closing paragraphs with newlines
@@ -73,7 +75,7 @@ struct HTMLText: View {
     return result
   }
 
-  private func handleLineBreaks(_ text: String) -> String {
+  private static func handleLineBreaks(_ text: String) -> String {
     text.replacingOccurrences(
       of: "<br\\s*/?\\s*>",
       with: "\n",
@@ -81,7 +83,7 @@ struct HTMLText: View {
     )
   }
 
-  private func cleanupWhitespace(_ text: String) -> String {
+  private static func cleanupWhitespace(_ text: String) -> String {
     text
       .replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -89,7 +91,7 @@ struct HTMLText: View {
 
   // MARK: - Text Parsing
 
-  private func parseTextParts(_ text: String) -> [TextPart] {
+  private static func parseTextParts(_ text: String) -> [TextPart] {
     var parts: [TextPart] = []
     var currentText = ""
     var formatStack = FormatStack()
@@ -127,7 +129,7 @@ struct HTMLText: View {
     return parts
   }
 
-  private func parseTag(from text: String, startingAt index: String.Index) -> (
+  private static func parseTag(from text: String, startingAt index: String.Index) -> (
     String.Index, HTMLTag
   )? {
     guard let tagEnd = text[index...].firstIndex(of: ">") else { return nil }
@@ -140,9 +142,9 @@ struct HTMLText: View {
 
   // MARK: - AttributedString Building
 
-  private func buildAttributedString(from parts: [TextPart]) -> AttributedString {
+  private static func buildAttributedString(from parts: [TextPart], color: Color, font: Font) -> AttributedString {
     var result = AttributedString()
-    let baseFont = Self.uiFont(for: font)
+    let baseFont = uiFont(for: font)
 
     for part in parts where !part.text.isEmpty {
 
@@ -160,8 +162,7 @@ struct HTMLText: View {
     return result
   }
 
-  private func fontWithTraits(_ baseFont: UIFont, traits: UIFontDescriptor.SymbolicTraits) -> UIFont
-  {
+  private static func fontWithTraits(_ baseFont: UIFont, traits: UIFontDescriptor.SymbolicTraits) -> UIFont {
     guard !traits.isEmpty else { return baseFont }
 
     let descriptor = baseFont.fontDescriptor.withSymbolicTraits(traits) ?? baseFont.fontDescriptor
