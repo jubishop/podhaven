@@ -143,27 +143,27 @@ extension Container {
 
   // MARK: - Seeking
 
-  func seekForward(_ duration: CMTime) async {
+  func seekForward(_ duration: CMTime) {
     log.debug(
       """
       seekForward: seeking forward by \(duration) for \
       \(String(describing: podcastEpisode?.toString))
       """
     )
-    await seek(to: avQueuePlayer.currentTime() + duration)
+    seek(to: avQueuePlayer.currentTime() + duration)
   }
 
-  func seekBackward(_ duration: CMTime) async {
+  func seekBackward(_ duration: CMTime) {
     log.debug(
       """
       seekForward: seeking backward by \(duration) for \
       \(String(describing: podcastEpisode?.toString))
       """
     )
-    await seek(to: avQueuePlayer.currentTime() - duration)
+    seek(to: avQueuePlayer.currentTime() - duration)
   }
 
-  func seek(to time: CMTime) async {
+  func seek(to time: CMTime) {
     log.debug(
       """
       seek: seeking to time \(time) for \
@@ -351,7 +351,7 @@ extension Container {
 
   // MARK: - Private Change Handlers
 
-  private func handleEpisodeFinished() async throws(PlaybackError) {
+  private func handleEpisodeFinished() throws(PlaybackError) {
     guard let finishedPodcastEpisode = self.podcastEpisode
     else { Assert.fatal("Finished episode but current episode is nil?") }
 
@@ -426,7 +426,7 @@ extension Container {
 
     self.playToEndNotificationTask = Task {
       for await _ in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
-        try? await handleEpisodeFinished()
+        try? handleEpisodeFinished()
       }
     }
   }
