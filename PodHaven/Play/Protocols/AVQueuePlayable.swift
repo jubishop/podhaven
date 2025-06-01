@@ -22,4 +22,5 @@ import Foundation
     options: NSKeyValueObservingOptions,
     changeHandler: @Sendable @escaping (AVPlayer.TimeControlStatus) -> Void
   ) -> NSKeyValueObservation
+  var reasonForWaitingToPlay: AVPlayer.WaitingReason? { get }
 }

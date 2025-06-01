@@ -39,6 +39,8 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   // MARK: - AVQueuePlayable Implementation
 
+  var reasonForWaitingToPlay: AVPlayer.WaitingReason?
+
   func addPeriodicTimeObserver(
     forInterval interval: CMTime,
     queue: dispatch_queue_t?,
@@ -139,7 +141,8 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     }
   }
 
-  func simulateBuffering() {
+  func simulateWaitingToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
+    reasonForWaitingToPlay = waitingReason
     setTimeControlStatus(.waitingToPlayAtSpecifiedRate)
   }
 }
