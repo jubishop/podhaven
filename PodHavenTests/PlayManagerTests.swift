@@ -50,7 +50,7 @@ struct PlayManagerTests {
     avQueuePlayer.triggerTimeObservers()
 
     // Test seeking
-    let seekTime = CMTime(seconds: 30, preferredTimescale: 1000)
+    let seekTime = CMTime.inSeconds(30)
     avQueuePlayer.seek(to: seekTime) { success in
       #expect(success == true)
     }
