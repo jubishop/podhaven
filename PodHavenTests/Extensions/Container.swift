@@ -14,5 +14,6 @@ extension Container: @retroactive AutoRegistering {
       { name in AsyncStream { continuation in Notifier.set(name, continuation) } }
     }
     commandCenter.context(.test) { FakeCommandCenter() }.scope(.cached)
+    avQueuePlayer.context(.test) { @MainActor in FakeAVQueuePlayer() }.scope(.cached)
   }
 }
