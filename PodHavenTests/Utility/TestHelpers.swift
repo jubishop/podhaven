@@ -10,11 +10,11 @@ enum TestHelpers {
   static func waitForValue<T>(
     maxAttempts: Int = 10,
     delay: UInt64 = 10_000_000, // 10 ms
-    _ block: @escaping () -> T?
+    _ block: @escaping () throws -> T?
   ) async throws -> T {
     var attempts = 0
     while attempts < maxAttempts {
-      if let value = block() {
+      if let value = try block() {
         return value
       }
       try await Task.sleep(nanoseconds: delay)
@@ -22,7 +22,23 @@ enum TestHelpers {
     }
     throw NSError()
   }
-  
+
+  func waitForValue<T>(
+    maxAttempts: Int = 10,
+    delay: UInt64 = 10_000_000, // 10 ms
+    _ block: @escaping () async throws -> T?
+  ) async throws -> T {
+    var attempts = 0
+    while attempts < maxAttempts {
+      if let value = try await block() {
+        return value
+      }
+      try await Task.sleep(nanoseconds: delay)
+      attempts += 1
+    }
+    throw NSError()
+  }
+
   static func unsavedEpisode(
     podcastId: Podcast.ID? = nil,
     guid: GUID = GUID(String.random()),
