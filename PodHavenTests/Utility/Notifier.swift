@@ -15,12 +15,6 @@ actor Notifier {
 
   static func get(_ name: Notification.Name) async throws -> AsyncStream<Notification>.Continuation
   {
-    var count = 0
-    while count < 10 {
-      if let continuation = continuations[name] { return continuation }
-      try? await Task.sleep(nanoseconds: 10_000_000)
-      count += 1
-    }
-    throw NSError()
+    try await TestHelpers.waitForValue { continuations[name] }
   }
 }
