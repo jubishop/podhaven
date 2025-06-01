@@ -99,14 +99,14 @@ actor PlayManager {
     }
 
     defer {
-      self.loadingTask = nil
+      loadingTask = nil
       if status != .active {
         log.notice("load.defer: Status in load never became active, going back to stopped")
         Task { await setStatus(.stopped) }
       }
     }
 
-    let task = Task {
+    let loadingTask = Task {
       await setStatus(.loading)
 
       log.info("playManager loading: \(podcastEpisode.toString)")
@@ -123,9 +123,9 @@ actor PlayManager {
       await setStatus(.active)
     }
 
-    self.loadingTask = task
+    self.loadingTask = loadingTask
     try await PlaybackError.catch {
-      try await task.value
+      try await loadingTask.value
     }
   }
 
@@ -262,11 +262,11 @@ actor PlayManager {
 
   private func observeNextEpisode() {
     Assert.precondition(
-      self.nextEpisodeTask == nil,
+      nextEpisodeTask == nil,
       "nextEpisodeTask already exists?"
     )
 
-    self.nextEpisodeTask = Task {
+    nextEpisodeTask = Task {
       do {
         for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
           try await nextEpisodeSemaphore.waitUnlessCancelled()
@@ -281,11 +281,11 @@ actor PlayManager {
 
   private func startInterruptionNotifications() {
     Assert.precondition(
-      self.interruptionTask == nil,
+      interruptionTask == nil,
       "interruptionTask already exists?"
     )
 
-    self.interruptionTask = Task {
+    interruptionTask = Task {
       for await notification in notifications(AVAudioSession.interruptionNotification) {
         switch AudioInterruption.parse(notification) {
         case .pause:
@@ -301,11 +301,11 @@ actor PlayManager {
 
   private func startListeningToCommandCenter() {
     Assert.precondition(
-      self.commandCenterTask == nil,
+      commandCenterTask == nil,
       "commandCenterTask already exists?"
     )
 
-    self.commandCenterTask = Task {
+    commandCenterTask = Task {
       for await command in commandCenter.stream {
         switch command {
         case .play:
@@ -327,33 +327,33 @@ actor PlayManager {
 
   private func startListeningToCurrentTime() {
     Assert.precondition(
-      self.currentTimeTask == nil,
+      currentTimeTask == nil,
       "currentTimeTask already exists?"
     )
 
-    self.currentTimeTask = Task {
+    currentTimeTask = Task {
       for await currentTime in await podAVPlayer.currentTimeStream {
-        await self.setCurrentTime(currentTime)
+        await setCurrentTime(currentTime)
       }
     }
   }
 
   private func startListeningToControlStatus() {
     Assert.precondition(
-      self.controlStatusTask == nil,
+      controlStatusTask == nil,
       "controlStatusTask already exists?"
     )
 
-    self.controlStatusTask = Task {
+    controlStatusTask = Task {
       for await controlStatus in await podAVPlayer.controlStatusStream {
         if !status.playable { continue }
         switch controlStatus {
         case AVPlayer.TimeControlStatus.paused:
-          await self.setStatus(.paused)
+          await setStatus(.paused)
         case AVPlayer.TimeControlStatus.playing:
-          await self.setStatus(.playing)
+          await setStatus(.playing)
         case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
-          await self.setStatus(.waiting)
+          await setStatus(.waiting)
         @unknown default:
           Assert.fatal("Time control status unknown?")
         }
@@ -363,11 +363,11 @@ actor PlayManager {
 
   private func startListeningToPlayToEnd() {
     Assert.precondition(
-      self.playToEndTask == nil,
+      playToEndTask == nil,
       "playToEndTask already exists?"
     )
 
-    self.playToEndTask = Task {
+    playToEndTask = Task {
       for await (finishedPodcastEpisode, loadedCurrentPodcastEpisode)
         in await podAVPlayer.playToEndStream
       {

@@ -69,13 +69,13 @@ extension Container {
   // MARK: - Initialization
 
   fileprivate init() {
-    (self.currentTimeStream, self.currentTimeContinuation) = AsyncStream.makeStream(
+    (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(
       of: CMTime.self
     )
-    (self.controlStatusStream, self.controlStatusContinuation) = AsyncStream.makeStream(
+    (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: AVPlayer.TimeControlStatus.self
     )
-    (self.playToEndStream, self.playToEndContinuation) = AsyncStream.makeStream(
+    (playToEndStream, playToEndContinuation) = AsyncStream.makeStream(
       of: FinishedAndLoadedCurrent.self
     )
 
@@ -90,14 +90,14 @@ extension Container {
     log.debug("stop: executing")
     removePeriodicTimeObserver()
     avQueuePlayer.removeAllItems()
-    self.loadedCurrentPodcastEpisode = nil
+    loadedCurrentPodcastEpisode = nil
   }
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> LoadedPodcastEpisode {
     log.debug("avQueuePlayer loading: \(podcastEpisode.toString)")
 
     let (loadedPodcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
-    self.loadedCurrentPodcastEpisode = loadedPodcastEpisode
+    loadedCurrentPodcastEpisode = loadedPodcastEpisode
 
     avQueuePlayer.removeAllItems()
     avQueuePlayer.insert(playableItem, after: nil)
@@ -170,16 +170,21 @@ extension Container {
       \(String(describing: podcastEpisode?.toString))
       """
     )
+    pause()
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
     avQueuePlayer.seek(to: time) { [weak self] completed in
       guard let self else { return }
 
       if completed {
-        self.log.debug("seek completed")
-        Task { await self.addPeriodicTimeObserver() }
+        log.debug("seek completed")
+        Task {
+          currentTimeContinuation.yield(time)
+          await addPeriodicTimeObserver()
+          await play()
+        }
       } else {
-        self.log.debug("seek interrupted")
+        log.debug("seek interrupted")
       }
     }
   }
@@ -244,13 +249,13 @@ extension Container {
             PodcastEpisodesFound: 
               \(podcastEpisodesFound.map(\.toString).joined(separator: "\n  "))
             LoadedCurrentPodcastEpisode:
-              \(String(describing: self.loadedCurrentPodcastEpisode?.toString))
+              \(String(describing: loadedCurrentPodcastEpisode?.toString))
               MediaURL: \(String(describing:
-                self.loadedCurrentPodcastEpisode?.podcastEpisode.episode.media))
+                loadedCurrentPodcastEpisode?.podcastEpisode.episode.media))
             LoadedNextPodcastEpisode:
-              \(String(describing: self.loadedNextPodcastEpisode?.toString))
+              \(String(describing: loadedNextPodcastEpisode?.toString))
               MediaURL: \(String(describing:
-                self.loadedNextPodcastEpisode?.podcastEpisode.episode.media))
+                loadedNextPodcastEpisode?.podcastEpisode.episode.media))
             """
           )
 
@@ -352,7 +357,7 @@ extension Container {
   // MARK: - Private Change Handlers
 
   private func handleEpisodeFinished() throws(PlaybackError) {
-    guard let finishedPodcastEpisode = self.podcastEpisode
+    guard let finishedPodcastEpisode = podcastEpisode
     else { Assert.fatal("Finished episode but current episode is nil?") }
 
     log.debug("handleEpisodeFinished: Episode finished: \(finishedPodcastEpisode.toString)")
@@ -379,24 +384,24 @@ extension Container {
   // MARK: - Private Tracking
 
   private func addPeriodicTimeObserver() {
-    guard self.periodicTimeObserver == nil
+    guard periodicTimeObserver == nil
     else {
       log.notice("addPeriodicTimeObserver: Observer already exists, skipping")
       return
     }
 
     log.debug("addPeriodicTimeObserver: Adding periodic time observer")
-    self.periodicTimeObserver = avQueuePlayer.addPeriodicTimeObserver(
+    periodicTimeObserver = avQueuePlayer.addPeriodicTimeObserver(
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
     ) { [weak self] currentTime in
       guard let self else { return }
-      self.currentTimeContinuation.yield(currentTime)
+      currentTimeContinuation.yield(currentTime)
     }
   }
 
   private func removePeriodicTimeObserver() {
-    if let periodicTimeObserver = self.periodicTimeObserver {
+    if let periodicTimeObserver = periodicTimeObserver {
       log.debug("removePeriodicTimeObserver: Removing periodic time observer")
       avQueuePlayer.removeTimeObserver(periodicTimeObserver)
       self.periodicTimeObserver = nil
@@ -407,11 +412,11 @@ extension Container {
 
   private func addTimeControlStatusObserver() {
     Assert.precondition(
-      self.timeControlStatusObserver == nil,
+      timeControlStatusObserver == nil,
       "timeControlStatusObserver already exists?"
     )
 
-    self.timeControlStatusObserver = avQueuePlayer.observeTimeControlStatus(
+    timeControlStatusObserver = avQueuePlayer.observeTimeControlStatus(
       options: [.initial, .new]
     ) { status in
       self.controlStatusContinuation.yield(status)
@@ -420,11 +425,11 @@ extension Container {
 
   private func startPlayToEndTimeNotifications() {
     Assert.precondition(
-      self.playToEndNotificationTask == nil,
+      playToEndNotificationTask == nil,
       "playToEndNotificationTask already exists?"
     )
 
-    self.playToEndNotificationTask = Task {
+    playToEndNotificationTask = Task {
       for await _ in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
         try? handleEpisodeFinished()
       }
