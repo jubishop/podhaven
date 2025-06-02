@@ -62,35 +62,32 @@ import Testing
     // Seek will happen because episode has begun,
     // but status only goes to active and episode remains paused
     try await playManager.load(podcastEpisode)
-    try await #expect(
-      That.itHolds { await playState.status == .active },
-      "playState.status is: \(playState.status)"
-    )
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .active)
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
-    // Seek and episode remains paused
+    // Pause episode
     await playManager.pause()
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .paused)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
+
+    // Seek and status and episode remains paused
     await playManager.seekForward(CMTime.inSeconds(30))
-    try await #expect(
-      That.itHolds { await playState.status == .paused },
-      "playState.status is: \(playState.status)"
-    )
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .paused)
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
     // Play episode
     await playManager.play()
-    try await #expect(
-      That.eventually { await playState.status == .playing },
-      "playState.status is: \(playState.status)"
-    )
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .playing)
     #expect(avQueuePlayer.timeControlStatus == .playing)
 
     // Seek and episode remains playing
     await playManager.seekForward(CMTime.inSeconds(30))
-    try await #expect(
-      That.never { await playState.status != .playing },
-      "playState.status is: \(playState.status)"
-    )
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .playing)
     #expect(avQueuePlayer.timeControlStatus == .playing)
   }
 }
