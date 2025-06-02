@@ -214,10 +214,7 @@ actor PlayManager {
 
   private func setStatus(_ status: PlayState.Status) async {
     guard status != self.status
-    else {
-      log.debug("setStatus: status is already \(status) so nothing to do")
-      return
-    }
+    else { return }
 
     log.debug("setStatus: setting status to: \(status)")
     nowPlayingInfo?.playing(status.playing)

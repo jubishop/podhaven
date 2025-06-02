@@ -170,9 +170,9 @@ extension Container {
       guard let self else { return }
 
       if completed {
-        log.debug("seek completed")
+        log.debug("seek to \(time) completed")
       } else {
-        log.debug("seek interrupted")
+        log.debug("seek to \(time) interrupted")
       }
     }
   }
@@ -285,8 +285,8 @@ extension Container {
           log.debug(
             """
             insertNextPodcastEpisode: nothing to do because the incoming next episode is nil and \
-            there's only one in the avQueuePlayer, which is \(podcastEpisode.toString), which must be \
-            the one playing
+            there's only one in the avQueuePlayer, which is \(podcastEpisode.toString), which \
+            must be the one playing
             """
           )
 
