@@ -6,16 +6,16 @@ import Foundation
 @testable import PodHaven
 
 class FakeAVQueuePlayer: AVQueuePlayable {
-  // MARK: - Public State for Testing
+  // MARK: - Manipulators for testing
 
-  private(set) var currentTimeValue: CMTime = .zero
-  private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused
-  private(set) var queueItems: [any AVPlayableItem] = []
+  var timeControlStatus: AVPlayer.TimeControlStatus = .paused
   var seekDelay: Duration = .zero
   var seekCompletion: Bool = true
 
   // MARK: - Internal Storage
 
+  private var currentTimeValue: CMTime = .zero
+  private var queueItems: [any AVPlayableItem] = []
   private var timeObservers: [TimeObserver] = []
   private var statusHandlers: [UUID: (AVPlayer.TimeControlStatus) -> Void] = [:]
 
