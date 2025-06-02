@@ -167,17 +167,11 @@ extension Container {
       """
     )
 
-    removePeriodicTimeObserver()
-    currentTimeContinuation.yield(time)
     avQueuePlayer.seek(to: time) { [weak self] completed in
       guard let self else { return }
 
       if completed {
         log.debug("seek completed")
-        Task {
-          currentTimeContinuation.yield(time)
-          await addPeriodicTimeObserver()
-        }
       } else {
         log.debug("seek interrupted")
       }
