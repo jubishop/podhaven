@@ -20,7 +20,7 @@ enum TestHelpers {
       try await Task.sleep(nanoseconds: delay)
       attempts += 1
     }
-    throw TestError()
+    throw TestError.waitForValueFailure(String(describing: T.self))
   }
 
   static func waitForValue<T: Sendable>(
@@ -36,39 +36,7 @@ enum TestHelpers {
       try await Task.sleep(nanoseconds: delay)
       attempts += 1
     }
-    throw TestError()
-  }
-
-  static func waitUntil(
-    maxAttempts: Int = 10,
-    delay: UInt64 = 10_000_000,  // 10 ms
-    _ block: @Sendable @escaping () throws -> Bool
-  ) async throws {
-    var attempts = 0
-    while attempts < maxAttempts {
-      if try block() {
-        return
-      }
-      try await Task.sleep(nanoseconds: delay)
-      attempts += 1
-    }
-    throw TestError()
-  }
-
-  static func waitUntil(
-    maxAttempts: Int = 10,
-    delay: UInt64 = 10_000_000,  // 10 ms
-    _ block: @Sendable @escaping () async throws -> Bool
-  ) async throws {
-    var attempts = 0
-    while attempts < maxAttempts {
-      if try await block() {
-        return
-      }
-      try await Task.sleep(nanoseconds: delay)
-      attempts += 1
-    }
-    throw TestError()
+    throw TestError.waitForValueFailure(String(describing: T.self))
   }
 
   static func unsavedEpisode(
