@@ -59,8 +59,7 @@ import Testing
       episode: podcastSeries.episodes.first!
     )
 
-    // Seek will happen because episode has begun,
-    // but status only goes to active and episode remains paused
+    // Seek will happen because episode has currentTime
     try await playManager.load(podcastEpisode)
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .active)
@@ -72,7 +71,7 @@ import Testing
     #expect(playState.status == .paused)
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
-    // Seek and status and episode remains paused
+    // Seek and episode remains paused
     await playManager.seekForward(CMTime.inSeconds(30))
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .paused)
