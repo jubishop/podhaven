@@ -20,14 +20,19 @@ actor FakeEpisodeAssetLoader {
   }
 
   static func loadEpisodeAsset(_ url: URL) async throws -> EpisodeAsset {
-    guard let handler = fakeHandlers[url]
-    else { Assert.fatal("No handler for \(url)??") }
+    if let handler = fakeHandlers[url] {
+      let (isPlayable, duration) = try await handler(url)
+      return await EpisodeAsset(
+        playerItem: FakeAVPlayerItem(assetURL: url),
+        isPlayable: isPlayable,
+        duration: duration
+      )
+    }
 
-    let (isPlayable, duration) = try await handler(url)
     return await EpisodeAsset(
       playerItem: FakeAVPlayerItem(assetURL: url),
-      isPlayable: isPlayable,
-      duration: duration
+      isPlayable: true,
+      duration: CMTime.inSeconds(60)
     )
   }
 }
