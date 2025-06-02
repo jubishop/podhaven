@@ -11,6 +11,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   private(set) var currentTimeValue: CMTime = .zero
   private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused
   private(set) var queueItems: [any AVPlayableItem] = []
+  var seekDelay: Duration = .zero
   var seekCompletion: Bool = true
 
   // MARK: - Internal Storage
@@ -89,8 +90,16 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   }
 
   func seek(to time: CMTime, completionHandler: @escaping @Sendable (Bool) -> Void) {
-    currentTimeValue = time
-    completionHandler(seekCompletion)
+    if seekDelay > .zero {
+      Task {
+        try await Task.sleep(for: seekDelay)
+        completionHandler(seekCompletion)
+        currentTimeValue = time
+      }
+    } else {
+      completionHandler(seekCompletion)
+      currentTimeValue = time
+    }
   }
 
   func addPeriodicTimeObserver(
