@@ -75,7 +75,6 @@ extension Container {
       of: FinishedAndLoadedCurrent.self
     )
 
-    addPeriodicTimeObserver()
     addTimeControlStatusObserver()
     startPlayToEndTimeNotifications()
   }
@@ -353,20 +352,6 @@ extension Container {
 
     loadedCurrentPodcastEpisode = loadedNextPodcastEpisode
     nextBundle = nil
-
-    if let podcastEpisode {
-      log.debug(
-        """
-        handleEpisodeFinished: new episode is \(podcastEpisode.toString) \
-        Adding periodic time observer for next episode
-        """
-      )
-      addPeriodicTimeObserver()
-    } else {
-      log.debug("handleEpisodeFinished: No next episode, removing periodic time observer")
-      removePeriodicTimeObserver()
-    }
-
     playToEndContinuation.yield((finishedPodcastEpisode, loadedCurrentPodcastEpisode))
   }
 
@@ -374,10 +359,7 @@ extension Container {
 
   private func addPeriodicTimeObserver() {
     guard periodicTimeObserver == nil
-    else {
-      log.notice("addPeriodicTimeObserver: Observer already exists, skipping")
-      return
-    }
+    else { return }
 
     log.debug("addPeriodicTimeObserver: Adding periodic time observer")
     periodicTimeObserver = avQueuePlayer.addPeriodicTimeObserver(
@@ -394,8 +376,6 @@ extension Container {
       log.debug("removePeriodicTimeObserver: Removing periodic time observer")
       avQueuePlayer.removeTimeObserver(periodicTimeObserver)
       self.periodicTimeObserver = nil
-    } else {
-      log.notice("removePeriodicTimeObserver: No observer to remove")
     }
   }
 

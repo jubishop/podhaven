@@ -125,7 +125,6 @@ actor PlayManager {
         try? await queue.unshift(outgoingPodcastEpisode.id)
       }
 
-      await stopAndClearOnDeck()
       await setOnDeck(try await podAVPlayer.load(podcastEpisode))
       try? await queue.dequeue(podcastEpisode.id)
 
@@ -190,17 +189,17 @@ actor PlayManager {
     nowPlayingInfo = NowPlayingInfo(onDeck)
     await playState.setOnDeck(onDeck)
 
-    if podcastEpisode.episode.currentTime != CMTime.zero {
+    if podcastEpisode.episode.currentTime == CMTime.zero {
+      log.debug("setOnDeck: \(podcastEpisode.toString) has no currentTime")
+      await setCurrentTime(CMTime.zero)
+    } else {
       log.debug(
         """
         setOnDeck: Seeking \(podcastEpisode.toString), to \
         currentTime: \(podcastEpisode.episode.currentTime)
         """
       )
-
       await seek(to: podcastEpisode.episode.currentTime)
-    } else {
-      log.debug("setOnDeck: \(podcastEpisode.toString) has no currentTime")
     }
 
     currentEpisodeID = podcastEpisode.id
@@ -211,7 +210,6 @@ actor PlayManager {
     await podAVPlayer.stop()
     nowPlayingInfo = nil
     await playState.setOnDeck(nil)
-    await setCurrentTime(CMTime.zero)
   }
 
   private func setStatus(_ status: PlayState.Status) async {
