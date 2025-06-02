@@ -90,13 +90,8 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   }
 
   func seek(to time: CMTime, completionHandler: @escaping @Sendable (Bool) -> Void) {
-    if seekDelay > .zero {
-      Task {
-        try await Task.sleep(for: seekDelay)
-        completionHandler(seekCompletion)
-        currentTimeValue = time
-      }
-    } else {
+    Task {
+      try await Task.sleep(for: seekDelay)
       completionHandler(seekCompletion)
       currentTimeValue = time
     }
