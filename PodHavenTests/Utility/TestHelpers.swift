@@ -9,8 +9,8 @@ import Tagged
 enum TestHelpers {
   static func waitForValue<T>(
     maxAttempts: Int = 10,
-    delay: UInt64 = 10_000_000, // 10 ms
-    _ block: @escaping () throws -> T?
+    delay: UInt64 = 10_000_000,  // 10 ms
+    _ block: @Sendable @escaping () throws -> T?
   ) async throws -> T {
     var attempts = 0
     while attempts < maxAttempts {
@@ -20,13 +20,13 @@ enum TestHelpers {
       try await Task.sleep(nanoseconds: delay)
       attempts += 1
     }
-    throw NSError()
+    throw TestError()
   }
 
   func waitForValue<T>(
     maxAttempts: Int = 10,
-    delay: UInt64 = 10_000_000, // 10 ms
-    _ block: @escaping () async throws -> T?
+    delay: UInt64 = 10_000_000,  // 10 ms
+    _ block: @Sendable @escaping () async throws -> T?
   ) async throws -> T {
     var attempts = 0
     while attempts < maxAttempts {
@@ -36,7 +36,7 @@ enum TestHelpers {
       try await Task.sleep(nanoseconds: delay)
       attempts += 1
     }
-    throw NSError()
+    throw TestError()
   }
 
   static func unsavedEpisode(

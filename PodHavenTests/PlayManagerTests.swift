@@ -45,4 +45,52 @@ import Testing
     //commandCenter.continuation.yield(.play)
     //commandCenter.continuation.yield(.pause)
   }
+
+  @Test("seeking retains original play status")
+  func seekingRetainsOriginalPlayStatus() async throws {
+    // In progress means seek will happen upon loading
+    let inProgressEpisode = try TestHelpers.unsavedEpisode(currentTime: CMTime.inSeconds(120))
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [inProgressEpisode]
+    )
+    let podcastEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes.first!
+    )
+
+    // Seek will happen because episode has begun,
+    // but status only goes to active and episode remains paused
+    try await playManager.load(podcastEpisode)
+    try await #expect(
+      That.itHolds { await playState.status == .active },
+      "playState.status is: \(playState.status)"
+    )
+    #expect(avQueuePlayer.timeControlStatus == .paused)
+
+    // Seek and episode remains paused
+    await playManager.pause()
+    await playManager.seekForward(CMTime.inSeconds(30))
+    try await #expect(
+      That.itHolds { await playState.status == .paused },
+      "playState.status is: \(playState.status)"
+    )
+    #expect(avQueuePlayer.timeControlStatus == .paused)
+
+    // Play episode
+    await playManager.play()
+    try await #expect(
+      That.eventually { await playState.status == .playing },
+      "playState.status is: \(playState.status)"
+    )
+    #expect(avQueuePlayer.timeControlStatus == .playing)
+
+    // Seek and episode remains playing
+    await playManager.seekForward(CMTime.inSeconds(30))
+    try await #expect(
+      That.never { await playState.status != .playing },
+      "playState.status is: \(playState.status)"
+    )
+    #expect(avQueuePlayer.timeControlStatus == .playing)
+  }
 }

@@ -166,7 +166,7 @@ extension Container {
       \(String(describing: podcastEpisode?.toString))
       """
     )
-    pause()
+
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
     avQueuePlayer.seek(to: time) { [weak self] completed in
@@ -177,7 +177,6 @@ extension Container {
         Task {
           currentTimeContinuation.yield(time)
           await addPeriodicTimeObserver()
-          await play()
         }
       } else {
         log.debug("seek interrupted")

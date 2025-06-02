@@ -18,6 +18,7 @@ import Foundation
     queue: dispatch_queue_t?,
     using block: @Sendable @escaping (CMTime) -> Void
   ) -> Any
+  var timeControlStatus: AVPlayer.TimeControlStatus { get }
   func observeTimeControlStatus(
     options: NSKeyValueObservingOptions,
     changeHandler: @Sendable @escaping (AVPlayer.TimeControlStatus) -> Void

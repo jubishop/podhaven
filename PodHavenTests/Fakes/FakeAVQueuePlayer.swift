@@ -8,7 +8,6 @@ import Foundation
 class FakeAVQueuePlayer: AVQueuePlayable {
   // MARK: - Public State for Testing
 
-  private(set) var isPlaying: Bool = false
   private(set) var currentTimeValue: CMTime = .zero
   private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused
   private(set) var queueItems: [any AVPlayableItem] = []
@@ -62,12 +61,10 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   func items() -> [any AVPlayableItem] { queueItems }
 
   func pause() {
-    isPlaying = false
     setTimeControlStatus(.paused)
   }
 
   func play() {
-    isPlaying = true
     setTimeControlStatus(.playing)
   }
 
@@ -81,7 +78,6 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   func removeAllItems() {
     queueItems.removeAll()
-    isPlaying = false
     setTimeControlStatus(.paused)
   }
 

@@ -140,17 +140,17 @@ actor PlayManager {
 
   // MARK: - Playback Controls
 
-  func play() {
+  func play() async {
     Assert.precondition(
       status.playable,
       "tried to play but status is \(status) which is not playable"
     )
 
-    Task { await podAVPlayer.play() }
+    await podAVPlayer.play()
   }
 
-  func pause() {
-    Task { await podAVPlayer.pause() }
+  func pause() async {
+    await podAVPlayer.pause()
   }
 
   // MARK: - Seeking
@@ -298,9 +298,9 @@ actor PlayManager {
       for await notification in notifications(AVAudioSession.interruptionNotification) {
         switch AudioInterruption.parse(notification) {
         case .pause:
-          pause()
+          await pause()
         case .resume:
-          play()
+          await play()
         case .ignore:
           break
         }
@@ -318,11 +318,11 @@ actor PlayManager {
       for await command in commandCenter.stream {
         switch command {
         case .play:
-          play()
+          await play()
         case .pause:
-          pause()
+          await pause()
         case .togglePlayPause:
-          if status.playing { pause() } else { play() }
+          if status.playing { await pause() } else { await play() }
         case .skipForward(let interval):
           await seekForward(CMTime.inSeconds(interval))
         case .skipBackward(let interval):
