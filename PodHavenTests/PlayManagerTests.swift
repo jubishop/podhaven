@@ -37,7 +37,9 @@ import Testing
     )
 
     try await playManager.load(podcastEpisode)
+    let onDeck: OnDeck = try await TestHelpers.waitForValue { await playState.onDeck }
     #expect(avQueuePlayer.items().map(\.assetURL) == [podcastEpisode.episode.media.rawValue])
+    #expect(onDeck == podcastEpisode)
 
     // let continuation = try await Notifier.get(AVAudioSession.interruptionNotification)
     // continuation.yield(Notification(name: .init("Test")))

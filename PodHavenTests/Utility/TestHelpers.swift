@@ -7,7 +7,7 @@ import Tagged
 @testable import PodHaven
 
 enum TestHelpers {
-  static func waitForValue<T>(
+  static func waitForValue<T: Sendable>(
     maxAttempts: Int = 10,
     delay: UInt64 = 10_000_000,  // 10 ms
     _ block: @Sendable @escaping () throws -> T?
@@ -23,7 +23,7 @@ enum TestHelpers {
     throw TestError()
   }
 
-  func waitForValue<T>(
+  static func waitForValue<T: Sendable>(
     maxAttempts: Int = 10,
     delay: UInt64 = 10_000_000,  // 10 ms
     _ block: @Sendable @escaping () async throws -> T?
@@ -32,6 +32,38 @@ enum TestHelpers {
     while attempts < maxAttempts {
       if let value = try await block() {
         return value
+      }
+      try await Task.sleep(nanoseconds: delay)
+      attempts += 1
+    }
+    throw TestError()
+  }
+
+  static func waitUntil(
+    maxAttempts: Int = 10,
+    delay: UInt64 = 10_000_000,  // 10 ms
+    _ block: @Sendable @escaping () throws -> Bool
+  ) async throws {
+    var attempts = 0
+    while attempts < maxAttempts {
+      if try block() {
+        return
+      }
+      try await Task.sleep(nanoseconds: delay)
+      attempts += 1
+    }
+    throw TestError()
+  }
+
+  static func waitUntil(
+    maxAttempts: Int = 10,
+    delay: UInt64 = 10_000_000,  // 10 ms
+    _ block: @Sendable @escaping () async throws -> Bool
+  ) async throws {
+    var attempts = 0
+    while attempts < maxAttempts {
+      if try await block() {
+        return
       }
       try await Task.sleep(nanoseconds: delay)
       attempts += 1
