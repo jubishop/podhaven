@@ -59,7 +59,7 @@ struct NowPlayingInfo {
     infoCenter.nowPlayingInfo = nil
   }
 
-  func currentTime(_ currentTime: CMTime) {
+  func setCurrentTime(_ currentTime: CMTime) {
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
       NSNumber(value: CMTimeGetSeconds(currentTime))
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackProgress] =

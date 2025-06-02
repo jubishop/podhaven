@@ -228,7 +228,7 @@ actor PlayManager {
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
-    nowPlayingInfo?.currentTime(currentTime)
+    nowPlayingInfo?.setCurrentTime(currentTime)
     await playState.setCurrentTime(currentTime)
 
     guard let currentPodcastEpisode = await podAVPlayer.podcastEpisode
