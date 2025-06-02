@@ -17,7 +17,7 @@ struct HTMLText: View {
   }
 
   var body: some View {
-    if let attributedString = attributedString {
+    if let attributedString {
       Text(attributedString)
     } else {
       Text(html)

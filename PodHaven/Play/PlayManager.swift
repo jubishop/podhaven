@@ -251,7 +251,7 @@ actor PlayManager {
   ) async {
     _ = try? await repo.markComplete(finishedPodcastEpisode.id)
 
-    if let loadedCurrentPodcastEpisode = loadedCurrentPodcastEpisode {
+    if let loadedCurrentPodcastEpisode {
       log.debug(
         """
         handleEpisodeFinished: enqueuing next episode: \

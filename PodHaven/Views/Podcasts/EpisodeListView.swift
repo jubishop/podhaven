@@ -41,7 +41,7 @@ struct EpisodeListView: View {
   @Previewable @State var isSelected: Bool = false
 
   List {
-    if let episode = episode {
+    if let episode {
       EpisodeListView(
         viewModel: EpisodeListViewModel(
           isSelected: .constant(false),
@@ -50,7 +50,7 @@ struct EpisodeListView: View {
         )
       )
     }
-    if let selectedEpisode = selectedEpisode {
+    if let selectedEpisode {
       EpisodeListView(
         viewModel: EpisodeListViewModel(
           isSelected: $isSelected,

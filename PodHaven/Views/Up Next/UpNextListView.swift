@@ -72,7 +72,7 @@ struct UpNextListView: View {
   @Previewable @State var selected: Bool = false
 
   NavigationStack {
-    if let podcastEpisode = podcastEpisode {
+    if let podcastEpisode {
       VStack(spacing: 40) {
         UpNextListView(
           viewModel: UpNextListViewModel(

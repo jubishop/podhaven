@@ -100,7 +100,7 @@ struct PodcastDetailView: View {
   @Previewable @State var podcast: Podcast?
 
   NavigationStack {
-    if let podcast = podcast {
+    if let podcast {
       PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
     }
   }

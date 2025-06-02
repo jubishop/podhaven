@@ -41,7 +41,7 @@ struct EpisodeDetailView: View {
 
   NavigationStack {
     Group {
-      if let podcastEpisode = podcastEpisode {
+      if let podcastEpisode {
         EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
       } else {
         Text("No episodes in DB")

@@ -29,7 +29,7 @@ actor DownloadTask {
   }
 
   func downloadFinished() async throws(DownloadError) -> DownloadData {
-    if let result = result { return try result.get() }
+    if let result { return try result.get() }
 
     let result = await withCheckedContinuation { continuation in
       finishedContinuations.append(continuation)

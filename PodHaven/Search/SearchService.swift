@@ -61,7 +61,7 @@ struct SearchService {
     if !categories.isEmpty {
       queryItems.append(URLQueryItem(name: "cat", value: categories.joined(separator: ",")))
     }
-    if let language = language {
+    if let language {
       queryItems.append(URLQueryItem(name: "lang", value: language))
     }
     return try await Self.parse(try await performRequest("/podcasts/trending", queryItems))

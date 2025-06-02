@@ -15,5 +15,6 @@ extension Container: @retroactive AutoRegistering {
     }
     commandCenter.context(.test) { FakeCommandCenter() }.scope(.cached)
     avQueuePlayer.context(.test) { @MainActor in FakeAVQueuePlayer() }.scope(.cached)
+    loadEpisodeAsset.context(.test) { FakeEpisodeAssetLoader.loadEpisodeAsset }
   }
 }

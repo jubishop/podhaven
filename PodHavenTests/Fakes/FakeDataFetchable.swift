@@ -8,7 +8,7 @@ import Testing
 
 actor FakeDataFetchable: DataFetchable {
   private let session: URLSession
-  private var mockHandlers: [URL: @Sendable (URL) async throws -> (Data, URLResponse)] = [:]
+  private var fakeHandlers: [URL: @Sendable (URL) async throws -> (Data, URLResponse)] = [:]
   private(set) var requests: [URL] = []
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
@@ -26,7 +26,7 @@ actor FakeDataFetchable: DataFetchable {
     maxActiveRequests = max(maxActiveRequests, activeRequests)
     requests.append(url)
 
-    if let handler = mockHandlers[url] {
+    if let handler = fakeHandlers[url] {
       return try await handler(url)
     }
 
@@ -42,7 +42,7 @@ actor FakeDataFetchable: DataFetchable {
     to url: URL,
     with handler: @Sendable @escaping (URL) async throws -> (Data, URLResponse)
   ) {
-    mockHandlers[url] = handler
+    fakeHandlers[url] = handler
   }
 
   // Convenience methods for common test patterns

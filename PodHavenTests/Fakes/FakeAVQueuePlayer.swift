@@ -45,7 +45,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   func currentTime() -> CMTime { currentTimeValue }
 
   func insert(_ item: any AVPlayableItem, after afterItem: (any AVPlayableItem)?) {
-    if let afterItem = afterItem {
+    if let afterItem {
       guard let afterIndex = queueItems.firstIndex(where: { $0.assetURL == afterItem.assetURL })
       else { Assert.fatal("Couldn't find item: \(afterItem), to insert after!") }
 

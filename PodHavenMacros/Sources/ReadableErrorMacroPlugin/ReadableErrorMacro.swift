@@ -52,7 +52,7 @@ public struct ReadableErrorMacro: MemberMacro {
           
           let errorIndex = errorIndices.first
 
-          if let errorIndex = errorIndex {
+          if let errorIndex {
             // Create parameter bindings based on the errorIndex
             let paramBindings = (0..<parameters.count)
               .map { i in

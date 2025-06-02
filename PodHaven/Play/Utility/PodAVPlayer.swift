@@ -15,8 +15,8 @@ extension Container {
         let (isPlayable, duration) = try await asset.load(.isPlayable, .duration)
         return await EpisodeAsset(
           playerItem: AVPlayerItem(asset: asset),
-          duration: duration,
-          isPlayable: isPlayable
+          isPlayable: isPlayable,
+          duration: duration
         )
       }
     }
@@ -361,7 +361,7 @@ extension Container {
     loadedCurrentPodcastEpisode = loadedNextPodcastEpisode
     nextBundle = nil
 
-    if let podcastEpisode = podcastEpisode {
+    if let podcastEpisode {
       log.debug(
         """
         handleEpisodeFinished: new episode is \(podcastEpisode.toString) \
@@ -397,7 +397,7 @@ extension Container {
   }
 
   private func removePeriodicTimeObserver() {
-    if let periodicTimeObserver = periodicTimeObserver {
+    if let periodicTimeObserver {
       log.debug("removePeriodicTimeObserver: Removing periodic time observer")
       avQueuePlayer.removeTimeObserver(periodicTimeObserver)
       self.periodicTimeObserver = nil

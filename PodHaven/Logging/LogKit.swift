@@ -14,8 +14,8 @@ enum LogKit {
     oneOff: Logger.Metadata?
   ) -> Logger.Metadata {
     var merged = handler
-    if let provider = provider { merged.merge(provider.get()) { (_, new) in new } }
-    if let oneOff = oneOff { merged.merge(oneOff) { (_, new) in new } }
+    if let provider { merged.merge(provider.get()) { (_, new) in new } }
+    if let oneOff { merged.merge(oneOff) { (_, new) in new } }
     return merged
   }
 

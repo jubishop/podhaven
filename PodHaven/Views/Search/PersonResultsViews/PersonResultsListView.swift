@@ -67,7 +67,7 @@ struct PersonResultsListView: View {
   @Previewable @State var viewModel: PersonResultsListViewModel?
 
   NavigationStack {
-    if let viewModel = viewModel {
+    if let viewModel {
       PersonResultsListView(viewModel: viewModel)
     }
   }

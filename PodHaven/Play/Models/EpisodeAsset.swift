@@ -5,6 +5,6 @@ import Foundation
 
 @MainActor struct EpisodeAsset {
   let playerItem: any AVPlayableItem
-  let duration: CMTime
   let isPlayable: Bool
+  let duration: CMTime
 }

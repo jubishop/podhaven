@@ -47,7 +47,7 @@ struct PodcastsResultsView: View {
   @Previewable @State var viewModel: ResultsViewModel?
 
   NavigationStack {
-    if let viewModel = viewModel {
+    if let viewModel {
       PodcastsResultsView(viewModel: viewModel)
     }
   }

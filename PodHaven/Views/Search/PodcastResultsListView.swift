@@ -20,7 +20,7 @@ struct PodcastResultsListView: View {
 
   NavigationStack {
     List {
-      if let unsavedPodcast = unsavedPodcast {
+      if let unsavedPodcast {
         PodcastResultsListView(unsavedPodcast: unsavedPodcast)
       } else {
         Text("No trending result found")

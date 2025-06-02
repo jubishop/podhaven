@@ -89,7 +89,7 @@ struct PodcastResultsDetailView: View {
   @ObservationIgnored @DynamicInjected(\.repo) var repo
 
   NavigationStack {
-    if let viewModel = viewModel {
+    if let viewModel {
       PodcastResultsDetailView(viewModel: viewModel)
     }
   }

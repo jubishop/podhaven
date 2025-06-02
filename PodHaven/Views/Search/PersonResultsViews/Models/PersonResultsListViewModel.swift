@@ -37,7 +37,7 @@ class PersonResultsListViewModel:
 
   func execute() async {
     do {
-      if let personResult = personResult {
+      if let personResult {
         existingPodcastEpisodes = IdentifiedArray(
           uniqueElements: try await repo.episodes(personResult.items.map(\.enclosureUrl)),
           id: \.episode.media
