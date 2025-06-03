@@ -11,6 +11,7 @@ import Testing
 
 @Suite("of PlayManager tests", .container)
 @MainActor struct PlayManagerTests {
+  @DynamicInjected(\.mpNowPlayingInfoCenter) private var mpNowPlayingInfoCenter
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.playState) private var playState
   @DynamicInjected(\.queue) private var queue
@@ -21,7 +22,7 @@ import Testing
 
   var avQueuePlayer: FakeAVQueuePlayer { injectedAVQueuePlayer as! FakeAVQueuePlayer }
   var commandCenter: FakeCommandCenter { injectedCommandCenter as! FakeCommandCenter }
-  var nowPlayingInfo: [String: Any?]? { MPNowPlayingInfoCenter.default().nowPlayingInfo }
+  var nowPlayingInfo: [String: Any?]? { mpNowPlayingInfoCenter.nowPlayingInfo }
 
   func continuation(for name: Notification.Name) -> AsyncStream<Notification>.Continuation {
     Container.shared.notifier().continuation(for: name)

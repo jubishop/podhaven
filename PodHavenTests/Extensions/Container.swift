@@ -14,6 +14,7 @@ extension Container: @retroactive AutoRegistering {
       { name in self.notifier().stream(for: name) }
     }
     commandCenter.context(.test) { FakeCommandCenter() }.scope(.cached)
+    mpNowPlayingInfoCenter.context(.test) { FakeMPNowPlayingInfoCenter() }.scope(.cached)
     avQueuePlayer.context(.test) { @MainActor in FakeAVQueuePlayer() }.scope(.cached)
     loadEpisodeAsset.context(.test) { FakeEpisodeAssetLoader.loadEpisodeAsset }
   }

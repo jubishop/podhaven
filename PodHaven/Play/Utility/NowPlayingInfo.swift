@@ -12,7 +12,6 @@ struct NowPlayingInfo {
   // MARK: - Convenience Getters
 
   private let appIdentifier = "com.artisanal.podhaven"
-  private var infoCenter: MPNowPlayingInfoCenter { MPNowPlayingInfoCenter.default() }
 
   // MARK: - Initializing
 
@@ -52,14 +51,17 @@ struct NowPlayingInfo {
         podcastURL.absoluteString
     }
 
+    var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo = nowPlayingInfo
   }
 
   func clear() {
+    var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo = nil
   }
 
   func setCurrentTime(_ currentTime: CMTime) {
+    var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
       NSNumber(value: CMTimeGetSeconds(currentTime))
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackProgress] =
@@ -67,6 +69,7 @@ struct NowPlayingInfo {
   }
 
   func playing(_ playing: Bool) {
+    var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] =
       playing ? 1.0 : 0.0
   }
