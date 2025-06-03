@@ -41,6 +41,38 @@ enum TestHelpers {
     throw TestError.waitForValueFailure(String(describing: T.self))
   }
 
+  static func waitUntil(
+    maxAttempts: Int = 10,
+    delay: UInt64 = 10_000_000,  // 10 ms
+    _ block: @Sendable @escaping () throws -> Bool
+  ) async throws {
+    var attempts = 0
+    while attempts < maxAttempts {
+      if try block() {
+        return
+      }
+      try await Task.sleep(nanoseconds: delay)
+      attempts += 1
+    }
+    throw TestError.waitUntilFailure
+  }
+
+  static func waitUntil(
+    maxAttempts: Int = 10,
+    delay: UInt64 = 10_000_000,  // 10 ms
+    _ block: @Sendable @escaping () async throws -> Bool
+  ) async throws {
+    var attempts = 0
+    while attempts < maxAttempts {
+      if try await block() {
+        return
+      }
+      try await Task.sleep(nanoseconds: delay)
+      attempts += 1
+    }
+    throw TestError.waitUntilFailure
+  }
+
   static func unsavedEpisode(
     podcastId: Podcast.ID? = nil,
     guid: GUID = GUID(String.random()),

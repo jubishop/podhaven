@@ -2,13 +2,20 @@
 
 import AVFoundation
 import Foundation
+import FactoryKit
 
 @testable import PodHaven
 
-actor FakeEpisodeAssetLoader {
-  private static var fakeHandlers: [URL: @Sendable (URL) async throws -> (Bool, CMTime)] = [:]
+extension Container {
+  var episodeAssetLoader: Factory<EpisodeAssetLoader> {
+    Factory(self) { EpisodeAssetLoader() }.scope(.cached)
+  }
+}
 
-  static func respond(
+class EpisodeAssetLoader {
+  private var fakeHandlers: [URL: @Sendable (URL) async throws -> (Bool, CMTime)] = [:]
+
+  func respond(
     to url: URL,
     delay: Duration? = nil,
     _ handler: @Sendable @escaping (URL) async throws -> (Bool, CMTime)
@@ -19,7 +26,7 @@ actor FakeEpisodeAssetLoader {
     }
   }
 
-  static func loadEpisodeAsset(_ url: URL) async throws -> EpisodeAsset {
+  func loadEpisodeAsset(_ url: URL) async throws -> EpisodeAsset {
     if let handler = fakeHandlers[url] {
       let (isPlayable, duration) = try await handler(url)
       return await EpisodeAsset(
