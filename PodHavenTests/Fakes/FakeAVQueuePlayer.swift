@@ -6,20 +6,20 @@ import Foundation
 @testable import PodHaven
 
 class FakeAVQueuePlayer: AVQueuePlayable {
-  // MARK: - Manipulators for testing
+  // MARK: - Testing State
 
-  var timeControlStatus: AVPlayer.TimeControlStatus = .paused
   var seekDelay: Duration = .zero
   var seekCompletion: Bool = true
+  private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused
 
-  // MARK: - Internal Storage
+  // MARK: - Internal State Management
 
   private var currentTimeValue: CMTime = .zero
   private var queueItems: [any AVPlayableItem] = []
   private var timeObservers: [TimeObserver] = []
   private var statusHandlers: [UUID: (AVPlayer.TimeControlStatus) -> Void] = [:]
 
-  // MARK: - Helper Classes
+  // MARK: - Private Helper Classes
 
   private final class TimeObserver: Sendable {
     let id = UUID()
@@ -124,19 +124,6 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   // MARK: - Testing Helper Methods
 
-  func triggerTimeObservers() {
-    let currentTimeValue = self.currentTimeValue
-    for observer in timeObservers {
-      if let queue = observer.queue {
-        queue.async {
-          observer.block(currentTimeValue)
-        }
-      } else {
-        observer.block(currentTimeValue)
-      }
-    }
-  }
-
   func simulateTimeAdvancement(by interval: TimeInterval) {
     let newTime = CMTimeAdd(currentTimeValue, CMTime.inSeconds(interval))
     currentTimeValue = newTime
@@ -153,5 +140,20 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   func simulateWaitingToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
     reasonForWaitingToPlay = waitingReason
     setTimeControlStatus(.waitingToPlayAtSpecifiedRate)
+  }
+  
+  // MARK: - Private Helpers
+  
+  private func triggerTimeObservers() {
+    let currentTimeValue = self.currentTimeValue
+    for observer in timeObservers {
+      if let queue = observer.queue {
+        queue.async {
+          observer.block(currentTimeValue)
+        }
+      } else {
+        observer.block(currentTimeValue)
+      }
+    }
   }
 }
