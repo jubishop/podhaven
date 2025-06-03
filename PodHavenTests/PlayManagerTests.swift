@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import MediaPlayer
 import Testing
 
 @testable import PodHaven
@@ -20,6 +21,11 @@ import Testing
 
   var avQueuePlayer: FakeAVQueuePlayer { injectedAVQueuePlayer as! FakeAVQueuePlayer }
   var commandCenter: FakeCommandCenter { injectedCommandCenter as! FakeCommandCenter }
+  var nowPlayingInfo: [String: Any?]? { MPNowPlayingInfoCenter.default().nowPlayingInfo }
+
+  func continuation(for name: Notification.Name) -> AsyncStream<Notification>.Continuation {
+    Container.shared.notifier().continuation(for: name)
+  }
 
   init() async throws {
     await playManager.start()
@@ -40,12 +46,54 @@ import Testing
     let onDeck: OnDeck = try await TestHelpers.waitForValue { await playState.onDeck }
     #expect(avQueuePlayer.items().map(\.assetURL) == [podcastEpisode.episode.media.rawValue])
     #expect(onDeck == podcastEpisode)
-
-    // let continuation = try await Notifier.get(AVAudioSession.interruptionNotification)
-    // continuation.yield(Notification(name: .init("Test")))
+    #expect(nowPlayingInfo?[MPMediaItemPropertyTitle] as! String == podcastEpisode.episode.title)
 
     //commandCenter.continuation.yield(.play)
     //commandCenter.continuation.yield(.pause)
+  }
+
+  @Test("audio session interruption stops and restarts playback")
+  func audioSessionInterruptionStopsPlayback() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [TestHelpers.unsavedEpisode()]
+    )
+    let podcastEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes.first!
+    )
+
+    try await playManager.load(podcastEpisode)
+
+    await playManager.play()
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .playing)
+
+    let interruptionContinuation = continuation(for: AVAudioSession.interruptionNotification)
+
+    interruptionContinuation.yield(
+      Notification(
+        name: AVAudioSession.interruptionNotification,
+        userInfo: [
+          AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.began.rawValue
+        ]
+      )
+    )
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .paused)
+
+    interruptionContinuation.yield(
+      Notification(
+        name: AVAudioSession.interruptionNotification,
+        userInfo: [
+          AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.ended.rawValue,
+          AVAudioSessionInterruptionOptionKey: AVAudioSession.InterruptionOptions.shouldResume
+            .rawValue,
+        ]
+      )
+    )
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .playing)
   }
 
   @Test("seeking retains original play status")

@@ -1,20 +1,39 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 
 @testable import PodHaven
 
-actor Notifier {
-  private static var continuations: [Notification.Name: AsyncStream<Notification>.Continuation] =
-    [:]
+extension Container {
+  var notifier: Factory<Notifier> {
+    Factory(self) { Notifier() }.scope(.cached)
+  }
+}
 
-  static func set(_ name: Notification.Name, _ continuation: AsyncStream<Notification>.Continuation)
-  {
-    self.continuations[name] = continuation
+class Notifier {
+  private var streamAndContinuations:
+    [Notification.Name: (AsyncStream<Notification>, AsyncStream<Notification>.Continuation)] = [:]
+
+  private func streamAndContinuation(for name: Notification.Name) -> (
+    AsyncStream<Notification>, AsyncStream<Notification>.Continuation
+  ) {
+    if let (stream, continuation) = streamAndContinuations[name] {
+      return (stream, continuation)
+    }
+
+    let (stream, continuation) = AsyncStream.makeStream(of: Notification.self)
+    streamAndContinuations[name] = (stream, continuation)
+    return (stream, continuation)
   }
 
-  static func get(_ name: Notification.Name) async throws -> AsyncStream<Notification>.Continuation
-  {
-    try await TestHelpers.waitForValue { continuations[name] }
+  func stream(for name: Notification.Name) -> AsyncStream<Notification> {
+    let (stream, _) = streamAndContinuation(for: name)
+    return stream
+  }
+
+  func continuation(for name: Notification.Name) -> AsyncStream<Notification>.Continuation {
+    let (_, continuation) = streamAndContinuation(for: name)
+    return continuation
   }
 }

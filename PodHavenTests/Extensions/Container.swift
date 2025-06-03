@@ -11,7 +11,7 @@ extension Container: @retroactive AutoRegistering {
     searchServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     feedManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     notifications.context(.test) {
-      { name in AsyncStream { continuation in Notifier.set(name, continuation) } }
+      { name in self.notifier().stream(for: name) }
     }
     commandCenter.context(.test) { FakeCommandCenter() }.scope(.cached)
     avQueuePlayer.context(.test) { @MainActor in FakeAVQueuePlayer() }.scope(.cached)
