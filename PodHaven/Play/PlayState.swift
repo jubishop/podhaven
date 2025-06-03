@@ -20,11 +20,6 @@ extension Container {
     status[keyPath: keyPath]
   }
 
-  // MARK: - State Management
-
-  private var keyboardShowTask: Task<Void, Never>?
-  private var keyboardHideTask: Task<Void, Never>?
-
   // MARK: - State Getters
 
   enum Status {
@@ -77,12 +72,9 @@ extension Container {
   }
 
   private func startListeningToKeyboardShow() {
-    Assert.precondition(
-      self.keyboardShowTask == nil,
-      "keyboardShowTask already exists?"
-    )
+    Assert.neverCalled()
 
-    self.keyboardShowTask = Task {
+    Task {
       for await _ in notifications(UIResponder.keyboardWillShowNotification) {
         keyboardVisible = true
       }
@@ -90,12 +82,9 @@ extension Container {
   }
 
   private func startListeningToKeyboardHide() {
-    Assert.precondition(
-      self.keyboardHideTask == nil,
-      "keyboardHideTask already exists?"
-    )
+    Assert.neverCalled()
 
-    self.keyboardHideTask = Task {
+    Task {
       for await _ in notifications(UIResponder.keyboardDidHideNotification) {
         keyboardVisible = false
       }

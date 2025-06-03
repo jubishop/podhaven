@@ -58,9 +58,7 @@ extension Container {
   private let controlStatusContinuation: AsyncStream<AVPlayer.TimeControlStatus>.Continuation
   private let playToEndContinuation: AsyncStream<FinishedAndLoadedCurrent>.Continuation
 
-  private var timeControlStatusObserver: NSKeyValueObservation?
   private var periodicTimeObserver: Any?
-  private var playToEndNotificationTask: Task<Void, Never>?
 
   // MARK: - Initialization
 
@@ -294,12 +292,9 @@ extension Container {
   }
 
   private func addTimeControlStatusObserver() {
-    Assert.precondition(
-      timeControlStatusObserver == nil,
-      "timeControlStatusObserver already exists?"
-    )
+    Assert.neverCalled()
 
-    timeControlStatusObserver = avQueuePlayer.observeTimeControlStatus(
+    _ = avQueuePlayer.observeTimeControlStatus(
       options: [.initial, .new]
     ) { status in
       self.controlStatusContinuation.yield(status)
@@ -307,12 +302,9 @@ extension Container {
   }
 
   private func startPlayToEndTimeNotifications() {
-    Assert.precondition(
-      playToEndNotificationTask == nil,
-      "playToEndNotificationTask already exists?"
-    )
+    Assert.neverCalled()
 
-    playToEndNotificationTask = Task {
+    Task {
       for await _ in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
         try? handleEpisodeFinished()
       }

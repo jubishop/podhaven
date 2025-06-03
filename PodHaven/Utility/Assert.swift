@@ -1,13 +1,38 @@
+import FactoryKit
 import Foundation
 import Logging
 import System
 
+extension Container {
+  var neverCalled: Factory<(String) -> Bool> {
+    Factory(self) {
+      var calledFunctions: [String: Bool] = [:]
+      return { name in
+        if calledFunctions[name] != nil { return false }
+
+        calledFunctions[name] = true
+        return true
+      }
+    }
+    .scope(.cached)
+  }
+}
+
 enum Assert {
   private static let log = Log.as("assert", level: .critical)
 
+  static func neverCalled(file: String = #fileID, function: String = #function) {
+    let neverCalled = Container.shared.neverCalled()
+
+    Assert.precondition(
+      neverCalled("\(file):\(function)"),
+      "\(file):\(function) has already been called?"
+    )
+  }
+
   static func fatal(
     _ message: String,
-    file: String = #file,
+    file: String = #fileID,
     function: String = #function,
     line: UInt = #line
   ) -> Never {
@@ -31,7 +56,7 @@ enum Assert {
   static func precondition(
     _ condition: Bool,
     _ message: String,
-    file: String = #file,
+    file: String = #fileID,
     function: String = #function,
     line: UInt = #line
   ) {
