@@ -178,10 +178,12 @@ extension Container {
 
   // MARK: - State Setters
 
-  func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws {
+  func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws(PlaybackError) {
     setNextEpisodeTask?.cancel()
 
-    try await performSetNextEpisode(nextPodcastEpisode)
+    try await PlaybackError.catch {
+      try await performSetNextEpisode(nextPodcastEpisode)
+    }
   }
 
   private func performSetNextEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws {

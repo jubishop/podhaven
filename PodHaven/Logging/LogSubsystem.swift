@@ -22,8 +22,8 @@ enum LogSubsystem {
 
     var level: Logger.Level {
       switch self {
-      case .manager: return .trace
-      case .avPlayer: return .trace
+      case .manager: return .debug
+      case .avPlayer: return .debug
       }
     }
   }
