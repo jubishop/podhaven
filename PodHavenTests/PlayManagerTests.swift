@@ -135,7 +135,7 @@ import Testing
   @Test("seeking retains original play status")
   func seekingRetainsOriginalPlayStatus() async throws {
     // In progress means seek will happen upon loading
-    let inProgressEpisode = try TestHelpers.unsavedEpisode(currentTime: CMTime.inSeconds(120))
+    let inProgressEpisode = try TestHelpers.unsavedEpisode(currentTime: .inSeconds(120))
     let podcastSeries = try await repo.insertSeries(
       TestHelpers.unsavedPodcast(),
       unsavedEpisodes: [inProgressEpisode]
@@ -148,6 +148,7 @@ import Testing
     // Seek will happen because episode has currentTime
     try await playManager.load(podcastEpisode)
     try await Task.sleep(for: .milliseconds(50))
+    #expect(playState.currentTime == .inSeconds(120))
     #expect(playState.status == .active)
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
@@ -160,6 +161,7 @@ import Testing
     // Seek and episode remains paused
     await playManager.seekForward(CMTime.inSeconds(30))
     try await Task.sleep(for: .milliseconds(50))
+    #expect(playState.currentTime == .inSeconds(150))
     #expect(playState.status == .paused)
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
@@ -172,6 +174,7 @@ import Testing
     // Seek and episode remains playing
     await playManager.seekForward(CMTime.inSeconds(30))
     try await Task.sleep(for: .milliseconds(50))
+    #expect(playState.currentTime == .inSeconds(180))
     #expect(playState.status == .playing)
     #expect(avQueuePlayer.timeControlStatus == .playing)
   }
