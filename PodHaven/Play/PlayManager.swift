@@ -124,8 +124,8 @@ actor PlayManager {
 
         await setStatus(.active)
       } catch {
-        log.notice("performLoad: failed, status going back to stopped")
-        await setStatus(.stopped)
+        log.notice("performLoad: failed, clearing deck")
+        await stopAndClearOnDeck()
 
         throw error
       }
@@ -210,6 +210,7 @@ actor PlayManager {
     await podAVPlayer.stop()
     nowPlayingInfo = nil
     await playState.setOnDeck(nil)
+    await setStatus(.stopped)
   }
 
   private func setStatus(_ status: PlayState.Status) async {
@@ -258,7 +259,6 @@ actor PlayManager {
     } else {
       log.debug("handleEpisodeFinished: no more episodes to play")
       await stopAndClearOnDeck()
-      await setStatus(.stopped)
     }
   }
 
