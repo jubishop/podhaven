@@ -109,7 +109,7 @@ actor PlayManager {
 
         await setStatus(.active)
       } catch {
-        log.notice("performLoad: failed, clearing deck")
+        log.notice(ErrorKit.loggableMessage(for: error))
         await stopAndClearOnDeck()
 
         throw error
@@ -257,7 +257,7 @@ actor PlayManager {
     Task {
       do {
         for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
-          await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
+          try? await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
         }
       } catch {
         log.error(ErrorKit.loggableMessage(for: error))

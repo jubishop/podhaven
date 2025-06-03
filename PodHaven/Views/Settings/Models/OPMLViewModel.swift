@@ -83,7 +83,7 @@ import UniformTypeIdentifiers
     self.opmlType = opmlType
   }
 
-  func opmlFileImporterCompletion(_ result: Result<URL, Error>) {
+  func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
     Task { [weak self] in
       guard let self else { return }
       do {

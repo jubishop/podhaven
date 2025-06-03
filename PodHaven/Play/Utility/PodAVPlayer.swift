@@ -59,6 +59,7 @@ extension Container {
   private let playToEndContinuation: AsyncStream<FinishedAndLoadedCurrent>.Continuation
 
   private var periodicTimeObserver: Any?
+  private var setNextEpisodeTask: Task<Void, any Error>?
 
   // MARK: - Initialization
 
@@ -177,33 +178,47 @@ extension Container {
 
   // MARK: - State Setters
 
-  func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?) async {
-    // TODO: wrap this in a task to cancel like playManager.load
-    log.debug("setNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))")
+  func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws {
+    setNextEpisodeTask?.cancel()
 
-    guard nextPodcastEpisode?.id != self.nextPodcastEpisode?.id
-    else {
-      log.info(
-        """
-        setNextPodcastEpisode: Trying to set next episode to \
-        \(String(describing: nextPodcastEpisode?.toString)) \
-        but it is the same as the current next episode
-        """
-      )
-      return
-    }
+    try await performSetNextEpisode(nextPodcastEpisode)
+  }
 
-    if let podcastEpisode = nextPodcastEpisode {
-      do {
-        let loadedPodcastEpisodeBundle = try await loadAsset(for: podcastEpisode)
-        await insertNextPodcastEpisode(loadedPodcastEpisodeBundle)
-      } catch {
-        log.error(ErrorKit.loggableMessage(for: error))
+  private func performSetNextEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws {
+    let task = Task {
+      log.debug("setNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))")
+
+      guard nextPodcastEpisode?.id != self.nextPodcastEpisode?.id
+      else {
+        log.warning(
+          """
+          setNextPodcastEpisode: Trying to set next episode to \
+          \(String(describing: nextPodcastEpisode?.toString)) \
+          but it is the same as the current next episode
+          """
+        )
+        return
+      }
+
+      if let podcastEpisode = nextPodcastEpisode {
+        do {
+          let loadedPodcastEpisodeBundle = try await loadAsset(for: podcastEpisode)
+          await insertNextPodcastEpisode(loadedPodcastEpisodeBundle)
+        } catch {
+          log.notice(ErrorKit.loggableMessage(for: error))
+          await insertNextPodcastEpisode(nil)
+
+          throw error
+        }
+      } else {
         await insertNextPodcastEpisode(nil)
       }
-    } else {
-      await insertNextPodcastEpisode(nil)
     }
+
+    setNextEpisodeTask = task
+    defer { setNextEpisodeTask = nil }
+
+    try await task.value
   }
 
   // MARK: - Private State Management
