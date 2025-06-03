@@ -111,7 +111,17 @@ actor PlayManager {
     let task = Task {
       do {
         await setStatus(.loading)
-        try await executeLoadingSteps(podcastEpisode)
+
+        log.info("performLoad: loading \(podcastEpisode.toString)")
+
+        if let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode {
+          log.debug("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
+          try? await queue.unshift(outgoingPodcastEpisode.id)
+        }
+
+        await setOnDeck(try await podAVPlayer.load(podcastEpisode))
+        try? await queue.dequeue(podcastEpisode.id)
+
         await setStatus(.active)
       } catch {
         log.notice("performLoad: failed, status going back to stopped")
@@ -125,18 +135,6 @@ actor PlayManager {
     defer { loadingTask = nil }
 
     try await task.value
-  }
-
-  private func executeLoadingSteps(_ podcastEpisode: PodcastEpisode) async throws {
-    log.info("executeLoadingSteps: loading \(podcastEpisode.toString)")
-
-    if let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode {
-      log.debug("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
-      try? await queue.unshift(outgoingPodcastEpisode.id)
-    }
-
-    await setOnDeck(try await podAVPlayer.load(podcastEpisode))
-    try? await queue.dequeue(podcastEpisode.id)
   }
 
   // MARK: - Playback Controls
