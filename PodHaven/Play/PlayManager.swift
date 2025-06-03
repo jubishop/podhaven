@@ -100,41 +100,43 @@ actor PlayManager {
     guard await podAVPlayer.podcastEpisode != podcastEpisode
     else { Assert.fatal("Loading podcast \(podcastEpisode.toString) that's already loaded") }
 
-    if status == .loading {
-      guard let loadingTask = loadingTask
-      else { Assert.fatal("loadingTask should not be nil if status is loading still") }
+    loadingTask?.cancel()
 
-      loadingTask.cancel()
+    return try await PlaybackError.catch {
+      try await performLoad(podcastEpisode)
     }
+  }
 
-    defer {
-      loadingTask = nil
-      if status != .active {
-        log.notice("load.defer: Status in load never became active, going back to stopped")
-        Task { await setStatus(.stopped) }
+  private func performLoad(_ podcastEpisode: PodcastEpisode) async throws {
+    let task = Task {
+      do {
+        await setStatus(.loading)
+        try await executeLoadingSteps(podcastEpisode)
+        await setStatus(.active)
+      } catch {
+        log.notice("performLoad: failed, status going back to stopped")
+        await setStatus(.stopped)
+
+        throw error
       }
     }
 
-    let loadingTask = Task {
-      await setStatus(.loading)
+    loadingTask = task
+    defer { loadingTask = nil }
 
-      log.info("playManager loading: \(podcastEpisode.toString)")
+    try await task.value
+  }
 
-      if let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode {
-        log.debug("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
-        try? await queue.unshift(outgoingPodcastEpisode.id)
-      }
+  private func executeLoadingSteps(_ podcastEpisode: PodcastEpisode) async throws {
+    log.info("executeLoadingSteps: loading \(podcastEpisode.toString)")
 
-      await setOnDeck(try await podAVPlayer.load(podcastEpisode))
-      try? await queue.dequeue(podcastEpisode.id)
-
-      await setStatus(.active)
+    if let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode {
+      log.debug("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
+      try? await queue.unshift(outgoingPodcastEpisode.id)
     }
 
-    self.loadingTask = loadingTask
-    try await PlaybackError.catch {
-      try await loadingTask.value
-    }
+    await setOnDeck(try await podAVPlayer.load(podcastEpisode))
+    try? await queue.dequeue(podcastEpisode.id)
   }
 
   // MARK: - Playback Controls
