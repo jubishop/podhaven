@@ -7,6 +7,8 @@ import Tagged
 @testable import PodHaven
 
 enum TestHelpers {
+  // MARK: - Waiters
+
   @discardableResult
   static func waitForValue<T: Sendable>(
     maxAttempts: Int = 10,
@@ -72,6 +74,8 @@ enum TestHelpers {
     }
     throw TestError.waitUntilFailure
   }
+
+  // MARK: - Creators
 
   static func unsavedEpisode(
     podcastId: Podcast.ID? = nil,

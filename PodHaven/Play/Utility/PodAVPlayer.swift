@@ -180,6 +180,7 @@ extension Container {
   // MARK: - State Setters
 
   func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?) async {
+    // TODO: wrap this in a task to cancel like playManager.load
     log.debug("setNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))")
 
     guard nextPodcastEpisode?.id != self.nextPodcastEpisode?.id

@@ -60,7 +60,6 @@ actor PlayManager {
 
   private var loadingTask: Task<Void, any Error>?
   private var nextEpisodeTask: Task<Void, any Error>?
-  private let nextEpisodeSemaphore = AsyncSemaphore(value: 1)
   private var interruptionTask: Task<Void, Never>?
   private var commandCenterTask: Task<Void, Never>?
   private var currentTimeTask: Task<Void, Never>?
@@ -267,9 +266,7 @@ actor PlayManager {
     nextEpisodeTask = Task {
       do {
         for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
-          try await nextEpisodeSemaphore.waitUnlessCancelled()
           await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
-          nextEpisodeSemaphore.signal()
         }
       } catch {
         log.error(ErrorKit.loggableMessage(for: error))

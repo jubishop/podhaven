@@ -32,8 +32,8 @@ import Testing
     await playManager.start()
   }
 
-  @Test("simple loading and playing episode")
-  func simpleLoadAndPlayEpisode() async throws {
+  @Test("simple loading, playing, and pausing episode")
+  func simpleLoadPlayAndPauseEpisode() async throws {
     let podcastSeries = try await repo.insertSeries(
       TestHelpers.unsavedPodcast(),
       unsavedEpisodes: [TestHelpers.unsavedEpisode()]
@@ -43,15 +43,22 @@ import Testing
       episode: podcastSeries.episodes.first!
     )
 
-    try await playManager.load(podcastEpisode)
-    let onDeck: OnDeck = try await TestHelpers.waitForValue { await playState.onDeck }
-    #expect(avQueuePlayer.items().map(\.assetURL) == [podcastEpisode.episode.media.rawValue])
+    let onDeck = try await load(podcastEpisode)
+    #expect(playState.status == .active)
+    #expect(queueURLs() == episodeMediaURLs([podcastEpisode]))
     #expect(onDeck == podcastEpisode)
+    // TODO: Track all NowPlayingInfo changes
     #expect(nowPlayingInfo?[MPMediaItemPropertyTitle] as! String == podcastEpisode.episode.title)
 
     await playManager.play()
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .playing)
+    #expect(avQueuePlayer.timeControlStatus == .playing)
+
+    await playManager.pause()
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .paused)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
   }
 
   @Test("command center stops and starts playback")
@@ -64,12 +71,9 @@ import Testing
       podcast: podcastSeries.podcast,
       episode: podcastSeries.episodes.first!
     )
-    try await playManager.load(podcastEpisode)
-    try await TestHelpers.waitForValue { await playState.onDeck }
 
-    await playManager.play()
-    try await TestHelpers.waitUntil { await playState.status == .playing }
-    #expect(playState.status == .playing)
+    try await load(podcastEpisode)
+    try await play()
 
     commandCenter.continuation.yield(.pause)
     try await Task.sleep(for: .milliseconds(100))
@@ -98,11 +102,9 @@ import Testing
       podcast: podcastSeries.podcast,
       episode: podcastSeries.episodes.first!
     )
-    try await playManager.load(podcastEpisode)
-    try await TestHelpers.waitForValue { await playState.onDeck }
 
-    await playManager.play()
-    try await TestHelpers.waitUntil { await playState.status == .playing }
+    try await load(podcastEpisode)
+    try await play()
 
     let interruptionContinuation = continuation(for: AVAudioSession.interruptionNotification)
 
@@ -147,16 +149,12 @@ import Testing
     )
 
     // Seek will happen because episode has currentTime
-    try await playManager.load(podcastEpisode)
-    try await TestHelpers.waitForValue { await playState.onDeck }
+    try await load(podcastEpisode)
     #expect(playState.currentTime == .inSeconds(120))
     #expect(playState.status == .active)
-    #expect(avQueuePlayer.timeControlStatus == .paused)
 
     // Pause episode
-    await playManager.pause()
-    try await TestHelpers.waitUntil { await playState.status == .paused }
-    #expect(avQueuePlayer.timeControlStatus == .paused)
+    try await pause()
 
     // Seek and episode remains paused
     await playManager.seekForward(CMTime.inSeconds(30))
@@ -166,9 +164,7 @@ import Testing
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
     // Play episode
-    await playManager.play()
-    try await TestHelpers.waitUntil { await playState.status == .playing }
-    #expect(avQueuePlayer.timeControlStatus == .playing)
+    try await play()
 
     // Seek and episode remains playing
     await playManager.seekForward(CMTime.inSeconds(30))
@@ -193,17 +189,58 @@ import Testing
       episode: podcastSeries.episodes[1]
     )
 
-    try await playManager.load(playingEpisode)
-    try await TestHelpers.waitForValue { await playState.onDeck }
-    await playManager.play()
-    try await TestHelpers.waitUntil { await playState.status == .playing }
+    try await load(playingEpisode)
+    try await queue.unshift(queuedEpisode.id)
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(queueURLs() == episodeMediaURLs([playingEpisode, queuedEpisode]))
+  }
+
+  @Test("loading an episode with queue already filled")
+  func loadingAnEpisodeWithQueueAlreadyFilled() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode()]
+    )
+    let playingEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+    let queuedEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[1]
+    )
 
     try await queue.unshift(queuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
-    #expect(
-      avQueuePlayer.items().map(\.assetURL) == [
-        playingEpisode.episode.media.rawValue, queuedEpisode.episode.media.rawValue,
-      ]
-    )
+    try await load(playingEpisode)
+
+    #expect(queueURLs() == episodeMediaURLs([playingEpisode, queuedEpisode]))
+  }
+
+  // MARK: - Helpers
+
+  @discardableResult
+  private func load(_ podcastEpisode: PodcastEpisode) async throws -> OnDeck {
+    try await playManager.load(podcastEpisode)
+    return try await TestHelpers.waitForValue { await playState.onDeck }
+  }
+
+  private func play() async throws {
+    await playManager.play()
+    try await TestHelpers.waitUntil { await playState.status == .playing }
+  }
+
+  private func pause() async throws {
+    await playManager.pause()
+    try await TestHelpers.waitUntil { await playState.status == .paused }
+  }
+
+  private func queueURLs() -> [URL] {
+    avQueuePlayer.items().map(\.assetURL)
+  }
+
+  private func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [URL] {
+    podcastEpisodes.map((\.episode.media.rawValue))
   }
 }
