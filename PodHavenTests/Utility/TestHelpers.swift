@@ -7,6 +7,7 @@ import Tagged
 @testable import PodHaven
 
 enum TestHelpers {
+  @discardableResult
   static func waitForValue<T: Sendable>(
     maxAttempts: Int = 10,
     delay: UInt64 = 10_000_000,  // 10 ms
@@ -23,6 +24,7 @@ enum TestHelpers {
     throw TestError.waitForValueFailure(String(describing: T.self))
   }
 
+  @discardableResult
   static func waitForValue<T: Sendable>(
     maxAttempts: Int = 10,
     delay: UInt64 = 10_000_000,  // 10 ms

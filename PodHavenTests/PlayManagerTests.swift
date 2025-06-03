@@ -147,7 +147,7 @@ import Testing
 
     // Seek will happen because episode has currentTime
     try await playManager.load(podcastEpisode)
-    try await Task.sleep(for: .milliseconds(50))
+    try await TestHelpers.waitForValue { await playState.onDeck }
     #expect(playState.currentTime == .inSeconds(120))
     #expect(playState.status == .active)
     #expect(avQueuePlayer.timeControlStatus == .paused)
@@ -177,5 +177,32 @@ import Testing
     #expect(playState.currentTime == .inSeconds(180))
     #expect(playState.status == .playing)
     #expect(avQueuePlayer.timeControlStatus == .playing)
+  }
+
+  @Test("adding an episode to top of queue while playing")
+  func addingAnEpisodeToTopOfQueueWhilePlaying() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode()]
+    )
+    let playingEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+    let queuedEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[1]
+    )
+
+    try await playManager.load(playingEpisode)
+    await playManager.play()
+    try await queue.unshift(queuedEpisode.id)
+    try await Task.sleep(for: .milliseconds(50))
+
+    #expect(
+      avQueuePlayer.items().map(\.assetURL) == [
+        playingEpisode.episode.media.rawValue, queuedEpisode.episode.media.rawValue,
+      ]
+    )
   }
 }
