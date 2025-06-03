@@ -8,6 +8,10 @@ import Logging
 import Semaphore
 
 extension Container {
+  @MainActor var podAVPlayer: Factory<PodAVPlayer> {
+    Factory(self) { @MainActor in PodAVPlayer() }.scope(.cached)
+  }
+
   var loadEpisodeAsset: Factory<(_ url: URL) async throws -> EpisodeAsset> {
     Factory(self) {
       { url in
@@ -60,7 +64,7 @@ extension Container {
 
   // MARK: - Initialization
 
-  init() {
+  fileprivate init() {
     (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(
       of: CMTime.self
     )
@@ -168,7 +172,7 @@ extension Container {
       if completed {
         log.debug("seek to \(time) completed")
       } else {
-        log.debug("seek to \(time) interrupted")
+        log.trace("seek to \(time) interrupted")
       }
     }
   }

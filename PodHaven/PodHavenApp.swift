@@ -14,6 +14,8 @@ struct PodHavenApp: App {
 
   @State private var isInitialized = false
 
+  static private let log = Log.as("main")
+
   var body: some Scene {
     WindowGroup {
       Group {
@@ -58,6 +60,7 @@ struct PodHavenApp: App {
         configureHoneyBadger()
         configureSentry()
 
+        log.debug("configureLogging: myPhone (OSLogHandler, RemoteLogHandler, CrashReportHandler)")
         LoggingSystem.bootstrap { label in
           MultiplexLogHandler([
             OSLogHandler(label: label),
@@ -66,11 +69,14 @@ struct PodHavenApp: App {
           ])
         }
       } else {
+        log.debug("configureLogging: not myPhone (OSLogHandler)")
         LoggingSystem.bootstrap(OSLogHandler.init)
       }
     case .preview:
+      log.debug("configureLogging: preview (PrintLogHandler)")
       LoggingSystem.bootstrap(PrintLogHandler.init)
     case .simulator, .mac, .appStore:
+      log.debug("configureLogging: simulator/mac/appStore (OSLogHandler)")
       LoggingSystem.bootstrap(OSLogHandler.init)
     }
   }

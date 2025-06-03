@@ -21,7 +21,9 @@ actor PlayManager {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
+
   var playState: PlayState { get async { await Container.shared.playState() } }
+  var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
 
   private let log = Log.as(LogSubsystem.Play.manager)
 
@@ -45,16 +47,6 @@ actor PlayManager {
   private var currentEpisodeID: Episode.ID?
 
   // MARK: - State Management
-
-  private var _podAVPlayer: PodAVPlayer?
-  private var podAVPlayer: PodAVPlayer {
-    get async {
-      if let podAVPlayer = _podAVPlayer { return podAVPlayer }
-      let podAVPlayer = await PodAVPlayer()
-      self._podAVPlayer = podAVPlayer
-      return podAVPlayer
-    }
-  }
 
   private var status: PlayState.Status = .stopped
   private var nowPlayingInfo: NowPlayingInfo? {
@@ -224,6 +216,8 @@ actor PlayManager {
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
+    log.trace("setCurrentTime: setting current time to: \(currentTime)")
+
     nowPlayingInfo?.setCurrentTime(currentTime)
     await playState.setCurrentTime(currentTime)
 

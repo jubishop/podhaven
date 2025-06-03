@@ -13,6 +13,8 @@ enum EnvironmentType: String {
 }
 
 actor AppInfo {
+  private static let log = Log.as("appInfo")
+
   // MARK: - Environment Info
 
   private static let key = "com.artisanalsoftware.PodHaven"
@@ -33,6 +35,7 @@ actor AppInfo {
 
   static func initializeEnvironment() async {
     environment = await _getEnvironment()
+    log.debug("AppInfo.environment is: \(AppInfo.environment)")
   }
 
   private static func _getEnvironment() async -> EnvironmentType {
