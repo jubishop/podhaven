@@ -192,7 +192,8 @@ extension Container {
 
     if let podcastEpisode = nextPodcastEpisode {
       do {
-        await insertNextPodcastEpisode(try await loadAsset(for: podcastEpisode))
+        let loadedPodcastEpisodeBundle = try await loadAsset(for: podcastEpisode)
+        await insertNextPodcastEpisode(loadedPodcastEpisodeBundle)
       } catch {
         log.error(ErrorKit.loggableMessage(for: error))
         await insertNextPodcastEpisode(nil)
@@ -215,27 +216,7 @@ extension Container {
       )
     }
 
-    _ = {
-      self.nextBundle = nextBundle
-
-      if avQueuePlayer.items().isEmpty { return }
-
-      if avQueuePlayer.items().count == 1 && loadedNextPodcastEpisode == nil { return }
-
-      if avQueuePlayer.items().count == 2,
-        avQueuePlayer.items().last?.assetURL == loadedNextPodcastEpisode?.assetURL
-      {
-        return
-      }
-
-      while avQueuePlayer.items().count > 1, let lastItem = avQueuePlayer.items().last {
-        avQueuePlayer.remove(lastItem)
-      }
-
-      if let nextBundle = self.nextBundle {
-        avQueuePlayer.insert(nextBundle.playableItem, after: avQueuePlayer.items().first)
-      }
-    }()
+    performInsertNextPodcastEpisode(nextBundle)
 
     if log.wouldLog(.debug) {
       let queuedPodcastEpisodes = await queuedPodcastEpisodes()
@@ -245,6 +226,28 @@ extension Container {
           \(queuedPodcastEpisodes.map(\.toString).joined(separator: "\n  "))
         """
       )
+    }
+  }
+
+  private func performInsertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) {
+    self.nextBundle = nextBundle
+
+    if avQueuePlayer.items().isEmpty { return }
+
+    if avQueuePlayer.items().count == 1 && loadedNextPodcastEpisode == nil { return }
+
+    if avQueuePlayer.items().count == 2,
+      avQueuePlayer.items().last?.assetURL == loadedNextPodcastEpisode?.assetURL
+    {
+      return
+    }
+
+    while avQueuePlayer.items().count > 1, let lastItem = avQueuePlayer.items().last {
+      avQueuePlayer.remove(lastItem)
+    }
+
+    if let nextBundle = self.nextBundle {
+      avQueuePlayer.insert(nextBundle.playableItem, after: avQueuePlayer.items().first)
     }
   }
 
