@@ -32,8 +32,8 @@ import Testing
     await playManager.start()
   }
 
-  @Test("simple loading episode")
-  func simpleLoadEpisode() async throws {
+  @Test("simple loading and playing episode")
+  func simpleLoadAndPlayEpisode() async throws {
     let podcastSeries = try await repo.insertSeries(
       TestHelpers.unsavedPodcast(),
       unsavedEpisodes: [TestHelpers.unsavedEpisode()]
@@ -49,8 +49,42 @@ import Testing
     #expect(onDeck == podcastEpisode)
     #expect(nowPlayingInfo?[MPMediaItemPropertyTitle] as! String == podcastEpisode.episode.title)
 
-    //commandCenter.continuation.yield(.play)
-    //commandCenter.continuation.yield(.pause)
+    await playManager.play()
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(playState.status == .playing)
+  }
+
+  @Test("command center stops and starts playback")
+  func commandCenterStopsAndStartsPlayback() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [TestHelpers.unsavedEpisode()]
+    )
+    let podcastEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes.first!
+    )
+    try await playManager.load(podcastEpisode)
+
+    await playManager.play()
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(playState.status == .playing)
+
+    commandCenter.continuation.yield(.pause)
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(playState.status == .paused)
+
+    commandCenter.continuation.yield(.play)
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(playState.status == .playing)
+
+    commandCenter.continuation.yield(.togglePlayPause)
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(playState.status == .paused)
+
+    commandCenter.continuation.yield(.togglePlayPause)
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(playState.status == .playing)
   }
 
   @Test("audio session interruption stops and restarts playback")
@@ -63,15 +97,15 @@ import Testing
       podcast: podcastSeries.podcast,
       episode: podcastSeries.episodes.first!
     )
-
     try await playManager.load(podcastEpisode)
 
     await playManager.play()
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: .milliseconds(50))
     #expect(playState.status == .playing)
 
     let interruptionContinuation = continuation(for: AVAudioSession.interruptionNotification)
 
+    // Interruption began: pause playback
     interruptionContinuation.yield(
       Notification(
         name: AVAudioSession.interruptionNotification,
@@ -80,9 +114,10 @@ import Testing
         ]
       )
     )
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: .milliseconds(50))
     #expect(playState.status == .paused)
 
+    // Interruption ended: resume playback
     interruptionContinuation.yield(
       Notification(
         name: AVAudioSession.interruptionNotification,
@@ -93,7 +128,7 @@ import Testing
         ]
       )
     )
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: .milliseconds(50))
     #expect(playState.status == .playing)
   }
 
@@ -112,31 +147,31 @@ import Testing
 
     // Seek will happen because episode has currentTime
     try await playManager.load(podcastEpisode)
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: .milliseconds(50))
     #expect(playState.status == .active)
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
     // Pause episode
     await playManager.pause()
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: .milliseconds(50))
     #expect(playState.status == .paused)
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
     // Seek and episode remains paused
     await playManager.seekForward(CMTime.inSeconds(30))
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: .milliseconds(50))
     #expect(playState.status == .paused)
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
     // Play episode
     await playManager.play()
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: .milliseconds(50))
     #expect(playState.status == .playing)
     #expect(avQueuePlayer.timeControlStatus == .playing)
 
     // Seek and episode remains playing
     await playManager.seekForward(CMTime.inSeconds(30))
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: .milliseconds(50))
     #expect(playState.status == .playing)
     #expect(avQueuePlayer.timeControlStatus == .playing)
   }
