@@ -285,6 +285,9 @@ import Testing
     #expect(queueURLs == episodeMediaURLs([incomingEpisode, playingEpisode]))
   }
 
+  // TODO: Test when loading episode fails (with one already playing, or not)
+  // TODO: Test when loading is slow and second load comes in and beats it
+
   // MARK: - Helpers
 
   @discardableResult
