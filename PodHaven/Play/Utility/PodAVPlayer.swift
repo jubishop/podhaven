@@ -89,7 +89,7 @@ extension Container {
   }
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> LoadedPodcastEpisode {
-    log.debug("avQueuePlayer loading: \(podcastEpisode.toString)")
+    log.debug("load: \(podcastEpisode.toString)")
 
     let (loadedPodcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
     loadedCurrentPodcastEpisode = loadedPodcastEpisode
@@ -127,52 +127,36 @@ extension Container {
   // MARK: - Playback Controls
 
   func play() {
-    log.debug("play: executing, playing \(String(describing: podcastEpisode?.toString))")
+    log.debug("play: \(String(describing: podcastEpisode?.toString))")
     avQueuePlayer.play()
   }
 
   func pause() {
-    log.debug("pause: executing, pausing \(String(describing: podcastEpisode?.toString))")
+    log.debug("pause: \(String(describing: podcastEpisode?.toString))")
     avQueuePlayer.pause()
   }
 
   // MARK: - Seeking
 
   func seekForward(_ duration: CMTime) {
-    log.debug(
-      """
-      seekForward: seeking forward by \(duration) for \
-      \(String(describing: podcastEpisode?.toString))
-      """
-    )
+    log.debug("seekForward: \(duration)")
     seek(to: avQueuePlayer.currentTime() + duration)
   }
 
   func seekBackward(_ duration: CMTime) {
-    log.debug(
-      """
-      seekForward: seeking backward by \(duration) for \
-      \(String(describing: podcastEpisode?.toString))
-      """
-    )
+    log.debug("seekBackward: \(duration)")
     seek(to: avQueuePlayer.currentTime() - duration)
   }
 
   func seek(to time: CMTime) {
-    log.debug(
-      """
-      seek: seeking to time \(time) for \
-      \(String(describing: podcastEpisode?.toString))
-      """
-    )
-
+    log.debug("seek: \(time)")
     avQueuePlayer.seek(to: time) { [weak self] completed in
       guard let self else { return }
 
       if completed {
-        log.debug("seek to \(time) completed")
+        log.debug("seek: to \(time) completed")
       } else {
-        log.trace("seek to \(time) interrupted")
+        log.trace("seek: to \(time) interrupted")
       }
     }
   }
@@ -189,15 +173,14 @@ extension Container {
 
   private func performSetNextEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws {
     let task = Task {
-      log.debug("setNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))")
+      log.debug("performSetNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))")
 
       guard nextPodcastEpisode?.id != self.nextPodcastEpisode?.id
       else {
         log.warning(
           """
-          setNextPodcastEpisode: Trying to set next episode to \
-          \(String(describing: nextPodcastEpisode?.toString)) \
-          but it is the same as the current next episode
+          performSetNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString)) \
+          is the same as the current next episode
           """
         )
         return
@@ -235,7 +218,7 @@ extension Container {
       let queuedPodcastEpisodes = await queuedPodcastEpisodes()
       log.debug(
         """
-        insertNextPodcastEpisode: AVPlayer assets at start of function are:
+        insertNextPodcastEpisode: at start:
           \(queuedPodcastEpisodes.map(\.toString).joined(separator: "\n  "))
         """
       )
@@ -247,7 +230,7 @@ extension Container {
       let queuedPodcastEpisodes = await queuedPodcastEpisodes()
       log.debug(
         """
-        insertNextPodcastEpisode: AVPlayer assets at end of function are:
+        insertNextPodcastEpisode: at end:
           \(queuedPodcastEpisodes.map(\.toString).joined(separator: "\n  "))
         """
       )
@@ -271,7 +254,9 @@ extension Container {
       avQueuePlayer.remove(lastItem)
     }
 
-    if let nextBundle = self.nextBundle {
+    if let nextBundle = self.nextBundle,
+      avQueuePlayer.items().first?.assetURL != loadedNextPodcastEpisode?.assetURL
+    {
       avQueuePlayer.insert(nextBundle.playableItem, after: avQueuePlayer.items().first)
     }
   }
@@ -282,7 +267,7 @@ extension Container {
     guard let finishedPodcastEpisode = podcastEpisode
     else { Assert.fatal("Finished episode but current episode is nil?") }
 
-    log.debug("handleEpisodeFinished: Episode finished: \(finishedPodcastEpisode.toString)")
+    log.debug("handleEpisodeFinished: \(finishedPodcastEpisode.toString)")
 
     loadedCurrentPodcastEpisode = loadedNextPodcastEpisode
     nextBundle = nil
@@ -295,7 +280,7 @@ extension Container {
     guard periodicTimeObserver == nil
     else { return }
 
-    log.debug("addPeriodicTimeObserver: Adding periodic time observer")
+    log.debug("addPeriodicTimeObserver: executing")
     periodicTimeObserver = avQueuePlayer.addPeriodicTimeObserver(
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
@@ -307,7 +292,7 @@ extension Container {
 
   private func removePeriodicTimeObserver() {
     if let periodicTimeObserver {
-      log.debug("removePeriodicTimeObserver: Removing periodic time observer")
+      log.debug("removePeriodicTimeObserver: executing")
       avQueuePlayer.removeTimeObserver(periodicTimeObserver)
       self.periodicTimeObserver = nil
     }

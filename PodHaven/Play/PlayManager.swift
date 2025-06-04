@@ -52,7 +52,7 @@ actor PlayManager {
   private var nowPlayingInfo: NowPlayingInfo? {
     willSet {
       if newValue == nil {
-        log.debug("Clearing nowPlayingInfo")
+        log.debug("nowPlayingInfo: nil")
         nowPlayingInfo?.clear()
       }
     }
@@ -97,10 +97,10 @@ actor PlayManager {
       do {
         await setStatus(.loading)
 
-        log.info("performLoad: loading \(podcastEpisode.toString)")
+        log.info("performLoad: \(podcastEpisode.toString)")
 
         if let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode {
-          log.debug("load: unshifting current episode: \(outgoingPodcastEpisode.toString)")
+          log.debug("performLoad: unshifting current episode: \(outgoingPodcastEpisode.toString)")
           try? await queue.unshift(outgoingPodcastEpisode.id)
         }
 
@@ -154,7 +154,7 @@ actor PlayManager {
   // MARK: - Private State Management
 
   private func setOnDeck(_ loadedPodcastEpisode: LoadedPodcastEpisode) async {
-    log.debug("Setting on deck: \(loadedPodcastEpisode.toString)")
+    log.debug("setOnDeck: \(loadedPodcastEpisode.toString)")
 
     let podcastEpisode = loadedPodcastEpisode.podcastEpisode
 
@@ -175,7 +175,7 @@ actor PlayManager {
     await playState.setOnDeck(onDeck)
 
     if podcastEpisode.episode.currentTime == CMTime.zero {
-      log.debug("setOnDeck: \(podcastEpisode.toString) has no currentTime")
+      log.debug("setOnDeck: No current time for \(podcastEpisode.toString)")
       await setCurrentTime(CMTime.zero)
     } else {
       log.debug(
@@ -202,14 +202,14 @@ actor PlayManager {
     guard status != self.status
     else { return }
 
-    log.debug("setStatus: setting status to: \(status)")
+    log.debug("setStatus: \(status)")
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status)
     self.status = status
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
-    log.trace("setCurrentTime: setting current time to: \(currentTime)")
+    log.trace("setCurrentTime: \(currentTime)")
 
     nowPlayingInfo?.setCurrentTime(currentTime)
     await playState.setCurrentTime(currentTime)
