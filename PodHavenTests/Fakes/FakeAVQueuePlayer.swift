@@ -94,8 +94,10 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     Task {
       try await Task.sleep(for: seekDelay)
       completionHandler(seekCompletion)
-      currentTimeValue = time
-      triggerTimeObservers()
+      if seekCompletion {
+        currentTimeValue = time
+        triggerTimeObservers()
+      }  
     }
   }
 
