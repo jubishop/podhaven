@@ -42,7 +42,7 @@ import Testing
     )
     let podcastEpisode = PodcastEpisode(
       podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes.first!
+      episode: podcastSeries.episodes[0]
     )
 
     let onDeck = try await load(podcastEpisode)
@@ -70,7 +70,7 @@ import Testing
     )
     let podcastEpisode = PodcastEpisode(
       podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes.first!
+      episode: podcastSeries.episodes[0]
     )
 
     try await load(podcastEpisode)
@@ -105,7 +105,7 @@ import Testing
     )
     let podcastEpisode = PodcastEpisode(
       podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes.first!
+      episode: podcastSeries.episodes[0]
     )
 
     try await load(podcastEpisode)
@@ -154,7 +154,7 @@ import Testing
     )
     let podcastEpisode = PodcastEpisode(
       podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes.first!
+      episode: podcastSeries.episodes[0]
     )
 
     // Seek will happen because episode has currentTime
@@ -257,6 +257,32 @@ import Testing
     try await Task.sleep(for: .milliseconds(100))
 
     #expect(queueURLs == episodeMediaURLs([playingEpisode, incomingQueuedEpisode]))
+  }
+
+  @Test("loading an episode puts current episode back in queue")
+  func loadingAnEpisodePutsCurrentEpisodeBackInQueue() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [
+        TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode(),
+      ]
+    )
+    let playingEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+    let incomingEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[1]
+    )
+
+    try await load(playingEpisode)
+    try await Task.sleep(for: .milliseconds(100))
+
+    try await load(incomingEpisode)
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(queueURLs == episodeMediaURLs([incomingEpisode, playingEpisode]))
   }
 
   // MARK: - Helpers
