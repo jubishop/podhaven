@@ -24,7 +24,9 @@ import Testing
   var commandCenter: FakeCommandCenter { injectedCommandCenter as! FakeCommandCenter }
   var nowPlayingInfo: [String: Any?]? { mpNowPlayingInfoCenter.nowPlayingInfo }
 
-  func continuation(for name: Notification.Name) -> AsyncStream<Notification>.Continuation {
+  func notificationContinuation(for name: Notification.Name)
+    -> AsyncStream<Notification>.Continuation
+  {
     Container.shared.notifier().continuation(for: name)
   }
 
@@ -109,7 +111,9 @@ import Testing
     try await load(podcastEpisode)
     try await play()
 
-    let interruptionContinuation = continuation(for: AVAudioSession.interruptionNotification)
+    let interruptionContinuation = notificationContinuation(
+      for: AVAudioSession.interruptionNotification
+    )
 
     // Interruption began: pause playback
     interruptionContinuation.yield(
