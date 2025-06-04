@@ -45,10 +45,9 @@ import Testing
 
     let onDeck = try await load(podcastEpisode)
     #expect(playState.status == .active)
-    #expect(queueURLs() == episodeMediaURLs([podcastEpisode]))
+    #expect(queueURLs == episodeMediaURLs([podcastEpisode]))
     #expect(onDeck == podcastEpisode)
-    // TODO: Track all NowPlayingInfo changes
-    #expect(nowPlayingInfo?[MPMediaItemPropertyTitle] as! String == podcastEpisode.episode.title)
+    #expect(nowPlayingTitle == podcastEpisode.episode.title)
 
     await playManager.play()
     try await Task.sleep(for: .milliseconds(100))
@@ -193,7 +192,7 @@ import Testing
     try await queue.unshift(queuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(queueURLs() == episodeMediaURLs([playingEpisode, queuedEpisode]))
+    #expect(queueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
   }
 
   @Test("loading an episode with queue already filled")
@@ -215,7 +214,7 @@ import Testing
     try await Task.sleep(for: .milliseconds(100))
     try await load(playingEpisode)
 
-    #expect(queueURLs() == episodeMediaURLs([playingEpisode, queuedEpisode]))
+    #expect(queueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
   }
 
   // MARK: - Helpers
@@ -236,7 +235,11 @@ import Testing
     try await TestHelpers.waitUntil { await playState.status == .paused }
   }
 
-  private func queueURLs() -> [URL] {
+  private var nowPlayingTitle: String {
+    nowPlayingInfo![MPMediaItemPropertyTitle] as! String
+  }
+
+  private var queueURLs: [URL] {
     avQueuePlayer.items().map(\.assetURL)
   }
 
