@@ -170,7 +170,7 @@ extension Container {
       guard let self else { return }
 
       if completed {
-        log.debug("seek to \(time) completed")
+        log.trace("seek to \(time) completed")
       } else {
         log.trace("seek to \(time) interrupted")
       }
