@@ -227,6 +227,10 @@ extension Container {
   // MARK: - Private State Management
 
   private func insertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) async {
+    log.debug(
+      "insertNextPodcastEpisode: \(String(describing: nextBundle?.loadedPodcastEpisode.toString))"
+    )
+
     if log.wouldLog(.debug) {
       let queuedPodcastEpisodes = await queuedPodcastEpisodes()
       log.debug(
