@@ -77,18 +77,22 @@ import Testing
     commandCenter.continuation.yield(.pause)
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .paused)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
 
     commandCenter.continuation.yield(.play)
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .playing)
+    #expect(avQueuePlayer.timeControlStatus == .playing)
 
     commandCenter.continuation.yield(.togglePlayPause)
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .paused)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
 
     commandCenter.continuation.yield(.togglePlayPause)
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .playing)
+    #expect(avQueuePlayer.timeControlStatus == .playing)
   }
 
   @Test("audio session interruption stops and restarts playback")
@@ -118,6 +122,7 @@ import Testing
     )
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .paused)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
 
     // Interruption ended: resume playback
     interruptionContinuation.yield(
@@ -132,6 +137,7 @@ import Testing
     )
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .playing)
+    #expect(avQueuePlayer.timeControlStatus == .playing)
   }
 
   @Test("seeking retains original play status")
@@ -151,6 +157,7 @@ import Testing
     try await load(podcastEpisode)
     #expect(playState.currentTime == .inSeconds(120))
     #expect(playState.status == .active)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
 
     // Pause episode
     try await pause()
@@ -215,6 +222,37 @@ import Testing
     try await load(playingEpisode)
 
     #expect(queueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
+  }
+
+  @Test("top queue item changes while playing")
+  func topQueueItemChangesWhilePlaying() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [
+        TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode(),
+      ]
+    )
+    let playingEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+    let queuedEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[1]
+    )
+    let incomingQueuedEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[2]
+    )
+
+    try await queue.unshift(queuedEpisode.id)
+    try await Task.sleep(for: .milliseconds(100))
+    try await load(playingEpisode)
+
+    try await queue.unshift(incomingQueuedEpisode.id)
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(queueURLs == episodeMediaURLs([playingEpisode, incomingQueuedEpisode]))
   }
 
   // MARK: - Helpers
