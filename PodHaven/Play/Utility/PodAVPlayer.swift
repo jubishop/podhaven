@@ -59,6 +59,7 @@ extension Container {
   private let playToEndContinuation: AsyncStream<FinishedAndLoadedCurrent>.Continuation
 
   private var periodicTimeObserver: Any?
+  private var timeControlStatusObserver: NSKeyValueObservation?
   private var setNextEpisodeTask: Task<Void, any Error>?
 
   // MARK: - Initialization
@@ -311,7 +312,7 @@ extension Container {
   private func addTimeControlStatusObserver() {
     Assert.neverCalled()
 
-    _ = avQueuePlayer.observeTimeControlStatus(
+    timeControlStatusObserver = avQueuePlayer.observeTimeControlStatus(
       options: [.initial, .new]
     ) { status in
       self.controlStatusContinuation.yield(status)

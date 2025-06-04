@@ -17,7 +17,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   private var currentTimeValue: CMTime = .zero
   private var queueItems: [any AVPlayableItem] = []
   private var timeObservers: [TimeObserver] = []
-  private var statusHandlers: [UUID: (AVPlayer.TimeControlStatus) -> Void] = [:]
+  private var statusObservations: [ObservationHandler] = []
 
   // MARK: - Private Helper Classes
 
@@ -34,8 +34,9 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     }
   }
 
-  private class FakeObservation: NSObject {
-    let id = UUID()
+  private struct ObservationHandler {
+    weak var observation: NSKeyValueObservation?
+    let handler: (AVPlayer.TimeControlStatus) -> Void
   }
 
   // MARK: - AVQueuePlayable Implementation
@@ -112,14 +113,14 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     options: NSKeyValueObservingOptions,
     changeHandler: @escaping @Sendable (AVPlayer.TimeControlStatus) -> Void
   ) -> NSKeyValueObservation {
-    let observation = FakeObservation()
-    statusHandlers[observation.id] = changeHandler
+    let observation = NSObject().observe(\.description, options: []) { _, _ in }
+    statusObservations.append(ObservationHandler(observation: observation, handler: changeHandler))
 
     if options.contains(.initial) {
       changeHandler(timeControlStatus)
     }
 
-    return observation.observe(\.description, options: []) { _, _ in }
+    return observation
   }
 
   // MARK: - Testing Helper Methods
@@ -132,8 +133,12 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   func setTimeControlStatus(_ status: AVPlayer.TimeControlStatus) {
     timeControlStatus = status
-    for handler in statusHandlers.values {
-      handler(status)
+    
+    // Clean up deallocated observations and call active handlers
+    statusObservations = statusObservations.compactMap { observationHandler in
+      guard observationHandler.observation != nil else { return nil }
+      observationHandler.handler(status)
+      return observationHandler
     }
   }
 
