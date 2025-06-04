@@ -235,28 +235,26 @@ extension Container {
         """
       )
     }
+
+    Assert.precondition(avQueuePlayer.items().count <= 2, "Too many AVPlayerItems?")
   }
 
   private func performInsertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) {
     self.nextBundle = nextBundle
 
-    if avQueuePlayer.items().isEmpty { return }
+    // If queue is empty: do nothing
+    guard let lastItem = avQueuePlayer.items().last else { return }
 
-    if avQueuePlayer.items().count == 1 && loadedNextPodcastEpisode == nil { return }
+    // If this is already the last: do nothing
+    if lastItem.assetURL == loadedNextPodcastEpisode?.assetURL { return }
 
-    if avQueuePlayer.items().count == 2,
-      avQueuePlayer.items().last?.assetURL == loadedNextPodcastEpisode?.assetURL
-    {
-      return
-    }
-
-    while avQueuePlayer.items().count > 1, let lastItem = avQueuePlayer.items().last {
+    // If we had a second item, it needs to be removed
+    if avQueuePlayer.items().count > 1 {
       avQueuePlayer.remove(lastItem)
     }
 
-    if let nextBundle = self.nextBundle,
-      avQueuePlayer.items().first?.assetURL != loadedNextPodcastEpisode?.assetURL
-    {
+    // Finally, add our new item if we have one
+    if let nextBundle {
       avQueuePlayer.insert(nextBundle.playableItem, after: avQueuePlayer.items().first)
     }
   }
