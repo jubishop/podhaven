@@ -237,8 +237,9 @@ actor PlayManager {
     if let loadedCurrentPodcastEpisode {
       log.debug(
         """
-        handleEpisodeFinished: enqueuing next episode: \
-        \(loadedCurrentPodcastEpisode.toString)
+        handleEpisodeFinished:
+          finishedPodcastEpisode: \(finishedPodcastEpisode.toString)
+          loadedCurrentPodcastEpisode: \(loadedCurrentPodcastEpisode.toString)
         """
       )
       await setOnDeck(loadedCurrentPodcastEpisode)
