@@ -242,24 +242,24 @@ extension Container {
       }
     }
 
-    Assert.precondition(avQueuePlayer.items().count <= 2, "Too many AVPlayerItems?")
+    Assert.precondition(avQueuePlayer.queued.count <= 2, "Too many AVPlayerItems?")
   }
 
   private func performInsertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) {
     // If queue is empty: do nothing
-    guard let lastItem = avQueuePlayer.items().last else { return }
+    guard let lastItem = avQueuePlayer.queued.last else { return }
 
     // If this is already the last: do nothing
     if lastItem.assetURL == nextBundle?.loadedPodcastEpisode.assetURL { return }
 
     // If we had a second item, it needs to be removed
-    if avQueuePlayer.items().count > 1 {
+    if avQueuePlayer.queued.count > 1 {
       avQueuePlayer.remove(lastItem)
     }
 
     // Finally, add our new item if we have one
     if let nextBundle {
-      avQueuePlayer.insert(nextBundle.playableItem, after: avQueuePlayer.items().first)
+      avQueuePlayer.insert(nextBundle.playableItem, after: avQueuePlayer.queued.first)
     }
 
     self.nextBundle = nextBundle
@@ -325,7 +325,7 @@ extension Container {
   // MARK: - Debug Helpers
 
   private func queuedPodcastEpisodes() async -> [PodcastEpisode] {
-    let mediaURLs = avQueuePlayer.items().map { MediaURL($0.assetURL) }
+    let mediaURLs = avQueuePlayer.queued.map { MediaURL($0.assetURL) }
     var podcastEpisodes: IdentifiedArray<MediaURL, PodcastEpisode>
     do {
       podcastEpisodes = IdentifiedArray(

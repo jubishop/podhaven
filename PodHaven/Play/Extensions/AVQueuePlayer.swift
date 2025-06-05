@@ -11,16 +11,15 @@ extension Container {
 }
 
 extension AVQueuePlayer: AVQueuePlayable {
+  var current: (any AVPlayableItem)? { currentItem }
+  var queued: [any AVPlayableItem] { items() }
+
   func insert(_ item: any AVPlayableItem, after afterItem: (any AVPlayableItem)?) {
     guard let playerItem = item as? AVPlayerItem
     else { Assert.fatal("Inserting non AVPlayerItem into queue player?") }
 
     let afterPlayerItem = afterItem as? AVPlayerItem
     insert(playerItem, after: afterPlayerItem)
-  }
-
-  func items() -> [any AVPlayableItem] {
-    (self as AVQueuePlayer).items() as [AVPlayerItem]
   }
 
   func remove(_ item: any AVPlayableItem) {

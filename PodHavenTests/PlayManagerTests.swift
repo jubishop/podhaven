@@ -335,7 +335,7 @@ import Testing
   }
 
   private var queueURLs: [URL] {
-    avQueuePlayer.items().map(\.assetURL)
+    avQueuePlayer.queued.map(\.assetURL)
   }
 
   private func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [URL] {

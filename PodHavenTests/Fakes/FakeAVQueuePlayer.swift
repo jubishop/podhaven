@@ -6,11 +6,10 @@ import Foundation
 @testable import PodHaven
 
 class FakeAVQueuePlayer: AVQueuePlayable {
-  // MARK: - Testing State
+  // MARK: - Testing Manipulators
 
   var seekDelay: Duration = .zero
   var seekCompletion: Bool = true
-  private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused
 
   // MARK: - Internal State Management
 
@@ -41,9 +40,8 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   // MARK: - AVQueuePlayable Implementation
 
-  private(set) var reasonForWaitingToPlay: AVPlayer.WaitingReason?
-
-  func currentTime() -> CMTime { currentTimeValue }
+  var current: (any AVPlayableItem)? { queueItems.first }
+  var queued: [any AVPlayableItem] { queueItems }
 
   func insert(_ item: any AVPlayableItem, after afterItem: (any AVPlayableItem)?) {
     if let afterItem {
@@ -60,16 +58,6 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     }
   }
 
-  func items() -> [any AVPlayableItem] { queueItems }
-
-  func pause() {
-    setTimeControlStatus(.paused)
-  }
-
-  func play() {
-    setTimeControlStatus(.playing)
-  }
-
   func remove(_ item: any AVPlayableItem) {
     if !queueItems.contains(where: { $0.assetURL == item.assetURL }) {
       Assert.fatal("Item: \(item), does not exist in queue!")
@@ -83,13 +71,12 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     setTimeControlStatus(.paused)
   }
 
-  func removeTimeObserver(_ observer: Any) {
-    guard let observerId = observer as? UUID
-    else { Assert.fatal("Removing time observer: \(observer), of wrong type?") }
-
-    timeObservers.removeAll { $0.id == observerId }
+  func play() {
+    setTimeControlStatus(.playing)
   }
-
+  func pause() {
+    setTimeControlStatus(.paused)
+  }
   func seek(to time: CMTime, completionHandler: @escaping @Sendable (Bool) -> Void) {
     Task {
       try await Task.sleep(for: seekDelay)
@@ -97,10 +84,11 @@ class FakeAVQueuePlayer: AVQueuePlayable {
       if seekCompletion {
         currentTimeValue = time
         triggerTimeObservers()
-      }  
+      }
     }
   }
 
+  func currentTime() -> CMTime { currentTimeValue }
   func addPeriodicTimeObserver(
     forInterval interval: CMTime,
     queue: dispatch_queue_t?,
@@ -110,7 +98,15 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     timeObservers.append(observer)
     return observer.id
   }
+  func removeTimeObserver(_ observer: Any) {
+    guard let observerId = observer as? UUID
+    else { Assert.fatal("Removing time observer: \(observer), of wrong type?") }
 
+    timeObservers.removeAll { $0.id == observerId }
+  }
+
+  private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused
+  private(set) var reasonForWaitingToPlay: AVPlayer.WaitingReason?
   func observeTimeControlStatus(
     options: NSKeyValueObservingOptions,
     changeHandler: @escaping @Sendable (AVPlayer.TimeControlStatus) -> Void
