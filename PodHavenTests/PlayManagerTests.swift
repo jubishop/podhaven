@@ -312,9 +312,6 @@ import Testing
     #expect(queueURLs.isEmpty)
   }
 
-  // TODO: Test when loading episode fails (with one already playing)
-  // TODO: Test when loading is slow and second load comes in and beats it
-
   // MARK: - Helpers
 
   @discardableResult
