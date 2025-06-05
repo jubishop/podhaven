@@ -46,8 +46,8 @@ extension Container {
     loadedPodcastEpisode: LoadedPodcastEpisode,
     playableItem: any AVPlayableItem
   )
-  private var nextBundle: LoadedPodcastEpisodeBundle?
 
+  private var nextBundle: LoadedPodcastEpisodeBundle?
   private var loadedNextPodcastEpisode: LoadedPodcastEpisode? { nextBundle?.loadedPodcastEpisode }
   private var loadedCurrentPodcastEpisode: LoadedPodcastEpisode?
 
@@ -336,6 +336,14 @@ extension Container {
     for mediaURL in mediaURLs {
       if let podcastEpisode = podcastEpisodes[id: mediaURL] {
         podcastEpisodesFound.append(podcastEpisode)
+      } else if let podcastEpisode = podcastEpisode,
+        mediaURL == podcastEpisode.episode.media
+      {
+        podcastEpisodesFound.append(podcastEpisode)
+      } else if let nextPodcastEpisode = nextPodcastEpisode,
+        mediaURL == nextPodcastEpisode.episode.media
+      {
+        podcastEpisodesFound.append(nextPodcastEpisode)
       } else {
         mediaURLsNotFound.append(mediaURL)
       }
@@ -344,18 +352,18 @@ extension Container {
       mediaURLsNotFound.isEmpty,
       """
       \(mediaURLs.count) media URLs but \(podcastEpisodes.count) podcast episodes)
+      PodcastEpisodes fetched: 
+        \(podcastEpisodes.map(\.toString).joined(separator: "\n  "))
       MediaURLsNotFound:
         \(mediaURLsNotFound.map({ "\($0)" }).joined(separator: "\n  "))
       PodcastEpisodesFound: 
         \(podcastEpisodesFound.map(\.toString).joined(separator: "\n  "))
       LoadedCurrentPodcastEpisode:
         \(String(describing: loadedCurrentPodcastEpisode?.toString))
-        MediaURL: \(String(describing:
-                loadedCurrentPodcastEpisode?.podcastEpisode.episode.media))
+        MediaURL: \(String(describing:loadedCurrentPodcastEpisode?.podcastEpisode.episode.media))
       LoadedNextPodcastEpisode:
         \(String(describing: loadedNextPodcastEpisode?.toString))
-        MediaURL: \(String(describing:
-                loadedNextPodcastEpisode?.podcastEpisode.episode.media))
+        MediaURL: \(String(describing:loadedNextPodcastEpisode?.podcastEpisode.episode.media))
       """
     )
 
