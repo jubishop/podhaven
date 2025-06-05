@@ -96,7 +96,7 @@ extension Container {
 
     avQueuePlayer.removeAllItems()
     avQueuePlayer.insert(playableItem, after: nil)
-    await insertNextPodcastEpisode(nextBundle)
+    insertNextPodcastEpisode(nextBundle)
     addPeriodicTimeObserver()
 
     return loadedPodcastEpisode
@@ -105,10 +105,13 @@ extension Container {
   private func loadAsset(for podcastEpisode: PodcastEpisode) async throws(PlaybackError)
     -> LoadedPodcastEpisodeBundle
   {
+    log.debug("loadAsset: \(podcastEpisode.toString)")
+
     let episodeAsset: EpisodeAsset
     do {
       episodeAsset = try await loadEpisodeAsset(podcastEpisode.episode.media.rawValue)
     } catch {
+      log.warning("loadAsset: failed to load asset for \(podcastEpisode.toString)")
       throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
     }
 
@@ -189,15 +192,15 @@ extension Container {
       if let podcastEpisode = nextPodcastEpisode {
         do {
           let loadedPodcastEpisodeBundle = try await loadAsset(for: podcastEpisode)
-          await insertNextPodcastEpisode(loadedPodcastEpisodeBundle)
+          insertNextPodcastEpisode(loadedPodcastEpisodeBundle)
         } catch {
           log.notice(ErrorKit.loggableMessage(for: error))
-          await insertNextPodcastEpisode(nil)
+          insertNextPodcastEpisode(nil)
 
           throw error
         }
       } else {
-        await insertNextPodcastEpisode(nil)
+        insertNextPodcastEpisode(nil)
       }
     }
 
@@ -209,31 +212,35 @@ extension Container {
 
   // MARK: - Private State Management
 
-  private func insertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) async {
+  private func insertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) {
     log.debug(
       "insertNextPodcastEpisode: \(String(describing: nextBundle?.loadedPodcastEpisode.toString))"
     )
 
     if log.wouldLog(.debug) {
-      let queuedPodcastEpisodes = await queuedPodcastEpisodes()
-      log.debug(
-        """
-        insertNextPodcastEpisode: at start:
-          \(queuedPodcastEpisodes.map(\.toString).joined(separator: "\n  "))
-        """
-      )
+      Task {
+        let queuedPodcastEpisodes = await queuedPodcastEpisodes()
+        log.debug(
+          """
+          insertNextPodcastEpisode: at start:
+            \(queuedPodcastEpisodes.map(\.toString).joined(separator: "\n  "))
+          """
+        )
+      }
     }
 
     performInsertNextPodcastEpisode(nextBundle)
 
     if log.wouldLog(.debug) {
-      let queuedPodcastEpisodes = await queuedPodcastEpisodes()
-      log.debug(
-        """
-        insertNextPodcastEpisode: at end:
-          \(queuedPodcastEpisodes.map(\.toString).joined(separator: "\n  "))
-        """
-      )
+      Task {
+        let queuedPodcastEpisodes = await queuedPodcastEpisodes()
+        log.debug(
+          """
+          insertNextPodcastEpisode: at end:
+            \(queuedPodcastEpisodes.map(\.toString).joined(separator: "\n  "))
+          """
+        )
+      }
     }
 
     Assert.precondition(avQueuePlayer.items().count <= 2, "Too many AVPlayerItems?")
