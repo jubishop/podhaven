@@ -9,6 +9,10 @@ import Foundation
   func insert(_: any AVPlayableItem, after: (any AVPlayableItem)?)
   func remove(_: any AVPlayableItem)
   func removeAllItems()
+  func observeCurrentItem(
+    options: NSKeyValueObservingOptions,
+    changeHandler: @Sendable @escaping ((any AVPlayableItem)?) -> Void
+  ) -> NSKeyValueObservation
 
   func play()
   func pause()

@@ -59,6 +59,7 @@ extension Container {
   private let playToEndContinuation: AsyncStream<FinishedAndLoadedCurrent>.Continuation
 
   private var periodicTimeObserver: Any?
+  private var currentItemObserver: NSKeyValueObservation?
   private var timeControlStatusObserver: NSKeyValueObservation?
   private var setNextEpisodeTask: Task<Void, any Error>?
 
@@ -163,7 +164,7 @@ extension Container {
     }
   }
 
-  // MARK: - State Setters
+  // MARK: - Setting Next Episode
 
   func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws(PlaybackError) {
     setNextEpisodeTask?.cancel()
@@ -208,8 +209,6 @@ extension Container {
 
     try await task.value
   }
-
-  // MARK: - Private State Management
 
   private func insertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) {
     log.debug(
