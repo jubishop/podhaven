@@ -327,23 +327,27 @@ extension Container {
 
   private func queuedPodcastEpisodes() async -> [PodcastEpisode] {
     let mediaURLs = avQueuePlayer.items().map { MediaURL($0.assetURL) }
-    let podcastEpisodes = IdentifiedArray(
-      uniqueElements: (try? await Container.shared.repo().episodes(mediaURLs)) ?? [],
-      id: \.episode.media
-    )
+    var podcastEpisodes: IdentifiedArray<MediaURL, PodcastEpisode>
+    do {
+      podcastEpisodes = IdentifiedArray(
+        uniqueElements: try await Container.shared.repo().episodes(mediaURLs),
+        id: \.episode.media
+      )
+    } catch {
+      log.warning(ErrorKit.loggableMessage(for: error))
+      podcastEpisodes = IdentifiedArray(id: \.episode.media)
+    }
+    if let podcastEpisode = podcastEpisode {
+      podcastEpisodes[id: podcastEpisode.episode.media] = podcastEpisode
+    }
+    if let nextPodcastEpisode = nextPodcastEpisode {
+      podcastEpisodes[id: nextPodcastEpisode.episode.media] = nextPodcastEpisode
+    }
     var podcastEpisodesFound = [PodcastEpisode](capacity: mediaURLs.count)
     var mediaURLsNotFound: [MediaURL] = []
     for mediaURL in mediaURLs {
       if let podcastEpisode = podcastEpisodes[id: mediaURL] {
         podcastEpisodesFound.append(podcastEpisode)
-      } else if let podcastEpisode = podcastEpisode,
-        mediaURL == podcastEpisode.episode.media
-      {
-        podcastEpisodesFound.append(podcastEpisode)
-      } else if let nextPodcastEpisode = nextPodcastEpisode,
-        mediaURL == nextPodcastEpisode.episode.media
-      {
-        podcastEpisodesFound.append(nextPodcastEpisode)
       } else {
         mediaURLsNotFound.append(mediaURL)
       }
