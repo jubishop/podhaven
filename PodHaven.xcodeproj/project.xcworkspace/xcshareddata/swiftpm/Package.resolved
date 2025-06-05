@@ -1,5 +1,5 @@
 {
-  "originHash" : "55cbf7118d525449a486744bff7038ed501566723f81a7520903dd09b5b3fee2",
+  "originHash" : "e0e212fbdd7ca33d1c35eaa9c05b70072646feb61afcf43fe5362b873abff944",
   "pins" : [
     {
       "identity" : "bugfendersdk-ios",
@@ -35,15 +35,6 @@
       "state" : {
         "branch" : "master",
         "revision" : "a5a1be26b4513dc7ec360eb56bc08a345bac6649"
-      }
-    },
-    {
-      "identity" : "honeybadger-cocoa",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/honeybadger-io/honeybadger-cocoa",
-      "state" : {
-        "branch" : "main",
-        "revision" : "0f5ae78fa04e69cafcf03a97293b1de82ce4e551"
       }
     },
     {

@@ -19,18 +19,18 @@ extension Container {
 
   func callAsFunction<Actions: View, Message: View>(
     title: String = "Error",
-    @ViewBuilder actions: @escaping () -> Actions = { Button("Ok") {} },
-    @ViewBuilder message: @escaping () -> Message
+    @ViewBuilder message: @escaping () -> Message,
+    @ViewBuilder actions: @escaping () -> Actions = { Button("Ok") {} }
   ) {
     config = AlertConfig(title: title, actions: actions, message: message)
   }
 
   func callAsFunction<Actions: View>(
     title: String = "Error",
+    _ message: String,
     @ViewBuilder actions: @escaping () -> Actions = { Button("Ok") {} },
-    _ message: String
   ) {
-    self(title: title, actions: actions, message: { Text(message) })
+    self(title: title, message: { Text(message) }, actions: actions)
   }
 
   // MARK: - Private Helpers

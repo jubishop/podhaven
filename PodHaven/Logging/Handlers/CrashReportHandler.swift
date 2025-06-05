@@ -2,7 +2,6 @@
 
 import BugfenderSDK
 import Foundation
-import Honeybadger
 import Logging
 import Sentry
 import System
@@ -36,13 +35,6 @@ struct CrashReportHandler: LogHandler {
     line: UInt
   ) {
     SentrySDK.capture(message: message.description)
-    Honeybadger.notify(
-      errorString: message.description,
-      context: ["subsystem": subsystem, "category": category]
-    )
-    Bugfender.sendIssueReturningUrl(
-      withTitle: "[\(String(describing: FilePath(file).stem)):\(line) \(function)]",
-      text: message.description
-    )
+    SentrySDK.flush(timeout: 2)
   }
 }

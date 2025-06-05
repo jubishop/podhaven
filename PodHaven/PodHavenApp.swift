@@ -3,7 +3,6 @@
 import AVFoundation
 import BugfenderSDK
 import FactoryKit
-import Honeybadger
 import Logging
 import Sentry
 import SwiftUI
@@ -46,7 +45,12 @@ struct PodHavenApp: App {
       try audioSession.setMode(.spokenAudio)
       try audioSession.setActive(true)
     } catch {
-      Assert.fatal("Failed to initialize the audio session")
+      let alert = Container.shared.alert()
+      alert("Couldn't get audio permissions") {
+        Button("Send Report and Crash") {
+          Assert.fatal("Failed to initialize the audio session")
+        }
+      }
     }
   }
 
@@ -57,7 +61,6 @@ struct PodHavenApp: App {
     case .iPhone:
       if AppInfo.myPhone {
         configureBugFender()
-        configureHoneyBadger()
         configureSentry()
 
         log.debug("configureLogging: myPhone (OSLogHandler, RemoteLogHandler, CrashReportHandler)")
@@ -85,10 +88,6 @@ struct PodHavenApp: App {
     Bugfender.activateLogger("DHXOFyzIYy2lzznaFpku5oXaiGwqqDXE")
     Bugfender.setPrintToConsole(false)
     Bugfender.enableCrashReporting()
-  }
-
-  private static func configureHoneyBadger() {
-    Honeybadger.configure(apiKey: "hbp_68rhjE7H6WYfVhV7deZldmErGXTjrz10H9QR")
   }
 
   private static func configureSentry() {
