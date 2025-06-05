@@ -13,12 +13,12 @@ extension Container {
 }
 
 class EpisodeAssetLoader {
-  private var fakeHandlers: [URL: @Sendable (URL) async throws -> (Bool, CMTime)] = [:]
+  private var fakeHandlers: [MediaURL: @Sendable (MediaURL) async throws -> (Bool, CMTime)] = [:]
 
   func respond(
-    to url: URL,
+    to url: MediaURL,
     delay: Duration? = nil,
-    _ handler: @Sendable @escaping (URL) async throws -> (Bool, CMTime)
+    _ handler: @Sendable @escaping (MediaURL) async throws -> (Bool, CMTime)
   ) {
     fakeHandlers[url] = { url in
       if let delay { try await Task.sleep(for: delay) }
@@ -27,8 +27,9 @@ class EpisodeAssetLoader {
   }
 
   func loadEpisodeAsset(_ url: URL) async throws -> EpisodeAsset {
-    if let handler = fakeHandlers[url] {
-      let (isPlayable, duration) = try await handler(url)
+    let mediaURL = MediaURL(rawValue: url)
+    if let handler = fakeHandlers[mediaURL] {
+      let (isPlayable, duration) = try await handler(mediaURL)
       return await EpisodeAsset(
         playerItem: FakeAVPlayerItem(assetURL: url),
         isPlayable: isPlayable,

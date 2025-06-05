@@ -11,6 +11,7 @@ import Testing
 
 @Suite("of PlayManager tests", .container)
 @MainActor struct PlayManagerTests {
+  @DynamicInjected(\.episodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.mpNowPlayingInfoCenter) private var mpNowPlayingInfoCenter
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.playState) private var playState
@@ -233,7 +234,9 @@ import Testing
     let podcastSeries = try await repo.insertSeries(
       TestHelpers.unsavedPodcast(),
       unsavedEpisodes: [
-        TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode(),
+        TestHelpers.unsavedEpisode(),
+        TestHelpers.unsavedEpisode(),
+        TestHelpers.unsavedEpisode(),
       ]
     )
     let playingEpisode = PodcastEpisode(
@@ -263,9 +266,7 @@ import Testing
   func loadingAnEpisodePutsCurrentEpisodeBackInQueue() async throws {
     let podcastSeries = try await repo.insertSeries(
       TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [
-        TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode(),
-      ]
+      unsavedEpisodes: [TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode()]
     )
     let playingEpisode = PodcastEpisode(
       podcast: podcastSeries.podcast,
@@ -285,7 +286,32 @@ import Testing
     #expect(queueURLs == episodeMediaURLs([incomingEpisode, playingEpisode]))
   }
 
-  // TODO: Test when loading episode fails (with one already playing, or not)
+  @Test("loading an episode fails with none playing right now")
+  func loadingAnEpisodeFailsWithNonePlayingRightNow() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [TestHelpers.unsavedEpisode()]
+    )
+    let episodeToLoad = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+
+    episodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
+      throw TestError.assetLoadFailure(mediaURL)
+    }
+    await #expect(throws: (any Error).self) {
+      try await load(episodeToLoad)
+    }
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .stopped)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
+    #expect(playState.onDeck == nil)
+    #expect(nowPlayingInfo == nil)
+    #expect(queueURLs.isEmpty)
+  }
+
+  // TODO: Test when loading episode fails (with one already playing)
   // TODO: Test when loading is slow and second load comes in and beats it
 
   // MARK: - Helpers
