@@ -83,6 +83,7 @@ class QueueTests {
     topEpisode = try await fetchEpisode("unqtop")
     middleEpisode = try await fetchEpisode("middle")
     #expect(topEpisode.queueOrder == 0)
+    #expect(try await repo.nextEpisode()?.episode == topEpisode)
     #expect(middleEpisode.queueOrder == 1)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
@@ -96,6 +97,7 @@ class QueueTests {
     bottomEpisode = try await fetchEpisode("bottom")
     middleEpisode = try await fetchEpisode("middle")
     #expect(bottomEpisode.queueOrder == 0)
+    #expect(try await repo.nextEpisode()?.episode == bottomEpisode)
     #expect(middleEpisode.queueOrder == 1)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4])
@@ -107,6 +109,7 @@ class QueueTests {
     try await queue.insert(topEpisode.id, at: 0)
     topEpisode = try await fetchEpisode("unqtop")
     #expect(topEpisode.queueOrder == 0)
+    #expect(try await repo.nextEpisode()?.episode == topEpisode)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
   }

@@ -98,14 +98,19 @@ actor PlayManager {
         await setStatus(.loading)
 
         log.info("performLoad: \(podcastEpisode.toString)")
+        let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode
+        await setOnDeck(try await podAVPlayer.load(podcastEpisode))
 
-        if let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode {
+        log.debug("performLoad: dequeueing incoming episode: \(podcastEpisode.toString)")
+        try? await queue.dequeue(podcastEpisode.id)
+
+        if let outgoingPodcastEpisode {
           log.debug("performLoad: unshifting current episode: \(outgoingPodcastEpisode.toString)")
           try? await queue.unshift(outgoingPodcastEpisode.id)
+        } else if let nextPodcastEpisode = try? await repo.nextEpisode() {
+          log.debug("performLoad: setting next episode: \(nextPodcastEpisode.toString)")
+          try? await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
         }
-
-        await setOnDeck(try await podAVPlayer.load(podcastEpisode))
-        try? await queue.dequeue(podcastEpisode.id)
 
         await setStatus(.active)
       } catch {

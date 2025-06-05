@@ -225,6 +225,7 @@ import Testing
     try await queue.unshift(queuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
     try await load(playingEpisode)
+    try await Task.sleep(for: .milliseconds(100))
 
     #expect(queueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
   }

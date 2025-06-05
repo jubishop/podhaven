@@ -96,7 +96,6 @@ extension Container {
 
     avQueuePlayer.removeAllItems()
     avQueuePlayer.insert(playableItem, after: nil)
-    insertNextPodcastEpisode(nextBundle)
     addPeriodicTimeObserver()
 
     return loadedPodcastEpisode
@@ -178,7 +177,7 @@ extension Container {
     let task = Task {
       log.debug("performSetNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))")
 
-      guard nextPodcastEpisode?.id != self.nextPodcastEpisode?.id
+      guard nextPodcastEpisode != self.nextPodcastEpisode
       else {
         log.warning(
           """
@@ -247,13 +246,11 @@ extension Container {
   }
 
   private func performInsertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) {
-    self.nextBundle = nextBundle
-
     // If queue is empty: do nothing
     guard let lastItem = avQueuePlayer.items().last else { return }
 
     // If this is already the last: do nothing
-    if lastItem.assetURL == loadedNextPodcastEpisode?.assetURL { return }
+    if lastItem.assetURL == nextBundle?.loadedPodcastEpisode.assetURL { return }
 
     // If we had a second item, it needs to be removed
     if avQueuePlayer.items().count > 1 {
@@ -264,6 +261,8 @@ extension Container {
     if let nextBundle {
       avQueuePlayer.insert(nextBundle.playableItem, after: avQueuePlayer.items().first)
     }
+
+    self.nextBundle = nextBundle
   }
 
   // MARK: - Private Change Handlers

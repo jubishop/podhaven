@@ -115,6 +115,16 @@ struct Repo {
     try await episodes([media]).first
   }
 
+  func nextEpisode() async throws -> PodcastEpisode? {
+    try await appDB.db.read { db in
+      try Episode
+        .filter { $0.queueOrder == 0 }
+        .including(required: Episode.podcast)
+        .asRequest(of: PodcastEpisode.self)
+        .fetchOne(db)
+    }
+  }
+
   // MARK: - Series Writers
 
   @discardableResult
