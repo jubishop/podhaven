@@ -33,7 +33,15 @@ struct RemoteLogHandler: LogHandler {
     get { self.metadata[metadataKey] }
     set(newValue) { self.metadata[metadataKey] = newValue }
   }
-  public var logLevel: Logger.Level = .debug
+
+  private var _logLevel: Logger.Level = .critical
+  public var logLevel: Logger.Level {
+    get {
+      guard _logLevel >= .debug else { return .debug }
+      return _logLevel
+    }
+    set { _logLevel = newValue }
+  }
 
   private let label: String
 
