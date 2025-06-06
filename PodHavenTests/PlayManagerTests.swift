@@ -365,7 +365,8 @@ import Testing
     #expect(playState.onDeck == nil)
     #expect(nowPlayingInfo == nil)
     #expect(queueURLs.isEmpty)
-    #expect(try await queuedPodcastEpisodes == [playingEpisode])
+    let queued = episodeStrings(try await queuedPodcastEpisodes)
+    #expect(queued == episodeStrings([episodeToLoad, playingEpisode]))
   }
 
   // MARK: - Helpers
@@ -406,6 +407,10 @@ import Testing
           .fetchAll(db)
       }
     }
+  }
+
+  private func episodeStrings(_ podcastEpisodes: [PodcastEpisode]) -> [String] {
+    podcastEpisodes.map(\.toString)
   }
 
   private func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [MediaURL] {

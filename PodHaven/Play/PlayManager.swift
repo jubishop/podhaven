@@ -87,8 +87,11 @@ actor PlayManager {
   }
 
   private func performLoad(_ podcastEpisode: PodcastEpisode) async throws {
+    let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode
+
+    if outgoingPodcastEpisode == podcastEpisode { return }
+
     let task = Task {
-      let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode
       do {
         await setStatus(.loading)
 
@@ -102,7 +105,9 @@ actor PlayManager {
         if let outgoingPodcastEpisode {
           log.debug("performLoad: unshifting current episode: \(outgoingPodcastEpisode.toString)")
           try? await queue.unshift(outgoingPodcastEpisode.id)
-        } else if let nextPodcastEpisode = try? await queue.nextEpisode {
+        }
+
+        if let nextPodcastEpisode = try? await queue.nextEpisode {
           log.debug("performLoad: setting next episode: \(nextPodcastEpisode.toString)")
           try? await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
         }
@@ -114,6 +119,7 @@ actor PlayManager {
         if let outgoingPodcastEpisode {
           try? await queue.unshift(outgoingPodcastEpisode.id)
         }
+        try? await queue.unshift(podcastEpisode.id)
 
         await stopAndClearOnDeck()
 
