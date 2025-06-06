@@ -184,10 +184,7 @@ actor PlayManager {
     nowPlayingInfo = NowPlayingInfo(onDeck)
     await playState.setOnDeck(onDeck)
 
-    if podcastEpisode.episode.currentTime == CMTime.zero {
-      log.debug("setOnDeck: No current time for \(podcastEpisode.toString)")
-      await setCurrentTime(CMTime.zero)
-    } else {
+    if podcastEpisode.episode.currentTime != CMTime.zero {
       log.debug(
         """
         setOnDeck: Seeking \(podcastEpisode.toString), to \
@@ -219,19 +216,13 @@ actor PlayManager {
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
+    guard let currentPodcastEpisode = await podAVPlayer.podcastEpisode
+    else { return }
+
     log.trace("setCurrentTime: \(currentTime)")
 
     nowPlayingInfo?.setCurrentTime(currentTime)
     await playState.setCurrentTime(currentTime)
-
-    guard let currentPodcastEpisode = await podAVPlayer.podcastEpisode
-    else {
-      Assert.precondition(
-        currentTime == .zero,
-        "tried to set current time to: \(currentTime) but there is no current episode?"
-      )
-      return
-    }
 
     _ = try? await repo.updateCurrentTime(currentPodcastEpisode.id, currentTime)
   }
