@@ -9,7 +9,7 @@ struct LoadedPodcastEpisode: Identifiable, Stringable {
   let podcastEpisode: PodcastEpisode
   let duration: CMTime
 
-  var assetURL: URL { podcastEpisode.episode.media.rawValue }
+  var assetURL: MediaURL { podcastEpisode.episode.media }
 
   // MARK: - Stringable
 

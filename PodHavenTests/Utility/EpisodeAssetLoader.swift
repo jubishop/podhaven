@@ -31,14 +31,14 @@ class EpisodeAssetLoader {
     if let handler = fakeHandlers[mediaURL] {
       let (isPlayable, duration) = try await handler(mediaURL)
       return await EpisodeAsset(
-        playerItem: FakeAVPlayerItem(assetURL: url),
+        playerItem: FakeAVPlayerItem(assetURL: mediaURL),
         isPlayable: isPlayable,
         duration: duration
       )
     }
 
     return await EpisodeAsset(
-      playerItem: FakeAVPlayerItem(assetURL: url),
+      playerItem: FakeAVPlayerItem(assetURL: mediaURL),
       isPlayable: true,
       duration: CMTime.inSeconds(60)
     )

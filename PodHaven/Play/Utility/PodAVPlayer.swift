@@ -247,9 +247,9 @@ extension Container {
 
   // MARK: - Private Change Handlers
 
-  private func handleCurrentItemChange(_ url: URL?) async throws {
-    if let url {
-      podcastEpisode = try await repo.episode(MediaURL(url))
+  private func handleCurrentItemChange(_ mediaURL: MediaURL?) async throws {
+    if let mediaURL {
+      podcastEpisode = try await repo.episode(mediaURL)
     } else {
       podcastEpisode = nil
     }
@@ -318,7 +318,7 @@ extension Container {
   // MARK: - Debug Helpers
 
   private func queuedPodcastEpisodes() async -> [PodcastEpisode] {
-    let mediaURLs = avQueuePlayer.queued.map { MediaURL($0.assetURL) }
+    let mediaURLs = avQueuePlayer.queued.map { $0.assetURL }
     var podcastEpisodes: IdentifiedArray<MediaURL, PodcastEpisode>
     do {
       podcastEpisodes = IdentifiedArray(

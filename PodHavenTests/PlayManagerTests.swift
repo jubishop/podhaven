@@ -390,7 +390,7 @@ import Testing
     nowPlayingInfo![MPMediaItemPropertyTitle] as! String
   }
 
-  private var queueURLs: [URL] {
+  private var queueURLs: [MediaURL] {
     avQueuePlayer.queued.map(\.assetURL)
   }
 
@@ -408,7 +408,7 @@ import Testing
     }
   }
 
-  private func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [URL] {
-    podcastEpisodes.map((\.episode.media.rawValue))
+  private func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [MediaURL] {
+    podcastEpisodes.map(\.episode.media)
   }
 }

@@ -4,5 +4,5 @@ import AVFoundation
 import Foundation
 
 @MainActor protocol AVPlayableItem: AnyObject {
-  var assetURL: URL { get }
+  var assetURL: MediaURL { get }
 }

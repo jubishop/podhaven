@@ -13,7 +13,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   // MARK: - Internal State Management
 
-  private var itemObservations: [ObservationHandler<URL?>] = []
+  private var itemObservations: [ObservationHandler<MediaURL?>] = []
   private var timeObservers: [UUID: TimeObserver] = [:]
   private var currentTimeValue: CMTime = .zero {
     didSet {
@@ -67,7 +67,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   }
   func observeCurrentItem(
     options: NSKeyValueObservingOptions,
-    changeHandler: @escaping @Sendable (URL?) -> Void
+    changeHandler: @escaping @Sendable (MediaURL?) -> Void
   ) -> NSKeyValueObservation {
     let observation = NSObject().observe(\.description, options: []) { _, _ in }
     itemObservations.append(ObservationHandler(observation: observation, handler: changeHandler))
