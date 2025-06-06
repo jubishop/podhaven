@@ -4,6 +4,10 @@ import Foundation
 
 @testable import PodHaven
 
-struct FakeAVPlayerItem: AVPlayableItem {
+class FakeAVPlayerItem: AVPlayableItem {
   let assetURL: URL
+
+  init(assetURL: URL) {
+    self.assetURL = assetURL
+  }
 }

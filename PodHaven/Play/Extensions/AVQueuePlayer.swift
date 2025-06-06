@@ -13,7 +13,7 @@ extension Container {
 extension AVQueuePlayer: AVQueuePlayable {
   var current: (any AVPlayableItem)? { currentItem }
   var queued: [any AVPlayableItem] { items() }
-  nonisolated public func observeCurrentItem(
+  nonisolated func observeCurrentItem(
     options: NSKeyValueObservingOptions,
     changeHandler: @Sendable @escaping ((any AVPlayableItem)?) -> Void
   ) -> NSKeyValueObservation {

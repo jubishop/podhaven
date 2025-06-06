@@ -3,6 +3,6 @@
 import AVFoundation
 import Foundation
 
-@MainActor public protocol AVPlayableItem {
+@MainActor protocol AVPlayableItem: AnyObject {
   var assetURL: URL { get }
 }

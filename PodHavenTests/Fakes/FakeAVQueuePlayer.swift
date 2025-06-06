@@ -13,15 +13,27 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   // MARK: - Internal State Management
 
-  private var currentTimeValue: CMTime = .zero
-  private var queueItems: [any AVPlayableItem] = []
-  private var timeObservers: [TimeObserver] = []
-  private var statusObservations: [ObservationHandler] = []
+  private var itemObservations: [ObservationHandler<(any PodHaven.AVPlayableItem)?>] = []
+  private var timeObservers: [UUID: TimeObserver] = [:]
+  private var currentTimeValue: CMTime = .zero {
+    didSet {
+      let currentTimeValue = currentTimeValue
+      for observer in timeObservers.values {
+        if let queue = observer.queue {
+          queue.async {
+            observer.block(currentTimeValue)
+          }
+        } else {
+          observer.block(currentTimeValue)
+        }
+      }
+    }
+  }
+  private var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
 
   // MARK: - Private Helper Classes
 
   private final class TimeObserver: Sendable {
-    let id = UUID()
     let interval: CMTime
     let queue: dispatch_queue_t?
     let block: @Sendable (CMTime) -> Void
@@ -33,58 +45,79 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     }
   }
 
-  private struct ObservationHandler {
+  private struct ObservationHandler<T> {
     weak var observation: NSKeyValueObservation?
-    let handler: (AVPlayer.TimeControlStatus) -> Void
+    let handler: (T) -> Void
   }
 
   // MARK: - AVQueuePlayable Implementation
 
-  var current: (any AVPlayableItem)? { queueItems.first }
-  var queued: [any AVPlayableItem] { queueItems }
+  var current: (any AVPlayableItem)? { queued.first }
+  var queued: [any AVPlayableItem] = [] {
+    didSet {
+      if oldValue.first !== current {
+        // Clean up deallocated observations and call active handlers
+        itemObservations = itemObservations.compactMap { observationHandler in
+          guard observationHandler.observation != nil else { return nil }
+          observationHandler.handler(current)
+          return observationHandler
+        }
+      }
+    }
+  }
+  func observeCurrentItem(
+    options: NSKeyValueObservingOptions,
+    changeHandler: @escaping @Sendable ((any PodHaven.AVPlayableItem)?) -> Void
+  ) -> NSKeyValueObservation {
+    let observation = NSObject().observe(\.description, options: []) { _, _ in }
+    itemObservations.append(ObservationHandler(observation: observation, handler: changeHandler))
+
+    if options.contains(.initial) {
+      changeHandler(current)
+    }
+
+    return observation
+  }
 
   func insert(_ item: any AVPlayableItem, after afterItem: (any AVPlayableItem)?) {
     if let afterItem {
-      guard let afterIndex = queueItems.firstIndex(where: { $0.assetURL == afterItem.assetURL })
+      guard let afterIndex = queued.firstIndex(where: { $0.assetURL == afterItem.assetURL })
       else { Assert.fatal("Couldn't find item: \(afterItem), to insert after!") }
 
-      queueItems.insert(item, at: afterIndex + 1)
+      queued.insert(item, at: afterIndex + 1)
     } else {
-      if let existingItem = queueItems.first(where: { $0.assetURL == item.assetURL }) {
+      if let existingItem = queued.first(where: { $0.assetURL == item.assetURL }) {
         Assert.fatal("Item: \(existingItem), already exists in queue!")
       }
 
-      queueItems.append(item)
+      queued.append(item)
     }
   }
 
   func remove(_ item: any AVPlayableItem) {
-    if !queueItems.contains(where: { $0.assetURL == item.assetURL }) {
+    if !queued.contains(where: { $0.assetURL == item.assetURL }) {
       Assert.fatal("Item: \(item), does not exist in queue!")
     }
 
-    queueItems.removeAll { $0.assetURL == item.assetURL }
+    queued.removeAll { $0.assetURL == item.assetURL }
   }
 
   func removeAllItems() {
-    queueItems.removeAll()
-    setTimeControlStatus(.paused)
+    queued.removeAll()
+    timeControlStatus = .paused
   }
 
   func play() {
-    setTimeControlStatus(.playing)
+    timeControlStatus = .playing
   }
   func pause() {
-    setTimeControlStatus(.paused)
+    timeControlStatus = .paused
   }
   func seek(to time: CMTime, completionHandler: @escaping @Sendable (Bool) -> Void) {
     Task {
       try await Task.sleep(for: seekDelay)
       completionHandler(seekCompletion)
-      if seekCompletion {
-        currentTimeValue = time
-        triggerTimeObservers()
-      }
+      if seekCompletion { currentTimeValue = time }
     }
   }
 
@@ -94,18 +127,27 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     queue: dispatch_queue_t?,
     using block: @escaping @Sendable (CMTime) -> Void
   ) -> Any {
-    let observer = TimeObserver(interval: interval, queue: queue, block: block)
-    timeObservers.append(observer)
-    return observer.id
+    let id = UUID()
+    timeObservers[id] = TimeObserver(interval: interval, queue: queue, block: block)
+    return id
   }
   func removeTimeObserver(_ observer: Any) {
-    guard let observerId = observer as? UUID
+    guard let id = observer as? UUID
     else { Assert.fatal("Removing time observer: \(observer), of wrong type?") }
 
-    timeObservers.removeAll { $0.id == observerId }
+    timeObservers[id] = nil
   }
 
-  private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused
+  private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused {
+    didSet {
+      // Clean up deallocated observations and call active handlers
+      statusObservations = statusObservations.compactMap { observationHandler in
+        guard observationHandler.observation != nil else { return nil }
+        observationHandler.handler(timeControlStatus)
+        return observationHandler
+      }
+    }
+  }
   private(set) var reasonForWaitingToPlay: AVPlayer.WaitingReason?
   func observeTimeControlStatus(
     options: NSKeyValueObservingOptions,
@@ -126,37 +168,10 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   func simulateTimeAdvancement(by interval: TimeInterval) {
     let newTime = CMTimeAdd(currentTimeValue, CMTime.inSeconds(interval))
     currentTimeValue = newTime
-    triggerTimeObservers()
-  }
-
-  func setTimeControlStatus(_ status: AVPlayer.TimeControlStatus) {
-    timeControlStatus = status
-    
-    // Clean up deallocated observations and call active handlers
-    statusObservations = statusObservations.compactMap { observationHandler in
-      guard observationHandler.observation != nil else { return nil }
-      observationHandler.handler(status)
-      return observationHandler
-    }
   }
 
   func simulateWaitingToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
     reasonForWaitingToPlay = waitingReason
-    setTimeControlStatus(.waitingToPlayAtSpecifiedRate)
-  }
-  
-  // MARK: - Private Helpers
-  
-  private func triggerTimeObservers() {
-    let currentTimeValue = self.currentTimeValue
-    for observer in timeObservers {
-      if let queue = observer.queue {
-        queue.async {
-          observer.block(currentTimeValue)
-        }
-      } else {
-        observer.block(currentTimeValue)
-      }
-    }
+    timeControlStatus = .waitingToPlayAtSpecifiedRate
   }
 }
