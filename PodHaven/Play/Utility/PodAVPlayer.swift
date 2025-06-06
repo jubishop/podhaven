@@ -247,6 +247,8 @@ extension Container {
   // MARK: - Private Change Handlers
 
   private func handleCurrentItemChange(_ mediaURL: MediaURL?) async throws {
+    if podcastEpisode?.episode.media == mediaURL { return }
+
     if let mediaURL {
       podcastEpisode = try await repo.episode(mediaURL)
     } else {
