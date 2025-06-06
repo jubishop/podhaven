@@ -226,7 +226,6 @@ actor PlayManager {
   // MARK: - Private Change Handlers
 
   private func handleCurrentItemChanged() async {
-
   }
 
   // MARK: - Private Tracking

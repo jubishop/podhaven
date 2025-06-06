@@ -247,10 +247,11 @@ extension Container {
 
   private func handleCurrentItemChange() async throws {
     if let url = avQueuePlayer.current?.assetURL {
-      self.podcastEpisode = try await repo.episode(MediaURL(url))
+      podcastEpisode = try await repo.episode(MediaURL(url))
     } else {
-      self.podcastEpisode = nil
+      podcastEpisode = nil
     }
+    log.debug("handleCurrentItemChange: \(String(describing: podcastEpisode))")
     currentItemContinuation.yield()
   }
 
