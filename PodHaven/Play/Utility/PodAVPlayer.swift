@@ -133,6 +133,12 @@ extension Container {
     avQueuePlayer.pause()
   }
 
+  func toggle() {
+    avQueuePlayer.timeControlStatus == .paused
+      ? play()
+      : pause()
+  }
+
   // MARK: - Seeking
 
   func seekForward(_ duration: CMTime) {

@@ -47,7 +47,6 @@ actor PlayManager {
 
   // MARK: - State Management
 
-  private var status: PlayState.Status = .stopped
   private var nowPlayingInfo: NowPlayingInfo? {
     willSet {
       if newValue == nil {
@@ -131,16 +130,15 @@ actor PlayManager {
   // MARK: - Playback Controls
 
   func play() async {
-    Assert.precondition(
-      status.playable,
-      "tried to play but status is \(status) which is not playable"
-    )
-
     await podAVPlayer.play()
   }
 
   func pause() async {
     await podAVPlayer.pause()
+  }
+
+  func toggle() async {
+    await podAVPlayer.toggle()
   }
 
   // MARK: - Seeking
@@ -202,13 +200,9 @@ actor PlayManager {
   }
 
   private func setStatus(_ status: PlayState.Status) async {
-    guard status != self.status
-    else { return }
-
     log.debug("setStatus: \(status)")
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status)
-    self.status = status
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
@@ -258,7 +252,7 @@ actor PlayManager {
         case .pause:
           await pause()
         case .togglePlayPause:
-          if status.playing { await pause() } else { await play() }
+          await toggle()
         case .skipForward(let interval):
           await seekForward(CMTime.inSeconds(interval))
         case .skipBackward(let interval):
@@ -295,7 +289,6 @@ actor PlayManager {
 
     Task {
       for await controlStatus in await podAVPlayer.controlStatusStream {
-        if !status.playable { continue }
         switch controlStatus {
         case AVPlayer.TimeControlStatus.paused:
           await setStatus(.paused)
