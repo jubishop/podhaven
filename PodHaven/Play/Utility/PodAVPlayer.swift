@@ -28,35 +28,26 @@ extension Container {
 }
 
 @MainActor class PodAVPlayer {
-  @DynamicInjected(\.avQueuePlayer) var avQueuePlayer
-  @DynamicInjected(\.loadEpisodeAsset) var loadEpisodeAsset
-  @DynamicInjected(\.notifications) private var notifications
+  @DynamicInjected(\.avQueuePlayer) private var avQueuePlayer
+  @DynamicInjected(\.loadEpisodeAsset) private var loadEpisodeAsset
+  @DynamicInjected(\.repo) private var repo
 
   private let log = Log.as(LogSubsystem.Play.avPlayer)
 
-  // MARK: - Convenience Getters
-
-  var podcastEpisode: PodcastEpisode? { loadedCurrentPodcastEpisode?.podcastEpisode }
-  var nextPodcastEpisode: PodcastEpisode? { loadedNextPodcastEpisode?.podcastEpisode }
-
   // MARK: - State Management
 
-  typealias FinishedAndLoadedCurrent = (PodcastEpisode, LoadedPodcastEpisode?)
   typealias LoadedPodcastEpisodeBundle = (
     loadedPodcastEpisode: LoadedPodcastEpisode,
     playableItem: any AVPlayableItem
   )
-
-  private var nextBundle: LoadedPodcastEpisodeBundle?
-  private var loadedNextPodcastEpisode: LoadedPodcastEpisode? { nextBundle?.loadedPodcastEpisode }
-  private var loadedCurrentPodcastEpisode: LoadedPodcastEpisode?
+  var podcastEpisode: PodcastEpisode?
 
   let currentTimeStream: AsyncStream<CMTime>
+  let currentItemStream: AsyncStream<Void>
   let controlStatusStream: AsyncStream<AVPlayer.TimeControlStatus>
-  let playToEndStream: AsyncStream<FinishedAndLoadedCurrent>
   private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
+  private let currentItemContinuation: AsyncStream<Void>.Continuation
   private let controlStatusContinuation: AsyncStream<AVPlayer.TimeControlStatus>.Continuation
-  private let playToEndContinuation: AsyncStream<FinishedAndLoadedCurrent>.Continuation
 
   private var periodicTimeObserver: Any?
   private var currentItemObserver: NSKeyValueObservation?
@@ -69,15 +60,15 @@ extension Container {
     (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(
       of: CMTime.self
     )
+    (currentItemStream, currentItemContinuation) = AsyncStream.makeStream(
+      of: Void.self
+    )
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: AVPlayer.TimeControlStatus.self
     )
-    (playToEndStream, playToEndContinuation) = AsyncStream.makeStream(
-      of: FinishedAndLoadedCurrent.self
-    )
 
     addTimeControlStatusObserver()
-    startPlayToEndTimeNotifications()
+    addCurrentItemObserver()
   }
 
   // MARK: - Loading
@@ -86,7 +77,6 @@ extension Container {
     log.debug("stop: executing")
     removePeriodicTimeObserver()
     avQueuePlayer.removeAllItems()
-    loadedCurrentPodcastEpisode = nil
   }
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> LoadedPodcastEpisode {
@@ -94,7 +84,6 @@ extension Container {
 
     removePeriodicTimeObserver()
     let (loadedPodcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
-    loadedCurrentPodcastEpisode = loadedPodcastEpisode
 
     avQueuePlayer.removeAllItems()
     avQueuePlayer.insert(playableItem, after: nil)
@@ -131,12 +120,12 @@ extension Container {
   // MARK: - Playback Controls
 
   func play() {
-    log.debug("play: \(String(describing: podcastEpisode?.toString))")
+    log.debug("playing")
     avQueuePlayer.play()
   }
 
   func pause() {
-    log.debug("pause: \(String(describing: podcastEpisode?.toString))")
+    log.debug("pausing")
     avQueuePlayer.pause()
   }
 
@@ -178,17 +167,6 @@ extension Container {
   private func performSetNextEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws {
     let task = Task {
       log.debug("performSetNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))")
-
-      guard nextPodcastEpisode != self.nextPodcastEpisode
-      else {
-        log.warning(
-          """
-          performSetNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString)) \
-          is the same as the current next episode
-          """
-        )
-        return
-      }
 
       if let podcastEpisode = nextPodcastEpisode {
         do {
@@ -261,21 +239,17 @@ extension Container {
     if let nextBundle {
       avQueuePlayer.insert(nextBundle.playableItem, after: avQueuePlayer.queued.first)
     }
-
-    self.nextBundle = nextBundle
   }
 
   // MARK: - Private Change Handlers
 
-  private func handleEpisodeFinished() throws(PlaybackError) {
-    guard let finishedPodcastEpisode = podcastEpisode
-    else { Assert.fatal("Finished episode but current episode is nil?") }
-
-    log.debug("handleEpisodeFinished: \(finishedPodcastEpisode.toString)")
-
-    loadedCurrentPodcastEpisode = loadedNextPodcastEpisode
-    nextBundle = nil
-    playToEndContinuation.yield((finishedPodcastEpisode, loadedCurrentPodcastEpisode))
+  private func handleCurrentItemChange() async throws {
+    if let url = avQueuePlayer.current?.assetURL {
+      self.podcastEpisode = try await repo.episode(MediaURL(url))
+    } else {
+      self.podcastEpisode = nil
+    }
+    currentItemContinuation.yield()
   }
 
   // MARK: - Private Tracking
@@ -312,13 +286,13 @@ extension Container {
     }
   }
 
-  private func startPlayToEndTimeNotifications() {
+  private func addCurrentItemObserver() {
     Assert.neverCalled()
 
-    Task {
-      for await _ in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
-        try? handleEpisodeFinished()
-      }
+    currentItemObserver = avQueuePlayer.observeCurrentItem(
+      options: [.initial, .new]
+    ) { currentItem in
+      Task { try await self.handleCurrentItemChange() }
     }
   }
 
@@ -335,12 +309,6 @@ extension Container {
     } catch {
       log.warning(ErrorKit.loggableMessage(for: error))
       podcastEpisodes = IdentifiedArray(id: \.episode.media)
-    }
-    if let podcastEpisode = podcastEpisode {
-      podcastEpisodes[id: podcastEpisode.episode.media] = podcastEpisode
-    }
-    if let nextPodcastEpisode = nextPodcastEpisode {
-      podcastEpisodes[id: nextPodcastEpisode.episode.media] = nextPodcastEpisode
     }
     var podcastEpisodesFound = [PodcastEpisode](capacity: mediaURLs.count)
     var mediaURLsNotFound: [MediaURL] = []
@@ -361,12 +329,6 @@ extension Container {
         \(mediaURLsNotFound.map({ "\($0)" }).joined(separator: "\n  "))
       PodcastEpisodesFound: 
         \(podcastEpisodesFound.map(\.toString).joined(separator: "\n  "))
-      LoadedCurrentPodcastEpisode:
-        \(String(describing: loadedCurrentPodcastEpisode?.toString))
-        MediaURL: \(String(describing:loadedCurrentPodcastEpisode?.podcastEpisode.episode.media))
-      LoadedNextPodcastEpisode:
-        \(String(describing: loadedNextPodcastEpisode?.toString))
-        MediaURL: \(String(describing:loadedNextPodcastEpisode?.podcastEpisode.episode.media))
       """
     )
 

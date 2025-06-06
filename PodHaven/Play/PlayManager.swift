@@ -65,12 +65,12 @@ actor PlayManager {
   fileprivate init() {}
 
   func start() async {
-    observeNextEpisode()
+    observeNextEpisode()  // TODO: move this to PodAVPlayer
     startInterruptionNotifications()
     startListeningToCommandCenter()
+    startListeningToCurrentItem()
     startListeningToCurrentTime()
     startListeningToControlStatus()
-    startListeningToPlayToEnd()
 
     guard let currentEpisodeID = currentEpisodeID,
       let podcastEpisode = try? await repo.episode(currentEpisodeID)
@@ -82,9 +82,6 @@ actor PlayManager {
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) {
-    guard await podAVPlayer.podcastEpisode != podcastEpisode
-    else { Assert.fatal("Loading podcast \(podcastEpisode.toString) that's already loaded") }
-
     loadingTask?.cancel()
 
     return try await PlaybackError.catch {
@@ -230,26 +227,8 @@ actor PlayManager {
 
   // MARK: - Private Change Handlers
 
-  private func handleEpisodeFinished(
-    finishedPodcastEpisode: PodcastEpisode,
-    loadedCurrentPodcastEpisode: LoadedPodcastEpisode?
-  ) async {
-    _ = try? await repo.markComplete(finishedPodcastEpisode.id)
+  private func handleCurrentItemChanged() async {
 
-    if let loadedCurrentPodcastEpisode {
-      log.debug(
-        """
-        handleEpisodeFinished:
-          finishedPodcastEpisode: \(finishedPodcastEpisode.toString)
-          loadedCurrentPodcastEpisode: \(loadedCurrentPodcastEpisode.toString)
-        """
-      )
-      await setOnDeck(loadedCurrentPodcastEpisode)
-      try? await queue.dequeue(loadedCurrentPodcastEpisode.id)
-    } else {
-      log.debug("handleEpisodeFinished: no more episodes to play")
-      await stopAndClearOnDeck()
-    }
   }
 
   // MARK: - Private Tracking
@@ -308,6 +287,16 @@ actor PlayManager {
     }
   }
 
+  private func startListeningToCurrentItem() {
+    Assert.neverCalled()
+
+    Task {
+      for await _ in await podAVPlayer.currentItemStream {
+        await handleCurrentItemChanged()
+      }
+    }
+  }
+
   private func startListeningToCurrentTime() {
     Assert.neverCalled()
 
@@ -334,21 +323,6 @@ actor PlayManager {
         @unknown default:
           Assert.fatal("Time control status unknown?")
         }
-      }
-    }
-  }
-
-  private func startListeningToPlayToEnd() {
-    Assert.neverCalled()
-
-    Task {
-      for await (finishedPodcastEpisode, loadedCurrentPodcastEpisode)
-        in await podAVPlayer.playToEndStream
-      {
-        await handleEpisodeFinished(
-          finishedPodcastEpisode: finishedPodcastEpisode,
-          loadedCurrentPodcastEpisode: loadedCurrentPodcastEpisode
-        )
       }
     }
   }

@@ -183,7 +183,7 @@ struct Queue {
     _ episodeID: Episode.ID,
     at newPosition: Int
   ) throws {
-    Assert.precondition(db.isInsideTransaction, "insertToQueue method requires a transaction")
+    Assert.precondition(db.isInsideTransaction, "insert method requires a transaction")
 
     let oldPosition = try _fetchOldPosition(db, for: episodeID) ?? Int.max
     let computedNewPosition = newPosition > oldPosition ? newPosition - 1 : newPosition
@@ -198,7 +198,7 @@ struct Queue {
     to newPosition: Int
   ) throws {
     guard newPosition != oldPosition else { return }
-    Assert.precondition(db.isInsideTransaction, "moveInQueue method requires a transaction")
+    Assert.precondition(db.isInsideTransaction, "move method requires a transaction")
 
     log.debug("queue: moving episode \(episodeID) from position \(oldPosition) to \(newPosition)")
 
