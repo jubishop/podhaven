@@ -26,8 +26,7 @@ class EpisodeAssetLoader {
     }
   }
 
-  func loadEpisodeAsset(_ url: URL) async throws -> EpisodeAsset {
-    let mediaURL = MediaURL(rawValue: url)
+  func loadEpisodeAsset(_ mediaURL: MediaURL) async throws -> EpisodeAsset {
     if let handler = fakeHandlers[mediaURL] {
       let (isPlayable, duration) = try await handler(mediaURL)
       return await EpisodeAsset(
