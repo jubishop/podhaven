@@ -219,7 +219,7 @@ actor PlayManager {
 
   // MARK: - Private Change Handlers
 
-  private func handleCurrentItemChanged() async {
+  private func handleCurrentItemChanged(_ podcastEpisode: PodcastEpisode?) async {
   }
 
   // MARK: - Private Tracking
@@ -268,8 +268,8 @@ actor PlayManager {
     Assert.neverCalled()
 
     Task {
-      for await _ in await podAVPlayer.currentItemStream {
-        await handleCurrentItemChanged()
+      for await podcastEpisode in await podAVPlayer.currentItemStream {
+        await handleCurrentItemChanged(podcastEpisode)
       }
     }
   }

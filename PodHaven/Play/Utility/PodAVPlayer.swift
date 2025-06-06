@@ -44,10 +44,10 @@ extension Container {
   var podcastEpisode: PodcastEpisode?
 
   let currentTimeStream: AsyncStream<CMTime>
-  let currentItemStream: AsyncStream<Void>
+  let currentItemStream: AsyncStream<PodcastEpisode?>
   let controlStatusStream: AsyncStream<AVPlayer.TimeControlStatus>
   private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
-  private let currentItemContinuation: AsyncStream<Void>.Continuation
+  private let currentItemContinuation: AsyncStream<PodcastEpisode?>.Continuation
   private let controlStatusContinuation: AsyncStream<AVPlayer.TimeControlStatus>.Continuation
 
   private var periodicTimeObserver: Any?
@@ -62,7 +62,7 @@ extension Container {
       of: CMTime.self
     )
     (currentItemStream, currentItemContinuation) = AsyncStream.makeStream(
-      of: Void.self
+      of: PodcastEpisode?.self
     )
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: AVPlayer.TimeControlStatus.self
@@ -259,8 +259,9 @@ extension Container {
     } else {
       podcastEpisode = nil
     }
+
     log.debug("handleCurrentItemChange: \(String(describing: podcastEpisode))")
-    currentItemContinuation.yield()
+    currentItemContinuation.yield(podcastEpisode)
   }
 
   // MARK: - Private Tracking
