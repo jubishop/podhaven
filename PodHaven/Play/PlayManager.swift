@@ -224,6 +224,12 @@ actor PlayManager {
   // MARK: - Private Change Handlers
 
   private func handleCurrentItemChanged(_ podcastEpisode: PodcastEpisode?) async {
+    if let podcastEpisode {
+      try? await queue.dequeue(podcastEpisode.id)
+      await setOnDeck(podcastEpisode)
+    } else {
+      await stopAndClearOnDeck()
+    }
   }
 
   // MARK: - Private Tracking

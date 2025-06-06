@@ -48,7 +48,7 @@ import Testing
 
     let onDeck = try await load(podcastEpisode)
     #expect(playState.status == .active)
-    #expect(queueURLs == episodeMediaURLs([podcastEpisode]))
+    #expect(itemQueueURLs == episodeMediaURLs([podcastEpisode]))
     #expect(onDeck == podcastEpisode)
     #expect(nowPlayingTitle == podcastEpisode.episode.title)
 
@@ -227,7 +227,7 @@ import Testing
     try await queue.unshift(queuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(queueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
+    #expect(itemQueueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
   }
 
   @Test("loading an episode with queue already filled")
@@ -250,7 +250,7 @@ import Testing
     try await load(playingEpisode)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(queueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
+    #expect(itemQueueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
   }
 
   @Test("top queue item changes while playing")
@@ -283,7 +283,7 @@ import Testing
     try await queue.unshift(incomingQueuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(queueURLs == episodeMediaURLs([playingEpisode, incomingQueuedEpisode]))
+    #expect(itemQueueURLs == episodeMediaURLs([playingEpisode, incomingQueuedEpisode]))
   }
 
   @Test("loading an episode puts current episode back in queue")
@@ -307,7 +307,7 @@ import Testing
     try await load(incomingEpisode)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(queueURLs == episodeMediaURLs([incomingEpisode, playingEpisode]))
+    #expect(itemQueueURLs == episodeMediaURLs([incomingEpisode, playingEpisode]))
   }
 
   @Test("loading an episode fails with none playing right now")
@@ -332,7 +332,7 @@ import Testing
     #expect(avQueuePlayer.timeControlStatus == .paused)
     #expect(playState.onDeck == nil)
     #expect(nowPlayingInfo == nil)
-    #expect(queueURLs.isEmpty)
+    #expect(itemQueueURLs.isEmpty)
   }
 
   @Test("loading an episode fails with one playing right now")
@@ -364,9 +364,32 @@ import Testing
     #expect(avQueuePlayer.timeControlStatus == .paused)
     #expect(playState.onDeck == nil)
     #expect(nowPlayingInfo == nil)
-    #expect(queueURLs.isEmpty)
+    #expect(itemQueueURLs.isEmpty)
     let queued = episodeStrings(try await queuedPodcastEpisodes)
     #expect(queued == episodeStrings([episodeToLoad, playingEpisode]))
+  }
+
+  @Test("current item becoming nil clears deck")
+  func currentItemBecomingNilClearsDeck() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [TestHelpers.unsavedEpisode()]
+    )
+    let podcastEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+
+    try await load(podcastEpisode)
+    try await play()
+    avQueuePlayer.finishEpisode()
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(playState.status == .stopped)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
+    #expect(playState.onDeck == nil)
+    #expect(nowPlayingInfo == nil)
+    #expect(itemQueueURLs.isEmpty)
   }
 
   // MARK: - Helpers
@@ -391,7 +414,7 @@ import Testing
     nowPlayingInfo![MPMediaItemPropertyTitle] as! String
   }
 
-  private var queueURLs: [MediaURL] {
+  private var itemQueueURLs: [MediaURL] {
     avQueuePlayer.queued.map(\.assetURL)
   }
 

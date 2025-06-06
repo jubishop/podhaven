@@ -8,8 +8,14 @@ import Foundation
 class FakeAVQueuePlayer: AVQueuePlayable {
   // MARK: - Testing Manipulators
 
-  var seekDelay: Duration = .zero
-  var seekCompletion: Bool = true
+  typealias SeekCompletionHandler = (CMTime) -> (Bool)
+  var seekHandler: SeekCompletionHandler = { _ in (true) }
+
+  func finishEpisode() {
+    guard !queued.isEmpty else { return }
+
+    queued.removeFirst()
+  }
 
   // MARK: - Internal State Management
 
@@ -115,9 +121,9 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   }
   func seek(to time: CMTime, completionHandler: @escaping @Sendable (Bool) -> Void) {
     Task {
-      try await Task.sleep(for: seekDelay)
-      completionHandler(seekCompletion)
-      if seekCompletion { currentTimeValue = time }
+      let success = seekHandler(time)
+      completionHandler(success)
+      if success { currentTimeValue = time }
     }
   }
 

@@ -70,7 +70,6 @@ extension Container {
 
     observeNextEpisode()
     addTimeControlStatusObserver()
-    addCurrentItemObserver()
   }
 
   // MARK: - Loading
@@ -78,6 +77,7 @@ extension Container {
   func stop() {
     log.debug("stop: executing")
     removePeriodicTimeObserver()
+    removeCurrentItemObserver()
     avQueuePlayer.removeAllItems()
   }
 
@@ -85,12 +85,14 @@ extension Container {
     log.debug("load: \(podcastEpisode.toString)")
 
     removePeriodicTimeObserver()
+    removeCurrentItemObserver()
     let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
 
     avQueuePlayer.removeAllItems()
     avQueuePlayer.insert(playableItem, after: nil)
     self.podcastEpisode = podcastEpisode
     addPeriodicTimeObserver()
+    addCurrentItemObserver()
 
     return podcastEpisode
   }
@@ -297,6 +299,25 @@ extension Container {
     }
   }
 
+  private func addCurrentItemObserver() {
+    guard currentItemObserver == nil
+    else { return }
+
+    log.debug("addCurrentItemObserver: executing")
+    currentItemObserver = avQueuePlayer.observeCurrentItem(
+      options: [.initial, .new]
+    ) { url in
+      Task { try await self.handleCurrentItemChange(url) }
+    }
+  }
+
+  private func removeCurrentItemObserver() {
+    if currentItemObserver != nil {
+      log.debug("removeCurrentItemObserver: executing")
+      self.currentItemObserver = nil
+    }
+  }
+
   private func addTimeControlStatusObserver() {
     Assert.neverCalled()
 
@@ -304,16 +325,6 @@ extension Container {
       options: [.initial, .new]
     ) { status in
       self.controlStatusContinuation.yield(status)
-    }
-  }
-
-  private func addCurrentItemObserver() {
-    Assert.neverCalled()
-
-    currentItemObserver = avQueuePlayer.observeCurrentItem(
-      options: [.initial, .new]
-    ) { url in
-      Task { try await self.handleCurrentItemChange(url) }
     }
   }
 }
