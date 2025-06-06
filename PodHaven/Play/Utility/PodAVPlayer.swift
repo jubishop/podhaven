@@ -92,6 +92,7 @@ extension Container {
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> LoadedPodcastEpisode {
     log.debug("load: \(podcastEpisode.toString)")
 
+    removePeriodicTimeObserver()
     let (loadedPodcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
     loadedCurrentPodcastEpisode = loadedPodcastEpisode
 

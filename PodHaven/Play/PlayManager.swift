@@ -99,6 +99,7 @@ actor PlayManager {
         await setStatus(.loading)
 
         log.info("performLoad: \(podcastEpisode.toString)")
+        await pause()
         await setOnDeck(try await podAVPlayer.load(podcastEpisode))
 
         log.debug("performLoad: dequeueing incoming episode: \(podcastEpisode.toString)")
