@@ -141,17 +141,17 @@ extension Container {
   // MARK: - Seeking
 
   func seekForward(_ duration: CMTime) {
-    log.debug("seekForward: \(duration)")
+    log.trace("seekForward: \(duration)")
     seek(to: avQueuePlayer.currentTime() + duration)
   }
 
   func seekBackward(_ duration: CMTime) {
-    log.debug("seekBackward: \(duration)")
+    log.trace("seekBackward: \(duration)")
     seek(to: avQueuePlayer.currentTime() - duration)
   }
 
   func seek(to time: CMTime) {
-    log.debug("seek: \(time)")
+    log.trace("seek: \(time)")
     avQueuePlayer.seek(to: time) { [weak self] completed in
       guard let self else { return }
 
