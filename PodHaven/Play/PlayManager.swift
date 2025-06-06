@@ -94,11 +94,11 @@ actor PlayManager {
 
   private func performLoad(_ podcastEpisode: PodcastEpisode) async throws {
     let task = Task {
+      let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode
       do {
         await setStatus(.loading)
 
         log.info("performLoad: \(podcastEpisode.toString)")
-        let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode
         await setOnDeck(try await podAVPlayer.load(podcastEpisode))
 
         log.debug("performLoad: dequeueing incoming episode: \(podcastEpisode.toString)")
@@ -107,7 +107,7 @@ actor PlayManager {
         if let outgoingPodcastEpisode {
           log.debug("performLoad: unshifting current episode: \(outgoingPodcastEpisode.toString)")
           try? await queue.unshift(outgoingPodcastEpisode.id)
-        } else if let nextPodcastEpisode = try? await repo.nextEpisode() {
+        } else if let nextPodcastEpisode = try? await queue.nextEpisode {
           log.debug("performLoad: setting next episode: \(nextPodcastEpisode.toString)")
           try? await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
         }
@@ -115,6 +115,11 @@ actor PlayManager {
         await setStatus(.active)
       } catch {
         log.notice(ErrorKit.loggableMessage(for: error))
+
+        if let outgoingPodcastEpisode {
+          try? await queue.unshift(outgoingPodcastEpisode.id)
+        }
+
         await stopAndClearOnDeck()
 
         throw error

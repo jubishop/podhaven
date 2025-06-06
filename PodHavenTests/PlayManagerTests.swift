@@ -312,6 +312,39 @@ import Testing
     #expect(queueURLs.isEmpty)
   }
 
+  @Test("loading an episode fails with one playing right now")
+  func loadingAnEpisodeFailsWithOnePlayingRightNow() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode()]
+    )
+    let playingEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+    let episodeToLoad = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[1]
+    )
+
+    try await load(playingEpisode)
+    try await Task.sleep(for: .milliseconds(100))
+
+    episodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
+      throw TestError.assetLoadFailure(mediaURL)
+    }
+    await #expect(throws: (any Error).self) {
+      try await load(episodeToLoad)
+    }
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .stopped)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
+    #expect(playState.onDeck == nil)
+    #expect(nowPlayingInfo == nil)
+    #expect(queueURLs.isEmpty)
+    #expect(try await queuedPodcastEpisodes == [playingEpisode])
+  }
+
   // MARK: - Helpers
 
   @discardableResult
@@ -336,6 +369,20 @@ import Testing
 
   private var queueURLs: [URL] {
     avQueuePlayer.queued.map(\.assetURL)
+  }
+
+  private var queuedPodcastEpisodes: [PodcastEpisode] {
+    get async throws {
+      try await repo.db.read { db in
+        try Episode
+          .all()
+          .queued()
+          .order(\.queueOrder.asc)
+          .including(required: Episode.podcast)
+          .asRequest(of: PodcastEpisode.self)
+          .fetchAll(db)
+      }
+    }
   }
 
   private func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [URL] {
