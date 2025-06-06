@@ -163,10 +163,8 @@ actor PlayManager {
 
   // MARK: - Private State Management
 
-  private func setOnDeck(_ loadedPodcastEpisode: LoadedPodcastEpisode) async {
-    log.debug("setOnDeck: \(loadedPodcastEpisode.toString)")
-
-    let podcastEpisode = loadedPodcastEpisode.podcastEpisode
+  private func setOnDeck(_ podcastEpisode: PodcastEpisode) async {
+    log.debug("setOnDeck: \(podcastEpisode.toString)")
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
@@ -175,7 +173,7 @@ actor PlayManager {
       podcastTitle: podcastEpisode.podcast.title,
       podcastURL: podcastEpisode.podcast.link,
       episodeTitle: podcastEpisode.episode.title,
-      duration: loadedPodcastEpisode.duration,
+      duration: podcastEpisode.episode.duration,
       image: try? await images.fetchImage(imageURL),
       media: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate

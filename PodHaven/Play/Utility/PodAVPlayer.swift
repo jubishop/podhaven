@@ -37,8 +37,8 @@ extension Container {
 
   // MARK: - State Management
 
-  typealias LoadedPodcastEpisodeBundle = (
-    loadedPodcastEpisode: LoadedPodcastEpisode,
+  typealias LoadedPodcastEpisode = (
+    podcastEpisode: PodcastEpisode,
     playableItem: any AVPlayableItem
   )
   private(set) var podcastEpisode: PodcastEpisode?
@@ -81,22 +81,22 @@ extension Container {
     avQueuePlayer.removeAllItems()
   }
 
-  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> LoadedPodcastEpisode {
+  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> PodcastEpisode {
     log.debug("load: \(podcastEpisode.toString)")
 
     removePeriodicTimeObserver()
-    let (loadedPodcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
+    let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
 
     avQueuePlayer.removeAllItems()
     avQueuePlayer.insert(playableItem, after: nil)
     self.podcastEpisode = podcastEpisode
     addPeriodicTimeObserver()
 
-    return loadedPodcastEpisode
+    return podcastEpisode
   }
 
   private func loadAsset(for podcastEpisode: PodcastEpisode) async throws(PlaybackError)
-    -> LoadedPodcastEpisodeBundle
+    -> LoadedPodcastEpisode
   {
     log.debug("loadAsset: \(podcastEpisode.toString)")
 
@@ -111,12 +111,14 @@ extension Container {
     guard episodeAsset.isPlayable
     else { throw PlaybackError.mediaNotPlayable(podcastEpisode) }
 
-    _ = try? await repo.updateDuration(podcastEpisode.id, episodeAsset.duration)
+    var episode = podcastEpisode.episode
+    episode.duration = episodeAsset.duration
+    _ = try? await repo.updateDuration(podcastEpisode.id, episode.duration)
 
     return (
-      LoadedPodcastEpisode(
-        podcastEpisode: podcastEpisode,
-        duration: episodeAsset.duration
+      PodcastEpisode(
+        podcast: podcastEpisode.podcast,
+        episode: episode
       ),
       episodeAsset.playerItem
     )
@@ -183,8 +185,8 @@ extension Container {
 
       if let podcastEpisode = nextPodcastEpisode {
         do {
-          let loadedPodcastEpisodeBundle = try await loadAsset(for: podcastEpisode)
-          insertNextPodcastEpisode(loadedPodcastEpisodeBundle)
+          let loadedPodcastEpisode = try await loadAsset(for: podcastEpisode)
+          insertNextPodcastEpisode(loadedPodcastEpisode)
         } catch {
           log.error(ErrorKit.loggableMessage(for: error))
           insertNextPodcastEpisode(nil)
@@ -202,8 +204,8 @@ extension Container {
     try await task.value
   }
 
-  private func insertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) {
-    guard shouldSetAsNext(nextBundle?.loadedPodcastEpisode.podcastEpisode) else { return }
+  private func insertNextPodcastEpisode(_ nextLoadedPodcastEpisode: LoadedPodcastEpisode?) {
+    guard shouldSetAsNext(nextLoadedPodcastEpisode?.podcastEpisode) else { return }
 
     log.debug(
       """
@@ -218,8 +220,8 @@ extension Container {
     }
 
     // Finally, add our new item if we have one
-    if let nextBundle {
-      avQueuePlayer.insert(nextBundle.playableItem, after: avQueuePlayer.queued.first)
+    if let nextLoadedPodcastEpisode {
+      avQueuePlayer.insert(nextLoadedPodcastEpisode.playableItem, after: avQueuePlayer.queued.first)
     }
 
     log.debug(
