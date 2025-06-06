@@ -168,8 +168,6 @@ extension Container {
   // MARK: - Setting Next Episode
 
   func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws(PlaybackError) {
-    guard shouldSetAsNext(nextPodcastEpisode) else { return }
-
     setNextEpisodeTask?.cancel()
 
     try await PlaybackError.catch {
