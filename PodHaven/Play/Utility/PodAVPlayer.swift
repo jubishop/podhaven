@@ -58,12 +58,8 @@ extension Container {
   // MARK: - Initialization
 
   fileprivate init() {
-    (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(
-      of: CMTime.self
-    )
-    (currentItemStream, currentItemContinuation) = AsyncStream.makeStream(
-      of: PodcastEpisode?.self
-    )
+    (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(of: CMTime.self)
+    (currentItemStream, currentItemContinuation) = AsyncStream.makeStream(of: PodcastEpisode?.self)
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: AVPlayer.TimeControlStatus.self
     )
@@ -76,23 +72,20 @@ extension Container {
 
   func stop() {
     log.debug("stop: executing")
-    removePeriodicTimeObserver()
-    removeCurrentItemObserver()
+    removeTransientObservers()
     avQueuePlayer.removeAllItems()
   }
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> PodcastEpisode {
     log.debug("load: \(podcastEpisode.toString)")
 
-    removePeriodicTimeObserver()
-    removeCurrentItemObserver()
+    removeTransientObservers()
     let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
 
     avQueuePlayer.removeAllItems()
     avQueuePlayer.insert(playableItem, after: nil)
     self.podcastEpisode = podcastEpisode
-    addPeriodicTimeObserver()
-    addCurrentItemObserver()
+    addTransientObservers()
 
     return podcastEpisode
   }
@@ -261,7 +254,40 @@ extension Container {
     currentItemContinuation.yield(podcastEpisode)
   }
 
-  // MARK: - Private Tracking
+  // MARK: - Private Transient Tracking
+
+  private func addTransientObservers() {
+    if currentItemObserver == nil {
+      currentItemObserver = avQueuePlayer.observeCurrentItem(
+        options: [.initial, .new]
+      ) { url in
+        Task { try await self.handleCurrentItemChange(url) }
+      }
+    }
+
+    if periodicTimeObserver == nil {
+      periodicTimeObserver = avQueuePlayer.addPeriodicTimeObserver(
+        forInterval: CMTime.inSeconds(1),
+        queue: .global(qos: .utility)
+      ) { [weak self] currentTime in
+        guard let self else { return }
+        currentTimeContinuation.yield(currentTime)
+      }
+    }
+  }
+
+  private func removeTransientObservers() {
+    if let periodicTimeObserver {
+      avQueuePlayer.removeTimeObserver(periodicTimeObserver)
+      self.periodicTimeObserver = nil
+    }
+
+    if currentItemObserver != nil {
+      self.currentItemObserver = nil
+    }
+  }
+
+  // MARK: - Private State Tracking
 
   private func observeNextEpisode() {
     Assert.neverCalled()
@@ -274,47 +300,6 @@ extension Container {
       } catch {
         log.error(ErrorKit.loggableMessage(for: error))
       }
-    }
-  }
-
-  private func addPeriodicTimeObserver() {
-    guard periodicTimeObserver == nil
-    else { return }
-
-    log.debug("addPeriodicTimeObserver: executing")
-    periodicTimeObserver = avQueuePlayer.addPeriodicTimeObserver(
-      forInterval: CMTime.inSeconds(1),
-      queue: .global(qos: .utility)
-    ) { [weak self] currentTime in
-      guard let self else { return }
-      currentTimeContinuation.yield(currentTime)
-    }
-  }
-
-  private func removePeriodicTimeObserver() {
-    if let periodicTimeObserver {
-      log.debug("removePeriodicTimeObserver: executing")
-      avQueuePlayer.removeTimeObserver(periodicTimeObserver)
-      self.periodicTimeObserver = nil
-    }
-  }
-
-  private func addCurrentItemObserver() {
-    guard currentItemObserver == nil
-    else { return }
-
-    log.debug("addCurrentItemObserver: executing")
-    currentItemObserver = avQueuePlayer.observeCurrentItem(
-      options: [.initial, .new]
-    ) { url in
-      Task { try await self.handleCurrentItemChange(url) }
-    }
-  }
-
-  private func removeCurrentItemObserver() {
-    if currentItemObserver != nil {
-      log.debug("removeCurrentItemObserver: executing")
-      self.currentItemObserver = nil
     }
   }
 

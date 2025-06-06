@@ -232,7 +232,7 @@ actor PlayManager {
     }
   }
 
-  // MARK: - Private Tracking
+  // MARK: - Private State Tracking
 
   private func startInterruptionNotifications() {
     Assert.neverCalled()
