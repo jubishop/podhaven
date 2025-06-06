@@ -239,11 +239,20 @@ struct Repo {
   }
 
   @discardableResult
+  func updateDuration(_ episodeID: Episode.ID, _ duration: CMTime) async throws -> Bool {
+    try await appDB.db.write { db in
+      try Episode
+        .withID(episodeID)
+        .updateAll(db, Episode.Columns.duration.set(to: duration))
+    } > 0
+  }
+
+  @discardableResult
   func updateCurrentTime(_ episodeID: Episode.ID, _ currentTime: CMTime) async throws -> Bool {
     try await appDB.db.write { db in
       try Episode
         .withID(episodeID)
-        .updateAll(db, Episode.Columns.currentTime.set(to: currentTime.seconds))
+        .updateAll(db, Episode.Columns.currentTime.set(to: currentTime))
     } > 0
   }
 

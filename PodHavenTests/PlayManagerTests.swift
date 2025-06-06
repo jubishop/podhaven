@@ -63,6 +63,29 @@ import Testing
     #expect(avQueuePlayer.timeControlStatus == .paused)
   }
 
+  @Test("loading an episode updates its duration value")
+  func loadingEpisodeUpdatesDuration() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [TestHelpers.unsavedEpisode(duration: CMTime.inSeconds(10))]
+    )
+    let podcastEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+
+    let correctDuration = CMTime.inSeconds(999)
+    episodeAssetLoader.respond(to: podcastEpisode.episode.media) { mediaURL in
+      (true, correctDuration)
+    }
+
+    let onDeck = try await load(podcastEpisode)
+    #expect(onDeck.duration == correctDuration)
+
+    let updatedPodcastEpisode = try await repo.episode(podcastEpisode.id)
+    #expect(updatedPodcastEpisode?.episode.duration == correctDuration)
+  }
+
   @Test("command center stops and starts playback")
   func commandCenterStopsAndStartsPlayback() async throws {
     let podcastSeries = try await repo.insertSeries(

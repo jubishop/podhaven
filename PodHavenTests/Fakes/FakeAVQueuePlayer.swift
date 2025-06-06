@@ -13,7 +13,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   // MARK: - Internal State Management
 
-  private var itemObservations: [ObservationHandler<(any PodHaven.AVPlayableItem)?>] = []
+  private var itemObservations: [ObservationHandler<URL?>] = []
   private var timeObservers: [UUID: TimeObserver] = [:]
   private var currentTimeValue: CMTime = .zero {
     didSet {
@@ -59,7 +59,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
         // Clean up deallocated observations and call active handlers
         itemObservations = itemObservations.compactMap { observationHandler in
           guard observationHandler.observation != nil else { return nil }
-          observationHandler.handler(current)
+          observationHandler.handler(current?.assetURL)
           return observationHandler
         }
       }
@@ -67,13 +67,13 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   }
   func observeCurrentItem(
     options: NSKeyValueObservingOptions,
-    changeHandler: @escaping @Sendable ((any PodHaven.AVPlayableItem)?) -> Void
+    changeHandler: @escaping @Sendable (URL?) -> Void
   ) -> NSKeyValueObservation {
     let observation = NSObject().observe(\.description, options: []) { _, _ in }
     itemObservations.append(ObservationHandler(observation: observation, handler: changeHandler))
 
     if options.contains(.initial) {
-      changeHandler(current)
+      changeHandler(current?.assetURL)
     }
 
     return observation

@@ -110,6 +110,8 @@ extension Container {
     guard episodeAsset.isPlayable
     else { throw PlaybackError.mediaNotPlayable(podcastEpisode) }
 
+    _ = try? await repo.updateDuration(podcastEpisode.id, episodeAsset.duration)
+
     return (
       LoadedPodcastEpisode(
         podcastEpisode: podcastEpisode,
@@ -245,8 +247,8 @@ extension Container {
 
   // MARK: - Private Change Handlers
 
-  private func handleCurrentItemChange() async throws {
-    if let url = avQueuePlayer.current?.assetURL {
+  private func handleCurrentItemChange(_ url: URL?) async throws {
+    if let url {
       podcastEpisode = try await repo.episode(MediaURL(url))
     } else {
       podcastEpisode = nil
@@ -308,8 +310,8 @@ extension Container {
 
     currentItemObserver = avQueuePlayer.observeCurrentItem(
       options: [.initial, .new]
-    ) { currentItem in
-      Task { try await self.handleCurrentItemChange() }
+    ) { url in
+      Task { try await self.handleCurrentItemChange(url) }
     }
   }
 
