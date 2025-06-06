@@ -18,7 +18,6 @@ actor PlayManager {
   @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.images) private var images
   @DynamicInjected(\.notifications) private var notifications
-  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
@@ -65,7 +64,6 @@ actor PlayManager {
   fileprivate init() {}
 
   func start() async {
-    observeNextEpisode()  // TODO: move this to PodAVPlayer
     startInterruptionNotifications()
     startListeningToCommandCenter()
     startListeningToCurrentItem()
@@ -232,20 +230,6 @@ actor PlayManager {
   }
 
   // MARK: - Private Tracking
-
-  private func observeNextEpisode() {
-    Assert.neverCalled()
-
-    Task {
-      do {
-        for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
-          try? await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
-        }
-      } catch {
-        log.error(ErrorKit.loggableMessage(for: error))
-      }
-    }
-  }
 
   private func startInterruptionNotifications() {
     Assert.neverCalled()

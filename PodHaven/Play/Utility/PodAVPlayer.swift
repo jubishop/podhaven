@@ -30,6 +30,7 @@ extension Container {
 @MainActor class PodAVPlayer {
   @DynamicInjected(\.avQueuePlayer) private var avQueuePlayer
   @DynamicInjected(\.loadEpisodeAsset) private var loadEpisodeAsset
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
   private let log = Log.as(LogSubsystem.Play.avPlayer)
@@ -67,6 +68,7 @@ extension Container {
       of: AVPlayer.TimeControlStatus.self
     )
 
+    observeNextEpisode()
     addTimeControlStatusObserver()
     addCurrentItemObserver()
   }
@@ -253,6 +255,20 @@ extension Container {
   }
 
   // MARK: - Private Tracking
+
+  private func observeNextEpisode() {
+    Assert.neverCalled()
+
+    Task {
+      do {
+        for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
+          try? await setNextPodcastEpisode(nextPodcastEpisode)
+        }
+      } catch {
+        log.error(ErrorKit.loggableMessage(for: error))
+      }
+    }
+  }
 
   private func addPeriodicTimeObserver() {
     guard periodicTimeObserver == nil
