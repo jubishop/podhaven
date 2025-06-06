@@ -80,11 +80,12 @@ extension Container {
     log.debug("load: \(podcastEpisode.toString)")
 
     removeTransientObservers()
-    let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
 
+    let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
     avQueuePlayer.removeAllItems()
     avQueuePlayer.insert(playableItem, after: nil)
     self.podcastEpisode = podcastEpisode
+
     addTransientObservers()
 
     return podcastEpisode
