@@ -21,12 +21,13 @@ extension Container {
 enum Assert {
   private static let log = Log.as("assert", level: .critical)
 
-  static func neverCalled(file: String = #fileID, function: String = #function) {
+  static func neverCalled(file: String = #fileID, function: String = #function, line: UInt = #line)
+  {
     let neverCalled = Container.shared.neverCalled()
 
     Assert.precondition(
-      neverCalled("\(file):\(function)"),
-      "\(file):\(function) has already been called?"
+      neverCalled("\(file):\(function):\(line)"),
+      "\(file):\(function):\(line) has already been called?"
     )
   }
 
