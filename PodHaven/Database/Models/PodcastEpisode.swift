@@ -25,4 +25,11 @@ struct PodcastEpisode:
 
   let podcast: Podcast
   let episode: Episode
+
+  // MARK: - Equatable
+
+  static func == (lhs: PodcastEpisode, rhs: OnDeck) -> Bool {
+    lhs.episode.guid == rhs.guid && lhs.podcast.feedURL == rhs.feedURL
+      && lhs.episode.media == rhs.media
+  }
 }
