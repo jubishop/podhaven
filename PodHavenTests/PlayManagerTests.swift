@@ -48,7 +48,7 @@ import Testing
 
     let onDeck = try await load(podcastEpisode)
     #expect(playState.status == .active)
-    #expect(queueURLs == episodeMediaURLs([podcastEpisode]))
+    #expect(itemQueueURLs == episodeMediaURLs([podcastEpisode]))
     #expect(onDeck == podcastEpisode)
     #expect(nowPlayingTitle == podcastEpisode.episode.title)
 
@@ -61,6 +61,29 @@ import Testing
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .paused)
     #expect(avQueuePlayer.timeControlStatus == .paused)
+  }
+
+  @Test("loading an episode updates its duration value")
+  func loadingEpisodeUpdatesDuration() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [TestHelpers.unsavedEpisode(duration: CMTime.inSeconds(10))]
+    )
+    let podcastEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+
+    let correctDuration = CMTime.inSeconds(999)
+    episodeAssetLoader.respond(to: podcastEpisode.episode.media) { mediaURL in
+      (true, correctDuration)
+    }
+
+    let onDeck = try await load(podcastEpisode)
+    #expect(onDeck.duration == correctDuration)
+
+    let updatedPodcastEpisode = try await repo.episode(podcastEpisode.id)
+    #expect(updatedPodcastEpisode?.episode.duration == correctDuration)
   }
 
   @Test("command center stops and starts playback")
@@ -204,7 +227,9 @@ import Testing
     try await queue.unshift(queuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(queueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
+    #expect(itemQueueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
+    let queued = episodeStrings(try await queuedPodcastEpisodes)
+    #expect(queued == episodeStrings([queuedEpisode]))
   }
 
   @Test("loading an episode with queue already filled")
@@ -227,7 +252,9 @@ import Testing
     try await load(playingEpisode)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(queueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
+    #expect(itemQueueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
+    let queued = episodeStrings(try await queuedPodcastEpisodes)
+    #expect(queued == episodeStrings([queuedEpisode]))
   }
 
   @Test("top queue item changes while playing")
@@ -260,7 +287,9 @@ import Testing
     try await queue.unshift(incomingQueuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(queueURLs == episodeMediaURLs([playingEpisode, incomingQueuedEpisode]))
+    #expect(itemQueueURLs == episodeMediaURLs([playingEpisode, incomingQueuedEpisode]))
+    let queued = episodeStrings(try await queuedPodcastEpisodes)
+    #expect(queued == episodeStrings([incomingQueuedEpisode, queuedEpisode]))
   }
 
   @Test("loading an episode puts current episode back in queue")
@@ -284,7 +313,9 @@ import Testing
     try await load(incomingEpisode)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(queueURLs == episodeMediaURLs([incomingEpisode, playingEpisode]))
+    #expect(itemQueueURLs == episodeMediaURLs([incomingEpisode, playingEpisode]))
+    let queued = episodeStrings(try await queuedPodcastEpisodes)
+    #expect(queued == episodeStrings([playingEpisode]))
   }
 
   @Test("loading an episode fails with none playing right now")
@@ -309,7 +340,107 @@ import Testing
     #expect(avQueuePlayer.timeControlStatus == .paused)
     #expect(playState.onDeck == nil)
     #expect(nowPlayingInfo == nil)
-    #expect(queueURLs.isEmpty)
+    #expect(itemQueueURLs.isEmpty)
+  }
+
+  @Test("loading an episode fails with one playing right now")
+  func loadingAnEpisodeFailsWithOnePlayingRightNow() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode()]
+    )
+    let playingEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+    let episodeToLoad = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[1]
+    )
+
+    try await load(playingEpisode)
+    try await Task.sleep(for: .milliseconds(100))
+
+    episodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
+      throw TestError.assetLoadFailure(mediaURL)
+    }
+    await #expect(throws: (any Error).self) {
+      try await load(episodeToLoad)
+    }
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .stopped)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
+    #expect(playState.onDeck == nil)
+    #expect(nowPlayingInfo == nil)
+    #expect(itemQueueURLs.isEmpty)
+    let queued = episodeStrings(try await queuedPodcastEpisodes)
+    #expect(queued == episodeStrings([episodeToLoad, playingEpisode]))
+  }
+
+  @Test("current item becoming nil clears deck")
+  func currentItemBecomingNilClearsDeck() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [TestHelpers.unsavedEpisode()]
+    )
+    let podcastEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+
+    try await load(podcastEpisode)
+    try await play()
+    avQueuePlayer.finishEpisode()
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(playState.status == .stopped)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
+    #expect(playState.onDeck == nil)
+    #expect(nowPlayingInfo == nil)
+    #expect(itemQueueURLs.isEmpty)
+    #expect((try await queuedPodcastEpisodes).isEmpty)
+  }
+
+  @Test("current item advancing to next episode")
+  func currentItemAdvancingToNextEpisode() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [
+        TestHelpers.unsavedEpisode(),
+        TestHelpers.unsavedEpisode(),
+        TestHelpers.unsavedEpisode(),
+      ]
+    )
+    let originalEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[0]
+    )
+    let incomingEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[1]
+    )
+    let queuedEpisode = PodcastEpisode(
+      podcast: podcastSeries.podcast,
+      episode: podcastSeries.episodes[2]
+    )
+
+    try await queue.unshift(queuedEpisode.id)
+    try await queue.unshift(incomingEpisode.id)
+
+    try await load(originalEpisode)
+    try await play()
+    try await Task.sleep(for: .milliseconds(100))
+
+    avQueuePlayer.finishEpisode()
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(playState.status == .playing)
+    #expect(avQueuePlayer.timeControlStatus == .playing)
+    #expect(playState.onDeck! == incomingEpisode)
+    #expect(nowPlayingTitle == incomingEpisode.episode.title)
+    #expect(itemQueueURLs == episodeMediaURLs([incomingEpisode, queuedEpisode]))
+    let queued = episodeStrings(try await queuedPodcastEpisodes)
+    #expect(queued == episodeStrings([queuedEpisode]))
   }
 
   // MARK: - Helpers
@@ -334,11 +465,29 @@ import Testing
     nowPlayingInfo![MPMediaItemPropertyTitle] as! String
   }
 
-  private var queueURLs: [URL] {
+  private var itemQueueURLs: [MediaURL] {
     avQueuePlayer.queued.map(\.assetURL)
   }
 
-  private func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [URL] {
-    podcastEpisodes.map((\.episode.media.rawValue))
+  private var queuedPodcastEpisodes: [PodcastEpisode] {
+    get async throws {
+      try await repo.db.read { db in
+        try Episode
+          .all()
+          .queued()
+          .order(\.queueOrder.asc)
+          .including(required: Episode.podcast)
+          .asRequest(of: PodcastEpisode.self)
+          .fetchAll(db)
+      }
+    }
+  }
+
+  private func episodeStrings(_ podcastEpisodes: [PodcastEpisode]) -> [String] {
+    podcastEpisodes.map(\.toString)
+  }
+
+  private func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [MediaURL] {
+    podcastEpisodes.map(\.episode.media)
   }
 }

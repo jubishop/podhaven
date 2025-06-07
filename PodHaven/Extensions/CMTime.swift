@@ -3,7 +3,11 @@
 import AVFoundation
 import GRDB
 
-extension CMTime: Codable, @retroactive CustomStringConvertible {
+extension CMTime:
+  Codable,
+  @retroactive CustomStringConvertible,
+  @retroactive DatabaseValueConvertible
+{
   // MARK: - Static Methods
 
   static func inSeconds(_ seconds: Double) -> CMTime {
@@ -37,5 +41,20 @@ extension CMTime: Codable, @retroactive CustomStringConvertible {
   public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
     self = CMTime.inSeconds(try container.decode(Double.self))
+  }
+
+  // MARK: - DatabaseValueConvertible
+
+  public var databaseValue: DatabaseValue {
+    if !isValid { return .null }
+
+    return seconds.databaseValue
+  }
+
+  public static func fromDatabaseValue(_ dbValue: DatabaseValue) -> CMTime? {
+    guard let seconds = Double.fromDatabaseValue(dbValue)
+    else { return nil }
+
+    return CMTime.inSeconds(seconds)
   }
 }

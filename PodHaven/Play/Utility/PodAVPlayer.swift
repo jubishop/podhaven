@@ -12,10 +12,10 @@ extension Container {
     Factory(self) { @MainActor in PodAVPlayer() }.scope(.cached)
   }
 
-  var loadEpisodeAsset: Factory<(_ url: URL) async throws -> EpisodeAsset> {
+  var loadEpisodeAsset: Factory<(_ mediaURL: MediaURL) async throws -> EpisodeAsset> {
     Factory(self) {
-      { url in
-        let asset = AVURLAsset(url: url)
+      { mediaURL in
+        let asset = AVURLAsset(url: mediaURL.rawValue)
         let (isPlayable, duration) = try await asset.load(.isPlayable, .duration)
         return await EpisodeAsset(
           playerItem: AVPlayerItem(asset: asset),
@@ -28,87 +28,73 @@ extension Container {
 }
 
 @MainActor class PodAVPlayer {
-  @DynamicInjected(\.avQueuePlayer) var avQueuePlayer
-  @DynamicInjected(\.loadEpisodeAsset) var loadEpisodeAsset
-  @DynamicInjected(\.notifications) private var notifications
+  @DynamicInjected(\.avQueuePlayer) private var avQueuePlayer
+  @DynamicInjected(\.loadEpisodeAsset) private var loadEpisodeAsset
+  @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.repo) private var repo
 
   private let log = Log.as(LogSubsystem.Play.avPlayer)
 
-  // MARK: - Convenience Getters
-
-  var podcastEpisode: PodcastEpisode? { loadedCurrentPodcastEpisode?.podcastEpisode }
-  var nextPodcastEpisode: PodcastEpisode? { loadedNextPodcastEpisode?.podcastEpisode }
-
   // MARK: - State Management
 
-  typealias FinishedAndLoadedCurrent = (PodcastEpisode, LoadedPodcastEpisode?)
-  typealias LoadedPodcastEpisodeBundle = (
-    loadedPodcastEpisode: LoadedPodcastEpisode,
+  typealias LoadedPodcastEpisode = (
+    podcastEpisode: PodcastEpisode,
     playableItem: any AVPlayableItem
   )
-
-  private var nextBundle: LoadedPodcastEpisodeBundle?
-  private var loadedNextPodcastEpisode: LoadedPodcastEpisode? { nextBundle?.loadedPodcastEpisode }
-  private var loadedCurrentPodcastEpisode: LoadedPodcastEpisode?
+  private(set) var podcastEpisode: PodcastEpisode?
 
   let currentTimeStream: AsyncStream<CMTime>
+  let currentItemStream: AsyncStream<PodcastEpisode?>
   let controlStatusStream: AsyncStream<AVPlayer.TimeControlStatus>
-  let playToEndStream: AsyncStream<FinishedAndLoadedCurrent>
   private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
+  private let currentItemContinuation: AsyncStream<PodcastEpisode?>.Continuation
   private let controlStatusContinuation: AsyncStream<AVPlayer.TimeControlStatus>.Continuation
-  private let playToEndContinuation: AsyncStream<FinishedAndLoadedCurrent>.Continuation
 
   private var periodicTimeObserver: Any?
+  private var currentItemObserver: NSKeyValueObservation?
   private var timeControlStatusObserver: NSKeyValueObservation?
   private var setNextEpisodeTask: Task<Void, any Error>?
 
   // MARK: - Initialization
 
   fileprivate init() {
-    (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(
-      of: CMTime.self
-    )
+    (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(of: CMTime.self)
+    (currentItemStream, currentItemContinuation) = AsyncStream.makeStream(of: PodcastEpisode?.self)
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: AVPlayer.TimeControlStatus.self
     )
-    (playToEndStream, playToEndContinuation) = AsyncStream.makeStream(
-      of: FinishedAndLoadedCurrent.self
-    )
 
+    observeNextEpisode()
     addTimeControlStatusObserver()
-    startPlayToEndTimeNotifications()
   }
 
   // MARK: - Loading
 
   func stop() {
     log.debug("stop: executing")
-    removePeriodicTimeObserver()
+    removeTransientObservers()
     avQueuePlayer.removeAllItems()
-    loadedCurrentPodcastEpisode = nil
   }
 
-  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> LoadedPodcastEpisode {
+  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> PodcastEpisode {
     log.debug("load: \(podcastEpisode.toString)")
 
-    let (loadedPodcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
-    loadedCurrentPodcastEpisode = loadedPodcastEpisode
-
+    let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
     avQueuePlayer.removeAllItems()
     avQueuePlayer.insert(playableItem, after: nil)
-    addPeriodicTimeObserver()
+    self.podcastEpisode = podcastEpisode
 
-    return loadedPodcastEpisode
+    return podcastEpisode
   }
 
   private func loadAsset(for podcastEpisode: PodcastEpisode) async throws(PlaybackError)
-    -> LoadedPodcastEpisodeBundle
+    -> LoadedPodcastEpisode
   {
     log.debug("loadAsset: \(podcastEpisode.toString)")
 
     let episodeAsset: EpisodeAsset
     do {
-      episodeAsset = try await loadEpisodeAsset(podcastEpisode.episode.media.rawValue)
+      episodeAsset = try await loadEpisodeAsset(podcastEpisode.episode.media)
     } catch {
       log.warning("loadAsset: failed to load asset for \(podcastEpisode.toString)")
       throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
@@ -117,10 +103,14 @@ extension Container {
     guard episodeAsset.isPlayable
     else { throw PlaybackError.mediaNotPlayable(podcastEpisode) }
 
+    var episode = podcastEpisode.episode
+    episode.duration = episodeAsset.duration
+    _ = try? await repo.updateDuration(podcastEpisode.id, episode.duration)
+
     return (
-      LoadedPodcastEpisode(
-        podcastEpisode: podcastEpisode,
-        duration: episodeAsset.duration
+      PodcastEpisode(
+        podcast: podcastEpisode.podcast,
+        episode: episode
       ),
       episodeAsset.playerItem
     )
@@ -129,41 +119,52 @@ extension Container {
   // MARK: - Playback Controls
 
   func play() {
-    log.debug("play: \(String(describing: podcastEpisode?.toString))")
+    log.debug("playing")
     avQueuePlayer.play()
   }
 
   func pause() {
-    log.debug("pause: \(String(describing: podcastEpisode?.toString))")
+    log.debug("pausing")
     avQueuePlayer.pause()
+  }
+
+  func toggle() {
+    avQueuePlayer.timeControlStatus == .paused
+      ? play()
+      : pause()
   }
 
   // MARK: - Seeking
 
   func seekForward(_ duration: CMTime) {
-    log.debug("seekForward: \(duration)")
+    log.trace("seekForward: \(duration)")
     seek(to: avQueuePlayer.currentTime() + duration)
   }
 
   func seekBackward(_ duration: CMTime) {
-    log.debug("seekBackward: \(duration)")
+    log.trace("seekBackward: \(duration)")
     seek(to: avQueuePlayer.currentTime() - duration)
   }
 
   func seek(to time: CMTime) {
-    log.debug("seek: \(time)")
+    log.trace("seek: \(time)")
+
+    removePeriodicTimeObserver()
+    currentTimeContinuation.yield(time)
+
     avQueuePlayer.seek(to: time) { [weak self] completed in
       guard let self else { return }
 
       if completed {
         log.trace("seek: to \(time) completed")
+        Task { await addPeriodicTimeObserver() }
       } else {
         log.trace("seek: to \(time) interrupted")
       }
     }
   }
 
-  // MARK: - State Setters
+  // MARK: - Setting Next Episode
 
   func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws(PlaybackError) {
     setNextEpisodeTask?.cancel()
@@ -174,26 +175,17 @@ extension Container {
   }
 
   private func performSetNextEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws {
+    guard shouldSetAsNext(nextPodcastEpisode) else { return }
+
     let task = Task {
       log.debug("performSetNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))")
 
-      guard nextPodcastEpisode != self.nextPodcastEpisode
-      else {
-        log.warning(
-          """
-          performSetNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString)) \
-          is the same as the current next episode
-          """
-        )
-        return
-      }
-
       if let podcastEpisode = nextPodcastEpisode {
         do {
-          let loadedPodcastEpisodeBundle = try await loadAsset(for: podcastEpisode)
-          insertNextPodcastEpisode(loadedPodcastEpisodeBundle)
+          let loadedPodcastEpisode = try await loadAsset(for: podcastEpisode)
+          insertNextPodcastEpisode(loadedPodcastEpisode)
         } catch {
-          log.notice(ErrorKit.loggableMessage(for: error))
+          log.error(ErrorKit.loggableMessage(for: error))
           insertNextPodcastEpisode(nil)
 
           throw error
@@ -209,82 +201,86 @@ extension Container {
     try await task.value
   }
 
-  // MARK: - Private State Management
+  private func insertNextPodcastEpisode(_ nextLoadedPodcastEpisode: LoadedPodcastEpisode?) {
+    guard shouldSetAsNext(nextLoadedPodcastEpisode?.podcastEpisode) else { return }
 
-  private func insertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) {
     log.debug(
-      "insertNextPodcastEpisode: \(String(describing: nextBundle?.loadedPodcastEpisode.toString))"
+      """
+      insertNextPodcastEpisode: at start:
+        \(avQueuePlayer.queued.map { "\($0.assetURL)" }.joined(separator: "\n  "))
+      """
     )
 
-    if log.wouldLog(.debug) {
-      Task {
-        let queuedPodcastEpisodes = await queuedPodcastEpisodes()
-        log.debug(
-          """
-          insertNextPodcastEpisode: at start:
-            \(queuedPodcastEpisodes.map(\.toString).joined(separator: "\n  "))
-          """
-        )
-      }
+    // If we had a second item, it needs to be removed
+    if avQueuePlayer.queued.count == 2 {
+      avQueuePlayer.remove(avQueuePlayer.queued[1])
     }
 
-    performInsertNextPodcastEpisode(nextBundle)
-
-    if log.wouldLog(.debug) {
-      Task {
-        let queuedPodcastEpisodes = await queuedPodcastEpisodes()
-        log.debug(
-          """
-          insertNextPodcastEpisode: at end:
-            \(queuedPodcastEpisodes.map(\.toString).joined(separator: "\n  "))
-          """
-        )
-      }
+    // Finally, add our new item if we have one
+    if let nextLoadedPodcastEpisode {
+      avQueuePlayer.insert(nextLoadedPodcastEpisode.playableItem, after: avQueuePlayer.queued.first)
     }
+
+    log.debug(
+      """
+      insertNextPodcastEpisode: at end:
+        \(avQueuePlayer.queued.map { "\($0.assetURL)" }.joined(separator: "\n  "))
+      """
+    )
 
     Assert.precondition(avQueuePlayer.queued.count <= 2, "Too many AVPlayerItems?")
   }
 
-  private func performInsertNextPodcastEpisode(_ nextBundle: LoadedPodcastEpisodeBundle?) {
+  private func shouldSetAsNext(_ podcastEpisode: PodcastEpisode?) -> Bool {
     // If queue is empty: do nothing
-    guard let lastItem = avQueuePlayer.queued.last else { return }
+    guard let lastItem = avQueuePlayer.queued.last else { return false }
 
     // If this is already the last: do nothing
-    if lastItem.assetURL == nextBundle?.loadedPodcastEpisode.assetURL { return }
+    if lastItem.assetURL == podcastEpisode?.episode.media { return false }
 
-    // If we had a second item, it needs to be removed
-    if avQueuePlayer.queued.count > 1 {
-      avQueuePlayer.remove(lastItem)
-    }
-
-    // Finally, add our new item if we have one
-    if let nextBundle {
-      avQueuePlayer.insert(nextBundle.playableItem, after: avQueuePlayer.queued.first)
-    }
-
-    self.nextBundle = nextBundle
+    return true
   }
 
   // MARK: - Private Change Handlers
 
-  private func handleEpisodeFinished() throws(PlaybackError) {
-    guard let finishedPodcastEpisode = podcastEpisode
-    else { Assert.fatal("Finished episode but current episode is nil?") }
+  private func handleCurrentItemChange(_ mediaURL: MediaURL?) async throws {
+    if podcastEpisode?.episode.media == mediaURL { return }
 
-    log.debug("handleEpisodeFinished: \(finishedPodcastEpisode.toString)")
+    if let mediaURL {
+      podcastEpisode = try await repo.episode(mediaURL)
+    } else {
+      podcastEpisode = nil
+    }
 
-    loadedCurrentPodcastEpisode = loadedNextPodcastEpisode
-    nextBundle = nil
-    playToEndContinuation.yield((finishedPodcastEpisode, loadedCurrentPodcastEpisode))
+    log.debug("handleCurrentItemChange: \(String(describing: podcastEpisode))")
+    currentItemContinuation.yield(podcastEpisode)
   }
 
-  // MARK: - Private Tracking
+  // MARK: - Transient Tracking
+
+  func addTransientObservers() {
+    addCurrentItemObserver()
+    addPeriodicTimeObserver()
+  }
+
+  func removeTransientObservers() {
+    removeCurrentItemObserver()
+    removePeriodicTimeObserver()
+  }
+
+  private func addCurrentItemObserver() {
+    guard currentItemObserver == nil else { return }
+
+    currentItemObserver = avQueuePlayer.observeCurrentItem(
+      options: [.initial, .new]
+    ) { url in
+      Task { try await self.handleCurrentItemChange(url) }
+    }
+  }
 
   private func addPeriodicTimeObserver() {
-    guard periodicTimeObserver == nil
-    else { return }
+    guard periodicTimeObserver == nil else { return }
 
-    log.debug("addPeriodicTimeObserver: executing")
     periodicTimeObserver = avQueuePlayer.addPeriodicTimeObserver(
       forInterval: CMTime.inSeconds(1),
       queue: .global(qos: .utility)
@@ -294,11 +290,32 @@ extension Container {
     }
   }
 
+  private func removeCurrentItemObserver() {
+    if currentItemObserver != nil {
+      self.currentItemObserver = nil
+    }
+  }
+
   private func removePeriodicTimeObserver() {
     if let periodicTimeObserver {
-      log.debug("removePeriodicTimeObserver: executing")
       avQueuePlayer.removeTimeObserver(periodicTimeObserver)
       self.periodicTimeObserver = nil
+    }
+  }
+
+  // MARK: - Private State Tracking
+
+  private func observeNextEpisode() {
+    Assert.neverCalled()
+
+    Task {
+      do {
+        for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
+          try? await setNextPodcastEpisode(nextPodcastEpisode)
+        }
+      } catch {
+        log.error(ErrorKit.loggableMessage(for: error))
+      }
     }
   }
 
@@ -310,66 +327,5 @@ extension Container {
     ) { status in
       self.controlStatusContinuation.yield(status)
     }
-  }
-
-  private func startPlayToEndTimeNotifications() {
-    Assert.neverCalled()
-
-    Task {
-      for await _ in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
-        try? handleEpisodeFinished()
-      }
-    }
-  }
-
-  // MARK: - Debug Helpers
-
-  private func queuedPodcastEpisodes() async -> [PodcastEpisode] {
-    let mediaURLs = avQueuePlayer.queued.map { MediaURL($0.assetURL) }
-    var podcastEpisodes: IdentifiedArray<MediaURL, PodcastEpisode>
-    do {
-      podcastEpisodes = IdentifiedArray(
-        uniqueElements: try await Container.shared.repo().episodes(mediaURLs),
-        id: \.episode.media
-      )
-    } catch {
-      log.warning(ErrorKit.loggableMessage(for: error))
-      podcastEpisodes = IdentifiedArray(id: \.episode.media)
-    }
-    if let podcastEpisode = podcastEpisode {
-      podcastEpisodes[id: podcastEpisode.episode.media] = podcastEpisode
-    }
-    if let nextPodcastEpisode = nextPodcastEpisode {
-      podcastEpisodes[id: nextPodcastEpisode.episode.media] = nextPodcastEpisode
-    }
-    var podcastEpisodesFound = [PodcastEpisode](capacity: mediaURLs.count)
-    var mediaURLsNotFound: [MediaURL] = []
-    for mediaURL in mediaURLs {
-      if let podcastEpisode = podcastEpisodes[id: mediaURL] {
-        podcastEpisodesFound.append(podcastEpisode)
-      } else {
-        mediaURLsNotFound.append(mediaURL)
-      }
-    }
-    Assert.precondition(
-      mediaURLsNotFound.isEmpty,
-      """
-      \(mediaURLs.count) media URLs but \(podcastEpisodes.count) podcast episodes)
-      PodcastEpisodes fetched: 
-        \(podcastEpisodes.map(\.toString).joined(separator: "\n  "))
-      MediaURLsNotFound:
-        \(mediaURLsNotFound.map({ "\($0)" }).joined(separator: "\n  "))
-      PodcastEpisodesFound: 
-        \(podcastEpisodesFound.map(\.toString).joined(separator: "\n  "))
-      LoadedCurrentPodcastEpisode:
-        \(String(describing: loadedCurrentPodcastEpisode?.toString))
-        MediaURL: \(String(describing:loadedCurrentPodcastEpisode?.podcastEpisode.episode.media))
-      LoadedNextPodcastEpisode:
-        \(String(describing: loadedNextPodcastEpisode?.toString))
-        MediaURL: \(String(describing:loadedNextPodcastEpisode?.podcastEpisode.episode.media))
-      """
-    )
-
-    return podcastEpisodesFound
   }
 }

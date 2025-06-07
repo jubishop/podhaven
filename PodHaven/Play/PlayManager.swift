@@ -18,7 +18,6 @@ actor PlayManager {
   @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.images) private var images
   @DynamicInjected(\.notifications) private var notifications
-  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
@@ -48,7 +47,6 @@ actor PlayManager {
 
   // MARK: - State Management
 
-  private var status: PlayState.Status = .stopped
   private var nowPlayingInfo: NowPlayingInfo? {
     willSet {
       if newValue == nil {
@@ -65,12 +63,11 @@ actor PlayManager {
   fileprivate init() {}
 
   func start() async {
-    observeNextEpisode()
     startInterruptionNotifications()
     startListeningToCommandCenter()
+    startListeningToCurrentItem()
     startListeningToCurrentTime()
     startListeningToControlStatus()
-    startListeningToPlayToEnd()
 
     guard let currentEpisodeID = currentEpisodeID,
       let podcastEpisode = try? await repo.episode(currentEpisodeID)
@@ -82,9 +79,6 @@ actor PlayManager {
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) {
-    guard await podAVPlayer.podcastEpisode != podcastEpisode
-    else { Assert.fatal("Loading podcast \(podcastEpisode.toString) that's already loaded") }
-
     loadingTask?.cancel()
 
     return try await PlaybackError.catch {
@@ -93,12 +87,18 @@ actor PlayManager {
   }
 
   private func performLoad(_ podcastEpisode: PodcastEpisode) async throws {
+    let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode
+
+    if outgoingPodcastEpisode == podcastEpisode { return }
+
     let task = Task {
       do {
         await setStatus(.loading)
+        await podAVPlayer.removeTransientObservers()
 
         log.info("performLoad: \(podcastEpisode.toString)")
-        let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode
+
+        await pause()
         await setOnDeck(try await podAVPlayer.load(podcastEpisode))
 
         log.debug("performLoad: dequeueing incoming episode: \(podcastEpisode.toString)")
@@ -107,14 +107,23 @@ actor PlayManager {
         if let outgoingPodcastEpisode {
           log.debug("performLoad: unshifting current episode: \(outgoingPodcastEpisode.toString)")
           try? await queue.unshift(outgoingPodcastEpisode.id)
-        } else if let nextPodcastEpisode = try? await repo.nextEpisode() {
+        }
+
+        if let nextPodcastEpisode = try? await queue.nextEpisode {
           log.debug("performLoad: setting next episode: \(nextPodcastEpisode.toString)")
           try? await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
         }
 
+        await podAVPlayer.addTransientObservers()
         await setStatus(.active)
       } catch {
         log.notice(ErrorKit.loggableMessage(for: error))
+
+        if let outgoingPodcastEpisode {
+          try? await queue.unshift(outgoingPodcastEpisode.id)
+        }
+        try? await queue.unshift(podcastEpisode.id)
+
         await stopAndClearOnDeck()
 
         throw error
@@ -130,16 +139,15 @@ actor PlayManager {
   // MARK: - Playback Controls
 
   func play() async {
-    Assert.precondition(
-      status.playable,
-      "tried to play but status is \(status) which is not playable"
-    )
-
     await podAVPlayer.play()
   }
 
   func pause() async {
     await podAVPlayer.pause()
+  }
+
+  func toggle() async {
+    await podAVPlayer.toggle()
   }
 
   // MARK: - Seeking
@@ -158,10 +166,8 @@ actor PlayManager {
 
   // MARK: - Private State Management
 
-  private func setOnDeck(_ loadedPodcastEpisode: LoadedPodcastEpisode) async {
-    log.debug("setOnDeck: \(loadedPodcastEpisode.toString)")
-
-    let podcastEpisode = loadedPodcastEpisode.podcastEpisode
+  private func setOnDeck(_ podcastEpisode: PodcastEpisode) async {
+    log.debug("setOnDeck: \(podcastEpisode.toString)")
 
     let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
     let onDeck = OnDeck(
@@ -170,7 +176,7 @@ actor PlayManager {
       podcastTitle: podcastEpisode.podcast.title,
       podcastURL: podcastEpisode.podcast.link,
       episodeTitle: podcastEpisode.episode.title,
-      duration: loadedPodcastEpisode.duration,
+      duration: podcastEpisode.episode.duration,
       image: try? await images.fetchImage(imageURL),
       media: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate
@@ -179,10 +185,7 @@ actor PlayManager {
     nowPlayingInfo = NowPlayingInfo(onDeck)
     await playState.setOnDeck(onDeck)
 
-    if podcastEpisode.episode.currentTime == CMTime.zero {
-      log.debug("setOnDeck: No current time for \(podcastEpisode.toString)")
-      await setCurrentTime(CMTime.zero)
-    } else {
+    if podcastEpisode.episode.currentTime != CMTime.zero {
       log.debug(
         """
         setOnDeck: Seeking \(podcastEpisode.toString), to \
@@ -204,72 +207,35 @@ actor PlayManager {
   }
 
   private func setStatus(_ status: PlayState.Status) async {
-    guard status != self.status
-    else { return }
-
     log.debug("setStatus: \(status)")
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status)
-    self.status = status
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
+    guard let currentPodcastEpisode = await podAVPlayer.podcastEpisode
+    else { return }
+
     log.trace("setCurrentTime: \(currentTime)")
 
     nowPlayingInfo?.setCurrentTime(currentTime)
     await playState.setCurrentTime(currentTime)
-
-    guard let currentPodcastEpisode = await podAVPlayer.podcastEpisode
-    else {
-      Assert.precondition(
-        currentTime == .zero,
-        "tried to set current time to: \(currentTime) but there is no current episode?"
-      )
-      return
-    }
 
     _ = try? await repo.updateCurrentTime(currentPodcastEpisode.id, currentTime)
   }
 
   // MARK: - Private Change Handlers
 
-  private func handleEpisodeFinished(
-    finishedPodcastEpisode: PodcastEpisode,
-    loadedCurrentPodcastEpisode: LoadedPodcastEpisode?
-  ) async {
-    _ = try? await repo.markComplete(finishedPodcastEpisode.id)
-
-    if let loadedCurrentPodcastEpisode {
-      log.debug(
-        """
-        handleEpisodeFinished:
-          finishedPodcastEpisode: \(finishedPodcastEpisode.toString)
-          loadedCurrentPodcastEpisode: \(loadedCurrentPodcastEpisode.toString)
-        """
-      )
-      await setOnDeck(loadedCurrentPodcastEpisode)
-      try? await queue.dequeue(loadedCurrentPodcastEpisode.id)
+  private func handleCurrentItemChanged(_ podcastEpisode: PodcastEpisode?) async {
+    if let podcastEpisode {
+      try? await queue.dequeue(podcastEpisode.id)
+      await setOnDeck(podcastEpisode)
     } else {
-      log.debug("handleEpisodeFinished: no more episodes to play")
       await stopAndClearOnDeck()
     }
   }
 
-  // MARK: - Private Tracking
-
-  private func observeNextEpisode() {
-    Assert.neverCalled()
-
-    Task {
-      do {
-        for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
-          try? await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
-        }
-      } catch {
-        log.error(ErrorKit.loggableMessage(for: error))
-      }
-    }
-  }
+  // MARK: - Private State Tracking
 
   private func startInterruptionNotifications() {
     Assert.neverCalled()
@@ -299,7 +265,7 @@ actor PlayManager {
         case .pause:
           await pause()
         case .togglePlayPause:
-          if status.playing { await pause() } else { await play() }
+          await toggle()
         case .skipForward(let interval):
           await seekForward(CMTime.inSeconds(interval))
         case .skipBackward(let interval):
@@ -307,6 +273,16 @@ actor PlayManager {
         case .playbackPosition(let position):
           await seek(to: CMTime.inSeconds(position))
         }
+      }
+    }
+  }
+
+  private func startListeningToCurrentItem() {
+    Assert.neverCalled()
+
+    Task {
+      for await podcastEpisode in await podAVPlayer.currentItemStream {
+        await handleCurrentItemChanged(podcastEpisode)
       }
     }
   }
@@ -326,7 +302,6 @@ actor PlayManager {
 
     Task {
       for await controlStatus in await podAVPlayer.controlStatusStream {
-        if !status.playable { continue }
         switch controlStatus {
         case AVPlayer.TimeControlStatus.paused:
           await setStatus(.paused)
@@ -337,21 +312,6 @@ actor PlayManager {
         @unknown default:
           Assert.fatal("Time control status unknown?")
         }
-      }
-    }
-  }
-
-  private func startListeningToPlayToEnd() {
-    Assert.neverCalled()
-
-    Task {
-      for await (finishedPodcastEpisode, loadedCurrentPodcastEpisode)
-        in await podAVPlayer.playToEndStream
-      {
-        await handleEpisodeFinished(
-          finishedPodcastEpisode: finishedPodcastEpisode,
-          loadedCurrentPodcastEpisode: loadedCurrentPodcastEpisode
-        )
       }
     }
   }

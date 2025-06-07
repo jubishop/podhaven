@@ -13,6 +13,16 @@ extension Container {
 extension AVQueuePlayer: AVQueuePlayable {
   var current: (any AVPlayableItem)? { currentItem }
   var queued: [any AVPlayableItem] { items() }
+  nonisolated func observeCurrentItem(
+    options: NSKeyValueObservingOptions,
+    changeHandler: @Sendable @escaping (MediaURL?) -> Void
+  ) -> NSKeyValueObservation {
+    observe(\.currentItem, options: options) { player, _ in
+      Task {
+        await changeHandler(player.currentItem?.assetURL)
+      }
+    }
+  }
 
   func insert(_ item: any AVPlayableItem, after afterItem: (any AVPlayableItem)?) {
     guard let playerItem = item as? AVPlayerItem

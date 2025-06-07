@@ -102,6 +102,33 @@ class EpisodeTests {
     #expect(updatedEpisode.currentTime == newCMTime)
   }
 
+  @Test("that episodes can persist duration")
+  func persistDuration() async throws {
+    let guid = GUID("guid")
+    let cmTime = CMTime.inSeconds(30)
+
+    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    let unsavedEpisode = try TestHelpers.unsavedEpisode(guid: guid, duration: cmTime)
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode]
+    )
+    let podcast = podcastSeries.podcast
+
+    let episode = try await repo.db.read { db in
+      try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcast.id])
+    }!
+    #expect(episode.duration == cmTime)
+
+    let newCMTime = CMTime.inSeconds(60)
+    try await repo.updateDuration(episode.id, newCMTime)
+
+    let updatedEpisode = try await repo.db.read { db in
+      try Episode.fetchOne(db, id: episode.id)
+    }!
+    #expect(updatedEpisode.duration == newCMTime)
+  }
+
   @Test("that an episode can be fetched by its media url")
   func fetchEpisodeByMediaURL() async throws {
     let unsavedPodcast = try TestHelpers.unsavedPodcast()
