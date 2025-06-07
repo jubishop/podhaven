@@ -163,7 +163,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   var seekHandler: (CMTime) async -> (Bool) = { _ in (true) }
 
-  func finishEpisode() {
+  func simulateFinishingEpisode() {
     guard !queued.isEmpty else { return }
 
     queued.removeFirst()
