@@ -58,8 +58,9 @@ import Testing
 
   @Test("loading an episode updates its duration value")
   func loadingEpisodeUpdatesDuration() async throws {
+    let originalDuration = CMTime.inSeconds(10)
     let podcastEpisode = try await TestHelpers.podcastEpisode(
-      TestHelpers.unsavedEpisode(duration: CMTime.inSeconds(10))
+      TestHelpers.unsavedEpisode(duration: originalDuration)
     )
 
     let correctDuration = CMTime.inSeconds(999)

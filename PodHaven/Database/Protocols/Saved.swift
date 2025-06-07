@@ -46,10 +46,4 @@ extension Saved {
 
   public var toString: String { "[\(id)] - \(unsaved.toString)" }
   public var searchableString: String { unsaved.searchableString }
-
-  // MARK: - Equatable
-
-  static func == (lhs: Self, rhs: Self) -> Bool {
-    lhs.id == rhs.id
-  }
 }
