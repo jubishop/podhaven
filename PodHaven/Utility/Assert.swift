@@ -21,8 +21,11 @@ extension Container {
 enum Assert {
   private static let log = Log.as("assert", level: .critical)
 
-  static func neverCalled(file: String = #fileID, function: String = #function, line: UInt = #line)
-  {
+  static func neverCalled(
+    file: String = #fileID,
+    function: String = #function,
+    line: UInt = #line
+  ) {
     let neverCalled = Container.shared.neverCalled()
 
     Assert.precondition(
