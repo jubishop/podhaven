@@ -1,12 +1,14 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import FactoryKit
 import Foundation
 import Tagged
 
 @testable import PodHaven
 
 enum TestHelpers {
+
   // MARK: - Waiters
 
   @discardableResult
@@ -125,5 +127,47 @@ enum TestHelpers {
       lastUpdate: lastUpdate,
       subscribed: subscribed
     )
+  }
+
+  static func threePodcastEpisodes(
+    _ one: UnsavedEpisode? = nil,
+    _ two: UnsavedEpisode? = nil,
+    _ three: UnsavedEpisode? = nil
+  ) async throws -> (PodcastEpisode, PodcastEpisode, PodcastEpisode) {
+    let repo = Container.shared.repo()
+    let podcastSeries = try await repo.insertSeries(
+      TestHelpers.unsavedPodcast(),
+      unsavedEpisodes: [
+        try one ?? unsavedEpisode(),
+        try two ?? unsavedEpisode(),
+        try three ?? unsavedEpisode(),
+      ]
+    )
+    return (
+      PodcastEpisode(
+        podcast: podcastSeries.podcast,
+        episode: podcastSeries.episodes[0]
+      ),
+      PodcastEpisode(
+        podcast: podcastSeries.podcast,
+        episode: podcastSeries.episodes[1]
+      ),
+      PodcastEpisode(
+        podcast: podcastSeries.podcast,
+        episode: podcastSeries.episodes[2]
+      )
+    )
+  }
+
+  static func twoPodcastEpisodes(_ one: UnsavedEpisode? = nil, _ two: UnsavedEpisode? = nil)
+    async throws -> (PodcastEpisode, PodcastEpisode)
+  {
+    let (one, two, _) = try await threePodcastEpisodes(one, two)
+    return (one, two)
+  }
+
+  static func podcastEpisode(_ one: UnsavedEpisode? = nil) async throws -> PodcastEpisode {
+    let (one, _) = try await twoPodcastEpisodes(one)
+    return one
   }
 }

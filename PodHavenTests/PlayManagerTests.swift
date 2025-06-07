@@ -37,14 +37,7 @@ import Testing
 
   @Test("simple loading, playing, and pausing episode")
   func simpleLoadPlayAndPauseEpisode() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [TestHelpers.unsavedEpisode()]
-    )
-    let podcastEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
-    )
+    let podcastEpisode = try await TestHelpers.podcastEpisode()
 
     let onDeck = try await load(podcastEpisode)
     #expect(playState.status == .active)
@@ -65,13 +58,8 @@ import Testing
 
   @Test("loading an episode updates its duration value")
   func loadingEpisodeUpdatesDuration() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [TestHelpers.unsavedEpisode(duration: CMTime.inSeconds(10))]
-    )
-    let podcastEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
+    let podcastEpisode = try await TestHelpers.podcastEpisode(
+      TestHelpers.unsavedEpisode(duration: CMTime.inSeconds(10))
     )
 
     let correctDuration = CMTime.inSeconds(999)
@@ -88,14 +76,7 @@ import Testing
 
   @Test("command center stops and starts playback")
   func commandCenterStopsAndStartsPlayback() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [TestHelpers.unsavedEpisode()]
-    )
-    let podcastEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
-    )
+    let podcastEpisode = try await TestHelpers.podcastEpisode()
 
     try await load(podcastEpisode)
     try await play()
@@ -123,14 +104,7 @@ import Testing
 
   @Test("audio session interruption stops and restarts playback")
   func audioSessionInterruptionStopsPlayback() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [TestHelpers.unsavedEpisode()]
-    )
-    let podcastEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
-    )
+    let podcastEpisode = try await TestHelpers.podcastEpisode()
 
     try await load(podcastEpisode)
     try await play()
@@ -171,14 +145,8 @@ import Testing
   @Test("seeking retains original play status")
   func seekingRetainsOriginalPlayStatus() async throws {
     // In progress means seek will happen upon loading
-    let inProgressEpisode = try TestHelpers.unsavedEpisode(currentTime: .inSeconds(120))
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [inProgressEpisode]
-    )
-    let podcastEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
+    let podcastEpisode = try await TestHelpers.podcastEpisode(
+      TestHelpers.unsavedEpisode(currentTime: .inSeconds(120))
     )
 
     // Seek will happen because episode has currentTime
@@ -210,18 +178,7 @@ import Testing
 
   @Test("adding an episode to top of queue while playing")
   func addingAnEpisodeToTopOfQueueWhilePlaying() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode()]
-    )
-    let playingEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
-    )
-    let queuedEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[1]
-    )
+    let (playingEpisode, queuedEpisode) = try await TestHelpers.twoPodcastEpisodes()
 
     try await load(playingEpisode)
     try await queue.unshift(queuedEpisode.id)
@@ -234,18 +191,7 @@ import Testing
 
   @Test("loading an episode with queue already filled")
   func loadingAnEpisodeWithQueueAlreadyFilled() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode()]
-    )
-    let playingEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
-    )
-    let queuedEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[1]
-    )
+    let (playingEpisode, queuedEpisode) = try await TestHelpers.twoPodcastEpisodes()
 
     try await queue.unshift(queuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
@@ -259,26 +205,8 @@ import Testing
 
   @Test("top queue item changes while playing")
   func topQueueItemChangesWhilePlaying() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [
-        TestHelpers.unsavedEpisode(),
-        TestHelpers.unsavedEpisode(),
-        TestHelpers.unsavedEpisode(),
-      ]
-    )
-    let playingEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
-    )
-    let queuedEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[1]
-    )
-    let incomingQueuedEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[2]
-    )
+    let (playingEpisode, queuedEpisode, incomingQueuedEpisode) =
+      try await TestHelpers.threePodcastEpisodes()
 
     try await queue.unshift(queuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
@@ -294,18 +222,7 @@ import Testing
 
   @Test("loading an episode puts current episode back in queue")
   func loadingAnEpisodePutsCurrentEpisodeBackInQueue() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode()]
-    )
-    let playingEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
-    )
-    let incomingEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[1]
-    )
+    let (playingEpisode, incomingEpisode) = try await TestHelpers.twoPodcastEpisodes()
 
     try await load(playingEpisode)
     try await Task.sleep(for: .milliseconds(100))
@@ -320,14 +237,7 @@ import Testing
 
   @Test("loading an episode fails with none playing right now")
   func loadingAnEpisodeFailsWithNonePlayingRightNow() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [TestHelpers.unsavedEpisode()]
-    )
-    let episodeToLoad = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
-    )
+    let episodeToLoad = try await TestHelpers.podcastEpisode()
 
     episodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
       throw TestError.assetLoadFailure(mediaURL)
@@ -345,18 +255,7 @@ import Testing
 
   @Test("loading an episode fails with one playing right now")
   func loadingAnEpisodeFailsWithOnePlayingRightNow() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [TestHelpers.unsavedEpisode(), TestHelpers.unsavedEpisode()]
-    )
-    let playingEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
-    )
-    let episodeToLoad = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[1]
-    )
+    let (playingEpisode, episodeToLoad) = try await TestHelpers.twoPodcastEpisodes()
 
     try await load(playingEpisode)
     try await Task.sleep(for: .milliseconds(100))
@@ -379,14 +278,7 @@ import Testing
 
   @Test("current item becoming nil clears deck")
   func currentItemBecomingNilClearsDeck() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [TestHelpers.unsavedEpisode()]
-    )
-    let podcastEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
-    )
+    let podcastEpisode = try await TestHelpers.podcastEpisode()
 
     try await load(podcastEpisode)
     try await play()
@@ -403,26 +295,8 @@ import Testing
 
   @Test("current item advancing to next episode")
   func currentItemAdvancingToNextEpisode() async throws {
-    let podcastSeries = try await repo.insertSeries(
-      TestHelpers.unsavedPodcast(),
-      unsavedEpisodes: [
-        TestHelpers.unsavedEpisode(),
-        TestHelpers.unsavedEpisode(),
-        TestHelpers.unsavedEpisode(),
-      ]
-    )
-    let originalEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[0]
-    )
-    let incomingEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[1]
-    )
-    let queuedEpisode = PodcastEpisode(
-      podcast: podcastSeries.podcast,
-      episode: podcastSeries.episodes[2]
-    )
+    let (originalEpisode, queuedEpisode, incomingEpisode) =
+      try await TestHelpers.threePodcastEpisodes()
 
     try await queue.unshift(queuedEpisode.id)
     try await queue.unshift(incomingEpisode.id)
@@ -441,6 +315,10 @@ import Testing
     #expect(itemQueueURLs == episodeMediaURLs([incomingEpisode, queuedEpisode]))
     let queued = episodeStrings(try await queuedPodcastEpisodes)
     #expect(queued == episodeStrings([queuedEpisode]))
+  }
+
+  @Test("periodicTimeObserver events are ignored while seeking")
+  func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
   }
 
   // MARK: - Helpers
