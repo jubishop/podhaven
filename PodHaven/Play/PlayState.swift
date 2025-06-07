@@ -23,17 +23,16 @@ extension Container {
   // MARK: - State Getters
 
   enum Status {
-    case loading, active, playing, paused, stopped, waiting
+    case loading, playing, paused, stopped, waiting
 
     var playable: Bool {
       switch self {
-      case .active, .playing, .paused, .waiting: return true
+      case .playing, .paused, .waiting: return true
       default: return false
       }
     }
 
     var loading: Bool { self == .loading }
-    var active: Bool { self == .active }
     var playing: Bool { self == .playing }
     var paused: Bool { self == .paused }
     var stopped: Bool { self == .stopped }

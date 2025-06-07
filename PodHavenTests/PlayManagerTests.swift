@@ -40,7 +40,7 @@ import Testing
     let podcastEpisode = try await TestHelpers.podcastEpisode()
 
     let onDeck = try await load(podcastEpisode)
-    #expect(playState.status == .active)
+    #expect(playState.status == .paused)
     #expect(itemQueueURLs == episodeMediaURLs([podcastEpisode]))
     #expect(onDeck == podcastEpisode)
     #expect(nowPlayingTitle == podcastEpisode.episode.title)
@@ -152,7 +152,7 @@ import Testing
     // Seek will happen because episode has currentTime
     try await load(podcastEpisode)
     #expect(playState.currentTime == .inSeconds(120))
-    #expect(playState.status == .active)
+    #expect(playState.status == .paused)
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
     // Pause episode
@@ -305,7 +305,7 @@ import Testing
     try await play()
     try await Task.sleep(for: .milliseconds(200))
 
-    avQueuePlayer.finishEpisode()
+    avQueuePlayer.simulateFinishingEpisode()
     try await Task.sleep(for: .milliseconds(200))
 
     #expect(playState.status == .playing)

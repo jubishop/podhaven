@@ -115,7 +115,7 @@ actor PlayManager {
         }
 
         await podAVPlayer.addTransientObservers()
-        await setStatus(.active)
+        await setStatus(.paused)
       } catch {
         log.notice(ErrorKit.loggableMessage(for: error))
 
