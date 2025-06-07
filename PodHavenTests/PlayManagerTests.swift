@@ -319,40 +319,44 @@ import Testing
 
   @Test("periodicTimeObserver events are ignored while seeking")
   func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
+    var correctTime = CMTime.inSeconds(30)
     let podcastEpisode = try await TestHelpers.podcastEpisode(
-      TestHelpers.unsavedEpisode(currentTime: .inSeconds(30))
+      TestHelpers.unsavedEpisode(currentTime: correctTime)
     )
     try await load(podcastEpisode)
-    #expect(playState.currentTime == .inSeconds(30))
+    #expect(playState.currentTime == correctTime)
 
     // After this seek, all time advancement is being ignored
     avQueuePlayer.seekHandler = { _ in false }
-    await playManager.seek(to: .inSeconds(60))  // Time observation turned off after this
+    correctTime += .inSeconds(10)
+    await playManager.seek(to: correctTime)  // Time observation turned off after this
     try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == .inSeconds(60))
+    #expect(playState.currentTime == correctTime)
 
     // Since no seek was successful we are ignoring these right now
     avQueuePlayer.simulateTimeAdvancement(to: .inSeconds(999))  // Ignored
     try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == .inSeconds(60))  // Still what it was at seek
+    #expect(playState.currentTime == correctTime)  // Still what it was at seek
 
     // Since a seek is in progress, we will ignore time advancement until its success
     avQueuePlayer.seekHandler = { _ in
       try! await Task.sleep(for: .milliseconds(200))
       return true
     }
-    await playManager.seek(to: .inSeconds(90))
+    correctTime += .inSeconds(10)
+    await playManager.seek(to: correctTime)
     try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == .inSeconds(90))
+    #expect(playState.currentTime == correctTime)
     avQueuePlayer.simulateTimeAdvancement(to: .inSeconds(999))  // Ignored
     try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == .inSeconds(90))  // Still what it was at seek
+    #expect(playState.currentTime == correctTime)  // Still what it was at seek
 
     // After this, our seek completed successfully so time advancement observation is back
     try await Task.sleep(for: .milliseconds(100))
-    avQueuePlayer.simulateTimeAdvancement(to: .inSeconds(120))  // Actually Triggers
+    correctTime += .inSeconds(10)
+    avQueuePlayer.simulateTimeAdvancement(to: correctTime)  // Actually Triggers
     try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == .inSeconds(120))
+    #expect(playState.currentTime == correctTime)
   }
 
   // MARK: - Helpers
