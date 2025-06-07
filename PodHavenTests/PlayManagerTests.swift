@@ -282,7 +282,7 @@ import Testing
 
     try await load(podcastEpisode)
     try await play()
-    avQueuePlayer.finishEpisode()
+    avQueuePlayer.simulateFinishingEpisode()
     try await Task.sleep(for: .milliseconds(100))
 
     #expect(playState.status == .stopped)
