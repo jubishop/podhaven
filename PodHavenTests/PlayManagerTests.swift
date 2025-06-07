@@ -35,12 +35,16 @@ import Testing
     await playManager.start()
   }
 
+  // MARK: - Playback Controls
+
   @Test("simple loading, playing, and pausing episode")
   func simpleLoadPlayAndPauseEpisode() async throws {
     let podcastEpisode = try await TestHelpers.podcastEpisode()
 
     let onDeck = try await load(podcastEpisode)
     #expect(playState.status == .paused)
+    #expect(avQueuePlayer.timeControlStatus == .paused)
+    #expect(nowPlayingPlaying == false)
     #expect(itemQueueURLs == episodeMediaURLs([podcastEpisode]))
     #expect(onDeck == podcastEpisode)
     #expect(nowPlayingTitle == podcastEpisode.episode.title)
@@ -49,11 +53,13 @@ import Testing
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .playing)
     #expect(avQueuePlayer.timeControlStatus == .playing)
+    #expect(nowPlayingPlaying == true)
 
     await playManager.pause()
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.status == .paused)
     #expect(avQueuePlayer.timeControlStatus == .paused)
+    #expect(nowPlayingPlaying == false)
   }
 
   @Test("loading an episode updates its duration value")
@@ -143,6 +149,8 @@ import Testing
     #expect(avQueuePlayer.timeControlStatus == .playing)
   }
 
+  // MARK: - Seeking
+
   @Test("seeking retains original play status")
   func seekingRetainsOriginalPlayStatus() async throws {
     // In progress means seek will happen upon loading
@@ -176,6 +184,50 @@ import Testing
     #expect(playState.status == .playing)
     #expect(avQueuePlayer.timeControlStatus == .playing)
   }
+
+  @Test("periodicTimeObserver events are ignored while seeking")
+  func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
+    var correctTime = CMTime.inSeconds(30)
+    let podcastEpisode = try await TestHelpers.podcastEpisode(
+      TestHelpers.unsavedEpisode(currentTime: correctTime)
+    )
+    try await load(podcastEpisode)
+    #expect(playState.currentTime == correctTime)
+
+    // After this seek, all time advancement is being ignored
+    avQueuePlayer.seekHandler = { _ in false }
+    correctTime += .inSeconds(10)
+    await playManager.seek(to: correctTime)  // Time observation turned off after this
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.currentTime == correctTime)
+
+    // Since no seek was successful we are ignoring these right now
+    avQueuePlayer.simulateTimeAdvancement(to: .inSeconds(999))  // Ignored
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.currentTime == correctTime)  // Still what it was at seek
+
+    // Since a seek is in progress, we will ignore time advancement until its success
+    avQueuePlayer.seekHandler = { _ in
+      try! await Task.sleep(for: .milliseconds(200))
+      return true
+    }
+    correctTime += .inSeconds(10)
+    await playManager.seek(to: correctTime)
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.currentTime == correctTime)
+    avQueuePlayer.simulateTimeAdvancement(to: .inSeconds(999))  // Ignored
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.currentTime == correctTime)  // Still what it was at seek
+
+    // After this, our seek completed successfully so time advancement observation is back
+    try await Task.sleep(for: .milliseconds(100))
+    correctTime += .inSeconds(10)
+    avQueuePlayer.simulateTimeAdvancement(to: correctTime)  // Actually Triggers
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.currentTime == correctTime)
+  }
+
+  // MARK: - Queue Management
 
   @Test("adding an episode to top of queue while playing")
   func addingAnEpisodeToTopOfQueueWhilePlaying() async throws {
@@ -236,6 +288,8 @@ import Testing
     #expect(queued == episodeStrings([playingEpisode]))
   }
 
+  // MARK: - Load Failures
+
   @Test("loading an episode fails with none playing right now")
   func loadingAnEpisodeFailsWithNonePlayingRightNow() async throws {
     let episodeToLoad = try await TestHelpers.podcastEpisode()
@@ -276,6 +330,8 @@ import Testing
     let queued = episodeStrings(try await queuedPodcastEpisodes)
     #expect(queued == episodeStrings([episodeToLoad, playingEpisode]))
   }
+
+  // MARK: - currentItem Advancement
 
   @Test("current item becoming nil clears deck")
   func currentItemBecomingNilClearsDeck() async throws {
@@ -318,48 +374,6 @@ import Testing
     #expect(queued == episodeStrings([queuedEpisode]))
   }
 
-  @Test("periodicTimeObserver events are ignored while seeking")
-  func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
-    var correctTime = CMTime.inSeconds(30)
-    let podcastEpisode = try await TestHelpers.podcastEpisode(
-      TestHelpers.unsavedEpisode(currentTime: correctTime)
-    )
-    try await load(podcastEpisode)
-    #expect(playState.currentTime == correctTime)
-
-    // After this seek, all time advancement is being ignored
-    avQueuePlayer.seekHandler = { _ in false }
-    correctTime += .inSeconds(10)
-    await playManager.seek(to: correctTime)  // Time observation turned off after this
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == correctTime)
-
-    // Since no seek was successful we are ignoring these right now
-    avQueuePlayer.simulateTimeAdvancement(to: .inSeconds(999))  // Ignored
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == correctTime)  // Still what it was at seek
-
-    // Since a seek is in progress, we will ignore time advancement until its success
-    avQueuePlayer.seekHandler = { _ in
-      try! await Task.sleep(for: .milliseconds(200))
-      return true
-    }
-    correctTime += .inSeconds(10)
-    await playManager.seek(to: correctTime)
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == correctTime)
-    avQueuePlayer.simulateTimeAdvancement(to: .inSeconds(999))  // Ignored
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == correctTime)  // Still what it was at seek
-
-    // After this, our seek completed successfully so time advancement observation is back
-    try await Task.sleep(for: .milliseconds(100))
-    correctTime += .inSeconds(10)
-    avQueuePlayer.simulateTimeAdvancement(to: correctTime)  // Actually Triggers
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == correctTime)
-  }
-
   // MARK: - Helpers
 
   @discardableResult
@@ -380,6 +394,10 @@ import Testing
 
   private var nowPlayingTitle: String {
     nowPlayingInfo![MPMediaItemPropertyTitle] as! String
+  }
+
+  private var nowPlayingPlaying: Bool {
+    nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] as! Double == 1.0
   }
 
   private var itemQueueURLs: [MediaURL] {
