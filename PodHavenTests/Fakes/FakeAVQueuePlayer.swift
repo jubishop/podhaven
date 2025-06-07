@@ -8,7 +8,7 @@ import Foundation
 class FakeAVQueuePlayer: AVQueuePlayable {
   // MARK: - Testing Manipulators
 
-  typealias SeekCompletionHandler = (CMTime) -> (Bool)
+  typealias SeekCompletionHandler = (CMTime) async -> (Bool)
   var seekHandler: SeekCompletionHandler = { _ in (true) }
 
   func finishEpisode() {
@@ -121,9 +121,10 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   }
   func seek(to time: CMTime, completionHandler: @escaping @Sendable (Bool) -> Void) {
     Task {
-      let success = seekHandler(time)
+      let success = await seekHandler(time)
       completionHandler(success)
       if success { currentTimeValue = time }
+      seekHandler = { _ in true }
     }
   }
 
@@ -171,9 +172,8 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   // MARK: - Testing Helper Methods
 
-  func simulateTimeAdvancement(by interval: TimeInterval) {
-    let newTime = CMTimeAdd(currentTimeValue, CMTime.inSeconds(interval))
-    currentTimeValue = newTime
+  func simulateTimeAdvancement(to cmTime: CMTime) {
+    currentTimeValue = cmTime
   }
 
   func simulateWaitingToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
