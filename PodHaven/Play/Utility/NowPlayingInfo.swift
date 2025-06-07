@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import FactoryKit
 import Foundation
 import MediaPlayer
@@ -8,10 +9,6 @@ struct NowPlayingInfo {
   // MARK: - State Management
 
   private let onDeck: OnDeck
-
-  // MARK: - Convenience Getters
-
-  private let appIdentifier = "com.artisanal.podhaven"
 
   // MARK: - Initializing
 
@@ -28,32 +25,24 @@ struct NowPlayingInfo {
       )
     }
     nowPlayingInfo[MPMediaItemPropertyMediaType] = MPMediaType.podcast.rawValue
-    nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = NSNumber(
-      value: CMTimeGetSeconds(onDeck.duration)
-    )
+    nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = onDeck.duration.seconds
     nowPlayingInfo[MPMediaItemPropertyTitle] = onDeck.episodeTitle
-    nowPlayingInfo[MPNowPlayingInfoCollectionIdentifier] = onDeck.feedURL.rawValue
+    nowPlayingInfo[MPNowPlayingInfoCollectionIdentifier] = onDeck.podcastTitle
     nowPlayingInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.media.rawValue
-    nowPlayingInfo[MPNowPlayingInfoPropertyCurrentPlaybackDate] = onDeck.pubDate
     nowPlayingInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
-    nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = Double(0)
-    nowPlayingInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] =
-      onDeck.guid.rawValue
-    nowPlayingInfo[MPNowPlayingInfoPropertyExternalUserProfileIdentifier] =
-      appIdentifier
+    nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
+    nowPlayingInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] = onDeck.guid.rawValue
     nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = false
-    nowPlayingInfo[MPNowPlayingInfoPropertyMediaType] =
-      MPNowPlayingInfoMediaType.audio.rawValue
-    nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackProgress] = Float(0.0)
+    nowPlayingInfo[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
+    nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackProgress] = 0.0
     nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
-    if let podcastURL = onDeck.podcastURL {
-      nowPlayingInfo[MPNowPlayingInfoPropertyServiceIdentifier] =
-        podcastURL.absoluteString
-    }
+
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo = nowPlayingInfo
   }
+
+  // MARK: - Modifying
 
   func clear() {
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
@@ -63,9 +52,9 @@ struct NowPlayingInfo {
   func setCurrentTime(_ currentTime: CMTime) {
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
-      NSNumber(value: CMTimeGetSeconds(currentTime))
+      currentTime.seconds
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackProgress] =
-      CMTimeGetSeconds(currentTime) / CMTimeGetSeconds(onDeck.duration)
+      currentTime.seconds / onDeck.duration.seconds
   }
 
   func playing(_ playing: Bool) {

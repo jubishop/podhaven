@@ -151,16 +151,25 @@ import Testing
 
   // MARK: - Seeking
 
-  @Test("seeking retains original play status")
+  @Test("seeking works and retains play status")
   func seekingRetainsOriginalPlayStatus() async throws {
     // In progress means seek will happen upon loading
+    let duration = CMTime.inSeconds(240)
+    let skipAmount = CMTime.inSeconds(15)
+    var currentTime = CMTime.inSeconds(120)
     let podcastEpisode = try await TestHelpers.podcastEpisode(
-      TestHelpers.unsavedEpisode(currentTime: .inSeconds(120))
+      TestHelpers.unsavedEpisode(duration: duration, currentTime: currentTime)
     )
 
     // Seek will happen because episode has currentTime
-    try await load(podcastEpisode)
-    #expect(playState.currentTime == .inSeconds(120))
+    episodeAssetLoader.respond(to: podcastEpisode.episode.media) { mediaURL in
+      (true, duration)
+    }
+    let onDeck = try await load(podcastEpisode)
+    #expect(onDeck.duration == duration)
+    #expect(playState.currentTime == currentTime)
+    #expect(nowPlayingCurrentTime == currentTime)
+    #expect(nowPlayingProgress == currentTime.seconds / duration.seconds)
     #expect(playState.status == .paused)
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
@@ -168,9 +177,12 @@ import Testing
     try await pause()
 
     // Seek and episode remains paused
-    await playManager.seekForward(CMTime.inSeconds(30))
+    currentTime += skipAmount
+    await playManager.seekForward(skipAmount)
     try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == .inSeconds(150))
+    #expect(playState.currentTime == currentTime)
+    #expect(nowPlayingCurrentTime == currentTime)
+    #expect(nowPlayingProgress == currentTime.seconds / duration.seconds)
     #expect(playState.status == .paused)
     #expect(avQueuePlayer.timeControlStatus == .paused)
 
@@ -178,9 +190,12 @@ import Testing
     try await play()
 
     // Seek and episode remains playing
-    await playManager.seekForward(CMTime.inSeconds(30))
+    currentTime += skipAmount
+    await playManager.seekForward(skipAmount)
     try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == .inSeconds(180))
+    #expect(playState.currentTime == currentTime)
+    #expect(nowPlayingCurrentTime == currentTime)
+    #expect(nowPlayingProgress == currentTime.seconds / duration.seconds)
     #expect(playState.status == .playing)
     #expect(avQueuePlayer.timeControlStatus == .playing)
   }
@@ -398,6 +413,14 @@ import Testing
 
   private var nowPlayingPlaying: Bool {
     nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] as! Double == 1.0
+  }
+
+  private var nowPlayingCurrentTime: CMTime {
+    CMTime.inSeconds(nowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] as! Double)
+  }
+
+  private var nowPlayingProgress: Double {
+    nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackProgress] as! Double
   }
 
   private var itemQueueURLs: [MediaURL] {
