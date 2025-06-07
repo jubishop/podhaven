@@ -6,7 +6,7 @@ import GRDB
 import Logging
 
 extension Container {
-  var appDB: Factory<AppDB> {
+  internal var appDB: Factory<AppDB> {
     Factory(self) { AppDB._onDisk }.scope(.cached)
   }
 }
