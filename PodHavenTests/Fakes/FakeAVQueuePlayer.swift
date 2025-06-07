@@ -6,17 +6,6 @@ import Foundation
 @testable import PodHaven
 
 class FakeAVQueuePlayer: AVQueuePlayable {
-  // MARK: - Testing Manipulators
-
-  typealias SeekCompletionHandler = (CMTime) async -> (Bool)
-  var seekHandler: SeekCompletionHandler = { _ in (true) }
-
-  func finishEpisode() {
-    guard !queued.isEmpty else { return }
-
-    queued.removeFirst()
-  }
-
   // MARK: - Internal State Management
 
   private var itemObservations: [ObservationHandler<MediaURL?>] = []
@@ -170,7 +159,15 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     return observation
   }
 
-  // MARK: - Testing Helper Methods
+  // MARK: - Testing Manipulators
+
+  var seekHandler: (CMTime) async -> (Bool) = { _ in (true) }
+
+  func finishEpisode() {
+    guard !queued.isEmpty else { return }
+
+    queued.removeFirst()
+  }
 
   func simulateTimeAdvancement(to cmTime: CMTime) {
     currentTimeValue = cmTime
