@@ -73,6 +73,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Each top-level type in its own file with matching name
 - Copyright header: "Copyright Justin Bishop, 2025"
 - Use `// MARK: - Section Name` for major sections only
+- Don't add excessive comments beyond `// MARK: -` style comments
 
 ### Naming Conventions
 - Types: PascalCase (`PodcastFeed`, `EpisodeViewModel`)

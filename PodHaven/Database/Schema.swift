@@ -71,6 +71,16 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v3") { db in
+      try db.execute(sql: """
+        UPDATE episode 
+        SET completionDate = CURRENT_TIMESTAMP, currentTime = 0 
+        WHERE completionDate IS NULL 
+          AND duration > 0 
+          AND currentTime >= (duration * 0.95)
+        """)
+    }
+
     return migrator
   }
 }
