@@ -87,7 +87,6 @@ struct PodHavenApp: App {
   private static func configureBugFender() {
     Bugfender.activateLogger("DHXOFyzIYy2lzznaFpku5oXaiGwqqDXE")
     Bugfender.setPrintToConsole(false)
-    Bugfender.enableCrashReporting()
   }
 
   private static func configureSentry() {
