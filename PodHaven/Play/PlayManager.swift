@@ -124,7 +124,7 @@ actor PlayManager {
         }
         try? await queue.unshift(podcastEpisode.id)
 
-        await stopAndClearOnDeck()
+        await stop()
 
         throw error
       }
@@ -200,8 +200,8 @@ actor PlayManager {
     currentEpisodeID = podcastEpisode.id
   }
 
-  private func stopAndClearOnDeck() async {
-    log.debug("stopAndClearOnDeck: executing")
+  private func stop() async {
+    log.debug("stop: executing")
     await podAVPlayer.stop()
     nowPlayingInfo = nil
     await playState.setOnDeck(nil)
@@ -233,7 +233,7 @@ actor PlayManager {
       try? await queue.dequeue(podcastEpisode.id)
       await setOnDeck(podcastEpisode)
     } else {
-      await stopAndClearOnDeck()
+      await stop()
     }
   }
 

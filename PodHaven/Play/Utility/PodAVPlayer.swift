@@ -74,6 +74,8 @@ extension Container {
   func stop() {
     log.debug("stop: executing")
     removeTransientObservers()
+    self.podcastEpisode = nil
+    self.transitionStatus = nil
     avQueuePlayer.removeAllItems()
   }
 
@@ -136,12 +138,12 @@ extension Container {
       : pause()
   }
 
-  private func cacheStatusAndPause() {
+  func cacheStatusAndPause() {
     transitionStatus = transitionStatus ?? avQueuePlayer.timeControlStatus
     pause()
   }
 
-  private func clearStatusAndPlay() {
+  func clearStatusAndMaybePlay() {
     if let transitionStatus {
       self.transitionStatus = nil
       if transitionStatus != .paused { play() }
@@ -165,15 +167,15 @@ extension Container {
 
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
-
     cacheStatusAndPause()
+
     avQueuePlayer.seek(to: time) { [weak self] completed in
       guard let self else { return }
 
       if completed {
         log.trace("seek: to \(time) completed")
         Task { @MainActor in
-          clearStatusAndPlay()
+          clearStatusAndMaybePlay()
           addPeriodicTimeObserver()
         }
       } else {
