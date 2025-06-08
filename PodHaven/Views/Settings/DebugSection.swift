@@ -24,6 +24,13 @@ struct DebugSection: View {
       #else
       Text("in PRODUCTION")
       #endif
+
+      ShareLink(
+        item: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+          .appendingPathComponent("db.sqlite")
+      ) {
+        Label("Share Database", systemImage: "square.and.arrow.up")
+      }
     }
   }
 }
