@@ -216,7 +216,7 @@ actor PlayManager {
 
   private func setCurrentTime(_ currentTime: CMTime) async {
     guard let currentPodcastEpisode = await podAVPlayer.podcastEpisode
-    else { return }
+    else { Assert.fatal("Setting current time when no podcast episode is set?") }
 
     log.trace("setCurrentTime: \(currentTime)")
 
