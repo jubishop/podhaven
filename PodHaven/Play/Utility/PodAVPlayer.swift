@@ -30,6 +30,7 @@ extension Container {
 @MainActor class PodAVPlayer {
   @DynamicInjected(\.avQueuePlayer) private var avQueuePlayer
   @DynamicInjected(\.loadEpisodeAsset) private var loadEpisodeAsset
+  @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
@@ -67,6 +68,7 @@ extension Container {
 
     observeNextEpisode()
     addTimeControlStatusObserver()
+    startPlayToEndTimeNotifications()
   }
 
   // MARK: - Loading
@@ -109,7 +111,12 @@ extension Container {
 
     var episode = podcastEpisode.episode
     episode.duration = episodeAsset.duration
-    _ = try? await repo.updateDuration(podcastEpisode.id, episode.duration)
+
+    do {
+      try await repo.updateDuration(podcastEpisode.id, episode.duration)
+    } catch {
+      log.error(ErrorKit.loggableMessage(for: error))
+    }
 
     return (
       PodcastEpisode(
@@ -280,6 +287,10 @@ extension Container {
     currentItemContinuation.yield(podcastEpisode)
   }
 
+  private func handleItemDidPlayToEndTime(_ mediaURL: MediaURL?) async throws {
+
+  }
+
   // MARK: - Transient Tracking
 
   func addTransientObservers() {
@@ -298,7 +309,13 @@ extension Container {
     currentItemObserver = avQueuePlayer.observeCurrentItem(
       options: [.initial, .new]
     ) { url in
-      Task { try await self.handleCurrentItemChange(url) }
+      Task {
+        do {
+          try await self.handleCurrentItemChange(url)
+        } catch {
+          self.log.error(ErrorKit.loggableMessage(for: error))
+        }
+      }
     }
   }
 
@@ -335,7 +352,11 @@ extension Container {
     Task {
       do {
         for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
-          try? await setNextPodcastEpisode(nextPodcastEpisode)
+          do {
+            try await setNextPodcastEpisode(nextPodcastEpisode)
+          } catch {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
         }
       } catch {
         log.error(ErrorKit.loggableMessage(for: error))
@@ -350,6 +371,22 @@ extension Container {
       options: [.initial, .new]
     ) { status in
       self.controlStatusContinuation.yield(status)
+    }
+  }
+
+  private func startPlayToEndTimeNotifications() {
+    Assert.neverCalled()
+
+    Task {
+      for await notification in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
+        guard let playerItem = notification.object as? AVPlayerItem
+        else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayerItem") }
+        do {
+          try await handleItemDidPlayToEndTime(playerItem.assetURL)
+        } catch {
+          log.error(ErrorKit.loggableMessage(for: error))
+        }
+      }
     }
   }
 }
