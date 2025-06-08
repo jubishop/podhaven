@@ -56,7 +56,9 @@ struct UnsavedEpisode: Savable, Stringable {
 
   // MARK: - Savable
 
-  var toString: String { self.title }
+  var toString: String {
+    "\(media.rawValue.absoluteString.hashToCharacters(3)) - \(self.title)"
+  }
   var searchableString: String { self.title }
 
   // MARK: - State Getters
