@@ -1,11 +1,14 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import FactoryKit
 import Foundation
 
 @testable import PodHaven
 
 class FakeAVQueuePlayer: AVQueuePlayable {
+  @DynamicInjected(\.notifier) private var notifier
+
   // MARK: - Internal State Management
 
   private var itemObservations: [ObservationHandler<MediaURL?>] = []
@@ -164,7 +167,15 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   var seekHandler: (CMTime) async -> (Bool) = { _ in (true) }
 
   func simulateFinishingEpisode() {
-    guard !queued.isEmpty else { return }
+    guard let currentItem = queued.first else { return }
+
+    notifier.continuation(for: AVPlayerItem.didPlayToEndTimeNotification)
+      .yield(
+        Notification(
+          name: AVPlayerItem.didPlayToEndTimeNotification,
+          object: FakeAVPlayerItem(assetURL: currentItem.assetURL)
+        )
+      )
 
     queued.removeFirst()
   }

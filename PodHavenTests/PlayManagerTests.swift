@@ -428,7 +428,7 @@ import Testing
     #expect(playState.currentTime == originalTime)
 
     avQueuePlayer.simulateFinishingEpisode()
-    try await Task.sleep(for: .milliseconds(125))
+    try await Task.sleep(for: .milliseconds(150))
     #expect(playState.currentTime == .zero)
   }
 

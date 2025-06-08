@@ -142,8 +142,6 @@ actor PlayManager {
         await podAVPlayer.addTransientObservers()
         await setStatus(.paused)
       } catch {
-        log.notice(ErrorKit.loggableMessage(for: error))
-
         if let outgoingPodcastEpisode {
           do {
             try await queue.unshift(outgoingPodcastEpisode.id)

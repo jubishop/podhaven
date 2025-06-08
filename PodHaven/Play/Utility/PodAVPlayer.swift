@@ -213,9 +213,6 @@ extension Container {
           let loadedPodcastEpisode = try await loadAsset(for: podcastEpisode)
           insertNextPodcastEpisode(loadedPodcastEpisode)
         } catch {
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
-          }
           insertNextPodcastEpisode(nil)
 
           throw error
@@ -312,7 +309,6 @@ extension Container {
     currentItemObserver = avQueuePlayer.observeCurrentItem(
       options: [.initial, .new]
     ) { url in
-      self.log.info("current item changed")
       Task {
         do {
           try await self.handleCurrentItemChange(url)
@@ -389,11 +385,10 @@ extension Container {
 
     Task {
       for await notification in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
-        log.info("didPlayToEndTimeNotification")
-        guard let playerItem = notification.object as? AVPlayerItem
-        else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayerItem") }
+        guard let playableItem = notification.object as? AVPlayableItem
+        else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayableItem") }
         do {
-          try await handleItemDidPlayToEndTime(playerItem.assetURL)
+          try await handleItemDidPlayToEndTime(playableItem.assetURL)
         } catch {
           if ErrorKit.isRemarkable(error) {
             log.error(ErrorKit.loggableMessage(for: error))
