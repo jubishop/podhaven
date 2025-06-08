@@ -7,6 +7,7 @@ import GRDB
 import Logging
 import Semaphore
 import Sharing
+import SwiftUI
 
 extension Container {
   var playManager: Factory<PlayManager> {
@@ -69,11 +70,15 @@ actor PlayManager {
     startListeningToCurrentTime()
     startListeningToControlStatus()
 
-    guard let currentEpisodeID = currentEpisodeID,
-      let podcastEpisode = try? await repo.episode(currentEpisodeID)
-    else { return }
-
-    try? await load(podcastEpisode)
+    if let currentEpisodeID {
+      do {
+        if let podcastEpisode = try await repo.episode(currentEpisodeID) {
+          try await load(podcastEpisode)
+        }
+      } catch {
+        log.error(ErrorKit.loggableMessage(for: error))
+      }
+    }
   }
 
   // MARK: - Loading
@@ -102,16 +107,28 @@ actor PlayManager {
         await setOnDeck(try await podAVPlayer.load(podcastEpisode))
 
         log.debug("performLoad: dequeueing incoming episode: \(podcastEpisode.toString)")
-        try? await queue.dequeue(podcastEpisode.id)
+        do {
+          try await queue.dequeue(podcastEpisode.id)
+        } catch {
+          log.error(ErrorKit.loggableMessage(for: error))
+        }
 
         if let outgoingPodcastEpisode {
           log.debug("performLoad: unshifting current episode: \(outgoingPodcastEpisode.toString)")
-          try? await queue.unshift(outgoingPodcastEpisode.id)
+          do {
+            try await queue.unshift(outgoingPodcastEpisode.id)
+          } catch {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
         }
 
-        if let nextPodcastEpisode = try? await queue.nextEpisode {
-          log.debug("performLoad: setting next episode: \(nextPodcastEpisode.toString)")
-          try? await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
+        do {
+          if let nextPodcastEpisode = try await queue.nextEpisode {
+            log.debug("performLoad: setting next episode: \(nextPodcastEpisode.toString)")
+            try await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
+          }
+        } catch {
+          log.error(ErrorKit.loggableMessage(for: error))
         }
 
         await podAVPlayer.addTransientObservers()
@@ -120,9 +137,18 @@ actor PlayManager {
         log.notice(ErrorKit.loggableMessage(for: error))
 
         if let outgoingPodcastEpisode {
-          try? await queue.unshift(outgoingPodcastEpisode.id)
+          do {
+            try await queue.unshift(outgoingPodcastEpisode.id)
+          } catch {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
         }
-        try? await queue.unshift(podcastEpisode.id)
+
+        do {
+          try await queue.unshift(podcastEpisode.id)
+        } catch {
+          log.error(ErrorKit.loggableMessage(for: error))
+        }
 
         await stop()
 
@@ -169,15 +195,23 @@ actor PlayManager {
   private func setOnDeck(_ podcastEpisode: PodcastEpisode) async {
     log.debug("setOnDeck: \(podcastEpisode.toString)")
 
-    let imageURL = podcastEpisode.episode.image ?? podcastEpisode.podcast.image
-    let onDeck = OnDeck(
+    let onDeck = await OnDeck(
       feedURL: podcastEpisode.podcast.feedURL,
       guid: podcastEpisode.episode.guid,
       podcastTitle: podcastEpisode.podcast.title,
       podcastURL: podcastEpisode.podcast.link,
       episodeTitle: podcastEpisode.episode.title,
       duration: podcastEpisode.episode.duration,
-      image: try? await images.fetchImage(imageURL),
+      image: {
+        do {
+          return try await images.fetchImage(
+            podcastEpisode.episode.image ?? podcastEpisode.podcast.image
+          )
+        } catch {
+          log.error(ErrorKit.loggableMessage(for: error))
+          return nil
+        }
+      }(),
       media: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate
     )
@@ -223,14 +257,23 @@ actor PlayManager {
     nowPlayingInfo?.setCurrentTime(currentTime)
     await playState.setCurrentTime(currentTime)
 
-    _ = try? await repo.updateCurrentTime(currentPodcastEpisode.id, currentTime)
+    do {
+      try await repo.updateCurrentTime(currentPodcastEpisode.id, currentTime)
+    } catch {
+      log.error(ErrorKit.loggableMessage(for: error))
+    }
   }
 
   // MARK: - Private Change Handlers
 
   private func handleCurrentItemChanged(_ podcastEpisode: PodcastEpisode?) async {
     if let podcastEpisode {
-      try? await queue.dequeue(podcastEpisode.id)
+      do {
+        try await queue.dequeue(podcastEpisode.id)
+      } catch {
+        log.error(ErrorKit.loggableMessage(for: error))
+      }
+
       await setOnDeck(podcastEpisode)
     } else {
       await stop()
