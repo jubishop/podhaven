@@ -202,6 +202,29 @@ import Testing
     #expect(avQueuePlayer.timeControlStatus == .playing)
   }
 
+  @Test("playback is paused while seeking")
+  func playbackIsPausedWhileSeeking() async throws {
+    let podcastEpisode = try await TestHelpers.podcastEpisode()
+    try await load(podcastEpisode)
+    try await play()
+
+    // First seek is interrupted so we stay paused
+    avQueuePlayer.seekHandler = { _ in false }
+    await playManager.seek(to: .inSeconds(30))
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.status == .paused)
+
+    // Second seek finishes but slowly
+    avQueuePlayer.seekHandler = { _ in
+      try? await Task.sleep(for: .milliseconds(100))
+      return true
+    }
+    await playManager.seek(to: .inSeconds(30))
+    #expect(playState.status == .paused) // Still paused since seek has not completed
+    try await Task.sleep(for: .milliseconds(200))
+    #expect(playState.status == .playing) // Seek has finished, we go back to playing
+  }
+
   @Test("periodicTimeObserver events are ignored while seeking")
   func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
     var correctTime = CMTime.inSeconds(30)

@@ -18,8 +18,8 @@ extension AVQueuePlayer: AVQueuePlayable {
     changeHandler: @Sendable @escaping (MediaURL?) -> Void
   ) -> NSKeyValueObservation {
     observe(\.currentItem, options: options) { player, _ in
-      Task {
-        await changeHandler(player.currentItem?.assetURL)
+      Task { @MainActor in
+        changeHandler(player.currentItem?.assetURL)
       }
     }
   }
