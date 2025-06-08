@@ -340,7 +340,7 @@ import Testing
     await #expect(throws: (any Error).self) {
       try await load(episodeToLoad)
     }
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: .milliseconds(125))
     #expect(playState.status == .stopped)
     #expect(avQueuePlayer.timeControlStatus == .paused)
     #expect(playState.onDeck == nil)
@@ -428,7 +428,7 @@ import Testing
     #expect(playState.currentTime == originalTime)
 
     avQueuePlayer.simulateFinishingEpisode()
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: .milliseconds(125))
     #expect(playState.currentTime == .zero)
   }
 

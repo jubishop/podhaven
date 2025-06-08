@@ -76,7 +76,9 @@ actor PlayManager {
           try await load(podcastEpisode)
         }
       } catch {
-        log.error(ErrorKit.loggableMessage(for: error))
+        if ErrorKit.isRemarkable(error) {
+          log.error(ErrorKit.loggableMessage(for: error))
+        }
       }
     }
   }
@@ -110,7 +112,9 @@ actor PlayManager {
         do {
           try await queue.dequeue(podcastEpisode.id)
         } catch {
-          log.error(ErrorKit.loggableMessage(for: error))
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
         }
 
         if let outgoingPodcastEpisode {
@@ -118,7 +122,9 @@ actor PlayManager {
           do {
             try await queue.unshift(outgoingPodcastEpisode.id)
           } catch {
-            log.error(ErrorKit.loggableMessage(for: error))
+            if ErrorKit.isRemarkable(error) {
+              log.error(ErrorKit.loggableMessage(for: error))
+            }
           }
         }
 
@@ -128,7 +134,9 @@ actor PlayManager {
             try await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
           }
         } catch {
-          log.error(ErrorKit.loggableMessage(for: error))
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
         }
 
         await podAVPlayer.addTransientObservers()
@@ -140,14 +148,18 @@ actor PlayManager {
           do {
             try await queue.unshift(outgoingPodcastEpisode.id)
           } catch {
-            log.error(ErrorKit.loggableMessage(for: error))
+            if ErrorKit.isRemarkable(error) {
+              log.error(ErrorKit.loggableMessage(for: error))
+            }
           }
         }
 
         do {
           try await queue.unshift(podcastEpisode.id)
         } catch {
-          log.error(ErrorKit.loggableMessage(for: error))
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
         }
 
         await stop()
@@ -208,7 +220,9 @@ actor PlayManager {
             podcastEpisode.episode.image ?? podcastEpisode.podcast.image
           )
         } catch {
-          log.error(ErrorKit.loggableMessage(for: error))
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
           return nil
         }
       }(),
@@ -260,7 +274,9 @@ actor PlayManager {
     do {
       try await repo.updateCurrentTime(currentPodcastEpisode.id, currentTime)
     } catch {
-      log.error(ErrorKit.loggableMessage(for: error))
+      if ErrorKit.isRemarkable(error) {
+        log.error(ErrorKit.loggableMessage(for: error))
+      }
     }
   }
 
@@ -271,7 +287,9 @@ actor PlayManager {
       do {
         try await queue.dequeue(podcastEpisode.id)
       } catch {
-        log.error(ErrorKit.loggableMessage(for: error))
+        if ErrorKit.isRemarkable(error) {
+          log.error(ErrorKit.loggableMessage(for: error))
+        }
       }
 
       await setOnDeck(podcastEpisode)

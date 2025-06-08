@@ -102,7 +102,6 @@ extension Container {
     do {
       episodeAsset = try await loadEpisodeAsset(podcastEpisode.episode.media)
     } catch {
-      log.warning("loadAsset: failed to load asset for \(podcastEpisode.toString)")
       throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
     }
 
@@ -115,7 +114,9 @@ extension Container {
     do {
       try await repo.updateDuration(podcastEpisode.id, episode.duration)
     } catch {
-      log.error(ErrorKit.loggableMessage(for: error))
+      if ErrorKit.isRemarkable(error) {
+        log.error(ErrorKit.loggableMessage(for: error))
+      }
     }
 
     return (
@@ -212,7 +213,9 @@ extension Container {
           let loadedPodcastEpisode = try await loadAsset(for: podcastEpisode)
           insertNextPodcastEpisode(loadedPodcastEpisode)
         } catch {
-          log.error(ErrorKit.loggableMessage(for: error))
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
           insertNextPodcastEpisode(nil)
 
           throw error
@@ -309,11 +312,14 @@ extension Container {
     currentItemObserver = avQueuePlayer.observeCurrentItem(
       options: [.initial, .new]
     ) { url in
+      self.log.info("current item changed")
       Task {
         do {
           try await self.handleCurrentItemChange(url)
         } catch {
-          self.log.error(ErrorKit.loggableMessage(for: error))
+          if ErrorKit.isRemarkable(error) {
+            self.log.error(ErrorKit.loggableMessage(for: error))
+          }
         }
       }
     }
@@ -355,11 +361,15 @@ extension Container {
           do {
             try await setNextPodcastEpisode(nextPodcastEpisode)
           } catch {
-            log.error(ErrorKit.loggableMessage(for: error))
+            if ErrorKit.isRemarkable(error) {
+              log.error(ErrorKit.loggableMessage(for: error))
+            }
           }
         }
       } catch {
-        log.error(ErrorKit.loggableMessage(for: error))
+        if ErrorKit.isRemarkable(error) {
+          log.error(ErrorKit.loggableMessage(for: error))
+        }
       }
     }
   }
@@ -379,12 +389,15 @@ extension Container {
 
     Task {
       for await notification in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
+        log.info("didPlayToEndTimeNotification")
         guard let playerItem = notification.object as? AVPlayerItem
         else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayerItem") }
         do {
           try await handleItemDidPlayToEndTime(playerItem.assetURL)
         } catch {
-          log.error(ErrorKit.loggableMessage(for: error))
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
         }
       }
     }
