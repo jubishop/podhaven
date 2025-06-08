@@ -413,8 +413,8 @@ import Testing
       return status == .playing && timeControlStatus == .playing
     }
     try await TestHelpers.waitUntil {
-      let title = incomingEpisode.podcast.title
-      let onDeckTitle = await playState.onDeck?.podcastTitle
+      let title = incomingEpisode.episode.title
+      let onDeckTitle = await playState.onDeck?.episodeTitle
       return title == onDeckTitle
     }
     #expect(playState.onDeck! == incomingEpisode)
