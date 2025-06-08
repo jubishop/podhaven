@@ -193,6 +193,8 @@ actor PlayManager {
         """
       )
       await seek(to: podcastEpisode.episode.currentTime)
+    } else {
+      await setCurrentTime(.zero)
     }
 
     currentEpisodeID = podcastEpisode.id

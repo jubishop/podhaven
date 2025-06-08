@@ -35,7 +35,7 @@ import Testing
     await playManager.start()
   }
 
-  // MARK: - Playback Controls
+  // MARK: - Loading
 
   @Test("simple loading, playing, and pausing episode")
   func simpleLoadPlayAndPauseEpisode() async throws {
@@ -80,6 +80,8 @@ import Testing
     let updatedPodcastEpisode = try await repo.episode(podcastEpisode.id)
     #expect(updatedPodcastEpisode?.episode.duration == correctDuration)
   }
+
+  // MARK: - Playback Controls
 
   @Test("command center stops and starts playback")
   func commandCenterStopsAndStartsPlayback() async throws {
@@ -387,6 +389,24 @@ import Testing
     #expect(itemQueueURLs == episodeMediaURLs([incomingEpisode, queuedEpisode]))
     let queued = episodeStrings(try await queuedPodcastEpisodes)
     #expect(queued == episodeStrings([queuedEpisode]))
+  }
+
+  @Test("new currentItem with no currentTime sets currentTime to zero")
+  func newCurrentItemWithNoCurrentTimeSetsCurrentTimeToZero() async throws {
+    let originalTime = CMTime.inSeconds(10)
+    let (originalEpisode, queuedEpisode) =
+      try await TestHelpers.twoPodcastEpisodes(
+        TestHelpers.unsavedEpisode(currentTime: originalTime)
+      )
+
+    try await queue.unshift(queuedEpisode.id)
+    try await load(originalEpisode)
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.currentTime == originalTime)
+
+    avQueuePlayer.simulateFinishingEpisode()
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(playState.currentTime == .zero)
   }
 
   // MARK: - Helpers
