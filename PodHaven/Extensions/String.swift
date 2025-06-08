@@ -3,7 +3,7 @@ import Foundation
 import RegexBuilder
 
 extension String {
-  func hashToCharacters(_ length: Int) -> String {
+  func hashTo(_ length: Int) -> String {
     guard length > 0 else { return "" }
 
     let data = self.data(using: .utf8)!

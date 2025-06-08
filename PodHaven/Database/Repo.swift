@@ -14,7 +14,9 @@ extension Container {
 }
 
 struct Repo {
-  private let queue = Container.shared.queue()
+  @DynamicInjected(\.queue) private var queue
+
+  private let log = Log.as(LogSubsystem.Database.repo)
 
   // MARK: - Initialization
 
@@ -258,7 +260,9 @@ struct Repo {
 
   @discardableResult
   func markComplete(_ episodeID: Episode.ID) async throws -> Bool {
-    try await appDB.db.write { db in
+    log.debug("markComplete: \(episodeID)")
+
+    return try await appDB.db.write { db in
       try Episode
         .withID(episodeID)
         .updateAll(

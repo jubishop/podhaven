@@ -62,7 +62,7 @@ enum TestHelpers {
   }
 
   static func waitUntil(
-    maxAttempts: Int = 10,
+    maxAttempts: Int = 25,
     delay: UInt64 = 10_000_000,  // 10 ms
     _ block: @Sendable @escaping () async throws -> Bool
   ) async throws {

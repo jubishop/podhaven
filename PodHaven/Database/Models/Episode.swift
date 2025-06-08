@@ -8,7 +8,11 @@ import SavedMacro
 import Tagged
 
 typealias GUID = Tagged<UnsavedEpisode, String>
+
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
+extension MediaURL {
+  var description: String { rawValue.hashTo(3) }
+}
 
 struct UnsavedEpisode: Savable, Stringable {
   static let databaseTableName: String = "episode"
@@ -56,9 +60,7 @@ struct UnsavedEpisode: Savable, Stringable {
 
   // MARK: - Savable
 
-  var toString: String {
-    "\(media.rawValue.absoluteString.hashToCharacters(3)) - \(self.title)"
-  }
+  var toString: String { "\(media) - \(self.title)" }
   var searchableString: String { self.title }
 
   // MARK: - State Getters

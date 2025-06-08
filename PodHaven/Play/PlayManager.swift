@@ -67,6 +67,7 @@ actor PlayManager {
     startInterruptionNotifications()
     startListeningToCommandCenter()
     startListeningToCurrentItem()
+    startListeningToDidPlayToEnd()
     startListeningToCurrentTime()
     startListeningToControlStatus()
 
@@ -106,7 +107,7 @@ actor PlayManager {
         log.info("performLoad: \(podcastEpisode.toString)")
 
         await pause()
-        await setOnDeck(try await podAVPlayer.load(podcastEpisode))
+        try await setOnDeck(try await podAVPlayer.load(podcastEpisode))
 
         log.debug("performLoad: dequeueing incoming episode: \(podcastEpisode.toString)")
         do {
@@ -202,7 +203,7 @@ actor PlayManager {
 
   // MARK: - Private State Management
 
-  private func setOnDeck(_ podcastEpisode: PodcastEpisode) async {
+  private func setOnDeck(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) {
     log.debug("setOnDeck: \(podcastEpisode.toString)")
 
     let onDeck = await OnDeck(
@@ -240,7 +241,7 @@ actor PlayManager {
       )
       await seek(to: podcastEpisode.episode.currentTime)
     } else {
-      await setCurrentTime(.zero)
+      try await setCurrentTime(.zero)
     }
 
     currentEpisodeID = podcastEpisode.id
@@ -260,9 +261,9 @@ actor PlayManager {
     await playState.setStatus(status)
   }
 
-  private func setCurrentTime(_ currentTime: CMTime) async {
+  private func setCurrentTime(_ currentTime: CMTime) async throws(PlaybackError) {
     guard let currentPodcastEpisode = await podAVPlayer.podcastEpisode
-    else { Assert.fatal("Setting current time when no podcast episode is set?") }
+    else { throw PlaybackError.settingCurrentTimeOnNil(currentTime) }
 
     log.trace("setCurrentTime: \(currentTime)")
 
@@ -280,7 +281,9 @@ actor PlayManager {
 
   // MARK: - Private Change Handlers
 
-  private func handleCurrentItemChanged(_ podcastEpisode: PodcastEpisode?) async {
+  private func handleCurrentItemChange(_ podcastEpisode: PodcastEpisode?)
+    async throws(PlaybackError)
+  {
     if let podcastEpisode {
       do {
         try await queue.dequeue(podcastEpisode.id)
@@ -290,10 +293,14 @@ actor PlayManager {
         }
       }
 
-      await setOnDeck(podcastEpisode)
+      try await setOnDeck(podcastEpisode)
     } else {
       await stop()
     }
+  }
+
+  private func handleDidPlayToEnd(_ podcastEpisode: PodcastEpisode) async throws {
+    try await repo.markComplete(podcastEpisode.id)
   }
 
   // MARK: - Private State Tracking
@@ -343,7 +350,29 @@ actor PlayManager {
 
     Task {
       for await podcastEpisode in await podAVPlayer.currentItemStream {
-        await handleCurrentItemChanged(podcastEpisode)
+        do {
+          try await handleCurrentItemChange(podcastEpisode)
+        } catch {
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
+        }
+      }
+    }
+  }
+
+  private func startListeningToDidPlayToEnd() {
+    Assert.neverCalled()
+
+    Task {
+      for await podcastEpisode in await podAVPlayer.didPlayToEndStream {
+        do {
+          try await handleDidPlayToEnd(podcastEpisode)
+        } catch {
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
+        }
       }
     }
   }
@@ -353,7 +382,13 @@ actor PlayManager {
 
     Task {
       for await currentTime in await podAVPlayer.currentTimeStream {
-        await setCurrentTime(currentTime)
+        do {
+          try await setCurrentTime(currentTime)
+        } catch {
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
+        }
       }
     }
   }

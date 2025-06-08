@@ -220,9 +220,11 @@ import Testing
       return true
     }
     await playManager.seek(to: .inSeconds(30))
-    #expect(playState.status == .paused) // Still paused since seek has not completed
+    #expect(playState.status == .paused)  // Still paused since seek has not completed
+
+    // Now seek has finished, we go back to playing
     try await Task.sleep(for: .milliseconds(200))
-    #expect(playState.status == .playing) // Seek has finished, we go back to playing
+    try await TestHelpers.waitUntil { await playState.status == .playing }
   }
 
   @Test("periodicTimeObserver events are ignored while seeking")
@@ -371,7 +373,7 @@ import Testing
     #expect(queued == episodeStrings([episodeToLoad, playingEpisode]))
   }
 
-  // MARK: - currentItem Advancement
+  // MARK: - Episode Finishing
 
   @Test("current item becoming nil clears deck")
   func currentItemBecomingNilClearsDeck() async throws {
@@ -400,13 +402,21 @@ import Testing
 
     try await load(originalEpisode)
     try await play()
-    try await Task.sleep(for: .milliseconds(200))
+    try await Task.sleep(for: .milliseconds(100))
 
     avQueuePlayer.simulateFinishingEpisode()
-    try await Task.sleep(for: .milliseconds(200))
+    try await Task.sleep(for: .milliseconds(100))
 
-    #expect(playState.status == .playing)
-    #expect(avQueuePlayer.timeControlStatus == .playing)
+    try await TestHelpers.waitUntil {
+      let status = await playState.status
+      let timeControlStatus = await avQueuePlayer.timeControlStatus
+      return status == .playing && timeControlStatus == .playing
+    }
+    try await TestHelpers.waitUntil {
+      let title = incomingEpisode.podcast.title
+      let onDeckTitle = await playState.onDeck?.podcastTitle
+      return title == onDeckTitle
+    }
     #expect(playState.onDeck! == incomingEpisode)
     #expect(nowPlayingTitle == incomingEpisode.episode.title)
     #expect(itemQueueURLs == episodeMediaURLs([incomingEpisode, queuedEpisode]))
@@ -428,8 +438,21 @@ import Testing
     #expect(playState.currentTime == originalTime)
 
     avQueuePlayer.simulateFinishingEpisode()
-    try await Task.sleep(for: .milliseconds(150))
-    #expect(playState.currentTime == .zero)
+    try await Task.sleep(for: .milliseconds(100))
+    try await TestHelpers.waitUntil { await playState.currentTime == .zero }
+  }
+
+  @Test("episode is marked complete after playing to end")
+  func episodeIsMarkedCompleteAfterPlayingToEnd() async throws {
+    let podcastEpisode = try await TestHelpers.podcastEpisode()
+
+    try await load(podcastEpisode)
+    try await play()
+
+    avQueuePlayer.simulateFinishingEpisode()
+    try await Task.sleep(for: .milliseconds(100))
+    let fetchedPodcastEpisode = try await repo.episode(podcastEpisode.id)
+    #expect(fetchedPodcastEpisode!.episode.completed)
   }
 
   // MARK: - Helpers

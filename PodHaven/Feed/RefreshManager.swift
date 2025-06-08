@@ -19,8 +19,6 @@ actor RefreshManager {
   // MARK: - State Management
 
   private var backgroundRefreshTask: Task<Void, Never>?
-  private var activationTask: Task<Void, Never>?
-  private var deactivationTask: Task<Void, Never>?
 
   // MARK: - Initialization
 
@@ -118,12 +116,9 @@ actor RefreshManager {
   }
 
   private func startListeningToActivation() {
-    Assert.precondition(
-      self.activationTask == nil,
-      "activationTask already exists?"
-    )
+    Assert.neverCalled()
 
-    self.activationTask = Task {
+    Task {
       for await _ in notifications(UIApplication.didBecomeActiveNotification) {
         activated()
       }
@@ -131,12 +126,9 @@ actor RefreshManager {
   }
 
   private func startListeningToDeactivation() {
-    Assert.precondition(
-      self.deactivationTask == nil,
-      "deactivationTask already exists?"
-    )
+    Assert.neverCalled()
 
-    self.deactivationTask = Task {
+    Task {
       for await _ in notifications(UIApplication.willResignActiveNotification) {
         backgrounded()
       }

@@ -29,4 +29,6 @@ extension URL {
     guard let host = self.host, !host.isEmpty
     else { throw URLError(.badURL, userInfo: ["message": "URL: \(self) must have a valid host."]) }
   }
+
+  func hashTo(_ length: Int) -> String { absoluteString.hashTo(length) }
 }

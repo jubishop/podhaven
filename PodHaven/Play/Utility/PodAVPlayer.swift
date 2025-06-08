@@ -47,9 +47,11 @@ extension Container {
 
   let currentTimeStream: AsyncStream<CMTime>
   let currentItemStream: AsyncStream<PodcastEpisode?>
+  let didPlayToEndStream: AsyncStream<PodcastEpisode>
   let controlStatusStream: AsyncStream<AVPlayer.TimeControlStatus>
   private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
   private let currentItemContinuation: AsyncStream<PodcastEpisode?>.Continuation
+  private let didPlayToEndContinuation: AsyncStream<PodcastEpisode>.Continuation
   private let controlStatusContinuation: AsyncStream<AVPlayer.TimeControlStatus>.Continuation
 
   private var periodicTimeObserver: Any?
@@ -62,6 +64,9 @@ extension Container {
   fileprivate init() {
     (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(of: CMTime.self)
     (currentItemStream, currentItemContinuation) = AsyncStream.makeStream(of: PodcastEpisode?.self)
+    (didPlayToEndStream, didPlayToEndContinuation) = AsyncStream.makeStream(
+      of: PodcastEpisode.self
+    )
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: AVPlayer.TimeControlStatus.self
     )
@@ -234,9 +239,7 @@ extension Container {
     log.debug(
       """
       insertNextPodcastEpisode: at start:
-        \(avQueuePlayer.queued.map {
-          "\($0.assetURL.rawValue.absoluteString.hashToCharacters(3))"
-          }.joined(separator: "\n  "))
+        \(avQueuePlayer.queued.map { "\($0.assetURL)" }.joined(separator: "\n  "))
       """
     )
 
@@ -253,9 +256,7 @@ extension Container {
     log.debug(
       """
       insertNextPodcastEpisode: at end:
-        \(avQueuePlayer.queued.map {
-          "\($0.assetURL.rawValue.absoluteString.hashToCharacters(3))"
-          }.joined(separator: "\n  "))
+        \(avQueuePlayer.queued.map { "\($0.assetURL)" }.joined(separator: "\n  "))
       """
     )
 
@@ -283,12 +284,23 @@ extension Container {
       podcastEpisode = nil
     }
 
-    log.debug("handleCurrentItemChange: \(String(describing: podcastEpisode))")
+    log.debug("handleCurrentItemChange: \(String(describing: podcastEpisode?.toString))")
     currentItemContinuation.yield(podcastEpisode)
   }
 
-  private func handleItemDidPlayToEndTime(_ mediaURL: MediaURL?) async throws {
+  private func handleDidPlayToEnd(_ mediaURL: MediaURL) async throws {
+    if podcastEpisode?.episode.media != mediaURL {
+      throw PlaybackError.endedEpisodeDoesNotMatch(
+        podcastEpisode: podcastEpisode,
+        mediaURL: mediaURL
+      )
+    }
 
+    guard let outgoingPodcastEpisode = try await repo.episode(mediaURL)
+    else { throw PlaybackError.endedEpisodeNotFound(mediaURL) }
+
+    log.debug("handleDidPlayToEnd: \(outgoingPodcastEpisode.toString)")
+    didPlayToEndContinuation.yield(outgoingPodcastEpisode)
   }
 
   // MARK: - Transient Tracking
@@ -387,8 +399,9 @@ extension Container {
       for await notification in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
         guard let playableItem = notification.object as? AVPlayableItem
         else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayableItem") }
+
         do {
-          try await handleItemDidPlayToEndTime(playableItem.assetURL)
+          try await handleDidPlayToEnd(playableItem.assetURL)
         } catch {
           if ErrorKit.isRemarkable(error) {
             log.error(ErrorKit.loggableMessage(for: error))
