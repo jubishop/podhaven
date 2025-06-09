@@ -81,8 +81,8 @@ extension Container {
   func stop() {
     log.debug("stop: executing")
     removeTransientObservers()
-    self.podcastEpisode = nil
-    self.transitionStatus = nil
+    podcastEpisode = nil
+    transitionStatus = nil
     avQueuePlayer.removeAllItems()
   }
 
@@ -92,7 +92,7 @@ extension Container {
     let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
     avQueuePlayer.removeAllItems()
     avQueuePlayer.insert(playableItem, after: nil)
-    self.transitionStatus = nil
+    transitionStatus = nil
     self.podcastEpisode = podcastEpisode
 
     return podcastEpisode
@@ -137,6 +137,7 @@ extension Container {
 
   func play() {
     log.debug("playing")
+    transitionStatus = nil
     avQueuePlayer.play()
   }
 
@@ -149,18 +150,6 @@ extension Container {
     avQueuePlayer.timeControlStatus == .paused
       ? play()
       : pause()
-  }
-
-  func cacheStatusAndPause() {
-    transitionStatus = transitionStatus ?? avQueuePlayer.timeControlStatus
-    pause()
-  }
-
-  func clearStatusAndMaybePlay() {
-    if let transitionStatus {
-      self.transitionStatus = nil
-      if transitionStatus != .paused { play() }
-    }
   }
 
   // MARK: - Seeking
@@ -180,7 +169,8 @@ extension Container {
 
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
-    cacheStatusAndPause()
+    transitionStatus = transitionStatus ?? avQueuePlayer.timeControlStatus
+    pause()
 
     avQueuePlayer.seek(to: time) { [weak self] completed in
       guard let self else { return }
@@ -188,7 +178,10 @@ extension Container {
       if completed {
         log.trace("seek: to \(time) completed")
         Task { @MainActor in
-          clearStatusAndMaybePlay()
+          if let transitionStatus {
+            self.transitionStatus = nil
+            if transitionStatus != .paused { play() }
+          }
           addPeriodicTimeObserver()
         }
       } else {
