@@ -14,18 +14,18 @@ class QueueTests {
   private let podcastSeries: PodcastSeries
 
   init() async throws {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    let unsavedPodcast = try Create.unsavedPodcast()
     podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
-        TestHelpers.unsavedEpisode(guid: "top", queueOrder: 0),
-        TestHelpers.unsavedEpisode(guid: "bottom", queueOrder: 4),
-        TestHelpers.unsavedEpisode(guid: "midtop", queueOrder: 1),
-        TestHelpers.unsavedEpisode(guid: "middle", queueOrder: 2),
-        TestHelpers.unsavedEpisode(guid: "midbottom", queueOrder: 3),
-        TestHelpers.unsavedEpisode(guid: "unqbottom"),
-        TestHelpers.unsavedEpisode(guid: "unqmiddle"),
-        TestHelpers.unsavedEpisode(guid: "unqtop"),
+        Create.unsavedEpisode(guid: "top", queueOrder: 0),
+        Create.unsavedEpisode(guid: "bottom", queueOrder: 4),
+        Create.unsavedEpisode(guid: "midtop", queueOrder: 1),
+        Create.unsavedEpisode(guid: "middle", queueOrder: 2),
+        Create.unsavedEpisode(guid: "midbottom", queueOrder: 3),
+        Create.unsavedEpisode(guid: "unqbottom"),
+        Create.unsavedEpisode(guid: "unqmiddle"),
+        Create.unsavedEpisode(guid: "unqtop"),
       ]
     )
     let fetchOrder = try await fetchOrder()
@@ -222,15 +222,15 @@ class QueueTests {
   @Test("deleting a podcast series dequeues any episodes")
   func testDeleteSeries() async throws {
     let otherSeries = try await repo.insertSeries(
-      try TestHelpers.unsavedPodcast(),
+      try Create.unsavedPodcast(),
       unsavedEpisodes: [
-        TestHelpers.unsavedEpisode(guid: "other", queueOrder: 5)
+        Create.unsavedEpisode(guid: "other", queueOrder: 5)
       ]
     )
     let otherSeriesToDelete = try await repo.insertSeries(
-      try TestHelpers.unsavedPodcast(),
+      try Create.unsavedPodcast(),
       unsavedEpisodes: [
-        TestHelpers.unsavedEpisode(guid: "other2", queueOrder: 6)
+        Create.unsavedEpisode(guid: "other2", queueOrder: 6)
       ]
     )
 

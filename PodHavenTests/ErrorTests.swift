@@ -176,8 +176,8 @@ class ErrorTests {
   func testPlaybackErrorMediaNotPlayableFormatting() async throws {
     let url = URL(string: "https://example.com/data")!
     let episodeTitle = "Test Episode"
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
-    let unsavedEpisode = try TestHelpers.unsavedEpisode(media: MediaURL(url), title: episodeTitle)
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode(media: MediaURL(url), title: episodeTitle)
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]

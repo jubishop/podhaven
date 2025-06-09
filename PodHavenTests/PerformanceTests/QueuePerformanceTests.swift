@@ -79,11 +79,11 @@ class QueuePerformanceTests {
   // MARK: - Helpers
 
   private func makeEpisodes(_ numberOfEpisodes: Int) async throws -> [Episode.ID] {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    let unsavedPodcast = try Create.unsavedPodcast()
     var unsavedEpisodes = [UnsavedEpisode](capacity: numberOfEpisodes)
     for _ in 0..<numberOfEpisodes {
       unsavedEpisodes.append(
-        try TestHelpers.unsavedEpisode()
+        try Create.unsavedEpisode()
       )
     }
 
@@ -92,11 +92,11 @@ class QueuePerformanceTests {
   }
 
   private func fillQueue(_ numberOfEpisodes: Int) async throws -> [Episode.ID] {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    let unsavedPodcast = try Create.unsavedPodcast()
     var unsavedEpisodes = [UnsavedEpisode](capacity: numberOfEpisodes)
     for index in 0..<numberOfEpisodes {
       unsavedEpisodes.append(
-        try TestHelpers.unsavedEpisode(queueOrder: index)
+        try Create.unsavedEpisode(queueOrder: index)
       )
     }
 

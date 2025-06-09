@@ -16,12 +16,12 @@ class EpisodeTests {
   @Test("that episodes are created and fetched in the right order")
   func createSeveralEpisodes() async throws {
     let url = URL.valid()
-    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: FeedURL(url))
+    let unsavedPodcast = try Create.unsavedPodcast(feedURL: FeedURL(url))
 
-    let newestUnsavedEpisode = try TestHelpers.unsavedEpisode()
-    let oldUnsavedEpisode = try TestHelpers.unsavedEpisode(pubDate: 10.minutesAgo)
-    let middleUnsavedEpisode = try TestHelpers.unsavedEpisode(pubDate: 5.minutesAgo)
-    let ancientUnsavedEpisode = try TestHelpers.unsavedEpisode(pubDate: 1000.minutesAgo)
+    let newestUnsavedEpisode = try Create.unsavedEpisode()
+    let oldUnsavedEpisode = try Create.unsavedEpisode(pubDate: 10.minutesAgo)
+    let middleUnsavedEpisode = try Create.unsavedEpisode(pubDate: 5.minutesAgo)
+    let ancientUnsavedEpisode = try Create.unsavedEpisode(pubDate: 1000.minutesAgo)
 
     try await repo.insertSeries(
       unsavedPodcast,
@@ -48,8 +48,8 @@ class EpisodeTests {
 
   @Test("that a series with new episodes can be refreshed")
   func refreshSeriesWithNewEpisodes() async throws {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast(title: "original podcast title")
-    let oldEpisode = try TestHelpers.unsavedEpisode(title: "original")
+    let unsavedPodcast = try Create.unsavedPodcast(title: "original podcast title")
+    let oldEpisode = try Create.unsavedEpisode(title: "original")
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [oldEpisode]
@@ -61,7 +61,7 @@ class EpisodeTests {
     var episode = podcastSeries.episodes.first!
     #expect(episode.title == "original")
     episode.title = "new title"
-    let newEpisode = try TestHelpers.unsavedEpisode(title: "episode 2")
+    let newEpisode = try Create.unsavedEpisode(title: "episode 2")
     try await repo.updateSeries(
       podcast,
       unsavedEpisodes: [newEpisode],
@@ -80,8 +80,8 @@ class EpisodeTests {
     let guid = GUID("guid")
     let cmTime = CMTime.inSeconds(30)
 
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
-    let unsavedEpisode = try TestHelpers.unsavedEpisode(guid: guid, currentTime: cmTime)
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode(guid: guid, currentTime: cmTime)
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]
@@ -107,8 +107,8 @@ class EpisodeTests {
     let guid = GUID("guid")
     let cmTime = CMTime.inSeconds(30)
 
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
-    let unsavedEpisode = try TestHelpers.unsavedEpisode(guid: guid, duration: cmTime)
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode(guid: guid, duration: cmTime)
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]
@@ -131,8 +131,8 @@ class EpisodeTests {
 
   @Test("that an episode can be fetched by its media url")
   func fetchEpisodeByMediaURL() async throws {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
-    let unsavedEpisode = try TestHelpers.unsavedEpisode()
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode()
     try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: [unsavedEpisode])
 
     let podcastEpisode = try await repo.episode(unsavedEpisode.media)!
@@ -141,17 +141,17 @@ class EpisodeTests {
 
   @Test("that multiple episodes can be fetched by their media url")
   func fetchEpisodesByMediaURLs() async throws {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
-    let unsavedEpisode1 = try TestHelpers.unsavedEpisode()
-    let unsavedEpisode2 = try TestHelpers.unsavedEpisode()
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode1 = try Create.unsavedEpisode()
+    let unsavedEpisode2 = try Create.unsavedEpisode()
     try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode1, unsavedEpisode2]
     )
 
-    let unsavedPodcast2 = try TestHelpers.unsavedPodcast()
-    let unsavedEpisode21 = try TestHelpers.unsavedEpisode()
-    let unsavedEpisode22 = try TestHelpers.unsavedEpisode()
+    let unsavedPodcast2 = try Create.unsavedPodcast()
+    let unsavedEpisode21 = try Create.unsavedEpisode()
+    let unsavedEpisode22 = try Create.unsavedEpisode()
     try await repo.insertSeries(
       unsavedPodcast2,
       unsavedEpisodes: [unsavedEpisode21, unsavedEpisode22]
@@ -161,7 +161,7 @@ class EpisodeTests {
     let allEpisodes = [
       unsavedEpisode1, unsavedEpisode2, unsavedEpisode21, unsavedEpisode22,
     ]
-    let unsavedEpisodeNeverSaved = try TestHelpers.unsavedEpisode()
+    let unsavedEpisodeNeverSaved = try Create.unsavedEpisode()
 
     let podcastEpisodes = try await repo.episodes([
       unsavedEpisode1.media, unsavedEpisode2.media, unsavedEpisode21.media, unsavedEpisode22.media,
@@ -174,8 +174,8 @@ class EpisodeTests {
 
   @Test("that an episode can be marked complete")
   func markEpisodeComplete() async throws {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
-    let unsavedEpisode = try TestHelpers.unsavedEpisode(currentTime: CMTime.inSeconds(60))
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode(currentTime: CMTime.inSeconds(60))
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]
@@ -193,8 +193,8 @@ class EpisodeTests {
 
   @Test("that upsertPodcastEpisode works when podcast exists or is new")
   func testAddEpisode() async throws {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
-    let unsavedEpisode = try TestHelpers.unsavedEpisode()
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode()
     let insertedPodcastEpisode = try await repo.upsertPodcastEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: unsavedPodcast,
@@ -208,7 +208,7 @@ class EpisodeTests {
     #expect(fetchedPodcastEpisode.podcast.title == insertedPodcastEpisode.podcast.title)
     #expect(fetchedPodcastEpisode.episode.guid == insertedPodcastEpisode.episode.guid)
 
-    let secondUnsavedEpisode = try TestHelpers.unsavedEpisode()
+    let secondUnsavedEpisode = try Create.unsavedEpisode()
     let _ = try await repo.upsertPodcastEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: unsavedPodcast,
@@ -223,13 +223,13 @@ class EpisodeTests {
 
   @Test("that upsertPodcastEpisodes works when fetching existing")
   func testAddEpisodesFetchExisting() async throws {
-    let insertedPodcast = try TestHelpers.unsavedPodcast()
-    let insertedEpisode = try TestHelpers.unsavedEpisode()
-    let unsavedEpisodeInsertedPodcast = try TestHelpers.unsavedEpisode()
+    let insertedPodcast = try Create.unsavedPodcast()
+    let insertedEpisode = try Create.unsavedEpisode()
+    let unsavedEpisodeInsertedPodcast = try Create.unsavedEpisode()
     try await repo.insertSeries(insertedPodcast, unsavedEpisodes: [insertedEpisode])
 
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
-    let unsavedEpisode = try TestHelpers.unsavedEpisode()
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode()
 
     let allPodcasts = [insertedPodcast, unsavedPodcast]
     let allEpisodes = [insertedEpisode, unsavedEpisodeInsertedPodcast, unsavedEpisode]

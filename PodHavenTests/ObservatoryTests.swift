@@ -17,22 +17,22 @@ class ObservatoryTests {
 
   @Test("allPodcastsWithLatestEpisodeDates()")
   func testAllPodcastsWithLatestEpisodeDates() async throws {
-    let podcast = try TestHelpers.unsavedPodcast()
-    let newestUnfinishedEpisode = try TestHelpers.unsavedEpisode(
+    let podcast = try Create.unsavedPodcast()
+    let newestUnfinishedEpisode = try Create.unsavedEpisode(
       pubDate: 10.minutesAgo,
       currentTime: CMTime.inSeconds(60),
       queueOrder: 0
     )
-    let newestUnstartedEpisode = try TestHelpers.unsavedEpisode(
+    let newestUnstartedEpisode = try Create.unsavedEpisode(
       pubDate: 20.minutesAgo,
       queueOrder: 1
     )
-    let newestUnqueuedEpisode = try TestHelpers.unsavedEpisode(pubDate: 30.minutesAgo)
-    let newerPlayedEpisode = try TestHelpers.unsavedEpisode(
+    let newestUnqueuedEpisode = try Create.unsavedEpisode(pubDate: 30.minutesAgo)
+    let newerPlayedEpisode = try Create.unsavedEpisode(
       pubDate: 1.minutesAgo,
       completionDate: 1.minutesAgo
     )
-    let olderUnplayedEpisode = try TestHelpers.unsavedEpisode(pubDate: 100.minutesAgo)
+    let olderUnplayedEpisode = try Create.unsavedEpisode(pubDate: 100.minutesAgo)
     try await repo.insertSeries(
       podcast,
       unsavedEpisodes: [
@@ -44,8 +44,8 @@ class ObservatoryTests {
       ]
     )
 
-    let podcastAllPlayed = try TestHelpers.unsavedPodcast()
-    let playedEpisode = try TestHelpers.unsavedEpisode(completionDate: 1.minutesAgo)
+    let podcastAllPlayed = try Create.unsavedPodcast()
+    let playedEpisode = try Create.unsavedEpisode(completionDate: 1.minutesAgo)
     try await repo.insertSeries(podcastAllPlayed, unsavedEpisodes: [playedEpisode])
 
     let allPodcastsWithLatestEpisodeDates =
@@ -77,18 +77,18 @@ class ObservatoryTests {
 
   @Test("queuedPodcastEpisodes()")
   func testQueuedPodcastEpisodes() async throws {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    let unsavedPodcast = try Create.unsavedPodcast()
     try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
-        TestHelpers.unsavedEpisode(guid: "top", queueOrder: 0),
-        TestHelpers.unsavedEpisode(guid: "bottom", queueOrder: 4),
-        TestHelpers.unsavedEpisode(guid: "midtop", queueOrder: 1),
-        TestHelpers.unsavedEpisode(guid: "middle", queueOrder: 2),
-        TestHelpers.unsavedEpisode(guid: "midbottom", queueOrder: 3),
-        TestHelpers.unsavedEpisode(guid: "unqbottom"),
-        TestHelpers.unsavedEpisode(guid: "unqmiddle"),
-        TestHelpers.unsavedEpisode(guid: "unqtop"),
+        Create.unsavedEpisode(guid: "top", queueOrder: 0),
+        Create.unsavedEpisode(guid: "bottom", queueOrder: 4),
+        Create.unsavedEpisode(guid: "midtop", queueOrder: 1),
+        Create.unsavedEpisode(guid: "middle", queueOrder: 2),
+        Create.unsavedEpisode(guid: "midbottom", queueOrder: 3),
+        Create.unsavedEpisode(guid: "unqbottom"),
+        Create.unsavedEpisode(guid: "unqmiddle"),
+        Create.unsavedEpisode(guid: "unqtop"),
       ]
     )
 
@@ -103,28 +103,28 @@ class ObservatoryTests {
 
   @Test("podcastEpisodes(Episode.completed, Episode.Columns.completionDate.desc)")
   func testCompletedPodcastEpisodes() async throws {
-    let unsavedPodcast = try TestHelpers.unsavedPodcast()
+    let unsavedPodcast = try Create.unsavedPodcast()
     try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
-        TestHelpers.unsavedEpisode(
+        Create.unsavedEpisode(
           guid: "top",
           pubDate: 15.minutesAgo,
           completionDate: 5.minutesAgo
         ),
-        TestHelpers.unsavedEpisode(guid: "topUncompleted"),
-        TestHelpers.unsavedEpisode(
+        Create.unsavedEpisode(guid: "topUncompleted"),
+        Create.unsavedEpisode(
           guid: "bottom",
           pubDate: 1.minutesAgo,
           completionDate: 15.minutesAgo
         ),
-        TestHelpers.unsavedEpisode(guid: "bottomUncompleted"),
-        TestHelpers.unsavedEpisode(
+        Create.unsavedEpisode(guid: "bottomUncompleted"),
+        Create.unsavedEpisode(
           guid: "middle",
           pubDate: 25.minutesAgo,
           completionDate: 10.minutesAgo
         ),
-        TestHelpers.unsavedEpisode(guid: "middleUncompleted"),
+        Create.unsavedEpisode(guid: "middleUncompleted"),
       ]
     )
 

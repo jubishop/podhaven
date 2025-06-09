@@ -15,8 +15,8 @@ class PodcastTests {
   @Test("that a podcast can be created, fetched, and deleted")
   func createSinglePodcast() async throws {
     let url = URL(string: "https://example.com/data")!
-    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: FeedURL(url))
-    let unsavedEpisode = try TestHelpers.unsavedEpisode()
+    let unsavedPodcast = try Create.unsavedPodcast(feedURL: FeedURL(url))
+    let unsavedEpisode = try Create.unsavedEpisode()
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]
@@ -77,7 +77,7 @@ class PodcastTests {
       )
     ) {
       try await self.repo.insertSeries(
-        TestHelpers.unsavedPodcast(
+        Create.unsavedPodcast(
           feedURL: FeedURL(schemeURL),
           title: schemeTitle
         )
@@ -98,7 +98,7 @@ class PodcastTests {
       )
     ) {
       try await self.repo.insertSeries(
-        TestHelpers.unsavedPodcast(feedURL: FeedURL(relativeURL), title: relativeTitle)
+        Create.unsavedPodcast(feedURL: FeedURL(relativeURL), title: relativeTitle)
       )
     }
   }
@@ -106,7 +106,7 @@ class PodcastTests {
   @Test("that a podcast feedURL converts http to https as needed")
   func convertFeedURLToHTTPS() async throws {
     let url = URL(string: "http://example.com/data#fragment")!
-    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: FeedURL(url))
+    let unsavedPodcast = try Create.unsavedPodcast(feedURL: FeedURL(url))
     let podcastSeries = try await repo.insertSeries(unsavedPodcast)
     let podcast = podcastSeries.podcast
     #expect(podcast.feedURL == FeedURL(URL(string: "https://example.com/data#fragment")!))
@@ -115,7 +115,7 @@ class PodcastTests {
   @Test("that a podcast feedURL adds https as needed")
   func convertFeedURLAddsHTTPS() async throws {
     let url = URL(string: "example.com/data#fragment")!
-    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: FeedURL(url))
+    let unsavedPodcast = try Create.unsavedPodcast(feedURL: FeedURL(url))
     let podcastSeries = try await repo.insertSeries(unsavedPodcast)
     let podcast = podcastSeries.podcast
     #expect(podcast.feedURL == FeedURL(URL(string: "https://example.com/data#fragment")!))
@@ -124,9 +124,9 @@ class PodcastTests {
   @Test("that trying to set the same podcast feedURL throws error")
   func updateExistingPodcastOnConflict() async throws {
     let url = URL(string: "https://example.com/data")!
-    let unsavedPodcast = try TestHelpers.unsavedPodcast(feedURL: FeedURL(url), title: "Old Title")
+    let unsavedPodcast = try Create.unsavedPodcast(feedURL: FeedURL(url), title: "Old Title")
     _ = try await repo.insertSeries(unsavedPodcast)
-    let unsavedPodcast2 = try TestHelpers.unsavedPodcast(feedURL: FeedURL(url), title: "New Title")
+    let unsavedPodcast2 = try Create.unsavedPodcast(feedURL: FeedURL(url), title: "New Title")
     await #expect(throws: (any Error).self) {
       _ = try await self.repo.insertSeries(unsavedPodcast2)
     }
@@ -134,9 +134,9 @@ class PodcastTests {
 
   @Test("allPodcasts()")
   func testAll() async throws {
-    let freshPodcast = try TestHelpers.unsavedPodcast(lastUpdate: Date())
-    let stalePodcast = try TestHelpers.unsavedPodcast(lastUpdate: 10.minutesAgo)
-    let unsubscribedPodcast = try TestHelpers.unsavedPodcast(subscribed: false)
+    let freshPodcast = try Create.unsavedPodcast(lastUpdate: Date())
+    let stalePodcast = try Create.unsavedPodcast(lastUpdate: 10.minutesAgo)
+    let unsubscribedPodcast = try Create.unsavedPodcast(subscribed: false)
     try await repo.insertSeries(freshPodcast)
     try await repo.insertSeries(stalePodcast)
     try await repo.insertSeries(unsubscribedPodcast)
@@ -147,9 +147,9 @@ class PodcastTests {
 
   @Test("allPodcastSeries()")
   func testAllPodcastSeries() async throws {
-    let freshPodcast = try TestHelpers.unsavedPodcast(lastUpdate: Date())
-    let stalePodcast = try TestHelpers.unsavedPodcast(lastUpdate: 10.minutesAgo)
-    let unsubscribedPodcast = try TestHelpers.unsavedPodcast(subscribed: false)
+    let freshPodcast = try Create.unsavedPodcast(lastUpdate: Date())
+    let stalePodcast = try Create.unsavedPodcast(lastUpdate: 10.minutesAgo)
+    let unsubscribedPodcast = try Create.unsavedPodcast(subscribed: false)
     try await repo.insertSeries(freshPodcast)
     try await repo.insertSeries(stalePodcast)
     try await repo.insertSeries(unsubscribedPodcast)
@@ -161,15 +161,15 @@ class PodcastTests {
   @Test("markSubscribed() successfully marks multiple podcasts as subscribed")
   func testMarkSubscribed() async throws {
     let podcastSeries1 = try await repo.insertSeries(
-      try TestHelpers.unsavedPodcast(subscribed: false)
+      try Create.unsavedPodcast(subscribed: false)
     )
     #expect(podcastSeries1.podcast.subscribed == false)
     let podcastSeries2 = try await repo.insertSeries(
-      try TestHelpers.unsavedPodcast(subscribed: false)
+      try Create.unsavedPodcast(subscribed: false)
     )
     #expect(podcastSeries2.podcast.subscribed == false)
     let podcastSeries3 = try await repo.insertSeries(
-      try TestHelpers.unsavedPodcast(subscribed: true)
+      try Create.unsavedPodcast(subscribed: true)
     )
     #expect(podcastSeries3.podcast.subscribed == true)
 
@@ -186,15 +186,15 @@ class PodcastTests {
   @Test("markUnsubscribed() successfully marks multiple podcasts as unsubscribed")
   func testMarkUnsubscribed() async throws {
     let podcastSeries1 = try await repo.insertSeries(
-      try TestHelpers.unsavedPodcast(subscribed: true)
+      try Create.unsavedPodcast(subscribed: true)
     )
     #expect(podcastSeries1.podcast.subscribed == true)
     let podcastSeries2 = try await repo.insertSeries(
-      try TestHelpers.unsavedPodcast(subscribed: true)
+      try Create.unsavedPodcast(subscribed: true)
     )
     #expect(podcastSeries2.podcast.subscribed == true)
     let podcastSeries3 = try await repo.insertSeries(
-      try TestHelpers.unsavedPodcast(subscribed: false)
+      try Create.unsavedPodcast(subscribed: false)
     )
     #expect(podcastSeries3.podcast.subscribed == false)
 

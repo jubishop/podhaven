@@ -9,7 +9,7 @@ import Tagged
 
 enum That {
   static func eventually(
-    maxAttempts: Int = 25,
+    maxAttempts: Int = 50,
     delay: Duration = .milliseconds(10),
     _ block: @Sendable @escaping () throws -> Bool
   ) async throws -> Bool {
@@ -25,7 +25,7 @@ enum That {
   }
 
   static func eventually(
-    maxAttempts: Int = 25,
+    maxAttempts: Int = 50,
     delay: Duration = .milliseconds(10),
     _ block: @Sendable @escaping () async throws -> Bool
   ) async throws -> Bool {

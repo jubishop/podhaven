@@ -39,7 +39,7 @@ import Testing
 
   @Test("simple loading, playing, and pausing episode")
   func simpleLoadPlayAndPauseEpisode() async throws {
-    let podcastEpisode = try await TestHelpers.podcastEpisode()
+    let podcastEpisode = try await Create.podcastEpisode()
 
     let onDeck = try await load(podcastEpisode)
     #expect(playState.status == .paused)
@@ -65,8 +65,8 @@ import Testing
   @Test("loading an episode updates its duration value")
   func loadingEpisodeUpdatesDuration() async throws {
     let originalDuration = CMTime.inSeconds(10)
-    let podcastEpisode = try await TestHelpers.podcastEpisode(
-      TestHelpers.unsavedEpisode(duration: originalDuration)
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(duration: originalDuration)
     )
 
     let correctDuration = CMTime.inSeconds(999)
@@ -85,7 +85,7 @@ import Testing
 
   @Test("command center stops and starts playback")
   func commandCenterStopsAndStartsPlayback() async throws {
-    let podcastEpisode = try await TestHelpers.podcastEpisode()
+    let podcastEpisode = try await Create.podcastEpisode()
 
     try await load(podcastEpisode)
     try await play()
@@ -113,7 +113,7 @@ import Testing
 
   @Test("audio session interruption stops and restarts playback")
   func audioSessionInterruptionStopsPlayback() async throws {
-    let podcastEpisode = try await TestHelpers.podcastEpisode()
+    let podcastEpisode = try await Create.podcastEpisode()
 
     try await load(podcastEpisode)
     try await play()
@@ -159,8 +159,8 @@ import Testing
     let duration = CMTime.inSeconds(240)
     let skipAmount = CMTime.inSeconds(15)
     var currentTime = CMTime.inSeconds(120)
-    let podcastEpisode = try await TestHelpers.podcastEpisode(
-      TestHelpers.unsavedEpisode(duration: duration, currentTime: currentTime)
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(duration: duration, currentTime: currentTime)
     )
 
     // Seek will happen because episode has currentTime
@@ -204,7 +204,7 @@ import Testing
 
   @Test("playback is paused while seeking")
   func playbackIsPausedWhileSeeking() async throws {
-    let podcastEpisode = try await TestHelpers.podcastEpisode()
+    let podcastEpisode = try await Create.podcastEpisode()
     try await load(podcastEpisode)
     try await play()
 
@@ -231,8 +231,8 @@ import Testing
   @Test("periodicTimeObserver events are ignored while seeking")
   func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
     var correctTime = CMTime.inSeconds(30)
-    let podcastEpisode = try await TestHelpers.podcastEpisode(
-      TestHelpers.unsavedEpisode(currentTime: correctTime)
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(currentTime: correctTime)
     )
     try await load(podcastEpisode)
     #expect(playState.currentTime == correctTime)
@@ -274,7 +274,7 @@ import Testing
 
   @Test("adding an episode to top of queue while playing")
   func addingAnEpisodeToTopOfQueueWhilePlaying() async throws {
-    let (playingEpisode, queuedEpisode) = try await TestHelpers.twoPodcastEpisodes()
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
     try await load(playingEpisode)
     try await queue.unshift(queuedEpisode.id)
@@ -287,7 +287,7 @@ import Testing
 
   @Test("loading an episode with queue already filled")
   func loadingAnEpisodeWithQueueAlreadyFilled() async throws {
-    let (playingEpisode, queuedEpisode) = try await TestHelpers.twoPodcastEpisodes()
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
     try await queue.unshift(queuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
@@ -302,7 +302,7 @@ import Testing
   @Test("top queue item changes while playing")
   func topQueueItemChangesWhilePlaying() async throws {
     let (playingEpisode, queuedEpisode, incomingQueuedEpisode) =
-      try await TestHelpers.threePodcastEpisodes()
+      try await Create.threePodcastEpisodes()
 
     try await queue.unshift(queuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
@@ -318,7 +318,7 @@ import Testing
 
   @Test("loading an episode puts current episode back in queue")
   func loadingAnEpisodePutsCurrentEpisodeBackInQueue() async throws {
-    let (playingEpisode, incomingEpisode) = try await TestHelpers.twoPodcastEpisodes()
+    let (playingEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
     try await load(playingEpisode)
     try await Task.sleep(for: .milliseconds(100))
@@ -335,7 +335,7 @@ import Testing
 
   @Test("loading an episode fails with none playing right now")
   func loadingAnEpisodeFailsWithNonePlayingRightNow() async throws {
-    let episodeToLoad = try await TestHelpers.podcastEpisode()
+    let episodeToLoad = try await Create.podcastEpisode()
 
     episodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
       throw TestError.assetLoadFailure(mediaURL)
@@ -353,7 +353,7 @@ import Testing
 
   @Test("loading an episode fails with one playing right now")
   func loadingAnEpisodeFailsWithOnePlayingRightNow() async throws {
-    let (playingEpisode, episodeToLoad) = try await TestHelpers.twoPodcastEpisodes()
+    let (playingEpisode, episodeToLoad) = try await Create.twoPodcastEpisodes()
 
     try await load(playingEpisode)
     try await Task.sleep(for: .milliseconds(100))
@@ -378,7 +378,7 @@ import Testing
 
   @Test("current item becoming nil clears deck")
   func currentItemBecomingNilClearsDeck() async throws {
-    let podcastEpisode = try await TestHelpers.podcastEpisode()
+    let podcastEpisode = try await Create.podcastEpisode()
 
     try await load(podcastEpisode)
     try await play()
@@ -396,7 +396,7 @@ import Testing
   @Test("current item advancing to next episode")
   func currentItemAdvancingToNextEpisode() async throws {
     let (originalEpisode, queuedEpisode, incomingEpisode) =
-      try await TestHelpers.threePodcastEpisodes()
+      try await Create.threePodcastEpisodes()
 
     try await queue.unshift(queuedEpisode.id)
     try await queue.unshift(incomingEpisode.id)
@@ -432,8 +432,8 @@ import Testing
   @Test("advancing to next episode pauses until after seek and then sets currentTime")
   func advancingToNextEpisodePausesUntilAfterSeekAndThenSetsCurrentTime() async throws {
     let currentTime = CMTime.inSeconds(10)
-    let (queuedEpisode, originalEpisode) = try await TestHelpers.twoPodcastEpisodes(
-      TestHelpers.unsavedEpisode(currentTime: currentTime)
+    let (queuedEpisode, originalEpisode) = try await Create.twoPodcastEpisodes(
+      Create.unsavedEpisode(currentTime: currentTime)
     )
 
     try await queue.unshift(queuedEpisode.id)
@@ -458,8 +458,8 @@ import Testing
   @Test("new currentItem with no currentTime sets currentTime to zero")
   func newCurrentItemWithNoCurrentTimeSetsCurrentTimeToZero() async throws {
     let originalTime = CMTime.inSeconds(10)
-    let (originalEpisode, queuedEpisode) = try await TestHelpers.twoPodcastEpisodes(
-      TestHelpers.unsavedEpisode(currentTime: originalTime)
+    let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes(
+      Create.unsavedEpisode(currentTime: originalTime)
     )
 
     try await queue.unshift(queuedEpisode.id)
@@ -473,7 +473,7 @@ import Testing
 
   @Test("episode is marked complete after playing to end")
   func episodeIsMarkedCompleteAfterPlayingToEnd() async throws {
-    let podcastEpisode = try await TestHelpers.podcastEpisode()
+    let podcastEpisode = try await Create.podcastEpisode()
 
     try await load(podcastEpisode)
     try await play()
@@ -489,17 +489,17 @@ import Testing
   @discardableResult
   private func load(_ podcastEpisode: PodcastEpisode) async throws -> OnDeck {
     try await playManager.load(podcastEpisode)
-    return try await TestHelpers.waitForValue { await playState.onDeck }
+    return try await Wait.forValue { await playState.onDeck }
   }
 
   private func play() async throws {
     await playManager.play()
-    try await TestHelpers.waitUntil { await playState.status == .playing }
+    try await Wait.until { await playState.status == .playing }
   }
 
   private func pause() async throws {
     await playManager.pause()
-    try await TestHelpers.waitUntil { await playState.status == .paused }
+    try await Wait.until { await playState.status == .paused }
   }
 
   private var nowPlayingTitle: String {
