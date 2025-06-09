@@ -57,7 +57,7 @@ actor PlayManager {
     }
   }
 
-  private var loadingTask: Task<Void, any Error>?
+  private var loadTask: Task<Void, any Error>?
 
   // MARK: - Initialization
 
@@ -87,7 +87,7 @@ actor PlayManager {
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) {
-    loadingTask?.cancel()
+    loadTask?.cancel()
 
     return try await PlaybackError.catch {
       try await performLoad(podcastEpisode)
@@ -167,8 +167,8 @@ actor PlayManager {
       }
     }
 
-    loadingTask = task
-    defer { loadingTask = nil }
+    loadTask = task
+    defer { loadTask = nil }
 
     try await task.value
   }

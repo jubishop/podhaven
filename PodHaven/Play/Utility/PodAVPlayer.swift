@@ -43,7 +43,7 @@ extension Container {
     playableItem: any AVPlayableItem
   )
   private(set) var podcastEpisode: PodcastEpisode?
-  private var transitionStatus: AVPlayer.TimeControlStatus?
+  private var preSeekStatus: AVPlayer.TimeControlStatus?
 
   let currentTimeStream: AsyncStream<CMTime>
   let currentItemStream: AsyncStream<PodcastEpisode?>
@@ -82,7 +82,7 @@ extension Container {
     log.debug("stop: executing")
     removeTransientObservers()
     podcastEpisode = nil
-    transitionStatus = nil
+    preSeekStatus = nil
     avQueuePlayer.removeAllItems()
   }
 
@@ -92,7 +92,7 @@ extension Container {
     let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
     avQueuePlayer.removeAllItems()
     avQueuePlayer.insert(playableItem, after: nil)
-    transitionStatus = nil
+    preSeekStatus = nil
     self.podcastEpisode = podcastEpisode
 
     return podcastEpisode
@@ -137,7 +137,7 @@ extension Container {
 
   func play() {
     log.debug("playing")
-    transitionStatus = nil
+    preSeekStatus = nil
     avQueuePlayer.play()
   }
 
@@ -169,7 +169,7 @@ extension Container {
 
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
-    transitionStatus = transitionStatus ?? avQueuePlayer.timeControlStatus
+    preSeekStatus = preSeekStatus ?? avQueuePlayer.timeControlStatus
     pause()
 
     avQueuePlayer.seek(to: time) { [weak self] completed in
@@ -178,9 +178,9 @@ extension Container {
       if completed {
         log.trace("seek: to \(time) completed")
         Task { @MainActor in
-          if let transitionStatus {
-            self.transitionStatus = nil
-            if transitionStatus != .paused { play() }
+          if let preSeekStatus {
+            self.preSeekStatus = nil
+            if preSeekStatus != .paused { play() }
           }
           addPeriodicTimeObserver()
         }
