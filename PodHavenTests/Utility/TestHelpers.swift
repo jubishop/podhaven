@@ -8,13 +8,12 @@ import Tagged
 @testable import PodHaven
 
 enum TestHelpers {
-
   // MARK: - Waiters
 
   @discardableResult
   static func waitForValue<T: Sendable>(
     maxAttempts: Int = 10,
-    delay: UInt64 = 10_000_000,  // 10 ms
+    delay: Duration = .milliseconds(10),
     _ block: @Sendable @escaping () throws -> T?
   ) async throws -> T {
     var attempts = 0
@@ -22,7 +21,7 @@ enum TestHelpers {
       if let value = try block() {
         return value
       }
-      try await Task.sleep(nanoseconds: delay)
+      try await Task.sleep(for: delay)
       attempts += 1
     }
     throw TestError.waitForValueFailure(String(describing: T.self))
@@ -31,7 +30,7 @@ enum TestHelpers {
   @discardableResult
   static func waitForValue<T: Sendable>(
     maxAttempts: Int = 10,
-    delay: UInt64 = 10_000_000,  // 10 ms
+    delay: Duration = .milliseconds(10),
     _ block: @Sendable @escaping () async throws -> T?
   ) async throws -> T {
     var attempts = 0
@@ -39,7 +38,7 @@ enum TestHelpers {
       if let value = try await block() {
         return value
       }
-      try await Task.sleep(nanoseconds: delay)
+      try await Task.sleep(for: delay)
       attempts += 1
     }
     throw TestError.waitForValueFailure(String(describing: T.self))
@@ -47,7 +46,7 @@ enum TestHelpers {
 
   static func waitUntil(
     maxAttempts: Int = 10,
-    delay: UInt64 = 10_000_000,  // 10 ms
+    delay: Duration = .milliseconds(10),
     _ block: @Sendable @escaping () throws -> Bool
   ) async throws {
     var attempts = 0
@@ -55,7 +54,7 @@ enum TestHelpers {
       if try block() {
         return
       }
-      try await Task.sleep(nanoseconds: delay)
+      try await Task.sleep(for: delay)
       attempts += 1
     }
     throw TestError.waitUntilFailure
@@ -63,7 +62,7 @@ enum TestHelpers {
 
   static func waitUntil(
     maxAttempts: Int = 25,
-    delay: UInt64 = 10_000_000,  // 10 ms
+    delay: Duration = .milliseconds(10),
     _ block: @Sendable @escaping () async throws -> Bool
   ) async throws {
     var attempts = 0
@@ -71,7 +70,7 @@ enum TestHelpers {
       if try await block() {
         return
       }
-      try await Task.sleep(nanoseconds: delay)
+      try await Task.sleep(for: delay)
       attempts += 1
     }
     throw TestError.waitUntilFailure

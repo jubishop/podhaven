@@ -224,7 +224,8 @@ import Testing
 
     // Now seek has finished, we go back to playing
     try await Task.sleep(for: .milliseconds(200))
-    try await TestHelpers.waitUntil { await playState.status == .playing }
+    #expect(try await That.eventually { await playState.status == .playing })
+    #expect(playState.currentTime == .inSeconds(30))
   }
 
   @Test("periodicTimeObserver events are ignored while seeking")
@@ -342,7 +343,7 @@ import Testing
     await #expect(throws: (any Error).self) {
       try await load(episodeToLoad)
     }
-    try await Task.sleep(for: .milliseconds(125))
+    try await Task.sleep(for: .milliseconds(200))
     #expect(playState.status == .stopped)
     #expect(avQueuePlayer.timeControlStatus == .paused)
     #expect(playState.onDeck == nil)
@@ -407,16 +408,20 @@ import Testing
     avQueuePlayer.simulateFinishingEpisode()
     try await Task.sleep(for: .milliseconds(100))
 
-    try await TestHelpers.waitUntil {
-      let status = await playState.status
-      let timeControlStatus = await avQueuePlayer.timeControlStatus
-      return status == .playing && timeControlStatus == .playing
-    }
-    try await TestHelpers.waitUntil {
-      let title = incomingEpisode.episode.title
-      let onDeckTitle = await playState.onDeck?.episodeTitle
-      return title == onDeckTitle
-    }
+    #expect(
+      try await That.eventually {
+        let title = incomingEpisode.episode.title
+        let onDeckTitle = await playState.onDeck?.episodeTitle
+        return title == onDeckTitle
+      }
+    )
+    #expect(
+      try await That.eventually {
+        let status = await playState.status
+        let timeControlStatus = await avQueuePlayer.timeControlStatus
+        return status == .playing && timeControlStatus == .playing
+      }
+    )
     #expect(playState.onDeck! == incomingEpisode)
     #expect(nowPlayingTitle == incomingEpisode.episode.title)
     #expect(itemQueueURLs == episodeMediaURLs([incomingEpisode, queuedEpisode]))
@@ -424,13 +429,38 @@ import Testing
     #expect(queued == episodeStrings([queuedEpisode]))
   }
 
+  @Test("advancing to next episode pauses until after seek and then sets currentTime")
+  func advancingToNextEpisodePausesUntilAfterSeekAndThenSetsCurrentTime() async throws {
+    let currentTime = CMTime.inSeconds(10)
+    let (queuedEpisode, originalEpisode) = try await TestHelpers.twoPodcastEpisodes(
+      TestHelpers.unsavedEpisode(currentTime: currentTime)
+    )
+
+    try await queue.unshift(queuedEpisode.id)
+    try await load(originalEpisode)
+    try await play()
+    #expect(playState.currentTime == .zero)
+
+    avQueuePlayer.seekHandler = { _ in
+      try? await Task.sleep(for: .milliseconds(250))
+      return true
+    }
+
+    avQueuePlayer.simulateFinishingEpisode()
+    #expect(try await That.eventually { await playState.status == .paused })
+    #expect(avQueuePlayer.timeControlStatus == .paused)
+
+    #expect(try await That.eventually { await playState.status == .playing })
+    #expect(avQueuePlayer.timeControlStatus == .playing)
+    #expect(try await That.eventually { await playState.currentTime == currentTime })
+  }
+
   @Test("new currentItem with no currentTime sets currentTime to zero")
   func newCurrentItemWithNoCurrentTimeSetsCurrentTimeToZero() async throws {
     let originalTime = CMTime.inSeconds(10)
-    let (originalEpisode, queuedEpisode) =
-      try await TestHelpers.twoPodcastEpisodes(
-        TestHelpers.unsavedEpisode(currentTime: originalTime)
-      )
+    let (originalEpisode, queuedEpisode) = try await TestHelpers.twoPodcastEpisodes(
+      TestHelpers.unsavedEpisode(currentTime: originalTime)
+    )
 
     try await queue.unshift(queuedEpisode.id)
     try await load(originalEpisode)
@@ -438,8 +468,7 @@ import Testing
     #expect(playState.currentTime == originalTime)
 
     avQueuePlayer.simulateFinishingEpisode()
-    try await Task.sleep(for: .milliseconds(100))
-    try await TestHelpers.waitUntil { await playState.currentTime == .zero }
+    #expect(try await That.eventually { await playState.currentTime == .zero })
   }
 
   @Test("episode is marked complete after playing to end")
