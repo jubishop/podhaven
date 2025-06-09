@@ -167,6 +167,11 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   var seekHandler: (CMTime) async -> (Bool) = { _ in (true) }
 
   func simulateFinishingEpisode() {
+    Assert.precondition(
+      timeControlStatus == .playing,
+      "Can't simulate finishing episode when not playing!"
+    )
+
     guard let currentItem = queued.first else { return }
 
     notifier.continuation(for: AVPlayerItem.didPlayToEndTimeNotification)
@@ -185,6 +190,11 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   }
 
   func simulateWaitingToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
+    Assert.precondition(
+      timeControlStatus == .playing,
+      "Can only simulate waitingToPlay if playing!"
+    )
+
     reasonForWaitingToPlay = waitingReason
     timeControlStatus = .waitingToPlayAtSpecifiedRate
   }

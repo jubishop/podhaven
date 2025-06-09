@@ -283,6 +283,17 @@ actor PlayManager {
       await setOnDeck(podcastEpisode)
     } else {
       await stop()
+
+      do {
+        if let nextEpisode = try await queue.nextEpisode {
+          try await load(nextEpisode)
+          await play()
+        }
+      } catch {
+        if ErrorKit.isRemarkable(error) {
+          log.error(ErrorKit.loggableMessage(for: error))
+        }
+      }
     }
   }
 

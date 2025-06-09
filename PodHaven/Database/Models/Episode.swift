@@ -10,8 +10,8 @@ import Tagged
 typealias GUID = Tagged<UnsavedEpisode, String>
 
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
-extension MediaURL {
-  var description: String { rawValue.hashTo(3) }
+extension MediaURL: Stringable {
+  var toString: String { rawValue.hashTo(3) }
 }
 
 struct UnsavedEpisode: Savable, Stringable {
@@ -60,7 +60,7 @@ struct UnsavedEpisode: Savable, Stringable {
 
   // MARK: - Savable
 
-  var toString: String { "\(media) - \(self.title)" }
+  var toString: String { "\(media.toString) - \(self.title)" }
   var searchableString: String { self.title }
 
   // MARK: - State Getters

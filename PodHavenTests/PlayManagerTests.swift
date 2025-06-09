@@ -393,6 +393,34 @@ import Testing
     #expect((try await queuedPodcastEpisodes).isEmpty)
   }
 
+  @Test("current item becoming nil with existing next episode loads next episode")
+  func currentItemBecomingNilWithExistingNextEpisodeLoadsNextEpisode() async throws {
+    let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+    episodeAssetLoader.respond(to: queuedEpisode.episode.media) { mediaURL in
+      throw TestError.assetLoadFailure(mediaURL)
+    }
+    try await queue.unshift(queuedEpisode.id)
+
+    try await load(originalEpisode)
+    try await play()
+    #expect(
+      try await That.eventually { await responseCount(for: queuedEpisode.episode.media) == 1 },
+      "responseCount remains: \(responseCount(for: queuedEpisode.episode.media))"
+    )
+
+    episodeAssetLoader.clearCustomHandler(for: queuedEpisode.episode.media)
+    avQueuePlayer.simulateFinishingEpisode()
+    #expect(
+      try await That.eventually {
+        await playState.onDeck?.episodeTitle == queuedEpisode.episode.title
+      }
+    )
+    #expect(try await That.eventually { await playState.status == .playing })
+    #expect(avQueuePlayer.timeControlStatus == .playing)
+    #expect(itemQueueURLs == episodeMediaURLs([queuedEpisode]))
+  }
+
   @Test("current item advancing to next episode")
   func currentItemAdvancingToNextEpisode() async throws {
     let (originalEpisode, queuedEpisode, incomingEpisode) =
@@ -429,7 +457,7 @@ import Testing
     #expect(queued == episodeStrings([queuedEpisode]))
   }
 
-  @Test("advancing to next episode pauses until after seek and then sets currentTime")
+  @Test("new currentItem with currentTime pauses until after seek and then sets currentTime")
   func advancingToNextEpisodePausesUntilAfterSeekAndThenSetsCurrentTime() async throws {
     let currentTime = CMTime.inSeconds(10)
     let (queuedEpisode, originalEpisode) = try await Create.twoPodcastEpisodes(
@@ -464,6 +492,7 @@ import Testing
 
     try await queue.unshift(queuedEpisode.id)
     try await load(originalEpisode)
+    try await play()
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.currentTime == originalTime)
 
@@ -534,6 +563,10 @@ import Testing
           .fetchAll(db)
       }
     }
+  }
+
+  func responseCount(for mediaURL: MediaURL) -> Int {
+    episodeAssetLoader.responseCounts[mediaURL, default: 0]
   }
 
   private func episodeStrings(_ podcastEpisodes: [PodcastEpisode]) -> [String] {
