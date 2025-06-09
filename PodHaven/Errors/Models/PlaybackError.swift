@@ -6,6 +6,7 @@ import ReadableErrorMacro
 
 @ReadableError
 enum PlaybackError: ReadableError, CatchingError {
+  case currentItemChangedWhenPaused(MediaURL?)
   case endedEpisodeDoesNotMatch(podcastEpisode: PodcastEpisode?, mediaURL: MediaURL)
   case endedEpisodeNotFound(MediaURL)
   case loadFailure(podcastEpisode: PodcastEpisode, caught: Error)
@@ -15,6 +16,8 @@ enum PlaybackError: ReadableError, CatchingError {
 
   var message: String {
     switch self {
+    case .currentItemChangedWhenPaused(let mediaURL):
+      return "Current item changed when paused with MediaURL: \(String(describing: mediaURL))"
     case .endedEpisodeDoesNotMatch(let podcastEpisode, let mediaURL):
       return
         """

@@ -271,6 +271,10 @@ extension Container {
   private func handleCurrentItemChange(_ mediaURL: MediaURL?) async throws {
     if podcastEpisode?.episode.media == mediaURL { return }
 
+    if avQueuePlayer.timeControlStatus != .playing {
+      throw PlaybackError.currentItemChangedWhenPaused(mediaURL)
+    }
+
     if let mediaURL {
       podcastEpisode = try await repo.episode(mediaURL)
     } else {
