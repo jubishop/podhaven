@@ -252,6 +252,8 @@ extension Container {
         \(avQueuePlayer.queued.map { "\($0.assetURL)" }.joined(separator: "\n  "))
       """
     )
+
+    Assert.precondition(avQueuePlayer.queued.count <= 2, "Too many AVPlayerItems?")
   }
 
   private func shouldSetAsNext(_ podcastEpisode: PodcastEpisode?) -> Bool {
