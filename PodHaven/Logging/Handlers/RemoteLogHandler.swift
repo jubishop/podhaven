@@ -58,8 +58,6 @@ struct RemoteLogHandler: LogHandler {
     function: String,
     line: UInt
   ) {
-    guard level > .trace else { return }
-
     Bugfender.log(
       lineNumber: Int(line),
       method: function,
