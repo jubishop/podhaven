@@ -17,7 +17,7 @@ enum Log {
     return logger
   }
 
-  static func `as`(_ category: String, level: Logger.Level = .debug) -> Logger {
+  static func `as`(_ category: String, level: Logger.Level = .trace) -> Logger {
     var logger = Logger(
       label: LogKit.buildLabel(
         subsystem: "PodHaven",

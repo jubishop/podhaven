@@ -10,7 +10,7 @@ struct PrintLogHandler: LogHandler {
     get { self.metadata[metadataKey] }
     set(newValue) { self.metadata[metadataKey] = newValue }
   }
-  public var logLevel: Logger.Level = .debug
+  public var logLevel: Logger.Level = .trace
 
   private let label: String
 

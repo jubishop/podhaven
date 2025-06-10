@@ -32,7 +32,7 @@ struct OSLogHandler: LogHandler {
     get { self.metadata[metadataKey] }
     set(newValue) { self.metadata[metadataKey] = newValue }
   }
-  public var logLevel: Logging.Logger.Level = .debug
+  public var logLevel: Logging.Logger.Level = .trace
 
   private let logger: os.Logger
 
