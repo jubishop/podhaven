@@ -236,7 +236,7 @@ class ErrorTests {
     let task = Task {
       await #expect {
         _ = try await URLSession.shared.data(
-          for: URLRequest(url: URL(string: "https://example.com")!)
+          for: URLRequest(url: URL(string: "https://artisanalsoftware.com")!)
         )
       } throws: { error in
         #expect(ErrorKit.message(for: error) == "[NSURLErrorDomain: -999] cancelled")

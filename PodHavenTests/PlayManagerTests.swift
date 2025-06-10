@@ -48,10 +48,9 @@ import Testing
 
     #expect(nowPlayingInfo![MPMediaItemPropertyAlbumTitle] as? String == onDeck.podcastTitle)
     let image = try await images.fetchImage(podcastEpisode.podcast.image)
-    #expect(
-      (nowPlayingInfo![MPMediaItemPropertyArtwork] as! MPMediaItemArtwork).image(at: image.size)!
-        == image
-    )
+    let artwork = nowPlayingInfo![MPMediaItemPropertyArtwork] as! MPMediaItemArtwork
+    let artworkImage = artwork.image(at: image.size)!
+    #expect(artworkImage.isVisuallyEqual(to: image))
     #expect(nowPlayingInfo![MPMediaItemPropertyMediaType] as? UInt == MPMediaType.podcast.rawValue)
     #expect(
       nowPlayingInfo![MPMediaItemPropertyPlaybackDuration] as? Double == onDeck.duration.seconds
@@ -175,7 +174,7 @@ import Testing
   }
 
   // MARK: - Seeking
-
+  // TODO: Update all tests below here
   @Test("seeking works and retains play status")
   func seekingRetainsOriginalPlayStatus() async throws {
     // In progress means seek will happen upon loading
