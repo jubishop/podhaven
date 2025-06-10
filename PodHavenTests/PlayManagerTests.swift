@@ -37,29 +37,27 @@ import Testing
 
   // MARK: - Loading
 
-  @Test("simple loading, playing, and pausing episode")
-  func simpleLoadPlayAndPauseEpisode() async throws {
+  @Test("simple loading sets all data")
+  func simpleLoadSetsAllData() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
     let onDeck = try await load(podcastEpisode)
-    #expect(playState.status == .paused)
-    #expect(avQueuePlayer.timeControlStatus == .paused)
-    #expect(nowPlayingPlaying == false)
-    #expect(itemQueueURLs == episodeMediaURLs([podcastEpisode]))
     #expect(onDeck == podcastEpisode)
+    #expect(itemQueueURLs == episodeMediaURLs([podcastEpisode]))
     #expect(nowPlayingTitle == podcastEpisode.episode.title)
+    // TODO: Check everything else in nowPlaying
+  }
 
-    await playManager.play()
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.status == .playing)
-    #expect(avQueuePlayer.timeControlStatus == .playing)
-    #expect(nowPlayingPlaying == true)
+  @Test("loading an episode seeks to its current time")
+  func loadingEpisodeSeeksToCurrentTime() async throws {
+    let currentTime: CMTime = .inSeconds(10)
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(currentTime: currentTime)
+    )
 
-    await playManager.pause()
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.status == .paused)
-    #expect(avQueuePlayer.timeControlStatus == .paused)
-    #expect(nowPlayingPlaying == false)
+    try await load(podcastEpisode)
+    try await waitFor(currentTime)
+    #expect(nowPlayingCurrentTime == currentTime)
   }
 
   @Test("loading an episode updates its duration value")
@@ -69,10 +67,8 @@ import Testing
       Create.unsavedEpisode(duration: originalDuration)
     )
 
-    let correctDuration = CMTime.inSeconds(999)
-    episodeAssetLoader.respond(to: podcastEpisode.episode.media) { mediaURL in
-      (true, correctDuration)
-    }
+    let correctDuration = CMTime.inSeconds(20)
+    episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in (true, correctDuration) }
 
     let onDeck = try await load(podcastEpisode)
     #expect(onDeck.duration == correctDuration)
@@ -83,32 +79,37 @@ import Testing
 
   // MARK: - Playback Controls
 
+  @Test("play and pause functions play and pause playback")
+  func playAndPauseFunctionsPlayAndPausePlayback() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await load(podcastEpisode)
+
+    await playManager.play()
+    try await waitFor(.playing)
+    #expect(nowPlayingPlaying == true)
+
+    await playManager.pause()
+    try await waitFor(.paused)
+    #expect(nowPlayingPlaying == false)
+  }
+
   @Test("command center stops and starts playback")
   func commandCenterStopsAndStartsPlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await load(podcastEpisode)
-    try await play()
-
-    commandCenter.continuation.yield(.pause)
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.status == .paused)
-    #expect(avQueuePlayer.timeControlStatus == .paused)
 
     commandCenter.continuation.yield(.play)
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.status == .playing)
-    #expect(avQueuePlayer.timeControlStatus == .playing)
+    try await waitFor(.playing)
+
+    commandCenter.continuation.yield(.pause)
+    try await waitFor(.paused)
 
     commandCenter.continuation.yield(.togglePlayPause)
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.status == .paused)
-    #expect(avQueuePlayer.timeControlStatus == .paused)
+    try await waitFor(.playing)
 
     commandCenter.continuation.yield(.togglePlayPause)
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.status == .playing)
-    #expect(avQueuePlayer.timeControlStatus == .playing)
+    try await waitFor(.paused)
   }
 
   @Test("audio session interruption stops and restarts playback")
@@ -131,9 +132,7 @@ import Testing
         ]
       )
     )
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.status == .paused)
-    #expect(avQueuePlayer.timeControlStatus == .paused)
+    try await waitFor(.paused)
 
     // Interruption ended: resume playback
     interruptionContinuation.yield(
@@ -141,14 +140,12 @@ import Testing
         name: AVAudioSession.interruptionNotification,
         userInfo: [
           AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.ended.rawValue,
-          AVAudioSessionInterruptionOptionKey: AVAudioSession.InterruptionOptions.shouldResume
-            .rawValue,
+          AVAudioSessionInterruptionOptionKey:
+            AVAudioSession.InterruptionOptions.shouldResume.rawValue,
         ]
       )
     )
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.status == .playing)
-    #expect(avQueuePlayer.timeControlStatus == .playing)
+    try await waitFor(.playing)
   }
 
   // MARK: - Seeking
@@ -585,6 +582,30 @@ import Testing
     return try await Wait.forValue { await playState.onDeck }
   }
 
+  private func waitFor(_ status: PlayState.Status) async throws {
+    try await Wait.until(
+      { await playState.status == status },
+      {
+        """
+        Status is: \(await playState.status), \
+        Expected: \(status)
+        """
+      }
+    )
+  }
+
+  private func waitFor(_ time: CMTime) async throws {
+    try await Wait.until(
+      { await playState.currentTime == time },
+      {
+        """
+        Current time is: \(await playState.currentTime), \
+        Expected: \(time)
+        """
+      }
+    )
+  }
+
   private func queueNext(_ podcastEpisode: PodcastEpisode) async throws {
     try await queue.unshift(podcastEpisode.id)
     try await Wait.until(
@@ -600,18 +621,12 @@ import Testing
 
   private func play() async throws {
     await playManager.play()
-    try await Wait.until(
-      { await playState.status == .playing },
-      { "Status is: \(await playState.status)" }
-    )
+    try await waitFor(.playing)
   }
 
   private func pause() async throws {
     await playManager.pause()
-    try await Wait.until(
-      { await playState.status == .paused },
-      { "Status is: \(await playState.status)" }
-    )
+    try await waitFor(.paused)
   }
 
   // MARK: - Comparison Helpers

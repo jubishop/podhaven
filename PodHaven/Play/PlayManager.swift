@@ -101,11 +101,9 @@ actor PlayManager {
 
     let task = Task {
       do {
-        await podAVPlayer.removeTransientObservers()
-        await setStatus(.loading)
-
         log.info("performLoad: \(podcastEpisode.toString)")
 
+        await podAVPlayer.removeTransientObservers()
         await pause()
         await setOnDeck(try await podAVPlayer.load(podcastEpisode))
 

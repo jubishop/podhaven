@@ -20,12 +20,8 @@ enum AudioInterruption {
       guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt
       else { Assert.fatal("Interruption options: \(userInfo) is invalid") }
 
-      let options = AVAudioSession.InterruptionOptions(
-        rawValue: optionsValue
-      )
-      if options.contains(.shouldResume) {
-        return .resume
-      }
+      let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+      if options.contains(.shouldResume) { return .resume }
     @unknown default:
       break
     }

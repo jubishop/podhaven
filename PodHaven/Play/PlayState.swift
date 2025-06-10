@@ -27,12 +27,11 @@ extension Container {
 
     var playable: Bool {
       switch self {
-      case .playing, .paused, .waiting: return true
-      default: return false
+      case .stopped: return false
+      default: return true
       }
     }
 
-    var loading: Bool { self == .loading }
     var playing: Bool { self == .playing }
     var paused: Bool { self == .paused }
     var stopped: Bool { self == .stopped }
