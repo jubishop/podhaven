@@ -17,5 +17,6 @@ extension Container: @retroactive AutoRegistering {
     mpNowPlayingInfoCenter.context(.test) { FakeMPNowPlayingInfoCenter() }.scope(.cached)
     avQueuePlayer.context(.test) { @MainActor in FakeAVQueuePlayer() }.scope(.cached)
     loadEpisodeAsset.context(.test) { self.episodeAssetLoader().loadEpisodeAsset }
+    images.context(.test) { FakeImages() }.scope(.cached)
   }
 }

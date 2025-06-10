@@ -12,6 +12,7 @@ import Testing
 @Suite("of PlayManager tests", .container)
 @MainActor struct PlayManagerTests {
   @DynamicInjected(\.episodeAssetLoader) private var episodeAssetLoader
+  @DynamicInjected(\.images) private var images
   @DynamicInjected(\.mpNowPlayingInfoCenter) private var mpNowPlayingInfoCenter
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.playState) private var playState
@@ -39,13 +40,38 @@ import Testing
 
   @Test("simple loading sets all data")
   func simpleLoadSetsAllData() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
+    let podcastEpisode = try await Create.podcastEpisode(Create.unsavedEpisode(image: URL.valid()))
 
     let onDeck = try await load(podcastEpisode)
     #expect(onDeck == podcastEpisode)
     #expect(itemQueueURLs == episodeMediaURLs([podcastEpisode]))
-    #expect(nowPlayingTitle == podcastEpisode.episode.title)
-    // TODO: Check everything else in nowPlaying
+
+    #expect(nowPlayingInfo![MPMediaItemPropertyAlbumTitle] as? String == onDeck.podcastTitle)
+    let image = try await images.fetchImage(podcastEpisode.podcast.image)
+    #expect(
+      (nowPlayingInfo![MPMediaItemPropertyArtwork] as! MPMediaItemArtwork).image(at: image.size)!
+        == image
+    )
+    #expect(nowPlayingInfo![MPMediaItemPropertyMediaType] as? UInt == MPMediaType.podcast.rawValue)
+    #expect(
+      nowPlayingInfo![MPMediaItemPropertyPlaybackDuration] as? Double == onDeck.duration.seconds
+    )
+    #expect(nowPlayingInfo![MPMediaItemPropertyTitle] as? String == onDeck.episodeTitle)
+    #expect(nowPlayingInfo![MPNowPlayingInfoCollectionIdentifier] as? String == onDeck.podcastTitle)
+    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyAssetURL] as? URL == onDeck.media.rawValue)
+    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyDefaultPlaybackRate] as? Double == 1.0)
+    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double == 0.0)
+    #expect(
+      nowPlayingInfo![MPNowPlayingInfoPropertyExternalContentIdentifier] as? String
+        == onDeck.guid.rawValue
+    )
+    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyIsLiveStream] as? Bool == false)
+    #expect(
+      nowPlayingInfo![MPNowPlayingInfoPropertyMediaType] as? UInt
+        == MPNowPlayingInfoMediaType.audio.rawValue
+    )
+    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackProgress] as? Double == 0.0)
+    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] as? Double == 0.0)
   }
 
   @Test("loading an episode seeks to its current time")
@@ -493,7 +519,6 @@ import Testing
       }
     )
     #expect(playState.onDeck! == incomingEpisode)
-    #expect(nowPlayingTitle == incomingEpisode.episode.title)
     #expect(itemQueueURLs == episodeMediaURLs([incomingEpisode, queuedEpisode]))
     let queued = episodeStrings(try await queuedPodcastEpisodes)
     #expect(queued == episodeStrings([queuedEpisode]))
@@ -631,12 +656,8 @@ import Testing
 
   // MARK: - Comparison Helpers
 
-  private var nowPlayingTitle: String {
-    nowPlayingInfo![MPMediaItemPropertyTitle] as! String
-  }
-
   private var nowPlayingPlaying: Bool {
-    nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] as! Double == 1.0
+    nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] as? Double == 1.0
   }
 
   private var nowPlayingCurrentTime: CMTime {
