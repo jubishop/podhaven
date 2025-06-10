@@ -13,19 +13,19 @@ extension Container {
 }
 
 class EpisodeAssetLoader {
-  var responseCounts: [MediaURL: Int] = [:]
+  typealias LoadHandler = @Sendable (MediaURL) async throws -> (Bool, CMTime)
 
-  private var fakeHandlers: [MediaURL: @Sendable (MediaURL) async throws -> (Bool, CMTime)] = [:]
+  private(set) var responseCounts: [MediaURL: Int] = [:]
 
-  func respond(
-    to mediaURL: MediaURL,
-    delay: Duration? = nil,
-    _ handler: @Sendable @escaping (MediaURL) async throws -> (Bool, CMTime)
-  ) {
-    fakeHandlers[mediaURL] = { mediaURL in
-      if let delay { try await Task.sleep(for: delay) }
-      return try await handler(mediaURL)
-    }
+  private var defaultHandler: LoadHandler = { _ in (true, CMTime.inSeconds(60)) }
+  private var fakeHandlers: [MediaURL: LoadHandler] = [:]
+
+  func setDefaultResponse(_ handler: @escaping LoadHandler) {
+    defaultHandler = handler
+  }
+
+  func respond(to mediaURL: MediaURL, _ handler: @escaping LoadHandler) {
+    fakeHandlers[mediaURL] = handler
   }
 
   func clearCustomHandler(for mediaURL: MediaURL) {
@@ -33,20 +33,14 @@ class EpisodeAssetLoader {
   }
 
   func loadEpisodeAsset(_ mediaURL: MediaURL) async throws -> EpisodeAsset {
-    if let handler = fakeHandlers[mediaURL] {
-      defer { responseCounts[mediaURL, default: 0] += 1 }
-      let (isPlayable, duration) = try await handler(mediaURL)
-      return await EpisodeAsset(
-        playerItem: FakeAVPlayerItem(assetURL: mediaURL),
-        isPlayable: isPlayable,
-        duration: duration
-      )
-    }
+    defer { responseCounts[mediaURL, default: 0] += 1 }
 
+    let handler = fakeHandlers[mediaURL, default: defaultHandler]
+    let (isPlayable, duration) = try await handler(mediaURL)
     return await EpisodeAsset(
       playerItem: FakeAVPlayerItem(assetURL: mediaURL),
-      isPlayable: true,
-      duration: CMTime.inSeconds(60)
+      isPlayable: isPlayable,
+      duration: duration
     )
   }
 }

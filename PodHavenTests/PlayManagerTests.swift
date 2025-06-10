@@ -331,7 +331,7 @@ import Testing
     #expect(queued == episodeStrings([playingEpisode]))
   }
 
-  // MARK: - Load Failures
+  // MARK: - Loading
 
   @Test("loading an episode fails with none playing right now")
   func loadingAnEpisodeFailsWithNonePlayingRightNow() async throws {
@@ -372,6 +372,30 @@ import Testing
     #expect(itemQueueURLs.isEmpty)
     let queued = episodeStrings(try await queuedPodcastEpisodes)
     #expect(queued == episodeStrings([episodeToLoad, playingEpisode]))
+  }
+
+  @Test("playing while loading episodes leaves status playing, not paused")
+  func playingWhileLoadingEpisodesLeavesStatusPlayingNotPaused() async throws {
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+    // While these load slowly: the user will click play
+    episodeAssetLoader.setDefaultResponse { _ in
+      try await Task.sleep(for: .milliseconds(100))
+      return (true, .inSeconds(30))
+    }
+    try await queueNext(queuedEpisode)
+    try await load(playingEpisode)
+    try await play()  // Play before our episodes finished loading
+
+    #expect(
+      try await That.eventually {
+        let queueURLs = await itemQueueURLs
+        let mediaURLs = await episodeMediaURLs([playingEpisode, queuedEpisode])
+        return queueURLs == mediaURLs
+      }
+    )
+    #expect(try await That.eventually { await playState.status == .playing })
+    #expect(avQueuePlayer.timeControlStatus == .playing)
   }
 
   // MARK: - Episode Finishing
@@ -519,6 +543,11 @@ import Testing
   private func load(_ podcastEpisode: PodcastEpisode) async throws -> OnDeck {
     try await playManager.load(podcastEpisode)
     return try await Wait.forValue { await playState.onDeck }
+  }
+
+  private func queueNext(_ podcastEpisode: PodcastEpisode) async throws {
+    try await queue.unshift(podcastEpisode.id)
+    try await Wait.until { try await queue.nextEpisode?.id == podcastEpisode.id }
   }
 
   private func play() async throws {
