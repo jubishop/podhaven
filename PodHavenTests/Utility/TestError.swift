@@ -9,7 +9,7 @@ import ReadableErrorMacro
 enum TestError: ReadableError {
   case assetLoadFailure(MediaURL)
   case waitForValueFailure(String)
-  case waitUntilFailure
+  case waitUntilFailure(String)
 
   var message: String {
     switch self {
@@ -17,8 +17,8 @@ enum TestError: ReadableError {
       return "Failed to load asset from URL: \(url)"
     case .waitForValueFailure(let typeName):
       return "Failed to wait for non-optional value of type: \(typeName)"
-    case .waitUntilFailure:
-      return "Failed to wait until condition evaluates to true"
+    case .waitUntilFailure(let message):
+      return "Wait failure: \(message)"
     }
   }
 }

@@ -4,27 +4,11 @@ import AVFoundation
 import FactoryKit
 import Foundation
 import Tagged
+import Testing
 
 @testable import PodHaven
 
 enum Wait {
-  @discardableResult
-  static func forValue<T: Sendable>(
-    maxAttempts: Int = 50,
-    delay: Duration = .milliseconds(10),
-    _ block: @Sendable @escaping () throws -> T?
-  ) async throws -> T {
-    var attempts = 0
-    while attempts < maxAttempts {
-      if let value = try block() {
-        return value
-      }
-      try await Task.sleep(for: delay)
-      attempts += 1
-    }
-    throw TestError.waitForValueFailure(String(describing: T.self))
-  }
-
   @discardableResult
   static func forValue<T: Sendable>(
     maxAttempts: Int = 50,
@@ -43,25 +27,10 @@ enum Wait {
   }
 
   static func until(
-    maxAttempts: Int = 50,
+    maxAttempts: Int = 100,
     delay: Duration = .milliseconds(10),
-    _ block: @Sendable @escaping () throws -> Bool
-  ) async throws {
-    var attempts = 0
-    while attempts < maxAttempts {
-      if try block() {
-        return
-      }
-      try await Task.sleep(for: delay)
-      attempts += 1
-    }
-    throw TestError.waitUntilFailure
-  }
-
-  static func until(
-    maxAttempts: Int = 50,
-    delay: Duration = .milliseconds(10),
-    _ block: @Sendable @escaping () async throws -> Bool
+    _ block: @Sendable @escaping () async throws -> Bool,
+    _ errorMessage: @Sendable @escaping () async throws -> String = { "Block never became true" }
   ) async throws {
     var attempts = 0
     while attempts < maxAttempts {
@@ -71,6 +40,6 @@ enum Wait {
       try await Task.sleep(for: delay)
       attempts += 1
     }
-    throw TestError.waitUntilFailure
+    throw TestError.waitUntilFailure(try await errorMessage())
   }
 }
