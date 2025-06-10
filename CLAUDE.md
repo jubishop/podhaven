@@ -103,3 +103,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Factory: Dependency injection
 - Tagged: Type-safe identifiers
 - Sentry: Error reporting (production only)
+
+## Code Style
+
+### String Formatting
+- When a string is going to force a line beyond 100 columns, break it into multiple lines using """ delimiters.

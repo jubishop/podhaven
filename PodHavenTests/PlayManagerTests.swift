@@ -224,7 +224,10 @@ import Testing
 
     // Now seek has finished, we go back to playing
     try await Task.sleep(for: .milliseconds(200))
-    #expect(try await That.eventually { await playState.status == .playing })
+    try await Wait.until(
+      { await playState.status == .playing },
+      { "Status is: \(await playState.status)" }
+    )
     #expect(playState.currentTime == .inSeconds(30))
   }
 
@@ -432,19 +435,21 @@ import Testing
 
     try await load(originalEpisode)
     try await play()
-    #expect(
-      try await That.eventually { await responseCount(for: queuedEpisode.episode.media) == 1 },
-      "responseCount remains: \(responseCount(for: queuedEpisode.episode.media))"
+    try await Wait.until(
+      { await responseCount(for: queuedEpisode.episode.media) == 1 },
+      { "responseCount remains: \(await responseCount(for: queuedEpisode.episode.media))" }
     )
 
     episodeAssetLoader.clearCustomHandler(for: queuedEpisode.episode.media)
     avQueuePlayer.simulateFinishingEpisode()
-    #expect(
-      try await That.eventually {
-        await playState.onDeck?.episodeTitle == queuedEpisode.episode.title
-      }
+    try await Wait.until(
+      { await playState.onDeck?.episodeTitle == queuedEpisode.episode.title },
+      { "OnDeck is: \(String(describing: await playState.onDeck))" }
     )
-    #expect(try await That.eventually { await playState.status == .playing })
+    try await Wait.until(
+      { await playState.status == .playing },
+      { "Status is: \(await playState.status)" }
+    )
     #expect(avQueuePlayer.timeControlStatus == .playing)
     #expect(itemQueueURLs == episodeMediaURLs([queuedEpisode]))
   }
@@ -464,18 +469,30 @@ import Testing
     avQueuePlayer.simulateFinishingEpisode()
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(
-      try await That.eventually {
+    try await Wait.until(
+      {
         let title = incomingEpisode.episode.title
         let onDeckTitle = await playState.onDeck?.episodeTitle
         return title == onDeckTitle
+      },
+      {
+        """
+        Expected: \(incomingEpisode.episode.title), \
+        Got: \(String(describing: await playState.onDeck?.episodeTitle))
+        """
       }
     )
-    #expect(
-      try await That.eventually {
+    try await Wait.until(
+      {
         let status = await playState.status
         let timeControlStatus = await avQueuePlayer.timeControlStatus
         return status == .playing && timeControlStatus == .playing
+      },
+      {
+        """
+        Status: \(await playState.status), \
+        TimeControl: \(await avQueuePlayer.timeControlStatus)
+        """
       }
     )
     #expect(playState.onDeck! == incomingEpisode)
@@ -497,13 +514,14 @@ import Testing
     try await queueNext(queuedEpisode)
     try await load(originalEpisode)
     try await play()
-    #expect(try await That.eventually { await playState.currentTime == originalTime })
-    #expect(
-      try await That.eventually {
-        let mediaURLs = await episodeMediaURLs([originalEpisode, queuedEpisode])
-        return await itemQueueURLs == mediaURLs
-      }
+    try await Wait.until(
+      { await playState.currentTime == originalTime },
+      { "CurrentTime is: \(await playState.currentTime), Expected: \(originalTime)" }
     )
+    try await Wait.until {
+      let mediaURLs = await episodeMediaURLs([originalEpisode, queuedEpisode])
+      return await itemQueueURLs == mediaURLs
+    }
 
     avQueuePlayer.seekHandler = { _ in
       try? await Task.sleep(for: .milliseconds(250))
@@ -511,10 +529,19 @@ import Testing
     }
 
     avQueuePlayer.simulateFinishingEpisode()
-    #expect(try await That.eventually { await playState.status == .paused })
+    try await Wait.until(
+      { await playState.status == .paused },
+      { "Status is: \(await playState.status)" }
+    )
 
-    #expect(try await That.eventually { await playState.status == .playing })
-    #expect(try await That.eventually { await playState.currentTime == queuedTime })
+    try await Wait.until(
+      { await playState.status == .playing },
+      { "Status is: \(await playState.status)" }
+    )
+    try await Wait.until(
+      { await playState.currentTime == queuedTime },
+      { "CurrentTime is: \(await playState.currentTime), Expected: \(queuedTime)" }
+    )
   }
 
   @Test("new currentItem with no currentTime sets currentTime to zero")
@@ -531,7 +558,10 @@ import Testing
     #expect(playState.currentTime == originalTime)
 
     avQueuePlayer.simulateFinishingEpisode()
-    #expect(try await That.eventually { await playState.currentTime == .zero })
+    try await Wait.until(
+      { await playState.currentTime == .zero },
+      { "CurrentTime is: \(await playState.currentTime), Expected: .zero" }
+    )
   }
 
   @Test("episode is marked complete after playing to end")
@@ -557,17 +587,31 @@ import Testing
 
   private func queueNext(_ podcastEpisode: PodcastEpisode) async throws {
     try await queue.unshift(podcastEpisode.id)
-    try await Wait.until { try await queue.nextEpisode?.id == podcastEpisode.id }
+    try await Wait.until(
+      { try await queue.nextEpisode?.id == podcastEpisode.id },
+      {
+        """
+        Next episode ID: \(String(describing: try await queue.nextEpisode?.id)), \
+        Expected: \(podcastEpisode.id)
+        """
+      }
+    )
   }
 
   private func play() async throws {
     await playManager.play()
-    try await Wait.until { await playState.status == .playing }
+    try await Wait.until(
+      { await playState.status == .playing },
+      { "Status is: \(await playState.status)" }
+    )
   }
 
   private func pause() async throws {
     await playManager.pause()
-    try await Wait.until { await playState.status == .paused }
+    try await Wait.until(
+      { await playState.status == .paused },
+      { "Status is: \(await playState.status)" }
+    )
   }
 
   // MARK: - Comparison Helpers

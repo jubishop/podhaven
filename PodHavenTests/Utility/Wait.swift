@@ -28,7 +28,7 @@ enum Wait {
 
   static func until(
     maxAttempts: Int = 100,
-    delay: Duration = .milliseconds(10),
+    delay: Duration = .milliseconds(25),
     _ block: @Sendable @escaping () async throws -> Bool,
     _ errorMessage: @Sendable @escaping () async throws -> String = { "Block never became true" }
   ) async throws {
