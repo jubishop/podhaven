@@ -39,7 +39,6 @@ struct NowPlayingInfo {
     nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackProgress] = 0.0
     nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
 
-
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo = nowPlayingInfo
   }
