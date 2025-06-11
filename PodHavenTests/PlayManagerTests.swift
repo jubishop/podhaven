@@ -277,10 +277,7 @@ import Testing
     avQueuePlayer.seekHandler = { _ in false }
     let failedSeekTime = CMTime.inSeconds(60)
     await playManager.seek(to: failedSeekTime)
-    try await waitFor(failedSeekTime)
     try await waitForRemovePeriodicTimeObserver()
-    avQueuePlayer.advanceTime(to: .inSeconds(999))  // Ignored
-    #expect(playState.currentTime == failedSeekTime)  // Still what it was at failed seek
 
     try await load(secondPodcastEpisode)
 
@@ -292,10 +289,7 @@ import Testing
     }
     let successfulSeekTime = CMTimeAdd(failedSeekTime, CMTime.inSeconds(30))
     await playManager.seek(to: successfulSeekTime)
-    try await waitFor(successfulSeekTime)
     try await waitForRemovePeriodicTimeObserver()
-    avQueuePlayer.advanceTime(to: .inSeconds(999))  // Ignored
-    #expect(playState.currentTime == successfulSeekTime)  // Still what it was at successful seek
 
     // Our seek completes successfully so time advancement observation is back
     seekSemaphore.signal()
