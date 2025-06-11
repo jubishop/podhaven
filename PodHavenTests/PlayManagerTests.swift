@@ -38,8 +38,8 @@ import Testing
 
   // MARK: - Loading
 
-  @Test("simple loading sets all data")
-  func simpleLoadSetsAllData() async throws {
+  @Test("loading sets all data")
+  func loadingSetsAllData() async throws {
     let podcastEpisode = try await Create.podcastEpisode(Create.unsavedEpisode(image: URL.valid()))
 
     let onDeck = try await load(podcastEpisode)
@@ -107,6 +107,7 @@ import Testing
   @Test("play and pause functions play and pause playback")
   func playAndPauseFunctionsPlayAndPausePlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
+
     try await load(podcastEpisode)
 
     await playManager.play()
@@ -174,7 +175,24 @@ import Testing
   }
 
   // MARK: - Seeking
-  // TODO: Update all tests below here
+
+  @Test("seeking updates current time")
+  func seekingUpdatesCurrentTime() async throws {
+    let duration = CMTime.inSeconds(240)
+    let currentTime = CMTime.inSeconds(120)
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in (true, duration) }
+    try await load(podcastEpisode)
+
+    await playManager.seek(to: currentTime)
+    try await waitFor(currentTime)
+    #expect(nowPlayingCurrentTime == currentTime)
+    #expect(nowPlayingProgress == currentTime.seconds / duration.seconds)
+  }
+
+  // TODO: Update from here down (do seekForward and seekBackward)
+
   @Test("seeking works and retains play status")
   func seekingRetainsOriginalPlayStatus() async throws {
     // In progress means seek will happen upon loading
