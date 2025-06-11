@@ -17,7 +17,7 @@ struct NowPlayingInfo {
 
     var nowPlayingInfo: [String: Any] = [:]
 
-    nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = onDeck.podcastTitle
+    nowPlayingInfo[MPMediaItemPropertyPodcastTitle] = onDeck.podcastTitle
     if let image = onDeck.image {
       nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(
         boundsSize: image.size,
@@ -27,7 +27,9 @@ struct NowPlayingInfo {
     nowPlayingInfo[MPMediaItemPropertyMediaType] = MPMediaType.podcast.rawValue
     nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = onDeck.duration.seconds
     nowPlayingInfo[MPMediaItemPropertyTitle] = onDeck.episodeTitle
-    nowPlayingInfo[MPNowPlayingInfoCollectionIdentifier] = onDeck.podcastTitle
+    if let pubDate = onDeck.pubDate {
+      nowPlayingInfo[MPMediaItemPropertyReleaseDate] = pubDate
+    }
     nowPlayingInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.media.rawValue
     nowPlayingInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
     nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0

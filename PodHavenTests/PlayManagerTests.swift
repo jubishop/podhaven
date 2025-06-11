@@ -47,31 +47,59 @@ import Testing
     #expect(onDeck == podcastEpisode)
     try await waitForItemQueue([podcastEpisode])
 
-    #expect(nowPlayingInfo![MPMediaItemPropertyAlbumTitle] as? String == onDeck.podcastTitle)
-    let image = try await images.fetchImage(podcastEpisode.podcast.image)
-    let artwork = nowPlayingInfo![MPMediaItemPropertyArtwork] as! MPMediaItemArtwork
-    let artworkImage = artwork.image(at: image.size)!
-    #expect(artworkImage.isVisuallyEqual(to: image))
-    #expect(nowPlayingInfo![MPMediaItemPropertyMediaType] as? UInt == MPMediaType.podcast.rawValue)
-    #expect(
-      nowPlayingInfo![MPMediaItemPropertyPlaybackDuration] as? Double == onDeck.duration.seconds
-    )
-    #expect(nowPlayingInfo![MPMediaItemPropertyTitle] as? String == onDeck.episodeTitle)
-    #expect(nowPlayingInfo![MPNowPlayingInfoCollectionIdentifier] as? String == onDeck.podcastTitle)
-    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyAssetURL] as? URL == onDeck.media.rawValue)
-    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyDefaultPlaybackRate] as? Double == 1.0)
-    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double == 0.0)
-    #expect(
-      nowPlayingInfo![MPNowPlayingInfoPropertyExternalContentIdentifier] as? String
-        == onDeck.guid.rawValue
-    )
-    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyIsLiveStream] as? Bool == false)
-    #expect(
-      nowPlayingInfo![MPNowPlayingInfoPropertyMediaType] as? UInt
-        == MPNowPlayingInfoMediaType.audio.rawValue
-    )
-    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackProgress] as? Double == 0.0)
-    #expect(nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] as? Double == 0.0)
+    var expectedInfo: [String: Any] = [:]
+    expectedInfo[MPMediaItemPropertyPodcastTitle] = onDeck.podcastTitle
+    expectedInfo[MPMediaItemPropertyMediaType] = MPMediaType.podcast.rawValue
+    expectedInfo[MPMediaItemPropertyPlaybackDuration] = onDeck.duration.seconds
+    expectedInfo[MPMediaItemPropertyTitle] = onDeck.episodeTitle
+    if let pubDate = onDeck.pubDate {
+      expectedInfo[MPMediaItemPropertyReleaseDate] = pubDate
+    }
+    expectedInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.media.rawValue
+    expectedInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
+    expectedInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
+    expectedInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] = onDeck.guid.rawValue
+    expectedInfo[MPNowPlayingInfoPropertyIsLiveStream] = false
+    expectedInfo[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
+    expectedInfo[MPNowPlayingInfoPropertyPlaybackProgress] = 0.0
+    expectedInfo[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
+
+    // Check all keys exist in both dictionaries
+    #expect(Set(nowPlayingInfo!.keys) == Set(expectedInfo.keys).union([MPMediaItemPropertyArtwork]))
+
+    let isEqual: (Any?, Any) -> Bool = { lhs, rhs in
+      switch (lhs, rhs) {
+      case let (lhs as String, rhs as String): return lhs == rhs
+      case let (lhs as Double, rhs as Double): return lhs == rhs
+      case let (lhs as UInt, rhs as UInt): return lhs == rhs
+      case let (lhs as Int, rhs as Int): return lhs == rhs
+      case let (lhs as Bool, rhs as Bool): return lhs == rhs
+      case let (lhs as URL, rhs as URL): return lhs == rhs
+      case let (lhs as Date, rhs as Date): return lhs == rhs
+      default: return false
+      }
+    }
+
+    // Check each value (except artwork which needs special handling)
+    for (key, expectedValue) in expectedInfo {
+      #expect(
+        isEqual(nowPlayingInfo![key]!, expectedValue),
+        """
+        Key \(key) - \
+        Expected: \(expectedValue), \
+        Actual: \(String(describing: nowPlayingInfo![key]))
+        """
+      )
+    }
+
+    // Check artwork separately
+    if let actualArtwork = nowPlayingInfo![MPMediaItemPropertyArtwork] as? MPMediaItemArtwork {
+      let image = try await images.fetchImage(podcastEpisode.podcast.image)
+      let actualImage = actualArtwork.image(at: image.size)!
+      #expect(actualImage.isVisuallyEqual(to: image))
+    } else {
+      Issue.record("MPMediaItemPropertyArtwork is missing or wrong type")
+    }
   }
 
   @Test("loading an episode seeks to its current time")

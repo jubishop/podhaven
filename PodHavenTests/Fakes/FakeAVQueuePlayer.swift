@@ -25,7 +25,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   // MARK: - State Management
 
   var itemObservations: [ObservationHandler<MediaURL?>] = []
-  var seekHandler: (CMTime) async -> (Bool) = { _ in (true) }
+  var seekHandler: (CMTime) async -> Bool = { _ in (true) }
   var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
   var timeObservers: [UUID: TimeObserver] = [:]
   var currentTimeValue: CMTime = .zero {
