@@ -20,8 +20,16 @@ extension CMTime:
     CMTimeAdd(left, right)
   }
 
+  static func - (left: CMTime, right: CMTime) -> CMTime {
+    CMTimeSubtract(left, right)
+  }
+
   static func += (left: inout CMTime, right: CMTime) {
     left = left + right
+  }
+
+  static func -= (left: inout CMTime, right: CMTime) {
+    left = left - right
   }
 
   // MARK: - CustomStringConvertible

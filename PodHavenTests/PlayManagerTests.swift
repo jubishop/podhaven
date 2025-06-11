@@ -179,7 +179,8 @@ import Testing
   @Test("seeking updates current time")
   func seekingUpdatesCurrentTime() async throws {
     let duration = CMTime.inSeconds(240)
-    let currentTime = CMTime.inSeconds(120)
+    var currentTime = CMTime.inSeconds(120)
+    let skipTime = CMTime.inSeconds(15)
     let podcastEpisode = try await Create.podcastEpisode()
 
     episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in (true, duration) }
@@ -189,12 +190,24 @@ import Testing
     try await waitFor(currentTime)
     #expect(nowPlayingCurrentTime == currentTime)
     #expect(nowPlayingProgress == currentTime.seconds / duration.seconds)
+
+    currentTime += skipTime
+    await playManager.seekForward(skipTime)
+    try await waitFor(currentTime)
+    #expect(nowPlayingCurrentTime == currentTime)
+    #expect(nowPlayingProgress == (currentTime).seconds / duration.seconds)
+
+    currentTime -= skipTime
+    await playManager.seekBackward(skipTime)
+    try await waitFor(currentTime)
+    #expect(nowPlayingCurrentTime == currentTime)
+    #expect(nowPlayingProgress == (currentTime).seconds / duration.seconds)
   }
 
-  // TODO: Update from here down (do seekForward and seekBackward)
+  // TODO: Update from here down
 
-  @Test("seeking works and retains play status")
-  func seekingRetainsOriginalPlayStatus() async throws {
+  @Test("seeking retains play status")
+  func seekingRetainsPlayStatus() async throws {
     // In progress means seek will happen upon loading
     let duration = CMTime.inSeconds(240)
     let skipAmount = CMTime.inSeconds(15)
