@@ -175,6 +175,18 @@ import Testing
     try await waitFor(.playing)
   }
 
+  @Test("periodic time observer events update currentTime")
+  func periodicTimeObserverEventsUpdateCurrentTime() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await load(podcastEpisode)
+    try await play()
+
+    let advancedTime = CMTime.inSeconds(10)
+    avQueuePlayer.advanceTime(to: advancedTime)
+    try await waitFor(advancedTime)
+  }
+
   // MARK: - Seeking
 
   @Test("seeking updates current time")
@@ -257,17 +269,16 @@ import Testing
 
   @Test("periodicTimeObserver events are ignored while seeking")
   func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
-    let failedSeekTime = CMTime.inSeconds(60)
-    let successfulSeekTime = CMTimeAdd(failedSeekTime, CMTime.inSeconds(30))
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await load(podcastEpisode)
 
     // After this failed seek, all time advancement is being ignored
     avQueuePlayer.seekHandler = { _ in false }
+    let failedSeekTime = CMTime.inSeconds(60)
     await playManager.seek(to: failedSeekTime)
     try await waitFor(failedSeekTime)
-    avQueuePlayer.simulateTimeAdvancement(to: .inSeconds(999))  // Ignored
+    avQueuePlayer.advanceTime(to: .inSeconds(999))  // Ignored
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.currentTime == failedSeekTime)  // Still what it was at failed seek
 
@@ -277,9 +288,10 @@ import Testing
       await seekSemaphore.wait()
       return true
     }
+    let successfulSeekTime = CMTimeAdd(failedSeekTime, CMTime.inSeconds(30))
     await playManager.seek(to: successfulSeekTime)
     try await waitFor(successfulSeekTime)
-    avQueuePlayer.simulateTimeAdvancement(to: .inSeconds(999))  // Ignored
+    avQueuePlayer.advanceTime(to: .inSeconds(999))  // Ignored
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.currentTime == successfulSeekTime)  // Still what it was at successful seek
 
@@ -289,7 +301,7 @@ import Testing
       !(await avQueuePlayer.timeObservers.isEmpty)
     }
     let advancedTime = CMTimeAdd(successfulSeekTime, CMTime.inSeconds(10))
-    avQueuePlayer.simulateTimeAdvancement(to: advancedTime)  // Actually Triggers
+    avQueuePlayer.advanceTime(to: advancedTime)  // Actually Triggers
     try await waitFor(advancedTime)
   }
 
@@ -434,7 +446,7 @@ import Testing
 
     try await load(podcastEpisode)
     try await play()
-    avQueuePlayer.simulateFinishingEpisode()
+    avQueuePlayer.finishEpisode()
     try await Task.sleep(for: .milliseconds(100))
 
     #expect(playState.status == .stopped)
@@ -462,7 +474,7 @@ import Testing
     )
 
     episodeAssetLoader.clearCustomHandler(for: queuedEpisode.episode.media)
-    avQueuePlayer.simulateFinishingEpisode()
+    avQueuePlayer.finishEpisode()
     try await Wait.until(
       { await playState.onDeck?.episodeTitle == queuedEpisode.episode.title },
       { "OnDeck is: \(String(describing: await playState.onDeck))" }
@@ -487,7 +499,7 @@ import Testing
     try await play()
     try await Task.sleep(for: .milliseconds(100))
 
-    avQueuePlayer.simulateFinishingEpisode()
+    avQueuePlayer.finishEpisode()
     try await Task.sleep(for: .milliseconds(100))
 
     try await Wait.until(
@@ -548,7 +560,7 @@ import Testing
       return true
     }
 
-    avQueuePlayer.simulateFinishingEpisode()
+    avQueuePlayer.finishEpisode()
     try await Wait.until(
       { await playState.status == .paused },
       { "Status is: \(await playState.status)" }
@@ -577,7 +589,7 @@ import Testing
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.currentTime == originalTime)
 
-    avQueuePlayer.simulateFinishingEpisode()
+    avQueuePlayer.finishEpisode()
     try await Wait.until(
       { await playState.currentTime == .zero },
       { "CurrentTime is: \(await playState.currentTime), Expected: .zero" }
@@ -591,7 +603,7 @@ import Testing
     try await load(podcastEpisode)
     try await play()
 
-    avQueuePlayer.simulateFinishingEpisode()
+    avQueuePlayer.finishEpisode()
     try await Task.sleep(for: .milliseconds(100))
     let fetchedPodcastEpisode = try await repo.episode(podcastEpisode.id)
     #expect(fetchedPodcastEpisode!.episode.completed)

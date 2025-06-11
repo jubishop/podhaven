@@ -9,9 +9,24 @@ import Foundation
 class FakeAVQueuePlayer: AVQueuePlayable {
   @DynamicInjected(\.notifier) private var notifier
 
-  // MARK: - Internal State Management
+  // MARK: - Helper Classes
+
+  struct TimeObserver: Sendable {
+    let interval: CMTime
+    let queue: dispatch_queue_t?
+    let block: @Sendable (CMTime) -> Void
+  }
+
+  struct ObservationHandler<T> {
+    weak var observation: NSKeyValueObservation?
+    let handler: (T) -> Void
+  }
+
+  // MARK: - State Management
 
   var itemObservations: [ObservationHandler<MediaURL?>] = []
+  var seekHandler: (CMTime) async -> (Bool) = { _ in (true) }
+  var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
   var timeObservers: [UUID: TimeObserver] = [:]
   var currentTimeValue: CMTime = .zero {
     didSet {
@@ -26,20 +41,6 @@ class FakeAVQueuePlayer: AVQueuePlayable {
         }
       }
     }
-  }
-  var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
-
-  // MARK: - Private Helper Classes
-
-  struct TimeObserver: Sendable {
-    let interval: CMTime
-    let queue: dispatch_queue_t?
-    let block: @Sendable (CMTime) -> Void
-  }
-
-  struct ObservationHandler<T> {
-    weak var observation: NSKeyValueObservation?
-    let handler: (T) -> Void
   }
 
   // MARK: - AVQueuePlayable Implementation
@@ -158,9 +159,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   // MARK: - Testing Manipulators
 
-  var seekHandler: (CMTime) async -> (Bool) = { _ in (true) }
-
-  func simulateFinishingEpisode() {
+  func finishEpisode() {
     Assert.precondition(
       timeControlStatus == .playing,
       "Can't simulate finishing episode when not playing!"
@@ -179,11 +178,11 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     queued.removeFirst()
   }
 
-  func simulateTimeAdvancement(to cmTime: CMTime) {
+  func advanceTime(to cmTime: CMTime) {
     currentTimeValue = cmTime
   }
 
-  func simulateWaitingToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
+  func waitToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
     Assert.precondition(
       timeControlStatus == .playing,
       "Can only simulate waitingToPlay if playing!"
