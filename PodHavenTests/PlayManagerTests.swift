@@ -180,28 +180,29 @@ import Testing
   func seekingUpdatesCurrentTime() async throws {
     let duration = CMTime.inSeconds(240)
     var currentTime = CMTime.inSeconds(120)
-    let skipTime = CMTime.inSeconds(15)
     let podcastEpisode = try await Create.podcastEpisode()
 
     episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in (true, duration) }
     try await load(podcastEpisode)
 
+    let checkTime = {
+      try await waitFor(currentTime)
+      #expect(nowPlayingCurrentTime == currentTime)
+      #expect(nowPlayingProgress == (currentTime).seconds / duration.seconds)
+    }
+    
     await playManager.seek(to: currentTime)
-    try await waitFor(currentTime)
-    #expect(nowPlayingCurrentTime == currentTime)
-    #expect(nowPlayingProgress == currentTime.seconds / duration.seconds)
+    try await checkTime()
 
+    let skipTime = CMTime.inSeconds(30)
     currentTime += skipTime
     await playManager.seekForward(skipTime)
-    try await waitFor(currentTime)
-    #expect(nowPlayingCurrentTime == currentTime)
-    #expect(nowPlayingProgress == (currentTime).seconds / duration.seconds)
+    try await checkTime()
 
-    currentTime -= skipTime
-    await playManager.seekBackward(skipTime)
-    try await waitFor(currentTime)
-    #expect(nowPlayingCurrentTime == currentTime)
-    #expect(nowPlayingProgress == (currentTime).seconds / duration.seconds)
+    let rewindTime = CMTime.inSeconds(15)
+    currentTime -= rewindTime
+    await playManager.seekBackward(rewindTime)
+    try await checkTime()
   }
 
   // TODO: Update from here down
