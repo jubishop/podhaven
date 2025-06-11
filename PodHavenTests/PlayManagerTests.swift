@@ -297,9 +297,9 @@ import Testing
 
   @Test("periodicTimeObserver events are ignored while seeking")
   func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
-    let (firstPodcastEpisode, secondPodcastEpisode) = try await Create.twoPodcastEpisodes()
+    let (failedEpisode, successfulEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await load(firstPodcastEpisode)
+    try await load(failedEpisode)
 
     // After this failed seek, all time advancement is being ignored
     avQueuePlayer.seekHandler = { _ in false }
@@ -307,7 +307,7 @@ import Testing
     await playManager.seek(to: failedSeekTime)
     try await waitForRemovePeriodicTimeObserver()
 
-    try await load(secondPodcastEpisode)
+    try await load(successfulEpisode)
 
     // While a seek is in progress, we will ignore time advancement until its success
     let seekSemaphore = AsyncSemaphore(value: 0)
@@ -334,23 +334,20 @@ import Testing
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
     try await load(playingEpisode)
-    try await play()
     try await queueNext(queuedEpisode)
 
     try await waitForItemQueue([playingEpisode, queuedEpisode])
     try await waitForQueue([queuedEpisode])
   }
 
-  // TODO: Update from here down
   @Test("loading an episode with queue already filled")
   func loadingAnEpisodeWithQueueAlreadyFilled() async throws {
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await queue.unshift(queuedEpisode.id)
-    try await Task.sleep(for: .milliseconds(100))
+    try await queueNext(queuedEpisode)
     try await load(playingEpisode)
-    try await Task.sleep(for: .milliseconds(100))
 
+    try await waitForItemQueue([playingEpisode, queuedEpisode])
     try await waitForQueue([queuedEpisode])
   }
 
@@ -359,26 +356,23 @@ import Testing
     let (playingEpisode, queuedEpisode, incomingQueuedEpisode) =
       try await Create.threePodcastEpisodes()
 
-    try await queue.unshift(queuedEpisode.id)
-    try await Task.sleep(for: .milliseconds(100))
+    try await queueNext(queuedEpisode)
     try await load(playingEpisode)
+    try await queueNext(incomingQueuedEpisode)
 
-    try await queue.unshift(incomingQueuedEpisode.id)
-    try await Task.sleep(for: .milliseconds(100))
-
+    try await waitForItemQueue([playingEpisode, incomingQueuedEpisode])
     try await waitForQueue([incomingQueuedEpisode, queuedEpisode])
   }
 
-  @Test("loading an episode puts current episode back in queue")
+  // TODO: Update from here down
+  @Test("loading a new episode puts current episode back in queue")
   func loadingAnEpisodePutsCurrentEpisodeBackInQueue() async throws {
     let (playingEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
     try await load(playingEpisode)
-    try await Task.sleep(for: .milliseconds(100))
-
     try await load(incomingEpisode)
-    try await Task.sleep(for: .milliseconds(100))
 
+    try await waitForItemQueue([incomingEpisode, playingEpisode])
     try await waitForQueue([playingEpisode])
   }
 
