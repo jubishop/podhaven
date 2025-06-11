@@ -5,6 +5,7 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import ReadableErrorMacro
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -233,8 +234,9 @@ class ErrorTests {
       return true
     }
 
+    let cancellationSemaphor = AsyncSemaphore(value: 0)
     let task = Task {
-      await #expect {
+      async let expect = await #expect {
         _ = try await URLSession.shared.data(
           for: URLRequest(url: URL(string: "https://artisanalsoftware.com")!)
         )
@@ -244,8 +246,10 @@ class ErrorTests {
         else { return false }
         return true
       }
+      cancellationSemaphor.signal()
+      return await expect
     }
-    try await Task.sleep(nanoseconds: 100_000_000)
+    await cancellationSemaphor.wait()
     task.cancel()
   }
 
