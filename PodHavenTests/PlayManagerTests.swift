@@ -206,8 +206,6 @@ import Testing
     try await checkTime()
   }
 
-  // TODO: Update from here down
-
   @Test("seeking retains playing status")
   func seekingRetainsPlayStatus() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
@@ -226,6 +224,8 @@ import Testing
     seekSemaphore.signal()
     try await waitFor(.playing)
   }
+
+  // TODO: Update from here down
 
   @Test("playback is paused while seeking")
   func playbackIsPausedWhileSeeking() async throws {
