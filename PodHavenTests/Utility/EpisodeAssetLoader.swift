@@ -17,7 +17,9 @@ class EpisodeAssetLoader {
 
   private(set) var responseCounts: [MediaURL: Int] = [:]
 
-  private var defaultHandler: LoadHandler = { _ in (true, CMTime.inSeconds(60)) }
+  private var defaultHandler: LoadHandler = { _ in
+    (true, CMTime.inSeconds(Double.random(in: 1...999)))
+  }
   private var fakeHandlers: [MediaURL: LoadHandler] = [:]
 
   func setDefaultResponse(_ handler: @escaping LoadHandler) {

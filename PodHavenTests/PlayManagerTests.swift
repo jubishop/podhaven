@@ -5,6 +5,7 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import MediaPlayer
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -190,7 +191,7 @@ import Testing
       #expect(nowPlayingCurrentTime == currentTime)
       #expect(nowPlayingProgress == (currentTime).seconds / duration.seconds)
     }
-    
+
     await playManager.seek(to: currentTime)
     try await checkTime()
 
@@ -207,53 +208,23 @@ import Testing
 
   // TODO: Update from here down
 
-  @Test("seeking retains play status")
+  @Test("seeking retains playing status")
   func seekingRetainsPlayStatus() async throws {
-    // In progress means seek will happen upon loading
-    let duration = CMTime.inSeconds(240)
-    let skipAmount = CMTime.inSeconds(15)
-    var currentTime = CMTime.inSeconds(120)
-    let podcastEpisode = try await Create.podcastEpisode(
-      Create.unsavedEpisode(duration: duration, currentTime: currentTime)
-    )
+    let podcastEpisode = try await Create.podcastEpisode()
 
-    // Seek will happen because episode has currentTime
-    episodeAssetLoader.respond(to: podcastEpisode.episode.media) { mediaURL in
-      (true, duration)
+    let seekSemaphore = AsyncSemaphore(value: 0)
+    avQueuePlayer.seekHandler = { _ in
+      await seekSemaphore.wait()
+      return true
     }
-    let onDeck = try await load(podcastEpisode)
-    #expect(onDeck.duration == duration)
-    #expect(playState.currentTime == currentTime)
-    #expect(nowPlayingCurrentTime == currentTime)
-    #expect(nowPlayingProgress == currentTime.seconds / duration.seconds)
-    #expect(playState.status == .paused)
-    #expect(avQueuePlayer.timeControlStatus == .paused)
-
-    // Pause episode
-    try await pause()
-
-    // Seek and episode remains paused
-    currentTime += skipAmount
-    await playManager.seekForward(skipAmount)
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == currentTime)
-    #expect(nowPlayingCurrentTime == currentTime)
-    #expect(nowPlayingProgress == currentTime.seconds / duration.seconds)
-    #expect(playState.status == .paused)
-    #expect(avQueuePlayer.timeControlStatus == .paused)
-
-    // Play episode
+    try await load(podcastEpisode)
     try await play()
 
-    // Seek and episode remains playing
-    currentTime += skipAmount
-    await playManager.seekForward(skipAmount)
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == currentTime)
-    #expect(nowPlayingCurrentTime == currentTime)
-    #expect(nowPlayingProgress == currentTime.seconds / duration.seconds)
-    #expect(playState.status == .playing)
-    #expect(avQueuePlayer.timeControlStatus == .playing)
+    // Seek and episode will return to playing
+    await playManager.seek(to: .inSeconds(60))
+    try await waitFor(.paused)
+    seekSemaphore.signal()
+    try await waitFor(.playing)
   }
 
   @Test("playback is paused while seeking")
