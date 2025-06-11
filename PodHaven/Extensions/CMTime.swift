@@ -14,24 +14,6 @@ extension CMTime:
     CMTime(seconds: seconds, preferredTimescale: 60)
   }
 
-  // MARK: - Operators
-
-  static func + (left: CMTime, right: CMTime) -> CMTime {
-    CMTimeAdd(left, right)
-  }
-
-  static func - (left: CMTime, right: CMTime) -> CMTime {
-    CMTimeSubtract(left, right)
-  }
-
-  static func += (left: inout CMTime, right: CMTime) {
-    left = left + right
-  }
-
-  static func -= (left: inout CMTime, right: CMTime) {
-    left = left - right
-  }
-
   // MARK: - CustomStringConvertible
 
   public var description: String {

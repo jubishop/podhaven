@@ -180,30 +180,30 @@ import Testing
   @Test("seeking updates current time")
   func seekingUpdatesCurrentTime() async throws {
     let duration = CMTime.inSeconds(240)
-    var currentTime = CMTime.inSeconds(120)
+    let originalTime = CMTime.inSeconds(120)
     let podcastEpisode = try await Create.podcastEpisode()
 
     episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in (true, duration) }
     try await load(podcastEpisode)
 
-    let checkTime = {
-      try await waitFor(currentTime)
-      #expect(nowPlayingCurrentTime == currentTime)
-      #expect(nowPlayingProgress == (currentTime).seconds / duration.seconds)
-    }
+    await playManager.seek(to: originalTime)
+    try await waitFor(originalTime)
+    #expect(nowPlayingCurrentTime == originalTime)
+    #expect(nowPlayingProgress == originalTime.seconds / duration.seconds)
 
-    await playManager.seek(to: currentTime)
-    try await checkTime()
+    let skipAmount = CMTime.inSeconds(30)
+    let skipTime = CMTimeAdd(originalTime, skipAmount)
+    await playManager.seekForward(skipAmount)
+    try await waitFor(skipTime)
+    #expect(nowPlayingCurrentTime == skipTime)
+    #expect(nowPlayingProgress == skipTime.seconds / duration.seconds)
 
-    let skipTime = CMTime.inSeconds(30)
-    currentTime += skipTime
-    await playManager.seekForward(skipTime)
-    try await checkTime()
-
-    let rewindTime = CMTime.inSeconds(15)
-    currentTime -= rewindTime
-    await playManager.seekBackward(rewindTime)
-    try await checkTime()
+    let rewindAmount = CMTime.inSeconds(15)
+    let rewindTime = CMTimeSubtract(skipTime, rewindAmount)
+    await playManager.seekBackward(rewindAmount)
+    try await waitFor(rewindTime)
+    #expect(nowPlayingCurrentTime == rewindTime)
+    #expect(nowPlayingProgress == rewindTime.seconds / duration.seconds)
   }
 
   @Test("seeking retains playing status")
@@ -225,80 +225,76 @@ import Testing
     try await waitFor(.playing)
   }
 
-  // TODO: Update from here down
-
   @Test("playback is paused while seeking")
   func playbackIsPausedWhileSeeking() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
+
     try await load(podcastEpisode)
     try await play()
 
     // First seek is interrupted so we stay paused
-    avQueuePlayer.seekHandler = { _ in false }
-    await playManager.seek(to: .inSeconds(30))
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.status == .paused)
-
-    // Second seek finishes but slowly
+    let seekSemaphore = AsyncSemaphore(value: 0)
     avQueuePlayer.seekHandler = { _ in
-      try? await Task.sleep(for: .milliseconds(100))
+      await seekSemaphore.wait()
+      return false
+    }
+    await playManager.seek(to: .inSeconds(30))
+    try await waitFor(.paused)
+    seekSemaphore.signal()
+
+    // Second seek finishes but we stay paused till it does
+    avQueuePlayer.seekHandler = { _ in
+      await seekSemaphore.wait()
       return true
     }
     await playManager.seek(to: .inSeconds(30))
-    #expect(playState.status == .paused)  // Still paused since seek has not completed
+    try await waitFor(.paused)
+    seekSemaphore.signal()
 
     // Now seek has finished, we go back to playing
-    try await Task.sleep(for: .milliseconds(200))
-    try await Wait.until(
-      { await playState.status == .playing },
-      { "Status is: \(await playState.status)" }
-    )
-    #expect(playState.currentTime == .inSeconds(30))
+    try await waitFor(.playing)
   }
 
   @Test("periodicTimeObserver events are ignored while seeking")
   func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
-    var correctTime = CMTime.inSeconds(30)
-    let podcastEpisode = try await Create.podcastEpisode(
-      Create.unsavedEpisode(currentTime: correctTime)
-    )
+    let failedSeekTime = CMTime.inSeconds(60)
+    let successfulSeekTime = CMTimeAdd(failedSeekTime, CMTime.inSeconds(30))
+    let podcastEpisode = try await Create.podcastEpisode()
+
     try await load(podcastEpisode)
-    #expect(playState.currentTime == correctTime)
 
-    // After this seek, all time advancement is being ignored
+    // After this failed seek, all time advancement is being ignored
     avQueuePlayer.seekHandler = { _ in false }
-    correctTime += .inSeconds(10)
-    await playManager.seek(to: correctTime)  // Time observation turned off after this
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == correctTime)
-
-    // Since no seek was successful we are ignoring these right now
+    await playManager.seek(to: failedSeekTime)
+    try await waitFor(failedSeekTime)
     avQueuePlayer.simulateTimeAdvancement(to: .inSeconds(999))  // Ignored
     try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == correctTime)  // Still what it was at seek
+    #expect(playState.currentTime == failedSeekTime)  // Still what it was at failed seek
 
-    // Since a seek is in progress, we will ignore time advancement until its success
+    // While a seek is in progress, we will ignore time advancement until its success
+    let seekSemaphore = AsyncSemaphore(value: 0)
     avQueuePlayer.seekHandler = { _ in
-      try! await Task.sleep(for: .milliseconds(200))
+      await seekSemaphore.wait()
       return true
     }
-    correctTime += .inSeconds(10)
-    await playManager.seek(to: correctTime)
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == correctTime)
+    await playManager.seek(to: successfulSeekTime)
+    try await waitFor(successfulSeekTime)
     avQueuePlayer.simulateTimeAdvancement(to: .inSeconds(999))  // Ignored
     try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == correctTime)  // Still what it was at seek
+    #expect(playState.currentTime == successfulSeekTime)  // Still what it was at successful seek
 
-    // After this, our seek completed successfully so time advancement observation is back
-    try await Task.sleep(for: .milliseconds(100))
-    correctTime += .inSeconds(10)
-    avQueuePlayer.simulateTimeAdvancement(to: correctTime)  // Actually Triggers
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == correctTime)
+    // Our seek completes successfully so time advancement observation is back
+    seekSemaphore.signal()
+    try await Wait.until {  // Wait for time observer to get added
+      !(await avQueuePlayer.timeObservers.isEmpty)
+    }
+    let advancedTime = CMTimeAdd(successfulSeekTime, CMTime.inSeconds(10))
+    avQueuePlayer.simulateTimeAdvancement(to: advancedTime)  // Actually Triggers
+    try await waitFor(advancedTime)
   }
 
   // MARK: - Queue Management
+  // TODO: Update from here down
 
   @Test("adding an episode to top of queue while playing")
   func addingAnEpisodeToTopOfQueueWhilePlaying() async throws {

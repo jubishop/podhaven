@@ -11,9 +11,9 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   // MARK: - Internal State Management
 
-  private var itemObservations: [ObservationHandler<MediaURL?>] = []
-  private var timeObservers: [UUID: TimeObserver] = [:]
-  private var currentTimeValue: CMTime = .zero {
+  var itemObservations: [ObservationHandler<MediaURL?>] = []
+  var timeObservers: [UUID: TimeObserver] = [:]
+  var currentTimeValue: CMTime = .zero {
     didSet {
       let currentTimeValue = currentTimeValue
       for observer in timeObservers.values {
@@ -27,23 +27,17 @@ class FakeAVQueuePlayer: AVQueuePlayable {
       }
     }
   }
-  private var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
+  var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
 
   // MARK: - Private Helper Classes
 
-  private final class TimeObserver: Sendable {
+  struct TimeObserver: Sendable {
     let interval: CMTime
     let queue: dispatch_queue_t?
     let block: @Sendable (CMTime) -> Void
-
-    init(interval: CMTime, queue: dispatch_queue_t?, block: @Sendable @escaping (CMTime) -> Void) {
-      self.interval = interval
-      self.queue = queue
-      self.block = block
-    }
   }
 
-  private struct ObservationHandler<T> {
+  struct ObservationHandler<T> {
     weak var observation: NSKeyValueObservation?
     let handler: (T) -> Void
   }
