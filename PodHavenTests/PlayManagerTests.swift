@@ -269,18 +269,20 @@ import Testing
 
   @Test("periodicTimeObserver events are ignored while seeking")
   func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
+    let (firstPodcastEpisode, secondPodcastEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await load(podcastEpisode)
+    try await load(firstPodcastEpisode)
 
     // After this failed seek, all time advancement is being ignored
     avQueuePlayer.seekHandler = { _ in false }
     let failedSeekTime = CMTime.inSeconds(60)
     await playManager.seek(to: failedSeekTime)
     try await waitFor(failedSeekTime)
+    try await waitForRemovePeriodicTimeObserver()
     avQueuePlayer.advanceTime(to: .inSeconds(999))  // Ignored
-    try await Task.sleep(for: .milliseconds(100))
     #expect(playState.currentTime == failedSeekTime)  // Still what it was at failed seek
+
+    try await load(secondPodcastEpisode)
 
     // While a seek is in progress, we will ignore time advancement until its success
     let seekSemaphore = AsyncSemaphore(value: 0)
@@ -291,15 +293,13 @@ import Testing
     let successfulSeekTime = CMTimeAdd(failedSeekTime, CMTime.inSeconds(30))
     await playManager.seek(to: successfulSeekTime)
     try await waitFor(successfulSeekTime)
+    try await waitForRemovePeriodicTimeObserver()
     avQueuePlayer.advanceTime(to: .inSeconds(999))  // Ignored
-    try await Task.sleep(for: .milliseconds(100))
     #expect(playState.currentTime == successfulSeekTime)  // Still what it was at successful seek
 
     // Our seek completes successfully so time advancement observation is back
     seekSemaphore.signal()
-    try await Wait.until {  // Wait for time observer to get added
-      !(await avQueuePlayer.timeObservers.isEmpty)
-    }
+    try await waitForAddPeriodicTimeObserver()
     let advancedTime = CMTimeAdd(successfulSeekTime, CMTime.inSeconds(10))
     avQueuePlayer.advanceTime(to: advancedTime)  // Actually Triggers
     try await waitFor(advancedTime)
@@ -617,6 +617,31 @@ import Testing
     return try await Wait.forValue { await playState.onDeck }
   }
 
+  private func queueNext(_ podcastEpisode: PodcastEpisode) async throws {
+    try await queue.unshift(podcastEpisode.id)
+    try await Wait.until(
+      { try await queue.nextEpisode?.id == podcastEpisode.id },
+      {
+        """
+        Next episode ID: \(String(describing: try await queue.nextEpisode?.id)), \
+        Expected: \(podcastEpisode.id)
+        """
+      }
+    )
+  }
+
+  private func play() async throws {
+    await playManager.play()
+    try await waitFor(.playing)
+  }
+
+  private func pause() async throws {
+    await playManager.pause()
+    try await waitFor(.paused)
+  }
+
+  // MARK: - Wait Helpers
+
   private func waitFor(_ status: PlayState.Status) async throws {
     try await Wait.until(
       { await playState.status == status },
@@ -641,27 +666,12 @@ import Testing
     )
   }
 
-  private func queueNext(_ podcastEpisode: PodcastEpisode) async throws {
-    try await queue.unshift(podcastEpisode.id)
-    try await Wait.until(
-      { try await queue.nextEpisode?.id == podcastEpisode.id },
-      {
-        """
-        Next episode ID: \(String(describing: try await queue.nextEpisode?.id)), \
-        Expected: \(podcastEpisode.id)
-        """
-      }
-    )
+  private func waitForAddPeriodicTimeObserver() async throws {
+    try await Wait.until { !(await avQueuePlayer.timeObservers.isEmpty) }
   }
 
-  private func play() async throws {
-    await playManager.play()
-    try await waitFor(.playing)
-  }
-
-  private func pause() async throws {
-    await playManager.pause()
-    try await waitFor(.paused)
+  private func waitForRemovePeriodicTimeObserver() async throws {
+    try await Wait.until { await avQueuePlayer.timeObservers.isEmpty }
   }
 
   // MARK: - Comparison Helpers
