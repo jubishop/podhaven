@@ -45,7 +45,7 @@ import Testing
 
     let onDeck = try await load(podcastEpisode)
     #expect(onDeck == podcastEpisode)
-    #expect(itemQueueURLs == episodeMediaURLs([podcastEpisode]))
+    try await waitForItemQueue([podcastEpisode])
 
     #expect(nowPlayingInfo![MPMediaItemPropertyAlbumTitle] as? String == onDeck.podcastTitle)
     let image = try await images.fetchImage(podcastEpisode.podcast.image)
@@ -191,13 +191,13 @@ import Testing
 
   @Test("seeking updates current time")
   func seekingUpdatesCurrentTime() async throws {
-    let duration = CMTime.inSeconds(240)
-    let originalTime = CMTime.inSeconds(120)
     let podcastEpisode = try await Create.podcastEpisode()
 
+    let duration = CMTime.inSeconds(240)
     episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in (true, duration) }
     try await load(podcastEpisode)
 
+    let originalTime = CMTime.inSeconds(120)
     await playManager.seek(to: originalTime)
     try await waitFor(originalTime)
     #expect(nowPlayingCurrentTime == originalTime)
@@ -300,21 +300,20 @@ import Testing
   }
 
   // MARK: - Queue Management
-  // TODO: Update from here down
 
   @Test("adding an episode to top of queue while playing")
   func addingAnEpisodeToTopOfQueueWhilePlaying() async throws {
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
     try await load(playingEpisode)
-    try await queue.unshift(queuedEpisode.id)
-    try await Task.sleep(for: .milliseconds(100))
+    try await play()
+    try await queueNext(queuedEpisode)
 
-    #expect(itemQueueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
-    let queued = episodeStrings(try await queuedPodcastEpisodes)
-    #expect(queued == episodeStrings([queuedEpisode]))
+    try await waitForItemQueue([playingEpisode, queuedEpisode])
+    try await waitForQueue([queuedEpisode])
   }
 
+  // TODO: Update from here down
   @Test("loading an episode with queue already filled")
   func loadingAnEpisodeWithQueueAlreadyFilled() async throws {
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -324,9 +323,7 @@ import Testing
     try await load(playingEpisode)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(itemQueueURLs == episodeMediaURLs([playingEpisode, queuedEpisode]))
-    let queued = episodeStrings(try await queuedPodcastEpisodes)
-    #expect(queued == episodeStrings([queuedEpisode]))
+    try await waitForQueue([queuedEpisode])
   }
 
   @Test("top queue item changes while playing")
@@ -341,9 +338,7 @@ import Testing
     try await queue.unshift(incomingQueuedEpisode.id)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(itemQueueURLs == episodeMediaURLs([playingEpisode, incomingQueuedEpisode]))
-    let queued = episodeStrings(try await queuedPodcastEpisodes)
-    #expect(queued == episodeStrings([incomingQueuedEpisode, queuedEpisode]))
+    try await waitForQueue([incomingQueuedEpisode, queuedEpisode])
   }
 
   @Test("loading an episode puts current episode back in queue")
@@ -356,9 +351,7 @@ import Testing
     try await load(incomingEpisode)
     try await Task.sleep(for: .milliseconds(100))
 
-    #expect(itemQueueURLs == episodeMediaURLs([incomingEpisode, playingEpisode]))
-    let queued = episodeStrings(try await queuedPodcastEpisodes)
-    #expect(queued == episodeStrings([playingEpisode]))
+    try await waitForQueue([playingEpisode])
   }
 
   // MARK: - Loading
@@ -400,8 +393,7 @@ import Testing
     #expect(playState.onDeck == nil)
     #expect(nowPlayingInfo == nil)
     #expect(itemQueueURLs.isEmpty)
-    let queued = episodeStrings(try await queuedPodcastEpisodes)
-    #expect(queued == episodeStrings([episodeToLoad, playingEpisode]))
+    try await waitForQueue([episodeToLoad, playingEpisode])
   }
 
   @Test("playing while loading episodes leaves status playing, not paused")
@@ -448,7 +440,7 @@ import Testing
     #expect(playState.onDeck == nil)
     #expect(nowPlayingInfo == nil)
     #expect(itemQueueURLs.isEmpty)
-    #expect((try await queuedPodcastEpisodes).isEmpty)
+    #expect((try await queuedEpisodeIDs).isEmpty)
   }
 
   @Test("current item becoming nil with existing next episode loads next episode")
@@ -523,9 +515,7 @@ import Testing
       }
     )
     #expect(playState.onDeck! == incomingEpisode)
-    #expect(itemQueueURLs == episodeMediaURLs([incomingEpisode, queuedEpisode]))
-    let queued = episodeStrings(try await queuedPodcastEpisodes)
-    #expect(queued == episodeStrings([queuedEpisode]))
+    try await waitForQueue([queuedEpisode])
   }
 
   @Test("new currentItem with currentTime pauses until after seek and then sets currentTime")
@@ -660,6 +650,33 @@ import Testing
     )
   }
 
+  private func waitForQueue(_ podcastEpisodes: [PodcastEpisode]) async throws {
+    try await Wait.until(
+      { try await queuedEpisodeIDs == podcastEpisodes.map(\.id) },
+      {
+        """
+        Quue is: \(try await queuedEpisodeStrings), \
+        Expected: \(await episodeStrings(podcastEpisodes))
+        """
+      }
+    )
+  }
+
+  private func waitForItemQueue(_ podcastEpisodes: [PodcastEpisode]) async throws {
+    try await Wait.until(
+      {
+        let mediaURLs = await episodeMediaURLs(podcastEpisodes)
+        return await itemQueueURLs == mediaURLs
+      },
+      {
+        """
+        Item queue is: \(await itemQueueURLs), \
+        Expected: \(await episodeMediaURLs(podcastEpisodes))
+        """
+      }
+    )
+  }
+
   private func waitForAddPeriodicTimeObserver() async throws {
     try await Wait.until { !(await avQueuePlayer.timeObservers.isEmpty) }
   }
@@ -686,17 +703,32 @@ import Testing
     avQueuePlayer.queued.map(\.assetURL)
   }
 
-  private var queuedPodcastEpisodes: [PodcastEpisode] {
+  private var queuedEpisodeIDs: [Episode.ID] {
     get async throws {
       try await repo.db.read { db in
         try Episode
           .all()
           .queued()
           .order(\.queueOrder.asc)
-          .including(required: Episode.podcast)
-          .asRequest(of: PodcastEpisode.self)
+          .select(\.id)
           .fetchAll(db)
       }
+    }
+  }
+
+  private var queuedEpisodeStrings: [String] {
+    get async throws {
+      episodeStrings(
+        try await repo.db.read { db in
+          try Episode
+            .all()
+            .queued()
+            .order(\.queueOrder.asc)
+            .including(required: Episode.podcast)
+            .asRequest(of: PodcastEpisode.self)
+            .fetchAll(db)
+        }
+      )
     }
   }
 
