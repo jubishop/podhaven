@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
-import BugfenderSDK
 import FactoryKit
 import Logging
 import Sentry
@@ -60,14 +59,12 @@ struct PodHavenApp: App {
     switch AppInfo.environment {
     case .iPhone:
       if AppInfo.myPhone {
-        configureBugFender()
         configureSentry()
 
         log.debug("configureLogging: myPhone (OSLogHandler, RemoteLogHandler, CrashReportHandler)")
         LoggingSystem.bootstrap { label in
           MultiplexLogHandler([
             OSLogHandler(label: label),
-            RemoteLogHandler(label: label),
             CrashReportHandler(label: label),
           ])
         }
@@ -82,11 +79,6 @@ struct PodHavenApp: App {
       log.debug("configureLogging: simulator/mac/appStore (OSLogHandler)")
       LoggingSystem.bootstrap(OSLogHandler.init)
     }
-  }
-
-  private static func configureBugFender() {
-    Bugfender.activateLogger("DHXOFyzIYy2lzznaFpku5oXaiGwqqDXE")
-    Bugfender.setPrintToConsole(false)
   }
 
   private static func configureSentry() {

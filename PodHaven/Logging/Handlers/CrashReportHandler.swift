@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import BugfenderSDK
 import Foundation
 import Logging
 import Sentry

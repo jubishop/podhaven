@@ -1,15 +1,6 @@
 {
-  "originHash" : "e0e212fbdd7ca33d1c35eaa9c05b70072646feb61afcf43fe5362b873abff944",
+  "originHash" : "f99d8996cbddc114ff857eefb5686071f29b0bb6f52053b2619ad3931d01f3bc",
   "pins" : [
-    {
-      "identity" : "bugfendersdk-ios",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/bugfender/BugfenderSDK-iOS",
-      "state" : {
-        "branch" : "main",
-        "revision" : "2e92940c702c9182352fa5a213e472da62ad69c1"
-      }
-    },
     {
       "identity" : "combine-schedulers",
       "kind" : "remoteSourceControl",
