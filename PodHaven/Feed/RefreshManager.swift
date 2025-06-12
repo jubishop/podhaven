@@ -99,7 +99,8 @@ actor RefreshManager {
 
   private func activated() {
     backgroundRefreshTask?.cancel()
-    backgroundRefreshTask = Task(priority: .utility) {
+    backgroundRefreshTask = Task(priority: .utility) { [weak self] in
+      guard let self else { return }
       while !Task.isCancelled {
         try? await self.performRefresh(
           stalenessThreshold: 10.minutesAgo,
@@ -118,9 +119,10 @@ actor RefreshManager {
   private func startListeningToActivation() {
     Assert.neverCalled()
 
-    Task {
-      for await _ in notifications(UIApplication.didBecomeActiveNotification) {
-        activated()
+    Task { [weak self] in
+      guard let self else { return }
+      for await _ in await notifications(UIApplication.didBecomeActiveNotification) {
+        await activated()
       }
     }
   }
@@ -128,9 +130,10 @@ actor RefreshManager {
   private func startListeningToDeactivation() {
     Assert.neverCalled()
 
-    Task {
-      for await _ in notifications(UIApplication.willResignActiveNotification) {
-        backgrounded()
+    Task { [weak self] in
+      guard let self else { return }
+      for await _ in await notifications(UIApplication.willResignActiveNotification) {
+        await backgrounded()
       }
     }
   }

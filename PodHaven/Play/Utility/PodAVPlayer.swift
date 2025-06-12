@@ -170,7 +170,8 @@ extension Container {
 
       if completed {
         log.trace("seek: to \(time) completed")
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
+          guard let self else { return }
           if let preSeekStatus {
             self.preSeekStatus = nil
             if preSeekStatus != .paused { play() }
@@ -196,7 +197,8 @@ extension Container {
   private func performSetNextEpisode(_ nextPodcastEpisode: PodcastEpisode?) async throws {
     guard shouldSetAsNext(nextPodcastEpisode) else { return }
 
-    let task = Task {
+    let task = Task { [weak self] in
+      guard let self else { return }
       log.debug("performSetNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))")
 
       if let podcastEpisode = nextPodcastEpisode {
@@ -266,7 +268,7 @@ extension Container {
     return true
   }
 
-  // MARK: - Private Change Handlers
+  // MARK: - Change Handlers
 
   private func handleCurrentItemChange(_ mediaURL: MediaURL?) async throws {
     if podcastEpisode?.episode.media == mediaURL {

@@ -79,14 +79,15 @@ actor FeedManager {
 
     let feedTask = FeedTask(await downloadManager.addURL(url.rawValue))
     feedTasks[url] = feedTask
-    Task(priority: .utility) {
+    Task(priority: .utility) { [weak self] in
+      guard let self else { return }
       do {
         let podcastFeed = try await feedTask.feedParsed()
         streamContinuation.yield(.success(podcastFeed))
       } catch let error as FeedError {
         streamContinuation.yield(.failure(error))
       }
-      feedTasks.removeValue(forKey: url)
+      await removeFeedTask(feedURL: url)
     }
     return feedTask
   }
@@ -96,5 +97,9 @@ actor FeedManager {
       await feedTask.cancel()
     }
     feedTasks.removeAll()
+  }
+
+  private func removeFeedTask(feedURL: FeedURL) {
+    feedTasks.removeValue(forKey: feedURL)
   }
 }

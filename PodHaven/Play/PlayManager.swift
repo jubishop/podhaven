@@ -104,7 +104,8 @@ actor PlayManager {
       return
     }
 
-    let task = Task {
+    let task = Task { [weak self] in
+      guard let self else { return }
       do {
         log.info("performLoad: \(podcastEpisode.toString)")
 

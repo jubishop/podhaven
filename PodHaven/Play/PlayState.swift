@@ -72,7 +72,8 @@ extension Container {
   private func startListeningToKeyboardShow() {
     Assert.neverCalled()
 
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       for await _ in notifications(UIResponder.keyboardWillShowNotification) {
         keyboardVisible = true
       }
@@ -82,7 +83,8 @@ extension Container {
   private func startListeningToKeyboardHide() {
     Assert.neverCalled()
 
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       for await _ in notifications(UIResponder.keyboardDidHideNotification) {
         keyboardVisible = false
       }
