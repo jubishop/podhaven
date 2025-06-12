@@ -95,6 +95,18 @@ enum PlayHelpers {
     )
   }
 
+  static func waitForOnDeck(_ podcastEpisode: PodcastEpisode) async throws {
+    try await Wait.until(
+      { await playState.onDeck?.media == podcastEpisode.episode.media },
+      {
+        """
+        OnDeck MediaURL is: \(String(describing: await playState.onDeck?.media.toString)), \
+        Expected: \(podcastEpisode.episode.media.toString)
+        """
+      }
+    )
+  }
+
   static func waitForQueue(_ podcastEpisodes: [PodcastEpisode]) async throws {
     try await Wait.until(
       { try await queuedEpisodeIDs == podcastEpisodes.map(\.id) },
@@ -128,6 +140,19 @@ enum PlayHelpers {
 
   static func waitForRemovePeriodicTimeObserver() async throws {
     try await Wait.until { await avQueuePlayer.timeObservers.isEmpty }
+  }
+
+  static func waitForResponse(for mediaURL: MediaURL, count: Int = 1) async throws {
+    try await Wait.until(
+      { await PlayHelpers.responseCount(for: mediaURL) == count },
+      {
+        """
+        responseCount for \(mediaURL.toString) is: \
+        \(await responseCount(for: mediaURL)), \
+        expected: \(count)
+        """
+      }
+    )
   }
 
   // MARK: - Timing Helpers

@@ -449,39 +449,31 @@ import Testing
     #expect((try await PlayHelpers.queuedEpisodeIDs).isEmpty)
   }
 
-  // TODO: update from here down
   @Test("current item becoming nil will manually load next episode")
   func currentItemBecomingNilWillManuallyLoadNextEpisode() async throws {
     let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
+    try await PlayHelpers.queueNext(queuedEpisode)
+
+    // This ensures the standard queuing of this item into the avPlayer queue fails
     episodeAssetLoader.respond(to: queuedEpisode.episode.media) { mediaURL in
       throw TestError.assetLoadFailure(mediaURL)
     }
-    try await queue.unshift(queuedEpisode.id)
 
     try await PlayHelpers.load(originalEpisode)
     try await PlayHelpers.play()
-    try await Wait.until(
-      { await PlayHelpers.responseCount(for: queuedEpisode.episode.media) == 1 },
-      {
-        "responseCount remains: \(await PlayHelpers.responseCount(for: queuedEpisode.episode.media))"
-      }
-    )
+    try await PlayHelpers.waitForResponse(for: queuedEpisode.episode.media)
 
+    // Now allow the load to succeed next time we try
     episodeAssetLoader.clearCustomHandler(for: queuedEpisode.episode.media)
+
     avQueuePlayer.finishEpisode()
-    try await Wait.until(
-      { await playState.onDeck?.episodeTitle == queuedEpisode.episode.title },
-      { "OnDeck is: \(String(describing: await playState.onDeck))" }
-    )
-    try await Wait.until(
-      { await playState.status == .playing },
-      { "Status is: \(await playState.status)" }
-    )
-    #expect(avQueuePlayer.timeControlStatus == .playing)
-    #expect(PlayHelpers.itemQueueURLs == PlayHelpers.episodeMediaURLs([queuedEpisode]))
+    try await PlayHelpers.waitForOnDeck(queuedEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForItemQueue([queuedEpisode])
   }
 
+  // TODO: update from here down
   @Test("current item advancing to next episode")
   func currentItemAdvancingToNextEpisode() async throws {
     let (originalEpisode, queuedEpisode, incomingEpisode) =
