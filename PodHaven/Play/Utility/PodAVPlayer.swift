@@ -278,7 +278,7 @@ extension Container {
     if podcastEpisode?.episode.media == mediaURL {
       log.trace(
         """
-        handleCurrentItemChange: ignoring because mediaURL matches: \
+        handleCurrentItemChange: ignoring because mediaURL matches current podcastEpisode: \
         \(String(describing: mediaURL?.toString))
         """
       )
