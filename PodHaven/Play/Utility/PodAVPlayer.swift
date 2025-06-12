@@ -72,7 +72,6 @@ extension Container {
     )
 
     observeNextEpisode()
-    addTimeControlStatusObserver()
     startPlayToEndTimeNotifications()
   }
 
@@ -271,10 +270,6 @@ extension Container {
   private func handleCurrentItemChange(_ mediaURL: MediaURL?) async throws {
     if podcastEpisode?.episode.media == mediaURL { return }
 
-    if avQueuePlayer.timeControlStatus != .playing {
-      throw PlaybackError.currentItemChangedWhenPaused(mediaURL)
-    }
-
     if let mediaURL {
       podcastEpisode = try await repo.episode(mediaURL)
     } else {
@@ -305,11 +300,13 @@ extension Container {
   func addTransientObservers() {
     addCurrentItemObserver()
     addPeriodicTimeObserver()
+    addTimeControlStatusObserver()
   }
 
   func removeTransientObservers() {
     removeCurrentItemObserver()
     removePeriodicTimeObserver()
+    removeTimeControlStatusObserver()
   }
 
   private func addCurrentItemObserver() {
@@ -342,6 +339,16 @@ extension Container {
     }
   }
 
+  private func addTimeControlStatusObserver() {
+    guard timeControlStatusObserver == nil else { return }
+
+    timeControlStatusObserver = avQueuePlayer.observeTimeControlStatus(
+      options: [.initial, .new]
+    ) { status in
+      self.controlStatusContinuation.yield(status)
+    }
+  }
+
   private func removeCurrentItemObserver() {
     if currentItemObserver != nil {
       self.currentItemObserver = nil
@@ -352,6 +359,12 @@ extension Container {
     if let periodicTimeObserver {
       avQueuePlayer.removeTimeObserver(periodicTimeObserver)
       self.periodicTimeObserver = nil
+    }
+  }
+
+  private func removeTimeControlStatusObserver() {
+    if timeControlStatusObserver != nil {
+      self.timeControlStatusObserver = nil
     }
   }
 
@@ -376,16 +389,6 @@ extension Container {
           log.error(ErrorKit.loggableMessage(for: error))
         }
       }
-    }
-  }
-
-  private func addTimeControlStatusObserver() {
-    Assert.neverCalled()
-
-    timeControlStatusObserver = avQueuePlayer.observeTimeControlStatus(
-      options: [.initial, .new]
-    ) { status in
-      self.controlStatusContinuation.yield(status)
     }
   }
 

@@ -9,6 +9,8 @@ import Foundation
 class FakeAVQueuePlayer: AVQueuePlayable {
   @DynamicInjected(\.notifier) private var notifier
 
+  private let log = Log.as("FakeAVQueuePlayer")
+
   // MARK: - Helper Classes
 
   struct TimeObserver: Sendable {
@@ -134,9 +136,13 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused {
     didSet {
+      log.debug("FakeAVQueuePlayer: didSet timeControlStatus to: \(timeControlStatus)")
       // Clean up deallocated observations and call active handlers
       statusObservations = statusObservations.compactMap { observationHandler in
         guard observationHandler.observation != nil else { return nil }
+        log.debug(
+          "FakeAVQueuePlayer: Calling active timeControlStatus handler with: \(timeControlStatus)"
+        )
         observationHandler.handler(timeControlStatus)
         return observationHandler
       }
@@ -170,6 +176,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
       Assert.fatal("Can't finish an episode that doesn't exist!")
     }
 
+    log.debug("FakeAVQueuePlayer: Finishing episode: \(currentItem.assetURL.toString)")
     notifier.continuation(for: AVPlayerItem.didPlayToEndTimeNotification)
       .yield(
         Notification(

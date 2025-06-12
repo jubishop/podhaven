@@ -175,7 +175,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await PlayHelpers.executeMidLoad(for: podcastEpisode.episode.media) {
-      try await PlayHelpers.play()
+      await playManager.play()
     }
     Task { try await PlayHelpers.load(podcastEpisode) }
 
@@ -434,7 +434,6 @@ import Testing
 
   // MARK: - Episode Finishing
 
-  // TODO: this is failing
   @Test("current item becoming nil clears deck")
   func currentItemBecomingNilClearsDeck() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
@@ -450,7 +449,7 @@ import Testing
     #expect((try await PlayHelpers.queuedEpisodeIDs).isEmpty)
   }
 
-  // TODO: update from here down (this one fails)
+  // TODO: update from here down
   @Test("current item becoming nil will manually load next episode")
   func currentItemBecomingNilWillManuallyLoadNextEpisode() async throws {
     let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
