@@ -283,6 +283,7 @@ extension Container {
 
     try await repo.updateCurrentTime(podcastEpisode.id, currentTime)
 
+    log.trace("handleCurrentTimeChange to: \(currentTime) for \(podcastEpisode.toString)")
     currentTimeContinuation.yield(currentTime)
   }
 
