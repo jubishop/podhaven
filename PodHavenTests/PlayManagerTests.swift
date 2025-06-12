@@ -14,18 +14,20 @@ import Testing
 @MainActor struct PlayManagerTests {
   @DynamicInjected(\.episodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.images) private var images
-  @DynamicInjected(\.mpNowPlayingInfoCenter) private var mpNowPlayingInfoCenter
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.playState) private var playState
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
-  @DynamicInjected(\.avQueuePlayer) private var injectedAVQueuePlayer
-  @DynamicInjected(\.commandCenter) private var injectedCommandCenter
-
-  var avQueuePlayer: FakeAVQueuePlayer { injectedAVQueuePlayer as! FakeAVQueuePlayer }
-  var commandCenter: FakeCommandCenter { injectedCommandCenter as! FakeCommandCenter }
-  var nowPlayingInfo: [String: Any?]? { mpNowPlayingInfoCenter.nowPlayingInfo }
+  private var avQueuePlayer: FakeAVQueuePlayer {
+    Container.shared.avQueuePlayer() as! FakeAVQueuePlayer
+  }
+  private var commandCenter: FakeCommandCenter {
+    Container.shared.commandCenter() as! FakeCommandCenter
+  }
+  private var nowPlayingInfo: [String: Any?]? {
+    Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
+  }
 
   func notificationContinuation(for name: Notification.Name)
     -> AsyncStream<Notification>.Continuation
@@ -43,9 +45,9 @@ import Testing
   func loadingSetsAllData() async throws {
     let podcastEpisode = try await Create.podcastEpisode(Create.unsavedEpisode(image: URL.valid()))
 
-    let onDeck = try await load(podcastEpisode)
+    let onDeck = try await PlayHelpers.load(podcastEpisode)
     #expect(onDeck == podcastEpisode)
-    try await waitForItemQueue([podcastEpisode])
+    try await PlayHelpers.waitForItemQueue([podcastEpisode])
 
     var expectedInfo: [String: Any] = [:]
     expectedInfo[MPMediaItemPropertyPodcastTitle] = onDeck.podcastTitle
@@ -109,9 +111,9 @@ import Testing
       Create.unsavedEpisode(currentTime: currentTime)
     )
 
-    try await load(podcastEpisode)
-    try await waitFor(currentTime)
-    #expect(nowPlayingCurrentTime == currentTime)
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.waitFor(currentTime)
+    #expect(PlayHelpers.nowPlayingCurrentTime == currentTime)
   }
 
   @Test("loading an episode updates its duration value")
@@ -124,13 +126,14 @@ import Testing
     let correctDuration = CMTime.inSeconds(20)
     episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in (true, correctDuration) }
 
-    let onDeck = try await load(podcastEpisode)
+    let onDeck = try await PlayHelpers.load(podcastEpisode)
     #expect(onDeck.duration == correctDuration)
 
     let updatedPodcastEpisode = try await repo.episode(podcastEpisode.id)
     #expect(updatedPodcastEpisode?.episode.duration == correctDuration)
   }
 
+  // TODO: Sometimes this fails on the waitFor(.stopped) line
   @Test("loading failure clears the deck")
   func loadingFailureClearsTheDeck() async throws {
     let episodeToLoad = try await Create.podcastEpisode()
@@ -139,46 +142,46 @@ import Testing
       throw TestError.assetLoadFailure(mediaURL)
     }
     await #expect(throws: (any Error).self) {
-      try await load(episodeToLoad)
+      try await PlayHelpers.load(episodeToLoad)
     }
 
-    try await waitFor(.stopped)
-    try await waitForQueue([episodeToLoad])
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForQueue([episodeToLoad])
     #expect(playState.onDeck == nil)
     #expect(nowPlayingInfo == nil)
-    #expect(itemQueueURLs.isEmpty)
+    #expect(PlayHelpers.itemQueueURLs.isEmpty)
   }
 
   @Test("loading failure with existing episode fills queue")
   func loadingFailureWithExistingEpisodeFillsQueue() async throws {
     let (playingEpisode, episodeToLoad) = try await Create.twoPodcastEpisodes()
 
-    try await load(playingEpisode)
+    try await PlayHelpers.load(playingEpisode)
     episodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
       throw TestError.assetLoadFailure(mediaURL)
     }
     await #expect(throws: (any Error).self) {
-      try await load(episodeToLoad)
+      try await PlayHelpers.load(episodeToLoad)
     }
 
-    try await waitFor(.stopped)
-    try await waitForQueue([episodeToLoad, playingEpisode])
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForQueue([episodeToLoad, playingEpisode])
     #expect(playState.onDeck == nil)
     #expect(nowPlayingInfo == nil)
-    #expect(itemQueueURLs.isEmpty)
+    #expect(PlayHelpers.itemQueueURLs.isEmpty)
   }
 
   @Test("playing while loading retains playing status")
   func playingWhileLoadingRetainsPlayingStatus() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await executeMidLoad(for: podcastEpisode.episode.media) {
-      try await play()
+    try await PlayHelpers.executeMidLoad(for: podcastEpisode.episode.media) {
+      try await PlayHelpers.play()
     }
-    Task { try await load(podcastEpisode) }
+    Task { try await PlayHelpers.load(podcastEpisode) }
 
-    try await waitForItemQueue([podcastEpisode])
-    try await waitFor(.playing)
+    try await PlayHelpers.waitForItemQueue([podcastEpisode])
+    try await PlayHelpers.waitFor(.playing)
   }
 
   // MARK: - Playback Controls
@@ -187,42 +190,42 @@ import Testing
   func playAndPauseFunctionsPlayAndPausePlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await load(podcastEpisode)
+    try await PlayHelpers.load(podcastEpisode)
 
     await playManager.play()
-    try await waitFor(.playing)
-    #expect(nowPlayingPlaying == true)
+    try await PlayHelpers.waitFor(.playing)
+    #expect(PlayHelpers.nowPlayingPlaying == true)
 
     await playManager.pause()
-    try await waitFor(.paused)
-    #expect(nowPlayingPlaying == false)
+    try await PlayHelpers.waitFor(.paused)
+    #expect(PlayHelpers.nowPlayingPlaying == false)
   }
 
   @Test("command center stops and starts playback")
   func commandCenterStopsAndStartsPlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await load(podcastEpisode)
+    try await PlayHelpers.load(podcastEpisode)
 
     commandCenter.continuation.yield(.play)
-    try await waitFor(.playing)
+    try await PlayHelpers.waitFor(.playing)
 
     commandCenter.continuation.yield(.pause)
-    try await waitFor(.paused)
+    try await PlayHelpers.waitFor(.paused)
 
     commandCenter.continuation.yield(.togglePlayPause)
-    try await waitFor(.playing)
+    try await PlayHelpers.waitFor(.playing)
 
     commandCenter.continuation.yield(.togglePlayPause)
-    try await waitFor(.paused)
+    try await PlayHelpers.waitFor(.paused)
   }
 
   @Test("audio session interruption stops and restarts playback")
   func audioSessionInterruptionStopsPlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await load(podcastEpisode)
-    try await play()
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.play()
 
     let interruptionContinuation = notificationContinuation(
       for: AVAudioSession.interruptionNotification
@@ -237,7 +240,7 @@ import Testing
         ]
       )
     )
-    try await waitFor(.paused)
+    try await PlayHelpers.waitFor(.paused)
 
     // Interruption ended: resume playback
     interruptionContinuation.yield(
@@ -250,19 +253,19 @@ import Testing
         ]
       )
     )
-    try await waitFor(.playing)
+    try await PlayHelpers.waitFor(.playing)
   }
 
   @Test("periodic time observer events update currentTime")
   func periodicTimeObserverEventsUpdateCurrentTime() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await load(podcastEpisode)
-    try await play()
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.play()
 
     let advancedTime = CMTime.inSeconds(10)
     avQueuePlayer.advanceTime(to: advancedTime)
-    try await waitFor(advancedTime)
+    try await PlayHelpers.waitFor(advancedTime)
   }
 
   // MARK: - Seeking
@@ -273,27 +276,27 @@ import Testing
 
     let duration = CMTime.inSeconds(240)
     episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in (true, duration) }
-    try await load(podcastEpisode)
+    try await PlayHelpers.load(podcastEpisode)
 
     let originalTime = CMTime.inSeconds(120)
     await playManager.seek(to: originalTime)
-    try await waitFor(originalTime)
-    #expect(nowPlayingCurrentTime == originalTime)
-    #expect(nowPlayingProgress == originalTime.seconds / duration.seconds)
+    try await PlayHelpers.waitFor(originalTime)
+    #expect(PlayHelpers.nowPlayingCurrentTime == originalTime)
+    #expect(PlayHelpers.nowPlayingProgress == originalTime.seconds / duration.seconds)
 
     let skipAmount = CMTime.inSeconds(30)
     let skipTime = CMTimeAdd(originalTime, skipAmount)
     await playManager.seekForward(skipAmount)
-    try await waitFor(skipTime)
-    #expect(nowPlayingCurrentTime == skipTime)
-    #expect(nowPlayingProgress == skipTime.seconds / duration.seconds)
+    try await PlayHelpers.waitFor(skipTime)
+    #expect(PlayHelpers.nowPlayingCurrentTime == skipTime)
+    #expect(PlayHelpers.nowPlayingProgress == skipTime.seconds / duration.seconds)
 
     let rewindAmount = CMTime.inSeconds(15)
     let rewindTime = CMTimeSubtract(skipTime, rewindAmount)
     await playManager.seekBackward(rewindAmount)
-    try await waitFor(rewindTime)
-    #expect(nowPlayingCurrentTime == rewindTime)
-    #expect(nowPlayingProgress == rewindTime.seconds / duration.seconds)
+    try await PlayHelpers.waitFor(rewindTime)
+    #expect(PlayHelpers.nowPlayingCurrentTime == rewindTime)
+    #expect(PlayHelpers.nowPlayingProgress == rewindTime.seconds / duration.seconds)
   }
 
   @Test("seeking retains playing status")
@@ -305,22 +308,22 @@ import Testing
       await seekSemaphore.wait()
       return true
     }
-    try await load(podcastEpisode)
-    try await play()
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.play()
 
     // Seek and episode will return to playing
     await playManager.seek(to: .inSeconds(60))
-    try await waitFor(.paused)
+    try await PlayHelpers.waitFor(.paused)
     seekSemaphore.signal()
-    try await waitFor(.playing)
+    try await PlayHelpers.waitFor(.playing)
   }
 
   @Test("playback is paused while seeking")
   func playbackIsPausedWhileSeeking() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await load(podcastEpisode)
-    try await play()
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.play()
 
     // First seek is interrupted so we stay paused
     let seekSemaphore = AsyncSemaphore(value: 0)
@@ -329,11 +332,11 @@ import Testing
       return false
     }
     await playManager.seek(to: .inSeconds(30))
-    try await waitForRemovePeriodicTimeObserver()
-    try await waitFor(.paused)
+    try await PlayHelpers.waitForRemovePeriodicTimeObserver()
+    try await PlayHelpers.waitFor(.paused)
     seekSemaphore.signal()
 
-    try await play()
+    try await PlayHelpers.play()
 
     // Second seek finishes but we stay paused till it does
     avQueuePlayer.seekHandler = { _ in
@@ -341,28 +344,28 @@ import Testing
       return true
     }
     await playManager.seek(to: .inSeconds(30))
-    try await waitFor(.paused)
+    try await PlayHelpers.waitFor(.paused)
     seekSemaphore.signal()
 
     // Now seek has finished, we go back to playing
-    try await waitFor(.playing)
+    try await PlayHelpers.waitFor(.playing)
   }
 
   @Test("periodicTimeObserver events are ignored while seeking")
   func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
     let (failedEpisode, successfulEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await load(failedEpisode)
-    try await waitForAddPeriodicTimeObserver()
+    try await PlayHelpers.load(failedEpisode)
+    try await PlayHelpers.waitForAddPeriodicTimeObserver()
 
     // After this failed seek, all time advancement is being ignored
     avQueuePlayer.seekHandler = { _ in false }
     let failedSeekTime = CMTime.inSeconds(60)
     await playManager.seek(to: failedSeekTime)
-    try await waitForRemovePeriodicTimeObserver()
+    try await PlayHelpers.waitForRemovePeriodicTimeObserver()
 
-    try await load(successfulEpisode)
-    try await waitForAddPeriodicTimeObserver()
+    try await PlayHelpers.load(successfulEpisode)
+    try await PlayHelpers.waitForAddPeriodicTimeObserver()
 
     // While a seek is in progress, we will ignore time advancement until its success
     let seekSemaphore = AsyncSemaphore(value: 0)
@@ -372,14 +375,14 @@ import Testing
     }
     let successfulSeekTime = CMTimeAdd(failedSeekTime, CMTime.inSeconds(30))
     await playManager.seek(to: successfulSeekTime)
-    try await waitForRemovePeriodicTimeObserver()
+    try await PlayHelpers.waitForRemovePeriodicTimeObserver()
 
     // Our seek completes successfully so time advancement observation is back
     seekSemaphore.signal()
-    try await waitForAddPeriodicTimeObserver()
+    try await PlayHelpers.waitForAddPeriodicTimeObserver()
     let advancedTime = CMTimeAdd(successfulSeekTime, CMTime.inSeconds(10))
     avQueuePlayer.advanceTime(to: advancedTime)  // Actually Triggers
-    try await waitFor(advancedTime)
+    try await PlayHelpers.waitFor(advancedTime)
   }
 
   // MARK: - Queue Management
@@ -388,22 +391,22 @@ import Testing
   func addingAnEpisodeToTopOfQueueWhilePlaying() async throws {
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await load(playingEpisode)
-    try await queueNext(queuedEpisode)
+    try await PlayHelpers.load(playingEpisode)
+    try await PlayHelpers.queueNext(queuedEpisode)
 
-    try await waitForItemQueue([playingEpisode, queuedEpisode])
-    try await waitForQueue([queuedEpisode])
+    try await PlayHelpers.waitForItemQueue([playingEpisode, queuedEpisode])
+    try await PlayHelpers.waitForQueue([queuedEpisode])
   }
 
   @Test("loading an episode with queue already filled")
   func loadingAnEpisodeWithQueueAlreadyFilled() async throws {
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await queueNext(queuedEpisode)
-    try await load(playingEpisode)
+    try await PlayHelpers.queueNext(queuedEpisode)
+    try await PlayHelpers.load(playingEpisode)
 
-    try await waitForItemQueue([playingEpisode, queuedEpisode])
-    try await waitForQueue([queuedEpisode])
+    try await PlayHelpers.waitForItemQueue([playingEpisode, queuedEpisode])
+    try await PlayHelpers.waitForQueue([queuedEpisode])
   }
 
   @Test("top queue item changes while playing")
@@ -411,23 +414,23 @@ import Testing
     let (playingEpisode, queuedEpisode, incomingQueuedEpisode) =
       try await Create.threePodcastEpisodes()
 
-    try await queueNext(queuedEpisode)
-    try await load(playingEpisode)
-    try await queueNext(incomingQueuedEpisode)
+    try await PlayHelpers.queueNext(queuedEpisode)
+    try await PlayHelpers.load(playingEpisode)
+    try await PlayHelpers.queueNext(incomingQueuedEpisode)
 
-    try await waitForItemQueue([playingEpisode, incomingQueuedEpisode])
-    try await waitForQueue([incomingQueuedEpisode, queuedEpisode])
+    try await PlayHelpers.waitForItemQueue([playingEpisode, incomingQueuedEpisode])
+    try await PlayHelpers.waitForQueue([incomingQueuedEpisode, queuedEpisode])
   }
 
   @Test("loading a new episode puts current episode back in queue")
   func loadingAnEpisodePutsCurrentEpisodeBackInQueue() async throws {
     let (playingEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await load(playingEpisode)
-    try await load(incomingEpisode)
+    try await PlayHelpers.load(playingEpisode)
+    try await PlayHelpers.load(incomingEpisode)
 
-    try await waitForItemQueue([incomingEpisode, playingEpisode])
-    try await waitForQueue([playingEpisode])
+    try await PlayHelpers.waitForItemQueue([incomingEpisode, playingEpisode])
+    try await PlayHelpers.waitForQueue([playingEpisode])
   }
 
   // MARK: - Episode Finishing
@@ -436,15 +439,15 @@ import Testing
   func currentItemBecomingNilClearsDeck() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await load(podcastEpisode)
-    try await play()
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.play()
     avQueuePlayer.finishEpisode()
 
-    try await waitFor(.stopped)
+    try await PlayHelpers.waitFor(.stopped)
     #expect(playState.onDeck == nil)
     #expect(nowPlayingInfo == nil)
-    #expect(itemQueueURLs.isEmpty)
-    #expect((try await queuedEpisodeIDs).isEmpty)
+    #expect(PlayHelpers.itemQueueURLs.isEmpty)
+    #expect((try await PlayHelpers.queuedEpisodeIDs).isEmpty)
   }
 
   // TODO: update from here down
@@ -457,11 +460,13 @@ import Testing
     }
     try await queue.unshift(queuedEpisode.id)
 
-    try await load(originalEpisode)
-    try await play()
+    try await PlayHelpers.load(originalEpisode)
+    try await PlayHelpers.play()
     try await Wait.until(
-      { await responseCount(for: queuedEpisode.episode.media) == 1 },
-      { "responseCount remains: \(await responseCount(for: queuedEpisode.episode.media))" }
+      { await PlayHelpers.responseCount(for: queuedEpisode.episode.media) == 1 },
+      {
+        "responseCount remains: \(await PlayHelpers.responseCount(for: queuedEpisode.episode.media))"
+      }
     )
 
     episodeAssetLoader.clearCustomHandler(for: queuedEpisode.episode.media)
@@ -475,7 +480,7 @@ import Testing
       { "Status is: \(await playState.status)" }
     )
     #expect(avQueuePlayer.timeControlStatus == .playing)
-    #expect(itemQueueURLs == episodeMediaURLs([queuedEpisode]))
+    #expect(PlayHelpers.itemQueueURLs == PlayHelpers.episodeMediaURLs([queuedEpisode]))
   }
 
   @Test("current item advancing to next episode")
@@ -486,8 +491,8 @@ import Testing
     try await queue.unshift(queuedEpisode.id)
     try await queue.unshift(incomingEpisode.id)
 
-    try await load(originalEpisode)
-    try await play()
+    try await PlayHelpers.load(originalEpisode)
+    try await PlayHelpers.play()
     try await Task.sleep(for: .milliseconds(100))
 
     avQueuePlayer.finishEpisode()
@@ -520,7 +525,7 @@ import Testing
       }
     )
     #expect(playState.onDeck! == incomingEpisode)
-    try await waitForQueue([queuedEpisode])
+    try await PlayHelpers.waitForQueue([queuedEpisode])
   }
 
   @Test("new currentItem with currentTime pauses until after seek and then sets currentTime")
@@ -532,16 +537,16 @@ import Testing
       Create.unsavedEpisode(currentTime: queuedTime)
     )
 
-    try await queueNext(queuedEpisode)
-    try await load(originalEpisode)
-    try await play()
+    try await PlayHelpers.queueNext(queuedEpisode)
+    try await PlayHelpers.load(originalEpisode)
+    try await PlayHelpers.play()
     try await Wait.until(
       { await playState.currentTime == originalTime },
       { "CurrentTime is: \(await playState.currentTime), Expected: \(originalTime)" }
     )
     try await Wait.until {
-      let mediaURLs = await episodeMediaURLs([originalEpisode, queuedEpisode])
-      return await itemQueueURLs == mediaURLs
+      let mediaURLs = await PlayHelpers.episodeMediaURLs([originalEpisode, queuedEpisode])
+      return await PlayHelpers.itemQueueURLs == mediaURLs
     }
 
     avQueuePlayer.seekHandler = { _ in
@@ -573,8 +578,8 @@ import Testing
     )
 
     try await queue.unshift(queuedEpisode.id)
-    try await load(originalEpisode)
-    try await play()
+    try await PlayHelpers.load(originalEpisode)
+    try await PlayHelpers.play()
     try await Task.sleep(for: .milliseconds(100))
     #expect(playState.currentTime == originalTime)
 
@@ -589,8 +594,8 @@ import Testing
   func episodeIsMarkedCompleteAfterPlayingToEnd() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await load(podcastEpisode)
-    try await play()
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.play()
 
     avQueuePlayer.finishEpisode()
     try await Task.sleep(for: .milliseconds(100))
@@ -598,190 +603,4 @@ import Testing
     #expect(fetchedPodcastEpisode!.episode.completed)
   }
 
-  // MARK: - Action Helpers
-
-  @discardableResult
-  private func load(_ podcastEpisode: PodcastEpisode) async throws -> OnDeck {
-    try await playManager.load(podcastEpisode)
-    return try await Wait.forValue { await playState.onDeck }
-  }
-
-  private func queueNext(_ podcastEpisode: PodcastEpisode) async throws {
-    try await queue.unshift(podcastEpisode.id)
-    try await Wait.until(
-      { try await queue.nextEpisode?.id == podcastEpisode.id },
-      {
-        """
-        Next episode ID: \(String(describing: try await queue.nextEpisode?.id)), \
-        Expected: \(podcastEpisode.id)
-        """
-      }
-    )
-  }
-
-  private func play() async throws {
-    await playManager.play()
-    try await waitFor(.playing)
-  }
-
-  private func pause() async throws {
-    await playManager.pause()
-    try await waitFor(.paused)
-  }
-
-  // MARK: - Wait Helpers
-
-  private func waitFor(_ status: PlayState.Status) async throws {
-    try await Wait.until(
-      { await playState.status == status },
-      {
-        """
-        Status is: \(await playState.status), \
-        Expected: \(status)
-        """
-      }
-    )
-  }
-
-  private func waitFor(_ time: CMTime) async throws {
-    try await Wait.until(
-      { await playState.currentTime == time },
-      {
-        """
-        Current time is: \(await playState.currentTime), \
-        Expected: \(time)
-        """
-      }
-    )
-  }
-
-  private func waitForQueue(_ podcastEpisodes: [PodcastEpisode]) async throws {
-    try await Wait.until(
-      { try await queuedEpisodeIDs == podcastEpisodes.map(\.id) },
-      {
-        """
-        Quue is: \(try await queuedEpisodeStrings), \
-        Expected: \(await episodeStrings(podcastEpisodes))
-        """
-      }
-    )
-  }
-
-  private func waitForItemQueue(_ podcastEpisodes: [PodcastEpisode]) async throws {
-    try await Wait.until(
-      {
-        let mediaURLs = await episodeMediaURLs(podcastEpisodes)
-        return await itemQueueURLs == mediaURLs
-      },
-      {
-        """
-        Item queue is: \(await itemQueueURLs), \
-        Expected: \(await episodeMediaURLs(podcastEpisodes))
-        """
-      }
-    )
-  }
-
-  private func waitForAddPeriodicTimeObserver() async throws {
-    try await Wait.until { !(await avQueuePlayer.timeObservers.isEmpty) }
-  }
-
-  private func waitForRemovePeriodicTimeObserver() async throws {
-    try await Wait.until { await avQueuePlayer.timeObservers.isEmpty }
-  }
-
-  // MARK: - Timing Helpers
-
-  private func executeMidLoad(
-    for mediaURL: MediaURL,
-    asyncProperties: (Bool, CMTime) = (true, .inSeconds(30)),
-    _ block: @escaping @Sendable () async throws -> Void
-  ) async throws {
-    let loadSemaphoreBegun = AsyncSemaphore(value: 0)
-    let finishLoadingSemaphore = AsyncSemaphore(value: 0)
-    episodeAssetLoader.respond(to: mediaURL) { _ in
-      loadSemaphoreBegun.signal()
-      await finishLoadingSemaphore.wait()
-      return asyncProperties
-    }
-    Task {
-      await loadSemaphoreBegun.wait()
-      try await block()
-      finishLoadingSemaphore.signal()
-    }
-  }
-
-  private func executeMidSeek(
-    completed: Bool = true,
-    _ block: @escaping @Sendable () async throws -> Void
-  ) async throws {
-    let seekSemaphoreBegun = AsyncSemaphore(value: 0)
-    let finishSeekingSemaphore = AsyncSemaphore(value: 0)
-    avQueuePlayer.seekHandler = { _ in
-      seekSemaphoreBegun.signal()
-      await finishSeekingSemaphore.wait()
-      return completed
-    }
-    Task {
-      await seekSemaphoreBegun.wait()
-      try await block()
-      finishSeekingSemaphore.signal()
-    }
-  }
-
-  // MARK: - Comparison Helpers
-
-  private var nowPlayingPlaying: Bool {
-    nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] as? Double == 1.0
-  }
-
-  private var nowPlayingCurrentTime: CMTime {
-    CMTime.inSeconds(nowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] as! Double)
-  }
-
-  private var nowPlayingProgress: Double {
-    nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackProgress] as! Double
-  }
-
-  private var itemQueueURLs: [MediaURL] {
-    avQueuePlayer.queued.map(\.assetURL)
-  }
-
-  private var queuedEpisodes: [PodcastEpisode] {
-    get async throws {
-      try await repo.db.read { db in
-        try Episode
-          .all()
-          .queued()
-          .order(\.queueOrder.asc)
-          .including(required: Episode.podcast)
-          .asRequest(of: PodcastEpisode.self)
-          .fetchAll(db)
-      }
-    }
-  }
-
-  private var queuedEpisodeIDs: [Episode.ID] {
-    get async throws {
-      try await queuedEpisodes.map(\.id)
-    }
-  }
-
-  private var queuedEpisodeStrings: [String] {
-    get async throws {
-      episodeStrings(try await queuedEpisodes)
-    }
-  }
-
-  private func episodeStrings(_ podcastEpisodes: [PodcastEpisode]) -> [String] {
-    podcastEpisodes.map(\.toString)
-  }
-
-  private func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [MediaURL] {
-    podcastEpisodes.map(\.episode.media)
-  }
-
-  func responseCount(for mediaURL: MediaURL) -> Int {
-    episodeAssetLoader.responseCounts[mediaURL, default: 0]
-  }
 }
