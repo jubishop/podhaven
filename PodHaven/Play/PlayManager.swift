@@ -100,7 +100,10 @@ actor PlayManager {
   private func performLoad(_ podcastEpisode: PodcastEpisode) async throws {
     let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode
 
-    if outgoingPodcastEpisode == podcastEpisode { return }
+    if outgoingPodcastEpisode == podcastEpisode {
+      log.trace("performLoad: ignoring \(podcastEpisode.toString), already loaded")
+      return
+    }
 
     let task = Task {
       do {
@@ -133,6 +136,12 @@ actor PlayManager {
         await podAVPlayer.addObservers()
       } catch {
         if let outgoingPodcastEpisode {
+          log.debug(
+            """
+            performLoad: unshifting current episode post failure: \
+            \(outgoingPodcastEpisode.toString)
+            """
+          )
           do {
             try await queue.unshift(outgoingPodcastEpisode.id)
           } catch {
@@ -142,6 +151,12 @@ actor PlayManager {
           }
         }
 
+        log.debug(
+          """
+          performLoad: dequeueing incoming episode post failure: \
+          \(podcastEpisode.toString)
+          """
+        )
         do {
           try await queue.unshift(podcastEpisode.id)
         } catch {
@@ -261,6 +276,8 @@ actor PlayManager {
 
   private func handleCurrentItemChange(_ podcastEpisode: PodcastEpisode?) async {
     if let podcastEpisode {
+      log.debug("handleCurrentItemChange: \(podcastEpisode.id)")
+
       do {
         try await queue.dequeue(podcastEpisode.id)
       } catch {
@@ -271,6 +288,8 @@ actor PlayManager {
 
       await setOnDeck(podcastEpisode)
     } else {
+      log.debug("handleCurrentItemChange: nil, stopping")
+
       await stop()
 
       do {

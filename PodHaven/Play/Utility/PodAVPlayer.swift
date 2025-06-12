@@ -145,6 +145,7 @@ extension Container {
   }
 
   func toggle() {
+    log.debug("toggling")
     avQueuePlayer.timeControlStatus == .paused
       ? play()
       : pause()
@@ -227,14 +228,7 @@ extension Container {
   private func insertNextPodcastEpisode(_ nextLoadedPodcastEpisode: LoadedPodcastEpisode?) {
     guard shouldSetAsNext(nextLoadedPodcastEpisode?.podcastEpisode) else { return }
 
-    log.debug(
-      """
-      insertNextPodcastEpisode: at start:
-        \(avQueuePlayer.queued.map {
-          "\($0.assetURL.toString) - (\($0.assetURL))"
-        }.joined(separator: "\n  "))
-      """
-    )
+    log.debug("insertNextPodcastEpisode: at start:\n  \(printableQueue)")
 
     // If we had a second item, it needs to be removed
     if avQueuePlayer.queued.count == 2 {
@@ -246,24 +240,34 @@ extension Container {
       avQueuePlayer.insert(nextLoadedPodcastEpisode.playableItem, after: avQueuePlayer.queued.first)
     }
 
-    log.debug(
-      """
-      insertNextPodcastEpisode: at end:
-        \(avQueuePlayer.queued.map {
-          "\($0.assetURL.toString) - (\($0.assetURL))"
-        }.joined(separator: "\n  "))
-      """
-    )
+    log.debug("insertNextPodcastEpisode: at end:\n  \(printableQueue)")
 
     Assert.precondition(avQueuePlayer.queued.count <= 2, "Too many AVPlayerItems?")
   }
 
   private func shouldSetAsNext(_ podcastEpisode: PodcastEpisode?) -> Bool {
     // If queue is empty: do nothing
-    guard let lastItem = avQueuePlayer.queued.last else { return false }
+    guard let lastItem = avQueuePlayer.queued.last else {
+      log.trace(
+        """
+        shouldSetAsNext: false for \(String(describing: podcastEpisode?.toString)) \
+        because queue is empty
+        """
+      )
+      return false
+    }
 
     // If this is already the last: do nothing
-    if lastItem.assetURL == podcastEpisode?.episode.media { return false }
+    if lastItem.assetURL == podcastEpisode?.episode.media {
+      log.trace(
+        """
+        shouldSetAsNext: false for \(String(describing: podcastEpisode?.toString)) \
+        because it already matches last item in queue:
+          \(printableQueue)
+        """
+      )
+      return false
+    }
 
     return true
   }
@@ -271,7 +275,15 @@ extension Container {
   // MARK: - Private Change Handlers
 
   private func handleCurrentItemChange(_ mediaURL: MediaURL?) async throws {
-    if podcastEpisode?.episode.media == mediaURL { return }
+    if podcastEpisode?.episode.media == mediaURL {
+      log.trace(
+        """
+        handleCurrentItemChange: ignoring because mediaURL matches: \
+        \(String(describing: mediaURL?.toString))
+        """
+      )
+      return
+    }
 
     if let mediaURL {
       podcastEpisode = try await repo.episode(mediaURL)
@@ -436,5 +448,12 @@ extension Container {
     if timeControlStatusObserver != nil {
       self.timeControlStatusObserver = nil
     }
+  }
+
+  // MARK: - Debugging Helpers
+
+  private var printableQueue: String {
+    avQueuePlayer.queued.map { "\($0.assetURL.toString) - (\($0.assetURL))" }
+      .joined(separator: "\n  ")
   }
 }
