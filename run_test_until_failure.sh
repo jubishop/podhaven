@@ -1,10 +1,20 @@
 #!/bin/bash
 
-# Script to run loadingFailureClearsTheDeck test repeatedly until failure
+# Script to run a specific test repeatedly until failure
 # Captures logs for both passing and failing runs
+#
+# Usage: ./run_test_until_failure.sh <test_method_name>
+# Example: ./run_test_until_failure.sh loadingFailureClearsTheDeck
 
-TEST_NAME="ParallelTests/PlayManagerTests/loadingFailureClearsTheDeck"
-LOG_DIR="test_logs_$(date +%Y%m%d_%H%M%S)"
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <test_method_name>"
+    echo "Example: $0 loadingFailureClearsTheDeck"
+    exit 1
+fi
+
+TEST_METHOD="$1"
+TEST_NAME="ParallelTests/PlayManagerTests/$TEST_METHOD"
+LOG_DIR="test_logs_${TEST_METHOD}_$(date +%Y%m%d_%H%M%S)"
 PASS_COUNT=0
 
 # Create log directory
