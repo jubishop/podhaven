@@ -251,7 +251,9 @@ struct Repo {
 
   @discardableResult
   func updateCurrentTime(_ episodeID: Episode.ID, _ currentTime: CMTime) async throws -> Bool {
-    try await appDB.db.write { db in
+    log.trace("updateCurrentTime: \(episodeID) to \(currentTime)")
+
+    return try await appDB.db.write { db in
       try Episode
         .withID(episodeID)
         .updateAll(db, Episode.Columns.currentTime.set(to: currentTime))
