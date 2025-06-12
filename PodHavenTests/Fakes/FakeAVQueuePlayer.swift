@@ -19,9 +19,9 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     let block: @Sendable (CMTime) -> Void
   }
 
-  struct ObservationHandler<T> {
+  struct ObservationHandler<T>: Sendable {
     weak var observation: NSKeyValueObservation?
-    let handler: (T) -> Void
+    let handler: @Sendable (T) -> Void
   }
 
   // MARK: - State Management

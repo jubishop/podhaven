@@ -99,6 +99,18 @@ import Testing
     }
   }
 
+  @Test("loading and playing immediately")
+  func loadingAndPlayingImmediately() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    await playManager.play()
+
+    try await PlayHelpers.waitForObservations()
+    try await PlayHelpers.waitForItemQueue([podcastEpisode])
+    try await PlayHelpers.waitFor(.playing)
+  }
+
   @Test("loading an episode seeks to its stored time")
   func loadingEpisodeSeeksToItsStoredTime() async throws {
     let currentTime: CMTime = .inSeconds(10)
@@ -326,7 +338,7 @@ import Testing
       return false
     }
     await playManager.seek(to: .inSeconds(30))
-    try await PlayHelpers.waitForRemovePeriodicTimeObserver()
+    try await PlayHelpers.waitForNoPeriodicTimeObserver()
     try await PlayHelpers.waitFor(.paused)
     seekSemaphore.signal()
 
@@ -350,16 +362,16 @@ import Testing
     let (failedEpisode, successfulEpisode) = try await Create.twoPodcastEpisodes()
 
     try await PlayHelpers.load(failedEpisode)
-    try await PlayHelpers.waitForAddPeriodicTimeObserver()
+    try await PlayHelpers.waitForPeriodicTimeObserver()
 
     // After this failed seek, all time advancement is being ignored
     avQueuePlayer.seekHandler = { _ in false }
     let failedSeekTime = CMTime.inSeconds(60)
     await playManager.seek(to: failedSeekTime)
-    try await PlayHelpers.waitForRemovePeriodicTimeObserver()
+    try await PlayHelpers.waitForNoPeriodicTimeObserver()
 
     try await PlayHelpers.load(successfulEpisode)
-    try await PlayHelpers.waitForAddPeriodicTimeObserver()
+    try await PlayHelpers.waitForPeriodicTimeObserver()
 
     // While a seek is in progress, we will ignore time advancement until its success
     let seekSemaphore = AsyncSemaphore(value: 0)
@@ -369,11 +381,11 @@ import Testing
     }
     let successfulSeekTime = CMTimeAdd(failedSeekTime, CMTime.inSeconds(30))
     await playManager.seek(to: successfulSeekTime)
-    try await PlayHelpers.waitForRemovePeriodicTimeObserver()
+    try await PlayHelpers.waitForNoPeriodicTimeObserver()
 
     // Our seek completes successfully so time advancement observation is back
     seekSemaphore.signal()
-    try await PlayHelpers.waitForAddPeriodicTimeObserver()
+    try await PlayHelpers.waitForPeriodicTimeObserver()
     let advancedTime = CMTimeAdd(successfulSeekTime, CMTime.inSeconds(10))
     avQueuePlayer.advanceTime(to: advancedTime)  // Actually Triggers
     try await PlayHelpers.waitFor(advancedTime)
@@ -535,5 +547,4 @@ import Testing
     let fetchedPodcastEpisode = try await repo.episode(podcastEpisode.id)
     #expect(fetchedPodcastEpisode!.episode.completed)
   }
-
 }

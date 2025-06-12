@@ -37,6 +37,7 @@ enum PlayHelpers {
   @discardableResult
   static func load(_ podcastEpisode: PodcastEpisode) async throws -> OnDeck {
     try await playManager.load(podcastEpisode)
+    try await waitForObservations()
     return try await Wait.forValue { await playState.onDeck }
   }
 
@@ -128,12 +129,20 @@ enum PlayHelpers {
     )
   }
 
-  static func waitForAddPeriodicTimeObserver() async throws {
-    try await Wait.until { !(await avQueuePlayer.timeObservers.isEmpty) }
+  static func waitForPeriodicTimeObserver() async throws {
+    try await Wait.until { await hasPeriodicTimeObservation() }
   }
 
-  static func waitForRemovePeriodicTimeObserver() async throws {
-    try await Wait.until { await avQueuePlayer.timeObservers.isEmpty }
+  static func waitForNoPeriodicTimeObserver() async throws {
+    try await Wait.until { !(await hasPeriodicTimeObservation()) }
+  }
+
+  static func waitForObservations() async throws {
+    try await Wait.until { await hasObservations() }
+  }
+
+  static func waitForNoObservations() async throws {
+    try await Wait.until { !(await hasObservations()) }
   }
 
   static func waitForResponse(for mediaURL: MediaURL, count: Int = 1) async throws {
@@ -238,6 +247,16 @@ enum PlayHelpers {
 
   static func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [MediaURL] {
     podcastEpisodes.map(\.episode.media)
+  }
+
+  static func hasPeriodicTimeObservation() -> Bool {
+    !(avQueuePlayer.timeObservers.isEmpty)
+  }
+
+  static func hasObservations() -> Bool {
+    !(avQueuePlayer.itemObservations.isEmpty)
+      && hasPeriodicTimeObservation()
+      && !(avQueuePlayer.statusObservations.isEmpty)
   }
 
   static func responseCount(for mediaURL: MediaURL) -> Int {
