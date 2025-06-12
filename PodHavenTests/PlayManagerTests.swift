@@ -131,6 +131,7 @@ import Testing
     #expect(updatedPodcastEpisode?.episode.duration == correctDuration)
   }
 
+  // TODO: How did this fail?
   @Test("loading failure clears the deck")
   func loadingFailureClearsTheDeck() async throws {
     let episodeToLoad = try await Create.podcastEpisode()
@@ -434,7 +435,7 @@ import Testing
   }
 
   // MARK: - Episode Finishing
-  // TODO: update from here down
+
   @Test("current item becoming nil clears deck")
   func currentItemBecomingNilClearsDeck() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
@@ -442,16 +443,15 @@ import Testing
     try await load(podcastEpisode)
     try await play()
     avQueuePlayer.finishEpisode()
-    try await Task.sleep(for: .milliseconds(100))
 
-    #expect(playState.status == .stopped)
-    #expect(avQueuePlayer.timeControlStatus == .paused)
+    try await waitFor(.stopped)
     #expect(playState.onDeck == nil)
     #expect(nowPlayingInfo == nil)
     #expect(itemQueueURLs.isEmpty)
     #expect((try await queuedEpisodeIDs).isEmpty)
   }
 
+  // TODO: update from here down
   @Test("current item becoming nil with existing next episode loads next episode")
   func currentItemBecomingNilWithExistingNextEpisodeLoadsNextEpisode() async throws {
     let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()

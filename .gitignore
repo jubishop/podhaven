@@ -19,3 +19,6 @@ build/
 
 # Sentry
 .sentryclirc
+
+# Test logs
+test_logs_*/
