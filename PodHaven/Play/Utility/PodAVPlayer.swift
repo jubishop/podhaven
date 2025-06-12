@@ -277,6 +277,15 @@ extension Container {
     currentItemContinuation.yield(podcastEpisode)
   }
 
+  private func handleCurrentTimeChange(_ currentTime: CMTime) async throws {
+    guard let podcastEpisode
+    else { throw PlaybackError.settingCurrentTimeOnNil(currentTime) }
+
+    try await repo.updateCurrentTime(podcastEpisode.id, currentTime)
+
+    currentTimeContinuation.yield(currentTime)
+  }
+
   // MARK: - State Tracking
 
   func addObservers() {
@@ -344,7 +353,16 @@ extension Container {
       queue: .global(qos: .utility)
     ) { [weak self] currentTime in
       guard let self else { return }
-      currentTimeContinuation.yield(currentTime)
+      Task { [weak self] in
+        guard let self else { return }
+        do {
+          try await self.handleCurrentTimeChange(currentTime)
+        } catch {
+          if ErrorKit.isRemarkable(error) {
+            self.log.error(ErrorKit.loggableMessage(for: error))
+          }
+        }
+      }
     }
   }
 

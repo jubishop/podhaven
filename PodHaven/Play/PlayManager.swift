@@ -372,18 +372,7 @@ actor PlayManager {
     Task { [weak self] in
       guard let self else { return }
       for await currentTime in await podAVPlayer.currentTimeStream {
-        do {
-          await setCurrentTime(currentTime)
-
-          guard let currentPodcastEpisode = await podAVPlayer.podcastEpisode
-          else { throw PlaybackError.settingCurrentTimeOnNil(currentTime) }
-
-          try await repo.updateCurrentTime(currentPodcastEpisode.id, currentTime)
-        } catch {
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
-          }
-        }
+        await setCurrentTime(currentTime)
       }
     }
   }
