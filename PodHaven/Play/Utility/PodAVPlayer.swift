@@ -47,18 +47,15 @@ extension Container {
 
   let currentTimeStream: AsyncStream<CMTime>
   let currentItemStream: AsyncStream<PodcastEpisode?>
-  let didPlayToEndStream: AsyncStream<PodcastEpisode>
   let controlStatusStream: AsyncStream<AVPlayer.TimeControlStatus>
   private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
   private let currentItemContinuation: AsyncStream<PodcastEpisode?>.Continuation
-  private let didPlayToEndContinuation: AsyncStream<PodcastEpisode>.Continuation
   private let controlStatusContinuation: AsyncStream<AVPlayer.TimeControlStatus>.Continuation
 
   private var periodicTimeObserver: Any?
   private var currentItemObserver: NSKeyValueObservation?
   private var timeControlStatusObserver: NSKeyValueObservation?
   private var observeNextEpisodeTask: Task<Void, Never>?
-  private var didPlayToEndTask: Task<Void, Never>?
   private var setNextEpisodeTask: Task<Void, any Error>?
 
   // MARK: - Initialization
@@ -66,9 +63,6 @@ extension Container {
   fileprivate init() {
     (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(of: CMTime.self)
     (currentItemStream, currentItemContinuation) = AsyncStream.makeStream(of: PodcastEpisode?.self)
-    (didPlayToEndStream, didPlayToEndContinuation) = AsyncStream.makeStream(
-      of: PodcastEpisode.self
-    )
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: AVPlayer.TimeControlStatus.self
     )
@@ -283,19 +277,10 @@ extension Container {
     currentItemContinuation.yield(podcastEpisode)
   }
 
-  private func handleDidPlayToEnd(_ mediaURL: MediaURL) async throws {
-    guard let outgoingPodcastEpisode = try await repo.episode(mediaURL)
-    else { throw PlaybackError.endedEpisodeNotFound(mediaURL) }
-
-    log.debug("handleDidPlayToEnd: \(outgoingPodcastEpisode.toString)")
-    didPlayToEndContinuation.yield(outgoingPodcastEpisode)
-  }
-
   // MARK: - State Tracking
 
   func addObservers() {
     observeNextEpisode()
-    startPlayToEndTimeNotifications()
     addCurrentItemObserver()
     addPeriodicTimeObserver()
     addTimeControlStatusObserver()
@@ -303,7 +288,6 @@ extension Container {
 
   func removeObservers() {
     stopObservingNextEpisode()
-    stopPlayToEndTimeNotifications()
     removeCurrentItemObserver()
     removePeriodicTimeObserver()
     removeTimeControlStatusObserver()
@@ -326,25 +310,6 @@ extension Container {
       } catch {
         if ErrorKit.isRemarkable(error) {
           log.error(ErrorKit.loggableMessage(for: error))
-        }
-      }
-    }
-  }
-
-  private func startPlayToEndTimeNotifications() {
-    guard didPlayToEndTask == nil else { return }
-
-    didPlayToEndTask = Task {
-      for await notification in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
-        guard let playableItem = notification.object as? AVPlayableItem
-        else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayableItem") }
-
-        do {
-          try await handleDidPlayToEnd(playableItem.assetURL)
-        } catch {
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
-          }
         }
       }
     }
@@ -393,11 +358,6 @@ extension Container {
   private func stopObservingNextEpisode() {
     observeNextEpisodeTask?.cancel()
     observeNextEpisodeTask = nil
-  }
-
-  private func stopPlayToEndTimeNotifications() {
-    didPlayToEndTask?.cancel()
-    didPlayToEndTask = nil
   }
 
   private func removeCurrentItemObserver() {

@@ -65,9 +65,9 @@ actor PlayManager {
 
   func start() async {
     startInterruptionNotifications()
+    startPlayToEndTimeNotifications()
     startListeningToCommandCenter()
     startListeningToCurrentItem()
-    startListeningToDidPlayToEnd()
     startListeningToCurrentTime()
     startListeningToControlStatus()
 
@@ -283,7 +283,11 @@ actor PlayManager {
     }
   }
 
-  private func handleDidPlayToEnd(_ podcastEpisode: PodcastEpisode) async throws {
+  private func handleDidPlayToEnd(_ mediaURL: MediaURL) async throws {
+    guard let podcastEpisode = try await repo.episode(mediaURL)
+    else { throw PlaybackError.endedEpisodeNotFound(mediaURL) }
+
+    log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
     try await repo.markComplete(podcastEpisode.id)
   }
 
@@ -301,6 +305,25 @@ actor PlayManager {
           await play()
         case .ignore:
           break
+        }
+      }
+    }
+  }
+
+  private func startPlayToEndTimeNotifications() {
+    Assert.neverCalled()
+
+    Task { @MainActor in
+      for await notification in await notifications(AVPlayerItem.didPlayToEndTimeNotification) {
+        guard let playableItem = notification.object as? AVPlayableItem
+        else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayableItem") }
+
+        do {
+          try await handleDidPlayToEnd(playableItem.assetURL)
+        } catch {
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
         }
       }
     }
@@ -335,22 +358,6 @@ actor PlayManager {
     Task {
       for await podcastEpisode in await podAVPlayer.currentItemStream {
         await handleCurrentItemChange(podcastEpisode)
-      }
-    }
-  }
-
-  private func startListeningToDidPlayToEnd() {
-    Assert.neverCalled()
-
-    Task {
-      for await podcastEpisode in await podAVPlayer.didPlayToEndStream {
-        do {
-          try await handleDidPlayToEnd(podcastEpisode)
-        } catch {
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
-          }
-        }
       }
     }
   }
