@@ -131,7 +131,6 @@ import Testing
     #expect(updatedPodcastEpisode?.episode.duration == correctDuration)
   }
 
-  // TODO: How did this fail?
   @Test("loading failure clears the deck")
   func loadingFailureClearsTheDeck() async throws {
     let episodeToLoad = try await Create.podcastEpisode()
@@ -173,18 +172,10 @@ import Testing
   func playingWhileLoadingRetainsPlayingStatus() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    let loadSemaphoreBegun = AsyncSemaphore(value: 0)
-    let finishLoadingSemaphore = AsyncSemaphore(value: 0)
-    episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in
-      loadSemaphoreBegun.signal()
-      await finishLoadingSemaphore.wait()
-      return (true, .inSeconds(30))
+    try await executeMidLoad(for: podcastEpisode.episode.media) {
+      try await play()
     }
-
     Task { try await load(podcastEpisode) }
-    await loadSemaphoreBegun.wait()
-    try await play()
-    finishLoadingSemaphore.signal()
 
     try await waitForItemQueue([podcastEpisode])
     try await waitFor(.playing)
@@ -338,8 +329,11 @@ import Testing
       return false
     }
     await playManager.seek(to: .inSeconds(30))
+    try await waitForRemovePeriodicTimeObserver()
     try await waitFor(.paused)
     seekSemaphore.signal()
+
+    try await play()
 
     // Second seek finishes but we stay paused till it does
     avQueuePlayer.seekHandler = { _ in
@@ -359,6 +353,7 @@ import Testing
     let (failedEpisode, successfulEpisode) = try await Create.twoPodcastEpisodes()
 
     try await load(failedEpisode)
+    try await waitForAddPeriodicTimeObserver()
 
     // After this failed seek, all time advancement is being ignored
     avQueuePlayer.seekHandler = { _ in false }
@@ -367,6 +362,7 @@ import Testing
     try await waitForRemovePeriodicTimeObserver()
 
     try await load(successfulEpisode)
+    try await waitForAddPeriodicTimeObserver()
 
     // While a seek is in progress, we will ignore time advancement until its success
     let seekSemaphore = AsyncSemaphore(value: 0)
@@ -452,8 +448,8 @@ import Testing
   }
 
   // TODO: update from here down
-  @Test("current item becoming nil with existing next episode loads next episode")
-  func currentItemBecomingNilWithExistingNextEpisodeLoadsNextEpisode() async throws {
+  @Test("current item becoming nil will manually load next episode")
+  func currentItemBecomingNilWillManuallyLoadNextEpisode() async throws {
     let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
     episodeAssetLoader.respond(to: queuedEpisode.episode.media) { mediaURL in
@@ -692,6 +688,45 @@ import Testing
 
   private func waitForRemovePeriodicTimeObserver() async throws {
     try await Wait.until { await avQueuePlayer.timeObservers.isEmpty }
+  }
+
+  // MARK: - Timing Helpers
+
+  private func executeMidLoad(
+    for mediaURL: MediaURL,
+    asyncProperties: (Bool, CMTime) = (true, .inSeconds(30)),
+    _ block: @escaping @Sendable () async throws -> Void
+  ) async throws {
+    let loadSemaphoreBegun = AsyncSemaphore(value: 0)
+    let finishLoadingSemaphore = AsyncSemaphore(value: 0)
+    episodeAssetLoader.respond(to: mediaURL) { _ in
+      loadSemaphoreBegun.signal()
+      await finishLoadingSemaphore.wait()
+      return asyncProperties
+    }
+    Task {
+      await loadSemaphoreBegun.wait()
+      try await block()
+      finishLoadingSemaphore.signal()
+    }
+  }
+
+  private func executeMidSeek(
+    completed: Bool = true,
+    _ block: @escaping @Sendable () async throws -> Void
+  ) async throws {
+    let seekSemaphoreBegun = AsyncSemaphore(value: 0)
+    let finishSeekingSemaphore = AsyncSemaphore(value: 0)
+    avQueuePlayer.seekHandler = { _ in
+      seekSemaphoreBegun.signal()
+      await finishSeekingSemaphore.wait()
+      return completed
+    }
+    Task {
+      await seekSemaphoreBegun.wait()
+      try await block()
+      finishSeekingSemaphore.signal()
+    }
   }
 
   // MARK: - Comparison Helpers
