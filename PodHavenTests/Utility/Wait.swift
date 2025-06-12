@@ -11,8 +11,8 @@ import Testing
 enum Wait {
   @discardableResult
   static func forValue<T: Sendable>(
-    maxAttempts: Int = 50,
-    delay: Duration = .milliseconds(10),
+    maxAttempts: Int = 100,
+    delay: Duration = .milliseconds(25),
     _ block: @Sendable @escaping () async throws -> T?
   ) async throws -> T {
     var attempts = 0

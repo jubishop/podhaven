@@ -89,11 +89,11 @@ extension Container {
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> PodcastEpisode {
     log.debug("load: \(podcastEpisode.toString)")
 
-    let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
     avQueuePlayer.removeAllItems()
-    avQueuePlayer.insert(playableItem, after: nil)
     preSeekStatus = nil
+    let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
     self.podcastEpisode = podcastEpisode
+    avQueuePlayer.insert(playableItem, after: nil)
 
     return podcastEpisode
   }

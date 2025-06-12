@@ -168,33 +168,25 @@ import Testing
     #expect(itemQueueURLs.isEmpty)
   }
 
-  // TODO: update this test
   @Test("playing while loading retains playing status")
   func playingWhileLoadingRetainsPlayingStatus() async throws {
-    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+    let podcastEpisode = try await Create.podcastEpisode()
 
-    // While these load slowly: the user will click play
-    episodeAssetLoader.setDefaultResponse { _ in
-      try await Task.sleep(for: .milliseconds(100))
+    let loadSemaphoreBegun = AsyncSemaphore(value: 0)
+    let finishLoadingSemaphore = AsyncSemaphore(value: 0)
+    episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in
+      loadSemaphoreBegun.signal()
+      await finishLoadingSemaphore.wait()
       return (true, .inSeconds(30))
     }
-    try await queueNext(queuedEpisode)
-    Task { try await load(playingEpisode) }
-    try await Wait.until(
-      { await playState.onDeck?.episodeTitle == playingEpisode.episode.title },
-      { "OnDeck is: \(String(describing: await playState.onDeck))" }
-    )
-    try await play()  // Play before our queued episode finishes loading
 
-    try await Wait.until {
-      let mediaURLs = await episodeMediaURLs([playingEpisode, queuedEpisode])
-      return await itemQueueURLs == mediaURLs
-    }
-    try await Task.sleep(for: .milliseconds(100))
-    try await Wait.until(
-      { await playState.status == .playing },
-      { "Status is: \(await playState.status)" }
-    )
+    Task { try await load(podcastEpisode) }
+    await loadSemaphoreBegun.wait()
+    try await play()
+    finishLoadingSemaphore.signal()
+
+    try await waitForItemQueue([podcastEpisode])
+    try await waitFor(.playing)
   }
 
   // MARK: - Playback Controls
