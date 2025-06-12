@@ -434,8 +434,8 @@ import Testing
 
   // MARK: - Episode Finishing
 
-  @Test("finishing last episode clears state")
-  func finishingLastEpisodeClearsState() async throws {
+  @Test("finishing last episode with nothing queued clears state")
+  func finishingLastEpisodeWithNothingQueuedClearsState() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await PlayHelpers.load(podcastEpisode)
@@ -493,8 +493,8 @@ import Testing
     try await PlayHelpers.waitForQueue([queuedEpisode])
   }
 
-  @Test("advancing to next episode seeks to new time")
-  func advancingToNextEpisodeSeeksToNewTime() async throws {
+  @Test("advancing to mid-progress episode seeks to new time")
+  func advancingToMidProgressEpisodeSeeksToNewTime() async throws {
     let originalTime = CMTime.inSeconds(5)
     let queuedTime = CMTime.inSeconds(10)
     let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes(
@@ -512,28 +512,23 @@ import Testing
     try await PlayHelpers.waitFor(queuedTime)
   }
 
-  // TODO: update from here down
-  @Test("new currentItem with no currentTime sets currentTime to zero")
-  func newCurrentItemWithNoCurrentTimeSetsCurrentTimeToZero() async throws {
+  @Test("advancing to unplayed episode sets time to zero")
+  func advancingToUnplayedEpisodeSetsTimeToZero() async throws {
     let originalTime = CMTime.inSeconds(10)
     let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes(
       Create.unsavedEpisode(currentTime: originalTime)
     )
 
-    try await queue.unshift(queuedEpisode.id)
+    try await PlayHelpers.queueNext(queuedEpisode)
     try await PlayHelpers.load(originalEpisode)
     try await PlayHelpers.play()
-    try await Task.sleep(for: .milliseconds(100))
-    #expect(playState.currentTime == originalTime)
+    try await PlayHelpers.waitFor(originalTime)
 
     avQueuePlayer.finishEpisode()
-    try await Wait.until(
-      { await playState.currentTime == .zero },
-      { "CurrentTime is: \(await playState.currentTime), Expected: .zero" }
-    )
+    try await PlayHelpers.waitFor(.zero)
   }
 
-  @Test("episode is marked complete after playing to end", .disabled("needs fixing"))
+  @Test("episode is marked complete after playing to end", .disabled("TODO"))
   func episodeIsMarkedCompleteAfterPlayingToEnd() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
