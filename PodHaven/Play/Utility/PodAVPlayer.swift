@@ -296,7 +296,8 @@ extension Container {
   private func observeNextEpisode() {
     guard observeNextEpisodeTask == nil else { return }
 
-    observeNextEpisodeTask = Task {
+    observeNextEpisodeTask = Task { [weak self] in
+      guard let self else { return }
       do {
         for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
           do {
@@ -320,8 +321,10 @@ extension Container {
 
     currentItemObserver = avQueuePlayer.observeCurrentItem(
       options: [.initial, .new]
-    ) { url in
-      Task {
+    ) { [weak self] url in
+      guard let self else { return }
+      Task { [weak self] in
+        guard let self else { return }
         do {
           try await self.handleCurrentItemChange(url)
         } catch {
@@ -350,8 +353,9 @@ extension Container {
 
     timeControlStatusObserver = avQueuePlayer.observeTimeControlStatus(
       options: [.initial, .new]
-    ) { status in
-      self.controlStatusContinuation.yield(status)
+    ) { [weak self] status in
+      guard let self else { return }
+      controlStatusContinuation.yield(status)
     }
   }
 

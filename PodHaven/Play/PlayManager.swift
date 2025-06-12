@@ -296,8 +296,9 @@ actor PlayManager {
   private func startInterruptionNotifications() {
     Assert.neverCalled()
 
-    Task {
-      for await notification in notifications(AVAudioSession.interruptionNotification) {
+    Task { [weak self] in
+      guard let self else { return }
+      for await notification in await notifications(AVAudioSession.interruptionNotification) {
         switch AudioInterruption.parse(notification) {
         case .pause:
           await pause()
@@ -313,7 +314,8 @@ actor PlayManager {
   private func startPlayToEndTimeNotifications() {
     Assert.neverCalled()
 
-    Task { @MainActor in
+    Task { @MainActor [weak self] in
+      guard let self else { return }
       for await notification in await notifications(AVPlayerItem.didPlayToEndTimeNotification) {
         guard let playableItem = notification.object as? AVPlayableItem
         else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayableItem") }
@@ -332,8 +334,9 @@ actor PlayManager {
   private func startListeningToCommandCenter() {
     Assert.neverCalled()
 
-    Task {
-      for await command in commandCenter.stream {
+    Task { [weak self] in
+      guard let self else { return }
+      for await command in await commandCenter.stream {
         switch command {
         case .play:
           await play()
@@ -355,7 +358,8 @@ actor PlayManager {
   private func startListeningToCurrentItem() {
     Assert.neverCalled()
 
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       for await podcastEpisode in await podAVPlayer.currentItemStream {
         await handleCurrentItemChange(podcastEpisode)
       }
@@ -365,7 +369,8 @@ actor PlayManager {
   private func startListeningToCurrentTime() {
     Assert.neverCalled()
 
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       for await currentTime in await podAVPlayer.currentTimeStream {
         do {
           await setCurrentTime(currentTime)
@@ -386,7 +391,8 @@ actor PlayManager {
   private func startListeningToControlStatus() {
     Assert.neverCalled()
 
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       for await controlStatus in await podAVPlayer.controlStatusStream {
         switch controlStatus {
         case AVPlayer.TimeControlStatus.paused:

@@ -2,6 +2,6 @@
 
 import Foundation
 
-protocol CommandableCenter {
+protocol CommandableCenter: Sendable {
   var stream: AsyncStream<CommandCenter.Command> { get }
 }
