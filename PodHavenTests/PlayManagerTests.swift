@@ -473,52 +473,25 @@ import Testing
     try await PlayHelpers.waitForItemQueue([queuedEpisode])
   }
 
-  // TODO: update from here down
-  @Test("current item advancing to next episode")
-  func currentItemAdvancingToNextEpisode() async throws {
+  @Test("currentItem advancing to next episode updates state")
+  func currentItemAdvancingToNextEpisodeUpdatesState() async throws {
     let (originalEpisode, queuedEpisode, incomingEpisode) =
       try await Create.threePodcastEpisodes()
 
-    try await queue.unshift(queuedEpisode.id)
-    try await queue.unshift(incomingEpisode.id)
+    try await PlayHelpers.queueNext(queuedEpisode)
+    try await PlayHelpers.queueNext(incomingEpisode)
 
     try await PlayHelpers.load(originalEpisode)
     try await PlayHelpers.play()
-    try await Task.sleep(for: .milliseconds(100))
-
     avQueuePlayer.finishEpisode()
-    try await Task.sleep(for: .milliseconds(100))
 
-    try await Wait.until(
-      {
-        let title = incomingEpisode.episode.title
-        let onDeckTitle = await playState.onDeck?.episodeTitle
-        return title == onDeckTitle
-      },
-      {
-        """
-        Expected: \(incomingEpisode.episode.title), \
-        Got: \(String(describing: await playState.onDeck?.episodeTitle))
-        """
-      }
-    )
-    try await Wait.until(
-      {
-        let status = await playState.status
-        let timeControlStatus = await avQueuePlayer.timeControlStatus
-        return status == .playing && timeControlStatus == .playing
-      },
-      {
-        """
-        Status: \(await playState.status), \
-        TimeControl: \(await avQueuePlayer.timeControlStatus)
-        """
-      }
-    )
-    #expect(playState.onDeck! == incomingEpisode)
+    try await PlayHelpers.waitForOnDeck(incomingEpisode)
+    try await PlayHelpers.waitFor(.playing)
+    try await PlayHelpers.waitForItemQueue([incomingEpisode, queuedEpisode])
     try await PlayHelpers.waitForQueue([queuedEpisode])
   }
 
+  // TODO: update from here down
   @Test("new currentItem with currentTime pauses until after seek and then sets currentTime")
   func advancingToNextEpisodePausesUntilAfterSeekAndThenSetsCurrentTime() async throws {
     let originalTime = CMTime.inSeconds(5)
