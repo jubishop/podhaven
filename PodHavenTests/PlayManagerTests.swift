@@ -133,7 +133,6 @@ import Testing
     #expect(updatedPodcastEpisode?.episode.duration == correctDuration)
   }
 
-  // TODO: Sometimes this fails on the waitFor(.stopped) line
   @Test("loading failure clears the deck")
   func loadingFailureClearsTheDeck() async throws {
     let episodeToLoad = try await Create.podcastEpisode()
@@ -435,6 +434,7 @@ import Testing
 
   // MARK: - Episode Finishing
 
+  // TODO: this is failing
   @Test("current item becoming nil clears deck")
   func currentItemBecomingNilClearsDeck() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
@@ -450,7 +450,7 @@ import Testing
     #expect((try await PlayHelpers.queuedEpisodeIDs).isEmpty)
   }
 
-  // TODO: update from here down
+  // TODO: update from here down (this one fails)
   @Test("current item becoming nil will manually load next episode")
   func currentItemBecomingNilWillManuallyLoadNextEpisode() async throws {
     let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()

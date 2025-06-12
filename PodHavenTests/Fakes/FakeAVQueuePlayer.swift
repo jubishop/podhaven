@@ -56,6 +56,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
           return observationHandler
         }
       }
+      if queued.isEmpty { timeControlStatus = .paused }
     }
   }
   func observeCurrentItem(
@@ -97,7 +98,6 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   func removeAllItems() {
     queued.removeAll()
-    timeControlStatus = .paused
   }
 
   func play() {
