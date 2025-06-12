@@ -281,13 +281,6 @@ extension Container {
   }
 
   private func handleDidPlayToEnd(_ mediaURL: MediaURL) async throws {
-    if podcastEpisode?.episode.media != mediaURL {
-      throw PlaybackError.endedEpisodeDoesNotMatch(
-        podcastEpisode: podcastEpisode,
-        mediaURL: mediaURL
-      )
-    }
-
     guard let outgoingPodcastEpisode = try await repo.episode(mediaURL)
     else { throw PlaybackError.endedEpisodeNotFound(mediaURL) }
 
