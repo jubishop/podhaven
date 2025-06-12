@@ -104,8 +104,8 @@ import Testing
     }
   }
 
-  @Test("loading an episode seeks to its current time")
-  func loadingEpisodeSeeksToCurrentTime() async throws {
+  @Test("loading an episode seeks to its stored time")
+  func loadingEpisodeSeeksToItsStoredTime() async throws {
     let currentTime: CMTime = .inSeconds(10)
     let podcastEpisode = try await Create.podcastEpisode(
       Create.unsavedEpisode(currentTime: currentTime)
@@ -133,8 +133,8 @@ import Testing
     #expect(updatedPodcastEpisode?.episode.duration == correctDuration)
   }
 
-  @Test("loading failure clears the deck")
-  func loadingFailureClearsTheDeck() async throws {
+  @Test("loading failure clears state")
+  func loadingFailureClearsState() async throws {
     let episodeToLoad = try await Create.podcastEpisode()
 
     episodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
@@ -255,8 +255,8 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
-  @Test("periodic time observer events update currentTime")
-  func periodicTimeObserverEventsUpdateCurrentTime() async throws {
+  @Test("time update events update currentTime")
+  func timeUpdateEventsUpdateCurrentTime() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await PlayHelpers.load(podcastEpisode)
@@ -350,8 +350,8 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
-  @Test("periodicTimeObserver events are ignored while seeking")
-  func periodicTimeObserverEventsAreIgnoredWhileSeeking() async throws {
+  @Test("time update events are ignored while seeking")
+  func timeUpdateEventsAreIgnoredWhileSeeking() async throws {
     let (failedEpisode, successfulEpisode) = try await Create.twoPodcastEpisodes()
 
     try await PlayHelpers.load(failedEpisode)
@@ -434,8 +434,8 @@ import Testing
 
   // MARK: - Episode Finishing
 
-  @Test("current item becoming nil clears deck")
-  func currentItemBecomingNilClearsDeck() async throws {
+  @Test("finishing last episode clears state")
+  func finishingLastEpisodeClearsState() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await PlayHelpers.load(podcastEpisode)
@@ -449,8 +449,8 @@ import Testing
     #expect((try await PlayHelpers.queuedEpisodeIDs).isEmpty)
   }
 
-  @Test("current item becoming nil will manually load next episode")
-  func currentItemBecomingNilWillManuallyLoadNextEpisode() async throws {
+  @Test("finishing last episode will manually load next episode")
+  func finishingLastEpisodeWillManuallyLoadNextEpisode() async throws {
     let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
     try await PlayHelpers.queueNext(queuedEpisode)
@@ -460,12 +460,14 @@ import Testing
       throw TestError.assetLoadFailure(mediaURL)
     }
 
+    // Will try to load the queued episode but fail
     try await PlayHelpers.load(originalEpisode)
     try await PlayHelpers.waitForResponse(for: queuedEpisode.episode.media)
 
     // Now allow the load to succeed next time we try
     episodeAssetLoader.clearCustomHandler(for: queuedEpisode.episode.media)
 
+    // Once episode is finished it will try again to load the queued episode
     try await PlayHelpers.play()
     avQueuePlayer.finishEpisode()
     try await PlayHelpers.waitForOnDeck(queuedEpisode)
@@ -473,8 +475,8 @@ import Testing
     try await PlayHelpers.waitForItemQueue([queuedEpisode])
   }
 
-  @Test("currentItem advancing to next episode updates state")
-  func currentItemAdvancingToNextEpisodeUpdatesState() async throws {
+  @Test("advancing to next episode updates state")
+  func advancingToNextEpisodeUpdatesState() async throws {
     let (originalEpisode, queuedEpisode, incomingEpisode) =
       try await Create.threePodcastEpisodes()
 
@@ -491,9 +493,8 @@ import Testing
     try await PlayHelpers.waitForQueue([queuedEpisode])
   }
 
-  // TODO: update from here down
-  @Test("new currentItem with currentTime pauses until after seek and then sets currentTime")
-  func advancingToNextEpisodePausesUntilAfterSeekAndThenSetsCurrentTime() async throws {
+  @Test("advancing to next episode seeks to new time")
+  func advancingToNextEpisodeSeeksToNewTime() async throws {
     let originalTime = CMTime.inSeconds(5)
     let queuedTime = CMTime.inSeconds(10)
     let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes(
@@ -504,36 +505,14 @@ import Testing
     try await PlayHelpers.queueNext(queuedEpisode)
     try await PlayHelpers.load(originalEpisode)
     try await PlayHelpers.play()
-    try await Wait.until(
-      { await playState.currentTime == originalTime },
-      { "CurrentTime is: \(await playState.currentTime), Expected: \(originalTime)" }
-    )
-    try await Wait.until {
-      let mediaURLs = await PlayHelpers.episodeMediaURLs([originalEpisode, queuedEpisode])
-      return await PlayHelpers.itemQueueURLs == mediaURLs
-    }
-
-    avQueuePlayer.seekHandler = { _ in
-      try? await Task.sleep(for: .milliseconds(250))
-      return true
-    }
+    try await PlayHelpers.waitFor(originalTime)
+    try await PlayHelpers.waitForItemQueue([originalEpisode, queuedEpisode])
 
     avQueuePlayer.finishEpisode()
-    try await Wait.until(
-      { await playState.status == .paused },
-      { "Status is: \(await playState.status)" }
-    )
-
-    try await Wait.until(
-      { await playState.status == .playing },
-      { "Status is: \(await playState.status)" }
-    )
-    try await Wait.until(
-      { await playState.currentTime == queuedTime },
-      { "CurrentTime is: \(await playState.currentTime), Expected: \(queuedTime)" }
-    )
+    try await PlayHelpers.waitFor(queuedTime)
   }
 
+  // TODO: update from here down
   @Test("new currentItem with no currentTime sets currentTime to zero")
   func newCurrentItemWithNoCurrentTimeSetsCurrentTimeToZero() async throws {
     let originalTime = CMTime.inSeconds(10)
