@@ -64,8 +64,11 @@ actor PlayManager {
   fileprivate init() {}
 
   func start() async {
+    Assert.neverCalled()
+
+    await podAVPlayer.start()
+
     startInterruptionNotifications()
-    startPlayToEndTimeNotifications()
     startListeningToCommandCenter()
     startListeningToCurrentItem()
     startListeningToCurrentTime()
@@ -283,14 +286,6 @@ actor PlayManager {
     }
   }
 
-  private func handleDidPlayToEnd(_ mediaURL: MediaURL) async throws {
-    guard let podcastEpisode = try await repo.episode(mediaURL)
-    else { throw PlaybackError.endedEpisodeNotFound(mediaURL) }
-
-    log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
-    try await repo.markComplete(podcastEpisode.id)
-  }
-
   // MARK: - Private State Tracking
 
   private func startInterruptionNotifications() {
@@ -306,26 +301,6 @@ actor PlayManager {
           await play()
         case .ignore:
           break
-        }
-      }
-    }
-  }
-
-  private func startPlayToEndTimeNotifications() {
-    Assert.neverCalled()
-
-    Task { @MainActor [weak self] in
-      guard let self else { return }
-      for await notification in await notifications(AVPlayerItem.didPlayToEndTimeNotification) {
-        guard let playableItem = notification.object as? AVPlayableItem
-        else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayableItem") }
-
-        do {
-          try await handleDidPlayToEnd(playableItem.assetURL)
-        } catch {
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
-          }
         }
       }
     }

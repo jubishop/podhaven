@@ -68,6 +68,12 @@ extension Container {
     )
   }
 
+  func start() {
+    Assert.neverCalled()
+
+    startPlayToEndTimeNotifications()
+  }
+
   // MARK: - Loading
 
   func stop() {
@@ -287,7 +293,37 @@ extension Container {
     currentTimeContinuation.yield(currentTime)
   }
 
-  // MARK: - State Tracking
+  private func handleDidPlayToEnd(_ mediaURL: MediaURL) async throws {
+    guard let podcastEpisode = try await repo.episode(mediaURL)
+    else { throw PlaybackError.endedEpisodeNotFound(mediaURL) }
+
+    log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
+    try await repo.markComplete(podcastEpisode.id)
+  }
+
+  // MARK: - Permanent State Tracking
+
+  private func startPlayToEndTimeNotifications() {
+    Assert.neverCalled()
+
+    Task { [weak self] in
+      guard let self else { return }
+      for await notification in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
+        guard let playableItem = notification.object as? AVPlayableItem
+        else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayableItem") }
+
+        do {
+          try await handleDidPlayToEnd(playableItem.assetURL)
+        } catch {
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
+        }
+      }
+    }
+  }
+
+  // MARK: - Transient State Tracking
 
   func addObservers() {
     observeNextEpisode()
