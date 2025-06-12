@@ -104,7 +104,7 @@ actor PlayManager {
         log.info("performLoad: \(podcastEpisode.toString)")
 
         await pause()
-        await podAVPlayer.removeTransientObservers()
+        await podAVPlayer.removeObservers()
         await setOnDeck(try await podAVPlayer.load(podcastEpisode))
 
         log.debug("performLoad: dequeueing incoming episode: \(podcastEpisode.toString)")
@@ -127,18 +127,7 @@ actor PlayManager {
           }
         }
 
-        do {
-          if let nextPodcastEpisode = try await queue.nextEpisode {
-            log.debug("performLoad: setting next episode: \(nextPodcastEpisode.toString)")
-            try await podAVPlayer.setNextPodcastEpisode(nextPodcastEpisode)
-          }
-        } catch {
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
-          }
-        }
-
-        await podAVPlayer.addTransientObservers()
+        await podAVPlayer.addObservers()
       } catch {
         if let outgoingPodcastEpisode {
           do {

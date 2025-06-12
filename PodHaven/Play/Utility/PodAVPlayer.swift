@@ -57,6 +57,8 @@ extension Container {
   private var periodicTimeObserver: Any?
   private var currentItemObserver: NSKeyValueObservation?
   private var timeControlStatusObserver: NSKeyValueObservation?
+  private var observeNextEpisodeTask: Task<Void, Never>?
+  private var didPlayToEndTask: Task<Void, Never>?
   private var setNextEpisodeTask: Task<Void, any Error>?
 
   // MARK: - Initialization
@@ -70,16 +72,13 @@ extension Container {
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: AVPlayer.TimeControlStatus.self
     )
-
-    observeNextEpisode()
-    startPlayToEndTimeNotifications()
   }
 
   // MARK: - Loading
 
   func stop() {
     log.debug("stop: executing")
-    removeTransientObservers()
+    removeObservers()
     podcastEpisode = nil
     preSeekStatus = nil
     avQueuePlayer.removeAllItems()
@@ -288,18 +287,63 @@ extension Container {
     didPlayToEndContinuation.yield(outgoingPodcastEpisode)
   }
 
-  // MARK: - Transient Tracking
+  // MARK: - State Tracking
 
-  func addTransientObservers() {
+  func addObservers() {
+    observeNextEpisode()
+    startPlayToEndTimeNotifications()
     addCurrentItemObserver()
     addPeriodicTimeObserver()
     addTimeControlStatusObserver()
   }
 
-  func removeTransientObservers() {
+  func removeObservers() {
+    stopObservingNextEpisode()
+    stopPlayToEndTimeNotifications()
     removeCurrentItemObserver()
     removePeriodicTimeObserver()
     removeTimeControlStatusObserver()
+  }
+
+  private func observeNextEpisode() {
+    guard observeNextEpisodeTask == nil else { return }
+
+    observeNextEpisodeTask = Task {
+      do {
+        for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
+          do {
+            try await setNextPodcastEpisode(nextPodcastEpisode)
+          } catch {
+            if ErrorKit.isRemarkable(error) {
+              log.error(ErrorKit.loggableMessage(for: error))
+            }
+          }
+        }
+      } catch {
+        if ErrorKit.isRemarkable(error) {
+          log.error(ErrorKit.loggableMessage(for: error))
+        }
+      }
+    }
+  }
+
+  private func startPlayToEndTimeNotifications() {
+    guard didPlayToEndTask == nil else { return }
+
+    didPlayToEndTask = Task {
+      for await notification in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
+        guard let playableItem = notification.object as? AVPlayableItem
+        else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayableItem") }
+
+        do {
+          try await handleDidPlayToEnd(playableItem.assetURL)
+        } catch {
+          if ErrorKit.isRemarkable(error) {
+            log.error(ErrorKit.loggableMessage(for: error))
+          }
+        }
+      }
+    }
   }
 
   private func addCurrentItemObserver() {
@@ -342,6 +386,16 @@ extension Container {
     }
   }
 
+  private func stopObservingNextEpisode() {
+    observeNextEpisodeTask?.cancel()
+    observeNextEpisodeTask = nil
+  }
+
+  private func stopPlayToEndTimeNotifications() {
+    didPlayToEndTask?.cancel()
+    didPlayToEndTask = nil
+  }
+
   private func removeCurrentItemObserver() {
     if currentItemObserver != nil {
       self.currentItemObserver = nil
@@ -358,49 +412,6 @@ extension Container {
   private func removeTimeControlStatusObserver() {
     if timeControlStatusObserver != nil {
       self.timeControlStatusObserver = nil
-    }
-  }
-
-  // MARK: - Private State Tracking
-
-  private func observeNextEpisode() {
-    Assert.neverCalled()
-
-    Task {
-      do {
-        for try await nextPodcastEpisode in observatory.nextPodcastEpisode() {
-          do {
-            try await setNextPodcastEpisode(nextPodcastEpisode)
-          } catch {
-            if ErrorKit.isRemarkable(error) {
-              log.error(ErrorKit.loggableMessage(for: error))
-            }
-          }
-        }
-      } catch {
-        if ErrorKit.isRemarkable(error) {
-          log.error(ErrorKit.loggableMessage(for: error))
-        }
-      }
-    }
-  }
-
-  private func startPlayToEndTimeNotifications() {
-    Assert.neverCalled()
-
-    Task {
-      for await notification in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
-        guard let playableItem = notification.object as? AVPlayableItem
-        else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayableItem") }
-
-        do {
-          try await handleDidPlayToEnd(playableItem.assetURL)
-        } catch {
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
-          }
-        }
-      }
     }
   }
 }
