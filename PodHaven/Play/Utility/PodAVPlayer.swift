@@ -230,7 +230,9 @@ extension Container {
     log.debug(
       """
       insertNextPodcastEpisode: at start:
-        \(avQueuePlayer.queued.map { "\($0.assetURL)" }.joined(separator: "\n  "))
+        \(avQueuePlayer.queued.map {
+          "\($0.assetURL.toString) - (\($0.assetURL))"
+        }.joined(separator: "\n  "))
       """
     )
 
@@ -247,7 +249,9 @@ extension Container {
     log.debug(
       """
       insertNextPodcastEpisode: at end:
-        \(avQueuePlayer.queued.map { "\($0.assetURL)" }.joined(separator: "\n  "))
+        \(avQueuePlayer.queued.map {
+          "\($0.assetURL.toString) - (\($0.assetURL))"
+        }.joined(separator: "\n  "))
       """
     )
 

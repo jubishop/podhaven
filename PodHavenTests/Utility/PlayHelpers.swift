@@ -32,12 +32,6 @@ enum PlayHelpers {
     Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
   }
 
-  private static func notificationContinuation(for name: Notification.Name)
-    -> AsyncStream<Notification>.Continuation
-  {
-    Container.shared.notifier().continuation(for: name)
-  }
-
   // MARK: - Action Helpers
 
   @discardableResult

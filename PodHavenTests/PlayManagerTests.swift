@@ -14,6 +14,7 @@ import Testing
 @MainActor struct PlayManagerTests {
   @DynamicInjected(\.episodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.images) private var images
+  @DynamicInjected(\.notifier) private var notifier
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.playState) private var playState
   @DynamicInjected(\.queue) private var queue
@@ -27,12 +28,6 @@ import Testing
   }
   private var nowPlayingInfo: [String: Any?]? {
     Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
-  }
-
-  func notificationContinuation(for name: Notification.Name)
-    -> AsyncStream<Notification>.Continuation
-  {
-    Container.shared.notifier().continuation(for: name)
   }
 
   init() async throws {
@@ -226,7 +221,7 @@ import Testing
     try await PlayHelpers.load(podcastEpisode)
     try await PlayHelpers.play()
 
-    let interruptionContinuation = notificationContinuation(
+    let interruptionContinuation = notifier.continuation(
       for: AVAudioSession.interruptionNotification
     )
 
@@ -528,7 +523,7 @@ import Testing
     try await PlayHelpers.waitFor(.zero)
   }
 
-  @Test("episode is marked complete after playing to end", .disabled("TODO"))
+  @Test("episode is marked complete after playing to end")
   func episodeIsMarkedCompleteAfterPlayingToEnd() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
@@ -536,7 +531,7 @@ import Testing
     try await PlayHelpers.play()
 
     avQueuePlayer.finishEpisode()
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: .milliseconds(200))
     let fetchedPodcastEpisode = try await repo.episode(podcastEpisode.id)
     #expect(fetchedPodcastEpisode!.episode.completed)
   }
