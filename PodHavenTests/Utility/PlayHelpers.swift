@@ -36,7 +36,7 @@ enum PlayHelpers {
 
   @discardableResult
   static func load(_ podcastEpisode: PodcastEpisode) async throws -> OnDeck {
-    try await playManager.load(podcastEpisode)
+    #expect(try await playManager.load(podcastEpisode))
     try await waitForObservations()
     return try await Wait.forValue { await playState.onDeck }
   }

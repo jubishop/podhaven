@@ -57,7 +57,7 @@ actor PlayManager {
     }
   }
 
-  private var loadTask: Task<Void, any Error>?
+  private var loadTask: Task<Bool, any Error>?
 
   // MARK: - Initialization
 
@@ -88,24 +88,25 @@ actor PlayManager {
 
   // MARK: - Loading
 
-  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) {
+  @discardableResult
+  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> Bool {
     loadTask?.cancel()
 
     return try await PlaybackError.catch {
-      try await performLoad(podcastEpisode)
+      return try await performLoad(podcastEpisode)
     }
   }
 
-  private func performLoad(_ podcastEpisode: PodcastEpisode) async throws {
+  private func performLoad(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
     let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode
 
-    if outgoingPodcastEpisode == podcastEpisode {
+    if outgoingPodcastEpisode?.id == podcastEpisode.id {
       log.trace("performLoad: ignoring \(podcastEpisode.toString), already loaded")
-      return
+      return false
     }
 
-    let task = Task { [weak self] in
-      guard let self else { return }
+    let task = Task<Bool, any Error> { [weak self] in
+      guard let self else { return false }
       do {
         log.info("performLoad: \(podcastEpisode.toString)")
 
@@ -134,6 +135,7 @@ actor PlayManager {
         }
 
         await podAVPlayer.addObservers()
+        return true
       } catch {
         if let outgoingPodcastEpisode {
           log.debug(
@@ -174,7 +176,7 @@ actor PlayManager {
     loadTask = task
     defer { loadTask = nil }
 
-    try await task.value
+    return try await task.value
   }
 
   // MARK: - Playback Controls

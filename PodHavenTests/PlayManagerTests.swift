@@ -190,6 +190,14 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
+  @Test("loading episode already loaded does nothing")
+  func loadingEpisodeAlreadyLoadedDoesNothing() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    
+    try await PlayHelpers.load(podcastEpisode)
+    #expect(try await playManager.load(podcastEpisode) == false)
+  }
+
   // MARK: - Playback Controls
 
   @Test("play and pause functions play and pause playback")
