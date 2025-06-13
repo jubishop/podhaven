@@ -129,12 +129,15 @@ extension Container {
 
   func play() {
     log.debug("playing")
-    preSeekStatus = nil
+    preSeekStatus = .playing
     avQueuePlayer.play()
   }
 
-  func pause() {
+  func pause(overwritePreSeekStatus: Bool = true) {
     log.debug("pausing")
+    if overwritePreSeekStatus {
+      preSeekStatus = .paused
+    }
     avQueuePlayer.pause()
   }
 
@@ -163,7 +166,7 @@ extension Container {
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
     preSeekStatus = preSeekStatus ?? avQueuePlayer.timeControlStatus
-    pause()
+    pause(overwritePreSeekStatus: false)
 
     avQueuePlayer.seek(to: time) { [weak self] completed in
       guard let self else { return }
