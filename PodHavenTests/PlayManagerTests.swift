@@ -358,6 +358,23 @@ import Testing
     #expect(PlayHelpers.nowPlayingPlaying == true)
   }
 
+  @Test("pausing while seeking retains pausing status")
+  func pausingWhileSeekingRetainsPlayStatus() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await PlayHelpers.load(podcastEpisode)
+
+    try await PlayHelpers.executeMidSeek {
+      try await PlayHelpers.pause()
+    }
+
+    // Seek and episode will still be playing once the seek is completed
+    await playManager.seek(to: .inSeconds(60))
+    try await PlayHelpers.waitForPeriodicTimeObserver()
+    try await PlayHelpers.waitFor(.paused)
+    #expect(PlayHelpers.nowPlayingPlaying == false)
+  }
+
   @Test("playback is paused while seeking")
   func playbackIsPausedWhileSeeking() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
