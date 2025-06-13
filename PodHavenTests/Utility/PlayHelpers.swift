@@ -158,6 +158,18 @@ enum PlayHelpers {
     )
   }
 
+  static func waitForCompleted(_ podcastEpisode: PodcastEpisode) async throws {
+    try await Wait.until(
+      {
+        guard let fetchedPodcastEpisode = try await repo.episode(podcastEpisode.id)
+        else { return false }
+
+        return fetchedPodcastEpisode.episode.completed
+      },
+      { "Expected \(podcastEpisode.toString) to become completed" }
+    )
+  }
+
   // MARK: - Timing Helpers
 
   static func executeMidLoad(

@@ -187,13 +187,14 @@ import Testing
     Task { try await PlayHelpers.load(podcastEpisode) }
 
     try await PlayHelpers.waitForItemQueue([podcastEpisode])
+    try await PlayHelpers.waitForObservations()
     try await PlayHelpers.waitFor(.playing)
   }
 
   @Test("loading episode already loaded does nothing")
   func loadingEpisodeAlreadyLoadedDoesNothing() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
-    
+
     try await PlayHelpers.load(podcastEpisode)
     #expect(try await playManager.load(podcastEpisode) == false)
   }
@@ -223,15 +224,19 @@ import Testing
 
     commandCenter.continuation.yield(.play)
     try await PlayHelpers.waitFor(.playing)
+    #expect(PlayHelpers.nowPlayingPlaying == true)
 
     commandCenter.continuation.yield(.pause)
     try await PlayHelpers.waitFor(.paused)
+    #expect(PlayHelpers.nowPlayingPlaying == false)
 
     commandCenter.continuation.yield(.togglePlayPause)
     try await PlayHelpers.waitFor(.playing)
+    #expect(PlayHelpers.nowPlayingPlaying == true)
 
     commandCenter.continuation.yield(.togglePlayPause)
     try await PlayHelpers.waitFor(.paused)
+    #expect(PlayHelpers.nowPlayingPlaying == false)
   }
 
   @Test("audio session interruption stops and restarts playback")
@@ -255,6 +260,7 @@ import Testing
       )
     )
     try await PlayHelpers.waitFor(.paused)
+    #expect(PlayHelpers.nowPlayingPlaying == false)
 
     // Interruption ended: resume playback
     interruptionContinuation.yield(
@@ -268,6 +274,7 @@ import Testing
       )
     )
     try await PlayHelpers.waitFor(.playing)
+    #expect(PlayHelpers.nowPlayingPlaying == true)
   }
 
   @Test("time update events update currentTime")
@@ -280,6 +287,7 @@ import Testing
     let advancedTime = CMTime.inSeconds(10)
     avQueuePlayer.advanceTime(to: advancedTime)
     try await PlayHelpers.waitFor(advancedTime)
+    #expect(PlayHelpers.nowPlayingCurrentTime == advancedTime)
   }
 
   // MARK: - Seeking
@@ -330,6 +338,7 @@ import Testing
     try await PlayHelpers.waitFor(.paused)
     seekSemaphore.signal()
     try await PlayHelpers.waitFor(.playing)
+    #expect(PlayHelpers.nowPlayingPlaying == true)
   }
 
   @Test("playing while seeking retains playing status")
@@ -346,6 +355,7 @@ import Testing
     await playManager.seek(to: .inSeconds(60))
     try await PlayHelpers.waitForPeriodicTimeObserver()
     try await PlayHelpers.waitFor(.playing)
+    #expect(PlayHelpers.nowPlayingPlaying == true)
   }
 
   @Test("playback is paused while seeking")
@@ -379,6 +389,7 @@ import Testing
 
     // Now seek has finished, we go back to playing
     try await PlayHelpers.waitFor(.playing)
+    #expect(PlayHelpers.nowPlayingPlaying == true)
   }
 
   @Test("time update events are ignored while seeking")
@@ -413,6 +424,7 @@ import Testing
     let advancedTime = CMTimeAdd(successfulSeekTime, CMTime.inSeconds(10))
     avQueuePlayer.advanceTime(to: advancedTime)  // Actually Triggers
     try await PlayHelpers.waitFor(advancedTime)
+    #expect(PlayHelpers.nowPlayingCurrentTime == advancedTime)
   }
 
   // MARK: - Queue Management
@@ -504,6 +516,7 @@ import Testing
     try await PlayHelpers.waitForOnDeck(queuedEpisode)
     try await PlayHelpers.waitFor(.playing)
     try await PlayHelpers.waitForItemQueue([queuedEpisode])
+    try await PlayHelpers.waitForQueue([])
   }
 
   @Test("advancing to next episode updates state")
@@ -537,7 +550,6 @@ import Testing
     try await PlayHelpers.load(originalEpisode)
     try await PlayHelpers.play()
     try await PlayHelpers.waitFor(originalTime)
-    try await PlayHelpers.waitForItemQueue([originalEpisode, queuedEpisode])
 
     avQueuePlayer.finishEpisode()
     try await PlayHelpers.waitFor(queuedTime)
@@ -567,8 +579,7 @@ import Testing
     try await PlayHelpers.play()
 
     avQueuePlayer.finishEpisode()
-    try await Task.sleep(for: .milliseconds(200))
-    let fetchedPodcastEpisode = try await repo.episode(podcastEpisode.id)
-    #expect(fetchedPodcastEpisode!.episode.completed)
+
+    try await PlayHelpers.waitForCompleted(podcastEpisode)
   }
 }
