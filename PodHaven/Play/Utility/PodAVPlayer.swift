@@ -83,6 +83,7 @@ extension Container {
 
     avQueuePlayer.removeAllItems()
     preSeekStatus = nil
+    self.podcastEpisode = nil
     let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
     self.podcastEpisode = podcastEpisode
     avQueuePlayer.insert(playableItem, after: nil)
@@ -424,7 +425,6 @@ extension Container {
   // MARK: - Debugging Helpers
 
   private var printableQueue: String {
-    avQueuePlayer.queued.map { "\($0.assetURL.toString) - (\($0.assetURL))" }
-      .joined(separator: "\n  ")
+    avQueuePlayer.queued.map(\.assetURL.toString).joined(separator: "\n  ")
   }
 }

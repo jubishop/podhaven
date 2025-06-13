@@ -93,7 +93,7 @@ actor PlayManager {
     loadTask?.cancel()
 
     return try await PlaybackError.catch {
-      return try await performLoad(podcastEpisode)
+      try await performLoad(podcastEpisode)
     }
   }
 
@@ -145,7 +145,11 @@ actor PlayManager {
             """
           )
           do {
-            try await queue.unshift(outgoingPodcastEpisode.id)
+            try await Task { [weak self] in  // Task to execute even inside cancellation
+              guard let self else { return }
+              try await queue.unshift(outgoingPodcastEpisode.id)
+            }
+            .value
           } catch {
             if ErrorKit.isRemarkable(error) {
               log.error(ErrorKit.loggableMessage(for: error))
@@ -155,19 +159,33 @@ actor PlayManager {
 
         log.debug(
           """
-          performLoad: dequeueing incoming episode post failure: \
+          performLoad: unshifting incoming episode post failure: \
           \(podcastEpisode.toString)
           """
         )
         do {
-          try await queue.unshift(podcastEpisode.id)
-        } catch {
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
+          try await Task { [weak self] in  // Task to execute even inside cancellation
+            guard let self else { return }
+            try await queue.unshift(podcastEpisode.id)
           }
+          .value
+        } catch {
+          Log.error(error, from: log)
         }
 
-        await stop()
+        if let newPodcastEpisode = await podAVPlayer.podcastEpisode {
+          if log.wouldLog(.debug) {
+            log.debug(
+              """
+              performLoad: no stop() after load failure because new podcast seems to have loaded
+                Failed to load: \(String(describing: podcastEpisode.toString)) \
+                Loaded instead: \(String(describing: newPodcastEpisode))
+              """
+            )
+          }
+        } else {
+          await stop()
+        }
 
         throw error
       }

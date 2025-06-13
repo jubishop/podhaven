@@ -11,7 +11,8 @@ typealias GUID = Tagged<UnsavedEpisode, String>
 
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
 extension MediaURL: Stringable {
-  var toString: String { rawValue.hashTo(3) }
+  var hashed: String { rawValue.hashTo(3) }
+  var toString: String { "\(hashed):(\(rawValue))" }
 }
 
 struct UnsavedEpisode: Savable, Stringable {

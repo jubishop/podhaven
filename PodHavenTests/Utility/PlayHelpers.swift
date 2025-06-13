@@ -107,7 +107,7 @@ enum PlayHelpers {
       { try await queuedEpisodeIDs == podcastEpisodes.map(\.id) },
       {
         """
-        Quue is: \(try await queuedEpisodeStrings), \
+        Queue is: \(try await queuedEpisodeStrings), \
         Expected: \(await episodeStrings(podcastEpisodes))
         """
       }
@@ -223,8 +223,8 @@ enum PlayHelpers {
     nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackProgress] as! Double
   }
 
-  static var itemQueueURLs: [MediaURL] {
-    avQueuePlayer.queued.map(\.assetURL)
+  static var itemQueueURLs: [String] {
+    avQueuePlayer.queued.map(\.assetURL.toString)
   }
 
   static var queuedEpisodes: [PodcastEpisode] {
@@ -257,8 +257,8 @@ enum PlayHelpers {
     podcastEpisodes.map(\.toString)
   }
 
-  static func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [MediaURL] {
-    podcastEpisodes.map(\.episode.media)
+  static func episodeMediaURLs(_ podcastEpisodes: [PodcastEpisode]) -> [String] {
+    podcastEpisodes.map(\.episode.media.toString)
   }
 
   static func hasPeriodicTimeObservation() -> Bool {

@@ -27,4 +27,13 @@ enum Log {
     logger.logLevel = level
     return logger
   }
+
+  static func error(_ error: Error, from log: Logger) {
+    let message = ErrorKit.loggableMessage(for: error)
+    if ErrorKit.isRemarkable(error) {
+      log.error(message)
+    } else {
+      log.notice(message)
+    }
+  }
 }

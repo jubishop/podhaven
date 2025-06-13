@@ -39,6 +39,7 @@ class EpisodeAssetLoader {
 
     let handler = fakeHandlers[mediaURL, default: defaultHandler]
     let (isPlayable, duration) = try await handler(mediaURL)
+    try Task.checkCancellation()
     return await EpisodeAsset(
       playerItem: FakeAVPlayerItem(assetURL: mediaURL),
       isPlayable: isPlayable,

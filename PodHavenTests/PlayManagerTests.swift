@@ -177,6 +177,29 @@ import Testing
     #expect(PlayHelpers.itemQueueURLs.isEmpty)
   }
 
+  @Test("loading cancels any in-progress load")
+  func loadingCancelsAnyInProgressLoad() async throws {
+    let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+
+    let loadSemaphoreBegun = AsyncSemaphore(value: 0)
+    let finishLoadingSemaphore = AsyncSemaphore(value: 0)
+    episodeAssetLoader.respond(to: originalEpisode.episode.media) { _ in
+      loadSemaphoreBegun.signal()
+      await finishLoadingSemaphore.wait()
+      return (true, .inSeconds(60))
+    }
+
+    Task { try await playManager.load(originalEpisode) }
+    await loadSemaphoreBegun.wait()
+    let onDeck = try await PlayHelpers.load(incomingEpisode)
+    episodeAssetLoader.clearCustomHandler(for: originalEpisode.episode.media)
+    finishLoadingSemaphore.signal()
+
+    #expect(onDeck == incomingEpisode)
+    try await PlayHelpers.waitForQueue([originalEpisode])
+    try await PlayHelpers.waitForItemQueue([incomingEpisode, originalEpisode])
+  }
+
   @Test("playing while loading retains playing status")
   func playingWhileLoadingRetainsPlayingStatus() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
@@ -184,7 +207,7 @@ import Testing
     try await PlayHelpers.executeMidLoad(for: podcastEpisode.episode.media) {
       await playManager.play()
     }
-    Task { try await PlayHelpers.load(podcastEpisode) }
+    try await PlayHelpers.load(podcastEpisode)
 
     try await PlayHelpers.waitForItemQueue([podcastEpisode])
     try await PlayHelpers.waitForObservations()
