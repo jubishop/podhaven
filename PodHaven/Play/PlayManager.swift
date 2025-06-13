@@ -79,9 +79,7 @@ actor PlayManager {
           try await load(podcastEpisode)
         }
       } catch {
-        if ErrorKit.isRemarkable(error) {
-          log.error(ErrorKit.loggableMessage(for: error))
-        }
+        Log.error(error, from: log)
       }
     }
   }
@@ -118,9 +116,7 @@ actor PlayManager {
         do {
           try await queue.dequeue(podcastEpisode.id)
         } catch {
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
-          }
+          Log.error(error, from: log)
         }
 
         if let outgoingPodcastEpisode {
@@ -128,9 +124,7 @@ actor PlayManager {
           do {
             try await queue.unshift(outgoingPodcastEpisode.id)
           } catch {
-            if ErrorKit.isRemarkable(error) {
-              log.error(ErrorKit.loggableMessage(for: error))
-            }
+            Log.error(error, from: log)
           }
         }
 
@@ -151,9 +145,7 @@ actor PlayManager {
             }
             .value
           } catch {
-            if ErrorKit.isRemarkable(error) {
-              log.error(ErrorKit.loggableMessage(for: error))
-            }
+            Log.error(error, from: log)
           }
         }
 
@@ -243,9 +235,7 @@ actor PlayManager {
             podcastEpisode.episode.image ?? podcastEpisode.podcast.image
           )
         } catch {
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
-          }
+          Log.error(error, from: log)
           return nil
         }
       }(),
@@ -301,9 +291,7 @@ actor PlayManager {
       do {
         try await queue.dequeue(podcastEpisode.id)
       } catch {
-        if ErrorKit.isRemarkable(error) {
-          log.error(ErrorKit.loggableMessage(for: error))
-        }
+        Log.error(error, from: log)
       }
 
       await setOnDeck(podcastEpisode)
@@ -318,9 +306,7 @@ actor PlayManager {
           await play()
         }
       } catch {
-        if ErrorKit.isRemarkable(error) {
-          log.error(ErrorKit.loggableMessage(for: error))
-        }
+        Log.error(error, from: log)
       }
     }
   }
@@ -364,9 +350,7 @@ actor PlayManager {
         do {
           try await handleDidPlayToEnd(playableItem.assetURL)
         } catch {
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
-          }
+          Log.error(error, from: log)
         }
       }
     }

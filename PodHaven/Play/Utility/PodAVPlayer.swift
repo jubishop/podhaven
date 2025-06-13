@@ -112,9 +112,7 @@ extension Container {
     do {
       try await repo.updateDuration(podcastEpisode.id, episode.duration)
     } catch {
-      if ErrorKit.isRemarkable(error) {
-        log.error(ErrorKit.loggableMessage(for: error))
-      }
+      Log.error(error, from: log)
     }
 
     return (
@@ -333,15 +331,11 @@ extension Container {
           do {
             try await setNextPodcastEpisode(nextPodcastEpisode)
           } catch {
-            if ErrorKit.isRemarkable(error) {
-              log.error(ErrorKit.loggableMessage(for: error))
-            }
+            Log.error(error, from: log)
           }
         }
       } catch {
-        if ErrorKit.isRemarkable(error) {
-          log.error(ErrorKit.loggableMessage(for: error))
-        }
+        Log.error(error, from: log)
       }
     }
   }
@@ -358,9 +352,7 @@ extension Container {
         do {
           try await self.handleCurrentItemChange(url)
         } catch {
-          if ErrorKit.isRemarkable(error) {
-            self.log.error(ErrorKit.loggableMessage(for: error))
-          }
+          Log.error(error, from: self.log)
         }
       }
     }
@@ -379,9 +371,7 @@ extension Container {
         do {
           try await self.handleCurrentTimeChange(currentTime)
         } catch {
-          if ErrorKit.isRemarkable(error) {
-            self.log.error(ErrorKit.loggableMessage(for: error))
-          }
+          Log.error(error, from: self.log)
         }
       }
     }

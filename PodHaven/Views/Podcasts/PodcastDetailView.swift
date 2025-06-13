@@ -73,11 +73,7 @@ struct PodcastDetailView: View {
           try await viewModel.refreshSeries()
         } catch {
           if ErrorKit.baseError(for: error) is CancellationError { return }
-          if ErrorKit.isRemarkable(error) {
-            log.error(ErrorKit.loggableMessage(for: error))
-          } else {
-            log.info(ErrorKit.loggableMessage(for: error))
-          }
+          Log.error(error, from: log)
           alert(ErrorKit.message(for: error))
         }
       }

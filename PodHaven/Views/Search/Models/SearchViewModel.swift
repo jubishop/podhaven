@@ -86,12 +86,7 @@ import SwiftUI
       try await performSearch(currentView)
     } catch {
       if ErrorKit.baseError(for: error) is CancellationError { return }
-      guard ErrorKit.isRemarkable(error) else {
-        log.info(ErrorKit.loggableMessage(for: error))
-        return
-      }
-
-      log.error(ErrorKit.loggableMessage(for: error))
+      Log.error(error, from: log)
       alert(ErrorKit.message(for: error))
     }
   }
@@ -131,12 +126,7 @@ import SwiftUI
           try await search
         } catch let error as SearchError {
           if ErrorKit.baseError(for: error) is CancellationError { return }
-          guard ErrorKit.isRemarkable(error) else {
-            log.info(ErrorKit.loggableMessage(for: error))
-            return
-          }
-
-          log.error(ErrorKit.loggableMessage(for: error))
+          Log.error(error, from: log)
           alert(ErrorKit.message(for: error))
         }
       }
