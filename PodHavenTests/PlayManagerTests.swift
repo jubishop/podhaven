@@ -382,7 +382,7 @@ import Testing
   }
 
   @Test("pausing while seeking retains pausing status")
-  func pausingWhileSeekingRetainsPlayStatus() async throws {
+  func pausingWhileSeekingRetainsPausingStatus() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await PlayHelpers.load(podcastEpisode)
