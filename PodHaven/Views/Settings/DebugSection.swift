@@ -35,6 +35,13 @@ struct DebugSection: View {
       ) {
         Label("Share Database", systemImage: "square.and.arrow.up")
       }
+
+      ShareLink(
+        item: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+          .appendingPathComponent("log.ndjson")
+      ) {
+        Label("Share Logs", systemImage: "square.and.arrow.up")
+      }
     }
   }
 }

@@ -109,5 +109,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### String Formatting
 - When a string is going to force a line beyond 100 columns, break it into multiple lines using """ delimiters.
 
+## Code Safety
+- Never use `!` to force unwrap optionals in production code.
+
 ## Github Interactions
 - If I ask you to do anything with Github, use the Github CLI (gh)

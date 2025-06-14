@@ -1,8 +1,15 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import Security
 import StoreKit
+
+extension Container {
+  var containerID: Factory<String> {
+    Factory(self) { "\(UUID())".hashTo(4) }.scope(.cached)
+  }
+}
 
 enum EnvironmentType: String {
   case appStore
