@@ -66,9 +66,9 @@ struct FileLogHandler: LogHandler {
       subsystem: subsystem,
       category: category,
       message: message.description,
-      metadata: Dictionary(
-        uniqueKeysWithValues: mergedMetadata.map { ($0.key, $0.value.description) }
-      ),
+      metadata: mergedMetadata.isEmpty
+        ? nil
+        : Dictionary(uniqueKeysWithValues: mergedMetadata.map { ($0.key, $0.value.description) }),
       source: source,
       file: file,
       function: function,
