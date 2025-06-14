@@ -21,7 +21,7 @@ struct PodcastDetailView: View {
         .lineLimit(3)
         .padding(.horizontal)
 
-      Text("Last updated: \(Date.usShortDateFormat.string(from: viewModel.podcast.lastUpdate))")
+      Text("Last updated: \(viewModel.podcast.lastUpdate.usShortWithTime)")
         .font(.caption)
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.horizontal)

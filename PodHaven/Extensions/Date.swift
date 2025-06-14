@@ -27,6 +27,14 @@ extension Date {
 
   static let epoch: Date = Date(timeIntervalSince1970: 0)
 
+  var usShort: String {
+    Date.usShortDateFormat.string(from: self)
+  }
+
+  var usShortWithTime: String {
+    Date.usShortDateFormatWithTime.string(from: self)
+  }
+
   func approximatelyEquals(_ date: Date) -> Bool {
     abs(self.timeIntervalSince1970 - date.timeIntervalSince1970) < 0.001
   }
