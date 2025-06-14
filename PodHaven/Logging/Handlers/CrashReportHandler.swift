@@ -13,7 +13,7 @@ struct CrashReportHandler: LogHandler {
     set(newValue) { self.metadata[metadataKey] = newValue }
   }
   public var logLevel: Logger.Level {
-    get { .error }
+    get { Logger.Level.critical }
     set {}  // Ignore
   }
 

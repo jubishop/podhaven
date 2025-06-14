@@ -61,10 +61,11 @@ struct PodHavenApp: App {
       if AppInfo.myPhone {
         configureSentry()
 
-        log.debug("configureLogging: myPhone (OSLogHandler, RemoteLogHandler, CrashReportHandler)")
+        log.debug("configureLogging: myPhone (OSLogHandler, FileLogHandler, CrashReportHandler)")
         LoggingSystem.bootstrap { label in
           MultiplexLogHandler([
             OSLogHandler(label: label),
+            FileLogHandler(label: label),
             CrashReportHandler(label: label),
           ])
         }
