@@ -59,8 +59,8 @@ struct PodHavenApp: App {
     switch AppInfo.environment {
     case .iPhone:
       configureSentry()
+      FileLogHandler.startBackgroundCleanup()
 
-      log.debug("configureLogging: iPhone (OSLogHandler, FileLogHandler, CrashReportHandler)")
       LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
           OSLogHandler(label: label),
@@ -68,12 +68,13 @@ struct PodHavenApp: App {
           CrashReportHandler(label: label),
         ])
       }
+      log.debug("configureLogging: iPhone (OSLogHandler, FileLogHandler, CrashReportHandler)")
     case .preview:
-      log.debug("configureLogging: preview (PrintLogHandler)")
       LoggingSystem.bootstrap(PrintLogHandler.init)
+      log.debug("configureLogging: preview (PrintLogHandler)")
     case .simulator, .mac, .appStore:
-      log.debug("configureLogging: simulator/mac/appStore (OSLogHandler)")
       LoggingSystem.bootstrap(OSLogHandler.init)
+      log.debug("configureLogging: simulator/mac/appStore (OSLogHandler)")
     }
   }
 

@@ -36,7 +36,6 @@ actor AppInfo {
 
   static func initializeEnvironment() async {
     environment = await _getEnvironment()
-    log.debug("AppInfo.environment is: \(AppInfo.environment)")
   }
 
   private static func _getEnvironment() async -> EnvironmentType {

@@ -4,21 +4,28 @@ import FactoryKit
 import Foundation
 import Logging
 import Sentry
+import UIKit
+
+struct FileLogEntry: Codable {
+  let level: Int
+  let levelName: String
+  let timestamp: Int64
+  let subsystem: String
+  let category: String
+  let message: String
+  let metadata: [String: String]?
+  let source: String
+  let file: String
+  let function: String
+  let line: UInt
+}
 
 struct FileLogHandler: LogHandler {
-  private struct LogEntry: Codable {
-    let level: Int
-    let levelName: String
-    let timestamp: Int64
-    let subsystem: String
-    let category: String
-    let message: String
-    let metadata: [String: String]?
-    let source: String
-    let file: String
-    let function: String
-    let line: UInt
-  }
+  private static let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
+  private static let logFileURL: URL = {
+    let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+    return documentsURL.appendingPathComponent("log.ndjson")
+  }()
 
   public var metadata: Logger.Metadata = [:]
   public var metadataProvider: Logger.MetadataProvider?
@@ -28,20 +35,13 @@ struct FileLogHandler: LogHandler {
   }
   public var logLevel: Logger.Level = .trace
 
-  private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
-  private let logFileURL: URL
   private let subsystem: String
   private let category: String
 
   init(label: String) {
-    let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-    self.logFileURL = documentsURL.appendingPathComponent("log.ndjson")
-
     let (subsystem, category) = LogKit.destructureLabel(from: label)
     self.subsystem = subsystem
     self.category = category
-
-    cleanupOldLogs()
   }
 
   public func log(
@@ -59,7 +59,7 @@ struct FileLogHandler: LogHandler {
       oneOff: metadata
     )
 
-    let logEntry = LogEntry(
+    let logEntry = FileLogEntry(
       level: level.intValue,
       levelName: level.rawValue,
       timestamp: Int64(Date().timeIntervalSince1970 * 1000),
@@ -76,25 +76,25 @@ struct FileLogHandler: LogHandler {
     )
 
     if level == .critical {
-      logQueue.sync {
-        writeLogEntry(logEntry)
+      Self.logQueue.sync {
+        Self.writeToFile(logEntry)
       }
     } else {
-      logQueue.async {
-        writeLogEntry(logEntry)
+      Self.logQueue.async {
+        Self.writeToFile(logEntry)
       }
     }
   }
 
-  private func writeLogEntry(_ logEntry: LogEntry) {
+  private static func writeToFile(_ logEntry: FileLogEntry) {
     do {
-      let jsonData = try JSONEncoder().encode(logEntry)
-      let jsonString = String(data: jsonData, encoding: .utf8)! + "\n"
+      guard let jsonString = String(data: try JSONEncoder().encode(logEntry), encoding: .utf8)
+      else { throw LoggingError.failedToMakeJSONString(logEntry) }
 
       if FileManager.default.fileExists(atPath: logFileURL.path) {
         let fileHandle = try FileHandle(forWritingTo: logFileURL)
         fileHandle.seekToEndOfFile()
-        fileHandle.write(jsonString.data(using: .utf8)!)
+        fileHandle.write("\(jsonString)\n".data(using: .utf8)!)
         fileHandle.closeFile()
       } else {
         try jsonString.write(to: logFileURL, atomically: true, encoding: .utf8)
@@ -104,7 +104,28 @@ struct FileLogHandler: LogHandler {
     }
   }
 
-  private func cleanupOldLogs() {
+  // MARK: - Rotating Logs
+
+  static func startBackgroundCleanup() {
+    Assert.neverCalled()
+
+    let log = Log.as("FileLogCleaner")
+    let notifications = Container.shared.notifications()
+    Task { @MainActor in
+      for await _ in notifications(UIApplication.didEnterBackgroundNotification) {
+        let backgroundTaskID = UIApplication.shared.beginBackgroundTask {}
+
+        log.debug("Now cleaning logs in background")
+        cleanupOldLogs()
+
+        if backgroundTaskID != .invalid {
+          UIApplication.shared.endBackgroundTask(backgroundTaskID)
+        }
+      }
+    }
+  }
+
+  private static func cleanupOldLogs() {
     logQueue.async {
       guard FileManager.default.fileExists(atPath: logFileURL.path) else { return }
 

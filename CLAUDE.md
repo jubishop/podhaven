@@ -45,6 +45,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Shared State**: Use Point-Free's `Sharing` library for persistent state
 - **Navigation**: Centralized `Navigation` class with tab-based routing
 
+### System Notifications
+- **Dependency Injection**: Use `@DynamicInjected(\.notifications)` for notification handling
+- **Production**: Factory returns `NotificationCenter.default.notifications(named:)` AsyncSequence
+- **Testing**: Factory returns controllable `AsyncStream` via `Notifier` fake
+- **Pattern**: `for await notification in await notifications(name) { ... }` in async contexts
+- **Testing**: Use `notifier.continuation(for: name).yield(notification)` to trigger events
+- **Examples**: See `PlayManager`, `RefreshManager`, and `FileLogHandler` for system event handling
+
 ## Key Architectural Components
 
 ### PlayManager (Actor)
