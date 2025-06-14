@@ -21,6 +21,7 @@ struct FileLogEntry: Codable {
 }
 
 struct FileLogHandler: LogHandler {
+  private static let logRetentionInterval = 12.hours
   private static let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
   private static let logFileURL: URL = {
     let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -130,12 +131,11 @@ struct FileLogHandler: LogHandler {
       guard FileManager.default.fileExists(atPath: logFileURL.path) else { return }
 
       do {
-        let threeDaysAgo = Date().addingTimeInterval(-3 * 24 * 60 * 60)
-        let threeDaysAgoTimestamp = Int64(threeDaysAgo.timeIntervalSince1970 * 1000)
+        let cutoffDate = Date().addingTimeInterval(-logRetentionInterval)
+        let cutoffTimestamp = Int64(cutoffDate.timeIntervalSince1970 * 1000)
 
         let logContent = try String(contentsOf: logFileURL, encoding: .utf8)
         let lines = logContent.components(separatedBy: .newlines)
-
         let filteredLines = lines.compactMap { line -> String? in
           guard !line.isEmpty else { return nil }
 
@@ -143,7 +143,7 @@ struct FileLogHandler: LogHandler {
             if let data = line.data(using: .utf8),
               let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let timestamp = json["timestamp"] as? Int64,
-              timestamp >= threeDaysAgoTimestamp
+              timestamp >= cutoffTimestamp
             {
               return line
             }
