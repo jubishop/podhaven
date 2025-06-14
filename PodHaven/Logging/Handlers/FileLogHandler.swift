@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import Logging
+import Sentry
 
 struct FileLogHandler: LogHandler {
   private struct LogEntry: Codable {
@@ -110,8 +111,7 @@ struct FileLogHandler: LogHandler {
         try jsonString.write(to: logFileURL, atomically: true, encoding: .utf8)
       }
     } catch {
-      // Failed to write log - we can't use the logger here to avoid recursion
-      print("FileLogHandler failed to write log: \(error)")
+      SentrySDK.capture(error: error)
     }
   }
 
@@ -139,7 +139,8 @@ struct FileLogHandler: LogHandler {
             }
             return nil
           } catch {
-            return line
+            SentrySDK.capture(error: error)
+            return nil
           }
         }
 
@@ -150,7 +151,7 @@ struct FileLogHandler: LogHandler {
           try "".write(to: logFileURL, atomically: true, encoding: .utf8)
         }
       } catch {
-        print("FileLogHandler failed to cleanup old logs: \(error)")
+        SentrySDK.capture(error: error)
       }
     }
   }
