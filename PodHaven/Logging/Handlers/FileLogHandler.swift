@@ -76,7 +76,7 @@ struct FileLogHandler: LogHandler {
     )
 
     if level == .critical {
-      Self.logQueue.sync {
+      Self.logQueue.sync(flags: .barrier) {
         Self.writeToFile(logEntry)
       }
     } else {
