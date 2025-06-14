@@ -58,20 +58,15 @@ struct PodHavenApp: App {
   static func configureLogging() {
     switch AppInfo.environment {
     case .iPhone:
-      if AppInfo.myPhone {
-        configureSentry()
+      configureSentry()
 
-        log.debug("configureLogging: myPhone (OSLogHandler, FileLogHandler, CrashReportHandler)")
-        LoggingSystem.bootstrap { label in
-          MultiplexLogHandler([
-            OSLogHandler(label: label),
-            FileLogHandler(label: label),
-            CrashReportHandler(label: label),
-          ])
-        }
-      } else {
-        log.debug("configureLogging: not myPhone (OSLogHandler)")
-        LoggingSystem.bootstrap(OSLogHandler.init)
+      log.debug("configureLogging: iPhone (OSLogHandler, FileLogHandler, CrashReportHandler)")
+      LoggingSystem.bootstrap { label in
+        MultiplexLogHandler([
+          OSLogHandler(label: label),
+          FileLogHandler(label: label),
+          CrashReportHandler(label: label),
+        ])
       }
     case .preview:
       log.debug("configureLogging: preview (PrintLogHandler)")

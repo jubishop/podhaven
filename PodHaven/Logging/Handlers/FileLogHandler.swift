@@ -18,12 +18,7 @@ struct FileLogHandler: LogHandler {
     let file: String
     let function: String
     let line: UInt
-    let containerID: String
-    let threadID: String
-    let isMainThread: Bool
   }
-
-  @DynamicInjected(\.containerID) private var containerID
 
   public var metadata: Logger.Metadata = [:]
   public var metadataProvider: Logger.MetadataProvider?
@@ -58,11 +53,6 @@ struct FileLogHandler: LogHandler {
     function: String,
     line: UInt
   ) {
-    let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
-    let threadID = Thread.id
-    let isMainThread = Thread.isMainThread
-    let containerIDValue = containerID
-
     let mergedMetadata = LogKit.merge(
       handler: self.metadata,
       provider: self.metadataProvider,
@@ -72,20 +62,17 @@ struct FileLogHandler: LogHandler {
     let logEntry = LogEntry(
       level: level.intValue,
       levelName: level.rawValue,
-      timestamp: timestamp,
+      timestamp: Int64(Date().timeIntervalSince1970 * 1000),
       subsystem: subsystem,
       category: category,
       message: message.description,
-      metadata: mergedMetadata.isEmpty
-        ? nil
-        : Dictionary(uniqueKeysWithValues: mergedMetadata.map { ($0.key, $0.value.description) }),
+      metadata: Dictionary(
+        uniqueKeysWithValues: mergedMetadata.map { ($0.key, $0.value.description) }
+      ),
       source: source,
       file: file,
       function: function,
       line: line,
-      containerID: containerIDValue,
-      threadID: threadID,
-      isMainThread: isMainThread
     )
 
     if level == .critical {
