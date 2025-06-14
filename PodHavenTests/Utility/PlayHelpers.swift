@@ -145,13 +145,13 @@ enum PlayHelpers {
     try await Wait.until { !(await hasObservations()) }
   }
 
-  static func waitForResponse(for mediaURL: MediaURL, count: Int = 1) async throws {
+  static func waitForResponse(for podcastEpisode: PodcastEpisode, count: Int = 1) async throws {
     try await Wait.until(
-      { await PlayHelpers.responseCount(for: mediaURL) == count },
+      { await responseCount(for: podcastEpisode) == count },
       {
         """
-        responseCount for \(mediaURL.toString) is: \
-        \(await responseCount(for: mediaURL)), \
+        responseCount for \(podcastEpisode.episode.media.toString) is: \
+        \(await responseCount(for: podcastEpisode)), \
         expected: \(count)
         """
       }
@@ -173,13 +173,13 @@ enum PlayHelpers {
   // MARK: - Timing Helpers
 
   static func executeMidLoad(
-    for mediaURL: MediaURL,
-    asyncProperties: (Bool, CMTime) = (true, .inSeconds(30)),
+    for podcastEpisode: PodcastEpisode,
+    asyncProperties: (Bool, CMTime) = (true, .inSeconds(60)),
     _ block: @escaping @Sendable () async throws -> Void
   ) async throws {
     let loadSemaphoreBegun = AsyncSemaphore(value: 0)
     let finishLoadingSemaphore = AsyncSemaphore(value: 0)
-    episodeAssetLoader.respond(to: mediaURL) { _ in
+    episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in
       loadSemaphoreBegun.signal()
       await finishLoadingSemaphore.wait()
       return asyncProperties
@@ -271,7 +271,7 @@ enum PlayHelpers {
       && !(avQueuePlayer.statusObservations.isEmpty)
   }
 
-  static func responseCount(for mediaURL: MediaURL) -> Int {
-    episodeAssetLoader.responseCounts[mediaURL, default: 0]
+  static func responseCount(for podcastEpisode: PodcastEpisode) -> Int {
+    episodeAssetLoader.responseCounts[podcastEpisode.episode.media, default: 0]
   }
 }
