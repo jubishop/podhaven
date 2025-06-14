@@ -14,9 +14,9 @@ struct DebugSection: View {
       Text("Device ID: \(AppInfo.deviceIdentifier)")
 
       if AppInfo.myPhone {
-        Text("This is Jubi's phone")
+        Text("Jubi's phone")
       } else {
-        Text("This is NOT Jubi's phone ")
+        Text("NOT Jubi's phone ")
       }
 
       #if DEBUG
@@ -24,6 +24,10 @@ struct DebugSection: View {
       #else
       Text("in PRODUCTION")
       #endif
+
+      Text("Version \(AppInfo.version) (\(AppInfo.buildNumber))")
+
+      Text("Built \(Date.usShortDateFormat.string(from: AppInfo.buildDate))")
 
       ShareLink(
         item: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!

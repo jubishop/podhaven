@@ -64,6 +64,26 @@ actor AppInfo {
     }
     #endif
   }
+
+  // MARK: - Build Info
+
+  static var version: String {
+    Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+  }
+
+  static var buildNumber: String {
+    Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+  }
+
+  static var buildDate: Date {
+    if let infoPath = Bundle.main.path(forResource: "Info", ofType: "plist"),
+      let infoAttr = try? FileManager.default.attributesOfItem(atPath: infoPath),
+      let infoDate = infoAttr[FileAttributeKey.creationDate] as? Date
+    {
+      return infoDate
+    }
+    return Date()
+  }
 }
 
 private class KeychainHelper {
