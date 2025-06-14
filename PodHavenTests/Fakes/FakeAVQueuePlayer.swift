@@ -192,7 +192,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     currentTimeValue = cmTime
   }
 
-  func waitToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
+  func waitingToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
     Assert.precondition(
       timeControlStatus == .playing,
       "Can only simulate waitingToPlay if playing!"

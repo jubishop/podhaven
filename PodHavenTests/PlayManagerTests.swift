@@ -306,6 +306,17 @@ import Testing
     #expect(PlayHelpers.nowPlayingCurrentTime == advancedTime)
   }
 
+  @Test("waiting to play time control status updates playstate")
+  func waitingToPlayTimeControlStatusUpdatesPlaystate() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.play()
+
+    avQueuePlayer.waitingToPlay()
+    try await PlayHelpers.waitFor(.waiting)
+  }
+
   // MARK: - Seeking
 
   @Test("seeking updates current time")
