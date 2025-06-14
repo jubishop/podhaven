@@ -18,6 +18,13 @@ extension Date {
     return usShortDateFormat
   }()
 
+  static let usShortDateFormatWithTime: DateFormatter = {
+    let usShortDateFormatWithTime = DateFormatter()
+    usShortDateFormatWithTime.locale = Locale(identifier: "en_US_POSIX")
+    usShortDateFormatWithTime.dateFormat = "M/d/yyyy h:mm a"
+    return usShortDateFormatWithTime
+  }()
+
   static let epoch: Date = Date(timeIntervalSince1970: 0)
 
   func approximatelyEquals(_ date: Date) -> Bool {

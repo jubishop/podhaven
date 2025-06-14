@@ -27,20 +27,20 @@ struct DebugSection: View {
 
       Text("Version \(AppInfo.version) (\(AppInfo.buildNumber))")
 
-      Text("Built \(Date.usShortDateFormat.string(from: AppInfo.buildDate))")
-
-      ShareLink(
-        item: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-          .appendingPathComponent("db.sqlite")
-      ) {
-        Label("Share Database", systemImage: "square.and.arrow.up")
-      }
+      Text("Built \(Date.usShortDateFormatWithTime.string(from: AppInfo.buildDate))")
 
       ShareLink(
         item: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
           .appendingPathComponent("log.ndjson")
       ) {
         Label("Share Logs", systemImage: "square.and.arrow.up")
+      }
+
+      ShareLink(
+        item: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+          .appendingPathComponent("db.sqlite")
+      ) {
+        Label("Share Database", systemImage: "square.and.arrow.up")
       }
     }
   }
