@@ -32,8 +32,6 @@ import Testing
 
   init() async throws {
     await playManager.start()
-    print("Test ID: \(Container.shared.testID())")
-    print("Thread ID: \(Thread.id)")
   }
 
   // MARK: - Loading

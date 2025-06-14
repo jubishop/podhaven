@@ -7,30 +7,31 @@ import Sentry
 
 struct FileLogHandler: LogHandler {
   private struct LogEntry: Codable {
-    let level: String
+    let level: Int
+    let levelName: String
+    let timestamp: Int64
+    let subsystem: String
+    let category: String
     let message: String
     let metadata: [String: String]?
     let source: String
     let file: String
     let function: String
     let line: UInt
-    let timestamp: Int64
+    let containerID: String
     let threadID: String
     let isMainThread: Bool
-    let containerID: String
-    let subsystem: String
-    let category: String
   }
 
   @DynamicInjected(\.containerID) private var containerID
 
-  public var metadata: Logging.Logger.Metadata = [:]
-  public var metadataProvider: Logging.Logger.MetadataProvider?
-  public subscript(metadataKey metadataKey: String) -> Logging.Logger.Metadata.Value? {
+  public var metadata: Logger.Metadata = [:]
+  public var metadataProvider: Logger.MetadataProvider?
+  public subscript(metadataKey metadataKey: String) -> Logger.Metadata.Value? {
     get { self.metadata[metadataKey] }
     set(newValue) { self.metadata[metadataKey] = newValue }
   }
-  public var logLevel: Logging.Logger.Level = .trace
+  public var logLevel: Logger.Level = .trace
 
   private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
   private let logFileURL: URL
@@ -49,9 +50,9 @@ struct FileLogHandler: LogHandler {
   }
 
   public func log(
-    level: Logging.Logger.Level,
-    message: Logging.Logger.Message,
-    metadata: Logging.Logger.Metadata?,
+    level: Logger.Level,
+    message: Logger.Message,
+    metadata: Logger.Metadata?,
     source: String,
     file: String,
     function: String,
@@ -69,7 +70,11 @@ struct FileLogHandler: LogHandler {
     )
 
     let logEntry = LogEntry(
-      level: level.rawValue,
+      level: level.intValue,
+      levelName: level.rawValue,
+      timestamp: timestamp,
+      subsystem: subsystem,
+      category: category,
       message: message.description,
       metadata: mergedMetadata.isEmpty
         ? nil
@@ -78,12 +83,9 @@ struct FileLogHandler: LogHandler {
       file: file,
       function: function,
       line: line,
-      timestamp: timestamp,
-      threadID: threadID,
-      isMainThread: isMainThread,
       containerID: containerIDValue,
-      subsystem: subsystem,
-      category: category
+      threadID: threadID,
+      isMainThread: isMainThread
     )
 
     if level == .critical {
