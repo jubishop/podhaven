@@ -19,7 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Dependency Injection (FactoryKit)
 - **ViewModels**: Use `@DynamicInjected(\.repo)` for cached dependencies
-- **Views**: Use `@InjectedObservable(\.navigation)` for observable dependencies  
+- **Views**: Use `@InjectedObservable(\.navigation)` for observable dependencies
 - **Unique scope**: Use `@LazyInjected` only for `.scope(.unique)` dependencies
 - **Testing**: Mark test suites with `@Suite(..., .container)` and use `.context(.test)` for mocks
 
@@ -52,7 +52,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Wraps `AVQueuePlayer` with custom `PodAVPlayer`
 - Handles queue management and command center integration
 
-### FeedManager (Actor) 
+### FeedManager (Actor)
 - Concurrent RSS feed downloading and processing
 - Uses `AsyncStream` for streaming results
 - Handles parsing failures gracefully
@@ -98,11 +98,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Key Dependencies
 - GRDB: Database management
-- XMLCoder: RSS feed parsing  
+- XMLCoder: RSS feed parsing
 - Nuke/NukeUI: Image loading and caching
 - Factory: Dependency injection
 - Tagged: Type-safe identifiers
 - Sentry: Error reporting (production only)
+
+## Logging System
+
+### Architecture
+- **Centralized Configuration**: Logging is configured in `PodHavenApp.swift` using `LoggingSystem.bootstrap`
+- **Environment-specific Handlers**: Different log handlers based on app environment
+  - iPhone: `OSLogHandler`, `FileLogHandler`, `CrashReportHandler` (via `MultiplexLogHandler`)
+  - Preview: `PrintLogHandler` only
+  - Simulator/Mac/AppStore: `OSLogHandler` only
+
+### Log Handlers
+- **OSLogHandler**: Native iOS logging via `os.Logger` with subsystem/category structure
+- **FileLogHandler**: Structured JSON logs written to `Documents/log.ndjson`
+  - NDJSON format with level, timestamp, subsystem, category, message, metadata
+  - Automatic cleanup (removes logs older than 3 days)
+  - Background queue for async writing (sync for critical logs)
+- **PrintLogHandler**: Simple console output for previews
+- **CrashReportHandler**: Sentry integration for critical errors only
+
+### Usage Patterns
+- **Logger Creation**: Use `Log.as(categorizable)` or `Log.as(category, level)`
+- **Categorization**: Use `LogCategorizable` protocol with subsystem/category/level
+- **Error Logging**: Use `Log.error(error, from: logger)` with `ErrorKit` integration
+- **Level Mapping**: Custom integer mapping for structured logging
 
 ## Code Style
 
