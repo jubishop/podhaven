@@ -6,7 +6,7 @@ import Logging
 extension Logger {
   // MARK: - Environment Helpers
 
-  func wouldLog(_ level: Logger.Level) -> Bool {
+  func shouldLog(_ level: Logger.Level) -> Bool {
     logLevel <= level && AppInfo.environment != .appStore
   }
 }

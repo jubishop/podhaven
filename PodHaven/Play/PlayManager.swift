@@ -166,7 +166,7 @@ actor PlayManager {
         }
 
         if let newPodcastEpisode = await podAVPlayer.podcastEpisode {
-          if log.wouldLog(.debug) {
+          if log.shouldLog(.debug) {
             log.debug(
               """
               performLoad: no stop() after load failure because new podcast seems to have loaded
