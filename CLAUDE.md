@@ -81,7 +81,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Each top-level type in its own file with matching name
 - Copyright header: "Copyright Justin Bishop, 2025"
 - Use `// MARK: - Section Name` for major sections only
-- Don't add excessive comments beyond `// MARK: - Section Name` style comments
 
 ### Naming Conventions
 - Types: PascalCase (`PodcastFeed`, `EpisodeViewModel`)
@@ -140,6 +139,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### String Formatting
 - When a string is going to force a line beyond 100 columns, break it into multiple lines using """ delimiters.
+
+### Commenting
+- Don't add excessive comments beyond `// MARK: - Section Name` style comments
 
 ## Code Safety
 - Never use `!` to force unwrap optionals in production code.

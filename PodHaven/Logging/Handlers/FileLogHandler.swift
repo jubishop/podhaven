@@ -118,6 +118,11 @@ struct FileLogHandler: LogHandler {
     let notifications = Container.shared.notifications()
 
     Task {
+      log.debug("App launched, checking if log cleanup needed")
+      await cleanupIfNeeded()
+    }
+
+    Task {
       for await _ in notifications(UIApplication.didBecomeActiveNotification) {
         log.debug("App became active, checking if log cleanup needed")
         await cleanupIfNeeded()
