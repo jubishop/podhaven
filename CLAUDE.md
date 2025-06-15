@@ -81,7 +81,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Each top-level type in its own file with matching name
 - Copyright header: "Copyright Justin Bishop, 2025"
 - Use `// MARK: - Section Name` for major sections only
-- Don't add excessive comments beyond `// MARK: -` style comments
+- Don't add excessive comments beyond `// MARK: - Section Name` style comments
 
 ### Naming Conventions
 - Types: PascalCase (`PodcastFeed`, `EpisodeViewModel`)
@@ -90,7 +90,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Testing Patterns
 - Comprehensive fake implementations for external dependencies
-- Test-specific dependency injection with container override
+- Test-specific dependency injection with Factory Container override
 - In-memory database for fast tests
 - Use `#expect` for assertions in Swift Testing
 
@@ -125,7 +125,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **OSLogHandler**: Native iOS logging via `os.Logger` with subsystem/category structure
 - **FileLogHandler**: Structured JSON logs written to `Documents/log.ndjson`
   - NDJSON format with level, timestamp, subsystem, category, message, metadata
-  - Automatic cleanup (removes logs older than 3 days)
+  - Automatic cleanup (removes older logs)
   - Background queue for async writing (sync for critical logs)
 - **PrintLogHandler**: Simple console output for previews
 - **CrashReportHandler**: Sentry integration for critical errors only
