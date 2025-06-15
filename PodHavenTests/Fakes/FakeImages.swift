@@ -6,14 +6,38 @@ import SwiftUI
 
 @testable import PodHaven
 
-struct FakeImages: ImageFetchable {
-  func prefetch(_ urls: [URL]) {}
+actor FakeImages: ImageFetchable {
+  typealias FetchHandler = @Sendable (URL) async throws -> UIImage
 
-  func fetchImage(_ url: URL) async throws -> UIImage {
-    Self.createFakeImage(url)
+  private(set) var responseCounts: [URL: Int] = [:]
+
+  private var defaultHandler: FetchHandler = { url in return FakeImages.create(url) }
+  private var fakeHandlers: [URL: FetchHandler] = [:]
+
+  func setDefaultResponse(_ handler: @escaping FetchHandler) {
+    defaultHandler = handler
   }
 
-  private static func createFakeImage(_ url: URL) -> UIImage {
+  func respond(to url: URL, _ handler: @escaping FetchHandler) {
+    fakeHandlers[url] = handler
+  }
+
+  func clearCustomHandler(for url: URL) {
+    fakeHandlers.removeValue(forKey: url)
+  }
+
+  nonisolated func prefetch(_ urls: [URL]) {}
+
+  func fetchImage(_ url: URL) async throws -> UIImage {
+    defer { responseCounts[url, default: 0] += 1 }
+
+    let handler = fakeHandlers[url, default: defaultHandler]
+    let uiImage = try await handler(url)
+    try Task.checkCancellation()
+    return uiImage
+  }
+
+  static func create(_ url: URL) -> UIImage {
     let hash = abs(url.absoluteString.hashValue)
     let size = CGSize(width: 100, height: 100)
     let color = UIColor(
