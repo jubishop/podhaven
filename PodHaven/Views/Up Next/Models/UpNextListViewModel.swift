@@ -3,12 +3,15 @@
 import FactoryKit
 import Foundation
 import IdentifiedCollections
+import Logging
 import SwiftUI
 
 @Observable @MainActor class UpNextListViewModel {
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
+
+  private let log = Log.as(LogSubsystem.UpNextView.list)
 
   let isSelected: Binding<Bool>
   let podcastEpisode: PodcastEpisode
@@ -31,8 +34,12 @@ import SwiftUI
   func playNow() {
     Task { [weak self] in
       guard let self else { return }
-      try await playManager.load(podcastEpisode)
-      await playManager.play()
+      do {
+        try await playManager.load(podcastEpisode)
+        await playManager.play()
+      } catch {
+        log.error(error)
+      }
     }
   }
 

@@ -133,7 +133,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Usage Patterns
 - **Logger Creation**: Use `Log.as(categorizable)` or `Log.as(category, level)`
 - **Categorization**: Use `LogCategorizable` protocol with subsystem/category/level
-- **Error Logging**: Use `Log.error(error, from: logger)` with `ErrorKit` integration
+- **Error Logging**: Use `log.error(error)` with `ErrorKit` integration
 - **Level Mapping**: Custom integer mapping for structured logging
 
 ## Code Style

@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import IdentifiedCollections
+import Logging
 
 @MainActor protocol QueueableSelectableEpisodeList: AnyObject, QueueableSelectableList {
   associatedtype EpisodeType: Searchable
@@ -18,6 +19,8 @@ import IdentifiedCollections
 extension QueueableSelectableEpisodeList {
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: Queue { Container.shared.queue() }
+
+  private var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 
   var selectedEpisodes: [EpisodeType] { episodeList.selectedEntries.elements }
 
@@ -48,12 +51,16 @@ extension QueueableSelectableEpisodeList {
   func replaceQueueAndPlay() {
     Task { [weak self] in
       guard let self else { return }
-      let podcastEpisodes = try await selectedPodcastEpisodes
-      if let firstPodcastEpisode = podcastEpisodes.first {
-        try await playManager.load(firstPodcastEpisode)
-        await playManager.play()
-        let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
-        try await queue.replace(allExceptFirstPodcastEpisode.map(\.id))
+      do {
+        let podcastEpisodes = try await selectedPodcastEpisodes
+        if let firstPodcastEpisode = podcastEpisodes.first {
+          try await playManager.load(firstPodcastEpisode)
+          await playManager.play()
+          let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
+          try await queue.replace(allExceptFirstPodcastEpisode.map(\.id))
+        }
+      } catch {
+        log.error(error)
       }
     }
   }

@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import GRDB
+import Logging
 
 @Observable @MainActor class EpisodeDetailViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
@@ -11,6 +12,8 @@ import GRDB
   @ObservationIgnored @DynamicInjected(\.playState) private var playState
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
+
+  private let log = Log.as(LogSubsystem.EpisodeView.detail)
 
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }
@@ -44,8 +47,12 @@ import GRDB
   func playNow() {
     Task { [weak self] in
       guard let self else { return }
-      try await playManager.load(podcastEpisode)
-      await playManager.play()
+      do {
+        try await playManager.load(podcastEpisode)
+        await playManager.play()
+      } catch {
+        log.error(error)
+      }
     }
   }
 

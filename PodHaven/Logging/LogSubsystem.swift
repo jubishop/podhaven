@@ -18,6 +18,10 @@ enum LogSubsystem {
     }
   }
 
+  enum EpisodeView: String, LogCategorizable {
+    case detail
+  }
+
   enum Play: String, LogCategorizable {
     case manager
     case avPlayer
@@ -37,5 +41,16 @@ enum LogSubsystem {
 
   enum SearchView: String, LogCategorizable {
     case main
+    case episodeDetail
+  }
+
+  enum UpNextView: String, LogCategorizable {
+    case main
+    case list
+  }
+
+  enum ViewProtocols: String, LogCategorizable {
+    case podcast
+    case episodeList
   }
 }

@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Logging
 import SwiftUI
 
 @Observable @MainActor class UpNextViewModel {
@@ -12,6 +13,8 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
+
+  private let log = Log.as(LogSubsystem.UpNextView.main)
 
   // MARK: - State Management
 
@@ -48,8 +51,12 @@ import SwiftUI
   func playItem(_ podcastEpisode: PodcastEpisode) {
     Task { [weak self] in
       guard let self else { return }
-      try await playManager.load(podcastEpisode)
-      await playManager.play()
+      do {
+        try await playManager.load(podcastEpisode)
+        await playManager.play()
+      } catch {
+        log.error(error)
+      }
     }
   }
 

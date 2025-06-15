@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Logging
 
 @MainActor protocol PodcastQueueableModel: AnyObject, EpisodeQueueable, PodcastEpisodeGettable {}
 
@@ -9,12 +10,18 @@ extension PodcastQueueableModel {
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: Queue { Container.shared.queue() }
 
+  private var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcast) }
+
   func playEpisode(_ episode: EpisodeType) {
     Task { [weak self] in
       guard let self else { return }
-      let podcastEpisode = try await getPodcastEpisode(episode)
-      try await playManager.load(podcastEpisode)
-      await playManager.play()
+      do {
+        let podcastEpisode = try await getPodcastEpisode(episode)
+        try await playManager.load(podcastEpisode)
+        await playManager.play()
+      } catch {
+        log.error(error)
+      }
     }
   }
 
