@@ -21,12 +21,7 @@ struct FileLogEntry: Codable {
 }
 
 struct FileLogHandler: LogHandler {
-  private static let logRetentionInterval = 12.hours
-  private static let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
-  private static let logFileURL: URL = {
-    let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-    return documentsURL.appendingPathComponent("log.ndjson")
-  }()
+  // MARK: - LogHandler
 
   public var metadata: Logger.Metadata = [:]
   public var metadataProvider: Logger.MetadataProvider?
@@ -105,64 +100,93 @@ struct FileLogHandler: LogHandler {
     }
   }
 
-  // MARK: - Rotating Logs
+  // MARK: - Log Cleanup
 
-  static func startBackgroundCleanup() {
+  private static let lastCleanupKey = "FileLogHandler.lastCleanup"
+  private static let logRetentionInterval = 12.hours
+  private static let periodicCleanupInterval = 1.hours
+  private static let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
+  private static let logFileURL: URL = {
+    let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+    return documentsURL.appendingPathComponent("log.ndjson")
+  }()
+  private static let log = Log.as("FileLogCleaner")
+
+  static func startPeriodicCleanup() {
     Assert.neverCalled()
 
-    let log = Log.as("FileLogCleaner")
     let notifications = Container.shared.notifications()
-    Task { @MainActor in
+
+    Task {
+      for await _ in notifications(UIApplication.didBecomeActiveNotification) {
+        log.debug("App became active, checking if log cleanup needed")
+        await cleanupIfNeeded()
+      }
+    }
+
+    Task {
       for await _ in notifications(UIApplication.didEnterBackgroundNotification) {
-        let backgroundTaskID = UIApplication.shared.beginBackgroundTask {}
+        log.debug("App backgrounded, checking if log cleanup needed")
+        await cleanupIfNeeded()
+      }
+    }
+  }
 
-        log.debug("Now cleaning logs in background")
-        cleanupOldLogs()
+  private static func cleanupIfNeeded() async {
+    let lastCleanup = UserDefaults.standard.double(forKey: lastCleanupKey)
+    let now = Date().timeIntervalSince1970
 
-        if backgroundTaskID != .invalid {
-          UIApplication.shared.endBackgroundTask(backgroundTaskID)
+    if now - lastCleanup > periodicCleanupInterval {
+      log.debug("Running periodic log cleanup")
+      let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {}
+      await withCheckedContinuation { continuation in
+        logQueue.async {
+          cleanupOldLogs()
+          continuation.resume()
         }
+      }
+      UserDefaults.standard.set(now, forKey: lastCleanupKey)
+      if backgroundTaskID != .invalid {
+        await UIApplication.shared.endBackgroundTask(backgroundTaskID)
       }
     }
   }
 
   private static func cleanupOldLogs() {
-    logQueue.async {
-      guard FileManager.default.fileExists(atPath: logFileURL.path) else { return }
+    guard FileManager.default.fileExists(atPath: logFileURL.path) else { return }
 
-      do {
-        let cutoffDate = Date().addingTimeInterval(-logRetentionInterval)
-        let cutoffTimestamp = Int64(cutoffDate.timeIntervalSince1970 * 1000)
+    do {
+      let cutoffDate = Date().addingTimeInterval(-logRetentionInterval)
+      let cutoffTimestamp = Int64(cutoffDate.timeIntervalSince1970 * 1000)
 
-        let logContent = try String(contentsOf: logFileURL, encoding: .utf8)
-        let lines = logContent.components(separatedBy: .newlines)
-        let filteredLines = lines.compactMap { line -> String? in
-          guard !line.isEmpty else { return nil }
+      let logContent = try String(contentsOf: logFileURL, encoding: .utf8)
+      let lines = logContent.components(separatedBy: .newlines)
+      let filteredLines = lines.compactMap { line -> String? in
+        guard !line.isEmpty else { return nil }
 
-          do {
-            if let data = line.data(using: .utf8),
-              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let timestamp = json["timestamp"] as? Int64,
-              timestamp >= cutoffTimestamp
-            {
-              return line
-            }
-            return nil
-          } catch {
-            SentrySDK.capture(error: error)
-            return nil
+        do {
+          if let data = line.data(using: .utf8),
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let timestamp = json["timestamp"] as? Int64,
+            timestamp >= cutoffTimestamp
+          {
+            return line
           }
+          return nil
+        } catch {
+          SentrySDK.capture(error: error)
+          return nil
         }
-
-        let filteredContent = filteredLines.joined(separator: "\n")
-        if !filteredContent.isEmpty {
-          try (filteredContent + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
-        } else {
-          try "".write(to: logFileURL, atomically: true, encoding: .utf8)
-        }
-      } catch {
-        SentrySDK.capture(error: error)
       }
+
+      let filteredContent = filteredLines.joined(separator: "\n")
+      if !filteredContent.isEmpty {
+        try (filteredContent + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
+      } else {
+        try "".write(to: logFileURL, atomically: true, encoding: .utf8)
+      }
+    } catch {
+      SentrySDK.capture(error: error)
     }
   }
 }

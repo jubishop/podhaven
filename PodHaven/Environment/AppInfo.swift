@@ -14,7 +14,7 @@ enum EnvironmentType: String {
 }
 
 actor AppInfo {
-  private static let log = Log.as("appInfo")
+  private static let log = Log.as("AppInfo")
 
   // MARK: - Environment Info
 

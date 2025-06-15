@@ -19,7 +19,7 @@ extension Container {
 }
 
 enum Assert {
-  private static let log = Log.as("assert", level: .critical)
+  private static let log = Log.as("Assert", level: .critical)
 
   static func neverCalled(
     file: String = #fileID,

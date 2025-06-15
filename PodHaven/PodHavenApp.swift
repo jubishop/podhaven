@@ -12,7 +12,7 @@ struct PodHavenApp: App {
 
   @State private var isInitialized = false
 
-  static private let log = Log.as("main")
+  static private let log = Log.as("Main")
 
   var body: some Scene {
     WindowGroup {
@@ -59,7 +59,7 @@ struct PodHavenApp: App {
     switch AppInfo.environment {
     case .iPhone:
       configureSentry()
-      FileLogHandler.startBackgroundCleanup()
+      FileLogHandler.startPeriodicCleanup()
 
       LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
