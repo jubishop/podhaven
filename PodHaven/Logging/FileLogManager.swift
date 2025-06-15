@@ -97,13 +97,16 @@ struct FileLogManager: Sendable {
     if now - lastCleanup > periodicCleanupInterval {
       log.debug("Running periodic log truncation")
       $lastCleanup.withLock { $0 = now }
+
       let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {}
+
       await withCheckedContinuation { continuation in
         logQueue.async {
           truncateLogFile()
           continuation.resume()
         }
       }
+
       if backgroundTaskID != .invalid {
         await UIApplication.shared.endBackgroundTask(backgroundTaskID)
       }
