@@ -116,14 +116,13 @@ struct FileLogManager: Sendable {
     do {
       let logContent = try String(contentsOf: logFileURL, encoding: .utf8)
       let lines = logContent.components(separatedBy: .newlines).filter { !$0.isEmpty }
-      
+
       guard lines.count > maxLogEntries else { return }
-      
+
       let keepLines = Array(lines.suffix(maxLogEntries))
       let truncatedContent = keepLines.joined(separator: "\n")
-      
       try (truncatedContent + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
-      
+
       log.info("Truncated log file from \(lines.count) to \(keepLines.count) entries")
     } catch {
       SentrySDK.capture(error: error)
