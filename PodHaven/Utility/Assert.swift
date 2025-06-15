@@ -3,21 +3,6 @@ import Foundation
 import Logging
 import System
 
-extension Container {
-  var neverCalled: Factory<(String) -> Bool> {
-    Factory(self) {
-      var calledFunctions: [String: Bool] = [:]
-      return { name in
-        if calledFunctions[name] != nil { return false }
-
-        calledFunctions[name] = true
-        return true
-      }
-    }
-    .scope(.cached)
-  }
-}
-
 enum Assert {
   private static let log = Log.as("Assert", level: .critical)
 
@@ -26,10 +11,8 @@ enum Assert {
     function: String = #function,
     line: UInt = #line
   ) {
-    let neverCalled = Container.shared.neverCalled()
-
     Assert.precondition(
-      neverCalled("\(file):\(function):\(line)"),
+      Function.neverCalled(file: file, function: function, line: line),
       "\(file):\(function):\(line) has already been called?"
     )
   }

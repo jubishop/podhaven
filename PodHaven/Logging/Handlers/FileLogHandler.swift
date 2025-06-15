@@ -3,8 +3,6 @@
 import FactoryKit
 import Foundation
 import Logging
-import Sentry
-import UIKit
 
 struct FileLogEntry: Codable {
   let level: Int
@@ -21,6 +19,8 @@ struct FileLogEntry: Codable {
 }
 
 struct FileLogHandler: LogHandler {
+  @DynamicInjected(\.fileLogManager) private var fileLogManager
+
   // MARK: - LogHandler
 
   public var metadata: Logger.Metadata = [:]
@@ -55,143 +55,23 @@ struct FileLogHandler: LogHandler {
       oneOff: metadata
     )
 
-    let logEntry = FileLogEntry(
-      level: level.intValue,
-      levelName: level.rawValue,
-      timestamp: Int64(Date().timeIntervalSince1970 * 1000),
-      subsystem: subsystem,
-      category: category,
-      message: message.description,
-      metadata: mergedMetadata.isEmpty
-        ? nil
-        : Dictionary(uniqueKeysWithValues: mergedMetadata.map { ($0.key, $0.value.description) }),
-      source: source,
-      file: file,
-      function: function,
-      line: line,
+    fileLogManager.writeToFile(
+      level: level,
+      fileLogEntry: FileLogEntry(
+        level: level.intValue,
+        levelName: level.rawValue,
+        timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+        subsystem: subsystem,
+        category: category,
+        message: message.description,
+        metadata: mergedMetadata.isEmpty
+          ? nil
+          : Dictionary(uniqueKeysWithValues: mergedMetadata.map { ($0.key, $0.value.description) }),
+        source: source,
+        file: file,
+        function: function,
+        line: line,
+      )
     )
-
-    if level == .critical {
-      Self.logQueue.sync(flags: .barrier) {
-        Self.writeToFile(logEntry)
-      }
-    } else {
-      Self.logQueue.async {
-        Self.writeToFile(logEntry)
-      }
-    }
-  }
-
-  private static func writeToFile(_ logEntry: FileLogEntry) {
-    do {
-      guard let jsonString = String(data: try JSONEncoder().encode(logEntry), encoding: .utf8)
-      else { throw LoggingError.jsonStringCreationFailure(logEntry) }
-
-      if FileManager.default.fileExists(atPath: logFileURL.path) {
-        let fileHandle = try FileHandle(forWritingTo: logFileURL)
-        fileHandle.seekToEndOfFile()
-        fileHandle.write("\(jsonString)\n".data(using: .utf8)!)
-        fileHandle.closeFile()
-      } else {
-        try jsonString.write(to: logFileURL, atomically: true, encoding: .utf8)
-      }
-    } catch {
-      SentrySDK.capture(error: error)
-    }
-  }
-
-  // MARK: - Log Cleanup
-
-  private static let lastCleanupKey = "FileLogHandler.lastCleanup"
-  private static let logRetentionInterval = 12.hours
-  private static let periodicCleanupInterval = 1.hours
-  private static let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
-  private static let logFileURL: URL = {
-    let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-    return documentsURL.appendingPathComponent("log.ndjson")
-  }()
-  private static let log = Log.as("FileLogCleaner")
-
-  static func startPeriodicCleanup() {
-    Assert.neverCalled()
-
-    let notifications = Container.shared.notifications()
-
-    Task {
-      log.debug("App launched, checking if log cleanup needed")
-      await cleanupIfNeeded()
-    }
-
-    Task {
-      for await _ in notifications(UIApplication.didBecomeActiveNotification) {
-        log.debug("App became active, checking if log cleanup needed")
-        await cleanupIfNeeded()
-      }
-    }
-
-    Task {
-      for await _ in notifications(UIApplication.didEnterBackgroundNotification) {
-        log.debug("App backgrounded, checking if log cleanup needed")
-        await cleanupIfNeeded()
-      }
-    }
-  }
-
-  private static func cleanupIfNeeded() async {
-    let lastCleanup = UserDefaults.standard.double(forKey: lastCleanupKey)
-    let now = Date().timeIntervalSince1970
-
-    if now - lastCleanup > periodicCleanupInterval {
-      log.debug("Running periodic log cleanup")
-      let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {}
-      await withCheckedContinuation { continuation in
-        logQueue.async {
-          cleanupOldLogs()
-          continuation.resume()
-        }
-      }
-      UserDefaults.standard.set(now, forKey: lastCleanupKey)
-      if backgroundTaskID != .invalid {
-        await UIApplication.shared.endBackgroundTask(backgroundTaskID)
-      }
-    }
-  }
-
-  private static func cleanupOldLogs() {
-    guard FileManager.default.fileExists(atPath: logFileURL.path) else { return }
-
-    do {
-      let cutoffDate = Date().addingTimeInterval(-logRetentionInterval)
-      let cutoffTimestamp = Int64(cutoffDate.timeIntervalSince1970 * 1000)
-
-      let logContent = try String(contentsOf: logFileURL, encoding: .utf8)
-      let lines = logContent.components(separatedBy: .newlines)
-      let filteredLines = lines.compactMap { line -> String? in
-        guard !line.isEmpty else { return nil }
-
-        do {
-          if let data = line.data(using: .utf8),
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let timestamp = json["timestamp"] as? Int64,
-            timestamp >= cutoffTimestamp
-          {
-            return line
-          }
-          return nil
-        } catch {
-          SentrySDK.capture(error: error)
-          return nil
-        }
-      }
-
-      let filteredContent = filteredLines.joined(separator: "\n")
-      if !filteredContent.isEmpty {
-        try (filteredContent + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
-      } else {
-        try "".write(to: logFileURL, atomically: true, encoding: .utf8)
-      }
-    } catch {
-      SentrySDK.capture(error: error)
-    }
   }
 }

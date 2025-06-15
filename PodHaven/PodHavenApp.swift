@@ -10,9 +10,12 @@ import SwiftUI
 struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
 
+  @DynamicInjected(\.playManager) private var playManager
+  @DynamicInjected(\.refreshManager) private var refreshManager
+
   @State private var isInitialized = false
 
-  static private let log = Log.as("Main")
+  private let log = Log.as("Main")
 
   var body: some Scene {
     WindowGroup {
@@ -26,25 +29,24 @@ struct PodHavenApp: App {
       }
       .task {
         await AppInfo.initializeEnvironment()
-        Self.configureLogging()
+        configureLogging()
         isInitialized = true
-        Self.configureAudioSession()
-        await Container.shared.playManager().start()
-        await Container.shared.refreshManager().start()
+        configureAudioSession()
+        await playManager.start()
+        await refreshManager.start()
       }
     }
   }
 
   // MARK: - System Permissions
 
-  private static func configureAudioSession() {
+  private func configureAudioSession() {
     let audioSession = AVAudioSession.sharedInstance()
     do {
       try audioSession.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
       try audioSession.setMode(.spokenAudio)
       try audioSession.setActive(true)
     } catch {
-      let alert = Container.shared.alert()
       alert("Couldn't get audio permissions") {
         Button("Send Report and Crash") {
           Assert.fatal("Failed to initialize the audio session")
@@ -55,11 +57,10 @@ struct PodHavenApp: App {
 
   // MARK: - Logging
 
-  static func configureLogging() {
+  private func configureLogging() {
     switch AppInfo.environment {
     case .iPhone:
       configureSentry()
-      FileLogHandler.startPeriodicCleanup()
 
       LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
@@ -78,7 +79,7 @@ struct PodHavenApp: App {
     }
   }
 
-  private static func configureSentry() {
+  private func configureSentry() {
     SentrySDK.start { options in
       options.dsn =
         "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"

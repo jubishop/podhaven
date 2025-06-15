@@ -10,6 +10,10 @@ struct FakeImages: ImageFetchable {
   func prefetch(_ urls: [URL]) {}
 
   func fetchImage(_ url: URL) async throws -> UIImage {
+    Self.createFakeImage(url)
+  }
+
+  private static func createFakeImage(_ url: URL) -> UIImage {
     let hash = abs(url.absoluteString.hashValue)
     let size = CGSize(width: 100, height: 100)
     let color = UIColor(
@@ -19,10 +23,10 @@ struct FakeImages: ImageFetchable {
       alpha: 1.0
     )
 
-    return UIGraphicsImageRenderer(size: size).image { context in
+    return UIGraphicsImageRenderer(size: size)
+      .image { context in
         color.setFill()
         context.fill(CGRect(origin: .zero, size: size))
       }
   }
-  
 }

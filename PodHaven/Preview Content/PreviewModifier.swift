@@ -2,19 +2,17 @@
 
 import FactoryKit
 import Foundation
+import Logging
 import SwiftUI
 
 struct PreviewModifier: ViewModifier {
-  private static var isInitialized: Bool = false
-
   @InjectedObservable(\.alert) private var alert
 
   init() {
-    if !Self.isInitialized {
-      AppInfo.environment = .preview
-      PodHavenApp.configureLogging()
-      Self.isInitialized = true
-    }
+    guard Function.neverCalled() else { return }
+
+    AppInfo.environment = .preview
+    LoggingSystem.bootstrap(PrintLogHandler.init)
   }
 
   func body(content: Content) -> some View {
