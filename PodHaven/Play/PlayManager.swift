@@ -30,7 +30,7 @@ actor PlayManager {
   // MARK: - AppStorage
 
   @WrappedShared(
-    Shared<Int?>(.appStorage("currentEpisodeID")),
+    Shared<Int?>(.appStorage("PlayManager.currentEpisodeID")),
     get: {
       guard let currentEpisodeInt = $0, let currentEpisodeInt64 = Int64(exactly: currentEpisodeInt)
       else { return nil }

@@ -85,7 +85,7 @@ import SwiftUI
   init(title: String, filter: SQLExpression = AppDB.NoOp) {
     let sortMethod = Shared(
       wrappedValue: SortMethod.byTitle,
-      .appStorage("sortMethodForPodcastsView\(title)")
+      .appStorage("StandardPodcastsViewModel.sortMethod.\(title)")
     )
     self._storedSortMethod = sortMethod
     self._currentSortMethod = sortMethod.wrappedValue
