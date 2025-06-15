@@ -13,8 +13,8 @@ import Testing
 enum PlayHelpers {
   // MARK: - Dependency Access
 
-  private static var episodeAssetLoader: EpisodeAssetLoader {
-    Container.shared.episodeAssetLoader()
+  private static var fakeEpisodeAssetLoader: FakeEpisodeAssetLoader {
+    Container.shared.fakeEpisodeAssetLoader()
   }
   private static var images: any ImageFetchable { Container.shared.images() }
   private static var playManager: PlayManager { Container.shared.playManager() }
@@ -179,7 +179,7 @@ enum PlayHelpers {
   ) async throws {
     let loadSemaphoreBegun = AsyncSemaphore(value: 0)
     let finishLoadingSemaphore = AsyncSemaphore(value: 0)
-    episodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in
+    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in
       loadSemaphoreBegun.signal()
       await finishLoadingSemaphore.wait()
       return asyncProperties
@@ -272,6 +272,6 @@ enum PlayHelpers {
   }
 
   static func responseCount(for podcastEpisode: PodcastEpisode) -> Int {
-    episodeAssetLoader.responseCounts[podcastEpisode.episode.media, default: 0]
+    fakeEpisodeAssetLoader.responseCounts[podcastEpisode.episode.media, default: 0]
   }
 }

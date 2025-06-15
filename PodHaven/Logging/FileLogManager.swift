@@ -14,7 +14,7 @@ extension Container {
 }
 
 struct FileLogManager: Sendable {
-  @Shared(.appStorage("FileLogManager.lastCleanup")) private var lastCleanup: Double = 0
+  @Shared(.appStorage("FileLogManager-lastCleanup")) private var lastCleanup: Double = 0
   private let maxLogEntries = 10_000
   private let periodicCleanupInterval = 1.hours
 

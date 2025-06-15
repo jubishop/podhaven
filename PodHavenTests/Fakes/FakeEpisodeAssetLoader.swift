@@ -7,12 +7,12 @@ import Foundation
 @testable import PodHaven
 
 extension Container {
-  var episodeAssetLoader: Factory<EpisodeAssetLoader> {
-    Factory(self) { EpisodeAssetLoader() }.scope(.cached)
+  var fakeEpisodeAssetLoader: Factory<FakeEpisodeAssetLoader> {
+    Factory(self) { FakeEpisodeAssetLoader() }.scope(.cached)
   }
 }
 
-class EpisodeAssetLoader {
+class FakeEpisodeAssetLoader {
   typealias LoadHandler = @Sendable (MediaURL) async throws -> (Bool, CMTime)
 
   private(set) var responseCounts: [MediaURL: Int] = [:]
