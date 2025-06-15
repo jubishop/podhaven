@@ -39,10 +39,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Actors**: Use Swift actors for thread-safe managers (PlayManager, FeedManager)
 - **Async Streams**: Use `AsyncStream` for reactive data flows
 - **Structured Concurrency**: Use task groups and proper cancellation
+- **MainActor Usage**: Don't use `MainActor.run`
 
 ### State Management
 - **Observable**: Use `@Observable` classes for reactive view state
 - **Shared State**: Use Point-Free's `Sharing` library for persistent state
+  - Don't use `UserDefaults` directly.
 - **Navigation**: Centralized `Navigation` class with tab-based routing
 
 ### System Notifications
