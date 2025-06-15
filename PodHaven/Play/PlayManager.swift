@@ -79,7 +79,7 @@ actor PlayManager {
           try await load(podcastEpisode)
         }
       } catch {
-        Log.error(error, from: log)
+        log.error(error)
       }
     }
   }
@@ -96,6 +96,7 @@ actor PlayManager {
   }
 
   private func performLoad(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
+    // TODO: This needs to happen BEFORE we cancel any existing load task, add test that fails.
     let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode
 
     if outgoingPodcastEpisode?.id == podcastEpisode.id {
@@ -116,7 +117,7 @@ actor PlayManager {
         do {
           try await queue.dequeue(podcastEpisode.id)
         } catch {
-          Log.error(error, from: log)
+          log.error(error)
         }
 
         if let outgoingPodcastEpisode {
@@ -124,7 +125,7 @@ actor PlayManager {
           do {
             try await queue.unshift(outgoingPodcastEpisode.id)
           } catch {
-            Log.error(error, from: log)
+            log.error(error)
           }
         }
 
@@ -145,7 +146,7 @@ actor PlayManager {
             }
             .value
           } catch {
-            Log.error(error, from: log)
+            log.error(error)
           }
         }
 
@@ -162,7 +163,7 @@ actor PlayManager {
           }
           .value
         } catch {
-          Log.error(error, from: log)
+          log.error(error)
         }
 
         if let newPodcastEpisode = await podAVPlayer.podcastEpisode {
@@ -231,11 +232,12 @@ actor PlayManager {
       duration: podcastEpisode.episode.duration,
       image: {
         do {
+          // TODO: this will fail if task above has been cancelled..see logs.
           return try await images.fetchImage(
             podcastEpisode.episode.image ?? podcastEpisode.podcast.image
           )
         } catch {
-          Log.error(error, from: log)
+          log.error(error)
           return nil
         }
       }(),
@@ -291,7 +293,7 @@ actor PlayManager {
       do {
         try await queue.dequeue(podcastEpisode.id)
       } catch {
-        Log.error(error, from: log)
+        log.error(error)
       }
 
       await setOnDeck(podcastEpisode)
@@ -306,7 +308,7 @@ actor PlayManager {
           await play()
         }
       } catch {
-        Log.error(error, from: log)
+        log.error(error)
       }
     }
   }
@@ -350,7 +352,7 @@ actor PlayManager {
         do {
           try await handleDidPlayToEnd(playableItem.assetURL)
         } catch {
-          Log.error(error, from: log)
+          log.error(error)
         }
       }
     }

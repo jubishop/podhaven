@@ -112,7 +112,7 @@ extension Container {
     do {
       try await repo.updateDuration(podcastEpisode.id, episode.duration)
     } catch {
-      Log.error(error, from: log)
+      log.error(error)
     }
 
     return (
@@ -191,6 +191,8 @@ extension Container {
   private func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?)
     async throws(PlaybackError)
   {
+    guard shouldSetAsNext(nextPodcastEpisode) else { return }
+
     setNextEpisodeTask?.cancel()
 
     try await PlaybackError.catch {
@@ -331,11 +333,11 @@ extension Container {
           do {
             try await setNextPodcastEpisode(nextPodcastEpisode)
           } catch {
-            Log.error(error, from: log)
+            log.error(error)
           }
         }
       } catch {
-        Log.error(error, from: log)
+        log.error(error)
       }
     }
   }
@@ -352,7 +354,7 @@ extension Container {
         do {
           try await self.handleCurrentItemChange(url)
         } catch {
-          Log.error(error, from: self.log)
+          log.error(error)
         }
       }
     }
@@ -371,7 +373,7 @@ extension Container {
         do {
           try await self.handleCurrentTimeChange(currentTime)
         } catch {
-          Log.error(error, from: self.log)
+          log.error(error)
         }
       }
     }

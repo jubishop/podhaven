@@ -86,7 +86,7 @@ import SwiftUI
       try await performSearch(currentView)
     } catch {
       if ErrorKit.baseError(for: error) is CancellationError { return }
-      Log.error(error, from: log)
+      log.error(error)
       alert(ErrorKit.message(for: error))
     }
   }
@@ -126,7 +126,7 @@ import SwiftUI
           try await search
         } catch let error as SearchError {
           if ErrorKit.baseError(for: error) is CancellationError { return }
-          Log.error(error, from: log)
+          log.error(error)
           alert(ErrorKit.message(for: error))
         }
       }

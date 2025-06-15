@@ -9,6 +9,17 @@ extension Logger {
   func shouldLog(_ level: Logger.Level) -> Bool {
     logLevel <= level && AppInfo.environment != .appStore
   }
+
+  // MARK: - Special Logging
+
+  func error(_ error: any Error) {
+    let message = ErrorKit.loggableMessage(for: error)
+    if ErrorKit.isRemarkable(error) {
+      self.error(message)
+    } else {
+      self.notice(message)
+    }
+  }
 }
 
 extension Logger.Level {
