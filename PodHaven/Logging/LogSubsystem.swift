@@ -12,7 +12,7 @@ enum LogSubsystem {
     var level: Logger.Level {
       switch self {
       case .appDB: return .info
-      case .queue: return .debug
+      case .queue: return .trace
       case .repo: return .debug
       }
     }
@@ -24,8 +24,8 @@ enum LogSubsystem {
 
     var level: Logger.Level {
       switch self {
-      case .manager: return .trace
-      case .avPlayer: return .trace
+      case .manager: return .debug
+      case .avPlayer: return .debug
       }
     }
   }

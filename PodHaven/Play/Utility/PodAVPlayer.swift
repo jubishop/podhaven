@@ -150,17 +150,17 @@ extension Container {
   // MARK: - Seeking
 
   func seekForward(_ duration: CMTime) {
-    log.trace("seekForward: \(duration)")
+    log.debug("seekForward: \(duration)")
     seek(to: avQueuePlayer.currentTime() + duration)
   }
 
   func seekBackward(_ duration: CMTime) {
-    log.trace("seekBackward: \(duration)")
+    log.debug("seekBackward: \(duration)")
     seek(to: avQueuePlayer.currentTime() - duration)
   }
 
   func seek(to time: CMTime) {
-    log.trace("seek: \(time)")
+    log.debug("seek: \(time)")
 
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
@@ -171,7 +171,7 @@ extension Container {
       guard let self else { return }
 
       if completed {
-        log.trace("seek: to \(time) completed")
+        log.debug("seek: to \(time) completed")
         Task { @MainActor [weak self] in
           guard let self else { return }
           if let preSeekStatus {
@@ -181,7 +181,7 @@ extension Container {
           addPeriodicTimeObserver()
         }
       } else {
-        log.trace("seek: to \(time) interrupted")
+        log.debug("seek: to \(time) interrupted")
       }
     }
   }
@@ -250,7 +250,7 @@ extension Container {
   private func shouldSetAsNext(_ podcastEpisode: PodcastEpisode?) -> Bool {
     // If queue is empty: do nothing
     guard let lastItem = avQueuePlayer.queued.last else {
-      log.trace(
+      log.debug(
         """
         shouldSetAsNext: false for \(String(describing: podcastEpisode?.toString)) \
         because queue is empty
@@ -261,7 +261,7 @@ extension Container {
 
     // If this is already the last: do nothing
     if lastItem.assetURL == podcastEpisode?.episode.media {
-      log.trace(
+      log.debug(
         """
         shouldSetAsNext: false for \(String(describing: podcastEpisode?.toString)) \
         because it already matches last item in queue:
@@ -278,7 +278,7 @@ extension Container {
 
   private func handleCurrentItemChange(_ mediaURL: MediaURL?) async throws {
     if podcastEpisode?.episode.media == mediaURL {
-      log.trace(
+      log.debug(
         """
         handleCurrentItemChange: ignoring because mediaURL matches current podcastEpisode: \
         \(String(describing: mediaURL?.toString))

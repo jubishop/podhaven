@@ -100,7 +100,7 @@ actor PlayManager {
     let outgoingPodcastEpisode = await podAVPlayer.podcastEpisode
 
     if outgoingPodcastEpisode?.id == podcastEpisode.id {
-      log.trace("performLoad: ignoring \(podcastEpisode.toString), already loaded")
+      log.debug("performLoad: ignoring \(podcastEpisode.toString), already loaded")
       return false
     }
 
