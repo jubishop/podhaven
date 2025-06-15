@@ -90,7 +90,7 @@ struct FileLogHandler: LogHandler {
   private static func writeToFile(_ logEntry: FileLogEntry) {
     do {
       guard let jsonString = String(data: try JSONEncoder().encode(logEntry), encoding: .utf8)
-      else { throw LoggingError.failedToMakeJSONString(logEntry) }
+      else { throw LoggingError.jsonStringCreationFailure(logEntry) }
 
       if FileManager.default.fileExists(atPath: logFileURL.path) {
         let fileHandle = try FileHandle(forWritingTo: logFileURL)

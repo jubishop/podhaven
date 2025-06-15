@@ -5,11 +5,11 @@ import ReadableErrorMacro
 
 @ReadableError
 enum LoggingError: ReadableError {
-  case failedToMakeJSONString(FileLogEntry)
+  case jsonStringCreationFailure(FileLogEntry)
 
   var message: String {
     switch self {
-    case .failedToMakeJSONString(let fileLogEntry):
+    case .jsonStringCreationFailure(let fileLogEntry):
       return "Failed to make JSON string from log entry: \(fileLogEntry)"
     }
   }
