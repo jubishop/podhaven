@@ -15,7 +15,7 @@ extension Container {
 
 struct FileLogManager: Sendable {
   @Shared(.appStorage("FileLogManager.lastCleanup")) private var lastCleanup: Double = 0
-  private let logRetentionInterval = 12.hours
+  private let maxLogEntries = 10_000
   private let periodicCleanupInterval = 1.hours
 
   private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
@@ -72,35 +72,35 @@ struct FileLogManager: Sendable {
     let notifications = Container.shared.notifications()
 
     Task {
-      log.debug("App launched, checking if log cleanup needed")
-      await cleanupIfNeeded()
+      log.debug("App launched, checking if log truncation needed")
+      await truncateIfNeeded()
     }
 
     Task {
       for await _ in notifications(UIApplication.didBecomeActiveNotification) {
-        log.debug("App became active, checking if log cleanup needed")
-        await cleanupIfNeeded()
+        log.debug("App became active, checking if log truncation needed")
+        await truncateIfNeeded()
       }
     }
 
     Task {
       for await _ in notifications(UIApplication.didEnterBackgroundNotification) {
-        log.debug("App backgrounded, checking if log cleanup needed")
-        await cleanupIfNeeded()
+        log.debug("App backgrounded, checking if log truncation needed")
+        await truncateIfNeeded()
       }
     }
   }
 
-  private func cleanupIfNeeded() async {
+  private func truncateIfNeeded() async {
     let now = Date().timeIntervalSince1970
 
     if now - lastCleanup > periodicCleanupInterval {
-      log.debug("Running periodic log cleanup")
+      log.debug("Running periodic log truncation")
       $lastCleanup.withLock { $0 = now }
       let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {}
       await withCheckedContinuation { continuation in
         logQueue.async {
-          cleanupOldLogs()
+          truncateLogFile()
           continuation.resume()
         }
       }
@@ -110,39 +110,21 @@ struct FileLogManager: Sendable {
     }
   }
 
-  private func cleanupOldLogs() {
+  private func truncateLogFile() {
     guard FileManager.default.fileExists(atPath: logFileURL.path) else { return }
 
     do {
-      let cutoffDate = Date().addingTimeInterval(-logRetentionInterval)
-      let cutoffTimestamp = Int64(cutoffDate.timeIntervalSince1970 * 1000)
-
       let logContent = try String(contentsOf: logFileURL, encoding: .utf8)
-      let lines = logContent.components(separatedBy: .newlines)
-      let filteredLines = lines.compactMap { line -> String? in
-        guard !line.isEmpty else { return nil }
-
-        do {
-          if let data = line.data(using: .utf8),
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let timestamp = json["timestamp"] as? Int64,
-            timestamp >= cutoffTimestamp
-          {
-            return line
-          }
-          return nil
-        } catch {
-          SentrySDK.capture(error: error)
-          return nil
-        }
-      }
-
-      let filteredContent = filteredLines.joined(separator: "\n")
-      if !filteredContent.isEmpty {
-        try (filteredContent + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
-      } else {
-        try "".write(to: logFileURL, atomically: true, encoding: .utf8)
-      }
+      let lines = logContent.components(separatedBy: .newlines).filter { !$0.isEmpty }
+      
+      guard lines.count > maxLogEntries else { return }
+      
+      let keepLines = Array(lines.suffix(maxLogEntries))
+      let truncatedContent = keepLines.joined(separator: "\n")
+      
+      try (truncatedContent + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
+      
+      log.info("Truncated log file from \(lines.count) to \(keepLines.count) entries")
     } catch {
       SentrySDK.capture(error: error)
     }
