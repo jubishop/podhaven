@@ -23,7 +23,8 @@ extension Container {
   // MARK: - State Getters
 
   enum Status {
-    case loading, playing, paused, stopped, waiting
+    case loading(String)
+    case playing, paused, stopped, waiting
 
     var playable: Bool {
       switch self {
@@ -32,10 +33,30 @@ extension Container {
       }
     }
 
-    var playing: Bool { self == .playing }
-    var paused: Bool { self == .paused }
-    var stopped: Bool { self == .stopped }
-    var waiting: Bool { self == .waiting }
+    var loading: String? {
+      if case .loading(let title) = self { return title }
+      return nil
+    }
+
+    var playing: Bool {
+      if case .playing = self { return true }
+      return false
+    }
+
+    var paused: Bool {
+      if case .paused = self { return true }
+      return false
+    }
+
+    var stopped: Bool {
+      if case .stopped = self { return true }
+      return false
+    }
+
+    var waiting: Bool {
+      if case .waiting = self { return true }
+      return false
+    }
   }
 
   private(set) var status: Status = .stopped
