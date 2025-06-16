@@ -117,7 +117,7 @@ import Testing
       Create.unsavedEpisode(currentTime: currentTime)
     )
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
     try await PlayHelpers.waitFor(currentTime)
     #expect(PlayHelpers.nowPlayingCurrentTime == currentTime)
   }
@@ -149,7 +149,7 @@ import Testing
       throw TestError.assetLoadFailure(mediaURL)
     }
     await #expect(throws: (any Error).self) {
-      try await PlayHelpers.load(episodeToLoad)
+      try await playManager.load(episodeToLoad)
     }
 
     try await PlayHelpers.waitFor(.stopped)
@@ -161,12 +161,12 @@ import Testing
   func loadingFailureWithExistingEpisodeClearsState() async throws {
     let (playingEpisode, episodeToLoad) = try await Create.twoPodcastEpisodes()
 
-    try await PlayHelpers.load(playingEpisode)
+    try await playManager.load(playingEpisode)
     fakeEpisodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
       throw TestError.assetLoadFailure(mediaURL)
     }
     await #expect(throws: (any Error).self) {
-      try await PlayHelpers.load(episodeToLoad)
+      try await playManager.load(episodeToLoad)
     }
 
     try await PlayHelpers.waitFor(.stopped)
@@ -180,7 +180,7 @@ import Testing
 
     try await PlayHelpers.executeMidLoad(for: originalEpisode) { @MainActor in
       fakeEpisodeAssetLoader.clearCustomHandler(for: originalEpisode.episode.media)
-      try await PlayHelpers.load(incomingEpisode)
+      try await playManager.load(incomingEpisode)
     }
 
     await #expect(throws: (any Error).self) {
@@ -198,7 +198,7 @@ import Testing
 
     try await PlayHelpers.executeMidLoad(for: originalEpisode) { @MainActor in
       fakeEpisodeAssetLoader.clearCustomHandler(for: originalEpisode.episode.media)
-      try await PlayHelpers.load(incomingEpisode)
+      try await playManager.load(incomingEpisode)
       try await PlayHelpers.play()
     }
 
@@ -216,7 +216,7 @@ import Testing
     try await PlayHelpers.executeMidLoad(for: podcastEpisode) {
       await playManager.play()
     }
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
 
     try await PlayHelpers.waitForItemQueue([podcastEpisode])
     try await PlayHelpers.waitFor(.playing)
@@ -226,7 +226,7 @@ import Testing
   func loadingEpisodeAlreadyLoadedDoesNothing() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
     #expect(try await playManager.load(podcastEpisode) == false)
   }
 
@@ -236,7 +236,7 @@ import Testing
   func playAndPauseFunctionsPlayAndPausePlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
 
     await playManager.play()
     try await PlayHelpers.waitFor(.playing)
@@ -251,7 +251,7 @@ import Testing
   func commandCenterStopsAndStartsPlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
 
     commandCenter.continuation.yield(.play)
     try await PlayHelpers.waitFor(.playing)
@@ -274,7 +274,7 @@ import Testing
   func audioSessionInterruptionStopsPlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
 
     let interruptionContinuation = notifier.continuation(
@@ -312,7 +312,7 @@ import Testing
   func timeUpdateEventsUpdateCurrentTime() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
 
     let advancedTime = CMTime.inSeconds(10)
@@ -325,7 +325,7 @@ import Testing
   func waitingToPlayTimeControlStatusUpdatesPlaystate() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
 
     avQueuePlayer.waitingToPlay()
@@ -340,7 +340,7 @@ import Testing
 
     let duration = CMTime.inSeconds(240)
     fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in (true, duration) }
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
 
     let originalTime = CMTime.inSeconds(120)
     await playManager.seek(to: originalTime)
@@ -372,7 +372,7 @@ import Testing
       await seekSemaphore.wait()
       return true
     }
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
 
     // Seek and episode will return to playing
@@ -387,7 +387,7 @@ import Testing
   func playingWhileSeekingRetainsPlayStatus() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
 
     try await PlayHelpers.executeMidSeek {
       try await PlayHelpers.play()
@@ -404,7 +404,7 @@ import Testing
   func pausingWhileSeekingRetainsPausingStatus() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
 
     try await PlayHelpers.executeMidSeek {
@@ -422,7 +422,7 @@ import Testing
   func playbackIsPausedWhileSeeking() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
 
     // First seek is interrupted so we stay paused
@@ -453,7 +453,7 @@ import Testing
   func timeUpdateEventsAreIgnoredWhileSeeking() async throws {
     let (failedEpisode, successfulEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await PlayHelpers.load(failedEpisode)
+    try await playManager.load(failedEpisode)
 
     // After this failed seek, all time advancement is being ignored
     avQueuePlayer.seekHandler = { _ in false }
@@ -461,7 +461,7 @@ import Testing
     await playManager.seek(to: failedSeekTime)
     #expect(!PlayHelpers.hasPeriodicTimeObservation())
 
-    try await PlayHelpers.load(successfulEpisode)
+    try await playManager.load(successfulEpisode)
 
     // While a seek is in progress, we will ignore time advancement until its success
     let seekSemaphore = AsyncSemaphore(value: 0)
@@ -488,7 +488,7 @@ import Testing
   func addingAnEpisodeToTopOfQueueWhenEpisodeIsLoadedAddsToItemQueue() async throws {
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await PlayHelpers.load(playingEpisode)
+    try await playManager.load(playingEpisode)
     try await queue.unshift(queuedEpisode.id)
 
     try await PlayHelpers.waitForQueue([queuedEpisode])
@@ -500,7 +500,7 @@ import Testing
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
     try await queue.unshift(queuedEpisode.id)
-    try await PlayHelpers.load(playingEpisode)
+    try await playManager.load(playingEpisode)
 
     try await PlayHelpers.waitForQueue([queuedEpisode])
     try await PlayHelpers.waitForItemQueue([playingEpisode, queuedEpisode])
@@ -512,7 +512,7 @@ import Testing
       try await Create.threePodcastEpisodes()
 
     try await queue.unshift(queuedEpisode.id)
-    try await PlayHelpers.load(playingEpisode)
+    try await playManager.load(playingEpisode)
     try await queue.unshift(incomingQueuedEpisode.id)
 
     try await PlayHelpers.waitForQueue([incomingQueuedEpisode, queuedEpisode])
@@ -528,7 +528,7 @@ import Testing
     try await PlayHelpers.executeMidLoad(for: queuedEpisode) {
       try await queue.unshift(incomingQueuedEpisode.id)
     }
-    try await PlayHelpers.load(playingEpisode)
+    try await playManager.load(playingEpisode)
 
     try await PlayHelpers.waitForQueue([incomingQueuedEpisode, queuedEpisode])
     try await PlayHelpers.waitForItemQueue([playingEpisode, incomingQueuedEpisode]
@@ -544,7 +544,7 @@ import Testing
     try await PlayHelpers.executeMidLoad(for: playingEpisode) {
       try await queue.unshift(incomingQueuedEpisode.id)
     }
-    try await PlayHelpers.load(playingEpisode)
+    try await playManager.load(playingEpisode)
 
     try await PlayHelpers.waitForQueue([incomingQueuedEpisode, queuedEpisode])
     try await PlayHelpers.waitForItemQueue([playingEpisode, incomingQueuedEpisode]
@@ -555,8 +555,8 @@ import Testing
   func loadingAnEpisodePutsCurrentEpisodeBackInQueue() async throws {
     let (playingEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await PlayHelpers.load(playingEpisode)
-    try await PlayHelpers.load(incomingEpisode)
+    try await playManager.load(playingEpisode)
+    try await playManager.load(incomingEpisode)
 
     try await PlayHelpers.waitForQueue([playingEpisode])
     try await PlayHelpers.waitForItemQueue([incomingEpisode, playingEpisode])
@@ -570,7 +570,7 @@ import Testing
       throw TestError.assetLoadFailure(mediaURL)
     }
     await #expect(throws: (any Error).self) {
-      try await PlayHelpers.load(episodeToLoad)
+      try await playManager.load(episodeToLoad)
     }
 
     try await PlayHelpers.waitFor(.stopped)
@@ -582,12 +582,12 @@ import Testing
   func loadingFailureWithExistingEpisodeUnshiftsBothOntoQueue() async throws {
     let (playingEpisode, episodeToLoad) = try await Create.twoPodcastEpisodes()
 
-    try await PlayHelpers.load(playingEpisode)
+    try await playManager.load(playingEpisode)
     fakeEpisodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
       throw TestError.assetLoadFailure(mediaURL)
     }
     await #expect(throws: (any Error).self) {
-      try await PlayHelpers.load(episodeToLoad)
+      try await playManager.load(episodeToLoad)
     }
 
     try await PlayHelpers.waitFor(.stopped)
@@ -601,10 +601,10 @@ import Testing
 
     try await PlayHelpers.executeMidLoad(for: originalEpisode) { @MainActor in
       fakeEpisodeAssetLoader.clearCustomHandler(for: originalEpisode.episode.media)
-      try await PlayHelpers.load(originalEpisode)
+      try await playManager.load(originalEpisode)
     }
     await #expect(throws: (any Error).self) {
-      try await PlayHelpers.load(originalEpisode)
+      try await playManager.load(originalEpisode)
     }
 
     try await PlayHelpers.waitForQueue([])
@@ -618,7 +618,7 @@ import Testing
   func finishingLastEpisodeWithNothingQueuedClearsState() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
     avQueuePlayer.finishEpisode()
 
@@ -641,7 +641,7 @@ import Testing
     }
 
     // Will try to load the queued episode but fail
-    try await PlayHelpers.load(originalEpisode)
+    try await playManager.load(originalEpisode)
     try await PlayHelpers.waitForResponse(for: queuedEpisode)
 
     // Now allow the load to succeed next time we try
@@ -664,7 +664,7 @@ import Testing
     try await queue.unshift(queuedEpisode.id)
     try await queue.unshift(incomingEpisode.id)
 
-    try await PlayHelpers.load(originalEpisode)
+    try await playManager.load(originalEpisode)
     try await PlayHelpers.play()
     avQueuePlayer.finishEpisode()
 
@@ -684,7 +684,7 @@ import Testing
     )
 
     try await queue.unshift(queuedEpisode.id)
-    try await PlayHelpers.load(originalEpisode)
+    try await playManager.load(originalEpisode)
     try await PlayHelpers.play()
     try await PlayHelpers.waitFor(originalTime)
 
@@ -700,7 +700,7 @@ import Testing
     )
 
     try await queue.unshift(queuedEpisode.id)
-    try await PlayHelpers.load(originalEpisode)
+    try await playManager.load(originalEpisode)
     try await PlayHelpers.play()
     try await PlayHelpers.waitFor(originalTime)
 
@@ -712,7 +712,7 @@ import Testing
   func episodeIsMarkedCompleteAfterPlayingToEnd() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.load(podcastEpisode)
+    try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
 
     avQueuePlayer.finishEpisode()
