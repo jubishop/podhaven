@@ -4,28 +4,41 @@ import AVFoundation
 import Foundation
 import SwiftUI
 
-struct OnDeck {
+struct OnDeck: Identifiable, Stringable {
+  var id: Episode.ID { episodeID }
+
+  // MARK: - Stringable
+
+  var toString: String { "\(media.toString) - \(episodeTitle)" }
+
+  // MARK: - Data
+
+  let episodeID: Episode.ID
   let feedURL: FeedURL
   let guid: GUID
   let podcastTitle: String
   let podcastURL: URL?
-  let episodeTitle: String?
+  let episodeTitle: String
   let duration: CMTime
   let image: UIImage?
   let media: MediaURL
   let pubDate: Date?
 
+  // MARK: - Initialization
+
   init(
+    episodeID: Episode.ID,
     feedURL: FeedURL,
     guid: GUID,
     podcastTitle: String,
     podcastURL: URL?,
-    episodeTitle: String?,
+    episodeTitle: String,
     duration: CMTime,
     image: UIImage?,
     media: MediaURL,
     pubDate: Date?
   ) {
+    self.episodeID = episodeID
     self.feedURL = feedURL
     self.guid = guid
     self.podcastTitle = podcastTitle
@@ -39,8 +52,5 @@ struct OnDeck {
 
   // MARK: - Equatable
 
-  static func == (lhs: OnDeck, rhs: PodcastEpisode) -> Bool {
-    lhs.guid == rhs.episode.guid && lhs.feedURL == rhs.podcast.feedURL
-      && lhs.media == rhs.episode.media
-  }
+  static func == (lhs: OnDeck, rhs: PodcastEpisode) -> Bool { lhs.id == rhs.id }
 }

@@ -42,7 +42,7 @@ extension Container {
     podcastEpisode: PodcastEpisode,
     playableItem: any AVPlayableItem
   )
-  private(set) var podcastEpisode: PodcastEpisode?
+  private var podcastEpisode: PodcastEpisode?
   private var preSeekStatus: AVPlayer.TimeControlStatus?
 
   let currentTimeStream: AsyncStream<CMTime>
@@ -69,14 +69,6 @@ extension Container {
   }
 
   // MARK: - Loading
-
-  func stop() {
-    log.debug("stop: executing")
-    removeObservers()
-    podcastEpisode = nil
-    preSeekStatus = nil
-    avQueuePlayer.removeAllItems()
-  }
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> PodcastEpisode {
     log.debug("load: \(podcastEpisode.toString)")
@@ -122,6 +114,14 @@ extension Container {
       ),
       episodeAsset.playerItem
     )
+  }
+
+  func clear() {
+    log.debug("stop: executing")
+    removeObservers()
+    podcastEpisode = nil
+    preSeekStatus = nil
+    avQueuePlayer.removeAllItems()
   }
 
   // MARK: - Playback Controls
