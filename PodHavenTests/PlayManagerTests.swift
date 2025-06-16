@@ -595,7 +595,7 @@ import Testing
     try await PlayHelpers.waitForItemQueue([])
   }
 
-  @Test("loading same episode mid-load does not unshift onto queue", .disabled("TODO"))
+  @Test("loading same episode mid-load does not unshift onto queue")
   func loadingSameEpisodeMidLoadDoesNotUnshiftOntoQueue() async throws {
     let originalEpisode = try await Create.podcastEpisode()
 

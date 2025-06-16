@@ -132,8 +132,8 @@ actor PlayManager {
         await podAVPlayer.addObservers()
         return true
       } catch {
-        if let outgoing {
-          // TODO: dont unshift any episode that's onDeck
+        let nowOnDeck = await playState.onDeck
+        if let outgoing, outgoing != nowOnDeck {
           log.debug("performLoad: unshifting current episode post failure: \(outgoing.toString)")
           do {
             try await Task { [weak self] in  // Task to execute even inside cancellation
@@ -146,27 +146,28 @@ actor PlayManager {
           }
         }
 
-        // TODO: dont unshift any episode that's onDeck
-        log.debug(
-          "performLoad: unshifting incoming episode post failure: \(podcastEpisode.toString)"
-        )
-        do {
-          try await Task { [weak self] in  // Task to execute even inside cancellation
-            guard let self else { return }
-            try await queue.unshift(podcastEpisode.id)
+        if podcastEpisode.id != nowOnDeck?.id {
+          log.debug(
+            "performLoad: unshifting incoming episode post failure: \(podcastEpisode.toString)"
+          )
+          do {
+            try await Task { [weak self] in  // Task to execute even inside cancellation
+              guard let self else { return }
+              try await queue.unshift(podcastEpisode.id)
+            }
+            .value
+          } catch {
+            log.error(error)
           }
-          .value
-        } catch {
-          log.error(error)
         }
 
-        if let onDeck = await playState.onDeck {
+        if let nowOnDeck {
           if log.shouldLog(.debug) {
             log.debug(
               """
               performLoad: no stopping after load failure because new podcast seems to have loaded
                 Failed to load: \(String(describing: podcastEpisode.toString)) \
-                Loaded instead: \(onDeck)
+                Loaded instead: \(nowOnDeck)
               """
             )
           }
