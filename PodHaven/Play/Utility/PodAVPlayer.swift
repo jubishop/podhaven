@@ -207,8 +207,7 @@ extension Container {
 
       if let podcastEpisode = nextPodcastEpisode {
         do {
-          let loadedPodcastEpisode = try await loadAsset(for: podcastEpisode)
-          insertNextPodcastEpisode(loadedPodcastEpisode)
+          insertNextPodcastEpisode(try await loadAsset(for: podcastEpisode))
         } catch {
           insertNextPodcastEpisode(nil)
 
