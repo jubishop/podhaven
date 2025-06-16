@@ -37,21 +37,7 @@ enum PlayHelpers {
   @discardableResult
   static func load(_ podcastEpisode: PodcastEpisode) async throws -> OnDeck {
     #expect(try await playManager.load(podcastEpisode))
-    try await waitForObservations()
     return try await Wait.forValue { await playState.onDeck }
-  }
-
-  static func queueNext(_ podcastEpisode: PodcastEpisode) async throws {
-    try await queue.unshift(podcastEpisode.id)
-    try await Wait.until(
-      { try await queue.nextEpisode?.id == podcastEpisode.id },
-      {
-        """
-        Next episode ID: \(String(describing: try await queue.nextEpisode?.id)), \
-        Expected: \(podcastEpisode.id)
-        """
-      }
-    )
   }
 
   static func play() async throws {
@@ -131,18 +117,6 @@ enum PlayHelpers {
 
   static func waitForPeriodicTimeObserver() async throws {
     try await Wait.until { await hasPeriodicTimeObservation() }
-  }
-
-  static func waitForNoPeriodicTimeObserver() async throws {
-    try await Wait.until { !(await hasPeriodicTimeObservation()) }
-  }
-
-  static func waitForObservations() async throws {
-    try await Wait.until { await hasObservations() }
-  }
-
-  static func waitForNoObservations() async throws {
-    try await Wait.until { !(await hasObservations()) }
   }
 
   static func waitForResponse(for podcastEpisode: PodcastEpisode, count: Int = 1) async throws {

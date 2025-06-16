@@ -7,6 +7,8 @@ import SwiftUI
 @testable import PodHaven
 
 actor FakeImages: ImageFetchable {
+  nonisolated func prefetch(_ urls: [URL]) {}
+
   typealias FetchHandler = @Sendable (URL) async throws -> UIImage
 
   private(set) var responseCounts: [URL: Int] = [:]
@@ -25,8 +27,6 @@ actor FakeImages: ImageFetchable {
   func clearCustomHandler(for url: URL) {
     fakeHandlers.removeValue(forKey: url)
   }
-
-  nonisolated func prefetch(_ urls: [URL]) {}
 
   func fetchImage(_ url: URL) async throws -> UIImage {
     defer { responseCounts[url, default: 0] += 1 }
