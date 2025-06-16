@@ -11,6 +11,7 @@ enum EnvironmentType: String {
   case iPhone
   case preview
   case simulator
+  case testing
 }
 
 actor AppInfo {
@@ -40,6 +41,8 @@ actor AppInfo {
 
   private static func _getEnvironment() async -> EnvironmentType {
     if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" { return .preview }
+
+    if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return .testing }
 
     #if targetEnvironment(simulator)
     return .simulator

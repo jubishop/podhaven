@@ -50,10 +50,7 @@ actor PlayManager {
 
   private var nowPlayingInfo: NowPlayingInfo? {
     willSet {
-      if newValue == nil {
-        log.debug("nowPlayingInfo: nil")
-        nowPlayingInfo?.clear()
-      }
+      if newValue == nil { nowPlayingInfo?.clear() }
     }
   }
 
@@ -95,94 +92,114 @@ actor PlayManager {
     }
   }
 
-  private func performLoad(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
+  private func performLoad(_ incoming: PodcastEpisode) async throws -> Bool {
     let outgoing = await playState.onDeck
 
-    if let outgoing, outgoing == podcastEpisode {
-      log.debug("performLoad: ignoring \(podcastEpisode.toString), already loaded")
+    if let outgoing, outgoing == incoming {
+      log.debug("performLoad: ignoring \(incoming.toString), already loaded")
       return false
     }
 
     let task = Task<Bool, any Error> { [weak self] in
       guard let self else { return false }
+      log.info("performLoad: \(incoming.toString)")
+
+      await podAVPlayer.removeObservers()
+      await pause()
+      await clearOnDeck()
+
       do {
-        log.info("performLoad: \(podcastEpisode.toString)")
-
-        await podAVPlayer.removeObservers()
-        await pause()
-        await clearOnDeck()
-        try await setOnDeck(try await podAVPlayer.load(podcastEpisode))
-
-        log.debug("performLoad: dequeueing incoming episode: \(podcastEpisode.toString)")
-        do {
-          try await queue.dequeue(podcastEpisode.id)
-        } catch {
-          log.error(error)
-        }
-
-        if let outgoing {
-          log.debug("performLoad: unshifting current episode: \(outgoing.toString)")
-          do {
-            try await queue.unshift(outgoing.id)
-          } catch {
-            log.error(error)
-          }
-        }
-
-        await podAVPlayer.addObservers()
-        return true
+        try await setOnDeck(try await podAVPlayer.load(incoming))
       } catch {
-        let nowOnDeck = await playState.onDeck
+        await Task { [weak self] in  // Task to execute even inside cancellation
+          guard let self else { return }
 
-        if let outgoing, outgoing != nowOnDeck {
-          log.debug("performLoad: unshifting current episode post failure: \(outgoing.toString)")
-          do {
-            try await Task { [weak self] in  // Task to execute even inside cancellation
-              guard let self else { return }
-              try await queue.unshift(outgoing.id)
-            }
-            .value
-          } catch {
-            log.error(error)
-          }
+          await cleanUpAfterLoadFailure(outgoing, incoming)
         }
-
-        if podcastEpisode.id != nowOnDeck?.id {
-          log.debug(
-            "performLoad: unshifting incoming episode post failure: \(podcastEpisode.toString)"
-          )
-          do {
-            try await Task { [weak self] in  // Task to execute even inside cancellation
-              guard let self else { return }
-              try await queue.unshift(podcastEpisode.id)
-            }
-            .value
-          } catch {
-            log.error(error)
-          }
-        }
-
-        if let nowOnDeck {
-          if log.shouldLog(.debug) {
-            log.debug(
-              """
-              performLoad: no stopping after load failure because new podcast seems to have loaded
-                Failed to load: \(String(describing: podcastEpisode.toString)) \
-                Loaded instead: \(nowOnDeck)
-              """
-            )
-          }
-        } else {
-          await clearOnDeck()
-          await setStatus(.stopped)
-        }
+        .value
 
         throw error
       }
+
+      log.debug("performLoad: dequeueing incoming episode: \(incoming.toString)")
+      do {
+        try await queue.dequeue(incoming.id)
+      } catch {
+        log.error(error)
+      }
+
+      if let outgoing {
+        log.debug("performLoad: unshifting outgoing episode: \(outgoing.toString)")
+        do {
+          try await queue.unshift(outgoing.id)
+        } catch {
+          log.error(error)
+        }
+      }
+
+      await podAVPlayer.addObservers()
+      return true
     }
 
     loadTask = task
     return try await task.value
+  }
+
+  private func cleanUpAfterLoadFailure(_ outgoing: OnDeck?, _ incoming: PodcastEpisode) async {
+    let nowOnDeck = await playState.onDeck
+
+    log.debug(
+      """
+      cleanUpAfterLoadFailure
+        outgoing: \(String(describing: outgoing?.toString))
+        incoming: \(incoming.toString)
+        nowOnDeck: \(String(describing: nowOnDeck?.toString))
+      """
+    )
+
+    if let outgoing, outgoing != nowOnDeck {
+      log.debug(
+        """
+        cleanUpAfterLoadFailure: unshifting outgoing episode post failure: \
+        \(outgoing.toString)
+        """
+      )
+      do {
+        try await queue.unshift(outgoing.id)
+      } catch {
+        log.error(error)
+      }
+    }
+
+    if incoming.id != nowOnDeck?.id {
+      log.debug(
+        """
+        cleanUpAfterLoadFailure: unshifting incoming episode post failure: \
+        \(incoming.toString)
+        """
+      )
+      do {
+        try await queue.unshift(incoming.id)
+      } catch {
+        log.error(error)
+      }
+    }
+
+    if let nowOnDeck {
+      if log.shouldLog(.debug) {
+        log.debug(
+          """
+          cleanUpAfterLoadFailure: no stopping after load failure because new podcast seems \
+          to have loaded
+            Failed to load: \(String(describing: incoming.toString)) \
+            Loaded instead: \(nowOnDeck)
+          """
+        )
+      }
+    } else {
+      await clearOnDeck()
+      await setStatus(.stopped)
+    }
   }
 
   // MARK: - Playback Controls
@@ -261,7 +278,7 @@ actor PlayManager {
   }
 
   private func clearOnDeck() async {
-    log.debug("stop: executing")
+    log.debug("clearOnDeck: executing")
     await podAVPlayer.clear()
     nowPlayingInfo = nil
     await playState.setOnDeck(nil)

@@ -25,11 +25,13 @@ enum LogSubsystem {
   enum Play: String, LogCategorizable {
     case manager
     case avPlayer
+    case nowPlayingInfo
 
     var level: Logger.Level {
       switch self {
       case .manager: return .debug
       case .avPlayer: return .debug
+      case .nowPlayingInfo: return .debug
       }
     }
   }

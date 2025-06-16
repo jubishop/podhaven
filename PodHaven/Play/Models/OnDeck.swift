@@ -9,7 +9,7 @@ struct OnDeck: Identifiable, Stringable {
 
   // MARK: - Stringable
 
-  var toString: String { "\(media.toString) - \(episodeTitle)" }
+  var toString: String { "[\(id)] - \(media.toString) - \(episodeTitle)" }
 
   // MARK: - Data
 

@@ -117,7 +117,7 @@ extension Container {
   }
 
   func clear() {
-    log.debug("stop: executing")
+    log.debug("clear: executing")
     removeObservers()
     podcastEpisode = nil
     preSeekStatus = nil
@@ -127,13 +127,13 @@ extension Container {
   // MARK: - Playback Controls
 
   func play() {
-    log.debug("playing")
+    log.debug("play: executing")
     preSeekStatus = .playing
     avQueuePlayer.play()
   }
 
   func pause(overwritePreSeekStatus: Bool = true) {
-    log.debug("pausing")
+    log.debug("pause: executing")
     if overwritePreSeekStatus {
       preSeekStatus = .paused
     }
@@ -141,7 +141,7 @@ extension Container {
   }
 
   func toggle() {
-    log.debug("toggling")
+    log.debug("toggle: executing")
     avQueuePlayer.timeControlStatus == .paused
       ? play()
       : pause()

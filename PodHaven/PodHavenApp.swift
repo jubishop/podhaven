@@ -73,9 +73,9 @@ struct PodHavenApp: App {
     case .preview:
       LoggingSystem.bootstrap(PrintLogHandler.init)
       log.debug("configureLogging: preview (PrintLogHandler)")
-    case .simulator, .mac, .appStore:
+    case .simulator, .mac, .appStore, .testing:
       LoggingSystem.bootstrap(OSLogHandler.init)
-      log.debug("configureLogging: simulator/mac/appStore (OSLogHandler)")
+      log.debug("configureLogging: simulator/mac/appStore/testing (OSLogHandler)")
     }
   }
 
