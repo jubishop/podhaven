@@ -133,6 +133,7 @@ actor PlayManager {
         return true
       } catch {
         if let outgoing {
+          // TODO: dont unshift any episode that's onDeck
           log.debug("performLoad: unshifting current episode post failure: \(outgoing.toString)")
           do {
             try await Task { [weak self] in  // Task to execute even inside cancellation
@@ -145,11 +146,9 @@ actor PlayManager {
           }
         }
 
+        // TODO: dont unshift any episode that's onDeck
         log.debug(
-          """
-          performLoad: unshifting incoming episode post failure: \
-          \(podcastEpisode.toString)
-          """
+          "performLoad: unshifting incoming episode post failure: \(podcastEpisode.toString)"
         )
         do {
           try await Task { [weak self] in  // Task to execute even inside cancellation
@@ -234,6 +233,7 @@ actor PlayManager {
             podcastEpisode.episode.image ?? podcastEpisode.podcast.image
           )
         } catch {
+          // TODO: better error message
           log.error(error)
           return nil
         }
