@@ -191,8 +191,6 @@ extension Container {
   private func setNextPodcastEpisode(_ nextPodcastEpisode: PodcastEpisode?)
     async throws(PlaybackError)
   {
-    guard shouldSetAsNext(nextPodcastEpisode) else { return }
-
     setNextEpisodeTask?.cancel()
 
     try await PlaybackError.catch {
@@ -222,8 +220,6 @@ extension Container {
     }
 
     setNextEpisodeTask = task
-    defer { setNextEpisodeTask = nil }
-
     try await task.value
   }
 

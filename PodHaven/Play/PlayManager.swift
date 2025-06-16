@@ -133,6 +133,7 @@ actor PlayManager {
         return true
       } catch {
         let nowOnDeck = await playState.onDeck
+
         if let outgoing, outgoing != nowOnDeck {
           log.debug("performLoad: unshifting current episode post failure: \(outgoing.toString)")
           do {
@@ -181,8 +182,6 @@ actor PlayManager {
     }
 
     loadTask = task
-    defer { loadTask = nil }
-
     return try await task.value
   }
 
