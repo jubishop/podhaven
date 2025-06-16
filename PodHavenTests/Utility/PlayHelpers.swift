@@ -28,6 +28,7 @@ enum PlayHelpers {
   private static var commandCenter: FakeCommandCenter {
     Container.shared.commandCenter() as! FakeCommandCenter
   }
+  private static var fakeImages: FakeImages { images as! FakeImages }
   private static var nowPlayingInfo: [String: Any?]? {
     Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
   }
@@ -162,6 +163,26 @@ enum PlayHelpers {
       await loadSemaphoreBegun.wait()
       try await block()
       finishLoadingSemaphore.signal()
+    }
+  }
+
+  static func executeMidImageFetch(
+    for imageURL: URL,
+    uiImage: UIImage? = nil,
+    _ block: @escaping @Sendable () async throws -> Void
+  ) async throws {
+    let uiImage = uiImage ?? FakeImages.create(imageURL)
+    let fetchSemaphoreBegun = AsyncSemaphore(value: 0)
+    let finishFetchingSemaphore = AsyncSemaphore(value: 0)
+    await fakeImages.respond(to: imageURL) { _ in
+      fetchSemaphoreBegun.signal()
+      await finishFetchingSemaphore.wait()
+      return uiImage
+    }
+    Task {
+      await fetchSemaphoreBegun.wait()
+      try await block()
+      finishFetchingSemaphore.signal()
     }
   }
 

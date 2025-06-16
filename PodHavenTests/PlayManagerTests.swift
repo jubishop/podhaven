@@ -26,6 +26,7 @@ import Testing
   private var commandCenter: FakeCommandCenter {
     Container.shared.commandCenter() as! FakeCommandCenter
   }
+  private var fakeImages: FakeImages { images as! FakeImages }
   private var nowPlayingInfo: [String: Any?]? {
     Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
   }
@@ -141,15 +142,23 @@ import Testing
     #expect(updatedPodcastEpisode?.episode.duration == correctDuration)
   }
 
+  @Test("loading fetches episode image if it exists")
+  func loadingFetchesEpisodeImageIfItExists() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(Create.unsavedEpisode(image: URL.valid()))
+
+    let onDeck = try await PlayHelpers.load(podcastEpisode)
+    #expect(onDeck.image!.isVisuallyEqual(to: FakeImages.create(podcastEpisode.episode.image!)))
+  }
+
   @Test("loading failure clears state")
   func loadingFailureClearsState() async throws {
-    let episodeToLoad = try await Create.podcastEpisode()
+    let podcastEpisode = try await Create.podcastEpisode()
 
-    fakeEpisodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
+    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode.media) { mediaURL in
       throw TestError.assetLoadFailure(mediaURL)
     }
     await #expect(throws: (any Error).self) {
-      try await playManager.load(episodeToLoad)
+      try await playManager.load(podcastEpisode)
     }
 
     try await PlayHelpers.waitFor(.stopped)
@@ -192,8 +201,26 @@ import Testing
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
   }
 
-  @Test("loading and playing mid-load does not result in stopped playState")
-  func loadingAndPlayingMidLoadDoesNotResultInStoppedPlayState() async throws {
+  @Test("loading during image fetching cancels any in-progress load")
+  func loadingDuringImageFetchingCancelsAnyInProgressLoad() async throws {
+    let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await PlayHelpers.executeMidImageFetch(for: originalEpisode.podcast.image) {
+      await fakeImages.clearCustomHandler(for: originalEpisode.podcast.image)
+      try await playManager.load(incomingEpisode)
+    }
+
+    await #expect(throws: (any Error).self) {
+      try await playManager.load(originalEpisode)
+    }
+
+    try await PlayHelpers.waitForQueue([originalEpisode])
+    try await PlayHelpers.waitForItemQueue([incomingEpisode, originalEpisode])
+    try await PlayHelpers.waitForOnDeck(incomingEpisode)
+  }
+
+  @Test("loading and playing during load does not result in stopped playState")
+  func loadingAndPlayingDuringLoadDoesNotResultInStoppedPlayState() async throws {
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
     try await PlayHelpers.executeMidLoad(for: originalEpisode) { @MainActor in
@@ -564,17 +591,17 @@ import Testing
 
   @Test("loading failure unshifts onto queue")
   func loadingFailureUnshiftsOntoQueue() async throws {
-    let episodeToLoad = try await Create.podcastEpisode()
+    let podcastEpisode = try await Create.podcastEpisode()
 
-    fakeEpisodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
+    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode.media) { mediaURL in
       throw TestError.assetLoadFailure(mediaURL)
     }
     await #expect(throws: (any Error).self) {
-      try await playManager.load(episodeToLoad)
+      try await playManager.load(podcastEpisode)
     }
 
     try await PlayHelpers.waitFor(.stopped)
-    try await PlayHelpers.waitForQueue([episodeToLoad])
+    try await PlayHelpers.waitForQueue([podcastEpisode])
     try await PlayHelpers.waitForItemQueue([])
   }
 
@@ -595,12 +622,29 @@ import Testing
     try await PlayHelpers.waitForItemQueue([])
   }
 
-  @Test("loading same episode mid-load does not unshift onto queue")
-  func loadingSameEpisodeMidLoadDoesNotUnshiftOntoQueue() async throws {
+  @Test("loading same episode during load does not unshift onto queue")
+  func loadingSameEpisodeDuringLoadDoesNotUnshiftOntoQueue() async throws {
     let originalEpisode = try await Create.podcastEpisode()
 
     try await PlayHelpers.executeMidLoad(for: originalEpisode) { @MainActor in
       fakeEpisodeAssetLoader.clearCustomHandler(for: originalEpisode.episode.media)
+      try await playManager.load(originalEpisode)
+    }
+    await #expect(throws: (any Error).self) {
+      try await playManager.load(originalEpisode)
+    }
+
+    try await PlayHelpers.waitForQueue([])
+    try await PlayHelpers.waitForItemQueue([originalEpisode])
+    try await PlayHelpers.waitForOnDeck(originalEpisode)
+  }
+
+  @Test("loading same episode during image fetching does not unshift onto queue")
+  func loadingSameEpisodeDuringImageFetchingDoesNotUnshiftOntoQueue() async throws {
+    let originalEpisode = try await Create.podcastEpisode()
+
+    try await PlayHelpers.executeMidImageFetch(for: originalEpisode.podcast.image) {
+      await fakeImages.clearCustomHandler(for: originalEpisode.podcast.image)
       try await playManager.load(originalEpisode)
     }
     await #expect(throws: (any Error).self) {

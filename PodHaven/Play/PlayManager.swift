@@ -111,7 +111,7 @@ actor PlayManager {
         await podAVPlayer.removeObservers()
         await pause()
         await clearOnDeck()
-        await setOnDeck(try await podAVPlayer.load(podcastEpisode))
+        try await setOnDeck(try await podAVPlayer.load(podcastEpisode))
 
         log.debug("performLoad: dequeueing incoming episode: \(podcastEpisode.toString)")
         do {
@@ -216,7 +216,7 @@ actor PlayManager {
 
   // MARK: - Private State Management
 
-  private func setOnDeck(_ podcastEpisode: PodcastEpisode) async {
+  private func setOnDeck(_ podcastEpisode: PodcastEpisode) async throws {
     log.debug("setOnDeck: \(podcastEpisode.toString)")
 
     let onDeck = await OnDeck(
@@ -234,7 +234,6 @@ actor PlayManager {
             podcastEpisode.episode.image ?? podcastEpisode.podcast.image
           )
         } catch {
-          // TODO: better error message
           log.error(error)
           return nil
         }
@@ -242,6 +241,7 @@ actor PlayManager {
       media: podcastEpisode.episode.media,
       pubDate: podcastEpisode.episode.pubDate
     )
+    try Task.checkCancellation()
 
     nowPlayingInfo = NowPlayingInfo(onDeck)
     await playState.setOnDeck(onDeck)
@@ -283,7 +283,7 @@ actor PlayManager {
 
   // MARK: - Private Change Handlers
 
-  private func handleCurrentItemChange(_ podcastEpisode: PodcastEpisode?) async {
+  private func handleCurrentItemChange(_ podcastEpisode: PodcastEpisode?) async throws {
     if let podcastEpisode {
       log.debug("handleCurrentItemChange: \(podcastEpisode.id)")
 
@@ -293,20 +293,16 @@ actor PlayManager {
         log.error(error)
       }
 
-      await setOnDeck(podcastEpisode)
+      try await setOnDeck(podcastEpisode)
     } else {
       log.debug("handleCurrentItemChange: nil, stopping")
 
       await clearOnDeck()
       await setStatus(.stopped)
 
-      do {
-        if let nextEpisode = try await queue.nextEpisode {
-          try await load(nextEpisode)
-          await play()
-        }
-      } catch {
-        log.error(error)
+      if let nextEpisode = try await queue.nextEpisode {
+        try await load(nextEpisode)
+        await play()
       }
     }
   }
@@ -386,7 +382,11 @@ actor PlayManager {
     Task { [weak self] in
       guard let self else { return }
       for await podcastEpisode in await podAVPlayer.currentItemStream {
-        await handleCurrentItemChange(podcastEpisode)
+        do {
+          try await handleCurrentItemChange(podcastEpisode)
+        } catch {
+          log.error(error)
+        }
       }
     }
   }
