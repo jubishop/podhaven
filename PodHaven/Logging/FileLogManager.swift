@@ -72,8 +72,10 @@ struct FileLogManager: Sendable {
     Assert.neverCalled()
 
     Task {
-      log.trace("App launched, checking if log truncation needed")
-      await truncateIfNeeded()
+      if await UIApplication.shared.applicationState == .active {
+        log.trace("App launched, checking if log truncation needed")
+        await truncateIfNeeded()
+      }
     }
 
     Task {
