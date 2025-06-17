@@ -93,7 +93,7 @@ import Testing
 
     // Check artwork separately
     if let actualArtwork = nowPlayingInfo![MPMediaItemPropertyArtwork] as? MPMediaItemArtwork {
-      let image = try await fakeImageFetcher.fetch(podcastEpisode.podcast.image)
+      let image = try await fakeImageFetcher.fetch(podcastEpisode.image)
       let actualImage = actualArtwork.image(at: image.size)!
       #expect(actualImage.isVisuallyEqual(to: image))
     } else {
@@ -170,6 +170,32 @@ import Testing
     )
   }
 
+  @Test("loading prefetches upnext episode")
+  func loadingPrefetchesUpnextEpisode() async throws {
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await queue.unshift(queuedEpisode.id)
+    try await playManager.load(playingEpisode)
+
+    try await PlayHelpers.waitForQueue([queuedEpisode])
+    try await PlayHelpers.waitForItemQueue([playingEpisode, queuedEpisode])
+    try await PlayHelpers.waitForOnDeck(playingEpisode)
+
+    // This makes it so loading queuedEpisode only works if the image was preloaded,
+    // and this fetch therefore never has to happen.
+    fakeImageFetcher.respond(to: queuedEpisode.image) { url in
+      throw TestError.imageFetchFailure(url)
+    }
+
+    await playManager.play()
+    avQueuePlayer.finishEpisode()
+
+    try await PlayHelpers.waitForQueue([])
+    try await PlayHelpers.waitForItemQueue([queuedEpisode])
+    try await PlayHelpers.waitForOnDeck(queuedEpisode)
+    #expect(playState.onDeck!.image != nil)
+  }
+
   @Test("loading failure clears state")
   func loadingFailureClearsState() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
@@ -225,8 +251,8 @@ import Testing
   func loadingDuringImageFetchingCancelsAnyInProgressLoad() async throws {
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await PlayHelpers.executeMidImageFetch(for: originalEpisode.podcast.image) {
-      fakeImageFetcher.clearCustomHandler(for: originalEpisode.podcast.image)
+    try await PlayHelpers.executeMidImageFetch(for: originalEpisode.image) {
+      fakeImageFetcher.clearCustomHandler(for: originalEpisode.image)
       try await playManager.load(incomingEpisode)
     }
 
@@ -266,6 +292,7 @@ import Testing
     try await playManager.load(podcastEpisode)
 
     try await PlayHelpers.waitForItemQueue([podcastEpisode])
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
     try await PlayHelpers.waitFor(.playing)
   }
 
@@ -540,6 +567,7 @@ import Testing
 
     try await PlayHelpers.waitForQueue([queuedEpisode])
     try await PlayHelpers.waitForItemQueue([playingEpisode, queuedEpisode])
+    try await PlayHelpers.waitForOnDeck(playingEpisode)
   }
 
   @Test("loading an episode with queue already filled adds to item queue")
@@ -551,6 +579,7 @@ import Testing
 
     try await PlayHelpers.waitForQueue([queuedEpisode])
     try await PlayHelpers.waitForItemQueue([playingEpisode, queuedEpisode])
+    try await PlayHelpers.waitForOnDeck(playingEpisode)
   }
 
   @Test("changing top queue item updates item queue")
@@ -564,6 +593,7 @@ import Testing
 
     try await PlayHelpers.waitForQueue([incomingQueuedEpisode, queuedEpisode])
     try await PlayHelpers.waitForItemQueue([playingEpisode, incomingQueuedEpisode])
+    try await PlayHelpers.waitForOnDeck(playingEpisode)
   }
 
   @Test("removing top queue item clears item queue")
@@ -575,6 +605,7 @@ import Testing
 
     try await PlayHelpers.waitForQueue([queuedEpisode])
     try await PlayHelpers.waitForItemQueue([playingEpisode, queuedEpisode])
+    try await PlayHelpers.waitForOnDeck(playingEpisode)
 
     try await queue.dequeue(queuedEpisode.id)
 
@@ -594,8 +625,8 @@ import Testing
     try await playManager.load(playingEpisode)
 
     try await PlayHelpers.waitForQueue([incomingQueuedEpisode, queuedEpisode])
-    try await PlayHelpers.waitForItemQueue([playingEpisode, incomingQueuedEpisode]
-    )
+    try await PlayHelpers.waitForItemQueue([playingEpisode, incomingQueuedEpisode])
+    try await PlayHelpers.waitForOnDeck(playingEpisode)
   }
 
   @Test("changing top queue item while new item is loading updates item queue")
@@ -610,8 +641,8 @@ import Testing
     try await playManager.load(playingEpisode)
 
     try await PlayHelpers.waitForQueue([incomingQueuedEpisode, queuedEpisode])
-    try await PlayHelpers.waitForItemQueue([playingEpisode, incomingQueuedEpisode]
-    )
+    try await PlayHelpers.waitForItemQueue([playingEpisode, incomingQueuedEpisode])
+    try await PlayHelpers.waitForOnDeck(playingEpisode)
   }
 
   @Test("loading a new episode puts current episode back in queue")
@@ -623,6 +654,7 @@ import Testing
 
     try await PlayHelpers.waitForQueue([playingEpisode])
     try await PlayHelpers.waitForItemQueue([incomingEpisode, playingEpisode])
+    try await PlayHelpers.waitForOnDeck(incomingEpisode)
   }
 
   @Test("loading failure unshifts onto queue")
@@ -679,8 +711,8 @@ import Testing
   func loadingSameEpisodeDuringImageFetchingDoesNotUnshiftOntoQueue() async throws {
     let originalEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.executeMidImageFetch(for: originalEpisode.podcast.image) {
-      fakeImageFetcher.clearCustomHandler(for: originalEpisode.podcast.image)
+    try await PlayHelpers.executeMidImageFetch(for: originalEpisode.image) {
+      fakeImageFetcher.clearCustomHandler(for: originalEpisode.image)
       try await playManager.load(originalEpisode)
     }
     await #expect(throws: (any Error).self) {

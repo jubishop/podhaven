@@ -208,14 +208,14 @@ extension Container {
 
       if let podcastEpisode = nextPodcastEpisode {
         do {
-          insertNextPodcastEpisode(try await loadAsset(for: podcastEpisode))
+          await insertNextPodcastEpisode(try await loadAsset(for: podcastEpisode))
         } catch {
-          insertNextPodcastEpisode(nil)
+          await insertNextPodcastEpisode(nil)
 
           throw error
         }
       } else {
-        insertNextPodcastEpisode(nil)
+        await insertNextPodcastEpisode(nil)
       }
     }
 
@@ -223,7 +223,7 @@ extension Container {
     try await task.value
   }
 
-  private func insertNextPodcastEpisode(_ nextLoadedPodcastEpisode: LoadedPodcastEpisode?) {
+  private func insertNextPodcastEpisode(_ nextLoadedPodcastEpisode: LoadedPodcastEpisode?) async {
     guard shouldSetAsNext(nextLoadedPodcastEpisode?.podcastEpisode) else { return }
 
     log.debug("insertNextPodcastEpisode: at start:\n  \(printableQueue)")
@@ -235,6 +235,8 @@ extension Container {
 
     // Finally, add our new item if we have one
     if let nextLoadedPodcastEpisode {
+      let imageFetcher = Container.shared.imageFetcher()
+      await imageFetcher.prefetch([nextLoadedPodcastEpisode.podcastEpisode.image])
       avQueuePlayer.insert(nextLoadedPodcastEpisode.playableItem, after: avQueuePlayer.queued.first)
     }
 

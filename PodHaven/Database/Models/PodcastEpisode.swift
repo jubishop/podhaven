@@ -4,6 +4,7 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Tagged
+import UIKit
 
 struct PodcastEpisode:
   Codable,
@@ -29,4 +30,8 @@ struct PodcastEpisode:
   // MARK: - Equatable
 
   static func == (lhs: PodcastEpisode, rhs: OnDeck) -> Bool { lhs.id == rhs.id }
+
+  // MARK: - Convenience Getters
+
+  var image: URL { episode.image ?? podcast.image }
 }

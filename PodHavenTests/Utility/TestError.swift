@@ -8,13 +8,16 @@ import ReadableErrorMacro
 @ReadableError
 enum TestError: ReadableError {
   case assetLoadFailure(MediaURL)
+  case imageFetchFailure(URL)
   case waitForValueFailure(String)
   case waitUntilFailure(String)
 
   var message: String {
     switch self {
-    case .assetLoadFailure(let url):
-      return "Failed to load asset from URL: \(url)"
+    case .assetLoadFailure(let mediaURL):
+      return "Failed to load asset from URL: \(mediaURL)"
+    case .imageFetchFailure(let url):
+      return "Failed to fetch image from URL: \(url)"
     case .waitForValueFailure(let typeName):
       return "Failed to wait for non-optional value of type: \(typeName)"
     case .waitUntilFailure(let message):

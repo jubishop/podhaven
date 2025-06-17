@@ -246,9 +246,7 @@ actor PlayManager {
       duration: podcastEpisode.episode.duration,
       image: {
         do {
-          return try await imageFetcher.fetch(
-            podcastEpisode.episode.image ?? podcastEpisode.podcast.image
-          )
+          return try await imageFetcher.fetch(podcastEpisode.image)
         } catch {
           log.error(error)
           return nil

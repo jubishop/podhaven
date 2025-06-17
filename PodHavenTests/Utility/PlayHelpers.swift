@@ -79,7 +79,7 @@ enum PlayHelpers {
 
   static func waitForOnDeck(_ podcastEpisode: PodcastEpisode) async throws {
     try await Wait.until(
-      { await playState.onDeck?.media == podcastEpisode.episode.media },
+      { await playState.onDeck?.id == podcastEpisode.id },
       {
         """
         OnDeck MediaURL is: \(String(describing: await playState.onDeck?.media.toString)), \
