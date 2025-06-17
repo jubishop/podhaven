@@ -426,14 +426,14 @@ actor PlayManager {
       guard let self else { return }
       for await controlStatus in await podAVPlayer.controlStatusStream {
         switch controlStatus {
-        case AVPlayer.TimeControlStatus.paused:
+        case .paused:
           await setStatus(.paused)
-        case AVPlayer.TimeControlStatus.playing:
+        case .playing:
           await setStatus(.playing)
-        case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
+        case .waitingToPlayAtSpecifiedRate:
           await setStatus(.waiting)
-        @unknown default:
-          Assert.fatal("Time control status unknown?")
+        case .seeking:
+          await setStatus(.seeking)
         }
       }
     }

@@ -421,7 +421,7 @@ import Testing
 
     // Seek and episode will return to playing
     await playManager.seek(to: .inSeconds(60))
-    try await PlayHelpers.waitFor(.paused)
+    try await PlayHelpers.waitFor(.seeking)
     seekSemaphore.signal()
     try await PlayHelpers.waitFor(.playing)
     #expect(PlayHelpers.nowPlayingPlaying == true)
@@ -462,8 +462,8 @@ import Testing
     #expect(PlayHelpers.nowPlayingPlaying == false)
   }
 
-  @Test("playback is paused while seeking")
-  func playbackIsPausedWhileSeeking() async throws {
+  @Test("playback state is seeking while seeking")
+  func playbackStateIsSeekingWhileSeeking() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await playManager.load(podcastEpisode)
@@ -476,7 +476,7 @@ import Testing
       return false
     }
     await playManager.seek(to: .inSeconds(30))
-    try await PlayHelpers.waitFor(.paused)
+    try await PlayHelpers.waitFor(.seeking)
     seekSemaphore.signal()
 
     // Second seek finishes but we stay paused till it does

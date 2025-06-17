@@ -43,14 +43,14 @@ extension Container {
     playableItem: any AVPlayableItem
   )
   private var podcastEpisode: PodcastEpisode?
-  private var preSeekStatus: AVPlayer.TimeControlStatus?
+  private var preSeekStatus: PlaybackStatus?
 
   let currentTimeStream: AsyncStream<CMTime>
   let currentItemStream: AsyncStream<PodcastEpisode?>
-  let controlStatusStream: AsyncStream<AVPlayer.TimeControlStatus>
+  let controlStatusStream: AsyncStream<PlaybackStatus>
   private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
   private let currentItemContinuation: AsyncStream<PodcastEpisode?>.Continuation
-  private let controlStatusContinuation: AsyncStream<AVPlayer.TimeControlStatus>.Continuation
+  private let controlStatusContinuation: AsyncStream<PlaybackStatus>.Continuation
 
   private var periodicTimeObserver: Any?
   private var currentItemObserver: NSKeyValueObservation?
@@ -64,7 +64,7 @@ extension Container {
     (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(of: CMTime.self)
     (currentItemStream, currentItemContinuation) = AsyncStream.makeStream(of: PodcastEpisode?.self)
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
-      of: AVPlayer.TimeControlStatus.self
+      of: PlaybackStatus.self
     )
   }
 
@@ -164,8 +164,9 @@ extension Container {
 
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
-    preSeekStatus = preSeekStatus ?? avQueuePlayer.timeControlStatus
+    preSeekStatus = preSeekStatus ?? PlaybackStatus(avQueuePlayer.timeControlStatus)
     pause(overwritePreSeekStatus: false)
+    controlStatusContinuation.yield(.seeking)
 
     avQueuePlayer.seek(to: time) { [weak self] completed in
       guard let self else { return }
@@ -381,7 +382,7 @@ extension Container {
       options: [.initial, .new]
     ) { [weak self] status in
       guard let self else { return }
-      controlStatusContinuation.yield(status)
+      controlStatusContinuation.yield(PlaybackStatus(status))
     }
   }
 

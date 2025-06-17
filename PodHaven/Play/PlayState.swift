@@ -24,7 +24,7 @@ extension Container {
 
   enum Status {
     case loading(String)
-    case playing, paused, stopped, waiting
+    case paused, playing, seeking, stopped, waiting
 
     var playable: Bool {
       switch self {
