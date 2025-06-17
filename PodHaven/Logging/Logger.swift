@@ -12,12 +12,17 @@ extension Logger {
 
   // MARK: - Special Logging
 
-  func error(_ error: any Error) {
+  func error(
+    _ error: any Error,
+    file: String = #fileID,
+    function: String = #function,
+    line: UInt = #line
+  ) {
     let message = ErrorKit.loggableMessage(for: error)
     if ErrorKit.isRemarkable(error) {
-      self.error(message)
+      self.error(message, file: file, function: function, line: line)
     } else {
-      self.notice(message)
+      self.notice(message, file: file, function: function, line: line)
     }
   }
 }
