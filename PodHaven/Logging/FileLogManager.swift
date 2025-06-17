@@ -86,8 +86,8 @@ struct FileLogManager: Sendable {
     }
 
     Task {
-      for await _ in notifications(UIApplication.didEnterBackgroundNotification) {
-        log.trace("App backgrounded, checking if log truncation needed")
+      for await _ in notifications(UIApplication.willResignActiveNotification) {
+        log.trace("App will resign active, checking if log truncation needed")
         await truncateIfNeeded()
       }
     }
