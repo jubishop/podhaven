@@ -14,6 +14,8 @@ extension Container {
 }
 
 struct FileLogManager: Sendable {
+  @DynamicInjected(\.notifications) private var notifications
+
   @Shared(.appStorage("FileLogManager-lastCleanup")) private var lastCleanup: Double = 0
   private let maxLogEntries = 10_000
   private let periodicCleanupInterval = 1.hours
@@ -68,8 +70,6 @@ struct FileLogManager: Sendable {
 
   func startPeriodicCleanup() {
     Assert.neverCalled()
-
-    let notifications = Container.shared.notifications()
 
     Task {
       log.trace("App launched, checking if log truncation needed")

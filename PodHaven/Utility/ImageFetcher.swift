@@ -6,12 +6,12 @@ import Nuke
 import SwiftUI
 
 extension Container {
-  var images: Factory<any ImageFetchable> {
-    Factory(self) { Images() }.scope(.cached)
+  var imageFetcher: Factory<any ImageFetchable> {
+    Factory(self) { ImageFetcher() }.scope(.cached)
   }
 }
 
-struct Images: ImageFetchable {
+struct ImageFetcher: ImageFetchable {
   private let pipeline = ImagePipeline.shared
   private let prefetcher = ImagePrefetcher()
 

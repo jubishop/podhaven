@@ -17,13 +17,13 @@ extension Container {
 
 actor PlayManager {
   @DynamicInjected(\.commandCenter) private var commandCenter
-  @DynamicInjected(\.images) private var images
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
-  var playState: PlayState { get async { await Container.shared.playState() } }
-  var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
+  nonisolated private var imageFetcher: any ImageFetchable { Container.shared.imageFetcher() }
+  private var playState: PlayState { get async { await Container.shared.playState() } }
+  private var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
 
   private let log = Log.as(LogSubsystem.Play.manager)
 
@@ -246,8 +246,7 @@ actor PlayManager {
       duration: podcastEpisode.episode.duration,
       image: {
         do {
-          // TODO: this will fail if task above has been cancelled..see logs.
-          return try await images.fetchImage(
+          return try await imageFetcher.fetchImage(
             podcastEpisode.episode.image ?? podcastEpisode.podcast.image
           )
         } catch {

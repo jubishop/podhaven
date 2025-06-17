@@ -39,7 +39,7 @@ extension AVQueuePlayer: AVQueuePlayable {
     remove(playerItem)
   }
 
-  nonisolated public func observeTimeControlStatus(
+  nonisolated func observeTimeControlStatus(
     options: NSKeyValueObservingOptions,
     changeHandler: @Sendable @escaping (AVPlayer.TimeControlStatus) -> Void
   ) -> NSKeyValueObservation {

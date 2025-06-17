@@ -6,14 +6,14 @@ import SwiftUI
 
 @testable import PodHaven
 
-actor FakeImages: ImageFetchable {
-  nonisolated func prefetch(_ urls: [URL]) {}
+class FakeImageFetcher: ImageFetchable {
+  func prefetch(_ urls: [URL]) { }
 
   typealias FetchHandler = @Sendable (URL) async throws -> UIImage
 
   private(set) var responseCounts: [URL: Int] = [:]
 
-  private var defaultHandler: FetchHandler = { url in return FakeImages.create(url) }
+  private var defaultHandler: FetchHandler = { url in return FakeImageFetcher.create(url) }
   private var fakeHandlers: [URL: FetchHandler] = [:]
 
   func setDefaultResponse(_ handler: @escaping FetchHandler) {

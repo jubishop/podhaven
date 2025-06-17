@@ -16,7 +16,7 @@ enum PlayHelpers {
   private static var fakeEpisodeAssetLoader: FakeEpisodeAssetLoader {
     Container.shared.fakeEpisodeAssetLoader()
   }
-  private static var images: any ImageFetchable { Container.shared.images() }
+  private static var imageFetcher: any ImageFetchable { Container.shared.imageFetcher() }
   private static var playManager: PlayManager { Container.shared.playManager() }
   private static var playState: PlayState { Container.shared.playState() }
   private static var queue: Queue { Container.shared.queue() }
@@ -28,7 +28,7 @@ enum PlayHelpers {
   private static var commandCenter: FakeCommandCenter {
     Container.shared.commandCenter() as! FakeCommandCenter
   }
-  private static var fakeImages: FakeImages { images as! FakeImages }
+  private static var fakeImageFetcher: FakeImageFetcher { imageFetcher as! FakeImageFetcher }
   private static var nowPlayingInfo: [String: Any?]? {
     Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
   }
@@ -171,10 +171,10 @@ enum PlayHelpers {
     uiImage: UIImage? = nil,
     _ block: @escaping @Sendable () async throws -> Void
   ) async throws {
-    let uiImage = uiImage ?? FakeImages.create(imageURL)
+    let uiImage = uiImage ?? FakeImageFetcher.create(imageURL)
     let fetchSemaphoreBegun = AsyncSemaphore(value: 0)
     let finishFetchingSemaphore = AsyncSemaphore(value: 0)
-    await fakeImages.respond(to: imageURL) { _ in
+    fakeImageFetcher.respond(to: imageURL) { _ in
       fetchSemaphoreBegun.signal()
       await finishFetchingSemaphore.wait()
       return uiImage

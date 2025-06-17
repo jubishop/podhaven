@@ -13,7 +13,6 @@ import Testing
 @Suite("of PlayManager tests", .container)
 @MainActor struct PlayManagerTests {
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var fakeEpisodeAssetLoader
-  @DynamicInjected(\.images) private var images
   @DynamicInjected(\.notifier) private var notifier
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.playState) private var playState
@@ -26,7 +25,9 @@ import Testing
   private var commandCenter: FakeCommandCenter {
     Container.shared.commandCenter() as! FakeCommandCenter
   }
-  private var fakeImages: FakeImages { images as! FakeImages }
+  nonisolated private var fakeImageFetcher: FakeImageFetcher {
+    Container.shared.imageFetcher() as! FakeImageFetcher
+  }
   private var nowPlayingInfo: [String: Any?]? {
     Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
   }
@@ -92,7 +93,7 @@ import Testing
 
     // Check artwork separately
     if let actualArtwork = nowPlayingInfo![MPMediaItemPropertyArtwork] as? MPMediaItemArtwork {
-      let image = try await images.fetchImage(podcastEpisode.podcast.image)
+      let image = try await fakeImageFetcher.fetchImage(podcastEpisode.podcast.image)
       let actualImage = actualArtwork.image(at: image.size)!
       #expect(actualImage.isVisuallyEqual(to: image))
     } else {
@@ -164,7 +165,9 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode(Create.unsavedEpisode(image: URL.valid()))
 
     let onDeck = try await PlayHelpers.load(podcastEpisode)
-    #expect(onDeck.image!.isVisuallyEqual(to: FakeImages.create(podcastEpisode.episode.image!)))
+    #expect(
+      onDeck.image!.isVisuallyEqual(to: FakeImageFetcher.create(podcastEpisode.episode.image!))
+    )
   }
 
   @Test("loading failure clears state")
@@ -223,7 +226,7 @@ import Testing
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
     try await PlayHelpers.executeMidImageFetch(for: originalEpisode.podcast.image) {
-      await fakeImages.clearCustomHandler(for: originalEpisode.podcast.image)
+      fakeImageFetcher.clearCustomHandler(for: originalEpisode.podcast.image)
       try await playManager.load(incomingEpisode)
     }
 
@@ -661,7 +664,7 @@ import Testing
     let originalEpisode = try await Create.podcastEpisode()
 
     try await PlayHelpers.executeMidImageFetch(for: originalEpisode.podcast.image) {
-      await fakeImages.clearCustomHandler(for: originalEpisode.podcast.image)
+      fakeImageFetcher.clearCustomHandler(for: originalEpisode.podcast.image)
       try await playManager.load(originalEpisode)
     }
     await #expect(throws: (any Error).self) {
