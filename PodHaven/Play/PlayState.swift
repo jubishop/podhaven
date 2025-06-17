@@ -22,7 +22,7 @@ extension Container {
 
   // MARK: - State Getters
 
-  enum Status {
+  enum Status: Equatable {
     case loading(String)
     case paused, playing, seeking, stopped, waiting
 
@@ -38,13 +38,18 @@ extension Container {
       return nil
     }
 
+    var paused: Bool {
+      if case .paused = self { return true }
+      return false
+    }
+
     var playing: Bool {
       if case .playing = self { return true }
       return false
     }
 
-    var paused: Bool {
-      if case .paused = self { return true }
+    var seeking: Bool {
+      if case .seeking = self { return true }
       return false
     }
 

@@ -469,7 +469,7 @@ import Testing
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
 
-    // First seek is interrupted so we stay paused
+    // First seek is interrupted so we stay seeking
     let seekSemaphore = AsyncSemaphore(value: 0)
     avQueuePlayer.seekHandler = { _ in
       await seekSemaphore.wait()
@@ -479,13 +479,13 @@ import Testing
     try await PlayHelpers.waitFor(.seeking)
     seekSemaphore.signal()
 
-    // Second seek finishes but we stay paused till it does
+    // Second seek finishes but we stay seeking till it does
     avQueuePlayer.seekHandler = { _ in
       await seekSemaphore.wait()
       return true
     }
-    await playManager.seek(to: .inSeconds(30))
-    try await PlayHelpers.waitFor(.paused)
+    await playManager.seek(to: .inSeconds(60))
+    try await PlayHelpers.waitFor(.seeking)
     seekSemaphore.signal()
 
     // Now seek has finished, we go back to playing

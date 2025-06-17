@@ -10,4 +10,6 @@ class FakeAVPlayerItem: AVPlayableItem {
   init(assetURL: MediaURL) {
     self.assetURL = assetURL
   }
+
+  nonisolated var description: String { assetURL.toString }
 }

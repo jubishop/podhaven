@@ -55,17 +55,7 @@ enum PlayHelpers {
 
   static func waitFor(_ status: PlayState.Status) async throws {
     try await Wait.until(
-      {
-        switch (await playState.status, status) {
-        case (.loading(let current), .loading(let expected)): return current == expected
-        case (.paused, .paused): return true
-        case (.playing, .playing): return true
-        case (.seeking, .seeking): return true
-        case (.stopped, .stopped): return true
-        case (.waiting, .waiting): return true
-        default: return false
-        }
-      },
+      { await playState.status == status },
       {
         """
         Status is: \(await playState.status), \

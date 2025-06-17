@@ -50,10 +50,14 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   var current: (any AVPlayableItem)? { queued.first }
   var queued: [any AVPlayableItem] = [] {
     didSet {
+      log.debug("didSet queued to: \(queued)")
+
       if oldValue.first !== current {
         // Clean up deallocated observations and call active handlers
         itemObservations = itemObservations.compactMap { observationHandler in
           guard observationHandler.observation != nil else { return nil }
+
+          log.debug("Calling active currentItem handler with: \(String(describing: current))")
           observationHandler.handler(current?.assetURL)
           return observationHandler
         }
@@ -113,7 +117,6 @@ class FakeAVQueuePlayer: AVQueuePlayable {
       let success = await seekHandler(time)
       completionHandler(success)
       if success { currentTimeValue = time }
-      seekHandler = { _ in true }
     }
   }
 
@@ -137,9 +140,11 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused {
     didSet {
       log.debug("didSet timeControlStatus to: \(timeControlStatus)")
+
       // Clean up deallocated observations and call active handlers
       statusObservations = statusObservations.compactMap { observationHandler in
         guard observationHandler.observation != nil else { return nil }
+
         log.debug("Calling active timeControlStatus handler with: \(timeControlStatus)")
         observationHandler.handler(timeControlStatus)
         return observationHandler
