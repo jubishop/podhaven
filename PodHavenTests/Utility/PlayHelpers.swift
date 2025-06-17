@@ -53,7 +53,7 @@ enum PlayHelpers {
 
   // MARK: - Wait Helpers
 
-  static func waitFor(_ status: PlayState.Status) async throws {
+  static func waitFor(_ status: PlaybackStatus) async throws {
     try await Wait.until(
       { await playState.status == status },
       {

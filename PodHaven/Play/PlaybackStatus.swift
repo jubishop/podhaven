@@ -3,11 +3,9 @@
 import AVFoundation
 import Foundation
 
-enum PlaybackStatus: CustomStringConvertible {
-  case paused
-  case playing
-  case waitingToPlayAtSpecifiedRate
-  case seeking
+enum PlaybackStatus: Equatable, CustomStringConvertible {
+  case loading(String)
+  case paused, playing, seeking, stopped, waiting
 
   init(_ timeControlStatus: AVPlayer.TimeControlStatus) {
     switch timeControlStatus {
@@ -16,37 +14,63 @@ enum PlaybackStatus: CustomStringConvertible {
     case .playing:
       self = .playing
     case .waitingToPlayAtSpecifiedRate:
-      self = .waitingToPlayAtSpecifiedRate
+      self = .waiting
     @unknown default:
       Assert.fatal("Unknown time control status: \(timeControlStatus)")
     }
   }
 
-  var timeControlStatus: AVPlayer.TimeControlStatus? {
+  var playable: Bool {
     switch self {
-    case .paused:
-      return .paused
-    case .playing:
-      return .playing
-    case .waitingToPlayAtSpecifiedRate:
-      return .waitingToPlayAtSpecifiedRate
-    case .seeking:
-      return nil
+    case .stopped: return false
+    default: return true
     }
   }
 
-  // MARK: - CustomStringConvertible
+  var loading: String? {
+    if case .loading(let title) = self { return title }
+    return nil
+  }
+
+  var paused: Bool {
+    if case .paused = self { return true }
+    return false
+  }
+
+  var playing: Bool {
+    if case .playing = self { return true }
+    return false
+  }
+
+  var seeking: Bool {
+    if case .seeking = self { return true }
+    return false
+  }
+
+  var stopped: Bool {
+    if case .stopped = self { return true }
+    return false
+  }
+
+  var waiting: Bool {
+    if case .waiting = self { return true }
+    return false
+  }
 
   var description: String {
     switch self {
+    case .loading(let title):
+      return "loading(\(title))"
     case .paused:
       return "paused"
     case .playing:
       return "playing"
-    case .waitingToPlayAtSpecifiedRate:
-      return "waitingToPlayAtSpecifiedRate"
     case .seeking:
       return "seeking"
+    case .stopped:
+      return "stopped"
+    case .waiting:
+      return "waiting"
     }
   }
 }

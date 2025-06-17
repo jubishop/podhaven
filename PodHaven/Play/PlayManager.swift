@@ -285,7 +285,7 @@ actor PlayManager {
     await playState.setOnDeck(nil)
   }
 
-  private func setStatus(_ status: PlayState.Status) async {
+  private func setStatus(_ status: PlaybackStatus) async {
     log.debug("setStatus: \(status)")
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status)
@@ -430,10 +430,14 @@ actor PlayManager {
           await setStatus(.paused)
         case .playing:
           await setStatus(.playing)
-        case .waitingToPlayAtSpecifiedRate:
+        case .waiting:
           await setStatus(.waiting)
         case .seeking:
           await setStatus(.seeking)
+        case .loading(_):
+          Assert.fatal("Loading status from PodAVPlayer?")
+        case .stopped:
+          Assert.fatal("Stopped status from PodAVPlayer?")
         }
       }
     }

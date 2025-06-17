@@ -16,55 +16,13 @@ extension Container {
 
   // MARK: - Meta
 
-  subscript<T>(dynamicMember keyPath: KeyPath<PlayState.Status, T>) -> T {
+  subscript<T>(dynamicMember keyPath: KeyPath<PlaybackStatus, T>) -> T {
     status[keyPath: keyPath]
   }
 
   // MARK: - State Getters
 
-  enum Status: Equatable {
-    case loading(String)
-    case paused, playing, seeking, stopped, waiting
-
-    var playable: Bool {
-      switch self {
-      case .stopped: return false
-      default: return true
-      }
-    }
-
-    var loading: String? {
-      if case .loading(let title) = self { return title }
-      return nil
-    }
-
-    var paused: Bool {
-      if case .paused = self { return true }
-      return false
-    }
-
-    var playing: Bool {
-      if case .playing = self { return true }
-      return false
-    }
-
-    var seeking: Bool {
-      if case .seeking = self { return true }
-      return false
-    }
-
-    var stopped: Bool {
-      if case .stopped = self { return true }
-      return false
-    }
-
-    var waiting: Bool {
-      if case .waiting = self { return true }
-      return false
-    }
-  }
-
-  private(set) var status: Status = .stopped
+  private(set) var status: PlaybackStatus = .stopped
   private(set) var currentTime = CMTime.zero
   private(set) var onDeck: OnDeck?
 
@@ -76,7 +34,7 @@ extension Container {
 
   // MARK: - State Setters
 
-  func setStatus(_ status: Status) {
+  func setStatus(_ status: PlaybackStatus) {
     self.status = status
   }
 
