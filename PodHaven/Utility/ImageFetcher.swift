@@ -25,7 +25,7 @@ struct ImageFetcher: ImageFetchable {
     prefetcher.startPrefetching(with: urls)
   }
 
-  func fetchImage(_ url: URL) async throws -> UIImage {
+  func fetch(_ url: URL) async throws -> UIImage {
     try await pipeline.image(for: url)
   }
 }

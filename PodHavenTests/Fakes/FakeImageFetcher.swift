@@ -11,7 +11,7 @@ class FakeImageFetcher: ImageFetchable {
 
   func prefetch(_ urls: [URL]) async {
     for url in urls {
-      prefetchedImages[url] = try? await fetchImage(url)
+      prefetchedImages[url] = try? await fetch(url)
     }
   }
 
@@ -34,7 +34,7 @@ class FakeImageFetcher: ImageFetchable {
     fakeHandlers.removeValue(forKey: url)
   }
 
-  func fetchImage(_ url: URL) async throws -> UIImage {
+  func fetch(_ url: URL) async throws -> UIImage {
     defer { responseCounts[url, default: 0] += 1 }
 
     if let prefetchedImage = prefetchedImages[url] { return prefetchedImage }

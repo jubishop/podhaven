@@ -93,7 +93,7 @@ import Testing
 
     // Check artwork separately
     if let actualArtwork = nowPlayingInfo![MPMediaItemPropertyArtwork] as? MPMediaItemArtwork {
-      let image = try await fakeImageFetcher.fetchImage(podcastEpisode.podcast.image)
+      let image = try await fakeImageFetcher.fetch(podcastEpisode.podcast.image)
       let actualImage = actualArtwork.image(at: image.size)!
       #expect(actualImage.isVisuallyEqual(to: image))
     } else {
