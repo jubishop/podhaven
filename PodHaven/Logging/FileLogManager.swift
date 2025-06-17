@@ -24,7 +24,7 @@ struct FileLogManager: Sendable {
     return documentsURL.appendingPathComponent("log.ndjson")
   }()
 
-  private let log = Log.as("FileLogCleaner")
+  private let log = Log.as("FileLogCleaner", level: .debug)
 
   // MARK: - Initialization
 
@@ -72,20 +72,20 @@ struct FileLogManager: Sendable {
     let notifications = Container.shared.notifications()
 
     Task {
-      log.debug("App launched, checking if log truncation needed")
+      log.trace("App launched, checking if log truncation needed")
       await truncateIfNeeded()
     }
 
     Task {
       for await _ in notifications(UIApplication.didBecomeActiveNotification) {
-        log.debug("App became active, checking if log truncation needed")
+        log.trace("App became active, checking if log truncation needed")
         await truncateIfNeeded()
       }
     }
 
     Task {
       for await _ in notifications(UIApplication.didEnterBackgroundNotification) {
-        log.debug("App backgrounded, checking if log truncation needed")
+        log.trace("App backgrounded, checking if log truncation needed")
         await truncateIfNeeded()
       }
     }
@@ -93,9 +93,15 @@ struct FileLogManager: Sendable {
 
   private func truncateIfNeeded() async {
     let now = Date().timeIntervalSince1970
+    let timeSinceLastCleanup = now - lastCleanup
 
-    if now - lastCleanup > periodicCleanupInterval {
-      log.debug("Running periodic log truncation")
+    if timeSinceLastCleanup > periodicCleanupInterval {
+      log.debug(
+        """
+        Running periodic log truncation, \
+        last cleanup was: \(timeSinceLastCleanup.readableFormat) ago
+        """
+      )
       $lastCleanup.withLock { $0 = now }
 
       let backgroundTaskID = await UIApplication.shared.beginBackgroundTask()
