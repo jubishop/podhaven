@@ -111,6 +111,23 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
   }
 
+  @Test("loading an episode sets loading status")
+  func loadingEpisodeSetsLoadingStatus() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    let loadingSemaphore = AsyncSemaphore(value: 0)
+    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in
+      await loadingSemaphore.wait()
+      return (true, .inSeconds(10))
+    }
+
+    Task { try await playManager.load(podcastEpisode) }
+    try await PlayHelpers.waitFor(.loading(podcastEpisode.episode.title))
+
+    loadingSemaphore.signal()
+    try await PlayHelpers.waitFor(.paused)
+  }
+
   @Test("loading an episode seeks to its stored time")
   func loadingEpisodeSeeksToItsStoredTime() async throws {
     let currentTime: CMTime = .inSeconds(10)

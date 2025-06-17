@@ -105,6 +105,7 @@ actor PlayManager {
       log.info("performLoad: \(incoming.toString)")
 
       await podAVPlayer.removeObservers()
+      await setStatus(.loading(incoming.episode.title))
       await pause()
       await clearOnDeck()
 

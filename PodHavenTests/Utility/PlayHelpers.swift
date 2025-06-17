@@ -57,7 +57,7 @@ enum PlayHelpers {
     try await Wait.until(
       {
         switch (await playState.status, status) {
-        case (.loading, .loading): return true
+        case (.loading(let current), .loading(let expected)): return current == expected
         case (.playing, .playing): return true
         case (.paused, .paused): return true
         case (.stopped, .stopped): return true
