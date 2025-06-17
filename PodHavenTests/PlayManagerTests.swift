@@ -566,6 +566,22 @@ import Testing
     try await PlayHelpers.waitForItemQueue([playingEpisode, incomingQueuedEpisode])
   }
 
+  @Test("removing top queue item clears item queue")
+  func removingTopQueueItemClearsItemQueue() async throws {
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await queue.unshift(queuedEpisode.id)
+    try await playManager.load(playingEpisode)
+
+    try await PlayHelpers.waitForQueue([queuedEpisode])
+    try await PlayHelpers.waitForItemQueue([playingEpisode, queuedEpisode])
+
+    try await queue.dequeue(queuedEpisode.id)
+
+    try await PlayHelpers.waitForQueue([])
+    try await PlayHelpers.waitForItemQueue([playingEpisode])
+  }
+
   @Test("changing top queue item while previous queued item is loading updates item queue")
   func changingTopQueueItemWhilePreviousQueuedItemIsLoadingUpdatesItemQueue() async throws {
     let (playingEpisode, queuedEpisode, incomingQueuedEpisode) =
