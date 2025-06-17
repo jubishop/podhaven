@@ -4,6 +4,6 @@ import Foundation
 import SwiftUI
 
 protocol ImageFetchable {
-  func prefetch(_ urls: [URL])
+  func prefetch(_ urls: [URL]) async
   func fetchImage(_ url: URL) async throws -> UIImage
 }

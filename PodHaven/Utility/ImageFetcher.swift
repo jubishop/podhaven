@@ -12,12 +12,16 @@ extension Container {
 }
 
 struct ImageFetcher: ImageFetchable {
+  private let log = Log.as("ImageFetcher")
+
   private let pipeline = ImagePipeline.shared
   private let prefetcher = ImagePrefetcher()
 
   fileprivate init() {}
 
-  func prefetch(_ urls: [URL]) {
+  func prefetch(_ urls: [URL]) async {
+    log.debug("prefetching: \(urls)")
+
     prefetcher.startPrefetching(with: urls)
   }
 

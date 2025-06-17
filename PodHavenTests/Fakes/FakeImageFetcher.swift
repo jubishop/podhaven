@@ -7,7 +7,13 @@ import SwiftUI
 @testable import PodHaven
 
 class FakeImageFetcher: ImageFetchable {
-  func prefetch(_ urls: [URL]) { }
+  private var prefetchedImages: [URL: UIImage] = [:]
+
+  func prefetch(_ urls: [URL]) async {
+    for url in urls {
+      prefetchedImages[url] = try? await fetchImage(url)
+    }
+  }
 
   typealias FetchHandler = @Sendable (URL) async throws -> UIImage
 
@@ -30,6 +36,8 @@ class FakeImageFetcher: ImageFetchable {
 
   func fetchImage(_ url: URL) async throws -> UIImage {
     defer { responseCounts[url, default: 0] += 1 }
+
+    if let prefetchedImage = prefetchedImages[url] { return prefetchedImage }
 
     let handler = fakeHandlers[url, default: defaultHandler]
     let uiImage = try await handler(url)
