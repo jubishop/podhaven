@@ -22,6 +22,16 @@ enum LogSubsystem {
     case detail
   }
 
+  enum Feed: String, LogCategorizable {
+    case refreshManager
+
+    var level: Logger.Level {
+      switch self {
+      case .refreshManager: return .debug
+      }
+    }
+  }
+
   enum Play: String, LogCategorizable {
     case manager
     case avPlayer
@@ -44,6 +54,10 @@ enum LogSubsystem {
   enum SearchView: String, LogCategorizable {
     case main
     case episodeDetail
+  }
+
+  enum SettingsView: String, LogCategorizable {
+    case opml
   }
 
   enum UpNextView: String, LogCategorizable {

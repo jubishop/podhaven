@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Logging
 import Semaphore
 import UniformTypeIdentifiers
 
@@ -68,6 +69,8 @@ import UniformTypeIdentifiers
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
+
+  private let log = Log.as(LogSubsystem.SettingsView.opml)
 
   let opmlType: UTType
 
@@ -137,9 +140,13 @@ import UniformTypeIdentifiers
         if !podcast.subscribed {
           Task { [weak self] in
             guard let self else { return }
-            try await repo.markSubscribed(podcast.id)
-            if let series = try await repo.podcastSeries(podcast.id) {
-              try await refreshManager.refreshSeries(podcastSeries: series)
+            do {
+              try await repo.markSubscribed(podcast.id)
+              if let series = try await repo.podcastSeries(podcast.id) {
+                try await refreshManager.refreshSeries(podcastSeries: series)
+              }
+            } catch {
+              log.error(error)
             }
           }
         }

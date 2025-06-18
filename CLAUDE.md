@@ -150,3 +150,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Github Interactions
 - If I ask you to do anything with Github, use the Github CLI (gh)
+
+## Object Logging
+- When logging objects that conform to `Stringable` use `.toString`

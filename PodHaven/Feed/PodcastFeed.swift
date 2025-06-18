@@ -65,7 +65,7 @@ struct EpisodeFeed: Sendable, Equatable {
   }
 }
 
-struct PodcastFeed: Sendable, Equatable {
+struct PodcastFeed: Sendable, Stringable {
   // MARK: - Static Parsing Methods
 
   static func parse(_ url: FeedURL) async throws(FeedError) -> PodcastFeed {
@@ -150,6 +150,16 @@ struct PodcastFeed: Sendable, Equatable {
         a.pubDate >= b.pubDate ? a : b
       }
     )
+  }
+
+  // MARK: - Stringable
+
+  var toString: String { rssPodcast.toString }
+
+  // MARK: - Hashable
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine(feedURL)
   }
 
   // MARK: - Equatable

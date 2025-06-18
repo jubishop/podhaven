@@ -70,7 +70,7 @@ struct PodcastRSS: Decodable, Sendable {
     }
   }
 
-  @dynamicMemberLookup struct Podcast: Decodable, Sendable {
+  @dynamicMemberLookup struct Podcast: Decodable, Sendable, Stringable {
     // Mark: - Attributes
 
     struct TopLevelValues: Decodable, Sendable {
@@ -124,6 +124,22 @@ struct PodcastRSS: Decodable, Sendable {
     init(from decoder: Decoder) throws {
       values = try TopLevelValues(from: decoder)
       iTunes = try iTunesNamespace(from: decoder)
+    }
+
+    // MARK: - Stringable
+
+    var toString: String { values.title }
+
+    // MARK: - Hashable
+
+    func hash(into hasher: inout Hasher) {
+      hasher.combine(feedURL)
+    }
+
+    // MARK: - Equatable
+
+    static func == (lhs: Podcast, rhs: Podcast) -> Bool {
+      lhs.feedURL == rhs.feedURL
     }
   }
 
