@@ -76,7 +76,7 @@ actor RefreshManager {
   }
 
   func refreshSeries(podcastSeries: PodcastSeries) async throws(RefreshError) {
-    log.debug("refreshSeries: \(podcastSeries.toString)")
+    log.trace("refreshSeries: \(podcastSeries.toString)")
 
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
     let podcastFeed: PodcastFeed
@@ -91,7 +91,7 @@ actor RefreshManager {
   func updateSeriesFromFeed(podcastSeries: PodcastSeries, podcastFeed: PodcastFeed)
     async throws(RefreshError)
   {
-    log.debug(
+    log.trace(
       """
       updateSeriesFromFeed
         podcastSeries: \(podcastSeries.toString)
@@ -130,11 +130,13 @@ actor RefreshManager {
         }
       }
 
-      log.debug(
+      log.trace(
         """
         updateSeriesFromFeed: \(podcastSeries.toString)
           \(unsavedEpisodes.count) new episodes
           \(existingEpisodes.count) updated episodes 
+          New Episodes are: 
+            \(unsavedEpisodes.map { "    \($0.toString)" })
         """
       )
 
