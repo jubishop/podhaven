@@ -101,7 +101,7 @@ struct FileLogManager: Sendable {
       log.debug(
         """
         Running periodic log truncation, \
-        last cleanup was: \(timeSinceLastCleanup.readableFormat) ago
+        last cleanup was: \(timeSinceLastCleanup.compactReadableFormat) ago
         """
       )
       $lastCleanup.withLock { $0 = now }

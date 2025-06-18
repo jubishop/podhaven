@@ -101,6 +101,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Use GRDB query builder APIs over raw SQL
 - Prefer Swift concurrency (async/await) with proper error handling
 - Use protocol-oriented design for behavioral abstractions
+- **Important Rule**: Don't put functions in View files ever. Put them in their ViewModel, or somewhere even deeper in the stack if it is more generically reusable.
 
 ## Requirements
 - Xcode 16.3 or later
@@ -154,3 +155,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Object Logging
 - When logging objects that conform to `Stringable` use `.toString`
+
+## Build & Test Policy
+- Don't try to build or test the code

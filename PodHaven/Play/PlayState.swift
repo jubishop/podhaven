@@ -28,9 +28,7 @@ extension Container {
 
   private var keyboardVisible = false
 
-  var showPlayBar: Bool {
-    !keyboardVisible && status.playable
-  }
+  var showPlayBar: Bool { !keyboardVisible }
 
   // MARK: - State Setters
 

@@ -17,11 +17,16 @@ extension Container {
 
   // MARK: - State Management
 
+  var duration: CMTime { playState.onDeck?.duration ?? CMTime.zero }
+  var episodeImage: UIImage? { playState.onDeck?.image }
   var episodeTitle: String? { playState.onDeck?.episodeTitle }
-  var playable: Bool { playState.playable }
   var playing: Bool { playState.playing }
+  var podcastTitle: String? { playState.onDeck?.podcastTitle }
+  var publishedAt: Date? { playState.onDeck?.pubDate }
 
+  var isExpanded = false
   var isDragging = false
+
   private var _sliderValue: Double = 0
   var sliderValue: Double {
     get { isDragging ? _sliderValue : playState.currentTime.seconds }
@@ -33,14 +38,19 @@ extension Container {
       }
     }
   }
-  var duration: CMTime { playState.onDeck?.duration ?? CMTime.zero }
 
   var seekBackwardImage: Image { Image(systemName: "gobackward.15") }
   var seekForwardImage: Image { Image(systemName: "goforward.30") }
 
-  func playOrPause() {
-    guard playState.playable else { return }
+  // MARK: - Actions
 
+  func toggleExpansion() {
+    withAnimation(.easeInOut(duration: 0.25)) {
+      isExpanded.toggle()
+    }
+  }
+
+  func playOrPause() {
     if playState.playing {
       Task { [weak self] in
         guard let self else { return }
