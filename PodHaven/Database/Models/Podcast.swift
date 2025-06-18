@@ -43,7 +43,7 @@ struct UnsavedPodcast: Savable, Stringable {
 
   // MARK: - Savable
 
-  var toString: String { self.title }
+  var toString: String { "(\(feedURL.toString)) - \(self.title)" }
   var searchableString: String { self.title }
 }
 

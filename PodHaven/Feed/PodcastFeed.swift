@@ -154,7 +154,7 @@ struct PodcastFeed: Sendable, Stringable {
 
   // MARK: - Stringable
 
-  var toString: String { "[\(feedURL)] - \(rssPodcast.title)" }
+  var toString: String { "(\(feedURL.toString)) - \(rssPodcast.title)" }
 
   // MARK: - Hashable
 
