@@ -10,9 +10,6 @@ import Tagged
 typealias GUID = Tagged<UnsavedEpisode, String>
 
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
-extension MediaURL: Stringable {
-  var toString: String { rawValue.hashTo(4) }
-}
 
 struct UnsavedEpisode: Savable, Stringable {
   static let databaseTableName: String = "episode"
