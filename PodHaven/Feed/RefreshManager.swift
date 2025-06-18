@@ -31,10 +31,10 @@ actor RefreshManager {
     log.debug("start: executing")
 
     if await UIApplication.shared.applicationState == .active {
-      log.debug("start: app already active, activating refresh task")
+      log.trace("start: app already active, activating refresh task")
       activated()
     } else {
-      log.debug("start: app not active, waiting for activation")
+      log.trace("start: app not active, waiting for activation")
     }
 
     startListeningToActivation()
@@ -152,7 +152,7 @@ actor RefreshManager {
   // MARK: - Private Helpers
 
   private func activated() {
-    log.debug("activated: starting background refresh task")
+    log.trace("activated: starting background refresh task")
 
     backgroundRefreshTask?.cancel()
     backgroundRefreshTask = Task(priority: .utility) { [weak self] in
@@ -174,7 +174,7 @@ actor RefreshManager {
   }
 
   private func backgrounded() {
-    log.debug("backgrounded: cancelling refresh task")
+    log.trace("backgrounded: cancelling refresh task")
 
     backgroundRefreshTask?.cancel()
     backgroundRefreshTask = nil
