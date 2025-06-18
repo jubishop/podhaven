@@ -55,7 +55,7 @@ struct NowPlayingInfo {
   }
 
   func setCurrentTime(_ currentTime: CMTime) {
-    log.debug("setCurrentTime: \(currentTime)")
+    log.trace("setCurrentTime: \(currentTime)")
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
       currentTime.seconds

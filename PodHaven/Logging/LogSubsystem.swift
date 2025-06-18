@@ -11,7 +11,7 @@ enum LogSubsystem {
 
     var level: Logger.Level {
       switch self {
-      case .appDB: return .info
+      case .appDB: return .debug
       case .queue: return .trace
       case .repo: return .debug
       }
@@ -24,12 +24,6 @@ enum LogSubsystem {
 
   enum Feed: String, LogCategorizable {
     case refreshManager
-
-    var level: Logger.Level {
-      switch self {
-      case .refreshManager: return .debug
-      }
-    }
   }
 
   enum Play: String, LogCategorizable {
@@ -41,7 +35,7 @@ enum LogSubsystem {
       switch self {
       case .manager: return .debug
       case .avPlayer: return .debug
-      case .nowPlayingInfo: return .info
+      case .nowPlayingInfo: return .debug
       }
     }
   }
