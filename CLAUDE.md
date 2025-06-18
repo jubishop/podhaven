@@ -97,6 +97,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Code Patterns
 - ViewModels should have `execute()` function in Initialization section
+- Views should only interact with their ViewModel
 - Use GRDB query builder APIs over raw SQL
 - Prefer Swift concurrency (async/await) with proper error handling
 - Use protocol-oriented design for behavioral abstractions
