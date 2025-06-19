@@ -44,8 +44,8 @@ struct PlayBar: View {
   // MARK: - Expanded PlayBar
 
   private var expandedPlayBar: some View {
-    VStack(spacing: 12) {
-      HStack {
+    VStack(spacing: 8) {
+      HStack(alignment: .top) {
         episodeImage
 
         VStack(alignment: .leading, spacing: 4) {
@@ -53,21 +53,21 @@ struct PlayBar: View {
             Text(episodeTitle)
               .font(.headline)
               .foregroundColor(.white)
-              .lineLimit(2)
+              .lineLimit(1)
               .multilineTextAlignment(.leading)
           }
 
           if let podcastTitle = viewModel.podcastTitle {
             Text(podcastTitle)
               .font(.subheadline)
-              .foregroundColor(.white.opacity(0.8))
+              .foregroundColor(.white)
               .lineLimit(1)
           }
 
           if let publishedAt = viewModel.publishedAt {
             Text(publishedAt, style: .date)
               .font(.caption)
-              .foregroundColor(.white.opacity(0.6))
+              .foregroundColor(.white)
           }
         }
 
@@ -79,13 +79,10 @@ struct PlayBar: View {
             .foregroundColor(.white)
         }
       }
-      .padding(.horizontal, 16)
-      .padding(.top, 12)
 
       playbackControls
-        .padding(.horizontal, 16)
 
-      VStack(spacing: 8) {
+      VStack(spacing: 4) {
         Slider(
           value: $viewModel.sliderValue,
           in: 0...Double(viewModel.duration.seconds),
@@ -98,18 +95,17 @@ struct PlayBar: View {
         HStack {
           Text(viewModel.sliderValue.playbackTimeFormat)
             .font(.caption)
-            .foregroundColor(.white.opacity(0.8))
+            .foregroundColor(.white)
 
           Spacer()
 
           Text(viewModel.duration.seconds.playbackTimeFormat)
             .font(.caption)
-            .foregroundColor(.white.opacity(0.8))
+            .foregroundColor(.white)
         }
       }
-      .padding(.horizontal, 16)
-      .padding(.bottom, 16)
     }
+    .padding(20)
   }
 
   // MARK: - Shared Components
@@ -135,7 +131,7 @@ struct PlayBar: View {
   }
 
   private var playbackControls: some View {
-    HStack(spacing: 20) {
+    HStack(spacing: 32) {
       Button(action: viewModel.seekBackward) {
         viewModel.seekBackwardImage
           .font(.title2)
