@@ -51,6 +51,7 @@ import Logging
         try await playManager.load(podcastEpisode)
         await playManager.play()
       } catch {
+        alert("Failed to load next episode: \(podcastEpisode.episode.title)")
         log.error(error)
       }
     }

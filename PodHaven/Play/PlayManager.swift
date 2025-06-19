@@ -72,12 +72,22 @@ actor PlayManager {
     startListeningToControlStatus()
 
     if let currentEpisodeID {
+      let podcastEpisode: PodcastEpisode?
       do {
-        if let podcastEpisode = try await repo.episode(currentEpisodeID) {
-          try await load(podcastEpisode)
-        }
+        podcastEpisode = try await repo.episode(currentEpisodeID)
       } catch {
+        await alert("Podcast episode with id: \"\(currentEpisodeID)\" not found")
         log.error(error)
+        return
+      }
+
+      if let podcastEpisode {
+        do {
+          try await load(podcastEpisode)
+        } catch {
+          await alert("Failed to load podcast episode \(podcastEpisode.episode.title)")
+          log.error(error)
+        }
       }
     }
   }

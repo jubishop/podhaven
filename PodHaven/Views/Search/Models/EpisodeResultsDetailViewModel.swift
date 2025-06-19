@@ -55,11 +55,20 @@ import Logging
   func playNow() {
     Task { [weak self] in
       guard let self else { return }
+      let podcastEpisode: PodcastEpisode
       do {
-        let podcastEpisode = try await fetchOrCreateEpisode()
+        podcastEpisode = try await fetchOrCreateEpisode()
+      } catch {
+        log.error(error)
+        alert("Failed to fetch or create episode: \(unsavedPodcastEpisode.unsavedEpisode.title)")
+        return
+      }
+
+      do {
         try await playManager.load(podcastEpisode)
         await playManager.play()
       } catch {
+        alert("Failed to load episode: \(podcastEpisode.episode.title)")
         log.error(error)
       }
     }
