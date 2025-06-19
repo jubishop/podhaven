@@ -177,7 +177,11 @@ extension Container {
           guard let self else { return }
           if let preSeekStatus {
             self.preSeekStatus = nil
-            if preSeekStatus != .paused { play() }
+            if preSeekStatus != .paused {
+              play()
+            } else {
+              controlStatusContinuation.yield(.paused)
+            }
           }
           addPeriodicTimeObserver()
         }

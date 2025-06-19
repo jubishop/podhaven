@@ -457,6 +457,25 @@ import Testing
     #expect(PlayHelpers.nowPlayingPlaying == true)
   }
 
+  @Test("seeking retains paused status")
+  func seekingRetainsPausedStatus() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    let seekSemaphore = AsyncSemaphore(value: 0)
+    avQueuePlayer.seekHandler = { _ in
+      await seekSemaphore.wait()
+      return true
+    }
+    try await playManager.load(podcastEpisode)
+
+    // Seek and episode will return to paused
+    await playManager.seek(to: .inSeconds(60))
+    try await PlayHelpers.waitFor(.seeking)
+    seekSemaphore.signal()
+    try await PlayHelpers.waitFor(.paused)
+    #expect(PlayHelpers.nowPlayingPlaying == false)
+  }
+
   @Test("playing while seeking retains playing status")
   func playingWhileSeekingRetainsPlayStatus() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
