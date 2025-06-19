@@ -21,6 +21,7 @@ extension Container {
   var episodeImage: UIImage? { playState.onDeck?.image }
   var episodeTitle: String? { playState.onDeck?.episodeTitle }
   var isLoading: Bool { playState.loading != nil }
+  var isStopped: Bool { playState.stopped }
   var loadingEpisodeTitle: String { playState.loading ?? "Unknown" }
   var playing: Bool { playState.playing }
   var podcastTitle: String? { playState.onDeck?.podcastTitle }

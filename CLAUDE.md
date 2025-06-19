@@ -149,6 +149,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Code Safety
 - Never use `!` to force unwrap optionals in production code.
+- Don't use opacity below 1.0 for text
 
 ## Github Interactions
 - If I ask you to do anything with Github, use the Github CLI (gh)

@@ -13,6 +13,8 @@ struct PlayBar: View {
     Group {
       if viewModel.isLoading {
         loadingPlayBar
+      } else if viewModel.isStopped {
+        stoppedPlayBar
       } else if viewModel.isExpanded {
         expandedPlayBar
       } else {
@@ -37,6 +39,24 @@ struct PlayBar: View {
         .font(.system(size: 16, weight: .medium))
         .foregroundColor(.white)
         .lineLimit(1)
+
+      Spacer()
+    }
+  }
+
+  // MARK: - Stopped PlayBar
+
+  private var stoppedPlayBar: some View {
+    HStack(spacing: 12) {
+      Image(systemName: "waveform.slash")
+        .font(.system(size: 20, weight: .medium))
+        .foregroundColor(.white)
+
+      Text("No episode selected")
+        .font(.system(size: 16, weight: .medium))
+        .foregroundColor(.white)
+
+      Spacer()
     }
   }
 
@@ -98,6 +118,7 @@ struct PlayBar: View {
             .font(.system(size: 16, weight: .medium))
             .foregroundColor(.white)
         }
+        .padding(.top, 8)
       }
 
       playbackControls
