@@ -35,7 +35,7 @@ enum LogSubsystem {
       switch self {
       case .manager: return .debug
       case .avPlayer: return .debug
-      case .nowPlayingInfo: return .debug
+      case .nowPlayingInfo: return .info
       }
     }
   }
