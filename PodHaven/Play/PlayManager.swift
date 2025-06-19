@@ -315,6 +315,12 @@ actor PlayManager {
       await setStatus(.stopped)
 
       if let nextEpisode = try await queue.nextEpisode {
+        log.debug(
+          """
+          handleCurrentItemChange: next episode exists to manually load
+            \(nextEpisode.toString)
+          """
+        )
         try await load(nextEpisode)
         await play()
       }
