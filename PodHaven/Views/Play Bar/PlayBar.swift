@@ -7,16 +7,37 @@ import SwiftUI
 struct PlayBar: View {
   @InjectedObservable(\.playBarViewModel) private var viewModel
 
+  private let imageSize: CGFloat = 40
+
   var body: some View {
     Group {
-      if viewModel.isExpanded {
+      if viewModel.isLoading {
+        loadingPlayBar
+      } else if viewModel.isExpanded {
         expandedPlayBar
       } else {
         collapsedPlayBar
       }
     }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 12)
     .frame(maxWidth: .infinity)
     .background(Color.accentColor)
+  }
+
+  // MARK: - Loading PlayBar
+
+  private var loadingPlayBar: some View {
+    HStack(spacing: 12) {
+      ProgressView()
+        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+        .scaleEffect(0.8)
+
+      Text("Loading \(viewModel.loadingEpisodeTitle)")
+        .font(.system(size: 16, weight: .medium))
+        .foregroundColor(.white)
+        .lineLimit(1)
+    }
   }
 
   // MARK: - Collapsed PlayBar
@@ -36,10 +57,8 @@ struct PlayBar: View {
           .font(.system(size: 16, weight: .medium))
           .foregroundColor(.white)
       }
-      .frame(width: 40)
+      .frame(width: imageSize)
     }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 12)
   }
 
   // MARK: - Expanded PlayBar
@@ -106,7 +125,6 @@ struct PlayBar: View {
         }
       }
     }
-    .padding(20)
   }
 
   // MARK: - Shared Components
@@ -117,12 +135,12 @@ struct PlayBar: View {
         Image(uiImage: image)
           .resizable()
           .aspectRatio(contentMode: .fill)
-          .frame(width: 40, height: 40)
+          .frame(width: imageSize, height: imageSize)
           .clipShape(RoundedRectangle(cornerRadius: 8))
       } else {
         RoundedRectangle(cornerRadius: 8)
           .fill(Color.white.opacity(0.2))
-          .frame(width: 40, height: 40)
+          .frame(width: imageSize, height: imageSize)
           .overlay(
             Image(systemName: "music.note")
               .foregroundColor(.white.opacity(0.6))
