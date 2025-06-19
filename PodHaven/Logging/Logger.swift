@@ -14,15 +14,17 @@ extension Logger {
 
   func error(
     _ error: any Error,
+    remarkable: Logger.Level = .error,
+    mundane: Logger.Level = .notice,
     file: String = #fileID,
     function: String = #function,
     line: UInt = #line
   ) {
     let message = ErrorKit.loggableMessage(for: error)
     if ErrorKit.isRemarkable(error) {
-      self.error(message, file: file, function: function, line: line)
+      self.log(level: remarkable, message, file: file, function: function, line: line)
     } else {
-      self.notice(message, file: file, function: function, line: line)
+      self.log(level: mundane, message, file: file, function: function, line: line)
     }
   }
 }

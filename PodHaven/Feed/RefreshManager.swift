@@ -67,7 +67,7 @@ actor RefreshManager {
             do {
               try await refreshSeries(podcastSeries: podcastSeries)
             } catch {
-              log.error(error)
+              log.error(error, mundane: .trace)
             }
           }
         }
