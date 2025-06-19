@@ -36,6 +36,7 @@ struct PlayBar: View {
           .font(.system(size: 16, weight: .medium))
           .foregroundColor(.white)
       }
+      .frame(width: 40)
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
