@@ -21,6 +21,7 @@ actor PlayManager {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
+  private var alert: Alert { get async { await Container.shared.alert() } }
   nonisolated private var imageFetcher: any ImageFetchable { Container.shared.imageFetcher() }
   private var playState: PlayState { get async { await Container.shared.playState() } }
   private var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
@@ -321,7 +322,12 @@ actor PlayManager {
             \(nextEpisode.toString)
           """
         )
-        try await load(nextEpisode)
+        do {
+          try await load(nextEpisode)
+        } catch {
+          await alert("Failed to load next episode: \(nextEpisode.episode.title)")
+          throw error
+        }
         await play()
       }
     }
