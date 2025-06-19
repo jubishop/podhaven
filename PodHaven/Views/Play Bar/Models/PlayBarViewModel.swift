@@ -17,13 +17,15 @@ extension Container {
 
   // MARK: - State Management
 
+  var isLoading: Bool { playState.loading != nil }
+  var isPlaying: Bool { playState.playing }
+  var isSeeking: Bool { playState.seeking }
+  var isStopped: Bool { playState.stopped }
+
   var duration: CMTime { playState.onDeck?.duration ?? CMTime.zero }
   var episodeImage: UIImage? { playState.onDeck?.image }
   var episodeTitle: String? { playState.onDeck?.episodeTitle }
-  var isLoading: Bool { playState.loading != nil }
-  var isStopped: Bool { playState.stopped }
   var loadingEpisodeTitle: String { playState.loading ?? "Unknown" }
-  var playing: Bool { playState.playing }
   var podcastTitle: String? { playState.onDeck?.podcastTitle }
   var publishedAt: Date? { playState.onDeck?.pubDate }
 
@@ -54,7 +56,7 @@ extension Container {
   }
 
   func playOrPause() {
-    if playState.playing {
+    if isPlaying {
       Task { [weak self] in
         guard let self else { return }
         await playManager.pause()

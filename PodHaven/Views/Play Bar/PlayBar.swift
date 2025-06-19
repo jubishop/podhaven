@@ -179,9 +179,21 @@ struct PlayBar: View {
       }
 
       Button(action: viewModel.playOrPause) {
-        Image(systemName: viewModel.playing ? "pause.circle.fill" : "play.circle.fill")
-          .font(.title)
-          .foregroundColor(.white)
+        Group {
+          if viewModel.isSeeking {
+            Image(systemName: "circle.dotted.circle")
+              .font(.title)
+              .foregroundColor(.white)
+          } else if viewModel.isPlaying {
+            Image(systemName: "pause.circle.fill")
+              .font(.title)
+              .foregroundColor(.white)
+          } else {
+            Image(systemName: "play.circle.fill")
+              .font(.title)
+              .foregroundColor(.white)
+          }
+        }
       }
 
       Button(action: viewModel.seekForward) {
