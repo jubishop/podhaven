@@ -130,7 +130,8 @@ actor RefreshManager {
         }
       }
 
-      log.trace(
+      log.log(
+        level: unsavedEpisodes.isEmpty ? .trace : .debug,
         """
         updateSeriesFromFeed: \(podcastSeries.toString)
           \(unsavedEpisodes.count) new episodes

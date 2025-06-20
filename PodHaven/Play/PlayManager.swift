@@ -45,7 +45,11 @@ actor PlayManager {
       return Int(exactly: newEpisodeID.rawValue)
     }
   )
-  private var currentEpisodeID: Episode.ID?
+  private var currentEpisodeID: Episode.ID? {
+    willSet {
+      log.debug("Setting currentEpisodeID to \(String(describing: newValue))")
+    }
+  }
 
   // MARK: - State Management
 
@@ -312,6 +316,7 @@ actor PlayManager {
     if let podcastEpisode {
       log.debug("handleCurrentItemChange: \(podcastEpisode.id)")
 
+      log.debug("handleCurrentItemChange: dequeueing episode: \(podcastEpisode.toString)")
       do {
         try await queue.dequeue(podcastEpisode.id)
       } catch {
