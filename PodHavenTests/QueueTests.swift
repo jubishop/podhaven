@@ -30,6 +30,8 @@ class QueueTests {
     )
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["top", "midtop", "middle", "midbottom", "bottom"])
   }
 
   @Test("clearing queue")
@@ -60,6 +62,8 @@ class QueueTests {
     #expect(bottomEpisode.queueOrder == 2)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["unqtop", "unqmiddle", "unqbottom"])
   }
 
   @Test("unshifting new episodes")
@@ -73,6 +77,10 @@ class QueueTests {
     #expect(middleEpisode.queueOrder == 1)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5, 6])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(
+      fetchGUIDs == ["unqtop", "unqmiddle", "top", "midtop", "middle", "midbottom", "bottom"]
+    )
   }
 
   @Test("unshifting a new and existing episode")
@@ -87,6 +95,8 @@ class QueueTests {
     #expect(middleEpisode.queueOrder == 1)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["unqtop", "middle", "top", "midtop", "midbottom", "bottom"])
   }
 
   @Test("unshifting existing episodes")
@@ -101,6 +111,8 @@ class QueueTests {
     #expect(middleEpisode.queueOrder == 1)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["bottom", "middle", "top", "midtop", "midbottom"])
   }
 
   @Test("inserting a new episode at top")
@@ -112,6 +124,8 @@ class QueueTests {
     #expect(try await queue.nextEpisode?.episode == topEpisode)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["unqtop", "top", "midtop", "middle", "midbottom", "bottom"])
   }
 
   @Test("inserting a new episode at middle")
@@ -122,6 +136,8 @@ class QueueTests {
     #expect(middleEpisode.queueOrder == 3)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["top", "midtop", "middle", "unqmiddle", "midbottom", "bottom"])
   }
 
   @Test("inserting a new episode at bottom")
@@ -132,6 +148,8 @@ class QueueTests {
     #expect(bottomEpisode.queueOrder == 5)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["top", "midtop", "middle", "midbottom", "bottom", "unqbottom"])
   }
 
   @Test("dequeing an episode")
@@ -142,6 +160,20 @@ class QueueTests {
     #expect(!midTopEpisode.queued)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["top", "middle", "midbottom", "bottom"])
+  }
+
+  @Test("dequeuing the top episode")
+  func testDequeueTop() async throws {
+    var topEpisode = try await fetchEpisode("top")
+    try await queue.dequeue(topEpisode.id)
+    topEpisode = try await fetchEpisode("top")
+    #expect(!topEpisode.queued)
+    let fetchOrder = try await fetchOrder()
+    #expect(fetchOrder == [0, 1, 2, 3])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["midtop", "middle", "midbottom", "bottom"])
   }
 
   @Test("dequeing episodes")
@@ -158,6 +190,8 @@ class QueueTests {
     #expect(!bottomEpisode.queued)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["midtop", "midbottom"])
   }
 
   @Test("appending existing episodes")
@@ -171,6 +205,8 @@ class QueueTests {
     #expect(topEpisode.queueOrder == 4)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["midtop", "midbottom", "bottom", "middle", "top"])
   }
 
   @Test("appending new episodes")
@@ -184,6 +220,10 @@ class QueueTests {
     #expect(bottomEpisode.queueOrder == 6)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5, 6])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(
+      fetchGUIDs == ["top", "midtop", "middle", "midbottom", "bottom", "unqtop", "unqbottom"]
+    )
   }
 
   @Test("appending an existing and new episode")
@@ -197,6 +237,8 @@ class QueueTests {
     #expect(topEpisode.queueOrder == 5)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["top", "midtop", "midbottom", "bottom", "middle", "unqtop"])
   }
 
   @Test("inserting an existing episode below current location")
@@ -207,6 +249,8 @@ class QueueTests {
     #expect(midTopEpisode.queueOrder == 2)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["top", "middle", "midtop", "midbottom", "bottom"])
   }
 
   @Test("inserting an existing episode above current location")
@@ -217,6 +261,8 @@ class QueueTests {
     #expect(midBottomEpisode.queueOrder == 1)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4])
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["top", "midbottom", "midtop", "middle", "bottom"])
   }
 
   @Test("deleting a podcast series dequeues any episodes")
@@ -240,6 +286,8 @@ class QueueTests {
 
     let episode = try await fetchEpisode("other", from: otherSeries)
     #expect(episode.queueOrder == 0)
+    let fetchGUIDs = try await fetchGUIDs()
+    #expect(fetchGUIDs == ["other"])
   }
 
   // MARK: - Helpers
@@ -253,6 +301,17 @@ class QueueTests {
         .fetchAll(db)
     }
     return episodes.map { $0.queueOrder ?? -1 }
+  }
+
+  private func fetchGUIDs() async throws -> [String] {
+    let episodes = try await repo.db.read { db in
+      try Episode
+        .all()
+        .queued()
+        .order(\.queueOrder.asc)
+        .fetchAll(db)
+    }
+    return episodes.map { $0.guid.rawValue }
   }
 
   private func fetchEpisode(_ guid: String, from series: PodcastSeries? = nil) async throws
