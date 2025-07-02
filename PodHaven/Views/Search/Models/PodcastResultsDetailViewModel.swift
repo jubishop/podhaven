@@ -52,7 +52,7 @@ class PodcastResultsDetailViewModel:
         if subscribable && existingPodcastSeries == podcastSeries { continue }
 
         if let podcastSeries = podcastSeries, podcastSeries.podcast.subscribed {
-          navigation.showPodcast(.subscribed, podcastSeries)
+          navigation.showPodcast(.subscribed, podcastSeries.podcast)
         }
 
         existingPodcastSeries = podcastSeries
@@ -120,7 +120,7 @@ class PodcastResultsDetailViewModel:
             podcastSeries: updatedPodcastSeries,
             podcastFeed: podcastFeed
           )
-          navigation.showPodcast(.subscribed, updatedPodcastSeries)
+          navigation.showPodcast(.subscribed, updatedPodcastSeries.podcast)
         } else {
           unsavedPodcast.subscribed = true
           unsavedPodcast.lastUpdate = Date()
@@ -128,7 +128,7 @@ class PodcastResultsDetailViewModel:
             unsavedPodcast,
             unsavedEpisodes: unsavedEpisodes
           )
-          navigation.showPodcast(.subscribed, newPodcastSeries)
+          navigation.showPodcast(.subscribed, newPodcastSeries.podcast)
         }
       } catch {
         alert("Couldn't subscribe")

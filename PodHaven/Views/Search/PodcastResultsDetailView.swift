@@ -76,6 +76,7 @@ struct PodcastResultsDetailView: View {
         EpisodeResultsDetailView(
           viewModel: EpisodeResultsDetailViewModel(searchedPodcastEpisode: searchedPodcastEpisode)
         )
+        .id(searchedPodcastEpisode.unsavedPodcastEpisode.unsavedEpisode.media)
       }
     )
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)

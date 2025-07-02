@@ -44,10 +44,10 @@ extension Container {
     playlistsPath.append(view)
   }
 
-  func showPodcast(_ view: PodcastsView, _ podcastSeries: PodcastSeries) {
+  func showPodcast(_ view: PodcastsView, _ podcast: Podcast) {
     currentTab = .podcasts
     podcastsPath.append(view)
-    podcastsPath.append(podcastSeries.podcast)
+    podcastsPath.append(podcast)
   }
 
   func showEpisode(_ view: PodcastsView, _ podcastEpisode: PodcastEpisode) {

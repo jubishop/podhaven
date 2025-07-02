@@ -7,7 +7,11 @@ import IdentifiedCollections
 import Logging
 import SwiftUI
 
-@Observable @MainActor class PodcastDetailViewModel: QueueableSelectableEpisodeList, PodcastQueueableModel {
+@Observable @MainActor
+class PodcastDetailViewModel:
+  QueueableSelectableEpisodeList,
+  PodcastQueueableModel
+{
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -98,7 +102,7 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       try await repo.markSubscribed(podcast.id)
-      navigation.showPodcast(.subscribed, podcastSeries)
+      navigation.showPodcast(.subscribed, podcastSeries.podcast)
     }
   }
 }

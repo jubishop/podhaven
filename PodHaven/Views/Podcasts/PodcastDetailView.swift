@@ -12,6 +12,12 @@ struct PodcastDetailView: View {
   private let log = Log.as(LogSubsystem.PodcastsView.detail)
 
   init(viewModel: PodcastDetailViewModel) {
+    log.debug(
+      """
+      Showing PodcastDetailView
+        viewModel: \(viewModel.podcast.toString)
+      """
+    )
     self.viewModel = viewModel
   }
 
@@ -85,6 +91,7 @@ struct PodcastDetailView: View {
           podcastEpisode: PodcastEpisode(podcast: viewModel.podcast, episode: episode)
         )
       )
+      .id(episode.id)
     }
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task(viewModel.execute)

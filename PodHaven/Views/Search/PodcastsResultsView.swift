@@ -31,6 +31,7 @@ struct PodcastsResultsView: View {
             PodcastResultsDetailView(
               viewModel: PodcastResultsDetailViewModel(searchedPodcast: searchedPodcast)
             )
+            .id(searchedPodcast.unsavedPodcast.feedURL)
           }
         )
       } else {
