@@ -4,6 +4,8 @@ import FactoryKit
 import SwiftUI
 
 struct PodcastResultsDetailView: View {
+  @DynamicInjected(\.navigation) private var navigation
+  
   @State private var viewModel: PodcastResultsDetailViewModel
 
   init(viewModel: PodcastResultsDetailViewModel) {
@@ -70,15 +72,7 @@ struct PodcastResultsDetailView: View {
       }
     }
     .navigationTitle(viewModel.unsavedPodcast.title)
-    .navigationDestination(
-      for: SearchedPodcastEpisode.self,
-      destination: { searchedPodcastEpisode in
-        EpisodeResultsDetailView(
-          viewModel: EpisodeResultsDetailViewModel(searchedPodcastEpisode: searchedPodcastEpisode)
-        )
-        .id(searchedPodcastEpisode.unsavedPodcastEpisode.unsavedEpisode.media)
-      }
-    )
+    .navigationDestination(for: SearchedPodcastEpisode.self, destination: navigation.episodeResultsDetailView)
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task(viewModel.execute)
   }

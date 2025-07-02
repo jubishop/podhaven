@@ -6,6 +6,7 @@ import SwiftUI
 
 struct PodcastDetailView: View {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.navigation) private var navigation
 
   @State private var viewModel: PodcastDetailViewModel
 
@@ -86,12 +87,7 @@ struct PodcastDetailView: View {
     }
     .navigationTitle(viewModel.podcast.title)
     .navigationDestination(for: Episode.self) { episode in
-      EpisodeDetailView(
-        viewModel: EpisodeDetailViewModel(
-          podcastEpisode: PodcastEpisode(podcast: viewModel.podcast, episode: episode)
-        )
-      )
-      .id(episode.id)
+      navigation.episodeDetailView(for: episode, podcast: viewModel.podcast)
     }
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task(viewModel.execute)

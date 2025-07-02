@@ -6,6 +6,7 @@ import SwiftUI
 
 struct StandardPodcastsView: View {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.navigation) private var navigation
 
   @State private var viewModel: StandardPodcastsViewModel
 
@@ -58,9 +59,7 @@ struct StandardPodcastsView: View {
       .padding()
     }
     .navigationTitle(viewModel.title)
-    .navigationDestination(for: Podcast.self) { podcast in
-      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast)).id(podcast.id)
-    }
+    .navigationDestination(for: Podcast.self, destination: navigation.podcastDetailView)
     .refreshable {
       do {
         try await viewModel.refreshPodcasts()

@@ -10,6 +10,9 @@ extension Container {
 }
 
 @Observable @MainActor class Navigation {
+
+  // MARK: - Navigation Enums
+
   enum Tab {
     case settings, search, upNext, playlists, podcasts
   }
@@ -28,6 +31,10 @@ extension Container {
     case completed, unfinished
   }
 
+  fileprivate init() {}
+
+  // MARK: - Navigation Paths
+
   var settingsPath = NavigationPath()
   var searchPath = NavigationPath()
   var upNextPath = NavigationPath()
@@ -38,6 +45,8 @@ extension Container {
       clearPaths(newValue)
     }
   }
+
+  // MARK: - Navigation Methods
 
   func showPlaylist(_ view: PlaylistsView) {
     currentTab = .playlists
@@ -57,7 +66,51 @@ extension Container {
     podcastsPath.append(podcastEpisode.episode)
   }
 
-  fileprivate init() {}
+  // MARK: - Navigation Destination Views
+
+  func podcastDetailView(for podcast: Podcast) -> IdentifiableView<PodcastDetailView, Podcast.ID> {
+    IdentifiableView(
+      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast)),
+      id: podcast.id
+    )
+  }
+
+  func episodeDetailView(for episode: Episode, podcast: Podcast)
+    -> IdentifiableView<EpisodeDetailView, Episode.ID>
+  {
+    IdentifiableView(
+      EpisodeDetailView(
+        viewModel: EpisodeDetailViewModel(
+          podcastEpisode: PodcastEpisode(podcast: podcast, episode: episode)
+        )
+      ),
+      id: episode.id
+    )
+  }
+
+  func podcastResultsDetailView(for searchedPodcast: SearchedPodcast)
+    -> IdentifiableView<PodcastResultsDetailView, FeedURL>
+  {
+    IdentifiableView(
+      PodcastResultsDetailView(
+        viewModel: PodcastResultsDetailViewModel(searchedPodcast: searchedPodcast)
+      ),
+      id: searchedPodcast.unsavedPodcast.feedURL
+    )
+  }
+
+  func episodeResultsDetailView(for searchedPodcastEpisode: SearchedPodcastEpisode)
+    -> IdentifiableView<EpisodeResultsDetailView, MediaURL>
+  {
+    IdentifiableView(
+      EpisodeResultsDetailView(
+        viewModel: EpisodeResultsDetailViewModel(searchedPodcastEpisode: searchedPodcastEpisode)
+      ),
+      id: searchedPodcastEpisode.unsavedPodcastEpisode.unsavedEpisode.media
+    )
+  }
+
+  // MARK: - Private Helpers
 
   private func clearPaths(_ tab: Tab) {
     switch tab {
