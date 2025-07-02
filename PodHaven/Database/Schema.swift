@@ -72,52 +72,58 @@ enum Schema {
     }
 
     migrator.registerMigration("v3") { db in
-      try db.execute(sql: """
-        UPDATE episode 
-        SET completionDate = CURRENT_TIMESTAMP, currentTime = 0 
-        WHERE completionDate IS NULL 
-          AND duration > 0 
-          AND currentTime >= (duration * 0.95)
-        """)
+      try db.execute(
+        sql: """
+          UPDATE episode 
+          SET completionDate = CURRENT_TIMESTAMP, currentTime = 0 
+          WHERE completionDate IS NULL 
+            AND duration > 0 
+            AND currentTime >= (duration * 0.95)
+          """
+      )
     }
 
     migrator.registerMigration("v4") { db in
       // Add trigger to prevent GUID updates on existing episodes
-      try db.execute(sql: """
-        CREATE TRIGGER prevent_episode_guid_update
-        BEFORE UPDATE OF guid ON episode
-        FOR EACH ROW
-        WHEN OLD.guid != NEW.guid
-        BEGIN
-          SELECT RAISE(ABORT, 'Episode GUID cannot be modified once set');
-        END
-        """)
+      try db.execute(
+        sql: """
+          CREATE TRIGGER prevent_episode_guid_update
+          BEFORE UPDATE OF guid ON episode
+          FOR EACH ROW
+          WHEN OLD.guid != NEW.guid
+          BEGIN
+            SELECT RAISE(ABORT, 'Episode GUID cannot be modified once set');
+          END
+          """
+      )
     }
 
     migrator.registerMigration("v5") { db in
       // Fix duplicate queueOrder values by reassigning unique values
       // When episodes have the same queueOrder, give older episodes higher queueOrder
-      try db.execute(sql: """
-        WITH ranked_episodes AS (
-          SELECT 
-            id,
-            queueOrder,
-            ROW_NUMBER() OVER (
-              PARTITION BY queueOrder 
-              ORDER BY pubDate ASC, id ASC
-            ) - 1 AS rank_within_group,
-            ROW_NUMBER() OVER (ORDER BY queueOrder ASC, pubDate ASC, id ASC) - 1 AS new_queue_order
-          FROM episode 
-          WHERE queueOrder IS NOT NULL
-        )
-        UPDATE episode 
-        SET queueOrder = (
-          SELECT new_queue_order 
-          FROM ranked_episodes 
-          WHERE ranked_episodes.id = episode.id
-        )
-        WHERE id IN (SELECT id FROM ranked_episodes)
-        """)
+      try db.execute(
+        sql: """
+          WITH ranked_episodes AS (
+            SELECT 
+              id,
+              queueOrder,
+              ROW_NUMBER() OVER (
+                PARTITION BY queueOrder 
+                ORDER BY pubDate ASC, id ASC
+              ) - 1 AS rank_within_group,
+              ROW_NUMBER() OVER (ORDER BY queueOrder ASC, pubDate ASC, id ASC) - 1 AS new_queue_order
+            FROM episode 
+            WHERE queueOrder IS NOT NULL
+          )
+          UPDATE episode 
+          SET queueOrder = (
+            SELECT new_queue_order 
+            FROM ranked_episodes 
+            WHERE ranked_episodes.id = episode.id
+          )
+          WHERE id IN (SELECT id FROM ranked_episodes)
+          """
+      )
     }
 
     return migrator
