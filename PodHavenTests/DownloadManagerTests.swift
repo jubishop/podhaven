@@ -52,7 +52,7 @@ struct DownloadManagerTests {
 
     // Set all URLs to have a measurable delay to ensure we observe max concurrency
     for url in urls {
-      await session.respondWithDelay(to: url, delay: .milliseconds(10))
+      await session.respond(to: url, delay: .milliseconds(10))
       let task = await downloadManager.addURL(url)
       tasks.append(task)
     }
@@ -78,7 +78,7 @@ struct DownloadManagerTests {
 
     // Since maxConcurrentDownloads is 1 this task holds up the queue
     let url = URL.valid()
-    await session.respondWithDelay(to: url, delay: .milliseconds(500))
+    await session.respond(to: url, delay: .milliseconds(500))
     await downloadManager.addURL(url)
 
     // This task is stuck waiting on the first url
@@ -97,7 +97,7 @@ struct DownloadManagerTests {
     let downloadManager = DownloadManager(session: session)
 
     let url = URL.valid()
-    await session.respondWithDelay(to: url, delay: .milliseconds(50))
+    await session.respond(to: url, delay: .milliseconds(50))
     let task = await downloadManager.addURL(url)
 
     // Cancels the task, not immediately but before it is done
@@ -125,7 +125,7 @@ struct DownloadManagerTests {
     )
 
     let url = URL.valid()
-    await session.respondWithDelay(to: url, delay: .milliseconds(50))
+    await session.respond(to: url, delay: .milliseconds(50))
     let task = await downloadManager.addURL(url)
     let url2 = URL.valid()
     let task2 = await downloadManager.addURL(url2)
@@ -175,7 +175,7 @@ struct DownloadManagerTests {
     let downloadManager = DownloadManager(session: session)
 
     let url = URL.valid()
-    await session.respondWithDelay(to: url, delay: .milliseconds(50))
+    await session.respond(to: url, delay: .milliseconds(50))
     let task = await downloadManager.addURL(url)
     let taskCount = 5
     let downloadCount = Counter(expected: taskCount)
@@ -198,9 +198,9 @@ struct DownloadManagerTests {
     func makeTask() async -> DownloadTask {
       let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
       let url = URL.valid()
-      await session.respondWithDelay(to: url, delay: .milliseconds(100))
+      await session.respond(to: url, delay: .milliseconds(100))
       _ = await downloadManager.addURL(url)
-      await session.respondWithDelay(to: url2, delay: .milliseconds(100))
+      await session.respond(to: url2, delay: .milliseconds(100))
       return await downloadManager.addURL(url2)
     }
     let task = await makeTask()

@@ -7,8 +7,10 @@ import Testing
 @testable import PodHaven
 
 actor FakeDataFetchable: DataFetchable {
+  typealias DataHandler = @Sendable (URL) async throws -> (Data, URLResponse)
+
   private let session: URLSession
-  private var fakeHandlers: [URL: @Sendable (URL) async throws -> (Data, URLResponse)] = [:]
+  private var fakeHandlers: [URL: DataHandler] = [:]
   private(set) var requests: [URL] = []
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
@@ -38,28 +40,26 @@ actor FakeDataFetchable: DataFetchable {
     try await data(for: URLRequest(url: url))
   }
 
-  func respond(
-    to url: URL,
-    with handler: @Sendable @escaping (URL) async throws -> (Data, URLResponse)
-  ) {
+  func respond(to url: URL, with handler: @escaping DataHandler) {
     fakeHandlers[url] = handler
   }
 
-  // Convenience methods for common test patterns
-  func respondWithData(to url: URL, data: Data) {
+  // MARK: - Convenience Methods
+
+  func respond(to url: URL, data: Data) {
     respond(to: url) { url in
       (data, URL.response(url))
     }
   }
 
-  func respondWithDelay(to url: URL, delay: Duration) {
+  func respond(to url: URL, delay: Duration) {
     respond(to: url) { url in
       try await Task.sleep(for: delay)
       return (url.dataRepresentation, URL.response(url))
     }
   }
 
-  func respondWithError(to url: URL, error: Error) {
+  func respond(to url: URL, error: Error) {
     respond(to: url) { _ in
       throw error
     }

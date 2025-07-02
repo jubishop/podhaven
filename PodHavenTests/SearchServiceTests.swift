@@ -23,7 +23,7 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "hardfork_byterm", withExtension: "json")!
     )
-    await session.respondWithData(
+    await session.respond(
       to: URL(string: Self.baseURLString + "/search/byterm?q=\(searchTerm)")!,
       data: data
     )
@@ -42,7 +42,7 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "thisisimportant_bytitle", withExtension: "json")!
     )
-    await session.respondWithData(
+    await session.respond(
       to: URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
       data: data
     )
@@ -62,7 +62,7 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "hello_bytitle", withExtension: "json")!
     )
-    await session.respondWithData(
+    await session.respond(
       to: URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
       data: data
     )
@@ -79,7 +79,7 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "ndg_byperson", withExtension: "json")!
     )
-    await session.respondWithData(
+    await session.respond(
       to: URL(string: Self.baseURLString + "/search/byperson?q=\(searchTerm)")!,
       data: data
     )
@@ -128,7 +128,7 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "trending", withExtension: "json")!
     )
-    await session.respondWithData(
+    await session.respond(
       to: URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
       data: data
     )
@@ -147,7 +147,7 @@ class SearchServiceTests {
     let data = try Data(
       contentsOf: Bundle.main.url(forResource: "trending_in_news", withExtension: "json")!
     )
-    await session.respondWithData(
+    await session.respond(
       to: URL(string: Self.baseURLString + "/podcasts/trending?cat=News")!,
       data: data
     )
@@ -160,7 +160,7 @@ class SearchServiceTests {
 
   @Test("search with failed request")
   func testSearchWithFailedRequest() async throws {
-    await session.respondWithError(
+    await session.respond(
       to: URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
       error: URLError(.badServerResponse)
     )

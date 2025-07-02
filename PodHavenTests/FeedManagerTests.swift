@@ -21,7 +21,7 @@ class FeedManagerTests {
       contentsOf: Bundle.main.url(forResource: "pod_save_america", withExtension: "rss")!
     )
     let url = URL.valid()
-    await session.respondWithData(to: url, data: data)
+    await session.respond(to: url, data: data)
     let feedTask = await feedManager.addURL(FeedURL(url))
     let podcastFeed = try await feedTask.feedParsed()
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
