@@ -10,7 +10,6 @@ extension Container {
 }
 
 @Observable @MainActor class Navigation {
-
   // MARK: - Navigation Enums
 
   enum Tab {
