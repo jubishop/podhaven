@@ -266,4 +266,142 @@ class MigrationTests {
       #expect(row[Column("guid")] as String == "changed-guid")
     }
   }
+
+  @Test("migrating to v5, fixing duplicate queueOrder values")
+  func testV5Migration() async throws {
+    try migrator.migrate(appDB.db, upTo: "v4")
+
+    // Insert test data in v4 schema with duplicate queueOrder values
+    let now = Date()
+    let yesterday = 24.hoursAgo
+    let twoDaysAgo = 48.hoursAgo
+    let threeDaysAgo = 72.hoursAgo
+
+    try await appDB.db.write { db in
+      // Create a podcast
+      try db.execute(
+        sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscribed)
+            VALUES ('https://example.com/feed.xml', 'Test Podcast', 'https://example.com/image.jpg', 'Test Description', 1)
+          """
+      )
+
+      let podcastId = db.lastInsertedRowID
+
+      // Create episodes with duplicate queueOrder values (simulating the bug)
+      // Episode 1: queueOrder 0, published 3 days ago (oldest)
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, queueOrder)
+            VALUES (?, 'episode-1', 'https://example.com/ep1.mp3', 'Episode 1', ?, 0)
+          """,
+        arguments: [podcastId, threeDaysAgo]
+      )
+
+      // Episode 2: queueOrder 0, published 2 days ago (duplicate!)
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, queueOrder)
+            VALUES (?, 'episode-2', 'https://example.com/ep2.mp3', 'Episode 2', ?, 0)
+          """,
+        arguments: [podcastId, twoDaysAgo]
+      )
+
+      // Episode 3: queueOrder 1, published yesterday (unique)
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, queueOrder)
+            VALUES (?, 'episode-3', 'https://example.com/ep3.mp3', 'Episode 3', ?, 1)
+          """,
+        arguments: [podcastId, yesterday]
+      )
+
+      // Episode 4: queueOrder 1, published now (duplicate!)
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, queueOrder)
+            VALUES (?, 'episode-4', 'https://example.com/ep4.mp3', 'Episode 4', ?, 1)
+          """,
+        arguments: [podcastId, now]
+      )
+
+      // Episode 5: queueOrder NULL (not in queue, should be unchanged)
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, queueOrder)
+            VALUES (?, 'episode-5', 'https://example.com/ep5.mp3', 'Episode 5', ?, NULL)
+          """,
+        arguments: [podcastId, now]
+      )
+    }
+
+    // Verify we have duplicates before migration
+    try await appDB.db.read { db in
+      let duplicateCount = try Int.fetchOne(
+        db,
+        sql: """
+            SELECT COUNT(*) FROM episode 
+            WHERE queueOrder IN (
+              SELECT queueOrder FROM episode 
+              WHERE queueOrder IS NOT NULL 
+              GROUP BY queueOrder 
+              HAVING COUNT(*) > 1
+            )
+          """
+      )!
+      #expect(duplicateCount > 0, "Should have duplicate queueOrder values before migration")
+    }
+
+    // Migrate to v5
+    try migrator.migrate(appDB.db, upTo: "v5")
+
+    // Verify the migration results
+    try await appDB.db.read { db in
+      // Check that all queueOrder values are now unique
+      let totalQueued = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episode WHERE queueOrder IS NOT NULL"
+      )!
+      let uniqueQueued = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(DISTINCT queueOrder) FROM episode WHERE queueOrder IS NOT NULL"
+      )!
+      #expect(totalQueued == uniqueQueued, "All queueOrder values should be unique after migration")
+
+      // Verify specific episode assignments (older episodes should get higher queueOrder)
+      let episodes = try Row.fetchAll(
+        db,
+        sql: """
+            SELECT guid, queueOrder, pubDate 
+            FROM episode 
+            WHERE queueOrder IS NOT NULL 
+            ORDER BY queueOrder ASC
+          """
+      )
+
+      // Episode 1 (oldest, 3 days ago) should have queueOrder 0
+      #expect(episodes[0][Column("guid")] as String == "episode-1")
+      #expect(episodes[0][Column("queueOrder")] as Int == 0)
+
+      // Episode 2 (2 days ago) should have queueOrder 1
+      #expect(episodes[1][Column("guid")] as String == "episode-2")
+      #expect(episodes[1][Column("queueOrder")] as Int == 1)
+
+      // Episode 3 (yesterday) should have queueOrder 2
+      #expect(episodes[2][Column("guid")] as String == "episode-3")
+      #expect(episodes[2][Column("queueOrder")] as Int == 2)
+
+      // Episode 4 (now) should have queueOrder 3
+      #expect(episodes[3][Column("guid")] as String == "episode-4")
+      #expect(episodes[3][Column("queueOrder")] as Int == 3)
+
+      // Episode 5 should remain NULL (not in queue)
+      let ep5 = try Row.fetchOne(db, sql: "SELECT * FROM episode WHERE guid = 'episode-5'")!
+      #expect(ep5[Column("queueOrder")] as Int? == nil)
+
+      // Verify no gaps in queueOrder sequence (should be 0, 1, 2, 3)
+      let queueOrders = episodes.map { $0[Column("queueOrder")] as Int }
+      #expect(queueOrders == [0, 1, 2, 3])
+    }
+  }
 }

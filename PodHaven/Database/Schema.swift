@@ -94,6 +94,32 @@ enum Schema {
         """)
     }
 
+    migrator.registerMigration("v5") { db in
+      // Fix duplicate queueOrder values by reassigning unique values
+      // When episodes have the same queueOrder, give older episodes higher queueOrder
+      try db.execute(sql: """
+        WITH ranked_episodes AS (
+          SELECT 
+            id,
+            queueOrder,
+            ROW_NUMBER() OVER (
+              PARTITION BY queueOrder 
+              ORDER BY pubDate ASC, id ASC
+            ) - 1 AS rank_within_group,
+            ROW_NUMBER() OVER (ORDER BY queueOrder ASC, pubDate ASC, id ASC) - 1 AS new_queue_order
+          FROM episode 
+          WHERE queueOrder IS NOT NULL
+        )
+        UPDATE episode 
+        SET queueOrder = (
+          SELECT new_queue_order 
+          FROM ranked_episodes 
+          WHERE ranked_episodes.id = episode.id
+        )
+        WHERE id IN (SELECT id FROM ranked_episodes)
+        """)
+    }
+
     return migrator
   }
 }
