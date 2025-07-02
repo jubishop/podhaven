@@ -224,7 +224,10 @@ class MigrationTests {
 
     // Verify the GUID was changed
     try await appDB.db.read { db in
-      let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM episode WHERE guid = 'changed-guid'")!
+      let count = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episode WHERE guid = 'changed-guid'"
+      )!
       #expect(count == 1)
     }
 
@@ -242,7 +245,10 @@ class MigrationTests {
 
     // Verify the GUID remained unchanged
     try await appDB.db.read { db in
-      let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM episode WHERE guid = 'changed-guid'")!
+      let count = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episode WHERE guid = 'changed-guid'"
+      )!
       #expect(count == 1)
     }
 
