@@ -67,7 +67,7 @@ struct UnsavedEpisode: Savable, Stringable {
 }
 
 @Saved<UnsavedEpisode>
-struct Episode: Saved {
+struct Episode: Saved, RSSUpdatable {
   // MARK: - Associations
 
   static let podcast = belongsTo(Podcast.self)
@@ -98,6 +98,19 @@ struct Episode: Saved {
     static let completionDate = Column("completionDate")
     static let currentTime = Column("currentTime")
     static let queueOrder = Column("queueOrder")
+  }
+
+  // MARK: - RSSUpdatable
+
+  var rssUpdatableColumns: [(ColumnExpression, SQLExpressible)] {
+    [
+      (Columns.media, unsaved.media),
+      (Columns.title, unsaved.title),
+      (Columns.pubDate, unsaved.pubDate),
+      (Columns.description, unsaved.description),
+      (Columns.link, unsaved.link),
+      (Columns.image, unsaved.image),
+    ]
   }
 }
 

@@ -149,10 +149,19 @@ struct Repo {
   ) async throws(RepoError) {
     do {
       try await appDB.db.write { db in
-        try podcast.update(db)
+        // Update only RSS feed attributes for podcast
+        try Podcast
+          .withID(podcast.id)
+          .updateAll(db, podcast.rssColumnAssignments())
+        
+        // Update only RSS feed attributes for existing episodes (excluding duration)
         for existingEpisode in existingEpisodes {
-          try existingEpisode.update(db)
+          try Episode
+            .withID(existingEpisode.id)
+            .updateAll(db, existingEpisode.rssColumnAssignments())
         }
+        
+        // Insert new episodes (all attributes needed for new episodes)
         for var unsavedEpisode in unsavedEpisodes {
           unsavedEpisode.podcastId = podcast.id
           try unsavedEpisode.insert(db)

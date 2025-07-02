@@ -81,6 +81,19 @@ enum Schema {
         """)
     }
 
+    migrator.registerMigration("v4") { db in
+      // Add trigger to prevent GUID updates on existing episodes
+      try db.execute(sql: """
+        CREATE TRIGGER prevent_episode_guid_update
+        BEFORE UPDATE OF guid ON episode
+        FOR EACH ROW
+        WHEN OLD.guid != NEW.guid
+        BEGIN
+          SELECT RAISE(ABORT, 'Episode GUID cannot be modified once set');
+        END
+        """)
+    }
+
     return migrator
   }
 }

@@ -11,6 +11,8 @@ import Testing
 
 @Suite("of Episode model tests", .container)
 class EpisodeTests {
+  @DynamicInjected(\.appDB) private var appDB
+  @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
   @Test("that episodes are created and fetched in the right order")
@@ -48,31 +50,148 @@ class EpisodeTests {
 
   @Test("that a series with new episodes can be refreshed")
   func refreshSeriesWithNewEpisodes() async throws {
-    let unsavedPodcast = try Create.unsavedPodcast(title: "original podcast title")
-    let oldEpisode = try Create.unsavedEpisode(title: "original")
+    // Step 1: Insert podcast and episodes into repo
+    let unsavedPodcast = try Create.unsavedPodcast(
+      feedURL: FeedURL(URL.valid()),
+      title: "original podcast title",
+      image: URL.valid(),
+      description: "original podcast description",
+      link: URL.valid(),
+      subscribed: false
+    )
+    let unsavedEpisode = try Create.unsavedEpisode(
+      media: MediaURL(URL.valid()),
+      title: "original episode title",
+      pubDate: 100.minutesAgo,
+      duration: CMTime.inSeconds(300),
+      description: "original episode description",
+      link: URL.valid(),
+      image: URL.valid(),
+      currentTime: CMTime.inSeconds(60)
+    )
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
-      unsavedEpisodes: [oldEpisode]
-    )
-    #expect(podcastSeries.episodes.count == 1)
-    var podcast = podcastSeries.podcast
-    #expect(podcast.title == "original podcast title")
-    podcast.title = "new podcast title"
-    var episode = podcastSeries.episodes.first!
-    #expect(episode.title == "original")
-    episode.title = "new title"
-    let newEpisode = try Create.unsavedEpisode(title: "episode 2")
-    try await repo.updateSeries(
-      podcast,
-      unsavedEpisodes: [newEpisode],
-      existingEpisodes: [episode]
+      unsavedEpisodes: [unsavedEpisode]
     )
 
-    let fetchedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
-    #expect(fetchedSeries.podcast.title == "new podcast title")
-    #expect(fetchedSeries.episodes.count == 2)
-    #expect(fetchedSeries.episodes.last!.title == "new title")
-    #expect(fetchedSeries.episodes.first!.title == "episode 2")
+    let originalPodcast = podcastSeries.podcast
+    let originalEpisode = podcastSeries.episodes.first!
+
+    // Step 2: Update user state and duration (simulating PodAVPlayer updating duration)
+    let actualDuration = CMTime.inSeconds(1800)  // 30 minutes actual duration from media file
+    try await repo.markSubscribed(originalPodcast.id)
+    try await repo.markComplete(originalEpisode.id)
+    try await repo.updateCurrentTime(originalEpisode.id, CMTime.inSeconds(120))
+    try await repo.updateDuration(originalEpisode.id, actualDuration)
+    try await queue.unshift(originalEpisode.id)
+
+    // Step 3: Call updateSeries with RSS feed data (simulating what would come from a feed refresh)
+    let newFeedURL = FeedURL(URL.valid())
+    let newPodcastTitle = "new podcast title"
+    let newPodcastImage = URL.valid()
+    let newPodcastDescription = "new podcast description"
+    let newPodcastLink = URL.valid()
+    let newLastUpdate = Date()
+
+    var updatedPodcast = originalPodcast
+    updatedPodcast.feedURL = newFeedURL
+    updatedPodcast.title = newPodcastTitle
+    updatedPodcast.image = newPodcastImage
+    updatedPodcast.description = newPodcastDescription
+    updatedPodcast.link = newPodcastLink
+    updatedPodcast.lastUpdate = newLastUpdate
+
+    let newEpisodeMedia = MediaURL(URL.valid())
+    let newEpisodeTitle = "new episode title"
+    let newEpisodePubDate = 50.minutesAgo
+    let newEpisodeDuration = CMTime.inSeconds(600)
+    let newEpisodeDescription = "new episode description"
+    let newEpisodeLink = URL.valid()
+    let newEpisodeImage = URL.valid()
+
+    var updatedEpisode = originalEpisode
+    updatedEpisode.media = newEpisodeMedia
+    updatedEpisode.title = newEpisodeTitle
+    updatedEpisode.pubDate = newEpisodePubDate
+    updatedEpisode.duration = newEpisodeDuration
+    updatedEpisode.description = newEpisodeDescription
+    updatedEpisode.link = newEpisodeLink
+    updatedEpisode.image = newEpisodeImage
+
+    let newEpisode = try Create.unsavedEpisode(title: "episode 2")
+    try await repo.updateSeries(
+      updatedPodcast,
+      unsavedEpisodes: [newEpisode],
+      existingEpisodes: [updatedEpisode]
+    )
+
+    // Step 4: Confirm user state from step 2 wasn't overwritten by step 3
+    let updatedSeries = try await repo.podcastSeries(originalPodcast.id)!
+    let updatedExistingEpisode = updatedSeries.episodes.first { $0.title == newEpisodeTitle }!
+
+    // Verify we're testing all Podcast RSS columns (test will fail if rssUpdatableColumns changes)
+    let podcastRSSColumnNames = Set(updatedPodcast.rssUpdatableColumns.map { $0.0.name })
+    let expectedPodcastColumns = Set([
+      "feedURL", "title", "image", "description", "link", "lastUpdate",
+    ])
+    #expect(
+      podcastRSSColumnNames == expectedPodcastColumns,
+      "Test must be updated if Podcast.rssUpdatableColumns changes"
+    )
+
+    // All RSS attributes should be updated for podcast
+    #expect(updatedSeries.podcast.feedURL == newFeedURL)
+    #expect(updatedSeries.podcast.title == newPodcastTitle)
+    #expect(updatedSeries.podcast.image == newPodcastImage)
+    #expect(updatedSeries.podcast.description == newPodcastDescription)
+    #expect(updatedSeries.podcast.link == newPodcastLink)
+    #expect(updatedSeries.podcast.lastUpdate.approximatelyEquals(newLastUpdate))
+
+    // Verify we're testing all Episode RSS columns (test will fail if rssUpdatableColumns changes)
+    let episodeRSSColumnNames = Set(updatedEpisode.rssUpdatableColumns.map { $0.0.name })
+    let expectedEpisodeColumns = Set([
+      "media", "title", "pubDate", "description", "link", "image",
+    ])
+    #expect(
+      episodeRSSColumnNames == expectedEpisodeColumns,
+      "Test must be updated if Episode.rssUpdatableColumns changes"
+    )
+
+    // RSS attributes should be updated for existing episode (excluding duration and guid)
+    #expect(updatedExistingEpisode.media == newEpisodeMedia)
+    #expect(updatedExistingEpisode.title == newEpisodeTitle)
+    #expect(updatedExistingEpisode.pubDate.approximatelyEquals(newEpisodePubDate))
+    #expect(updatedExistingEpisode.description == newEpisodeDescription)
+    #expect(updatedExistingEpisode.link == newEpisodeLink)
+    #expect(updatedExistingEpisode.image == newEpisodeImage)
+
+    // Non-RSS attributes should be preserved (not overwritten by original values)
+    #expect(updatedSeries.podcast.subscribed == true)
+    #expect(updatedExistingEpisode.currentTime == CMTime.inSeconds(120))
+    #expect(updatedExistingEpisode.completionDate != nil)
+    #expect(updatedExistingEpisode.queueOrder == 0)
+    #expect(updatedExistingEpisode.duration == actualDuration)
+  }
+
+  @Test("that episode GUID cannot be updated once set")
+  func preventGuidUpdate() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode(guid: GUID("original-guid"))
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode]
+    )
+    
+    let episode = podcastSeries.episodes.first!
+    
+    // Attempt to update GUID directly in database should fail
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.db.write { db in
+        try Episode
+          .withID(episode.id)
+          .updateAll(db, Episode.Columns.guid.set(to: GUID("different-guid")))
+      }
+    }
   }
 
   @Test("that episodes can persist currentTime")
