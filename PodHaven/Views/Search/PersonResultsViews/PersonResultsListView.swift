@@ -1,9 +1,12 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import SwiftUI
 
 struct PersonResultsListView: View {
+  @DynamicInjected(\.navigation) private var navigation
+
   @State private var viewModel: PersonResultsListViewModel
 
   init(viewModel: PersonResultsListViewModel) {
@@ -52,11 +55,10 @@ struct PersonResultsListView: View {
       }
       .animation(.default, value: viewModel.episodeList.filteredEntries)
     }
-    .navigationDestination(for: SearchedPodcastEpisode.self) { searchedPodcastEpisode in
-      EpisodeResultsDetailView(
-        viewModel: EpisodeResultsDetailViewModel(searchedPodcastEpisode: searchedPodcastEpisode)
-      )
-    }
+    .navigationDestination(
+      for: SearchedPodcastEpisode.self,
+      destination: navigation.episodeResultsDetailView
+    )
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task(viewModel.execute)
   }

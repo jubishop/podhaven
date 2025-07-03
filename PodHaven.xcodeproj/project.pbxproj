@@ -70,7 +70,7 @@
 				HTMLRegexTests.swift,
 				LogTests.swift,
 				MigrationTests.swift,
-				NavigationDestinationTests.swift,
+				NavigationTests.swift,
 				ObservatoryTests.swift,
 				PlayManagerTests.swift,
 				PodcastFeedTests.swift,

@@ -20,25 +20,10 @@ struct PlaylistsView: View {
         )
       }
       .navigationTitle("All Playlists")
-      .navigationDestination(for: Navigation.PlaylistsView.self) { list in
-        switch list {
-        case .completed:
-          StandardPlaylistView(
-            viewModel: StandardPlaylistViewModel(
-              title: "Completed",
-              filter: Episode.completed,
-              order: Episode.Columns.completionDate.desc
-            )
-          )
-        case .unfinished:
-          StandardPlaylistView(
-            viewModel: StandardPlaylistViewModel(
-              title: "Unfinished",
-              filter: Episode.started && Episode.uncompleted
-            )
-          )
-        }
-      }
+      .navigationDestination(
+        for: Navigation.PlaylistsView.self,
+        destination: navigation.standardPlaylistView
+      )
     }
   }
 }

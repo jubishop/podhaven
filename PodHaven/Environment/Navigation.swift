@@ -109,6 +109,75 @@ extension Container {
     )
   }
 
+  func standardPlaylistView(for playlistsView: PlaylistsView)
+    -> IdentifiableView<StandardPlaylistView, String>
+  {
+    switch playlistsView {
+    case .completed:
+      return IdentifiableView(
+        StandardPlaylistView(
+          viewModel: StandardPlaylistViewModel(
+            title: "Completed",
+            filter: Episode.completed,
+            order: Episode.Columns.completionDate.desc
+          )
+        ),
+        id: "completed"
+      )
+    case .unfinished:
+      return IdentifiableView(
+        StandardPlaylistView(
+          viewModel: StandardPlaylistViewModel(
+            title: "Unfinished",
+            filter: Episode.started && Episode.uncompleted
+          )
+        ),
+        id: "unfinished"
+      )
+    }
+  }
+
+  func opmlView(for settingsView: SettingsView) -> IdentifiableView<OPMLView, String> {
+    switch settingsView {
+    case .opml:
+      return IdentifiableView(OPMLView(), id: "opml")
+    }
+  }
+
+  func standardPodcastsView(for podcastsView: PodcastsView)
+    -> IdentifiableView<StandardPodcastsView, String>
+  {
+    switch podcastsView {
+    case .all:
+      return IdentifiableView(
+        StandardPodcastsView(
+          viewModel: StandardPodcastsViewModel(title: "All Podcasts")
+        ),
+        id: "all"
+      )
+    case .subscribed:
+      return IdentifiableView(
+        StandardPodcastsView(
+          viewModel: StandardPodcastsViewModel(
+            title: "Subscribed",
+            filter: Podcast.subscribed
+          )
+        ),
+        id: "subscribed"
+      )
+    case .unsubscribed:
+      return IdentifiableView(
+        StandardPodcastsView(
+          viewModel: StandardPodcastsViewModel(
+            title: "Unsubscribed",
+            filter: Podcast.unsubscribed
+          )
+        ),
+        id: "unsubscribed"
+      )
+    }
+  }
+
   // MARK: - Private Helpers
 
   private func clearPaths(_ tab: Tab) {

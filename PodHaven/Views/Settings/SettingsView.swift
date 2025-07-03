@@ -20,11 +20,7 @@ struct SettingsView: View {
         }
       }
       .navigationTitle("Settings")
-      .navigationDestination(for: Navigation.SettingsView.self) { section in
-        switch section {
-        case .opml: OPMLView()
-        }
-      }
+      .navigationDestination(for: Navigation.SettingsView.self, destination: navigation.opmlView)
     }
   }
 }

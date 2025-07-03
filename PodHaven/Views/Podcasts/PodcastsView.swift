@@ -26,30 +26,7 @@ struct PodcastsView: View {
         }
       }
       .navigationTitle("All Podcast Lists")
-      .navigationDestination(for: Navigation.PodcastsView.self) { list in
-        switch list {
-        case .all:
-          StandardPodcastsView(
-            viewModel: StandardPodcastsViewModel(
-              title: "All Podcasts"
-            )
-          )
-        case .subscribed:
-          StandardPodcastsView(
-            viewModel: StandardPodcastsViewModel(
-              title: "Subscribed",
-              filter: Podcast.subscribed
-            )
-          )
-        case .unsubscribed:
-          StandardPodcastsView(
-            viewModel: StandardPodcastsViewModel(
-              title: "Unsubscribed",
-              filter: Podcast.unsubscribed
-            )
-          )
-        }
-      }
+      .navigationDestination(for: Navigation.PodcastsView.self, destination: navigation.standardPodcastsView)
     }
   }
 }

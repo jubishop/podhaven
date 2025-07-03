@@ -9,8 +9,8 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of Navigation destination view tests", .container)
-@MainActor class NavigationDestinationTests {
+@Suite("of Navigation tests", .container)
+@MainActor class NavigationTests {
   @DynamicInjected(\.navigation) private var navigation
 
   @Test("that podcastDetailView has ID matching podcast ID")
@@ -120,6 +120,64 @@ import Testing
     #expect(
       identifiableView1.viewID != identifiableView2.viewID,
       "Different searched podcasts should create views with different IDs"
+    )
+  }
+
+  @Test("that standardPlaylistView has ID matching playlist type")
+  func standardPlaylistViewIDMatchesPlaylistType() async throws {
+    let completedView = navigation.standardPlaylistView(for: .completed)
+    let unfinishedView = navigation.standardPlaylistView(for: .unfinished)
+
+    #expect(completedView.viewID == "completed", "Completed playlist view should have 'completed' ID")
+    #expect(unfinishedView.viewID == "unfinished", "Unfinished playlist view should have 'unfinished' ID")
+  }
+
+  @Test("that opmlView has ID matching settings type")
+  func opmlViewIDMatchesSettingsType() async throws {
+    let opmlView = navigation.opmlView(for: .opml)
+
+    #expect(opmlView.viewID == "opml", "OPML view should have 'opml' ID")
+  }
+
+  @Test("that standardPodcastsView has ID matching podcasts type")
+  func standardPodcastsViewIDMatchesPodcastsType() async throws {
+    let allView = navigation.standardPodcastsView(for: .all)
+    let subscribedView = navigation.standardPodcastsView(for: .subscribed)
+    let unsubscribedView = navigation.standardPodcastsView(for: .unsubscribed)
+
+    #expect(allView.viewID == "all", "All podcasts view should have 'all' ID")
+    #expect(subscribedView.viewID == "subscribed", "Subscribed podcasts view should have 'subscribed' ID")
+    #expect(unsubscribedView.viewID == "unsubscribed", "Unsubscribed podcasts view should have 'unsubscribed' ID")
+  }
+
+  @Test("that different playlist types create views with different IDs")
+  func differentPlaylistTypesHaveDifferentViewIDs() async throws {
+    let completedView = navigation.standardPlaylistView(for: .completed)
+    let unfinishedView = navigation.standardPlaylistView(for: .unfinished)
+
+    #expect(
+      completedView.viewID != unfinishedView.viewID,
+      "Different playlist types should create views with different IDs"
+    )
+  }
+
+  @Test("that different podcasts view types create views with different IDs")
+  func differentPodcastsViewTypesHaveDifferentViewIDs() async throws {
+    let allView = navigation.standardPodcastsView(for: .all)
+    let subscribedView = navigation.standardPodcastsView(for: .subscribed)
+    let unsubscribedView = navigation.standardPodcastsView(for: .unsubscribed)
+
+    #expect(
+      allView.viewID != subscribedView.viewID,
+      "All and subscribed podcast views should have different IDs"
+    )
+    #expect(
+      subscribedView.viewID != unsubscribedView.viewID,
+      "Subscribed and unsubscribed podcast views should have different IDs"
+    )
+    #expect(
+      allView.viewID != unsubscribedView.viewID,
+      "All and unsubscribed podcast views should have different IDs"
     )
   }
 }
