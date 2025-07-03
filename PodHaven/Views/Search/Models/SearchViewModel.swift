@@ -10,7 +10,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.playState) private var playState
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
 
-  private let log = Log.as(LogSubsystem.SearchView.main)
+  private static let log = Log.as(LogSubsystem.SearchView.main)
 
   // MARK: - Geometry Management
 
@@ -86,7 +86,7 @@ import SwiftUI
       try await performSearch(currentView)
     } catch {
       if ErrorKit.baseError(for: error) is CancellationError { return }
-      log.error(error)
+      Self.log.error(error)
       alert(ErrorKit.message(for: error))
     }
   }
@@ -126,7 +126,7 @@ import SwiftUI
           try await search
         } catch let error as SearchError {
           if ErrorKit.baseError(for: error) is CancellationError { return }
-          log.error(error)
+          Self.log.error(error)
           alert(ErrorKit.message(for: error))
         }
       }

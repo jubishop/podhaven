@@ -34,7 +34,7 @@ extension Container {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
-  private let log = Log.as(LogSubsystem.Play.avPlayer)
+  nonisolated private static let log = Log.as(LogSubsystem.Play.avPlayer)
 
   // MARK: - State Management
 
@@ -71,7 +71,7 @@ extension Container {
   // MARK: - Loading
 
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> PodcastEpisode {
-    log.debug("load: \(podcastEpisode.toString)")
+    Self.log.debug("load: \(podcastEpisode.toString)")
 
     avQueuePlayer.removeAllItems()
     preSeekStatus = nil
@@ -86,7 +86,7 @@ extension Container {
   private func loadAsset(for podcastEpisode: PodcastEpisode) async throws(PlaybackError)
     -> LoadedPodcastEpisode
   {
-    log.debug("loadAsset: \(podcastEpisode.toString)")
+    Self.log.debug("loadAsset: \(podcastEpisode.toString)")
 
     let episodeAsset: EpisodeAsset
     do {
@@ -104,7 +104,7 @@ extension Container {
     do {
       try await repo.updateDuration(podcastEpisode.id, episode.duration)
     } catch {
-      log.error(error)
+      Self.log.error(error)
     }
 
     return (
@@ -117,7 +117,7 @@ extension Container {
   }
 
   func clear() {
-    log.debug("clear: executing")
+    Self.log.debug("clear: executing")
     removeObservers()
     podcastEpisode = nil
     preSeekStatus = nil
@@ -127,13 +127,13 @@ extension Container {
   // MARK: - Playback Controls
 
   func play() {
-    log.debug("play: executing")
+    Self.log.debug("play: executing")
     preSeekStatus = .playing
     avQueuePlayer.play()
   }
 
   func pause(overwritePreSeekStatus: Bool = true) {
-    log.debug("pause: executing")
+    Self.log.debug("pause: executing")
     if overwritePreSeekStatus {
       preSeekStatus = .paused
     }
@@ -141,7 +141,7 @@ extension Container {
   }
 
   func toggle() {
-    log.debug("toggle: executing")
+    Self.log.debug("toggle: executing")
     avQueuePlayer.timeControlStatus == .paused
       ? play()
       : pause()
@@ -150,17 +150,17 @@ extension Container {
   // MARK: - Seeking
 
   func seekForward(_ duration: CMTime) {
-    log.debug("seekForward: \(duration)")
+    Self.log.debug("seekForward: \(duration)")
     seek(to: avQueuePlayer.currentTime() + duration)
   }
 
   func seekBackward(_ duration: CMTime) {
-    log.debug("seekBackward: \(duration)")
+    Self.log.debug("seekBackward: \(duration)")
     seek(to: avQueuePlayer.currentTime() - duration)
   }
 
   func seek(to time: CMTime) {
-    log.debug("seek: \(time)")
+    Self.log.debug("seek: \(time)")
 
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
@@ -172,7 +172,7 @@ extension Container {
       guard let self else { return }
 
       if completed {
-        log.debug("seek: to \(time) completed")
+        Self.log.debug("seek: to \(time) completed")
         Task { @MainActor [weak self] in
           guard let self else { return }
           if let preSeekStatus {
@@ -186,7 +186,7 @@ extension Container {
           addPeriodicTimeObserver()
         }
       } else {
-        log.debug("seek: to \(time) interrupted")
+        Self.log.debug("seek: to \(time) interrupted")
       }
     }
   }
@@ -208,7 +208,9 @@ extension Container {
 
     let task = Task { [weak self] in
       guard let self else { return }
-      log.debug("performSetNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))")
+      Self.log.debug(
+        "performSetNextPodcastEpisode: \(String(describing: nextPodcastEpisode?.toString))"
+      )
 
       if let podcastEpisode = nextPodcastEpisode {
         do {
@@ -230,7 +232,7 @@ extension Container {
   private func insertNextPodcastEpisode(_ nextLoadedPodcastEpisode: LoadedPodcastEpisode?) async {
     guard shouldSetAsNext(nextLoadedPodcastEpisode?.podcastEpisode) else { return }
 
-    log.debug("insertNextPodcastEpisode: at start:\n  \(printableQueue)")
+    Self.log.debug("insertNextPodcastEpisode: at start:\n  \(printableQueue)")
 
     // If we had a second item, it needs to be removed
     if avQueuePlayer.queued.count == 2 {
@@ -244,7 +246,7 @@ extension Container {
       avQueuePlayer.insert(nextLoadedPodcastEpisode.playableItem, after: avQueuePlayer.queued.first)
     }
 
-    log.debug("insertNextPodcastEpisode: at end:\n  \(printableQueue)")
+    Self.log.debug("insertNextPodcastEpisode: at end:\n  \(printableQueue)")
 
     Assert.precondition(avQueuePlayer.queued.count <= 2, "Too many AVPlayerItems?")
   }
@@ -252,7 +254,7 @@ extension Container {
   private func shouldSetAsNext(_ podcastEpisode: PodcastEpisode?) -> Bool {
     // If queue is empty: do nothing
     guard let lastItem = avQueuePlayer.queued.last else {
-      log.debug(
+      Self.log.debug(
         """
         shouldSetAsNext: false for \(String(describing: podcastEpisode?.toString)) \
         because queue is empty
@@ -263,7 +265,7 @@ extension Container {
 
     // If this is already the last: do nothing
     if lastItem.assetURL == podcastEpisode?.episode.media {
-      log.debug(
+      Self.log.debug(
         """
         shouldSetAsNext: false for \(String(describing: podcastEpisode?.toString)) \
         because it already matches last item in queue:
@@ -280,7 +282,7 @@ extension Container {
 
   private func handleCurrentItemChange(_ mediaURL: MediaURL?) async throws {
     if podcastEpisode?.episode.media == mediaURL {
-      log.debug(
+      Self.log.debug(
         """
         handleCurrentItemChange: ignoring because mediaURL matches current podcastEpisode: \
         \(String(describing: mediaURL?.toString))
@@ -295,7 +297,7 @@ extension Container {
       podcastEpisode = nil
     }
 
-    log.debug("handleCurrentItemChange: \(String(describing: podcastEpisode?.toString))")
+    Self.log.debug("handleCurrentItemChange: \(String(describing: podcastEpisode?.toString))")
     currentItemContinuation.yield(podcastEpisode)
   }
 
@@ -305,7 +307,7 @@ extension Container {
 
     try await repo.updateCurrentTime(podcastEpisode.id, currentTime)
 
-    log.trace("handleCurrentTimeChange to: \(currentTime) for \(podcastEpisode.toString)")
+    Self.log.trace("handleCurrentTimeChange to: \(currentTime) for \(podcastEpisode.toString)")
     currentTimeContinuation.yield(currentTime)
   }
 
@@ -335,11 +337,11 @@ extension Container {
           do {
             try await setNextPodcastEpisode(nextPodcastEpisode)
           } catch {
-            log.error(error)
+            Self.log.error(error)
           }
         }
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }
@@ -356,7 +358,7 @@ extension Container {
         do {
           try await self.handleCurrentItemChange(url)
         } catch {
-          log.error(error)
+          Self.log.error(error)
         }
       }
     }
@@ -375,7 +377,7 @@ extension Container {
         do {
           try await self.handleCurrentTimeChange(currentTime)
         } catch {
-          log.error(error)
+          Self.log.error(error)
         }
       }
     }

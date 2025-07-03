@@ -14,7 +14,7 @@ extension Container {
 }
 
 struct Queue {
-  private let log = Log.as(LogSubsystem.Database.queue)
+  private static let log = Log.as(LogSubsystem.Database.queue)
 
   // MARK: - Initialization
 
@@ -61,7 +61,7 @@ struct Queue {
     guard !episodeIDs.isEmpty
     else { Assert.fatal("Calling dequeue with empty episodeIDs?") }
 
-    log.debug("queue: dequeueing \(episodeIDs)")
+    Self.log.debug("queue: dequeueing \(episodeIDs)")
 
     try await appDB.db.write { db in
       try _dequeue(db, episodeIDs)
@@ -73,7 +73,7 @@ struct Queue {
   }
 
   func insert(_ episodeID: Episode.ID, at newPosition: Int) async throws {
-    log.debug("queue: inserting \(episodeID) at position \(newPosition)")
+    Self.log.debug("queue: inserting \(episodeID) at position \(newPosition)")
 
     try await appDB.db.write { db in
       try _insert(db, episodeID, at: newPosition)
@@ -84,7 +84,7 @@ struct Queue {
     guard !episodeIDs.isEmpty
     else { Assert.fatal("Calling unshift with empty episodeIDs?") }
 
-    log.debug("queue: unshifting \(episodeIDs)")
+    Self.log.debug("queue: unshifting \(episodeIDs)")
 
     try await appDB.db.write { db in
       // Remove any existing episodes
@@ -113,7 +113,7 @@ struct Queue {
     guard !episodeIDs.isEmpty
     else { Assert.fatal("Calling append with empty episodeIDs?") }
 
-    log.debug("queue: appending \(episodeIDs)")
+    Self.log.debug("queue: appending \(episodeIDs)")
 
     try await appDB.db.write { db in
       // Remove any existing episodes
@@ -200,7 +200,9 @@ struct Queue {
     guard newPosition != oldPosition else { return }
     Assert.precondition(db.isInsideTransaction, "move method requires a transaction")
 
-    log.debug("queue: moving episode \(episodeID) from position \(oldPosition) to \(newPosition)")
+    Self.log.debug(
+      "queue: moving episode \(episodeID) from position \(oldPosition) to \(newPosition)"
+    )
 
     if newPosition > oldPosition {
       try Episode.filter {

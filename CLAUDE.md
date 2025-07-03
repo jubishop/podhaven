@@ -159,3 +159,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Test Policy
 - Don't try to build or test the code
+
+## Code Formatting
+- Run swift-format on any files you change

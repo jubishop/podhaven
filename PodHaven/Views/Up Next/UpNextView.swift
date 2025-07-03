@@ -6,7 +6,7 @@ import SwiftUI
 struct UpNextView: View {
   @DynamicInjected(\.alert) private var alert
   @InjectedObservable(\.navigation) private var navigation
-  
+
   @State private var viewModel = UpNextViewModel()
 
   var body: some View {

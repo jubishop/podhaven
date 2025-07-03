@@ -1,8 +1,8 @@
 // swift-tools-version: 6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
-import PackageDescription
 import CompilerPluginSupport
+import PackageDescription
 
 let package = Package(
   name: "PodHavenMacros",
@@ -30,7 +30,7 @@ let package = Package(
       name: "ReadableErrorMacroPlugin",
       dependencies: [
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
-        .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
+        .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
       ]
     ),
     .target(
@@ -43,14 +43,14 @@ let package = Package(
       name: "SavedMacroPlugin",
       dependencies: [
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
-        .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
+        .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
       ]
     ),
     .target(
       name: "SavedMacro",
       dependencies: [
         "SavedMacroPlugin",
-        .product(name: "Tagged", package: "swift-tagged")
+        .product(name: "Tagged", package: "swift-tagged"),
       ]
     ),
     .testTarget(
@@ -59,7 +59,7 @@ let package = Package(
         "ReadableErrorMacro",
         "ReadableErrorMacroPlugin",
         .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
-        .product(name: "Testing", package: "swift-testing")
+        .product(name: "Testing", package: "swift-testing"),
       ]
     ),
     .testTarget(
@@ -68,7 +68,7 @@ let package = Package(
         "SavedMacro",
         "SavedMacroPlugin",
         .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
-        .product(name: "Testing", package: "swift-testing")
+        .product(name: "Testing", package: "swift-testing"),
       ]
     ),
   ]

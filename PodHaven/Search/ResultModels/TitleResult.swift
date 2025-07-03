@@ -15,6 +15,6 @@ struct TitleResult: Decodable, PodcastResultConvertible, Sendable {
     let categories: [String: String]?
   }
   let feeds: [FeedResult]
-  
+
   var convertibleFeeds: [FeedResultConvertible] { feeds }
 }

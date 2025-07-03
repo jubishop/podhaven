@@ -128,8 +128,14 @@ import Testing
     let completedView = navigation.standardPlaylistView(for: .completed)
     let unfinishedView = navigation.standardPlaylistView(for: .unfinished)
 
-    #expect(completedView.viewID == "completed", "Completed playlist view should have 'completed' ID")
-    #expect(unfinishedView.viewID == "unfinished", "Unfinished playlist view should have 'unfinished' ID")
+    #expect(
+      completedView.viewID == "completed",
+      "Completed playlist view should have 'completed' ID"
+    )
+    #expect(
+      unfinishedView.viewID == "unfinished",
+      "Unfinished playlist view should have 'unfinished' ID"
+    )
   }
 
   @Test("that opmlView has ID matching settings type")
@@ -146,8 +152,14 @@ import Testing
     let unsubscribedView = navigation.standardPodcastsView(for: .unsubscribed)
 
     #expect(allView.viewID == "all", "All podcasts view should have 'all' ID")
-    #expect(subscribedView.viewID == "subscribed", "Subscribed podcasts view should have 'subscribed' ID")
-    #expect(unsubscribedView.viewID == "unsubscribed", "Unsubscribed podcasts view should have 'unsubscribed' ID")
+    #expect(
+      subscribedView.viewID == "subscribed",
+      "Subscribed podcasts view should have 'subscribed' ID"
+    )
+    #expect(
+      unsubscribedView.viewID == "unsubscribed",
+      "Unsubscribed podcasts view should have 'unsubscribed' ID"
+    )
   }
 
   @Test("that different playlist types create views with different IDs")

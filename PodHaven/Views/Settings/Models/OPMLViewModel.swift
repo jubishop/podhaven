@@ -70,7 +70,7 @@ import UniformTypeIdentifiers
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private let log = Log.as(LogSubsystem.SettingsView.opml)
+  private static let log = Log.as(LogSubsystem.SettingsView.opml)
 
   let opmlType: UTType
 
@@ -146,7 +146,7 @@ import UniformTypeIdentifiers
                 try await refreshManager.refreshSeries(podcastSeries: series)
               }
             } catch {
-              log.error(error)
+              Self.log.error(error)
             }
           }
         }

@@ -10,7 +10,7 @@ struct StandardPodcastsView: View {
 
   @State private var viewModel: StandardPodcastsViewModel
 
-  private let log = Log.as(LogSubsystem.PodcastsView.standard)
+  private static let log = Log.as(LogSubsystem.PodcastsView.standard)
 
   init(viewModel: StandardPodcastsViewModel) {
     self.viewModel = viewModel
@@ -65,7 +65,7 @@ struct StandardPodcastsView: View {
         try await viewModel.refreshPodcasts()
       } catch {
         if ErrorKit.baseError(for: error) is CancellationError { return }
-        log.error(error)
+        Self.log.error(error)
         alert(ErrorKit.message(for: error))
       }
     }

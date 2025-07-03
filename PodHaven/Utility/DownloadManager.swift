@@ -178,7 +178,7 @@ actor DownloadManager {
   }
 
   private func executeDownload(_ downloadTask: DownloadTask) {
-    Task { // Intentionally not weak so the Manager isn't deallocated before tasks complete
+    Task {  // Intentionally not weak so the Manager isn't deallocated before tasks complete
       let downloadResult = await downloadTask.download()
       streamContinuation.yield(downloadResult)
       activeDownloads.removeValue(forKey: downloadTask.url)

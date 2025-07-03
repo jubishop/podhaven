@@ -6,7 +6,7 @@ import Foundation
 import MediaPlayer
 
 struct NowPlayingInfo {
-  private let log = Log.as(LogSubsystem.Play.nowPlayingInfo)
+  private static let log = Log.as(LogSubsystem.Play.nowPlayingInfo)
 
   // MARK: - State Management
 
@@ -15,7 +15,7 @@ struct NowPlayingInfo {
   // MARK: - Initializing
 
   init(_ onDeck: OnDeck) {
-    log.debug("nowPlayingInfo.init: onDeck: \(onDeck.toString)")
+    Self.log.debug("nowPlayingInfo.init: onDeck: \(onDeck.toString)")
     self.onDeck = onDeck
 
     var nowPlayingInfo: [String: Any] = [:]
@@ -49,13 +49,13 @@ struct NowPlayingInfo {
   // MARK: - Modifying
 
   func clear() {
-    log.debug("clear: executing")
+    Self.log.debug("clear: executing")
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo = nil
   }
 
   func setCurrentTime(_ currentTime: CMTime) {
-    log.trace("setCurrentTime: \(currentTime)")
+    Self.log.trace("setCurrentTime: \(currentTime)")
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
       currentTime.seconds
@@ -64,7 +64,7 @@ struct NowPlayingInfo {
   }
 
   func playing(_ playing: Bool) {
-    log.debug("playing: \(playing)")
+    Self.log.debug("playing: \(playing)")
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] =
       playing ? 1.0 : 0.0

@@ -3,7 +3,8 @@
 import Foundation
 import GRDB
 
-@dynamicMemberLookup struct PodcastWithLatestEpisodeDates:
+@dynamicMemberLookup
+struct PodcastWithLatestEpisodeDates:
   Decodable,
   Equatable,
   FetchableRecord,
@@ -31,7 +32,7 @@ import GRDB
   }
 
   // MARK: - Stringable / Searchable
-  
+
   var toString: String { podcast.toString }
   var searchableString: String { podcast.searchableString }
 

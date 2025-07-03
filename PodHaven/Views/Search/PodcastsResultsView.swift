@@ -5,7 +5,7 @@ import SwiftUI
 
 struct PodcastsResultsView: View {
   @DynamicInjected(\.navigation) private var navigation
-  
+
   private let viewModel: ResultsViewModel
 
   init(viewModel: ResultsViewModel) {
@@ -28,7 +28,10 @@ struct PodcastsResultsView: View {
             )
           }
         }
-        .navigationDestination(for: SearchedPodcast.self, destination: navigation.podcastResultsDetailView)
+        .navigationDestination(
+          for: SearchedPodcast.self,
+          destination: navigation.podcastResultsDetailView
+        )
       } else {
         Text("Still searching")
         Spacer()

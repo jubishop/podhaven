@@ -10,10 +10,10 @@ struct PodcastDetailView: View {
 
   @State private var viewModel: PodcastDetailViewModel
 
-  private let log = Log.as(LogSubsystem.PodcastsView.detail)
+  private static let log = Log.as(LogSubsystem.PodcastsView.detail)
 
   init(viewModel: PodcastDetailViewModel) {
-    log.debug(
+    Self.log.debug(
       """
       Showing PodcastDetailView
         viewModel: \(viewModel.podcast.toString)
@@ -80,7 +80,7 @@ struct PodcastDetailView: View {
           try await viewModel.refreshSeries()
         } catch {
           if ErrorKit.baseError(for: error) is CancellationError { return }
-          log.error(error)
+          Self.log.error(error)
           alert(ErrorKit.message(for: error))
         }
       }

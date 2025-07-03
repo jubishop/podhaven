@@ -76,15 +76,15 @@ struct OPMLImportSheet: View {
     }
 
     #if DEBUG
-      Section("Debugging") {
-        Button("Clear DB") {
-          Task { // No [self] in scope here.
-            try AppDB.onDisk.db.write { db in
-              try Podcast.deleteAll(db)
-            }
+    Section("Debugging") {
+      Button("Clear DB") {
+        Task {  // No [self] in scope here.
+          try AppDB.onDisk.db.write { db in
+            try Podcast.deleteAll(db)
           }
         }
       }
+    }
     #endif
   }
   .preview()

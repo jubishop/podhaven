@@ -20,7 +20,7 @@ class PodcastDetailViewModel:
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private let log = Log.as(LogSubsystem.PodcastsView.detail)
+  private static let log = Log.as(LogSubsystem.PodcastsView.detail)
 
   // MARK: - State Management
 
@@ -68,7 +68,7 @@ class PodcastDetailViewModel:
       }
     } catch {
       if ErrorKit.baseError(for: error) is CancellationError { return }
-      log.error(error)
+      Self.log.error(error)
       alert(ErrorKit.message(for: error))
     }
   }

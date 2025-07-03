@@ -81,7 +81,7 @@ struct Podcast: Saved, RSSUpdatable {
       (Columns.image, unsaved.image),
       (Columns.description, unsaved.description),
       (Columns.link, unsaved.link),
-      (Columns.lastUpdate, unsaved.lastUpdate)
+      (Columns.lastUpdate, unsaved.lastUpdate),
     ]
   }
 }

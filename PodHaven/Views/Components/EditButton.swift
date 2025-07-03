@@ -38,7 +38,7 @@ struct EditButton<Label: View>: View {
   @Previewable @State var customText: String = "Unclicked"
   @Previewable @Environment(\.editMode) var editMode
   var isEditing: Bool { editMode?.wrappedValue == .active }
-  
+
   VStack(spacing: 20) {
     Text("Edit mode: \(isEditing ? "active" : "inactive")")
 

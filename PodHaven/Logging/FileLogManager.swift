@@ -26,7 +26,7 @@ struct FileLogManager: Sendable {
     return documentsURL.appendingPathComponent("log.ndjson")
   }()
 
-  private let log = Log.as("FileLogCleaner", level: .debug)
+  private static let log = Log.as("FileLogCleaner", level: .debug)
 
   // MARK: - Initialization
 
@@ -73,21 +73,21 @@ struct FileLogManager: Sendable {
 
     Task {
       if await UIApplication.shared.applicationState == .active {
-        log.trace("App launched, checking if log truncation needed")
+        Self.log.trace("App launched, checking if log truncation needed")
         await truncateIfNeeded()
       }
     }
 
     Task {
       for await _ in notifications(UIApplication.didBecomeActiveNotification) {
-        log.trace("App became active, checking if log truncation needed")
+        Self.log.trace("App became active, checking if log truncation needed")
         await truncateIfNeeded()
       }
     }
 
     Task {
       for await _ in notifications(UIApplication.willResignActiveNotification) {
-        log.trace("App will resign active, checking if log truncation needed")
+        Self.log.trace("App will resign active, checking if log truncation needed")
         await truncateIfNeeded()
       }
     }
@@ -98,7 +98,7 @@ struct FileLogManager: Sendable {
     let timeSinceLastCleanup = now - lastCleanup
 
     if timeSinceLastCleanup > periodicCleanupInterval {
-      log.debug(
+      Self.log.debug(
         """
         Running periodic log truncation, \
         last cleanup was: \(timeSinceLastCleanup.compactReadableFormat) ago
@@ -134,7 +134,7 @@ struct FileLogManager: Sendable {
       let truncatedContent = keepLines.joined(separator: "\n")
       try (truncatedContent + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
 
-      log.info("Truncated log file from \(lines.count) to \(keepLines.count) entries")
+      Self.log.info("Truncated log file from \(lines.count) to \(keepLines.count) entries")
     } catch {
       SentrySDK.capture(error: error)
     }

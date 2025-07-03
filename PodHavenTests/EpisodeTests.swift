@@ -181,9 +181,9 @@ class EpisodeTests {
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]
     )
-    
+
     let episode = podcastSeries.episodes.first!
-    
+
     // Attempt to update GUID directly in database should fail
     await #expect(throws: DatabaseError.self) {
       try await self.appDB.db.write { db in

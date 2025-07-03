@@ -32,7 +32,7 @@ public struct ReadableErrorMacro: MemberMacro {
     for caseDecl in cases {
       for element in caseDecl.elements {
         let caseName = element.name.text
-        
+
         if let parameterClause = element.parameterClause {
           let parameters = parameterClause.parameters
 
@@ -44,12 +44,12 @@ public struct ReadableErrorMacro: MemberMacro {
               errorIndices.append(index)
             }
           }
-          
+
           // Throw an error if more than one associated error value is found
           if errorIndices.count > 1 {
             throw MacroError.multipleErrorParameters(caseName: caseName)
           }
-          
+
           let errorIndex = errorIndices.first
 
           if let errorIndex {
@@ -114,7 +114,8 @@ enum MacroError: Error, CustomStringConvertible {
     case .notAnEnum:
       return "@ReadableError can only be applied to enums"
     case .multipleErrorParameters(let caseName):
-      return "@ReadableError found multiple error parameters in case '\(caseName)'. Only one error parameter is allowed per case."
+      return
+        "@ReadableError found multiple error parameters in case '\(caseName)'. Only one error parameter is allowed per case."
     }
   }
 }

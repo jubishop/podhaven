@@ -9,7 +9,7 @@ import Foundation
 class FakeAVQueuePlayer: AVQueuePlayable {
   @DynamicInjected(\.notifier) private var notifier
 
-  private let log = Log.as("FakeAVQueuePlayer")
+  private static let log = Log.as("FakeAVQueuePlayer")
 
   // MARK: - Helper Classes
 
@@ -50,14 +50,14 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   var current: (any AVPlayableItem)? { queued.first }
   var queued: [any AVPlayableItem] = [] {
     didSet {
-      log.debug("didSet queued to: \(queued)")
+      Self.log.debug("didSet queued to: \(queued)")
 
       if oldValue.first !== current {
         // Clean up deallocated observations and call active handlers
         itemObservations = itemObservations.compactMap { observationHandler in
           guard observationHandler.observation != nil else { return nil }
 
-          log.debug("Calling active currentItem handler with: \(String(describing: current))")
+          Self.log.debug("Calling active currentItem handler with: \(String(describing: current))")
           observationHandler.handler(current?.assetURL)
           return observationHandler
         }
@@ -139,13 +139,13 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused {
     didSet {
-      log.debug("didSet timeControlStatus to: \(timeControlStatus)")
+      Self.log.debug("didSet timeControlStatus to: \(timeControlStatus)")
 
       // Clean up deallocated observations and call active handlers
       statusObservations = statusObservations.compactMap { observationHandler in
         guard observationHandler.observation != nil else { return nil }
 
-        log.debug("Calling active timeControlStatus handler with: \(timeControlStatus)")
+        Self.log.debug("Calling active timeControlStatus handler with: \(timeControlStatus)")
         observationHandler.handler(timeControlStatus)
         return observationHandler
       }
@@ -179,7 +179,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
       Assert.fatal("Can't finish an episode that doesn't exist!")
     }
 
-    log.debug("finishEpisode: \(currentItem.assetURL.toString)")
+    Self.log.debug("finishEpisode: \(currentItem.assetURL.toString)")
     notifier.continuation(for: AVPlayerItem.didPlayToEndTimeNotification)
       .yield(
         Notification(

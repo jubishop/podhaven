@@ -13,7 +13,7 @@ import Logging
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private let log = Log.as(LogSubsystem.EpisodeView.detail)
+  private static let log = Log.as(LogSubsystem.EpisodeView.detail)
 
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }
@@ -52,7 +52,7 @@ import Logging
         await playManager.play()
       } catch {
         alert("Failed to load next episode: \(podcastEpisode.episode.title)")
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }

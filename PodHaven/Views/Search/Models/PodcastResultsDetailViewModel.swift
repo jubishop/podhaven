@@ -17,7 +17,7 @@ class PodcastResultsDetailViewModel:
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private let log = Log.as(LogSubsystem.SearchView.podcastDetail)
+  private static let log = Log.as(LogSubsystem.SearchView.podcastDetail)
 
   // MARK: - Data
 
@@ -68,7 +68,7 @@ class PodcastResultsDetailViewModel:
         subscribable = true
       }
     } catch {
-      log.error(error)
+      Self.log.error(error)
       alert(ErrorKit.message(for: error))
     }
   }

@@ -11,7 +11,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
 
-  private let log = Log.as(LogSubsystem.UpNextView.list)
+  private static let log = Log.as(LogSubsystem.UpNextView.list)
 
   let isSelected: Binding<Bool>
   let podcastEpisode: PodcastEpisode
@@ -38,7 +38,7 @@ import SwiftUI
         try await playManager.load(podcastEpisode)
         await playManager.play()
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }

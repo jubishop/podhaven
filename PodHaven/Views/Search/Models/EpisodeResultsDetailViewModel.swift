@@ -13,7 +13,7 @@ import Logging
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private let log = Log.as(LogSubsystem.SearchView.episodeDetail)
+  private static let log = Log.as(LogSubsystem.SearchView.episodeDetail)
 
   // MARK: - State Management
 
@@ -59,7 +59,7 @@ import Logging
       do {
         podcastEpisode = try await fetchOrCreateEpisode()
       } catch {
-        log.error(error)
+        Self.log.error(error)
         alert("Failed to fetch or create episode: \(unsavedPodcastEpisode.unsavedEpisode.title)")
         return
       }
@@ -69,7 +69,7 @@ import Logging
         await playManager.play()
       } catch {
         alert("Failed to load episode: \(podcastEpisode.episode.title)")
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }

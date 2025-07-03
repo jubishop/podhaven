@@ -26,7 +26,7 @@ actor PlayManager {
   private var playState: PlayState { get async { await Container.shared.playState() } }
   private var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
 
-  private let log = Log.as(LogSubsystem.Play.manager)
+  private static let log = Log.as(LogSubsystem.Play.manager)
 
   // MARK: - AppStorage
 
@@ -47,7 +47,7 @@ actor PlayManager {
   )
   private var currentEpisodeID: Episode.ID? {
     willSet {
-      log.debug("Setting currentEpisodeID to \(String(describing: newValue))")
+      Self.log.debug("Setting currentEpisodeID to \(String(describing: newValue))")
     }
   }
 
@@ -81,7 +81,7 @@ actor PlayManager {
         podcastEpisode = try await repo.episode(currentEpisodeID)
       } catch {
         await alert("Podcast episode with id: \"\(currentEpisodeID)\" not found")
-        log.error(error)
+        Self.log.error(error)
         return
       }
 
@@ -90,7 +90,7 @@ actor PlayManager {
           try await load(podcastEpisode)
         } catch {
           await alert("Failed to load podcast episode \(podcastEpisode.episode.title)")
-          log.error(error)
+          Self.log.error(error)
         }
       }
     }
@@ -111,13 +111,13 @@ actor PlayManager {
     let outgoing = await playState.onDeck
 
     if let outgoing, outgoing == incoming {
-      log.debug("performLoad: ignoring \(incoming.toString), already loaded")
+      Self.log.debug("performLoad: ignoring \(incoming.toString), already loaded")
       return false
     }
 
     let task = Task<Bool, any Error> { [weak self] in
       guard let self else { return false }
-      log.info("performLoad: \(incoming.toString)")
+      Self.log.info("performLoad: \(incoming.toString)")
 
       await podAVPlayer.removeObservers()
       await setStatus(.loading(incoming.episode.title))
@@ -137,19 +137,19 @@ actor PlayManager {
         throw error
       }
 
-      log.debug("performLoad: dequeueing incoming episode: \(incoming.toString)")
+      Self.log.debug("performLoad: dequeueing incoming episode: \(incoming.toString)")
       do {
         try await queue.dequeue(incoming.id)
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
 
       if let outgoing {
-        log.debug("performLoad: unshifting outgoing episode: \(outgoing.toString)")
+        Self.log.debug("performLoad: unshifting outgoing episode: \(outgoing.toString)")
         do {
           try await queue.unshift(outgoing.id)
         } catch {
-          log.error(error)
+          Self.log.error(error)
         }
       }
 
@@ -164,7 +164,7 @@ actor PlayManager {
   private func cleanUpAfterLoadFailure(_ outgoing: OnDeck?, _ incoming: PodcastEpisode) async {
     let nowOnDeck = await playState.onDeck
 
-    log.debug(
+    Self.log.debug(
       """
       cleanUpAfterLoadFailure
         outgoing: \(String(describing: outgoing?.toString))
@@ -174,7 +174,7 @@ actor PlayManager {
     )
 
     if let outgoing, outgoing != nowOnDeck {
-      log.debug(
+      Self.log.debug(
         """
         cleanUpAfterLoadFailure: unshifting outgoing episode post failure: \
         \(outgoing.toString)
@@ -183,12 +183,12 @@ actor PlayManager {
       do {
         try await queue.unshift(outgoing.id)
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
 
     if incoming.id != nowOnDeck?.id {
-      log.debug(
+      Self.log.debug(
         """
         cleanUpAfterLoadFailure: unshifting incoming episode post failure: \
         \(incoming.toString)
@@ -197,13 +197,13 @@ actor PlayManager {
       do {
         try await queue.unshift(incoming.id)
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
 
     if let nowOnDeck {
-      if log.shouldLog(.debug) {
-        log.debug(
+      if Self.log.shouldLog(.debug) {
+        Self.log.debug(
           """
           cleanUpAfterLoadFailure: no stopping after load failure because new podcast seems \
           to have loaded
@@ -249,7 +249,7 @@ actor PlayManager {
   // MARK: - Private State Management
 
   private func setOnDeck(_ podcastEpisode: PodcastEpisode) async throws {
-    log.debug("setOnDeck: \(podcastEpisode.toString)")
+    Self.log.debug("setOnDeck: \(podcastEpisode.toString)")
 
     let onDeck = await OnDeck(
       episodeID: podcastEpisode.id,
@@ -263,7 +263,7 @@ actor PlayManager {
         do {
           return try await imageFetcher.fetch(podcastEpisode.image)
         } catch {
-          log.error(error)
+          Self.log.error(error)
           return nil
         }
       }(),
@@ -276,7 +276,7 @@ actor PlayManager {
     await playState.setOnDeck(onDeck)
 
     if podcastEpisode.episode.currentTime != CMTime.zero {
-      log.debug(
+      Self.log.debug(
         """
         setOnDeck: Seeking \(podcastEpisode.toString), to \
         currentTime: \(podcastEpisode.episode.currentTime)
@@ -291,20 +291,20 @@ actor PlayManager {
   }
 
   private func clearOnDeck() async {
-    log.debug("clearOnDeck: executing")
+    Self.log.debug("clearOnDeck: executing")
     await podAVPlayer.clear()
     nowPlayingInfo = nil
     await playState.setOnDeck(nil)
   }
 
   private func setStatus(_ status: PlaybackStatus) async {
-    log.debug("setStatus: \(status)")
+    Self.log.debug("setStatus: \(status)")
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status)
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
-    log.trace("setCurrentTime: \(currentTime)")
+    Self.log.trace("setCurrentTime: \(currentTime)")
 
     nowPlayingInfo?.setCurrentTime(currentTime)
     await playState.setCurrentTime(currentTime)
@@ -314,24 +314,24 @@ actor PlayManager {
 
   private func handleCurrentItemChange(_ podcastEpisode: PodcastEpisode?) async throws {
     if let podcastEpisode {
-      log.debug("handleCurrentItemChange: \(podcastEpisode.id)")
+      Self.log.debug("handleCurrentItemChange: \(podcastEpisode.id)")
 
-      log.debug("handleCurrentItemChange: dequeueing episode: \(podcastEpisode.toString)")
+      Self.log.debug("handleCurrentItemChange: dequeueing episode: \(podcastEpisode.toString)")
       do {
         try await queue.dequeue(podcastEpisode.id)
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
 
       try await setOnDeck(podcastEpisode)
     } else {
-      log.debug("handleCurrentItemChange: nil, stopping")
+      Self.log.debug("handleCurrentItemChange: nil, stopping")
 
       await clearOnDeck()
       await setStatus(.stopped)
 
       if let nextEpisode = try await queue.nextEpisode {
-        log.debug(
+        Self.log.debug(
           """
           handleCurrentItemChange: next episode exists to manually load
             \(nextEpisode.toString)
@@ -352,7 +352,7 @@ actor PlayManager {
     guard let podcastEpisode = try await repo.episode(mediaURL)
     else { throw PlaybackError.endedEpisodeNotFound(mediaURL) }
 
-    log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
+    Self.log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
     try await repo.markComplete(podcastEpisode.id)
   }
 
@@ -387,7 +387,7 @@ actor PlayManager {
         do {
           try await handleDidPlayToEnd(playableItem.assetURL)
         } catch {
-          log.error(error)
+          Self.log.error(error)
         }
       }
     }
@@ -426,7 +426,7 @@ actor PlayManager {
         do {
           try await handleCurrentItemChange(podcastEpisode)
         } catch {
-          log.error(error)
+          Self.log.error(error)
         }
       }
     }

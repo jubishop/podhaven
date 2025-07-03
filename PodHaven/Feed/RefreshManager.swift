@@ -17,7 +17,7 @@ actor RefreshManager {
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.repo) private var repo
 
-  private let log = Log.as(LogSubsystem.Feed.refreshManager)
+  private static let log = Log.as(LogSubsystem.Feed.refreshManager)
 
   // MARK: - State Management
 
@@ -28,13 +28,13 @@ actor RefreshManager {
   fileprivate init() {}
 
   func start() async {
-    log.debug("start: executing")
+    Self.log.debug("start: executing")
 
     if await UIApplication.shared.applicationState == .active {
-      log.trace("start: app already active, activating refresh task")
+      Self.log.trace("start: app already active, activating refresh task")
       activated()
     } else {
-      log.trace("start: app not active, waiting for activation")
+      Self.log.trace("start: app not active, waiting for activation")
     }
 
     startListeningToActivation()
@@ -46,7 +46,7 @@ actor RefreshManager {
   func performRefresh(stalenessThreshold: Date, filter: SQLExpression = AppDB.NoOp)
     async throws(RefreshError)
   {
-    log.debug(
+    Self.log.debug(
       """
       performRefresh:
         stalenessThreshold: \(stalenessThreshold)
@@ -59,7 +59,9 @@ actor RefreshManager {
         let allStaleSubscribedPodcastSeries = try await repo.allPodcastSeries(
           Podcast.Columns.lastUpdate < stalenessThreshold && filter
         )
-        log.debug("performRefresh: found \(allStaleSubscribedPodcastSeries.count) stale series")
+        Self.log.debug(
+          "performRefresh: found \(allStaleSubscribedPodcastSeries.count) stale series"
+        )
 
         for podcastSeries in allStaleSubscribedPodcastSeries {
           group.addTask { [weak self] in
@@ -67,7 +69,7 @@ actor RefreshManager {
             do {
               try await refreshSeries(podcastSeries: podcastSeries)
             } catch {
-              log.error(error, mundane: .trace)
+              Self.log.error(error, mundane: .trace)
             }
           }
         }
@@ -76,7 +78,7 @@ actor RefreshManager {
   }
 
   func refreshSeries(podcastSeries: PodcastSeries) async throws(RefreshError) {
-    log.trace("refreshSeries: \(podcastSeries.toString)")
+    Self.log.trace("refreshSeries: \(podcastSeries.toString)")
 
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
     let podcastFeed: PodcastFeed
@@ -91,7 +93,7 @@ actor RefreshManager {
   func updateSeriesFromFeed(podcastSeries: PodcastSeries, podcastFeed: PodcastFeed)
     async throws(RefreshError)
   {
-    log.trace(
+    Self.log.trace(
       """
       updateSeriesFromFeed
         podcastSeries: \(podcastSeries.toString)
@@ -117,18 +119,18 @@ actor RefreshManager {
               )
             )
           } catch {
-            log.error(error)
+            Self.log.error(error)
           }
         } else {
           do {
             unsavedEpisodes.append(try feedItem.toUnsavedEpisode())
           } catch {
-            log.error(error)
+            Self.log.error(error)
           }
         }
       }
 
-      log.log(
+      Self.log.log(
         level: unsavedEpisodes.isEmpty ? .trace : .debug,
         """
         updateSeriesFromFeed: \(podcastSeries.toString)
@@ -151,20 +153,20 @@ actor RefreshManager {
   // MARK: - Private Helpers
 
   private func activated() {
-    log.trace("activated: starting background refresh task")
+    Self.log.trace("activated: starting background refresh task")
 
     backgroundRefreshTask?.cancel()
     backgroundRefreshTask = Task(priority: .utility) { [weak self] in
       guard let self else { return }
       while !Task.isCancelled {
-        log.debug("activated: performing refresh check")
+        Self.log.debug("activated: performing refresh check")
         do {
           try await performRefresh(
             stalenessThreshold: 10.minutesAgo,
             filter: Podcast.subscribed
           )
         } catch {
-          log.error(error)
+          Self.log.error(error)
         }
 
         try? await Task.sleep(for: .minutes(15))
@@ -173,7 +175,7 @@ actor RefreshManager {
   }
 
   private func backgrounded() {
-    log.trace("backgrounded: cancelling refresh task")
+    Self.log.trace("backgrounded: cancelling refresh task")
 
     backgroundRefreshTask?.cancel()
     backgroundRefreshTask = nil

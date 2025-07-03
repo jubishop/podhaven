@@ -15,7 +15,7 @@ struct PodHavenApp: App {
 
   @State private var isInitialized = false
 
-  private let log = Log.as("Main")
+  private static let log = Log.as("Main")
 
   var body: some Scene {
     WindowGroup {
@@ -69,13 +69,13 @@ struct PodHavenApp: App {
           CrashReportHandler(label: label),
         ])
       }
-      log.debug("configureLogging: iPhone (OSLogHandler, FileLogHandler, CrashReportHandler)")
+      Self.log.debug("configureLogging: iPhone (OSLogHandler, FileLogHandler, CrashReportHandler)")
     case .preview:
       LoggingSystem.bootstrap(PrintLogHandler.init)
-      log.debug("configureLogging: preview (PrintLogHandler)")
+      Self.log.debug("configureLogging: preview (PrintLogHandler)")
     case .simulator, .mac, .appStore, .testing:
       LoggingSystem.bootstrap(OSLogHandler.init)
-      log.debug("configureLogging: simulator/mac/appStore/testing (OSLogHandler)")
+      Self.log.debug("configureLogging: simulator/mac/appStore/testing (OSLogHandler)")
     }
   }
 

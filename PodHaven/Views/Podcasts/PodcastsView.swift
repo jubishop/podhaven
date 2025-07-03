@@ -26,7 +26,10 @@ struct PodcastsView: View {
         }
       }
       .navigationTitle("All Podcast Lists")
-      .navigationDestination(for: Navigation.PodcastsView.self, destination: navigation.standardPodcastsView)
+      .navigationDestination(
+        for: Navigation.PodcastsView.self,
+        destination: navigation.standardPodcastsView
+      )
     }
   }
 }

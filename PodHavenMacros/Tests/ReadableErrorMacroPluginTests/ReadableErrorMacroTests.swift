@@ -70,7 +70,7 @@ struct ReadableErrorMacroTests {
       indentationWidth: .spaces(2)
     )
   }
-  
+
   @Test
   func testReadableErrorWithAllErrorCases() throws {
     // Test enum where all cases have Error parameters - no default needed
@@ -102,7 +102,7 @@ struct ReadableErrorMacroTests {
       indentationWidth: .spaces(2)
     )
   }
-  
+
   @Test
   func testReadableErrorWithLabeledErrorParameter() throws {
     // Test with Error parameter that has a label and is not in first position
@@ -134,7 +134,7 @@ struct ReadableErrorMacroTests {
       indentationWidth: .spaces(2)
     )
   }
-  
+
   @Test
   func testReadableErrorThrowsOnMultipleErrorParameters() throws {
     // Setup test input with multiple Error parameters in a single case
@@ -151,7 +151,8 @@ struct ReadableErrorMacroTests {
       expandedSource: inputSource,  // Source should remain unchanged
       diagnostics: [
         DiagnosticSpec(
-          message: "@ReadableError found multiple error parameters in case 'multipleErrors'. Only one error parameter is allowed per case.",
+          message:
+            "@ReadableError found multiple error parameters in case 'multipleErrors'. Only one error parameter is allowed per case.",
           line: 3,
           column: 9
         )

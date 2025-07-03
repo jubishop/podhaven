@@ -14,7 +14,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private let log = Log.as(LogSubsystem.UpNextView.main)
+  private static let log = Log.as(LogSubsystem.UpNextView.main)
 
   // MARK: - State Management
 
@@ -55,7 +55,7 @@ import SwiftUI
         try await playManager.load(podcastEpisode)
         await playManager.play()
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }

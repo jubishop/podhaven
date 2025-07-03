@@ -16,7 +16,7 @@ extension Container {
 struct Repo {
   @DynamicInjected(\.queue) private var queue
 
-  private let log = Log.as(LogSubsystem.Database.repo)
+  private static let log = Log.as(LogSubsystem.Database.repo)
 
   // MARK: - Initialization
 
@@ -153,14 +153,14 @@ struct Repo {
         try Podcast
           .withID(podcast.id)
           .updateAll(db, podcast.rssColumnAssignments())
-        
+
         // Update only RSS feed attributes for existing episodes (excluding duration)
         for existingEpisode in existingEpisodes {
           try Episode
             .withID(existingEpisode.id)
             .updateAll(db, existingEpisode.rssColumnAssignments())
         }
-        
+
         // Insert new episodes (all attributes needed for new episodes)
         for var unsavedEpisode in unsavedEpisodes {
           unsavedEpisode.podcastId = podcast.id
@@ -260,7 +260,7 @@ struct Repo {
 
   @discardableResult
   func updateCurrentTime(_ episodeID: Episode.ID, _ currentTime: CMTime) async throws -> Bool {
-    log.trace("updateCurrentTime: \(episodeID) to \(currentTime)")
+    Self.log.trace("updateCurrentTime: \(episodeID) to \(currentTime)")
 
     return try await appDB.db.write { db in
       try Episode
@@ -271,7 +271,7 @@ struct Repo {
 
   @discardableResult
   func markComplete(_ episodeID: Episode.ID) async throws -> Bool {
-    log.debug("markComplete: \(episodeID)")
+    Self.log.debug("markComplete: \(episodeID)")
 
     return try await appDB.db.write { db in
       try Episode
