@@ -11,7 +11,7 @@ struct PodcastFeedTests {
   @Test("parsing the Pod Save America feed")
   func parsePodSaveAmericaFeed() async throws {
     let url = Bundle.main.url(forResource: "pod_save_america", withExtension: "rss")!
-    let feed = try await PodcastFeed.parse(FeedURL(url))
+    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
     let unsavedPodcast = try feed.toUnsavedPodcast()
     #expect(unsavedPodcast.title == "Pod Save America")
     #expect(unsavedPodcast.link == URL(string: "https://crooked.com"))
@@ -23,7 +23,7 @@ struct PodcastFeedTests {
   @Test("parsing the Marketplace feed")
   func parseMarketplaceFeed() async throws {
     let url = Bundle.main.url(forResource: "marketplace", withExtension: "rss")!
-    let feed = try await PodcastFeed.parse(FeedURL(url))
+    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
     let unsavedPodcast = try feed.toUnsavedPodcast()
     let unsavedEpisodes = try feed.episodes.map { try $0.toUnsavedEpisode() }
     #expect(unsavedPodcast.title == "Marketplace")
@@ -36,7 +36,7 @@ struct PodcastFeedTests {
   @Test("parsing the Land of the Giants")
   func parseLandOfTheGiantsFeed() async throws {
     let url = Bundle.main.url(forResource: "land_of_the_giants", withExtension: "rss")!
-    let feed = try await PodcastFeed.parse(FeedURL(url))
+    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
     let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: true)
     let unsavedEpisodes = try feed.episodes.map { try $0.toUnsavedEpisode() }
     #expect(unsavedPodcast.title == "Land of the Giants")
@@ -47,10 +47,10 @@ struct PodcastFeedTests {
   }
 
   @Test("parsing the invalid Game Informer feed")
-  func parseInvalidGameInformerFeed() async {
+  func parseInvalidGameInformerFeed() async throws {
     let url = Bundle.main.url(forResource: "game_informer_invalid", withExtension: "rss")!
     await #expect {
-      try await PodcastFeed.parse(FeedURL(url))
+      try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
     } throws: { error in
       guard let error = error as? FeedError
       else { return false }
@@ -66,7 +66,7 @@ struct PodcastFeedTests {
   @Test("parsing the seattle official feed with duplicate guids")
   func parseSeattleOfficialFeedWithDuplicateGuids() async throws {
     let url = Bundle.main.url(forResource: "seattle_official", withExtension: "rss")!
-    let feed = try await PodcastFeed.parse(FeedURL(url))
+    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
     let episodes = feed.toEpisodeArray()
     let duplicatedEpisode = episodes[id: "178f32e0-7246-11ec-b14e-19521896ea35"]!
     #expect(Calendar.current.component(.year, from: duplicatedEpisode.pubDate) == 2024)
@@ -75,7 +75,7 @@ struct PodcastFeedTests {
   @Test("parsing the seattlenow feed with a <p> tagged description")
   func parseSeattleNowFeedWithPTagInDescription() async throws {
     let url = Bundle.main.url(forResource: "seattlenow", withExtension: "rss")!
-    let feed = try await PodcastFeed.parse(FeedURL(url))
+    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
     let unsavedPodcast = try feed.toUnsavedPodcast()
     #expect(
       unsavedPodcast.description

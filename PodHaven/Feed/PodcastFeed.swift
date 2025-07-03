@@ -70,7 +70,8 @@ struct PodcastFeed: Sendable, Stringable {
 
   static func parse(_ url: FeedURL) async throws(FeedError) -> PodcastFeed {
     try await FeedError.catch {
-      try await parse(try Data(contentsOf: url.rawValue), from: url)
+      let data = try await URLSession.shared.validatedData(from: url.rawValue)
+      return try await parse(data, from: url)
     }
   }
 

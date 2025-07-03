@@ -18,9 +18,8 @@ class RefreshManagerTests {
 
   @Test("that refreshSeries works")
   func testRefreshSeriesWorks() async throws {
-    let podcastFeed = try await PodcastFeed.parse(
-      FeedURL(Bundle.main.url(forResource: "hardfork_short", withExtension: "rss")!)
-    )
+    let url = Bundle.main.url(forResource: "hardfork_short", withExtension: "rss")!
+    let podcastFeed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,

@@ -48,6 +48,7 @@ enum LogSubsystem {
   enum SearchView: String, LogCategorizable {
     case main
     case episodeDetail
+    case podcastDetail
   }
 
   enum SettingsView: String, LogCategorizable {

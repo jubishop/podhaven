@@ -7,19 +7,23 @@ struct PodcastOPML: Decodable, Sendable {
   // MARK: - Static Parsing Methods
 
   static func parse(_ url: URL) async throws -> PodcastOPML {
-    let data = try Data(contentsOf: url)
+    let data = try await URLSession.shared.validatedData(from: url)
     return try await parse(data)
   }
 
-  static func parse(_ data: Data) async throws -> PodcastOPML {
-    try await withCheckedThrowingContinuation { continuation in
-      do {
-        let decoder = XMLDecoder()
-        let podcastOPML = try decoder.decode(PodcastOPML.self, from: data)
-        continuation.resume(returning: podcastOPML)
-      } catch {
-        continuation.resume(throwing: error)
+  static func parse(_ data: Data) async throws(ParseError) -> PodcastOPML {
+    do {
+      return try await withCheckedThrowingContinuation { continuation in
+        do {
+          let decoder = XMLDecoder()
+          let podcastOPML = try decoder.decode(PodcastOPML.self, from: data)
+          continuation.resume(returning: podcastOPML)
+        } catch let error {
+          continuation.resume(throwing: error)
+        }
       }
+    } catch {
+      throw ParseError.invalidData(data: data, caught: error)
     }
   }
 

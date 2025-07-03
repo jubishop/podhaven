@@ -11,7 +11,7 @@ struct PodcastRSSTests {
   @Test("parsing the Changelog feed")
   func parseChangelogFeed() async throws {
     let url = Bundle.main.url(forResource: "changelog", withExtension: "rss")!
-    let podcast = try await PodcastRSS.parse(url)
+    let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     let episode = podcast.episodes.first!
     #expect(podcast.title == "The Changelog: Software Development, Open Source")
     let desc = "Software's best weekly news brief, deep technical interviews & talk show."
@@ -45,21 +45,21 @@ struct PodcastRSSTests {
   @Test("parsing the Marketplace feed")
   func parseMarketplaceFeed() async throws {
     let url = Bundle.main.url(forResource: "marketplace", withExtension: "rss")!
-    let podcast = try await PodcastRSS.parse(url)
+    let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(podcast.title == "Marketplace")
   }
 
   @Test("parsing the Unexplainable feed")
   func parseUnexplainableFeed() async throws {
     let url = Bundle.main.url(forResource: "unexplainable", withExtension: "rss")!
-    let podcast = try await PodcastRSS.parse(url)
+    let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(podcast.title == "Unexplainable")
   }
 
   @Test("parsing TheTalkShow feed")
   func parseTheTalkShowFeed() async throws {
     let url = Bundle.main.url(forResource: "thetalkshow", withExtension: "rss")!
-    let podcast = try await PodcastRSS.parse(url)
+    let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(podcast.title == "The Talk Show With John Gruber")
   }
 
@@ -67,24 +67,31 @@ struct PodcastRSSTests {
   func parseInvalidGameInformerFeed() async {
     let url = Bundle.main.url(forResource: "game_informer_invalid", withExtension: "rss")!
     await #expect(throws: (any Error).self) {
-      try await PodcastRSS.parse(url)
+      try await PodcastRSS.parse(try Data(contentsOf: url))
     }
   }
 
   @Test("parsing the seattle official feed with duplicate guids")
   func parseSeattleOfficialFeedWithDuplicateGuids() async throws {
     let url = Bundle.main.url(forResource: "seattle_official", withExtension: "rss")!
-    let podcast = try await PodcastRSS.parse(url)
+    let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(podcast.title == "Official Seattle Seahawks Podcasts")
   }
 
   @Test("parsing the seattlenow feed with a <p> in its description")
   func parseSeattleNowFeedWithPTagInDescription() async throws {
     let url = Bundle.main.url(forResource: "seattlenow", withExtension: "rss")!
-    let podcast = try await PodcastRSS.parse(url)
+    let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(
       podcast.description
         == "<p>A daily news podcast for a curious city. Seattle Now brings you quick, informal, and hyper-local news updates every weekday.</p>"
     )
+  }
+
+  @Test("parsing the makingsense feed with items missing media urls")
+  func parseMakingSenseFeedWithMissingMediaUrls() async throws {
+    let url = Bundle.main.url(forResource: "makingsense", withExtension: "rss")!
+    let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
+    #expect(podcast.episodes.count == 100)
   }
 }

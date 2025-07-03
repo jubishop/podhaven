@@ -6,11 +6,6 @@ import XMLCoder
 struct PodcastRSS: Decodable, Sendable {
   // MARK: - Static Parsing Methods
 
-  static func parse(_ url: URL) async throws -> Podcast {
-    let data = try Data(contentsOf: url)
-    return try await parse(data)
-  }
-
   static func parse(_ data: Data) async throws(ParseError) -> Podcast {
     do {
       return try await withCheckedThrowingContinuation { continuation in

@@ -16,7 +16,7 @@ enum ParseError: ReadableError {
       return
         """
         Invalid data
-          Data: \(String(decoding: data, as: UTF8.self))
+          Data size: \(data.count)
         """
     case .mergingDifferentFeedURLs(let parsing, let merging):
       return
