@@ -79,7 +79,7 @@ actor FeedManager {
 
     let feedTask = FeedTask(await downloadManager.addURL(url.rawValue))
     feedTasks[url] = feedTask
-    Task(priority: .utility) { [weak self] in
+    Task { [weak self] in
       guard let self else { return }
       do {
         let podcastFeed = try await feedTask.feedParsed()
