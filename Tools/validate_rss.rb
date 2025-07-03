@@ -3,10 +3,11 @@
 require 'rexml/document'
 require 'uri'
 require 'date'
+require 'net/http'
 
 class PodcastRSSValidator
-  def initialize(filepath)
-    @filepath = filepath
+  def initialize(input)
+    @input = input
     @errors = []
     @warnings = []
     @media_urls = {}
@@ -14,16 +15,15 @@ class PodcastRSSValidator
   end
 
   def validate
-    puts "Validating RSS file: #{@filepath}"
+    if url?(@input)
+      puts "Validating RSS from URL: #{@input}"
+    else
+      puts "Validating RSS file: #{@input}"
+    end
     puts "=" * 50
 
-    unless File.exist?(@filepath)
-      puts "❌ Error: File not found - #{@filepath}"
-      return false
-    end
-
     begin
-      content = File.read(@filepath)
+      content = get_content(@input)
       doc = REXML::Document.new(content)
 
       validate_basic_structure(doc)
@@ -44,6 +44,44 @@ class PodcastRSSValidator
   end
 
   private
+
+  def url?(input)
+    uri = URI.parse(input)
+    uri.is_a?(URI::HTTP) || uri.is_a?(URI::HTTPS)
+  rescue URI::InvalidURIError
+    false
+  end
+
+  def get_content(input)
+    if url?(input)
+      fetch_from_url(input)
+    else
+      read_from_file(input)
+    end
+  end
+
+  def fetch_from_url(url)
+    uri = URI.parse(url)
+
+    Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') do |http|
+      request = Net::HTTP::Get.new(uri)
+      response = http.request(request)
+
+      unless response.code == '200'
+        raise "HTTP Error: #{response.code} #{response.message}"
+      end
+
+      response.body
+    end
+  end
+
+  def read_from_file(filepath)
+    unless File.exist?(filepath)
+      raise "File not found: #{filepath}"
+    end
+
+    File.read(filepath)
+  end
 
   def validate_basic_structure(doc)
     # Check for RSS root element
@@ -266,7 +304,7 @@ class PodcastRSSValidator
 
   def check_for_duplicates
     puts "\n🔍 Checking for Duplicates..."
-    
+
     # Check for duplicate media URLs
     duplicate_urls = @media_urls.select { |url, episodes| episodes.length > 1 }
     unless duplicate_urls.empty?
@@ -334,8 +372,10 @@ end
 
 # Main execution
 if ARGV.length != 1
-  puts "Usage: ruby validate_rss.rb <rss_file_path>"
-  puts "Example: ruby validate_rss.rb wakingup.rss"
+  puts "Usage: ruby validate_rss.rb <rss_file_path_or_url>"
+  puts "Examples:"
+  puts "  ruby validate_rss.rb wakingup.rss"
+  puts "  ruby validate_rss.rb https://example.com/podcast.rss"
   exit 1
 end
 
