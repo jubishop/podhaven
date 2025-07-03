@@ -8,7 +8,8 @@ enum ParseError: ReadableError {
   case invalidData(data: Data, caught: Error)
   case mergingDifferentFeedURLs(parsing: FeedURL, merging: FeedURL?)
   case mergingDifferentMediaURLs(parsing: MediaURL, merging: MediaURL?)
-  case missingImageField
+  case missingImage(String)
+  case missingMediaURL(String)
 
   var message: String {
     switch self {
@@ -32,8 +33,10 @@ enum ParseError: ReadableError {
           Parsing: \(parsing)
           Merging: \(String(describing: merging))
         """
-    case .missingImageField:
-      return "Missing required image field"
+    case .missingImage(let title):
+      return "Missing required image attribute for \(title)"
+    case .missingMediaURL(let title):
+      return "Missing required enclosure media url for \(title)"
     }
   }
 }

@@ -39,7 +39,7 @@ struct PersonResult: Sendable, Decodable {
       }
 
       guard let feedImage = feedImage ?? podcastEpisode?.podcast.image
-      else { throw ParseError.missingImageField }
+      else { throw ParseError.missingImage(title) }
 
       return UnsavedPodcastEpisode(
         unsavedPodcast: try UnsavedPodcast(

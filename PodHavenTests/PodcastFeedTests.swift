@@ -82,4 +82,15 @@ struct PodcastFeedTests {
         == "<p>A daily news podcast for a curious city. Seattle Now brings you quick, informal, and hyper-local news updates every weekday.</p>"
     )
   }
+
+  @Test("parsing the makingsense feed with items missing media urls")
+  func parseMakingSenseFeedWithMissingMediaUrls() async throws {
+    let url = Bundle.main.url(forResource: "makingsense", withExtension: "rss")!
+    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+    let episodes = feed.toEpisodeArray()
+
+    // 19 episodes exist in the RSS file,
+    // but the last two are dropped because they have no media URLs
+    #expect(episodes.count == 17)
+  }
 }

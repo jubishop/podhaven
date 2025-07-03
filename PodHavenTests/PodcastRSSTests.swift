@@ -26,7 +26,7 @@ struct PodcastRSSTests {
     #expect(episode.guid == "changelog.com/17/2644")
     #expect(episode.title == "State of the \"log\" 2024 (Friends)")
     #expect(
-      episode.enclosure.url.absoluteString
+      episode.enclosure?.url.absoluteString
         == "https://op3.dev/e/https://cdn.changelog.com/uploads/friends/74/changelog--friends-74.mp3"
     )
     #expect(episode.pubDate! == Date.rfc2822.date(from: "Fri, 20 Dec 2024 20:00:00 +0000"))
@@ -92,6 +92,8 @@ struct PodcastRSSTests {
   func parseMakingSenseFeedWithMissingMediaUrls() async throws {
     let url = Bundle.main.url(forResource: "makingsense", withExtension: "rss")!
     let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
-    #expect(podcast.episodes.count == 100)
+
+    // Includes the last two that have no media urls.  They will be culled by PodcastFeed.
+    #expect(podcast.episodes.count == 19)
   }
 }

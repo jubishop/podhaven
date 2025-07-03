@@ -10,13 +10,16 @@ struct EpisodeFeed: Sendable, Equatable {
 
   private let rssEpisode: PodcastRSS.Episode
 
-  fileprivate init(rssEpisode: PodcastRSS.Episode) throws {
+  fileprivate init(rssEpisode: PodcastRSS.Episode) throws(ParseError) {
+    guard let mediaURL = rssEpisode.enclosure?.url
+    else { throw ParseError.missingMediaURL(rssEpisode.title) }
+
     self.rssEpisode = rssEpisode
     self.guid = rssEpisode.guid
-    self.media = rssEpisode.enclosure.url
+    self.media = mediaURL
   }
 
-  func toUnsavedEpisode(merging episode: Episode? = nil) throws -> UnsavedEpisode {
+  func toUnsavedEpisode(merging episode: Episode? = nil) throws(FeedError) -> UnsavedEpisode {
     Assert.precondition(
       episode == nil || episode?.guid == guid,
       """
@@ -25,20 +28,22 @@ struct EpisodeFeed: Sendable, Equatable {
       """
     )
 
-    return try UnsavedEpisode(
-      podcastId: episode?.podcastId,
-      guid: guid,
-      media: media,
-      title: rssEpisode.title,
-      pubDate: rssEpisode.pubDate ?? episode?.pubDate,
-      duration: duration ?? episode?.duration,
-      description: rssEpisode.description ?? episode?.description,
-      link: rssEpisode.link ?? episode?.link,
-      image: rssEpisode.iTunes.image?.href ?? episode?.image,
-      completionDate: episode?.completionDate,
-      currentTime: episode?.currentTime,
-      queueOrder: episode?.queueOrder
-    )
+    return try FeedError.catch {
+      try UnsavedEpisode(
+        podcastId: episode?.podcastId,
+        guid: guid,
+        media: media,
+        title: rssEpisode.title,
+        pubDate: rssEpisode.pubDate ?? episode?.pubDate,
+        duration: duration ?? episode?.duration,
+        description: rssEpisode.description ?? episode?.description,
+        link: rssEpisode.link ?? episode?.link,
+        image: rssEpisode.iTunes.image?.href ?? episode?.image,
+        completionDate: episode?.completionDate,
+        currentTime: episode?.currentTime,
+        queueOrder: episode?.queueOrder
+      )
+    }
   }
 
   // MARK: - Private Helpers
@@ -66,6 +71,8 @@ struct EpisodeFeed: Sendable, Equatable {
 }
 
 struct PodcastFeed: Sendable, Stringable {
+  private static let log = Log.as(LogSubsystem.Feed.podcast)
+
   // MARK: - Static Parsing Methods
 
   static func parse(_ url: FeedURL) async throws(FeedError) -> PodcastFeed {
@@ -99,7 +106,12 @@ struct PodcastFeed: Sendable, Stringable {
     self.link = rssPodcast.link
     self.image = rssPodcast.iTunes.image.href
     self.episodes = rssPodcast.episodes.compactMap { rssEpisode in
-      try? EpisodeFeed(rssEpisode: rssEpisode)
+      do {
+        return try EpisodeFeed(rssEpisode: rssEpisode)
+      } catch {
+        Self.log.error(error)
+        return nil
+      }
     }
   }
 

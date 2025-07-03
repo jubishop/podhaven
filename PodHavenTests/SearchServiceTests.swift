@@ -118,7 +118,9 @@ class SearchServiceTests {
         )
     )
 
-    #expect(throws: ParseError.missingImageField) {
+    #expect(
+      throws: ParseError.missingImage("A Tribute to Neil Armstrong – StarTalk Radio Cosmic Queries")
+    ) {
       try result.items.last!.toUnsavedPodcastEpisode()
     }
   }

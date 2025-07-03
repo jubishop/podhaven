@@ -15,7 +15,7 @@ protocol FeedResultConvertible {
 extension FeedResultConvertible {
   func toUnsavedPodcast() throws -> UnsavedPodcast {
     guard let image = image
-    else { throw ParseError.missingImageField }
+    else { throw ParseError.missingImage(title) }
 
     return try UnsavedPodcast(
       feedURL: url,
