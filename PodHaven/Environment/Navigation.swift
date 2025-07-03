@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
+import GRDB
 import SwiftUI
 
 extension Container {
