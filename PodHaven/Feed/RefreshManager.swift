@@ -113,9 +113,7 @@ actor RefreshManager {
             existingEpisodes.append(
               Episode(
                 id: existingEpisode.id,
-                from: try feedItem.toUnsavedEpisode(
-                  merging: existingEpisode
-                )
+                from: try feedItem.toUnsavedEpisode(merging: existingEpisode)
               )
             )
           } catch {
