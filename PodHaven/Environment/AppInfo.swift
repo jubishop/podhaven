@@ -87,6 +87,37 @@ actor AppInfo {
     }
     return Date()
   }
+
+  // MARK: - Data Storage
+
+  static var bundleIdentifier: String {
+    Bundle.main.bundleIdentifier ?? "com.artisanalsoftware.PodHaven"
+  }
+
+  static var dataDirectoryName: String? {
+    switch bundleIdentifier {
+    case "com.artisanalsoftware.PodHaven.dev":
+      return "PodHavenDev"
+    case "com.artisanalsoftware.PodHaven.debug":
+      return "PodHavenDebug"
+    default:
+      return nil  // Use root Documents directory for production
+    }
+  }
+
+  static var documentsDirectory: URL {
+    let baseURL = URL.documentsDirectory
+
+    // Production uses root Documents directory to preserve existing data
+    guard let subdirectory = dataDirectoryName
+    else { return baseURL }
+
+    // Development builds use subdirectories
+    let dataDir = baseURL.appendingPathComponent(subdirectory)
+    try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+
+    return dataDir
+  }
 }
 
 private class KeychainHelper {

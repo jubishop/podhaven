@@ -27,14 +27,8 @@ struct AppDB {
 
   fileprivate static let _onDisk = {
     do {
-      #if DEBUG
-      let dbFileName = "debug.sqlite"
-      #else
-      let dbFileName = "db.sqlite"
-      #endif
-
       let dbPool = try DatabasePool(
-        path: URL.documentsDirectory.appendingPathComponent(dbFileName).path,
+        path: AppInfo.documentsDirectory.appendingPathComponent("db.sqlite").path,
         configuration: makeConfiguration()
       )
       return try AppDB(dbPool)

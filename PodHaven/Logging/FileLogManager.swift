@@ -22,8 +22,7 @@ struct FileLogManager: Sendable {
 
   private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
   private let logFileURL: URL = {
-    let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-    return documentsURL.appendingPathComponent("log.ndjson")
+    return AppInfo.documentsDirectory.appendingPathComponent("log.ndjson")
   }()
 
   private static let log = Log.as("FileLogCleaner", level: .debug)
