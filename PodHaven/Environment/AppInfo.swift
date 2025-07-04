@@ -49,10 +49,6 @@ actor AppInfo {
     return .simulator
     #else
 
-    if ProcessInfo.processInfo.isMacCatalystApp || ProcessInfo.processInfo.isiOSAppOnMac {
-      return .macDev
-    }
-
     do {
       let result = try await AppTransaction.shared
       switch result {
@@ -70,7 +66,8 @@ actor AppInfo {
       }
     } catch {
       // AppTransaction.shared throws for Xcode-installed apps
-      return .iPhoneDev
+      return (ProcessInfo.processInfo.isMacCatalystApp || ProcessInfo.processInfo.isiOSAppOnMac)
+        ? .macDev : .iPhoneDev
     }
     #endif
   }
