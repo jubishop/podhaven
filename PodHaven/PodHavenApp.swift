@@ -72,15 +72,13 @@ struct PodHavenApp: App {
           CrashReportHandler(label: label),
         ])
       }
-      Self.log.debug(
-        "configureLogging: testFlight (OSLogHandler, FileLogHandler, CrashReportHandler)"
-      )
+      Self.log.debug("configureLogging: testFlight (OSLog, FileLog, CrashReport)")
     case .preview:
       LoggingSystem.bootstrap(PrintLogHandler.init)
-      Self.log.debug("configureLogging: preview (PrintLogHandler)")
+      Self.log.debug("configureLogging: preview (PrintLog)")
     case .simulator, .testing, .iPhoneDev, .macDev, .appStore:
       LoggingSystem.bootstrap(OSLogHandler.init)
-      Self.log.debug("configureLogging: simulator/testing/iphone/mac/appStore (OSLogHandler)")
+      Self.log.debug("configureLogging: simulator/testing/iphone/mac/appStore (OSLog)")
     }
   }
 
