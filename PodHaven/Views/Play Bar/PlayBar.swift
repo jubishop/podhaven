@@ -30,13 +30,13 @@ struct PlayBar: View {
   // MARK: - Loading PlayBar
 
   private var loadingPlayBar: some View {
-    HStack(spacing: 12) {
+    HStack(spacing: viewModel.commonSpacing) {
       ProgressView()
         .progressViewStyle(CircularProgressViewStyle(tint: .white))
         .scaleEffect(0.8)
 
       Text("Loading \(viewModel.loadingEpisodeTitle)")
-        .font(.system(size: 16, weight: .medium))
+        .font(viewModel.textFont)
         .foregroundColor(.white)
         .lineLimit(1)
 
@@ -47,13 +47,13 @@ struct PlayBar: View {
   // MARK: - Stopped PlayBar
 
   private var stoppedPlayBar: some View {
-    HStack(spacing: 12) {
+    HStack(spacing: viewModel.commonSpacing) {
       Image(systemName: "waveform.slash")
         .font(.system(size: 20, weight: .medium))
         .foregroundColor(.white)
 
       Text("No episode selected")
-        .font(.system(size: 16, weight: .medium))
+        .font(viewModel.textFont)
         .foregroundColor(.white)
 
       Spacer()
@@ -63,7 +63,7 @@ struct PlayBar: View {
   // MARK: - Collapsed PlayBar
 
   private var collapsedPlayBar: some View {
-    HStack(spacing: 12) {
+    HStack(spacing: viewModel.commonSpacing) {
       episodeImage
 
       Spacer()
@@ -74,7 +74,7 @@ struct PlayBar: View {
 
       Button(action: viewModel.toggleExpansion) {
         Image(systemName: "chevron.up")
-          .font(.system(size: 16, weight: .medium))
+          .font(viewModel.textFont)
           .foregroundColor(.white)
       }
       .frame(width: imageSize)
@@ -115,7 +115,7 @@ struct PlayBar: View {
 
         Button(action: viewModel.toggleExpansion) {
           Image(systemName: "chevron.down")
-            .font(.system(size: 16, weight: .medium))
+            .font(viewModel.textFont)
             .foregroundColor(.white)
         }
         .padding(.top, 8)
@@ -127,19 +127,30 @@ struct PlayBar: View {
         CustomProgressBar(
           value: $viewModel.sliderValue,
           isDragging: $viewModel.isDragging,
-          range: 0...Double(viewModel.duration.seconds)
+          range: 0...Double(viewModel.duration.seconds),
+          animationDuration: viewModel.progressAnimationDuration
         )
 
         HStack {
           Text(viewModel.sliderValue.playbackTimeFormat)
             .font(.caption)
             .foregroundColor(.white)
+            .scaleEffect(viewModel.isDragging ? viewModel.progressDragScale : 1.0)
+            .animation(
+              .easeInOut(duration: viewModel.progressAnimationDuration),
+              value: viewModel.isDragging
+            )
 
           Spacer()
 
           Text(viewModel.duration.seconds.playbackTimeFormat)
             .font(.caption)
             .foregroundColor(.white)
+            .scaleEffect(viewModel.isDragging ? viewModel.progressDragScale : 1.0)
+            .animation(
+              .easeInOut(duration: viewModel.progressAnimationDuration),
+              value: viewModel.isDragging
+            )
         }
       }
       .padding(.top, 12)
@@ -200,67 +211,6 @@ struct PlayBar: View {
           .foregroundColor(.white)
       }
     }
-  }
-
-}
-
-// MARK: - CustomProgressBar
-
-struct CustomProgressBar: View {
-  @Binding var value: Double
-  @Binding var isDragging: Bool
-  let range: ClosedRange<Double>
-
-  @State private var dragOffset: CGFloat = 0
-  @State private var barWidth: CGFloat = 0
-
-  private var normalHeight: CGFloat { 4 }
-  private var dragHeight: CGFloat { 12 }
-  private var currentHeight: CGFloat { isDragging ? dragHeight : normalHeight }
-
-  private var progress: Double {
-    guard range.upperBound > range.lowerBound else { return 0 }
-    return (value - range.lowerBound) / (range.upperBound - range.lowerBound)
-  }
-
-  var body: some View {
-    GeometryReader { geometry in
-      ZStack(alignment: .leading) {
-        // Background track
-        RoundedRectangle(cornerRadius: currentHeight / 2)
-          .fill(Color.white.opacity(0.3))
-          .frame(height: currentHeight)
-
-        // Progress track
-        RoundedRectangle(cornerRadius: currentHeight / 2)
-          .fill(Color.white)
-          .frame(width: max(0, CGFloat(progress) * geometry.size.width), height: currentHeight)
-      }
-      .onAppear {
-        barWidth = geometry.size.width
-      }
-      .onChange(of: geometry.size.width) { _, newWidth in
-        barWidth = newWidth
-      }
-      .gesture(
-        DragGesture(minimumDistance: 0)
-          .onChanged { gestureValue in
-            if !isDragging {
-              isDragging = true
-            }
-
-            let clampedX = max(0, min(gestureValue.location.x, geometry.size.width))
-            let newProgress = clampedX / geometry.size.width
-            let newValue = range.lowerBound + newProgress * (range.upperBound - range.lowerBound)
-            value = newValue
-          }
-          .onEnded { _ in
-            isDragging = false
-          }
-      )
-    }
-    .frame(height: max(normalHeight, dragHeight))
-    .animation(.easeInOut(duration: 0.15), value: isDragging)
   }
 }
 
