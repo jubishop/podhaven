@@ -7,10 +7,11 @@ import StoreKit
 
 enum EnvironmentType: String {
   case appStore
-  case mac
-  case iPhone
+  case iPhoneDev
+  case macDev
   case preview
   case simulator
+  case testFlight
   case testing
 }
 
@@ -47,13 +48,18 @@ actor AppInfo {
     #if targetEnvironment(simulator)
     return .simulator
     #else
+
+    if ProcessInfo.processInfo.isMacCatalystApp || ProcessInfo.processInfo.isiOSAppOnMac {
+      return .macDev
+    }
+
     do {
       let result = try await AppTransaction.shared
       switch result {
       case .verified(let appTransaction):
         switch appTransaction.environment {
         case .sandbox:
-          return .iPhone
+          return .testFlight
         case .production:
           return .appStore
         default:
@@ -63,7 +69,8 @@ actor AppInfo {
         Assert.fatal("Could not verify appTransaction")
       }
     } catch {
-      return .mac
+      // AppTransaction.shared throws for Xcode-installed apps
+      return .iPhoneDev
     }
     #endif
   }

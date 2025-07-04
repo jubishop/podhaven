@@ -30,6 +30,7 @@ struct PodHavenApp: App {
       .task {
         await AppInfo.initializeEnvironment()
         configureLogging()
+        Self.log.debug("Environment is: \(AppInfo.environment)")
         Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
 
         isInitialized = true
@@ -61,7 +62,7 @@ struct PodHavenApp: App {
 
   private func configureLogging() {
     switch AppInfo.environment {
-    case .iPhone:
+    case .testFlight:
       configureSentry()
 
       LoggingSystem.bootstrap { label in
@@ -71,13 +72,15 @@ struct PodHavenApp: App {
           CrashReportHandler(label: label),
         ])
       }
-      Self.log.debug("configureLogging: iPhone (OSLogHandler, FileLogHandler, CrashReportHandler)")
+      Self.log.debug(
+        "configureLogging: testFlight (OSLogHandler, FileLogHandler, CrashReportHandler)"
+      )
     case .preview:
       LoggingSystem.bootstrap(PrintLogHandler.init)
       Self.log.debug("configureLogging: preview (PrintLogHandler)")
-    case .simulator, .mac, .appStore, .testing:
+    case .simulator, .testing, .iPhoneDev, .macDev, .appStore:
       LoggingSystem.bootstrap(OSLogHandler.init)
-      Self.log.debug("configureLogging: simulator/mac/appStore/testing (OSLogHandler)")
+      Self.log.debug("configureLogging: simulator/testing/iphone/mac/appStore (OSLogHandler)")
     }
   }
 
