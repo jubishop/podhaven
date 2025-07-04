@@ -30,6 +30,8 @@ struct PodHavenApp: App {
       .task {
         await AppInfo.initializeEnvironment()
         configureLogging()
+        Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
+
         isInitialized = true
         configureAudioSession()
         await playManager.start()
