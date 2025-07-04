@@ -89,9 +89,9 @@ struct Repo {
     }
   }
 
-  func episodes(_ mediaURLs: [MediaURL]) async throws -> [PodcastEpisode] {
+  func episodes(_ mediaURLs: [MediaURL]) async throws -> IdentifiedArray<MediaURL, PodcastEpisode> {
     guard !mediaURLs.isEmpty
-    else { return [] }
+    else { return IdentifiedArray(id: \.episode.media) }
 
     return try await appDB.db.read { db in
       let episodes =
@@ -104,12 +104,15 @@ struct Repo {
         .withIDs(episodes.map(\.podcastID))
         .fetchIdentifiedArray(db, id: \.id)
 
-      return episodes.compactMap { episode in
-        guard let podcast = podcasts[id: episode.podcastID]
-        else { return nil }
+      return IdentifiedArray(
+        uniqueElements: episodes.compactMap { episode in
+          guard let podcast = podcasts[id: episode.podcastID]
+          else { return nil }
 
-        return PodcastEpisode(podcast: podcast, episode: episode)
-      }
+          return PodcastEpisode(podcast: podcast, episode: episode)
+        },
+        id: \.episode.media
+      )
     }
   }
 
