@@ -13,19 +13,18 @@ struct DebugSection: View {
 
       Text("Device ID: \(AppInfo.deviceIdentifier)")
 
-      if AppInfo.myPhone {
-        Text("Jubi's phone")
+      if AppInfo.myDevice {
+        Text("Jubi's device")
       } else {
-        Text("NOT Jubi's phone ")
+        Text("NOT Jubi's device")
       }
 
       #if DEBUG
       Text("in DEBUG")
       #else
       Text("in PRODUCTION")
-      #endif
-
       Text("Version \(AppInfo.version) (\(AppInfo.buildNumber))")
+      #endif
 
       Text("Built \(Date.usShortDateFormatWithTime.string(from: AppInfo.buildDate))")
 

@@ -21,7 +21,10 @@ actor AppInfo {
   // MARK: - Environment Info
 
   private static let key = "com.artisanalsoftware.PodHaven"
-  private static let myDeviceID = "6A13E21C-AFFB-43C9-9491-C9F3AF1DB6B1"
+  private static let myDeviceIDs: Set = [
+    "CC7A8EBE-0CC3-45DE-87A2-65B425F164DB",
+    "B290299A-7693-4F5B-AF94-14E6C6279A84",
+  ]
 
   static var deviceIdentifier: String {
     guard let uuid = KeychainHelper.get(forKey: key) else {
@@ -32,7 +35,7 @@ actor AppInfo {
     return uuid
   }
 
-  static var myPhone: Bool { deviceIdentifier == myDeviceID }
+  static var myDevice: Bool { myDeviceIDs.contains(deviceIdentifier) }
 
   static var environment: EnvironmentType = .appStore
 
