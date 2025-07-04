@@ -22,8 +22,9 @@ actor AppInfo {
 
   private static let key = "com.artisanalsoftware.PodHaven"
   private static let myDeviceIDs: Set = [
-    "CC7A8EBE-0CC3-45DE-87A2-65B425F164DB",
-    "B290299A-7693-4F5B-AF94-14E6C6279A84",
+    "6A13E21C-AFFB-43C9-9491-C9F3AF1DB6B1",  // testFlight
+    "CC7A8EBE-0CC3-45DE-87A2-65B425F164DB",  // iPhoneDev
+    "B290299A-7693-4F5B-AF94-14E6C6279A84",  // macDev
   ]
 
   static var deviceIdentifier: String {
