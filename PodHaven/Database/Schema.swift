@@ -60,6 +60,7 @@ enum Schema {
     }
 
     migrator.registerMigration("v2") { db in
+      // Migrate from completed boolean to optional completionDate
       try db.alter(table: "episode") { t in
         t.add(column: "completionDate", .datetime)
       }
@@ -72,6 +73,7 @@ enum Schema {
     }
 
     migrator.registerMigration("v3") { db in
+      // Fix issue where episodes were not marked complete for a while
       try db.execute(
         sql: """
           UPDATE episode 
