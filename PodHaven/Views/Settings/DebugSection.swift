@@ -22,7 +22,6 @@ struct DebugSection: View {
       #if DEBUG
       Text("in DEBUG")
       #else
-      Text("in TESTFLIGHT")
       Text("Version \(AppInfo.version) (\(AppInfo.buildNumber))")
       Text("Built \(Date.usShortDateFormatWithTime.string(from: AppInfo.buildDate))")
       #endif

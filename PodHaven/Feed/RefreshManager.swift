@@ -137,7 +137,7 @@ actor RefreshManager {
           \(unsavedEpisodes.count) new episodes
           \(existingEpisodes.count) updated episodes 
           New Episodes are: 
-            \(unsavedEpisodes.map { "    \($0.toString)" })
+            \(unsavedEpisodes.map { "    \($0.toString)" }.joined(separator: "\n"))
         """
       )
 
