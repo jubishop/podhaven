@@ -42,6 +42,10 @@ class RefreshManagerTests {
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
+    #expect(
+      updatedSeries.podcast.feedURL
+        == FeedURL(URL(string: "https://feeds.simplecast.com/l2i9YnTdNEW")!)
+    )
     #expect(updatedSeries.podcast.title == "Hard Fork version 2")
     #expect(updatedSeries.episodes.count == 3)
     #expect(
