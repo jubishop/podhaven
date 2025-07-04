@@ -22,11 +22,10 @@ struct DebugSection: View {
       #if DEBUG
       Text("in DEBUG")
       #else
-      Text("in PRODUCTION")
+      Text("in TESTFLIGHT")
       Text("Version \(AppInfo.version) (\(AppInfo.buildNumber))")
-      #endif
-
       Text("Built \(Date.usShortDateFormatWithTime.string(from: AppInfo.buildDate))")
+      #endif
 
       ShareLink(
         item: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
