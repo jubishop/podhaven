@@ -220,7 +220,7 @@ class PodcastRSSValidator
             episode_valid = false
           else
             if valid_url?(url)
-              puts "✅ Media URL: #{truncate(url)}"
+              puts "✅ Media URL: #{url}"
               # Track media URLs for duplicate checking
               if @media_urls[url]
                 @media_urls[url] << episode_num
@@ -240,7 +240,7 @@ class PodcastRSSValidator
           episode_valid = false
         else
           guid = element.text.to_s.strip
-          puts "✅ GUID: #{truncate(guid)}"
+          puts "✅ GUID: #{guid}"
           # Track GUIDs for duplicate checking
           if @guids[guid]
             @guids[guid] << episode_num
@@ -310,8 +310,8 @@ class PodcastRSSValidator
     unless duplicate_urls.empty?
       puts "\n❌ Duplicate Media URLs Found:"
       duplicate_urls.each do |url, episodes|
-        @errors << "Duplicate media URL found in episodes #{episodes.join(', ')}: #{truncate(url)}"
-        puts "   • Episodes #{episodes.join(', ')} share URL: #{truncate(url)}"
+        @errors << "Duplicate media URL found in episodes #{episodes.join(', ')}: #{url}"
+        puts "   • Episodes #{episodes.join(', ')} share URL: #{url}"
       end
     else
       puts "✅ No duplicate media URLs found"

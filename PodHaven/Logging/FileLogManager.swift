@@ -70,21 +70,21 @@ struct FileLogManager: Sendable {
   func startPeriodicCleanup() {
     Assert.neverCalled()
 
-    Task {
+    Task(priority: .background) {
       if await UIApplication.shared.applicationState == .active {
         Self.log.trace("App launched, checking if log truncation needed")
         await truncateIfNeeded()
       }
     }
 
-    Task {
+    Task(priority: .background) {
       for await _ in notifications(UIApplication.didBecomeActiveNotification) {
         Self.log.trace("App became active, checking if log truncation needed")
         await truncateIfNeeded()
       }
     }
 
-    Task {
+    Task(priority: .background) {
       for await _ in notifications(UIApplication.willResignActiveNotification) {
         Self.log.trace("App will resign active, checking if log truncation needed")
         await truncateIfNeeded()

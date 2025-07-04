@@ -156,7 +156,7 @@ actor RefreshManager {
     Self.log.trace("activated: starting background refresh task")
 
     backgroundRefreshTask?.cancel()
-    backgroundRefreshTask = Task(priority: .utility) { [weak self] in
+    backgroundRefreshTask = Task(priority: .background) { [weak self] in
       guard let self else { return }
       while !Task.isCancelled {
         Self.log.debug("activated: performing refresh check")
