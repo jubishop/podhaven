@@ -2,6 +2,7 @@
 
 import AVFoundation
 import Foundation
+import IdentifiedCollections
 import Testing
 
 @testable import PodHaven
@@ -84,6 +85,17 @@ struct PodcastFeedTests {
     for (mediaURL, count) in mediaURLs where count > 1 {
       Issue.record("Duplicate media url found: \(mediaURL) with count: \(count)")
     }
+
+    let episodesByMediaURL = IdentifiedArray(uniqueElements: episodes, id: \.media)
+    let duplicatedEpisode = episodesByMediaURL[
+      id: MediaURL(
+        URL(
+          string:
+            "https://www.podtrac.com/pts/redirect.mp3/pdst.fm/e/tracking.swap.fm/track/bHsDpvy53mYwJpnc1UL5/traffic.megaphone.fm/MOBI2606610581.mp3?updated=1750937895"
+        )!
+      )
+    ]!
+    #expect(Calendar.current.component(.year, from: duplicatedEpisode.pubDate) == 2026)
   }
 
   @Test("parsing the seattlenow feed with a <p> tagged description")

@@ -150,19 +150,39 @@ struct PodcastFeed: Sendable, Stringable {
   func toEpisodeArray(merging podcastSeries: PodcastSeries? = nil)
     -> IdentifiedArray<GUID, UnsavedEpisode>
   {
-    // Two UnsavedEpisodes may have the same GUID
-    IdentifiedArray(
-      episodes.compactMap { episodeFeed in
-        try? episodeFeed.toUnsavedEpisode(
-          merging: podcastSeries?.episodes[id: episodeFeed.guid]
-        )
-      },
-      id: \.guid,
-      uniquingIDsWith: { a, b in
-        // Keep whichever is the newest
-        a.pubDate >= b.pubDate ? a : b
+    let allEpisodes = episodes.compactMap { episodeFeed in
+      try? episodeFeed.toUnsavedEpisode(
+        merging: podcastSeries?.episodes[id: episodeFeed.guid]
+      )
+    }
+
+    var seenGUIDs: [GUID: UnsavedEpisode] = Dictionary(capacity: allEpisodes.count)
+    var seenMediaURLs: [MediaURL: UnsavedEpisode] = Dictionary(capacity: allEpisodes.count)
+
+    for episode in allEpisodes {
+      // Check GUID conflict
+      if let existingByGUID = seenGUIDs[episode.guid] {
+        guard episode.pubDate >= existingByGUID.pubDate
+        else { continue }
+
+        // Remove the old one from media URLs
+        seenMediaURLs.removeValue(forKey: existingByGUID.media)
       }
-    )
+
+      // Check media URL conflict
+      if let existingByMedia = seenMediaURLs[episode.media] {
+        guard episode.pubDate >= existingByMedia.pubDate
+        else { continue }
+
+        // Remove the old one from GUIDs
+        seenGUIDs.removeValue(forKey: existingByMedia.guid)
+      }
+
+      seenGUIDs[episode.guid] = episode
+      seenMediaURLs[episode.media] = episode
+    }
+
+    return IdentifiedArray(uniqueElements: seenGUIDs.values, id: \.guid)
   }
 
   // MARK: - Stringable
