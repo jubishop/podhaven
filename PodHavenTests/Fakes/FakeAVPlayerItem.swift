@@ -5,11 +5,14 @@ import Foundation
 @testable import PodHaven
 
 class FakeAVPlayerItem: AVPlayableItem {
-  let assetURL: MediaURL
+  let episodeID: Episode.ID?
 
-  init(assetURL: MediaURL) {
-    self.assetURL = assetURL
+  init(episodeID: Episode.ID?) {
+    self.episodeID = episodeID
   }
 
-  nonisolated var description: String { assetURL.toString }
+  nonisolated var description: String {
+    "TODO"
+    //    String(describing: episodeID)
+  }
 }

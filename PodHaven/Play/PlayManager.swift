@@ -348,9 +348,9 @@ actor PlayManager {
     }
   }
 
-  private func handleDidPlayToEnd(_ mediaURL: MediaURL) async throws {
-    guard let podcastEpisode = try await repo.episode(mediaURL)
-    else { throw PlaybackError.endedEpisodeNotFound(mediaURL) }
+  private func handleDidPlayToEnd(_ episodeID: Episode.ID?) async throws {
+    guard let episodeID = episodeID, let podcastEpisode = try await repo.episode(episodeID)
+    else { throw PlaybackError.endedEpisodeNotFound(episodeID) }
 
     Self.log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
     try await repo.markComplete(podcastEpisode.id)
@@ -385,7 +385,7 @@ actor PlayManager {
         guard let playableItem = notification.object as? AVPlayableItem
         else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayableItem") }
         do {
-          try await handleDidPlayToEnd(playableItem.assetURL)
+          try await handleDidPlayToEnd(playableItem.episodeID)
         } catch {
           Self.log.error(error)
         }

@@ -1,5 +1,5 @@
 {
-  "originHash" : "15ab7d7fc6de71efb51d2fe334777a56f9518050a96bd7a902a01cceef9f6834",
+  "originHash" : "d84687bfe1e22f3d95e21c233d04055bbc5422b30e2c51b03cb4f83a4821a075",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -152,6 +152,15 @@
       "state" : {
         "branch" : "main",
         "revision" : "7061233809f745e2ba6c3e8c6f984a8f36257226"
+      }
+    },
+    {
+      "identity" : "swiftassociatedobject",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/inso-/SwiftAssociatedObject",
+      "state" : {
+        "branch" : "master",
+        "revision" : "c3dea2adadaf283e5bbdc37cacc28c194e49db33"
       }
     },
     {

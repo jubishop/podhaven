@@ -26,7 +26,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   // MARK: - State Management
 
-  var itemObservations: [ObservationHandler<MediaURL?>] = []
+  var itemObservations: [ObservationHandler<Episode.ID?>] = []
   var seekHandler: (CMTime) async -> Bool = { _ in (true) }
   var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
   var timeObservers: [UUID: TimeObserver] = [:]
@@ -58,7 +58,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
           guard observationHandler.observation != nil else { return nil }
 
           Self.log.debug("Calling active currentItem handler with: \(String(describing: current))")
-          observationHandler.handler(current?.assetURL)
+          observationHandler.handler(current?.episodeID)
           return observationHandler
         }
       }
@@ -67,13 +67,13 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   }
   func observeCurrentItem(
     options: NSKeyValueObservingOptions,
-    changeHandler: @escaping @Sendable (MediaURL?) -> Void
+    changeHandler: @escaping @Sendable (Episode.ID?) -> Void
   ) -> NSKeyValueObservation {
     let observation = NSObject().observe(\.description, options: []) { _, _ in }
     itemObservations.append(ObservationHandler(observation: observation, handler: changeHandler))
 
     if options.contains(.initial) {
-      changeHandler(current?.assetURL)
+      changeHandler(current?.episodeID)
     }
 
     return observation
@@ -81,12 +81,12 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   func insert(_ item: any AVPlayableItem, after afterItem: (any AVPlayableItem)?) {
     if let afterItem {
-      guard let afterIndex = queued.firstIndex(where: { $0.assetURL == afterItem.assetURL })
+      guard let afterIndex = queued.firstIndex(where: { $0.episodeID == afterItem.episodeID })
       else { Assert.fatal("Couldn't find item: \(afterItem), to insert after!") }
 
       queued.insert(item, at: afterIndex + 1)
     } else {
-      if let existingItem = queued.first(where: { $0.assetURL == item.assetURL }) {
+      if let existingItem = queued.first(where: { $0.episodeID == item.episodeID }) {
         Assert.fatal("Item: \(existingItem), already exists in queue!")
       }
 
@@ -95,11 +95,11 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   }
 
   func remove(_ item: any AVPlayableItem) {
-    if !queued.contains(where: { $0.assetURL == item.assetURL }) {
+    if !queued.contains(where: { $0.episodeID == item.episodeID }) {
       Assert.fatal("Item: \(item), does not exist in queue!")
     }
 
-    queued.removeAll { $0.assetURL == item.assetURL }
+    queued.removeAll { $0.episodeID == item.episodeID }
   }
 
   func removeAllItems() {
@@ -179,12 +179,12 @@ class FakeAVQueuePlayer: AVQueuePlayable {
       Assert.fatal("Can't finish an episode that doesn't exist!")
     }
 
-    Self.log.debug("finishEpisode: \(currentItem.assetURL.toString)")
+    Self.log.debug("finishEpisode: \(String(describing: currentItem.episodeID))")
     notifier.continuation(for: AVPlayerItem.didPlayToEndTimeNotification)
       .yield(
         Notification(
           name: AVPlayerItem.didPlayToEndTimeNotification,
-          object: FakeAVPlayerItem(assetURL: currentItem.assetURL)
+          object: FakeAVPlayerItem(episodeID: currentItem.episodeID)
         )
       )
 

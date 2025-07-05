@@ -34,14 +34,14 @@ class FakeEpisodeAssetLoader {
     fakeHandlers.removeValue(forKey: mediaURL)
   }
 
-  func loadEpisodeAsset(_ mediaURL: MediaURL) async throws -> EpisodeAsset {
-    defer { responseCounts[mediaURL, default: 0] += 1 }
+  func loadEpisodeAsset(_ episode: Episode) async throws -> EpisodeAsset {
+    defer { responseCounts[episode.media, default: 0] += 1 }
 
-    let handler = fakeHandlers[mediaURL, default: defaultHandler]
-    let (isPlayable, duration) = try await handler(mediaURL)
+    let handler = fakeHandlers[episode.media, default: defaultHandler]
+    let (isPlayable, duration) = try await handler(episode.media)
     try Task.checkCancellation()
     return await EpisodeAsset(
-      playerItem: FakeAVPlayerItem(assetURL: mediaURL),
+      playerItem: FakeAVPlayerItem(episodeID: episode.id),
       isPlayable: isPlayable,
       duration: duration
     )

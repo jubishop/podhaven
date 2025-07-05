@@ -12,10 +12,11 @@ extension Container {
     Factory(self) { @MainActor in PodAVPlayer() }.scope(.cached)
   }
 
-  var loadEpisodeAsset: Factory<(_ mediaURL: MediaURL) async throws -> EpisodeAsset> {
+  var loadEpisodeAsset: Factory<(_ episode: Episode) async throws -> EpisodeAsset> {
     Factory(self) {
-      { mediaURL in
-        let asset = AVURLAsset(url: mediaURL.rawValue)
+      { episode in
+        let asset = AVURLAsset(url: episode.media.rawValue)
+        asset.episodeID = episode.id
         let (isPlayable, duration) = try await asset.load(.isPlayable, .duration)
         return await EpisodeAsset(
           playerItem: AVPlayerItem(asset: asset),
@@ -90,7 +91,7 @@ extension Container {
 
     let episodeAsset: EpisodeAsset
     do {
-      episodeAsset = try await loadEpisodeAsset(podcastEpisode.episode.media)
+      episodeAsset = try await loadEpisodeAsset(podcastEpisode.episode)
     } catch {
       throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
     }
@@ -264,7 +265,7 @@ extension Container {
     }
 
     // If this is already the last: do nothing
-    if lastItem.assetURL == podcastEpisode?.episode.media {
+    if lastItem.episodeID == podcastEpisode?.episode.id {
       Self.log.debug(
         """
         shouldSetAsNext: false for \(String(describing: podcastEpisode?.toString)) \
@@ -280,19 +281,19 @@ extension Container {
 
   // MARK: - Change Handlers
 
-  private func handleCurrentItemChange(_ mediaURL: MediaURL?) async throws {
-    if podcastEpisode?.episode.media == mediaURL {
+  private func handleCurrentItemChange(_ episodeID: Episode.ID?) async throws {
+    if podcastEpisode?.episode.id == episodeID {
       Self.log.debug(
         """
-        handleCurrentItemChange: ignoring because mediaURL matches current podcastEpisode: \
-        \(String(describing: mediaURL?.toString))
+        handleCurrentItemChange: ignoring because id matches current podcastEpisode: \
+        \(String(describing: episodeID))
         """
       )
       return
     }
 
-    if let mediaURL {
-      podcastEpisode = try await repo.episode(mediaURL)
+    if let episodeID {
+      podcastEpisode = try await repo.episode(episodeID)
     } else {
       podcastEpisode = nil
     }
@@ -351,12 +352,12 @@ extension Container {
 
     currentItemObserver = avQueuePlayer.observeCurrentItem(
       options: [.initial, .new]
-    ) { [weak self] url in
+    ) { [weak self] episodeID in
       guard let self else { return }
       Task { [weak self] in
         guard let self else { return }
         do {
-          try await self.handleCurrentItemChange(url)
+          try await self.handleCurrentItemChange(episodeID)
         } catch {
           Self.log.error(error)
         }
@@ -421,6 +422,7 @@ extension Container {
   // MARK: - Debugging Helpers
 
   private var printableQueue: String {
-    avQueuePlayer.queued.map(\.assetURL.toString).joined(separator: "\n  ")
+    "TODO"
+    //    avQueuePlayer.queued.map(\.assetURL.toString).joined(separator: "\n  ")
   }
 }

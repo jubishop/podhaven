@@ -4,10 +4,10 @@ import AVFoundation
 import Foundation
 
 extension AVPlayerItem: AVPlayableItem {
-  var assetURL: MediaURL {
+  var episodeID: Episode.ID? {
     guard let urlAsset = asset as? AVURLAsset
     else { fatalError("\(asset) is not an AVURLAsset") }
 
-    return MediaURL(urlAsset.url)
+    return urlAsset.episodeID
   }
 }

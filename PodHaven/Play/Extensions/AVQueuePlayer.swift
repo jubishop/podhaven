@@ -15,11 +15,11 @@ extension AVQueuePlayer: AVQueuePlayable {
   var queued: [any AVPlayableItem] { items() }
   nonisolated func observeCurrentItem(
     options: NSKeyValueObservingOptions,
-    changeHandler: @Sendable @escaping (MediaURL?) -> Void
+    changeHandler: @Sendable @escaping (Episode.ID?) -> Void
   ) -> NSKeyValueObservation {
     observe(\.currentItem, options: options) { player, _ in
       Task { @MainActor in
-        changeHandler(player.currentItem?.assetURL)
+        changeHandler(player.currentItem?.episodeID)
       }
     }
   }

@@ -11,7 +11,7 @@ import Foundation
   func removeAllItems()
   func observeCurrentItem(
     options: NSKeyValueObservingOptions,
-    changeHandler: @Sendable @escaping (MediaURL?) -> Void
+    changeHandler: @Sendable @escaping (Episode.ID?) -> Void
   ) -> NSKeyValueObservation
 
   func play()
