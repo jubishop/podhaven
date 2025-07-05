@@ -13,10 +13,6 @@ enum Schema {
   static func makeMigrator() throws -> DatabaseMigrator {
     var migrator = DatabaseMigrator()
 
-    #if DEBUG
-    migrator.eraseDatabaseOnSchemaChange = true
-    #endif
-
     migrator.registerMigration("v1") { db in
       try db.create(table: "podcast") { t in
         t.autoIncrementedPrimaryKey("id")
