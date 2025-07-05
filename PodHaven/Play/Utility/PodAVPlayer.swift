@@ -15,8 +15,7 @@ extension Container {
   var loadEpisodeAsset: Factory<(_ episode: Episode) async throws -> EpisodeAsset> {
     Factory(self) {
       { episode in
-        let asset = AVURLAsset(url: episode.media.rawValue)
-        asset.episodeID = episode.id
+        let asset = AVURLAsset(url: episode.media.rawValue, episodeID: episode.id)
         let (isPlayable, duration) = try await asset.load(.isPlayable, .duration)
         return await EpisodeAsset(
           playerItem: AVPlayerItem(asset: asset),
@@ -422,7 +421,6 @@ extension Container {
   // MARK: - Debugging Helpers
 
   private var printableQueue: String {
-    "TODO"
-    //    avQueuePlayer.queued.map(\.assetURL.toString).joined(separator: "\n  ")
+    avQueuePlayer.queued.map { String(describing: $0.episodeID) }.joined(separator: "\n  ")
   }
 }
