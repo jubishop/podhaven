@@ -15,7 +15,7 @@ struct EpisodeFeed: Sendable, Equatable {
     else { throw ParseError.missingMediaURL(rssEpisode.title) }
 
     self.rssEpisode = rssEpisode
-    self.guid = rssEpisode.guid
+    self.guid = rssEpisode.guid ?? GUID(mediaURL.absoluteString)
     self.media = mediaURL
   }
 

@@ -102,5 +102,16 @@ struct PodcastRSSTests {
 
     // Includes the last two that have no media urls.  They will be culled by PodcastFeed.
     #expect(podcast.episodes.count == 19)
+    #expect(podcast.episodes.filter { $0.enclosure?.url == nil }.count == 2)
+  }
+
+  @Test("parsing the considerthis feed with items missing guids")
+  func parseConsiderThisFeedWithMissingGuids() async throws {
+    let url = Bundle.main.url(forResource: "considerthis", withExtension: "rss")!
+    let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
+
+    // Includes the two that have no guids.  They will have guids assigned by PodcastFeed.
+    #expect(podcast.episodes.count == 31)
+    #expect(podcast.episodes.filter { $0.guid == nil }.count == 2)
   }
 }

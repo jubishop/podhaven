@@ -119,4 +119,27 @@ struct PodcastFeedTests {
     // but the last two are dropped because they have no media URLs
     #expect(episodes.count == 17)
   }
+
+  @Test("parsing the considerthis feed with items missing guids")
+  func parseConsiderThisFeedWithMissingGuids() async throws {
+    let url = Bundle.main.url(forResource: "considerthis", withExtension: "rss")!
+    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+    let episodes = feed.toEpisodeArray()
+
+    // These are the mediaURLs of the two entries with no guids
+    #expect(
+      episodes.ids.contains(
+        GUID(
+          "https://chrt.fm/track/138C95/prfx.byspotify.com/e/play.podtrac.com/npr-510355/traffic.megaphone.fm/NPR8510690925.mp3?d=736&size=11791509&e=1254697878&t=podcast&p=510355"
+        )
+      )
+    )
+    #expect(
+      episodes.ids.contains(
+        GUID(
+          "https://chrt.fm/track/138C95/prfx.byspotify.com/e/play.podtrac.com/npr-510355/traffic.megaphone.fm/NPR7873235626.mp3?d=489&size=7834271&e=1254264642&t=podcast&p=510355"
+        )
+      )
+    )
+  }
 }
