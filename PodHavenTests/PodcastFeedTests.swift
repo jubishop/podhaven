@@ -72,6 +72,20 @@ struct PodcastFeedTests {
     #expect(Calendar.current.component(.year, from: duplicatedEpisode.pubDate) == 2024)
   }
 
+  @Test("parsing the morningbrew feed with duplicate mediaURLs")
+  func parseMorningBrewFeedWithDuplicateMediaURLs() async throws {
+    let url = Bundle.main.url(forResource: "morningbrew", withExtension: "rss")!
+    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+
+    let episodes = feed.toEpisodeArray()
+    let mediaURLs: [MediaURL: Int] = episodes.reduce(into: [:]) { counts, episode in
+      counts[episode.media, default: 0] += 1
+    }
+    for (mediaURL, count) in mediaURLs where count > 1 {
+      Issue.record("Duplicate media url found: \(mediaURL) with count: \(count)")
+    }
+  }
+
   @Test("parsing the seattlenow feed with a <p> tagged description")
   func parseSeattleNowFeedWithPTagInDescription() async throws {
     let url = Bundle.main.url(forResource: "seattlenow", withExtension: "rss")!

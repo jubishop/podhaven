@@ -78,6 +78,13 @@ struct PodcastRSSTests {
     #expect(podcast.title == "Official Seattle Seahawks Podcasts")
   }
 
+  @Test("parsing the morningbrew feed with duplicate mediaURLs")
+  func parseMorningBrewFeedWithDuplicateMediaURLs() async throws {
+    let url = Bundle.main.url(forResource: "morningbrew", withExtension: "rss")!
+    let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
+    #expect(podcast.title == "Morning Brew Daily")
+  }
+
   @Test("parsing the seattlenow feed with a <p> in its description")
   func parseSeattleNowFeedWithPTagInDescription() async throws {
     let url = Bundle.main.url(forResource: "seattlenow", withExtension: "rss")!
