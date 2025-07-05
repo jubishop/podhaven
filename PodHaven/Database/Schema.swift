@@ -124,6 +124,67 @@ enum Schema {
       )
     }
 
+    migrator.registerMigration("v6") { db in
+      // Change episode.media constraint from globally unique to unique per podcast
+      // SQLite doesn't support dropping constraints directly, so we need to recreate the table
+
+      // Create new table with the correct constraints
+      try db.create(table: "episode_new") { t in
+        t.autoIncrementedPrimaryKey("id")
+        t.uniqueKey(["podcastId", "guid"], onConflict: .fail)
+        t.uniqueKey(["podcastId", "media"], onConflict: .fail)
+        t.belongsTo("podcast", onDelete: .cascade).notNull()
+
+        // Feed Info (Required)
+        t.column("guid", .text).notNull().indexed()
+        t.column("media", .text).notNull().indexed()
+        t.column("title", .text).notNull()
+        t.column("pubDate", .datetime).notNull()
+
+        // Feed Info (Optional)
+        t.column("duration", .integer)
+        t.column("description", .text)
+        t.column("link", .text)
+        t.column("image", .text)
+
+        // App Added Metadata
+        t.column("completionDate", .datetime)
+        t.column("currentTime", .integer).notNull().defaults(to: 0)
+        t.column("queueOrder", .integer).check { $0 >= 0 }
+      }
+
+      // Copy all data from old table to new table
+      try db.execute(
+        sql: """
+          INSERT INTO episode_new (
+            id, podcastId, guid, media, title, pubDate, duration, description, 
+            link, image, completionDate, currentTime, queueOrder
+          )
+          SELECT 
+            id, podcastId, guid, media, title, pubDate, duration, description, 
+            link, image, completionDate, currentTime, queueOrder
+          FROM episode
+          """
+      )
+
+      // Drop old table and rename new one
+      try db.drop(table: "episode")
+      try db.rename(table: "episode_new", to: "episode")
+
+      // Recreate the GUID update trigger
+      try db.execute(
+        sql: """
+          CREATE TRIGGER prevent_episode_guid_update
+          BEFORE UPDATE OF guid ON episode
+          FOR EACH ROW
+          WHEN OLD.guid != NEW.guid
+          BEGIN
+            SELECT RAISE(ABORT, 'Episode GUID cannot be modified once set');
+          END
+          """
+      )
+    }
+
     return migrator
   }
 }

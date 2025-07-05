@@ -404,4 +404,118 @@ class MigrationTests {
       #expect(queueOrders == [0, 1, 2, 3])
     }
   }
+
+  @Test("migrating to v6, changing media constraint from globally unique to unique per podcast")
+  func testV6Migration() async throws {
+    try migrator.migrate(appDB.db, upTo: "v5")
+
+    // Insert test data in v5 schema
+    let now = Date()
+
+    try await appDB.db.write { db in
+      // Create two podcasts
+      try db.execute(
+        sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscribed)
+            VALUES ('https://example1.com/feed.xml', 'Test Podcast 1', 'https://example1.com/image.jpg', 'Test Description 1', 1)
+          """
+      )
+      let podcast1Id = db.lastInsertedRowID
+
+      try db.execute(
+        sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscribed)
+            VALUES ('https://example2.com/feed.xml', 'Test Podcast 2', 'https://example2.com/image.jpg', 'Test Description 2', 1)
+          """
+      )
+      let podcast2Id = db.lastInsertedRowID
+
+      // Create episodes with same media URL but different podcasts (should fail before migration)
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate)
+            VALUES (?, 'episode-1', 'https://example.com/shared.mp3', 'Episode 1', ?)
+          """,
+        arguments: [podcast1Id, now]
+      )
+
+      // This should fail due to the global unique constraint on media
+      #expect(throws: DatabaseError.self) {
+        try db.execute(
+          sql: """
+              INSERT INTO episode (podcastId, guid, media, title, pubDate)
+              VALUES (?, 'episode-2', 'https://example.com/shared.mp3', 'Episode 2', ?)
+            """,
+          arguments: [podcast2Id, now]
+        )
+      }
+    }
+
+    // Migrate to v6
+    try migrator.migrate(appDB.db, upTo: "v6")
+
+    // Verify the migration results
+    try await appDB.db.write { db in
+      // After migration, episodes with same media URL should be allowed in different podcasts
+      let podcast1Id = try Int64.fetchOne(
+        db,
+        sql: "SELECT id FROM podcast WHERE feedURL = 'https://example1.com/feed.xml'"
+      )!
+      let podcast2Id = try Int64.fetchOne(
+        db,
+        sql: "SELECT id FROM podcast WHERE feedURL = 'https://example2.com/feed.xml'"
+      )!
+
+      // This should now succeed
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate)
+            VALUES (?, 'episode-2', 'https://example.com/shared.mp3', 'Episode 2', ?)
+          """,
+        arguments: [podcast2Id, now]
+      )
+
+      // But duplicate media within the same podcast should still fail
+      #expect(throws: DatabaseError.self) {
+        try db.execute(
+          sql: """
+              INSERT INTO episode (podcastId, guid, media, title, pubDate)
+              VALUES (?, 'episode-3', 'https://example.com/shared.mp3', 'Episode 3', ?)
+            """,
+          arguments: [podcast1Id, now]
+        )
+      }
+    }
+
+    // Verify that data was preserved during migration
+    try await appDB.db.read { db in
+      let episodeCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM episode")!
+      #expect(episodeCount == 2)
+
+      // Verify the original episode is still there
+      let originalEpisode = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE guid = 'episode-1'"
+      )!
+      #expect(originalEpisode[Column("media")] as String == "https://example.com/shared.mp3")
+      #expect(originalEpisode[Column("title")] as String == "Episode 1")
+
+      // Verify the new episode was inserted
+      let newEpisode = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE guid = 'episode-2'"
+      )!
+      #expect(newEpisode[Column("media")] as String == "https://example.com/shared.mp3")
+      #expect(newEpisode[Column("title")] as String == "Episode 2")
+    }
+
+    // Verify that the GUID update trigger still works after migration
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.db.write { db in
+        try db.execute(
+          sql: "UPDATE episode SET guid = 'changed-guid' WHERE guid = 'episode-1'"
+        )
+      }
+    }
+  }
 }
