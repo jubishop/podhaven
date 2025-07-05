@@ -38,12 +38,8 @@ class PersonResultsListViewModel:
   func execute() async {
     do {
       if let personResult {
-        existingPodcastEpisodes = IdentifiedArray(
-          uniqueElements: try await repo.episodes(personResult.items.map(\.enclosureUrl)),
-          id: \.episode.media
-        )
         episodeList.allEntries = personResult.toPodcastEpisodeArray(
-          merging: existingPodcastEpisodes
+          merging: try await repo.podcastSeries(personResult.items.map(\.feedUrl))
         )
       }
     } catch {

@@ -69,15 +69,18 @@ struct PersonResult: Sendable, Decodable {
 
   let items: [ItemResult]
 
-  func toPodcastEpisodeArray(
-    merging podcastEpisodes: IdentifiedArray<MediaURL, PodcastEpisode>? = nil
-  )
+  func toPodcastEpisodeArray(merging podcastSeries: IdentifiedArray<FeedURL, PodcastSeries>? = nil)
     -> IdentifiedArray<MediaURL, UnsavedPodcastEpisode>
   {
-    // Two PodcastEpisodes returned may have the same MediaURL
     IdentifiedArray(
-      items.compactMap {
-        try? $0.toUnsavedPodcastEpisode(merging: podcastEpisodes?[id: $0.enclosureUrl])
+      items.compactMap { item in
+        guard let series = podcastSeries?[id: item.feedUrl],
+          let episode = series.episodes[id: item.guid]
+        else { return try? item.toUnsavedPodcastEpisode() }
+
+        return try? item.toUnsavedPodcastEpisode(
+          merging: PodcastEpisode(podcast: series.podcast, episode: episode)
+        )
       },
       id: \.unsavedEpisode.media,
       uniquingIDsWith: { a, b in

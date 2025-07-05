@@ -248,49 +248,6 @@ class EpisodeTests {
     #expect(updatedEpisode.duration == newCMTime)
   }
 
-  @Test("that an episode can be fetched by its media url")
-  func fetchEpisodeByMediaURL() async throws {
-    let unsavedPodcast = try Create.unsavedPodcast()
-    let unsavedEpisode = try Create.unsavedEpisode()
-    try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: [unsavedEpisode])
-
-    let podcastEpisode = try await repo.episode(unsavedEpisode.media)!
-    #expect(podcastEpisode.episode.media == unsavedEpisode.media)
-  }
-
-  @Test("that multiple episodes can be fetched by their media url")
-  func fetchEpisodesByMediaURLs() async throws {
-    let unsavedPodcast = try Create.unsavedPodcast()
-    let unsavedEpisode1 = try Create.unsavedEpisode()
-    let unsavedEpisode2 = try Create.unsavedEpisode()
-    try await repo.insertSeries(
-      unsavedPodcast,
-      unsavedEpisodes: [unsavedEpisode1, unsavedEpisode2]
-    )
-
-    let unsavedPodcast2 = try Create.unsavedPodcast()
-    let unsavedEpisode21 = try Create.unsavedEpisode()
-    let unsavedEpisode22 = try Create.unsavedEpisode()
-    try await repo.insertSeries(
-      unsavedPodcast2,
-      unsavedEpisodes: [unsavedEpisode21, unsavedEpisode22]
-    )
-
-    let allPodcasts = [unsavedPodcast, unsavedPodcast2]
-    let allEpisodes = [
-      unsavedEpisode1, unsavedEpisode2, unsavedEpisode21, unsavedEpisode22,
-    ]
-    let unsavedEpisodeNeverSaved = try Create.unsavedEpisode()
-
-    let podcastEpisodes = try await repo.episodes([
-      unsavedEpisode1.media, unsavedEpisode2.media, unsavedEpisode21.media, unsavedEpisode22.media,
-      unsavedEpisodeNeverSaved.media,
-    ])
-    #expect(podcastEpisodes.count == 4)
-    #expect(Set(podcastEpisodes.map(\.episode.media)) == Set(allEpisodes.map(\.media)))
-    #expect(Set(podcastEpisodes.map(\.podcast.feedURL)) == Set(allPodcasts.map(\.feedURL)))
-  }
-
   @Test("that an episode can be marked complete")
   func markEpisodeComplete() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
