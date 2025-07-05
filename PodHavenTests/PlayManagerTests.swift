@@ -117,7 +117,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     let loadingSemaphore = AsyncSemaphore(value: 0)
-    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in
+    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) { _ in
       await loadingSemaphore.wait()
       return (true, .inSeconds(10))
     }
@@ -149,7 +149,7 @@ import Testing
     )
 
     let correctDuration = CMTime.inSeconds(20)
-    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode.media) {
+    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) {
       _ in (true, correctDuration)
     }
 
@@ -200,8 +200,8 @@ import Testing
   func loadingFailureClearsState() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode.media) { mediaURL in
-      throw TestError.assetLoadFailure(mediaURL)
+    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) { episode in
+      throw TestError.assetLoadFailure(episode)
     }
     await #expect(throws: (any Error).self) {
       try await playManager.load(podcastEpisode)
@@ -217,8 +217,8 @@ import Testing
     let (playingEpisode, episodeToLoad) = try await Create.twoPodcastEpisodes()
 
     try await playManager.load(playingEpisode)
-    fakeEpisodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
-      throw TestError.assetLoadFailure(mediaURL)
+    fakeEpisodeAssetLoader.respond(to: episodeToLoad.episode) { episode in
+      throw TestError.assetLoadFailure(episode)
     }
     await #expect(throws: (any Error).self) {
       try await playManager.load(episodeToLoad)
@@ -234,7 +234,7 @@ import Testing
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
     try await PlayHelpers.executeMidLoad(for: originalEpisode) { @MainActor in
-      fakeEpisodeAssetLoader.clearCustomHandler(for: originalEpisode.episode.media)
+      fakeEpisodeAssetLoader.clearCustomHandler(for: originalEpisode.episode)
       try await playManager.load(incomingEpisode)
     }
 
@@ -270,7 +270,7 @@ import Testing
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
     try await PlayHelpers.executeMidLoad(for: originalEpisode) { @MainActor in
-      fakeEpisodeAssetLoader.clearCustomHandler(for: originalEpisode.episode.media)
+      fakeEpisodeAssetLoader.clearCustomHandler(for: originalEpisode.episode)
       try await playManager.load(incomingEpisode)
       try await PlayHelpers.play()
     }
@@ -413,7 +413,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     let duration = CMTime.inSeconds(240)
-    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode.media) { _ in (true, duration) }
+    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) { _ in (true, duration) }
     try await playManager.load(podcastEpisode)
 
     let originalTime = CMTime.inSeconds(120)
@@ -680,8 +680,8 @@ import Testing
   func loadingFailureUnshiftsOntoQueue() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode.media) { mediaURL in
-      throw TestError.assetLoadFailure(mediaURL)
+    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) { episode in
+      throw TestError.assetLoadFailure(episode)
     }
     await #expect(throws: (any Error).self) {
       try await playManager.load(podcastEpisode)
@@ -697,8 +697,8 @@ import Testing
     let (playingEpisode, episodeToLoad) = try await Create.twoPodcastEpisodes()
 
     try await playManager.load(playingEpisode)
-    fakeEpisodeAssetLoader.respond(to: episodeToLoad.episode.media) { mediaURL in
-      throw TestError.assetLoadFailure(mediaURL)
+    fakeEpisodeAssetLoader.respond(to: episodeToLoad.episode) { episode in
+      throw TestError.assetLoadFailure(episode)
     }
     await #expect(throws: (any Error).self) {
       try await playManager.load(episodeToLoad)
@@ -714,7 +714,7 @@ import Testing
     let originalEpisode = try await Create.podcastEpisode()
 
     try await PlayHelpers.executeMidLoad(for: originalEpisode) { @MainActor in
-      fakeEpisodeAssetLoader.clearCustomHandler(for: originalEpisode.episode.media)
+      fakeEpisodeAssetLoader.clearCustomHandler(for: originalEpisode.episode)
       try await playManager.load(originalEpisode)
     }
     await #expect(throws: (any Error).self) {
@@ -767,8 +767,8 @@ import Testing
     try await queue.unshift(queuedEpisode.id)
 
     // This ensures the standard queuing of this item into the avPlayer queue fails
-    fakeEpisodeAssetLoader.respond(to: queuedEpisode.episode.media) { mediaURL in
-      throw TestError.assetLoadFailure(mediaURL)
+    fakeEpisodeAssetLoader.respond(to: queuedEpisode.episode) { episode in
+      throw TestError.assetLoadFailure(episode)
     }
 
     // Will try to load the queued episode but fail
@@ -776,7 +776,7 @@ import Testing
     try await PlayHelpers.waitForResponse(for: queuedEpisode)
 
     // Now allow the load to succeed next time we try
-    fakeEpisodeAssetLoader.clearCustomHandler(for: queuedEpisode.episode.media)
+    fakeEpisodeAssetLoader.clearCustomHandler(for: queuedEpisode.episode)
 
     // Once episode is finished it will try again to load the queued episode
     try await PlayHelpers.play()
