@@ -1,8 +1,8 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
-import Foundation
 import AssociatedObject
+import Foundation
 
 extension AVURLAsset {
   @AssociatedObject(.retain(.atomic))
