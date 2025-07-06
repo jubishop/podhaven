@@ -119,7 +119,7 @@ class EpisodeTests {
     updatedEpisode.image = newEpisodeImage
 
     let newEpisode = try Create.unsavedEpisode(title: "episode 2")
-    try await repo.updateSeries(
+    try await repo.updateSeriesFromFeed(
       updatedPodcast,
       unsavedEpisodes: [newEpisode],
       existingEpisodes: [updatedEpisode]

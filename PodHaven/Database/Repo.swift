@@ -118,7 +118,7 @@ struct Repo {
     }
   }
 
-  func updateSeries(
+  func updateSeriesFromFeed(
     _ podcast: Podcast,
     unsavedEpisodes: [UnsavedEpisode] = [],
     existingEpisodes: [Episode] = []

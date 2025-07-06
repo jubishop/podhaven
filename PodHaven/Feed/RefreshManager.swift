@@ -142,7 +142,7 @@ actor RefreshManager {
       )
 
       newPodcast.lastUpdate = Date()
-      try await repo.updateSeries(
+      try await repo.updateSeriesFromFeed(
         newPodcast,
         unsavedEpisodes: unsavedEpisodes,
         existingEpisodes: existingEpisodes
