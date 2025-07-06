@@ -8,12 +8,12 @@ import IdentifiedCollections
 import Tagged
 
 extension Container {
-  var repo: Factory<Repo> {
+  var repo: Factory<any Databasing> {
     Factory(self) { Repo(self.appDB()) }.scope(.cached)
   }
 }
 
-struct Repo {
+struct Repo: Databasing, Sendable {
   @DynamicInjected(\.queue) private var queue
 
   private static let log = Log.as(LogSubsystem.Database.repo)
@@ -25,17 +25,22 @@ struct Repo {
   fileprivate init(_ appDB: AppDB) {
     self.appDB = appDB
   }
+  #if DEBUG
+  static func initForTest(_ appDB: AppDB) -> Repo {
+    Repo(appDB)
+  }
+  #endif
 
   // MARK: - Global Readers
 
-  func allPodcasts(_ filter: SQLExpression = AppDB.NoOp) async throws -> [Podcast] {
+  func allPodcasts(_ filter: SQLExpression) async throws -> [Podcast] {
     let request = Podcast.all().filter(filter)
     return try await appDB.db.read { db in
       try request.fetchAll(db)
     }
   }
 
-  func allPodcastSeries(_ filter: SQLExpression = AppDB.NoOp) async throws(RepoError)
+  func allPodcastSeries(_ filter: SQLExpression) async throws(RepoError)
     -> [PodcastSeries]
   {
     do {
@@ -67,7 +72,8 @@ struct Repo {
     }
   }
 
-  func podcastSeries(_ feedURLs: [FeedURL]) async throws -> IdentifiedArray<FeedURL, PodcastSeries> {
+  func podcastSeries(_ feedURLs: [FeedURL]) async throws -> IdentifiedArray<FeedURL, PodcastSeries>
+  {
     try await appDB.db.read { db in
       try Podcast
         .filter { feedURLs.contains($0.feedURL) }
@@ -96,7 +102,7 @@ struct Repo {
   // MARK: - Series Writers
 
   @discardableResult
-  func insertSeries(_ unsavedPodcast: UnsavedPodcast, unsavedEpisodes: [UnsavedEpisode] = [])
+  func insertSeries(_ unsavedPodcast: UnsavedPodcast, unsavedEpisodes: [UnsavedEpisode])
     async throws(RepoError) -> PodcastSeries
   {
     do {
@@ -119,16 +125,19 @@ struct Repo {
   }
 
   func updateSeriesFromFeed(
-    _ podcast: Podcast,
-    unsavedEpisodes: [UnsavedEpisode] = [],
-    existingEpisodes: [Episode] = []
+    podcastID: Podcast.ID,
+    podcast: Podcast?,
+    unsavedEpisodes: [UnsavedEpisode],
+    existingEpisodes: [Episode]
   ) async throws(RepoError) {
     do {
       try await appDB.db.write { db in
-        // Update only RSS feed attributes for podcast
-        try Podcast
-          .withID(podcast.id)
-          .updateAll(db, podcast.rssColumnAssignments())
+        // Update only RSS feed attributes for podcast if provided
+        if let podcast = podcast {
+          try Podcast
+            .withID(podcast.id)
+            .updateAll(db, podcast.rssColumnAssignments())
+        }
 
         // Update only RSS feed attributes for existing episodes (excluding duration)
         for existingEpisode in existingEpisodes {
@@ -139,15 +148,20 @@ struct Repo {
 
         // Insert new episodes (all attributes needed for new episodes)
         for var unsavedEpisode in unsavedEpisodes {
-          unsavedEpisode.podcastId = podcast.id
+          unsavedEpisode.podcastId = podcastID
           try unsavedEpisode.insert(db)
         }
       }
     } catch {
+      let description =
+        podcast?.toString
+        ?? (!existingEpisodes.isEmpty
+          ? "Episodes: \(existingEpisodes.map(\.toString).joined(separator: ", "))"
+          : "UnsavedEpisodes: \(unsavedEpisodes.map(\.toString).joined(separator: ", "))")
       throw RepoError.updateFailure(
         type: PodcastSeries.self,
-        id: podcast.id.rawValue,
-        description: podcast.toString,
+        id: podcastID.rawValue,
+        description: description,
         caught: error
       )
     }

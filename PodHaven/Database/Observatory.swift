@@ -13,8 +13,8 @@ extension Container {
 struct Observatory {
   // MARK: - Initialization
 
-  private let repo: Repo
-  fileprivate init(_ repo: Repo) {
+  private let repo: any Databasing
+  fileprivate init(_ repo: any Databasing) {
     self.repo = repo
   }
 

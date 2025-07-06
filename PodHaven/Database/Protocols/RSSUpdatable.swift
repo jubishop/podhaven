@@ -4,6 +4,7 @@ import GRDB
 
 protocol RSSUpdatable {
   var rssUpdatableColumns: [(ColumnExpression, SQLExpressible)] { get }
+  func rssEquals(_ other: Self) -> Bool
 }
 
 extension RSSUpdatable {

@@ -15,6 +15,7 @@ class RefreshManagerTests {
   @DynamicInjected(\.refreshManager) private var refreshManager
 
   var session: FakeDataFetchable { feedManagerSession as! FakeDataFetchable }
+  var fakeRepo: FakeRepo { repo as! FakeRepo }
 
   @Test("that refreshSeries works")
   func testRefreshSeriesWorks() async throws {
@@ -55,5 +56,52 @@ class RefreshManagerTests {
         "Is Amazon's Drone Delivery Finally Ready for Prime Time?",
       ]
     )
+  }
+
+  @Test("that selective updates only update changed content")
+  func testSelectiveUpdates() async throws {
+    let url = Bundle.main.url(forResource: "hardfork_short", withExtension: "rss")!
+    let podcastFeed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+    )
+
+    await fakeRepo.clearAllCalls()
+
+    let updatedData = try Data(
+      contentsOf: Bundle.main.url(forResource: "hardfork_short_updated", withExtension: "rss")!
+    )
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+
+    let updateCalls = await fakeRepo.updateSeriesFromFeedCalls
+    #expect(updateCalls.count == 1)
+    
+    let updateCall = updateCalls.first!
+    #expect(updateCall.podcast != nil)
+    #expect(updateCall.unsavedEpisodes.count == 1)
+    #expect(updateCall.existingEpisodes.count == 2)
+  }
+
+  @Test("that no repo calls occur when content is unchanged")
+  func testNoRepoCallsWhenContentUnchanged() async throws {
+    let url = Bundle.main.url(forResource: "hardfork_short", withExtension: "rss")!
+    let podcastFeed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+    )
+
+    await fakeRepo.clearAllCalls()
+
+    let sameData = try Data(contentsOf: url)
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: sameData)
+    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+
+    let updateCalls = await fakeRepo.updateSeriesFromFeedCalls
+    #expect(updateCalls.count == 0)
   }
 }

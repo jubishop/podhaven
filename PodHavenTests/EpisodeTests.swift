@@ -120,7 +120,8 @@ class EpisodeTests {
 
     let newEpisode = try Create.unsavedEpisode(title: "episode 2")
     try await repo.updateSeriesFromFeed(
-      updatedPodcast,
+      podcastID: updatedPodcast.id,
+      podcast: updatedPodcast,
       unsavedEpisodes: [newEpisode],
       existingEpisodes: [updatedEpisode]
     )

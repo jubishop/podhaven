@@ -112,6 +112,17 @@ struct Episode: Saved, RSSUpdatable {
       (Columns.image, unsaved.image),
     ]
   }
+
+  // MARK: - RSS Equality
+
+  func rssEquals(_ other: Episode) -> Bool {
+    unsaved.media == other.unsaved.media &&
+    unsaved.title == other.unsaved.title &&
+    unsaved.pubDate == other.unsaved.pubDate &&
+    unsaved.description == other.unsaved.description &&
+    unsaved.link == other.unsaved.link &&
+    unsaved.image == other.unsaved.image
+  }
 }
 
 extension DerivableRequest<Episode> {

@@ -8,6 +8,7 @@ import Foundation
 extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
     appDB.context(.test) { AppDB.inMemory() }.scope(.cached)
+    repo.context(.test) { FakeRepo(Repo.initForTest(self.appDB())) }.scope(.cached)
     searchServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     feedManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     notifications.context(.test) {

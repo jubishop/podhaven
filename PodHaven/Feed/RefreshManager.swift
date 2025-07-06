@@ -105,19 +105,21 @@ actor RefreshManager {
       let newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(
         merging: podcastSeries.podcast.unsaved
       )
-      var newPodcast = Podcast(id: podcastSeries.id, from: newUnsavedPodcast)
+      let newPodcast = Podcast(id: podcastSeries.id, from: newUnsavedPodcast)
       var unsavedEpisodes: [UnsavedEpisode] = []
-      var existingEpisodes: [Episode] = []
+      var updatedEpisodes: [Episode] = []
 
       for feedItem in podcastFeed.episodes {
         if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
           do {
-            existingEpisodes.append(
-              Episode(
-                id: existingEpisode.id,
-                from: try feedItem.toUnsavedEpisode(merging: existingEpisode)
-              )
+            let updatedEpisode = Episode(
+              id: existingEpisode.id,
+              from: try feedItem.toUnsavedEpisode(merging: existingEpisode)
             )
+
+            if !existingEpisode.rssEquals(updatedEpisode) {
+              updatedEpisodes.append(updatedEpisode)
+            }
           } catch {
             Self.log.error(error)
           }
@@ -135,18 +137,23 @@ actor RefreshManager {
         """
         updateSeriesFromFeed: \(podcastSeries.toString)
           \(unsavedEpisodes.count) new episodes
-          \(existingEpisodes.count) updated episodes 
+          \(updatedEpisodes.count) updated episodes 
           New Episodes are: 
           \(unsavedEpisodes.map { "    \($0.toString)" }.joined(separator: "\n"))
         """
       )
 
-      newPodcast.lastUpdate = Date()
-      try await repo.updateSeriesFromFeed(
-        newPodcast,
-        unsavedEpisodes: unsavedEpisodes,
-        existingEpisodes: existingEpisodes
-      )
+      var podcastToUpdate = podcastSeries.podcast.rssEquals(newPodcast) ? nil : newPodcast
+      podcastToUpdate?.lastUpdate = Date()
+
+      if podcastToUpdate != nil || !unsavedEpisodes.isEmpty || !updatedEpisodes.isEmpty {
+        try await repo.updateSeriesFromFeed(
+          podcastID: podcastSeries.id,
+          podcast: podcastToUpdate,
+          unsavedEpisodes: unsavedEpisodes,
+          existingEpisodes: updatedEpisodes
+        )
+      }
     }
   }
 

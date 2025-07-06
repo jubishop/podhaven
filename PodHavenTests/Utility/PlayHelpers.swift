@@ -20,7 +20,7 @@ enum PlayHelpers {
   private static var playManager: PlayManager { Container.shared.playManager() }
   private static var playState: PlayState { Container.shared.playState() }
   private static var queue: Queue { Container.shared.queue() }
-  private static var repo: Repo { Container.shared.repo() }
+  private static var repo: any Databasing { Container.shared.repo() }
 
   private static var avQueuePlayer: FakeAVQueuePlayer {
     Container.shared.avQueuePlayer() as! FakeAVQueuePlayer
