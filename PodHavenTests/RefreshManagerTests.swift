@@ -76,13 +76,10 @@ class RefreshManagerTests {
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
 
-    let updateCalls = await fakeRepo.updateSeriesFromFeedCalls
-    #expect(updateCalls.count == 1)
-    
-    let updateCall = updateCalls.first!
-    #expect(updateCall.podcast != nil)
-    #expect(updateCall.unsavedEpisodes.count == 1)
-    #expect(updateCall.existingEpisodes.count == 2)
+    let call = try await fakeRepo.expectCall(FakeRepo.UpdateSeriesFromFeedCall.self)
+    #expect(call.parameters.podcast != nil)
+    #expect(call.parameters.unsavedEpisodes.count == 1)
+    #expect(call.parameters.existingEpisodes.count == 2)
   }
 
   @Test("that no repo calls occur when content is unchanged")
@@ -101,7 +98,6 @@ class RefreshManagerTests {
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: sameData)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
 
-    let updateCalls = await fakeRepo.updateSeriesFromFeedCalls
-    #expect(updateCalls.count == 0)
+    try await fakeRepo.expectNoCall(FakeRepo.UpdateSeriesFromFeedCall.self)
   }
 }
