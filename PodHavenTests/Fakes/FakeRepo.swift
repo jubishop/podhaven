@@ -53,36 +53,19 @@ actor FakeRepo: Databasing, Sendable {
     }
   }
 
-  struct UpdateSeriesFromFeedParams: CustomStringConvertible {
-    let podcastID: Podcast.ID
-    let podcast: Podcast?
-    let unsavedEpisodes: [UnsavedEpisode]
-    let existingEpisodes: [Episode]
-
-    var description: String {
-      """
-      podcastID: \(podcastID), 
-      podcast: \(String(describing: podcast?.toString)), 
-      unsavedEpisodes: \(unsavedEpisodes.map(\.toString)), 
-      existingEpisodes: \(existingEpisodes.map(\.toString))
-      """
-    }
-  }
-  typealias UpdateSeriesFromFeedCall = RepoCall<UpdateSeriesFromFeedParams>
-
-  struct InsertSeriesParams: CustomStringConvertible {
-    let unsavedPodcast: UnsavedPodcast
-    let unsavedEpisodes: [UnsavedEpisode]
-
-    var description: String {
-      """
-      podcast: \(unsavedPodcast.toString), 
-      episodes: \(unsavedEpisodes.map(\.toString))
-      """
-    }
-  }
-
-  typealias InsertSeriesCall = RepoCall<InsertSeriesParams>
+  typealias UpdateSeriesFromFeedCall = RepoCall<
+    (
+      podcastID: Podcast.ID, podcast: Podcast?,
+      unsavedEpisodes: [UnsavedEpisode],
+      existingEpisodes: [Episode]
+    )
+  >
+  typealias InsertSeriesCall = RepoCall<
+    (
+      unsavedPodcast: UnsavedPodcast,
+      unsavedEpisodes: [UnsavedEpisode]
+    )
+  >
   typealias AllPodcastSeriesCall = RepoCall<SQLExpression>
   typealias PodcastSeriesCall = RepoCall<Podcast.ID>
   typealias PodcastSeriesFeedURLCall = RepoCall<FeedURL>
@@ -92,27 +75,8 @@ actor FakeRepo: Databasing, Sendable {
   typealias DeletePodcastIDCall = RepoCall<Podcast.ID>
   typealias UpsertPodcastEpisodesCall = RepoCall<[UnsavedPodcastEpisode]>
   typealias UpsertPodcastEpisodeCall = RepoCall<UnsavedPodcastEpisode>
-
-  struct UpdateDurationParams: CustomStringConvertible {
-    let episodeID: Episode.ID
-    let duration: CMTime
-
-    var description: String {
-      "episodeID: \(episodeID), duration: \(duration)"
-    }
-  }
-  typealias UpdateDurationCall = RepoCall<UpdateDurationParams>
-
-  struct UpdateCurrentTimeParams: CustomStringConvertible {
-    let episodeID: Episode.ID
-    let currentTime: CMTime
-
-    var description: String {
-      "episodeID: \(episodeID), currentTime: \(currentTime)"
-    }
-  }
-  typealias UpdateCurrentTimeCall = RepoCall<UpdateCurrentTimeParams>
-
+  typealias UpdateDurationCall = RepoCall<(episodeID: Episode.ID, duration: CMTime)>
+  typealias UpdateCurrentTimeCall = RepoCall<(episodeID: Episode.ID, currentTime: CMTime)>
   typealias MarkCompleteCall = RepoCall<Episode.ID>
   typealias MarkSubscribedIDsCall = RepoCall<[Podcast.ID]>
   typealias MarkSubscribedIDCall = RepoCall<Podcast.ID>
@@ -333,10 +297,7 @@ actor FakeRepo: Databasing, Sendable {
       InsertSeriesCall(
         callOrder: nextCallOrder(),
         methodName: "insertSeries",
-        parameters: InsertSeriesParams(
-          unsavedPodcast: unsavedPodcast,
-          unsavedEpisodes: unsavedEpisodes
-        )
+        parameters: (unsavedPodcast: unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
       )
     )
     return try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
@@ -352,7 +313,7 @@ actor FakeRepo: Databasing, Sendable {
       UpdateSeriesFromFeedCall(
         callOrder: nextCallOrder(),
         methodName: "updateSeriesFromFeed",
-        parameters: UpdateSeriesFromFeedParams(
+        parameters: (
           podcastID: podcastID,
           podcast: podcast,
           unsavedEpisodes: unsavedEpisodes,
@@ -422,7 +383,7 @@ actor FakeRepo: Databasing, Sendable {
       UpdateDurationCall(
         callOrder: nextCallOrder(),
         methodName: "updateDuration",
-        parameters: UpdateDurationParams(episodeID: episodeID, duration: duration)
+        parameters: (episodeID: episodeID, duration: duration)
       )
     )
     return try await repo.updateDuration(episodeID, duration)
@@ -434,7 +395,7 @@ actor FakeRepo: Databasing, Sendable {
       UpdateCurrentTimeCall(
         callOrder: nextCallOrder(),
         methodName: "updateCurrentTime",
-        parameters: UpdateCurrentTimeParams(episodeID: episodeID, currentTime: currentTime)
+        parameters: (episodeID: episodeID, currentTime: currentTime)
       )
     )
     return try await repo.updateCurrentTime(episodeID, currentTime)
