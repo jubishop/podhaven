@@ -9,7 +9,6 @@ import SwiftUI
 @main
 struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
-
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshManager) private var refreshManager
 
