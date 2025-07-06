@@ -83,90 +83,44 @@ actor FakeRepo: Databasing, Sendable {
   typealias MarkUnsubscribedIDsCall = RepoCall<[Podcast.ID]>
   typealias MarkUnsubscribedIDCall = RepoCall<Podcast.ID>
 
-  private(set) var updateSeriesFromFeedCalls: [UpdateSeriesFromFeedCall] = []
-  private(set) var insertSeriesCalls: [InsertSeriesCall] = []
-  private(set) var allPodcastSeriesCalls: [AllPodcastSeriesCall] = []
-  private(set) var podcastSeriesCalls: [PodcastSeriesCall] = []
-  private(set) var podcastSeriesFeedURLCalls: [PodcastSeriesFeedURLCall] = []
-  private(set) var podcastSeriesFeedURLsCalls: [PodcastSeriesFeedURLsCall] = []
-  private(set) var episodeCalls: [EpisodeCall] = []
-  private(set) var deletePodcastIDsCalls: [DeletePodcastIDsCall] = []
-  private(set) var deletePodcastIDCalls: [DeletePodcastIDCall] = []
-  private(set) var upsertPodcastEpisodesCalls: [UpsertPodcastEpisodesCall] = []
-  private(set) var upsertPodcastEpisodeCalls: [UpsertPodcastEpisodeCall] = []
-  private(set) var updateDurationCalls: [UpdateDurationCall] = []
-  private(set) var updateCurrentTimeCalls: [UpdateCurrentTimeCall] = []
-  private(set) var markCompleteCalls: [MarkCompleteCall] = []
-  private(set) var markSubscribedIDsCalls: [MarkSubscribedIDsCall] = []
-  private(set) var markSubscribedIDCalls: [MarkSubscribedIDCall] = []
-  private(set) var markUnsubscribedIDsCalls: [MarkUnsubscribedIDsCall] = []
-  private(set) var markUnsubscribedIDCalls: [MarkUnsubscribedIDCall] = []
+  private var callsByType: [ObjectIdentifier: [any FakeRepoCall]] = [:]
 
   // MARK: - Call Tracking
 
+  private func recordCall<T: FakeRepoCall>(_ call: T) {
+    let key = ObjectIdentifier(T.self)
+    callsByType[key, default: []].append(call)
+  }
+
+  private func recordCall<Parameters: Sendable>(
+    methodName: String,
+    parameters: Parameters
+  ) {
+    recordCall(
+      RepoCall(
+        callOrder: nextCallOrder(),
+        methodName: methodName,
+        parameters: parameters
+      )
+    )
+  }
+
   func clearAllCalls() {
     callOrder = 0
-    updateSeriesFromFeedCalls.removeAll()
-    insertSeriesCalls.removeAll()
-    allPodcastSeriesCalls.removeAll()
-    podcastSeriesCalls.removeAll()
-    podcastSeriesFeedURLCalls.removeAll()
-    podcastSeriesFeedURLsCalls.removeAll()
-    episodeCalls.removeAll()
-    deletePodcastIDsCalls.removeAll()
-    deletePodcastIDCalls.removeAll()
-    upsertPodcastEpisodesCalls.removeAll()
-    upsertPodcastEpisodeCalls.removeAll()
-    updateDurationCalls.removeAll()
-    updateCurrentTimeCalls.removeAll()
-    markCompleteCalls.removeAll()
-    markSubscribedIDsCalls.removeAll()
-    markSubscribedIDCalls.removeAll()
-    markUnsubscribedIDsCalls.removeAll()
-    markUnsubscribedIDCalls.removeAll()
+    callsByType.removeAll()
   }
 
   var allCallsInOrder: [any FakeRepoCall] {
-    var allCalls: [any FakeRepoCall] = []
-
-    allCalls.append(contentsOf: updateSeriesFromFeedCalls)
-    allCalls.append(contentsOf: insertSeriesCalls)
-    allCalls.append(contentsOf: allPodcastSeriesCalls)
-    allCalls.append(contentsOf: podcastSeriesCalls)
-    allCalls.append(contentsOf: podcastSeriesFeedURLCalls)
-    allCalls.append(contentsOf: podcastSeriesFeedURLsCalls)
-    allCalls.append(contentsOf: episodeCalls)
-    allCalls.append(contentsOf: deletePodcastIDsCalls)
-    allCalls.append(contentsOf: deletePodcastIDCalls)
-    allCalls.append(contentsOf: upsertPodcastEpisodesCalls)
-    allCalls.append(contentsOf: upsertPodcastEpisodeCalls)
-    allCalls.append(contentsOf: updateDurationCalls)
-    allCalls.append(contentsOf: updateCurrentTimeCalls)
-    allCalls.append(contentsOf: markCompleteCalls)
-    allCalls.append(contentsOf: markSubscribedIDsCalls)
-    allCalls.append(contentsOf: markSubscribedIDCalls)
-    allCalls.append(contentsOf: markUnsubscribedIDsCalls)
-    allCalls.append(contentsOf: markUnsubscribedIDCalls)
-
-    return allCalls.sorted { $0.callOrder < $1.callOrder }
+    callsByType.values
+      .flatMap { $0 }
+      .sorted { $0.callOrder < $1.callOrder }
   }
 
   // MARK: - Call Filtering
 
   func calls<T: FakeRepoCall>(of type: T.Type) -> [T] {
-    allCallsInOrder.compactMap { $0 as? T }
-  }
-
-  func calls(containing substring: String) -> [any FakeRepoCall] {
-    allCallsInOrder.filter { $0.toString.contains(substring) }
-  }
-
-  func calls(after callOrder: Int) -> [any FakeRepoCall] {
-    allCallsInOrder.filter { $0.callOrder > callOrder }
-  }
-
-  func calls(methodName: String) -> [any FakeRepoCall] {
-    allCallsInOrder.filter { $0.toString.hasPrefix("\(methodName)(") }
+    let key = ObjectIdentifier(type)
+    return (callsByType[key] as? [T]) ?? []
   }
 
   // MARK: - Assertion Helpers
@@ -198,27 +152,6 @@ actor FakeRepo: Databasing, Sendable {
     }
   }
 
-  func expectCallOrder<T: FakeRepoCall>(_ types: [T.Type]) throws {
-    let actualOrder = allCallsInOrder.map { type(of: $0) }
-    let expectedTypes = types.map { $0 as Any.Type }
-
-    guard actualOrder.count >= expectedTypes.count else {
-      throw FakeRepoError.unexpectedCallOrder(
-        expected: expectedTypes.map(String.init(describing:)),
-        actual: actualOrder.map(String.init(describing:))
-      )
-    }
-
-    for (index, expectedType) in expectedTypes.enumerated() {
-      guard type(of: actualOrder[index]) == expectedType else {
-        throw FakeRepoError.unexpectedCallOrder(
-          expected: expectedTypes.map(String.init(describing:)),
-          actual: actualOrder.map(String.init(describing:))
-        )
-      }
-    }
-  }
-
   // MARK: - Databasing Protocol
 
   nonisolated var db: any DatabaseReader {
@@ -232,58 +165,32 @@ actor FakeRepo: Databasing, Sendable {
   }
 
   func allPodcastSeries(_ filter: SQLExpression) async throws(RepoError) -> [PodcastSeries] {
-    allPodcastSeriesCalls.append(
-      AllPodcastSeriesCall(
-        callOrder: nextCallOrder(),
-        methodName: "allPodcastSeries",
-        parameters: filter
-      )
-    )
+    recordCall(methodName: "allPodcastSeries", parameters: filter)
     return try await repo.allPodcastSeries(filter)
   }
 
   // MARK: - Series Readers
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws(RepoError) -> PodcastSeries? {
-    podcastSeriesCalls.append(
-      PodcastSeriesCall(
-        callOrder: nextCallOrder(),
-        methodName: "podcastSeries",
-        parameters: podcastID
-      )
-    )
+    recordCall(methodName: "podcastSeries", parameters: podcastID)
     return try await repo.podcastSeries(podcastID)
   }
 
   func podcastSeries(_ feedURLs: [FeedURL]) async throws -> IdentifiedArray<FeedURL, PodcastSeries>
   {
-    podcastSeriesFeedURLsCalls.append(
-      PodcastSeriesFeedURLsCall(
-        callOrder: nextCallOrder(),
-        methodName: "podcastSeries",
-        parameters: feedURLs
-      )
-    )
+    recordCall(methodName: "podcastSeries", parameters: feedURLs)
     return try await repo.podcastSeries(feedURLs)
   }
 
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
-    podcastSeriesFeedURLCalls.append(
-      PodcastSeriesFeedURLCall(
-        callOrder: nextCallOrder(),
-        methodName: "podcastSeries",
-        parameters: feedURL
-      )
-    )
+    recordCall(methodName: "podcastSeries", parameters: feedURL)
     return try await repo.podcastSeries(feedURL)
   }
 
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
-    episodeCalls.append(
-      EpisodeCall(callOrder: nextCallOrder(), methodName: "episode", parameters: episodeID)
-    )
+    recordCall(methodName: "episode", parameters: episodeID)
     return try await repo.episode(episodeID)
   }
 
@@ -293,12 +200,9 @@ actor FakeRepo: Databasing, Sendable {
   func insertSeries(_ unsavedPodcast: UnsavedPodcast, unsavedEpisodes: [UnsavedEpisode])
     async throws(RepoError) -> PodcastSeries
   {
-    insertSeriesCalls.append(
-      InsertSeriesCall(
-        callOrder: nextCallOrder(),
-        methodName: "insertSeries",
-        parameters: (unsavedPodcast: unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
-      )
+    recordCall(
+      methodName: "insertSeries",
+      parameters: (unsavedPodcast: unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
     )
     return try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
   }
@@ -309,16 +213,13 @@ actor FakeRepo: Databasing, Sendable {
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [Episode]
   ) async throws(RepoError) {
-    updateSeriesFromFeedCalls.append(
-      UpdateSeriesFromFeedCall(
-        callOrder: nextCallOrder(),
-        methodName: "updateSeriesFromFeed",
-        parameters: (
-          podcastID: podcastID,
-          podcast: podcast,
-          unsavedEpisodes: unsavedEpisodes,
-          existingEpisodes: existingEpisodes
-        )
+    recordCall(
+      methodName: "updateSeriesFromFeed",
+      parameters: (
+        podcastID: podcastID,
+        podcast: podcast,
+        unsavedEpisodes: unsavedEpisodes,
+        existingEpisodes: existingEpisodes
       )
     )
     try await repo.updateSeriesFromFeed(
@@ -333,17 +234,13 @@ actor FakeRepo: Databasing, Sendable {
 
   @discardableResult
   func delete(_ podcastIDs: [Podcast.ID]) async throws -> Int {
-    deletePodcastIDsCalls.append(
-      DeletePodcastIDsCall(callOrder: nextCallOrder(), methodName: "delete", parameters: podcastIDs)
-    )
+    recordCall(methodName: "delete", parameters: podcastIDs)
     return try await repo.delete(podcastIDs)
   }
 
   @discardableResult
   func delete(_ podcastID: Podcast.ID) async throws -> Bool {
-    deletePodcastIDCalls.append(
-      DeletePodcastIDCall(callOrder: nextCallOrder(), methodName: "delete", parameters: podcastID)
-    )
+    recordCall(methodName: "delete", parameters: podcastID)
     return try await repo.delete(podcastID)
   }
 
@@ -353,13 +250,7 @@ actor FakeRepo: Databasing, Sendable {
   func upsertPodcastEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode])
     async throws(RepoError) -> [PodcastEpisode]
   {
-    upsertPodcastEpisodesCalls.append(
-      UpsertPodcastEpisodesCall(
-        callOrder: nextCallOrder(),
-        methodName: "upsertPodcastEpisodes",
-        parameters: unsavedPodcastEpisodes
-      )
-    )
+    recordCall(methodName: "upsertPodcastEpisodes", parameters: unsavedPodcastEpisodes)
     return try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
   }
 
@@ -367,97 +258,52 @@ actor FakeRepo: Databasing, Sendable {
   func upsertPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws(RepoError)
     -> PodcastEpisode
   {
-    upsertPodcastEpisodeCalls.append(
-      UpsertPodcastEpisodeCall(
-        callOrder: nextCallOrder(),
-        methodName: "upsertPodcastEpisode",
-        parameters: unsavedPodcastEpisode
-      )
-    )
+    recordCall(methodName: "upsertPodcastEpisode", parameters: unsavedPodcastEpisode)
     return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
   }
 
   @discardableResult
   func updateDuration(_ episodeID: Episode.ID, _ duration: CMTime) async throws -> Bool {
-    updateDurationCalls.append(
-      UpdateDurationCall(
-        callOrder: nextCallOrder(),
-        methodName: "updateDuration",
-        parameters: (episodeID: episodeID, duration: duration)
-      )
-    )
+    recordCall(methodName: "updateDuration", parameters: (episodeID: episodeID, duration: duration))
     return try await repo.updateDuration(episodeID, duration)
   }
 
   @discardableResult
   func updateCurrentTime(_ episodeID: Episode.ID, _ currentTime: CMTime) async throws -> Bool {
-    updateCurrentTimeCalls.append(
-      UpdateCurrentTimeCall(
-        callOrder: nextCallOrder(),
-        methodName: "updateCurrentTime",
-        parameters: (episodeID: episodeID, currentTime: currentTime)
-      )
+    recordCall(
+      methodName: "updateCurrentTime",
+      parameters: (episodeID: episodeID, currentTime: currentTime)
     )
     return try await repo.updateCurrentTime(episodeID, currentTime)
   }
 
   @discardableResult
   func markComplete(_ episodeID: Episode.ID) async throws -> Bool {
-    markCompleteCalls.append(
-      MarkCompleteCall(
-        callOrder: nextCallOrder(),
-        methodName: "markComplete",
-        parameters: episodeID
-      )
-    )
+    recordCall(methodName: "markComplete", parameters: episodeID)
     return try await repo.markComplete(episodeID)
   }
 
   @discardableResult
   func markSubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int {
-    markSubscribedIDsCalls.append(
-      MarkSubscribedIDsCall(
-        callOrder: nextCallOrder(),
-        methodName: "markSubscribed",
-        parameters: podcastIDs
-      )
-    )
+    recordCall(methodName: "markSubscribed", parameters: podcastIDs)
     return try await repo.markSubscribed(podcastIDs)
   }
 
   @discardableResult
   func markSubscribed(_ podcastID: Podcast.ID) async throws -> Bool {
-    markSubscribedIDCalls.append(
-      MarkSubscribedIDCall(
-        callOrder: nextCallOrder(),
-        methodName: "markSubscribed",
-        parameters: podcastID
-      )
-    )
+    recordCall(methodName: "markSubscribed", parameters: podcastID)
     return try await repo.markSubscribed(podcastID)
   }
 
   @discardableResult
   func markUnsubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int {
-    markUnsubscribedIDsCalls.append(
-      MarkUnsubscribedIDsCall(
-        callOrder: nextCallOrder(),
-        methodName: "markUnsubscribed",
-        parameters: podcastIDs
-      )
-    )
+    recordCall(methodName: "markUnsubscribed", parameters: podcastIDs)
     return try await repo.markUnsubscribed(podcastIDs)
   }
 
   @discardableResult
   func markUnsubscribed(_ podcastID: Podcast.ID) async throws -> Bool {
-    markUnsubscribedIDCalls.append(
-      MarkUnsubscribedIDCall(
-        callOrder: nextCallOrder(),
-        methodName: "markUnsubscribed",
-        parameters: podcastID
-      )
-    )
+    recordCall(methodName: "markUnsubscribed", parameters: podcastID)
     return try await repo.markUnsubscribed(podcastID)
   }
 
