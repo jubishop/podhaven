@@ -64,6 +64,7 @@ struct PodcastFeedTests {
     }
   }
 
+  // This is invalid behavior by a feed but sadly dumb dumbs still do it.
   @Test("parsing the seattle official feed with duplicate guids")
   func parseSeattleOfficialFeedWithDuplicateGuids() async throws {
     let url = Bundle.main.url(forResource: "seattle_official", withExtension: "rss")!

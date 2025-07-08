@@ -100,4 +100,22 @@ class RefreshManagerTests {
 
     try await fakeRepo.expectNoCall(FakeRepo.UpdateSeriesFromFeedCall.self)
   }
+
+  // This is invalid behavior by a feed but sadly dumb dumbs still do it.
+  @Test("that a feed can update when the guid changes with the same media")
+  func testFeedUpdatesWhenGuidChangesButMediaRemainsSame() async throws {
+    let url = Bundle.main.url(forResource: "thisamericanlife", withExtension: "rss")!
+    let podcastFeed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+    )
+
+    let updatedData = try Data(
+      contentsOf: Bundle.main.url(forResource: "thisamericanlife_updated", withExtension: "rss")!
+    )
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+  }
 }
