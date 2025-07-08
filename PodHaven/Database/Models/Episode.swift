@@ -14,7 +14,7 @@ struct UnsavedEpisode: Savable, Stringable {
   static let databaseTableName: String = "episode"
 
   var podcastId: Podcast.ID?
-  let guid: GUID
+  var guid: GUID
   var media: MediaURL
   var title: String
   var pubDate: Date
@@ -104,6 +104,7 @@ struct Episode: Saved, RSSUpdatable {
 
   var rssUpdatableColumns: [(ColumnExpression, SQLExpressible)] {
     [
+      (Columns.guid, unsaved.guid),
       (Columns.media, unsaved.media),
       (Columns.title, unsaved.title),
       (Columns.pubDate, unsaved.pubDate),

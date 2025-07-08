@@ -66,8 +66,7 @@ class EpisodeTests {
       duration: CMTime.inSeconds(300),
       description: "original episode description",
       link: URL.valid(),
-      image: URL.valid(),
-      currentTime: CMTime.inSeconds(60)
+      image: URL.valid()
     )
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
@@ -79,9 +78,10 @@ class EpisodeTests {
 
     // Step 2: Update user state and duration (simulating PodAVPlayer updating duration)
     let actualDuration = CMTime.inSeconds(1800)  // 30 minutes actual duration from media file
+    let currentTime = CMTime.inSeconds(120)
     try await repo.markSubscribed(originalPodcast.id)
     try await repo.markComplete(originalEpisode.id)
-    try await repo.updateCurrentTime(originalEpisode.id, CMTime.inSeconds(120))
+    try await repo.updateCurrentTime(originalEpisode.id, currentTime)
     try await repo.updateDuration(originalEpisode.id, actualDuration)
     try await queue.unshift(originalEpisode.id)
 
@@ -101,6 +101,7 @@ class EpisodeTests {
     updatedPodcast.link = newPodcastLink
     updatedPodcast.lastUpdate = newLastUpdate
 
+    // let newEpisodeGUID: GUID = GUID(String.random()) TODO
     let newEpisodeMedia = MediaURL(URL.valid())
     let newEpisodeTitle = "new episode title"
     let newEpisodePubDate = 50.minutesAgo
@@ -110,6 +111,7 @@ class EpisodeTests {
     let newEpisodeImage = URL.valid()
 
     var updatedEpisode = originalEpisode
+    // updatedEpisode.guid = newEpisodeGUID TODO
     updatedEpisode.media = newEpisodeMedia
     updatedEpisode.title = newEpisodeTitle
     updatedEpisode.pubDate = newEpisodePubDate
@@ -151,14 +153,15 @@ class EpisodeTests {
     // Verify we're testing all Episode RSS columns (test will fail if rssUpdatableColumns changes)
     let episodeRSSColumnNames = Set(updatedEpisode.rssUpdatableColumns.map { $0.0.name })
     let expectedEpisodeColumns = Set([
-      "media", "title", "pubDate", "description", "link", "image",
+      "guid", "media", "title", "pubDate", "description", "link", "image",
     ])
     #expect(
       episodeRSSColumnNames == expectedEpisodeColumns,
       "Test must be updated if Episode.rssUpdatableColumns changes"
     )
 
-    // RSS attributes should be updated for existing episode (excluding duration and guid)
+    // RSS attributes should be updated for existing episode (excluding duration)
+    // #expect(updatedExistingEpisode.guid == newEpisodeGUID) TODO
     #expect(updatedExistingEpisode.media == newEpisodeMedia)
     #expect(updatedExistingEpisode.title == newEpisodeTitle)
     #expect(updatedExistingEpisode.pubDate.approximatelyEquals(newEpisodePubDate))
@@ -168,7 +171,7 @@ class EpisodeTests {
 
     // Non-RSS attributes should be preserved (not overwritten by original values)
     #expect(updatedSeries.podcast.subscribed == true)
-    #expect(updatedExistingEpisode.currentTime == CMTime.inSeconds(120))
+    #expect(updatedExistingEpisode.currentTime == currentTime)
     #expect(updatedExistingEpisode.completionDate != nil)
     #expect(updatedExistingEpisode.queueOrder == 0)
     #expect(updatedExistingEpisode.duration == actualDuration)

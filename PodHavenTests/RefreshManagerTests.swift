@@ -112,10 +112,31 @@ class RefreshManagerTests {
       unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
     )
 
+    let originalEpisode = podcastSeries.episodes[id: "37163 at https://www.thisamericanlife.org"]!
+    #expect(originalEpisode.title == "510: Fiasco! (2013)")
+
     let updatedData = try Data(
       contentsOf: Bundle.main.url(forResource: "thisamericanlife_updated", withExtension: "rss")!
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+
+    let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
+
+    // Old guid that got changed
+    #expect(updatedSeries.episodes[id: "37163 at https://www.thisamericanlife.org"] == nil)
+
+    // New guid
+    let updatedEpisode = updatedSeries.episodes[id: "45921 at https://www.thisamericanlife.org"]!
+    #expect(
+      updatedEpisode.media
+        == MediaURL(
+          URL(
+            string:
+              "https://pfx.vpixl.com/6qj4J/dts.podtrac.com/redirect.mp3/chrt.fm/track/138C95/pdst.fm/e/prefix.up.audio/s/traffic.megaphone.fm/NPR7229169767.mp3"
+          )!
+        )
+    )
+    #expect(updatedEpisode.title == "511: Fiasco! (2013)")
   }
 }

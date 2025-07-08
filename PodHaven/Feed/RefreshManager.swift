@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Logging
 import UIKit
 
@@ -101,6 +102,11 @@ actor RefreshManager {
       """
     )
 
+    let episodesByMedia = IdentifiedArray(
+      uniqueElements: podcastSeries.episodes,
+      id: \.media
+    )
+
     try await RefreshError.catch {
       let newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(
         merging: podcastSeries.podcast.unsaved
@@ -110,7 +116,9 @@ actor RefreshManager {
       var updatedEpisodes: [Episode] = []
 
       for feedItem in podcastFeed.episodes {
-        if let existingEpisode = podcastSeries.episodes[id: feedItem.guid] {
+        if let existingEpisode = podcastSeries.episodes[id: feedItem.guid]
+          ?? episodesByMedia[id: feedItem.media]
+        {
           do {
             let updatedEpisode = Episode(
               id: existingEpisode.id,

@@ -21,10 +21,11 @@ struct EpisodeFeed: Sendable, Equatable {
 
   func toUnsavedEpisode(merging episode: Episode? = nil) throws(FeedError) -> UnsavedEpisode {
     Assert.precondition(
-      episode == nil || episode?.guid == guid,
+      episode == nil || (episode?.guid == guid || episode?.media == media),
       """
-      Merging two episodes with different guids?:
-        \(String(describing: episode?.guid)), \(guid)
+      Merging two episodes with different guids and media URLs?:
+        GUIDs: \(String(describing: episode?.guid)), \(guid)
+        Media URLs: \(String(describing: episode?.media)), \(media)
       """
     )
 
