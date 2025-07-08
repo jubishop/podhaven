@@ -177,8 +177,8 @@ class EpisodeTests {
     #expect(updatedExistingEpisode.duration == actualDuration)
   }
 
-  @Test("that episode GUID cannot be updated once set")
-  func preventGuidUpdate() async throws {
+  @Test("that episode GUID can be updated")
+  func guidUpdateAllowed() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsavedEpisode = try Create.unsavedEpisode(guid: GUID("original-guid"))
     let podcastSeries = try await repo.insertSeries(
@@ -188,14 +188,15 @@ class EpisodeTests {
 
     let episode = podcastSeries.episodes.first!
 
-    // Attempt to update GUID directly in database should fail
-    await #expect(throws: DatabaseError.self) {
-      try await self.appDB.db.write { db in
-        try Episode
-          .withID(episode.id)
-          .updateAll(db, Episode.Columns.guid.set(to: GUID("different-guid")))
-      }
+    let updatedGUID: GUID = GUID(String.random())
+    _ = try await self.appDB.db.write { db in
+      try Episode
+        .withID(episode.id)
+        .updateAll(db, Episode.Columns.guid.set(to: updatedGUID))
     }
+
+    let updatedEpisode = try await repo.episode(episode.id)
+    #expect(updatedEpisode?.episode.guid == updatedGUID)
   }
 
   @Test("that episodes can persist currentTime")

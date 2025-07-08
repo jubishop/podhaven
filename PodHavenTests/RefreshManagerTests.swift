@@ -133,7 +133,7 @@ class RefreshManagerTests {
         == MediaURL(
           URL(
             string:
-              "https://pfx.vpixl.com/6qj4J/dts.podtrac.com/redirect.mp3/chrt.fm/track/138C95/pdst.fm/e/prefix.up.audio/s/traffic.megaphone.fm/NPR7229169767.mp3"
+              "https://pfx.vpixl.com/6qj4J/dts.podtrac.com/redirect.mp3/chrt.fm/track/138C95/pdst.fm/e/prefix.up.audio/s/traffic.megaphone.fm/NPR4143637574.mp3"
           )!
         )
     )

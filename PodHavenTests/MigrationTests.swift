@@ -518,4 +518,105 @@ class MigrationTests {
       }
     }
   }
+
+  @Test("migrating to v7, removing GUID update prevention trigger")
+  func testV7Migration() async throws {
+    try migrator.migrate(appDB.db, upTo: "v6")
+
+    // Insert test data in v6 schema
+    let now = Date()
+
+    try await appDB.db.write { db in
+      // Create a podcast
+      try db.execute(
+        sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscribed)
+            VALUES ('https://example.com/feed.xml', 'Test Podcast', 'https://example.com/image.jpg', 'Test Description', 1)
+          """
+      )
+
+      let podcastId = db.lastInsertedRowID
+
+      // Create an episode
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate)
+            VALUES (?, 'original-guid', 'https://example.com/ep1.mp3', 'Test Episode', ?)
+          """,
+        arguments: [podcastId, now]
+      )
+    }
+
+    // Before migration v7, GUID updates should be prevented by the trigger
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.db.write { db in
+        try db.execute(
+          sql: "UPDATE episode SET guid = 'changed-guid' WHERE guid = 'original-guid'"
+        )
+      }
+    }
+
+    // Verify the GUID remained unchanged
+    try await appDB.db.read { db in
+      let count = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episode WHERE guid = 'original-guid'"
+      )!
+      #expect(count == 1)
+    }
+
+    // Migrate to v7 (removes the trigger)
+    try migrator.migrate(appDB.db, upTo: "v7")
+
+    // After migration v7, GUID updates should now be allowed
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "UPDATE episode SET guid = 'changed-guid' WHERE guid = 'original-guid'"
+      )
+    }
+
+    // Verify the GUID was successfully changed
+    try await appDB.db.read { db in
+      let originalCount = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episode WHERE guid = 'original-guid'"
+      )!
+      #expect(originalCount == 0)
+
+      let changedCount = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episode WHERE guid = 'changed-guid'"
+      )!
+      #expect(changedCount == 1)
+    }
+
+    // Verify that other columns can still be updated
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "UPDATE episode SET title = 'Updated Title' WHERE guid = 'changed-guid'"
+      )
+    }
+
+    // Verify the title was updated
+    try await appDB.db.read { db in
+      let row = try Row.fetchOne(db, sql: "SELECT * FROM episode WHERE guid = 'changed-guid'")!
+      #expect(row[Column("title")] as String == "Updated Title")
+    }
+
+    // Verify that updating GUID multiple times now works
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "UPDATE episode SET guid = 'final-guid' WHERE guid = 'changed-guid'"
+      )
+    }
+
+    // Verify the final GUID change
+    try await appDB.db.read { db in
+      let finalCount = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episode WHERE guid = 'final-guid'"
+      )!
+      #expect(finalCount == 1)
+    }
+  }
 }

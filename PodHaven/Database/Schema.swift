@@ -185,6 +185,11 @@ enum Schema {
       )
     }
 
+    migrator.registerMigration("v7") { db in
+      // Remove the GUID update prevention trigger to make GUIDs updateable again
+      try db.execute(sql: "DROP TRIGGER IF EXISTS prevent_episode_guid_update")
+    }
+
     return migrator
   }
 }
