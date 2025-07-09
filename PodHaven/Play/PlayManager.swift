@@ -449,6 +449,7 @@ actor PlayManager {
     Task { [weak self] in
       guard let self else { return }
       for await controlStatus in await podAVPlayer.controlStatusStream {
+        Self.log.trace("Control status changed to: \(controlStatus)")
         switch controlStatus {
         case .paused:
           await setStatus(.paused)
