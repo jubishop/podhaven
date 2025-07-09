@@ -46,6 +46,7 @@ struct PodcastResultsDetailView: View {
         if viewModel.episodeList.filteredEntries.isEmpty {
           Divider()
           Text("No matching episodes found.").foregroundColor(.secondary)
+          Spacer()
         } else {
           List(viewModel.episodeList.filteredEntries, id: \.guid) { unsavedEpisode in
             NavigationLink(
@@ -67,23 +68,23 @@ struct PodcastResultsDetailView: View {
               }
             )
             .episodeQueueableSwipeActions(viewModel: viewModel, episode: unsavedEpisode)
-            .navigationTitle(viewModel.unsavedPodcast.title)
-            .navigationDestination(
-              for: SearchedPodcastEpisode.self,
-              destination: navigation.episodeResultsDetailView
-            )
-            .queueableSelectableEpisodesToolbar(
-              viewModel: viewModel,
-              episodeList: $viewModel.episodeList
-            )
           }
           .animation(.default, value: viewModel.episodeList.filteredEntries)
+          .queueableSelectableEpisodesToolbar(
+            viewModel: viewModel,
+            episodeList: $viewModel.episodeList
+          )
         }
       } else {
         Divider()
         Text("Loading episodes")
       }
     }
+    .navigationTitle(viewModel.unsavedPodcast.title)
+    .navigationDestination(
+      for: SearchedPodcastEpisode.self,
+      destination: navigation.episodeResultsDetailView
+    )
     .task(viewModel.execute)
   }
 }

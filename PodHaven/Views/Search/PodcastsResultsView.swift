@@ -28,16 +28,16 @@ struct PodcastsResultsView: View {
             )
           }
         }
-        .navigationDestination(
-          for: SearchedPodcast.self,
-          destination: navigation.podcastResultsDetailView
-        )
       } else {
         Text("Still searching")
         Spacer()
       }
     }
     .navigationTitle(viewModel.title)
+    .navigationDestination(
+      for: SearchedPodcast.self,
+      destination: navigation.podcastResultsDetailView
+    )
   }
 }
 
