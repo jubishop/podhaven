@@ -46,6 +46,7 @@ class PodcastResultsDetailViewModel:
   }
 
   func execute() async {
+    Self.log.debug("execute: \(searchedText)")
     do {
       let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
       self.podcastFeed = podcastFeed

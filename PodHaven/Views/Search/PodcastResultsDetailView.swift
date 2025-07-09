@@ -22,61 +22,68 @@ struct PodcastResultsDetailView: View {
         Button("Subscribe") {
           viewModel.subscribe()
         }
-      }
 
-      HStack {
-        SearchBar(
-          text: $viewModel.episodeList.entryFilter,
-          placeholder: "Filter episodes",
-          imageName: "line.horizontal.3.decrease.circle"
-        )
+        HStack {
+          SearchBar(
+            text: $viewModel.episodeList.entryFilter,
+            placeholder: "Filter episodes",
+            imageName: "line.horizontal.3.decrease.circle"
+          )
 
-        Menu(
-          content: {
-            Button(viewModel.unplayedOnly ? "Show All" : "Unplayed Only") {
-              viewModel.unplayedOnly.toggle()
-            }
-          },
-          label: {
-            Image(systemName: "line.horizontal.3.decrease.circle")
-          }
-        )
-      }
-      .padding(.horizontal)
-
-      if viewModel.unsavedEpisodes.isEmpty {
-        Text("Loading episodes")
-      } else {
-        List(viewModel.episodeList.filteredEntries, id: \.guid) { unsavedEpisode in
-          NavigationLink(
-            value: SearchedPodcastEpisode(
-              searchedText: viewModel.searchedText,
-              unsavedPodcastEpisode: UnsavedPodcastEpisode(
-                unsavedPodcast: viewModel.unsavedPodcast,
-                unsavedEpisode: unsavedEpisode
-              )
-            ),
+          Menu(
+            content: {
+              Button(viewModel.unplayedOnly ? "Show All" : "Unplayed Only") {
+                viewModel.unplayedOnly.toggle()
+              }
+            },
             label: {
-              EpisodeResultsListView(
-                viewModel: EpisodeResultsListViewModel(
-                  isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
-                  item: unsavedEpisode,
-                  isSelecting: viewModel.episodeList.isSelecting
-                )
-              )
+              Image(systemName: "line.horizontal.3.decrease.circle")
             }
           )
-          .episodeQueueableSwipeActions(viewModel: viewModel, episode: unsavedEpisode)
         }
-        .animation(.default, value: viewModel.episodeList.filteredEntries)
+        .padding(.horizontal)
+
+        if viewModel.episodeList.filteredEntries.isEmpty {
+          Divider()
+          Text("No matching episodes found.").foregroundColor(.secondary)
+        } else {
+          List(viewModel.episodeList.filteredEntries, id: \.guid) { unsavedEpisode in
+            NavigationLink(
+              value: SearchedPodcastEpisode(
+                searchedText: viewModel.searchedText,
+                unsavedPodcastEpisode: UnsavedPodcastEpisode(
+                  unsavedPodcast: viewModel.unsavedPodcast,
+                  unsavedEpisode: unsavedEpisode
+                )
+              ),
+              label: {
+                EpisodeResultsListView(
+                  viewModel: EpisodeResultsListViewModel(
+                    isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
+                    item: unsavedEpisode,
+                    isSelecting: viewModel.episodeList.isSelecting
+                  )
+                )
+              }
+            )
+            .episodeQueueableSwipeActions(viewModel: viewModel, episode: unsavedEpisode)
+            .navigationTitle(viewModel.unsavedPodcast.title)
+            .navigationDestination(
+              for: SearchedPodcastEpisode.self,
+              destination: navigation.episodeResultsDetailView
+            )
+            .queueableSelectableEpisodesToolbar(
+              viewModel: viewModel,
+              episodeList: $viewModel.episodeList
+            )
+          }
+          .animation(.default, value: viewModel.episodeList.filteredEntries)
+        }
+      } else {
+        Divider()
+        Text("Loading episodes")
       }
     }
-    .navigationTitle(viewModel.unsavedPodcast.title)
-    .navigationDestination(
-      for: SearchedPodcastEpisode.self,
-      destination: navigation.episodeResultsDetailView
-    )
-    .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task(viewModel.execute)
   }
 }
