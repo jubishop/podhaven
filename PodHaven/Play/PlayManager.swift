@@ -316,14 +316,14 @@ actor PlayManager {
     if let podcastEpisode {
       Self.log.debug("handleCurrentItemChange: \(podcastEpisode.id)")
 
+      try await setOnDeck(podcastEpisode)
+
       Self.log.debug("handleCurrentItemChange: dequeueing episode: \(podcastEpisode.toString)")
       do {
         try await queue.dequeue(podcastEpisode.id)
       } catch {
         Self.log.error(error)
       }
-
-      try await setOnDeck(podcastEpisode)
     } else {
       Self.log.debug("handleCurrentItemChange: nil, stopping")
 
