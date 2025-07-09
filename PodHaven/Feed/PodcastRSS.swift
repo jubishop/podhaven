@@ -4,6 +4,8 @@ import Foundation
 import XMLCoder
 
 struct PodcastRSS: Decodable, Sendable {
+  private static let log = Log.as(LogSubsystem.Feed.podcast)
+
   // MARK: - Static Parsing Methods
 
   static func parse(_ data: Data) async throws(ParseError) -> Podcast {

@@ -85,6 +85,8 @@ struct PodcastFeed: Sendable, Stringable {
 
   static func parse(_ data: Data, from: FeedURL) async throws(FeedError) -> PodcastFeed {
     do {
+      log.debug("Parsing data of size \(data.count) from \(from)")
+
       let rssPodcast = try await PodcastRSS.parse(data)
       return PodcastFeed(rssPodcast: rssPodcast, from: from)
     } catch {
