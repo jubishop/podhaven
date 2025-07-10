@@ -55,10 +55,6 @@ struct PersonResultsListView: View {
       }
       .animation(.default, value: viewModel.episodeList.filteredEntries)
     }
-    .navigationDestination(
-      for: SearchedPodcastEpisode.self,
-      destination: navigation.episodeResultsDetailView
-    )
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task(viewModel.execute)
   }

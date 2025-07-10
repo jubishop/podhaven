@@ -30,6 +30,10 @@ struct PodcastsView: View {
         for: Navigation.PodcastsView.self,
         destination: navigation.standardPodcastsView
       )
+      .navigationDestination(for: Podcast.self, destination: navigation.podcastDetailView)
+      .navigationDestination(for: PodcastEpisode.self) { podcastEpisode in
+        navigation.episodeDetailView(for: podcastEpisode)
+      }
     }
   }
 }

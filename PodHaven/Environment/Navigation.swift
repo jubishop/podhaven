@@ -81,16 +81,12 @@ extension Container {
     )
   }
 
-  func episodeDetailView(for episode: Episode, podcast: Podcast)
+  func episodeDetailView(for podcastEpisode: PodcastEpisode)
     -> IdentifiableView<EpisodeDetailView, Episode.ID>
   {
     IdentifiableView(
-      EpisodeDetailView(
-        viewModel: EpisodeDetailViewModel(
-          podcastEpisode: PodcastEpisode(podcast: podcast, episode: episode)
-        )
-      ),
-      id: episode.id
+      EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode)),
+      id: podcastEpisode.id
     )
   }
 
@@ -144,7 +140,7 @@ extension Container {
     }
   }
 
-  func opmlView(for settingsView: SettingsView) -> IdentifiableView<OPMLView, String> {
+  func settingsView(for settingsView: SettingsView) -> IdentifiableView<OPMLView, String> {
     switch settingsView {
     case .opml:
       return IdentifiableView(OPMLView(), id: "opml")

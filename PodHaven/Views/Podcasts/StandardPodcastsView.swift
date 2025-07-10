@@ -59,7 +59,6 @@ struct StandardPodcastsView: View {
       .padding()
     }
     .navigationTitle(viewModel.title)
-    .navigationDestination(for: Podcast.self, destination: navigation.podcastDetailView)
     .refreshable {
       do {
         try await viewModel.refreshPodcasts()

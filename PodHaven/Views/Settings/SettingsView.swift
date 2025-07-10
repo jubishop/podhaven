@@ -20,7 +20,10 @@ struct SettingsView: View {
         }
       }
       .navigationTitle("Settings")
-      .navigationDestination(for: Navigation.SettingsView.self, destination: navigation.opmlView)
+      .navigationDestination(
+        for: Navigation.SettingsView.self,
+        destination: navigation.settingsView
+      )
     }
   }
 }

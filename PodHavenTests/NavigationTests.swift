@@ -26,12 +26,13 @@ import Testing
   @Test("that episodeDetailView has ID matching episode ID")
   func episodeDetailViewIDMatchesEpisodeID() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
-    let episode = podcastEpisode.episode
-    let podcast = podcastEpisode.podcast
 
-    let identifiableView = navigation.episodeDetailView(for: episode, podcast: podcast)
+    let identifiableView = navigation.episodeDetailView(for: podcastEpisode)
 
-    #expect(identifiableView.viewID == episode.id, "EpisodeDetailView ID should match episode ID")
+    #expect(
+      identifiableView.viewID == podcastEpisode.id,
+      "EpisodeDetailView ID should match episode ID"
+    )
   }
 
   @Test("that podcastResultsDetailView has ID matching feed URL")
@@ -87,14 +88,8 @@ import Testing
     let podcastEpisode1 = try await Create.podcastEpisode()
     let podcastEpisode2 = try await Create.podcastEpisode()
 
-    let identifiableView1 = navigation.episodeDetailView(
-      for: podcastEpisode1.episode,
-      podcast: podcastEpisode1.podcast
-    )
-    let identifiableView2 = navigation.episodeDetailView(
-      for: podcastEpisode2.episode,
-      podcast: podcastEpisode2.podcast
-    )
+    let identifiableView1 = navigation.episodeDetailView(for: podcastEpisode1)
+    let identifiableView2 = navigation.episodeDetailView(for: podcastEpisode2)
 
     #expect(
       identifiableView1.viewID != identifiableView2.viewID,
@@ -138,9 +133,9 @@ import Testing
     )
   }
 
-  @Test("that opmlView has ID matching settings type")
-  func opmlViewIDMatchesSettingsType() async throws {
-    let opmlView = navigation.opmlView(for: .opml)
+  @Test("that settingsView has ID matching settings type")
+  func settingsViewIDMatchesSettingsType() async throws {
+    let opmlView = navigation.settingsView(for: .opml)
 
     #expect(opmlView.viewID == "opml", "OPML view should have 'opml' ID")
   }

@@ -61,7 +61,7 @@ struct PodcastDetailView: View {
 
       List(viewModel.episodeList.filteredEntries) { episode in
         NavigationLink(
-          value: episode,
+          value: PodcastEpisode(podcast: viewModel.podcast, episode: episode),
           label: {
             EpisodeListView(
               viewModel: EpisodeListViewModel(
@@ -86,9 +86,6 @@ struct PodcastDetailView: View {
       }
     }
     .navigationTitle(viewModel.podcast.title)
-    .navigationDestination(for: Episode.self) { episode in
-      navigation.episodeDetailView(for: episode, podcast: viewModel.podcast)
-    }
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task(viewModel.execute)
   }

@@ -34,10 +34,6 @@ struct PodcastsResultsView: View {
       }
     }
     .navigationTitle(viewModel.title)
-    .navigationDestination(
-      for: SearchedPodcast.self,
-      destination: navigation.podcastResultsDetailView
-    )
   }
 }
 

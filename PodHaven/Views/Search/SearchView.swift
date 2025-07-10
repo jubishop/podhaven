@@ -21,7 +21,15 @@ struct SearchView: View {
           SearchTokenView(token: token)
         }
         .onSubmit(of: .search, viewModel.searchSubmitted)
-        .navigationBarTitle("Search")
+        .navigationTitle("Search")
+        .navigationDestination(
+          for: SearchedPodcast.self,
+          destination: navigation.podcastResultsDetailView
+        )
+        .navigationDestination(
+          for: SearchedPodcastEpisode.self,
+          destination: navigation.episodeResultsDetailView
+        )
         .background(
           SizeReader { size in
             viewModel.width = size.width

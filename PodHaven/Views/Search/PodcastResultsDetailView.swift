@@ -81,10 +81,6 @@ struct PodcastResultsDetailView: View {
       }
     }
     .navigationTitle(viewModel.unsavedPodcast.title)
-    .navigationDestination(
-      for: SearchedPodcastEpisode.self,
-      destination: navigation.episodeResultsDetailView
-    )
     .task(viewModel.execute)
   }
 }
