@@ -105,6 +105,14 @@ struct Repo: Databasing, Sendable {
   func insertSeries(_ unsavedPodcast: UnsavedPodcast, unsavedEpisodes: [UnsavedEpisode])
     async throws(RepoError) -> PodcastSeries
   {
+    Self.log.debug(
+      """
+      Inserting series
+        Podcast: \(unsavedPodcast.toString)
+        \(unsavedEpisodes.count) episodes
+      """
+    )
+
     do {
       return try await appDB.db.write { db in
         let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)

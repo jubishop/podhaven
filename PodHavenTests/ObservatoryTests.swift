@@ -137,4 +137,13 @@ class ObservatoryTests {
     #expect(completedEpisodes.count == 3)
     #expect(completedEpisodes.map(\.episode.guid) == ["top", "middle", "bottom"])
   }
+
+  @Test("podcastSeries(FeedURL)")
+  func testPodcastSeries() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    try await repo.insertSeries(unsavedPodcast)
+    
+    let series = try await observatory.podcastSeries(unsavedPodcast.feedURL).get()
+    #expect(series?.podcast.feedURL == unsavedPodcast.feedURL)
+  }
 }

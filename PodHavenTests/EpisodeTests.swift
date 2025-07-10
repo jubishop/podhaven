@@ -101,7 +101,7 @@ class EpisodeTests {
     updatedPodcast.link = newPodcastLink
     updatedPodcast.lastUpdate = newLastUpdate
 
-    // let newEpisodeGUID: GUID = GUID(String.random()) TODO
+    let newEpisodeGUID: GUID = GUID(String.random())
     let newEpisodeMedia = MediaURL(URL.valid())
     let newEpisodeTitle = "new episode title"
     let newEpisodePubDate = 50.minutesAgo
@@ -111,7 +111,7 @@ class EpisodeTests {
     let newEpisodeImage = URL.valid()
 
     var updatedEpisode = originalEpisode
-    // updatedEpisode.guid = newEpisodeGUID TODO
+    updatedEpisode.guid = newEpisodeGUID
     updatedEpisode.media = newEpisodeMedia
     updatedEpisode.title = newEpisodeTitle
     updatedEpisode.pubDate = newEpisodePubDate
@@ -161,7 +161,7 @@ class EpisodeTests {
     )
 
     // RSS attributes should be updated for existing episode (excluding duration)
-    // #expect(updatedExistingEpisode.guid == newEpisodeGUID) TODO
+    #expect(updatedExistingEpisode.guid == newEpisodeGUID)
     #expect(updatedExistingEpisode.media == newEpisodeMedia)
     #expect(updatedExistingEpisode.title == newEpisodeTitle)
     #expect(updatedExistingEpisode.pubDate.approximatelyEquals(newEpisodePubDate))

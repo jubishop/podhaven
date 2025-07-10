@@ -29,7 +29,6 @@ class PodcastResultsDetailViewModel:
   var unplayedOnly: Bool = false
   var subscribable: Bool = false
   var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
-  var unsavedEpisodes: [UnsavedEpisode] { episodeList.allEntries.elements }
 
   private var existingPodcastSeries: PodcastSeries?
   private var podcastFeed: PodcastFeed?
@@ -51,7 +50,11 @@ class PodcastResultsDetailViewModel:
       let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
       self.podcastFeed = podcastFeed
 
-      for try await podcastSeries in observatory.podcastSeries(podcastFeed.feedURL) {
+      for try await podcastSeries in observatory.podcastSeries(podcastFeed.updatedFeedURL) {
+        Self.log.debug(
+          "observed existing podcastSeries: \(String(describing: podcastSeries?.toString))"
+        )
+
         if subscribable && existingPodcastSeries == podcastSeries { continue }
 
         if let podcastSeries = podcastSeries, podcastSeries.podcast.subscribed {
@@ -130,12 +133,13 @@ class PodcastResultsDetailViewModel:
           unsavedPodcast.lastUpdate = Date()
           let newPodcastSeries = try await repo.insertSeries(
             unsavedPodcast,
-            unsavedEpisodes: unsavedEpisodes
+            unsavedEpisodes: episodeList.allEntries.elements
           )
           navigation.showPodcast(.subscribed, newPodcastSeries.podcast)
         }
       } catch {
-        alert("Couldn't subscribe")
+        Self.log.error(error)
+        alert(ErrorKit.message(for: error))
       }
     }
   }

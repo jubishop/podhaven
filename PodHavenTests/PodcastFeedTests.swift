@@ -24,7 +24,7 @@ struct PodcastFeedTests {
   @Test("parsing the Marketplace feed")
   func parseMarketplaceFeed() async throws {
     let url = Bundle.main.url(forResource: "marketplace", withExtension: "rss")!
-    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(URL.valid()))
     let unsavedPodcast = try feed.toUnsavedPodcast()
     let unsavedEpisodes = try feed.episodes.map { try $0.toUnsavedEpisode() }
     #expect(unsavedPodcast.title == "Marketplace")
@@ -124,7 +124,7 @@ struct PodcastFeedTests {
   @Test("parsing the considerthis feed with items missing guids")
   func parseConsiderThisFeedWithMissingGuids() async throws {
     let url = Bundle.main.url(forResource: "considerthis", withExtension: "rss")!
-    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+    let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(URL.valid()))
     let episodes = feed.toEpisodeArray()
 
     // These are the mediaURLs of the two entries with no guids

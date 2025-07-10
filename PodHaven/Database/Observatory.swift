@@ -11,6 +11,8 @@ extension Container {
 }
 
 struct Observatory {
+  private static let log = Log.as(LogSubsystem.Database.observatory)
+
   // MARK: - Initialization
 
   private let repo: any Databasing
@@ -86,7 +88,9 @@ struct Observatory {
   }
 
   func podcastSeries(_ feedURL: FeedURL) -> AsyncValueObservation<PodcastSeries?> {
-    _observe { db in
+    Self.log.debug("Observing PodcastSeries with feedURL: \(feedURL)")
+
+    return _observe { db in
       try Podcast
         .filter { $0.feedURL == feedURL }
         .including(all: Podcast.episodes)

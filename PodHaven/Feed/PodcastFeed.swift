@@ -88,7 +88,7 @@ struct PodcastFeed: Sendable, Stringable {
       log.trace("Parsing data of size \(data.count) from \(from)")
 
       let rssPodcast = try await PodcastRSS.parse(data)
-      return PodcastFeed(rssPodcast: rssPodcast, from: from)
+      return try PodcastFeed(rssPodcast: rssPodcast, from: from)
     } catch {
       throw FeedError.parseFailure(url: from, caught: error)
     }
@@ -103,9 +103,9 @@ struct PodcastFeed: Sendable, Stringable {
   private let link: URL?
   private let image: URL
 
-  private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL) {
+  private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL) throws {
     self.rssPodcast = rssPodcast
-    self.feedURL = rssPodcast.feedURL ?? from
+    self.feedURL = FeedURL(try (rssPodcast.feedURL ?? from).rawValue.convertToValidURL())
     self.link = rssPodcast.link
     self.image = rssPodcast.iTunes.image.href
     self.episodes = rssPodcast.episodes.compactMap { rssEpisode in
@@ -118,12 +118,16 @@ struct PodcastFeed: Sendable, Stringable {
     }
   }
 
+  var updatedFeedURL: FeedURL {
+    rssPodcast.iTunes.newFeedURL ?? feedURL
+  }
+
   func toUnsavedPodcast(subscribed: Bool? = nil, lastUpdate: Date? = nil) throws(FeedError)
     -> UnsavedPodcast
   {
     try FeedError.catch {
       try UnsavedPodcast(
-        feedURL: rssPodcast.iTunes.newFeedURL ?? feedURL,
+        feedURL: updatedFeedURL,
         title: rssPodcast.title,
         image: image,
         description: rssPodcast.description,
@@ -137,10 +141,11 @@ struct PodcastFeed: Sendable, Stringable {
   func toUnsavedPodcast(merging unsavedPodcast: UnsavedPodcast) throws(FeedError) -> UnsavedPodcast
   {
     Assert.precondition(
-      unsavedPodcast.feedURL == feedURL,
+      unsavedPodcast.feedURL == feedURL || unsavedPodcast.feedURL == updatedFeedURL,
       """
       Merging two podcasts with different feedURLs?:
-        \(feedURL) != \(unsavedPodcast.feedURL)
+        \(feedURL) != \(unsavedPodcast.feedURL) and
+        \(updatedFeedURL) != \(unsavedPodcast.feedURL)
       """
     )
 
@@ -190,17 +195,17 @@ struct PodcastFeed: Sendable, Stringable {
 
   // MARK: - Stringable
 
-  var toString: String { "(\(feedURL.toString)) - \(rssPodcast.title)" }
+  var toString: String { "(\(updatedFeedURL.toString)) - \(rssPodcast.title)" }
 
   // MARK: - Hashable
 
   func hash(into hasher: inout Hasher) {
-    hasher.combine(feedURL)
+    hasher.combine(updatedFeedURL)
   }
 
   // MARK: - Equatable
 
   static func == (lhs: PodcastFeed, rhs: PodcastFeed) -> Bool {
-    lhs.feedURL == rhs.feedURL
+    lhs.updatedFeedURL == rhs.updatedFeedURL
   }
 }

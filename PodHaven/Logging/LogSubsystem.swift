@@ -6,12 +6,14 @@ import Logging
 enum LogSubsystem {
   enum Database: String, LogCategorizable {
     case appDB
+    case observatory
     case repo
     case queue
 
     var level: Logger.Level {
       switch self {
       case .appDB: return .debug
+      case .observatory: return .trace
       case .queue: return .trace
       case .repo: return .debug
       }

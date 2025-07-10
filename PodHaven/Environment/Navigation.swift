@@ -11,6 +11,8 @@ extension Container {
 }
 
 @Observable @MainActor class Navigation {
+  private static let log = Log.as("Navigation")
+
   // MARK: - Navigation Enums
 
   enum Tab {
@@ -54,12 +56,16 @@ extension Container {
   }
 
   func showPodcast(_ view: PodcastsView, _ podcast: Podcast) {
+    Self.log.debug("Showing podcast: \(podcast.toString)")
+
     currentTab = .podcasts
     podcastsPath.append(view)
     podcastsPath.append(podcast)
   }
 
   func showEpisode(_ view: PodcastsView, _ podcastEpisode: PodcastEpisode) {
+    Self.log.debug("Showing PodcastEpisode: \(podcastEpisode.toString)")
+
     currentTab = .podcasts
     podcastsPath.append(view)
     podcastsPath.append(podcastEpisode.podcast)
