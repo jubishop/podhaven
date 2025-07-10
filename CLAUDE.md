@@ -158,7 +158,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - When logging objects that conform to `Stringable` use `.toString`
 
 ## Build & Test Policy
-- Use the XcodeBuildMCP to build and test the app
+- Don't bother trying to build or test
 
 ## Code Formatting
 - Run swift-format on any files you change

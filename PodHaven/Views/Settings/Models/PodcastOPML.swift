@@ -49,7 +49,12 @@ struct PodcastOPML: Codable, Sendable {
       do {
         let encoder = XMLEncoder()
         encoder.outputFormatting = .prettyPrinted
-        let data = try encoder.encode(opml)
+        let data = try encoder.encode(
+          opml,
+          withRootKey: "opml",
+          rootAttributes: ["version": "2.0"],
+          header: XMLHeader(version: 1.0, encoding: "UTF-8")
+        )
         continuation.resume(returning: data)
       } catch {
         continuation.resume(throwing: error)
@@ -62,23 +67,20 @@ struct PodcastOPML: Codable, Sendable {
   struct Body: Codable, Sendable {
     struct Outline: Codable, Sendable, DynamicNodeEncoding {
       let text: String
+      let title: String
       let xmlUrl: FeedURL
       let type: String
 
       init(text: String, xmlUrl: FeedURL, type: String = "rss") {
         self.text = text
+        self.title = text
         self.xmlUrl = xmlUrl
         self.type = type
       }
 
-      enum CodingKeys: String, CodingKey {
-        case text
-        case xmlUrl
-        case type
-      }
-
       static func nodeEncoding(for key: CodingKey) -> XMLEncoder.NodeEncoding { .attribute }
     }
+
     let outlines: [Outline]
 
     enum CodingKeys: String, CodingKey {
@@ -92,11 +94,9 @@ struct PodcastOPML: Codable, Sendable {
 
   let head: Head
   let body: Body
-  let version: String?
 
-  init(head: Head, body: Body, version: String? = "2.0") {
+  init(head: Head, body: Body) {
     self.head = head
     self.body = body
-    self.version = version
   }
 }
