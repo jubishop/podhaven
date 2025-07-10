@@ -21,15 +21,17 @@ struct PodcastFeedTests {
     #expect(unsavedEpisode.duration == CMTime.inSeconds(2643))
   }
 
-  @Test("parsing the Marketplace feed")
-  func parseMarketplaceFeed() async throws {
+  @Test("parsing the Marketplace feed with an invalid MediaURL")
+  func parseMarketplaceFeedWithInvalidMediaURL() async throws {
     let url = Bundle.main.url(forResource: "marketplace", withExtension: "rss")!
     let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(URL.valid()))
     let unsavedPodcast = try feed.toUnsavedPodcast()
     let unsavedEpisodes = try feed.episodes.map { try $0.toUnsavedEpisode() }
     #expect(unsavedPodcast.title == "Marketplace")
     #expect(unsavedPodcast.subscribed == false)
-    #expect(unsavedEpisodes.count == 50)
+
+    // title: "What will a GOP-ruled Congress do with Trump" is removed for invalid MediaURL
+    #expect(unsavedEpisodes.count == 49)
     #expect(unsavedEpisodes.first!.title == "Happy New Year! The cold weather could cost you.")
     #expect(unsavedEpisodes.last!.title == "What’s better, a pension or a 401(k)?")
   }

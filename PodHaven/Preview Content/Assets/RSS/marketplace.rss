@@ -589,7 +589,7 @@
 ]]></itunes:summary>
 
 				<itunes:explicit>no</itunes:explicit>
-					<enclosure url="https://mgln.ai/e/5/dts.podtrac.com/redirect.mp3/chrt.fm/track/3G835/pdst.fm/e/play.publicradio.org/wp-feed/o/marketplace/pm/2024/12/04/pm_20241204_Marketplace_-_PM_64.mp3?awEpisodeId=https%3A%2F%2Fwww.marketplace.org%2Fshows%2Fmarketplace%2Fwhat-will-a-gop-ruled-congress-do-with-trumps-magnum-opus&#038;awCollectionId=mkp-MKP-PM" type="audio/mpeg" length="12342555"/>
+					<enclosure url="httpinvalids://mgln.ai/e/5/dts.podtrac.com/redirect.mp3/chrt.fm/track/3G835/pdst.fm/e/play.publicradio.org/wp-feed/o/marketplace/pm/2024/12/04/pm_20241204_Marketplace_-_PM_64.mp3?awEpisodeId=https%3A%2F%2Fwww.marketplace.org%2Fshows%2Fmarketplace%2Fwhat-will-a-gop-ruled-congress-do-with-trumps-magnum-opus&#038;awCollectionId=mkp-MKP-PM" type="audio/mpeg" length="12342555"/>
 
 				  <itunes:duration>00:26:03</itunes:duration>
 <post-id xmlns="com-wordpress:feed-additions:1">1586934</post-id>	</item>
