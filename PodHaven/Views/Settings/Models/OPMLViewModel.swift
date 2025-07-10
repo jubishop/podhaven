@@ -6,7 +6,34 @@ import GRDB
 import IdentifiedCollections
 import Logging
 import Semaphore
+import SwiftUI
 import UniformTypeIdentifiers
+
+final class OPMLDocument: FileDocument {
+  static var utType: UTType {
+    guard let utType = UTType(filenameExtension: "opml", conformingTo: .xml)
+    else { Assert.fatal("Couldn't initialize opml UTType?") }
+
+    return utType
+  }
+
+  static let readableContentTypes: [UTType] = []
+  static let writableContentTypes: [UTType] = [utType]
+
+  private let data: Data
+
+  init(data: Data) {
+    self.data = data
+  }
+
+  required init(configuration: ReadConfiguration) throws {
+    data = Data()
+  }
+
+  func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+    FileWrapper(regularFileWithContents: data)
+  }
+}
 
 @Observable @MainActor class OPMLOutline: Hashable, Identifiable {
   enum Status {
@@ -72,19 +99,15 @@ import UniformTypeIdentifiers
 
   private static let log = Log.as(LogSubsystem.SettingsView.opml)
 
-  let opmlType: UTType
-
   var opmlImporting = false
+  var opmlExporting = false
+
   var opmlFile: OPMLFile?
+  var exportDocument: OPMLDocument?
 
   private var downloadSemaphor = AsyncSemaphore(value: 1)
 
-  init() {
-    guard let opmlType = UTType(filenameExtension: "opml", conformingTo: .xml)
-    else { Assert.fatal("Couldn't initialize opml UTType?") }
-
-    self.opmlType = opmlType
-  }
+  init() {}
 
   func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
     Task { [weak self] in
@@ -118,6 +141,20 @@ import UniformTypeIdentifiers
   func finishedDownloading() {
     stopDownloading()
     navigation.currentTab = .podcasts
+  }
+
+  func exportOPML() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let data = try await PodcastOPML.exportSubscribedPodcasts()
+        exportDocument = OPMLDocument(data: data)
+        opmlExporting = true
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.message(for: error))
+      }
+    }
   }
 
   // MARK: - Private Helpers
