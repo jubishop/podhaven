@@ -7,9 +7,11 @@ import XMLCoder
 struct PodcastOPML: Codable, Sendable {
   // MARK: - Import Methods
 
-  static func parse(_ url: URL) async throws -> PodcastOPML {
-    let data = try await URLSession.shared.validatedData(from: url)
-    return try await parse(data)
+  static func parse(_ url: URL) async throws(ParseError) -> PodcastOPML {
+    try await ParseError.catch {
+      let data = try await URLSession.shared.validatedData(from: url)
+      return try await parse(data)
+    }
   }
 
   static func parse(_ data: Data) async throws(ParseError) -> PodcastOPML {
@@ -30,19 +32,23 @@ struct PodcastOPML: Codable, Sendable {
 
   // MARK: - Export Methods
 
-  static func exportSubscribedPodcasts() async throws -> Data {
-    let subscribedPodcasts = try await Container.shared.repo().allPodcasts(Podcast.subscribed)
-    return try await generateOPML(from: subscribedPodcasts)
+  static func exportSubscribedPodcasts() async throws(ParseError) -> Data {
+    do {
+      let subscribedPodcasts = try await Container.shared.repo().allPodcasts(Podcast.subscribed)
+      return try await generateOPML(from: subscribedPodcasts)
+    } catch {
+      throw ParseError.exportFailure
+    }
   }
 
-  static func generateOPML(from podcasts: [Podcast]) async throws -> Data {
-    let outlines = podcasts.map { podcast in
-      Body.Outline(text: podcast.title, xmlUrl: podcast.feedURL)
-    }
-
+  private static func generateOPML(from podcasts: [Podcast]) async throws -> Data {
     let opml = PodcastOPML(
       head: Head(title: "PodHaven Subscriptions"),
-      body: Body(outlines: outlines)
+      body: Body(
+        outlines: podcasts.map { podcast in
+          Body.Outline(text: podcast.title, xmlUrl: podcast.feedURL)
+        }
+      )
     )
 
     return try await withCheckedThrowingContinuation { continuation in
@@ -67,9 +73,9 @@ struct PodcastOPML: Codable, Sendable {
   struct Body: Codable, Sendable {
     struct Outline: Codable, Sendable, DynamicNodeEncoding {
       let text: String
-      let title: String
+      let title: String?
       let xmlUrl: FeedURL
-      let type: String
+      let type: String?
 
       init(text: String, xmlUrl: FeedURL, type: String = "rss") {
         self.text = text
@@ -94,9 +100,4 @@ struct PodcastOPML: Codable, Sendable {
 
   let head: Head
   let body: Body
-
-  init(head: Head, body: Body) {
-    self.head = head
-    self.body = body
-  }
 }

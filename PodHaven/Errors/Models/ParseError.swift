@@ -4,16 +4,20 @@ import Foundation
 import ReadableErrorMacro
 
 @ReadableError
-enum ParseError: ReadableError {
+enum ParseError: ReadableError, CatchingError {
+  case exportFailure
   case invalidData(data: Data, caught: Error)
   case invalidMediaURL(MediaURL)
   case mergingDifferentFeedURLs(parsing: FeedURL, merging: FeedURL?)
   case mergingDifferentMediaURLs(parsing: MediaURL, merging: MediaURL?)
   case missingImage(String)
   case missingMediaURL(String)
+  case caught(_ error: any Error)
 
   var message: String {
     switch self {
+    case .exportFailure:
+      return "Export failed"
     case .invalidData(let data, _):
       return
         """
@@ -40,6 +44,7 @@ enum ParseError: ReadableError {
       return "Missing required image attribute for \(title)"
     case .missingMediaURL(let title):
       return "Missing required enclosure media url for \(title)"
+    case .caught: return ""
     }
   }
 }
