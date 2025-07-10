@@ -14,9 +14,16 @@ struct EpisodeFeed: Sendable, Equatable {
     guard let mediaURL = rssEpisode.enclosure?.url
     else { throw ParseError.missingMediaURL(rssEpisode.title) }
 
+    let validatedMediaURL: MediaURL
+    do {
+      validatedMediaURL = MediaURL(try mediaURL.rawValue.convertToValidURL())
+    } catch {
+      throw ParseError.invalidMediaURL(mediaURL)
+    }
+
     self.rssEpisode = rssEpisode
-    self.guid = rssEpisode.guid ?? GUID(mediaURL.absoluteString)
-    self.media = mediaURL
+    self.guid = rssEpisode.guid ?? GUID(validatedMediaURL.absoluteString)
+    self.media = validatedMediaURL
   }
 
   func toUnsavedEpisode(merging episode: Episode? = nil) throws(FeedError) -> UnsavedEpisode {

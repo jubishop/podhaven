@@ -6,6 +6,7 @@ import ReadableErrorMacro
 @ReadableError
 enum ParseError: ReadableError {
   case invalidData(data: Data, caught: Error)
+  case invalidMediaURL(MediaURL)
   case mergingDifferentFeedURLs(parsing: FeedURL, merging: FeedURL?)
   case mergingDifferentMediaURLs(parsing: MediaURL, merging: MediaURL?)
   case missingImage(String)
@@ -19,6 +20,8 @@ enum ParseError: ReadableError {
         Invalid data
           Data size: \(data.count)
         """
+    case .invalidMediaURL(let mediaURL):
+      return "Invalid MediaURL: \(mediaURL)"
     case .mergingDifferentFeedURLs(let parsing, let merging):
       return
         """
