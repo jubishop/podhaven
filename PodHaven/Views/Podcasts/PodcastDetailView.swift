@@ -61,7 +61,9 @@ struct PodcastDetailView: View {
 
       List(viewModel.episodeList.filteredEntries) { episode in
         NavigationLink(
-          value: PodcastEpisode(podcast: viewModel.podcast, episode: episode),
+          value: Navigation.Podcasts.Destination.episode(
+            PodcastEpisode(podcast: viewModel.podcast, episode: episode)
+          ),
           label: {
             EpisodeListView(
               viewModel: EpisodeListViewModel(

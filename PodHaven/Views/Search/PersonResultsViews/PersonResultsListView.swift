@@ -37,9 +37,11 @@ struct PersonResultsListView: View {
 
       List(viewModel.episodeList.filteredEntries) { unsavedPodcastEpisode in
         NavigationLink(
-          value: SearchedPodcastEpisode(
-            searchedText: viewModel.searchText,
-            unsavedPodcastEpisode: unsavedPodcastEpisode
+          value: Navigation.Search.Destination.searchedPodcastEpisode(
+            SearchedPodcastEpisode(
+              searchedText: viewModel.searchText,
+              unsavedPodcastEpisode: unsavedPodcastEpisode
+            )
           ),
           label: {
             EpisodeResultsListView(

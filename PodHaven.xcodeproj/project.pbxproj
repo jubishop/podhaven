@@ -14,6 +14,7 @@
 		8B2AC0472D25D77900DB7FE5 /* XMLCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 8B2AC0462D25D77900DB7FE5 /* XMLCoder */; };
 		8B4C20062DD5A3770027FCDA /* SavedMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8B4C20052DD5A3770027FCDA /* SavedMacro */; };
 		8B7DAA1E2D3F1294000E9153 /* Tagged in Frameworks */ = {isa = PBXBuildFile; productRef = 8B7DAA1D2D3F1294000E9153 /* Tagged */; };
+		8B80C7C62E2186EB007A7D1B /* SwiftNavigation in Frameworks */ = {isa = PBXBuildFile; productRef = 8B80C7C52E2186EB007A7D1B /* SwiftNavigation */; };
 		8B84776B2DC167A200C6C2A5 /* Sharing in Frameworks */ = {isa = PBXBuildFile; productRef = 8B84776A2DC167A200C6C2A5 /* Sharing */; };
 		8B89D16B2DD57A3500E6B96E /* FactoryKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8B89D16A2DD57A3500E6B96E /* FactoryKit */; };
 		8B9B8B2C2DCBB25500E574E6 /* XMLCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9B8B282DCBB25500E574E6 /* XMLCoder */; };
@@ -139,6 +140,7 @@
 				8B89D16B2DD57A3500E6B96E /* FactoryKit in Frameworks */,
 				8B14BBE32D0CB37A0007E89B /* IdentifiedCollections in Frameworks */,
 				8BE319E92D0E22D8009F48C9 /* Semaphore in Frameworks */,
+				8B80C7C62E2186EB007A7D1B /* SwiftNavigation in Frameworks */,
 				8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */,
 				8B84776B2DC167A200C6C2A5 /* Sharing in Frameworks */,
 				78467F52904B4485ACAE3505 /* Sentry in Frameworks */,
@@ -247,6 +249,7 @@
 				8BD728BD2DDBAE9B00763D7F /* ReadableErrorMacro */,
 				8BAE003B2DDE79A4008E40B2 /* Logging */,
 				8BA86D022E18CF0C00D9911E /* AssociatedObject */,
+				8B80C7C52E2186EB007A7D1B /* SwiftNavigation */,
 			);
 			productName = PodHaven;
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
@@ -320,6 +323,7 @@
 				8B4866C32DD57215004D78DC /* XCLocalSwiftPackageReference "PodHavenMacros" */,
 				8BAE003A2DDE79A4008E40B2 /* XCRemoteSwiftPackageReference "swift-log" */,
 				8BA86D012E18CF0C00D9911E /* XCRemoteSwiftPackageReference "AssociatedObject" */,
+				8B80C7C42E2186EB007A7D1B /* XCRemoteSwiftPackageReference "swift-navigation" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8BD7F9212CF2A49000CEDAA7 /* Products */;
@@ -941,6 +945,14 @@
 				kind = branch;
 			};
 		};
+		8B80C7C42E2186EB007A7D1B /* XCRemoteSwiftPackageReference "swift-navigation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-navigation";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		8B8477692DC167A200C6C2A5 /* XCRemoteSwiftPackageReference "swift-sharing" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-sharing";
@@ -1033,6 +1045,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8B7DAA1C2D3F1294000E9153 /* XCRemoteSwiftPackageReference "swift-tagged" */;
 			productName = Tagged;
+		};
+		8B80C7C52E2186EB007A7D1B /* SwiftNavigation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B80C7C42E2186EB007A7D1B /* XCRemoteSwiftPackageReference "swift-navigation" */;
+			productName = SwiftNavigation;
 		};
 		8B84776A2DC167A200C6C2A5 /* Sharing */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -9,10 +9,13 @@ struct SettingsView: View {
   private let viewModel = SettingsViewModel()
 
   var body: some View {
-    NavigationStack(path: $navigation.settingsPath) {
+    NavigationStack(path: $navigation.settings.path) {
       Form {
         Section("Importing / Exporting") {
-          NavigationLink(value: Navigation.SettingsView.opml, label: { Text("OPML") })
+          NavigationLink(
+            value: Navigation.Settings.Destination.viewType(.opml),
+            label: { Text("OPML") }
+          )
         }
 
         if AppInfo.environment != .appStore {
@@ -21,9 +24,10 @@ struct SettingsView: View {
       }
       .navigationTitle("Settings")
       .navigationDestination(
-        for: Navigation.SettingsView.self,
-        destination: navigation.settingsView
-      )
+        for: Navigation.Settings.Destination.self
+      ) { destination in
+        navigation.settings.navigationDestination(for: destination)
+      }
     }
   }
 }

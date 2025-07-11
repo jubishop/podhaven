@@ -44,7 +44,9 @@ struct StandardPodcastsView: View {
       ItemGrid(items: viewModel.podcastList.filteredSortedEntries) {
         podcastWithLatestEpisodeDates in
         NavigationLink(
-          value: podcastWithLatestEpisodeDates.podcast,
+          value: Navigation.Podcasts.Destination.podcast(
+            podcastWithLatestEpisodeDates.podcast
+          ),
           label: {
             SelectablePodcastGridItem(
               viewModel: SelectablePodcastGridItemViewModel(

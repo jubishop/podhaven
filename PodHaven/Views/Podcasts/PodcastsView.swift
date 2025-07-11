@@ -8,31 +8,28 @@ struct PodcastsView: View {
   @InjectedObservable(\.navigation) private var navigation
 
   var body: some View {
-    NavigationStack(path: $navigation.podcastsPath) {
+    NavigationStack(path: $navigation.podcasts.path) {
       Form {
         Section("Standard") {
           NavigationLink(
-            value: Navigation.PodcastsView.all,
+            value: Navigation.Podcasts.Destination.viewType(.all),
             label: { Text("All") }
           )
           NavigationLink(
-            value: Navigation.PodcastsView.subscribed,
+            value: Navigation.Podcasts.Destination.viewType(.subscribed),
             label: { Text("Subscribed") }
           )
           NavigationLink(
-            value: Navigation.PodcastsView.unsubscribed,
+            value: Navigation.Podcasts.Destination.viewType(.unsubscribed),
             label: { Text("Unsubscribed") }
           )
         }
       }
       .navigationTitle("All Podcast Lists")
       .navigationDestination(
-        for: Navigation.PodcastsView.self,
-        destination: navigation.standardPodcastsView
-      )
-      .navigationDestination(for: Podcast.self, destination: navigation.podcastDetailView)
-      .navigationDestination(for: PodcastEpisode.self) { podcastEpisode in
-        navigation.episodeDetailView(for: podcastEpisode)
+        for: Navigation.Podcasts.Destination.self
+      ) { destination in
+        navigation.podcasts.navigationDestination(for: destination)
       }
     }
   }

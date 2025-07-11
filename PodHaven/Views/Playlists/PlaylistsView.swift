@@ -8,22 +8,23 @@ struct PlaylistsView: View {
   @InjectedObservable(\.navigation) private var navigation
 
   var body: some View {
-    NavigationStack(path: $navigation.playlistsPath) {
+    NavigationStack(path: $navigation.playlists.path) {
       Form {
         NavigationLink(
-          value: Navigation.PlaylistsView.completed,
+          value: Navigation.Playlists.Destination.viewType(.completed),
           label: { Text("Completed") }
         )
         NavigationLink(
-          value: Navigation.PlaylistsView.unfinished,
+          value: Navigation.Playlists.Destination.viewType(.unfinished),
           label: { Text("Unfinished") }
         )
       }
       .navigationTitle("All Playlists")
       .navigationDestination(
-        for: Navigation.PlaylistsView.self,
-        destination: navigation.standardPlaylistView
-      )
+        for: Navigation.Playlists.Destination.self
+      ) { destination in
+        navigation.playlists.navigationDestination(for: destination)
+      }
     }
   }
 }

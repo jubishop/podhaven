@@ -88,12 +88,9 @@ struct Podcast: Saved, RSSUpdatable {
   // MARK: - RSS Equality
 
   func rssEquals(_ other: Podcast) -> Bool {
-    unsaved.feedURL == other.unsaved.feedURL &&
-    unsaved.title == other.unsaved.title &&
-    unsaved.image == other.unsaved.image &&
-    unsaved.description == other.unsaved.description &&
-    unsaved.link == other.unsaved.link &&
-    unsaved.lastUpdate == other.unsaved.lastUpdate
+    unsaved.feedURL == other.unsaved.feedURL && unsaved.title == other.unsaved.title
+      && unsaved.image == other.unsaved.image && unsaved.description == other.unsaved.description
+      && unsaved.link == other.unsaved.link && unsaved.lastUpdate == other.unsaved.lastUpdate
   }
 }
 

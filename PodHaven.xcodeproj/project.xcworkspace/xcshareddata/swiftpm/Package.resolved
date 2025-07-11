@@ -1,5 +1,5 @@
 {
-  "originHash" : "cf94964dc38eeaf4814ed3cff61b6f019a9483a0f9d7df073ffd7d6934e602f0",
+  "originHash" : "8e8add9ae3f6487b3351f2ad4d714ff0c1fbc28c1b7035e5ddb8667bac22e44d",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -62,6 +62,15 @@
       "state" : {
         "branch" : "main",
         "revision" : "248195076dafba5bac1b3aa7668eacd5267886e2"
+      }
+    },
+    {
+      "identity" : "swift-case-paths",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-case-paths",
+      "state" : {
+        "revision" : "9810c8d6c2914de251e072312f01d3bf80071852",
+        "version" : "1.7.1"
       }
     },
     {
@@ -134,6 +143,15 @@
       "state" : {
         "branch" : "main",
         "revision" : "81d3d07f1439ddcf3df61b2128857ab7532a5804"
+      }
+    },
+    {
+      "identity" : "swift-navigation",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-navigation",
+      "state" : {
+        "branch" : "main",
+        "revision" : "ae208d1a5cf33aee1d43734ea780a09ada6e2a21"
       }
     },
     {

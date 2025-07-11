@@ -10,7 +10,7 @@ struct SearchView: View {
   @State private var viewModel = SearchViewModel()
 
   var body: some View {
-    NavigationStack(path: $navigation.searchPath) {
+    NavigationStack(path: $navigation.search.path) {
       ResultsView(viewModel: viewModel)
         .searchable(
           text: $viewModel.searchText,
@@ -23,13 +23,10 @@ struct SearchView: View {
         .onSubmit(of: .search, viewModel.searchSubmitted)
         .navigationTitle("Search")
         .navigationDestination(
-          for: SearchedPodcast.self,
-          destination: navigation.podcastResultsDetailView
-        )
-        .navigationDestination(
-          for: SearchedPodcastEpisode.self,
-          destination: navigation.episodeResultsDetailView
-        )
+          for: Navigation.Search.Destination.self
+        ) { destination in
+          navigation.search.navigationDestination(for: destination)
+        }
         .background(
           SizeReader { size in
             viewModel.width = size.width

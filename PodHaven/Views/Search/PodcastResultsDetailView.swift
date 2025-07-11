@@ -50,11 +50,13 @@ struct PodcastResultsDetailView: View {
         } else {
           List(viewModel.episodeList.filteredEntries, id: \.guid) { unsavedEpisode in
             NavigationLink(
-              value: SearchedPodcastEpisode(
-                searchedText: viewModel.searchedText,
-                unsavedPodcastEpisode: UnsavedPodcastEpisode(
-                  unsavedPodcast: viewModel.unsavedPodcast,
-                  unsavedEpisode: unsavedEpisode
+              value: Navigation.Search.Destination.searchedPodcastEpisode(
+                SearchedPodcastEpisode(
+                  searchedText: viewModel.searchedText,
+                  unsavedPodcastEpisode: UnsavedPodcastEpisode(
+                    unsavedPodcast: viewModel.unsavedPodcast,
+                    unsavedEpisode: unsavedEpisode
+                  )
                 )
               ),
               label: {

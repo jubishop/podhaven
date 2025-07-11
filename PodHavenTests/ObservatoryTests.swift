@@ -142,7 +142,7 @@ class ObservatoryTests {
   func testPodcastSeries() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     try await repo.insertSeries(unsavedPodcast)
-    
+
     let series = try await observatory.podcastSeries(unsavedPodcast.feedURL).get()
     #expect(series?.podcast.feedURL == unsavedPodcast.feedURL)
   }

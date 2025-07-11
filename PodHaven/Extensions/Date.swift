@@ -37,6 +37,6 @@ extension Date {
 
   func approximatelyEquals(_ date: Date, accuracy: Duration = .seconds(1)) -> Bool {
     abs(self.timeIntervalSince1970 - date.timeIntervalSince1970)
-      < Double(accuracy.components.seconds)
+      < Double(accuracy.components.seconds) + (Double(accuracy.components.attoseconds) / 1e18)
   }
 }
