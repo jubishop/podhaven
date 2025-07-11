@@ -619,4 +619,130 @@ class MigrationTests {
       #expect(finalCount == 1)
     }
   }
+
+  @Test("migrating to v8, adding lastQueued column and populating from existing queue")
+  func testV8Migration() async throws {
+    try migrator.migrate(appDB.db, upTo: "v7")
+
+    // Insert test data in v7 schema
+    let now = Date()
+    let yesterday = 24.hoursAgo
+    let twoDaysAgo = 48.hoursAgo
+
+    let (_, episode1Id, episode2Id, episode3Id) = try await appDB.db.write { db in
+      // Create a podcast
+      try db.execute(
+        sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscribed)
+            VALUES ('https://example.com/feed.xml', 'Test Podcast', 'https://example.com/image.jpg', 'Test Description', 1)
+          """
+      )
+      let podcast1Id = db.lastInsertedRowID
+
+      // Create episodes with some in queue and some not
+      // Episode 1: In queue at position 0
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, queueOrder)
+            VALUES (?, 'episode-1', 'https://example.com/ep1.mp3', 'Episode 1', ?, 0)
+          """,
+        arguments: [podcast1Id, twoDaysAgo]
+      )
+      let episode1Id = db.lastInsertedRowID
+
+      // Episode 2: In queue at position 1
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, queueOrder)
+            VALUES (?, 'episode-2', 'https://example.com/ep2.mp3', 'Episode 2', ?, 1)
+          """,
+        arguments: [podcast1Id, yesterday]
+      )
+      let episode2Id = db.lastInsertedRowID
+
+      // Episode 3: Not in queue (queueOrder NULL)
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, queueOrder)
+            VALUES (?, 'episode-3', 'https://example.com/ep3.mp3', 'Episode 3', ?, NULL)
+          """,
+        arguments: [podcast1Id, now]
+      )
+      let episode3Id = db.lastInsertedRowID
+
+      return (podcast1Id, episode1Id, episode2Id, episode3Id)
+    }
+
+    // Verify that lastQueued column does not exist before migration
+    try await appDB.db.read { db in
+      let tableInfo = try Row.fetchAll(
+        db,
+        sql: "PRAGMA table_info(episode)"
+      )
+      let columnNames = tableInfo.map { $0[Column("name")] as String }
+      #expect(!columnNames.contains("lastQueued"))
+    }
+
+    // Capture migration time
+    let migrationTime = Date()
+
+    // Migrate to v8
+    try migrator.migrate(appDB.db, upTo: "v8")
+
+    // Verify the lastQueued column was added to episode table
+    try await appDB.db.read { db in
+      let tableInfo = try Row.fetchAll(
+        db,
+        sql: "PRAGMA table_info(episode)"
+      )
+      let columnNames = tableInfo.map { $0[Column("name")] as String }
+      #expect(columnNames.contains("lastQueued"))
+    }
+
+    // Verify that currently queued episodes have lastQueued set
+    try await appDB.db.read { db in
+      // Episode 1 should have lastQueued set
+      let episode1 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE id = ?",
+        arguments: [episode1Id]
+      )!
+      let episode1LastQueued = episode1[Column("lastQueued")] as Date?
+      #expect(episode1LastQueued != nil)
+
+      // Verify lastQueued is essentially the migration time
+      if let episode1LastQueued = episode1LastQueued {
+        #expect(
+          episode1LastQueued.approximatelyEquals(migrationTime),
+          "Episode 1 lastQueued should be close to migration time"
+        )
+      }
+
+      // Episode 2 should have lastQueued set
+      let episode2 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE id = ?",
+        arguments: [episode2Id]
+      )!
+      let episode2LastQueued = episode2[Column("lastQueued")] as Date?
+      #expect(episode2LastQueued != nil)
+
+      // Verify lastQueued is essentially the migration time
+      if let episode2LastQueued = episode2LastQueued {
+        #expect(
+          episode2LastQueued.approximatelyEquals(migrationTime),
+          "Episode 2 lastQueued should be close to migration time"
+        )
+      }
+
+      // Episode 3 (not queued) should have lastQueued as NULL
+      let episode3 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE id = ?",
+        arguments: [episode3Id]
+      )!
+      let episode3LastQueued = episode3[Column("lastQueued")] as Date?
+      #expect(episode3LastQueued == nil)
+    }
+  }
 }

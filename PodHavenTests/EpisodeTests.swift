@@ -91,7 +91,7 @@ class EpisodeTests {
     let newPodcastImage = URL.valid()
     let newPodcastDescription = "new podcast description"
     let newPodcastLink = URL.valid()
-    let newLastUpdate = Date()
+    let newLastUpdate = 10.minutesAgo
 
     var updatedPodcast = originalPodcast
     updatedPodcast.feedURL = newFeedURL

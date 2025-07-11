@@ -35,7 +35,8 @@ extension Date {
     Date.usShortDateFormatWithTime.string(from: self)
   }
 
-  func approximatelyEquals(_ date: Date) -> Bool {
-    abs(self.timeIntervalSince1970 - date.timeIntervalSince1970) < 0.001
+  func approximatelyEquals(_ date: Date, accuracy: Duration = .seconds(1)) -> Bool {
+    abs(self.timeIntervalSince1970 - date.timeIntervalSince1970)
+      < Double(accuracy.components.seconds)
   }
 }

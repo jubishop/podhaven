@@ -190,6 +190,22 @@ enum Schema {
       try db.execute(sql: "DROP TRIGGER IF EXISTS prevent_episode_guid_update")
     }
 
+    migrator.registerMigration("v8") { db in
+      // Add lastQueued column to episode table to track when episodes were last added to queue
+      try db.alter(table: "episode") { t in
+        t.add(column: "lastQueued", .datetime)
+      }
+
+      // Populate lastQueued for currently queued episodes
+      try db.execute(
+        sql: """
+          UPDATE episode 
+          SET lastQueued = CURRENT_TIMESTAMP 
+          WHERE queueOrder IS NOT NULL
+          """
+      )
+    }
+
     return migrator
   }
 }

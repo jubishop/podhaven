@@ -47,6 +47,8 @@ struct Queue {
     try await appDB.db.write { db in
       try _clear(db)
 
+      try _updateLastQueued(db, episodeIDs)
+
       for (index, episodeID) in episodeIDs.enumerated() {
         try _setToPosition(db, episodeID: episodeID, position: index)
       }
@@ -76,6 +78,8 @@ struct Queue {
     Self.log.debug("queue: inserting \(episodeID) at position \(newPosition)")
 
     try await appDB.db.write { db in
+      try _updateLastQueued(db, [episodeID])
+
       try _insert(db, episodeID, at: newPosition)
     }
   }
@@ -87,6 +91,8 @@ struct Queue {
     Self.log.debug("queue: unshifting \(episodeIDs)")
 
     try await appDB.db.write { db in
+      try _updateLastQueued(db, episodeIDs)
+
       // Remove any existing episodes
       try _dequeue(db, episodeIDs)
 
@@ -116,6 +122,8 @@ struct Queue {
     Self.log.debug("queue: appending \(episodeIDs)")
 
     try await appDB.db.write { db in
+      try _updateLastQueued(db, episodeIDs)
+
       // Remove any existing episodes
       try _dequeue(db, episodeIDs)
 
@@ -140,7 +148,20 @@ struct Queue {
 
   // MARK: - Private Helpers
 
+  private func _updateLastQueued(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
+    Assert.precondition(db.isInsideTransaction, "updateLastQueued method requires a transaction")
+
+    guard !episodeIDs.isEmpty
+    else { return }
+
+    try Episode
+      .withIDs(episodeIDs)
+      .updateAll(db, Episode.Columns.lastQueued.set(to: Date()))
+  }
+
   private func _dequeue(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
+    Assert.precondition(db.isInsideTransaction, "dequeue method requires a transaction")
+
     guard !episodeIDs.isEmpty
     else { return }
 
