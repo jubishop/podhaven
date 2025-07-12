@@ -4,26 +4,26 @@ import FactoryKit
 import GRDB
 import SwiftUI
 
-struct PlaylistsView: View {
+struct EpisodesView: View {
   @InjectedObservable(\.navigation) private var navigation
 
   var body: some View {
-    NavigationStack(path: $navigation.playlists.path) {
+    NavigationStack(path: $navigation.episodes.path) {
       Form {
         NavigationLink(
-          value: Navigation.Playlists.Destination.viewType(.completed),
+          value: Navigation.Episodes.Destination.viewType(.completed),
           label: { Text("Completed") }
         )
         NavigationLink(
-          value: Navigation.Playlists.Destination.viewType(.unfinished),
+          value: Navigation.Episodes.Destination.viewType(.unfinished),
           label: { Text("Unfinished") }
         )
       }
-      .navigationTitle("All Playlists")
+      .navigationTitle("All Episode Lists")
       .navigationDestination(
-        for: Navigation.Playlists.Destination.self
+        for: Navigation.Episodes.Destination.self
       ) { destination in
-        navigation.playlists.navigationDestination(for: destination)
+        navigation.episodes.navigationDestination(for: destination)
       }
     }
   }
@@ -31,7 +31,7 @@ struct PlaylistsView: View {
 
 #if DEBUG
 #Preview {
-  PlaylistsView()
+  EpisodesView()
     .preview()
 }
 #endif

@@ -19,7 +19,7 @@ extension Container {
   // MARK: - Tab Management
 
   enum Tab {
-    case settings, search, upNext, playlists, podcasts
+    case settings, search, upNext, episodes, podcasts
   }
 
   var currentTab: Tab = .settings {
@@ -29,7 +29,7 @@ extension Container {
   private func clearPaths() {
     settings = Settings()
     search = Search()
-    playlists = Playlists()
+    episodes = Episodes()
     podcasts = Podcasts()
   }
 
@@ -95,10 +95,10 @@ extension Container {
   }
   var search = Search()
 
-  // MARK: - Playlists
+  // MARK: - Episodes
 
   @MainActor @Observable
-  class Playlists {
+  class Episodes {
     var path: [Destination] = []
 
     enum ViewType {
@@ -118,8 +118,8 @@ extension Container {
         switch viewType {
         case .completed:
           IdentifiableView(
-            StandardPlaylistView(
-              viewModel: StandardPlaylistViewModel(
+            StandardEpisodesView(
+              viewModel: StandardEpisodesViewModel(
                 title: "Completed",
                 filter: Episode.completed,
                 order: Episode.Columns.completionDate.desc
@@ -129,8 +129,8 @@ extension Container {
           )
         case .unfinished:
           IdentifiableView(
-            StandardPlaylistView(
-              viewModel: StandardPlaylistViewModel(
+            StandardEpisodesView(
+              viewModel: StandardEpisodesViewModel(
                 title: "Unfinished",
                 filter: Episode.started && Episode.uncompleted
               )
@@ -146,13 +146,13 @@ extension Container {
       }
     }
   }
-  var playlists = Playlists()
+  var episodes = Episodes()
 
-  // MARK: - Playlist Navigation
+  // MARK: - Episodes Navigation
 
-  func showPlaylist(_ viewType: Playlists.ViewType) {
-    currentTab = .playlists
-    playlists.path.append(.viewType(viewType))
+  func showEpisodes(_ viewType: Episodes.ViewType) {
+    currentTab = .episodes
+    episodes.path.append(.viewType(viewType))
   }
 
   // MARK: - Podcasts

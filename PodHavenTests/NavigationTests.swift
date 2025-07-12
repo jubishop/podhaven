@@ -13,15 +13,15 @@ import Testing
 @MainActor class NavigationTests {
   @DynamicInjected(\.navigation) private var navigation
 
-  @Test("that showPlaylist sets current tab and appends to playlists path")
-  func showPlaylistNavigatesToCorrectTab() async throws {
-    navigation.showPlaylist(.completed)
+  @Test("that showEpisodes sets current tab and appends to episodes path")
+  func showEpisodesNavigatesToCorrectTab() async throws {
+    navigation.showEpisodes(.completed)
 
-    #expect(navigation.currentTab == .playlists, "Current tab should be playlists")
-    #expect(navigation.playlists.path.count == 1, "Playlists path should have one item")
+    #expect(navigation.currentTab == .episodes, "Current tab should be episodes")
+    #expect(navigation.episodes.path.count == 1, "Episodes path should have one item")
     #expect(
-      navigation.playlists.path.first == .viewType(.completed),
-      "Playlists path should contain completed viewType"
+      navigation.episodes.path.first == .viewType(.completed),
+      "Episodes path should contain completed viewType"
     )
   }
 
@@ -72,17 +72,17 @@ import Testing
 
     // Set up some navigation state
     navigation.showPodcast(.all, podcastEpisode.podcast)
-    navigation.showPlaylist(.completed)
+    navigation.showEpisodes(.completed)
 
     // Verify initial state
-    #expect(navigation.currentTab == .playlists, "Current tab should be playlists")
-    #expect(navigation.playlists.path.count == 1, "Playlists path should have one item")
+    #expect(navigation.currentTab == .episodes, "Current tab should be episodes")
+    #expect(navigation.episodes.path.count == 1, "Episodes path should have one item")
 
     // Change to a different tab
     navigation.currentTab = .settings
 
     // Verify paths are cleared
-    #expect(navigation.playlists.path.isEmpty, "Playlists path should be empty")
+    #expect(navigation.episodes.path.isEmpty, "Episodes path should be empty")
     #expect(navigation.podcasts.path.isEmpty, "Podcasts path should be empty")
     #expect(navigation.settings.path.isEmpty, "Settings path should be empty")
   }

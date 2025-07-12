@@ -7,7 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class StandardPlaylistViewModel:
+class StandardEpisodesViewModel:
   PodcastQueueableModel,
   QueueableSelectableEpisodeList
 {

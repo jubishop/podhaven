@@ -23,8 +23,8 @@ struct ContentView: View {
       ) {
         TabContentWithPlayBar { UpNextView() }
       }
-      Tab("Playlists", systemImage: "list.bullet", value: .playlists) {
-        TabContentWithPlayBar { PlaylistsView() }
+      Tab("Episodes", systemImage: "list.bullet", value: .episodes) {
+        TabContentWithPlayBar { EpisodesView() }
       }
       Tab("Podcasts", systemImage: "dot.radiowaves.left.and.right", value: .podcasts) {
         TabContentWithPlayBar { PodcastsView() }
