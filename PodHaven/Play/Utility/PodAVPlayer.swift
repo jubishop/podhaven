@@ -47,14 +47,22 @@ extension Container {
 
   let currentTimeStream: AsyncStream<CMTime>
   let currentItemStream: AsyncStream<PodcastEpisode?>
+  let itemStatusStream: AsyncStream<AVPlayerItem.Status>
   let controlStatusStream: AsyncStream<PlaybackStatus>
+  let rateStream: AsyncStream<Float>
+
   private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
   private let currentItemContinuation: AsyncStream<PodcastEpisode?>.Continuation
+  private let itemStatusContinuation: AsyncStream<AVPlayerItem.Status>.Continuation
   private let controlStatusContinuation: AsyncStream<PlaybackStatus>.Continuation
+  private let rateContinuation: AsyncStream<Float>.Continuation
 
   private var periodicTimeObserver: Any?
   private var currentItemObserver: NSKeyValueObservation?
+  private var itemStatusObserver: NSKeyValueObservation?
   private var timeControlStatusObserver: NSKeyValueObservation?
+  private var rateObserver: NSKeyValueObservation?
+
   private var observeNextEpisodeTask: Task<Void, Never>?
   private var setNextEpisodeTask: Task<Void, any Error>?
 
@@ -63,9 +71,13 @@ extension Container {
   fileprivate init() {
     (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(of: CMTime.self)
     (currentItemStream, currentItemContinuation) = AsyncStream.makeStream(of: PodcastEpisode?.self)
+    (itemStatusStream, itemStatusContinuation) = AsyncStream.makeStream(
+      of: AVPlayerItem.Status.self
+    )
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: PlaybackStatus.self
     )
+    (rateStream, rateContinuation) = AsyncStream.makeStream(of: Float.self)
   }
 
   // MARK: - Loading
@@ -141,8 +153,9 @@ extension Container {
   }
 
   func toggle() {
-    Self.log.debug("toggle: executing")
-    avQueuePlayer.timeControlStatus == .paused
+    let currentStatus = avQueuePlayer.timeControlStatus
+    Self.log.debug("toggle: executing (current status: \(currentStatus))")
+    currentStatus == .paused
       ? play()
       : pause()
   }
@@ -280,18 +293,24 @@ extension Container {
 
   // MARK: - Change Handlers
 
-  private func handleCurrentItemChange(_ episodeID: Episode.ID?) async throws {
-    if podcastEpisode?.episode.id == episodeID {
+  private func handleCurrentItemChange() async throws {
+    if podcastEpisode?.episode.id == avQueuePlayer.current?.episodeID {
       Self.log.debug(
         """
         handleCurrentItemChange: ignoring because id matches current podcastEpisode: \
-        \(String(describing: episodeID))
+        \(String(describing: podcastEpisode?.toString))
         """
       )
       return
     }
 
-    if let episodeID {
+    if let current = avQueuePlayer.current {
+      addItemStatusObserver(playableItem: current)
+    } else {
+      removeItemStatusObserver()
+    }
+
+    if let episodeID = avQueuePlayer.current?.episodeID {
       podcastEpisode = try await repo.episode(episodeID)
     } else {
       podcastEpisode = nil
@@ -318,13 +337,16 @@ extension Container {
     addCurrentItemObserver()
     addPeriodicTimeObserver()
     addTimeControlStatusObserver()
+    addRateObserver()
   }
 
   func removeObservers() {
     stopObservingNextEpisode()
     removeCurrentItemObserver()
+    removeItemStatusObserver()
     removePeriodicTimeObserver()
     removeTimeControlStatusObserver()
+    removeRateObserver()
   }
 
   private func observeNextEpisode() {
@@ -351,16 +373,26 @@ extension Container {
 
     currentItemObserver = avQueuePlayer.observeCurrentItem(
       options: [.initial, .new]
-    ) { [weak self] episodeID in
+    ) { [weak self] in
       guard let self else { return }
       Task { [weak self] in
         guard let self else { return }
         do {
-          try await self.handleCurrentItemChange(episodeID)
+          try await self.handleCurrentItemChange()
         } catch {
           Self.log.error(error)
         }
       }
+    }
+  }
+
+  private func addItemStatusObserver(playableItem: any AVPlayableItem) {
+    removeItemStatusObserver()
+
+    itemStatusObserver = playableItem.observeStatus(options: [.initial, .new]) {
+      [weak self] status in
+      guard let self else { return }
+      itemStatusContinuation.yield(status)
     }
   }
 
@@ -386,11 +418,19 @@ extension Container {
   private func addTimeControlStatusObserver() {
     guard timeControlStatusObserver == nil else { return }
 
-    timeControlStatusObserver = avQueuePlayer.observeTimeControlStatus(
-      options: [.initial, .new]
-    ) { [weak self] status in
+    timeControlStatusObserver = avQueuePlayer.observeTimeControlStatus(options: [.initial, .new]) {
+      [weak self] status in
       guard let self else { return }
       controlStatusContinuation.yield(PlaybackStatus(status))
+    }
+  }
+
+  private func addRateObserver() {
+    guard rateObserver == nil else { return }
+
+    rateObserver = avQueuePlayer.observeRate(options: [.initial, .new]) { [weak self] rate in
+      guard let self else { return }
+      rateContinuation.yield(rate)
     }
   }
 
@@ -405,6 +445,12 @@ extension Container {
     }
   }
 
+  private func removeItemStatusObserver() {
+    if itemStatusObserver != nil {
+      self.itemStatusObserver = nil
+    }
+  }
+
   private func removePeriodicTimeObserver() {
     if let periodicTimeObserver {
       avQueuePlayer.removeTimeObserver(periodicTimeObserver)
@@ -415,6 +461,12 @@ extension Container {
   private func removeTimeControlStatusObserver() {
     if timeControlStatusObserver != nil {
       self.timeControlStatusObserver = nil
+    }
+  }
+
+  private func removeRateObserver() {
+    if rateObserver != nil {
+      self.rateObserver = nil
     }
   }
 

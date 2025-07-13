@@ -11,7 +11,7 @@ import Foundation
   func removeAllItems()
   func observeCurrentItem(
     options: NSKeyValueObservingOptions,
-    changeHandler: @Sendable @escaping (Episode.ID?) -> Void
+    changeHandler: @Sendable @escaping () -> Void
   ) -> NSKeyValueObservation
 
   func play()
@@ -31,5 +31,9 @@ import Foundation
   func observeTimeControlStatus(
     options: NSKeyValueObservingOptions,
     changeHandler: @Sendable @escaping (AVPlayer.TimeControlStatus) -> Void
+  ) -> NSKeyValueObservation
+  func observeRate(
+    options: NSKeyValueObservingOptions,
+    changeHandler: @Sendable @escaping (Float) -> Void
   ) -> NSKeyValueObservation
 }

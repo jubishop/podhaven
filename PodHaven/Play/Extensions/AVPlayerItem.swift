@@ -10,4 +10,13 @@ extension AVPlayerItem: AVPlayableItem {
 
     return urlAsset.episodeID
   }
+
+  nonisolated func observeStatus(
+    options: NSKeyValueObservingOptions,
+    changeHandler: @Sendable @escaping (AVPlayerItem.Status) -> Void
+  ) -> NSKeyValueObservation {
+    observe(\.status, options: options) { playerItem, _ in
+      changeHandler(playerItem.status)
+    }
+  }
 }

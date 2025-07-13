@@ -68,12 +68,8 @@ actor PlayManager {
   func start() async {
     Assert.neverCalled()
 
-    startInterruptionNotifications()
-    startPlayToEndTimeNotifications()
-    startListeningToCommandCenter()
-    startListeningToCurrentItem()
-    startListeningToCurrentTime()
-    startListeningToControlStatus()
+    startNotificationTracking()
+    startAsyncStreams()
 
     if let currentEpisodeID {
       let podcastEpisode: PodcastEpisode?
@@ -356,9 +352,9 @@ actor PlayManager {
     try await repo.markComplete(podcastEpisode.id)
   }
 
-  // MARK: - Private State Tracking
+  // MARK: - Notification Tracking
 
-  private func startInterruptionNotifications() {
+  private func startNotificationTracking() {
     Assert.neverCalled()
 
     Task { [weak self] in
@@ -374,10 +370,19 @@ actor PlayManager {
         }
       }
     }
-  }
 
-  private func startPlayToEndTimeNotifications() {
-    Assert.neverCalled()
+    Task { [weak self] in
+      guard let self else { return }
+      for await _ in await notifications(AVAudioSession.mediaServicesWereResetNotification) {
+        Self.log.critical("Media services were reset - this could cause playback to stop")
+        await alert(
+          """
+          Media services were reset, this has been reported.
+          You will have to restart the app.
+          """
+        )
+      }
+    }
 
     Task { @MainActor [weak self] in
       guard let self else { return }
@@ -391,9 +396,55 @@ actor PlayManager {
         }
       }
     }
+
+    Task { [weak self] in
+      guard let self else { return }
+      for await notification in await notifications(AVPlayerItem.failedToPlayToEndTimeNotification)
+      {
+        guard
+          let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
+        else { Assert.fatal("failedToPlayToEndTimeNotification: \(notification) is invalid") }
+
+        Self.log.warning(
+          """
+          AVPlayerItem failed to play to end time
+          \(ErrorKit.loggableMessage(for: error))
+          """
+        )
+      }
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+      for await _ in await notifications(AVPlayerItem.playbackStalledNotification) {
+        Self.log.warning("AVPlayerItem playback stalled")
+      }
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+      for await notification in await notifications(AVPlayerItem.newErrorLogEntryNotification) {
+        guard let item = notification.object as? AVPlayerItem
+        else { Assert.fatal("newErrorLogEntryNotification: \(notification) is invalid") }
+
+        guard let errorLog = item.errorLog()
+        else { Assert.fatal("newErrorLogEntryNotification fired but errorLog() returned nil?") }
+
+        Self.log.error(
+          """
+          Error log events (\(errorLog.events.count)):
+            \(errorLog.events.map { event in
+              String(describing: event.errorComment)
+            }.joined(separator: "\n  "))
+          """
+        )
+      }
+    }
   }
 
-  private func startListeningToCommandCenter() {
+  // MARK: - Subordinate Async Streams
+
+  private func startAsyncStreams() {
     Assert.neverCalled()
 
     Task { [weak self] in
@@ -415,10 +466,6 @@ actor PlayManager {
         }
       }
     }
-  }
-
-  private func startListeningToCurrentItem() {
-    Assert.neverCalled()
 
     Task { [weak self] in
       guard let self else { return }
@@ -430,10 +477,13 @@ actor PlayManager {
         }
       }
     }
-  }
 
-  private func startListeningToCurrentTime() {
-    Assert.neverCalled()
+    Task { [weak self] in
+      guard let self else { return }
+      for await itemStatus in await podAVPlayer.itemStatusStream {
+        Self.log.debug("Current item status changed: \(itemStatus)")
+      }
+    }
 
     Task { [weak self] in
       guard let self else { return }
@@ -441,15 +491,18 @@ actor PlayManager {
         await setCurrentTime(currentTime)
       }
     }
-  }
 
-  private func startListeningToControlStatus() {
-    Assert.neverCalled()
+    Task { [weak self] in
+      guard let self else { return }
+      for await rate in await podAVPlayer.rateStream {
+        Self.log.debug("Current rate changed to: \(rate)")
+      }
+    }
 
     Task { [weak self] in
       guard let self else { return }
       for await controlStatus in await podAVPlayer.controlStatusStream {
-        Self.log.trace("Control status changed to: \(controlStatus)")
+        Self.log.debug("Control status changed to: \(controlStatus)")
         switch controlStatus {
         case .paused:
           await setStatus(.paused)

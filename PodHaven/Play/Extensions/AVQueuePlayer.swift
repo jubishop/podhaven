@@ -15,12 +15,10 @@ extension AVQueuePlayer: AVQueuePlayable {
   var queued: [any AVPlayableItem] { items() }
   nonisolated func observeCurrentItem(
     options: NSKeyValueObservingOptions,
-    changeHandler: @Sendable @escaping (Episode.ID?) -> Void
+    changeHandler: @Sendable @escaping () -> Void
   ) -> NSKeyValueObservation {
     observe(\.currentItem, options: options) { player, _ in
-      Task { @MainActor in
-        changeHandler(player.currentItem?.episodeID)
-      }
+      changeHandler()
     }
   }
 
@@ -45,6 +43,15 @@ extension AVQueuePlayer: AVQueuePlayable {
   ) -> NSKeyValueObservation {
     observe(\.timeControlStatus, options: options) { player, _ in
       changeHandler(player.timeControlStatus)
+    }
+  }
+
+  nonisolated func observeRate(
+    options: NSKeyValueObservingOptions,
+    changeHandler: @Sendable @escaping (Float) -> Void
+  ) -> NSKeyValueObservation {
+    observe(\.rate, options: options) { player, _ in
+      changeHandler(player.rate)
     }
   }
 }

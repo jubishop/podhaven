@@ -5,4 +5,9 @@ import Foundation
 
 @MainActor protocol AVPlayableItem: AnyObject, CustomStringConvertible {
   var episodeID: Episode.ID? { get }
+
+  func observeStatus(
+    options: NSKeyValueObservingOptions,
+    changeHandler: @Sendable @escaping (AVPlayerItem.Status) -> Void
+  ) -> NSKeyValueObservation
 }

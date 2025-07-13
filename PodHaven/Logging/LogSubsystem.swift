@@ -15,7 +15,7 @@ enum LogSubsystem {
       case .appDB: return .debug
       case .observatory: return .trace
       case .queue: return .trace
-      case .repo: return .debug
+      case .repo: return .trace
       }
     }
   }
@@ -33,14 +33,6 @@ enum LogSubsystem {
     case manager
     case avPlayer
     case nowPlayingInfo
-
-    var level: Logger.Level {
-      switch self {
-      case .manager: return .debug
-      case .avPlayer: return .debug
-      case .nowPlayingInfo: return .info
-      }
-    }
   }
 
   enum PodcastsView: String, LogCategorizable {
