@@ -17,7 +17,7 @@ struct FileLogManager: Sendable {
   @DynamicInjected(\.notifications) private var notifications
 
   @Shared(.appStorage("FileLogManager-lastCleanup")) private var lastCleanup: Double = 0
-  private let maxLogEntries = 5000
+  private let maxLogEntries = 2500
   private let periodicCleanupInterval = 1.hours
 
   private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)

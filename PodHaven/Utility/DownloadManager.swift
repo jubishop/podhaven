@@ -109,7 +109,7 @@ actor DownloadManager {
 
   var remainingDownloads: Int { pendingDownloads.count + activeDownloads.count }
 
-  init(session: DataFetchable, maxConcurrentDownloads: Int = 64) {
+  init(session: DataFetchable, maxConcurrentDownloads: Int = 32) {
     self.session = session
     self.maxConcurrentDownloads = maxConcurrentDownloads
     (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(of: DownloadResult.self)
