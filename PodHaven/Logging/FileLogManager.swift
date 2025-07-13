@@ -18,7 +18,7 @@ struct FileLogManager: Sendable {
 
   @Shared(.appStorage("FileLogManager-lastCleanup")) private var lastCleanup: Double = 0
   private let maxLogEntries = 2500
-  private let periodicCleanupInterval = 1.hours
+  private let periodicCleanupInterval = 15.minutes
 
   private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
   private let logFileURL: URL = {
