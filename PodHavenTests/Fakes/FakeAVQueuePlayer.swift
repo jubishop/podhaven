@@ -23,10 +23,15 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     weak var observation: NSKeyValueObservation?
     let handler: @Sendable (T) -> Void
   }
+  
+  struct VoidObservationHandler: Sendable {
+    weak var observation: NSKeyValueObservation?
+    let handler: @Sendable () -> Void
+  }
 
   // MARK: - State Management
 
-  var itemObservations: [ObservationHandler<Episode.ID?>] = []
+  var itemObservations: [VoidObservationHandler] = []
   var seekHandler: (CMTime) async -> Bool = { _ in (true) }
   var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
   var timeObservers: [UUID: TimeObserver] = [:]
@@ -58,7 +63,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
           guard observationHandler.observation != nil else { return nil }
 
           Self.log.debug("Calling active currentItem handler with: \(String(describing: current))")
-          observationHandler.handler(current?.episodeID)
+          observationHandler.handler()
           return observationHandler
         }
       }
@@ -67,13 +72,13 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   }
   func observeCurrentItem(
     options: NSKeyValueObservingOptions,
-    changeHandler: @escaping @Sendable (Episode.ID?) -> Void
+    changeHandler: @escaping @Sendable () -> Void
   ) -> NSKeyValueObservation {
     let observation = NSObject().observe(\.description, options: []) { _, _ in }
-    itemObservations.append(ObservationHandler(observation: observation, handler: changeHandler))
+    itemObservations.append(VoidObservationHandler(observation: observation, handler: changeHandler))
 
     if options.contains(.initial) {
-      changeHandler(current?.episodeID)
+      changeHandler()
     }
 
     return observation
@@ -164,6 +169,13 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     }
 
     return observation
+  }
+
+  func observeRate(
+    options: NSKeyValueObservingOptions,
+    changeHandler: @Sendable @escaping (Float) -> Void
+  ) -> NSKeyValueObservation {
+    NSObject().observe(\.description, options: []) { _, _ in }
   }
 
   // MARK: - Testing Manipulators
