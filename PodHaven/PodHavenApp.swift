@@ -11,6 +11,7 @@ struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshManager) private var refreshManager
+  @DynamicInjected(\.notifications) private var notifications
 
   @State private var isInitialized = false
 
@@ -34,6 +35,7 @@ struct PodHavenApp: App {
 
         isInitialized = true
         configureAudioSession()
+        startMemoryWarningMonitoring()
         await playManager.start()
         await refreshManager.start()
       }
@@ -53,6 +55,16 @@ struct PodHavenApp: App {
         Button("Send Report and Crash") {
           Assert.fatal("Failed to initialize the audio session")
         }
+      }
+    }
+  }
+
+  // MARK: - Memory Monitoring
+
+  private func startMemoryWarningMonitoring() {
+    Task {
+      for await _ in notifications(UIApplication.didReceiveMemoryWarningNotification) {
+        Self.log.warning("System memory warning received")
       }
     }
   }
