@@ -6,7 +6,7 @@ import XMLCoder
 
 @testable import PodHaven
 
-@Suite("of PodcastRSS tests")
+@Suite("of PodcastRSS tests", .container)
 struct PodcastRSSTests {
   @Test("parsing the Changelog feed")
   func parseChangelogFeed() async throws {

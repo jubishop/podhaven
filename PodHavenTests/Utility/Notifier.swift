@@ -15,6 +15,18 @@ class Notifier {
   private var streamAndContinuations:
     [Notification.Name: (AsyncStream<Notification>, AsyncStream<Notification>.Continuation)] = [:]
 
+  fileprivate init() {}
+
+  func stream(for name: Notification.Name) -> AsyncStream<Notification> {
+    let (stream, _) = streamAndContinuation(for: name)
+    return stream
+  }
+
+  func continuation(for name: Notification.Name) -> AsyncStream<Notification>.Continuation {
+    let (_, continuation) = streamAndContinuation(for: name)
+    return continuation
+  }
+
   private func streamAndContinuation(for name: Notification.Name) -> (
     AsyncStream<Notification>, AsyncStream<Notification>.Continuation
   ) {
@@ -25,15 +37,5 @@ class Notifier {
     let (stream, continuation) = AsyncStream.makeStream(of: Notification.self)
     streamAndContinuations[name] = (stream, continuation)
     return (stream, continuation)
-  }
-
-  func stream(for name: Notification.Name) -> AsyncStream<Notification> {
-    let (stream, _) = streamAndContinuation(for: name)
-    return stream
-  }
-
-  func continuation(for name: Notification.Name) -> AsyncStream<Notification>.Continuation {
-    let (_, continuation) = streamAndContinuation(for: name)
-    return continuation
   }
 }

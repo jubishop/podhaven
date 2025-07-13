@@ -5,7 +5,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of HTML Regex tests")
+@Suite("of HTML Regex tests", .container)
 struct HTMLRegexTests {
   @Test("that HTML regexes work")
   func testHTMLRegexes() throws {

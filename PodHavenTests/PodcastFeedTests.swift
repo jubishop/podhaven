@@ -7,7 +7,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of PodcastFeed tests")
+@Suite("of PodcastFeed tests", .container)
 struct PodcastFeedTests {
   @Test("parsing the Pod Save America feed")
   func parsePodSaveAmericaFeed() async throws {

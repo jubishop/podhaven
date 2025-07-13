@@ -6,7 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of DownloadManager tests")
+@Suite("of DownloadManager tests", .container)
 struct DownloadManagerTests {
   private let session: FakeDataFetchable
 
