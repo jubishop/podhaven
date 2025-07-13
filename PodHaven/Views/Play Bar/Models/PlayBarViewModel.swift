@@ -29,6 +29,7 @@ extension Container {
   var isPlaying: Bool { playState.playing }
   var isSeeking: Bool { playState.seeking }
   var isStopped: Bool { playState.stopped }
+  var isWaiting: Bool { playState.waiting }
 
   var duration: CMTime { playState.onDeck?.duration ?? CMTime.zero }
   var episodeImage: UIImage? { playState.onDeck?.image }

@@ -193,6 +193,10 @@ struct PlayBar: View {
             Image(systemName: "circle.dotted.circle")
               .font(.title)
               .foregroundColor(.white)
+          } else if viewModel.isWaiting {
+            Image(systemName: "hourglass.circle")
+              .font(.title)
+              .foregroundColor(.white)
           } else if viewModel.isPlaying {
             Image(systemName: "pause.circle.fill")
               .font(.title)
