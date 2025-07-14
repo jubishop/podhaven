@@ -50,9 +50,8 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     }
   }
 
-  // MARK: - AVQueuePlayable Implementation
+  // MARK: - AVQueuePlayable Queue
 
-  var current: (any AVPlayableItem)? { queued.first }
   var queued: [any AVPlayableItem] = [] {
     didSet {
       Self.log.debug("didSet queued to: \(queued)")
@@ -69,21 +68,6 @@ class FakeAVQueuePlayer: AVQueuePlayable {
       }
       if queued.isEmpty { timeControlStatus = .paused }
     }
-  }
-  func observeCurrentItem(
-    options: NSKeyValueObservingOptions,
-    changeHandler: @escaping @Sendable () -> Void
-  ) -> NSKeyValueObservation {
-    let observation = NSObject().observe(\.description, options: []) { _, _ in }
-    currentItemObservations.append(
-      VoidObservationHandler(observation: observation, handler: changeHandler)
-    )
-
-    if options.contains(.initial) {
-      changeHandler()
-    }
-
-    return observation
   }
 
   func insert(_ item: any AVPlayableItem, after afterItem: (any AVPlayableItem)?) {
@@ -113,12 +97,35 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     queued.removeAll()
   }
 
+  // MARK: - AVQueuePlayable Current
+
+  var current: (any AVPlayableItem)? { queued.first }
+  func observeCurrentItem(
+    options: NSKeyValueObservingOptions,
+    changeHandler: @escaping @Sendable () -> Void
+  ) -> NSKeyValueObservation {
+    let observation = NSObject().observe(\.description, options: []) { _, _ in }
+    currentItemObservations.append(
+      VoidObservationHandler(observation: observation, handler: changeHandler)
+    )
+
+    if options.contains(.initial) {
+      changeHandler()
+    }
+
+    return observation
+  }
+
+  // MARK: - AVQueuePlayable Playback
+
   func play() {
     timeControlStatus = .playing
   }
+
   func pause() {
     timeControlStatus = .paused
   }
+
   func seek(to time: CMTime, completionHandler: @escaping @Sendable (Bool) -> Void) {
     Task {
       let success = await seekHandler(time)
@@ -126,6 +133,15 @@ class FakeAVQueuePlayer: AVQueuePlayable {
       if success { currentTimeValue = time }
     }
   }
+
+  func observeRate(
+    options: NSKeyValueObservingOptions,
+    changeHandler: @Sendable @escaping (Float) -> Void
+  ) -> NSKeyValueObservation {
+    NSObject().observe(\.description, options: []) { _, _ in }
+  }
+
+  // MARK: - AVQueuePlayable Time
 
   func currentTime() -> CMTime { currentTimeValue }
   func addPeriodicTimeObserver(
@@ -137,12 +153,15 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     timeObservers[id] = TimeObserver(interval: interval, queue: queue, block: block)
     return id
   }
+
   func removeTimeObserver(_ observer: Any) {
     guard let id = observer as? UUID
     else { Assert.fatal("Removing time observer: \(observer), of wrong type?") }
 
     timeObservers[id] = nil
   }
+
+  // MARK: - AVQueuePlayable Status
 
   private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused {
     didSet {
@@ -158,6 +177,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
       }
     }
   }
+
   private(set) var reasonForWaitingToPlay: AVPlayer.WaitingReason?
   func observeTimeControlStatus(
     options: NSKeyValueObservingOptions,
@@ -171,13 +191,6 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     }
 
     return observation
-  }
-
-  func observeRate(
-    options: NSKeyValueObservingOptions,
-    changeHandler: @Sendable @escaping (Float) -> Void
-  ) -> NSKeyValueObservation {
-    NSObject().observe(\.description, options: []) { _, _ in }
   }
 
   // MARK: - Testing Manipulators
