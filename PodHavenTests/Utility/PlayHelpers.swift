@@ -255,12 +255,6 @@ enum PlayHelpers {
     !(avQueuePlayer.timeObservers.isEmpty)
   }
 
-  static func hasObservations() -> Bool {
-    !(avQueuePlayer.itemObservations.isEmpty)
-      && hasPeriodicTimeObservation()
-      && !(avQueuePlayer.statusObservations.isEmpty)
-  }
-
   static func responseCount(for podcastEpisode: PodcastEpisode) -> Int {
     fakeEpisodeAssetLoader.responseCount(for: podcastEpisode)
   }
