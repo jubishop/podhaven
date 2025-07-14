@@ -18,11 +18,11 @@ class QueueTests {
     podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
-        Create.unsavedEpisode(guid: "top", queueOrder: 0),
-        Create.unsavedEpisode(guid: "bottom", queueOrder: 4),
-        Create.unsavedEpisode(guid: "midtop", queueOrder: 1),
-        Create.unsavedEpisode(guid: "middle", queueOrder: 2),
-        Create.unsavedEpisode(guid: "midbottom", queueOrder: 3),
+        Create.unsavedEpisode(guid: "top", queueOrder: 0, lastQueued: 5.hoursAgo),
+        Create.unsavedEpisode(guid: "bottom", queueOrder: 4, lastQueued: 1.hoursAgo),
+        Create.unsavedEpisode(guid: "midtop", queueOrder: 1, lastQueued: 4.hoursAgo),
+        Create.unsavedEpisode(guid: "middle", queueOrder: 2, lastQueued: 3.hoursAgo),
+        Create.unsavedEpisode(guid: "midbottom", queueOrder: 3, lastQueued: 2.hoursAgo),
         Create.unsavedEpisode(guid: "unqbottom"),
         Create.unsavedEpisode(guid: "unqmiddle"),
         Create.unsavedEpisode(guid: "unqtop"),
@@ -53,6 +53,10 @@ class QueueTests {
     var topEpisode = try await fetchEpisode("unqtop")
     var middleEpisode = try await fetchEpisode("unqmiddle")
     var bottomEpisode = try await fetchEpisode("unqbottom")
+    #expect(topEpisode.lastQueued == nil)
+    #expect(middleEpisode.lastQueued == nil)
+    #expect(bottomEpisode.lastQueued == nil)
+    let beforeQueue = Date()
     try await queue.replace([topEpisode.id, middleEpisode.id, bottomEpisode.id])
     topEpisode = try await fetchEpisode("unqtop")
     middleEpisode = try await fetchEpisode("unqmiddle")
@@ -60,6 +64,9 @@ class QueueTests {
     #expect(topEpisode.queueOrder == 0)
     #expect(middleEpisode.queueOrder == 1)
     #expect(bottomEpisode.queueOrder == 2)
+    #expect(topEpisode.lastQueued!.approximatelyEquals(beforeQueue))
+    #expect(middleEpisode.lastQueued!.approximatelyEquals(beforeQueue))
+    #expect(bottomEpisode.lastQueued!.approximatelyEquals(beforeQueue))
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2])
     let fetchGUIDs = try await fetchGUIDs()
@@ -70,11 +77,16 @@ class QueueTests {
   func insertingNewEpisodesAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
     var middleEpisode = try await fetchEpisode("unqmiddle")
+    #expect(topEpisode.lastQueued == nil)
+    #expect(middleEpisode.lastQueued == nil)
+    let beforeQueue = Date()
     try await queue.unshift([topEpisode.id, middleEpisode.id])
     topEpisode = try await fetchEpisode("unqtop")
     middleEpisode = try await fetchEpisode("unqmiddle")
     #expect(topEpisode.queueOrder == 0)
     #expect(middleEpisode.queueOrder == 1)
+    #expect(topEpisode.lastQueued!.approximatelyEquals(beforeQueue))
+    #expect(middleEpisode.lastQueued!.approximatelyEquals(beforeQueue))
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5, 6])
     let fetchGUIDs = try await fetchGUIDs()
@@ -87,12 +99,16 @@ class QueueTests {
   func insertingNewAndExistingAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
     var middleEpisode = try await fetchEpisode("middle")
+    #expect(topEpisode.lastQueued == nil)
+    let beforeQueue = Date()
     try await queue.unshift([topEpisode.id, middleEpisode.id])
     topEpisode = try await fetchEpisode("unqtop")
     middleEpisode = try await fetchEpisode("middle")
     #expect(topEpisode.queueOrder == 0)
     #expect(try await queue.nextEpisode?.episode == topEpisode)
     #expect(middleEpisode.queueOrder == 1)
+    #expect(topEpisode.lastQueued!.approximatelyEquals(beforeQueue))
+    #expect(middleEpisode.lastQueued!.approximatelyEquals(beforeQueue))
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
     let fetchGUIDs = try await fetchGUIDs()
@@ -118,9 +134,12 @@ class QueueTests {
   @Test("inserting a new episode at top")
   func insertingNewAtTop() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
+    #expect(topEpisode.lastQueued == nil)
+    let beforeQueue = Date()
     try await queue.insert(topEpisode.id, at: 0)
     topEpisode = try await fetchEpisode("unqtop")
     #expect(topEpisode.queueOrder == 0)
+    #expect(topEpisode.lastQueued!.approximatelyEquals(beforeQueue))
     #expect(try await queue.nextEpisode?.episode == topEpisode)
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
@@ -131,9 +150,12 @@ class QueueTests {
   @Test("inserting a new episode at middle")
   func insertingNewAtMiddle() async throws {
     var middleEpisode = try await fetchEpisode("unqmiddle")
+    #expect(middleEpisode.lastQueued == nil)
+    let beforeQueue = Date()
     try await queue.insert(middleEpisode.id, at: 3)
     middleEpisode = try await fetchEpisode("unqmiddle")
     #expect(middleEpisode.queueOrder == 3)
+    #expect(middleEpisode.lastQueued!.approximatelyEquals(beforeQueue))
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5])
     let fetchGUIDs = try await fetchGUIDs()
@@ -198,11 +220,14 @@ class QueueTests {
   func testAppendExisting() async throws {
     var topEpisode = try await fetchEpisode("top")
     var middleEpisode = try await fetchEpisode("middle")
+    let beforeQueue = Date()
     try await queue.append([middleEpisode.id, topEpisode.id])
     middleEpisode = try await fetchEpisode("middle")
     topEpisode = try await fetchEpisode("top")
     #expect(middleEpisode.queueOrder == 3)
     #expect(topEpisode.queueOrder == 4)
+    #expect(middleEpisode.lastQueued!.approximatelyEquals(beforeQueue))
+    #expect(topEpisode.lastQueued!.approximatelyEquals(beforeQueue))
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4])
     let fetchGUIDs = try await fetchGUIDs()
@@ -213,11 +238,16 @@ class QueueTests {
   func testAppendingNew() async throws {
     var topEpisode = try await fetchEpisode("unqtop")
     var bottomEpisode = try await fetchEpisode("unqbottom")
+    #expect(topEpisode.lastQueued == nil)
+    #expect(bottomEpisode.lastQueued == nil)
+    let beforeQueue = Date()
     try await queue.append([topEpisode.id, bottomEpisode.id])
     topEpisode = try await fetchEpisode("unqtop")
     bottomEpisode = try await fetchEpisode("unqbottom")
     #expect(topEpisode.queueOrder == 5)
     #expect(bottomEpisode.queueOrder == 6)
+    #expect(topEpisode.lastQueued!.approximatelyEquals(beforeQueue))
+    #expect(bottomEpisode.lastQueued!.approximatelyEquals(beforeQueue))
     let fetchOrder = try await fetchOrder()
     #expect(fetchOrder == [0, 1, 2, 3, 4, 5, 6])
     let fetchGUIDs = try await fetchGUIDs()
