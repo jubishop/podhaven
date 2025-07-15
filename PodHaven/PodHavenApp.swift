@@ -9,9 +9,11 @@ import SwiftUI
 @main
 struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
+  @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshManager) private var refreshManager
-  @DynamicInjected(\.notifications) private var notifications
+  @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.shareService) private var shareService
 
   @State private var isInitialized = false
 
@@ -39,6 +41,21 @@ struct PodHavenApp: App {
         await playManager.start()
         await refreshManager.start()
       }
+      .onOpenURL { url in
+        Task {
+          await handleIncomingURL(url)
+        }
+      }
+    }
+  }
+
+  // MARK: - URL Handling
+
+  private func handleIncomingURL(_ url: URL) async {
+    do {
+      try await shareService.handleIncomingURL(url, repo: repo)
+    } catch {
+      alert(ErrorKit.message(for: error))
     }
   }
 
