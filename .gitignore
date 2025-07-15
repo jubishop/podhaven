@@ -22,3 +22,6 @@ build/
 
 # Test logs
 test_logs_*/
+
+# Worktrees
+worktrees/
