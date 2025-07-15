@@ -39,6 +39,9 @@ struct PodHavenApp: App {
         await playManager.start()
         await refreshManager.start()
       }
+      .onOpenURL { url in
+        Self.log.info("Received URL from share extension: \(url.absoluteString)")
+      }
     }
   }
 
