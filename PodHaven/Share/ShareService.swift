@@ -25,6 +25,7 @@ extension Container {
 
 actor ShareService {
   @LazyInjected(\.feedManager) private var feedManager
+  @DynamicInjected(\.refreshManager) private var refreshManager
 
   private let session: DataFetchable
 
@@ -36,7 +37,7 @@ actor ShareService {
 
   // MARK: - URL Handling
 
-  func handleIncomingURL(_ url: URL, repo: any Databasing) async throws(ShareError) {
+  func handleIncomingURL(_ url: URL, repo: any Databasing) async throws {
     let log = Log.as("ShareService")
     log.info("Received shared URL: \(url.absoluteString)")
 
@@ -51,9 +52,7 @@ actor ShareService {
     }
   }
 
-  private func handleApplePodcastsURL(_ url: URL, repo: any Databasing, log: Logger)
-    async throws(ShareError)
-  {
+  private func handleApplePodcastsURL(_ url: URL, repo: any Databasing, log: Logger) async throws {
     let itunesId = try ApplePodcastsURLParser.extractItunesId(from: url)
     log.info("Extracted iTunes ID: \(itunesId)")
 
@@ -67,15 +66,10 @@ actor ShareService {
     log.info("Found feed URL: \(feedURL)")
 
     // Check if already subscribed
-    if let existingPodcast = try await repo.podcast(feedURL: feedURL) {
-      guard existingPodcast.subscribed else {
-        // Subscribe to existing podcast
-        try await repo.markSubscribed(existingPodcast.id)
-        log.info("Subscribed to existing podcast: \(existingPodcast.title)")
-        throw ShareError.subscriptionSuccess(existingPodcast.title)
-      }
-      log.info("Already subscribed to podcast: \(existingPodcast.title)")
-      throw ShareError.alreadySubscribed(existingPodcast.title)
+    if let podcastSeries = try await repo.podcastSeries(feedURL) {
+      try await repo.markSubscribed(podcastSeries.id)
+      try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+      return
     }
 
     // Add new podcast using feedManager
@@ -101,14 +95,13 @@ actor ShareService {
     )
 
     log.info("Successfully added and subscribed to new podcast: \(newPodcastSeries.podcast.title)")
-    throw ShareError.addPodcastSuccess(newPodcastSeries.podcast.title)
   }
 
   // MARK: - Apple Podcasts Integration
 
-  func lookupPodcastByItunesId(_ itunesId: String) async throws(ShareError) -> ItunesLookupResult {
+  func lookupPodcastByItunesId(_ itunesID: String) async throws(ShareError) -> ItunesLookupResult {
     try await Self.parseItunesResponse(
-      try await performItunesRequest(itunesId: itunesId)
+      try await performItunesRequest(itunesID: itunesID)
     )
   }
 
@@ -132,23 +125,10 @@ actor ShareService {
 
   // MARK: - Private Helpers
 
-  private func performItunesRequest(itunesId: String) async throws(ShareError) -> Data {
-    var components = URLComponents()
-    components.scheme = "https"
-    components.host = "itunes.apple.com"
-    components.path = "/lookup"
-    components.queryItems = [
-      URLQueryItem(name: "id", value: itunesId),
-      URLQueryItem(name: "entity", value: "podcast"),
-    ]
+  static private let baseHost = "api.podcastindex.org"
 
-    guard let url = components.url
-    else { Assert.fatal("Can't make iTunes URL from: \(components)?") }
-
-    var request = URLRequest(url: url)
-    request.httpMethod = "GET"
-    request.addValue("PodHaven", forHTTPHeaderField: "User-Agent")
-
+  private func performItunesRequest(itunesID: String) async throws(ShareError) -> Data {
+    let (url, request) = buildRequest(itunesID: itunesID)
     do {
       return try await DownloadError.catch {
         let (data, response) = try await session.data(for: request)
@@ -163,5 +143,25 @@ actor ShareService {
     } catch {
       throw ShareError.fetchFailure(request: request, caught: error)
     }
+  }
+
+  private func buildRequest(itunesID: String) -> (URL, URLRequest) {
+    var components = URLComponents()
+    components.scheme = "https"
+    components.host = Self.baseHost
+    components.path = "/lookup"
+    components.queryItems = [
+      URLQueryItem(name: "id", value: itunesID),
+      URLQueryItem(name: "entity", value: "podcast"),
+    ]
+
+    guard let url = components.url
+    else { Assert.fatal("Can't make url from: \(components)?") }
+
+    var request = URLRequest(url: url)
+    request.httpMethod = "GET"
+    request.addValue("PodHaven", forHTTPHeaderField: "User-Agent")
+
+    return (url, request)
   }
 }
