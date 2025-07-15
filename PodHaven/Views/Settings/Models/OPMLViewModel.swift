@@ -179,8 +179,8 @@ final class OPMLDocument: FileDocument {
             guard let self else { return }
             do {
               try await repo.markSubscribed(podcast.id)
-              if let series = try await repo.podcastSeries(podcast.id) {
-                try await refreshManager.refreshSeries(podcastSeries: series)
+              if let podcastSeries = try await repo.podcastSeries(podcast.id) {
+                try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
               }
             } catch {
               Self.log.error(error)
