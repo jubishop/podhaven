@@ -125,7 +125,7 @@ actor ShareService {
 
   // MARK: - Private Helpers
 
-  static private let baseHost = "api.podcastindex.org"
+  static private let baseHost = "itunes.apple.com"
 
   private func performItunesRequest(itunesID: String) async throws(ShareError) -> Data {
     let (url, request) = buildRequest(itunesID: itunesID)
