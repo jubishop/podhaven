@@ -8,17 +8,5 @@
   <array>
     <string>audio</string>
   </array>
-  <key>CFBundleURLTypes</key>
-  <array>
-    <dict>
-      <key>CFBundleURLName</key>
-      <string>Apple Podcasts URL</string>
-      <key>CFBundleURLSchemes</key>
-      <array>
-        <string>podcasts</string>
-        <string>https</string>
-      </array>
-    </dict>
-  </array>
 </dict>
 </plist>
