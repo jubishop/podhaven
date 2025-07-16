@@ -17,16 +17,38 @@ class ShareViewController: UIViewController {
     super.viewDidAppear(animated)
 
     guard let extensionContext = extensionContext
-    else { fatalError("extensionContext is nil") }
+    else {
+      log.error("extensionContext is nil")
+      extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+      return
+    }
+
+    guard let application = try? findUIApplication()
+    else {
+      log.error("Failed to find UIApplication")
+      extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+      return
+    }
 
     Task {
       do {
-        try await ShareLauncher.execute(using: extensionContext, from: self)
+        try await ShareLauncher.execute(from: application, with: extensionContext)
       } catch {
         log.error("Share execution failed: \(error)")
       }
 
       extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
     }
+  }
+
+  private func findUIApplication() throws -> UIApplication {
+    var responder: UIResponder? = self
+    while responder != nil {
+      if let application = responder as? UIApplication {
+        return application
+      }
+      responder = responder?.next
+    }
+    throw ShareExtensionError.applicationNotFound
   }
 }

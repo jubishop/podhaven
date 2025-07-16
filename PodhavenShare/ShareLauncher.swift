@@ -9,8 +9,8 @@ enum ShareLauncher {
   private static let log = Logger(subsystem: "PodHavenShare", category: "ShareLauncher")
 
   static func execute(
-    using extensionContext: NSExtensionContext,
-    from viewController: UIViewController
+    from application: UIApplication,
+    with extensionContext: NSExtensionContext
   ) async throws {
     guard let inputItems = extensionContext.inputItems as? [NSExtensionItem]
     else { throw ShareExtensionError.noInputItems }
@@ -41,7 +41,7 @@ enum ShareLauncher {
           }
 
           log.info("Shared URL: \(url.absoluteString, privacy: .public)")
-          try launchPodHaven(with: url, from: viewController)
+          try launchPodHaven(from: application, with: url)
           return
         }
       }
@@ -50,7 +50,7 @@ enum ShareLauncher {
     throw ShareExtensionError.noURLFound
   }
 
-  private static func launchPodHaven(with url: URL, from viewController: UIViewController) throws {
+  private static func launchPodHaven(from application: UIApplication, with url: URL) throws {
     var components = URLComponents()
     components.scheme = "podhaven"
     components.host = "share"
@@ -61,22 +61,8 @@ enum ShareLauncher {
 
     log.info("Launching PodHaven with URL: \(podhavenURL.absoluteString, privacy: .public)")
 
-    let application = try findUIApplication(from: viewController)
     application.open(podhavenURL) { success in
       log.info("Launch result: \(success)")
     }
-  }
-
-  private static func findUIApplication(from viewController: UIViewController) throws
-    -> UIApplication
-  {
-    var responder: UIResponder? = viewController
-    while responder != nil {
-      if let application = responder as? UIApplication {
-        return application
-      }
-      responder = responder?.next
-    }
-    throw ShareExtensionError.applicationNotFound
   }
 }
