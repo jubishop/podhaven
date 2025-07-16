@@ -43,10 +43,7 @@ struct PodHavenApp: App {
       }
       .onOpenURL { url in
         Self.log.info("Received URL from share extension: \(url.absoluteString)")
-
-        Task {
-          await handleIncomingURL(url)
-        }
+        Task { await handleIncomingURL(url) }
       }
     }
   }
