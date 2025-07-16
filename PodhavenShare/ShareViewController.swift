@@ -4,20 +4,6 @@ import OSLog
 import UIKit
 import UniformTypeIdentifiers
 
-enum ShareExtensionError: Error, LocalizedError {
-  case applicationNotFound
-  case invalidURLScheme
-
-  var errorDescription: String? {
-    switch self {
-    case .applicationNotFound:
-      return "UIApplication not found in responder chain"
-    case .invalidURLScheme:
-      return "Failed to create PodHaven URL scheme"
-    }
-  }
-}
-
 class ShareViewController: UIViewController {
   private let log = Logger(subsystem: "PodHavenShare", category: "main")
 
@@ -33,78 +19,14 @@ class ShareViewController: UIViewController {
     guard let extensionContext = extensionContext
     else { fatalError("extensionContext is nil") }
 
-    guard let inputItems = extensionContext.inputItems as? [NSExtensionItem]
-    else {
-      log.error("No input items found")
+    Task {
+      do {
+        try await ShareLauncher.execute(using: extensionContext, from: self)
+      } catch {
+        log.error("Share execution failed: \(error)")
+      }
+
       extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
-      return
     }
-
-    for inputItem in inputItems {
-      guard let attachments = inputItem.attachments else { continue }
-
-      for attachment in attachments {
-        if attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
-          attachment.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) {
-            item,
-            error in
-            if let error = error {
-              self.log.error("Error loading URL: \(error)")
-              extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
-              return
-            }
-
-            guard let url = item as? URL
-            else {
-              self.log.error("Item is not a URL")
-              extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
-              return
-            }
-
-            self.log.info("Shared URL: \(url.absoluteString, privacy: .public)")
-
-            do {
-              try self.launchPodHaven(with: url)
-            } catch {
-              self.log.error("Failed to launch PodHaven: \(error)")
-            }
-
-            extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
-          }
-          return
-        }
-      }
-    }
-
-    log.error("No URL found in shared content")
-    extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
-  }
-
-  private func launchPodHaven(with url: URL) throws {
-    var components = URLComponents()
-    components.scheme = "podhaven"
-    components.host = "share"
-    components.queryItems = [URLQueryItem(name: "url", value: url.absoluteString)]
-
-    guard let podhavenURL = components.url
-    else { throw ShareExtensionError.invalidURLScheme }
-
-    log.info("Launching PodHaven with URL: \(podhavenURL.absoluteString, privacy: .public)")
-
-    let application = try findUIApplication()
-    application.open(podhavenURL) { success in
-      self.log.info("Launch result: \(success)")
-    }
-  }
-
-  private func findUIApplication() throws -> UIApplication {
-    var responder: UIResponder? = self
-    while responder != nil {
-      if let application = responder as? UIApplication {
-        return application
-      }
-      responder = responder?.next
-    }
-    throw ShareExtensionError.applicationNotFound
   }
 }
