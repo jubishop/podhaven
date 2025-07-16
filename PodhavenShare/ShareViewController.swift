@@ -4,6 +4,10 @@ import OSLog
 import UIKit
 import UniformTypeIdentifiers
 
+enum ShareExtensionError: Error {
+  case applicationNotFound
+}
+
 class ShareViewController: UIViewController {
   private let log = Logger(subsystem: "PodHavenShare", category: "main")
 
@@ -74,19 +78,26 @@ class ShareViewController: UIViewController {
 
     log.info("Launching PodHaven with URL: \(podhavenURL.absoluteString, privacy: .public)")
 
+    do {
+      let application = try findUIApplication()
+      application.open(podhavenURL) { success in
+        self.log.info("Launch result: \(success)")
+        extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+      }
+    } catch {
+      log.error("Could not find UIApplication: \(error)")
+      extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+    }
+  }
+
+  private func findUIApplication() throws -> UIApplication {
     var responder: UIResponder? = self
     while responder != nil {
       if let application = responder as? UIApplication {
-        application.open(podhavenURL) { success in
-          self.log.info("Launch result: \(success)")
-          extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
-        }
-        return
+        return application
       }
       responder = responder?.next
     }
-
-    log.error("Could not find UIApplication in responder chain")
-    extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+    throw ShareExtensionError.applicationNotFound
   }
 }
