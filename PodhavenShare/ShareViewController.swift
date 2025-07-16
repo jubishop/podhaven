@@ -17,11 +17,7 @@ class ShareViewController: UIViewController {
     super.viewDidAppear(animated)
 
     guard let extensionContext = extensionContext
-    else {
-      log.error("extensionContext is nil")
-      extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
-      return
-    }
+    else { fatalError("extensionContext is nil") }
 
     guard let application = try? findUIApplication()
     else {
