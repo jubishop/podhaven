@@ -13,13 +13,14 @@ class ShareViewController: UIViewController {
   }
 
   override func viewDidAppear(_ animated: Bool) {
-    super.viewDidAppear(animated)
     log.debug("viewDidAppear called")
+    super.viewDidAppear(animated)
 
     guard let extensionContext = extensionContext
     else { fatalError("extensionContext is nil") }
 
-    guard let inputItems = extensionContext.inputItems as? [NSExtensionItem] else {
+    guard let inputItems = extensionContext.inputItems as? [NSExtensionItem]
+    else {
       log.error("No input items found")
       extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
       return
@@ -39,12 +40,14 @@ class ShareViewController: UIViewController {
               return
             }
 
-            guard let url = item as? URL else {
+            guard let url = item as? URL
+            else {
               self.log.error("Item is not a URL")
               extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
               return
             }
 
+            self.log.info("Shared URL: \(url.absoluteString, privacy: .public)")
             self.launchPodHaven(with: url, using: extensionContext)
           }
           return
@@ -62,16 +65,15 @@ class ShareViewController: UIViewController {
     components.host = "share"
     components.queryItems = [URLQueryItem(name: "url", value: url.absoluteString)]
 
-    guard let podhavenURL = components.url else {
+    guard let podhavenURL = components.url
+    else {
       log.error("Failed to create PodHaven URL scheme")
       extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
       return
     }
 
     log.info("Launching PodHaven with URL: \(podhavenURL.absoluteString, privacy: .public)")
-    log.info("Original shared URL: \(url.absoluteString, privacy: .public)")
 
-    // Try responder chain approach
     var responder: UIResponder? = self
     while responder != nil {
       if let application = responder as? UIApplication {
@@ -84,8 +86,7 @@ class ShareViewController: UIViewController {
       responder = responder?.next
     }
 
-    // Fallback if responder chain doesn't work
-    log.warning("Could not find UIApplication in responder chain")
+    log.error("Could not find UIApplication in responder chain")
     extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
   }
 }
