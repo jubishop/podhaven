@@ -4,8 +4,18 @@ import OSLog
 import UIKit
 import UniformTypeIdentifiers
 
-enum ShareExtensionError: Error {
+enum ShareExtensionError: Error, LocalizedError {
   case applicationNotFound
+  case invalidURLScheme
+
+  var errorDescription: String? {
+    switch self {
+    case .applicationNotFound:
+      return "UIApplication not found in responder chain"
+    case .invalidURLScheme:
+      return "Failed to create PodHaven URL scheme"
+    }
+  }
 }
 
 class ShareViewController: UIViewController {
@@ -52,7 +62,14 @@ class ShareViewController: UIViewController {
             }
 
             self.log.info("Shared URL: \(url.absoluteString, privacy: .public)")
-            self.launchPodHaven(with: url, using: extensionContext)
+
+            do {
+              try self.launchPodHaven(with: url)
+            } catch {
+              self.log.error("Failed to launch PodHaven: \(error)")
+            }
+
+            extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
           }
           return
         }
@@ -63,30 +80,20 @@ class ShareViewController: UIViewController {
     extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
   }
 
-  private func launchPodHaven(with url: URL, using extensionContext: NSExtensionContext) {
+  private func launchPodHaven(with url: URL) throws {
     var components = URLComponents()
     components.scheme = "podhaven"
     components.host = "share"
     components.queryItems = [URLQueryItem(name: "url", value: url.absoluteString)]
 
     guard let podhavenURL = components.url
-    else {
-      log.error("Failed to create PodHaven URL scheme")
-      extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
-      return
-    }
+    else { throw ShareExtensionError.invalidURLScheme }
 
     log.info("Launching PodHaven with URL: \(podhavenURL.absoluteString, privacy: .public)")
 
-    do {
-      let application = try findUIApplication()
-      application.open(podhavenURL) { success in
-        self.log.info("Launch result: \(success)")
-        extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
-      }
-    } catch {
-      log.error("Could not find UIApplication: \(error)")
-      extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+    let application = try findUIApplication()
+    application.open(podhavenURL) { success in
+      self.log.info("Launch result: \(success)")
     }
   }
 
