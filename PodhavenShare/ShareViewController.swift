@@ -2,21 +2,26 @@
 
 import OSLog
 import UIKit
+import UniformTypeIdentifiers
 
 class ShareViewController: UIViewController {
-  private let log = Logger(subsystem: "PodHaven", category: "Share")
+  private let log = Logger(subsystem: "PodHavenShare", category: "main")
 
   override func viewDidLoad() {
+    log.debug("viewDidLoad called")
     super.viewDidLoad()
-    processSharedContent()
   }
 
-  private func processSharedContent() {
-    guard let extensionContext = extensionContext,
-      let inputItems = extensionContext.inputItems as? [NSExtensionItem]
-    else {
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    log.debug("viewDidAppear called")
+
+    guard let extensionContext = extensionContext
+    else { fatalError("extensionContext is nil") }
+
+    guard let inputItems = extensionContext.inputItems as? [NSExtensionItem] else {
       log.error("No input items found")
-      completeRequest()
+      extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
       return
     }
 
@@ -24,24 +29,23 @@ class ShareViewController: UIViewController {
       guard let attachments = inputItem.attachments else { continue }
 
       for attachment in attachments {
-        if attachment.hasItemConformingToTypeIdentifier("public.url") {
-          attachment.loadItem(forTypeIdentifier: "public.url", options: nil) {
-            [weak self] item, error in
-            DispatchQueue.main.async {
-              if let error = error {
-                self?.log.error("Error loading URL: \(error.localizedDescription)")
-                self?.completeRequest()
-                return
-              }
-
-              guard let url = item as? URL else {
-                self?.log.error("Item is not a URL")
-                self?.completeRequest()
-                return
-              }
-
-              self?.launchPodHaven(with: url)
+        if attachment.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+          attachment.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) {
+            item,
+            error in
+            if let error = error {
+              self.log.error("Error loading URL: \(error)")
+              extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+              return
             }
+
+            guard let url = item as? URL else {
+              self.log.error("Item is not a URL")
+              extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
+              return
+            }
+
+            self.launchPodHaven(with: url, using: extensionContext)
           }
           return
         }
@@ -49,45 +53,39 @@ class ShareViewController: UIViewController {
     }
 
     log.error("No URL found in shared content")
-    completeRequest()
+    extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
   }
 
-  private func launchPodHaven(with url: URL) {
-    guard
-      let podhavenURL = URL(
-        string:
-          "podhaven://share?url=\(url.absoluteString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
-      )
-    else {
+  private func launchPodHaven(with url: URL, using extensionContext: NSExtensionContext) {
+    var components = URLComponents()
+    components.scheme = "podhaven"
+    components.host = "share"
+    components.queryItems = [URLQueryItem(name: "url", value: url.absoluteString)]
+
+    guard let podhavenURL = components.url else {
       log.error("Failed to create PodHaven URL scheme")
-      completeRequest()
+      extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
       return
     }
 
-    log.info("Launching PodHaven with URL: \(url.absoluteString, privacy: .public)")
+    log.info("Launching PodHaven with URL: \(podhavenURL.absoluteString, privacy: .public)")
+    log.info("Original shared URL: \(url.absoluteString, privacy: .public)")
 
+    // Try responder chain approach
     var responder: UIResponder? = self
     while responder != nil {
       if let application = responder as? UIApplication {
-        application.open(podhavenURL) { [weak self] success in
-          DispatchQueue.main.async {
-            if success {
-              self?.log.info("Successfully launched PodHaven")
-            } else {
-              self?.log.error("Failed to launch PodHaven")
-            }
-            self?.completeRequest()
-          }
+        application.open(podhavenURL) { success in
+          self.log.info("Launch result: \(success)")
+          extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
         }
         return
       }
       responder = responder?.next
     }
 
-    completeRequest()
-  }
-
-  private func completeRequest() {
-    extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
+    // Fallback if responder chain doesn't work
+    log.warning("Could not find UIApplication in responder chain")
+    extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
   }
 }
