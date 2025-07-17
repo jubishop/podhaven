@@ -52,10 +52,22 @@ struct PodHavenApp: App {
 
   private func handleIncomingURL(_ url: URL) async {
     do {
-      try await shareService.handleIncomingURL(url, repo: repo)
+      let extractedURL = extractURLParameter(from: url) ?? url
+      try await shareService.handleIncomingURL(extractedURL, repo: repo)
     } catch {
       alert(ErrorKit.message(for: error))
     }
+  }
+
+  private func extractURLParameter(from url: URL) -> URL? {
+    guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+      let queryItems = components.queryItems,
+      let urlParam = queryItems.first(where: { $0.name == "url" })?.value,
+      let extractedURL = URL(string: urlParam)
+    else {
+      return nil
+    }
+    return extractedURL
   }
 
   // MARK: - System Permissions
