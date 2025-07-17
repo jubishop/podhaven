@@ -10,7 +10,7 @@ struct ItunesLookupResult: Decodable, Sendable {
     let artworkUrl600: String?
     let collectionViewUrl: String?
     let description: String?
-    
+
     private enum CodingKeys: String, CodingKey {
       case collectionId
       case collectionName
@@ -20,17 +20,18 @@ struct ItunesLookupResult: Decodable, Sendable {
       case description
     }
   }
-  
+
   let resultCount: Int
   let results: [PodcastInfo]
-  
+
   var podcastInfo: PodcastInfo? {
     results.first
   }
-  
+
   var feedURL: FeedURL? {
     guard let urlString = podcastInfo?.feedUrl,
-          let url = URL(string: urlString) else { return nil }
+      let url = URL(string: urlString)
+    else { return nil }
     return FeedURL(url)
   }
 }
