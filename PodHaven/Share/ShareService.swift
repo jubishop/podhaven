@@ -53,7 +53,7 @@ actor ShareService {
   }
 
   private func handleApplePodcastsURL(_ url: URL, repo: any Databasing, log: Logger) async throws {
-    let itunesId = try ApplePodcastsURLParser.extractItunesId(from: url)
+    let itunesId = try ApplePodcasts.extractItunesID(from: url)
     log.info("Extracted iTunes ID: \(itunesId)")
 
     let lookupResult = try await lookupPodcastByItunesId(itunesId)

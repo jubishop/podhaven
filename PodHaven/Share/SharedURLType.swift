@@ -9,12 +9,10 @@ enum SharedURLType {
 
 extension SharedURLType {
   static func urlType(for url: URL) -> SharedURLType {
-    if ApplePodcastsURLParser.isApplePodcastsURL(url) {
+    if ApplePodcasts.isApplePodcastsURL(url) {
       return .applePodcasts
     }
-    
-    // Future: Add other URL types here (Spotify, RSS feeds, etc.)
-    
+
     return .unsupported
   }
 }

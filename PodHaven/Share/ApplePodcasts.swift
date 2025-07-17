@@ -2,11 +2,10 @@
 
 import Foundation
 
-struct ApplePodcastsURLParser {
-  static func extractItunesId(from url: URL) throws(ShareError) -> String {
-    guard isApplePodcastsURL(url) else {
-      throw ShareError.unsupportedURL(url)
-    }
+struct ApplePodcasts {
+  static func extractItunesID(from url: URL) throws(ShareError) -> String {
+    guard isApplePodcastsURL(url)
+    else { throw ShareError.unsupportedURL(url) }
 
     // Handle podcasts:// scheme URLs
     if url.scheme == "podcasts" {
