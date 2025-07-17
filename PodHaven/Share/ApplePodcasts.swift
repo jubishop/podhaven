@@ -2,7 +2,21 @@
 
 import Foundation
 
-struct ApplePodcasts {
+enum ApplePodcasts {
+  // MARK: - URL Analysis
+
+  static func isApplePodcastsURL(_ url: URL) -> Bool {
+    if url.scheme == "podcasts" {
+      return true
+    }
+
+    if url.scheme == "https" && url.host?.contains("podcasts.apple.com") == true {
+      return true
+    }
+
+    return false
+  }
+
   static func extractItunesID(from url: URL) throws(ShareError) -> String {
     guard isApplePodcastsURL(url)
     else { throw ShareError.unsupportedURL(url) }
@@ -47,17 +61,5 @@ struct ApplePodcasts {
     }
 
     throw ShareError.noIdentifierFound(url)
-  }
-
-  static func isApplePodcastsURL(_ url: URL) -> Bool {
-    if url.scheme == "podcasts" {
-      return true
-    }
-
-    if url.scheme == "https" && url.host?.contains("podcasts.apple.com") == true {
-      return true
-    }
-
-    return false
   }
 }
