@@ -32,7 +32,7 @@ enum PlaybackError: ReadableError, CatchingError {
         """
     case .settingCurrentTimeOnNil(let cmTime):
       return "Setting current time on nil player item with CMTime: \(cmTime)"
-    case .caught(_): return ""
+    case .caught: return ""
     }
   }
 }

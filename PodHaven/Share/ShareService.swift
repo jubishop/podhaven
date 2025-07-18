@@ -37,22 +37,35 @@ actor ShareService {
 
   // MARK: - URL Handling
 
-  func handleIncomingURL(_ url: URL, repo: any Databasing) async throws {
+  func handleIncomingURL(_ sharedURL: URL, repo: any Databasing) async throws(ShareError) {
     let log = Log.as("ShareService")
-    log.info("Received shared URL: \(url.absoluteString)")
+    log.info("Received shared URL: \(sharedURL.absoluteString)")
 
-    let urlType = SharedURLType.urlType(for: url)
+    let extractedURL = try extractURLParameter(from: sharedURL)
+    let urlType = SharedURLType.urlType(for: extractedURL)
 
     switch urlType {
     case .applePodcasts:
-      try await handleApplePodcastsURL(url, repo: repo, log: log)
+      try await handleApplePodcastsURL(extractedURL, repo: repo, log: log)
     case .unsupported:
-      log.warning("Unsupported URL type: \(url.absoluteString)")
-      throw ShareError.unsupportedURL(url)
+      throw ShareError.unsupportedURL(extractedURL)
     }
   }
 
-  private func handleApplePodcastsURL(_ url: URL, repo: any Databasing, log: Logger) async throws {
+  private func extractURLParameter(from url: URL) throws(ShareError) -> URL {
+    guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+      let queryItems = components.queryItems,
+      let urlParam = queryItems.first(where: { $0.name == "url" })?.value,
+      let extractedURL = URL(string: urlParam)
+    else {
+      throw ShareError.extractionFailure(url)
+    }
+    return extractedURL
+  }
+
+  private func handleApplePodcastsURL(_ url: URL, repo: any Databasing, log: Logger)
+    async throws(ShareError)
+  {
     let itunesId = try ApplePodcasts.extractITunesID(from: url)
     log.info("Extracted iTunes ID: \(itunesId)")
 
@@ -65,36 +78,40 @@ actor ShareService {
 
     log.info("Found feed URL: \(feedURL)")
 
-    // Check if already subscribed
-    if let podcastSeries = try await repo.podcastSeries(feedURL) {
-      try await repo.markSubscribed(podcastSeries.id)
-      try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
-      return
+    try await ShareError.catch {
+      // Check if already subscribed
+      if let podcastSeries = try await repo.podcastSeries(feedURL) {
+        try await repo.markSubscribed(podcastSeries.id)
+        try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+        return
+      }
+
+      // Add new podcast using feedManager
+      log.info("Adding new podcast from feed URL: \(feedURL)")
+
+      let feedTask = await feedManager.addURL(feedURL)
+      let podcastFeed: PodcastFeed
+      do {
+        podcastFeed = try await feedTask.feedParsed()
+      } catch {
+        log.error(error)
+        throw error
+      }
+
+      let unsavedPodcast = try podcastFeed.toUnsavedPodcast(
+        subscribed: true,
+        lastUpdate: Date()
+      )
+
+      let newPodcastSeries = try await repo.insertSeries(
+        unsavedPodcast,
+        unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
+      )
+
+      log.info(
+        "Successfully added and subscribed to new podcast: \(newPodcastSeries.podcast.title)"
+      )
     }
-
-    // Add new podcast using feedManager
-    log.info("Adding new podcast from feed URL: \(feedURL)")
-
-    let feedTask = await feedManager.addURL(feedURL)
-    let podcastFeed: PodcastFeed
-    do {
-      podcastFeed = try await feedTask.feedParsed()
-    } catch {
-      log.error(error)
-      throw error
-    }
-
-    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(
-      subscribed: true,
-      lastUpdate: Date()
-    )
-
-    let newPodcastSeries = try await repo.insertSeries(
-      unsavedPodcast,
-      unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
-    )
-
-    log.info("Successfully added and subscribed to new podcast: \(newPodcastSeries.podcast.title)")
   }
 
   // MARK: - Apple Podcasts Integration
