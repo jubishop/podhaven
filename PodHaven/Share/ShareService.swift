@@ -28,6 +28,8 @@ actor ShareService {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.refreshManager) private var refreshManager
 
+  private var navigation: Navigation { get async { await Container.shared.navigation() } }
+
   private let session: DataFetchable
 
   // MARK: - Initialization
@@ -83,6 +85,10 @@ actor ShareService {
       // Check if already in DB
       if let podcastSeries = try await repo.podcastSeries(feedURL) {
         try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+        await navigation.showPodcast(
+          podcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+          podcastSeries.podcast
+        )
         return
       }
 
@@ -106,6 +112,11 @@ actor ShareService {
       let newPodcastSeries = try await repo.insertSeries(
         unsavedPodcast,
         unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
+      )
+
+      await navigation.showPodcast(
+        newPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+        newPodcastSeries.podcast
       )
 
       log.info(
