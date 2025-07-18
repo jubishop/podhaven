@@ -2,7 +2,6 @@
 
 import Foundation
 
-// TODO: Only test ShareService as public surface.  This is internal work.
 enum ApplePodcasts {
   // MARK: - URL Analysis
 
