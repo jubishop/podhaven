@@ -8,7 +8,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of ShareService tests", .container)
-struct ShareServiceTests {
+@MainActor class ShareServiceTests {
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.shareServiceSession) private var shareServiceSession
@@ -44,5 +44,6 @@ struct ShareServiceTests {
     #expect(podcastSeries.episodes.count == 32)
 
     // TODO: Expect navigation tab is Podcasts and Path is to Lennys Podcast.
+    
   }
 }

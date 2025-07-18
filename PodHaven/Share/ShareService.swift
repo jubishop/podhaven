@@ -104,10 +104,7 @@ actor ShareService {
         throw error
       }
 
-      let unsavedPodcast = try podcastFeed.toUnsavedPodcast(
-        subscribed: true,
-        lastUpdate: Date()
-      )
+      let unsavedPodcast = try podcastFeed.toUnsavedPodcast(lastUpdate: Date())
 
       let newPodcastSeries = try await repo.insertSeries(
         unsavedPodcast,
