@@ -25,6 +25,7 @@ extension Container {
 
 actor ShareService {
   @LazyInjected(\.feedManager) private var feedManager
+  @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.refreshManager) private var refreshManager
 
   private let session: DataFetchable
@@ -37,7 +38,7 @@ actor ShareService {
 
   // MARK: - URL Handling
 
-  func handleIncomingURL(_ sharedURL: URL, repo: any Databasing) async throws(ShareError) {
+  func handleIncomingURL(_ sharedURL: URL) async throws(ShareError) {
     let log = Log.as("ShareService")
     log.info("Received shared URL: \(sharedURL.absoluteString)")
 
@@ -79,9 +80,8 @@ actor ShareService {
     log.info("Found feed URL: \(feedURL)")
 
     try await ShareError.catch {
-      // Check if already subscribed
+      // Check if already in DB
       if let podcastSeries = try await repo.podcastSeries(feedURL) {
-        try await repo.markSubscribed(podcastSeries.id)
         try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
         return
       }

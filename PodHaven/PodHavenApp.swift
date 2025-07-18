@@ -52,7 +52,7 @@ struct PodHavenApp: App {
 
   private func handleIncomingURL(_ url: URL) async {
     do {
-      try await shareService.handleIncomingURL(url, repo: repo)
+      try await shareService.handleIncomingURL(url)
     } catch {
       Self.log.error(error)
       alert(ErrorKit.message(for: error))
