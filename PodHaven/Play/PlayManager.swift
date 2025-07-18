@@ -294,6 +294,12 @@ actor PlayManager {
   }
 
   private func setStatus(_ status: PlaybackStatus) async {
+    let currentStatus = await playState.status
+    if currentStatus.stopped && !status.loading {
+      Self.log.debug("setStatus: ignoring \(status) while stopped")
+      return
+    }
+
     Self.log.debug("setStatus: \(status)")
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status)

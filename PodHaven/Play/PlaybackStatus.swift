@@ -20,7 +20,12 @@ enum PlaybackStatus: Equatable, CustomStringConvertible {
     }
   }
 
-  var loading: String? {
+  var loading: Bool {
+    if case .loading = self { return true }
+    return false
+  }
+
+  var loadingTitle: String? {
     if case .loading(let title) = self { return title }
     return nil
   }
