@@ -12,12 +12,12 @@ struct ApplePodcastsTests {
   func podcastURLsCorrectlyIdentified() async throws {
     #expect(
       ApplePodcasts.isApplePodcastsURL(
-        URL(string: "https://podcasts.apple.com/us/podcast/the-daily-show/id143233")!
+        URL(string: "https://podcasts.apple.com/us/podcast/podcast-name/id1234567890")!
       )
     )
     #expect(
       ApplePodcasts.isApplePodcastsURL(
-        URL(string: "podcasts://podcasts.apple.com/us/podcast/the-daily-show/id143233")!
+        URL(string: "podcasts://podcasts.apple.com/us/podcast/id1234567890")!
       )
     )
     #expect(
