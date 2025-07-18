@@ -26,4 +26,13 @@ struct ApplePodcastsTests {
       )
     )
   }
+
+  @Test("that iTunes IDs are successfully extracted from URLs")
+  func iTunesIDsSuccessfullyExtractedFromURLs() async throws {
+    #expect(
+      try ApplePodcasts.extractITunesID(
+        from: URL(string: "https://podcasts.apple.com/us/podcast/podcast-name/id1234567890")!
+      ) == "1234567890"
+    )
+  }
 }

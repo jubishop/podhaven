@@ -17,7 +17,7 @@ enum ApplePodcasts {
     return false
   }
 
-  static func extractItunesID(from url: URL) throws(ShareError) -> String {
+  static func extractITunesID(from url: URL) throws(ShareError) -> String {
     guard isApplePodcastsURL(url)
     else { throw ShareError.unsupportedURL(url) }
 
