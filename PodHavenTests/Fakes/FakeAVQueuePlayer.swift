@@ -202,9 +202,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     )
 
     guard let currentItem = queued.first
-    else {
-      Assert.fatal("Can't finish an episode that doesn't exist!")
-    }
+    else { Assert.fatal("Can't finish an episode that doesn't exist!") }
 
     Self.log.debug("finishEpisode: \(String(describing: currentItem.episodeID))")
     notifier.continuation(for: AVPlayerItem.didPlayToEndTimeNotification)

@@ -25,7 +25,7 @@ extension Container {
 
   // MARK: - State Management
 
-  var isLoading: Bool { playState.loading != nil }
+  var isLoading: Bool { playState.loading }
   var isPlaying: Bool { playState.playing }
   var isSeeking: Bool { playState.seeking }
   var isStopped: Bool { playState.stopped }
@@ -34,7 +34,7 @@ extension Container {
   var duration: CMTime { playState.onDeck?.duration ?? CMTime.zero }
   var episodeImage: UIImage? { playState.onDeck?.image }
   var episodeTitle: String? { playState.onDeck?.episodeTitle }
-  var loadingEpisodeTitle: String { playState.loading ?? "Unknown" }
+  var loadingEpisodeTitle: String { playState.loadingTitle ?? "Unknown" }
   var podcastTitle: String? { playState.onDeck?.podcastTitle }
   var publishedAt: Date? { playState.onDeck?.pubDate }
 

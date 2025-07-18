@@ -12,6 +12,7 @@ extension Container {
 }
 
 class Notifier {
+  private let lock = NSLock()
   private var streamAndContinuations:
     [Notification.Name: (AsyncStream<Notification>, AsyncStream<Notification>.Continuation)] = [:]
 
@@ -30,6 +31,9 @@ class Notifier {
   private func streamAndContinuation(for name: Notification.Name) -> (
     AsyncStream<Notification>, AsyncStream<Notification>.Continuation
   ) {
+    lock.lock()
+    defer { lock.unlock() }
+    
     if let (stream, continuation) = streamAndContinuations[name] {
       return (stream, continuation)
     }

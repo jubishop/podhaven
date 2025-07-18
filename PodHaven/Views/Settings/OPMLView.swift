@@ -1,8 +1,11 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import SwiftUI
 
 struct OPMLView: View {
+  @DynamicInjected(\.alert) private var alert
+
   @State private var viewModel = OPMLViewModel()
 
   var body: some View {
@@ -44,7 +47,8 @@ struct OPMLView: View {
       case .success:
         break  // Success handled automatically
       case .failure:
-        break  // TODO: Alert error
+        alert("Failed to export subscriptions")
+        break
       }
     }
   }
