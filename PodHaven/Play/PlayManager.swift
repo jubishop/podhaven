@@ -67,8 +67,8 @@ actor PlayManager {
   func start() async {
     Assert.neverCalled()
 
-    startNotificationTracking()
-    startAsyncStreams()
+    notificationTracking()
+    asyncStreams()
 
     if let currentEpisodeID {
       let podcastEpisode: PodcastEpisode?
@@ -378,7 +378,7 @@ actor PlayManager {
 
   // MARK: - Notification Tracking
 
-  private func startNotificationTracking() {
+  private func notificationTracking() {
     Assert.neverCalled()
 
     Task { [weak self] in
@@ -468,7 +468,7 @@ actor PlayManager {
 
   // MARK: - Subordinate Async Streams
 
-  private func startAsyncStreams() {
+  private func asyncStreams() {
     Assert.neverCalled()
 
     Task { [weak self] in
