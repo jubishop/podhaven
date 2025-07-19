@@ -53,7 +53,6 @@ actor PlayManager {
 
   // MARK: - State Management
 
-  private var failedEpisodeID: Episode.ID?
   private var nowPlayingInfo: NowPlayingInfo? {
     willSet {
       if newValue == nil { nowPlayingInfo?.clear() }
@@ -315,8 +314,6 @@ actor PlayManager {
   // MARK: - Private Change Handlers
 
   private func handleCurrentItemChange(_ podcastEpisode: PodcastEpisode?) async throws {
-    defer { failedEpisodeID = nil }
-
     if let podcastEpisode {
       Self.log.debug("handleCurrentItemChange: \(podcastEpisode.id), setting on deck")
 
@@ -330,21 +327,6 @@ actor PlayManager {
       }
     } else {
       Self.log.debug("handleCurrentItemChange: nil, stopping")
-
-      if let failedEpisodeID {
-        Self.log.debug(
-          """
-          handleCurrentItemChange: detected failed episode: \(failedEpisodeID)
-            unshifting back onto queue
-          """
-        )
-
-        do {
-          try await queue.unshift(failedEpisodeID)
-        } catch {
-          Self.log.error(error)
-        }
-      }
 
       await clearOnDeck()
       await setStatus(.stopped)
@@ -377,10 +359,12 @@ actor PlayManager {
       """
     )
 
-    if status == .failed {
-      failedEpisodeID = episodeID
-    } else {
-      failedEpisodeID = nil
+    if let episodeID = episodeID, status == .failed {
+      do {
+        try await queue.unshift(episodeID)
+      } catch {
+        Self.log.error(error)
+      }
     }
   }
 

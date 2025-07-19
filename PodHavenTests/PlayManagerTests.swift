@@ -768,8 +768,6 @@ import Testing
     // Now simulate the nextEpisode failing after it becomes currentItem
     let nextItem = avQueuePlayer.current as! FakeAVPlayerItem
     #expect(nextItem.episodeID == nextEpisode.id)
-    
-    // Simulate the AVPlayerItem failing - this should trigger status.failed
     nextItem.setStatus(.failed)
 
     // Simulate AVQueuePlayer automatically removing the failed item (making currentItem nil)
