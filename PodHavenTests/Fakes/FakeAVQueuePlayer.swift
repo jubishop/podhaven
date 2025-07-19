@@ -24,14 +24,14 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     let handler: @Sendable (T) -> Void
   }
 
-  struct VoidObservationHandler: Sendable {
+  struct MainActorObservationHandler<T>: Sendable {
     weak var observation: NSKeyValueObservation?
-    let handler: @Sendable () -> Void
+    let handler: @MainActor (T) -> Void
   }
 
   // MARK: - State Management
 
-  var currentItemObservations: [VoidObservationHandler] = []
+  var currentItemObservations: [MainActorObservationHandler<(any AVPlayableItem)?>] = []
   var seekHandler: (CMTime) async -> Bool = { _ in (true) }
   var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
   var timeObservers: [UUID: TimeObserver] = [:]
@@ -62,7 +62,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
           guard observationHandler.observation != nil else { return nil }
 
           Self.log.debug("Calling active currentItem handler with: \(String(describing: current))")
-          observationHandler.handler()
+          Task { @MainActor in observationHandler.handler(current) }
           return observationHandler
         }
       }
@@ -102,15 +102,15 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   var current: (any AVPlayableItem)? { queued.first }
   func observeCurrentItem(
     options: NSKeyValueObservingOptions,
-    changeHandler: @escaping @Sendable () -> Void
+    changeHandler: @escaping @MainActor ((any AVPlayableItem)?) -> Void
   ) -> NSKeyValueObservation {
     let observation = NSObject().observe(\.description, options: []) { _, _ in }
     currentItemObservations.append(
-      VoidObservationHandler(observation: observation, handler: changeHandler)
+      MainActorObservationHandler(observation: observation, handler: changeHandler)
     )
 
     if options.contains(.initial) {
-      changeHandler()
+      Task { @MainActor in changeHandler(current) }
     }
 
     return observation

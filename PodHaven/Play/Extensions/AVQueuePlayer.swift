@@ -15,10 +15,10 @@ extension AVQueuePlayer: AVQueuePlayable {
   var queued: [any AVPlayableItem] { items() }
   nonisolated func observeCurrentItem(
     options: NSKeyValueObservingOptions,
-    changeHandler: @Sendable @escaping () -> Void
+    changeHandler: @Sendable @escaping @MainActor ((any AVPlayableItem)?) -> Void
   ) -> NSKeyValueObservation {
     observe(\.currentItem, options: options) { player, _ in
-      changeHandler()
+      Task { @MainActor in changeHandler(player.currentItem) }
     }
   }
 

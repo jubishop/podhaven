@@ -6,11 +6,34 @@ import Foundation
 @testable import PodHaven
 
 class FakeAVPlayerItem: AVPlayableItem {
+  // MARK: - Helper Classes
+
+  struct ObservationHandler<T>: Sendable {
+    weak var observation: NSKeyValueObservation?
+    let handler: @Sendable (T) -> Void
+  }
+
+  // MARK: - State Management
+
   let episodeID: Episode.ID?
+  private var statusObservations: [ObservationHandler<AVPlayerItem.Status>] = []
+
+  private var _status: AVPlayerItem.Status = .unknown {
+    didSet {
+      // Clean up deallocated observations and call active handlers
+      statusObservations = statusObservations.compactMap { observationHandler in
+        guard observationHandler.observation != nil else { return nil }
+        observationHandler.handler(_status)
+        return observationHandler
+      }
+    }
+  }
 
   init(episodeID: Episode.ID?) {
     self.episodeID = episodeID
   }
+
+  // MARK: - AVPlayableItem
 
   nonisolated var description: String {
     String(describing: episodeID)
@@ -20,6 +43,19 @@ class FakeAVPlayerItem: AVPlayableItem {
     options: NSKeyValueObservingOptions,
     changeHandler: @escaping @Sendable (AVPlayerItem.Status) -> Void
   ) -> NSKeyValueObservation {
-    return NSObject().observe(\.description, options: []) { _, _ in }
+    let observation = NSObject().observe(\.description, options: []) { _, _ in }
+    statusObservations.append(ObservationHandler(observation: observation, handler: changeHandler))
+
+    if options.contains(.initial) {
+      changeHandler(_status)
+    }
+
+    return observation
+  }
+
+  // MARK: - Testing Manipulators
+
+  func setStatus(_ status: AVPlayerItem.Status) {
+    _status = status
   }
 }

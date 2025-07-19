@@ -743,6 +743,44 @@ import Testing
     try await PlayHelpers.waitForOnDeck(originalEpisode)
   }
 
+  @Test("failed episode gets unshifted back to queue")
+  func failedEpisodeGetsUnshiftedBackToQueue() async throws {
+    let (currentEpisode, nextEpisode) = try await Create.twoPodcastEpisodes()
+    
+    // Load first episode and queue the second
+    try await playManager.load(currentEpisode)
+    try await queue.unshift(nextEpisode.id)
+    
+    // Wait for both episodes to be in the item queue
+    try await PlayHelpers.waitForItemQueue([currentEpisode, nextEpisode])
+    try await PlayHelpers.waitForQueue([nextEpisode])
+    try await PlayHelpers.waitForOnDeck(currentEpisode)
+    
+    // Finish the current episode so nextEpisode becomes currentItem
+    try await PlayHelpers.play()
+    avQueuePlayer.finishEpisode()
+
+    // Wait for nextEpisode to become the current item
+    try await PlayHelpers.waitForItemQueue([nextEpisode])
+    try await PlayHelpers.waitForQueue([])
+    try await PlayHelpers.waitForOnDeck(nextEpisode)
+    
+    // Now simulate the nextEpisode failing after it becomes currentItem
+    let nextItem = avQueuePlayer.current as! FakeAVPlayerItem
+    #expect(nextItem.episodeID == nextEpisode.id)
+    
+    // Simulate the AVPlayerItem failing - this should trigger status.failed
+    nextItem.setStatus(.failed)
+
+    // Simulate AVQueuePlayer automatically removing the failed item (making currentItem nil)
+    avQueuePlayer.remove(nextItem)
+    
+    // The failed episode should be unshifted back to the front of the queue
+    try await PlayHelpers.waitForItemQueue([nextEpisode])
+    try await PlayHelpers.waitForQueue([])
+    try await PlayHelpers.waitForOnDeck(nextEpisode)
+  }
+
   // MARK: - Episode Finishing
 
   @Test("finishing last episode with nothing queued clears state")
