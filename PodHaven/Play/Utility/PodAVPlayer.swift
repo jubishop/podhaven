@@ -47,13 +47,14 @@ extension Container {
 
   let currentTimeStream: AsyncStream<CMTime>
   let currentItemStream: AsyncStream<PodcastEpisode?>
-  let itemStatusStream: AsyncStream<AVPlayerItem.Status>
+  let itemStatusStream: AsyncStream<(status: AVPlayerItem.Status, episodeID: Episode.ID?)>
   let controlStatusStream: AsyncStream<PlaybackStatus>
   let rateStream: AsyncStream<Float>
 
   private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
   private let currentItemContinuation: AsyncStream<PodcastEpisode?>.Continuation
-  private let itemStatusContinuation: AsyncStream<AVPlayerItem.Status>.Continuation
+  private let itemStatusContinuation:
+    AsyncStream<(status: AVPlayerItem.Status, episodeID: Episode.ID?)>.Continuation
   private let controlStatusContinuation: AsyncStream<PlaybackStatus>.Continuation
   private let rateContinuation: AsyncStream<Float>.Continuation
 
@@ -72,7 +73,7 @@ extension Container {
     (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(of: CMTime.self)
     (currentItemStream, currentItemContinuation) = AsyncStream.makeStream(of: PodcastEpisode?.self)
     (itemStatusStream, itemStatusContinuation) = AsyncStream.makeStream(
-      of: AVPlayerItem.Status.self
+      of: (status: AVPlayerItem.Status, episodeID: Episode.ID?).self
     )
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: PlaybackStatus.self
@@ -293,8 +294,10 @@ extension Container {
 
   // MARK: - Change Handlers
 
-  private func handleCurrentItemChange() async throws {
-    if podcastEpisode?.episode.id == avQueuePlayer.current?.episodeID {
+  private func handleCurrentItemChange(_ currentItem: (any AVPlayableItem)?) async throws {
+    let episodeID = currentItem?.episodeID
+
+    if podcastEpisode?.episode.id == episodeID {
       Self.log.debug(
         """
         handleCurrentItemChange: ignoring because id matches current podcastEpisode: \
@@ -304,13 +307,13 @@ extension Container {
       return
     }
 
-    if let current = avQueuePlayer.current {
-      addItemStatusObserver(playableItem: current)
+    if let currentItem {
+      addItemStatusObserver(playableItem: currentItem)
     } else {
       removeItemStatusObserver()
     }
 
-    if let episodeID = avQueuePlayer.current?.episodeID {
+    if let episodeID {
       podcastEpisode = try await repo.episode(episodeID)
     } else {
       podcastEpisode = nil
@@ -373,12 +376,13 @@ extension Container {
 
     currentItemObserver = avQueuePlayer.observeCurrentItem(
       options: [.initial, .new]
-    ) { [weak self] in
+    ) { @MainActor [weak self] currentItem in
       guard let self else { return }
+
       Task { [weak self] in
         guard let self else { return }
         do {
-          try await self.handleCurrentItemChange()
+          try await self.handleCurrentItemChange(currentItem)
         } catch {
           Self.log.error(error)
         }
@@ -389,10 +393,11 @@ extension Container {
   private func addItemStatusObserver(playableItem: any AVPlayableItem) {
     removeItemStatusObserver()
 
+    let episodeID = playableItem.episodeID
     itemStatusObserver = playableItem.observeStatus(options: [.initial, .new]) {
       [weak self] status in
       guard let self else { return }
-      itemStatusContinuation.yield(status)
+      itemStatusContinuation.yield((status: status, episodeID: episodeID))
     }
   }
 

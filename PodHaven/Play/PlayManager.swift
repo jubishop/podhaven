@@ -58,7 +58,6 @@ actor PlayManager {
       if newValue == nil { nowPlayingInfo?.clear() }
     }
   }
-
   private var loadTask: Task<Bool, any Error>?
 
   // MARK: - Initialization
@@ -68,8 +67,8 @@ actor PlayManager {
   func start() async {
     Assert.neverCalled()
 
-    startNotificationTracking()
-    startAsyncStreams()
+    notificationTracking()
+    asyncStreams()
 
     if let currentEpisodeID {
       let podcastEpisode: PodcastEpisode?
@@ -316,7 +315,7 @@ actor PlayManager {
 
   private func handleCurrentItemChange(_ podcastEpisode: PodcastEpisode?) async throws {
     if let podcastEpisode {
-      Self.log.debug("handleCurrentItemChange: \(podcastEpisode.id)")
+      Self.log.debug("handleCurrentItemChange: \(podcastEpisode.id), setting on deck")
 
       try await setOnDeck(podcastEpisode)
 
@@ -339,6 +338,7 @@ actor PlayManager {
             \(nextEpisode.toString)
           """
         )
+
         do {
           try await load(nextEpisode)
         } catch {
@@ -346,6 +346,24 @@ actor PlayManager {
           throw error
         }
         await play()
+      }
+    }
+  }
+
+  private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID?) async {
+    Self.log.debug(
+      """
+      handleItemStatusChange
+        status: \(status)
+        episodeID: \(String(describing: episodeID))
+      """
+    )
+
+    if let episodeID = episodeID, status == .failed {
+      do {
+        try await queue.unshift(episodeID)
+      } catch {
+        Self.log.error(error)
       }
     }
   }
@@ -360,7 +378,7 @@ actor PlayManager {
 
   // MARK: - Notification Tracking
 
-  private func startNotificationTracking() {
+  private func notificationTracking() {
     Assert.neverCalled()
 
     Task { [weak self] in
@@ -450,7 +468,7 @@ actor PlayManager {
 
   // MARK: - Subordinate Async Streams
 
-  private func startAsyncStreams() {
+  private func asyncStreams() {
     Assert.neverCalled()
 
     Task { [weak self] in
@@ -486,8 +504,8 @@ actor PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await itemStatus in await podAVPlayer.itemStatusStream {
-        Self.log.debug("Current item status changed: \(itemStatus)")
+      for await (status, episodeID) in await podAVPlayer.itemStatusStream {
+        await self.handleItemStatusChange(status: status, episodeID: episodeID)
       }
     }
 
