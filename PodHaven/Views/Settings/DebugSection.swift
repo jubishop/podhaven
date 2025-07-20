@@ -5,8 +5,9 @@ import SwiftUI
 
 struct DebugSection: View {
   @DynamicInjected(\.alert) private var alert
-  @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.fileLogManager) private var fileLogManager
+  @DynamicInjected(\.playManager) private var playManager
+  @DynamicInjected(\.refreshManager) private var refreshManager
 
   var body: some View {
     Section("Debugging") {
@@ -36,10 +37,15 @@ struct DebugSection: View {
       }
 
       if AppInfo.myDevice {
-        Button("Truncate Log File") {
-          Task { try await fileLogManager.truncateLogFile() }
+        Section("Memory Intensive Actions") {
+          Button("Truncate Log File") {
+            Task { try await fileLogManager.truncateLogFile() }
+          }
+
+          Button("Refresh Podcasts") {
+            Task { try await refreshManager.performRefresh(stalenessThreshold: Date()) }
+          }
         }
-        // TODO:  refreshing.
       }
     }
   }
