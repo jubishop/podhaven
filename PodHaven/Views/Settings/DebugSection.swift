@@ -13,12 +13,6 @@ struct DebugSection: View {
 
       Text("Device ID: \(AppInfo.deviceIdentifier)")
 
-      if AppInfo.myDevice {
-        Text("Jubi's device")
-      } else {
-        Text("NOT Jubi's device")
-      }
-
       #if DEBUG
       Text("in DEBUG")
       #else
@@ -38,6 +32,10 @@ struct DebugSection: View {
           .appendingPathComponent("db.sqlite")
       ) {
         Label("Share Database", systemImage: "square.and.arrow.up")
+      }
+
+      if AppInfo.myDevice {
+        // TODO: Ways to trigger memory intensive operations: log truncation, refreshing.
       }
     }
   }
