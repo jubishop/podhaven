@@ -1,5 +1,5 @@
 {
-  "originHash" : "8e8add9ae3f6487b3351f2ad4d714ff0c1fbc28c1b7035e5ddb8667bac22e44d",
+  "originHash" : "1df408f460df1758a83b8fc44fcc84b2e2e46454c379855071db79d02ad48483",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -25,7 +25,7 @@
       "location" : "https://github.com/hmlongco/Factory",
       "state" : {
         "branch" : "main",
-        "revision" : "fff1faea8c3fa9e2f5a82f05b4dac0e7126e430b"
+        "revision" : "bcca76f9243ace59477c8d077d25a97795eab5c4"
       }
     },
     {
@@ -61,7 +61,7 @@
       "location" : "https://github.com/getsentry/sentry-cocoa/",
       "state" : {
         "branch" : "main",
-        "revision" : "248195076dafba5bac1b3aa7668eacd5267886e2"
+        "revision" : "f8029e2df248dc3491bda5ec8a3aa0d56f6804f0"
       }
     },
     {
@@ -88,7 +88,7 @@
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
         "branch" : "main",
-        "revision" : "b45c41445b04344ebdd2751f083e79ac128b959e"
+        "revision" : "dcee718843cf2806c9dd9f5ad8eac2c1e81b26ed"
       }
     },
     {
@@ -142,7 +142,7 @@
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
         "branch" : "main",
-        "revision" : "81d3d07f1439ddcf3df61b2128857ab7532a5804"
+        "revision" : "ce592ae52f982c847a4efc0dd881cc9eb32d29f2"
       }
     },
     {
@@ -178,7 +178,7 @@
       "location" : "https://github.com/pointfreeco/swift-sharing",
       "state" : {
         "branch" : "main",
-        "revision" : "97f6ffbacd5e7459e1791f98f5e88d42ba9161b4"
+        "revision" : "198ec7e56ada38e0a49c118e74c4ca91f9c50816"
       }
     },
     {
@@ -187,7 +187,7 @@
       "location" : "https://github.com/swiftlang/swift-syntax",
       "state" : {
         "branch" : "main",
-        "revision" : "b73055f7a48a51042b94523279ce7294ecdeb510"
+        "revision" : "7b1fcd6ced8269aa030e042b2e9d8938174ea237"
       }
     },
     {
@@ -204,8 +204,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
-        "revision" : "39de59b2d47f7ef3ca88a039dff3084688fe27f4",
-        "version" : "1.5.2"
+        "revision" : "23e3442166b5122f73f9e3e622cd1e4bafeab3b7",
+        "version" : "1.6.0"
       }
     },
     {
