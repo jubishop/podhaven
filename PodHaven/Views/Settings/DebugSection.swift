@@ -6,6 +6,7 @@ import SwiftUI
 struct DebugSection: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.playManager) private var playManager
+  @DynamicInjected(\.fileLogManager) private var fileLogManager
 
   var body: some View {
     Section("Debugging") {
@@ -35,7 +36,10 @@ struct DebugSection: View {
       }
 
       if AppInfo.myDevice {
-        // TODO: Ways to trigger memory intensive operations: log truncation, refreshing.
+        Button("Truncate Log File") {
+          Task { try await fileLogManager.truncateLogFile() }
+        }
+        // TODO:  refreshing.
       }
     }
   }

@@ -61,7 +61,7 @@ struct FileLogManager: Sendable {
         try jsonString.write(to: logFileURL, atomically: true, encoding: .utf8)
       }
     } catch {
-      SentrySDK.capture(error: error)
+      Self.log.error(error)
     }
   }
 
@@ -113,7 +113,7 @@ struct FileLogManager: Sendable {
     }
   }
 
-  private func truncateLogFile() async throws {
+  func truncateLogFile() async throws {
     guard FileManager.default.fileExists(atPath: logFileURL.path)
     else { throw LoggingError.logFileDoesNotExist }
 
@@ -126,7 +126,7 @@ struct FileLogManager: Sendable {
           let lines = logContent.components(separatedBy: .newlines).filter { !$0.isEmpty }
 
           guard lines.count > maxLogEntries
-          else { throw LoggingError.logFileHasNotGrown }
+          else { throw LoggingError.logFileHasNotGrown(lines.count) }
 
           let keepLines = Array(lines.suffix(maxLogEntries))
           let truncatedContent = keepLines.joined(separator: "\n")

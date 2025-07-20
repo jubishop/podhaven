@@ -8,7 +8,7 @@ enum LoggingError: ReadableError {
   case backgroundTaskInvalid
   case jsonStringCreationFailure(FileLogEntry)
   case logFileDoesNotExist
-  case logFileHasNotGrown
+  case logFileHasNotGrown(Int)
 
   var message: String {
     switch self {
@@ -18,8 +18,8 @@ enum LoggingError: ReadableError {
       return "Failed to make JSON string from log entry: \(fileLogEntry)"
     case .logFileDoesNotExist:
       return "Log file does not exist?"
-    case .logFileHasNotGrown:
-      return "Log file has not grown since last truncation?"
+    case .logFileHasNotGrown(let fileSize):
+      return "Log file has not grown since last truncation? Size is: \(fileSize)"
     }
   }
 }
