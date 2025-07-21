@@ -18,6 +18,7 @@ enum LogSubsystem {
   }
 
   enum Feed: String, LogCategorizable {
+    case feedManager
     case podcast
     case refreshManager
   }

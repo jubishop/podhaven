@@ -51,44 +51,37 @@ struct FeedTask {
 }
 
 actor FeedManager {
+  static private let log = Log.as(LogSubsystem.Feed.feedManager)
+
   // MARK: - Concurrent Download Management
 
   private let downloadManager: DownloadManager
-  private let asyncStream: AsyncStream<FeedResult>
-  private let streamContinuation: AsyncStream<FeedResult>.Continuation
   private var feedTasks: [FeedURL: FeedTask] = [:]
 
   var remainingFeeds: Int { feedTasks.count }
 
   fileprivate init(session: DataFetchable) {
     downloadManager = DownloadManager(session: session)
-    (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(of: FeedResult.self)
   }
-
-  deinit {
-    streamContinuation.finish()
-  }
-
-  func feeds() -> AsyncStream<FeedResult> { asyncStream }
 
   // MARK: - Downloading Feeds
 
-  @discardableResult
   func addURL(_ url: FeedURL) async -> FeedTask {
     if let feedTask = feedTasks[url] { return feedTask }
 
     let feedTask = FeedTask(await downloadManager.addURL(url.rawValue))
     feedTasks[url] = feedTask
+
     Task { [weak self] in
       guard let self else { return }
       do {
-        let podcastFeed = try await feedTask.feedParsed()
-        streamContinuation.yield(.success(podcastFeed))
-      } catch let error as FeedError {
-        streamContinuation.yield(.failure(error))
+        _ = try await feedTask.feedParsed()
+      } catch {
+        Self.log.error(error)
       }
       await removeFeedTask(feedURL: url)
     }
+
     return feedTask
   }
 
@@ -100,6 +93,8 @@ actor FeedManager {
   }
 
   private func removeFeedTask(feedURL: FeedURL) {
+    Self.log.debug("Removing feed task for \(feedURL)")
+
     feedTasks.removeValue(forKey: feedURL)
   }
 }

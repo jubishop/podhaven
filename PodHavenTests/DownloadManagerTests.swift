@@ -25,19 +25,6 @@ struct DownloadManagerTests {
     #expect(await downloadTask.finished)
   }
 
-  @Test("that an array of downloads work successfully")
-  func arrayOfSuccessfulDownloads() async throws {
-    let downloadManager = DownloadManager(session: session)
-
-    let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
-    let downloadTasks = await downloadManager.addURLs(urls)
-    var results = [DownloadData](capacity: urls.count)
-    for downloadTask in downloadTasks {
-      results.append(try await downloadTask.downloadFinished())
-    }
-    #expect(results.count == urls.count)
-  }
-
   @Test("that maxConcurrentDownloads is respected")
   func maxConcurrentDownloads() async throws {
     let maxConcurrentDownloads = 20
@@ -79,7 +66,7 @@ struct DownloadManagerTests {
     // Since maxConcurrentDownloads is 1 this task holds up the queue
     let url = URL.valid()
     await session.respond(to: url, delay: .milliseconds(500))
-    await downloadManager.addURL(url)
+    _ = await downloadManager.addURL(url)
 
     // This task is stuck waiting on the first url
     let url2 = URL.valid()
@@ -211,23 +198,5 @@ struct DownloadManagerTests {
     // actually start()'d the second downloadTask.
     let downloadData = try await task.downloadFinished()
     #expect(downloadData == DownloadData(url: url2))
-  }
-
-  @Test("that you can use the AsyncStream to get results")
-  func basicAsyncStream() async throws {
-    let downloadManager = DownloadManager(session: session)
-
-    let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
-    for url in urls {
-      await downloadManager.addURL(url)
-    }
-    var resultsReceived = 0
-    for await result in await downloadManager.downloads() {
-      #expect(result.isSuccessful())
-      resultsReceived += 1
-      if resultsReceived == 100 {
-        break
-      }
-    }
   }
 }

@@ -48,8 +48,8 @@ actor DownloadTask {
     self.session = session
   }
 
-  fileprivate func download() async -> DownloadResult {
-    if let result = self.result { return result }
+  fileprivate func download() async {
+    if self.result != nil { return }
     do {
       haveBegun()
       let (data, response) = try await session.data(from: url)
@@ -67,10 +67,8 @@ actor DownloadTask {
     } catch {
       haveFinished(.failure(DownloadError.caught(error)))
     }
-    guard let result = self.result
+    guard self.result != nil
     else { Assert.fatal("No result by the end of download()?!") }
-
-    return result
   }
 
   // MARK: - Private Helpers
@@ -104,24 +102,14 @@ actor DownloadManager {
   private var pendingDownloads: OrderedDictionary<URL, DownloadTask> = [:]
   private let session: DataFetchable
   private let maxConcurrentDownloads: Int
-  private let asyncStream: AsyncStream<DownloadResult>
-  private let streamContinuation: AsyncStream<DownloadResult>.Continuation
 
   var remainingDownloads: Int { pendingDownloads.count + activeDownloads.count }
 
   init(session: DataFetchable, maxConcurrentDownloads: Int = 32) {
     self.session = session
     self.maxConcurrentDownloads = maxConcurrentDownloads
-    (self.asyncStream, self.streamContinuation) = AsyncStream.makeStream(of: DownloadResult.self)
   }
 
-  deinit {
-    streamContinuation.finish()
-  }
-
-  func downloads() -> AsyncStream<DownloadResult> { asyncStream }
-
-  @discardableResult
   func addURL(_ url: URL) -> DownloadTask {
     if let activeDownload = activeDownloads[url] {
       return activeDownload
@@ -133,15 +121,6 @@ actor DownloadManager {
     pendingDownloads[url] = download
     startNextDownload()
     return download
-  }
-
-  @discardableResult
-  func addURLs(_ urls: [URL]) -> [DownloadTask] {
-    var downloadTasks = [DownloadTask](capacity: urls.count)
-    for url in urls {
-      downloadTasks.append(addURL(url))
-    }
-    return downloadTasks
   }
 
   func cancelDownload(url: URL) async {
@@ -179,10 +158,9 @@ actor DownloadManager {
 
   private func executeDownload(_ downloadTask: DownloadTask) {
     Task {  // Intentionally not weak so the Manager isn't deallocated before tasks complete
-      let downloadResult = await downloadTask.download()
-      streamContinuation.yield(downloadResult)
+      await downloadTask.download()
       activeDownloads.removeValue(forKey: downloadTask.url)
-      startNextDownload()
+      Task { startNextDownload() }
     }
   }
 }

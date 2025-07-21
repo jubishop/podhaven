@@ -76,6 +76,8 @@ actor RefreshManager {
         }
       }
     }
+
+    Self.log.debug("Perform refresh completed")
   }
 
   func refreshSeries(podcastSeries: PodcastSeries) async throws(RefreshError) {
