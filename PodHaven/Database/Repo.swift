@@ -310,7 +310,7 @@ struct Repo: Databasing, Sendable {
     try await appDB.db.write { db in
       try Podcast
         .withIDs(podcastIDs)
-        .updateAll(db, Podcast.Columns.subscribed.set(to: subscribed))
+        .updateAll(db, Podcast.Columns.subscriptionDate.set(to: subscribed ? Date() : nil))
     }
   }
 }

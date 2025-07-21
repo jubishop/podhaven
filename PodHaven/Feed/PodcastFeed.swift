@@ -129,7 +129,7 @@ struct PodcastFeed: Sendable, Stringable {
     rssPodcast.iTunes.newFeedURL ?? feedURL
   }
 
-  func toUnsavedPodcast(subscribed: Bool? = nil, lastUpdate: Date? = nil) throws(FeedError)
+  func toUnsavedPodcast(subscriptionDate: Date? = nil, lastUpdate: Date? = nil) throws(FeedError)
     -> UnsavedPodcast
   {
     try FeedError.catch {
@@ -140,7 +140,7 @@ struct PodcastFeed: Sendable, Stringable {
         description: rssPodcast.description,
         link: link,
         lastUpdate: lastUpdate,
-        subscribed: subscribed
+        subscriptionDate: subscriptionDate
       )
     }
   }
@@ -157,7 +157,7 @@ struct PodcastFeed: Sendable, Stringable {
     )
 
     return try toUnsavedPodcast(
-      subscribed: unsavedPodcast.subscribed,
+      subscriptionDate: unsavedPodcast.subscriptionDate,
       lastUpdate: unsavedPodcast.lastUpdate
     )
   }

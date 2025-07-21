@@ -745,4 +745,190 @@ class MigrationTests {
       #expect(episode3LastQueued == nil)
     }
   }
+
+  @Test("migrating to v9, converting subscribed boolean to subscriptionDate")
+  func testV9Migration() async throws {
+    try migrator.migrate(appDB.db, upTo: "v8")
+
+    // Insert test data in v8 schema (with 'subscribed' boolean column)
+    let now = Date()
+
+    let (
+      subscribedPodcast1Id, subscribedPodcast2Id, unsubscribedPodcast1Id, unsubscribedPodcast2Id
+    ) = try await appDB.db.write { db in
+      // Create subscribed podcasts
+      try db.execute(
+        sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscribed)
+            VALUES ('https://example1.com/feed.xml', 'Subscribed Podcast 1', 'https://example1.com/image.jpg', 'Test Description 1', 1)
+          """
+      )
+      let subscribedPodcast1Id = db.lastInsertedRowID
+
+      try db.execute(
+        sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscribed)
+            VALUES ('https://example2.com/feed.xml', 'Subscribed Podcast 2', 'https://example2.com/image.jpg', 'Test Description 2', 1)
+          """
+      )
+      let subscribedPodcast2Id = db.lastInsertedRowID
+
+      // Create unsubscribed podcasts
+      try db.execute(
+        sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscribed)
+            VALUES ('https://example3.com/feed.xml', 'Unsubscribed Podcast 1', 'https://example3.com/image.jpg', 'Test Description 3', 0)
+          """
+      )
+      let unsubscribedPodcast1Id = db.lastInsertedRowID
+
+      try db.execute(
+        sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscribed)
+            VALUES ('https://example4.com/feed.xml', 'Unsubscribed Podcast 2', 'https://example4.com/image.jpg', 'Test Description 4', 0)
+          """
+      )
+      let unsubscribedPodcast2Id = db.lastInsertedRowID
+
+      return (
+        subscribedPodcast1Id, subscribedPodcast2Id, unsubscribedPodcast1Id, unsubscribedPodcast2Id
+      )
+    }
+
+    // Verify that subscribed column exists and subscriptionDate does not exist before migration
+    try await appDB.db.read { db in
+      let tableInfo = try Row.fetchAll(db, sql: "PRAGMA table_info(podcast)")
+      let columnNames = tableInfo.map { $0[Column("name")] as String }
+      #expect(columnNames.contains("subscribed"))
+      #expect(!columnNames.contains("subscriptionDate"))
+
+      // Verify initial subscription state
+      let subscribedCount = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM podcast WHERE subscribed = 1"
+      )!
+      let unsubscribedCount = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM podcast WHERE subscribed = 0"
+      )!
+      #expect(subscribedCount == 2)
+      #expect(unsubscribedCount == 2)
+    }
+
+    // Capture migration time
+    let migrationTime = Date()
+
+    // Migrate to v9
+    try migrator.migrate(appDB.db, upTo: "v9")
+
+    // Verify the migration results
+    try await appDB.db.read { db in
+      // Verify column changes
+      let tableInfo = try Row.fetchAll(db, sql: "PRAGMA table_info(podcast)")
+      let columnNames = tableInfo.map { $0[Column("name")] as String }
+      #expect(!columnNames.contains("subscribed"), "Old subscribed column should be removed")
+      #expect(
+        columnNames.contains("subscriptionDate"),
+        "New subscriptionDate column should be added"
+      )
+
+      // Verify subscribed podcasts now have subscriptionDate set
+      let subscribedPodcast1 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM podcast WHERE id = ?",
+        arguments: [subscribedPodcast1Id]
+      )!
+      let subscribedPodcast1Date = subscribedPodcast1[Column("subscriptionDate")] as Date?
+      #expect(
+        subscribedPodcast1Date != nil,
+        "Subscribed podcast 1 should have subscriptionDate set"
+      )
+
+      if let subscriptionDate = subscribedPodcast1Date {
+        #expect(
+          subscriptionDate.approximatelyEquals(migrationTime),
+          "Subscription date should be close to migration time"
+        )
+      }
+
+      let subscribedPodcast2 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM podcast WHERE id = ?",
+        arguments: [subscribedPodcast2Id]
+      )!
+      let subscribedPodcast2Date = subscribedPodcast2[Column("subscriptionDate")] as Date?
+      #expect(
+        subscribedPodcast2Date != nil,
+        "Subscribed podcast 2 should have subscriptionDate set"
+      )
+
+      // Verify unsubscribed podcasts have subscriptionDate as NULL
+      let unsubscribedPodcast1 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM podcast WHERE id = ?",
+        arguments: [unsubscribedPodcast1Id]
+      )!
+      let unsubscribedPodcast1Date = unsubscribedPodcast1[Column("subscriptionDate")] as Date?
+      #expect(
+        unsubscribedPodcast1Date == nil,
+        "Unsubscribed podcast 1 should have subscriptionDate as NULL"
+      )
+
+      let unsubscribedPodcast2 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM podcast WHERE id = ?",
+        arguments: [unsubscribedPodcast2Id]
+      )!
+      let unsubscribedPodcast2Date = unsubscribedPodcast2[Column("subscriptionDate")] as Date?
+      #expect(
+        unsubscribedPodcast2Date == nil,
+        "Unsubscribed podcast 2 should have subscriptionDate as NULL"
+      )
+
+      // Verify counts using new subscriptionDate column
+      let newSubscribedCount = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM podcast WHERE subscriptionDate IS NOT NULL"
+      )!
+      let newUnsubscribedCount = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM podcast WHERE subscriptionDate IS NULL"
+      )!
+      #expect(newSubscribedCount == 2, "Should have 2 podcasts with subscriptionDate set")
+      #expect(newUnsubscribedCount == 2, "Should have 2 podcasts with subscriptionDate as NULL")
+    }
+
+    // Verify that the new Podcast model works correctly after migration
+    // (Testing the computed subscribed property)
+    let repo = Repo(appDB: appDB)
+
+    let allPodcasts = try await repo.db.read { db in
+      try Podcast.fetchAll(db)
+    }
+
+    #expect(allPodcasts.count == 4)
+
+    let subscribedPodcasts = allPodcasts.filter { $0.subscribed }
+    let unsubscribedPodcasts = allPodcasts.filter { !$0.subscribed }
+
+    #expect(
+      subscribedPodcasts.count == 2,
+      "Should have 2 subscribed podcasts via computed property"
+    )
+    #expect(
+      unsubscribedPodcasts.count == 2,
+      "Should have 2 unsubscribed podcasts via computed property"
+    )
+
+    // Verify that queries using the static expressions still work
+    let subscribedViaQuery = try await repo.db.read { db in
+      try Podcast.filter(Podcast.subscribed).fetchAll(db)
+    }
+    let unsubscribedViaQuery = try await repo.db.read { db in
+      try Podcast.filter(Podcast.unsubscribed).fetchAll(db)
+    }
+
+    #expect(subscribedViaQuery.count == 2, "Should have 2 subscribed podcasts via SQL query")
+    #expect(unsubscribedViaQuery.count == 2, "Should have 2 unsubscribed podcasts via SQL query")
+  }
 }

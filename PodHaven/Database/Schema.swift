@@ -206,6 +206,27 @@ enum Schema {
       )
     }
 
+    migrator.registerMigration("v9") { db in
+      // Migrate from subscribed boolean to subscriptionDate for podcasts
+      try db.alter(table: "podcast") { t in
+        t.add(column: "subscriptionDate", .datetime)
+      }
+
+      // Set subscriptionDate to current timestamp for subscribed podcasts
+      try db.execute(
+        sql: """
+          UPDATE podcast 
+          SET subscriptionDate = CURRENT_TIMESTAMP 
+          WHERE subscribed = 1
+          """
+      )
+
+      // Drop the old subscribed column
+      try db.alter(table: "podcast") { t in
+        t.drop(column: "subscribed")
+      }
+    }
+
     return migrator
   }
 }

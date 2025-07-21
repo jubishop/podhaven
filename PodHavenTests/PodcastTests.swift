@@ -136,7 +136,7 @@ class PodcastTests {
   func testAll() async throws {
     let freshPodcast = try Create.unsavedPodcast(lastUpdate: Date())
     let stalePodcast = try Create.unsavedPodcast(lastUpdate: 10.minutesAgo)
-    let unsubscribedPodcast = try Create.unsavedPodcast(subscribed: false)
+    let unsubscribedPodcast = try Create.unsavedPodcast(subscriptionDate: nil)
     try await repo.insertSeries(freshPodcast)
     try await repo.insertSeries(stalePodcast)
     try await repo.insertSeries(unsubscribedPodcast)
@@ -149,7 +149,7 @@ class PodcastTests {
   func testAllPodcastSeries() async throws {
     let freshPodcast = try Create.unsavedPodcast(lastUpdate: Date())
     let stalePodcast = try Create.unsavedPodcast(lastUpdate: 10.minutesAgo)
-    let unsubscribedPodcast = try Create.unsavedPodcast(subscribed: false)
+    let unsubscribedPodcast = try Create.unsavedPodcast(subscriptionDate: nil)
     try await repo.insertSeries(freshPodcast)
     try await repo.insertSeries(stalePodcast)
     try await repo.insertSeries(unsubscribedPodcast)
@@ -161,15 +161,15 @@ class PodcastTests {
   @Test("markSubscribed() successfully marks multiple podcasts as subscribed")
   func testMarkSubscribed() async throws {
     let podcastSeries1 = try await repo.insertSeries(
-      try Create.unsavedPodcast(subscribed: false)
+      try Create.unsavedPodcast(subscriptionDate: nil)
     )
     #expect(podcastSeries1.podcast.subscribed == false)
     let podcastSeries2 = try await repo.insertSeries(
-      try Create.unsavedPodcast(subscribed: false)
+      try Create.unsavedPodcast(subscriptionDate: nil)
     )
     #expect(podcastSeries2.podcast.subscribed == false)
     let podcastSeries3 = try await repo.insertSeries(
-      try Create.unsavedPodcast(subscribed: true)
+      try Create.unsavedPodcast(subscriptionDate: Date())
     )
     #expect(podcastSeries3.podcast.subscribed == true)
 
@@ -186,15 +186,15 @@ class PodcastTests {
   @Test("markUnsubscribed() successfully marks multiple podcasts as unsubscribed")
   func testMarkUnsubscribed() async throws {
     let podcastSeries1 = try await repo.insertSeries(
-      try Create.unsavedPodcast(subscribed: true)
+      try Create.unsavedPodcast(subscriptionDate: Date())
     )
     #expect(podcastSeries1.podcast.subscribed == true)
     let podcastSeries2 = try await repo.insertSeries(
-      try Create.unsavedPodcast(subscribed: true)
+      try Create.unsavedPodcast(subscriptionDate: Date())
     )
     #expect(podcastSeries2.podcast.subscribed == true)
     let podcastSeries3 = try await repo.insertSeries(
-      try Create.unsavedPodcast(subscribed: false)
+      try Create.unsavedPodcast(subscriptionDate: nil)
     )
     #expect(podcastSeries3.podcast.subscribed == false)
 

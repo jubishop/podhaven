@@ -40,7 +40,7 @@ struct PodcastFeedTests {
   func parseLandOfTheGiantsFeed() async throws {
     let url = Bundle.main.url(forResource: "land_of_the_giants", withExtension: "rss")!
     let feed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
-    let unsavedPodcast = try feed.toUnsavedPodcast(subscribed: true)
+    let unsavedPodcast = try feed.toUnsavedPodcast(subscriptionDate: Date())
     let unsavedEpisodes = try feed.episodes.map { try $0.toUnsavedEpisode() }
     #expect(unsavedPodcast.title == "Land of the Giants")
     #expect(unsavedPodcast.subscribed == true)
