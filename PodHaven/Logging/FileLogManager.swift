@@ -61,13 +61,13 @@ struct FileLogManager: Sendable {
         try jsonString.write(to: logFileURL, atomically: true, encoding: .utf8)
       }
     } catch {
-      SentrySDK.capture(error: error)
+      Self.log.error(error)
     }
   }
 
   // MARK: - Cleanup
 
-  func startPeriodicCleanup() {
+  private func startPeriodicCleanup() {
     Assert.neverCalled()
 
     Task(priority: .background) {
@@ -105,37 +105,45 @@ struct FileLogManager: Sendable {
       )
       $lastCleanup.withLock { $0 = now }
 
-      let backgroundTaskID = await UIApplication.shared.beginBackgroundTask()
-
-      await withCheckedContinuation { continuation in
-        logQueue.async {
-          truncateLogFile()
-          continuation.resume()
-        }
-      }
-
-      if backgroundTaskID != .invalid {
-        await UIApplication.shared.endBackgroundTask(backgroundTaskID)
+      do {
+        try await truncateLogFile()
+      } catch {
+        Self.log.error(error)
       }
     }
   }
 
-  private func truncateLogFile() {
-    guard FileManager.default.fileExists(atPath: logFileURL.path) else { return }
+  func truncateLogFile() async throws {
+    guard FileManager.default.fileExists(atPath: logFileURL.path)
+    else { throw LoggingError.logFileDoesNotExist }
 
-    do {
-      let logContent = try String(contentsOf: logFileURL, encoding: .utf8)
-      let lines = logContent.components(separatedBy: .newlines).filter { !$0.isEmpty }
+    let backgroundTaskID = await UIApplication.shared.beginBackgroundTask()
 
-      guard lines.count > maxLogEntries else { return }
+    await withCheckedContinuation { continuation in
+      logQueue.async {
+        do {
+          let logContent = try String(contentsOf: logFileURL, encoding: .utf8)
+          let lines = logContent.components(separatedBy: .newlines).filter { !$0.isEmpty }
 
-      let keepLines = Array(lines.suffix(maxLogEntries))
-      let truncatedContent = keepLines.joined(separator: "\n")
-      try (truncatedContent + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
+          guard lines.count > maxLogEntries
+          else { throw LoggingError.logFileHasNotGrown(lines.count) }
 
-      Self.log.info("Truncated log file from \(lines.count) to \(keepLines.count) entries")
-    } catch {
-      SentrySDK.capture(error: error)
+          let keepLines = Array(lines.suffix(maxLogEntries))
+          let truncatedContent = keepLines.joined(separator: "\n")
+          try (truncatedContent + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
+
+          Self.log.info("Truncated log file from \(lines.count) to \(keepLines.count) entries")
+        } catch {
+          Self.log.error(error)
+        }
+
+        continuation.resume()
+      }
     }
+
+    guard backgroundTaskID != .invalid
+    else { throw LoggingError.backgroundTaskInvalid }
+
+    await UIApplication.shared.endBackgroundTask(backgroundTaskID)
   }
 }

@@ -5,19 +5,15 @@ import SwiftUI
 
 struct DebugSection: View {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.fileLogManager) private var fileLogManager
   @DynamicInjected(\.playManager) private var playManager
+  @DynamicInjected(\.refreshManager) private var refreshManager
 
   var body: some View {
     Section("Debugging") {
       Text("Environment: \(AppInfo.environment)")
 
       Text("Device ID: \(AppInfo.deviceIdentifier)")
-
-      if AppInfo.myDevice {
-        Text("Jubi's device")
-      } else {
-        Text("NOT Jubi's device")
-      }
 
       #if DEBUG
       Text("in DEBUG")
@@ -38,6 +34,18 @@ struct DebugSection: View {
           .appendingPathComponent("db.sqlite")
       ) {
         Label("Share Database", systemImage: "square.and.arrow.up")
+      }
+
+      if AppInfo.myDevice {
+        Section("Memory Intensive Actions") {
+          Button("Truncate Log File") {
+            Task { try await fileLogManager.truncateLogFile() }
+          }
+
+          Button("Refresh Podcasts") {
+            Task { try await refreshManager.performRefresh(stalenessThreshold: Date()) }
+          }
+        }
       }
     }
   }

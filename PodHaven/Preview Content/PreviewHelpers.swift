@@ -26,30 +26,22 @@ enum PreviewHelpers {
     )!
     let opml = try await PodcastOPML.parse(url)
 
+    var remainingPodcasts = number - allPodcasts.count
     let feedManager = Container.shared.feedManager()
-    for outline in opml.body.outlines {
-      guard let feedURL = try? FeedURL(outline.xmlUrl.rawValue.convertToValidURL())
-      else { continue }
-
-      if allPodcasts[id: feedURL] != nil { continue }
-      await feedManager.addURL(feedURL)
-    }
-
-    var numberRemaining = number - allPodcasts.count
-    for await feedResult in await feedManager.feeds() {
-      switch feedResult {
-      case .success(let podcastFeed):
-        if (try? await repo.insertSeries(
-          try podcastFeed.toUnsavedPodcast(),
-          unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
-        )) != nil {
-          numberRemaining -= 1
+    try await withThrowingDiscardingTaskGroup { group in
+      for outline in opml.body.outlines {
+        if remainingPodcasts <= 0 { break }
+        if allPodcasts[id: outline.xmlUrl] != nil { continue }
+        group.addTask {
+          let feedTask = await feedManager.addURL(outline.xmlUrl)
+          let podcastFeed = try await feedTask.feedParsed()
+          try await repo.insertSeries(
+            try podcastFeed.toUnsavedPodcast(),
+            unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+          )
         }
-      case .failure(_):
-        continue
+        remainingPodcasts -= 1
       }
-      let remainingFeeds = await feedManager.remainingFeeds
-      if numberRemaining <= 0 || remainingFeeds <= 0 { break }
     }
   }
 

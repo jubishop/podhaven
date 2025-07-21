@@ -90,7 +90,7 @@ struct PodHavenApp: App {
 
   private func configureLogging() {
     switch AppInfo.environment {
-    case .testFlight:
+    case .testFlight, .iPhoneDev, .macDev:
       configureSentry()
 
       LoggingSystem.bootstrap { label in
@@ -100,13 +100,16 @@ struct PodHavenApp: App {
           CrashReportHandler(label: label),
         ])
       }
-      Self.log.debug("configureLogging: testFlight (OSLog, FileLog, CrashReport)")
+      Self.log.debug("configureLogging: OSLog, FileLog, CrashReport")
     case .preview:
       LoggingSystem.bootstrap(PrintLogHandler.init)
-      Self.log.debug("configureLogging: preview (PrintLog)")
-    case .simulator, .testing, .iPhoneDev, .macDev, .appStore:
+      Self.log.debug("configureLogging: PrintLog")
+    case .simulator, .testing:
       LoggingSystem.bootstrap(OSLogHandler.init)
-      Self.log.debug("configureLogging: simulator/testing/iphone/mac/appStore (OSLog)")
+      Self.log.debug("configureLogging: OSLog")
+    case .appStore:
+      LoggingSystem.bootstrap(SwiftLogNoOpLogHandler.init)
+      Self.log.debug("configureLogging: SwiftLogNoOp")
     }
   }
 
@@ -117,12 +120,6 @@ struct PodHavenApp: App {
 
       // Maximum info
       options.sendDefaultPii = true
-      options.attachScreenshot = true
-      options.attachViewHierarchy = true
-
-      // Excessive crap
-      options.enableAppHangTracking = false
-      options.enableSwizzling = false
     }
   }
 }
