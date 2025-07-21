@@ -57,6 +57,46 @@ import Testing
 
   @Test("that an existing unsubscribed apple podcast URL is shown correctly")
   func existingUnsubscribedApplePodcastURLShowsSuccessfully() async throws {
+    let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
+    try await repo.insertSeries(
+      Create.unsavedPodcast(
+        feedURL: FeedURL(feedURL)
+      )
+    )
+    #expect(try await repo.allPodcasts().count == 1)
 
+    let itunesData = try Data(
+      contentsOf: Bundle.main.url(forResource: "lenny", withExtension: "json")!
+    )
+    let itunesID: String = "1627920305"
+    await shareSession.respond(
+      to: ShareHelpers.itunesLookupURL(for: itunesID),
+      data: itunesData
+    )
+
+    let feedData = try Data(
+      contentsOf: Bundle.main.url(forResource: "lenny", withExtension: "rss")!
+    )
+    await feedSession.respond(to: feedURL, data: feedData)
+
+    try await shareService.handleIncomingURL(
+      ShareHelpers.shareURL(
+        with: ShareHelpers.itunesURL(
+          for: itunesID,
+          withTitle: "Lenny's Podcast: Product | Growth | Career"
+        )
+      )
+    )
+
+    #expect(try await repo.allPodcasts().count == 1)
+    let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
+    #expect(!podcastSeries.podcast.subscribed)
+    #expect(podcastSeries.podcast.title == "Lenny's Podcast: Product | Growth | Career")
+    #expect(podcastSeries.episodes.count == 32)
+
+    #expect(navigation.currentTab == .podcasts)
+    #expect(
+      navigation.podcasts.path == [.viewType(.unsubscribed), .podcast(podcastSeries.podcast)]
+    )
   }
 }

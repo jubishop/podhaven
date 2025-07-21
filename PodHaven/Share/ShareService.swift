@@ -85,9 +85,10 @@ actor ShareService {
       // Check if already in DB
       if let podcastSeries = try await repo.podcastSeries(feedURL) {
         try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+        let updatedPodcastSeries = try await repo.podcastSeries(feedURL) ?? podcastSeries
         await navigation.showPodcast(
-          podcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
-          podcastSeries.podcast
+          updatedPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+          updatedPodcastSeries.podcast
         )
         return
       }
