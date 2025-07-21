@@ -23,8 +23,11 @@ import Testing
     let itunesData = try Data(
       contentsOf: Bundle.main.url(forResource: "lenny", withExtension: "json")!
     )
-    let itunesURL = URL(string: "https://itunes.apple.com/lookup?id=1627920305&entity=podcast")!
-    await shareSession.respond(to: itunesURL, data: itunesData)
+    let itunesID: String = "1627920305"
+    await shareSession.respond(
+      to: ShareHelpers.itunesLookupURL(for: itunesID),
+      data: itunesData
+    )
 
     let feedData = try Data(
       contentsOf: Bundle.main.url(forResource: "lenny", withExtension: "rss")!
@@ -33,10 +36,12 @@ import Testing
     await feedSession.respond(to: feedURL, data: feedData)
 
     try await shareService.handleIncomingURL(
-      URL(
-        string:
-          "podhaven://share?url=https://podcasts.apple.com/us/podcast/lennys-podcast-product-growth-career/id1627920305"
-      )!
+      ShareHelpers.shareURL(
+        with: ShareHelpers.itunesURL(
+          for: itunesID,
+          withTitle: "Lenny's Podcast: Product | Growth | Career"
+        )
+      )
     )
 
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
@@ -48,5 +53,10 @@ import Testing
     #expect(
       navigation.podcasts.path == [.viewType(.unsubscribed), .podcast(podcastSeries.podcast)]
     )
+  }
+
+  @Test("that an existing unsubscribed apple podcast URL is shown correctly")
+  func existingUnsubscribedApplePodcastURLShowsSuccessfully() async throws {
+
   }
 }
