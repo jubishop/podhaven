@@ -40,6 +40,7 @@ import SwiftUI
     case byMostRecentUnfinished = "Most Recent Unfinished"
     case byMostRecentUnstarted = "Most Recent Unstarted"
     case byMostRecentUnqueued = "Most Recent Unqueued"
+    case byMostRecentlySubscribed = "Most Recently Subscribed"
   }
 
   private static func sortMethod(for sortMethod: SortMethod) -> (
@@ -64,6 +65,12 @@ import SwiftUI
       return { lhs, rhs in
         let lhsDate = lhs.maxUnqueuedEpisodePubDate ?? Date.distantPast
         let rhsDate = rhs.maxUnqueuedEpisodePubDate ?? Date.distantPast
+        return lhsDate > rhsDate
+      }
+    case .byMostRecentlySubscribed:
+      return { lhs, rhs in
+        let lhsDate = lhs.subscriptionDate ?? Date.distantPast
+        let rhsDate = rhs.subscriptionDate ?? Date.distantPast
         return lhsDate > rhsDate
       }
     }
