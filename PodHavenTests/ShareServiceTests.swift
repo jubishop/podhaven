@@ -55,12 +55,16 @@ import Testing
     )
   }
 
-  @Test("that an existing unsubscribed apple podcast URL is shown correctly")
-  func existingUnsubscribedApplePodcastURLShowsSuccessfully() async throws {
+  @Test(
+    "that an existing apple podcast URL is shown correctly",
+    arguments: [false, true]  // podcast.subscribed
+  )
+  func existingApplePodcastURLShowsSuccessfully(subscribed: Bool) async throws {
     let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
     try await repo.insertSeries(
       Create.unsavedPodcast(
-        feedURL: FeedURL(feedURL)
+        feedURL: FeedURL(feedURL),
+        subscribed: subscribed
       )
     )
     #expect(try await repo.allPodcasts().count == 1)
@@ -90,13 +94,15 @@ import Testing
 
     #expect(try await repo.allPodcasts().count == 1)
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
-    #expect(!podcastSeries.podcast.subscribed)
+    #expect(podcastSeries.podcast.subscribed == subscribed)
     #expect(podcastSeries.podcast.title == "Lenny's Podcast: Product | Growth | Career")
     #expect(podcastSeries.episodes.count == 32)
 
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [.viewType(.unsubscribed), .podcast(podcastSeries.podcast)]
+      navigation.podcasts.path == [
+        .viewType(subscribed ? .subscribed : .unsubscribed), .podcast(podcastSeries.podcast),
+      ]
     )
   }
 }
