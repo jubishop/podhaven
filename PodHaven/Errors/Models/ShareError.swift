@@ -7,7 +7,6 @@ import ReadableErrorMacro
 enum ShareError: ReadableError, CatchingError {
   case extractionFailure(URL)
   case fetchFailure(request: URLRequest, caught: Error)
-  case invalidURL(URL)
   case noFeedURLFound
   case noIdentifierFound(URL)
   case parseFailure(Data)
@@ -17,11 +16,9 @@ enum ShareError: ReadableError, CatchingError {
   var message: String {
     switch self {
     case .extractionFailure(let url):
-      return "Failed to extract podcast information from url: \(url)"
+      return "Failed to extract share url from: \(url)"
     case .fetchFailure(let request, _):
       return "Failed to fetch url: \(request)"
-    case .invalidURL(let url):
-      return "This URL: \(url) is invalid"
     case .noFeedURLFound:
       return "Could not find a valid RSS feed for this podcast"
     case .noIdentifierFound(let url):

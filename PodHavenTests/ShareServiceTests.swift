@@ -107,4 +107,133 @@ import Testing
       ]
     )
   }
+
+  @Test("that ShareError.extractionFailure is thrown for URLs without url parameter")
+  func extractionFailureForMissingURLParameter() async throws {
+    let shareURL = URL(string: "podhaven://share?invalid=true")!
+
+    await #expect(throws: ShareError.extractionFailure(shareURL)) {
+      try await self.shareService.handleIncomingURL(shareURL)
+    }
+  }
+
+  @Test("that ShareError.extractionFailure is thrown for URLs with empty url parameter")
+  func extractionFailureForEmptyURLParameter() async throws {
+    let shareURL = URL(string: "podhaven://share?url=")!
+
+    await #expect(throws: ShareError.extractionFailure(shareURL)) {
+      try await self.shareService.handleIncomingURL(shareURL)
+    }
+  }
+
+  @Test("that ShareError.unsupportedURL is thrown for unknown urls")
+  func unsupportedURLForUnknownURLs() async throws {
+    let unsupportedURL = URL(string: "https://example.com/podcast")!
+    let shareURL = ShareHelpers.shareURL(with: unsupportedURL)
+
+    await #expect(throws: ShareError.unsupportedURL(unsupportedURL)) {
+      try await self.shareService.handleIncomingURL(shareURL)
+    }
+  }
+
+  @Test("that ShareError.noIdentifierFound is thrown for Apple Podcasts URLs without ID")
+  func noIdentifierFoundForApplePodcastsURLWithoutID() async throws {
+    let applePodcastsURL = URL(string: "https://podcasts.apple.com/us/podcast/podcast-name")!
+    let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
+
+    await #expect(throws: ShareError.noIdentifierFound(applePodcastsURL)) {
+      try await self.shareService.handleIncomingURL(shareURL)
+    }
+  }
+
+  @Test("that ShareError.fetchFailure is thrown when iTunes lookup request fails")
+  func fetchFailureForITunesLookupRequest() async throws {
+    let itunesID = "1234567890"
+    let applePodcastsURL = ShareHelpers.itunesURL(for: itunesID, withTitle: "Test Podcast")
+    let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
+    let lookupURL = ShareHelpers.itunesLookupURL(for: itunesID)
+
+    await shareSession.respond(to: lookupURL, error: URLError(.networkConnectionLost))
+
+    await #expect(
+      throws: ShareError.fetchFailure(
+        request: URLRequest(url: lookupURL),
+        caught: URLError(.networkConnectionLost)
+      )
+    ) {
+      try await self.shareService.handleIncomingURL(shareURL)
+    }
+  }
+
+  @Test("that ShareError.parseFailure is thrown for invalid iTunes response JSON")
+  func parseFailureForInvalidITunesResponse() async throws {
+    let itunesID = "1234567890"
+    let applePodcastsURL = ShareHelpers.itunesURL(for: itunesID, withTitle: "Test Podcast")
+    let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
+    let lookupURL = ShareHelpers.itunesLookupURL(for: itunesID)
+    let invalidJSON = "invalid json".data(using: .utf8)!
+
+    await shareSession.respond(to: lookupURL, data: invalidJSON)
+
+    await #expect(throws: ShareError.parseFailure(invalidJSON)) {
+      try await self.shareService.handleIncomingURL(shareURL)
+    }
+  }
+
+  @Test("that ShareError.noFeedURLFound is thrown when iTunes response has no feed URL")
+  func noFeedURLFoundForITunesResponseWithoutFeedURL() async throws {
+    let itunesID = "1234567890"
+    let applePodcastsURL = ShareHelpers.itunesURL(for: itunesID, withTitle: "Test Podcast")
+    let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
+    let lookupURL = ShareHelpers.itunesLookupURL(for: itunesID)
+
+    let responseWithoutFeedURL = """
+      {
+        "resultCount": 1,
+        "results": [
+          {
+            "trackId": \(itunesID),
+            "trackName": "Test Podcast"
+          }
+        ]
+      }
+      """
+      .data(using: .utf8)!
+
+    await shareSession.respond(to: lookupURL, data: responseWithoutFeedURL)
+
+    await #expect(throws: ShareError.noFeedURLFound) {
+      try await self.shareService.handleIncomingURL(shareURL)
+    }
+  }
+
+  @Test("that ShareError.caught wraps other errors properly")
+  func caughtErrorWrapsOtherErrors() async throws {
+    let itunesID = "1627920305"
+    let applePodcastsURL = ShareHelpers.itunesURL(for: itunesID, withTitle: "Test Podcast")
+    let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
+    let lookupURL = ShareHelpers.itunesLookupURL(for: itunesID)
+
+    let itunesData = """
+      {
+        "resultCount": 1,
+        "results": [
+          {
+            "trackId": \(itunesID),
+            "feedUrl": "https://api.substack.com/feed/podcast/10845.rss"
+          }
+        ]
+      }
+      """
+      .data(using: .utf8)!
+
+    await shareSession.respond(to: lookupURL, data: itunesData)
+
+    let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
+    await feedSession.respond(to: feedURL, error: URLError(.cannotConnectToHost))
+
+    await #expect(throws: ShareError.caught(URLError(.cannotConnectToHost))) {
+      try await self.shareService.handleIncomingURL(shareURL)
+    }
+  }
 }
