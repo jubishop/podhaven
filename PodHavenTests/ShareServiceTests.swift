@@ -10,6 +10,7 @@ import Testing
 @Suite("of ShareService tests", .container)
 @MainActor class ShareServiceTests {
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
+  @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.shareServiceSession) private var shareServiceSession
   @DynamicInjected(\.shareService) private var shareService
@@ -43,7 +44,9 @@ import Testing
     #expect(podcastSeries.podcast.title == "Lenny's Podcast: Product | Growth | Career")
     #expect(podcastSeries.episodes.count == 32)
 
-    // TODO: Expect navigation tab is Podcasts and Path is to Lennys Podcast.
-    
+    #expect(navigation.currentTab == .podcasts)
+    #expect(
+      navigation.podcasts.path == [.viewType(.unsubscribed), .podcast(podcastSeries.podcast)]
+    )
   }
 }
