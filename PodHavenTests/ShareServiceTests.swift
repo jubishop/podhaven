@@ -20,6 +20,8 @@ import Testing
 
   @Test("that a new apple podcast URL is correctly imported")
   func newApplePodcastURLImportsSuccessfully() async throws {
+    #expect(try await repo.allPodcasts().isEmpty)
+
     let itunesData = try Data(
       contentsOf: Bundle.main.url(forResource: "lenny", withExtension: "json")!
     )
