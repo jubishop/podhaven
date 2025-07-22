@@ -137,16 +137,7 @@ struct ApplePodcasts {
 
   private func performRequest(url: URL, request: URLRequest) async throws(ShareError) -> Data {
     do {
-      return try await DownloadError.catch {
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-          throw DownloadError.notHTTPURLResponse(url)
-        }
-        guard (200...299).contains(httpResponse.statusCode) else {
-          throw DownloadError.notOKResponseCode(code: httpResponse.statusCode, url: url)
-        }
-        return data
-      }
+      return try await session.validatedData(for: request)
     } catch {
       throw ShareError.fetchFailure(request: request, caught: error)
     }

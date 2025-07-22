@@ -40,6 +40,20 @@ actor FakeDataFetchable: DataFetchable {
     try await data(for: URLRequest(url: url))
   }
 
+  func validatedData(from url: URL) async throws(PodHaven.DownloadError) -> Data {
+    try await DownloadError.catch {
+      let (data, _) = try await data(from: url)
+      return data
+    }
+  }
+
+  func validatedData(for request: URLRequest) async throws(PodHaven.DownloadError) -> Data {
+    try await DownloadError.catch {
+      let (data, _) = try await data(for: request)
+      return data
+    }
+  }
+
   func respond(to url: URL, with handler: @escaping DataHandler) {
     fakeHandlers[url] = handler
   }
