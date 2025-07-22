@@ -67,9 +67,10 @@ class ErrorTests {
       )
     )
 
+    #expect(ErrorKit.simpleMessage(for: error) == "Failure")
+
     #expect(
-      ErrorKit.loggableMessage(for: error) == """
-        [FakeError.failure]
+      ErrorKit.message(for: error) == """
         Failure
         FakeError.failure ->
           Failure
@@ -78,6 +79,13 @@ class ErrorTests {
             FakeError.caught ->
               FakeError.simple ->
                 Generic edge case
+        """
+    )
+
+    #expect(
+      ErrorKit.loggableMessage(for: error) == """
+        [FakeError.failure]
+        \(ErrorKit.message(for: error))
         """
     )
   }
@@ -94,9 +102,10 @@ class ErrorTests {
       )
     )
 
+    #expect(ErrorKit.simpleMessage(for: error) == "Failure")
+
     #expect(
-      ErrorKit.loggableMessage(for: error) == """
-        [FakeError.failure]
+      ErrorKit.message(for: error) == """
         Failure
         FakeError.failure ->
           Failure
@@ -107,6 +116,13 @@ class ErrorTests {
                 Leaf
                 Line Two
                   Indented Line
+        """
+    )
+
+    #expect(
+      ErrorKit.loggableMessage(for: error) == """
+        [FakeError.failure]
+        \(ErrorKit.message(for: error))
         """
     )
   }
@@ -129,9 +145,10 @@ class ErrorTests {
       )
     )
 
+    #expect(ErrorKit.simpleMessage(for: error) == "Failure")
+
     #expect(
-      ErrorKit.loggableMessage(for: error) == """
-        [FakeError.failure]
+      ErrorKit.message(for: error) == """
         Failure
         FakeError.failure ->
           Failure
@@ -147,6 +164,13 @@ class ErrorTests {
                     Wrapping:
                     FakeError.simple ->
                       Generic edge case
+        """
+    )
+
+    #expect(
+      ErrorKit.loggableMessage(for: error) == """
+        [FakeError.failure]
+        \(ErrorKit.message(for: error))
         """
     )
   }
@@ -192,15 +216,24 @@ class ErrorTests {
         PlaybackError.mediaNotPlayable(podcastEpisode)
       )
     )
+
+    #expect(ErrorKit.simpleMessage(for: error) == "Failure")
+
     #expect(
-      ErrorKit.loggableMessage(for: error) == """
-        [FakeError.failure]
+      ErrorKit.message(for: error) == """
         Failure
         FakeError.caught ->
           PlaybackError.mediaNotPlayable ->
             MediaURL Not Playable
               PodcastEpisode: \(podcastEpisode.toString)
               MediaURL: https://example.com/data
+        """
+    )
+
+    #expect(
+      ErrorKit.loggableMessage(for: error) == """
+        [FakeError.failure]
+        \(ErrorKit.message(for: error))
         """
     )
   }
@@ -211,12 +244,21 @@ class ErrorTests {
       request: URLRequest(url: URL(string: "https://example.com/search")!),
       caught: FakeError.simple("Failed to fetch")
     )
+
+    #expect(ErrorKit.simpleMessage(for: error) == "Failed to fetch url: https://example.com/search")
+
     #expect(
-      ErrorKit.loggableMessage(for: error) == """
-        [SearchError.fetchFailure]
+      ErrorKit.message(for: error) == """
         Failed to fetch url: https://example.com/search
         FakeError.simple ->
           Failed to fetch
+        """
+    )
+
+    #expect(
+      ErrorKit.loggableMessage(for: error) == """
+        [SearchError.fetchFailure]
+        \(ErrorKit.message(for: error))
         """
     )
   }
@@ -228,7 +270,16 @@ class ErrorTests {
         for: URLRequest(url: URL(string: "https://127.0.0.1")!, timeoutInterval: 0.0001)
       )
     } throws: { error in
+      #expect(
+        ErrorKit.simpleMessage(for: error) == "[NSURLErrorDomain: -1001] The request timed out."
+      )
       #expect(ErrorKit.message(for: error) == "[NSURLErrorDomain: -1001] The request timed out.")
+      #expect(
+        ErrorKit.loggableMessage(for: error) == """
+          [NSURLError.Error]
+          [NSURLErrorDomain: -1001] The request timed out.
+          """
+      )
       guard let urlError = error as? URLError, urlError.code == .timedOut
       else { return false }
       return true
@@ -241,7 +292,14 @@ class ErrorTests {
           for: URLRequest(url: URL(string: "https://artisanalsoftware.com")!)
         )
       } throws: { error in
+        #expect(ErrorKit.simpleMessage(for: error) == "[NSURLErrorDomain: -999] cancelled")
         #expect(ErrorKit.message(for: error) == "[NSURLErrorDomain: -999] cancelled")
+        #expect(
+          ErrorKit.loggableMessage(for: error) == """
+            [NSURLError.Error]
+            [NSURLErrorDomain: -999] cancelled
+            """
+        )
         guard let urlError = error as? URLError, urlError.code == .cancelled
         else { return false }
         return true
@@ -274,6 +332,13 @@ class ErrorTests {
     )
 
     let baseError = ErrorKit.baseError(for: error)
+    #expect(ErrorKit.simpleMessage(for: baseError) == "At bottom")
     #expect(ErrorKit.message(for: baseError) == "At bottom")
+    #expect(
+      ErrorKit.loggableMessage(for: baseError) == """
+        [FakeError.simple]
+        At bottom
+        """
+    )
   }
 }
