@@ -42,7 +42,7 @@ struct PodHavenApp: App {
         await refreshManager.start()
       }
       .onOpenURL { url in
-        Self.log.info("Received URL from share extension: \(url.absoluteString)")
+        Self.log.info("Received incoming URL: \(url)")
         Task { await handleIncomingURL(url) }
       }
     }
@@ -51,11 +51,16 @@ struct PodHavenApp: App {
   // MARK: - URL Handling
 
   private func handleIncomingURL(_ url: URL) async {
-    do {
-      try await shareService.handleIncomingURL(url)
-    } catch {
-      Self.log.error(error)
-      alert(ErrorKit.message(for: error))
+    if ShareService.isShareURL(url) {
+      do {
+        try await shareService.handleIncomingURL(url)
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.message(for: error))
+      }
+    } else {
+      Self.log.warning("Incoming URL: \(url) is not supported")
+      alert("Incoming URL: \(url) is not supported")
     }
   }
 

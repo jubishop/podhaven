@@ -42,6 +42,10 @@ actor ShareService {
 
   // MARK: - URL Handling
 
+  static func isShareURL(_ url: URL) -> Bool {
+    url.host == "share"
+  }
+
   func handleIncomingURL(_ sharedURL: URL) async throws(ShareError) {
     log.debug("handleIncomingURL: Received shared URL: \(sharedURL)")
 
