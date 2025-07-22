@@ -27,7 +27,7 @@ import Testing
     )
     let itunesID: String = "1627920305"
     await shareSession.respond(
-      to: ShareHelpers.itunesLookupURL(for: itunesID),
+      to: ShareHelpers.itunesPodcastLookupURL(for: itunesID),
       data: itunesData
     )
 
@@ -39,7 +39,7 @@ import Testing
 
     try await shareService.handleIncomingURL(
       ShareHelpers.shareURL(
-        with: ShareHelpers.itunesURL(
+        with: ShareHelpers.itunesPodcastURL(
           for: itunesID,
           withTitle: "Lenny's Podcast: Product | Growth | Career"
         )
@@ -76,7 +76,7 @@ import Testing
     )
     let itunesID: String = "1627920305"
     await shareSession.respond(
-      to: ShareHelpers.itunesLookupURL(for: itunesID),
+      to: ShareHelpers.itunesPodcastLookupURL(for: itunesID),
       data: itunesData
     )
 
@@ -87,7 +87,7 @@ import Testing
 
     try await shareService.handleIncomingURL(
       ShareHelpers.shareURL(
-        with: ShareHelpers.itunesURL(
+        with: ShareHelpers.itunesPodcastURL(
           for: itunesID,
           withTitle: "Lenny's Podcast: Product | Growth | Career"
         )
@@ -149,9 +149,9 @@ import Testing
   @Test("that ShareError.fetchFailure is thrown when iTunes lookup request fails")
   func fetchFailureForITunesLookupRequest() async throws {
     let itunesID = "1234567890"
-    let applePodcastsURL = ShareHelpers.itunesURL(for: itunesID, withTitle: "Test Podcast")
+    let applePodcastsURL = ShareHelpers.itunesPodcastURL(for: itunesID, withTitle: "Test Podcast")
     let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
-    let lookupURL = ShareHelpers.itunesLookupURL(for: itunesID)
+    let lookupURL = ShareHelpers.itunesPodcastLookupURL(for: itunesID)
 
     await shareSession.respond(to: lookupURL, error: URLError(.networkConnectionLost))
 
@@ -168,9 +168,9 @@ import Testing
   @Test("that ShareError.parseFailure is thrown for invalid iTunes response JSON")
   func parseFailureForInvalidITunesResponse() async throws {
     let itunesID = "1234567890"
-    let applePodcastsURL = ShareHelpers.itunesURL(for: itunesID, withTitle: "Test Podcast")
+    let applePodcastsURL = ShareHelpers.itunesPodcastURL(for: itunesID, withTitle: "Test Podcast")
     let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
-    let lookupURL = ShareHelpers.itunesLookupURL(for: itunesID)
+    let lookupURL = ShareHelpers.itunesPodcastLookupURL(for: itunesID)
     let invalidJSON = "invalid json".data(using: .utf8)!
 
     await shareSession.respond(to: lookupURL, data: invalidJSON)
@@ -183,9 +183,9 @@ import Testing
   @Test("that ShareError.noFeedURLFound is thrown when iTunes response has no feed URL")
   func noFeedURLFoundForITunesResponseWithoutFeedURL() async throws {
     let itunesID = "1234567890"
-    let applePodcastsURL = ShareHelpers.itunesURL(for: itunesID, withTitle: "Test Podcast")
+    let applePodcastsURL = ShareHelpers.itunesPodcastURL(for: itunesID, withTitle: "Test Podcast")
     let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
-    let lookupURL = ShareHelpers.itunesLookupURL(for: itunesID)
+    let lookupURL = ShareHelpers.itunesPodcastLookupURL(for: itunesID)
 
     let responseWithoutFeedURL = """
       {
@@ -210,9 +210,9 @@ import Testing
   @Test("that ShareError.caught wraps other errors properly")
   func caughtErrorWrapsOtherErrors() async throws {
     let itunesID = "1627920305"
-    let applePodcastsURL = ShareHelpers.itunesURL(for: itunesID, withTitle: "Test Podcast")
+    let applePodcastsURL = ShareHelpers.itunesPodcastURL(for: itunesID, withTitle: "Test Podcast")
     let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
-    let lookupURL = ShareHelpers.itunesLookupURL(for: itunesID)
+    let lookupURL = ShareHelpers.itunesPodcastLookupURL(for: itunesID)
 
     let itunesData = """
       {
@@ -236,5 +236,169 @@ import Testing
     await #expect(throws: ShareError.caught(URLError(.cannotConnectToHost))) {
       try await self.shareService.handleIncomingURL(shareURL)
     }
+  }
+
+  @Test("that a new apple episode URL is correctly imported and navigates to episode")
+  func newAppleEpisodeURLImportsSuccessfully() async throws {
+    #expect(try await repo.allPodcasts().isEmpty)
+
+    let podcastID = "1802645201"
+    let episodeID = "1000716603402"
+    let itunesData = try Data(
+      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "json")!
+    )
+    await shareSession.respond(
+      to: ShareHelpers.itunesEpisodeLookupURL(for: podcastID),
+      data: itunesData
+    )
+
+    let feedData = try Data(
+      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "rss")!
+    )
+    let feedURL = URL(string: "https://feeds.simplecast.com/7_9d7yco")!
+    await feedSession.respond(to: feedURL, data: feedData)
+
+    try await shareService.handleIncomingURL(
+      ShareHelpers.shareURL(
+        with: ShareHelpers.itunesEpisodeURL(
+          for: podcastID,
+          episodeID: episodeID,
+          withTitle: "radiance-fields-the-next-leap-in-visualization"
+        )
+      )
+    )
+
+    let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
+    #expect(!podcastSeries.podcast.subscribed)
+    #expect(
+      podcastSeries.podcast.title == "Reshaping Workflows with Dell Pro Max and NVIDIA RTX PRO GPUs"
+    )
+    #expect(podcastSeries.episodes.count == 9)
+
+    #expect(navigation.currentTab == .podcasts)
+    #expect(
+      navigation.podcasts.path == [
+        .viewType(.unsubscribed),
+        .podcast(podcastSeries.podcast),
+        .episode(
+          PodcastEpisode(
+            podcast: podcastSeries.podcast,
+            episode: podcastSeries.episodes[id: GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")]!
+          )
+        ),
+      ]
+    )
+  }
+
+  @Test(
+    "that an existing apple episode URL navigates to episode correctly",
+    arguments: [false, true]  // podcast.subscribed
+  )
+  func existingAppleEpisodeURLNavigatesSuccessfully(subscribed: Bool) async throws {
+    let feedURL = URL(string: "https://feeds.simplecast.com/7_9d7yco")!
+    let feedData = try Data(
+      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "rss")!
+    )
+
+    try await repo.insertSeries(
+      Create.unsavedPodcast(
+        feedURL: FeedURL(feedURL),
+        subscribed: subscribed
+      ),
+      unsavedEpisodes: [
+        Create.unsavedEpisode(
+          guid: GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c"),
+          media: MediaURL(
+            URL(
+              string:
+                "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/dfc7bc01-7eeb-487a-a932-075a3d15ea93/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=dfc7bc01-7eeb-487a-a932-075a3d15ea93&feed=7_9d7yco"
+            )!
+          ),
+          title: "Radiance Fields: The Next Leap in Visualization"
+        )
+      ]
+    )
+    #expect(try await repo.allPodcasts().count == 1)
+
+    let podcastID = "1802645201"
+    let episodeID = "1000716603402"
+    let itunesData = try Data(
+      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "json")!
+    )
+    await shareSession.respond(
+      to: ShareHelpers.itunesEpisodeLookupURL(for: podcastID),
+      data: itunesData
+    )
+    await feedSession.respond(to: feedURL, data: feedData)
+
+    try await shareService.handleIncomingURL(
+      ShareHelpers.shareURL(
+        with: ShareHelpers.itunesEpisodeURL(
+          for: podcastID,
+          episodeID: episodeID,
+          withTitle: "radiance-fields-the-next-leap-in-visualization"
+        )
+      )
+    )
+
+    #expect(try await repo.allPodcasts().count == 1)
+    let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
+    #expect(podcastSeries.podcast.subscribed == subscribed)
+
+    #expect(navigation.currentTab == .podcasts)
+    #expect(
+      navigation.podcasts.path == [
+        .viewType(subscribed ? .subscribed : .unsubscribed),
+        .podcast(podcastSeries.podcast),
+        .episode(
+          PodcastEpisode(
+            podcast: podcastSeries.podcast,
+            episode: podcastSeries.episodes[id: GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")]!
+          )
+        ),
+      ]
+    )
+  }
+
+  @Test("that episode URL falls back to podcast when episode not found")
+  func episodeURLFallsBackToPodcastWhenEpisodeNotFound() async throws {
+    let feedURL = URL(string: "https://feeds.simplecast.com/7_9d7yco")!
+    try await repo.insertSeries(
+      Create.unsavedPodcast(
+        feedURL: FeedURL(feedURL),
+        subscribed: false
+      )
+    )
+
+    let podcastID = "1802645201"
+    let episodeID = "69420"
+    let itunesData = try Data(
+      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "json")!
+    )
+    await shareSession.respond(
+      to: ShareHelpers.itunesEpisodeLookupURL(for: podcastID),
+      data: itunesData
+    )
+
+    let feedData = try Data(
+      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "rss")!
+    )
+    await feedSession.respond(to: feedURL, data: feedData)
+
+    try await shareService.handleIncomingURL(
+      ShareHelpers.shareURL(
+        with: ShareHelpers.itunesEpisodeURL(
+          for: podcastID,
+          episodeID: episodeID,
+          withTitle: "radiance-fields-the-next-leap-in-visualization"
+        )
+      )
+    )
+
+    let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
+    #expect(navigation.currentTab == .podcasts)
+    #expect(
+      navigation.podcasts.path == [.viewType(.unsubscribed), .podcast(podcastSeries.podcast)]
+    )
   }
 }
