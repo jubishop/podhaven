@@ -135,37 +135,40 @@ actor ShareService {
     log.debug("handlePodcastURL: FeedURL: \(feedURL)")
 
     try await ShareError.catch {
-      if let podcastSeries = try await repo.podcastSeries(feedURL) {
-        log.debug(
-          """
-          handlePodcastURL: Found existing podcast series
-            FeedURL: \(feedURL)
-            PodcastSeries: \(podcastSeries.toString)
-          """
-        )
-        try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
-        let updatedPodcastSeries = try await repo.podcastSeries(feedURL) ?? podcastSeries
-        await navigation.showPodcast(
-          updatedPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
-          updatedPodcastSeries.podcast
-        )
-        return
-      }
-
-      log.debug("handlePodcastURL: Adding new podcast from feed URL: \(feedURL)")
-      let podcastFeed: PodcastFeed = try await feedManager.addURL(feedURL).feedParsed()
-      let newPodcastSeries = try await repo.insertSeries(
-        try podcastFeed.toUnsavedPodcast(lastUpdate: Date()),
-        unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
-      )
+      let podcastSeries = try await findOrCreatePodcastSeries(feedURL: feedURL)
 
       await navigation.showPodcast(
-        newPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
-        newPodcastSeries.podcast
+        podcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+        podcastSeries.podcast
       )
-
-      log.info("Successfully added new podcast: \(newPodcastSeries.toString)")
     }
+  }
+
+  private func findOrCreatePodcastSeries(feedURL: FeedURL) async throws -> PodcastSeries {
+    if let podcastSeries = try await repo.podcastSeries(feedURL) {
+      log.debug(
+        """
+        findOrCreatePodcastSeries: Found existing podcast series
+          FeedURL: \(feedURL)
+          PodcastSeries: \(podcastSeries.toString)
+        """
+      )
+      try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+      let updatedPodcastSeries = try await repo.podcastSeries(feedURL) ?? podcastSeries
+      await navigation.showPodcast(
+        updatedPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+        updatedPodcastSeries.podcast
+      )
+      return updatedPodcastSeries
+    }
+
+    log.debug("findOrCreatePodcastSeries: Adding new podcast from feed URL: \(feedURL)")
+    let podcastFeed: PodcastFeed = try await feedManager.addURL(feedURL).feedParsed()
+    let newPodcastSeries = try await repo.insertSeries(
+      try podcastFeed.toUnsavedPodcast(lastUpdate: Date()),
+      unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
+    )
+    return newPodcastSeries
   }
 
   private func findMatchingEpisode(
