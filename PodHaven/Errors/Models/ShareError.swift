@@ -9,6 +9,7 @@ enum ShareError: ReadableError, CatchingError {
   case fetchFailure(request: URLRequest, caught: Error)
   case noFeedURLFound
   case noIdentifierFound(URL)
+  case noEpisodeFound
   case parseFailure(Data)
   case unsupportedURL(URL)
   case caught(Error)
@@ -23,6 +24,8 @@ enum ShareError: ReadableError, CatchingError {
       return "Could not find a valid RSS feed for this podcast"
     case .noIdentifierFound(let url):
       return "Could not extract podcast information from URL: \(url)"
+    case .noEpisodeFound:
+      return "Could not find episode information"
     case .parseFailure:
       return "Failed to parse response"
     case .unsupportedURL(let url):

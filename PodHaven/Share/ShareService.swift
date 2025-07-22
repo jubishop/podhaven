@@ -2,7 +2,6 @@
 
 import FactoryKit
 import Foundation
-import Logging
 
 extension Container {
   var shareServiceSession: Factory<DataFetchable> {
@@ -50,15 +49,96 @@ actor ShareService {
     log.debug("handleIncomingURL: Received shared URL: \(sharedURL)")
 
     let extractedURL = try extractURLParameter(from: sharedURL)
-    let feedURL = try await extractFeedURL(from: extractedURL)
 
-    log.debug("handleIncomingURL: Extracted feed URL: \(feedURL)")
+    if let (feedURL, (mediaURL, guid)) = try await extractEpisodeInfo(from: extractedURL) {
+      try await handleEpisodeURL(feedURL: feedURL, mediaURL: mediaURL, guid: guid)
+    } else if let feedURL = try await extractFeedURL(from: extractedURL) {
+      try await handlePodcastURL(feedURL)
+    } else {
+      throw ShareError.unsupportedURL(extractedURL)
+    }
+  }
+
+  private func handleEpisodeURL(feedURL: FeedURL, mediaURL: MediaURL?, guid: GUID?)
+    async throws(ShareError)
+  {
+    log.debug(
+      """
+      handleEpisodeURL:
+          FeedURL: \(feedURL) 
+          MediaURL: \(String(describing: mediaURL))
+          GUID: \(String(describing: guid))
+      """
+    )
+
+    try await ShareError.catch {
+      if let podcastSeries = try await repo.podcastSeries(feedURL) {
+        try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+        let updatedPodcastSeries = try await repo.podcastSeries(feedURL) ?? podcastSeries
+
+        let matchingEpisode = try await findMatchingEpisode(
+          mediaURL: mediaURL,
+          guid: guid,
+          in: updatedPodcastSeries
+        )
+
+        if let matchingEpisode = matchingEpisode {
+          log.debug("handleEpisodeURL: Found matching episode: \(matchingEpisode.toString)")
+          await navigation.showEpisode(
+            updatedPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+            matchingEpisode
+          )
+        } else {
+          log.debug("handleEpisodeURL: Episode not found, showing podcast instead")
+          await navigation.showPodcast(
+            updatedPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+            updatedPodcastSeries.podcast
+          )
+        }
+        return
+      }
+
+      log.debug("handleEpisodeURL: Adding new podcast from episode URL")
+      let podcastFeed: PodcastFeed = try await feedManager.addURL(feedURL).feedParsed()
+      let newPodcastSeries = try await repo.insertSeries(
+        try podcastFeed.toUnsavedPodcast(lastUpdate: Date()),
+        unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
+      )
+
+      let matchingEpisode = try await findMatchingEpisode(
+        mediaURL: mediaURL,
+        guid: guid,
+        in: newPodcastSeries
+      )
+
+      if let matchingEpisode = matchingEpisode {
+        log.debug(
+          "handleEpisodeURL: Found matching episode in new podcast: \(matchingEpisode.toString)"
+        )
+        await navigation.showEpisode(
+          newPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+          matchingEpisode
+        )
+      } else {
+        log.debug("handleEpisodeURL: Episode not found in new podcast, showing podcast instead")
+        await navigation.showPodcast(
+          newPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+          newPodcastSeries.podcast
+        )
+      }
+
+      log.info("Successfully processed episode URL for podcast: \(newPodcastSeries.toString)")
+    }
+  }
+
+  private func handlePodcastURL(_ feedURL: FeedURL) async throws(ShareError) {
+    log.debug("handlePodcastURL: FeedURL: \(feedURL)")
 
     try await ShareError.catch {
       if let podcastSeries = try await repo.podcastSeries(feedURL) {
         log.debug(
           """
-          handleIncomingURL: Found existing podcast series
+          handlePodcastURL: Found existing podcast series
             FeedURL: \(feedURL)
             PodcastSeries: \(podcastSeries.toString)
           """
@@ -72,7 +152,7 @@ actor ShareService {
         return
       }
 
-      log.debug("handleIncomingURL: Adding new podcast from feed URL: \(feedURL)")
+      log.debug("handlePodcastURL: Adding new podcast from feed URL: \(feedURL)")
       let podcastFeed: PodcastFeed = try await feedManager.addURL(feedURL).feedParsed()
       let newPodcastSeries = try await repo.insertSeries(
         try podcastFeed.toUnsavedPodcast(lastUpdate: Date()),
@@ -88,6 +168,33 @@ actor ShareService {
     }
   }
 
+  private func findMatchingEpisode(
+    mediaURL: MediaURL?,
+    guid: GUID?,
+    in podcastSeries: PodcastSeries
+  ) async throws -> PodcastEpisode? {
+    //    // First try to match by mediaURL if available
+    //    if let mediaURL = mediaURL {
+    //      log.debug("findMatchingEpisode: Trying mediaURL match: \(mediaURL)")
+    //      for episode in podcastSeries.episodes where episode.media == mediaURL {
+    //        log.debug("findMatchingEpisode: Found direct mediaURL match")
+    //        return episode
+    //      }
+    //    }
+    //
+    //    // Second: try GUID matching if available
+    //    if let guid = guid {
+    //      log.debug("findMatchingEpisode: Trying GUID match: \(guid)")
+    //      for episode in podcastSeries.episodes where episode.guid == guid {
+    //        log.debug("findMatchingEpisode: Found GUID match")
+    //        return episode
+    //      }
+    //    }
+
+    log.debug("findMatchingEpisode: No matching episode found")
+    return nil
+  }
+
   private func extractURLParameter(from url: URL) throws(ShareError) -> URL {
     guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
       let queryItems = components.queryItems,
@@ -98,11 +205,21 @@ actor ShareService {
     return extractedURL
   }
 
-  private func extractFeedURL(from url: URL) async throws(ShareError) -> FeedURL {
-    if ApplePodcasts.isApplePodcastsURL(url) {
+  private func extractEpisodeInfo(from url: URL) async throws(ShareError)
+    -> (FeedURL, (MediaURL?, GUID?))?
+  {
+    if ApplePodcasts.isEpisodeURL(url) {
+      return try await ApplePodcasts(session: session, url: url).extractEpisodeInfo()
+    }
+
+    return nil
+  }
+
+  private func extractFeedURL(from url: URL) async throws(ShareError) -> FeedURL? {
+    if ApplePodcasts.isPodcastURL(url) {
       return try await ApplePodcasts(session: session, url: url).extractFeedURL()
     }
 
-    throw ShareError.unsupportedURL(url)
+    return nil
   }
 }

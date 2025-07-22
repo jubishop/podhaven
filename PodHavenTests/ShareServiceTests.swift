@@ -193,7 +193,7 @@ import Testing
         "results": [
           {
             "trackId": \(itunesID),
-            "trackName": "Test Podcast"
+            "kind": "podcast"
           }
         ]
       }
@@ -220,6 +220,7 @@ import Testing
         "results": [
           {
             "trackId": \(itunesID),
+            "kind": "podcast",
             "feedUrl": "https://api.substack.com/feed/podcast/10845.rss"
           }
         ]
