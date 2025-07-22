@@ -72,62 +72,25 @@ actor ShareService {
     )
 
     try await ShareError.catch {
-      if let podcastSeries = try await repo.podcastSeries(feedURL) {
-        try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
-        let updatedPodcastSeries = try await repo.podcastSeries(feedURL) ?? podcastSeries
+      let podcastSeries = try await findOrCreatePodcastSeries(feedURL: feedURL)
 
-        let matchingEpisode = try await findMatchingEpisode(
-          mediaURL: mediaURL,
-          guid: guid,
-          in: updatedPodcastSeries
-        )
-
-        if let matchingEpisode = matchingEpisode {
-          log.debug("handleEpisodeURL: Found matching episode: \(matchingEpisode.toString)")
-          await navigation.showEpisode(
-            updatedPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
-            matchingEpisode
-          )
-        } else {
-          log.debug("handleEpisodeURL: Episode not found, showing podcast instead")
-          await navigation.showPodcast(
-            updatedPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
-            updatedPodcastSeries.podcast
-          )
-        }
-        return
-      }
-
-      log.debug("handleEpisodeURL: Adding new podcast from episode URL")
-      let podcastFeed: PodcastFeed = try await feedManager.addURL(feedURL).feedParsed()
-      let newPodcastSeries = try await repo.insertSeries(
-        try podcastFeed.toUnsavedPodcast(lastUpdate: Date()),
-        unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
-      )
-
-      let matchingEpisode = try await findMatchingEpisode(
+      if let matchingEpisode = try await findMatchingEpisode(
         mediaURL: mediaURL,
         guid: guid,
-        in: newPodcastSeries
-      )
-
-      if let matchingEpisode = matchingEpisode {
-        log.debug(
-          "handleEpisodeURL: Found matching episode in new podcast: \(matchingEpisode.toString)"
-        )
+        in: podcastSeries
+      ) {
+        log.debug("handleEpisodeURL: Found matching episode: \(matchingEpisode.toString)")
         await navigation.showEpisode(
-          newPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
-          matchingEpisode
+          podcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+          PodcastEpisode(podcast: podcastSeries.podcast, episode: matchingEpisode)
         )
       } else {
-        log.debug("handleEpisodeURL: Episode not found in new podcast, showing podcast instead")
+        log.debug("handleEpisodeURL: Episode not found, showing podcast instead")
         await navigation.showPodcast(
-          newPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
-          newPodcastSeries.podcast
+          podcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+          podcastSeries.podcast
         )
       }
-
-      log.info("Successfully processed episode URL for podcast: \(newPodcastSeries.toString)")
     }
   }
 
@@ -175,24 +138,29 @@ actor ShareService {
     mediaURL: MediaURL?,
     guid: GUID?,
     in podcastSeries: PodcastSeries
-  ) async throws -> PodcastEpisode? {
-    //    // First try to match by mediaURL if available
-    //    if let mediaURL = mediaURL {
-    //      log.debug("findMatchingEpisode: Trying mediaURL match: \(mediaURL)")
-    //      for episode in podcastSeries.episodes where episode.media == mediaURL {
-    //        log.debug("findMatchingEpisode: Found direct mediaURL match")
-    //        return episode
-    //      }
-    //    }
-    //
-    //    // Second: try GUID matching if available
-    //    if let guid = guid {
-    //      log.debug("findMatchingEpisode: Trying GUID match: \(guid)")
-    //      for episode in podcastSeries.episodes where episode.guid == guid {
-    //        log.debug("findMatchingEpisode: Found GUID match")
-    //        return episode
-    //      }
-    //    }
+  ) async throws -> Episode? {
+    log.debug(
+      """
+      findMatchingEpisode:
+        MediaURL: \(String(describing: mediaURL))
+        GUID: \(String(describing: guid))
+        PodcastSeries: \(podcastSeries.toString)
+      """
+    )
+
+    if let mediaURL {
+      for episode in podcastSeries.episodes where episode.media == mediaURL {
+        log.debug("findMatchingEpisode: Found MediaURL match")
+        return episode
+      }
+    }
+
+    if let guid {
+      for episode in podcastSeries.episodes where episode.guid == guid {
+        log.debug("findMatchingEpisode: Found GUID match")
+        return episode
+      }
+    }
 
     log.debug("findMatchingEpisode: No matching episode found")
     return nil
