@@ -63,6 +63,13 @@ struct PodcastRSSTests {
     #expect(podcast.title == "The Talk Show With John Gruber")
   }
 
+  @Test("parsing the Post Reports feed")
+  func parsePostReports() async throws {
+    let url = Bundle.main.url(forResource: "post_reports", withExtension: "rss")!
+    let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
+    #expect(podcast.title == "Post Reports")
+  }
+
   @Test("parsing the invalid Game Informer feed")
   func parseInvalidGameInformerFeed() async {
     let url = Bundle.main.url(forResource: "game_informer_invalid", withExtension: "rss")!
