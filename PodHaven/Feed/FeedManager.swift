@@ -74,11 +74,7 @@ actor FeedManager {
 
     Task { [weak self] in
       guard let self else { return }
-      do {
-        _ = try await feedTask.feedParsed()
-      } catch {
-        Self.log.error(error)
-      }
+      _ = try? await feedTask.feedParsed()
       await removeFeedTask(feedURL: url)
     }
 

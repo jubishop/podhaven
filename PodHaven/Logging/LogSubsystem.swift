@@ -46,6 +46,10 @@ enum LogSubsystem {
     case opml
   }
 
+  enum ShareService: String, LogCategorizable {
+    case main
+  }
+
   enum UpNextView: String, LogCategorizable {
     case main
     case list

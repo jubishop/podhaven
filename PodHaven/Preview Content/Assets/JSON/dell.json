@@ -1,0 +1,432 @@
+
+    {
+      "resultCount": 10,
+      "results": [
+        {
+          "wrapperType": "track",
+          "kind": "podcast",
+          "collectionId": 1802645201,
+          "trackId": 1802645201,
+          "artistName": "Dell Technologies AI Factory with NVIDIA",
+          "collectionName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX PRO GPUs",
+          "trackName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX PRO GPUs",
+          "collectionCensoredName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX PRO GPUs",
+          "trackCensoredName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX PRO GPUs",
+          "collectionViewUrl":
+              "https://podcasts.apple.com/us/podcast/reshaping-workflows-with-dell-pro-max-and-nvidia-rtx/id1802645201?uo=4",
+          "feedUrl": "https://feeds.simplecast.com/7_9d7yco",
+          "trackViewUrl":
+              "https://podcasts.apple.com/us/podcast/reshaping-workflows-with-dell-pro-max-and-nvidia-rtx/id1802645201?uo=4",
+          "artworkUrl30":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/16/7e/d6167e53-9644-a552-f967-beb4f6d21e25/mza_7778777634123570892.jpg/30x30bb.jpg",
+          "artworkUrl60":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/16/7e/d6167e53-9644-a552-f967-beb4f6d21e25/mza_7778777634123570892.jpg/60x60bb.jpg",
+          "artworkUrl100":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/16/7e/d6167e53-9644-a552-f967-beb4f6d21e25/mza_7778777634123570892.jpg/100x100bb.jpg",
+          "collectionPrice": 0.00,
+          "trackPrice": 0.00,
+          "collectionHdPrice": 0,
+          "releaseDate": "2025-06-19T04:00:00Z",
+          "collectionExplicitness": "notExplicit",
+          "trackExplicitness": "cleaned",
+          "trackCount": 9,
+          "trackTimeMillis": 2084,
+          "country": "USA",
+          "currency": "USD",
+          "primaryGenreName": "Technology",
+          "contentAdvisoryRating": "Clean",
+          "artworkUrl600":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/16/7e/d6167e53-9644-a552-f967-beb4f6d21e25/mza_7778777634123570892.jpg/600x600bb.jpg",
+          "genreIds": [
+            "1318",
+            "26",
+            "1489",
+            "1528"
+          ],
+          "genres": [
+            "Technology",
+            "Podcasts",
+            "News",
+            "Tech News"
+          ]
+        },
+        {
+          "artworkUrl160":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/16/7e/d6167e53-9644-a552-f967-beb4f6d21e25/mza_7778777634123570892.jpg/160x160bb.jpg",
+          "episodeFileExtension": "mp3",
+          "episodeContentType": "audio",
+          "artistIds": [],
+          "episodeUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/dfc7bc01-7eeb-487a-a932-075a3d15ea93/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=dfc7bc01-7eeb-487a-a932-075a3d15ea93&feed=7_9d7yco",
+          "genres": [
+            {
+              "name": "Technology",
+              "id": "1318"
+            }
+          ],
+          "episodeGuid": "59a95f51-c6bf-4a80-b6d0-3f25c3440c1c",
+          "closedCaptioning": "none",
+          "shortDescription":
+              "What if you could capture an entire world with just a few hundred photos—and step inside it?\nIn this episode of Reshaping Workflows, host Logan Lawler talks with Michael Rubloff, founder of RadianceFields.com, about how radiance fields, Gaussian splat",
+          "collectionId": 1802645201,
+          "collectionName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX PRO GPUs",
+          "trackId": 1000716603402,
+          "trackName": "Radiance Fields: The Next Leap in Visualization",
+          "releaseDate": "2025-07-10T04:00:00Z",
+          "feedUrl": "https://feeds.simplecast.com/7_9d7yco",
+          "kind": "podcast-episode",
+          "wrapperType": "podcastEpisode",
+          "description":
+              "What if you could capture an entire world with just a few hundred photos—and step inside it?\nIn this episode of Reshaping Workflows, host Logan Lawler talks with Michael Rubloff, founder of RadianceFields.com, about how radiance fields, Gaussian splatting, and AI technologies are transforming the way we capture, simulate, and interact with the physical world.\nMichael breaks down what radiance fields are, how they evolved from NeRFs (Neural Radiance Fields), and why Gaussian splatting is accelerating real-time 3D reconstructions. They also dive into real-world use cases—from construction site documentation to autonomous vehicle simulation—and how accessible tools, consumer devices, and Dell Pro Max hardware are making high-fidelity 3D capture possible for anyone.\nWhether you’re in architecture, e-commerce, industrial design, or creative media, this conversation will reshape how you think about the future of imaging, simulation, and 3D workflows.\nTune in and discover how the next frontier of visualization is already here.\nYou can also watch this and all previous episodes here.\nFollow Us\nLinkedIn @DellTechnologiesTwitter @DellTechYouTube @DellTechnologiesLinkedIn @NVIDIATwitter @NVIDIAInstagram @NVIDIAFacebook @NVIDIAPresented by Dell and NVIDIA\nhttps://www.dell.com/precisionai\nhttps://www.dell.com/dellpromax\nhttps://www.dell.com/nvidia-ai",
+          "country": "USA",
+          "artworkUrl600":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/16/7e/d6167e53-9644-a552-f967-beb4f6d21e25/mza_7778777634123570892.jpg/600x600bb.jpg",
+          "collectionViewUrl":
+              "https://itunes.apple.com/us/podcast/reshaping-workflows-with-dell-pro-max-and-nvidia-rtx/id1802645201?mt=2&uo=4",
+          "trackViewUrl":
+              "https://podcasts.apple.com/us/podcast/radiance-fields-the-next-leap-in-visualization/id1802645201?i=1000716603402&uo=4",
+          "artworkUrl60":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/16/7e/d6167e53-9644-a552-f967-beb4f6d21e25/mza_7778777634123570892.jpg/60x60bb.jpg",
+          "trackTimeMillis": 2306000,
+          "contentAdvisoryRating": "Clean",
+          "previewUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/dfc7bc01-7eeb-487a-a932-075a3d15ea93/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=dfc7bc01-7eeb-487a-a932-075a3d15ea93&feed=7_9d7yco"
+        },
+        {
+          "artworkUrl160":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/16/7e/d6167e53-9644-a552-f967-beb4f6d21e25/mza_7778777634123570892.jpg/160x160bb.jpg",
+          "episodeFileExtension": "mp3",
+          "episodeContentType": "audio",
+          "artistIds": [],
+          "episodeUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/730bf6db-60d2-4be1-bb5d-72a286ea7b97/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=730bf6db-60d2-4be1-bb5d-72a286ea7b97&feed=7_9d7yco",
+          "genres": [
+            {
+              "name": "Technology",
+              "id": "1318"
+            }
+          ],
+          "episodeGuid": "de56f273-ea46-48aa-a8e5-c842ab980f54",
+          "closedCaptioning": "none",
+          "shortDescription":
+              "What happens when a filmmaker picks up a Dell Precision workstation and dives into AI? A whole new way of storytelling.\nIn this episode of Reshaping Workflows, host Logan Lawler sits down with Ben Saltzman, filmmaker and creator of the AI-driven video g",
+          "collectionId": 1802645201,
+          "collectionName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX PRO GPUs",
+          "trackId": 1000713519414,
+          "trackName": "How AI + Dell Power Creativity and Efficiency",
+          "releaseDate": "2025-06-19T04:00:00Z",
+          "feedUrl": "https://feeds.simplecast.com/7_9d7yco",
+          "kind": "podcast-episode",
+          "wrapperType": "podcastEpisode",
+          "description":
+              "What happens when a filmmaker picks up a Dell Precision workstation and dives into AI? A whole new way of storytelling.\nIn this episode of Reshaping Workflows, host Logan Lawler sits down with Ben Saltzman, filmmaker and creator of the AI-driven video game Glimmer. They explore how Ben transitioned from a career in media and entertainment to building narrative-driven, generative games without a technical background.\nBen shares how he taught himself Python, leveraged AI tools like Claude, Midjourney, and Klein, and moved from costly cloud workflows to developing locally on a Dell Precision 7875 workstation with multiple LLMs running in parallel. He also discusses how AI accelerates creativity, reduces busywork, and enables indie creators to build complex, character-rich experiences that used to require massive teams and budgets.\nFrom launching passion projects like Quill Quest to building reactive NPCs in Glimmer, Ben proves that storytelling is being redefined by accessible hardware and intelligent tools.\nTune in to hear how powerful AI and Dell Precision are reshaping what’s possible for creators—one idea, sprint, and simulation at a time.\nYou can also watch this and all previous episodes here.\nFollow Us\nLinkedIn @DellTechnologiesTwitter @DellTechYouTube @DellTechnologiesLinkedIn @NVIDIATwitter @NVIDIAInstagram @NVIDIAFacebook @NVIDIAPresented by Dell and NVIDIA\nhttps://www.dell.com/precisionai\nhttps://www.dell.com/dellpromax\nhttps://www.dell.com/nvidia-ai",
+          "country": "USA",
+          "artworkUrl600":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/16/7e/d6167e53-9644-a552-f967-beb4f6d21e25/mza_7778777634123570892.jpg/600x600bb.jpg",
+          "collectionViewUrl":
+              "https://itunes.apple.com/us/podcast/reshaping-workflows-with-dell-pro-max-and-nvidia-rtx/id1802645201?mt=2&uo=4",
+          "trackViewUrl":
+              "https://podcasts.apple.com/us/podcast/how-ai-dell-power-creativity-and-efficiency/id1802645201?i=1000713519414&uo=4",
+          "artworkUrl60":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/16/7e/d6167e53-9644-a552-f967-beb4f6d21e25/mza_7778777634123570892.jpg/60x60bb.jpg",
+          "trackTimeMillis": 2084000,
+          "contentAdvisoryRating": "Clean",
+          "previewUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/730bf6db-60d2-4be1-bb5d-72a286ea7b97/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=730bf6db-60d2-4be1-bb5d-72a286ea7b97&feed=7_9d7yco"
+        },
+        {
+          "artworkUrl160":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/160x160bb.jpg",
+          "episodeFileExtension": "mp3",
+          "episodeContentType": "audio",
+          "artistIds": [],
+          "episodeUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/ab8a2d0b-67bc-41fe-9e22-716d0c7c6b60/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=ab8a2d0b-67bc-41fe-9e22-716d0c7c6b60&feed=7_9d7yco",
+          "genres": [
+            {
+              "name": "Technology",
+              "id": "1318"
+            }
+          ],
+          "episodeGuid": "3fb7557d-5161-42d1-a569-ad717a3448ef",
+          "closedCaptioning": "none",
+          "shortDescription":
+              "Legendary filmmaker Alex Proyas joins this episode of Reshaping Workflows with Dell Pro Max and Nvidia RTX GPUs to reflect on his groundbreaking career and share how AI is reshaping the future of cinema. From iconic films like iRobot and Dark City to hi",
+          "collectionId": 1802645201,
+          "collectionName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX GPUs",
+          "trackId": 1000710379718,
+          "trackName": "Filmmaking and Virtual Production: The AI Advantage",
+          "releaseDate": "2025-05-29T04:00:00Z",
+          "feedUrl": "https://feeds.simplecast.com/7_9d7yco",
+          "kind": "podcast-episode",
+          "wrapperType": "podcastEpisode",
+          "description":
+              "Legendary filmmaker Alex Proyas joins this episode of Reshaping Workflows with Dell Pro Max and Nvidia RTX GPUs to reflect on his groundbreaking career and share how AI is reshaping the future of cinema. From iconic films like iRobot and Dark City to his upcoming sci-fi project Rossum’s Universal Robots, Alex offers a behind-the-scenes look at the evolution of visual storytelling.\nCindy and Alex join host Logan Lawler for a wide-ranging conversation on the role of AI in filmmaking, the power of RTX Blackwell GPUs, and how tools like the Dell Precision 7875 with dual Nvidia 6000 ADA cards are transforming everything from pre-visualization to virtual production.\nThe episode explores how AI is democratizing creative tools, driving innovation, and raising new questions about ethics and originality. Alex also shares why embracing new tech is key to pushing artistic boundaries.\nWhether you're a filmmaker, tech enthusiast, or simply curious about where cinema is headed, this episode tackles the intersection of storytelling and technology—and what it means for the next generation of creators. Tune in for a thought-provoking look at the future of film.\nYou can also watch this and all previous episodes here.\nFollow Us\nLinkedIn @DellTechnologiesTwitter @DellTechYouTube @DellTechnologiesLinkedIn @NVIDIATwitter @NVIDIAInstagram @NVIDIAFacebook @NVIDIAPresented by Dell and NVIDIA\nhttps://www.dell.com/precisionai\nhttps://www.dell.com/dellpromax\nhttps://www.dell.com/nvidia-ai",
+          "country": "USA",
+          "artworkUrl600":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/600x600bb.jpg",
+          "collectionViewUrl":
+              "https://itunes.apple.com/us/podcast/reshaping-workflows-with-dell-pro-max-and-nvidia-rtx-gpus/id1802645201?mt=2&uo=4",
+          "trackViewUrl":
+              "https://podcasts.apple.com/us/podcast/filmmaking-and-virtual-production-the-ai-advantage/id1802645201?i=1000710379718&uo=4",
+          "artworkUrl60":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/60x60bb.jpg",
+          "trackTimeMillis": 2073000,
+          "contentAdvisoryRating": "Clean",
+          "previewUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/ab8a2d0b-67bc-41fe-9e22-716d0c7c6b60/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=ab8a2d0b-67bc-41fe-9e22-716d0c7c6b60&feed=7_9d7yco"
+        },
+        {
+          "artworkUrl160":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/160x160bb.jpg",
+          "episodeFileExtension": "mp3",
+          "episodeContentType": "audio",
+          "artistIds": [],
+          "episodeUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/c202ce74-bd8a-4add-aeab-1daa53a9550d/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=c202ce74-bd8a-4add-aeab-1daa53a9550d&feed=7_9d7yco",
+          "genres": [
+            {
+              "name": "Technology",
+              "id": "1318"
+            }
+          ],
+          "episodeGuid": "c909a9bb-5ef5-45f2-99bf-2e122389c535",
+          "closedCaptioning": "none",
+          "shortDescription":
+              "What happens when you open up mental health data to the global data science community? In this episode, host Logan Lawler talks with Gregory Kiar and Arianna Zuanazzi from the Child Mind Institute about a recent Kaggle competition that explored how phys",
+          "collectionId": 1802645201,
+          "collectionName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX GPUs",
+          "trackId": 1000706755349,
+          "trackName": "How Data Science Competitions Are Shaping Mental Health Research",
+          "releaseDate": "2025-05-08T04:00:00Z",
+          "feedUrl": "https://feeds.simplecast.com/7_9d7yco",
+          "kind": "podcast-episode",
+          "wrapperType": "podcastEpisode",
+          "description":
+              "What happens when you open up mental health data to the global data science community? In this episode, host Logan Lawler talks with Gregory Kiar and Arianna Zuanazzi from the Child Mind Institute about a recent Kaggle competition that explored how physical health metrics—like sleep and activity—can predict problematic internet use in kids and teens.\nGreg, a research scientist and director of the Center for Data Analytics, Innovation, and Rigor, shares how they handle messy, real-world data to generate insights that matter. Arianna, who leads open science and data collaboration efforts, explains why involving people outside of academia leads to better questions and better science. They break down the competition structure, the surprising role of sleep data, and why overfitting results can lead to real-world consequences. They also talk about the challenges of working with human-generated data, and how competitions like this inform future research and care.\nYou can also watch this and all previous episodes here.\nFollow Us\nLinkedIn @DellTechnologiesTwitter @DellTechYouTube @DellTechnologiesLinkedIn @NVIDIATwitter @NVIDIAInstagram @NVIDIAFacebook @NVIDIAPresented by Dell and NVIDIA\nhttps://www.dell.com/precisionai\nhttps://www.dell.com/dellpromax\nhttps://www.dell.com/nvidia-ai",
+          "country": "USA",
+          "artworkUrl600":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/600x600bb.jpg",
+          "collectionViewUrl":
+              "https://itunes.apple.com/us/podcast/reshaping-workflows-with-dell-pro-max-and-nvidia-rtx-gpus/id1802645201?mt=2&uo=4",
+          "trackViewUrl":
+              "https://podcasts.apple.com/us/podcast/how-data-science-competitions-are-shaping-mental-health/id1802645201?i=1000706755349&uo=4",
+          "artworkUrl60":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/60x60bb.jpg",
+          "trackTimeMillis": 2110000,
+          "contentAdvisoryRating": "Clean",
+          "previewUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/c202ce74-bd8a-4add-aeab-1daa53a9550d/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=c202ce74-bd8a-4add-aeab-1daa53a9550d&feed=7_9d7yco"
+        },
+        {
+          "artworkUrl160":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/160x160bb.jpg",
+          "episodeFileExtension": "mp3",
+          "episodeContentType": "audio",
+          "artistIds": [],
+          "episodeUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/ff556a1e-eac7-4fcb-9904-404e846d65f8/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=ff556a1e-eac7-4fcb-9904-404e846d65f8&feed=7_9d7yco",
+          "genres": [
+            {
+              "name": "Technology",
+              "id": "1318"
+            }
+          ],
+          "episodeGuid": "5fc703a5-bca7-44a6-b277-d1a286abab3c",
+          "closedCaptioning": "none",
+          "shortDescription":
+              "NVIDIA’s Sama Bali joins to explain how NIM microservices help developers build AI apps quickly, with less effort and no machine learning background.",
+          "collectionId": 1802645201,
+          "collectionName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX GPUs",
+          "trackId": 1000703816831,
+          "trackName": "How NIM Microservices Make AI Easier for Everyone",
+          "releaseDate": "2025-04-17T04:00:00Z",
+          "feedUrl": "https://feeds.simplecast.com/7_9d7yco",
+          "kind": "podcast-episode",
+          "wrapperType": "podcastEpisode",
+          "description":
+              "Getting started with AI doesn’t have to be overwhelming. In this episode, host Logan Lawler is joined by Sama Bali, Head of AI Solutions Product Marketing at NVIDIA, for a deep dive into how NVIDIA’s NIM microservices are helping developers—from enterprise teams to solo coders—bring AI into their applications with less friction.\nThey explore what NIMs are, how they work, and why they’re especially useful for teams without dedicated AI engineers. Sama explains how developers can test and deploy NIMs using Dell Pro Max systems, how tools like AI Workbench and AI Blueprints support faster prototyping, and what types of real-world projects are already being powered by NIMs—from retail to healthcare to weather forecasting.\nWhether you're an IT decision maker, software engineer, or just starting to explore AI tools, this episode offers a practical overview of how to build smarter with less overhead.\nFollow Us\nLinkedIn @DellTechnologiesTwitter @DellTechYouTube @DellTechnologiesLinkedIn @NVIDIATwitter @NVIDIAInstagram @NVIDIAFacebook @NVIDIAPresented by Dell and NVIDIA\nwww.Dell.com\nwww.NVIDIA.com",
+          "country": "USA",
+          "artworkUrl600":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/600x600bb.jpg",
+          "collectionViewUrl":
+              "https://itunes.apple.com/us/podcast/reshaping-workflows-with-dell-pro-max-and-nvidia-rtx-gpus/id1802645201?mt=2&uo=4",
+          "trackViewUrl":
+              "https://podcasts.apple.com/us/podcast/how-nim-microservices-make-ai-easier-for-everyone/id1802645201?i=1000703816831&uo=4",
+          "artworkUrl60":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/60x60bb.jpg",
+          "trackTimeMillis": 2107000,
+          "contentAdvisoryRating": "Clean",
+          "previewUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/ff556a1e-eac7-4fcb-9904-404e846d65f8/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=ff556a1e-eac7-4fcb-9904-404e846d65f8&feed=7_9d7yco"
+        },
+        {
+          "artworkUrl160":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/160x160bb.jpg",
+          "episodeFileExtension": "mp3",
+          "episodeContentType": "audio",
+          "artistIds": [],
+          "episodeUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/a9abd197-5be2-4f08-b5a7-a6543f9a1f89/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=a9abd197-5be2-4f08-b5a7-a6543f9a1f89&feed=7_9d7yco",
+          "genres": [
+            {
+              "name": "Technology",
+              "id": "1318"
+            }
+          ],
+          "episodeGuid": "400b357b-4b59-4f8b-b3df-3f20dc9702b5",
+          "closedCaptioning": "none",
+          "shortDescription":
+              "Joe Resendiz & Bernardo Juri break down Dell Pro Max’s new design, NVIDIA Blackwell GPUs, and how Dell’s latest workstations redefine performance.",
+          "collectionId": 1802645201,
+          "collectionName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX GPUs",
+          "trackId": 1000701006758,
+          "trackName": "Breaking Down Dell Pro Max: Performance, Design, and Innovation",
+          "releaseDate": "2025-03-27T04:00:00Z",
+          "feedUrl": "https://feeds.simplecast.com/7_9d7yco",
+          "kind": "podcast-episode",
+          "wrapperType": "podcastEpisode",
+          "description":
+              "Dell’s workstation lineup is evolving, and today we’re unpacking everything you need to know about Dell Pro Max. Host Logan Lawler sits down with Joe Resendiz and Bernardo Juri from Dell’s product management team to explore the cutting-edge features of the new Dell Pro Max 14, 16, and 18.\nFrom performance upgrades and thermal innovations to new premium designs and an improved docking experience, we break down the key differences between Dell Pro Max Premium and Plus models. Joe and Bernardo also discuss why Dell moved away from the Precision branding, how these new workstations cater to professionals in AI, engineering, and content creation, and what sets them apart from previous generations. Tune in for insights on the latest innovations.\nFollow Us\nLinkedIn @DellTechnologiesTwitter @DellTechYouTube @DellTechnologiesPresented by Dell and NVIDIA\nwww.Dell.com\nwww.NVIDIA.com",
+          "country": "USA",
+          "artworkUrl600":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/600x600bb.jpg",
+          "collectionViewUrl":
+              "https://itunes.apple.com/us/podcast/reshaping-workflows-with-dell-pro-max-and-nvidia-rtx-gpus/id1802645201?mt=2&uo=4",
+          "trackViewUrl":
+              "https://podcasts.apple.com/us/podcast/breaking-down-dell-pro-max-performance-design-and/id1802645201?i=1000701006758&uo=4",
+          "artworkUrl60":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/60x60bb.jpg",
+          "trackTimeMillis": 1738000,
+          "contentAdvisoryRating": "Clean",
+          "previewUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/a9abd197-5be2-4f08-b5a7-a6543f9a1f89/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=a9abd197-5be2-4f08-b5a7-a6543f9a1f89&feed=7_9d7yco"
+        },
+        {
+          "artworkUrl160":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/160x160bb.jpg",
+          "episodeFileExtension": "mp3",
+          "episodeContentType": "audio",
+          "artistIds": [],
+          "episodeUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/a2652e44-bd72-4165-a716-fdaa9f82d995/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=a2652e44-bd72-4165-a716-fdaa9f82d995&feed=7_9d7yco",
+          "genres": [
+            {
+              "name": "Technology",
+              "id": "1318"
+            }
+          ],
+          "episodeGuid": "fe5571dd-f472-45b0-850d-e7ba910ba69f",
+          "closedCaptioning": "none",
+          "shortDescription":
+              "Logan Lawler and NVIDIA’s John Della Bona break down how RTX PRO™ Blackwell GPUs are transforming workstation performance across industries.",
+          "collectionId": 1802645201,
+          "collectionName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX GPUs",
+          "trackId": 1000700055476,
+          "trackName": "How NVIDIA’s RTX PRO™ Blackwell GPUs Are Reshaping Workflows",
+          "releaseDate": "2025-03-20T04:00:00Z",
+          "feedUrl": "https://feeds.simplecast.com/7_9d7yco",
+          "kind": "podcast-episode",
+          "wrapperType": "podcastEpisode",
+          "description":
+              "NVIDIA’s new RTX PRO™ Blackwell GPUs are here, and they’re packed with next-gen performance for AI, rendering, and complex workloads. In this episode, host Logan Lawler chats with John Della Bona from NVIDIA to break down what makes Blackwell a game-changer for workstation users. They discuss key improvements, including AI-driven shaders, increased CUDA core efficiency, massive VRAM upgrades, and real-world applications across industries like media, architecture, and engineering. Whether you’re a creator, engineer, or data scientist, this episode gives you the insights you need to stay ahead.\nFollow Us\nLinkedIn @DellTechnologiesTwitter @DellTechYouTube @DellTechnologiesPresented by Dell and NVIDIA\nwww.Dell.com\nwww.NVIDIA.com",
+          "country": "USA",
+          "artworkUrl600":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/600x600bb.jpg",
+          "collectionViewUrl":
+              "https://itunes.apple.com/us/podcast/reshaping-workflows-with-dell-pro-max-and-nvidia-rtx-gpus/id1802645201?mt=2&uo=4",
+          "trackViewUrl":
+              "https://podcasts.apple.com/us/podcast/how-nvidias-rtx-pro-blackwell-gpus-are-reshaping-workflows/id1802645201?i=1000700055476&uo=4",
+          "artworkUrl60":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/60x60bb.jpg",
+          "trackTimeMillis": 2016000,
+          "contentAdvisoryRating": "Clean",
+          "previewUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/a2652e44-bd72-4165-a716-fdaa9f82d995/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=a2652e44-bd72-4165-a716-fdaa9f82d995&feed=7_9d7yco"
+        },
+        {
+          "artworkUrl160":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/160x160bb.jpg",
+          "episodeFileExtension": "mp3",
+          "episodeContentType": "audio",
+          "artistIds": [],
+          "episodeUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/2fed4c31-ac40-41a2-b9b3-dced01fa5721/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=2fed4c31-ac40-41a2-b9b3-dced01fa5721&feed=7_9d7yco",
+          "genres": [
+            {
+              "name": "Technology",
+              "id": "1318"
+            }
+          ],
+          "episodeGuid": "537a1e10-835b-435b-803c-61700e3e8e79",
+          "closedCaptioning": "none",
+          "shortDescription":
+              "Charlie Walker joins Logan Lawler to discuss Dell’s new workstation lineup, the impact of NVIDIA RTX PRO™ Blackwell GPUs, and how Dell Pro Max redefines performance.",
+          "collectionId": 1802645201,
+          "collectionName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX GPUs",
+          "trackId": 1000699762290,
+          "trackName": "The Future of Workflows: Dell Pro Max & NVIDIA RTX PRO™",
+          "releaseDate": "2025-03-19T04:00:00Z",
+          "feedUrl": "https://feeds.simplecast.com/7_9d7yco",
+          "kind": "podcast-episode",
+          "wrapperType": "podcastEpisode",
+          "description":
+              "Big changes are happening at Dell, and we’re breaking it all down in this episode. Host Logan Lawler sits down with Charlie Walker, Senior Director and General Manager for Dell Pro Max and Dell Pro Rugged, to discuss the company’s latest product transformation. We dive into Dell’s new brand simplification, which now features three product categories—Dell, Dell Pro, and Dell Pro Max—making it easier for customers to find the right system for their needs. Charlie walks us through the next-gen mobile and fixed workstation portfolio, the impact of RTX PRO™ Blackwell GPUs, and how Dell Pro Max is engineered for professionals in AI, engineering, and content creation. If you’re looking for cutting-edge performance and simplified product selection, this episode is packed with insights you won’t want to miss.\nFollow Us\nLinkedIn @DellTechnologiesTwitter @DellTechYouTube @DellTechnologiesPresented by Dell and NVIDIA\nwww.Dell.com\nwww.NVIDIA.com",
+          "country": "USA",
+          "artworkUrl600":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/600x600bb.jpg",
+          "collectionViewUrl":
+              "https://itunes.apple.com/us/podcast/reshaping-workflows-with-dell-pro-max-and-nvidia-rtx-gpus/id1802645201?mt=2&uo=4",
+          "trackViewUrl":
+              "https://podcasts.apple.com/us/podcast/the-future-of-workflows-dell-pro-max-nvidia-rtx-pro/id1802645201?i=1000699762290&uo=4",
+          "artworkUrl60":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/60x60bb.jpg",
+          "trackTimeMillis": 2698000,
+          "contentAdvisoryRating": "Clean",
+          "previewUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/2fed4c31-ac40-41a2-b9b3-dced01fa5721/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=2fed4c31-ac40-41a2-b9b3-dced01fa5721&feed=7_9d7yco"
+        },
+        {
+          "artworkUrl160":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/160x160bb.jpg",
+          "episodeFileExtension": "mp3",
+          "episodeContentType": "audio",
+          "artistIds": [],
+          "episodeUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/a311c747-704a-4301-bfd7-f50b4187341a/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=a311c747-704a-4301-bfd7-f50b4187341a&feed=7_9d7yco",
+          "genres": [
+            {
+              "name": "Technology",
+              "id": "1318"
+            }
+          ],
+          "episodeGuid": "111daa4d-2f78-4633-bbbe-17f9b2e81ab1",
+          "closedCaptioning": "none",
+          "shortDescription":
+              "Join Logan Lawler as he explores how Dell Pro Max PCs and Nvidia professional GPUs are transforming workflows across industries.",
+          "collectionId": 1802645201,
+          "collectionName": "Reshaping Workflows with Dell Pro Max and NVIDIA RTX GPUs",
+          "trackId": 1000699515365,
+          "trackName": "Welcome to Reshaping Workflows with Dell Pro Max and NVIDIA RTX GPUs",
+          "releaseDate": "2025-03-17T14:46:24Z",
+          "feedUrl": "https://feeds.simplecast.com/7_9d7yco",
+          "kind": "podcast-episode",
+          "wrapperType": "podcastEpisode",
+          "description":
+              "Welcome to Reshaping Workflows, the podcast that explores how Dell Pro Max PCs, powered by NVIDIA professional GPUs, are transforming the way we work, think, and create. Join host Logan Lawler as he speaks with industry leaders, ISVs, and experts to break down how AI-powered solutions, advanced computing, and optimized workflows are making an impact across industries. Whether you're tackling small-scale projects or pushing the limits of your most ambitious workloads, this podcast gives you practical insights into the tools that make it all possible. Subscribe now and don’t miss an episode!\nFollow Us\nLinkedIn @DellTechnologiesTwitter @DellTechYouTube @DellTechnologiesPresented by Dell and NVIDIA\nwww.Dell.com\nwww.NVIDIA.com",
+          "country": "USA",
+          "artworkUrl600":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/600x600bb.jpg",
+          "collectionViewUrl":
+              "https://itunes.apple.com/us/podcast/reshaping-workflows-with-dell-pro-max-and-nvidia-rtx-gpus/id1802645201?mt=2&uo=4",
+          "trackViewUrl":
+              "https://podcasts.apple.com/us/podcast/welcome-to-reshaping-workflows-with-dell-pro-max/id1802645201?i=1000699515365&uo=4",
+          "artworkUrl60":
+              "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/5a/2e/e7/5a2ee7ff-7ed0-0a81-4c5d-b63f11645820/mza_4912871079086090250.jpg/60x60bb.jpg",
+          "trackTimeMillis": 53000,
+          "contentAdvisoryRating": "Clean",
+          "previewUrl":
+              "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/a311c747-704a-4301-bfd7-f50b4187341a/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=a311c747-704a-4301-bfd7-f50b4187341a&feed=7_9d7yco"
+        }
+      ]
+    }

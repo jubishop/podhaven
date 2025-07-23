@@ -11,6 +11,7 @@ extension Container: @retroactive AutoRegistering {
     repo.context(.test) { FakeRepo(Repo.initForTest(self.appDB())) }.scope(.cached)
     searchServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     feedManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
+    shareServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     notifications.context(.test) {
       { name in self.notifier().stream(for: name) }
     }

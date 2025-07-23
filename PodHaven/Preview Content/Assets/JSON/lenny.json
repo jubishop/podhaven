@@ -1,0 +1,53 @@
+{
+  "resultCount": 1,
+  "results": [
+    {
+      "wrapperType": "track",
+      "kind": "podcast",
+      "collectionId": 1627920305,
+      "trackId": 1627920305,
+      "artistName": "Lenny Rachitsky",
+      "collectionName": "Lenny's Podcast: Product | Growth | Career",
+      "trackName": "Lenny's Podcast: Product | Growth | Career",
+      "collectionCensoredName": "Lenny's Podcast: Product | Growth | Career",
+      "trackCensoredName": "Lenny's Podcast: Product | Growth | Career",
+      "collectionViewUrl":
+          "https://podcasts.apple.com/us/podcast/lennys-podcast-product-growth-career/id1627920305?uo=4",
+      "feedUrl": "https://api.substack.com/feed/podcast/10845.rss",
+      "trackViewUrl":
+          "https://podcasts.apple.com/us/podcast/lennys-podcast-product-growth-career/id1627920305?uo=4",
+      "artworkUrl30":
+          "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/c7/80/a3/c780a365-a1ed-527f-365f-1bd3e51ac6d1/mza_5908526734339724450.jpg/30x30bb.jpg",
+      "artworkUrl60":
+          "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/c7/80/a3/c780a365-a1ed-527f-365f-1bd3e51ac6d1/mza_5908526734339724450.jpg/60x60bb.jpg",
+      "artworkUrl100":
+          "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/c7/80/a3/c780a365-a1ed-527f-365f-1bd3e51ac6d1/mza_5908526734339724450.jpg/100x100bb.jpg",
+      "collectionPrice": 0.0,
+      "trackPrice": 0.0,
+      "collectionHdPrice": 0,
+      "releaseDate": "2025-07-17T11:02:00Z",
+      "collectionExplicitness": "notExplicit",
+      "trackExplicitness": "cleaned",
+      "trackCount": 278,
+      "trackTimeMillis": 5697,
+      "country": "USA",
+      "currency": "USD",
+      "primaryGenreName": "Technology",
+      "contentAdvisoryRating": "Clean",
+      "artworkUrl600":
+          "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/c7/80/a3/c780a365-a1ed-527f-365f-1bd3e51ac6d1/mza_5908526734339724450.jpg/600x600bb.jpg",
+      "genreIds": [
+        "1318",
+        "26",
+        "1321",
+        "1493"
+      ],
+      "genres": [
+        "Technology",
+        "Podcasts",
+        "Business",
+        "Entrepreneurship"
+      ]
+    }
+  ]
+}

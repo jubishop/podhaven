@@ -6,6 +6,7 @@ import ReadableErrorMacro
 @ReadableError
 enum DownloadError: ReadableError, CatchingError {
   case cancelled(URL)
+  case invalidRequest(URLRequest)
   case loadFailure(URL)
   case notHTTPURLResponse(URL)
   case notOKResponseCode(code: Int, url: URL)
@@ -15,6 +16,8 @@ enum DownloadError: ReadableError, CatchingError {
     switch self {
     case .cancelled(let url):
       return "Cancelled load of \(url)"
+    case .invalidRequest(let request):
+      return "Invalid URLRequest: \(request)"
     case .loadFailure(let url):
       return "Failed to load \(url)"
     case .notHTTPURLResponse(let url):

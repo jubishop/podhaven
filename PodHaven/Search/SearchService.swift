@@ -96,24 +96,15 @@ struct SearchService {
   private func performRequest(_ path: String, _ query: [URLQueryItem] = [])
     async throws(SearchError) -> Data
   {
-    let (url, request) = buildRequest(path, query)
+    let request = buildRequest(path, query)
     do {
-      return try await DownloadError.catch {
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-          throw DownloadError.notHTTPURLResponse(url)
-        }
-        guard (200...299).contains(httpResponse.statusCode) else {
-          throw DownloadError.notOKResponseCode(code: httpResponse.statusCode, url: url)
-        }
-        return data
-      }
+      return try await session.validatedData(for: request)
     } catch {
       throw SearchError.fetchFailure(request: request, caught: error)
     }
   }
 
-  private func buildRequest(_ path: String, _ queryItems: [URLQueryItem] = []) -> (URL, URLRequest)
+  private func buildRequest(_ path: String, _ queryItems: [URLQueryItem] = []) -> URLRequest
   {
     var components = URLComponents()
     components.scheme = "https"
@@ -137,6 +128,6 @@ struct SearchService {
     let hash = (Self.apiKey + Self.apiSecret + apiHeaderTime).sha1()
     request.addValue(hash, forHTTPHeaderField: "Authorization")
 
-    return (url, request)
+    return request
   }
 }

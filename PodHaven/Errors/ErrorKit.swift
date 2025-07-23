@@ -6,13 +6,13 @@ import Logging
 enum ErrorKit {
   // MARK: - Messaging
 
-  static func message(for error: Error) -> String {
+  static func simpleMessage(for error: Error) -> String {
     if let readableError = error as? any ReadableError {
       return readableError.message
     }
 
     if let localizedError = error as? LocalizedError,
-      let errorDescription = localizedError.errorDescription
+       let errorDescription = localizedError.errorDescription
     {
       return errorDescription
     }
@@ -20,11 +20,28 @@ enum ErrorKit {
     return "[\(domain(for: error)): \(code(for: error))] \(error.localizedDescription)"
   }
 
+  static func message(for error: Error) -> String {
+    let message = simpleMessage(for: error)
+
+    guard let readableError = error as? any ReadableError,
+      let caughtError = readableError.caughtError
+    else { return message }
+
+    if message.isEmpty {
+      return nestedCaughtMessage(for: caughtError)
+    }
+
+    return """
+      \(message)
+      \(nestedCaughtMessage(for: caughtError))
+      """
+  }
+
   static func loggableMessage(for error: Error) -> Logger.Message {
     Logger.Message(
       stringLiteral: """
         [\(typeName(for: error))]
-        \(recursingMessage(for: error))
+        \(message(for: error))
         """
     )
   }
@@ -84,34 +101,17 @@ enum ErrorKit {
 
   // MARK: - Private Messaging Helpers
 
-  private static func recursingMessage(for error: Error) -> String {
-    let message = message(for: error)
-
-    guard let readableError = error as? any ReadableError,
-      let caughtError = readableError.caughtError
-    else { return message }
-
-    if message.isEmpty {
-      return nestedCaughtMessage(for: caughtError)
-    }
-
-    return """
-      \(message)
-      \(nestedCaughtMessage(for: caughtError))
-      """
-  }
-
   private static func nested(_ message: String) -> String {
     message
       .components(separatedBy: .newlines)
       .joined(separator: "\n  ")
   }
 
-  private static func nestedRecursingMessage(for error: Error) -> String {
-    nested(recursingMessage(for: error))
+  private static func nestedMessage(for error: Error) -> String {
+    nested(message(for: error))
   }
 
   private static func nestedCaughtMessage(for error: Error) -> String {
-    "\(typeName(for: error)) ->\n  \(nestedRecursingMessage(for: error))"
+    "\(typeName(for: error)) ->\n  \(nestedMessage(for: error))"
   }
 }
