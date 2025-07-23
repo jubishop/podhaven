@@ -25,9 +25,12 @@ struct PodcastRSS: Decodable, Sendable {
     }
   }
 
-  // MARK: - Models
+  // MARK: - Episode
 
   @dynamicMemberLookup struct Episode: Decodable, Sendable {
+
+    // MARK: - Attributes
+
     struct TopLevelValues: Decodable, Sendable {
       struct Enclosure: Decodable, Sendable {
         let url: MediaURL
@@ -35,7 +38,7 @@ struct PodcastRSS: Decodable, Sendable {
       let title: String
       let enclosure: Enclosure?
       let guid: GUID?
-      let link: String?
+      let link: String?  // URL?
       let description: String?
       let pubDate: Date?
     }
@@ -73,8 +76,11 @@ struct PodcastRSS: Decodable, Sendable {
     }
   }
 
+  // MARK: - Podcast
+
   @dynamicMemberLookup struct Podcast: Decodable, Sendable {
-    // Mark: - Attributes
+
+    // MARK: - Attributes
 
     struct TopLevelValues: Decodable, Sendable {
       struct AtomLink: Decodable, Sendable {
@@ -83,7 +89,7 @@ struct PodcastRSS: Decodable, Sendable {
       }
       let title: String
       let description: String
-      let link: String?
+      let link: String?  // URL?
       let episodes: [Episode]
       let atomLinks: [AtomLink]
 
