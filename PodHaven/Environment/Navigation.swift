@@ -102,7 +102,7 @@ extension Container {
     var path: [Destination] = []
 
     enum ViewType {
-      case completed, unfinished
+      case completed, unfinished, previouslyQueued
     }
 
     @CasePathable
@@ -136,6 +136,17 @@ extension Container {
               )
             ),
             id: "unfinished"
+          )
+        case .previouslyQueued:
+          IdentifiableView(
+            StandardEpisodesView(
+              viewModel: StandardEpisodesViewModel(
+                title: "Previously Queued",
+                filter: Episode.previouslyQueued && Episode.unqueued && Episode.uncompleted,
+                order: Episode.Columns.lastQueued.desc
+              )
+            ),
+            id: "previouslyQueued"
           )
         }
       case .episode(let podcastEpisode):

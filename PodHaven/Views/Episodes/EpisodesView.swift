@@ -18,6 +18,10 @@ struct EpisodesView: View {
           value: Navigation.Episodes.Destination.viewType(.unfinished),
           label: { Text("Unfinished") }
         )
+        NavigationLink(
+          value: Navigation.Episodes.Destination.viewType(.previouslyQueued),
+          label: { Text("Previously Queued") }
+        )
       }
       .navigationTitle("All Episode Lists")
       .navigationDestination(

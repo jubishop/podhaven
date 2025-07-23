@@ -84,6 +84,7 @@ struct Episode: Saved, RSSUpdatable {
   static let uncompleted: SQLExpression = Episode.Columns.completionDate == nil
   static let unstarted: SQLExpression = Episode.Columns.currentTime == 0
   static let started: SQLExpression = Episode.Columns.currentTime > 0
+  static let previouslyQueued: SQLExpression = Episode.Columns.lastQueued != nil
 
   // MARK: - Columns
 
