@@ -35,23 +35,9 @@ struct PodcastRSS: Decodable, Sendable {
       let title: String
       let enclosure: Enclosure?
       let guid: GUID?
-      let link: URL?
+      let link: String?
       let description: String?
       let pubDate: Date?
-      
-      enum CodingKeys: String, CodingKey {
-        case title, enclosure, guid, link, description, pubDate
-      }
-      
-      init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        title = try container.decode(String.self, forKey: .title)
-        enclosure = try container.decodeIfPresent(Enclosure.self, forKey: .enclosure)
-        guid = try container.decodeIfPresent(GUID.self, forKey: .guid)
-        description = try container.decodeIfPresent(String.self, forKey: .description)
-        pubDate = try container.decodeIfPresent(Date.self, forKey: .pubDate)
-        link = container.decodeOptionalURL(forKey: .link)
-      }
     }
     private let values: TopLevelValues
 
@@ -68,6 +54,12 @@ struct PodcastRSS: Decodable, Sendable {
       }
     }
     let iTunes: iTunesNamespace
+
+    // MARK: - Convenience Getters
+
+    var link: URL? {
+      URL(string: values.link ?? "")
+    }
 
     // MARK: - Meta
 
@@ -91,7 +83,7 @@ struct PodcastRSS: Decodable, Sendable {
       }
       let title: String
       let description: String
-      let link: URL?
+      let link: String?
       let episodes: [Episode]
       let atomLinks: [AtomLink]
 
@@ -99,15 +91,6 @@ struct PodcastRSS: Decodable, Sendable {
         case title, description, link
         case episodes = "item"
         case atomLinks = "atom:link"
-      }
-
-      init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        title = try container.decode(String.self, forKey: .title)
-        description = try container.decode(String.self, forKey: .description)
-        episodes = (try? container.decode([Episode].self, forKey: .episodes)) ?? []
-        link = container.decodeOptionalURL(forKey: .link)
-        atomLinks = (try? container.decode([AtomLink].self, forKey: .atomLinks)) ?? []
       }
     }
     private let values: TopLevelValues
@@ -133,6 +116,10 @@ struct PodcastRSS: Decodable, Sendable {
       else { return nil }
 
       return FeedURL(url)
+    }
+
+    var link: URL? {
+      URL(string: values.link ?? "")
     }
 
     // MARK: - Meta
