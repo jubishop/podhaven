@@ -3,32 +3,6 @@
 import Foundation
 import XMLCoder
 
-// MARK: - XMLCoder Extensions for Empty Elements
-
-extension KeyedDecodingContainer {
-  /// Decodes an optional value that may be present but empty in XML
-  /// Returns nil if the key is missing, the value is empty, or decoding fails
-  func decodeOptionalNonEmpty<T: Decodable>(_ type: T.Type, forKey key: Key) -> T? {
-    guard contains(key),
-          let stringValue = try? decode(String.self, forKey: key),
-          !stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-      return nil
-    }
-    return try? decode(T.self, forKey: key)
-  }
-  
-  /// Decodes an optional URL that may be present but empty in XML
-  /// Returns nil if the key is missing, the value is empty, or not a valid URL
-  func decodeOptionalURL(forKey key: Key) -> URL? {
-    guard contains(key),
-          let stringValue = try? decode(String.self, forKey: key),
-          !stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-      return nil
-    }
-    return URL(string: stringValue)
-  }
-}
-
 struct PodcastRSS: Decodable, Sendable {
   private static let log = Log.as(LogSubsystem.Feed.podcast)
 
@@ -64,6 +38,20 @@ struct PodcastRSS: Decodable, Sendable {
       let link: URL?
       let description: String?
       let pubDate: Date?
+      
+      enum CodingKeys: String, CodingKey {
+        case title, enclosure, guid, link, description, pubDate
+      }
+      
+      init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try container.decode(String.self, forKey: .title)
+        enclosure = try container.decodeIfPresent(Enclosure.self, forKey: .enclosure)
+        guid = try container.decodeIfPresent(GUID.self, forKey: .guid)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        pubDate = try container.decodeIfPresent(Date.self, forKey: .pubDate)
+        link = container.decodeOptionalURL(forKey: .link)
+      }
     }
     private let values: TopLevelValues
 
@@ -117,12 +105,8 @@ struct PodcastRSS: Decodable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         title = try container.decode(String.self, forKey: .title)
         description = try container.decode(String.self, forKey: .description)
-        episodes = try container.decode([Episode].self, forKey: .episodes)
-
-        // Handle link - skip if missing or empty
+        episodes = (try? container.decode([Episode].self, forKey: .episodes)) ?? []
         link = container.decodeOptionalURL(forKey: .link)
-
-        // Try atom:link first, fallback to empty array if not found
         atomLinks = (try? container.decode([AtomLink].self, forKey: .atomLinks)) ?? []
       }
     }
