@@ -52,20 +52,10 @@ actor DownloadTask {
     if self.result != nil { return }
     do {
       haveBegun()
-      let (data, response) = try await session.data(from: url)
-      guard let httpResponse = response as? HTTPURLResponse else {
-        throw DownloadError.notHTTPURLResponse(url)
-      }
-      guard (200...299).contains(httpResponse.statusCode) else {
-        throw DownloadError.notOKResponseCode(code: httpResponse.statusCode, url: url)
-      }
+      let data = try await session.validatedData(from: url)
       haveFinished(.success(DownloadData(url: url, data: data)))
-    } catch is CancellationError {
-      haveFinished(.failure(DownloadError.cancelled(url)))
-    } catch let error as DownloadError {
-      haveFinished(.failure(error))
     } catch {
-      haveFinished(.failure(DownloadError.caught(error)))
+      haveFinished(.failure(error))
     }
     guard self.result != nil
     else { Assert.fatal("No result by the end of download()?!") }

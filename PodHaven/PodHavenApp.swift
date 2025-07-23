@@ -9,18 +9,21 @@ import SwiftUI
 @main
 struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
+  @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshManager) private var refreshManager
-  @DynamicInjected(\.notifications) private var notifications
+  @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.shareService) private var shareService
 
   @State private var isInitialized = false
+  @State private var isLoadingShare = false
 
   private static let log = Log.as("Main")
 
   var body: some Scene {
     WindowGroup {
       Group {
-        if isInitialized {
+        if isInitialized && !isLoadingShare {
           ContentView()
             .customAlert($alert.config)
         } else {
@@ -40,8 +43,29 @@ struct PodHavenApp: App {
         await refreshManager.start()
       }
       .onOpenURL { url in
-        Self.log.info("Received URL from share extension: \(url.absoluteString)")
+        Self.log.info("Received incoming URL: \(url)")
+        Task {
+          isLoadingShare = true
+          await handleIncomingURL(url)
+          isLoadingShare = false
+        }
       }
+    }
+  }
+
+  // MARK: - URL Handling
+
+  private func handleIncomingURL(_ url: URL) async {
+    if ShareService.isShareURL(url) {
+      do {
+        try await shareService.handleIncomingURL(url)
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.message(for: error))
+      }
+    } else {
+      Self.log.warning("Incoming URL: \(url) is not supported")
+      alert("Incoming URL: \(url) is not supported")
     }
   }
 
@@ -103,9 +127,8 @@ struct PodHavenApp: App {
     SentrySDK.start { options in
       options.dsn =
         "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
-
-      // Maximum info
       options.sendDefaultPii = true
+      options.enableAppHangTracking = false
     }
   }
 }

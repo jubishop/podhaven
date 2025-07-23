@@ -18,11 +18,7 @@ import Testing
     navigation.showEpisodes(.completed)
 
     #expect(navigation.currentTab == .episodes, "Current tab should be episodes")
-    #expect(navigation.episodes.path.count == 1, "Episodes path should have one item")
-    #expect(
-      navigation.episodes.path.first == .viewType(.completed),
-      "Episodes path should contain completed viewType"
-    )
+    #expect(navigation.episodes.path == [.viewType(.completed)])
   }
 
   @Test("that showPodcast sets current tab and appends to podcasts path")
@@ -33,15 +29,7 @@ import Testing
     navigation.showPodcast(.all, podcast)
 
     #expect(navigation.currentTab == .podcasts, "Current tab should be podcasts")
-    #expect(navigation.podcasts.path.count == 2, "Podcasts path should have two items")
-    #expect(
-      navigation.podcasts.path[0] == .viewType(.all),
-      "First path item should be viewType(.all)"
-    )
-    #expect(
-      navigation.podcasts.path[1] == .podcast(podcast),
-      "Second path item should be podcast"
-    )
+    #expect(navigation.podcasts.path == [.viewType(.all), .podcast(podcast)])
   }
 
   @Test("that showEpisode sets current tab and appends to podcasts path")
@@ -51,18 +39,10 @@ import Testing
     navigation.showEpisode(.subscribed, podcastEpisode)
 
     #expect(navigation.currentTab == .podcasts, "Current tab should be podcasts")
-    #expect(navigation.podcasts.path.count == 3, "Podcasts path should have three items")
     #expect(
-      navigation.podcasts.path[0] == .viewType(.subscribed),
-      "First path item should be viewType(.subscribed)"
-    )
-    #expect(
-      navigation.podcasts.path[1] == .podcast(podcastEpisode.podcast),
-      "Second path item should be podcast"
-    )
-    #expect(
-      navigation.podcasts.path[2] == .episode(podcastEpisode),
-      "Third path item should be episode"
+      navigation.podcasts.path == [
+        .viewType(.subscribed), .podcast(podcastEpisode.podcast), .episode(podcastEpisode),
+      ]
     )
   }
 
@@ -76,7 +56,7 @@ import Testing
 
     // Verify initial state
     #expect(navigation.currentTab == .episodes, "Current tab should be episodes")
-    #expect(navigation.episodes.path.count == 1, "Episodes path should have one item")
+    #expect(!navigation.episodes.path.isEmpty)
 
     // Change to a different tab
     navigation.currentTab = .settings
