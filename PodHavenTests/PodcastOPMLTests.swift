@@ -45,7 +45,7 @@ struct PodcastOPMLTests {
       try Create.unsavedPodcast(
         feedURL: FeedURL(URL(string: "https://feeds.simplecast.com/Y8lFbOT4")!),
         title: "Freakonomics Radio",
-        subscribed: true
+        subscriptionDate: Date()
       ),
       unsavedEpisodes: []
     )
@@ -56,7 +56,7 @@ struct PodcastOPMLTests {
           URL(string: "https://www.thenakedscientists.com/rss/specials_podcast.xml")!
         ),
         title: "Naked Scientists, In Short Special Editions Podcast",
-        subscribed: true
+        subscriptionDate: Date()
       ),
       unsavedEpisodes: []
     )
@@ -66,7 +66,7 @@ struct PodcastOPMLTests {
       try Create.unsavedPodcast(
         feedURL: FeedURL(URL(string: "https://example.com/unsubscribed.xml")!),
         title: "Unsubscribed Podcast",
-        subscribed: false
+        subscriptionDate: nil
       ),
       unsavedEpisodes: []
     )

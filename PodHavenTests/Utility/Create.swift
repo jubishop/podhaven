@@ -47,7 +47,7 @@ enum Create {
     description: String = String.random(),
     link: URL? = nil,
     lastUpdate: Date? = nil,
-    subscribed: Bool? = nil
+    subscriptionDate: Date? = nil
   ) throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: feedURL,
@@ -56,7 +56,7 @@ enum Create {
       description: description,
       link: link,
       lastUpdate: lastUpdate,
-      subscribed: subscribed
+      subscriptionDate: subscriptionDate
     )
   }
 

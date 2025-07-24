@@ -211,7 +211,7 @@ final class OPMLDocument: FileDocument {
           do {
             let podcastFeed = try await feedTask.feedParsed()
             let unsavedPodcast = try podcastFeed.toUnsavedPodcast(
-              subscribed: true,
+              subscriptionDate: Date(),
               lastUpdate: Date()
             )
 

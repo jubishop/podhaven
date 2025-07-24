@@ -57,7 +57,7 @@ class EpisodeTests {
       image: URL.valid(),
       description: "original podcast description",
       link: URL.valid(),
-      subscribed: false
+      subscriptionDate: nil
     )
     let unsavedEpisode = try Create.unsavedEpisode(
       media: MediaURL(URL.valid()),

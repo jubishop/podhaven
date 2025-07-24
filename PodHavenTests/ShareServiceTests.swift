@@ -66,7 +66,7 @@ import Testing
     try await repo.insertSeries(
       Create.unsavedPodcast(
         feedURL: FeedURL(feedURL),
-        subscribed: subscribed
+        subscriptionDate: subscribed ? Date() : nil
       )
     )
     #expect(try await repo.allPodcasts().count == 1)
@@ -303,7 +303,7 @@ import Testing
     try await repo.insertSeries(
       Create.unsavedPodcast(
         feedURL: FeedURL(feedURL),
-        subscribed: subscribed
+        subscriptionDate: subscribed ? Date() : nil
       ),
       unsavedEpisodes: [
         Create.unsavedEpisode(
@@ -366,7 +366,7 @@ import Testing
     try await repo.insertSeries(
       Create.unsavedPodcast(
         feedURL: FeedURL(feedURL),
-        subscribed: false
+        subscriptionDate: nil
       )
     )
 

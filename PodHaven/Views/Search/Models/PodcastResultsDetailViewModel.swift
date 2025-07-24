@@ -118,7 +118,7 @@ class PodcastResultsDetailViewModel:
       do {
         if let podcastSeries = existingPodcastSeries, let podcastFeed = podcastFeed {
           var podcast = podcastSeries.podcast
-          podcast.subscribed = true
+          podcast.subscriptionDate = Date()
           let updatedPodcastSeries = PodcastSeries(
             podcast: podcast,
             episodes: podcastSeries.episodes
@@ -129,7 +129,7 @@ class PodcastResultsDetailViewModel:
           )
           navigation.showPodcast(.subscribed, updatedPodcastSeries.podcast)
         } else {
-          unsavedPodcast.subscribed = true
+          unsavedPodcast.subscriptionDate = Date()
           unsavedPodcast.lastUpdate = Date()
           let newPodcastSeries = try await repo.insertSeries(
             unsavedPodcast,

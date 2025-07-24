@@ -49,7 +49,7 @@ struct PersonResult: Sendable, Decodable {
           description: podcastEpisode?.podcast.description ?? "",  // Not in PodcastIndex API
           link: link ?? podcastEpisode?.podcast.link,
           lastUpdate: podcastEpisode?.podcast.lastUpdate,
-          subscribed: podcastEpisode?.podcast.subscribed
+          subscriptionDate: podcastEpisode?.podcast.subscriptionDate
         ),
         unsavedEpisode: try UnsavedEpisode(
           guid: guid,

@@ -17,7 +17,7 @@ struct UnsavedPodcast: Savable, Stringable {
   var description: String
   var link: URL?
   var lastUpdate: Date
-  var subscribed: Bool
+  var subscriptionDate: Date?
 
   init(
     feedURL: FeedURL,
@@ -26,7 +26,7 @@ struct UnsavedPodcast: Savable, Stringable {
     description: String,
     link: URL? = nil,
     lastUpdate: Date? = nil,
-    subscribed: Bool? = nil
+    subscriptionDate: Date? = nil
   ) throws(ModelError) {
     do {
       self.feedURL = FeedURL(try feedURL.rawValue.convertToValidURL())
@@ -35,7 +35,7 @@ struct UnsavedPodcast: Savable, Stringable {
       self.description = description
       self.link = try? link?.convertToValidURL()
       self.lastUpdate = lastUpdate ?? Date.epoch
-      self.subscribed = subscribed ?? false
+      self.subscriptionDate = subscriptionDate
     } catch {
       throw ModelError.podcastInitializationFailure(feedURL: feedURL, title: title, caught: error)
     }
@@ -45,6 +45,10 @@ struct UnsavedPodcast: Savable, Stringable {
 
   var toString: String { "(\(feedURL.toString)) - \(self.title)" }
   var searchableString: String { self.title }
+
+  // MARK: - State Getters
+
+  var subscribed: Bool { self.subscriptionDate != nil }
 }
 
 @Saved<UnsavedPodcast>
@@ -56,8 +60,8 @@ struct Podcast: Saved, RSSUpdatable {
 
   // MARK: - SQL Expressions
 
-  static let subscribed: SQLExpression = Columns.subscribed == true
-  static let unsubscribed: SQLExpression = Columns.subscribed == false
+  static let subscribed: SQLExpression = Columns.subscriptionDate != nil
+  static let unsubscribed: SQLExpression = Columns.subscriptionDate == nil
 
   // MARK: - Columns
 
@@ -69,7 +73,7 @@ struct Podcast: Saved, RSSUpdatable {
     static let description = Column("description")
     static let link = Column("link")
     static let lastUpdate = Column("lastUpdate")
-    static let subscribed = Column("subscribed")
+    static let subscriptionDate = Column("subscriptionDate")
   }
 
   // MARK: - RSSUpdatable
