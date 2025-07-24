@@ -11,6 +11,7 @@ import Testing
 @MainActor class ShareServiceTests {
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
   @DynamicInjected(\.navigation) private var navigation
+  @DynamicInjected(\.opmlViewModel) private var opmlViewModel
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.shareServiceSession) private var shareServiceSession
   @DynamicInjected(\.shareService) private var shareService
@@ -400,5 +401,29 @@ import Testing
     #expect(
       navigation.podcasts.path == [.viewType(.unsubscribed), .podcast(podcastSeries.podcast)]
     )
+  }
+
+  @Test("that shared OPML file navigates to import view and imports podcasts")
+  func sharedOPMLFileImportsSuccessfully() async throws {
+    let feedURL = URL(
+      string: "https://feeds.soundcloud.com/users/soundcloud:users:122508048/sounds.rss"
+    )!
+    let feedData = try Data(
+      contentsOf: Bundle.main.url(forResource: "techdirt", withExtension: "rss")!
+    )
+    await feedSession.respond(to: feedURL, data: feedData)
+
+    // OPML with just TechDirt in ituh
+    let opmlURL = Bundle.main.url(forResource: "techdirt", withExtension: "opml")!
+
+    let shareURL = ShareHelpers.shareURL(with: opmlURL)
+    try await shareService.handleIncomingURL(shareURL)
+
+    #expect(navigation.currentTab == .settings)
+    #expect(navigation.settings.path == [.viewType(.opml)])
+
+    let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))
+    #expect(podcastSeries?.podcast.title == "Techdirt")
+    #expect(podcastSeries?.podcast.subscriptionDate != nil)
   }
 }

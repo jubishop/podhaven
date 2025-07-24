@@ -9,8 +9,7 @@ struct PodcastOPML: Codable, Sendable {
 
   static func parse(_ url: URL) async throws(ParseError) -> PodcastOPML {
     try await ParseError.catch {
-      let data = try await URLSession.shared.validatedData(from: url)
-      return try await parse(data)
+      try await parse(try await URLSession.shared.validatedData(from: url))
     }
   }
 
@@ -37,7 +36,7 @@ struct PodcastOPML: Codable, Sendable {
       let subscribedPodcasts = try await Container.shared.repo().allPodcasts(Podcast.subscribed)
       return try await generateOPML(from: subscribedPodcasts)
     } catch {
-      throw ParseError.exportFailure
+      throw ParseError.exportFailure(error)
     }
   }
 
@@ -70,34 +69,63 @@ struct PodcastOPML: Codable, Sendable {
 
   // MARK: - Models
 
-  struct Body: Codable, Sendable {
-    struct Outline: Codable, Sendable, DynamicNodeEncoding {
+  fileprivate struct Body: Codable, Sendable {
+    fileprivate struct Outline: Codable, Sendable, DynamicNodeEncoding {
       let text: String
       let title: String?
-      let xmlUrl: FeedURL
+      let xmlUrl: FeedURL?
       let type: String?
+      let outlines: [Outline]?
 
       init(text: String, xmlUrl: FeedURL, type: String = "rss") {
         self.text = text
         self.title = text
         self.xmlUrl = xmlUrl
         self.type = type
+        self.outlines = nil
+      }
+
+      var flattenedOutlines: [Outline] {
+        guard let outlines
+        else { return [self] }
+
+        return [self] + outlines.flatMap { $0.flattenedOutlines }
       }
 
       static func nodeEncoding(for key: CodingKey) -> XMLEncoder.NodeEncoding { .attribute }
-    }
 
-    let outlines: [Outline]
+      enum CodingKeys: String, CodingKey {
+        case text, title, xmlUrl, type
+        case outlines = "outline"
+      }
+    }
+    fileprivate let outlines: [Outline]
 
     enum CodingKeys: String, CodingKey {
       case outlines = "outline"
     }
   }
 
-  struct Head: Codable, Sendable {
+  private struct Head: Codable, Sendable {
     let title: String?
   }
 
-  let head: Head
-  let body: Body
+  private let head: Head
+  private let body: Body
+
+  // MARK: - Data Accessors
+
+  var rssFeeds: [(feedURL: FeedURL, title: String)] {
+    body.outlines
+      .flatMap { $0.flattenedOutlines }
+      .compactMap { outline in
+        guard let xmlUrl = outline.xmlUrl,
+          let feedURL = try? FeedURL(xmlUrl.rawValue.convertToValidURL())
+        else { return nil }
+
+        return (feedURL: feedURL, title: outline.text)
+      }
+  }
+
+  var title: String? { head.title }
 }

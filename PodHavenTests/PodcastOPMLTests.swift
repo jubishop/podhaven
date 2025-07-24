@@ -15,11 +15,24 @@ struct PodcastOPMLTests {
   func parseLargeOPMLFile() async throws {
     let url = Bundle.main.url(forResource: "large", withExtension: "opml")!
     let opml = try await PodcastOPML.parse(try Data(contentsOf: url))
-    #expect(opml.head.title == "Superphonic Podcast Subscriptions")
-    #expect(opml.body.outlines.count == 48)
-    #expect(opml.body.outlines.first!.text == "Chasing Life")
+    #expect(opml.title == "Superphonic Podcast Subscriptions")
+    #expect(opml.rssFeeds.count == 48)
+    #expect(opml.rssFeeds.first!.title == "Chasing Life")
     #expect(
-      opml.body.outlines.first!.xmlUrl.absoluteString == "https://feeds.megaphone.fm/WMHY6124370245"
+      opml.rssFeeds.first!.feedURL.absoluteString == "https://feeds.megaphone.fm/WMHY6124370245"
+    )
+  }
+
+  @Test("parsing overcast exported OPML file")
+  func parseOvercastExportedOPMLFile() async throws {
+    let url = Bundle.main.url(forResource: "overcast", withExtension: "opml")!
+    let opml = try await PodcastOPML.parse(try Data(contentsOf: url))
+    #expect(opml.title == "Overcast Podcast Subscriptions")
+    #expect(opml.rssFeeds.count == 43)
+    #expect(opml.rssFeeds[1].title == "Techdirt")
+    #expect(
+      opml.rssFeeds[1].feedURL.absoluteString
+        == "https://feeds.soundcloud.com/users/soundcloud:users:122508048/sounds.rss"
     )
   }
 
@@ -35,7 +48,7 @@ struct PodcastOPMLTests {
   func parseEmptyOPMLFile() async throws {
     let url = Bundle.main.url(forResource: "empty", withExtension: "opml")!
     let opml = try await PodcastOPML.parse(try Data(contentsOf: url))
-    #expect(opml.body.outlines.isEmpty)
+    #expect(opml.rssFeeds.isEmpty)
   }
 
   @Test("exporting subscribed podcasts to OPML")
@@ -78,19 +91,18 @@ struct PodcastOPMLTests {
     let opml = try await PodcastOPML.parse(opmlData)
 
     // Check structure
-    #expect(opml.head.title == "PodHaven Subscriptions")
-    #expect(opml.body.outlines.count == 2)
+    #expect(opml.title == "PodHaven Subscriptions")
+    #expect(opml.rssFeeds.count == 2)
 
     // Check that only subscribed podcasts are included
-    let titles = Set(opml.body.outlines.map(\.text))
+    let titles = Set(opml.rssFeeds.map(\.title))
     #expect(titles.contains("Freakonomics Radio"))
     #expect(titles.contains("Naked Scientists, In Short Special Editions Podcast"))
     #expect(!titles.contains("Unsubscribed Podcast"))
 
     // Check specific podcast details
-    let freakonomicsOutline = opml.body.outlines.first { $0.text == "Freakonomics Radio" }!
-    #expect(freakonomicsOutline.type == "rss")
-    #expect(freakonomicsOutline.xmlUrl.absoluteString == "https://feeds.simplecast.com/Y8lFbOT4")
+    let freakonomicsOutline = opml.rssFeeds.first { $0.title == "Freakonomics Radio" }!
+    #expect(freakonomicsOutline.feedURL.absoluteString == "https://feeds.simplecast.com/Y8lFbOT4")
 
     // Verify XML format by checking the actual XML string
     #expect(
@@ -119,9 +131,9 @@ struct PodcastOPMLTests {
     let opmlData = try await PodcastOPML.exportSubscribedPodcasts()
     let opml = try await PodcastOPML.parse(opmlData)
 
-    // Should have valid structure but no outlines
-    #expect(opml.head.title == "PodHaven Subscriptions")
-    #expect(opml.body.outlines.count == 0)
+    // Should have valid structure but no RSS feeds
+    #expect(opml.title == "PodHaven Subscriptions")
+    #expect(opml.rssFeeds.count == 0)
 
     // Verify XML format by checking the actual XML string
     #expect(

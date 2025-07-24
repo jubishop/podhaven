@@ -39,23 +39,39 @@ actor ShareService {
     self.session = session
   }
 
-  // MARK: - URL Handling
+  // MARK: - URL Analysis
 
   static func isShareURL(_ url: URL) -> Bool {
     url.host == "share"
   }
+
+  // MARK: - URL Handling
 
   func handleIncomingURL(_ sharedURL: URL) async throws(ShareError) {
     log.debug("handleIncomingURL: Received shared URL: \(sharedURL)")
 
     let extractedURL = try extractURLParameter(from: sharedURL)
 
-    if let (feedURL, (mediaURL, guid)) = try await extractEpisodeInfo(from: extractedURL) {
+    if extractedURL.pathExtension.lowercased() == "opml" {
+      try await handleOPMLURL(extractedURL)
+    } else if let (feedURL, (mediaURL, guid)) = try await extractEpisodeInfo(from: extractedURL) {
       try await handleEpisodeURL(feedURL: feedURL, mediaURL: mediaURL, guid: guid)
     } else if let feedURL = try await extractFeedURL(from: extractedURL) {
       try await handlePodcastURL(feedURL)
     } else {
       throw ShareError.unsupportedURL(extractedURL)
+    }
+  }
+
+  private func handleOPMLURL(_ url: URL) async throws(ShareError) {
+    log.debug("handleOPMLURL: OPML URL: \(url)")
+
+    try await ShareError.catch {
+      let navigation = await self.navigation
+      await navigation.showOPMLImport()
+
+      let opmlViewModel = await Container.shared.opmlViewModel()
+      await opmlViewModel.importFromSharedURL(url)
     }
   }
 
@@ -106,6 +122,8 @@ actor ShareService {
       )
     }
   }
+
+  // MARK: - Database Querying
 
   private func findOrCreatePodcastSeries(feedURL: FeedURL) async throws -> PodcastSeries {
     if let podcastSeries = try await repo.podcastSeries(feedURL) {
@@ -165,6 +183,8 @@ actor ShareService {
     log.debug("findMatchingEpisode: No matching episode found")
     return nil
   }
+
+  // MARK: - Online Data Fetching
 
   private func extractURLParameter(from url: URL) throws(ShareError) -> URL {
     guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),

@@ -16,14 +16,13 @@ struct PodHavenApp: App {
   @DynamicInjected(\.shareService) private var shareService
 
   @State private var isInitialized = false
-  @State private var isLoadingShare = false
 
   private static let log = Log.as("Main")
 
   var body: some Scene {
     WindowGroup {
       Group {
-        if isInitialized && !isLoadingShare {
+        if isInitialized {
           ContentView()
             .customAlert($alert.config)
         } else {
@@ -45,9 +44,7 @@ struct PodHavenApp: App {
       .onOpenURL { url in
         Self.log.info("Received incoming URL: \(url)")
         Task {
-          isLoadingShare = true
           await handleIncomingURL(url)
-          isLoadingShare = false
         }
       }
     }

@@ -5,8 +5,7 @@ import SwiftUI
 
 struct OPMLView: View {
   @DynamicInjected(\.alert) private var alert
-
-  @State private var viewModel = OPMLViewModel()
+  @InjectedObservable(\.opmlViewModel) private var viewModel
 
   var body: some View {
     Form {

@@ -8,7 +8,6 @@ enum DownloadError: ReadableError, CatchingError {
   case cancelled(URL)
   case invalidRequest(URLRequest)
   case loadFailure(URL)
-  case notHTTPURLResponse(URL)
   case notOKResponseCode(code: Int, url: URL)
   case caught(Error)
 
@@ -20,8 +19,6 @@ enum DownloadError: ReadableError, CatchingError {
       return "Invalid URLRequest: \(request)"
     case .loadFailure(let url):
       return "Failed to load \(url)"
-    case .notHTTPURLResponse(let url):
-      return "Received non-HTTP URL response for: \(url)"
     case .notOKResponseCode(let code, let url):
       return "Received HTTP response code: \(code), for: \(url)"
     case .caught: return ""

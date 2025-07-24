@@ -29,11 +29,11 @@ enum PreviewHelpers {
     var remainingPodcasts = number - allPodcasts.count
     let feedManager = Container.shared.feedManager()
     try await withThrowingDiscardingTaskGroup { group in
-      for outline in opml.body.outlines {
+      for rssFeed in opml.rssFeeds {
         if remainingPodcasts <= 0 { break }
-        if allPodcasts[id: outline.xmlUrl] != nil { continue }
+        if allPodcasts[id: rssFeed.feedURL] != nil { continue }
         group.addTask {
-          let feedTask = await feedManager.addURL(outline.xmlUrl)
+          let feedTask = await feedManager.addURL(rssFeed.feedURL)
           let podcastFeed = try await feedTask.feedParsed()
           try await repo.insertSeries(
             try podcastFeed.toUnsavedPodcast(),

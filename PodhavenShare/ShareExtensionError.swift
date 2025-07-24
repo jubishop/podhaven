@@ -9,6 +9,7 @@ enum ShareExtensionError: Error, LocalizedError {
   case noURLFound
   case urlLoadingFailed(Error)
   case itemNotURL
+  case sharedContainerNotFound
 
   var errorDescription: String? {
     switch self {
@@ -24,6 +25,8 @@ enum ShareExtensionError: Error, LocalizedError {
       return "Failed to load URL: \(error)"
     case .itemNotURL:
       return "Shared item is not a URL"
+    case .sharedContainerNotFound:
+      return "Shared app group container not found"
     }
   }
 }

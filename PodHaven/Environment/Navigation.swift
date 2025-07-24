@@ -61,6 +61,15 @@ extension Container {
   }
   var settings = Settings()
 
+  // MARK: - Settings Navigation
+
+  func showOPMLImport() {
+    Self.log.debug("Showing OPML import")
+
+    currentTab = .settings
+    settings.path.append(.viewType(.opml))
+  }
+
   // MARK: - Search
 
   @MainActor @Observable

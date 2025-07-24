@@ -5,7 +5,7 @@ import UIKit
 import UniformTypeIdentifiers
 
 class ShareViewController: UIViewController {
-  private let log = Logger(subsystem: "PodHavenShare", category: "main")
+  private let log = Logger(subsystem: "PodHavenShare", category: "viewController")
 
   override func viewDidLoad() {
     log.debug("viewDidLoad called")

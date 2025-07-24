@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<opml version="1.0">
+  <head>
+    <title>Overcast Podcast Subscriptions</title>
+  </head>
+  <body>
+    <outline text="feeds">
+      <outline type="rss" text="Seattle’s Morning News w/ Charlie Harger &amp; Manda Factor" xmlUrl="https://feed.cdnstream1.com/zjb/feed/download/5c/a2/db/5ca2db62-3be2-4217-9ede-84dd2160bddf.xml" applePodcastsID="403637599"/>
+      <outline type="rss" text="Techdirt" xmlUrl="https://feeds.soundcloud.com/users/soundcloud:users:122508048/sounds.rss" applePodcastsID="940871872"/>
+      <outline type="rss" text="The Pitch" xmlUrl="https://feeds.megaphone.fm/thepitch" applePodcastsID="1008577710"/>
+      <outline type="rss" text="Explain It to Me" xmlUrl="https://feeds.megaphone.fm/theweeds" applePodcastsID="1042433083"/>
+      <outline type="rss" text="The Ringer NFL Show" xmlUrl="https://feeds.megaphone.fm/the-ringer-nfl-show" applePodcastsID="1109282822"/>
+      <outline type="rss" text="The Changelog: Software Development, Open Source" xmlUrl="https://changelog.com/podcast/feed" applePodcastsID="341623264"/>
+      <outline type="rss" text="Making Sense with Sam Harris" xmlUrl="https://wakingup.libsyn.com/rss" applePodcastsID="733163012"/>
+      <outline type="rss" text="CNN Inside Politics" xmlUrl="https://feeds.megaphone.fm/WMHY2364873047" applePodcastsID="1368668108"/>
+      <outline type="rss" text="Week In Review" xmlUrl="http://www.kuow.org/feeds/podcasts/week-in-review/podcasts/rss.xml" applePodcastsID="702998658"/>
+      <outline type="rss" text="Post Reports" xmlUrl="https://podcast.posttv.com/itunes/post-reports.xml" applePodcastsID="1444873564"/>
+      <outline type="rss" text="SubPar Poddy C" xmlUrl="https://feeds.buzzsprout.com/234090.rss" applePodcastsID="1448602486"/>
+      <outline type="rss" text="Marketplace" xmlUrl="https://feeds.publicradio.org/public_feeds/marketplace" applePodcastsID="201853034"/>
+      <outline type="rss" text="Marketplace" xmlUrl="https://www.marketplace.org/feed/podcast/marketplace"/>
+      <outline type="rss" text="Land of the Giants" xmlUrl="https://feeds.megaphone.fm/landofthegiants" applePodcastsID="1465767420"/>
+      <outline type="rss" text="Bold Names" xmlUrl="https://video-api.wsj.com/podcast/rss/wsj/wsj-the-future-of-everything" applePodcastsID="1234320525"/>
+      <outline type="rss" text="Today, Explained" xmlUrl="https://feeds.megaphone.fm/VMP5705694065" applePodcastsID="1346207297"/>
+      <outline type="rss" text="Freakonomics Radio" xmlUrl="https://feeds.simplecast.com/Y8lFbOT4" applePodcastsID="354668519"/>
+      <outline type="rss" text="WSJ Tech News Briefing" xmlUrl="https://video-api.wsj.com/podcast/rss/wsj/tech-news-briefing" applePodcastsID="74844126"/>
+      <outline type="rss" text="The NPR Politics Podcast" xmlUrl="https://feeds.npr.org/510310/podcast.xml" applePodcastsID="1057255460"/>
+      <outline type="rss" text="Consider This from NPR" xmlUrl="https://feeds.npr.org/510355/podcast.xml" applePodcastsID="1503226625"/>
+      <outline type="rss" text="This Is Important" xmlUrl="https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/a41bd365-c6bc-4966-9ac2-ae28005326f5/6097c5b8-233a-45bf-8f11-ae2800532703/podcast.rss" applePodcastsID="1529931681"/>
+      <outline type="rss" text="The Run-Up" xmlUrl="https://feeds.simplecast.com/Kctn1RDB" applePodcastsID="1142083165"/>
+      <outline type="rss" text="The Daily" xmlUrl="https://feeds.simplecast.com/54nAGcIl" applePodcastsID="1200361736"/>
+      <outline type="rss" text="How It Happened" xmlUrl="https://feeds.megaphone.fm/axioshowithappened" applePodcastsID="1549225698"/>
+      <outline type="rss" text="Unexplainable" xmlUrl="https://feeds.megaphone.fm/VMP9331026707" applePodcastsID="1554578197"/>
+      <outline type="rss" text="Hidden Brain" xmlUrl="https://feeds.simplecast.com/kwWc0lhf" applePodcastsID="1028908750"/>
+      <outline type="rss" text="CYBER" xmlUrl="https://feeds.acast.com/public/shows/6dab3ca4-41f5-4fd4-bba6-224ab53f5113" applePodcastsID="1441708044"/>
+      <outline type="rss" text="Chalked Cast" xmlUrl="https://anchor.fm/s/972122c0/podcast/rss" applePodcastsID="1624577128"/>
+      <outline type="rss" text="NFL: Move the Sticks with Daniel Jeremiah &amp; Bucky Brooks" xmlUrl="https://www.omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/0e61fe66-e985-446f-bc46-ae27003599da/c1b3eaa8-db6b-4865-ac29-ae27003599f6/podcast.rss" applePodcastsID="915544088"/>
+      <outline type="rss" text="Hacker News Recap" xmlUrl="https://feeds.buzzsprout.com/2170103.rss" applePodcastsID="1681571416"/>
+      <outline type="rss" text="The Always Sunny Podcast" xmlUrl="https://feeds.megaphone.fm/TPC3838283892" applePodcastsID="1594627983"/>
+      <outline type="rss" text="80,000 Hours Podcast" xmlUrl="https://feeds.transistor.fm/80000-hours-podcast" applePodcastsID="1245002988"/>
+      <outline type="rss" text="Search Engine" xmlUrl="https://feeds.megaphone.fm/search-engine" applePodcastsID="1614253637"/>
+      <outline type="rss" text="Chalked Cast" xmlUrl="https://www.patreon.com/rss/ChalkedCast?auth=VgpJomi_WboOhmuqtcjbWXESfzrhtzut"/>
+      <outline type="rss" text="Chasing Life" xmlUrl="https://feeds.megaphone.fm/WMHY6124370245" applePodcastsID="1501029683"/>
+      <outline type="rss" text="Uncanny Valley | WIRED" xmlUrl="https://publicfeeds.net/f/5901/gadget-lab" applePodcastsID="266391367"/>
+      <outline type="rss" text="WIRED Politics Lab" xmlUrl="https://publicfeeds.net/f/5802/have-a-nice-future" applePodcastsID="1516843565"/>
+      <outline type="rss" text="Radiolab" xmlUrl="https://feeds.simplecast.com/EmVW7VGp" applePodcastsID="152249110"/>
+      <outline type="rss" text="Omnibus" xmlUrl="https://audioboom.com/channels/5127257.rss" applePodcastsID="1318335827"/>
+      <outline type="rss" text="On the Media" xmlUrl="https://feeds.simplecast.com/o4jAFXaw" applePodcastsID="73330715"/>
+      <outline type="rss" text="Game Scoop!" xmlUrl="https://rss.pdrl.fm/817ebc/feeds.megaphone.fm/gamescoop" applePodcastsID="276268226"/>
+      <outline type="rss" text="Hard Fork" xmlUrl="https://feeds.simplecast.com/l2i9YnTd" applePodcastsID="1528594034"/>
+      <outline type="rss" text="The World Ahead from The Economist" xmlUrl="https://access.acast.com/rss/8044dc9e-e5f2-44bd-9c1c-e86bd88b72a0" applePodcastsID="1409838532"/>
+    </outline>
+  </body>
+</opml>

@@ -5,7 +5,7 @@ import ReadableErrorMacro
 
 @ReadableError
 enum ParseError: ReadableError, CatchingError {
-  case exportFailure
+  case exportFailure(_ error: any Error)
   case invalidData(data: Data, caught: Error)
   case invalidMediaURL(MediaURL)
   case mergingDifferentFeedURLs(parsing: FeedURL, merging: FeedURL?)
@@ -16,7 +16,7 @@ enum ParseError: ReadableError, CatchingError {
 
   var message: String {
     switch self {
-    case .exportFailure:
+    case .exportFailure(_):
       return "Export failed"
     case .invalidData(let data, _):
       return

@@ -9,6 +9,12 @@ import Semaphore
 import SwiftUI
 import UniformTypeIdentifiers
 
+extension Container {
+  @MainActor var opmlViewModel: Factory<OPMLViewModel> {
+    Factory(self) { @MainActor in OPMLViewModel() }.scope(.shared)
+  }
+}
+
 final class OPMLDocument: FileDocument {
   static var utType: UTType {
     guard let utType = UTType(filenameExtension: "opml", conformingTo: .xml)
@@ -112,21 +118,40 @@ final class OPMLDocument: FileDocument {
   func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
     Task { [weak self] in
       guard let self else { return }
-      do {
-        switch result {
-        case .success(let url):
-          guard url.startAccessingSecurityScopedResource()
-          else { throw PermissionError.securityScopedResourceDenied }
+      await importOPMLFromURL(result)
+    }
+  }
 
-          let opml = try await PodcastOPML.parse(url)
-          try await downloadOPMLFile(opml)
-          url.stopAccessingSecurityScopedResource()
-        case .failure(let error):
-          throw error
+  func importFromSharedURL(_ url: URL) async {
+    Self.log.debug("Starting OPML import from shared URL: \(url)")
+    await importOPMLFromURL(.success(url))
+  }
+
+  func importOPMLFromURL(_ result: Result<URL, any Error>) async {
+    do {
+      switch result {
+      case .success(let url):
+        Self.log.debug("Starting OPML import from URL: \(url)")
+
+        _ = url.startAccessingSecurityScopedResource()
+        let opml = try await PodcastOPML.parse(url)
+        url.stopAccessingSecurityScopedResource()
+
+        if let sharedContainerPath = FileManager.default.containerURL(
+          forSecurityApplicationGroupIdentifier: "group.podhaven.shared"
+        )?
+        .path, url.path.hasPrefix(sharedContainerPath) {
+          try? FileManager.default.removeItem(at: url)
+          Self.log.debug("Cleaned up shared container file: \(url)")
         }
-      } catch {
-        alert("Couldn't import OPML file")
+
+        try await downloadOPMLFile(opml)
+      case .failure(let error):
+        throw error
       }
+    } catch {
+      Self.log.error(error)
+      alert(ErrorKit.message(for: error))
     }
   }
 
@@ -163,44 +188,38 @@ final class OPMLDocument: FileDocument {
     try await downloadSemaphor.waitUnlessCancelled()
     defer { downloadSemaphor.signal() }
 
-    let opmlFile = OPMLFile(title: opml.head.title ?? "Podcast Subscriptions")
+    let opmlFile = OPMLFile(title: opml.title ?? "Podcast Subscriptions")
     let allPodcasts = IdentifiedArray(uniqueElements: try await repo.allPodcasts(), id: \.feedURL)
 
-    for outline in opml.body.outlines {
-      guard let feedURL = try? FeedURL(outline.xmlUrl.rawValue.convertToValidURL())
-      else {
-        opmlFile.failed.insert(OPMLOutline(status: .failed, text: outline.text))
-        continue
-      }
-
-      if let podcast = allPodcasts[id: feedURL] {
-        if !podcast.subscribed {
-          Task { [weak self] in
-            guard let self else { return }
-            do {
-              try await repo.markSubscribed(podcast.id)
-              if let podcastSeries = try await repo.podcastSeries(podcast.id) {
-                try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    await withDiscardingTaskGroup { group in
+      for rssFeed in opml.rssFeeds {
+        if let podcast = allPodcasts[id: rssFeed.feedURL] {
+          if !podcast.subscribed {
+            group.addTask { [weak self] in
+              guard let self else { return }
+              do {
+                try await repo.markSubscribed(podcast.id)
+                if let podcastSeries = try await repo.podcastSeries(podcast.id) {
+                  try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+                }
+              } catch {
+                await Self.log.error(error)
               }
-            } catch {
-              Self.log.error(error)
             }
           }
-        }
-        opmlFile.finished.insert(OPMLOutline(status: .finished, text: outline.text))
-      } else {
-        opmlFile.waiting.insert(
-          OPMLOutline(
-            status: .waiting,
-            feedURL: feedURL,
-            text: outline.text
+          opmlFile.finished.insert(OPMLOutline(status: .finished, text: rssFeed.title))
+        } else {
+          opmlFile.waiting.insert(
+            OPMLOutline(
+              status: .waiting,
+              feedURL: rssFeed.feedURL,
+              text: rssFeed.title
+            )
           )
-        )
+        }
       }
-    }
 
-    self.opmlFile = opmlFile
-    await withDiscardingTaskGroup { group in
+      self.opmlFile = opmlFile
       for outline in opmlFile.waiting {
         group.addTask { [weak self] in
           guard let self = self else { return }
