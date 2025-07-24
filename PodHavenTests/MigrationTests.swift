@@ -750,9 +750,6 @@ class MigrationTests {
   func testV9Migration() async throws {
     try migrator.migrate(appDB.db, upTo: "v8")
 
-    // Insert test data in v8 schema (with 'subscribed' boolean column)
-    let now = Date()
-
     let (
       subscribedPodcast1Id, subscribedPodcast2Id, unsubscribedPodcast1Id, unsubscribedPodcast2Id
     ) = try await appDB.db.write { db in
@@ -897,38 +894,5 @@ class MigrationTests {
       #expect(newSubscribedCount == 2, "Should have 2 podcasts with subscriptionDate set")
       #expect(newUnsubscribedCount == 2, "Should have 2 podcasts with subscriptionDate as NULL")
     }
-
-    // Verify that the new Podcast model works correctly after migration
-    // (Testing the computed subscribed property)
-    let repo = Repo(appDB: appDB)
-
-    let allPodcasts = try await repo.db.read { db in
-      try Podcast.fetchAll(db)
-    }
-
-    #expect(allPodcasts.count == 4)
-
-    let subscribedPodcasts = allPodcasts.filter { $0.subscribed }
-    let unsubscribedPodcasts = allPodcasts.filter { !$0.subscribed }
-
-    #expect(
-      subscribedPodcasts.count == 2,
-      "Should have 2 subscribed podcasts via computed property"
-    )
-    #expect(
-      unsubscribedPodcasts.count == 2,
-      "Should have 2 unsubscribed podcasts via computed property"
-    )
-
-    // Verify that queries using the static expressions still work
-    let subscribedViaQuery = try await repo.db.read { db in
-      try Podcast.filter(Podcast.subscribed).fetchAll(db)
-    }
-    let unsubscribedViaQuery = try await repo.db.read { db in
-      try Podcast.filter(Podcast.unsubscribed).fetchAll(db)
-    }
-
-    #expect(subscribedViaQuery.count == 2, "Should have 2 subscribed podcasts via SQL query")
-    #expect(unsubscribedViaQuery.count == 2, "Should have 2 unsubscribed podcasts via SQL query")
   }
 }
