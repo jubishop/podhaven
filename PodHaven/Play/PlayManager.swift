@@ -281,6 +281,7 @@ actor PlayManager {
     } else {
       await setCurrentTime(.zero)
     }
+    commandCenter.enableSeekCommands()
 
     currentEpisodeID = podcastEpisode.id
   }
@@ -373,6 +374,7 @@ actor PlayManager {
     else { throw PlaybackError.endedEpisodeNotFound(episodeID) }
 
     Self.log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
+    commandCenter.disableSeekCommands()
     try await repo.markComplete(podcastEpisode.id)
   }
 

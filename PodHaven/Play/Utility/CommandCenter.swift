@@ -18,9 +18,12 @@ struct CommandCenter: CommandableCenter {
     case playbackPosition(TimeInterval)
   }
 
+  private static let log = Log.as(LogSubsystem.Play.commandCenter)
+
   // MARK: - State Management
 
   let stream: AsyncStream<Command>
+  private let continuation: AsyncStream<Command>.Continuation
 
   // MARK: - Convenience Getters
 
@@ -31,6 +34,7 @@ struct CommandCenter: CommandableCenter {
   init() {
     let (stream, continuation) = AsyncStream.makeStream(of: Command.self)
     self.stream = stream
+    self.continuation = continuation
 
     commandCenter.playCommand.addTarget { event in
       continuation.yield(.play)
@@ -60,7 +64,19 @@ struct CommandCenter: CommandableCenter {
       continuation.yield(.skipBackward(skipEvent.interval))
       return .success
     }
-    commandCenter.changePlaybackPositionCommand.addTarget { event in
+  }
+
+  // MARK: - Command Control
+
+  func disableSeekCommands() {
+    Self.log.debug("Disabling seek commands")
+    commandCenter.changePlaybackPositionCommand.removeTarget(nil)
+  }
+
+  func enableSeekCommands() {
+    Self.log.debug("Enabling seek commands")
+    commandCenter.changePlaybackPositionCommand.removeTarget(nil)
+    commandCenter.changePlaybackPositionCommand.addTarget { [continuation] event in
       guard let positionEvent = event as? MPChangePlaybackPositionCommandEvent
       else { Assert.fatal("Event is not a MPChangePlaybackPositionCommandEvent") }
 

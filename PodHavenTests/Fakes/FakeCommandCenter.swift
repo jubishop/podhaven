@@ -9,8 +9,17 @@ struct FakeCommandCenter: CommandableCenter {
 
   let stream: AsyncStream<CommandCenter.Command>
   let continuation: AsyncStream<CommandCenter.Command>.Continuation
+  private var seekCommandsEnabled = true
 
   init() {
     (self.stream, self.continuation) = AsyncStream.makeStream(of: CommandCenter.Command.self)
+  }
+
+  func disableSeekCommands() {
+    seekCommandsEnabled = false
+  }
+
+  func enableSeekCommands() {
+    seekCommandsEnabled = true
   }
 }

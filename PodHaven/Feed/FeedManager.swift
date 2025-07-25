@@ -51,7 +51,7 @@ struct FeedTask {
 }
 
 actor FeedManager {
-  static private let log = Log.as(LogSubsystem.Feed.feedManager)
+  private static let log = Log.as(LogSubsystem.Feed.feedManager)
 
   // MARK: - Concurrent Download Management
 
