@@ -275,7 +275,6 @@ final class PlayManager {
     )
     try Task.checkCancellation()
 
-    temporarilyHaltCommandCenter()
     nowPlayingInfo = NowPlayingInfo(onDeck)
     await playState.setOnDeck(onDeck)
 
@@ -296,7 +295,6 @@ final class PlayManager {
 
   private func clearOnDeck() async {
     Self.log.debug("clearOnDeck: executing")
-    haltCommandCenter()
     await podAVPlayer.clear()
     nowPlayingInfo = nil
     await playState.setOnDeck(nil)
@@ -321,13 +319,9 @@ final class PlayManager {
     await playState.setCurrentTime(currentTime)
   }
 
-  private func haltCommandCenter() {
+  private func temporarilyHaltCommandCenter() {
     restartCommandCenterTask?.cancel()
     ignoreCommandCenter = true
-  }
-
-  private func temporarilyHaltCommandCenter() {
-    haltCommandCenter()
     restartCommandCenterTask = Task {
       try await Task.sleep(for: .milliseconds(250))
       try Task.checkCancellation()
@@ -397,6 +391,7 @@ final class PlayManager {
     else { throw PlaybackError.endedEpisodeNotFound(episodeID) }
 
     Self.log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
+    temporarilyHaltCommandCenter()
     try await repo.markComplete(podcastEpisode.id)
   }
 
