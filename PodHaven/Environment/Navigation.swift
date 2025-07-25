@@ -244,20 +244,24 @@ extension Container {
 
   // MARK: - Podcast Navigation
 
-  func showPodcast(_ viewType: Podcasts.ViewType, _ podcast: Podcast) {
-    Self.log.debug("Showing podcast: \(podcast.toString)")
+  func showPodcastList(_ viewType: Podcasts.ViewType) {
+    Self.log.debug("Showing podcast list: \(viewType)")
 
     currentTab = .podcasts
     podcasts.path.append(.viewType(viewType))
+  }
+
+  func showPodcast(_ viewType: Podcasts.ViewType, _ podcast: Podcast) {
+    Self.log.debug("Showing podcast: \(podcast.toString)")
+
+    showPodcastList(viewType)
     podcasts.path.append(.podcast(podcast))
   }
 
   func showEpisode(_ viewType: Podcasts.ViewType, _ podcastEpisode: PodcastEpisode) {
     Self.log.debug("Showing PodcastEpisode: \(podcastEpisode.toString)")
 
-    currentTab = .podcasts
-    podcasts.path.append(.viewType(viewType))
-    podcasts.path.append(.podcast(podcastEpisode.podcast))
+    showPodcast(viewType, podcastEpisode.podcast)
     podcasts.path.append(.episode(podcastEpisode))
   }
 }

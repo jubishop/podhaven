@@ -65,6 +65,8 @@ final class PlayManager {
     }
   }
   private var loadTask: Task<Bool, any Error>?
+  private var restartCommandCenterTask: Task<Void, any Error>?
+  private var ignoreCommandCenter = false
 
   // MARK: - Initialization
 
@@ -273,6 +275,7 @@ final class PlayManager {
     )
     try Task.checkCancellation()
 
+    temporarilyHaltCommandCenter()
     nowPlayingInfo = NowPlayingInfo(onDeck)
     await playState.setOnDeck(onDeck)
 
@@ -287,13 +290,13 @@ final class PlayManager {
     } else {
       await setCurrentTime(.zero)
     }
-    commandCenter.enableSeekCommands()
 
     currentEpisodeID = podcastEpisode.id
   }
 
   private func clearOnDeck() async {
     Self.log.debug("clearOnDeck: executing")
+    haltCommandCenter()
     await podAVPlayer.clear()
     nowPlayingInfo = nil
     await playState.setOnDeck(nil)
@@ -316,6 +319,20 @@ final class PlayManager {
 
     nowPlayingInfo?.setCurrentTime(currentTime)
     await playState.setCurrentTime(currentTime)
+  }
+
+  private func haltCommandCenter() {
+    restartCommandCenterTask?.cancel()
+    ignoreCommandCenter = true
+  }
+
+  private func temporarilyHaltCommandCenter() {
+    haltCommandCenter()
+    restartCommandCenterTask = Task {
+      try await Task.sleep(for: .milliseconds(250))
+      try Task.checkCancellation()
+      ignoreCommandCenter = false
+    }
   }
 
   // MARK: - Private Change Handlers
@@ -380,7 +397,6 @@ final class PlayManager {
     else { throw PlaybackError.endedEpisodeNotFound(episodeID) }
 
     Self.log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
-    commandCenter.disableSeekCommands()
     try await repo.markComplete(podcastEpisode.id)
   }
 
@@ -431,8 +447,7 @@ final class PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await notification in notifications(AVPlayerItem.failedToPlayToEndTimeNotification)
-      {
+      for await notification in notifications(AVPlayerItem.failedToPlayToEndTimeNotification) {
         guard
           let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
         else { Assert.fatal("failedToPlayToEndTimeNotification: \(notification) is invalid") }
@@ -482,6 +497,7 @@ final class PlayManager {
     Task { [weak self] in
       guard let self else { return }
       for await command in commandCenter.stream {
+        if ignoreCommandCenter { continue }
         switch command {
         case .play:
           await play()

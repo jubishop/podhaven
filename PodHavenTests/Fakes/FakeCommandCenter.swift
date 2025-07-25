@@ -15,16 +15,6 @@ class FakeCommandCenter: CommandableCenter {
     (self.stream, self.continuation) = AsyncStream.makeStream(of: CommandCenter.Command.self)
   }
 
-  // MARK: - CommandableCenter
-
-  func disableSeekCommands() {
-    seekCommandsEnabled = false
-  }
-
-  func enableSeekCommands() {
-    seekCommandsEnabled = true
-  }
-
   // MARK: - Testing Manipulators
 
   func play() {
@@ -40,7 +30,14 @@ class FakeCommandCenter: CommandableCenter {
   }
 
   func seek(to position: TimeInterval) {
-    guard seekCommandsEnabled else { return }
     continuation.yield(.playbackPosition(position))
+  }
+
+  func skipForward(_ amount: TimeInterval) {
+    continuation.yield(.skipForward(amount))
+  }
+
+  func skipBackward(_ amount: TimeInterval) {
+    continuation.yield(.skipBackward(amount))
   }
 }

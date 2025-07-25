@@ -64,18 +64,6 @@ struct CommandCenter: CommandableCenter {
       continuation.yield(.skipBackward(skipEvent.interval))
       return .success
     }
-  }
-
-  // MARK: - Command Control
-
-  func disableSeekCommands() {
-    Self.log.debug("Disabling seek commands")
-    commandCenter.changePlaybackPositionCommand.removeTarget(nil)
-  }
-
-  func enableSeekCommands() {
-    Self.log.debug("Enabling seek commands")
-    commandCenter.changePlaybackPositionCommand.removeTarget(nil)
     commandCenter.changePlaybackPositionCommand.addTarget { [continuation] event in
       guard let positionEvent = event as? MPChangePlaybackPositionCommandEvent
       else { Assert.fatal("Event is not a MPChangePlaybackPositionCommandEvent") }

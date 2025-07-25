@@ -195,8 +195,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
 
   // MARK: - Testing Manipulators
 
-  @discardableResult
-  private func assertEpisodeCanFinish() -> any AVPlayableItem {
+  func finishEpisode() {
     Assert.precondition(
       timeControlStatus == .playing,
       "Can't simulate finishing episode when not playing!"
@@ -205,12 +204,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     guard let currentItem = queued.first
     else { Assert.fatal("Can't finish an episode that doesn't exist!") }
 
-    return currentItem
-  }
-
-  func triggerDidPlayToEnd() {
-    let currentItem = assertEpisodeCanFinish()
-    Self.log.debug("triggerDidPlayToEnd: \(String(describing: currentItem.episodeID))")
+    Self.log.debug("finishEpisode: \(String(describing: currentItem.episodeID))")
 
     notifier.continuation(for: AVPlayerItem.didPlayToEndTimeNotification)
       .yield(
@@ -219,18 +213,8 @@ class FakeAVQueuePlayer: AVQueuePlayable {
           object: FakeAVPlayerItem(episodeID: currentItem.episodeID)
         )
       )
-  }
-
-  func advanceCurrentItem() {
-    let currentItem = assertEpisodeCanFinish()
-    Self.log.debug("advanceCurrentItem: \(String(describing: currentItem.episodeID))")
 
     queued.removeFirst()
-  }
-
-  func finishEpisode() {
-    triggerDidPlayToEnd()
-    advanceCurrentItem()
   }
 
   func advanceTime(to cmTime: CMTime) {
@@ -238,11 +222,6 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   }
 
   func waitingToPlay(waitingReason: AVPlayer.WaitingReason? = nil) {
-    Assert.precondition(
-      timeControlStatus == .playing,
-      "Can only simulate waitingToPlay if playing!"
-    )
-
     reasonForWaitingToPlay = waitingReason
     timeControlStatus = .waitingToPlayAtSpecifiedRate
   }

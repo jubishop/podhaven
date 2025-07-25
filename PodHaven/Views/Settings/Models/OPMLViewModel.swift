@@ -137,7 +137,7 @@ extension Container {
 
   func finishedDownloading() {
     stopDownloading()
-    navigation.currentTab = .podcasts
+    navigation.showPodcastList(.subscribed)
   }
 
   // MARK: - Private Helpers

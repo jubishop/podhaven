@@ -321,11 +321,14 @@ import Testing
     #expect(PlayHelpers.nowPlayingPlaying == false)
   }
 
+  // TODO: Test seek and skip events from command center too
+  // TODO: Test that commands are ignored for 250 ms
   @Test("command center stops and starts playback")
   func commandCenterStopsAndStartsPlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await playManager.load(podcastEpisode)
+    try await Task.sleep(for: .milliseconds(500)) // TODO: Simulate sleeping for tests
 
     commandCenter.play()
     try await PlayHelpers.waitFor(.playing)
@@ -342,25 +345,6 @@ import Testing
     commandCenter.togglePlayPause()
     try await PlayHelpers.waitFor(.paused)
     #expect(PlayHelpers.nowPlayingPlaying == false)
-  }
-
-  @Test("command center disables seek commands between episodes")
-  func commandCenterDisablesSeekCommandsBetweenEpisodes() async throws {
-    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
-
-    try await queue.unshift(queuedEpisode.id)
-    try await playManager.load(playingEpisode)
-    await playManager.play()
-
-    try await PlayHelpers.waitForQueue([queuedEpisode])
-    try await PlayHelpers.waitForItemQueue([playingEpisode, queuedEpisode])
-    try await PlayHelpers.waitForOnDeck(playingEpisode)
-
-    #expect(PlayHelpers.seekCommandsEnabled)
-    avQueuePlayer.triggerDidPlayToEnd()
-    try await PlayHelpers.waitForSeekCommandsEnabled(false)
-    avQueuePlayer.advanceCurrentItem()
-    try await PlayHelpers.waitForSeekCommandsEnabled(true)
   }
 
   @Test("audio session interruption stops and restarts playback")

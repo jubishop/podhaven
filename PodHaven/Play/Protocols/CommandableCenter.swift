@@ -4,6 +4,4 @@ import Foundation
 
 protocol CommandableCenter {
   var stream: AsyncStream<CommandCenter.Command> { get }
-  func disableSeekCommands()
-  func enableSeekCommands()
 }
