@@ -162,3 +162,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Code Formatting
 - Run swift-format on any files you change
+
+## Code Safety Reiteration
+- Never force unwrap an optional in production code

@@ -2,6 +2,7 @@
 
 import FactoryKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct OPMLView: View {
   @DynamicInjected(\.alert) private var alert
@@ -20,35 +21,27 @@ struct OPMLView: View {
       }
 
       Section("Export") {
-        Button("Export OPML") {
-          viewModel.exportOPML()
+        ShareLink(
+          item: PodcastOPML.ExportItem(),
+          preview: SharePreview(
+            "PodHaven Subscriptions",
+            image: Image(systemName: "doc.text")
+          )
+        ) {
+          Label("Export OPML", systemImage: "square.and.arrow.up")
         }
       }
     }
     .navigationTitle("OPML")
     .fileImporter(
       isPresented: $viewModel.opmlImporting,
-      allowedContentTypes: [OPMLDocument.utType],
+      allowedContentTypes: [UTType(filenameExtension: "opml", conformingTo: .xml) ?? .xml],
       onCompletion: { result in
         viewModel.opmlFileImporterCompletion(result)
       }
     )
     .sheet(item: $viewModel.opmlFile) { opmlFile in
       OPMLImportSheet(viewModel: viewModel, opmlFile: opmlFile)
-    }
-    .fileExporter(
-      isPresented: $viewModel.opmlExporting,
-      document: viewModel.exportDocument,
-      contentType: OPMLDocument.utType,
-      defaultFilename: "PodHaven Subscriptions"
-    ) { result in
-      switch result {
-      case .success:
-        break  // Success handled automatically
-      case .failure:
-        alert("Failed to export subscriptions")
-        break
-      }
     }
   }
 }

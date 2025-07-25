@@ -35,7 +35,7 @@ enum RepoError: ReadableError {
           Type: \(String(describing: type))
           ID: \(id)
         """
-    case .updateFailure(let type, let description, let id, _):
+    case .updateFailure(let type, let id, let description, _):
       return
         """
         Failed to update record

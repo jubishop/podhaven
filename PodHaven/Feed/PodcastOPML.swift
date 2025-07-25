@@ -2,6 +2,8 @@
 
 import FactoryKit
 import Foundation
+import SwiftUI
+import UniformTypeIdentifiers
 import XMLCoder
 
 struct PodcastOPML: Codable, Sendable {
@@ -30,6 +32,16 @@ struct PodcastOPML: Codable, Sendable {
   }
 
   // MARK: - Export Methods
+
+  struct ExportItem: Transferable {
+    static var transferRepresentation: some TransferRepresentation {
+      DataRepresentation(
+        exportedContentType: UTType(filenameExtension: "opml", conformingTo: .xml) ?? .xml
+      ) { item in
+        try await exportSubscribedPodcasts()
+      }
+    }
+  }
 
   static func exportSubscribedPodcasts() async throws(ParseError) -> Data {
     do {

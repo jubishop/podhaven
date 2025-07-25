@@ -15,32 +15,6 @@ extension Container {
   }
 }
 
-final class OPMLDocument: FileDocument {
-  static var utType: UTType {
-    guard let utType = UTType(filenameExtension: "opml", conformingTo: .xml)
-    else { Assert.fatal("Couldn't initialize opml UTType?") }
-
-    return utType
-  }
-
-  static let readableContentTypes: [UTType] = []
-  static let writableContentTypes: [UTType] = [utType]
-
-  private let data: Data
-
-  init(data: Data) {
-    self.data = data
-  }
-
-  required init(configuration: ReadConfiguration) throws {
-    data = Data()
-  }
-
-  func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-    FileWrapper(regularFileWithContents: data)
-  }
-}
-
 @Observable @MainActor class OPMLOutline: Hashable, Identifiable {
   enum Status {
     case failed, waiting, downloading, finished
@@ -106,10 +80,8 @@ final class OPMLDocument: FileDocument {
   private static let log = Log.as(LogSubsystem.SettingsView.opml)
 
   var opmlImporting = false
-  var opmlExporting = false
 
   var opmlFile: OPMLFile?
-  var exportDocument: OPMLDocument?
 
   private var downloadSemaphor = AsyncSemaphore(value: 1)
 
@@ -166,20 +138,6 @@ final class OPMLDocument: FileDocument {
   func finishedDownloading() {
     stopDownloading()
     navigation.currentTab = .podcasts
-  }
-
-  func exportOPML() {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        let data = try await PodcastOPML.exportSubscribedPodcasts()
-        exportDocument = OPMLDocument(data: data)
-        opmlExporting = true
-      } catch {
-        Self.log.error(error)
-        alert(ErrorKit.message(for: error))
-      }
-    }
   }
 
   // MARK: - Private Helpers
