@@ -144,6 +144,13 @@ enum PlayHelpers {
     )
   }
 
+  static func waitForSeekCommandsEnabled(_ enabled: Bool) async throws {
+    try await Wait.until(
+      { await seekCommandsEnabled == enabled },
+      { "Expected seekCommandsEnabled to be \(enabled)" }
+    )
+  }
+
   // MARK: - Timing Helpers
 
   static func executeMidLoad(
@@ -245,6 +252,10 @@ enum PlayHelpers {
     get async throws {
       episodeStrings(try await queuedEpisodes)
     }
+  }
+
+  static var seekCommandsEnabled: Bool {
+    commandCenter.seekCommandsEnabled
   }
 
   static func episodeStrings(_ podcastEpisodes: [PodcastEpisode]) -> [String] {

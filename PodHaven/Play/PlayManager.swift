@@ -11,11 +11,17 @@ import SwiftUI
 
 extension Container {
   var playManager: Factory<PlayManager> {
-    Factory(self) { PlayManager() }.scope(.cached)
+    Factory(self) { @PlayActor in PlayManager() }.scope(.cached)
   }
 }
 
-actor PlayManager {
+@globalActor
+actor PlayActor {
+  static let shared = PlayActor()
+}
+
+@PlayActor
+final class PlayManager {
   @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.queue) private var queue
@@ -385,7 +391,7 @@ actor PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await notification in await notifications(AVAudioSession.interruptionNotification) {
+      for await notification in notifications(AVAudioSession.interruptionNotification) {
         switch AudioInterruption.parse(notification) {
         case .pause:
           await pause()
@@ -399,7 +405,7 @@ actor PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await _ in await notifications(AVAudioSession.mediaServicesWereResetNotification) {
+      for await _ in notifications(AVAudioSession.mediaServicesWereResetNotification) {
         Self.log.critical("Media services were reset - this could cause playback to stop")
         await alert(
           """
@@ -418,14 +424,14 @@ actor PlayManager {
         do {
           try await handleDidPlayToEnd(playableItem.episodeID)
         } catch {
-          Self.log.error(error)
+          await Self.log.error(error)
         }
       }
     }
 
     Task { [weak self] in
       guard let self else { return }
-      for await notification in await notifications(AVPlayerItem.failedToPlayToEndTimeNotification)
+      for await notification in notifications(AVPlayerItem.failedToPlayToEndTimeNotification)
       {
         guard
           let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
@@ -442,14 +448,14 @@ actor PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await _ in await notifications(AVPlayerItem.playbackStalledNotification) {
+      for await _ in notifications(AVPlayerItem.playbackStalledNotification) {
         Self.log.warning("AVPlayerItem playback stalled")
       }
     }
 
     Task { [weak self] in
       guard let self else { return }
-      for await notification in await notifications(AVPlayerItem.newErrorLogEntryNotification) {
+      for await notification in notifications(AVPlayerItem.newErrorLogEntryNotification) {
         guard let item = notification.object as? AVPlayerItem
         else { Assert.fatal("newErrorLogEntryNotification: \(notification) is invalid") }
 
@@ -475,7 +481,7 @@ actor PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await command in await commandCenter.stream {
+      for await command in commandCenter.stream {
         switch command {
         case .play:
           await play()

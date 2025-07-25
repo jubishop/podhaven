@@ -327,21 +327,40 @@ import Testing
 
     try await playManager.load(podcastEpisode)
 
-    commandCenter.continuation.yield(.play)
+    commandCenter.play()
     try await PlayHelpers.waitFor(.playing)
     #expect(PlayHelpers.nowPlayingPlaying == true)
 
-    commandCenter.continuation.yield(.pause)
+    commandCenter.pause()
     try await PlayHelpers.waitFor(.paused)
     #expect(PlayHelpers.nowPlayingPlaying == false)
 
-    commandCenter.continuation.yield(.togglePlayPause)
+    commandCenter.togglePlayPause()
     try await PlayHelpers.waitFor(.playing)
     #expect(PlayHelpers.nowPlayingPlaying == true)
 
-    commandCenter.continuation.yield(.togglePlayPause)
+    commandCenter.togglePlayPause()
     try await PlayHelpers.waitFor(.paused)
     #expect(PlayHelpers.nowPlayingPlaying == false)
+  }
+
+  @Test("command center disables seek commands between episodes")
+  func commandCenterDisablesSeekCommandsBetweenEpisodes() async throws {
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await queue.unshift(queuedEpisode.id)
+    try await playManager.load(playingEpisode)
+    await playManager.play()
+
+    try await PlayHelpers.waitForQueue([queuedEpisode])
+    try await PlayHelpers.waitForItemQueue([playingEpisode, queuedEpisode])
+    try await PlayHelpers.waitForOnDeck(playingEpisode)
+
+    #expect(PlayHelpers.seekCommandsEnabled)
+    avQueuePlayer.triggerDidPlayToEnd()
+    try await PlayHelpers.waitForSeekCommandsEnabled(false)
+    avQueuePlayer.advanceCurrentItem()
+    try await PlayHelpers.waitForSeekCommandsEnabled(true)
   }
 
   @Test("audio session interruption stops and restarts playback")
@@ -746,16 +765,16 @@ import Testing
   @Test("failed episode gets unshifted back to queue")
   func failedEpisodeGetsUnshiftedBackToQueue() async throws {
     let (currentEpisode, nextEpisode) = try await Create.twoPodcastEpisodes()
-    
+
     // Load first episode and queue the second
     try await playManager.load(currentEpisode)
     try await queue.unshift(nextEpisode.id)
-    
+
     // Wait for both episodes to be in the item queue
     try await PlayHelpers.waitForItemQueue([currentEpisode, nextEpisode])
     try await PlayHelpers.waitForQueue([nextEpisode])
     try await PlayHelpers.waitForOnDeck(currentEpisode)
-    
+
     // Finish the current episode so nextEpisode becomes currentItem
     try await PlayHelpers.play()
     avQueuePlayer.finishEpisode()
@@ -764,7 +783,7 @@ import Testing
     try await PlayHelpers.waitForItemQueue([nextEpisode])
     try await PlayHelpers.waitForQueue([])
     try await PlayHelpers.waitForOnDeck(nextEpisode)
-    
+
     // Now simulate the nextEpisode failing after it becomes currentItem
     let nextItem = avQueuePlayer.current as! FakeAVPlayerItem
     #expect(nextItem.episodeID == nextEpisode.id)
@@ -772,7 +791,7 @@ import Testing
 
     // Simulate AVQueuePlayer automatically removing the failed item (making currentItem nil)
     avQueuePlayer.remove(nextItem)
-    
+
     // The failed episode should be unshifted back to the front of the queue
     try await PlayHelpers.waitForItemQueue([nextEpisode])
     try await PlayHelpers.waitForQueue([])
