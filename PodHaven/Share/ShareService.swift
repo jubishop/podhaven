@@ -134,6 +134,7 @@ actor ShareService {
           PodcastSeries: \(podcastSeries.toString)
         """
       )
+      try await repo.markSubscribed(podcastSeries.id)
       try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
       let updatedPodcastSeries = try await repo.podcastSeries(feedURL) ?? podcastSeries
       await navigation.showPodcast(
@@ -146,7 +147,7 @@ actor ShareService {
     log.debug("findOrCreatePodcastSeries: Adding new podcast from feed URL: \(feedURL)")
     let podcastFeed: PodcastFeed = try await feedManager.addURL(feedURL).feedParsed()
     let newPodcastSeries = try await repo.insertSeries(
-      try podcastFeed.toUnsavedPodcast(lastUpdate: Date()),
+      try podcastFeed.toUnsavedPodcast(subscriptionDate: Date(), lastUpdate: Date()),
       unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
     )
     return newPodcastSeries

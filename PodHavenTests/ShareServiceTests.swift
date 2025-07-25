@@ -48,13 +48,13 @@ import Testing
     )
 
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
-    #expect(!podcastSeries.podcast.subscribed)
+    #expect(podcastSeries.podcast.subscribed)
     #expect(podcastSeries.podcast.title == "Lenny's Podcast: Product | Growth | Career")
     #expect(podcastSeries.episodes.count == 32)
 
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [.viewType(.unsubscribed), .podcast(podcastSeries.podcast)]
+      navigation.podcasts.path == [.viewType(.subscribed), .podcast(podcastSeries.podcast)]
     )
   }
 
@@ -97,15 +97,13 @@ import Testing
 
     #expect(try await repo.allPodcasts().count == 1)
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
-    #expect(podcastSeries.podcast.subscribed == subscribed)
+    #expect(podcastSeries.podcast.subscribed)
     #expect(podcastSeries.podcast.title == "Lenny's Podcast: Product | Growth | Career")
     #expect(podcastSeries.episodes.count == 32)
 
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [
-        .viewType(subscribed ? .subscribed : .unsubscribed), .podcast(podcastSeries.podcast),
-      ]
+      navigation.podcasts.path == [.viewType(.subscribed), .podcast(podcastSeries.podcast)]
     )
   }
 
@@ -270,7 +268,7 @@ import Testing
     )
 
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
-    #expect(!podcastSeries.podcast.subscribed)
+    #expect(podcastSeries.podcast.subscribed)
     #expect(
       podcastSeries.podcast.title == "Reshaping Workflows with Dell Pro Max and NVIDIA RTX PRO GPUs"
     )
@@ -279,7 +277,7 @@ import Testing
     #expect(navigation.currentTab == .podcasts)
     #expect(
       navigation.podcasts.path == [
-        .viewType(.unsubscribed),
+        .viewType(.subscribed),
         .podcast(podcastSeries.podcast),
         .episode(
           PodcastEpisode(
@@ -344,12 +342,12 @@ import Testing
 
     #expect(try await repo.allPodcasts().count == 1)
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
-    #expect(podcastSeries.podcast.subscribed == subscribed)
+    #expect(podcastSeries.podcast.subscribed)
 
     #expect(navigation.currentTab == .podcasts)
     #expect(
       navigation.podcasts.path == [
-        .viewType(subscribed ? .subscribed : .unsubscribed),
+        .viewType(.subscribed),
         .podcast(podcastSeries.podcast),
         .episode(
           PodcastEpisode(
@@ -399,7 +397,7 @@ import Testing
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [.viewType(.unsubscribed), .podcast(podcastSeries.podcast)]
+      navigation.podcasts.path == [.viewType(.subscribed), .podcast(podcastSeries.podcast)]
     )
   }
 
@@ -413,7 +411,7 @@ import Testing
     )
     await feedSession.respond(to: feedURL, data: feedData)
 
-    // OPML with just TechDirt in ituh
+    // OPML with just TechDirt in it
     let opmlURL = Bundle.main.url(forResource: "techdirt", withExtension: "opml")!
 
     let shareURL = ShareHelpers.shareURL(with: opmlURL)
