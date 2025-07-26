@@ -20,6 +20,10 @@ extension CMTime:
 
   // MARK: - Creation Helpers
 
+  static func milliseconds(_ milliseconds: Double) -> CMTime {
+    seconds(milliseconds / 1000)
+  }
+
   static func seconds(_ seconds: Double) -> CMTime {
     CMTime(seconds: seconds, preferredTimescale: 60)
   }

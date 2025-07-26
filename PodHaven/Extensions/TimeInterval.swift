@@ -16,6 +16,10 @@ extension TimeInterval {
 
   // MARK: - Creation Helpers
 
+  static func milliseconds(_ milliseconds: Double) -> TimeInterval {
+    TimeInterval(milliseconds / 1000)
+  }
+
   static func seconds(_ seconds: Double) -> TimeInterval {
     TimeInterval(seconds)
   }

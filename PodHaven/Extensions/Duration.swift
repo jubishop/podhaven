@@ -16,6 +16,10 @@ extension Duration {
 
   // MARK: - Creation Helpers
 
+  static func milliseconds(_ milliseconds: Double) -> Duration {
+    seconds(milliseconds / 1000)
+  }
+
   static func minutes(_ minutes: Double) -> Duration {
     seconds(minutes * 60)
   }
