@@ -12,7 +12,7 @@ enum Wait {
   @discardableResult
   static func forValue<T: Sendable>(
     maxAttempts: Int = 100,
-    delay: Duration = .milliseconds(25),
+    delay: Duration = .milliseconds(10),
     _ block: @Sendable @escaping () async throws -> T?
   ) async throws -> T {
     var attempts = 0
@@ -26,7 +26,7 @@ enum Wait {
 
   static func until(
     maxAttempts: Int = 100,
-    delay: Duration = .milliseconds(25),
+    delay: Duration = .milliseconds(10),
     _ block: @Sendable @escaping () async throws -> Bool,
     _ errorMessage: @Sendable @escaping () async throws -> String = { "Block never became true" }
   ) async throws {
