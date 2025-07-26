@@ -8,10 +8,24 @@ extension CMTime:
   @retroactive CustomStringConvertible,
   @retroactive DatabaseValueConvertible
 {
-  // MARK: - Static Methods
+  // MARK: - Conversions
 
-  static func inSeconds(_ seconds: Double) -> CMTime {
+  func asDuration() -> Duration {
+    Duration.seconds(CMTimeGetSeconds(self))
+  }
+
+  func asTimeInterval() -> TimeInterval {
+    TimeInterval.seconds(CMTimeGetSeconds(self))
+  }
+
+  // MARK: - Creation Helpers
+
+  static func seconds(_ seconds: Double) -> CMTime {
     CMTime(seconds: seconds, preferredTimescale: 60)
+  }
+
+  static func minutes(_ minutes: Double) -> CMTime {
+    seconds(minutes * 60)
   }
 
   // MARK: - CustomStringConvertible
@@ -40,7 +54,7 @@ extension CMTime:
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
-    self = CMTime.inSeconds(try container.decode(Double.self))
+    self = CMTime.seconds(try container.decode(Double.self))
   }
 
   // MARK: - DatabaseValueConvertible
@@ -55,6 +69,6 @@ extension CMTime:
     guard let seconds = Double.fromDatabaseValue(dbValue)
     else { return nil }
 
-    return CMTime.inSeconds(seconds)
+    return CMTime.seconds(seconds)
   }
 }

@@ -21,7 +21,7 @@ class FakeEpisodeAssetLoader {
   }
 
   private var defaultHandler: LoadHandler = { _ in
-    (true, CMTime.inSeconds(Double.random(in: 1...999)))
+    (true, CMTime.seconds(Double.random(in: 1...999)))
   }
   private var fakeHandlers: [Episode.ID: LoadHandler] = [:]
 

@@ -1,8 +1,31 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import Foundation
 
 extension TimeInterval {
+  // MARK: - Conversions
+
+  func asCMTime() -> CMTime {
+    CMTime.seconds(self)
+  }
+
+  func asDuration() -> Duration {
+    Duration.seconds(self)
+  }
+
+  // MARK: - Creation Helpers
+
+  static func seconds(_ seconds: Double) -> TimeInterval {
+    TimeInterval(seconds)
+  }
+
+  static func minutes(_ minutes: Double) -> TimeInterval {
+    TimeInterval(minutes * 60)
+  }
+
+  // MARK: - Formatting
+
   var compactReadableFormat: String {
     let hours = Int(self) / 3600
     let minutes = (Int(self) % 3600) / 60

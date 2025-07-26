@@ -20,7 +20,7 @@ class ObservatoryTests {
     let podcast = try Create.unsavedPodcast()
     let newestUnfinishedEpisode = try Create.unsavedEpisode(
       pubDate: 10.minutesAgo,
-      currentTime: CMTime.inSeconds(60),
+      currentTime: CMTime.seconds(60),
       queueOrder: 0
     )
     let newestUnstartedEpisode = try Create.unsavedEpisode(

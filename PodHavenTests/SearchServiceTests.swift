@@ -111,7 +111,7 @@ class SearchServiceTests {
             title:
               "Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women",
             pubDate: Date(timeIntervalSince1970: 1732406400),
-            duration: CMTime.inSeconds(887),
+            duration: CMTime.seconds(887),
             description:
               "<h1>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women</h1><h1>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women</h1><h1>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women</h1><p>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women<br/>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women<br/>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit..."
           )

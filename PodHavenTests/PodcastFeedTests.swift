@@ -18,7 +18,7 @@ struct PodcastFeedTests {
     #expect(unsavedPodcast.link == URL(string: "https://crooked.com"))
     #expect(unsavedPodcast.image.absoluteString.contains("simplecastcdn"))
     let unsavedEpisode = try feed.episodes.first!.toUnsavedEpisode()
-    #expect(unsavedEpisode.duration == CMTime.inSeconds(2643))
+    #expect(unsavedEpisode.duration == CMTime.seconds(2643))
   }
 
   @Test("parsing the Marketplace feed with an invalid MediaURL")

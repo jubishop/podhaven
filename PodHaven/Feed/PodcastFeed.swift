@@ -68,7 +68,7 @@ struct EpisodeFeed: Sendable, Equatable {
       seconds += multiplier * value
       multiplier *= 60
     }
-    return CMTime.inSeconds(Double(seconds))
+    return CMTime.seconds(Double(seconds))
   }
 
   // MARK: - Equatable

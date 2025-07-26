@@ -63,7 +63,7 @@ class EpisodeTests {
       media: MediaURL(URL.valid()),
       title: "original episode title",
       pubDate: 100.minutesAgo,
-      duration: CMTime.inSeconds(300),
+      duration: CMTime.seconds(300),
       description: "original episode description",
       link: URL.valid(),
       image: URL.valid()
@@ -77,8 +77,8 @@ class EpisodeTests {
     let originalEpisode = podcastSeries.episodes.first!
 
     // Step 2: Update user state and duration (simulating PodAVPlayer updating duration)
-    let actualDuration = CMTime.inSeconds(1800)  // 30 minutes actual duration from media file
-    let currentTime = CMTime.inSeconds(120)
+    let actualDuration = CMTime.seconds(1800)  // 30 minutes actual duration from media file
+    let currentTime = CMTime.seconds(120)
     try await repo.markSubscribed(originalPodcast.id)
     try await repo.markComplete(originalEpisode.id)
     try await repo.updateCurrentTime(originalEpisode.id, currentTime)
@@ -105,7 +105,7 @@ class EpisodeTests {
     let newEpisodeMedia = MediaURL(URL.valid())
     let newEpisodeTitle = "new episode title"
     let newEpisodePubDate = 50.minutesAgo
-    let newEpisodeDuration = CMTime.inSeconds(600)
+    let newEpisodeDuration = CMTime.seconds(600)
     let newEpisodeDescription = "new episode description"
     let newEpisodeLink = URL.valid()
     let newEpisodeImage = URL.valid()
@@ -202,7 +202,7 @@ class EpisodeTests {
   @Test("that episodes can persist currentTime")
   func persistCurrentTime() async throws {
     let guid = GUID("guid")
-    let cmTime = CMTime.inSeconds(30)
+    let cmTime = CMTime.seconds(30)
 
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsavedEpisode = try Create.unsavedEpisode(guid: guid, currentTime: cmTime)
@@ -217,7 +217,7 @@ class EpisodeTests {
     }!
     #expect(episode.currentTime == cmTime)
 
-    let newCMTime = CMTime.inSeconds(60)
+    let newCMTime = CMTime.seconds(60)
     try await repo.updateCurrentTime(episode.id, newCMTime)
 
     let updatedEpisode = try await repo.db.read { db in
@@ -229,7 +229,7 @@ class EpisodeTests {
   @Test("that episodes can persist duration")
   func persistDuration() async throws {
     let guid = GUID("guid")
-    let cmTime = CMTime.inSeconds(30)
+    let cmTime = CMTime.seconds(30)
 
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsavedEpisode = try Create.unsavedEpisode(guid: guid, duration: cmTime)
@@ -244,7 +244,7 @@ class EpisodeTests {
     }!
     #expect(episode.duration == cmTime)
 
-    let newCMTime = CMTime.inSeconds(60)
+    let newCMTime = CMTime.seconds(60)
     try await repo.updateDuration(episode.id, newCMTime)
 
     let updatedEpisode = try await repo.db.read { db in
@@ -256,7 +256,7 @@ class EpisodeTests {
   @Test("that an episode can be marked complete")
   func markEpisodeComplete() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
-    let unsavedEpisode = try Create.unsavedEpisode(currentTime: CMTime.inSeconds(60))
+    let unsavedEpisode = try Create.unsavedEpisode(currentTime: CMTime.seconds(60))
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]
@@ -264,7 +264,7 @@ class EpisodeTests {
 
     let episode = podcastSeries.episodes.first!
     #expect(episode.completed == false)
-    #expect(episode.currentTime == CMTime.inSeconds(60))
+    #expect(episode.currentTime == CMTime.seconds(60))
     try await repo.markComplete(episode.id)
 
     let podcastEpisode = try await repo.episode(episode.id)!

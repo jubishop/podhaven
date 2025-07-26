@@ -148,7 +148,7 @@ enum PlayHelpers {
 
   static func executeMidLoad(
     for podcastEpisode: PodcastEpisode,
-    asyncProperties: (Bool, CMTime) = (true, .inSeconds(60)),
+    asyncProperties: (Bool, CMTime) = (true, .seconds(Double(60))),
     _ block: @escaping @Sendable () async throws -> Void
   ) async throws {
     let loadSemaphoreBegun = AsyncSemaphore(value: 0)
@@ -210,7 +210,7 @@ enum PlayHelpers {
   }
 
   static var nowPlayingCurrentTime: CMTime {
-    CMTime.inSeconds(nowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] as! Double)
+    CMTime.seconds(nowPlayingInfo![MPNowPlayingInfoPropertyElapsedPlaybackTime] as! Double)
   }
 
   static var nowPlayingProgress: Double {

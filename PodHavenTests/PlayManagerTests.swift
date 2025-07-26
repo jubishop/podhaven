@@ -122,7 +122,7 @@ import Testing
     let loadingSemaphore = AsyncSemaphore(value: 0)
     fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) { _ in
       await loadingSemaphore.wait()
-      return (true, .inSeconds(10))
+      return (true, .seconds(10))
     }
 
     Task { try await playManager.load(podcastEpisode) }
@@ -134,7 +134,7 @@ import Testing
 
   @Test("loading an episode seeks to its stored time")
   func loadingEpisodeSeeksToItsStoredTime() async throws {
-    let currentTime: CMTime = .inSeconds(10)
+    let currentTime: CMTime = .seconds(10)
     let podcastEpisode = try await Create.podcastEpisode(
       Create.unsavedEpisode(currentTime: currentTime)
     )
@@ -146,12 +146,12 @@ import Testing
 
   @Test("loading an episode updates its duration value")
   func loadingEpisodeUpdatesDuration() async throws {
-    let originalDuration = CMTime.inSeconds(10)
+    let originalDuration = CMTime.seconds(10)
     let podcastEpisode = try await Create.podcastEpisode(
       Create.unsavedEpisode(duration: originalDuration)
     )
 
-    let correctDuration = CMTime.inSeconds(20)
+    let correctDuration = CMTime.seconds(20)
     fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) {
       _ in (true, correctDuration)
     }
@@ -348,6 +348,9 @@ import Testing
     commandCenter.togglePlayPause()
     try await PlayHelpers.waitFor(.paused)
     #expect(PlayHelpers.nowPlayingPlaying == false)
+
+    commandCenter.skipForward(TimeInterval.seconds(1))
+    try await PlayHelpers.waitFor(CMTime.seconds(1))
   }
 
   @Test("audio session interruption stops and restarts playback")
@@ -395,7 +398,7 @@ import Testing
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
 
-    let advancedTime = CMTime.inSeconds(10)
+    let advancedTime = CMTime.seconds(10)
     avQueuePlayer.advanceTime(to: advancedTime)
     try await PlayHelpers.waitFor(advancedTime)
     #expect(PlayHelpers.nowPlayingCurrentTime == advancedTime)
@@ -418,24 +421,24 @@ import Testing
   func seekingUpdatesCurrentTime() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    let duration = CMTime.inSeconds(240)
+    let duration = CMTime.seconds(240)
     fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) { _ in (true, duration) }
     try await playManager.load(podcastEpisode)
 
-    let originalTime = CMTime.inSeconds(120)
+    let originalTime = CMTime.seconds(120)
     await playManager.seek(to: originalTime)
     try await PlayHelpers.waitFor(originalTime)
     #expect(PlayHelpers.nowPlayingCurrentTime == originalTime)
     #expect(PlayHelpers.nowPlayingProgress == originalTime.seconds / duration.seconds)
 
-    let skipAmount = CMTime.inSeconds(30)
+    let skipAmount = CMTime.seconds(30)
     let skipTime = CMTimeAdd(originalTime, skipAmount)
     await playManager.seekForward(skipAmount)
     try await PlayHelpers.waitFor(skipTime)
     #expect(PlayHelpers.nowPlayingCurrentTime == skipTime)
     #expect(PlayHelpers.nowPlayingProgress == skipTime.seconds / duration.seconds)
 
-    let rewindAmount = CMTime.inSeconds(15)
+    let rewindAmount = CMTime.seconds(15)
     let rewindTime = CMTimeSubtract(skipTime, rewindAmount)
     await playManager.seekBackward(rewindAmount)
     try await PlayHelpers.waitFor(rewindTime)
@@ -456,7 +459,7 @@ import Testing
     try await PlayHelpers.play()
 
     // Seek and episode will return to playing
-    await playManager.seek(to: .inSeconds(60))
+    await playManager.seek(to: .seconds(60))
     try await PlayHelpers.waitFor(.seeking)
     seekSemaphore.signal()
     try await PlayHelpers.waitFor(.playing)
@@ -475,7 +478,7 @@ import Testing
     try await playManager.load(podcastEpisode)
 
     // Seek and episode will return to paused
-    await playManager.seek(to: .inSeconds(60))
+    await playManager.seek(to: .seconds(60))
     try await PlayHelpers.waitFor(.seeking)
     seekSemaphore.signal()
     try await PlayHelpers.waitFor(.paused)
@@ -493,7 +496,7 @@ import Testing
     }
 
     // Seek, play mid-seek, and episode will still be playing once the seek is completed
-    await playManager.seek(to: .inSeconds(60))
+    await playManager.seek(to: .seconds(60))
     try await PlayHelpers.waitForPeriodicTimeObserver()
     try await PlayHelpers.waitFor(.playing)
     #expect(PlayHelpers.nowPlayingPlaying == true)
@@ -511,7 +514,7 @@ import Testing
     }
 
     // Seek, hit pause mid-seek, and episode will still be paused once the seek is completed
-    await playManager.seek(to: .inSeconds(60))
+    await playManager.seek(to: .seconds(60))
     try await PlayHelpers.waitForPeriodicTimeObserver()
     try await PlayHelpers.waitFor(.paused)
     #expect(PlayHelpers.nowPlayingPlaying == false)
@@ -530,7 +533,7 @@ import Testing
       await seekSemaphore.wait()
       return false
     }
-    await playManager.seek(to: .inSeconds(30))
+    await playManager.seek(to: .seconds(30))
     try await PlayHelpers.waitFor(.seeking)
     seekSemaphore.signal()
 
@@ -539,7 +542,7 @@ import Testing
       await seekSemaphore.wait()
       return true
     }
-    await playManager.seek(to: .inSeconds(60))
+    await playManager.seek(to: .seconds(60))
     try await PlayHelpers.waitFor(.seeking)
     seekSemaphore.signal()
 
@@ -556,7 +559,7 @@ import Testing
 
     // After this failed seek, all time advancement is being ignored
     avQueuePlayer.seekHandler = { _ in false }
-    let failedSeekTime = CMTime.inSeconds(60)
+    let failedSeekTime = CMTime.seconds(60)
     await playManager.seek(to: failedSeekTime)
     #expect(!PlayHelpers.hasPeriodicTimeObservation())
 
@@ -568,14 +571,14 @@ import Testing
       await seekSemaphore.wait()
       return true
     }
-    let successfulSeekTime = CMTimeAdd(failedSeekTime, CMTime.inSeconds(30))
+    let successfulSeekTime = CMTimeAdd(failedSeekTime, CMTime.seconds(30))
     await playManager.seek(to: successfulSeekTime)
     #expect(!PlayHelpers.hasPeriodicTimeObservation())
 
     // Our seek completes successfully so time advancement observation is back
     seekSemaphore.signal()
     try await PlayHelpers.waitForPeriodicTimeObserver()
-    let advancedTime = CMTimeAdd(successfulSeekTime, CMTime.inSeconds(10))
+    let advancedTime = CMTimeAdd(successfulSeekTime, CMTime.seconds(10))
     avQueuePlayer.advanceTime(to: advancedTime)  // Actually Triggers
     try await PlayHelpers.waitFor(advancedTime)
     #expect(PlayHelpers.nowPlayingCurrentTime == advancedTime)
@@ -849,8 +852,8 @@ import Testing
 
   @Test("advancing to mid-progress episode seeks to new time")
   func advancingToMidProgressEpisodeSeeksToNewTime() async throws {
-    let originalTime = CMTime.inSeconds(5)
-    let queuedTime = CMTime.inSeconds(10)
+    let originalTime = CMTime.seconds(5)
+    let queuedTime = CMTime.seconds(10)
     let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes(
       Create.unsavedEpisode(currentTime: originalTime),
       Create.unsavedEpisode(currentTime: queuedTime)
@@ -867,7 +870,7 @@ import Testing
 
   @Test("advancing to unplayed episode sets time to zero")
   func advancingToUnplayedEpisodeSetsTimeToZero() async throws {
-    let originalTime = CMTime.inSeconds(10)
+    let originalTime = CMTime.seconds(10)
     let (originalEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes(
       Create.unsavedEpisode(currentTime: originalTime)
     )

@@ -48,7 +48,7 @@ extension Container {
       self._sliderValue = newValue
       Task { [weak self] in
         guard let self else { return }
-        await playManager.seek(to: CMTime.inSeconds(_sliderValue))
+        await playManager.seek(to: CMTime.seconds(_sliderValue))
       }
     }
   }
@@ -81,14 +81,14 @@ extension Container {
   func seekBackward() {
     Task { [weak self] in
       guard let self else { return }
-      await playManager.seekBackward(CMTime.inSeconds(15))
+      await playManager.seekBackward(CMTime.seconds(15))
     }
   }
 
   func seekForward() {
     Task { [weak self] in
       guard let self else { return }
-      await playManager.seekForward(CMTime.inSeconds(30))
+      await playManager.seekForward(CMTime.seconds(30))
     }
   }
 }

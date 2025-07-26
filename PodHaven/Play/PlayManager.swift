@@ -502,11 +502,11 @@ final class PlayManager {
         case .togglePlayPause:
           await toggle()
         case .skipForward(let interval):
-          await seekForward(CMTime.inSeconds(interval))
+          await seekForward(CMTime.seconds(interval))
         case .skipBackward(let interval):
-          await seekBackward(CMTime.inSeconds(interval))
+          await seekBackward(CMTime.seconds(interval))
         case .playbackPosition(let position):
-          await seek(to: CMTime.inSeconds(position))
+          await seek(to: CMTime.seconds(position))
         }
       }
     }

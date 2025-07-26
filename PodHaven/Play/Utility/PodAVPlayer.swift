@@ -405,7 +405,7 @@ extension Container {
     guard periodicTimeObserver == nil else { return }
 
     periodicTimeObserver = avQueuePlayer.addPeriodicTimeObserver(
-      forInterval: CMTime.inSeconds(1),
+      forInterval: CMTime.seconds(1),
       queue: .global(qos: .utility)
     ) { [weak self] currentTime in
       guard let self else { return }
