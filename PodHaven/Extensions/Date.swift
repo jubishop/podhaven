@@ -3,6 +3,10 @@
 import Foundation
 
 extension Date {
+  static let epoch: Date = Date(timeIntervalSince1970: 0)
+
+  // MARK: - Static Formatting Helpers
+
   static let rfc2822: DateFormatter = {
     let rfc2822 = DateFormatter()
     rfc2822.locale = Locale(identifier: "en_US_POSIX")
@@ -25,7 +29,7 @@ extension Date {
     return usShortDateFormatWithTime
   }()
 
-  static let epoch: Date = Date(timeIntervalSince1970: 0)
+  // MARK: - Formatting Helpers
 
   var usShort: String {
     Date.usShortDateFormat.string(from: self)
@@ -34,6 +38,8 @@ extension Date {
   var usShortWithTime: String {
     Date.usShortDateFormatWithTime.string(from: self)
   }
+
+  // MARK: - Equality
 
   func approximatelyEquals(_ date: Date, accuracy: Duration = .seconds(1)) -> Bool {
     abs(self.timeIntervalSince1970 - date.timeIntervalSince1970)

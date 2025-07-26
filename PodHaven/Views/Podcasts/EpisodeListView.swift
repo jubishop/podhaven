@@ -12,7 +12,7 @@ struct EpisodeListView: View {
   }
 
   var body: some View {
-    HStack(spacing: 20) {
+    HStack(spacing: 12) {
       if viewModel.isSelecting {
         Button(
           action: { viewModel.isSelected.wrappedValue.toggle() },
@@ -26,8 +26,34 @@ struct EpisodeListView: View {
         .buttonStyle(BorderlessButtonStyle())
       }
 
-      Text(viewModel.item.title)
-        .lineLimit(2)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(viewModel.item.title)
+          .lineLimit(2)
+          .font(.body)
+          .multilineTextAlignment(.leading)
+
+        HStack {
+          HStack(spacing: 4) {
+            Image(systemName: "calendar")
+              .font(.caption2)
+              .foregroundColor(.secondary)
+            Text(viewModel.item.pubDate.usShort)
+              .font(.caption)
+              .foregroundColor(.secondary)
+          }
+
+          Spacer()
+
+          HStack(spacing: 4) {
+            Image(systemName: "clock")
+              .font(.caption2)
+              .foregroundColor(.secondary)
+            Text(viewModel.item.duration.shortDescription)
+              .font(.caption)
+              .foregroundColor(.secondary)
+          }
+        }
+      }
 
       Spacer()
     }

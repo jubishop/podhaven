@@ -34,19 +34,35 @@ extension CMTime:
 
   // MARK: - CustomStringConvertible
 
-  public var description: String {
+  private var timeComponents: (hours: Int, minutes: Int, seconds: Int)? {
     let totalSeconds = CMTimeGetSeconds(self)
-    guard !totalSeconds.isNaN && totalSeconds.isFinite
-    else { return "Unknown" }
+    guard !totalSeconds.isNaN && totalSeconds.isFinite else { return nil }
 
     let hours = Int(totalSeconds) / 3600
     let minutes = (Int(totalSeconds) % 3600) / 60
     let seconds = Int(totalSeconds) % 60
 
+    return (hours, minutes, seconds)
+  }
+
+  public var description: String {
+    guard let (hours, minutes, seconds) = timeComponents
+    else { return "Unknown" }
+
     guard hours > 0
     else { return String(format: "%d:%02d", minutes, seconds) }
 
     return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+  }
+
+  var shortDescription: String {
+    guard let (hours, minutes, seconds) = timeComponents
+    else { return "Unknown" }
+
+    guard hours > 0
+    else { return "\(minutes)m \(seconds)s" }
+
+    return "\(hours)h \(minutes)m"
   }
 
   // MARK: - Codable
