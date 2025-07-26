@@ -5,6 +5,7 @@ import SwiftUI
 
 struct StandardEpisodesView: View {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.navigation) private var navigation
 
   @State private var viewModel: StandardEpisodesViewModel
 
@@ -14,12 +15,17 @@ struct StandardEpisodesView: View {
 
   var body: some View {
     List(viewModel.episodeList.allEntries) { podcastEpisode in
-      PodcastEpisodeListView(
-        viewModel: PodcastEpisodeListViewModel(
-          isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
-          item: podcastEpisode,
-          isSelecting: viewModel.episodeList.isSelecting
-        )
+      NavigationLink(
+        value: Navigation.Episodes.Destination.episode(podcastEpisode),
+        label: {
+          PodcastEpisodeListView(
+            viewModel: PodcastEpisodeListViewModel(
+              isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
+              item: podcastEpisode,
+              isSelecting: viewModel.episodeList.isSelecting
+            )
+          )
+        }
       )
       .episodeQueueableSwipeActions(viewModel: viewModel, episode: podcastEpisode)
     }
