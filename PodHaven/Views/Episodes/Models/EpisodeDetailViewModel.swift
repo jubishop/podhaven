@@ -18,6 +18,7 @@ import Logging
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }
   var episode: Episode { podcastEpisode.episode }
+  var image: URL { podcastEpisode.image }
 
   init(podcastEpisode: PodcastEpisode) {
     self.podcastEpisode = podcastEpisode
