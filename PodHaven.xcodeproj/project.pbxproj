@@ -91,6 +91,7 @@
 				DownloadManagerTests.swift,
 				EpisodeTests.swift,
 				ErrorTests.swift,
+				FakeSleeperTests.swift,
 				FeedManagerTests.swift,
 				HTMLRegexTests.swift,
 				LogTests.swift,

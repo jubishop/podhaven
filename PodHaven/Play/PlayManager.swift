@@ -26,6 +26,7 @@ final class PlayManager {
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.sleeper) private var sleeper
 
   private var alert: Alert { get async { await Container.shared.alert() } }
   nonisolated private var imageFetcher: any ImageFetchable { Container.shared.imageFetcher() }
@@ -323,7 +324,7 @@ final class PlayManager {
     restartCommandCenterTask?.cancel()
     ignoreCommandCenter = true
     restartCommandCenterTask = Task {
-      try await Task.sleep(for: .milliseconds(250))
+      try await sleeper.sleep(for: .milliseconds(250))
       try Task.checkCancellation()
       ignoreCommandCenter = false
     }

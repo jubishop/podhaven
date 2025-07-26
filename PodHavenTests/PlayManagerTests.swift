@@ -25,8 +25,11 @@ import Testing
   private var commandCenter: FakeCommandCenter {
     Container.shared.commandCenter() as! FakeCommandCenter
   }
-  nonisolated private var fakeImageFetcher: FakeImageFetcher {
+  nonisolated private var imageFetcher: FakeImageFetcher {
     Container.shared.imageFetcher() as! FakeImageFetcher
+  }
+  private var sleeper: FakeSleeper {
+    Container.shared.sleeper() as! FakeSleeper
   }
   private var nowPlayingInfo: [String: Any?]? {
     Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
@@ -93,7 +96,7 @@ import Testing
 
     // Check artwork separately
     if let actualArtwork = nowPlayingInfo![MPMediaItemPropertyArtwork] as? MPMediaItemArtwork {
-      let image = try await fakeImageFetcher.fetch(podcastEpisode.image)
+      let image = try await imageFetcher.fetch(podcastEpisode.image)
       let actualImage = actualArtwork.image(at: image.size)!
       #expect(actualImage.isVisuallyEqual(to: image))
     } else {
@@ -183,7 +186,7 @@ import Testing
 
     // This makes it so loading queuedEpisode only works if the image was preloaded,
     // and this fetch therefore never has to happen.
-    fakeImageFetcher.respond(to: queuedEpisode.image) { url in
+    imageFetcher.respond(to: queuedEpisode.image) { url in
       throw TestError.imageFetchFailure(url)
     }
 
@@ -252,7 +255,7 @@ import Testing
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
     try await PlayHelpers.executeMidImageFetch(for: originalEpisode.image) {
-      fakeImageFetcher.clearCustomHandler(for: originalEpisode.image)
+      imageFetcher.clearCustomHandler(for: originalEpisode.image)
       try await playManager.load(incomingEpisode)
     }
 
@@ -322,13 +325,13 @@ import Testing
   }
 
   // TODO: Test seek and skip events from command center too
-  // TODO: Test that commands are ignored for 250 ms
+  // TODO: Test that commands are ignored for 250 ms when didPlayToEnd
   @Test("command center stops and starts playback")
   func commandCenterStopsAndStartsPlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await playManager.load(podcastEpisode)
-    try await Task.sleep(for: .milliseconds(500)) // TODO: Simulate sleeping for tests
+    await sleeper.advanceTime(by: .milliseconds(500))
 
     commandCenter.play()
     try await PlayHelpers.waitFor(.playing)
@@ -734,7 +737,7 @@ import Testing
     let originalEpisode = try await Create.podcastEpisode()
 
     try await PlayHelpers.executeMidImageFetch(for: originalEpisode.image) {
-      fakeImageFetcher.clearCustomHandler(for: originalEpisode.image)
+      imageFetcher.clearCustomHandler(for: originalEpisode.image)
       try await playManager.load(originalEpisode)
     }
     await #expect(throws: (any Error).self) {

@@ -17,9 +17,7 @@ enum Wait {
   ) async throws -> T {
     var attempts = 0
     while attempts < maxAttempts {
-      if let value = try await block() {
-        return value
-      }
+      if let value = try await block() { return value }
       try await Task.sleep(for: delay)
       attempts += 1
     }
@@ -34,9 +32,7 @@ enum Wait {
   ) async throws {
     var attempts = 0
     while attempts < maxAttempts {
-      if try await block() {
-        return
-      }
+      if try await block() { return }
       try await Task.sleep(for: delay)
       attempts += 1
     }

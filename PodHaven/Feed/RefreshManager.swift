@@ -17,6 +17,7 @@ actor RefreshManager {
   @LazyInjected(\.feedManager) private var feedManager
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.sleeper) private var sleeper
 
   private static let log = Log.as(LogSubsystem.Feed.refreshManager)
 
@@ -186,7 +187,7 @@ actor RefreshManager {
           Self.log.error(error)
         }
 
-        try? await Task.sleep(for: .minutes(15))
+        try? await sleeper.sleep(for: .minutes(15))
       }
     }
   }
