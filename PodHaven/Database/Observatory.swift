@@ -36,15 +36,18 @@ struct Observatory {
     }
   }
 
-  func podcastEpisodes(filter: SQLExpression, order: SQLOrdering = Episode.Columns.pubDate.desc)
-    -> AsyncValueObservation<[PodcastEpisode]>
-  {
+  func podcastEpisodes(
+    filter: SQLExpression,
+    order: SQLOrdering = Episode.Columns.pubDate.desc,
+    limit: Int = Int.max
+  ) -> AsyncValueObservation<[PodcastEpisode]> {
     _observe { db in
       try Episode
         .all()
         .filter(filter)
         .including(required: Episode.podcast)
         .order(order)
+        .limit(limit)
         .asRequest(of: PodcastEpisode.self)
         .fetchAll(db)
     }

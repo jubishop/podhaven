@@ -11,6 +11,10 @@ struct EpisodesView: View {
     NavigationStack(path: $navigation.episodes.path) {
       Form {
         NavigationLink(
+          value: Navigation.Episodes.Destination.viewType(.recentEpisodes),
+          label: { Text("Recent Episodes") }
+        )
+        NavigationLink(
           value: Navigation.Episodes.Destination.viewType(.completed),
           label: { Text("Completed") }
         )

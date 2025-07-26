@@ -7,10 +7,9 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class StandardEpisodesViewModel:
-  PodcastQueueableModel,
-  QueueableSelectableEpisodeList
-{
+class StandardEpisodesViewModel: PodcastQueueableModel, QueueableSelectableEpisodeList {
+  private static let log = Log.as(LogSubsystem.EpisodesView.standard)
+
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
@@ -23,26 +22,34 @@ class StandardEpisodesViewModel:
   let title: String
   let filter: SQLExpression
   let order: SQLOrdering
+  let limit: Int
 
   // MARK: - Initialization
 
   init(
     title: String,
     filter: SQLExpression = AppDB.NoOp,
-    order: SQLOrdering = Episode.Columns.pubDate.desc
+    order: SQLOrdering = Episode.Columns.pubDate.desc,
+    limit: Int = Int.max
   ) {
     self.title = title
     self.filter = filter
     self.order = order
+    self.limit = limit
   }
 
   func execute() async {
     do {
-      for try await podcastEpisodes in observatory.podcastEpisodes(filter: filter, order: order) {
+      for try await podcastEpisodes in observatory.podcastEpisodes(
+        filter: filter,
+        order: order,
+        limit: limit
+      ) {
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }
     } catch {
-      alert("Couldn't execute CompletedViewModel")
+      Self.log.error(error)
+      alert(ErrorKit.message(for: error))
     }
   }
 }

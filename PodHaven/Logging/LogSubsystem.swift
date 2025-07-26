@@ -13,8 +13,9 @@ enum LogSubsystem {
     var level: Logger.Level { .debug }
   }
 
-  enum EpisodeView: String, LogCategorizable {
+  enum EpisodesView: String, LogCategorizable {
     case detail
+    case standard
   }
 
   enum Feed: String, LogCategorizable {

@@ -111,7 +111,7 @@ extension Container {
     var path: [Destination] = []
 
     enum ViewType {
-      case completed, unfinished, previouslyQueued
+      case completed, unfinished, previouslyQueued, recentEpisodes
     }
 
     @CasePathable
@@ -125,6 +125,17 @@ extension Container {
       switch destination {
       case .viewType(let viewType):
         switch viewType {
+        case .recentEpisodes:
+          IdentifiableView(
+            StandardEpisodesView(
+              viewModel: StandardEpisodesViewModel(
+                title: "Recent Episodes",
+                filter: AppDB.NoOp,
+                limit: 100
+              )
+            ),
+            id: "recentEpisodes"
+          )
         case .completed:
           IdentifiableView(
             StandardEpisodesView(

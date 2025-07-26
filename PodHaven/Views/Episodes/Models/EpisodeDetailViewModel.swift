@@ -13,7 +13,7 @@ import Logging
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private static let log = Log.as(LogSubsystem.EpisodeView.detail)
+  private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }
