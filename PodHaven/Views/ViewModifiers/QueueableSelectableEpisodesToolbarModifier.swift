@@ -37,7 +37,7 @@ struct QueueableSelectableEpisodesToolbarModifier<
           }
         } else {
           ToolbarItem(placement: .topBarTrailing) {
-            Button("Select Episodes") {
+            Button("Select") {
               episodeList.isSelecting = true
             }
           }

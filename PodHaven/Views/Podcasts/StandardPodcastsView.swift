@@ -110,7 +110,7 @@ struct StandardPodcastsView: View {
         }
       } else {
         ToolbarItem(placement: .topBarTrailing) {
-          Button("Select Podcasts") {
+          Button("Select") {
             viewModel.isSelecting = true
           }
         }
