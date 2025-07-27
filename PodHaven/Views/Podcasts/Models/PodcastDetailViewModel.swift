@@ -25,6 +25,7 @@ class PodcastDetailViewModel:
   // MARK: - State Management
 
   var unplayedOnly: Bool = false
+  var displayAboutSection: Bool = false
 
   var episodeList = SelectableListUseCase<Episode, Episode.ID>(idKeyPath: \.id)
   var podcast: Podcast { podcastSeries.podcast }

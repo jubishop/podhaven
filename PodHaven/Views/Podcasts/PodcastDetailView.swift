@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Logging
+import NukeUI
 import SwiftUI
 
 struct PodcastDetailView: View {
@@ -23,21 +24,222 @@ struct PodcastDetailView: View {
   }
 
   var body: some View {
-    VStack {
-      HTMLText(viewModel.podcast.description)
-        .lineLimit(3)
-        .padding(.horizontal)
+    Group {
+      if viewModel.displayAboutSection {
+        ScrollView {
+          VStack(spacing: 8) {
+            podcastHeaderSection
+            podcastMetadataSection
+            podcastAboutSectionExpanded
+            podcastActionsSection
+          }
+          .padding()
+        }
+      } else {
+        VStack(spacing: 0) {
+          VStack(spacing: 8) {
+            podcastHeaderSection
+            podcastMetadataSection
+            podcastAboutSectionCollapsed
+            podcastActionsSection
+          }
+          .padding(.horizontal)
 
-      Text("Last updated: \(viewModel.podcast.lastUpdate.usShortWithTime)")
-        .font(.caption)
-        .frame(maxWidth: .infinity, alignment: .trailing)
-        .padding(.horizontal)
+          episodeFilterSection
 
-      if !viewModel.podcast.subscribed {
-        Button("Subscribe") {
-          viewModel.subscribe()
+          List(viewModel.episodeList.filteredEntries) { episode in
+            NavigationLink(
+              value: Navigation.Podcasts.Destination.episode(
+                PodcastEpisode(podcast: viewModel.podcast, episode: episode)
+              ),
+              label: {
+                EpisodeListView(
+                  viewModel: EpisodeListViewModel(
+                    isSelected: $viewModel.episodeList.isSelected[episode],
+                    item: episode,
+                    isSelecting: viewModel.episodeList.isSelecting
+                  )
+                )
+              }
+            )
+            .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
+          }
+          .animation(.default, value: viewModel.episodeList.filteredEntries)
+          .refreshable {
+            do {
+              try await viewModel.refreshSeries()
+            } catch {
+              if ErrorKit.baseError(for: error) is CancellationError { return }
+              Self.log.error(error)
+              alert(ErrorKit.message(for: error))
+            }
+          }
         }
       }
+    }
+    .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
+    .task(viewModel.execute)
+  }
+
+  // MARK: - Header Components
+
+  private var podcastHeaderSection: some View {
+    HStack(alignment: .top, spacing: 16) {
+      LazyImage(url: viewModel.podcast.image) { state in
+        if let image = state.image {
+          image
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+        } else {
+          Rectangle()
+            .fill(Color.gray.opacity(0.3))
+            .overlay(
+              VStack {
+                Image(systemName: "photo")
+                  .foregroundColor(.white.opacity(0.8))
+                  .font(.title)
+                Text("No Image")
+                  .font(.caption)
+                  .foregroundColor(.white.opacity(0.8))
+              }
+            )
+        }
+      }
+      .frame(width: 120, height: 120)
+      .clipped()
+      .cornerRadius(12)
+      .shadow(radius: 4)
+
+      VStack(alignment: .leading, spacing: 8) {
+        Text(viewModel.podcast.title)
+          .font(.title2)
+          .fontWeight(.bold)
+          .lineLimit(3)
+          .multilineTextAlignment(.leading)
+          .fixedSize(horizontal: false, vertical: true)
+
+        if let link = viewModel.podcast.link {
+          Link(destination: link) {
+            HStack(spacing: 4) {
+              Image(systemName: "link")
+              Text("Visit Website")
+            }
+            .font(.caption)
+            .foregroundColor(.accentColor)
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  private var podcastMetadataSection: some View {
+    HStack {
+      metadataItem(
+        icon: "calendar",
+        label: "Updated",
+        value: viewModel.podcast.lastUpdate.usShortWithTime
+      )
+
+      Spacer()
+
+      metadataItem(
+        icon: "list.bullet",
+        label: "Episodes",
+        value: "\(viewModel.episodeList.allEntries.count)"
+      )
+    }
+    .padding(.horizontal, 8)
+  }
+
+  private func metadataItem(icon: String, label: String, value: String) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack(spacing: 4) {
+        Image(systemName: icon)
+          .foregroundColor(.secondary)
+          .font(.caption)
+        Text(label)
+          .font(.caption)
+          .foregroundColor(.secondary)
+      }
+      Text(value)
+        .font(.subheadline)
+        .fontWeight(.medium)
+    }
+  }
+
+  private var podcastAboutSectionCollapsed: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack {
+        Text("About")
+          .font(.headline)
+          .fontWeight(.semibold)
+        Spacer()
+        if !viewModel.podcast.description.isEmpty {
+          Button(action: {
+            withAnimation(.easeInOut(duration: 0.3)) {
+              viewModel.displayAboutSection = true
+            }
+          }) {
+            HStack(spacing: 4) {
+              Text("Show About")
+              Image(systemName: "chevron.right")
+            }
+            .font(.caption)
+            .foregroundColor(.accentColor)
+          }
+        }
+      }
+    }
+  }
+
+  private var podcastAboutSectionExpanded: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack {
+        Text("About")
+          .font(.headline)
+          .fontWeight(.semibold)
+        Spacer()
+        Button(action: {
+          withAnimation(.easeInOut(duration: 0.3)) {
+            viewModel.displayAboutSection = false
+          }
+        }) {
+          HStack(spacing: 4) {
+            Text("Hide About")
+            Image(systemName: "chevron.down")
+          }
+          .font(.caption)
+          .foregroundColor(.accentColor)
+        }
+      }
+
+      HTMLText(viewModel.podcast.description)
+        .multilineTextAlignment(.leading)
+    }
+  }
+
+  private var podcastActionsSection: some View {
+    VStack(spacing: 12) {
+      if !viewModel.podcast.subscribed {
+        Button(action: viewModel.subscribe) {
+          HStack {
+            Image(systemName: "plus.circle.fill")
+            Text("Subscribe")
+          }
+          .frame(maxWidth: .infinity)
+          .padding()
+          .background(Color.accentColor)
+          .foregroundColor(.white)
+          .cornerRadius(10)
+        }
+      }
+    }
+  }
+
+  private var episodeFilterSection: some View {
+    VStack(spacing: 8) {
+      Divider()
 
       HStack {
         SearchBar(
@@ -59,37 +261,8 @@ struct PodcastDetailView: View {
       }
       .padding(.horizontal)
 
-      List(viewModel.episodeList.filteredEntries) { episode in
-        NavigationLink(
-          value: Navigation.Podcasts.Destination.episode(
-            PodcastEpisode(podcast: viewModel.podcast, episode: episode)
-          ),
-          label: {
-            EpisodeListView(
-              viewModel: EpisodeListViewModel(
-                isSelected: $viewModel.episodeList.isSelected[episode],
-                item: episode,
-                isSelecting: viewModel.episodeList.isSelecting
-              )
-            )
-          }
-        )
-        .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
-      }
-      .animation(.default, value: viewModel.episodeList.filteredEntries)
-      .refreshable {
-        do {
-          try await viewModel.refreshSeries()
-        } catch {
-          if ErrorKit.baseError(for: error) is CancellationError { return }
-          Self.log.error(error)
-          alert(ErrorKit.message(for: error))
-        }
-      }
+      Divider()
     }
-    .navigationTitle(viewModel.podcast.title)
-    .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
-    .task(viewModel.execute)
   }
 }
 
