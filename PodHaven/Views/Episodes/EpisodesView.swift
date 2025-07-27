@@ -29,10 +29,9 @@ struct EpisodesView: View {
       }
       .navigationTitle("All Episode Lists")
       .navigationDestination(
-        for: Navigation.Episodes.Destination.self
-      ) { destination in
-        navigation.episodes.navigationDestination(for: destination)
-      }
+        for: Navigation.Episodes.Destination.self,
+        destination: navigation.episodes.navigationDestination
+      )
     }
   }
 }

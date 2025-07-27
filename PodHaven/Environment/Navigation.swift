@@ -29,6 +29,7 @@ extension Container {
   private func clearPaths() {
     settings = Settings()
     search = Search()
+    upNext = UpNext()
     episodes = Episodes()
     podcasts = Podcasts()
   }
@@ -103,6 +104,30 @@ extension Container {
     }
   }
   var search = Search()
+
+  // MARK: - UpNext
+
+  @MainActor @Observable
+  class UpNext {
+    var path: [Destination] = []
+
+    @CasePathable
+    enum Destination: Hashable {
+      case episode(PodcastEpisode)
+    }
+
+    @ViewBuilder
+    func navigationDestination(for destination: Destination) -> some View {
+      switch destination {
+      case .episode(let podcastEpisode):
+        IdentifiableView(
+          EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode)),
+          id: podcastEpisode.id
+        )
+      }
+    }
+  }
+  var upNext = UpNext()
 
   // MARK: - Episodes
 

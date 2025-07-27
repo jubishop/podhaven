@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import NukeUI
 import SwiftUI
 
 struct UpNextListView: View {
@@ -10,7 +11,7 @@ struct UpNextListView: View {
   }
 
   var body: some View {
-    HStack(spacing: 20) {
+    HStack(spacing: 12) {
       if viewModel.isEditing {
         Button(
           action: { viewModel.isSelected.wrappedValue.toggle() },
@@ -24,44 +25,51 @@ struct UpNextListView: View {
         .buttonStyle(BorderlessButtonStyle())
       }
 
-      Text(viewModel.episode.title)
-        .lineLimit(2)
+      LazyImage(url: viewModel.podcastEpisode.image) { state in
+        if let image = state.image {
+          image
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+        } else {
+          Rectangle()
+            .fill(Color.gray.opacity(0.3))
+        }
+      }
+      .frame(width: 60, height: 60)
+      .clipped()
+      .cornerRadius(8)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text(viewModel.episode.title)
+          .lineLimit(2)
+          .font(.body)
+          .multilineTextAlignment(.leading)
+
+        HStack {
+          HStack(spacing: 4) {
+            Image(systemName: "calendar")
+              .font(.caption2)
+              .foregroundColor(.secondary)
+            Text(viewModel.episode.pubDate.usShort)
+              .font(.caption)
+              .foregroundColor(.secondary)
+          }
+
+          Spacer()
+
+          HStack(spacing: 4) {
+            Image(systemName: "clock")
+              .font(.caption2)
+              .foregroundColor(.secondary)
+            Text(viewModel.episode.duration.shortDescription)
+              .font(.caption)
+              .foregroundColor(.secondary)
+          }
+        }
+      }
 
       Spacer()
-
-      if !viewModel.isEditing {
-        Menu(
-          content: {
-            Button(
-              action: viewModel.playNow,
-              label: { Label("Play Now", systemImage: "play") }
-            )
-
-            Button(
-              action: viewModel.playNext,
-              label: { Label("Play Next", systemImage: "square.and.arrow.up") }
-            )
-
-            Button(
-              action: viewModel.viewDetails,
-              label: { Label("View Details", systemImage: "info.circle") }
-            )
-
-            Button(
-              action: viewModel.delete,
-              label: { Label("Delete", systemImage: "trash") }
-            )
-          },
-          label: {
-            Image(systemName: "ellipsis")
-              .font(.title)
-              .frame(maxHeight: .infinity)
-          }
-        )
-        .buttonStyle(PlainButtonStyle())
-      }
     }
-    .fixedSize(horizontal: false, vertical: true)
   }
 }
 

@@ -27,10 +27,9 @@ struct PodcastsView: View {
       }
       .navigationTitle("All Podcast Lists")
       .navigationDestination(
-        for: Navigation.Podcasts.Destination.self
-      ) { destination in
-        navigation.podcasts.navigationDestination(for: destination)
-      }
+        for: Navigation.Podcasts.Destination.self,
+        destination: navigation.podcasts.navigationDestination
+      )
     }
   }
 }

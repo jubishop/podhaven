@@ -23,10 +23,9 @@ struct SearchView: View {
         .onSubmit(of: .search, viewModel.searchSubmitted)
         .navigationTitle("Search")
         .navigationDestination(
-          for: Navigation.Search.Destination.self
-        ) { destination in
-          navigation.search.navigationDestination(for: destination)
-        }
+          for: Navigation.Search.Destination.self,
+          destination: navigation.search.navigationDestination
+        )
         .background(
           SizeReader { size in
             viewModel.width = size.width

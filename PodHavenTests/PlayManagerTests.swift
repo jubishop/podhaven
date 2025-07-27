@@ -329,7 +329,6 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await playManager.load(podcastEpisode)
-    await sleeper.advanceTime(by: .milliseconds(500))
 
     commandCenter.play()
     try await PlayHelpers.waitFor(.playing)

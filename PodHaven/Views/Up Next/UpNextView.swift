@@ -13,12 +13,17 @@ struct UpNextView: View {
     NavigationStack {
       List {
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
-          UpNextListView(
-            viewModel: UpNextListViewModel(
-              isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
-              podcastEpisode: podcastEpisode,
-              editMode: viewModel.editMode
-            )
+          NavigationLink(
+            value: Navigation.UpNext.Destination.episode(podcastEpisode),
+            label: {
+              UpNextListView(
+                viewModel: UpNextListViewModel(
+                  isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
+                  podcastEpisode: podcastEpisode,
+                  editMode: viewModel.editMode
+                )
+              )
+            }
           )
           .swipeActions(edge: .leading) {
             Button(
@@ -73,6 +78,10 @@ struct UpNextView: View {
         }
       }
       .toolbarRole(.editor)
+      .navigationDestination(
+        for: Navigation.UpNext.Destination.self,
+        destination: navigation.upNext.navigationDestination
+      )
     }
     .task(viewModel.execute)
   }
