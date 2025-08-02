@@ -102,15 +102,14 @@ enum PlayHelpers {
   }
 
   static func waitForCurrentItem(_ podcastEpisode: PodcastEpisode?) async throws {
-    let expectedEpisodeID = podcastEpisode?.id
     try await Wait.until(
       {
-        await currentItemID == expectedEpisodeID
+        await currentEpisode?.id == podcastEpisode?.episode.id
       },
       {
         """
-        Current item is: \(await currentItemID?.description ?? "nil"), \
-        Expected: \(expectedEpisodeID?.description ?? "nil")
+        Current episode is: \(await currentEpisode?.toString ?? "nil"), \
+        Expected: \(podcastEpisode?.toString ?? "nil")
         """
       }
     )
@@ -218,8 +217,11 @@ enum PlayHelpers {
     nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackProgress] as! Double
   }
 
-  static var currentItemID: Episode.ID? {
-    avPlayer.current?.episodeID
+  static var currentEpisode: Episode? {
+    guard let current = avPlayer.current as? FakeAVPlayerItem
+    else { return nil }
+
+    return current.episode
   }
 
   static var queuedEpisodes: [PodcastEpisode] {

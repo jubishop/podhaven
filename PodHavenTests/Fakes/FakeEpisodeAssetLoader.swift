@@ -44,7 +44,7 @@ class FakeEpisodeAssetLoader {
     let (isPlayable, duration) = try await handler(episode)
     try Task.checkCancellation()
     return await EpisodeAsset(
-      playerItem: FakeAVPlayerItem(episodeID: episode.id),
+      playerItem: FakeAVPlayerItem(episode: episode),
       isPlayable: isPlayable,
       duration: duration
     )

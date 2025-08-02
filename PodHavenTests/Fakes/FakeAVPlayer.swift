@@ -141,13 +141,13 @@ class FakeAVPlayer: AVPlayable {
     guard let current
     else { Assert.fatal("Can't finish an episode that doesn't exist!") }
 
-    Self.log.debug("finishEpisode: \(String(describing: current.episodeID))")
+    Self.log.debug("finishEpisode: \(current)")
 
     notifier.continuation(for: AVPlayerItem.didPlayToEndTimeNotification)
       .yield(
         Notification(
           name: AVPlayerItem.didPlayToEndTimeNotification,
-          object: FakeAVPlayerItem(episodeID: current.episodeID)
+          object: current
         )
       )
   }

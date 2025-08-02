@@ -3,9 +3,7 @@
 import AVFoundation
 import Foundation
 
-@MainActor protocol AVPlayableItem: AnyObject, CustomStringConvertible {
-  var episodeID: Episode.ID? { get }
-
+@MainActor protocol AVPlayableItem: CustomStringConvertible {
   func observeStatus(
     options: NSKeyValueObservingOptions,
     changeHandler: @Sendable @escaping (AVPlayerItem.Status) -> Void

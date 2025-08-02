@@ -562,7 +562,7 @@ import Testing
 
     // Now simulate the podcastEpisode failing after it becomes currentItem
     let currentItem = avPlayer.current as! FakeAVPlayerItem
-    #expect(currentItem.episodeID == podcastEpisode.id)
+    #expect(currentItem.episode == podcastEpisode.episode)
     currentItem.setStatus(.failed)
 
     // The failed episode should be unshifted back to the front of the queue

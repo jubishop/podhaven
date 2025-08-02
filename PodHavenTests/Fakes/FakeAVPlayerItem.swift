@@ -15,7 +15,6 @@ class FakeAVPlayerItem: AVPlayableItem {
 
   // MARK: - State Management
 
-  let episodeID: Episode.ID?
   private var statusObservations: [ObservationHandler<AVPlayerItem.Status>] = []
 
   private var _status: AVPlayerItem.Status = .unknown {
@@ -29,16 +28,14 @@ class FakeAVPlayerItem: AVPlayableItem {
     }
   }
 
-  init(episodeID: Episode.ID?) {
-    self.episodeID = episodeID
+  let episode: Episode
+  init(episode: Episode) {
+    self.episode = episode
   }
 
   // MARK: - AVPlayableItem
 
-  nonisolated var description: String {
-    String(describing: episodeID)
-  }
-
+  nonisolated var description: String { episode.toString }
   func observeStatus(
     options: NSKeyValueObservingOptions,
     changeHandler: @escaping @Sendable (AVPlayerItem.Status) -> Void

@@ -1,15 +1,6 @@
 {
-  "originHash" : "1df408f460df1758a83b8fc44fcc84b2e2e46454c379855071db79d02ad48483",
+  "originHash" : "969abd3ee188370b08d346929da66fd8c1fd4eb603ee29821c6a4cb4e2e00d58",
   "pins" : [
-    {
-      "identity" : "associatedobject",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/p-x9/AssociatedObject",
-      "state" : {
-        "branch" : "main",
-        "revision" : "ba5859d881ac1b814e77e2f1b39235dfe71a8d1f"
-      }
-    },
     {
       "identity" : "combine-schedulers",
       "kind" : "remoteSourceControl",
@@ -128,15 +119,6 @@
       }
     },
     {
-      "identity" : "swift-literal-type-inference",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/p-x9/swift-literal-type-inference.git",
-      "state" : {
-        "revision" : "7235a8e47b257bbd54da76191b043976509c4b8c",
-        "version" : "0.4.0"
-      }
-    },
-    {
       "identity" : "swift-log",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
@@ -152,15 +134,6 @@
       "state" : {
         "branch" : "main",
         "revision" : "ae208d1a5cf33aee1d43734ea780a09ada6e2a21"
-      }
-    },
-    {
-      "identity" : "swift-object-association",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/p-x9/swift-object-association.git",
-      "state" : {
-        "revision" : "93806cfecae1f198c894ed5585b93aff0e2d1f5a",
-        "version" : "0.5.0"
       }
     },
     {

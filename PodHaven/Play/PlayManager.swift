@@ -334,18 +334,17 @@ final class PlayManager {
 
   // MARK: - Private Change Handlers
 
-  private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID?) async {
+  private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID) async {
     Self.log.debug(
       """
       handleItemStatusChange
         status: \(status)
-        episodeID: \(String(describing: episodeID))
+        episodeID: \(episodeID)
       """
     )
 
-    if status == .failed { await clearOnDeck() }
-
-    if let episodeID = episodeID, status == .failed {
+    if status == .failed {
+      await clearOnDeck()
       do {
         try await queue.unshift(episodeID)
       } catch {
@@ -354,8 +353,8 @@ final class PlayManager {
     }
   }
 
-  private func handleDidPlayToEnd(_ episodeID: Episode.ID?) async throws {
-    guard let episodeID = episodeID, let podcastEpisode = try await repo.episode(episodeID)
+  private func handleDidPlayToEnd(_ episodeID: Episode.ID) async throws {
+    guard let podcastEpisode = try await repo.episode(episodeID)
     else { throw PlaybackError.endedEpisodeNotFound(episodeID) }
 
     Self.log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
@@ -410,20 +409,6 @@ final class PlayManager {
           You will have to restart the app.
           """
         )
-      }
-    }
-
-    Task { @MainActor [weak self] in
-      guard let self else { return }
-      for await notification in await notifications(AVPlayerItem.didPlayToEndTimeNotification) {
-        guard let playableItem = notification.object as? AVPlayableItem
-        else { Assert.fatal("didPlayToEndTimeNotification: object is not an AVPlayableItem") }
-        do {
-          try await handleDidPlayToEnd(playableItem.episodeID)
-        } catch {
-          await Self.log.error(error)
-          await alert(ErrorKit.message(for: error))
-        }
       }
     }
 
@@ -530,6 +515,18 @@ final class PlayManager {
           await setStatus(.waiting)
         case .loading(_), .stopped:
           Assert.fatal("\(controlStatus) from PodAVPlayer?")
+        }
+      }
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+      for await episodeID in await podAVPlayer.didPlayToEndStream {
+        do {
+          try await handleDidPlayToEnd(episodeID)
+        } catch {
+          Self.log.error(error)
+          await alert(ErrorKit.message(for: error))
         }
       }
     }
