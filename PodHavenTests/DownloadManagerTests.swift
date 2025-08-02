@@ -178,6 +178,40 @@ struct DownloadManagerTests {
     #expect(await downloadCount.reachedExpected)
   }
 
+  @Test("that adding an existing pending URL moves it to top of queue")
+  func existingPendingURLMovesToTop() async throws {
+    let downloadManager = DownloadManager(
+      session: session,
+      maxConcurrentDownloads: 1
+    )
+
+    // First URL will be active (blocking the queue)
+    let blockingURL = URL.valid()
+    await session.respond(to: blockingURL, delay: .milliseconds(50))
+    _ = await downloadManager.addURL(blockingURL)
+
+    // Add several URLs to the pending queue
+    let url1 = URL(string: "https://example.com/1")!
+    let url2 = URL(string: "https://example.com/2")!
+    let url3 = URL(string: "https://example.com/3")!
+
+    _ = await downloadManager.addURL(url1)
+    _ = await downloadManager.addURL(url2)
+    _ = await downloadManager.addURL(url3)
+
+    // Add url1 again - it should move to the top of the pending queue
+    _ = await downloadManager.addURL(url1)
+
+    // Wait for url1 to complete (it should be next after blocking URL)
+    _ = try await downloadManager.addURL(url1).downloadFinished()
+
+    // url1 should be processed next (before url2 and url3)
+    let requests = await session.requests
+    #expect(requests.count >= 2)
+    #expect(requests[0] == blockingURL)  // First request was the blocking URL
+    #expect(requests[1] == url1)  // Second request should be url1 (moved to top)
+  }
+
   @Test("that as long as a task exists the Manager won't deallocate")
   func managerDoesNotDeallocate() async throws {
     let url2 = URL.valid()

@@ -105,6 +105,8 @@ actor DownloadManager {
       return activeDownload
     }
     if let pendingDownload = pendingDownloads[url] {
+      // Move existing pending download to top of queue
+      pendingDownloads.updateValue(pendingDownload, forKey: url, insertingAt: 0)
       return pendingDownload
     }
     let download = DownloadTask(url: url, session: session)
