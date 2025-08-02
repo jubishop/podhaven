@@ -189,11 +189,7 @@ struct PlayBar: View {
 
       Button(action: viewModel.playOrPause) {
         Group {
-          if viewModel.isSeeking {
-            Image(systemName: "circle.dotted.circle")
-              .font(.title)
-              .foregroundColor(.white)
-          } else if viewModel.isWaiting {
+          if viewModel.isWaiting {
             Image(systemName: "hourglass.circle")
               .font(.title)
               .foregroundColor(.white)

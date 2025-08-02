@@ -528,12 +528,8 @@ final class PlayManager {
           await setStatus(.playing)
         case .waiting:
           await setStatus(.waiting)
-        case .seeking:
-          await setStatus(.seeking)
-        case .loading(_):
-          Assert.fatal("Loading status from PodAVPlayer?")
-        case .stopped:
-          Assert.fatal("Stopped status from PodAVPlayer?")
+        case .loading(_), .stopped:
+          Assert.fatal("\(controlStatus) from PodAVPlayer?")
         }
       }
     }

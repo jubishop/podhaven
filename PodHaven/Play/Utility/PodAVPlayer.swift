@@ -41,7 +41,6 @@ extension Container {
     playableItem: any AVPlayableItem
   )
   private var podcastEpisode: PodcastEpisode?
-  private var preSeekStatus: PlaybackStatus?
 
   let currentTimeStream: AsyncStream<CMTime>
   let itemStatusStream: AsyncStream<(status: AVPlayerItem.Status, episodeID: Episode.ID?)>
@@ -77,7 +76,6 @@ extension Container {
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> PodcastEpisode {
     Self.log.debug("load: \(podcastEpisode.toString)")
 
-    preSeekStatus = nil
     self.podcastEpisode = nil
     let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
     self.podcastEpisode = podcastEpisode
@@ -123,7 +121,6 @@ extension Container {
     Self.log.debug("clear: executing")
     removeObservers()
     podcastEpisode = nil
-    preSeekStatus = nil
     avPlayer.replaceCurrent(with: nil)
   }
 
@@ -131,13 +128,11 @@ extension Container {
 
   func play() {
     Self.log.debug("play: executing")
-    preSeekStatus = .playing
     avPlayer.play()
   }
 
-  func pause(overwritePreSeekStatus: Bool = true) {
+  func pause() {
     Self.log.debug("pause: executing")
-    if overwritePreSeekStatus { preSeekStatus = .paused }
     avPlayer.pause()
   }
 
@@ -166,9 +161,6 @@ extension Container {
 
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
-    preSeekStatus = preSeekStatus ?? PlaybackStatus(avPlayer.timeControlStatus)
-    pause(overwritePreSeekStatus: false)
-    controlStatusContinuation.yield(.seeking)
 
     avPlayer.seek(to: time) { [weak self] completed in
       guard let self else { return }
@@ -177,14 +169,6 @@ extension Container {
         Self.log.debug("seek: to \(time) completed")
         Task { @MainActor [weak self] in
           guard let self else { return }
-          if let preSeekStatus {
-            self.preSeekStatus = nil
-            if preSeekStatus == .playing {
-              play()
-            } else {
-              controlStatusContinuation.yield(preSeekStatus)
-            }
-          }
           addPeriodicTimeObserver()
         }
       } else {

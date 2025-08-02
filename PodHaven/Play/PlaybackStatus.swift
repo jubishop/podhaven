@@ -5,7 +5,7 @@ import Foundation
 
 enum PlaybackStatus: Equatable, CustomStringConvertible {
   case loading(String)
-  case paused, playing, seeking, stopped, waiting
+  case paused, playing, stopped, waiting
 
   init(_ timeControlStatus: AVPlayer.TimeControlStatus) {
     switch timeControlStatus {
@@ -40,11 +40,6 @@ enum PlaybackStatus: Equatable, CustomStringConvertible {
     return false
   }
 
-  var seeking: Bool {
-    if case .seeking = self { return true }
-    return false
-  }
-
   var stopped: Bool {
     if case .stopped = self { return true }
     return false
@@ -63,8 +58,6 @@ enum PlaybackStatus: Equatable, CustomStringConvertible {
       return "paused"
     case .playing:
       return "playing"
-    case .seeking:
-      return "seeking"
     case .stopped:
       return "stopped"
     case .waiting:

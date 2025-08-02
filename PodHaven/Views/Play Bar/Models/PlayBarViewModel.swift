@@ -27,7 +27,6 @@ extension Container {
 
   var isLoading: Bool { playState.loading }
   var isPlaying: Bool { playState.playing }
-  var isSeeking: Bool { playState.seeking }
   var isStopped: Bool { playState.stopped }
   var isWaiting: Bool { playState.waiting }
 
