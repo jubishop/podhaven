@@ -22,8 +22,8 @@ enum PlayHelpers {
   private static var queue: Queue { Container.shared.queue() }
   private static var repo: any Databasing { Container.shared.repo() }
 
-  private static var avQueuePlayer: FakeAVQueuePlayer {
-    Container.shared.avQueuePlayer() as! FakeAVQueuePlayer
+  private static var avPlayer: FakeAVPlayer {
+    Container.shared.avPlayer() as! FakeAVPlayer
   }
   private static var commandCenter: FakeCommandCenter {
     Container.shared.commandCenter() as! FakeCommandCenter
@@ -77,13 +77,13 @@ enum PlayHelpers {
     )
   }
 
-  static func waitForOnDeck(_ podcastEpisode: PodcastEpisode) async throws {
+  static func waitForOnDeck(_ podcastEpisode: PodcastEpisode?) async throws {
     try await Wait.until(
-      { await playState.onDeck?.id == podcastEpisode.id },
+      { await playState.onDeck?.id == podcastEpisode?.id },
       {
         """
         OnDeck MediaURL is: \(String(describing: await playState.onDeck?.media.toString)), \
-        Expected: \(podcastEpisode.episode.media.toString)
+        Expected: \(String(describing: podcastEpisode?.episode.media.toString))
         """
       }
     )
@@ -101,15 +101,16 @@ enum PlayHelpers {
     )
   }
 
-  static func waitForItemQueue(_ podcastEpisodes: [PodcastEpisode]) async throws {
+  static func waitForCurrentItem(_ podcastEpisode: PodcastEpisode?) async throws {
+    let expectedEpisodeID = podcastEpisode?.id
     try await Wait.until(
       {
-        await itemQueueIDs == podcastEpisodes.map(\.id)
+        await currentItemID == expectedEpisodeID
       },
       {
         """
-        Item queue is: \(await itemQueueIDs), \
-        Expected: \(podcastEpisodes.map(\.id))
+        Current item is: \(await currentItemID?.description ?? "nil"), \
+        Expected: \(expectedEpisodeID?.description ?? "nil")
         """
       }
     )
@@ -191,7 +192,7 @@ enum PlayHelpers {
   ) async throws {
     let seekSemaphoreBegun = AsyncSemaphore(value: 0)
     let finishSeekingSemaphore = AsyncSemaphore(value: 0)
-    avQueuePlayer.seekHandler = { _ in
+    avPlayer.seekHandler = { _ in
       seekSemaphoreBegun.signal()
       await finishSeekingSemaphore.wait()
       return completed
@@ -217,8 +218,8 @@ enum PlayHelpers {
     nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackProgress] as! Double
   }
 
-  static var itemQueueIDs: [Episode.ID] {
-    avQueuePlayer.queued.compactMap(\.episodeID)
+  static var currentItemID: Episode.ID? {
+    avPlayer.current?.episodeID
   }
 
   static var queuedEpisodes: [PodcastEpisode] {
@@ -252,7 +253,7 @@ enum PlayHelpers {
   }
 
   static func hasPeriodicTimeObservation() -> Bool {
-    !(avQueuePlayer.timeObservers.isEmpty)
+    !(avPlayer.timeObservers.isEmpty)
   }
 
   static func responseCount(for podcastEpisode: PodcastEpisode) -> Int {

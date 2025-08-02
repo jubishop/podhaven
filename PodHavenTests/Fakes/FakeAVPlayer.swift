@@ -6,10 +6,11 @@ import Foundation
 
 @testable import PodHaven
 
-class FakeAVQueuePlayer: AVQueuePlayable {
+@MainActor
+class FakeAVPlayer: AVPlayable {
   @DynamicInjected(\.notifier) private var notifier
 
-  private static let log = Log.as("FakeAVQueuePlayer")
+  private static let log = Log.as("FakeAVPlayer")
 
   // MARK: - Helper Classes
 
@@ -24,14 +25,8 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     let handler: @Sendable (T) -> Void
   }
 
-  struct MainActorObservationHandler<T>: Sendable {
-    weak var observation: NSKeyValueObservation?
-    let handler: @MainActor (T) -> Void
-  }
-
   // MARK: - State Management
 
-  var currentItemObservations: [MainActorObservationHandler<(any AVPlayableItem)?>] = []
   var seekHandler: (CMTime) async -> Bool = { _ in (true) }
   var statusObservations: [ObservationHandler<AVPlayer.TimeControlStatus>] = []
   var timeObservers: [UUID: TimeObserver] = [:]
@@ -50,73 +45,20 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     }
   }
 
-  // MARK: - AVQueuePlayable Queue
+  // MARK: - AVPlayable Current
 
-  var queued: [any AVPlayableItem] = [] {
+  private(set) var current: (any AVPlayableItem)? {
     didSet {
-      Self.log.debug("didSet queued to: \(queued)")
-
-      if oldValue.first !== current {
-        // Clean up deallocated observations and call active handlers
-        currentItemObservations = currentItemObservations.compactMap { observationHandler in
-          guard observationHandler.observation != nil else { return nil }
-
-          Self.log.debug("Calling active currentItem handler with: \(String(describing: current))")
-          Task { @MainActor in observationHandler.handler(current) }
-          return observationHandler
-        }
-      }
-      if queued.isEmpty { timeControlStatus = .paused }
+      Self.log.debug("didSet current to: \(String(describing: current))")
+      if current == nil { timeControlStatus = .waitingToPlayAtSpecifiedRate }
     }
   }
 
-  func insert(_ item: any AVPlayableItem, after afterItem: (any AVPlayableItem)?) {
-    if let afterItem {
-      guard let afterIndex = queued.firstIndex(where: { $0.episodeID == afterItem.episodeID })
-      else { Assert.fatal("Couldn't find item: \(afterItem), to insert after!") }
-
-      queued.insert(item, at: afterIndex + 1)
-    } else {
-      if let existingItem = queued.first(where: { $0.episodeID == item.episodeID }) {
-        Assert.fatal("Item: \(existingItem), already exists in queue!")
-      }
-
-      queued.append(item)
-    }
+  func replaceCurrent(with item: (any AVPlayableItem)?) {
+    current = item
   }
 
-  func remove(_ item: any AVPlayableItem) {
-    if !queued.contains(where: { $0.episodeID == item.episodeID }) {
-      Assert.fatal("Item: \(item), does not exist in queue!")
-    }
-
-    queued.removeAll { $0.episodeID == item.episodeID }
-  }
-
-  func removeAllItems() {
-    queued.removeAll()
-  }
-
-  // MARK: - AVQueuePlayable Current
-
-  var current: (any AVPlayableItem)? { queued.first }
-  func observeCurrentItem(
-    options: NSKeyValueObservingOptions,
-    changeHandler: @escaping @MainActor ((any AVPlayableItem)?) -> Void
-  ) -> NSKeyValueObservation {
-    let observation = NSObject().observe(\.description, options: []) { _, _ in }
-    currentItemObservations.append(
-      MainActorObservationHandler(observation: observation, handler: changeHandler)
-    )
-
-    if options.contains(.initial) {
-      Task { @MainActor in changeHandler(current) }
-    }
-
-    return observation
-  }
-
-  // MARK: - AVQueuePlayable Playback
+  // MARK: - AVPlayable Playback
 
   func play() {
     timeControlStatus = .playing
@@ -141,7 +83,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     NSObject().observe(\.description, options: []) { _, _ in }
   }
 
-  // MARK: - AVQueuePlayable Time
+  // MARK: - AVPlayable Time
 
   func currentTime() -> CMTime { currentTimeValue }
   func addPeriodicTimeObserver(
@@ -161,7 +103,7 @@ class FakeAVQueuePlayer: AVQueuePlayable {
     timeObservers[id] = nil
   }
 
-  // MARK: - AVQueuePlayable Status
+  // MARK: - AVPlayable Status
 
   private(set) var timeControlStatus: AVPlayer.TimeControlStatus = .paused {
     didSet {
@@ -196,25 +138,18 @@ class FakeAVQueuePlayer: AVQueuePlayable {
   // MARK: - Testing Manipulators
 
   func finishEpisode() {
-    Assert.precondition(
-      timeControlStatus == .playing,
-      "Can't simulate finishing episode when not playing!"
-    )
-
-    guard let currentItem = queued.first
+    guard let current
     else { Assert.fatal("Can't finish an episode that doesn't exist!") }
 
-    Self.log.debug("finishEpisode: \(String(describing: currentItem.episodeID))")
+    Self.log.debug("finishEpisode: \(String(describing: current.episodeID))")
 
     notifier.continuation(for: AVPlayerItem.didPlayToEndTimeNotification)
       .yield(
         Notification(
           name: AVPlayerItem.didPlayToEndTimeNotification,
-          object: FakeAVPlayerItem(episodeID: currentItem.episodeID)
+          object: FakeAVPlayerItem(episodeID: current.episodeID)
         )
       )
-
-    queued.removeFirst()
   }
 
   func advanceTime(to cmTime: CMTime) {

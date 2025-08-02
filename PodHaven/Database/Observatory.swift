@@ -102,16 +102,6 @@ struct Observatory {
     }
   }
 
-  func nextPodcastEpisode() -> AsyncValueObservation<PodcastEpisode?> {
-    _observe { db in
-      try Episode
-        .filter { $0.queueOrder == 0 }
-        .including(required: Episode.podcast)
-        .asRequest(of: PodcastEpisode.self)
-        .fetchOne(db)
-    }
-  }
-
   // Private Helpers
 
   private func _observe<T: Equatable>(_ block: @escaping @Sendable (Database) throws -> T)

@@ -66,8 +66,6 @@ final class PlayManager {
     }
   }
   private var loadTask: Task<Bool, any Error>?
-  private var restartCommandCenterTask: Task<Void, any Error>?
-  private var ignoreCommandCenter = false
 
   // MARK: - Initialization
 
@@ -125,7 +123,6 @@ final class PlayManager {
 
       await podAVPlayer.removeObservers()
       await setStatus(.loading(incoming.episode.title))
-      await pause()
       await clearOnDeck()
 
       do {
@@ -141,28 +138,41 @@ final class PlayManager {
         throw error
       }
 
-      Self.log.debug("performLoad: dequeueing incoming episode: \(incoming.toString)")
-      do {
-        try await queue.dequeue(incoming.id)
-      } catch {
-        Self.log.error(error)
-      }
-
-      if let outgoing {
-        Self.log.debug("performLoad: unshifting outgoing episode: \(outgoing.toString)")
-        do {
-          try await queue.unshift(outgoing.id)
-        } catch {
-          Self.log.error(error)
-        }
-      }
-
+      await cleanUpAfterLoadSuccess(outgoing, incoming)
       await podAVPlayer.addObservers()
       return true
     }
 
     loadTask = task
     return try await task.value
+  }
+
+  private func cleanUpAfterLoadSuccess(_ outgoing: OnDeck?, _ incoming: PodcastEpisode) async {
+    Self.log.debug(
+      """
+      cleanUpAfterLoadSuccess
+        outgoing: \(String(describing: outgoing?.toString))
+        incoming: \(incoming.toString)
+      """
+    )
+
+    // Dequeue since we successfully loaded the episode
+    Self.log.debug("cleanUpAfterLoadSuccess: dequeueing incoming episode: \(incoming.toString)")
+    do {
+      try await queue.dequeue(incoming.id)
+    } catch {
+      Self.log.error(error)
+    }
+
+    // If there was an outgoing episode, put it back at the front of the queue
+    if let outgoing {
+      Self.log.debug("cleanUpAfterLoadSuccess: unshifting outgoing episode: \(outgoing.toString)")
+      do {
+        try await queue.unshift(outgoing.id)
+      } catch {
+        Self.log.error(error)
+      }
+    }
   }
 
   private func cleanUpAfterLoadFailure(_ outgoing: OnDeck?, _ incoming: PodcastEpisode) async {
@@ -177,6 +187,7 @@ final class PlayManager {
       """
     )
 
+    // Put the outgoing episode back if we displaced it
     if let outgoing, outgoing != nowOnDeck {
       Self.log.debug(
         """
@@ -191,6 +202,7 @@ final class PlayManager {
       }
     }
 
+    // Put the incoming episode back at the front of the queue since it failed to load
     if incoming.id != nowOnDeck?.id {
       Self.log.debug(
         """
@@ -320,54 +332,7 @@ final class PlayManager {
     await playState.setCurrentTime(currentTime)
   }
 
-  private func temporarilyHaltCommandCenter() {
-    restartCommandCenterTask?.cancel()
-    ignoreCommandCenter = true
-    restartCommandCenterTask = Task {
-      try await sleeper.sleep(for: .milliseconds(250))
-      try Task.checkCancellation()
-      ignoreCommandCenter = false
-    }
-  }
-
   // MARK: - Private Change Handlers
-
-  private func handleCurrentItemChange(_ podcastEpisode: PodcastEpisode?) async throws {
-    if let podcastEpisode {
-      Self.log.debug("handleCurrentItemChange: \(podcastEpisode.id), setting on deck")
-
-      try await setOnDeck(podcastEpisode)
-
-      Self.log.debug("handleCurrentItemChange: dequeueing episode: \(podcastEpisode.toString)")
-      do {
-        try await queue.dequeue(podcastEpisode.id)
-      } catch {
-        Self.log.error(error)
-      }
-    } else {
-      Self.log.debug("handleCurrentItemChange: nil, stopping")
-
-      await clearOnDeck()
-      await setStatus(.stopped)
-
-      if let nextEpisode = try await queue.nextEpisode {
-        Self.log.debug(
-          """
-          handleCurrentItemChange: next episode exists to manually load
-            \(nextEpisode.toString)
-          """
-        )
-
-        do {
-          try await load(nextEpisode)
-        } catch {
-          await alert("Failed to load next episode: \(nextEpisode.episode.title)")
-          throw error
-        }
-        await play()
-      }
-    }
-  }
 
   private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID?) async {
     Self.log.debug(
@@ -377,6 +342,8 @@ final class PlayManager {
         episodeID: \(String(describing: episodeID))
       """
     )
+
+    if status == .failed { await clearOnDeck() }
 
     if let episodeID = episodeID, status == .failed {
       do {
@@ -392,8 +359,26 @@ final class PlayManager {
     else { throw PlaybackError.endedEpisodeNotFound(episodeID) }
 
     Self.log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
-    temporarilyHaltCommandCenter()
     try await repo.markComplete(podcastEpisode.id)
+
+    // Automatically load and play the next episode if one exists
+    if let nextEpisode = try await queue.nextEpisode {
+      Self.log.debug(
+        """
+        handleDidPlayToEnd: next episode exists to automatically load
+          \(nextEpisode.toString)
+        """
+      )
+
+      let previousStatus = await playState.status
+      await clearOnDeck()
+      try await load(nextEpisode)
+      if previousStatus.playing { await play() }
+    } else {
+      Self.log.debug("handleDidPlayToEnd: no next episode, stopping")
+      await clearOnDeck()
+      await setStatus(.stopped)
+    }
   }
 
   // MARK: - Notification Tracking
@@ -437,6 +422,7 @@ final class PlayManager {
           try await handleDidPlayToEnd(playableItem.episodeID)
         } catch {
           await Self.log.error(error)
+          await alert(ErrorKit.message(for: error))
         }
       }
     }
@@ -493,7 +479,6 @@ final class PlayManager {
     Task { [weak self] in
       guard let self else { return }
       for await command in commandCenter.stream {
-        if ignoreCommandCenter { continue }
         switch command {
         case .play:
           await play()
@@ -507,17 +492,6 @@ final class PlayManager {
           await seekBackward(CMTime.seconds(interval))
         case .playbackPosition(let position):
           await seek(to: CMTime.seconds(position))
-        }
-      }
-    }
-
-    Task { [weak self] in
-      guard let self else { return }
-      for await podcastEpisode in await podAVPlayer.currentItemStream {
-        do {
-          try await handleCurrentItemChange(podcastEpisode)
-        } catch {
-          Self.log.error(error)
         }
       }
     }

@@ -3,16 +3,9 @@
 import AVFoundation
 import Foundation
 
-@MainActor protocol AVQueuePlayable {
+@MainActor protocol AVPlayable {
   var current: (any AVPlayableItem)? { get }
-  var queued: [any AVPlayableItem] { get }
-  func insert(_: any AVPlayableItem, after: (any AVPlayableItem)?)
-  func remove(_: any AVPlayableItem)
-  func removeAllItems()
-  func observeCurrentItem(
-    options: NSKeyValueObservingOptions,
-    changeHandler: @Sendable @escaping @MainActor ((any AVPlayableItem)?) -> Void
-  ) -> NSKeyValueObservation
+  func replaceCurrent(with item: (any AVPlayableItem)?)
 
   func play()
   func pause()
