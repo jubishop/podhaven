@@ -52,12 +52,12 @@ actor CacheManager {
 
   // MARK: - Public Methods
 
-  func downloadAndCacheEpisode(_ episode: Episode) async throws(CacheError) {
-    Self.log.debug("downloadAndCacheEpisode: \(episode.toString)")
+  func downloadAndCache(_ episode: Episode) async throws(CacheError) {
+    Self.log.debug("downloadAndCache: \(episode.toString)")
 
     guard episode.cachedMediaURL == nil
     else {
-      Self.log.debug("downloadAndCacheEpisode: \(episode.toString) already cached")
+      Self.log.debug("downloadAndCache: \(episode.toString) already cached")
       return
     }
 
@@ -74,7 +74,7 @@ actor CacheManager {
     guard currentQueuedEpisodeIDs.contains(episode.id)
     else {
       Self.log.debug(
-        "downloadAndCacheEpisode: episode \(episode.toString) no longer queued, cleaning up cache"
+        "downloadAndCache: episode \(episode.toString) no longer queued, cleaning up cache"
       )
 
       do {
@@ -89,7 +89,7 @@ actor CacheManager {
       try await repo.updateCachedMediaURL(episode.id, cacheURL)
     }
 
-    Self.log.debug("downloadAndCacheEpisode: cached to \(cacheURL)")
+    Self.log.debug("downloadAndCache: cached to \(cacheURL)")
   }
 
   func clearCache(for episode: Episode) async throws(CacheError) {
@@ -181,7 +181,7 @@ actor CacheManager {
         group.addTask { [weak self] in
           guard let self else { return }
           do {
-            try await downloadAndCacheEpisode(podcastEpisode.episode)
+            try await downloadAndCache(podcastEpisode.episode)
           } catch {
             Self.log.error(error)
           }
