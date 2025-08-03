@@ -196,8 +196,8 @@ actor CacheManager {
     if let downloadTask = activeDownloadTasks[episodeID] {
       Self.log.debug("Cancelling cache download task for episode \(episodeID)")
 
-      await downloadTask.cancel()
       activeDownloadTasks.removeValue(forKey: episodeID)
+      await downloadTask.cancel()
     } else {
       try await clearCache(for: episodeID)
     }
@@ -216,15 +216,10 @@ actor CacheManager {
 
   private func getCacheDirectory() throws(CacheError) -> URL {
     guard
-      let documentsDirectory = FileManager.default
-        .urls(
-          for: .documentDirectory,
-          in: .userDomainMask
-        )
+      let cachesDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
         .first
-    else { throw CacheError.documentsDirectoryNotFound }
-
-    let cacheDirectory = documentsDirectory.appendingPathComponent("EpisodeCache")
+    else { throw CacheError.cachesDirectoryNotFound }
+    let cacheDirectory = cachesDirectory.appendingPathComponent("EpisodeCache")
 
     if !FileManager.default.fileExists(atPath: cacheDirectory.path) {
       try CacheError.catch {
