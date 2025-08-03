@@ -219,7 +219,7 @@ actor CacheManager {
       let cachesDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
         .first
     else { throw CacheError.cachesDirectoryNotFound }
-    let cacheDirectory = cachesDirectory.appendingPathComponent("EpisodeCache")
+    let cacheDirectory = cachesDirectory.appendingPathComponent("episodes")
 
     if !FileManager.default.fileExists(atPath: cacheDirectory.path) {
       try CacheError.catch {
