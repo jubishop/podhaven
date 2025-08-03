@@ -895,4 +895,127 @@ class MigrationTests {
       #expect(newUnsubscribedCount == 2, "Should have 2 podcasts with subscriptionDate as NULL")
     }
   }
+
+  @Test("migrating to v10, adding cachedMediaURL column to episode table")
+  func testV10Migration() async throws {
+    try migrator.migrate(appDB.db, upTo: "v9")
+
+    // Insert test data in v9 schema
+    let now = Date()
+
+    let (podcast1Id, episode1Id, episode2Id) = try await appDB.db.write { db in
+      // Create a podcast
+      try db.execute(
+        sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscriptionDate)
+            VALUES ('https://example.com/feed.xml', 'Test Podcast', 'https://example.com/image.jpg', 'Test Description', ?)
+          """,
+        arguments: [now]
+      )
+      let podcast1Id = db.lastInsertedRowID
+
+      // Create episodes without cachedMediaURL column
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, queueOrder)
+            VALUES (?, 'episode-1', 'https://example.com/ep1.mp3', 'Episode 1', ?, 0)
+          """,
+        arguments: [podcast1Id, now]
+      )
+      let episode1Id = db.lastInsertedRowID
+
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, queueOrder)
+            VALUES (?, 'episode-2', 'https://example.com/ep2.mp3', 'Episode 2', ?, 1)
+          """,
+        arguments: [podcast1Id, now]
+      )
+      let episode2Id = db.lastInsertedRowID
+
+      return (podcast1Id, episode1Id, episode2Id)
+    }
+
+    // Verify that cachedMediaURL column does not exist before migration
+    try await appDB.db.read { db in
+      let tableInfo = try Row.fetchAll(db, sql: "PRAGMA table_info(episode)")
+      let columnNames = tableInfo.map { $0[Column("name")] as String }
+      #expect(!columnNames.contains("cachedMediaURL"), "cachedMediaURL column should not exist before migration")
+    }
+
+    // Migrate to v10
+    try migrator.migrate(appDB.db, upTo: "v10")
+
+    // Verify the migration results
+    try await appDB.db.read { db in
+      // Verify cachedMediaURL column was added
+      let tableInfo = try Row.fetchAll(db, sql: "PRAGMA table_info(episode)")
+      let columnNames = tableInfo.map { $0[Column("name")] as String }
+      #expect(columnNames.contains("cachedMediaURL"), "cachedMediaURL column should exist after migration")
+
+      // Verify existing episodes have NULL cachedMediaURL by default
+      let episode1 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE id = ?",
+        arguments: [episode1Id]
+      )!
+      let episode1CachedURL = episode1[Column("cachedMediaURL")] as String?
+      #expect(episode1CachedURL == nil, "Episode 1 should have NULL cachedMediaURL after migration")
+
+      let episode2 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE id = ?",
+        arguments: [episode2Id]
+      )!
+      let episode2CachedURL = episode2[Column("cachedMediaURL")] as String?
+      #expect(episode2CachedURL == nil, "Episode 2 should have NULL cachedMediaURL after migration")
+
+      // Verify all existing data is preserved
+      #expect(episode1[Column("guid")] as String == "episode-1")
+      #expect(episode1[Column("media")] as String == "https://example.com/ep1.mp3")
+      #expect(episode1[Column("title")] as String == "Episode 1")
+      #expect(episode1[Column("queueOrder")] as Int == 0)
+
+      #expect(episode2[Column("guid")] as String == "episode-2")
+      #expect(episode2[Column("media")] as String == "https://example.com/ep2.mp3")
+      #expect(episode2[Column("title")] as String == "Episode 2")
+      #expect(episode2[Column("queueOrder")] as Int == 1)
+    }
+
+    // Verify that we can now insert and update episodes with cachedMediaURL
+    try await appDB.db.write { db in
+      // Insert a new episode with cachedMediaURL
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, cachedMediaURL)
+            VALUES (?, 'episode-3', 'https://example.com/ep3.mp3', 'Episode 3', ?, 'file:///path/to/cached/ep3.mp3')
+          """,
+        arguments: [podcast1Id, now]
+      )
+
+      // Update an existing episode with cachedMediaURL
+      try db.execute(
+        sql: "UPDATE episode SET cachedMediaURL = 'file:///path/to/cached/ep1.mp3' WHERE id = ?",
+        arguments: [episode1Id]
+      )
+    }
+
+    // Verify the new operations worked
+    try await appDB.db.read { db in
+      // Check new episode with cachedMediaURL
+      let episode3 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE guid = 'episode-3'"
+      )!
+      #expect(episode3[Column("cachedMediaURL")] as String == "file:///path/to/cached/ep3.mp3")
+
+      // Check updated episode
+      let updatedEpisode1 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE id = ?",
+        arguments: [episode1Id]
+      )!
+      #expect(updatedEpisode1[Column("cachedMediaURL")] as String == "file:///path/to/cached/ep1.mp3")
+    }
+  }
 }

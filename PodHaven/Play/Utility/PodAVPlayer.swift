@@ -11,10 +11,9 @@ extension Container {
     Factory(self) { @MainActor in PodAVPlayer() }.scope(.cached)
   }
 
-  var loadEpisodeAsset: Factory<(_ episode: Episode) async throws -> EpisodeAsset> {
+  var loadEpisodeAsset: Factory<(_ asset: AVURLAsset) async throws -> EpisodeAsset> {
     Factory(self) {
-      { episode in
-        let asset = AVURLAsset(url: episode.media.rawValue)
+      { asset in
         let (isPlayable, duration) = try await asset.load(.isPlayable, .duration)
         return await EpisodeAsset(
           playerItem: AVPlayerItem(asset: asset),
@@ -95,7 +94,9 @@ extension Container {
 
     let episodeAsset: EpisodeAsset
     do {
-      episodeAsset = try await loadEpisodeAsset(podcastEpisode.episode)
+      episodeAsset = try await loadEpisodeAsset(
+        AVURLAsset(url: podcastEpisode.episode.computedMediaURL)
+      )
     } catch {
       throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
     }

@@ -22,6 +22,7 @@ actor PlayActor {
 
 @PlayActor
 final class PlayManager {
+  @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.queue) private var queue
@@ -354,11 +355,17 @@ final class PlayManager {
   }
 
   private func handleDidPlayToEnd(_ episodeID: Episode.ID) async throws {
-    guard let podcastEpisode = try await repo.episode(episodeID)
+    guard let episode: Episode = try await repo.episode(episodeID)
     else { throw PlaybackError.endedEpisodeNotFound(episodeID) }
 
-    Self.log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
-    try await repo.markComplete(podcastEpisode.id)
+    Self.log.debug("handleDidPlayToEnd: \(episode.toString)")
+
+    do {
+      try await repo.markComplete(episode.id)
+      try await cacheManager.clearCache(for: episodeID)
+    } catch {
+      Self.log.error(error)
+    }
 
     // Automatically load and play the next episode if one exists
     if let nextEpisode = try await queue.nextEpisode {

@@ -227,6 +227,13 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v10") { db in
+      // Add cachedMediaURL column to episode table for local caching
+      try db.alter(table: "episode") { t in
+        t.add(column: "cachedMediaURL", .text)
+      }
+    }
+
     return migrator
   }
 }

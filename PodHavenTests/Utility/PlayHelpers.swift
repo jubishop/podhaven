@@ -104,12 +104,12 @@ enum PlayHelpers {
   static func waitForCurrentItem(_ podcastEpisode: PodcastEpisode?) async throws {
     try await Wait.until(
       {
-        await currentEpisode?.id == podcastEpisode?.episode.id
+        await currentAssetURL == podcastEpisode?.episode.computedMediaURL
       },
       {
         """
-        Current episode is: \(await currentEpisode?.toString ?? "nil"), \
-        Expected: \(podcastEpisode?.toString ?? "nil")
+        Current url is: \(await currentAssetURL?.absoluteString ?? "nil"), \
+        Expected: \(podcastEpisode?.episode.computedMediaURL.absoluteString ?? "nil")
         """
       }
     )
@@ -135,12 +135,24 @@ enum PlayHelpers {
   static func waitForCompleted(_ podcastEpisode: PodcastEpisode) async throws {
     try await Wait.until(
       {
-        guard let fetchedPodcastEpisode = try await repo.episode(podcastEpisode.id)
+        guard let fetchedEpisode: Episode = try await repo.episode(podcastEpisode.id)
         else { return false }
 
-        return fetchedPodcastEpisode.episode.completed
+        return fetchedEpisode.completed
       },
       { "Expected \(podcastEpisode.toString) to become completed" }
+    )
+  }
+
+  static func waitForNoCachedMediaURL(_ podcastEpisode: PodcastEpisode) async throws {
+    try await Wait.until(
+      {
+        guard let fetchedEpisode: Episode = try await repo.episode(podcastEpisode.id)
+        else { return false }
+
+        return fetchedEpisode.cachedMediaURL == nil
+      },
+      { "Expected \(podcastEpisode.toString) to have no cachedMediaURL" }
     )
   }
 
@@ -217,11 +229,11 @@ enum PlayHelpers {
     nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackProgress] as! Double
   }
 
-  static var currentEpisode: Episode? {
+  static var currentAssetURL: URL? {
     guard let current = avPlayer.current as? FakeAVPlayerItem
     else { return nil }
 
-    return current.episode
+    return current.url
   }
 
   static var queuedEpisodes: [PodcastEpisode] {

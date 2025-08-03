@@ -7,15 +7,15 @@ import ReadableErrorMacro
 
 @ReadableError
 enum TestError: ReadableError {
-  case assetLoadFailure(Episode)
+  case assetLoadFailure(URL)
   case imageFetchFailure(URL)
   case waitForValueFailure(String)
   case waitUntilFailure(String)
 
   var message: String {
     switch self {
-    case .assetLoadFailure(let episode):
-      return "Failed to load asset for episode: \(episode.toString)"
+    case .assetLoadFailure(let url):
+      return "Failed to load asset for url: \(url)"
     case .imageFetchFailure(let url):
       return "Failed to fetch image from URL: \(url)"
     case .waitForValueFailure(let typeName):

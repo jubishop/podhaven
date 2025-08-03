@@ -195,8 +195,8 @@ class EpisodeTests {
         .updateAll(db, Episode.Columns.guid.set(to: updatedGUID))
     }
 
-    let updatedEpisode = try await repo.episode(episode.id)
-    #expect(updatedEpisode?.episode.guid == updatedGUID)
+    let updatedEpisode: Episode? = try await repo.episode(episode.id)
+    #expect(updatedEpisode?.guid == updatedGUID)
   }
 
   @Test("that episodes can persist currentTime")
@@ -267,9 +267,9 @@ class EpisodeTests {
     #expect(episode.currentTime == CMTime.seconds(60))
     try await repo.markComplete(episode.id)
 
-    let podcastEpisode = try await repo.episode(episode.id)!
-    #expect(podcastEpisode.episode.completed == true)
-    #expect(podcastEpisode.episode.currentTime == CMTime.zero)
+    let completedEpisode: Episode? = try await repo.episode(episode.id)!
+    #expect(completedEpisode?.completed == true)
+    #expect(completedEpisode?.currentTime == CMTime.zero)
   }
 
   @Test("that upsertPodcastEpisode works when podcast exists or is new")
@@ -285,7 +285,7 @@ class EpisodeTests {
     #expect(insertedPodcastEpisode.podcast.feedURL == unsavedPodcast.feedURL)
     #expect(insertedPodcastEpisode.episode.media == unsavedEpisode.media)
 
-    let fetchedPodcastEpisode = try await repo.episode(insertedPodcastEpisode.id)!
+    let fetchedPodcastEpisode: PodcastEpisode = try await repo.episode(insertedPodcastEpisode.id)!
     #expect(fetchedPodcastEpisode.podcast.title == insertedPodcastEpisode.podcast.title)
     #expect(fetchedPodcastEpisode.episode.guid == insertedPodcastEpisode.episode.guid)
 

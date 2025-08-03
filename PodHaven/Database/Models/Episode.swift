@@ -26,6 +26,7 @@ struct UnsavedEpisode: Savable, Stringable {
   var currentTime: CMTime
   var queueOrder: Int?
   var lastQueued: Date?
+  var cachedMediaURL: URL?
 
   init(
     podcastId: Podcast.ID? = nil,
@@ -40,7 +41,8 @@ struct UnsavedEpisode: Savable, Stringable {
     completionDate: Date? = nil,
     currentTime: CMTime? = nil,
     queueOrder: Int? = nil,
-    lastQueued: Date? = nil
+    lastQueued: Date? = nil,
+    cachedMediaURL: URL? = nil
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
@@ -55,6 +57,7 @@ struct UnsavedEpisode: Savable, Stringable {
     self.currentTime = currentTime ?? CMTime.zero
     self.queueOrder = queueOrder
     self.lastQueued = lastQueued
+    self.cachedMediaURL = cachedMediaURL
   }
 
   // MARK: - Savable
@@ -67,6 +70,7 @@ struct UnsavedEpisode: Savable, Stringable {
   var queued: Bool { self.queueOrder != nil }
   var completed: Bool { self.completionDate != nil }
   var started: Bool { self.currentTime.seconds > 0 }
+  var computedMediaURL: URL { cachedMediaURL ?? media.rawValue }
 }
 
 @Saved<UnsavedEpisode>
@@ -103,6 +107,7 @@ struct Episode: Saved, RSSUpdatable {
     static let currentTime = Column("currentTime")
     static let queueOrder = Column("queueOrder")
     static let lastQueued = Column("lastQueued")
+    static let cachedMediaURL = Column("cachedMediaURL")
   }
 
   // MARK: - RSSUpdatable

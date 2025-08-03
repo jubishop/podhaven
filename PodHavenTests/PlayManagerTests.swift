@@ -159,8 +159,8 @@ import Testing
     let onDeck = try await PlayHelpers.load(podcastEpisode)
     #expect(onDeck.duration == correctDuration)
 
-    let updatedPodcastEpisode = try await repo.episode(podcastEpisode.id)
-    #expect(updatedPodcastEpisode?.episode.duration == correctDuration)
+    let updatedPodcastEpisode: Episode? = try await repo.episode(podcastEpisode.id)
+    #expect(updatedPodcastEpisode?.duration == correctDuration)
   }
 
   @Test("loading fetches episode image if it exists")
@@ -177,8 +177,8 @@ import Testing
   func loadingFailureClearsState() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) { episode in
-      throw TestError.assetLoadFailure(episode)
+    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) { url in
+      throw TestError.assetLoadFailure(url)
     }
     await #expect(throws: (any Error).self) {
       try await playManager.load(podcastEpisode)
@@ -562,7 +562,6 @@ import Testing
 
     // Now simulate the podcastEpisode failing after it becomes currentItem
     let currentItem = avPlayer.current as! FakeAVPlayerItem
-    #expect(currentItem.episode == podcastEpisode.episode)
     currentItem.setStatus(.failed)
 
     // The failed episode should be unshifted back to the front of the queue
@@ -665,5 +664,52 @@ import Testing
 
     avPlayer.finishEpisode()
     try await PlayHelpers.waitForCompleted(podcastEpisode)
+  }
+
+  // MARK: - Cache Functionality
+
+  @Test("loading episode with cached media uses cached URL")
+  func loadingEpisodeWithCachedMediaUsesCachedURL() async throws {
+    let cachedURL = URL(string: "file:///path/to/cached/episode.mp3")!
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(cachedMediaURL: cachedURL)
+    )
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode)
+
+    // Verify the asset was loaded with the cached URL
+    let currentItem = avPlayer.current! as! FakeAVPlayerItem
+    #expect(currentItem.url == cachedURL)
+  }
+
+  @Test("loading episode without cached media uses original URL")
+  func loadingEpisodeWithoutCachedMediaUsesOriginalURL() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode)
+
+    // Verify the asset was loaded with the original media URL
+    let currentItem = avPlayer.current! as! FakeAVPlayerItem
+    #expect(currentItem.url == podcastEpisode.episode.media.rawValue)
+  }
+
+  @Test("episode cache is cleared when playing to end")
+  func episodeCacheIsClearedWhenPlayingToEnd() async throws {
+    let cachedURL = URL(string: "file:///path/to/cached/episode.mp3")!
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(cachedMediaURL: cachedURL)
+    )
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+
+    avPlayer.finishEpisode()
+    try await PlayHelpers.waitForNoCachedMediaURL(podcastEpisode)
+
+    // Verify cache was cleared (cachedMediaURL set to nil) after playing to end
+    let updatedEpisode: Episode? = try await repo.episode(podcastEpisode.id)
+    #expect(updatedEpisode?.cachedMediaURL == nil)
   }
 }

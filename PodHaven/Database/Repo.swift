@@ -99,6 +99,14 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  func episode(_ episodeID: Episode.ID) async throws -> Episode? {
+    try await appDB.db.read { db in
+      try Episode
+        .withID(episodeID)
+        .fetchOne(db)
+    }
+  }
+
   // MARK: - Series Writers
 
   @discardableResult
@@ -264,6 +272,17 @@ struct Repo: Databasing, Sendable {
       try Episode
         .withID(episodeID)
         .updateAll(db, Episode.Columns.currentTime.set(to: currentTime))
+    } > 0
+  }
+
+  @discardableResult
+  func updateCachedMediaURL(_ episodeID: Episode.ID, _ cachedMediaURL: URL?) async throws -> Bool {
+    Self.log.debug("updateCachedMediaURL: \(episodeID) to \(cachedMediaURL?.path ?? "nil")")
+
+    return try await appDB.db.write { db in
+      try Episode
+        .withID(episodeID)
+        .updateAll(db, Episode.Columns.cachedMediaURL.set(to: cachedMediaURL))
     } > 0
   }
 

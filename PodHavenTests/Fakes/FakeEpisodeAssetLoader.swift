@@ -13,38 +13,44 @@ extension Container {
 }
 
 class FakeEpisodeAssetLoader {
-  typealias LoadHandler = @Sendable (Episode) async throws -> (Bool, CMTime)
+  typealias LoadHandler = @Sendable (URL) async throws -> (Bool, CMTime)
 
-  private var responseCounts: [Episode.ID: Int] = [:]
+  private var responseCounts: [URL: Int] = [:]
   func responseCount(for podcastEpisode: PodcastEpisode) -> Int {
-    responseCounts[podcastEpisode.id, default: 0]
+    responseCount(for: podcastEpisode.episode.computedMediaURL)
+  }
+  func responseCount(for url: URL) -> Int {
+    responseCounts[url, default: 0]
   }
 
   private var defaultHandler: LoadHandler = { _ in
     (true, CMTime.seconds(Double.random(in: 1...999)))
   }
-  private var fakeHandlers: [Episode.ID: LoadHandler] = [:]
+  private var fakeHandlers: [URL: LoadHandler] = [:]
 
   func setDefaultResponse(_ handler: @escaping LoadHandler) {
     defaultHandler = handler
   }
 
   func respond(to episode: Episode, _ handler: @escaping LoadHandler) {
-    fakeHandlers[episode.id] = handler
+    respond(to: episode.computedMediaURL, handler)
+  }
+  func respond(to url: URL, _ handler: @escaping LoadHandler) {
+    fakeHandlers[url] = handler
   }
 
   func clearCustomHandler(for episode: Episode) {
-    fakeHandlers.removeValue(forKey: episode.id)
+    fakeHandlers.removeValue(forKey: episode.computedMediaURL)
   }
 
-  func loadEpisodeAsset(_ episode: Episode) async throws -> EpisodeAsset {
-    defer { responseCounts[episode.id, default: 0] += 1 }
+  func loadEpisodeAsset(_ asset: AVURLAsset) async throws -> EpisodeAsset {
+    defer { responseCounts[asset.url, default: 0] += 1 }
 
-    let handler = fakeHandlers[episode.id, default: defaultHandler]
-    let (isPlayable, duration) = try await handler(episode)
+    let handler = fakeHandlers[asset.url, default: defaultHandler]
+    let (isPlayable, duration) = try await handler(asset.url)
     try Task.checkCancellation()
     return await EpisodeAsset(
-      playerItem: FakeAVPlayerItem(episode: episode),
+      playerItem: FakeAVPlayerItem(url: asset.url),
       isPlayable: isPlayable,
       duration: duration
     )

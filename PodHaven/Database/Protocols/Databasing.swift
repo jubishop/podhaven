@@ -23,6 +23,7 @@ protocol Databasing: Sendable {
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> PodcastEpisode?
+  func episode(_ episodeID: Episode.ID) async throws -> Episode?
 
   // MARK: - Series Writers
 
@@ -60,6 +61,9 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func updateCurrentTime(_ episodeID: Episode.ID, _ currentTime: CMTime) async throws -> Bool
+
+  @discardableResult
+  func updateCachedMediaURL(_ episodeID: Episode.ID, _ cachedMediaURL: URL?) async throws -> Bool
 
   @discardableResult
   func markComplete(_ episodeID: Episode.ID) async throws -> Bool

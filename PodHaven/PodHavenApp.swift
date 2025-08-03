@@ -9,6 +9,7 @@ import SwiftUI
 @main
 struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
+  @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshManager) private var refreshManager
@@ -40,6 +41,7 @@ struct PodHavenApp: App {
         startMemoryWarningMonitoring()
         await playManager.start()
         await refreshManager.start()
+        await cacheManager.start()
       }
       .onOpenURL { url in
         Self.log.info("Received incoming URL: \(url)")

@@ -28,14 +28,14 @@ class FakeAVPlayerItem: AVPlayableItem {
     }
   }
 
-  let episode: Episode
-  init(episode: Episode) {
-    self.episode = episode
+  let url: URL
+  init(url: URL) {
+    self.url = url
   }
 
   // MARK: - AVPlayableItem
 
-  nonisolated var description: String { episode.toString }
+  nonisolated var description: String { url.absoluteString }
   func observeStatus(
     options: NSKeyValueObservingOptions,
     changeHandler: @escaping @Sendable (AVPlayerItem.Status) -> Void
