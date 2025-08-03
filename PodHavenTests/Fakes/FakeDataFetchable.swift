@@ -62,19 +62,19 @@ actor FakeDataFetchable: DataFetchable {
     }
   }
 
-  func waitThenRespond(to url: URL, data: Data? = nil) async -> AsyncSemaphore {
-    let asyncSemaphore = AsyncSemaphore(value: 0)
-    respond(to: url) { _ in
-      try await asyncSemaphore.waitUnlessCancelled()
-      return (data ?? url.dataRepresentation, URL.response(url))
-    }
-    return asyncSemaphore
-  }
-
   func respond(to url: URL, error: Error) {
     respond(to: url) { _ in
       throw error
     }
+  }
+
+  func waitThenRespond(to url: URL, data: Data? = nil) async -> AsyncSemaphore {
+    let asyncSemaphore = AsyncSemaphore(value: 0)
+    respond(to: url) { url in
+      try await asyncSemaphore.waitUnlessCancelled()
+      return (data ?? url.dataRepresentation, URL.response(url))
+    }
+    return asyncSemaphore
   }
 
   // MARK: - Private Helpers
