@@ -37,7 +37,6 @@ struct DownloadManagerTests {
     let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
     var tasks: [(AsyncSemaphore, DownloadTask)] = []
 
-    // Set all URLs to have a measurable delay to ensure we observe max concurrency
     for url in urls {
       let asyncSemaphore = await session.waitThenRespond(to: url)
       let task = await downloadManager.addURL(url)
@@ -189,7 +188,7 @@ struct DownloadManagerTests {
 
     // First URL will be active (blocking the queue)
     let blockingURL = URL.valid()
-    await session.respond(to: blockingURL, delay: .milliseconds(50))
+    let asyncSemaphore = await session.waitThenRespond(to: blockingURL)
     _ = await downloadManager.addURL(blockingURL)
 
     // Add several URLs to the pending queue
@@ -203,6 +202,9 @@ struct DownloadManagerTests {
 
     // Add url1 again - it should move to the top of the pending queue
     _ = await downloadManager.addURL(url1)
+
+    // Unblock original request
+    asyncSemaphore.signal()
 
     // Wait for url1 to complete (it should be next after blocking URL)
     _ = try await downloadManager.addURL(url1).downloadFinished()
