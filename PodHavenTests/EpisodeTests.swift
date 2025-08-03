@@ -253,6 +253,41 @@ class EpisodeTests {
     #expect(updatedEpisode.duration == newCMTime)
   }
 
+  @Test("that episodes can persist cachedMediaURL")
+  func persistCachedMediaURL() async throws {
+    let guid = GUID("guid")
+    let initialCachedURL = URL(string: "file:///path/to/initial/cache.mp3")!
+
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode(guid: guid, cachedMediaURL: initialCachedURL)
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode]
+    )
+    let podcast = podcastSeries.podcast
+
+    let episode = try await repo.db.read { db in
+      try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcast.id])
+    }!
+    #expect(episode.cachedMediaURL == initialCachedURL)
+
+    let newCachedURL = URL(string: "file:///path/to/new/cache.mp3")!
+    try await repo.updateCachedMediaURL(episode.id, newCachedURL)
+
+    let updatedEpisode = try await repo.db.read { db in
+      try Episode.fetchOne(db, id: episode.id)
+    }!
+    #expect(updatedEpisode.cachedMediaURL == newCachedURL)
+
+    // Test clearing the cached URL (setting to nil)
+    try await repo.updateCachedMediaURL(episode.id, nil)
+
+    let clearedEpisode = try await repo.db.read { db in
+      try Episode.fetchOne(db, id: episode.id)
+    }!
+    #expect(clearedEpisode.cachedMediaURL == nil)
+  }
+
   @Test("that an episode can be marked complete")
   func markEpisodeComplete() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
