@@ -35,17 +35,18 @@ struct DownloadManagerTests {
 
     // Add enough urls to ensure we hit our max concurrency
     let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
-    var tasks: [DownloadTask] = []
+    var tasks: [(AsyncSemaphore, DownloadTask)] = []
 
     // Set all URLs to have a measurable delay to ensure we observe max concurrency
     for url in urls {
-      await session.respond(to: url, delay: .milliseconds(10))
+      let asyncSemaphore = await session.waitThenRespond(to: url)
       let task = await downloadManager.addURL(url)
-      tasks.append(task)
+      tasks.append((asyncSemaphore, task))
     }
 
     // Wait for all downloads to complete
-    for task in tasks {
+    for (asyncSemaphore, task) in tasks {
+      asyncSemaphore.signal()
       _ = try? await task.downloadFinished()
     }
 
@@ -65,7 +66,7 @@ struct DownloadManagerTests {
 
     // Since maxConcurrentDownloads is 1 this task holds up the queue
     let url = URL.valid()
-    await session.respond(to: url, delay: .milliseconds(500))
+    _ = await session.waitThenRespond(to: url)
     _ = await downloadManager.addURL(url)
 
     // This task is stuck waiting on the first url
@@ -84,7 +85,7 @@ struct DownloadManagerTests {
     let downloadManager = DownloadManager(session: session)
 
     let url = URL.valid()
-    await session.respond(to: url, delay: .milliseconds(50))
+    _ = await session.waitThenRespond(to: url)
     let task = await downloadManager.addURL(url)
 
     // Cancels the task, not immediately but before it is done
@@ -112,7 +113,7 @@ struct DownloadManagerTests {
     )
 
     let url = URL.valid()
-    await session.respond(to: url, delay: .milliseconds(50))
+    _ = await session.waitThenRespond(to: url)
     let task = await downloadManager.addURL(url)
     let url2 = URL.valid()
     let task2 = await downloadManager.addURL(url2)
@@ -162,7 +163,7 @@ struct DownloadManagerTests {
     let downloadManager = DownloadManager(session: session)
 
     let url = URL.valid()
-    await session.respond(to: url, delay: .milliseconds(50))
+    let asyncSemaphore = await session.waitThenRespond(to: url)
     let task = await downloadManager.addURL(url)
     let taskCount = 5
     let downloadCount = Counter(expected: taskCount)
@@ -173,6 +174,7 @@ struct DownloadManagerTests {
         await downloadCount.increment()
       }
     }
+    asyncSemaphore.signal()
 
     try await downloadCount.waitForExpected()
     #expect(await downloadCount.reachedExpected)
@@ -182,21 +184,22 @@ struct DownloadManagerTests {
   func managerDoesNotDeallocate() async throws {
     let url2 = URL.valid()
 
-    func makeTask() async -> DownloadTask {
+    func makeTask() async -> (AsyncSemaphore, DownloadTask) {
       let downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 1)
       let url = URL.valid()
-      await session.respond(to: url, delay: .milliseconds(100))
+      let asyncSemaphore = await session.waitThenRespond(to: url)
       _ = await downloadManager.addURL(url)
-      await session.respond(to: url2, delay: .milliseconds(100))
-      return await downloadManager.addURL(url2)
+      let downloadTask = await downloadManager.addURL(url2)
+      return (asyncSemaphore, downloadTask)
     }
-    let task = await makeTask()
+    let (asyncSemaphore, downloadTask) = await makeTask()
 
     // In theory, the downloadManager could be deallocated now, since it was
     // created inside makeTask().  And since it had to wait for the first
-    // url to finish (concurrentTasks = 1, delay = 100ms), it would've never
+    // url to finish (maxConcurrentDownloads == 1), it would've never
     // actually start()'d the second downloadTask.
-    let downloadData = try await task.downloadFinished()
+    asyncSemaphore.signal()
+    let downloadData = try await downloadTask.downloadFinished()
     #expect(downloadData == DownloadData(url: url2))
   }
 }
