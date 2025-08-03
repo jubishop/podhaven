@@ -17,7 +17,7 @@ class FakeEpisodeAssetLoader {
 
   private var responseCounts: [URL: Int] = [:]
   func responseCount(for podcastEpisode: PodcastEpisode) -> Int {
-    responseCount(for: podcastEpisode.episode.computedMediaURL)
+    responseCount(for: podcastEpisode.episode.mediaURL)
   }
   func responseCount(for url: URL) -> Int {
     responseCounts[url, default: 0]
@@ -33,14 +33,14 @@ class FakeEpisodeAssetLoader {
   }
 
   func respond(to episode: Episode, _ handler: @escaping LoadHandler) {
-    respond(to: episode.computedMediaURL, handler)
+    respond(to: episode.mediaURL, handler)
   }
   func respond(to url: URL, _ handler: @escaping LoadHandler) {
     fakeHandlers[url] = handler
   }
 
   func clearCustomHandler(for episode: Episode) {
-    fakeHandlers.removeValue(forKey: episode.computedMediaURL)
+    fakeHandlers.removeValue(forKey: episode.mediaURL)
   }
 
   func loadEpisodeAsset(_ asset: AVURLAsset) async throws -> EpisodeAsset {

@@ -94,9 +94,7 @@ extension Container {
 
     let episodeAsset: EpisodeAsset
     do {
-      episodeAsset = try await loadEpisodeAsset(
-        AVURLAsset(url: podcastEpisode.episode.computedMediaURL)
-      )
+      episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: podcastEpisode.episode.mediaURL))
     } catch {
       throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
     }

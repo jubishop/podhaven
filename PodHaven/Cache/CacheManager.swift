@@ -36,6 +36,7 @@ actor CacheManager {
 
   private let downloadManager: DownloadManager
   private var currentQueuedEpisodeIDs: Set<Episode.ID> = []
+  private var activeDownloadTasks: [Episode.ID: DownloadTask] = [:]
 
   // MARK: - Initialization
 
@@ -61,11 +62,28 @@ actor CacheManager {
     }
 
     let downloadTask = await downloadManager.addURL(episode.media.rawValue)
+    activeDownloadTasks[episode.id] = downloadTask
+    defer { activeDownloadTasks.removeValue(forKey: episode.id) }
+
     let downloadData = try await CacheError.catch {
       try await downloadTask.downloadFinished()
     }
 
     let cacheURL = try await saveToCache(data: downloadData.data, for: episode)
+
+    guard currentQueuedEpisodeIDs.contains(episode.id)
+    else {
+      Self.log.debug(
+        "downloadAndCacheEpisode: episode \(episode.toString) no longer queued, cleaning up cache"
+      )
+
+      do {
+        try FileManager.default.removeItem(at: cacheURL)
+      } catch {
+        Self.log.error(error)
+      }
+      return
+    }
 
     _ = try await CacheError.catch {
       try await repo.updateCachedMediaURL(episode.id, cacheURL)
@@ -151,7 +169,7 @@ actor CacheManager {
         group.addTask { [weak self] in
           guard let self else { return }
           do {
-            try await clearCache(for: episodeID)
+            try await cancelDownloadTaskOrClearCache(for: episodeID)
           } catch {
             Self.log.error(error)
           }
@@ -172,6 +190,17 @@ actor CacheManager {
     }
 
     currentQueuedEpisodeIDs = newEpisodeIDs
+  }
+
+  private func cancelDownloadTaskOrClearCache(for episodeID: Episode.ID) async throws(CacheError) {
+    if let downloadTask = activeDownloadTasks[episodeID] {
+      Self.log.debug("Cancelling cache download task for episode \(episodeID)")
+
+      await downloadTask.cancel()
+      activeDownloadTasks.removeValue(forKey: episodeID)
+    } else {
+      try await clearCache(for: episodeID)
+    }
   }
 
   private func saveToCache(data: Data, for episode: Episode) async throws(CacheError) -> URL {
@@ -211,10 +240,6 @@ actor CacheManager {
   }
 
   private func generateCacheFileName(for episode: Episode) -> String {
-    let fileExtension =
-      episode.media.rawValue.pathExtension.isEmpty
-      ? "mp3"
-      : episode.media.rawValue.pathExtension
-    return "\(String(episode.guid.rawValue.hashValue)).\(fileExtension)"
+    "\(episode.media.rawValue.hashTo(12)).mp3"
   }
 }

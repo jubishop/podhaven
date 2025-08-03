@@ -104,12 +104,12 @@ enum PlayHelpers {
   static func waitForCurrentItem(_ podcastEpisode: PodcastEpisode?) async throws {
     try await Wait.until(
       {
-        await currentAssetURL == podcastEpisode?.episode.computedMediaURL
+        await currentAssetURL == podcastEpisode?.episode.mediaURL
       },
       {
         """
         Current url is: \(await currentAssetURL?.absoluteString ?? "nil"), \
-        Expected: \(podcastEpisode?.episode.computedMediaURL.absoluteString ?? "nil")
+        Expected: \(podcastEpisode?.episode.mediaURL.absoluteString ?? "nil")
         """
       }
     )

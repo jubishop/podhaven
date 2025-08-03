@@ -70,7 +70,10 @@ struct UnsavedEpisode: Savable, Stringable {
   var queued: Bool { self.queueOrder != nil }
   var completed: Bool { self.completionDate != nil }
   var started: Bool { self.currentTime.seconds > 0 }
-  var computedMediaURL: URL { cachedMediaURL ?? media.rawValue }
+
+  // MARK: - Derived Data
+
+  var mediaURL: URL { cachedMediaURL ?? media.rawValue }
 }
 
 @Saved<UnsavedEpisode>
