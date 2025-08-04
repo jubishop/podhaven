@@ -6,19 +6,35 @@ import SwiftUI
 
 @testable import PodHaven
 
-class FakeImageFetcher: ImageFetchable {
+actor FakeImageFetcher: ImageFetchable {
+  // MARK: - ImageFetchable
+
   private var prefetchedImages: [URL: UIImage] = [:]
 
   func prefetch(_ urls: [URL]) async {
     for url in urls {
+      prefetchCounts[url, default: 0] += 1
       prefetchedImages[url] = try? await fetch(url)
     }
   }
 
-  typealias FetchHandler = @Sendable (URL) async throws -> UIImage
+  func fetch(_ url: URL) async throws -> UIImage {
+    defer { responseCounts[url, default: 0] += 1 }
 
+    if let prefetchedImage = prefetchedImages[url] { return prefetchedImage }
+
+    let handler = fakeHandlers[url, default: defaultHandler]
+    let uiImage = try await handler(url)
+    try Task.checkCancellation()
+    return uiImage
+  }
+
+  // MARK: - Response Controls
+
+  private(set) var prefetchCounts: [URL: Int] = [:]
   private(set) var responseCounts: [URL: Int] = [:]
 
+  typealias FetchHandler = @Sendable (URL) async throws -> UIImage
   private var defaultHandler: FetchHandler = { url in return FakeImageFetcher.create(url) }
   private var fakeHandlers: [URL: FetchHandler] = [:]
 
@@ -34,16 +50,7 @@ class FakeImageFetcher: ImageFetchable {
     fakeHandlers.removeValue(forKey: url)
   }
 
-  func fetch(_ url: URL) async throws -> UIImage {
-    defer { responseCounts[url, default: 0] += 1 }
-
-    if let prefetchedImage = prefetchedImages[url] { return prefetchedImage }
-
-    let handler = fakeHandlers[url, default: defaultHandler]
-    let uiImage = try await handler(url)
-    try Task.checkCancellation()
-    return uiImage
-  }
+  // MARK: - Creation Helpers
 
   static func create(_ url: URL) -> UIImage {
     let hash = abs(url.absoluteString.hashValue)

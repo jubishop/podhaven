@@ -34,6 +34,7 @@ extension Container {
 actor CacheManager {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.imageFetcher) private var imageFetcher
 
   private var alert: Alert { get async { await Container.shared.alert() } }
   private var playState: PlayState { get async { await Container.shared.playState() } }
@@ -60,28 +61,30 @@ actor CacheManager {
 
   // MARK: - Public Methods
 
-  func downloadAndCache(_ episode: Episode) async throws(CacheError) {
-    Self.log.debug("downloadAndCache: \(episode.toString)")
+  func downloadAndCache(_ podcastEpisode: PodcastEpisode) async throws(CacheError) {
+    Self.log.debug("downloadAndCache: \(podcastEpisode.toString)")
 
-    guard episode.cachedMediaURL == nil
+    guard podcastEpisode.episode.cachedMediaURL == nil
     else {
-      Self.log.debug("downloadAndCache: \(episode.toString) already cached")
+      Self.log.debug("downloadAndCache: \(podcastEpisode.toString) already cached")
       return
     }
 
-    let downloadTask = await downloadManager.addURL(episode.media.rawValue)
-    activeDownloadTasks[episode.id] = downloadTask
-    defer { activeDownloadTasks.removeValue(forKey: episode.id) }
+    await imageFetcher.prefetch([podcastEpisode.image])
+
+    let downloadTask = await downloadManager.addURL(podcastEpisode.episode.media.rawValue)
+    activeDownloadTasks[podcastEpisode.id] = downloadTask
+    defer { activeDownloadTasks.removeValue(forKey: podcastEpisode.id) }
 
     let downloadData = try await CacheError.catch {
       try await downloadTask.downloadFinished()
     }
-    let cacheURL = try await saveToCache(data: downloadData.data, for: episode)
+    let cacheURL = try await saveToCache(data: downloadData.data, for: podcastEpisode.episode)
     _ = try await CacheError.catch {
-      try await repo.updateCachedMediaURL(episode.id, cacheURL)
+      try await repo.updateCachedMediaURL(podcastEpisode.id, cacheURL)
     }
 
-    Self.log.debug("downloadAndCache: successfully \(episode.toString) cached to \(cacheURL)")
+    Self.log.debug("downloadAndCache: successfully cached \(podcastEpisode.toString)")
   }
 
   func clearCache(for episode: Episode) async throws(CacheError) {
@@ -174,7 +177,7 @@ actor CacheManager {
         guard let self else { return }
         do {
           asyncSemaphore.signal()
-          try await downloadAndCache(podcastEpisode.episode)
+          try await downloadAndCache(podcastEpisode)
         } catch {
           Self.log.error(error)
         }
@@ -242,6 +245,11 @@ actor CacheManager {
   }
 
   private func generateCacheFileName(for episode: Episode) -> String {
-    "\(episode.media.rawValue.hash(to: 12)).mp3"
+    let mediaURL = episode.media.rawValue
+    let fileExtension =
+      mediaURL.pathExtension.isEmpty == false
+      ? mediaURL.pathExtension
+      : "mp3"
+    return "\(mediaURL.hash(to: 12)).\(fileExtension)"
   }
 }

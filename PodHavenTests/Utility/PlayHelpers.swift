@@ -176,7 +176,7 @@ enum PlayHelpers {
     let uiImage = uiImage ?? FakeImageFetcher.create(imageURL)
     let fetchSemaphoreBegun = AsyncSemaphore(value: 0)
     let finishFetchingSemaphore = AsyncSemaphore(value: 0)
-    fakeImageFetcher.respond(to: imageURL) { _ in
+    await fakeImageFetcher.respond(to: imageURL) { _ in
       fetchSemaphoreBegun.signal()
       await finishFetchingSemaphore.wait()
       return uiImage

@@ -230,7 +230,7 @@ import Testing
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
     try await PlayHelpers.executeMidImageFetch(for: originalEpisode.image) {
-      imageFetcher.clearCustomHandler(for: originalEpisode.image)
+      await imageFetcher.clearCustomHandler(for: originalEpisode.image)
       try await playManager.load(incomingEpisode)
     }
 
@@ -541,7 +541,7 @@ import Testing
     let originalEpisode = try await Create.podcastEpisode()
 
     try await PlayHelpers.executeMidImageFetch(for: originalEpisode.image) {
-      imageFetcher.clearCustomHandler(for: originalEpisode.image)
+      await imageFetcher.clearCustomHandler(for: originalEpisode.image)
       try await playManager.load(originalEpisode)
     }
     await #expect(throws: (any Error).self) {

@@ -17,6 +17,9 @@ actor CacheManagerTests {
   private var session: FakeDataFetchable {
     Container.shared.cacheManagerSession() as! FakeDataFetchable
   }
+  private var imageFetcher: FakeImageFetcher {
+    Container.shared.imageFetcher() as! FakeImageFetcher
+  }
 
   init() async throws {
     await cacheManager.start()
@@ -123,5 +126,17 @@ actor CacheManagerTests {
 
     // Verify episode was not cached
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+  }
+
+  // MARK: - Artwork Prefetching
+
+  @Test("episode artwork is prefetched when episode is cached")
+  func episodeArtworkIsPrefetchedWhenEpisodeIsCached() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await queue.unshift(podcastEpisode.id)
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+
+    #expect(await imageFetcher.prefetchCounts[podcastEpisode.image] == 1)
   }
 }

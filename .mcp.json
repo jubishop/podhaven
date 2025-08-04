@@ -3,11 +3,12 @@
     "XcodeBuildMCP": {
       "type": "stdio",
       "command": "npx",
-      "args": [
-        "-y",
-        "xcodebuildmcp@latest"
-      ],
+      "args": ["-y", "xcodebuildmcp@latest"],
       "env": {}
+    },
+    "swiftlens": {
+      "command": "uvx",
+      "args": ["swiftlens"]
     }
   }
 }

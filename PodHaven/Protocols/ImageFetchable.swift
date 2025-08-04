@@ -3,7 +3,7 @@
 import Foundation
 import SwiftUI
 
-protocol ImageFetchable {
+protocol ImageFetchable: Sendable {
   func prefetch(_ urls: [URL]) async
   func fetch(_ url: URL) async throws -> UIImage
 }
