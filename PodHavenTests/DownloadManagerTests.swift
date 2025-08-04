@@ -211,8 +211,7 @@ struct DownloadManagerTests {
     _ = await downloadManager.addURL(URL.valid())
 
     // Add url1 again - it should move to the top of the pending queue
-    let url1TaskRefetched = await downloadManager.addURL(url1)
-    #expect(url1Task.id == url1TaskRefetched.id)
+    _ = await downloadManager.addURL(url1)
 
     // Unblock original request
     asyncSemaphore.signal()
@@ -225,6 +224,25 @@ struct DownloadManagerTests {
     #expect(requests.count >= 2)
     #expect(requests[0] == blockingURL)  // First request was the blocking URL
     #expect(requests[1] == url1)  // Second request should be url1 (moved to top)
+  }
+
+  @Test("that calling addURL on an already pending URL returns same task")
+  func callingAddURLOnAlreadyPendingURLReturnsSameTask() async throws {
+    let downloadManager = DownloadManager(
+      session: session,
+      maxConcurrentDownloads: 1
+    )
+
+    // blockingURL will be active (blocking the queue)
+    let blockingURL = URL.valid()
+    _ = await session.waitThenRespond(to: blockingURL)
+    _ = await downloadManager.addURL(blockingURL)
+
+    // url1 task will remain pending
+    let url1 = URL.valid()
+    let url1Task = await downloadManager.addURL(url1)
+    let url1TaskRefetched = await downloadManager.addURL(url1)
+    #expect(url1Task.id == url1TaskRefetched.id)
   }
 
   @Test("that as long as a task exists the Manager won't deallocate")
