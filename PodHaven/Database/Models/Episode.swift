@@ -78,6 +78,10 @@ struct UnsavedEpisode: Savable, Stringable {
 
 @Saved<UnsavedEpisode>
 struct Episode: Saved, RSSUpdatable {
+  // MARK: - Equatable
+
+  static func == (lhs: Episode, rhs: OnDeck) -> Bool { lhs.id == rhs.id }
+
   // MARK: - Associations
 
   static let podcast = belongsTo(Podcast.self)
@@ -126,8 +130,6 @@ struct Episode: Saved, RSSUpdatable {
       (Columns.image, unsaved.image),
     ]
   }
-
-  // MARK: - RSS Equality
 
   func rssEquals(_ other: Episode) -> Bool {
     unsaved.media == other.unsaved.media && unsaved.title == other.unsaved.title

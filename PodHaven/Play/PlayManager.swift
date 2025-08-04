@@ -361,8 +361,13 @@ final class PlayManager {
     Self.log.debug("handleDidPlayToEnd: \(episode.toString)")
 
     do {
-      try await repo.markComplete(episode.id)
       try await cacheManager.clearCache(for: episodeID)
+    } catch {
+      Self.log.error(error)
+    }
+
+    do {
+      try await repo.markComplete(episode.id)
     } catch {
       Self.log.error(error)
     }

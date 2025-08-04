@@ -28,6 +28,7 @@ actor CacheManager {
   @DynamicInjected(\.repo) private var repo
 
   private var alert: Alert { get async { await Container.shared.alert() } }
+  private var playState: PlayState { get async { await Container.shared.playState() } }
 
   private static let log = Log.as(LogSubsystem.Cache.cacheManager)
 
@@ -97,6 +98,11 @@ actor CacheManager {
     guard !episode.queued
     else {
       Self.log.debug("clearCache: still queued, keeping cache for: \(episode.toString)")
+      return
+    }
+
+    if let onDeck = await playState.onDeck, onDeck == episode {
+      Self.log.debug("clearCache: currently playing, keeping cache for: \(episode.toString)")
       return
     }
 
