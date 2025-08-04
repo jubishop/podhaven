@@ -44,6 +44,14 @@ struct EpisodeListView: View {
 
           Spacer()
 
+          if viewModel.item.cachedMediaURL != nil {
+            Image(systemName: "arrow.down.circle.fill")
+              .font(.caption2)
+              .foregroundColor(.green)
+          }
+
+          Spacer()
+
           HStack(spacing: 4) {
             Image(systemName: "clock")
               .font(.caption2)
