@@ -37,14 +37,12 @@ struct DebugSection: View {
       }
 
       if AppInfo.myDevice {
-        Section("Memory Intensive Actions") {
-          Button("Truncate Log File") {
-            Task { try await fileLogManager.truncateLogFile() }
-          }
+        Button("Truncate Log File") {
+          Task { try await fileLogManager.truncateLogFile() }
+        }
 
-          Button("Refresh Podcasts") {
-            Task { try await refreshManager.performRefresh(stalenessThreshold: Date()) }
-          }
+        Button("Refresh Podcasts") {
+          Task { try await refreshManager.performRefresh(stalenessThreshold: Date()) }
         }
       }
     }
