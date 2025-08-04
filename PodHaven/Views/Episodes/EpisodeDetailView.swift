@@ -60,6 +60,18 @@ struct EpisodeDetailView: View {
 
             Spacer()
 
+            if viewModel.episode.cachedMediaURL != nil {
+              VStack(spacing: 4) {
+                Image(systemName: "arrow.down.circle.fill")
+                  .foregroundColor(.green)
+                Text("Cached")
+                  .font(.caption2)
+                  .foregroundColor(.secondary)
+              }
+            }
+
+            Spacer()
+
             HStack(spacing: 8) {
               Image(systemName: "clock")
                 .foregroundColor(.secondary)
