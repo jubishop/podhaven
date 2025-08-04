@@ -360,10 +360,14 @@ final class PlayManager {
 
     Self.log.debug("handleDidPlayToEnd: \(episode.toString)")
 
-    do {
-      try await cacheManager.clearCache(for: episodeID)
-    } catch {
-      Self.log.error(error)
+    defer {
+      Task {
+        do {
+          try await cacheManager.clearCache(for: episodeID)
+        } catch {
+          Self.log.error(error)
+        }
+      }
     }
 
     do {

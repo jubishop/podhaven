@@ -106,12 +106,16 @@ actor CacheManager {
       return
     }
 
-    if let cachedURL = episode.cachedMediaURL {
-      do {
-        try FileManager.default.removeItem(at: cachedURL)
-      } catch {
-        Self.log.error(error)
-      }
+    guard let cachedURL = episode.cachedMediaURL
+    else {
+      Self.log.debug("Episode: \(episode.toString) has no cached media URL")
+      return
+    }
+
+    do {
+      try FileManager.default.removeItem(at: cachedURL)
+    } catch {
+      Self.log.error(error)
     }
 
     _ = try await CacheError.catch {

@@ -12,6 +12,7 @@ import Testing
 
 @Suite("of PlayManager tests", .container)
 @MainActor struct PlayManagerTests {
+  @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var fakeEpisodeAssetLoader
   @DynamicInjected(\.notifier) private var notifier
   @DynamicInjected(\.playManager) private var playManager
@@ -693,6 +694,29 @@ import Testing
     // Verify the asset was loaded with the original media URL
     let currentItem = avPlayer.current! as! FakeAVPlayerItem
     #expect(currentItem.url == podcastEpisode.episode.media.rawValue)
+  }
+
+  @Test("episode cache is not cleared when loading")
+  func episodeCacheIsNotClearedWhenLoading() async throws {
+    await cacheManager.start()
+
+    let cachedURL = URL(string: "file:///path/to/cached/episode.mp3")!
+    let (podcastEpisode, queuedPodcastEpisode) = try await Create.twoPodcastEpisodes(
+      Create.unsavedEpisode(cachedMediaURL: cachedURL)
+    )
+
+    #expect(queuedPodcastEpisode.episode.cachedMediaURL == nil)
+    try await queue.unshift(queuedPodcastEpisode.id)
+    try await CacheHelpers.waitForCached(queuedPodcastEpisode.id)
+    try await queue.dequeue(queuedPodcastEpisode.id)
+    try await CacheHelpers.waitForNotCached(queuedPodcastEpisode.id)
+
+
+    try await queue.unshift(podcastEpisode.id)
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.waitForQueue([])
+
+    #expect(try await repo.episode(podcastEpisode.id)?.cachedMediaURL != nil)
   }
 
   @Test("episode cache is cleared when playing to end")
