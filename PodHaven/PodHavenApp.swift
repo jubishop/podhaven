@@ -37,11 +37,14 @@ struct PodHavenApp: App {
         Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
 
         isInitialized = true
-        configureAudioSession()
-        startMemoryWarningMonitoring()
-        await playManager.start()
-        await refreshManager.start()
-        await cacheManager.start()
+
+        if AppInfo.environment != .testing {
+          configureAudioSession()
+          startMemoryWarningMonitoring()
+          await playManager.start()
+          await refreshManager.start()
+          await cacheManager.start()
+        }
       }
       .onOpenURL { url in
         Self.log.info("Received incoming URL: \(url)")

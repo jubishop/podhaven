@@ -165,7 +165,7 @@ struct DownloadManagerTests {
     let asyncSemaphore = await session.waitThenRespond(to: url)
     let task = await downloadManager.addURL(url)
     let taskCount = 5
-    let downloadCount = Counter(expected: taskCount)
+    let downloadCount = Counter()
     for _ in 0..<taskCount {
       Task {
         let downloadData = try await task.downloadFinished()
@@ -175,8 +175,8 @@ struct DownloadManagerTests {
     }
     asyncSemaphore.signal()
 
-    try await downloadCount.waitForExpected()
-    #expect(await downloadCount.reachedExpected)
+    try await downloadCount.wait(for: 5)
+    #expect(await downloadCount.value == 5)
   }
 
   @Test("that adding an existing pending URL moves it to top of queue")

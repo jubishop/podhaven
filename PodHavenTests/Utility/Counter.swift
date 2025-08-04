@@ -4,39 +4,38 @@ import Foundation
 import Semaphore
 
 actor Counter: Sendable {
-  private(set) var maxValue: Int = 0
-  private(set) var minValue: Int = 0
-  private(set) var value: Int = 0
+  private(set) var maxValue: Int
+  private(set) var minValue: Int
+  private(set) var value: Int
 
-  var reachedExpected: Bool { value == expected }
-
-  private let expected: Int
-  private let semaphore = AsyncSemaphore(value: 0)
-
-  init(expected: Int = 0) {
-    self.expected = expected
+  func callAsFunction(_ newValue: Int) {
+    set(to: newValue)
   }
 
-  func callAsFunction(_ value: Int) {
-    self.value = value
-    minValue = min(minValue, value)
-    maxValue = max(maxValue, value)
+  init(initialValue: Int = 0) {
+    value = initialValue
+    minValue = initialValue
+    maxValue = initialValue
   }
 
-  func waitForExpected() async throws {
-    for _ in 0..<expected {
-      try await semaphore.waitUnlessCancelled()
-    }
+  func wait(for expected: Int) async throws {
+    try await Wait.until(
+      { await self.value == expected },
+      { "Counter value is \(await self.value), expected \(expected)" }
+    )
   }
 
   func increment() {
-    value += 1
-    maxValue = max(maxValue, value)
-    semaphore.signal()
+    set(to: value + 1)
   }
 
   func decrement() {
-    value -= 1
+    set(to: value - 1)
+  }
+
+  private func set(to newValue: Int) {
+    value = newValue
+    maxValue = max(maxValue, value)
     minValue = min(minValue, value)
   }
 }

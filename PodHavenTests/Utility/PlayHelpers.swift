@@ -116,7 +116,10 @@ enum PlayHelpers {
   }
 
   static func waitForPeriodicTimeObserver() async throws {
-    try await Wait.until { await hasPeriodicTimeObservation() }
+    try await Wait.until(
+      { await hasPeriodicTimeObservation() },
+      { "Expected periodic time observer to be set" }
+    )
   }
 
   static func waitForResponse(for podcastEpisode: PodcastEpisode, count: Int = 1) async throws {

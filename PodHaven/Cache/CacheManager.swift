@@ -24,7 +24,6 @@ extension Container {
 }
 
 actor CacheManager {
-  @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
@@ -150,9 +149,10 @@ actor CacheManager {
   }
 
   private func handleQueueChange(_ queuedEpisodes: [PodcastEpisode]) async {
-    let newEpisodeIDs = Set(queuedEpisodes.map(\.id))
-    let removedEpisodeIDs = currentQueuedEpisodeIDs.subtracting(newEpisodeIDs)
+    let queuedEpisodeIDs = Set(queuedEpisodes.map(\.id))
+    let removedEpisodeIDs = currentQueuedEpisodeIDs.subtracting(queuedEpisodeIDs)
     let newEpisodes = queuedEpisodes.reversed().filter { $0.episode.cachedMediaURL == nil }
+    currentQueuedEpisodeIDs = queuedEpisodeIDs
 
     Self.log.debug(
       """
@@ -188,8 +188,6 @@ actor CacheManager {
         }
       }
     }
-
-    currentQueuedEpisodeIDs = newEpisodeIDs
   }
 
   private func cancelDownloadTaskOrClearCache(for episodeID: Episode.ID) async throws(CacheError) {

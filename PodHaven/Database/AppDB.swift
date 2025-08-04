@@ -17,6 +17,7 @@ struct AppDB {
   #if DEBUG
   static func inMemory(migrate: Bool = true) -> AppDB {
     do {
+      Self.log.debug("creating inMemory AppDB")
       let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
       return try AppDB(dbQueue, migrate: migrate)
     } catch {
@@ -27,6 +28,7 @@ struct AppDB {
 
   fileprivate static let _onDisk = {
     do {
+      Self.log.debug("creating onDisk AppDB")
       let dbPool = try DatabasePool(
         path: AppInfo.documentsDirectory.appendingPathComponent("db.sqlite").path,
         configuration: makeConfiguration()

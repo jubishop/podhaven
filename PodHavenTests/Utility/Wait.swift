@@ -28,7 +28,7 @@ enum Wait {
     maxAttempts: Int = 100,
     delay: Duration = .milliseconds(10),
     _ block: @Sendable @escaping () async throws -> Bool,
-    _ errorMessage: @Sendable @escaping () async throws -> String = { "Block never became true" }
+    _ errorMessage: @Sendable @escaping () async throws -> String
   ) async throws {
     var attempts = 0
     while attempts < maxAttempts {

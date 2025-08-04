@@ -11,8 +11,9 @@ import Testing
 @testable import PodHaven
 
 @Suite("of Observatory tests", .container)
-class ObservatoryTests {
+actor ObservatoryTests {
   @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
   @Test("allPodcastsWithLatestEpisodeDates()")
@@ -145,5 +146,36 @@ class ObservatoryTests {
 
     let series = try await observatory.podcastSeries(unsavedPodcast.feedURL).get()
     #expect(series?.podcast.feedURL == unsavedPodcast.feedURL)
+  }
+
+  @Test("queuedPodcastEpisodes AsyncSequence receives all updates")
+  func testQueuedPodcastEpisodesAsyncSequence() async throws {
+    let (episode1, episode2, episode3) = try await Create.threePodcastEpisodes()
+
+    let updateCount = Counter()
+
+    Task {
+      for try await queuedEpisodes in observatory.queuedPodcastEpisodes() {
+        await updateCount(queuedEpisodes.count)
+      }
+    }
+
+    try await queue.unshift(episode1.id)
+    try await updateCount.wait(for: 1)
+
+    try await queue.unshift(episode2.id)
+    try await updateCount.wait(for: 2)
+
+    try await queue.unshift(episode3.id)
+    try await updateCount.wait(for: 3)
+
+    try await queue.dequeue(episode2.id)
+    try await updateCount.wait(for: 2)
+
+    try await queue.dequeue(episode3.id)
+    try await updateCount.wait(for: 1)
+
+    try await queue.dequeue(episode1.id)
+    try await updateCount.wait(for: 0)
   }
 }

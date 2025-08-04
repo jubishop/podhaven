@@ -32,6 +32,9 @@ actor FakeSleeper: Sleepable {
   }
 
   func waitForRegistrations(count: Int) async throws {
-    try await Wait.until { await self.sleepRequests.count >= count }
+    try await Wait.until(
+      { await self.sleepRequests.count >= count },
+      { "Expected \(count) sleep requests, but got \(await self.sleepRequests.count)" }
+    )
   }
 }
