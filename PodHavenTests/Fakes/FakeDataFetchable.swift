@@ -77,9 +77,7 @@ actor FakeDataFetchable: DataFetchable {
     return asyncSemaphore
   }
 
-  // MARK: - Private Helpers
-
-  private func respond(to url: URL, with handler: @escaping DataHandler) {
+  func respond(to url: URL, with handler: @escaping DataHandler) {
     fakeHandlers[url] = handler
   }
 }

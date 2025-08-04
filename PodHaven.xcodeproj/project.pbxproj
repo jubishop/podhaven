@@ -87,6 +87,7 @@
 		8B9B8B332DCBB25500E574E6 /* Exceptions for "PodHavenTests" folder in "PerformanceTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				CacheManagerTests.swift,
 				DownloadManagerTests.swift,
 				EpisodeTests.swift,
 				ErrorTests.swift,

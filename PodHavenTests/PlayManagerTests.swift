@@ -701,16 +701,9 @@ import Testing
     await cacheManager.start()
 
     let cachedURL = URL(string: "file:///path/to/cached/episode.mp3")!
-    let (podcastEpisode, queuedPodcastEpisode) = try await Create.twoPodcastEpisodes(
+    let podcastEpisode = try await Create.podcastEpisode(
       Create.unsavedEpisode(cachedMediaURL: cachedURL)
     )
-
-    #expect(queuedPodcastEpisode.episode.cachedMediaURL == nil)
-    try await queue.unshift(queuedPodcastEpisode.id)
-    try await CacheHelpers.waitForCached(queuedPodcastEpisode.id)
-    try await queue.dequeue(queuedPodcastEpisode.id)
-    try await CacheHelpers.waitForNotCached(queuedPodcastEpisode.id)
-
 
     try await queue.unshift(podcastEpisode.id)
     try await playManager.load(podcastEpisode)

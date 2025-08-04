@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import GRDB
+import Semaphore
 
 extension Container {
   var cacheManagerSession: Factory<DataFetchable> {
@@ -18,8 +19,15 @@ extension Container {
     .scope(.cached)
   }
 
+  var cacheDownloadManager: Factory<DownloadManager> {
+    Factory(self) {
+      DownloadManager(session: self.cacheManagerSession(), maxConcurrentDownloads: 4)
+    }
+    .scope(.cached)
+  }
+
   var cacheManager: Factory<CacheManager> {
-    Factory(self) { CacheManager(session: self.cacheManagerSession()) }.scope(.cached)
+    Factory(self) { CacheManager(downloadManager: self.cacheDownloadManager()) }.scope(.cached)
   }
 }
 
@@ -40,8 +48,8 @@ actor CacheManager {
 
   // MARK: - Initialization
 
-  fileprivate init(session: DataFetchable) {
-    downloadManager = DownloadManager(session: session, maxConcurrentDownloads: 4)
+  fileprivate init(downloadManager: DownloadManager) {
+    self.downloadManager = downloadManager
   }
 
   func start() async {
@@ -68,28 +76,12 @@ actor CacheManager {
     let downloadData = try await CacheError.catch {
       try await downloadTask.downloadFinished()
     }
-
     let cacheURL = try await saveToCache(data: downloadData.data, for: episode)
-
-    guard currentQueuedEpisodeIDs.contains(episode.id)
-    else {
-      Self.log.debug(
-        "downloadAndCache: episode \(episode.toString) no longer queued, cleaning up cache"
-      )
-
-      do {
-        try FileManager.default.removeItem(at: cacheURL)
-      } catch {
-        Self.log.error(error)
-      }
-      return
-    }
-
     _ = try await CacheError.catch {
       try await repo.updateCachedMediaURL(episode.id, cacheURL)
     }
 
-    Self.log.debug("downloadAndCache: cached to \(cacheURL)")
+    Self.log.debug("downloadAndCache: successfully \(episode.toString) cached to \(cacheURL)")
   }
 
   func clearCache(for episode: Episode) async throws(CacheError) {
@@ -161,17 +153,34 @@ actor CacheManager {
   private func handleQueueChange(_ queuedEpisodes: [PodcastEpisode]) async {
     let queuedEpisodeIDs = Set(queuedEpisodes.map(\.id))
     let removedEpisodeIDs = currentQueuedEpisodeIDs.subtracting(queuedEpisodeIDs)
-    let newEpisodes = queuedEpisodes.reversed().filter { $0.episode.cachedMediaURL == nil }
+    let newEpisodes: [PodcastEpisode] = queuedEpisodes.filter {
+      !currentQueuedEpisodeIDs.contains($0.id)
+    }
     currentQueuedEpisodeIDs = queuedEpisodeIDs
 
     Self.log.debug(
       """
       handleQueueChange:
-        current queue: \(queuedEpisodes.count) episodes
+        current queue: \(queuedEpisodes.map(\.toString))
         removed: \(removedEpisodeIDs.count) episodes
         new: \(newEpisodes.count) episodes
       """
     )
+
+    // Cache new episodes in reverse order (most imminent first)
+    for podcastEpisode in newEpisodes.reversed() {
+      let asyncSemaphore = AsyncSemaphore(value: 0)
+      Task { [weak self] in
+        guard let self else { return }
+        do {
+          asyncSemaphore.signal()
+          try await downloadAndCache(podcastEpisode.episode)
+        } catch {
+          Self.log.error(error)
+        }
+      }
+      await asyncSemaphore.wait()
+    }
 
     await withDiscardingTaskGroup { group in
       // Clear cache for removed episodes
@@ -180,18 +189,6 @@ actor CacheManager {
           guard let self else { return }
           do {
             try await cancelDownloadTaskOrClearCache(for: episodeID)
-          } catch {
-            Self.log.error(error)
-          }
-        }
-      }
-
-      // Cache new episodes in reverse order (most imminent first)
-      for podcastEpisode in newEpisodes {
-        group.addTask { [weak self] in
-          guard let self else { return }
-          do {
-            try await downloadAndCache(podcastEpisode.episode)
           } catch {
             Self.log.error(error)
           }
@@ -212,6 +209,8 @@ actor CacheManager {
   }
 
   private func saveToCache(data: Data, for episode: Episode) async throws(CacheError) -> URL {
+    Self.log.debug("saveToCache: \(episode.toString)")
+
     let cacheDirectory = try getCacheDirectory()
     let fileName = generateCacheFileName(for: episode)
     let fileURL = cacheDirectory.appendingPathComponent(fileName)
@@ -243,6 +242,6 @@ actor CacheManager {
   }
 
   private func generateCacheFileName(for episode: Episode) -> String {
-    "\(episode.media.rawValue.hashTo(12)).mp3"
+    "\(episode.media.rawValue.hash(to: 12)).mp3"
   }
 }

@@ -94,8 +94,8 @@ actor DownloadTask: Identifiable {
 actor DownloadManager {
   private static let log = Log.as("DownloadManager")
 
-  private var activeDownloads: [URL: DownloadTask] = [:]
-  private var pendingDownloads: IdentifiedArray<URL, DownloadTask> = []
+  private(set) var activeDownloads: [URL: DownloadTask] = [:]
+  private(set) var pendingDownloads: IdentifiedArray<URL, DownloadTask> = []
   private let session: DataFetchable
   private let maxConcurrentDownloads: Int
 
