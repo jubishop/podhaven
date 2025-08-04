@@ -35,17 +35,21 @@ struct DownloadManagerTests {
 
     // Add enough urls to ensure we hit our max concurrency
     let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
-    var tasks: [(AsyncSemaphore, DownloadTask)] = []
+    var asyncSemaphores: [AsyncSemaphore] = []
+    var tasks: [DownloadTask] = []
 
     for url in urls {
       let asyncSemaphore = await session.waitThenRespond(to: url)
       let task = await downloadManager.addURL(url)
-      tasks.append((asyncSemaphore, task))
+      asyncSemaphores.append(asyncSemaphore)
+      tasks.append(task)
     }
 
     // Wait for all downloads to complete
-    for (asyncSemaphore, task) in tasks {
+    for asyncSemaphore in asyncSemaphores {
       asyncSemaphore.signal()
+    }
+    for task in tasks {
       _ = try? await task.downloadFinished()
     }
 
@@ -135,28 +139,6 @@ struct DownloadManagerTests {
     }
   }
 
-  @Test("that url's are fetched in the order they're received")
-  func fetchedInOrder() async throws {
-    let downloadManager = DownloadManager(
-      session: session,
-      // No concurrency, otherwise ordering is impossible to guarantee.
-      maxConcurrentDownloads: 1
-    )
-
-    let urls = (1...100).map { URL(string: "https://example.com/data\($0)")! }
-    var tasks: [DownloadTask] = []
-    for url in urls {
-      let task = await downloadManager.addURL(url)
-      tasks.append(task)
-    }
-    // Reversed download awaits, ensure URL's still downloaded in order.
-    for task in tasks.reversed() {
-      _ = try await task.downloadFinished()
-    }
-    let requests = await session.requests
-    #expect(requests == urls)
-  }
-
   @Test("that you can call downloadFinished() multiple times before completion")
   func multipleDownloadsCalls() async throws {
     let downloadManager = DownloadManager(session: session)
@@ -179,6 +161,37 @@ struct DownloadManagerTests {
     #expect(await downloadCount.value == 5)
   }
 
+  @Test("that adding a pending URL moves it to top of queue")
+  func pendingURLMovesToTop() async throws {
+    let downloadManager = DownloadManager(
+      session: session,
+      maxConcurrentDownloads: 1
+    )
+
+    // blockingURL will be active (blocking the queue)
+    let blockingURL = URL.valid()
+    let asyncSemaphore = await session.waitThenRespond(to: blockingURL)
+    _ = await downloadManager.addURL(blockingURL)
+
+    // Add several URLs to the pending queue
+    let url3 = URL.valid()
+    _ = await downloadManager.addURL(URL.valid())
+    _ = await downloadManager.addURL(URL.valid())
+    let url3Task = await downloadManager.addURL(url3)
+
+    // Unblock original request
+    asyncSemaphore.signal()
+
+    // Wait for url1 to complete (it should be next after blocking URL)
+    _ = try await url3Task.downloadFinished()
+
+    // url1 should be processed next (before url2 and url3)
+    let requests = await session.requests
+    #expect(requests.count >= 2)
+    #expect(requests[0] == blockingURL)  // First request was the blocking URL
+    #expect(requests[1] == url3)  // Second request should be url3 (moved to top)
+  }
+
   @Test("that adding an existing pending URL moves it to top of queue")
   func existingPendingURLMovesToTop() async throws {
     let downloadManager = DownloadManager(
@@ -186,28 +199,26 @@ struct DownloadManagerTests {
       maxConcurrentDownloads: 1
     )
 
-    // First URL will be active (blocking the queue)
+    // blockingURL will be active (blocking the queue)
     let blockingURL = URL.valid()
     let asyncSemaphore = await session.waitThenRespond(to: blockingURL)
     _ = await downloadManager.addURL(blockingURL)
 
     // Add several URLs to the pending queue
-    let url1 = URL(string: "https://example.com/1")!
-    let url2 = URL(string: "https://example.com/2")!
-    let url3 = URL(string: "https://example.com/3")!
-
-    _ = await downloadManager.addURL(url1)
-    _ = await downloadManager.addURL(url2)
-    _ = await downloadManager.addURL(url3)
+    let url1 = URL.valid()
+    let url1Task = await downloadManager.addURL(url1)
+    _ = await downloadManager.addURL(URL.valid())
+    _ = await downloadManager.addURL(URL.valid())
 
     // Add url1 again - it should move to the top of the pending queue
-    _ = await downloadManager.addURL(url1)
+    let url1TaskRefetched = await downloadManager.addURL(url1)
+    #expect(url1Task.id == url1TaskRefetched.id)
 
     // Unblock original request
     asyncSemaphore.signal()
 
     // Wait for url1 to complete (it should be next after blocking URL)
-    _ = try await downloadManager.addURL(url1).downloadFinished()
+    _ = try await url1Task.downloadFinished()
 
     // url1 should be processed next (before url2 and url3)
     let requests = await session.requests

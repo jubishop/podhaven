@@ -730,7 +730,7 @@ import Testing
     try await PlayHelpers.play()
 
     avPlayer.finishEpisode()
-    try await PlayHelpers.waitForNoCachedMediaURL(podcastEpisode)
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
 
     // Verify cache was cleared (cachedMediaURL set to nil) after playing to end
     let updatedEpisode: Episode? = try await repo.episode(podcastEpisode.id)

@@ -7,6 +7,10 @@ protocol CatchingError: Error, Sendable {
 }
 
 extension CatchingError {
+  static func checkTaskCancellation() throws(Self) {
+    try self.catch { try Task.checkCancellation() }
+  }
+
   static func `catch`<ReturnType>(_ operation: () throws -> ReturnType) throws(Self)
     -> ReturnType
   {

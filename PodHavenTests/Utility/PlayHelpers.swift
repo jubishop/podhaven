@@ -147,18 +147,6 @@ enum PlayHelpers {
     )
   }
 
-  static func waitForNoCachedMediaURL(_ podcastEpisode: PodcastEpisode) async throws {
-    try await Wait.until(
-      {
-        guard let fetchedEpisode: Episode = try await repo.episode(podcastEpisode.id)
-        else { return false }
-
-        return fetchedEpisode.cachedMediaURL == nil
-      },
-      { "Expected \(podcastEpisode.toString) to have no cachedMediaURL" }
-    )
-  }
-
   // MARK: - Timing Helpers
 
   static func executeMidLoad(

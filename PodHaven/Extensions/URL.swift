@@ -30,5 +30,5 @@ extension URL {
     else { throw URLError(.badURL, userInfo: ["message": "URL: \(self) must have a valid host."]) }
   }
 
-  func hashTo(_ length: Int) -> String { absoluteString.hashTo(length) }
+  func hash(to length: Int = 4) -> String { absoluteString.hash(to: length) }
 }

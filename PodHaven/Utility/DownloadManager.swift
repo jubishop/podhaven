@@ -1,7 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
-import OrderedCollections
+import IdentifiedCollections
 
 typealias DownloadResult = Result<DownloadData, DownloadError>
 
@@ -10,7 +10,11 @@ struct DownloadData: Equatable, Hashable {
   let data: Data
 }
 
-actor DownloadTask {
+actor DownloadTask: Identifiable {
+  typealias RawValue = URL
+
+  nonisolated var id: URL { url }
+
   let url: URL
   var finished: Bool { result != nil }
 
@@ -88,8 +92,10 @@ actor DownloadTask {
 }
 
 actor DownloadManager {
+  private static let log = Log.as("DownloadManager")
+
   private var activeDownloads: [URL: DownloadTask] = [:]
-  private var pendingDownloads: OrderedDictionary<URL, DownloadTask> = [:]
+  private var pendingDownloads: IdentifiedArray<URL, DownloadTask> = []
   private let session: DataFetchable
   private let maxConcurrentDownloads: Int
 
@@ -101,16 +107,29 @@ actor DownloadManager {
   }
 
   func addURL(_ url: URL) -> DownloadTask {
+    defer {
+      Self.log.debug(
+        """
+        addURL: \(url.hash())
+          activeDownloads: \(activeDownloads.keys.map { $0.hash() })
+          pendingDownloads: \(pendingDownloads.ids.map { $0.hash() })
+        """
+      )
+    }
+
     if let activeDownload = activeDownloads[url] {
       return activeDownload
     }
-    if let pendingDownload = pendingDownloads[url] {
-      // Move existing pending download to top of queue
-      pendingDownloads.updateValue(pendingDownload, forKey: url, insertingAt: 0)
+
+    if let pendingDownload = pendingDownloads[id: url] {
+      if let pendingIndex = pendingDownloads.index(id: url) {
+        pendingDownloads.move(fromOffsets: [pendingIndex], toOffset: 0)
+      }
       return pendingDownload
     }
+
     let download = DownloadTask(url: url, session: session)
-    pendingDownloads[url] = download
+    pendingDownloads.insert(download, at: 0)
     startNextDownload()
     return download
   }
@@ -120,7 +139,7 @@ actor DownloadManager {
       await activeDownload.cancel()
       startNextDownload()
     }
-    if let pendingDownload = pendingDownloads.removeValue(forKey: url) {
+    if let pendingDownload = pendingDownloads.remove(id: url) {
       await pendingDownload.cancel()
     }
   }
@@ -130,7 +149,7 @@ actor DownloadManager {
       await downloadTask.cancel()
     }
     activeDownloads.removeAll()
-    for (_, downloadTask) in pendingDownloads {
+    for downloadTask in pendingDownloads {
       await downloadTask.cancel()
     }
     pendingDownloads.removeAll()
@@ -143,9 +162,9 @@ actor DownloadManager {
       activeDownloads.count < maxConcurrentDownloads,
       !pendingDownloads.isEmpty
     else { return }
-    let nextEntry = pendingDownloads.removeFirst()
-    activeDownloads[nextEntry.key] = nextEntry.value
-    executeDownload(nextEntry.value)
+    let nextDownloadTask = pendingDownloads.removeFirst()
+    activeDownloads[nextDownloadTask.id] = nextDownloadTask
+    executeDownload(nextDownloadTask)
   }
 
   private func executeDownload(_ downloadTask: DownloadTask) {
