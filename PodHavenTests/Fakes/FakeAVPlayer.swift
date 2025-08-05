@@ -138,10 +138,14 @@ class FakeAVPlayer: AVPlayable {
   // MARK: - Testing Manipulators
 
   func finishEpisode() {
+    Assert.precondition(timeControlStatus == .playing, "Can't finish an episode not playing!")
+
     guard let current
     else { Assert.fatal("Can't finish an episode that doesn't exist!") }
 
     Self.log.debug("finishEpisode: \(current)")
+
+    timeControlStatus = .paused
 
     notifier.continuation(for: AVPlayerItem.didPlayToEndTimeNotification)
       .yield(

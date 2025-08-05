@@ -385,10 +385,9 @@ final class PlayManager {
         """
       )
 
-      let previousStatus = await playState.status
       await clearOnDeck()
       try await load(nextEpisode)
-      if previousStatus.playing { await play() }
+      await play()
     } else {
       Self.log.debug("handleDidPlayToEnd: no next episode, stopping")
       await clearOnDeck()
