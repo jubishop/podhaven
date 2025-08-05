@@ -250,8 +250,11 @@ struct PodcastDetailView: View {
 
         Menu(
           content: {
-            Button(viewModel.unplayedOnly ? "Show All" : "Unplayed Only") {
-              viewModel.unplayedOnly.toggle()
+            ForEach(PodcastDetailViewModel.FilterMethod.allCases, id: \.self) { filterMethod in
+              Button(filterMethod.rawValue) {
+                viewModel.currentFilterMethod = filterMethod
+              }
+              .disabled(viewModel.currentFilterMethod == filterMethod)
             }
           },
           label: {
