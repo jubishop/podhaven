@@ -226,10 +226,11 @@ actor CacheManager {
 
   private func getCacheDirectory() throws(CacheError) -> URL {
     guard
-      let cachesDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+      let applicationSupportDirectory = FileManager.default
+        .urls(for: .applicationSupportDirectory, in: .userDomainMask)
         .first
     else { throw CacheError.cachesDirectoryNotFound }
-    let cacheDirectory = cachesDirectory.appendingPathComponent("episodes")
+    let cacheDirectory = applicationSupportDirectory.appendingPathComponent("episodes")
 
     if !FileManager.default.fileExists(atPath: cacheDirectory.path) {
       try CacheError.catch {

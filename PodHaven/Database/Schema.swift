@@ -234,6 +234,14 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v11") { db in
+      // Clear all cachedMediaURL entries due to cache directory change from Caches to Application Support
+      // The Caches directory gets deleted during app updates, making all cached paths invalid
+      try db.execute(
+        sql: "UPDATE episode SET cachedMediaURL = NULL WHERE cachedMediaURL IS NOT NULL"
+      )
+    }
+
     return migrator
   }
 }
