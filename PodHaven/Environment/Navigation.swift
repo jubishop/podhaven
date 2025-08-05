@@ -237,15 +237,15 @@ extension Container {
         switch viewType {
         case .all:
           IdentifiableView(
-            StandardPodcastsView(
-              viewModel: StandardPodcastsViewModel(title: "All Podcasts")
+            SelectablePodcastsGridView(
+              viewModel: SelectablePodcastsGridViewModel(title: "All Podcasts")
             ),
             id: "all"
           )
         case .subscribed:
           IdentifiableView(
-            StandardPodcastsView(
-              viewModel: StandardPodcastsViewModel(
+            SelectablePodcastsGridView(
+              viewModel: SelectablePodcastsGridViewModel(
                 title: "Subscribed",
                 filter: Podcast.subscribed
               )
@@ -254,8 +254,8 @@ extension Container {
           )
         case .unsubscribed:
           IdentifiableView(
-            StandardPodcastsView(
-              viewModel: StandardPodcastsViewModel(
+            SelectablePodcastsGridView(
+              viewModel: SelectablePodcastsGridViewModel(
                 title: "Unsubscribed",
                 filter: Podcast.unsubscribed
               )

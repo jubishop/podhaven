@@ -376,4 +376,33 @@ class EpisodeTests {
     }
     #expect(Set(podcastEpisodes) == Set(fetchedPodcastEpisodes))
   }
+
+  @Test("that latestEpisode returns the most recent episode for a podcast")
+  func latestEpisode() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+
+    let oldestEpisode = try Create.unsavedEpisode(pubDate: 100.minutesAgo)
+    let middleEpisode = try Create.unsavedEpisode(pubDate: 50.minutesAgo)
+    let newestEpisode = try Create.unsavedEpisode(pubDate: 10.minutesAgo)
+
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [oldestEpisode, newestEpisode, middleEpisode]
+    )
+
+    let latestEpisode = try await repo.latestEpisode(for: podcastSeries.podcast.id)
+
+    #expect(latestEpisode != nil)
+    #expect(latestEpisode?.guid == newestEpisode.guid)
+    #expect(latestEpisode?.pubDate.approximatelyEquals(newestEpisode.pubDate) == true)
+  }
+
+  @Test("that latestEpisode returns nil when podcast has no episodes")
+  func latestEpisodeNoPodcast() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let podcastSeries = try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: [])
+    let latestEpisode = try await repo.latestEpisode(for: podcastSeries.id)
+
+    #expect(latestEpisode == nil)
+  }
 }

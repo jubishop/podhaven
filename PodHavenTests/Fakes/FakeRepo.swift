@@ -155,9 +155,7 @@ actor FakeRepo: Databasing, Sendable {
 
   // MARK: - Databasing Protocol
 
-  nonisolated var db: any DatabaseReader {
-    repo.db
-  }
+  nonisolated var db: any DatabaseReader { repo.db }
 
   // MARK: - Global Readers
 
@@ -198,6 +196,11 @@ actor FakeRepo: Databasing, Sendable {
   func episode(_ episodeID: Episode.ID) async throws -> Episode? {
     recordCall(methodName: "episode", parameters: episodeID)
     return try await repo.episode(episodeID)
+  }
+
+  func latestEpisode(for podcastID: Podcast.ID) async throws -> Episode? {
+    recordCall(methodName: "latestEpisode", parameters: podcastID)
+    return try await repo.latestEpisode(for: podcastID)
   }
 
   // MARK: - Series Writers

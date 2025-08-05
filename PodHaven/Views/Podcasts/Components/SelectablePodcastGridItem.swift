@@ -3,8 +3,6 @@
 import NukeUI
 import SwiftUI
 
-typealias SelectablePodcastGridItemViewModel = SelectableListItemModel<Podcast>
-
 struct SelectablePodcastGridItem: View {
   @State private var width: CGFloat = 0
 
@@ -87,6 +85,29 @@ struct SelectablePodcastGridItem: View {
       Text(viewModel.item.title)
         .font(.caption)
         .lineLimit(1)
+    }
+    .contextMenu {
+      Button(action: { viewModel.queueLatestEpisodeToTop() }) {
+        Label("Queue Latest To Top", systemImage: "text.line.first.and.arrowtriangle.forward")
+      }
+
+      Button(action: { viewModel.queueLatestEpisodeToBottom() }) {
+        Label("Queue Latest To Bottom", systemImage: "text.line.last.and.arrowtriangle.forward")
+      }
+
+      Button(action: { viewModel.deletePodcast() }) {
+        Label("Delete", systemImage: "trash")
+      }
+
+      if viewModel.item.subscribed {
+        Button(action: { viewModel.unsubscribePodcast() }) {
+          Label("Unsubscribe", systemImage: "minus.circle")
+        }
+      } else {
+        Button(action: { viewModel.subscribePodcast() }) {
+          Label("Subscribe", systemImage: "plus.circle")
+        }
+      }
     }
   }
 }

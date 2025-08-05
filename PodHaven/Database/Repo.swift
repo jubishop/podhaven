@@ -107,6 +107,15 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  func latestEpisode(for podcastID: Podcast.ID) async throws -> Episode? {
+    try await appDB.db.read { db in
+      try Episode
+        .filter(Episode.Columns.podcastId == podcastID)
+        .order(Episode.Columns.pubDate.desc)
+        .fetchOne(db)
+    }
+  }
+
   // MARK: - Series Writers
 
   @discardableResult

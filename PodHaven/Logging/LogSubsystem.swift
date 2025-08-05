@@ -39,6 +39,7 @@ enum LogSubsystem {
 
   enum PodcastsView: String, LogCategorizable {
     case detail
+    case podcastGrid
     case standard
   }
 

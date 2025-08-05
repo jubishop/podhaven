@@ -8,7 +8,7 @@ import Logging
 import Sharing
 import SwiftUI
 
-@Observable @MainActor class StandardPodcastsViewModel {
+@Observable @MainActor class SelectablePodcastsGridViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
@@ -92,7 +92,7 @@ import SwiftUI
   init(title: String, filter: SQLExpression = AppDB.NoOp) {
     let sortMethod = Shared(
       wrappedValue: SortMethod.byTitle,
-      .appStorage("StandardPodcastsViewModel-sortMethod-\(title)")
+      .appStorage("SelectablePodcastsGridViewModel-sortMethod-\(title)")
     )
     self._storedSortMethod = sortMethod
     self._currentSortMethod = sortMethod.wrappedValue

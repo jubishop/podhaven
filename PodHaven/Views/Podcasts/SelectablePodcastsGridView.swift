@@ -4,15 +4,15 @@ import FactoryKit
 import Logging
 import SwiftUI
 
-struct StandardPodcastsView: View {
+struct SelectablePodcastsGridView: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation
 
-  @State private var viewModel: StandardPodcastsViewModel
+  @State private var viewModel: SelectablePodcastsGridViewModel
 
   private static let log = Log.as(LogSubsystem.PodcastsView.standard)
 
-  init(viewModel: StandardPodcastsViewModel) {
+  init(viewModel: SelectablePodcastsGridViewModel) {
     self.viewModel = viewModel
   }
 
@@ -26,7 +26,7 @@ struct StandardPodcastsView: View {
 
       Menu(
         content: {
-          ForEach(StandardPodcastsViewModel.SortMethod.allCases, id: \.self) { method in
+          ForEach(SelectablePodcastsGridViewModel.SortMethod.allCases, id: \.self) { method in
             Button(method.rawValue) {
               viewModel.currentSortMethod = method
             }
@@ -124,7 +124,7 @@ struct StandardPodcastsView: View {
 #if DEBUG
 #Preview {
   NavigationStack {
-    StandardPodcastsView(viewModel: StandardPodcastsViewModel(title: "Preview Podcasts"))
+    SelectablePodcastsGridView(viewModel: SelectablePodcastsGridViewModel(title: "Preview Podcasts"))
   }
   .preview()
   .task {
