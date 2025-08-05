@@ -335,43 +335,40 @@ final class PlayManager {
 
   // MARK: - Private Change Handlers
 
-  private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID) async {
+  private func handleItemStatusChange(status: AVPlayerItem.Status, podcastEpisode: PodcastEpisode)
+    async
+  {
     Self.log.debug(
       """
       handleItemStatusChange
         status: \(status)
-        episodeID: \(episodeID)
+        podcastEpisode: \(podcastEpisode.toString)
       """
     )
 
     if status == .failed {
       await clearOnDeck()
       do {
-        try await queue.unshift(episodeID)
+        try await queue.unshift(podcastEpisode.id)
       } catch {
         Self.log.error(error)
       }
     }
   }
 
-  private func handleDidPlayToEnd(_ episodeID: Episode.ID) async throws {
-    guard let episode: Episode = try await repo.episode(episodeID)
-    else { throw PlaybackError.endedEpisodeNotFound(episodeID) }
+  private func handleDidPlayToEnd(_ podcastEpisode: PodcastEpisode) async throws {
+    Self.log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
 
-    Self.log.debug("handleDidPlayToEnd: \(episode.toString)")
+    await clearOnDeck()
 
-    defer {
-      Task {
-        do {
-          try await cacheManager.clearCache(for: episodeID)
-        } catch {
-          Self.log.error(error)
-        }
-      }
+    do {
+      try await repo.markComplete(podcastEpisode.id)
+    } catch {
+      Self.log.error(error)
     }
 
     do {
-      try await repo.markComplete(episode.id)
+      try await cacheManager.clearCache(for: podcastEpisode.episode)
     } catch {
       Self.log.error(error)
     }
@@ -385,7 +382,6 @@ final class PlayManager {
         """
       )
 
-      await clearOnDeck()
       try await load(nextEpisode)
       await play()
     } else {
@@ -498,8 +494,8 @@ final class PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await (status, episodeID) in await podAVPlayer.itemStatusStream {
-        await self.handleItemStatusChange(status: status, episodeID: episodeID)
+      for await (status, podcastEpisode) in await podAVPlayer.itemStatusStream {
+        await self.handleItemStatusChange(status: status, podcastEpisode: podcastEpisode)
       }
     }
 
@@ -536,9 +532,9 @@ final class PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await episodeID in await podAVPlayer.didPlayToEndStream {
+      for await podcastEpisode in await podAVPlayer.didPlayToEndStream {
         do {
-          try await handleDidPlayToEnd(episodeID)
+          try await handleDidPlayToEnd(podcastEpisode)
         } catch {
           Self.log.error(error)
           await alert(ErrorKit.message(for: error))

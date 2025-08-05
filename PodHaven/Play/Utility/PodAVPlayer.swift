@@ -42,17 +42,17 @@ extension Container {
   private var podcastEpisode: PodcastEpisode?
 
   let currentTimeStream: AsyncStream<CMTime>
-  let itemStatusStream: AsyncStream<(status: AVPlayerItem.Status, episodeID: Episode.ID)>
+  let itemStatusStream: AsyncStream<(AVPlayerItem.Status, PodcastEpisode)>
   let controlStatusStream: AsyncStream<PlaybackStatus>
   let rateStream: AsyncStream<Float>
-  let didPlayToEndStream: AsyncStream<Episode.ID>
+  let didPlayToEndStream: AsyncStream<PodcastEpisode>
 
   private let currentTimeContinuation: AsyncStream<CMTime>.Continuation
   private let itemStatusContinuation:
-    AsyncStream<(status: AVPlayerItem.Status, episodeID: Episode.ID)>.Continuation
+    AsyncStream<(AVPlayerItem.Status, PodcastEpisode)>.Continuation
   private let controlStatusContinuation: AsyncStream<PlaybackStatus>.Continuation
   private let rateContinuation: AsyncStream<Float>.Continuation
-  private let didPlayToEndContinuation: AsyncStream<Episode.ID>.Continuation
+  private let didPlayToEndContinuation: AsyncStream<PodcastEpisode>.Continuation
 
   private var periodicTimeObserver: Any?
   private var itemStatusObserver: NSKeyValueObservation?
@@ -65,13 +65,13 @@ extension Container {
   fileprivate init() {
     (currentTimeStream, currentTimeContinuation) = AsyncStream.makeStream(of: CMTime.self)
     (itemStatusStream, itemStatusContinuation) = AsyncStream.makeStream(
-      of: (status: AVPlayerItem.Status, episodeID: Episode.ID).self
+      of: (AVPlayerItem.Status, PodcastEpisode).self
     )
     (controlStatusStream, controlStatusContinuation) = AsyncStream.makeStream(
       of: PlaybackStatus.self
     )
     (rateStream, rateContinuation) = AsyncStream.makeStream(of: Float.self)
-    (didPlayToEndStream, didPlayToEndContinuation) = AsyncStream.makeStream(of: Episode.ID.self)
+    (didPlayToEndStream, didPlayToEndContinuation) = AsyncStream.makeStream(of: PodcastEpisode.self)
   }
 
   // MARK: - Loading
@@ -213,11 +213,11 @@ extension Container {
   private func addItemStatusObserver() {
     guard itemStatusObserver == nil else { return }
 
-    guard let currentItem = avPlayer.current, let episodeID = podcastEpisode?.id else { return }
+    guard let currentItem = avPlayer.current, let podcastEpisode else { return }
     itemStatusObserver = currentItem.observeStatus(options: [.initial, .new]) {
       [weak self] status in
       guard let self else { return }
-      itemStatusContinuation.yield((status: status, episodeID: episodeID))
+      itemStatusContinuation.yield((status, podcastEpisode))
     }
   }
 
@@ -291,8 +291,8 @@ extension Container {
       guard let self else { return }
       for await _ in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
         guard !Task.isCancelled else { return }
-        guard let episodeID = podcastEpisode?.id else { return }
-        didPlayToEndContinuation.yield(episodeID)
+        guard let podcastEpisode else { return }
+        didPlayToEndContinuation.yield(podcastEpisode)
       }
     }
   }
