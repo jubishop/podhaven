@@ -14,6 +14,7 @@ struct CustomProgressBar: View {
 
   private var normalHeight: CGFloat { 4 }
   private var dragHeight: CGFloat { 12 }
+  private var touchHeight: CGFloat { 44 }
   private var currentHeight: CGFloat { isDragging ? dragHeight : normalHeight }
 
   private var progress: Double {
@@ -35,12 +36,7 @@ struct CustomProgressBar: View {
           .frame(width: max(0, CGFloat(progress) * geometry.size.width), height: currentHeight)
       }
       .frame(maxHeight: .infinity, alignment: .center)
-      .onAppear {
-        barWidth = geometry.size.width
-      }
-      .onChange(of: geometry.size.width) { _, newWidth in
-        barWidth = newWidth
-      }
+      .contentShape(Rectangle().size(width: .infinity, height: touchHeight))
       .gesture(
         DragGesture(minimumDistance: 0)
           .onChanged { gestureValue in
@@ -50,13 +46,20 @@ struct CustomProgressBar: View {
 
             let clampedX = max(0, min(gestureValue.location.x, geometry.size.width))
             let newProgress = clampedX / geometry.size.width
-            let newValue = range.lowerBound + newProgress * (range.upperBound - range.lowerBound)
+            let newValue =
+              range.lowerBound + newProgress * (range.upperBound - range.lowerBound)
             value = newValue
           }
           .onEnded { _ in
             isDragging = false
           }
       )
+      .onAppear {
+        barWidth = geometry.size.width
+      }
+      .onChange(of: geometry.size.width) { _, newWidth in
+        barWidth = newWidth
+      }
     }
     .frame(height: dragHeight)
     .animation(.easeInOut(duration: animationDuration), value: isDragging)
