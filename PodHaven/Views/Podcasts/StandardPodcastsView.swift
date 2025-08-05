@@ -65,8 +65,8 @@ struct StandardPodcastsView: View {
       do {
         try await viewModel.refreshPodcasts()
       } catch {
-        if ErrorKit.baseError(for: error) is CancellationError { return }
         Self.log.error(error)
+        if ErrorKit.baseError(for: error) is CancellationError { return }
         alert(ErrorKit.message(for: error))
       }
     }

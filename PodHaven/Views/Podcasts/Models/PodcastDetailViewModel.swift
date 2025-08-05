@@ -90,8 +90,8 @@ class PodcastDetailViewModel:
         self.podcastSeries = podcastSeries
       }
     } catch {
-      if ErrorKit.baseError(for: error) is CancellationError { return }
       Self.log.error(error)
+      if ErrorKit.baseError(for: error) is CancellationError { return }
       alert(ErrorKit.message(for: error))
     }
   }
