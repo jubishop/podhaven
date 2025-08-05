@@ -29,7 +29,7 @@ struct UpNextView: View {
             Button(
               action: { viewModel.playItem(podcastEpisode) },
               label: {
-                Label("Play Now", systemImage: "play.fill")
+                Image(systemName: "play.fill")
               }
             )
             .tint(.green)
@@ -39,7 +39,7 @@ struct UpNextView: View {
               role: .destructive,
               action: { viewModel.deleteItem(podcastEpisode) },
               label: {
-                Label("Delete", systemImage: "trash")
+                Image(systemName: "trash")
               }
             )
             .tint(.red)
