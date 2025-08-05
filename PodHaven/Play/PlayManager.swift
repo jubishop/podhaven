@@ -382,8 +382,14 @@ final class PlayManager {
         """
       )
 
-      try await load(nextEpisode)
-      await play()
+      do {
+        try await load(nextEpisode)
+        await play()
+      } catch {
+        Self.log.error(error)
+        await alert("Failed to load next episode: \(nextEpisode.episode.title)")
+        return
+      }
     } else {
       Self.log.debug("handleDidPlayToEnd: no next episode, stopping")
       await clearOnDeck()
