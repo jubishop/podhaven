@@ -63,6 +63,7 @@ struct PodcastDetailView: View {
               }
             )
             .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
+            .episodeQueueableContextMenu(viewModel: viewModel, episode: episode)
           }
           .animation(.default, value: viewModel.episodeList.filteredEntries)
           .refreshable {

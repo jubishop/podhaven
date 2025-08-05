@@ -44,6 +44,15 @@ struct UpNextView: View {
             )
             .tint(.red)
           }
+          .contextMenu {
+            Button(action: { viewModel.playItem(podcastEpisode) }) {
+              Label("Play Episode", systemImage: "play.fill")
+            }
+
+            Button(role: .destructive, action: { viewModel.deleteItem(podcastEpisode) }) {
+              Label("Remove from Queue", systemImage: "trash")
+            }
+          }
         }
         .onMove(perform: viewModel.moveItem)
       }

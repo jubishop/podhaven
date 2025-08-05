@@ -54,6 +54,7 @@ struct PersonResultsListView: View {
           }
         )
         .episodeQueueableSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
+        .episodeQueueableContextMenu(viewModel: viewModel, episode: unsavedPodcastEpisode)
       }
       .animation(.default, value: viewModel.episodeList.filteredEntries)
     }

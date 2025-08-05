@@ -70,6 +70,7 @@ struct PodcastResultsDetailView: View {
               }
             )
             .episodeQueueableSwipeActions(viewModel: viewModel, episode: unsavedEpisode)
+            .episodeQueueableContextMenu(viewModel: viewModel, episode: unsavedEpisode)
           }
           .animation(.default, value: viewModel.episodeList.filteredEntries)
           .queueableSelectableEpisodesToolbar(
