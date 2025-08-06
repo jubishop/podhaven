@@ -335,40 +335,40 @@ final class PlayManager {
 
   // MARK: - Private Change Handlers
 
-  private func handleItemStatusChange(status: AVPlayerItem.Status, podcastEpisode: PodcastEpisode)
+  private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID)
     async
   {
     Self.log.debug(
       """
       handleItemStatusChange
         status: \(status)
-        podcastEpisode: \(podcastEpisode.toString)
+        episodeID: \(episodeID)
       """
     )
 
     if status == .failed {
       await clearOnDeck()
       do {
-        try await queue.unshift(podcastEpisode.id)
+        try await queue.unshift(episodeID)
       } catch {
         Self.log.error(error)
       }
     }
   }
 
-  private func handleDidPlayToEnd(_ podcastEpisode: PodcastEpisode) async throws {
-    Self.log.debug("handleDidPlayToEnd: \(podcastEpisode.toString)")
+  private func handleDidPlayToEnd(_ episodeID: Episode.ID) async throws {
+    Self.log.debug("handleDidPlayToEnd: \(episodeID)")
 
     await clearOnDeck()
 
     do {
-      try await repo.markComplete(podcastEpisode.id)
+      try await repo.markComplete(episodeID)
     } catch {
       Self.log.error(error)
     }
 
     do {
-      try await cacheManager.clearCache(for: podcastEpisode.episode)
+      try await cacheManager.clearCache(for: episodeID)
     } catch {
       Self.log.error(error)
     }
@@ -500,8 +500,8 @@ final class PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await (status, podcastEpisode) in await podAVPlayer.itemStatusStream {
-        await self.handleItemStatusChange(status: status, podcastEpisode: podcastEpisode)
+      for await (status, episodeID) in await podAVPlayer.itemStatusStream {
+        await self.handleItemStatusChange(status: status, episodeID: episodeID)
       }
     }
 
@@ -538,9 +538,9 @@ final class PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await podcastEpisode in await podAVPlayer.didPlayToEndStream {
+      for await episodeID in await podAVPlayer.didPlayToEndStream {
         do {
-          try await handleDidPlayToEnd(podcastEpisode)
+          try await handleDidPlayToEnd(episodeID)
         } catch {
           Self.log.error(error)
           await alert(ErrorKit.message(for: error))
