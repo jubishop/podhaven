@@ -104,6 +104,18 @@ actor CacheManager {
     Self.log.debug("downloadAndCache: successfully cached \(podcastEpisode.toString)")
   }
 
+  func downloadAndCache(_ episodeID: Episode.ID) async throws(CacheError) {
+    Self.log.debug("downloadAndCache: \(episodeID)")
+
+    try await CacheError.catch {
+      let podcastEpisode: PodcastEpisode? = try await repo.episode(episodeID)
+      guard let podcastEpisode
+      else { throw CacheError.episodeNotFound(episodeID) }
+
+      try await downloadAndCache(podcastEpisode)
+    }
+  }
+
   func clearCache(for episode: Episode) async throws(CacheError) {
     Self.log.debug("clearCache: \(episode.toString)")
 
