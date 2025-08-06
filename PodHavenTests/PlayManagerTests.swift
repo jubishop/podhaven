@@ -714,7 +714,10 @@ import Testing
   @Test("episode cache is cleared when playing to end")
   func episodeCacheIsClearedWhenPlayingToEnd() async throws {
     let podcastEpisode = try await Create.podcastEpisode(
-      Create.unsavedEpisode(cachedFilename: "cached-episode.mp3")
+      Create.unsavedEpisode(
+        queueOrder: 0,
+        cachedFilename: "cached-episode.mp3"
+      )
     )
 
     try await playManager.load(podcastEpisode)
