@@ -31,8 +31,16 @@ actor CacheManagerTests {
   func episodeAddedToQueueGetsCached() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
+    let data = CacheHelpers.createRandomData()
+    await session.respond(to: podcastEpisode.episode.media.rawValue, data: data)
+
     try await queue.unshift(podcastEpisode.id)
-    try await CacheHelpers.waitForCached(podcastEpisode.id)
+    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(fileName)
+
+    let fileURL = try CacheManager.resolveCachedFilepath(for: fileName)
+    let actualData = try Data(contentsOf: fileURL)
+    #expect(actualData == data)
   }
 
   @Test("episode removed from queue gets cache cleared")
@@ -41,11 +49,13 @@ actor CacheManagerTests {
 
     // First cache the episode
     try await queue.unshift(podcastEpisode.id)
-    try await CacheHelpers.waitForCached(podcastEpisode.id)
+    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(fileName)
 
     // Remove from queue and verify cache is cleared
     try await queue.dequeue(podcastEpisode.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFileRemoved(fileName)
   }
 
   @Test("multiple episodes added to queue are cached in descending order")
@@ -111,20 +121,14 @@ actor CacheManagerTests {
     let podcastEpisode = try await Create.podcastEpisode()
 
     // Set up delayed response
-    let requestBegan = AsyncSemaphore(value: 0)
-    let finishRequest = AsyncSemaphore(value: 0)
-    await session.respond(to: podcastEpisode.episode.media.rawValue) { url in
-      requestBegan.signal()
-      await finishRequest.wait()
-      return (url.dataRepresentation, URL.response(url))
-    }
+    let asyncSemaphore = await session.waitThenRespond(to: podcastEpisode.episode.media.rawValue)
 
     try await queue.unshift(podcastEpisode.id)
-    await requestBegan.wait()
+    try await CacheHelpers.waitForActiveDownloadTask(podcastEpisode.id)
     try await queue.dequeue(podcastEpisode.id)
-    finishRequest.signal()
+    try await CacheHelpers.waitForNotActiveDownloadTask(podcastEpisode.id)
+    asyncSemaphore.signal()
 
-    // Verify episode was not cached
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
   }
 
@@ -135,7 +139,8 @@ actor CacheManagerTests {
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await queue.unshift(podcastEpisode.id)
-    try await CacheHelpers.waitForCached(podcastEpisode.id)
+    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(fileName)
 
     #expect(await imageFetcher.prefetchCounts[podcastEpisode.image] == 1)
   }

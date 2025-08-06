@@ -45,7 +45,7 @@ actor CacheManager {
 
   private let downloadManager: DownloadManager
   private var currentQueuedEpisodeIDs: Set<Episode.ID> = []
-  private var activeDownloadTasks: [Episode.ID: DownloadTask] = [:]
+  private(set) var activeDownloadTasks: [Episode.ID: DownloadTask] = [:]
 
   // MARK: - Initialization
 
@@ -80,10 +80,10 @@ actor CacheManager {
       return
     }
 
-    await imageFetcher.prefetch([podcastEpisode.image])
-
     activeDownloadTasks[podcastEpisode.id] = downloadTask
     defer { activeDownloadTasks.removeValue(forKey: podcastEpisode.id) }
+
+    await imageFetcher.prefetch([podcastEpisode.image])
 
     let downloadData = try await CacheError.mapError(
       { try await downloadTask.downloadFinished() },
