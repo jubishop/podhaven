@@ -11,7 +11,7 @@ protocol LogCategorizable: Sendable {
 
 extension LogCategorizable {
   var subsystem: String { String(describing: type(of: self)) }
-  var level: Logger.Level { .trace }
+  var level: Logger.Level { .debug }
 }
 
 extension LogCategorizable where Self: RawRepresentable, RawValue == String {

@@ -14,8 +14,6 @@ enum LogSubsystem {
     case observatory
     case repo
     case queue
-
-    var level: Logger.Level { .debug }
   }
 
   enum EpisodesView: String, LogCategorizable {
@@ -34,8 +32,6 @@ enum LogSubsystem {
     case manager
     case avPlayer
     case nowPlayingInfo
-
-    var level: Logger.Level { .debug }
   }
 
   enum PodcastsView: String, LogCategorizable {

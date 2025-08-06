@@ -62,11 +62,11 @@ actor CacheManager {
   // MARK: - Public Methods
 
   func downloadAndCache(_ podcastEpisode: PodcastEpisode) async throws(CacheError) {
-    Self.log.debug("downloadAndCache: \(podcastEpisode.toString)")
+    Self.log.trace("downloadAndCache: \(podcastEpisode.toString)")
 
     guard podcastEpisode.episode.cachedFilename == nil
     else {
-      Self.log.debug("downloadAndCache: \(podcastEpisode.toString) already cached")
+      Self.log.trace("downloadAndCache: \(podcastEpisode.toString) already cached")
       return
     }
 
@@ -76,7 +76,7 @@ actor CacheManager {
 
     guard activeDownloadTasks[podcastEpisode.id] == nil
     else {
-      Self.log.debug("downloadAndCache: \(podcastEpisode.toString) is already downloading")
+      Self.log.trace("downloadAndCache: \(podcastEpisode.toString) is already downloading")
       return
     }
 
@@ -105,7 +105,7 @@ actor CacheManager {
   }
 
   func downloadAndCache(_ episodeID: Episode.ID) async throws(CacheError) {
-    Self.log.debug("downloadAndCache: \(episodeID)")
+    Self.log.trace("downloadAndCache: \(episodeID)")
 
     try await CacheError.catch {
       let podcastEpisode: PodcastEpisode? = try await repo.episode(episodeID)
@@ -191,8 +191,10 @@ actor CacheManager {
     Self.log.debug(
       """
       handleQueueChange:
-        current queue: \(queuedEpisodes.map(\.toString).joined(separator: "\n    "))
-        removed: \(removedEpisodeIDs.count) episodes
+        current queue: 
+          \(queuedEpisodes.map(\.toString).joined(separator: "\n    "))
+        removed: 
+          \(removedEpisodeIDs)
       """
     )
 
