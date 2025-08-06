@@ -56,6 +56,7 @@ import SwiftUI
         await playManager.play()
       } catch {
         Self.log.error(error)
+        alert(ErrorKit.message(for: error))
       }
     }
   }
