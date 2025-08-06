@@ -186,9 +186,6 @@ actor CacheManager {
   private func handleQueueChange(_ queuedEpisodes: [PodcastEpisode]) async {
     let queuedEpisodeIDs = Set(queuedEpisodes.map(\.id))
     let removedEpisodeIDs = currentQueuedEpisodeIDs.subtracting(queuedEpisodeIDs)
-    let newEpisodes: [PodcastEpisode] = queuedEpisodes.filter {
-      !currentQueuedEpisodeIDs.contains($0.id)
-    }
     currentQueuedEpisodeIDs = queuedEpisodeIDs
 
     Self.log.debug(
@@ -196,12 +193,11 @@ actor CacheManager {
       handleQueueChange:
         current queue: \(queuedEpisodes.map(\.toString).joined(separator: "\n    "))
         removed: \(removedEpisodeIDs.count) episodes
-        new: \(newEpisodes.count) episodes
       """
     )
 
     // Cache new episodes in reverse order (most imminent first)
-    for podcastEpisode in newEpisodes.reversed() {
+    for podcastEpisode in queuedEpisodes.reversed() {
       let asyncSemaphore = AsyncSemaphore(value: 0)
       Task { [weak self] in
         guard let self else { return }

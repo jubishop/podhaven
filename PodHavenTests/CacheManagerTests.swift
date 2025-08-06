@@ -116,6 +116,36 @@ actor CacheManagerTests {
     ])
   }
 
+  @Test("moving an episode in the queue reprioritizes it for download")
+  func movingAnEpisodeInTheQueueReprioritizesItForDownload() async throws {
+    // Create 7 episodes: 4 will be active, 3 will be pending
+    var episodes: [PodcastEpisode] = Array.init(capacity: 7)
+    for _ in 0..<7 { episodes.append(try await Create.podcastEpisode()) }
+
+    // Set up all episodes to block until signaled
+    var semaphores: [AsyncSemaphore] = []
+    for episode in episodes {
+      let semaphore = await session.waitThenRespond(to: episode.episode.media.rawValue)
+      semaphores.append(semaphore)
+    }
+
+    // Add first 4 episodes to fill all concurrent slots
+    try await queue.unshift(episodes[3].id)
+    try await queue.unshift(episodes[2].id)
+    try await queue.unshift(episodes[1].id)
+    try await queue.unshift(episodes[0].id)
+
+    // Now add 3 more episodes that will be pending
+    try await queue.unshift(episodes[6].id)
+    try await queue.unshift(episodes[5].id)
+    try await queue.unshift(episodes[4].id)
+    try await CacheHelpers.waitForTopPendingDownload(episodes[4].episode.media.rawValue)
+
+    // Now move episode 6 to the top of the queue, reprioritizing it to come next
+    try await queue.unshift(episodes[6].id)
+    try await CacheHelpers.waitForTopPendingDownload(episodes[6].episode.media.rawValue)
+  }
+
   @Test("episode dequeued mid-download does not get cached when download completes")
   func episodeDequeuedMidDownloadDoesNotGetCachedWhenDownloadCompletes() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
