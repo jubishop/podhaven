@@ -59,7 +59,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### PlayManager (Actor)
 - Thread-safe audio playback management
-- Wraps `AVQueuePlayer` with custom `PodAVPlayer`
+- Wraps `AVPlayer` with custom `PodAVPlayer`
 - Handles queue management and command center integration
 
 ### FeedManager (Actor)

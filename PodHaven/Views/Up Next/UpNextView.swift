@@ -45,12 +45,28 @@ struct UpNextView: View {
             .tint(.red)
           }
           .contextMenu {
-            Button(action: { viewModel.playItem(podcastEpisode) }) {
-              Label("Play Episode", systemImage: "play.fill")
-            }
+            Button(
+              action: { viewModel.playItem(podcastEpisode) },
+              label: {
+                Label("Play Episode", systemImage: "play.fill")
+              }
+            )
 
-            Button(role: .destructive, action: { viewModel.deleteItem(podcastEpisode) }) {
-              Label("Remove from Queue", systemImage: "trash")
+            Button(
+              role: .destructive,
+              action: { viewModel.deleteItem(podcastEpisode) },
+              label: {
+                Label("Remove from Queue", systemImage: "trash")
+              }
+            )
+
+            if podcastEpisode.episode.cachedFilename == nil {
+              Button(
+                action: { viewModel.cacheItem(podcastEpisode) },
+                label: {
+                  Label("Cache Episode", systemImage: "arrow.down.circle.fill")
+                }
+              )
             }
           }
         }

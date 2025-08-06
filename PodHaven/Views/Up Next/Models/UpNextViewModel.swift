@@ -9,6 +9,7 @@ import SwiftUI
 
 @Observable @MainActor class UpNextViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
@@ -44,7 +45,22 @@ import SwiftUI
 
     Task { [weak self] in
       guard let self else { return }
-      try await queue.insert(podcastEpisodes[from].episode.id, at: to)
+      do {
+        try await queue.insert(podcastEpisodes[from].episode.id, at: to)
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
+
+  func deleteSelected() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await queue.dequeue(episodeList.selectedEntryIDs)
+      } catch {
+        Self.log.error(error)
+      }
     }
   }
 
@@ -64,14 +80,22 @@ import SwiftUI
   func deleteItem(_ podcastEpisode: PodcastEpisode) {
     Task { [weak self] in
       guard let self else { return }
-      try await queue.dequeue(podcastEpisode.episode.id)
+      do {
+        try await queue.dequeue(podcastEpisode.episode.id)
+      } catch {
+        Self.log.error(error)
+      }
     }
   }
 
-  func deleteSelected() {
+  func cacheItem(_ podcastEpisode: PodcastEpisode) {
     Task { [weak self] in
       guard let self else { return }
-      try await queue.dequeue(episodeList.selectedEntryIDs)
+      do {
+        try await cacheManager.downloadAndCache(podcastEpisode)
+      } catch {
+        Self.log.error(error)
+      }
     }
   }
 }
