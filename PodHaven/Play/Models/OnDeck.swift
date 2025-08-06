@@ -9,7 +9,7 @@ struct OnDeck: Identifiable, Stringable {
 
   // MARK: - Stringable
 
-  var toString: String { "[\(id)] - \(media.toString) - \(episodeTitle)" }
+  var toString: String { "[\(id)] - \(mediaURL.hash()) - \(episodeTitle)" }
 
   // MARK: - Data
 
@@ -21,7 +21,7 @@ struct OnDeck: Identifiable, Stringable {
   let episodeTitle: String
   let duration: CMTime
   let image: UIImage?
-  let media: MediaURL
+  let mediaURL: URL
   let pubDate: Date?
 
   // MARK: - Initialization
@@ -35,7 +35,7 @@ struct OnDeck: Identifiable, Stringable {
     episodeTitle: String,
     duration: CMTime,
     image: UIImage?,
-    media: MediaURL,
+    mediaURL: URL,
     pubDate: Date?
   ) {
     self.episodeID = episodeID
@@ -46,7 +46,7 @@ struct OnDeck: Identifiable, Stringable {
     self.episodeTitle = episodeTitle
     self.duration = duration
     self.image = image
-    self.media = media
+    self.mediaURL = mediaURL
     self.pubDate = pubDate
   }
 

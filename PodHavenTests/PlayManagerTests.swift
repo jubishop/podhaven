@@ -58,7 +58,7 @@ import Testing
     if let pubDate = onDeck.pubDate {
       expectedInfo[MPMediaItemPropertyReleaseDate] = pubDate
     }
-    expectedInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.media.rawValue
+    expectedInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.mediaURL
     expectedInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
     expectedInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
     expectedInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] = onDeck.guid.rawValue

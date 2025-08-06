@@ -82,7 +82,7 @@ enum PlayHelpers {
       { await playState.onDeck?.id == podcastEpisode?.id },
       {
         """
-        OnDeck MediaURL is: \(String(describing: await playState.onDeck?.media.toString)), \
+        OnDeck MediaURL is: \(String(describing: await playState.onDeck?.mediaURL.hash())), \
         Expected: \(String(describing: podcastEpisode?.episode.media.toString))
         """
       }

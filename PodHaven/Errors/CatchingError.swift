@@ -34,4 +34,26 @@ extension CatchingError {
       throw caught(error)
     }
   }
+
+  static func mapError<ReturnType>(
+    _ operation: @Sendable () async throws -> ReturnType,
+    _ transform: @Sendable (Error) -> Self
+  ) async throws(Self) -> ReturnType {
+    do {
+      return try await operation()
+    } catch {
+      throw transform(error)
+    }
+  }
+
+  static func mapError<ReturnType>(
+    _ operation: @Sendable () throws -> ReturnType,
+    transform: @Sendable (Error) -> Self
+  ) async throws(Self) -> ReturnType {
+    do {
+      return try operation()
+    } catch {
+      throw transform(error)
+    }
+  }
 }

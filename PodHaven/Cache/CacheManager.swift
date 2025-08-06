@@ -85,9 +85,11 @@ actor CacheManager {
     activeDownloadTasks[podcastEpisode.id] = downloadTask
     defer { activeDownloadTasks.removeValue(forKey: podcastEpisode.id) }
 
-    let downloadData = try await CacheError.catch {
-      try await downloadTask.downloadFinished()
-    }
+    let downloadData = try await CacheError.mapError(
+      { try await downloadTask.downloadFinished() },
+      { CacheError.failedToDownload(podcastEpisode: podcastEpisode, caught: $0) }
+    )
+
     let cacheURL = try await saveToCache(data: downloadData.data, for: podcastEpisode.episode)
     _ = try await CacheError.catch {
       try await repo.updateCachedMediaURL(podcastEpisode.id, cacheURL)
@@ -173,7 +175,7 @@ actor CacheManager {
     Self.log.debug(
       """
       handleQueueChange:
-        current queue: \(queuedEpisodes.map(\.toString))
+        current queue: \(queuedEpisodes.map(\.toString).joined(separator: "\n    "))
         removed: \(removedEpisodeIDs.count) episodes
         new: \(newEpisodes.count) episodes
       """
@@ -238,7 +240,7 @@ actor CacheManager {
       let applicationSupportDirectory = FileManager.default
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)
         .first
-    else { throw CacheError.cachesDirectoryNotFound }
+    else { throw CacheError.applicationSupportDirectoryNotFound }
     let cacheDirectory = applicationSupportDirectory.appendingPathComponent("episodes")
 
     if !FileManager.default.fileExists(atPath: cacheDirectory.path) {

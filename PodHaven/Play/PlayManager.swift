@@ -284,7 +284,7 @@ final class PlayManager {
           return nil
         }
       }(),
-      media: podcastEpisode.episode.media,
+      mediaURL: podcastEpisode.episode.mediaURL,
       pubDate: podcastEpisode.episode.pubDate
     )
     try Task.checkCancellation()

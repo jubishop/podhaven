@@ -92,7 +92,7 @@ actor DownloadTask: Identifiable {
 }
 
 actor DownloadManager {
-  private static let log = Log.as("DownloadManager")
+  private static let log = Log.as("DownloadManager", level: .debug)
 
   private(set) var activeDownloads: [URL: DownloadTask] = [:]
   private(set) var pendingDownloads: IdentifiedArray<URL, DownloadTask> = []
@@ -108,7 +108,7 @@ actor DownloadManager {
 
   func addURL(_ url: URL) -> DownloadTask {
     defer {
-      Self.log.debug(
+      Self.log.trace(
         """
         addURL: \(url.hash())
           activeDownloads: \(activeDownloads.keys.map { $0.hash() })
