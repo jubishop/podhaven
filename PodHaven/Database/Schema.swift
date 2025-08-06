@@ -242,6 +242,52 @@ enum Schema {
       )
     }
 
+    migrator.registerMigration("v12") { db in
+      // Replace cachedMediaURL (URL) with cachedFilename (String) for simpler cache management
+      // Extract filenames from existing URLs and preserve cache data
+
+      // First, add the new cachedFilename column
+      try db.alter(table: "episode") { t in
+        t.add(column: "cachedFilename", .text)
+      }
+
+      // Fetch all episodes with cached URLs and extract filenames using Swift
+      let episodesWithCache = try Row.fetchAll(
+        db,
+        sql: "SELECT id, cachedMediaURL FROM episode WHERE cachedMediaURL IS NOT NULL"
+      )
+
+      // Extract filenames and update each episode
+      for episode in episodesWithCache {
+        guard let episodeId = episode["id"] as? Int64,
+          let cachedURLString = episode["cachedMediaURL"] as? String
+        else { continue }
+
+        // Extract filename from URL string (handles both file:// URLs and plain paths)
+        let filename: String
+        if let url = URL(string: cachedURLString) {
+          filename = url.lastPathComponent
+        } else {
+          filename = URL(fileURLWithPath: cachedURLString).lastPathComponent
+        }
+
+        // Skip if we couldn't extract a meaningful filename
+        guard !filename.isEmpty
+        else { continue }
+
+        // Update the episode with extracted filename
+        try db.execute(
+          sql: "UPDATE episode SET cachedFilename = ? WHERE id = ?",
+          arguments: [filename, episodeId]
+        )
+      }
+
+      // Now drop the old cachedMediaURL column
+      try db.alter(table: "episode") { t in
+        t.drop(column: "cachedMediaURL")
+      }
+    }
+
     return migrator
   }
 }

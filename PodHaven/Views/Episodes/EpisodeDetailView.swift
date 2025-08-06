@@ -60,7 +60,7 @@ struct EpisodeDetailView: View {
 
             Spacer()
 
-            if viewModel.episode.cachedMediaURL != nil {
+            if viewModel.episode.cachedFilename != nil {
               VStack(spacing: 4) {
                 Image(systemName: "arrow.down.circle.fill")
                   .foregroundColor(.green)

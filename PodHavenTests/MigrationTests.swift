@@ -1178,4 +1178,156 @@ class MigrationTests {
       #expect(episode3[Column("title")] as String == "Episode 3")
     }
   }
+
+  @Test("migrating to v12, extracting filenames from cachedMediaURL to cachedFilename")
+  func testV12Migration() async throws {
+    try migrator.migrate(appDB.db, upTo: "v11")
+
+    // Insert test data in v11 schema with episodes having cachedMediaURL
+    let now = Date()
+
+    let (podcast1Id, episode1Id, episode2Id, episode3Id) = try await appDB.db.write { db in
+      // Create a podcast
+      try db.execute(
+        sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscriptionDate)
+            VALUES ('https://example.com/feed.xml', 'Test Podcast', 'https://example.com/image.jpg', 'Test Description', ?)
+          """,
+        arguments: [now]
+      )
+      let podcast1Id = db.lastInsertedRowID
+
+      // Episode 1: Has realistic cachedMediaURL with container UUID and URL encoding
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, cachedMediaURL)
+            VALUES (?, 'episode-1', 'https://example.com/ep1.mp3', 'Episode 1', ?, 'file:///var/mobile/Containers/Data/Application/EE14D4E7-B3F4-44B3-B312-A6AA8BAB92C1/Library/Application%20Support/episodes/HW7b1rKAPDDD.mp3')
+          """,
+        arguments: [podcast1Id, now]
+      )
+      let episode1Id = db.lastInsertedRowID
+
+      // Episode 2: Has different container UUID with different filename
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, cachedMediaURL)
+            VALUES (?, 'episode-2', 'https://example.com/ep2.mp3', 'Episode 2', ?, 'file:///var/mobile/Containers/Data/Application/ABC12345-6789-ABCD-EFGH-123456789012/Library/Application%20Support/episodes/cached123.mp3')
+          """,
+        arguments: [podcast1Id, now]
+      )
+      let episode2Id = db.lastInsertedRowID
+
+      // Episode 3: No cached media URL (NULL)
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, cachedMediaURL)
+            VALUES (?, 'episode-3', 'https://example.com/ep3.mp3', 'Episode 3', ?, NULL)
+          """,
+        arguments: [podcast1Id, now]
+      )
+      let episode3Id = db.lastInsertedRowID
+
+      return (podcast1Id, episode1Id, episode2Id, episode3Id)
+    }
+
+    // Verify cachedMediaURL column exists before migration
+    try await appDB.db.read { db in
+      let columnNames = try db.columns(in: "episode").map(\.name)
+      #expect(
+        columnNames.contains("cachedMediaURL"),
+        "cachedMediaURL column should exist before migration"
+      )
+      #expect(
+        !columnNames.contains("cachedFilename"),
+        "cachedFilename column should not exist before migration"
+      )
+    }
+
+    // Migrate to v12
+    try migrator.migrate(appDB.db, upTo: "v12")
+
+    // Verify column changes after migration
+    try await appDB.db.read { db in
+      let columnNames = try db.columns(in: "episode").map(\.name)
+      #expect(
+        !columnNames.contains("cachedMediaURL"),
+        "cachedMediaURL column should be dropped after migration"
+      )
+      #expect(
+        columnNames.contains("cachedFilename"),
+        "cachedFilename column should exist after migration"
+      )
+
+      // Verify all existing episodes have NULL cachedFilename by default
+      let episode1 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE id = ?",
+        arguments: [episode1Id]
+      )!
+      let episode1CachedFilename = episode1[Column("cachedFilename")] as String?
+      #expect(
+        episode1CachedFilename == "HW7b1rKAPDDD.mp3",
+        "Episode 1 should have extracted filename from realistic URL path"
+      )
+
+      let episode2 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE id = ?",
+        arguments: [episode2Id]
+      )!
+      let episode2CachedFilename = episode2[Column("cachedFilename")] as String?
+      #expect(
+        episode2CachedFilename == "cached123.mp3",
+        "Episode 2 should have extracted filename from URL path"
+      )
+
+      let episode3 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE id = ?",
+        arguments: [episode3Id]
+      )!
+      let episode3CachedFilename = episode3[Column("cachedFilename")] as String?
+      #expect(
+        episode3CachedFilename == nil,
+        "Episode 3 should remain NULL (no cached URL)"
+      )
+
+      // Verify all other episode data is preserved
+      #expect(episode1[Column("guid")] as String == "episode-1")
+      #expect(episode1[Column("media")] as String == "https://example.com/ep1.mp3")
+      #expect(episode1[Column("title")] as String == "Episode 1")
+
+      #expect(episode2[Column("guid")] as String == "episode-2")
+      #expect(episode2[Column("media")] as String == "https://example.com/ep2.mp3")
+      #expect(episode2[Column("title")] as String == "Episode 2")
+
+      #expect(episode3[Column("guid")] as String == "episode-3")
+      #expect(episode3[Column("media")] as String == "https://example.com/ep3.mp3")
+      #expect(episode3[Column("title")] as String == "Episode 3")
+    }
+
+    // Verify that new cachedFilename can be inserted after migration
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, cachedFilename)
+            VALUES (?, 'episode-4', 'https://example.com/ep4.mp3', 'Episode 4', ?, 'new-episode.mp3')
+          """,
+        arguments: [podcast1Id, now]
+      )
+    }
+
+    // Verify the new cachedFilename was accepted
+    try await appDB.db.read { db in
+      let episode4 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE guid = 'episode-4'"
+      )!
+      let episode4CachedFilename = episode4[Column("cachedFilename")] as String?
+      #expect(
+        episode4CachedFilename == "new-episode.mp3",
+        "Episode 4 should have cached filename"
+      )
+    }
+  }
 }

@@ -64,7 +64,7 @@ actor CacheManager {
   func downloadAndCache(_ podcastEpisode: PodcastEpisode) async throws(CacheError) {
     Self.log.debug("downloadAndCache: \(podcastEpisode.toString)")
 
-    guard podcastEpisode.episode.cachedMediaURL == nil
+    guard podcastEpisode.episode.cachedFilename == nil
     else {
       Self.log.debug("downloadAndCache: \(podcastEpisode.toString) already cached")
       return
@@ -90,9 +90,15 @@ actor CacheManager {
       { CacheError.failedToDownload(podcastEpisode: podcastEpisode, caught: $0) }
     )
 
-    let cacheURL = try await saveToCache(data: downloadData.data, for: podcastEpisode.episode)
+    let fileName = generateCacheFilename(for: podcastEpisode.episode)
+    let cacheURL = try Self.resolveCachedFilepath(for: fileName)
+
+    try CacheError.catch {
+      try downloadData.data.write(to: cacheURL)
+    }
+
     _ = try await CacheError.catch {
-      try await repo.updateCachedMediaURL(podcastEpisode.id, cacheURL)
+      try await repo.updateCachedFilename(podcastEpisode.id, fileName)
     }
 
     Self.log.debug("downloadAndCache: successfully cached \(podcastEpisode.toString)")
@@ -112,20 +118,21 @@ actor CacheManager {
       return
     }
 
-    guard let cachedURL = episode.cachedMediaURL
+    guard let cachedFilename = episode.cachedFilename
     else {
-      Self.log.debug("Episode: \(episode.toString) has no cached media URL")
+      Self.log.debug("Episode: \(episode.toString) has no cached filename")
       return
     }
 
     do {
-      try FileManager.default.removeItem(at: cachedURL)
+      let cacheURL = try Self.resolveCachedFilepath(for: cachedFilename)
+      try FileManager.default.removeItem(at: cacheURL)
     } catch {
       Self.log.error(error)
     }
 
     _ = try await CacheError.catch {
-      try await repo.updateCachedMediaURL(episode.id, nil)
+      try await repo.updateCachedFilename(episode.id, nil)
     }
 
     Self.log.debug("clearCache: cache cleared for: \(episode.toString)")
@@ -222,20 +229,25 @@ actor CacheManager {
     }
   }
 
-  private func saveToCache(data: Data, for episode: Episode) async throws(CacheError) -> URL {
-    Self.log.debug("saveToCache: \(episode.toString)")
-
-    let cacheDirectory = try getCacheDirectory()
-    let fileName = generateCacheFileName(for: episode)
-    let fileURL = cacheDirectory.appendingPathComponent(fileName)
-
-    try CacheError.catch {
-      try data.write(to: fileURL)
-    }
-    return fileURL
+  private func generateCacheFilename(for episode: Episode) -> String {
+    let mediaURL = episode.media.rawValue
+    let fileExtension =
+      mediaURL.pathExtension.isEmpty == false
+      ? mediaURL.pathExtension
+      : "mp3"
+    return "\(mediaURL.hash(to: 12)).\(fileExtension)"
   }
 
-  private func getCacheDirectory() throws(CacheError) -> URL {
+  // MARK: - Static Helpers
+
+  static func resolveCachedFilepath(for fileName: String) throws(CacheError) -> URL {
+    Assert.precondition(!fileName.isEmpty, "Empty fileName in resolveCachedFilepath?")
+
+    let cacheDirectory = try getCacheDirectory()
+    return cacheDirectory.appendingPathComponent(fileName)
+  }
+
+  private static func getCacheDirectory() throws(CacheError) -> URL {
     guard
       let applicationSupportDirectory = FileManager.default
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)
@@ -254,14 +266,5 @@ actor CacheManager {
     }
 
     return cacheDirectory
-  }
-
-  private func generateCacheFileName(for episode: Episode) -> String {
-    let mediaURL = episode.media.rawValue
-    let fileExtension =
-      mediaURL.pathExtension.isEmpty == false
-      ? mediaURL.pathExtension
-      : "mp3"
-    return "\(mediaURL.hash(to: 12)).\(fileExtension)"
   }
 }

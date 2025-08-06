@@ -22,7 +22,7 @@ enum Create {
     currentTime: CMTime? = nil,
     queueOrder: Int? = nil,
     lastQueued: Date? = nil,
-    cachedMediaURL: URL? = nil
+    cachedFilename: String? = nil
   ) throws -> UnsavedEpisode {
     try UnsavedEpisode(
       podcastId: podcastId,
@@ -38,7 +38,7 @@ enum Create {
       currentTime: currentTime,
       queueOrder: queueOrder,
       lastQueued: lastQueued,
-      cachedMediaURL: cachedMediaURL
+      cachedFilename: cachedFilename
     )
   }
 

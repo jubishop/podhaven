@@ -89,7 +89,7 @@ actor FeedManager {
   }
 
   private func removeFeedTask(feedURL: FeedURL) {
-    Self.log.debug("Removing feed task for \(feedURL)")
+    Self.log.trace("Removing feed task for \(feedURL)")
 
     feedTasks.removeValue(forKey: feedURL)
   }

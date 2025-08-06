@@ -59,7 +59,7 @@ struct PodcastEpisodeListView: View {
 
           Spacer()
 
-          if viewModel.item.episode.cachedMediaURL != nil {
+          if viewModel.item.episode.cachedFilename != nil {
             Image(systemName: "arrow.down.circle.fill")
               .font(.caption2)
               .foregroundColor(.green)

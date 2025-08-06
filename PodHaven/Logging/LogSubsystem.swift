@@ -10,6 +10,7 @@ enum LogSubsystem {
 
   enum Database: String, LogCategorizable {
     case appDB
+    case episode
     case observatory
     case repo
     case queue

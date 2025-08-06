@@ -44,7 +44,7 @@ struct EpisodeListView: View {
 
           Spacer()
 
-          if viewModel.item.cachedMediaURL != nil {
+          if viewModel.item.cachedFilename != nil {
             Image(systemName: "arrow.down.circle.fill")
               .font(.caption2)
               .foregroundColor(.green)

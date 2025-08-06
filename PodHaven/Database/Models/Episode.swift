@@ -11,6 +11,8 @@ typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
 
 struct UnsavedEpisode: Savable, Stringable {
+  private static let log = Log.as(LogSubsystem.Database.episode)
+
   static let databaseTableName: String = "episode"
 
   var podcastId: Podcast.ID?
@@ -26,7 +28,7 @@ struct UnsavedEpisode: Savable, Stringable {
   var currentTime: CMTime
   var queueOrder: Int?
   var lastQueued: Date?
-  var cachedMediaURL: URL?
+  var cachedFilename: String?
 
   init(
     podcastId: Podcast.ID? = nil,
@@ -42,7 +44,7 @@ struct UnsavedEpisode: Savable, Stringable {
     currentTime: CMTime? = nil,
     queueOrder: Int? = nil,
     lastQueued: Date? = nil,
-    cachedMediaURL: URL? = nil
+    cachedFilename: String? = nil
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
@@ -57,7 +59,7 @@ struct UnsavedEpisode: Savable, Stringable {
     self.currentTime = currentTime ?? CMTime.zero
     self.queueOrder = queueOrder
     self.lastQueued = lastQueued
-    self.cachedMediaURL = cachedMediaURL
+    self.cachedFilename = cachedFilename
   }
 
   // MARK: - Savable
@@ -73,7 +75,17 @@ struct UnsavedEpisode: Savable, Stringable {
 
   // MARK: - Derived Data
 
-  var mediaURL: URL { cachedMediaURL ?? media.rawValue }
+  var mediaURL: URL {
+    guard let cachedFilename = cachedFilename
+    else { return media.rawValue }
+
+    do {
+      return try CacheManager.resolveCachedFilepath(for: cachedFilename)
+    } catch {
+      Self.log.error(error)
+      return media.rawValue
+    }
+  }
 }
 
 @Saved<UnsavedEpisode>
@@ -114,7 +126,7 @@ struct Episode: Saved, RSSUpdatable {
     static let currentTime = Column("currentTime")
     static let queueOrder = Column("queueOrder")
     static let lastQueued = Column("lastQueued")
-    static let cachedMediaURL = Column("cachedMediaURL")
+    static let cachedFilename = Column("cachedFilename")
   }
 
   // MARK: - RSSUpdatable

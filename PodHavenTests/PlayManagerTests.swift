@@ -671,17 +671,17 @@ import Testing
 
   @Test("loading episode with cached media uses cached URL")
   func loadingEpisodeWithCachedMediaUsesCachedURL() async throws {
-    let cachedURL = URL(string: "file:///path/to/cached/episode.mp3")!
+    let cachedFilename = "cached-episode.mp3"
     let podcastEpisode = try await Create.podcastEpisode(
-      Create.unsavedEpisode(cachedMediaURL: cachedURL)
+      Create.unsavedEpisode(cachedFilename: cachedFilename)
     )
 
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.waitForCurrentItem(podcastEpisode)
 
-    // Verify the asset was loaded with the cached URL
+    // Verify the asset was loaded with the resolved cached URL
     let currentItem = avPlayer.current! as! FakeAVPlayerItem
-    #expect(currentItem.url == cachedURL)
+    #expect(currentItem.url == podcastEpisode.episode.mediaURL)
   }
 
   @Test("loading episode without cached media uses original URL")
@@ -700,23 +700,21 @@ import Testing
   func episodeCacheIsNotClearedWhenLoading() async throws {
     await cacheManager.start()
 
-    let cachedURL = URL(string: "file:///path/to/cached/episode.mp3")!
     let podcastEpisode = try await Create.podcastEpisode(
-      Create.unsavedEpisode(cachedMediaURL: cachedURL)
+      Create.unsavedEpisode(cachedFilename: "cached-episode.mp3")
     )
 
     try await queue.unshift(podcastEpisode.id)
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.waitForQueue([])
 
-    #expect(try await repo.episode(podcastEpisode.id)?.cachedMediaURL != nil)
+    #expect(try await repo.episode(podcastEpisode.id)?.cachedFilename != nil)
   }
 
   @Test("episode cache is cleared when playing to end")
   func episodeCacheIsClearedWhenPlayingToEnd() async throws {
-    let cachedURL = URL(string: "file:///path/to/cached/episode.mp3")!
     let podcastEpisode = try await Create.podcastEpisode(
-      Create.unsavedEpisode(cachedMediaURL: cachedURL)
+      Create.unsavedEpisode(cachedFilename: "cached-episode.mp3")
     )
 
     try await playManager.load(podcastEpisode)
@@ -725,8 +723,8 @@ import Testing
     avPlayer.finishEpisode()
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
 
-    // Verify cache was cleared (cachedMediaURL set to nil) after playing to end
+    // Verify cache was cleared (cachedFilename set to nil) after playing to end
     let updatedEpisode: Episode? = try await repo.episode(podcastEpisode.id)
-    #expect(updatedEpisode?.cachedMediaURL == nil)
+    #expect(updatedEpisode?.cachedFilename == nil)
   }
 }

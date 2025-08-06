@@ -25,9 +25,9 @@ enum CacheHelpers {
     try await Wait.until(
       {
         let episode: Episode? = try await repo.episode(episodeID)
-        return episode?.cachedMediaURL != nil
+        return episode?.cachedFilename != nil
       },
-      { "Episode \(episodeID) cachedMediaURL is: nil" }
+      { "Episode \(episodeID) cachedFilename is: nil" }
     )
   }
 
@@ -35,9 +35,9 @@ enum CacheHelpers {
     try await Wait.until(
       {
         let episode: Episode? = try await repo.episode(episodeID)
-        return episode?.cachedMediaURL == nil
+        return episode?.cachedFilename == nil
       },
-      { "Episode \(episodeID) cachedMediaURL is not nil" }
+      { "Episode \(episodeID) cachedFilename is not nil" }
     )
   }
 

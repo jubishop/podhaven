@@ -253,13 +253,16 @@ class EpisodeTests {
     #expect(updatedEpisode.duration == newCMTime)
   }
 
-  @Test("that episodes can persist cachedMediaURL")
-  func persistCachedMediaURL() async throws {
+  @Test("that episodes can persist cachedFilename")
+  func persistCachedFilename() async throws {
     let guid = GUID("guid")
-    let initialCachedURL = URL(string: "file:///path/to/initial/cache.mp3")!
+    let initialCachedFilename = "initial-cache.mp3"
 
     let unsavedPodcast = try Create.unsavedPodcast()
-    let unsavedEpisode = try Create.unsavedEpisode(guid: guid, cachedMediaURL: initialCachedURL)
+    let unsavedEpisode = try Create.unsavedEpisode(
+      guid: guid,
+      cachedFilename: initialCachedFilename
+    )
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]
@@ -269,23 +272,23 @@ class EpisodeTests {
     let episode = try await repo.db.read { db in
       try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcast.id])
     }!
-    #expect(episode.cachedMediaURL == initialCachedURL)
+    #expect(episode.cachedFilename == initialCachedFilename)
 
-    let newCachedURL = URL(string: "file:///path/to/new/cache.mp3")!
-    try await repo.updateCachedMediaURL(episode.id, newCachedURL)
+    let newCachedFilename = "new-cache.mp3"
+    try await repo.updateCachedFilename(episode.id, newCachedFilename)
 
     let updatedEpisode = try await repo.db.read { db in
       try Episode.fetchOne(db, id: episode.id)
     }!
-    #expect(updatedEpisode.cachedMediaURL == newCachedURL)
+    #expect(updatedEpisode.cachedFilename == newCachedFilename)
 
-    // Test clearing the cached URL (setting to nil)
-    try await repo.updateCachedMediaURL(episode.id, nil)
+    // Test clearing the cached filename (setting to nil)
+    try await repo.updateCachedFilename(episode.id, nil)
 
     let clearedEpisode = try await repo.db.read { db in
       try Episode.fetchOne(db, id: episode.id)
     }!
-    #expect(clearedEpisode.cachedMediaURL == nil)
+    #expect(clearedEpisode.cachedFilename == nil)
   }
 
   @Test("that an episode can be marked complete")

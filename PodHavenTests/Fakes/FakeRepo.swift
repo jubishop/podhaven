@@ -77,7 +77,7 @@ actor FakeRepo: Databasing, Sendable {
   typealias UpsertPodcastEpisodeCall = RepoCall<UnsavedPodcastEpisode>
   typealias UpdateDurationCall = RepoCall<(episodeID: Episode.ID, duration: CMTime)>
   typealias UpdateCurrentTimeCall = RepoCall<(episodeID: Episode.ID, currentTime: CMTime)>
-  typealias UpdateCachedMediaURLCall = RepoCall<(episodeID: Episode.ID, cachedMediaURL: URL?)>
+  typealias UpdateCachedFilenameCall = RepoCall<(episodeID: Episode.ID, cachedFilename: String?)>
   typealias MarkCompleteCall = RepoCall<Episode.ID>
   typealias MarkSubscribedIDsCall = RepoCall<[Podcast.ID]>
   typealias MarkSubscribedIDCall = RepoCall<Podcast.ID>
@@ -287,12 +287,13 @@ actor FakeRepo: Databasing, Sendable {
   }
 
   @discardableResult
-  func updateCachedMediaURL(_ episodeID: Episode.ID, _ cachedMediaURL: URL?) async throws -> Bool {
+  func updateCachedFilename(_ episodeID: Episode.ID, _ cachedFilename: String?) async throws -> Bool
+  {
     recordCall(
-      methodName: "updateCachedMediaURL",
-      parameters: (episodeID: episodeID, cachedMediaURL: cachedMediaURL)
+      methodName: "updateCachedFilename",
+      parameters: (episodeID: episodeID, cachedFilename: cachedFilename)
     )
-    return try await repo.updateCachedMediaURL(episodeID, cachedMediaURL)
+    return try await repo.updateCachedFilename(episodeID, cachedFilename)
   }
 
   @discardableResult

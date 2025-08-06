@@ -57,7 +57,7 @@ struct UpNextListView: View {
 
           Spacer()
 
-          if viewModel.episode.cachedMediaURL != nil {
+          if viewModel.episode.cachedFilename != nil {
             Image(systemName: "arrow.down.circle.fill")
               .font(.caption2)
               .foregroundColor(.green)

@@ -64,7 +64,7 @@ protocol Databasing: Sendable {
   func updateCurrentTime(_ episodeID: Episode.ID, _ currentTime: CMTime) async throws -> Bool
 
   @discardableResult
-  func updateCachedMediaURL(_ episodeID: Episode.ID, _ cachedMediaURL: URL?) async throws -> Bool
+  func updateCachedFilename(_ episodeID: Episode.ID, _ cachedFilename: String?) async throws -> Bool
 
   @discardableResult
   func markComplete(_ episodeID: Episode.ID) async throws -> Bool
