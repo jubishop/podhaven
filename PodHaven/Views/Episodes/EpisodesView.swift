@@ -15,6 +15,14 @@ struct EpisodesView: View {
           label: { Text("Recent Episodes") }
         )
         NavigationLink(
+          value: Navigation.Episodes.Destination.viewType(.unqueued),
+          label: { Text("Unqueued") }
+        )
+        NavigationLink(
+          value: Navigation.Episodes.Destination.viewType(.cached),
+          label: { Text("Cached") }
+        )
+        NavigationLink(
           value: Navigation.Episodes.Destination.viewType(.completed),
           label: { Text("Completed") }
         )

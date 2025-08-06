@@ -30,7 +30,7 @@ class StandardEpisodesViewModel: PodcastQueueableModel, QueueableSelectableEpiso
     title: String,
     filter: SQLExpression = AppDB.NoOp,
     order: SQLOrdering = Episode.Columns.pubDate.desc,
-    limit: Int = Int.max
+    limit: Int = 100
   ) {
     self.title = title
     self.filter = filter

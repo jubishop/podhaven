@@ -103,6 +103,7 @@ struct Episode: Saved, RSSUpdatable {
 
   static let queued: SQLExpression = Episode.Columns.queueOrder != nil
   static let unqueued: SQLExpression = Episode.Columns.queueOrder == nil
+  static let cached: SQLExpression = Episode.Columns.cachedFilename != nil
   static let completed: SQLExpression = Episode.Columns.completionDate != nil
   static let uncompleted: SQLExpression = Episode.Columns.completionDate == nil
   static let unstarted: SQLExpression = Episode.Columns.currentTime == 0
