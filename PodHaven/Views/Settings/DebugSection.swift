@@ -47,8 +47,8 @@ struct DebugSection: View {
           Task { try await refreshManager.performRefresh(stalenessThreshold: Date()) }
         }
 
-        Button("Delete All Cached Episodes", role: .destructive) {
-          Task { await deleteAllCachedEpisodes() }
+        Button("Delete All Cached Files", role: .destructive) {
+          Task { await deleteAllCachedFiles() }
         }
       }
     }
@@ -56,7 +56,7 @@ struct DebugSection: View {
 
   // MARK: - Private Methods
 
-  private func deleteAllCachedEpisodes() async {
+  private func deleteAllCachedFiles() async {
     do {
       // Delete the episodes/ folder
       let applicationSupportDirectory = FileManager.default
@@ -79,7 +79,7 @@ struct DebugSection: View {
         try Episode.updateAll(db, Episode.Columns.cachedFilename.set(to: nil))
       }
 
-      alert("All cached episodes deleted successfully")
+      alert("All cached files deleted successfully")
     } catch {
       alert(ErrorKit.message(for: error))
     }
