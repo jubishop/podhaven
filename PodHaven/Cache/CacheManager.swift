@@ -70,9 +70,18 @@ actor CacheManager {
       return
     }
 
+    // Always requeue the task first even if the task already exists, so it can get moved to
+    // to the front of the queue.
+    let downloadTask = await downloadManager.addURL(podcastEpisode.episode.media.rawValue)
+
+    guard activeDownloadTasks[podcastEpisode.id] == nil
+    else {
+      Self.log.debug("downloadAndCache: \(podcastEpisode.toString) is already downloading")
+      return
+    }
+
     await imageFetcher.prefetch([podcastEpisode.image])
 
-    let downloadTask = await downloadManager.addURL(podcastEpisode.episode.media.rawValue)
     activeDownloadTasks[podcastEpisode.id] = downloadTask
     defer { activeDownloadTasks.removeValue(forKey: podcastEpisode.id) }
 
