@@ -8,8 +8,9 @@ import IdentifiedCollections
 import Tagged
 
 extension Container {
+  internal func makeRepo() -> Repo { Repo(self.appDB()) }
   var repo: Factory<any Databasing> {
-    Factory(self) { Repo(self.appDB()) }.scope(.cached)
+    Factory(self) { self.makeRepo() }.scope(.cached)
   }
 }
 
@@ -25,11 +26,6 @@ struct Repo: Databasing, Sendable {
   fileprivate init(_ appDB: AppDB) {
     self.appDB = appDB
   }
-  #if DEBUG
-  static func initForTest(_ appDB: AppDB) -> Repo {
-    Repo(appDB)
-  }
-  #endif
 
   // MARK: - Global Readers
 

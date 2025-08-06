@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
+import GRDB
 import SwiftUI
 
 struct DebugSection: View {
@@ -8,6 +9,7 @@ struct DebugSection: View {
   @DynamicInjected(\.fileLogManager) private var fileLogManager
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshManager) private var refreshManager
+  @DynamicInjected(\.repo) private var repo
 
   var body: some View {
     Section("Debugging") {
@@ -44,7 +46,42 @@ struct DebugSection: View {
         Button("Refresh Podcasts") {
           Task { try await refreshManager.performRefresh(stalenessThreshold: Date()) }
         }
+
+        Button("Delete All Cached Episodes", role: .destructive) {
+          Task { await deleteAllCachedEpisodes() }
+        }
       }
+    }
+  }
+
+  // MARK: - Private Methods
+
+  private func deleteAllCachedEpisodes() async {
+    do {
+      // Delete the episodes/ folder
+      let applicationSupportDirectory = FileManager.default
+        .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        .first
+
+      guard let applicationSupportDirectory
+      else {
+        alert("Could not find application support directory")
+        return
+      }
+      let episodesCacheDirectory = applicationSupportDirectory.appendingPathComponent("episodes")
+
+      if FileManager.default.fileExists(atPath: episodesCacheDirectory.path) {
+        try FileManager.default.removeItem(at: episodesCacheDirectory)
+      }
+
+      // Clear all cached filenames in the database
+      _ = try await AppDB.onDisk.db.write { db in
+        try Episode.updateAll(db, Episode.Columns.cachedFilename.set(to: nil))
+      }
+
+      alert("All cached episodes deleted successfully")
+    } catch {
+      alert(ErrorKit.message(for: error))
     }
   }
 }

@@ -39,7 +39,7 @@ extension Container {
     podcastEpisode: PodcastEpisode,
     playableItem: any AVPlayableItem
   )
-  private var podcastEpisode: PodcastEpisode?
+  private var episodeID: Episode.ID?
 
   let currentTimeStream: AsyncStream<CMTime>
   let itemStatusStream: AsyncStream<(AVPlayerItem.Status, Episode.ID)>
@@ -78,9 +78,9 @@ extension Container {
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> PodcastEpisode {
     Self.log.debug("load: \(podcastEpisode.toString)")
 
-    self.podcastEpisode = nil
+    self.episodeID = nil
     let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
-    self.podcastEpisode = podcastEpisode
+    self.episodeID = podcastEpisode.id
     avPlayer.replaceCurrent(with: playableItem)
 
     return podcastEpisode
@@ -122,7 +122,7 @@ extension Container {
   func clear() {
     Self.log.debug("clear: executing")
     removeObservers()
-    podcastEpisode = nil
+    episodeID = nil
     avPlayer.replaceCurrent(with: nil)
   }
 
@@ -182,12 +182,12 @@ extension Container {
   // MARK: - Change Handlers
 
   private func handleCurrentTimeChange(_ currentTime: CMTime) async throws {
-    guard let podcastEpisode
+    guard let episodeID
     else { throw PlaybackError.settingCurrentTimeOnNil(currentTime) }
 
-    try await repo.updateCurrentTime(podcastEpisode.id, currentTime)
+    try await repo.updateCurrentTime(episodeID, currentTime)
 
-    Self.log.trace("handleCurrentTimeChange to: \(currentTime) for \(podcastEpisode.toString)")
+    Self.log.trace("handleCurrentTimeChange to: \(currentTime) for \(episodeID)")
     currentTimeContinuation.yield(currentTime)
   }
 
@@ -212,11 +212,11 @@ extension Container {
   private func addItemStatusObserver() {
     guard itemStatusObserver == nil else { return }
 
-    guard let currentItem = avPlayer.current, let podcastEpisode else { return }
+    guard let currentItem = avPlayer.current, let episodeID else { return }
     itemStatusObserver = currentItem.observeStatus(options: [.initial, .new]) {
       [weak self] status in
       guard let self else { return }
-      itemStatusContinuation.yield((status, podcastEpisode.id))
+      itemStatusContinuation.yield((status, episodeID))
     }
   }
 
@@ -290,8 +290,8 @@ extension Container {
       guard let self else { return }
       for await _ in notifications(AVPlayerItem.didPlayToEndTimeNotification) {
         guard !Task.isCancelled else { return }
-        guard let podcastEpisode else { return }
-        didPlayToEndContinuation.yield(podcastEpisode.id)
+        guard let episodeID else { return }
+        didPlayToEndContinuation.yield(episodeID)
       }
     }
   }
