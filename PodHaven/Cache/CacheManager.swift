@@ -72,7 +72,10 @@ actor CacheManager {
 
     // Always requeue the task first even if the task already exists, so it can get moved to
     // to the front of the queue.
-    let downloadTask = await downloadManager.addURL(podcastEpisode.episode.media.rawValue)
+    let downloadTask = await downloadManager.addURL(
+      podcastEpisode.episode.media.rawValue,
+      prioritize: true
+    )
 
     guard activeDownloadTasks[podcastEpisode.id] == nil
     else {

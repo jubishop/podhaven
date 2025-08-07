@@ -106,7 +106,7 @@ actor DownloadManager {
     self.maxConcurrentDownloads = maxConcurrentDownloads
   }
 
-  func addURL(_ url: URL) -> DownloadTask {
+  func addURL(_ url: URL, prioritize: Bool = false) -> DownloadTask {
     defer {
       Self.log.trace(
         """
@@ -122,14 +122,20 @@ actor DownloadManager {
     }
 
     if let pendingDownload = pendingDownloads[id: url] {
-      if let pendingIndex = pendingDownloads.index(id: url) {
+      if prioritize, let pendingIndex = pendingDownloads.index(id: url) {
         pendingDownloads.move(fromOffsets: [pendingIndex], toOffset: 0)
       }
       return pendingDownload
     }
 
     let download = DownloadTask(url: url, session: session)
-    pendingDownloads.insert(download, at: 0)
+
+    if prioritize {
+      pendingDownloads.insert(download, at: 0)
+    } else {
+      pendingDownloads.append(download)
+    }
+
     startNextDownload()
     return download
   }
