@@ -914,7 +914,7 @@
 		8BD7F9452CF2A49100CEDAA7 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = DevAppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = DebugAppIcon;
 				CODE_SIGN_ENTITLEMENTS = PodHaven/PodHaven.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
