@@ -38,7 +38,7 @@ actor CacheManagerTests {
     let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFile(fileName)
 
-    let fileURL = try CacheManager.resolveCachedFilepath(for: fileName)
+    let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
     let actualData = try Data(contentsOf: fileURL)
     #expect(actualData == data)
   }

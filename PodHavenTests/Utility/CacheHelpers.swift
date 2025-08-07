@@ -69,7 +69,7 @@ enum CacheHelpers {
   static func waitForCachedFile(_ fileName: String) async throws {
     try await Wait.until(
       {
-        let fileURL = try CacheManager.resolveCachedFilepath(for: fileName)
+        let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
         return FileManager.default.fileExists(atPath: fileURL.path)
       },
       { "Cached file: \(fileName) does not exist on disk" }
@@ -79,7 +79,7 @@ enum CacheHelpers {
   static func waitForCachedFileRemoved(_ fileName: String) async throws {
     try await Wait.until(
       {
-        let fileURL = try CacheManager.resolveCachedFilepath(for: fileName)
+        let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
         return !FileManager.default.fileExists(atPath: fileURL.path)
       },
       { "Cached file: \(fileName) still exists on disk" }

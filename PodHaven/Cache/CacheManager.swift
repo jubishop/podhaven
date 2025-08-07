@@ -94,7 +94,7 @@ actor CacheManager {
     )
 
     let fileName = generateCacheFilename(for: podcastEpisode.episode)
-    let cacheURL = try Self.resolveCachedFilepath(for: fileName)
+    let cacheURL = Self.resolveCachedFilepath(for: fileName)
 
     try CacheError.catch {
       try downloadData.data.write(to: cacheURL)
@@ -140,7 +140,7 @@ actor CacheManager {
     }
 
     do {
-      let cacheURL = try Self.resolveCachedFilepath(for: cachedFilename)
+      let cacheURL = Self.resolveCachedFilepath(for: cachedFilename)
       try FileManager.default.removeItem(at: cacheURL)
     } catch {
       Self.log.error(error)
@@ -253,31 +253,15 @@ actor CacheManager {
 
   // MARK: - Static Helpers
 
-  static func resolveCachedFilepath(for fileName: String) throws(CacheError) -> URL {
+  static func resolveCachedFilepath(for fileName: String) -> URL {
     Assert.precondition(!fileName.isEmpty, "Empty fileName in resolveCachedFilepath?")
 
-    let cacheDirectory = try getCacheDirectory()
-    return cacheDirectory.appendingPathComponent(fileName)
+    return getCacheDirectory().appendingPathComponent(fileName)
   }
 
-  private static func getCacheDirectory() throws(CacheError) -> URL {
-    guard
-      let applicationSupportDirectory = FileManager.default
-        .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        .first
-    else { throw CacheError.applicationSupportDirectoryNotFound }
-    let cacheDirectory = applicationSupportDirectory.appendingPathComponent("episodes")
-
-    if !FileManager.default.fileExists(atPath: cacheDirectory.path) {
-      try CacheError.catch {
-        try FileManager.default.createDirectory(
-          at: cacheDirectory,
-          withIntermediateDirectories: true,
-          attributes: nil
-        )
-      }
-    }
-
+  private static func getCacheDirectory() -> URL {
+    let cacheDirectory = AppInfo.applicationSupportDirectory.appendingPathComponent("episodes")
+    try? FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
     return cacheDirectory
   }
 }

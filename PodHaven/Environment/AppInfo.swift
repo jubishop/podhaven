@@ -126,6 +126,20 @@ actor AppInfo {
 
     return dataDir
   }
+
+  static var applicationSupportDirectory: URL {
+    let baseURL = URL.applicationSupportDirectory
+
+    // Production uses root Documents directory to preserve existing data
+    guard let subdirectory = dataDirectoryName
+    else { return baseURL }
+
+    // Development builds use subdirectories
+    let dataDir = baseURL.appendingPathComponent(subdirectory)
+    try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+
+    return dataDir
+  }
 }
 
 private class KeychainHelper {

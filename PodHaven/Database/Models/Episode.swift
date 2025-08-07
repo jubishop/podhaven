@@ -79,12 +79,7 @@ struct UnsavedEpisode: Savable, Stringable {
     guard let cachedFilename = cachedFilename
     else { return media.rawValue }
 
-    do {
-      return try CacheManager.resolveCachedFilepath(for: cachedFilename)
-    } catch {
-      Self.log.error(error)
-      return media.rawValue
-    }
+    return CacheManager.resolveCachedFilepath(for: cachedFilename)
   }
 }
 
