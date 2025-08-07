@@ -84,52 +84,23 @@ struct PlayBar: View {
   // MARK: - Expanded PlayBar
 
   private var expandedPlayBar: some View {
-    VStack(spacing: 8) {
-      HStack(alignment: .top) {
+    VStack(spacing: 16) {
+      HStack {
         episodeImage
-
-        VStack(alignment: .leading, spacing: 4) {
-          if let episodeTitle = viewModel.episodeTitle {
-            Text(episodeTitle)
-              .font(.headline)
-              .foregroundColor(.white)
-              .lineLimit(1)
-              .multilineTextAlignment(.leading)
-          }
-
-          if let podcastTitle = viewModel.podcastTitle {
-            Text(podcastTitle)
-              .font(.subheadline)
-              .foregroundColor(.white)
-              .lineLimit(1)
-          }
-
-          if let publishedAt = viewModel.publishedAt {
-            Text(publishedAt, style: .date)
-              .font(.caption)
-              .foregroundColor(.white)
-          }
-        }
 
         Spacer()
 
-        VStack(spacing: 32) {
-          Button(action: viewModel.showEpisodeDetail) {
-            Image(systemName: "info.circle")
-              .font(viewModel.textFont)
-              .foregroundColor(.white)
-          }
+        playbackControls
 
-          Button(action: viewModel.toggleExpansion) {
-            Image(systemName: "chevron.down")
-              .font(viewModel.textFont)
-              .foregroundColor(.white)
-          }
+        Spacer()
+
+        Button(action: viewModel.toggleExpansion) {
+          Image(systemName: "chevron.down")
+            .font(viewModel.textFont)
+            .foregroundColor(.white)
         }
-        .padding(.top, 8)
+        .frame(width: imageSize)
       }
-
-      playbackControls
 
       VStack(spacing: 4) {
         CustomProgressBar(
@@ -161,28 +132,29 @@ struct PlayBar: View {
             )
         }
       }
-      .padding(.top, 12)
     }
   }
 
   // MARK: - Shared Components
 
   private var episodeImage: some View {
-    Group {
-      if let image = viewModel.episodeImage {
-        Image(uiImage: image)
-          .resizable()
-          .aspectRatio(contentMode: .fill)
-          .frame(width: imageSize, height: imageSize)
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-      } else {
-        RoundedRectangle(cornerRadius: 8)
-          .fill(Color.white.opacity(0.2))
-          .frame(width: imageSize, height: imageSize)
-          .overlay(
-            Image(systemName: "music.note")
-              .foregroundColor(.white.opacity(0.6))
-          )
+    Button(action: viewModel.showEpisodeDetail) {
+      Group {
+        if let image = viewModel.episodeImage {
+          Image(uiImage: image)
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+            .frame(width: imageSize, height: imageSize)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+          RoundedRectangle(cornerRadius: 8)
+            .fill(Color.white.opacity(0.2))
+            .frame(width: imageSize, height: imageSize)
+            .overlay(
+              Image(systemName: "music.note")
+                .foregroundColor(.white.opacity(0.6))
+            )
+        }
       }
     }
   }
