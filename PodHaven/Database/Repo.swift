@@ -85,20 +85,20 @@ struct Repo: Databasing, Sendable {
 
   // MARK: - Episode Readers
 
-  func episode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
+  func episode(_ episodeID: Episode.ID) async throws -> Episode? {
+    try await appDB.db.read { db in
+      try Episode
+        .withID(episodeID)
+        .fetchOne(db)
+    }
+  }
+
+  func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
         .withID(episodeID)
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
-        .fetchOne(db)
-    }
-  }
-
-  func episode(_ episodeID: Episode.ID) async throws -> Episode? {
-    try await appDB.db.read { db in
-      try Episode
-        .withID(episodeID)
         .fetchOne(db)
     }
   }

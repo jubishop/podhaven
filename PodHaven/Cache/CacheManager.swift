@@ -111,7 +111,7 @@ actor CacheManager {
     Self.log.trace("downloadAndCache: \(episodeID)")
 
     try await CacheError.catch {
-      let podcastEpisode: PodcastEpisode? = try await repo.episode(episodeID)
+      let podcastEpisode = try await repo.podcastEpisode(episodeID)
       guard let podcastEpisode
       else { throw CacheError.episodeNotFound(episodeID) }
 

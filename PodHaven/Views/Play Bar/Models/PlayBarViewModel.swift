@@ -16,6 +16,7 @@ extension Container {
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.playState) var playState
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.sheet) private var sheet
 
   // MARK: - Constants
 
@@ -39,8 +40,6 @@ extension Container {
   var publishedAt: Date? { playState.onDeck?.pubDate }
 
   var isDragging = false
-  var showingEpisodeDetail = false
-  var podcastEpisode: PodcastEpisode?
 
   private var _sliderValue: Double = 0
   var sliderValue: Double {
@@ -70,10 +69,13 @@ extension Container {
   }
 
   private func showEpisodeDetail() async throws {
-    guard let onDeck = playState.onDeck else { return }
+    guard let onDeck = playState.onDeck,
+      let podcastEpisode = try await repo.podcastEpisode(onDeck.episodeID)
+    else { return }
 
-    podcastEpisode = try await repo.episode(onDeck.episodeID)
-    showingEpisodeDetail = true
+    sheet {
+      EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
+    }
   }
 
   func playOrPause() {

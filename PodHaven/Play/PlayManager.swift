@@ -83,7 +83,7 @@ final class PlayManager {
     if let currentEpisodeID {
       let podcastEpisode: PodcastEpisode?
       do {
-        podcastEpisode = try await repo.episode(currentEpisodeID)
+        podcastEpisode = try await repo.podcastEpisode(currentEpisodeID)
       } catch {
         await alert("Podcast episode with id: \"\(currentEpisodeID)\" not found")
         Self.log.error(error)

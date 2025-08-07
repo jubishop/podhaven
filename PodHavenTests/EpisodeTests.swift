@@ -323,7 +323,7 @@ class EpisodeTests {
     #expect(insertedPodcastEpisode.podcast.feedURL == unsavedPodcast.feedURL)
     #expect(insertedPodcastEpisode.episode.media == unsavedEpisode.media)
 
-    let fetchedPodcastEpisode: PodcastEpisode = try await repo.episode(insertedPodcastEpisode.id)!
+    let fetchedPodcastEpisode = try await repo.podcastEpisode(insertedPodcastEpisode.id)!
     #expect(fetchedPodcastEpisode.podcast.title == insertedPodcastEpisode.podcast.title)
     #expect(fetchedPodcastEpisode.episode.guid == insertedPodcastEpisode.episode.guid)
 
@@ -375,7 +375,7 @@ class EpisodeTests {
 
     var fetchedPodcastEpisodes: [PodcastEpisode] = []
     for podcastEpisode in podcastEpisodes {
-      fetchedPodcastEpisodes.append(try await repo.episode(podcastEpisode.id)!)
+      fetchedPodcastEpisodes.append(try await repo.podcastEpisode(podcastEpisode.id)!)
     }
     #expect(Set(podcastEpisodes) == Set(fetchedPodcastEpisodes))
   }

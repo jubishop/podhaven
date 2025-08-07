@@ -9,6 +9,7 @@ import SwiftUI
 @main
 struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
+  @InjectedObservable(\.sheet) private var sheet
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
@@ -26,6 +27,7 @@ struct PodHavenApp: App {
         if isInitialized {
           ContentView()
             .customAlert($alert.config)
+            .customSheet($sheet.config)
         } else {
           ProgressView("Loading...")
         }

@@ -23,11 +23,6 @@ struct PlayBar: View {
     .padding(.vertical, 12)
     .frame(maxWidth: .infinity)
     .background(Color.accentColor)
-    .sheet(isPresented: $viewModel.showingEpisodeDetail) {
-      if let podcastEpisode = viewModel.podcastEpisode {
-        EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
-      }
-    }
   }
 
   // MARK: - Loading PlayBar
