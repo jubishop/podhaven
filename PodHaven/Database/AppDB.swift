@@ -16,8 +16,8 @@ struct AppDB {
 
   #if DEBUG
   static func inMemory(migrate: Bool = true) -> AppDB {
+    Self.log.debug("creating inMemory AppDB")
     do {
-      Self.log.debug("creating inMemory AppDB")
       let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
       return try AppDB(dbQueue, migrate: migrate)
     } catch {
@@ -27,8 +27,8 @@ struct AppDB {
   #endif
 
   fileprivate static let _onDisk = {
+    Self.log.debug("creating onDisk AppDB")
     do {
-      Self.log.debug("creating onDisk AppDB")
       let dbPool = try DatabasePool(
         path: AppInfo.documentsDirectory.appendingPathComponent("db.sqlite").path,
         configuration: makeConfiguration()
@@ -42,6 +42,7 @@ struct AppDB {
   #if DEBUG
   static let onDisk = { _onDisk }()
   static func onDisk(_ fileName: String) -> AppDB {
+    Self.log.debug("creating onDisk AppDB in \(fileName)")
     do {
       let dbQueue = try DatabaseQueue(
         path: URL.temporaryDirectory.appendingPathComponent(fileName).path,

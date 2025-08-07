@@ -75,7 +75,6 @@ struct OPMLImportSheet: View {
       viewModel.importOPMLFileInSimulator("empty")
     }
 
-    #if DEBUG
     Section("Debugging") {
       Button("Clear DB") {
         Task {  // No [self] in scope here.
@@ -85,7 +84,6 @@ struct OPMLImportSheet: View {
         }
       }
     }
-    #endif
   }
   .preview()
   .sheet(item: $viewModel.opmlFile) { opmlFile in
