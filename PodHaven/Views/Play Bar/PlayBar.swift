@@ -15,8 +15,6 @@ struct PlayBar: View {
         loadingPlayBar
       } else if viewModel.isStopped {
         stoppedPlayBar
-      } else if viewModel.isExpanded {
-        expandedPlayBar
       } else {
         collapsedPlayBar
       }
@@ -25,6 +23,11 @@ struct PlayBar: View {
     .padding(.vertical, 12)
     .frame(maxWidth: .infinity)
     .background(Color.accentColor)
+    .sheet(isPresented: $viewModel.showingEpisodeDetail) {
+      if let podcastEpisode = viewModel.podcastEpisode {
+        EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
+      }
+    }
   }
 
   // MARK: - Loading PlayBar
@@ -78,82 +81,6 @@ struct PlayBar: View {
           .foregroundColor(.white)
       }
       .frame(width: imageSize)
-    }
-  }
-
-  // MARK: - Expanded PlayBar
-
-  private var expandedPlayBar: some View {
-    VStack(spacing: 8) {
-      HStack(alignment: .top) {
-        episodeImage
-
-        VStack(alignment: .leading, spacing: 4) {
-          if let episodeTitle = viewModel.episodeTitle {
-            Text(episodeTitle)
-              .font(.headline)
-              .foregroundColor(.white)
-              .lineLimit(1)
-              .multilineTextAlignment(.leading)
-          }
-
-          if let podcastTitle = viewModel.podcastTitle {
-            Text(podcastTitle)
-              .font(.subheadline)
-              .foregroundColor(.white)
-              .lineLimit(1)
-          }
-
-          if let publishedAt = viewModel.publishedAt {
-            Text(publishedAt, style: .date)
-              .font(.caption)
-              .foregroundColor(.white)
-          }
-        }
-
-        Spacer()
-
-        Button(action: viewModel.toggleExpansion) {
-          Image(systemName: "chevron.down")
-            .font(viewModel.textFont)
-            .foregroundColor(.white)
-        }
-        .padding(.top, 8)
-      }
-
-      playbackControls
-
-      VStack(spacing: 4) {
-        CustomProgressBar(
-          value: $viewModel.sliderValue,
-          isDragging: $viewModel.isDragging,
-          range: 0...Double(viewModel.duration.seconds),
-          animationDuration: viewModel.progressAnimationDuration
-        )
-
-        HStack {
-          Text(viewModel.sliderValue.playbackTimeFormat)
-            .font(.caption)
-            .foregroundColor(.white)
-            .scaleEffect(viewModel.isDragging ? viewModel.progressDragScale : 1.0)
-            .animation(
-              .easeInOut(duration: viewModel.progressAnimationDuration),
-              value: viewModel.isDragging
-            )
-
-          Spacer()
-
-          Text(viewModel.duration.seconds.playbackTimeFormat)
-            .font(.caption)
-            .foregroundColor(.white)
-            .scaleEffect(viewModel.isDragging ? viewModel.progressDragScale : 1.0)
-            .animation(
-              .easeInOut(duration: viewModel.progressAnimationDuration),
-              value: viewModel.isDragging
-            )
-        }
-      }
-      .padding(.top, 12)
     }
   }
 

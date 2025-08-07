@@ -12,14 +12,15 @@ extension Container {
 }
 
 @Observable @MainActor class PlayBarViewModel {
+  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
-  @ObservationIgnored @DynamicInjected(\.playState) private var playState
+  @ObservationIgnored @DynamicInjected(\.playState) var playState
+  @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
   // MARK: - Constants
 
   let progressAnimationDuration: Double = 0.15
   let progressDragScale: Double = 1.1
-  let expansionAnimationDuration: Double = 0.25
   let commonSpacing: CGFloat = 12
   let textFont: Font = .system(size: 16, weight: .medium)
 
@@ -37,8 +38,9 @@ extension Container {
   var podcastTitle: String? { playState.onDeck?.podcastTitle }
   var publishedAt: Date? { playState.onDeck?.pubDate }
 
-  var isExpanded = false
   var isDragging = false
+  var showingEpisodeDetail = false
+  var podcastEpisode: PodcastEpisode?
 
   private var _sliderValue: Double = 0
   var sliderValue: Double {
@@ -58,9 +60,20 @@ extension Container {
   // MARK: - Actions
 
   func toggleExpansion() {
-    withAnimation(.easeInOut(duration: expansionAnimationDuration)) {
-      isExpanded.toggle()
+    Task {
+      do {
+        try await showEpisodeDetail()
+      } catch {
+        alert(ErrorKit.message(for: error))
+      }
     }
+  }
+
+  private func showEpisodeDetail() async throws {
+    guard let onDeck = playState.onDeck else { return }
+
+    podcastEpisode = try await repo.episode(onDeck.episodeID)
+    showingEpisodeDetail = true
   }
 
   func playOrPause() {
