@@ -8,27 +8,6 @@ import Tagged
 
 @testable import PodHaven
 
-enum FakeRepoError: Error, CustomStringConvertible {
-  case unexpectedCallCount(expected: Int, actual: Int, type: String)
-  case unexpectedCall(type: String, calls: [String])
-  case unexpectedCallOrder(expected: [String], actual: [String])
-  case unexpectedParameters(String)
-
-  var description: String {
-    switch self {
-    case .unexpectedCallCount(let expected, let actual, let type):
-      return "Expected \(expected) calls of type \(type), but got \(actual)"
-    case .unexpectedCall(let type, let calls):
-      return "Expected no calls of type \(type), but got: \(calls.joined(separator: ", "))"
-    case .unexpectedCallOrder(let expected, let actual):
-      return
-        "Expected call order: \(expected.joined(separator: " -> ")), but got: \(actual.joined(separator: " -> "))"
-    case .unexpectedParameters(let message):
-      return "Unexpected parameters: \(message)"
-    }
-  }
-}
-
 protocol RepoCalling: Sendable {
   var callOrder: Int { get }
   var methodName: String { get }
@@ -102,7 +81,7 @@ actor FakeRepo: Databasing, Sendable {
       call.methodName == methodName
     }
     guard methodMatchingCalls.count == count else {
-      throw FakeRepoError.unexpectedCallCount(
+      throw TestError.unexpectedCallCount(
         expected: count,
         actual: methodMatchingCalls.count,
         type: methodName
@@ -116,7 +95,7 @@ actor FakeRepo: Databasing, Sendable {
   {
     let call = try expectCalls(methodName: methodName).first!
     guard let typedCall = call as? RepoCall<Parameters> else {
-      throw FakeRepoError.unexpectedCall(
+      throw TestError.unexpectedCall(
         type: "RepoCall<\(String(describing: Parameters.self))>.\(methodName)",
         calls: [call.toString]
       )
@@ -128,7 +107,7 @@ actor FakeRepo: Databasing, Sendable {
     let allCalls = callsByType.values.flatMap { $0 }
     let methodMatchingCalls = allCalls.filter { call in call.methodName == methodName }
     guard methodMatchingCalls.isEmpty else {
-      throw FakeRepoError.unexpectedCall(
+      throw TestError.unexpectedCall(
         type: methodName,
         calls: methodMatchingCalls.map(\.toString)
       )

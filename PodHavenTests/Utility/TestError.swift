@@ -11,6 +11,10 @@ enum TestError: ReadableError {
   case imageFetchFailure(URL)
   case waitForValueFailure(String)
   case waitUntilFailure(String)
+  case unexpectedCallCount(expected: Int, actual: Int, type: String)
+  case unexpectedCall(type: String, calls: [String])
+  case unexpectedCallOrder(expected: [String], actual: [String])
+  case unexpectedParameters(String)
 
   var message: String {
     switch self {
@@ -22,6 +26,18 @@ enum TestError: ReadableError {
       return "Failed to wait for non-optional value of type: \(typeName)"
     case .waitUntilFailure(let message):
       return "Wait failure: \(message)"
+    case .unexpectedCallCount(let expected, let actual, let type):
+      return "Expected \(expected) calls of type \(type), but got \(actual)"
+    case .unexpectedCall(let type, let calls):
+      return "Expected no calls of type \(type), but got: \(calls.joined(separator: ", "))"
+    case .unexpectedCallOrder(let expected, let actual):
+      return
+        """
+        Expected call order: \(expected.joined(separator: " -> ")), \
+        but got: \(actual.joined(separator: " -> "))
+        """
+    case .unexpectedParameters(let message):
+      return "Unexpected parameters: \(message)"
     }
   }
 }
