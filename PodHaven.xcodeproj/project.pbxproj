@@ -610,6 +610,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
+				URL_SCHEME = "podhaven-dev";
 			};
 			name = Development;
 		};
@@ -942,6 +943,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
+				URL_SCHEME = "podhaven-debug";
 			};
 			name = Debug;
 		};
@@ -977,6 +979,7 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
+				URL_SCHEME = podhaven;
 			};
 			name = Release;
 		};

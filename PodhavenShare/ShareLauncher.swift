@@ -80,8 +80,10 @@ enum ShareLauncher {
   }
 
   private static func launchPodHaven(from application: UIApplication, with url: URL) async throws {
+    let scheme = getURLScheme()
+
     var components = URLComponents()
-    components.scheme = "podhaven"
+    components.scheme = scheme
     components.host = "share"
     components.queryItems = [URLQueryItem(name: "url", value: url.absoluteString)]
 
@@ -92,6 +94,20 @@ enum ShareLauncher {
 
     await application.open(podhavenURL) { success in
       log.debug("Launch result: \(success)")
+    }
+  }
+
+  private static func getURLScheme() -> String {
+    guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
+      return "podhaven"  // fallback
+    }
+
+    if bundleIdentifier.contains(".debug.") {
+      return "podhaven-debug"
+    } else if bundleIdentifier.contains(".dev.") {
+      return "podhaven-dev"
+    } else {
+      return "podhaven"
     }
   }
 }
