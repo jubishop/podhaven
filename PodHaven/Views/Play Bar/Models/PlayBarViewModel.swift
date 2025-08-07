@@ -22,6 +22,7 @@ extension Container {
 
   let progressAnimationDuration: Double = 0.15
   let progressDragScale: Double = 1.1
+  let expansionAnimationDuration: Double = 0.25
   let commonSpacing: CGFloat = 12
   let textFont: Font = .system(size: 16, weight: .medium)
 
@@ -39,6 +40,7 @@ extension Container {
   var podcastTitle: String? { playState.onDeck?.podcastTitle }
   var publishedAt: Date? { playState.onDeck?.pubDate }
 
+  var isExpanded = false
   var isDragging = false
 
   private var _sliderValue: Double = 0
@@ -59,16 +61,22 @@ extension Container {
   // MARK: - Actions
 
   func toggleExpansion() {
+    withAnimation(.easeInOut(duration: expansionAnimationDuration)) {
+      isExpanded.toggle()
+    }
+  }
+
+  func showEpisodeDetail() {
     Task {
       do {
-        try await showEpisodeDetail()
+        try await presentEpisodeDetail()
       } catch {
         alert(ErrorKit.message(for: error))
       }
     }
   }
 
-  private func showEpisodeDetail() async throws {
+  private func presentEpisodeDetail() async throws {
     guard let onDeck = playState.onDeck,
       let podcastEpisode = try await repo.podcastEpisode(onDeck.episodeID)
     else { return }
