@@ -331,6 +331,27 @@ import Testing
     try await PlayHelpers.waitFor(CMTime.seconds(5))
   }
 
+  @Test("seek commands are ignored during episode finish")
+  func seekCommandsAreIgnoredDuringEpisodeFinish() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    
+    try await playManager.load(podcastEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitFor(.playing)
+    
+    // Finish episode which should start ignoring seek commands
+    avPlayer.finishEpisode()
+    try await PlayHelpers.waitFor(.stopped)
+    await sleeper.advanceTime(by: .milliseconds(50))
+    commandCenter.seek(to: .seconds(5))
+    try await PlayHelpers.waitFor(.zero)
+
+    // Advance time to end the halt period 
+    await sleeper.advanceTime(by: .milliseconds(250))
+    commandCenter.seek(to: .seconds(10))
+    try await PlayHelpers.waitFor(.seconds(10))
+  }
+
   @Test("audio session interruption stops and restarts playback")
   func audioSessionInterruptionStopsPlayback() async throws {
     let podcastEpisode = try await Create.podcastEpisode()

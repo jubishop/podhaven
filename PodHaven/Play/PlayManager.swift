@@ -67,6 +67,8 @@ final class PlayManager {
     }
   }
   private var loadTask: Task<Bool, any Error>?
+  private var restartSeekCommandsTask: Task<Void, any Error>?
+  private var ignoreSeekCommands = false
 
   // MARK: - Initialization
 
@@ -333,6 +335,16 @@ final class PlayManager {
     await playState.setCurrentTime(currentTime)
   }
 
+  private func temporarilyHaltSeekCommands() {
+    restartSeekCommandsTask?.cancel()
+    ignoreSeekCommands = true
+    restartSeekCommandsTask = Task {
+      try await sleeper.sleep(for: .milliseconds(250))
+      try Task.checkCancellation()
+      ignoreSeekCommands = false
+    }
+  }
+
   // MARK: - Private Change Handlers
 
   private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID)
@@ -359,6 +371,7 @@ final class PlayManager {
   private func handleDidPlayToEnd(_ episodeID: Episode.ID) async throws {
     Self.log.debug("handleDidPlayToEnd: \(episodeID)")
 
+    temporarilyHaltSeekCommands()
     await clearOnDeck()
 
     do {
@@ -493,6 +506,7 @@ final class PlayManager {
         case .skipBackward(let interval):
           await seekBackward(CMTime.seconds(interval))
         case .playbackPosition(let position):
+          if ignoreSeekCommands { continue }
           await seek(to: CMTime.seconds(position))
         }
       }
