@@ -113,7 +113,7 @@ struct FileLogManager: Sendable {
     }
   }
 
-  func truncateLogFile() async throws {
+  private func truncateLogFile() async throws {
     guard FileManager.default.fileExists(atPath: logFileURL.path)
     else { throw LoggingError.logFileDoesNotExist }
 

@@ -37,16 +37,6 @@ struct DebugSection: View {
       ) {
         Label("Share Database", systemImage: "square.and.arrow.up")
       }
-
-      if AppInfo.myDevice {
-        Button("Truncate Log File") {
-          Task { try await fileLogManager.truncateLogFile() }
-        }
-
-        Button("Refresh Podcasts") {
-          Task { try await refreshManager.performRefresh(stalenessThreshold: Date()) }
-        }
-      }
     }
   }
 }
