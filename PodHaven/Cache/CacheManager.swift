@@ -120,22 +120,22 @@ actor CacheManager {
   }
 
   func clearCache(for episode: Episode) async throws(CacheError) {
-    Self.log.debug("clearCache: \(episode.toString)")
+    Self.log.trace("clearCache: \(episode.toString)")
 
     guard !episode.queued
     else {
-      Self.log.debug("clearCache: still queued, keeping cache for: \(episode.toString)")
+      Self.log.trace("clearCache: still queued, keeping cache for: \(episode.toString)")
       return
     }
 
     if let onDeck = await playState.onDeck, onDeck == episode {
-      Self.log.debug("clearCache: currently playing, keeping cache for: \(episode.toString)")
+      Self.log.trace("clearCache: currently playing, keeping cache for: \(episode.toString)")
       return
     }
 
     guard let cachedFilename = episode.cachedFilename
     else {
-      Self.log.debug("Episode: \(episode.toString) has no cached filename")
+      Self.log.trace("clearCache: episode: \(episode.toString) has no cached filename")
       return
     }
 

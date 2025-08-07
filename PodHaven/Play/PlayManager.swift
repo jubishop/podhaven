@@ -59,6 +59,10 @@ final class PlayManager {
     }
   }
 
+  // MARK: - Configurable Constants
+
+  let seekIgnoreTime: Duration = .seconds(1)
+
   // MARK: - State Management
 
   private var nowPlayingInfo: NowPlayingInfo? {
@@ -339,7 +343,7 @@ final class PlayManager {
     restartSeekCommandsTask?.cancel()
     ignoreSeekCommands = true
     restartSeekCommandsTask = Task {
-      try await sleeper.sleep(for: .milliseconds(250))
+      try await sleeper.sleep(for: seekIgnoreTime)
       try Task.checkCancellation()
       ignoreSeekCommands = false
     }
@@ -506,7 +510,10 @@ final class PlayManager {
         case .skipBackward(let interval):
           await seekBackward(CMTime.seconds(interval))
         case .playbackPosition(let position):
-          if ignoreSeekCommands { continue }
+          if ignoreSeekCommands {
+            Self.log.debug("playManager: ignoring seek to \(position)")
+            continue
+          }
           await seek(to: CMTime.seconds(position))
         }
       }
@@ -529,14 +536,14 @@ final class PlayManager {
     Task { [weak self] in
       guard let self else { return }
       for await rate in await podAVPlayer.rateStream {
-        Self.log.debug("Current rate changed to: \(rate)")
+        Self.log.trace("Current rate changed to: \(rate)")
       }
     }
 
     Task { [weak self] in
       guard let self else { return }
       for await controlStatus in await podAVPlayer.controlStatusStream {
-        Self.log.debug("Control status changed to: \(controlStatus)")
+        Self.log.trace("Control status changed to: \(controlStatus)")
         switch controlStatus {
         case .paused:
           await setStatus(.paused)
