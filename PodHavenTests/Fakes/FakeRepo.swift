@@ -29,8 +29,9 @@ enum FakeRepoError: Error, CustomStringConvertible {
   }
 }
 
-protocol FakeRepoCall: Sendable {
+protocol RepoCalling: Sendable {
   var callOrder: Int { get }
+  var methodName: String { get }
   var toString: String { get }
 }
 
@@ -44,7 +45,7 @@ actor FakeRepo: Databasing, Sendable {
 
   // MARK: - Call Structs
 
-  struct RepoCall<Parameters: Sendable>: FakeRepoCall {
+  struct RepoCall<Parameters: Sendable>: RepoCalling {
     let callOrder: Int
     let methodName: String
     let parameters: Parameters
@@ -53,42 +54,11 @@ actor FakeRepo: Databasing, Sendable {
     }
   }
 
-  typealias UpdateSeriesFromFeedCall = RepoCall<
-    (
-      podcastID: Podcast.ID, podcast: Podcast?,
-      unsavedEpisodes: [UnsavedEpisode],
-      existingEpisodes: [Episode]
-    )
-  >
-  typealias InsertSeriesCall = RepoCall<
-    (
-      unsavedPodcast: UnsavedPodcast,
-      unsavedEpisodes: [UnsavedEpisode]
-    )
-  >
-  typealias AllPodcastSeriesCall = RepoCall<SQLExpression>
-  typealias PodcastSeriesCall = RepoCall<Podcast.ID>
-  typealias PodcastSeriesFeedURLCall = RepoCall<FeedURL>
-  typealias PodcastSeriesFeedURLsCall = RepoCall<[FeedURL]>
-  typealias EpisodeCall = RepoCall<Episode.ID>
-  typealias DeletePodcastIDsCall = RepoCall<[Podcast.ID]>
-  typealias DeletePodcastIDCall = RepoCall<Podcast.ID>
-  typealias UpsertPodcastEpisodesCall = RepoCall<[UnsavedPodcastEpisode]>
-  typealias UpsertPodcastEpisodeCall = RepoCall<UnsavedPodcastEpisode>
-  typealias UpdateDurationCall = RepoCall<(episodeID: Episode.ID, duration: CMTime)>
-  typealias UpdateCurrentTimeCall = RepoCall<(episodeID: Episode.ID, currentTime: CMTime)>
-  typealias UpdateCachedFilenameCall = RepoCall<(episodeID: Episode.ID, cachedFilename: String?)>
-  typealias MarkCompleteCall = RepoCall<Episode.ID>
-  typealias MarkSubscribedIDsCall = RepoCall<[Podcast.ID]>
-  typealias MarkSubscribedIDCall = RepoCall<Podcast.ID>
-  typealias MarkUnsubscribedIDsCall = RepoCall<[Podcast.ID]>
-  typealias MarkUnsubscribedIDCall = RepoCall<Podcast.ID>
-
-  private var callsByType: [ObjectIdentifier: [any FakeRepoCall]] = [:]
+  private var callsByType: [ObjectIdentifier: [any RepoCalling]] = [:]
 
   // MARK: - Call Tracking
 
-  private func recordCall<T: FakeRepoCall>(_ call: T) {
+  private func recordCall<T: RepoCalling>(_ call: T) {
     let key = ObjectIdentifier(T.self)
     callsByType[key, default: []].append(call)
   }
@@ -111,7 +81,7 @@ actor FakeRepo: Databasing, Sendable {
     callsByType.removeAll()
   }
 
-  var allCallsInOrder: [any FakeRepoCall] {
+  var allCallsInOrder: [any RepoCalling] {
     callsByType.values
       .flatMap { $0 }
       .sorted { $0.callOrder < $1.callOrder }
@@ -119,36 +89,48 @@ actor FakeRepo: Databasing, Sendable {
 
   // MARK: - Call Filtering
 
-  func calls<T: FakeRepoCall>(of type: T.Type) -> [T] {
+  func calls<T: RepoCalling>(of type: T.Type) -> [T] {
     let key = ObjectIdentifier(type)
     return (callsByType[key] as? [T]) ?? []
   }
 
   // MARK: - Assertion Helpers
 
-  func expectCalls<T: FakeRepoCall>(_ type: T.Type, count: Int = 1) throws -> [T] {
-    let matchingCalls = calls(of: type)
-    guard matchingCalls.count == count else {
+  func expectCalls(methodName: String, count: Int = 1) throws -> [any RepoCalling] {
+    let allCalls = callsByType.values.flatMap { $0 }
+    let methodMatchingCalls = allCalls.filter { call in
+      call.methodName == methodName
+    }
+    guard methodMatchingCalls.count == count else {
       throw FakeRepoError.unexpectedCallCount(
         expected: count,
-        actual: matchingCalls.count,
-        type: String(describing: type)
+        actual: methodMatchingCalls.count,
+        type: methodName
       )
     }
-    return matchingCalls
+    return methodMatchingCalls
   }
 
-  func expectCall<T: FakeRepoCall>(_ type: T.Type) throws -> T {
-    let matchingCalls = try expectCalls(type)
-    return matchingCalls.first!
-  }
-
-  func expectNoCall<T: FakeRepoCall>(_ type: T.Type) throws {
-    let matchingCalls = calls(of: type)
-    guard matchingCalls.isEmpty else {
+  func expectCall<Parameters: Sendable>(methodName: String, parameters: Parameters.Type) throws
+    -> RepoCall<Parameters>
+  {
+    let call = try expectCalls(methodName: methodName).first!
+    guard let typedCall = call as? RepoCall<Parameters> else {
       throw FakeRepoError.unexpectedCall(
-        type: String(describing: type),
-        calls: matchingCalls.map(\.toString)
+        type: "RepoCall<\(String(describing: Parameters.self))>.\(methodName)",
+        calls: [call.toString]
+      )
+    }
+    return typedCall
+  }
+
+  func expectNoCall(methodName: String) throws {
+    let allCalls = callsByType.values.flatMap { $0 }
+    let methodMatchingCalls = allCalls.filter { call in call.methodName == methodName }
+    guard methodMatchingCalls.isEmpty else {
+      throw FakeRepoError.unexpectedCall(
+        type: methodName,
+        calls: methodMatchingCalls.map(\.toString)
       )
     }
   }
@@ -188,14 +170,14 @@ actor FakeRepo: Databasing, Sendable {
 
   // MARK: - Episode Readers
 
-  func episode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
+  func episode(_ episodeID: Episode.ID) async throws -> Episode? {
     recordCall(methodName: "episode", parameters: episodeID)
     return try await repo.episode(episodeID)
   }
 
-  func episode(_ episodeID: Episode.ID) async throws -> Episode? {
-    recordCall(methodName: "episode", parameters: episodeID)
-    return try await repo.episode(episodeID)
+  func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
+    recordCall(methodName: "podcastEpisode", parameters: episodeID)
+    return try await repo.podcastEpisode(episodeID)
   }
 
   func latestEpisode(for podcastID: Podcast.ID) async throws -> Episode? {

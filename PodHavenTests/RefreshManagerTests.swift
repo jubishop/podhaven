@@ -76,7 +76,16 @@ class RefreshManagerTests {
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
 
-    let call = try await fakeRepo.expectCall(FakeRepo.UpdateSeriesFromFeedCall.self)
+    let call = try await fakeRepo.expectCall(
+      methodName: "updateSeriesFromFeed",
+      parameters: (
+        podcastID: Podcast.ID,
+        podcast: Podcast?,
+        unsavedEpisodes: [UnsavedEpisode],
+        existingEpisodes: [Episode]
+      )
+      .self
+    )
     #expect(call.parameters.podcast != nil)
     #expect(call.parameters.unsavedEpisodes.count == 1)
     #expect(call.parameters.existingEpisodes.count == 2)
@@ -98,7 +107,7 @@ class RefreshManagerTests {
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: sameData)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
 
-    try await fakeRepo.expectNoCall(FakeRepo.UpdateSeriesFromFeedCall.self)
+    try await fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
   }
 
   // This is invalid behavior by a feed but sadly dumb dumbs still do it.
