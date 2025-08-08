@@ -92,7 +92,7 @@
 				EpisodeTests.swift,
 				ErrorTests.swift,
 				FeedManagerTests.swift,
-				HTMLRegexTests.swift,
+				HTMLTests.swift,
 				LogTests.swift,
 				MigrationTests.swift,
 				NavigationTests.swift,

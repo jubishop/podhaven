@@ -92,6 +92,91 @@ struct HTMLText: View {
       .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
+  internal static func decodeHTMLEntities(_ text: String) -> String {
+    let htmlEntities: [String: String] = [
+      "&amp;": "&",
+      "&lt;": "<",
+      "&gt;": ">",
+      "&quot;": "\"",
+      "&apos;": "'",
+      "&nbsp;": " ",
+      "&#39;": "'",
+      "&#x27;": "'",
+      "&rsquo;": "'",
+      "&lsquo;": "'",
+      "&rdquo;": "\"",
+      "&ldquo;": "\"",
+      "&mdash;": "—",
+      "&ndash;": "–",
+      "&hellip;": "…",
+      "&bull;": "•",
+      "&deg;": "°",
+      "&copy;": "©",
+      "&reg;": "®",
+      "&trade;": "™",
+      "&euro;": "€",
+      "&pound;": "£",
+      "&yen;": "¥",
+      "&cent;": "¢",
+      "&sect;": "§",
+      "&para;": "¶",
+      "&middot;": "·",
+      "&frac12;": "½",
+      "&frac14;": "¼",
+      "&frac34;": "¾",
+      "&sup1;": "¹",
+      "&sup2;": "²",
+      "&sup3;": "³",
+      "&times;": "×",
+      "&divide;": "÷",
+      "&plusmn;": "±",
+    ]
+
+    var result = text
+
+    // Replace named entities first
+    for (entity, replacement) in htmlEntities {
+      result = result.replacingOccurrences(of: entity, with: replacement, options: .caseInsensitive)
+    }
+
+    // Handle numeric entities manually since we can't use callback-style replacement
+    result = decodeNumericEntities(result)
+
+    return result
+  }
+
+  private static func decodeNumericEntities(_ text: String) -> String {
+    var result = text
+
+    // Handle decimal numeric entities (&#123;)
+    while let range = result.range(of: "&#\\d+;", options: .regularExpression) {
+      let entityString = String(result[range])
+      let numberString = String(entityString.dropFirst(2).dropLast())
+
+      if let number = Int(numberString), let unicodeScalar = UnicodeScalar(number) {
+        result.replaceSubrange(range, with: String(Character(unicodeScalar)))
+      } else {
+        // If conversion fails, just remove the entity to avoid infinite loop
+        result.replaceSubrange(range, with: "")
+      }
+    }
+
+    // Handle hexadecimal numeric entities (&#x1F;)
+    while let range = result.range(of: "&#x[0-9A-Fa-f]+;", options: .regularExpression) {
+      let entityString = String(result[range])
+      let hexString = String(entityString.dropFirst(3).dropLast())
+
+      if let number = Int(hexString, radix: 16), let unicodeScalar = UnicodeScalar(number) {
+        result.replaceSubrange(range, with: String(Character(unicodeScalar)))
+      } else {
+        // If conversion fails, just remove the entity to avoid infinite loop
+        result.replaceSubrange(range, with: "")
+      }
+    }
+
+    return result
+  }
+
   // MARK: - Text Parsing
 
   private static func parseTextParts(_ text: String) -> [TextPart] {
@@ -152,8 +237,10 @@ struct HTMLText: View {
     let baseFont = uiFont(for: font)
 
     for part in parts where !part.text.isEmpty {
+      // Decode HTML entities in the text content
+      let decodedText = decodeHTMLEntities(part.text)
 
-      var attributedPart = AttributedString(part.text)
+      var attributedPart = AttributedString(decodedText)
       attributedPart.foregroundColor = color
       attributedPart.font = Font(fontWithTraits(baseFont, traits: part.format.traits))
 
@@ -362,6 +449,58 @@ struct HTMLText: View {
           "Edge case: <b>Unclosed bold and <i>nested italic</i> should still work properly.",
           color: .red,
           font: .caption
+        )
+      }
+
+      Group {
+        Text("HTML Entity Decoding").font(.headline)
+
+        HTMLText(
+          "Quotation marks: &lsquo;single&rsquo; and &ldquo;double&rdquo; quotes work great!",
+          color: .purple,
+          font: .body
+        )
+
+        HTMLText(
+          "Common entities: &amp; (ampersand), &lt; (less than), &gt; (greater than), &quot;quotes&quot;",
+          color: .blue,
+          font: .body
+        )
+
+        HTMLText(
+          "Special chars: &mdash; em dash, &ndash; en dash, &hellip; ellipsis, &bull; bullet",
+          color: .orange,
+          font: .body
+        )
+
+        HTMLText(
+          "Symbols: &copy; &reg; &trade; &deg; &plusmn; &times; &divide;",
+          color: .green,
+          font: .body
+        )
+
+        HTMLText(
+          "Fractions: &frac14; &frac12; &frac34; and superscripts: &sup1; &sup2; &sup3;",
+          color: .red,
+          font: .body
+        )
+
+        HTMLText(
+          "Currency: &euro;100 &pound;50 &yen;1000 &cent;25",
+          color: .indigo,
+          font: .body
+        )
+
+        HTMLText(
+          "Numeric entities: &#8217; (decimal) and &#x2019; (hex) should both show as &rsquo;",
+          color: .teal,
+          font: .body
+        )
+
+        HTMLText(
+          "<b>Mixed content:</b> This &lsquo;podcast&rsquo; features &mdash; <em>amazing</em> &hellip; content!",
+          color: .pink,
+          font: .body
         )
       }
 

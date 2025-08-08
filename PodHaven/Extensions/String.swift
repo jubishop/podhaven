@@ -3,6 +3,8 @@ import Foundation
 import RegexBuilder
 
 extension String {
+  // MARK: - Hashing
+
   func hash(to length: Int = 8) -> String {
     guard length > 0 else { return "" }
 
@@ -22,15 +24,19 @@ extension String {
     return String(result)
   }
 
-  func trimmed() -> String {
-    self.trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-
   func sha1() -> String {
     Insecure.SHA1.hash(data: Data(self.utf8)).compactMap { String(format: "%02x", $0) }.joined()
   }
 
-  func isHTML() -> Bool {
+  // MARK: - Transforming
+
+  func trimmed() -> String {
+    self.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  // MARK: - HTML Analysis
+
+  func hasHTMLTags() -> Bool {
     self.contains(
       Regex {
         ChoiceOf {
@@ -43,5 +49,36 @@ extension String {
         }
       }
     )
+  }
+
+  func hasHTMLEntities() -> Bool {
+    self.contains(
+      Regex {
+        ChoiceOf {
+          // Named entities: &word;
+          Regex {
+            "&"
+            OneOrMore(.word)
+            ";"
+          }
+          // Numeric entities: &#123;
+          Regex {
+            "&#"
+            OneOrMore(.digit)
+            ";"
+          }
+          // Hex entities: &#x1F;
+          Regex {
+            "&#x"
+            OneOrMore(.hexDigit)
+            ";"
+          }
+        }
+      }
+    )
+  }
+
+  func isHTML() -> Bool {
+    hasHTMLTags() || hasHTMLEntities()
   }
 }
