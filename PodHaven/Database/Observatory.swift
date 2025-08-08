@@ -60,6 +60,14 @@ struct Observatory {
     )
   }
 
+  func maxQueuePosition() -> AsyncValueObservation<Int?> {
+    _observe { db in
+      try Episode
+        .select(max(Episode.Columns.queueOrder), as: Int.self)
+        .fetchOne(db)
+    }
+  }
+
   func podcastSeries(_ podcastID: Podcast.ID) -> AsyncValueObservation<PodcastSeries?> {
     _observe { db in
       try Podcast

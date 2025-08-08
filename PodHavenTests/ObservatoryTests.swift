@@ -178,4 +178,26 @@ actor ObservatoryTests {
     try await queue.dequeue(episode1.id)
     try await updateCount.wait(for: 0)
   }
+
+  @Test("maxQueuePosition()")
+  func testMaxQueuePosition() async throws {
+    // Test when no episodes are queued
+    var maxPosition = try await observatory.maxQueuePosition().get()
+    #expect(maxPosition == nil)
+
+    let (episode1, episode2, episode3) = try await Create.threePodcastEpisodes()
+
+    // Add episodes to queue using queue methods
+    try await queue.unshift(episode1.id)  // Position 0
+    maxPosition = try await observatory.maxQueuePosition().get()
+    #expect(maxPosition == 0)
+
+    try await queue.append(episode2.id)  // Position 1
+    maxPosition = try await observatory.maxQueuePosition().get()
+    #expect(maxPosition == 1)
+
+    try await queue.append(episode3.id)  // Position 2
+    maxPosition = try await observatory.maxQueuePosition().get()
+    #expect(maxPosition == 2)
+  }
 }

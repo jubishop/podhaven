@@ -15,6 +15,7 @@ import Logging
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
+  private var maxQueuePosition: Int? = nil
   private var podcastEpisode: PodcastEpisode
   var podcast: Podcast { podcastEpisode.podcast }
   var episode: Episode { podcastEpisode.episode }
@@ -25,18 +26,38 @@ import Logging
   }
 
   func execute() async {
-    do {
-      for try await podcastEpisode in observatory.podcastEpisode(episode.id) {
-        guard let podcastEpisode = podcastEpisode
-        else {
-          throw ObservatoryError.recordNotFound(type: PodcastEpisode.self, id: episode.id.rawValue)
+    // Observe max queue position
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        for try await maxPosition in observatory.maxQueuePosition() {
+          self.maxQueuePosition = maxPosition
         }
-
-        if self.podcastEpisode == podcastEpisode { continue }
-        self.podcastEpisode = podcastEpisode
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.message(for: error))
       }
-    } catch {
-      alert("Couldn't execute EpisodeDetailViewModel")
+    }
+
+    // Observe this episode record updates
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        for try await podcastEpisode in observatory.podcastEpisode(self.episode.id) {
+          guard let podcastEpisode = podcastEpisode
+          else {
+            throw ObservatoryError.recordNotFound(
+              type: PodcastEpisode.self,
+              id: self.episode.id.rawValue
+            )
+          }
+
+          self.podcastEpisode = podcastEpisode
+        }
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.message(for: error))
+      }
     }
   }
 
@@ -70,5 +91,18 @@ import Logging
       guard let self else { return }
       try await queue.append(episode.id)
     }
+  }
+
+  // MARK: - Queue Position State
+
+  var atTopOfQueue: Bool {
+    episode.queueOrder == 0
+  }
+
+  var atBottomOfQueue: Bool {
+    guard let queueOrder = episode.queueOrder
+    else { return false }
+
+    return queueOrder == maxQueuePosition
   }
 }

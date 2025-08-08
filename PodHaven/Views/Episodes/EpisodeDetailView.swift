@@ -114,24 +114,24 @@ struct EpisodeDetailView: View {
                 Button(action: viewModel.addToTopOfQueue) {
                   HStack {
                     Image(systemName: "text.line.first.and.arrowtriangle.forward")
-                    Text("Add to Top")
+                    Text(viewModel.atTopOfQueue ? "Already at Top" : "Add to Top")
                   }
                   .frame(maxWidth: .infinity)
                   .padding()
-                  .background(Color.secondary.opacity(0.2))
                   .cornerRadius(10)
                 }
+                .disabled(viewModel.atTopOfQueue)
 
                 Button(action: viewModel.appendToQueue) {
                   HStack {
                     Image(systemName: "text.line.last.and.arrowtriangle.forward")
-                    Text("Add to Bottom")
+                    Text(viewModel.atBottomOfQueue ? "Already at Bottom" : "Add to Bottom")
                   }
                   .frame(maxWidth: .infinity)
                   .padding()
-                  .background(Color.secondary.opacity(0.2))
                   .cornerRadius(10)
                 }
+                .disabled(viewModel.atBottomOfQueue)
               }
             }
             .padding(.horizontal)
