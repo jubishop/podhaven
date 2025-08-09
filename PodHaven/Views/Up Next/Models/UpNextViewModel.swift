@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import FactoryKit
 import Foundation
 import GRDB
@@ -34,6 +35,14 @@ import SwiftUI
       }
     } catch {
       alert("Couldn't execute UpNextViewModel")
+    }
+  }
+
+  // MARK: - Derived State
+
+  var totalQueueDuration: CMTime {
+    podcastEpisodes.reduce(CMTime.zero) { total, podcastEpisode in
+      total + podcastEpisode.episode.duration
     }
   }
 

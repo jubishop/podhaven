@@ -80,6 +80,11 @@ struct UpNextView: View {
           ToolbarItem(placement: .topBarTrailing) {
             SelectableListMenu(list: viewModel.episodeList)
           }
+        } else {
+          ToolbarItem(placement: .topBarLeading) {
+            Text(viewModel.totalQueueDuration.shortDescription)
+              .foregroundStyle(.secondary)
+          }
         }
 
         if viewModel.isEditing, viewModel.episodeList.anySelected {
