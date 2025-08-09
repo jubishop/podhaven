@@ -172,7 +172,7 @@ actor CacheManager {
 
     Self.log.debug("startMonitoringQueue: starting")
 
-    Task { [weak self] in
+    Task(priority: .utility) { [weak self] in
       guard let self else { return }
 
       do {
