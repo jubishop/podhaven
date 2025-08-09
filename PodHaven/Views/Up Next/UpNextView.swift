@@ -80,25 +80,38 @@ struct UpNextView: View {
           ToolbarItem(placement: .topBarTrailing) {
             SelectableListMenu(list: viewModel.episodeList)
           }
+
+          if viewModel.episodeList.anySelected {
+            ToolbarItem(placement: .topBarTrailing) {
+              Menu(
+                content: {
+                  Button("Delete Selected") {
+                    viewModel.deleteSelected()
+                  }
+                },
+                label: {
+                  Image(systemName: "minus.circle")
+                }
+              )
+            }
+          }
         } else {
           ToolbarItem(placement: .topBarLeading) {
             Text(viewModel.totalQueueDuration.shortDescription)
+              .font(.caption)
               .foregroundStyle(.secondary)
           }
-        }
 
-        if viewModel.isEditing, viewModel.episodeList.anySelected {
           ToolbarItem(placement: .topBarTrailing) {
-            Menu(
-              content: {
-                Button("Delete Selected") {
-                  viewModel.deleteSelected()
-                }
-              },
-              label: {
-                Image(systemName: "minus.circle")
+            Menu("Sort") {
+              Button("Most Recent First") {
+                viewModel.sortByMostRecentFirst()
               }
-            )
+
+              Button("Most Completed") {
+                viewModel.sortByMostCompleted()
+              }
+            }
           }
         }
 

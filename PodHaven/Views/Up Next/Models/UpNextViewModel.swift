@@ -107,4 +107,35 @@ import SwiftUI
       }
     }
   }
+
+  func sortByMostRecentFirst() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let sortedEpisodes = podcastEpisodes.sorted { $0.episode.pubDate > $1.episode.pubDate }
+        try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
+
+  func sortByMostCompleted() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let sortedEpisodes = podcastEpisodes.sorted {
+          // Primary sort: most completed first (highest currentTime)
+          if $0.episode.currentTime.seconds != $1.episode.currentTime.seconds {
+            return $0.episode.currentTime.seconds > $1.episode.currentTime.seconds
+          }
+          // Secondary sort: most recent publication date first
+          return $0.episode.pubDate > $1.episode.pubDate
+        }
+        try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
 }

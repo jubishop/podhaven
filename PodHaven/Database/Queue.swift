@@ -146,6 +146,34 @@ struct Queue {
     try await append([episodeID])
   }
 
+  func updateQueueOrders(_ episodeIDs: [Episode.ID]) async throws {
+    Self.log.debug("queue: updating queue orders for \(episodeIDs.count) episodes")
+
+    guard episodeIDs.count > 1 else { return }
+
+    try await appDB.db.write { db in
+      // Verify we're reordering the complete queue
+      let maxQueueOrder =
+        try Episode
+        .select(max(Episode.Columns.queueOrder), as: Int.self)
+        .fetchOne(db) ?? -1
+
+      guard maxQueueOrder == episodeIDs.count - 1 else {
+        throw QueueError.incompleteReorder(
+          expected: episodeIDs.count - 1,
+          actual: maxQueueOrder
+        )
+      }
+
+      // Update each episode's queueOrder using GRDB
+      for (index, episodeID) in episodeIDs.enumerated() {
+        try Episode
+          .withID(episodeID)
+          .updateAll(db, Episode.Columns.queueOrder.set(to: index))
+      }
+    }
+  }
+
   // MARK: - Private Helpers
 
   private func _updateLastQueued(_ db: Database, _ episodeIDs: [Episode.ID]) throws {
