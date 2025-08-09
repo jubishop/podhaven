@@ -12,7 +12,7 @@ enum CacheHelpers {
   private static var appDB: AppDB { Container.shared.appDB() }
   private static var cacheManager: CacheManager { Container.shared.cacheManager() }
   private static var downloadManager: DownloadManager { Container.shared.cacheDownloadManager() }
-  private static var queue: Queue { Container.shared.queue() }
+  private static var queue: any Queueing { Container.shared.queue() }
   private static var repo: any Databasing { Container.shared.repo() }
 
   private static var session: FakeDataFetchable {

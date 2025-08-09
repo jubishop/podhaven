@@ -18,7 +18,7 @@ import Logging
 
 extension QueueableSelectableEpisodeList {
   private var playManager: PlayManager { Container.shared.playManager() }
-  private var queue: Queue { Container.shared.queue() }
+  private var queue: any Queueing { Container.shared.queue() }
 
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 

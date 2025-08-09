@@ -8,12 +8,14 @@ import IdentifiedCollections
 import Tagged
 
 extension Container {
-  var queue: Factory<Queue> {
-    Factory(self) { Queue(self.appDB()) }.scope(.cached)
+  internal func makeQueue() -> Queue { Queue(self.appDB()) }
+
+  var queue: Factory<any Queueing> {
+    Factory(self) { self.makeQueue() }.scope(.cached)
   }
 }
 
-struct Queue {
+struct Queue: Queueing {
   private static let log = Log.as(LogSubsystem.Database.queue)
 
   // MARK: - Initialization

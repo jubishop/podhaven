@@ -8,110 +8,13 @@ import Tagged
 
 @testable import PodHaven
 
-protocol RepoCalling: Sendable {
-  var callOrder: Int { get }
-  var methodName: String { get }
-  var toString: String { get }
-}
-
-actor FakeRepo: Databasing, Sendable {
+actor FakeRepo: Databasing, Sendable, FakeCallable {
+  var callOrder: Int = 0
+  var callsByType: [ObjectIdentifier: [any MethodCalling]] = [:]
   private let repo: Repo
-  private var callOrder: Int = 0
 
   init(_ repo: Repo) {
     self.repo = repo
-  }
-
-  // MARK: - Call Structs
-
-  struct RepoCall<Parameters: Sendable>: RepoCalling {
-    let callOrder: Int
-    let methodName: String
-    let parameters: Parameters
-    var toString: String {
-      "\(methodName)(\(parameters))"
-    }
-  }
-
-  private var callsByType: [ObjectIdentifier: [any RepoCalling]] = [:]
-
-  // MARK: - Call Tracking
-
-  private func recordCall<T: RepoCalling>(_ call: T) {
-    let key = ObjectIdentifier(T.self)
-    callsByType[key, default: []].append(call)
-  }
-
-  private func recordCall<Parameters: Sendable>(
-    methodName: String,
-    parameters: Parameters
-  ) {
-    recordCall(
-      RepoCall(
-        callOrder: nextCallOrder(),
-        methodName: methodName,
-        parameters: parameters
-      )
-    )
-  }
-
-  func clearAllCalls() {
-    callOrder = 0
-    callsByType.removeAll()
-  }
-
-  var allCallsInOrder: [any RepoCalling] {
-    callsByType.values
-      .flatMap { $0 }
-      .sorted { $0.callOrder < $1.callOrder }
-  }
-
-  // MARK: - Call Filtering
-
-  func calls<T: RepoCalling>(of type: T.Type) -> [T] {
-    let key = ObjectIdentifier(type)
-    return (callsByType[key] as? [T]) ?? []
-  }
-
-  // MARK: - Assertion Helpers
-
-  func expectCalls(methodName: String, count: Int = 1) throws -> [any RepoCalling] {
-    let allCalls = callsByType.values.flatMap { $0 }
-    let methodMatchingCalls = allCalls.filter { call in
-      call.methodName == methodName
-    }
-    guard methodMatchingCalls.count == count else {
-      throw TestError.unexpectedCallCount(
-        expected: count,
-        actual: methodMatchingCalls.count,
-        type: methodName
-      )
-    }
-    return methodMatchingCalls
-  }
-
-  func expectCall<Parameters: Sendable>(methodName: String, parameters: Parameters.Type) throws
-    -> RepoCall<Parameters>
-  {
-    let call = try expectCalls(methodName: methodName).first!
-    guard let typedCall = call as? RepoCall<Parameters> else {
-      throw TestError.unexpectedCall(
-        type: "RepoCall<\(String(describing: Parameters.self))>.\(methodName)",
-        calls: [call.toString]
-      )
-    }
-    return typedCall
-  }
-
-  func expectNoCall(methodName: String) throws {
-    let allCalls = callsByType.values.flatMap { $0 }
-    let methodMatchingCalls = allCalls.filter { call in call.methodName == methodName }
-    guard methodMatchingCalls.isEmpty else {
-      throw TestError.unexpectedCall(
-        type: methodName,
-        calls: methodMatchingCalls.map(\.toString)
-      )
-    }
   }
 
   // MARK: - Databasing Protocol
@@ -287,10 +190,4 @@ actor FakeRepo: Databasing, Sendable {
     return try await repo.markUnsubscribed(podcastID)
   }
 
-  // MARK: - Private Helpers
-
-  private func nextCallOrder() -> Int {
-    callOrder += 1
-    return callOrder
-  }
 }

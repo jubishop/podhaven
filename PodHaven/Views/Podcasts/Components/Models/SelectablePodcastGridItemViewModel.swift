@@ -8,7 +8,7 @@ import SwiftUI
 typealias SelectablePodcastGridItemViewModel = SelectableListItemModel<Podcast>
 
 extension SelectablePodcastGridItemViewModel {
-  private var queue: Queue { Container.shared.queue() }
+  private var queue: any Queueing { Container.shared.queue() }
   private var repo: Databasing { Container.shared.repo() }
 
   private var log: Logger { Log.as(LogSubsystem.PodcastsView.podcastGrid) }
