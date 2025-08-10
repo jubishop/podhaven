@@ -47,6 +47,7 @@ import SwiftUI
       }
     )
   }
+  var filteredEntryIDs: [ID] { filteredEntries.ids.elements }
   var filteredSortedEntries: [T] { filteredEntries.sorted(by: sortMethod) }
 
   // MARK: - Customization Parameters

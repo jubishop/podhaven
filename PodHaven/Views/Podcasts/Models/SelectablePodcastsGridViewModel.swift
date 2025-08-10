@@ -123,7 +123,10 @@ import SwiftUI
   // MARK: - Public Functions
 
   func refreshPodcasts() async throws(RefreshError) {
-    try await refreshManager.performRefresh(stalenessThreshold: 1.minutesAgo, filter: filter)
+    try await refreshManager.performRefresh(
+      stalenessThreshold: 1.minutesAgo,
+      filter: podcastList.filteredEntryIDs.contains(Podcast.Columns.id)
+    )
   }
 
   func deleteSelectedPodcasts() {
