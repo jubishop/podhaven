@@ -424,4 +424,27 @@ import Testing
     #expect(podcastSeries?.podcast.title == "Techdirt")
     #expect(podcastSeries?.podcast.subscriptionDate != nil)
   }
+
+  @Test("that a plain feed URL is imported successfully")
+  func plainFeedURLImportsSuccessfully() async throws {
+    let feedURL = URL(
+      string: "https://changelog.com/podcast/feed"
+    )!
+    let feedData = try Data(
+      contentsOf: Bundle.main.url(forResource: "changelog", withExtension: "rss")!
+    )
+    await feedSession.respond(to: feedURL, data: feedData)
+
+    try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: feedURL))
+
+    let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
+    #expect(podcastSeries.podcast.subscribed)
+    #expect(podcastSeries.podcast.title == "The Changelog: Software Development, Open Source")
+    #expect(podcastSeries.episodes.count == 835)
+
+    #expect(navigation.currentTab == .podcasts)
+    #expect(
+      navigation.podcasts.path == [.viewType(.subscribed), .podcast(podcastSeries.podcast)]
+    )
+  }
 }
