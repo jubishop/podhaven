@@ -25,12 +25,14 @@ struct PodcastDetailView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      VStack(spacing: 8) {
+      VStack(spacing: 4) {
         Group {
           podcastHeaderSection
-          podcastMetadataSection
           podcastAboutHeader
           if viewModel.displayAboutSection {
+            Divider()
+            podcastMetadataSection
+            Divider()
             podcastExpandedAboutSection
           }
         }
@@ -38,7 +40,7 @@ struct PodcastDetailView: View {
         .padding(.bottom, 4)
       }
       if !viewModel.displayAboutSection {
-        episodeFilterSection
+        episodeFilterSection.padding(.horizontal)
 
         List(viewModel.episodeList.filteredEntries) { episode in
           NavigationLink(
@@ -77,7 +79,7 @@ struct PodcastDetailView: View {
   // MARK: - Header Components
 
   private var podcastHeaderSection: some View {
-    HStack(alignment: .top, spacing: 16) {
+    HStack(alignment: .top, spacing: 12) {
       LazyImage(url: viewModel.podcast.image) { state in
         if let image = state.image {
           image
@@ -107,7 +109,7 @@ struct PodcastDetailView: View {
         Text(viewModel.podcast.title)
           .font(.title3)
           .fontWeight(.bold)
-          .lineLimit(2)
+          .lineLimit(2, reservesSpace: true)
           .multilineTextAlignment(.leading)
           .fixedSize(horizontal: false, vertical: true)
 
@@ -146,7 +148,7 @@ struct PodcastDetailView: View {
       metadataItem(
         icon: "calendar",
         label: "Updated",
-        value: viewModel.podcast.lastUpdate.usShortWithTime
+        value: viewModel.mostRecentEpisodeDate.usShortWithTime
       )
 
       Spacer()
@@ -161,9 +163,20 @@ struct PodcastDetailView: View {
 
   private var podcastAboutHeader: some View {
     HStack {
-      Text("About")
-        .font(.headline)
-        .fontWeight(.semibold)
+      if viewModel.displayAboutSection {
+        Text("About")
+          .font(.headline)
+          .fontWeight(.semibold)
+      } else {
+        HStack(spacing: 4) {
+          Image(systemName: "calendar")
+            .foregroundColor(.secondary)
+            .font(.caption)
+          Text(viewModel.mostRecentEpisodeDate.usShortWithTime)
+            .font(.subheadline)
+            .fontWeight(.medium)
+        }
+      }
       Spacer()
       Button(action: {
         withAnimation(.easeInOut(duration: 0.3)) {
@@ -213,7 +226,6 @@ struct PodcastDetailView: View {
           }
         )
       }
-      .padding(.horizontal)
 
       Divider()
     }
