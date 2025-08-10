@@ -190,4 +190,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.markUnsubscribed(podcastID)
   }
 
+  @discardableResult
+  func updateLastUpdate(_ podcastID: Podcast.ID) async throws -> Bool {
+    recordCall(methodName: "updateLastUpdate", parameters: podcastID)
+    return try await repo.updateLastUpdate(podcastID)
+  }
 }

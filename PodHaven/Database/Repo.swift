@@ -327,6 +327,17 @@ struct Repo: Databasing, Sendable {
     try await markUnsubscribed([podcastID]) > 0
   }
 
+  @discardableResult
+  func updateLastUpdate(_ podcastID: Podcast.ID) async throws -> Bool {
+    Self.log.debug("updateLastUpdate: \(podcastID)")
+
+    return try await appDB.db.write { db in
+      try Podcast
+        .withID(podcastID)
+        .updateAll(db, Podcast.Columns.lastUpdate.set(to: Date()))
+    } > 0
+  }
+
   // MARK: Private Helpers
 
   private func _setSubscribedColumn(_ podcastIDs: [Podcast.ID], to subscribed: Bool) async throws

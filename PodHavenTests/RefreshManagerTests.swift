@@ -21,7 +21,7 @@ class RefreshManagerTests {
   func testRefreshSeriesWorks() async throws {
     let url = Bundle.main.url(forResource: "hardfork_short", withExtension: "rss")!
     let podcastFeed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
-    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(lastUpdate: 30.minutesAgo)
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
@@ -43,6 +43,7 @@ class RefreshManagerTests {
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
+    #expect(updatedSeries.podcast.lastUpdate.approximatelyEquals(Date()))
     #expect(
       updatedSeries.podcast.feedURL
         == FeedURL(URL(string: "https://feeds.simplecast.com/l2i9YnTdNEW")!)
@@ -56,6 +57,26 @@ class RefreshManagerTests {
         "Is Amazon's Drone Delivery Finally Ready for Prime Time?",
       ]
     )
+  }
+
+  @Test("that refreshSeries still updates lastUpdate even when everything else is the same")
+  func testRefreshSeriesWorksAlwaysUpdatesLastUpdate() async throws {
+    let url = Bundle.main.url(forResource: "hardfork_short", withExtension: "rss")!
+    let podcastFeed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(lastUpdate: 30.minutesAgo)
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+    )
+
+    let data = try Data(
+      contentsOf: Bundle.main.url(forResource: "hardfork_short", withExtension: "rss")!
+    )
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: data)
+    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+
+    let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
+    #expect(updatedSeries.podcast.lastUpdate.approximatelyEquals(Date()))
   }
 
   @Test("that selective updates only update changed content")

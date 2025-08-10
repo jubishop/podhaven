@@ -80,6 +80,9 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func markUnsubscribed(_ podcastID: Podcast.ID) async throws -> Bool
+
+  @discardableResult
+  func updateLastUpdate(_ podcastID: Podcast.ID) async throws -> Bool
 }
 
 extension Databasing {

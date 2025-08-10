@@ -164,6 +164,8 @@ actor RefreshManager {
           unsavedEpisodes: unsavedEpisodes,
           existingEpisodes: updatedEpisodes
         )
+      } else {
+        try await repo.updateLastUpdate(podcastSeries.id)
       }
     }
   }

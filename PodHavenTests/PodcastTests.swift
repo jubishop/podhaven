@@ -211,4 +211,17 @@ class PodcastTests {
     let fetchedPodcast3 = try await repo.podcastSeries(podcastSeries3.id)!
     #expect(fetchedPodcast3.podcast.subscribed == false)
   }
+
+  @Test("updateLastUpdate() successfully updates podcast lastUpdate timestamp")
+  func testUpdateLastUpdate() async throws {
+    let podcastSeries = try await repo.insertSeries(
+      try Create.unsavedPodcast(lastUpdate: 30.minutesAgo)
+    )
+
+    let updateTime = Date()
+    try await repo.updateLastUpdate(podcastSeries.podcast.id)
+
+    let fetchedPodcast = try await repo.podcastSeries(podcastSeries.podcast.id)!
+    #expect(fetchedPodcast.podcast.lastUpdate.approximatelyEquals(updateTime))
+  }
 }
