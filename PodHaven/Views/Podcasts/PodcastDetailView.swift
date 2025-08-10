@@ -184,6 +184,7 @@ struct PodcastDetailView: View {
     ScrollView {
       HTMLText(viewModel.podcast.description)
         .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
   }
 
@@ -236,7 +237,7 @@ struct PodcastDetailView: View {
 }
 
 #if DEBUG
-#Preview {
+#Preview("Changelog") {
   @Previewable @State var podcast: Podcast?
 
   NavigationStack {
@@ -246,7 +247,21 @@ struct PodcastDetailView: View {
   }
   .preview()
   .task {
-    podcast = try? await PreviewHelpers.loadSeries().podcast
+    podcast = try? await PreviewHelpers.loadSeries(fileName: "changelog").podcast
+  }
+}
+
+#Preview("Pod Save America") {
+  @Previewable @State var podcast: Podcast?
+
+  NavigationStack {
+    if let podcast {
+      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
+    }
+  }
+  .preview()
+  .task {
+    podcast = try? await PreviewHelpers.loadSeries(fileName: "pod_save_america").podcast
   }
 }
 #endif
