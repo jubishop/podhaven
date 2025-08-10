@@ -138,4 +138,32 @@ import SwiftUI
       }
     }
   }
+
+  func refreshQueue() {
+    Self.log.debug("refreshQueue: downloading and caching uncached episodes")
+
+    let uncachedEpisodes = podcastEpisodes.filter { podcastEpisode in
+      podcastEpisode.episode.cachedFilename == nil
+    }
+
+    guard !uncachedEpisodes.isEmpty else { return }
+
+    Self.log.debug(
+      """
+      Uncached episodes:
+        \(uncachedEpisodes.map(\.toString).joined(separator: "\n  "))
+      """
+    )
+
+    for podcastEpisode in uncachedEpisodes.reversed() {
+      Task { [weak self] in
+        guard let self else { return }
+        do {
+          try await cacheManager.downloadAndCache(podcastEpisode)
+        } catch {
+          Self.log.error(error)
+        }
+      }
+    }
+  }
 }
