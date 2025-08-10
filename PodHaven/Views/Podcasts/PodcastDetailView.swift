@@ -26,15 +26,15 @@ struct PodcastDetailView: View {
   var body: some View {
     Group {
       if viewModel.displayAboutSection {
-        ScrollView {
-          VStack(spacing: 8) {
-            podcastHeaderSection
-            podcastMetadataSection
+        VStack(spacing: 8) {
+          podcastHeaderSection
+          podcastMetadataSection
+          ScrollView {
             podcastAboutSectionExpanded
             podcastActionsSection
           }
-          .padding()
         }
+        .padding(.horizontal)
       } else {
         VStack(spacing: 0) {
           VStack(spacing: 8) {
@@ -184,7 +184,7 @@ struct PodcastDetailView: View {
           }) {
             HStack(spacing: 4) {
               Text("Show About")
-              Image(systemName: "chevron.right")
+              Image(systemName: "chevron.down")
             }
             .font(.caption)
             .foregroundColor(.accentColor)
@@ -208,7 +208,7 @@ struct PodcastDetailView: View {
         }) {
           HStack(spacing: 4) {
             Text("Hide About")
-            Image(systemName: "chevron.down")
+            Image(systemName: "chevron.up")
           }
           .font(.caption)
           .foregroundColor(.accentColor)
