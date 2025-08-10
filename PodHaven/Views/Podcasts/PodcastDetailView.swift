@@ -24,56 +24,48 @@ struct PodcastDetailView: View {
   }
 
   var body: some View {
-    Group {
-      if viewModel.displayAboutSection {
-        VStack(spacing: 8) {
+    VStack(spacing: 0) {
+      VStack(spacing: 8) {
+        Group {
           podcastHeaderSection
           podcastMetadataSection
-          ScrollView {
-            podcastAboutSectionExpanded
-            podcastActionsSection
+          podcastAboutHeader
+          if viewModel.displayAboutSection {
+            podcastExpandedAboutSection
           }
         }
         .padding(.horizontal)
-      } else {
-        VStack(spacing: 0) {
-          VStack(spacing: 8) {
-            podcastHeaderSection
-            podcastMetadataSection
-            podcastAboutSectionCollapsed
-            podcastActionsSection
-          }
-          .padding(.horizontal)
+        .padding(.bottom, 4)
+      }
+      if !viewModel.displayAboutSection {
+        episodeFilterSection
 
-          episodeFilterSection
-
-          List(viewModel.episodeList.filteredEntries) { episode in
-            NavigationLink(
-              value: Navigation.Podcasts.Destination.episode(
-                PodcastEpisode(podcast: viewModel.podcast, episode: episode)
-              ),
-              label: {
-                EpisodeListView(
-                  viewModel: EpisodeListViewModel(
-                    isSelected: $viewModel.episodeList.isSelected[episode],
-                    item: episode,
-                    isSelecting: viewModel.episodeList.isSelecting
-                  )
+        List(viewModel.episodeList.filteredEntries) { episode in
+          NavigationLink(
+            value: Navigation.Podcasts.Destination.episode(
+              PodcastEpisode(podcast: viewModel.podcast, episode: episode)
+            ),
+            label: {
+              EpisodeListView(
+                viewModel: EpisodeListViewModel(
+                  isSelected: $viewModel.episodeList.isSelected[episode],
+                  item: episode,
+                  isSelecting: viewModel.episodeList.isSelecting
                 )
-              }
-            )
-            .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
-            .episodeQueueableContextMenu(viewModel: viewModel, episode: episode)
-          }
-          .animation(.default, value: viewModel.episodeList.filteredEntries)
-          .refreshable {
-            do {
-              try await viewModel.refreshSeries()
-            } catch {
-              Self.log.error(error)
-              if ErrorKit.baseError(for: error) is CancellationError { return }
-              alert(ErrorKit.message(for: error))
+              )
             }
+          )
+          .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
+          .episodeQueueableContextMenu(viewModel: viewModel, episode: episode)
+        }
+        .animation(.default, value: viewModel.episodeList.filteredEntries)
+        .refreshable {
+          do {
+            try await viewModel.refreshSeries()
+          } catch {
+            Self.log.error(error)
+            if ErrorKit.baseError(for: error) is CancellationError { return }
+            alert(ErrorKit.message(for: error))
           }
         }
       }
@@ -113,9 +105,9 @@ struct PodcastDetailView: View {
 
       VStack(alignment: .leading, spacing: 8) {
         Text(viewModel.podcast.title)
-          .font(.title2)
+          .font(.title3)
           .fontWeight(.bold)
-          .lineLimit(3)
+          .lineLimit(2)
           .multilineTextAlignment(.leading)
           .fixedSize(horizontal: false, vertical: true)
 
@@ -128,6 +120,21 @@ struct PodcastDetailView: View {
             .font(.caption)
             .foregroundColor(.accentColor)
           }
+        }
+
+        Button(action: {
+          if viewModel.podcast.subscribed {
+            viewModel.unsubscribe()
+          } else {
+            viewModel.subscribe()
+          }
+        }) {
+          HStack(spacing: 4) {
+            Image(systemName: viewModel.podcast.subscribed ? "minus.circle" : "plus.circle")
+            Text(viewModel.podcast.subscribed ? "Unsubscribe" : "Subscribe")
+          }
+          .font(.caption)
+          .foregroundColor(.accentColor)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -150,91 +157,33 @@ struct PodcastDetailView: View {
         value: "\(viewModel.episodeList.allEntries.count)"
       )
     }
-    .padding(.horizontal, 8)
   }
 
-  private func metadataItem(icon: String, label: String, value: String) -> some View {
-    VStack(alignment: .leading, spacing: 4) {
-      HStack(spacing: 4) {
-        Image(systemName: icon)
-          .foregroundColor(.secondary)
-          .font(.caption)
-        Text(label)
-          .font(.caption)
-          .foregroundColor(.secondary)
-      }
-      Text(value)
-        .font(.subheadline)
-        .fontWeight(.medium)
-    }
-  }
-
-  private var podcastAboutSectionCollapsed: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack {
-        Text("About")
-          .font(.headline)
-          .fontWeight(.semibold)
-        Spacer()
-        if !viewModel.podcast.description.isEmpty {
-          Button(action: {
-            withAnimation(.easeInOut(duration: 0.3)) {
-              viewModel.displayAboutSection = true
-            }
-          }) {
-            HStack(spacing: 4) {
-              Text("Show About")
-              Image(systemName: "chevron.down")
-            }
-            .font(.caption)
-            .foregroundColor(.accentColor)
-          }
+  private var podcastAboutHeader: some View {
+    HStack {
+      Text("About")
+        .font(.headline)
+        .fontWeight(.semibold)
+      Spacer()
+      Button(action: {
+        withAnimation(.easeInOut(duration: 0.3)) {
+          viewModel.displayAboutSection.toggle()
         }
+      }) {
+        HStack(spacing: 4) {
+          Text(viewModel.displayAboutSection ? "Hide About" : "Show About")
+          Image(systemName: viewModel.displayAboutSection ? "chevron.up" : "chevron.down")
+        }
+        .font(.caption)
+        .foregroundColor(.accentColor)
       }
     }
   }
 
-  private var podcastAboutSectionExpanded: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack {
-        Text("About")
-          .font(.headline)
-          .fontWeight(.semibold)
-        Spacer()
-        Button(action: {
-          withAnimation(.easeInOut(duration: 0.3)) {
-            viewModel.displayAboutSection = false
-          }
-        }) {
-          HStack(spacing: 4) {
-            Text("Hide About")
-            Image(systemName: "chevron.up")
-          }
-          .font(.caption)
-          .foregroundColor(.accentColor)
-        }
-      }
-
+  private var podcastExpandedAboutSection: some View {
+    ScrollView {
       HTMLText(viewModel.podcast.description)
         .multilineTextAlignment(.leading)
-    }
-  }
-
-  private var podcastActionsSection: some View {
-    VStack(spacing: 12) {
-      if !viewModel.podcast.subscribed {
-        Button(action: viewModel.subscribe) {
-          HStack {
-            Image(systemName: "plus.circle.fill")
-            Text("Subscribe")
-          }
-          .frame(maxWidth: .infinity)
-          .padding()
-          .background(Color.accentColor)
-          .foregroundColor(.white)
-          .cornerRadius(10)
-        }
-      }
     }
   }
 
@@ -266,6 +215,22 @@ struct PodcastDetailView: View {
       .padding(.horizontal)
 
       Divider()
+    }
+  }
+
+  private func metadataItem(icon: String, label: String, value: String) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack(spacing: 4) {
+        Image(systemName: icon)
+          .foregroundColor(.secondary)
+          .font(.caption)
+        Text(label)
+          .font(.caption)
+          .foregroundColor(.secondary)
+      }
+      Text(value)
+        .font(.subheadline)
+        .fontWeight(.medium)
     }
   }
 }

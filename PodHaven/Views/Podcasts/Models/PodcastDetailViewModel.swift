@@ -128,4 +128,12 @@ class PodcastDetailViewModel:
       navigation.showPodcast(.subscribed, podcastSeries.podcast)
     }
   }
+
+  func unsubscribe() {
+    Task { [weak self] in
+      guard let self else { return }
+      try await repo.markUnsubscribed(podcast.id)
+      navigation.showPodcast(.unsubscribed, podcastSeries.podcast)
+    }
+  }
 }
