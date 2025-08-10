@@ -329,7 +329,7 @@ struct Repo: Databasing, Sendable {
 
   @discardableResult
   func updateLastUpdate(_ podcastID: Podcast.ID) async throws -> Bool {
-    Self.log.debug("updateLastUpdate: \(podcastID)")
+    Self.log.trace("updateLastUpdate: \(podcastID)")
 
     return try await appDB.db.write { db in
       try Podcast
