@@ -7,16 +7,19 @@ import Semaphore
 actor FakeDataFetchable: DataFetchable {
   typealias DataHandler = @Sendable (URL) async throws -> (Data, URLResponse)
 
-  private let session: URLSession
   private var fakeHandlers: [URL: DataHandler] = [:]
   private(set) var requests: [URL] = []
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
 
-  private var defaultHandler: DataHandler = { url in (url.dataRepresentation, URL.response(url)) }
+  private var defaultHandler: DataHandler
 
-  init(session: URLSession = URLSession.shared) {
-    self.session = session
+  init(
+    defaultHandler: @escaping @Sendable DataHandler = { url in
+      (url.dataRepresentation, URL.response(url))
+    }
+  ) {
+    self.defaultHandler = defaultHandler
   }
 
   func data(for urlRequest: URLRequest) async throws -> (Data, URLResponse) {

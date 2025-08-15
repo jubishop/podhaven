@@ -8,6 +8,15 @@ import IdentifiedCollections
 import UIKit
 
 enum PreviewHelpers {
+  static let dataFetcher = FakeDataFetchable { url in
+    Assert.fatal(
+      """
+      ❌ FATAL: Attempted network request in SwiftUI Preview!
+      URL: \(url)
+      """
+    )
+  }
+
   private static let seriesFiles = [
     "pod_save_america": "https://feeds.simplecast.com/dxZsm5kX",
     "land_of_the_giants": "https://feeds.megaphone.fm/landofthegiants",
