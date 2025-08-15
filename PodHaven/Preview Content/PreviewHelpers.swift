@@ -1,9 +1,11 @@
+#if DEBUG
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
+import UIKit
 
 enum PreviewHelpers {
   private static let seriesFiles = [
@@ -13,6 +15,23 @@ enum PreviewHelpers {
   ]
   private static let opmlFiles = ["large", "small"]
 
+  // MARK: - Data Asset Access
+
+  private static func loadDataAsset(named name: String) -> Data {
+    guard let dataAsset = NSDataAsset(name: name, bundle: Bundle.main) else {
+      fatalError("Could not load data asset: \(name)")
+    }
+    return dataAsset.data
+  }
+
+  private static func createTempURL(forAssetNamed name: String, withExtension ext: String) -> URL {
+    let data = loadDataAsset(named: "\(ext)/\(name)")
+    let tempURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("\(name).\(ext)")
+    try! data.write(to: tempURL)
+    return tempURL
+  }
+
   // MARK: - Full Importing From OPML
 
   static func importPodcasts(_ number: Int = 20, from fileName: String = "large") async throws {
@@ -20,11 +39,8 @@ enum PreviewHelpers {
     let allPodcasts = IdentifiedArray(uniqueElements: try await repo.allPodcasts(), id: \.feedURL)
     if allPodcasts.count >= number { return }
 
-    let url = Bundle.main.url(
-      forResource: fileName,
-      withExtension: "opml"
-    )!
-    let opml = try await PodcastOPML.parse(url)
+    let data = loadDataAsset(named: "opml/\(fileName)")
+    let opml = try await PodcastOPML.parse(data)
 
     var remainingPodcasts = number - allPodcasts.count
     let feedManager = Container.shared.feedManager()
@@ -60,9 +76,10 @@ enum PreviewHelpers {
   static func loadSeries(fileName: String = seriesFiles.keys.randomElement()!) async throws
     -> PodcastSeries
   {
-    let podcastFeed = try await PodcastFeed.parse(
-      FeedURL(Bundle.main.url(forResource: fileName, withExtension: "rss")!)
-    )
+    let data = loadDataAsset(named: "rss/\(fileName)")
+    // Create a fake URL for the data asset
+    let fakeURL = FeedURL(URL(string: "https://example.com/\(fileName).rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
 
     let repo = Container.shared.repo()
@@ -117,9 +134,10 @@ enum PreviewHelpers {
     async throws
     -> (UnsavedPodcast, [UnsavedEpisode])
   {
-    let podcastFeed = try await PodcastFeed.parse(
-      FeedURL(Bundle.main.url(forResource: fileName, withExtension: "rss")!)
-    )
+    let data = loadDataAsset(named: "rss/\(fileName)")
+    // Create a fake URL for the data asset
+    let fakeURL = FeedURL(URL(string: "https://example.com/\(fileName).rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
     return (
       unsavedPodcast,
@@ -179,34 +197,19 @@ enum PreviewHelpers {
   // MARK: - Searching
 
   static func loadTrendingResult() async throws -> TrendingResult {
-    try await SearchService.parse(
-      try Data(
-        contentsOf: Bundle.main.url(forResource: "trending_in_news", withExtension: "json")!
-      )
-    )
+    try await SearchService.parse(loadDataAsset(named: "json/trending_in_news"))
   }
 
   static func loadTitleResult() async throws -> TitleResult {
-    try await SearchService.parse(
-      try Data(
-        contentsOf: Bundle.main.url(forResource: "hello_bytitle", withExtension: "json")!
-      )
-    )
+    try await SearchService.parse(loadDataAsset(named: "json/hello_bytitle"))
   }
 
   static func loadTermResult() async throws -> TermResult {
-    try await SearchService.parse(
-      try Data(
-        contentsOf: Bundle.main.url(forResource: "hardfork_byterm", withExtension: "json")!
-      )
-    )
+    try await SearchService.parse(loadDataAsset(named: "json/hardfork_byterm"))
   }
 
   static func loadPersonResult() async throws -> PersonResult {
-    try await SearchService.parse(
-      try Data(
-        contentsOf: Bundle.main.url(forResource: "ndg_byperson", withExtension: "json")!
-      )
-    )
+    try await SearchService.parse(loadDataAsset(named: "json/ndg_byperson"))
   }
 }
+#endif

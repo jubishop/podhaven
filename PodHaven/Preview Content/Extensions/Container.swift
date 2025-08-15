@@ -1,3 +1,4 @@
+#if DEBUG
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
@@ -8,3 +9,4 @@ extension Container {
     appDB.context(.preview) { AppDB.inMemory() }.scope(.cached)
   }
 }
+#endif

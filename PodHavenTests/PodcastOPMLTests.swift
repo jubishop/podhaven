@@ -13,7 +13,7 @@ struct PodcastOPMLTests {
 
   @Test("parsing large OPML file")
   func parseLargeOPMLFile() async throws {
-    let url = Bundle.main.url(forResource: "large", withExtension: "opml")!
+    let url = TestBundle.createTempURL(forResource: "large", withExtension: "opml")
     let opml = try await PodcastOPML.parse(try Data(contentsOf: url))
     #expect(opml.title == "Superphonic Podcast Subscriptions")
     #expect(opml.rssFeeds.count == 48)
@@ -25,7 +25,7 @@ struct PodcastOPMLTests {
 
   @Test("parsing overcast exported OPML file")
   func parseOvercastExportedOPMLFile() async throws {
-    let url = Bundle.main.url(forResource: "overcast", withExtension: "opml")!
+    let url = TestBundle.createTempURL(forResource: "overcast", withExtension: "opml")
     let opml = try await PodcastOPML.parse(try Data(contentsOf: url))
     #expect(opml.title == "Overcast Podcast Subscriptions")
     #expect(opml.rssFeeds.count == 43)
@@ -38,7 +38,7 @@ struct PodcastOPMLTests {
 
   @Test("parsing invalid OPML file")
   func parseInvalidOPMLFile() async throws {
-    let url = Bundle.main.url(forResource: "invalid", withExtension: "opml")!
+    let url = TestBundle.createTempURL(forResource: "invalid", withExtension: "opml")
     await #expect(throws: ParseError.self) {
       try await PodcastOPML.parse(try Data(contentsOf: url))
     }
@@ -46,7 +46,7 @@ struct PodcastOPMLTests {
 
   @Test("parsing empty OPML file")
   func parseEmptyOPMLFile() async throws {
-    let url = Bundle.main.url(forResource: "empty", withExtension: "opml")!
+    let url = TestBundle.createTempURL(forResource: "empty", withExtension: "opml")
     let opml = try await PodcastOPML.parse(try Data(contentsOf: url))
     #expect(opml.rssFeeds.isEmpty)
   }

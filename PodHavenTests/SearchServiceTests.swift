@@ -20,9 +20,7 @@ class SearchServiceTests {
   @Test("basic search query")
   func testBasicSearchQuery() async throws {
     let searchTerm = "hard fork"
-    let data = try Data(
-      contentsOf: Bundle.main.url(forResource: "hardfork_byterm", withExtension: "json")!
-    )
+    let data = TestBundle.loadDataAsset(named: "hardfork_byterm", withExtension: "json")
     await session.respond(
       to: URL(string: Self.baseURLString + "/search/byterm?q=\(searchTerm)")!,
       data: data
@@ -39,9 +37,7 @@ class SearchServiceTests {
   @Test("search by title")
   func testSearchByTitle() async throws {
     let searchTerm = "this is important"
-    let data = try Data(
-      contentsOf: Bundle.main.url(forResource: "thisisimportant_bytitle", withExtension: "json")!
-    )
+    let data = TestBundle.loadDataAsset(named: "thisisimportant_bytitle", withExtension: "json")
     await session.respond(
       to: URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
       data: data
@@ -59,9 +55,7 @@ class SearchServiceTests {
   @Test("search by title missing categories")
   func testSearchByTitleMissingData() async throws {
     let searchTerm = "Hello"
-    let data = try Data(
-      contentsOf: Bundle.main.url(forResource: "hello_bytitle", withExtension: "json")!
-    )
+    let data = TestBundle.loadDataAsset(named: "hello_bytitle", withExtension: "json")
     await session.respond(
       to: URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
       data: data
@@ -76,9 +70,7 @@ class SearchServiceTests {
   @Test("search by person")
   func testSearchByPerson() async throws {
     let searchTerm = "Neil DeGrasse Tyson"
-    let data = try Data(
-      contentsOf: Bundle.main.url(forResource: "ndg_byperson", withExtension: "json")!
-    )
+    let data = TestBundle.loadDataAsset(named: "ndg_byperson", withExtension: "json")
     await session.respond(
       to: URL(string: Self.baseURLString + "/search/byperson?q=\(searchTerm)")!,
       data: data
@@ -127,9 +119,7 @@ class SearchServiceTests {
 
   @Test("search trending")
   func testSearchTrending() async throws {
-    let data = try Data(
-      contentsOf: Bundle.main.url(forResource: "trending", withExtension: "json")!
-    )
+    let data = TestBundle.loadDataAsset(named: "trending", withExtension: "json")
     await session.respond(
       to: URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
       data: data
@@ -146,9 +136,7 @@ class SearchServiceTests {
 
   @Test("search trending in News category")
   func testSearchTrendingInNews() async throws {
-    let data = try Data(
-      contentsOf: Bundle.main.url(forResource: "trending_in_news", withExtension: "json")!
-    )
+    let data = TestBundle.loadDataAsset(named: "trending_in_news", withExtension: "json")
     await session.respond(
       to: URL(string: Self.baseURLString + "/podcasts/trending?cat=News")!,
       data: data

@@ -10,7 +10,7 @@ import XMLCoder
 struct PodcastRSSTests {
   @Test("parsing the Changelog feed")
   func parseChangelogFeed() async throws {
-    let url = Bundle.main.url(forResource: "changelog", withExtension: "rss")!
+    let url = TestBundle.createTempURL(forResource: "changelog", withExtension: "rss")
     let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     let episode = podcast.episodes.first!
     #expect(podcast.title == "The Changelog: Software Development, Open Source")
@@ -44,35 +44,35 @@ struct PodcastRSSTests {
 
   @Test("parsing the Marketplace feed")
   func parseMarketplaceFeed() async throws {
-    let url = Bundle.main.url(forResource: "marketplace", withExtension: "rss")!
+    let url = TestBundle.createTempURL(forResource: "marketplace", withExtension: "rss")
     let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(podcast.title == "Marketplace")
   }
 
   @Test("parsing the Unexplainable feed")
   func parseUnexplainableFeed() async throws {
-    let url = Bundle.main.url(forResource: "unexplainable", withExtension: "rss")!
+    let url = TestBundle.createTempURL(forResource: "unexplainable", withExtension: "rss")
     let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(podcast.title == "Unexplainable")
   }
 
   @Test("parsing TheTalkShow feed")
   func parseTheTalkShowFeed() async throws {
-    let url = Bundle.main.url(forResource: "thetalkshow", withExtension: "rss")!
+    let url = TestBundle.createTempURL(forResource: "thetalkshow", withExtension: "rss")
     let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(podcast.title == "The Talk Show With John Gruber")
   }
 
   @Test("parsing the Post Reports feed")
   func parsePostReports() async throws {
-    let url = Bundle.main.url(forResource: "post_reports", withExtension: "rss")!
+    let url = TestBundle.createTempURL(forResource: "post_reports", withExtension: "rss")
     let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(podcast.title == "Post Reports")
   }
 
   @Test("parsing the invalid Game Informer feed")
   func parseInvalidGameInformerFeed() async {
-    let url = Bundle.main.url(forResource: "game_informer_invalid", withExtension: "rss")!
+    let url = TestBundle.createTempURL(forResource: "game_informer_invalid", withExtension: "rss")
     await #expect(throws: (any Error).self) {
       try await PodcastRSS.parse(try Data(contentsOf: url))
     }
@@ -80,21 +80,21 @@ struct PodcastRSSTests {
 
   @Test("parsing the seattle official feed with duplicate guids")
   func parseSeattleOfficialFeedWithDuplicateGuids() async throws {
-    let url = Bundle.main.url(forResource: "seattle_official", withExtension: "rss")!
+    let url = TestBundle.createTempURL(forResource: "seattle_official", withExtension: "rss")
     let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(podcast.title == "Official Seattle Seahawks Podcasts")
   }
 
   @Test("parsing the morningbrew feed with duplicate mediaURLs")
   func parseMorningBrewFeedWithDuplicateMediaURLs() async throws {
-    let url = Bundle.main.url(forResource: "morningbrew", withExtension: "rss")!
+    let url = TestBundle.createTempURL(forResource: "morningbrew", withExtension: "rss")
     let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(podcast.title == "Morning Brew Daily")
   }
 
   @Test("parsing the seattlenow feed with a <p> in its description")
   func parseSeattleNowFeedWithPTagInDescription() async throws {
-    let url = Bundle.main.url(forResource: "seattlenow", withExtension: "rss")!
+    let url = TestBundle.createTempURL(forResource: "seattlenow", withExtension: "rss")
     let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
     #expect(
       podcast.description
@@ -104,7 +104,7 @@ struct PodcastRSSTests {
 
   @Test("parsing the makingsense feed with items missing media urls")
   func parseMakingSenseFeedWithMissingMediaUrls() async throws {
-    let url = Bundle.main.url(forResource: "makingsense", withExtension: "rss")!
+    let url = TestBundle.createTempURL(forResource: "makingsense", withExtension: "rss")
     let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
 
     // Includes the last two that have no media urls.  They will be culled by PodcastFeed.
@@ -114,7 +114,7 @@ struct PodcastRSSTests {
 
   @Test("parsing the considerthis feed with items missing guids")
   func parseConsiderThisFeedWithMissingGuids() async throws {
-    let url = Bundle.main.url(forResource: "considerthis", withExtension: "rss")!
+    let url = TestBundle.createTempURL(forResource: "considerthis", withExtension: "rss")
     let podcast = try await PodcastRSS.parse(try Data(contentsOf: url))
 
     // Includes the two that have no guids.  They will have guids assigned by PodcastFeed.

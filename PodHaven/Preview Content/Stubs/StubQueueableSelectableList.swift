@@ -1,3 +1,4 @@
+#if DEBUG
 // Copyright Justin Bishop, 2025
 
 import Foundation
@@ -9,3 +10,4 @@ import SwiftUI
   func replaceQueue() {}
   func replaceQueueAndPlay() {}
 }
+#endif

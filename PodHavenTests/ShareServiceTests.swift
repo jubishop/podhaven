@@ -23,18 +23,14 @@ import Testing
   func newApplePodcastURLImportsSuccessfully() async throws {
     #expect(try await repo.allPodcasts().isEmpty)
 
-    let itunesData = try Data(
-      contentsOf: Bundle.main.url(forResource: "lenny", withExtension: "json")!
-    )
+    let itunesData = TestBundle.loadDataAsset(named: "lenny", withExtension: "json")
     let itunesID: String = "1627920305"
     await shareSession.respond(
       to: ShareHelpers.itunesPodcastLookupURL(for: itunesID),
       data: itunesData
     )
 
-    let feedData = try Data(
-      contentsOf: Bundle.main.url(forResource: "lenny", withExtension: "rss")!
-    )
+    let feedData = TestBundle.loadDataAsset(named: "lenny", withExtension: "rss")
     let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
     await feedSession.respond(to: feedURL, data: feedData)
 
@@ -72,18 +68,14 @@ import Testing
     )
     #expect(try await repo.allPodcasts().count == 1)
 
-    let itunesData = try Data(
-      contentsOf: Bundle.main.url(forResource: "lenny", withExtension: "json")!
-    )
+    let itunesData = TestBundle.loadDataAsset(named: "lenny", withExtension: "json")
     let itunesID: String = "1627920305"
     await shareSession.respond(
       to: ShareHelpers.itunesPodcastLookupURL(for: itunesID),
       data: itunesData
     )
 
-    let feedData = try Data(
-      contentsOf: Bundle.main.url(forResource: "lenny", withExtension: "rss")!
-    )
+    let feedData = TestBundle.loadDataAsset(named: "lenny", withExtension: "rss")
     await feedSession.respond(to: feedURL, data: feedData)
 
     try await shareService.handleIncomingURL(
@@ -243,17 +235,13 @@ import Testing
 
     let podcastID = "1802645201"
     let episodeID = "1000716603402"
-    let itunesData = try Data(
-      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "json")!
-    )
+    let itunesData = TestBundle.loadDataAsset(named: "dell", withExtension: "json")
     await shareSession.respond(
       to: ShareHelpers.itunesEpisodeLookupURL(for: podcastID),
       data: itunesData
     )
 
-    let feedData = try Data(
-      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "rss")!
-    )
+    let feedData = TestBundle.loadDataAsset(named: "dell", withExtension: "rss")
     let feedURL = URL(string: "https://feeds.simplecast.com/7_9d7yco")!
     await feedSession.respond(to: feedURL, data: feedData)
 
@@ -295,9 +283,7 @@ import Testing
   )
   func existingAppleEpisodeURLNavigatesSuccessfully(subscribed: Bool) async throws {
     let feedURL = URL(string: "https://feeds.simplecast.com/7_9d7yco")!
-    let feedData = try Data(
-      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "rss")!
-    )
+    let feedData = TestBundle.loadDataAsset(named: "dell", withExtension: "rss")
 
     try await repo.insertSeries(
       Create.unsavedPodcast(
@@ -321,9 +307,7 @@ import Testing
 
     let podcastID = "1802645201"
     let episodeID = "1000716603402"
-    let itunesData = try Data(
-      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "json")!
-    )
+    let itunesData = TestBundle.loadDataAsset(named: "dell", withExtension: "json")
     await shareSession.respond(
       to: ShareHelpers.itunesEpisodeLookupURL(for: podcastID),
       data: itunesData
@@ -371,17 +355,13 @@ import Testing
 
     let podcastID = "1802645201"
     let episodeID = "69420"
-    let itunesData = try Data(
-      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "json")!
-    )
+    let itunesData = TestBundle.loadDataAsset(named: "dell", withExtension: "json")
     await shareSession.respond(
       to: ShareHelpers.itunesEpisodeLookupURL(for: podcastID),
       data: itunesData
     )
 
-    let feedData = try Data(
-      contentsOf: Bundle.main.url(forResource: "dell", withExtension: "rss")!
-    )
+    let feedData = TestBundle.loadDataAsset(named: "dell", withExtension: "rss")
     await feedSession.respond(to: feedURL, data: feedData)
 
     try await shareService.handleIncomingURL(
@@ -406,13 +386,11 @@ import Testing
     let feedURL = URL(
       string: "https://feeds.soundcloud.com/users/soundcloud:users:122508048/sounds.rss"
     )!
-    let feedData = try Data(
-      contentsOf: Bundle.main.url(forResource: "techdirt", withExtension: "rss")!
-    )
+    let feedData = TestBundle.loadDataAsset(named: "techdirt", withExtension: "rss")
     await feedSession.respond(to: feedURL, data: feedData)
 
     // OPML with just TechDirt in it
-    let opmlURL = Bundle.main.url(forResource: "techdirt", withExtension: "opml")!
+    let opmlURL = TestBundle.createTempURL(forResource: "techdirt", withExtension: "opml")
 
     let shareURL = ShareHelpers.shareURL(with: opmlURL)
 
@@ -433,9 +411,7 @@ import Testing
     let feedURL = URL(
       string: "https://changelog.com/podcast/feed"
     )!
-    let feedData = try Data(
-      contentsOf: Bundle.main.url(forResource: "changelog", withExtension: "rss")!
-    )
+    let feedData = TestBundle.loadDataAsset(named: "changelog", withExtension: "rss")
     await feedSession.respond(to: feedURL, data: feedData)
 
     try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: feedURL))

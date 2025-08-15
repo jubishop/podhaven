@@ -1,3 +1,4 @@
+#if DEBUG
 // Copyright Justin Bishop, 2025
 
 import Foundation
@@ -33,3 +34,4 @@ import SwiftUI
     anySelected = true
   }
 }
+#endif

@@ -17,9 +17,7 @@ actor FeedManagerTests {
 
   @Test("parsing the Pod Save America feed")
   func parsePodSaveAmericaFeed() async throws {
-    let data = try Data(
-      contentsOf: Bundle.main.url(forResource: "pod_save_america", withExtension: "rss")!
-    )
+    let data = TestBundle.loadDataAsset(named: "pod_save_america", withExtension: "rss")
     let url = URL.valid()
     await session.respond(to: url, data: data)
     let feedTask = await feedManager.addURL(FeedURL(url))
@@ -32,9 +30,7 @@ actor FeedManagerTests {
 
   @Test("returns true when already has URL")
   func reportsAlreadyHavingURL() async throws {
-    let data = try Data(
-      contentsOf: Bundle.main.url(forResource: "pod_save_america", withExtension: "rss")!
-    )
+    let data = TestBundle.loadDataAsset(named: "pod_save_america", withExtension: "rss")
     let url = URL.valid()
     let feedURL = FeedURL(url)
     let asyncSemaphore = await session.waitThenRespond(to: url, data: data)

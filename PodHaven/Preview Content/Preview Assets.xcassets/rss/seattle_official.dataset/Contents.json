@@ -1,0 +1,12 @@
+{
+  "data" : [
+    {
+      "filename" : "seattle_official.rss",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

@@ -1,3 +1,4 @@
+#if DEBUG
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
@@ -33,3 +34,4 @@ extension View {
     self.modifier(PreviewModifier())
   }
 }
+#endif
