@@ -14,7 +14,7 @@ extension Container {
 }
 
 actor RefreshManager {
-  @LazyInjected(\.feedManager) private var feedManager
+  @LazyInjected(\.feedManager) var feedManager
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sleeper) private var sleeper
@@ -83,6 +83,11 @@ actor RefreshManager {
 
   func refreshSeries(podcastSeries: PodcastSeries) async throws(RefreshError) {
     Self.log.trace("refreshSeries: \(podcastSeries.toString)")
+
+    if await feedManager.hasURL(podcastSeries.podcast.feedURL) {
+      Self.log.debug("refreshSeries: URL for \(podcastSeries.toString) already being fetched")
+      return
+    }
 
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
     let podcastFeed: PodcastFeed

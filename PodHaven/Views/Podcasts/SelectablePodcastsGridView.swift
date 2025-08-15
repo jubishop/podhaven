@@ -124,7 +124,9 @@ struct SelectablePodcastsGridView: View {
 #if DEBUG
 #Preview {
   NavigationStack {
-    SelectablePodcastsGridView(viewModel: SelectablePodcastsGridViewModel(title: "Preview Podcasts"))
+    SelectablePodcastsGridView(
+      viewModel: SelectablePodcastsGridViewModel(title: "Preview Podcasts")
+    )
   }
   .preview()
   .task {

@@ -9,7 +9,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of RefreshManager tests", .container)
-class RefreshManagerTests {
+actor RefreshManagerTests {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
   @DynamicInjected(\.refreshManager) private var refreshManager
@@ -168,5 +168,34 @@ class RefreshManagerTests {
         )
     )
     #expect(updatedEpisode.title == "511: Fiasco! (2013)")
+  }
+
+  @Test("refreshManager ignores request for already being fetched URL")
+  func refreshManagerIgnoresRequestForAlreadyBeingFetchedURL() async throws {
+    let url = Bundle.main.url(forResource: "hardfork_short", withExtension: "rss")!
+    let podcastFeed = try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(lastUpdate: 30.minutesAgo)
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+    )
+
+    let data = try Data(
+      contentsOf: Bundle.main.url(forResource: "hardfork_short_updated", withExtension: "rss")!
+    )
+    let asyncSemaphore = await session.waitThenRespond(
+      to: podcastSeries.podcast.feedURL.rawValue,
+      data: data
+    )
+
+    Task { try await refreshManager.refreshSeries(podcastSeries: podcastSeries) }
+    try await Wait.until(
+      { await self.refreshManager.feedManager.hasURL(podcastSeries.podcast.feedURL) },
+      { "Expected feedManager to get URL: \(podcastSeries.podcast.feedURL)" }
+    )
+
+    // The test is that this second call doesn't hang because it early exits.
+    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    asyncSemaphore.signal()
   }
 }

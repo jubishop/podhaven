@@ -66,6 +66,8 @@ actor FeedManager {
 
   // MARK: - Downloading Feeds
 
+  func hasURL(_ url: FeedURL) -> Bool { feedTasks[url] != nil }
+
   func addURL(_ url: FeedURL) async -> FeedTask {
     if let feedTask = feedTasks[url] { return feedTask }
 

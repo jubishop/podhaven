@@ -106,6 +106,10 @@ actor DownloadManager {
     self.maxConcurrentDownloads = maxConcurrentDownloads
   }
 
+  func hasURL(_ url: URL) -> Bool {
+    activeDownloads[url] != nil || pendingDownloads[id: url] != nil
+  }
+
   func addURL(_ url: URL, prioritize: Bool = false) -> DownloadTask {
     defer {
       Self.log.trace(

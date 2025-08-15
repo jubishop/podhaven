@@ -275,6 +275,20 @@ struct DownloadManagerTests {
     #expect(url1Task.id == url1TaskRefetched.id)
   }
 
+  @Test("that hasURL returns accurately")
+  func hasURLReturnsAccurately() async throws {
+    let downloadManager = DownloadManager(session: session)
+
+    let url = URL.valid()
+    let asyncSemaphore = await session.waitThenRespond(to: url)
+    let downloadTask = await downloadManager.addURL(url)
+    #expect(await downloadManager.hasURL(url))
+
+    asyncSemaphore.signal()
+    _ = try await downloadTask.downloadFinished()
+    #expect(!(await downloadManager.hasURL(url)))
+  }
+
   @Test("that as long as a task exists the Manager won't deallocate")
   func managerDoesNotDeallocate() async throws {
     let url2 = URL.valid()

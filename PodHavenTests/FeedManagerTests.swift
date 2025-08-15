@@ -29,4 +29,19 @@ class FeedManagerTests {
     #expect(unsavedPodcast.link == URL(string: "https://crooked.com"))
     #expect(unsavedPodcast.image.absoluteString.contains("simplecastcdn"))
   }
+
+  @Test("returns true when already has URL")
+  func reportsAlreadyHavingURL() async throws {
+    let data = try Data(
+      contentsOf: Bundle.main.url(forResource: "pod_save_america", withExtension: "rss")!
+    )
+    let url = URL.valid()
+    let feedURL = FeedURL(url)
+    let asyncSemaphore = await session.waitThenRespond(to: url, data: data)
+    let feedTask = await feedManager.addURL(feedURL)
+    #expect(await feedManager.hasURL(feedURL))
+    asyncSemaphore.signal()
+    _ = try await feedTask.feedParsed()
+    #expect(!(await feedManager.hasURL(feedURL)))
+  }
 }

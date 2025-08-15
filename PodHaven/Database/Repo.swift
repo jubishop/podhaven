@@ -177,8 +177,8 @@ struct Repo: Databasing, Sendable {
       let description =
         podcast?.toString
         ?? (!existingEpisodes.isEmpty
-          ? "Episodes: \(existingEpisodes.map(\.toString).joined(separator: ", "))"
-          : "UnsavedEpisodes: \(unsavedEpisodes.map(\.toString).joined(separator: ", "))")
+          ? "Episodes:\n    \(existingEpisodes.map(\.toString).joined(separator: "\n    "))"
+          : "UnsavedEpisodes:\n    \(unsavedEpisodes.map(\.toString).joined(separator: "\n    "))")
       throw RepoError.updateFailure(
         type: PodcastSeries.self,
         id: podcastID.rawValue,
