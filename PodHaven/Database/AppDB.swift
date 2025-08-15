@@ -29,6 +29,10 @@ struct AppDB {
   fileprivate static let _onDisk = {
     Self.log.debug("creating onDisk AppDB")
     do {
+      Assert.precondition(
+        AppInfo.environment != .preview,
+        "Creating onDisk AppDB in preview is not supported"
+      )
       let dbPool = try DatabasePool(
         path: AppInfo.documentsDirectory.appendingPathComponent("db.sqlite").path,
         configuration: makeConfiguration()

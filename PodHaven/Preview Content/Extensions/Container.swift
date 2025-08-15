@@ -3,8 +3,8 @@
 import FactoryKit
 import Foundation
 
-extension Container: @retroactive AutoRegistering {
-  public func autoRegister() {
+extension Container {
+  public func previewAutoRegister() {
     appDB.context(.preview) { AppDB.inMemory() }.scope(.cached)
   }
 }
