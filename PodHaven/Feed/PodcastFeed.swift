@@ -1,8 +1,15 @@
 // Copyright Justin Bishop, 2025
 
 import AVFoundation
+import FactoryKit
 import Foundation
 import IdentifiedCollections
+
+extension Container {
+  var podcastFeedSession: Factory<DataFetchable> {
+    Factory(self) { URLSession.shared }.scope(.cached)
+  }
+}
 
 struct EpisodeFeed: Sendable, Equatable {
   let guid: GUID
@@ -85,7 +92,7 @@ struct PodcastFeed: Sendable, Stringable {
 
   static func parse(_ url: FeedURL) async throws(FeedError) -> PodcastFeed {
     try await FeedError.catch {
-      let data = try await URLSession.shared.validatedData(from: url.rawValue)
+      let data = try await Container.shared.podcastFeedSession().validatedData(from: url.rawValue)
       return try await parse(data, from: url)
     }
   }

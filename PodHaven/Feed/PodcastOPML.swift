@@ -6,12 +6,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 import XMLCoder
 
+extension Container {
+  var podcastOPMLSession: Factory<DataFetchable> {
+    Factory(self) { URLSession.shared }.scope(.cached)
+  }
+}
+
 struct PodcastOPML: Codable, Sendable {
   // MARK: - Import Methods
 
   static func parse(_ url: URL) async throws(ParseError) -> PodcastOPML {
     try await ParseError.catch {
-      try await parse(try await URLSession.shared.validatedData(from: url))
+      try await parse(try await Container.shared.podcastOPMLSession().validatedData(from: url))
     }
   }
 

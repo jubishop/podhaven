@@ -1,3 +1,4 @@
+#if DEBUG
 // Copyright Justin Bishop, 2025
 
 import Foundation
@@ -12,3 +13,4 @@ extension String {
     return randomString
   }
 }
+#endif

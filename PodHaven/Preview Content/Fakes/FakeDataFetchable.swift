@@ -1,10 +1,8 @@
+#if DEBUG
 // Copyright Justin Bishop, 2025
 
 import Foundation
 import Semaphore
-import Testing
-
-@testable import PodHaven
 
 actor FakeDataFetchable: DataFetchable {
   typealias DataHandler = @Sendable (URL) async throws -> (Data, URLResponse)
@@ -14,6 +12,8 @@ actor FakeDataFetchable: DataFetchable {
   private(set) var requests: [URL] = []
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
+
+  private var defaultHandler: DataHandler = { url in (url.dataRepresentation, URL.response(url)) }
 
   init(session: URLSession = URLSession.shared) {
     self.session = session
@@ -33,7 +33,7 @@ actor FakeDataFetchable: DataFetchable {
     }
 
     // Default fallback behavior if no handler is set
-    return (url.dataRepresentation, URL.response(url))
+    return try await defaultHandler(url)
   }
 
   func data(from url: URL) async throws -> (Data, URLResponse) {
@@ -55,6 +55,10 @@ actor FakeDataFetchable: DataFetchable {
   }
 
   // MARK: - Convenience Methods
+
+  func setDefaultHandler(_ handler: @escaping DataHandler) {
+    defaultHandler = handler
+  }
 
   func respond(to url: URL, data: Data) {
     respond(to: url) { url in
@@ -81,3 +85,4 @@ actor FakeDataFetchable: DataFetchable {
     fakeHandlers[url] = handler
   }
 }
+#endif

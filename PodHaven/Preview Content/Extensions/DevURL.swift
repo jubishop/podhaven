@@ -1,3 +1,4 @@
+#if DEBUG
 // Copyright Justin Bishop, 2025
 
 import Foundation
@@ -16,3 +17,4 @@ extension URL {
     )!
   }
 }
+#endif
