@@ -16,7 +16,6 @@ struct PreviewModifier: ViewModifier {
 
     AppInfo.environment = .preview
     LoggingSystem.bootstrap(PrintLogHandler.init)
-    Container.shared.previewAutoRegister()
   }
 
   func body(content: Content) -> some View {

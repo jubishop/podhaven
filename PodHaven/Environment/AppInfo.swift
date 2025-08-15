@@ -52,7 +52,6 @@ actor AppInfo {
     #if targetEnvironment(simulator)
     return .simulator
     #else
-
     do {
       let result = try await AppTransaction.shared
       switch result {
