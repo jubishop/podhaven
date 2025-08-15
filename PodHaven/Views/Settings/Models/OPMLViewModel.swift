@@ -88,39 +88,30 @@ extension Container {
   init() {}
 
   func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
+    let url: URL
+    do {
+      url = try result.get()
+    } catch {
+      Self.log.error(error)
+      alert(ErrorKit.message(for: error))
+      return
+    }
+
     Task { [weak self] in
       guard let self else { return }
-      await importOPMLFromURL(result)
+      await importOPMLFromURL(url: url)
     }
   }
 
-  func importFromSharedURL(_ url: URL) async {
-    Self.log.debug("Starting OPML import from shared URL: \(url)")
-    await importOPMLFromURL(.success(url))
-  }
-
-  func importOPMLFromURL(_ result: Result<URL, any Error>) async {
+  func importOPMLFromURL(url: URL) async {
     do {
-      switch result {
-      case .success(let url):
-        Self.log.debug("Starting OPML import from URL: \(url)")
+      Self.log.debug("Starting OPML import from URL: \(url)")
 
-        _ = url.startAccessingSecurityScopedResource()
-        let opml = try await PodcastOPML.parse(url)
-        url.stopAccessingSecurityScopedResource()
+      _ = url.startAccessingSecurityScopedResource()
+      let opml = try await PodcastOPML.parse(url)
+      url.stopAccessingSecurityScopedResource()
 
-        if let sharedContainerPath = FileManager.default.containerURL(
-          forSecurityApplicationGroupIdentifier: "group.podhaven.shared"
-        )?
-        .path, url.path.hasPrefix(sharedContainerPath) {
-          try? FileManager.default.removeItem(at: url)
-          Self.log.debug("Cleaned up shared container file: \(url)")
-        }
-
-        try await downloadOPMLFile(opml)
-      case .failure(let error):
-        throw error
-      }
+      try await downloadOPMLFile(opml)
     } catch {
       Self.log.error(error)
       alert(ErrorKit.message(for: error))
@@ -236,20 +227,4 @@ extension Container {
     }
     .value
   }
-
-  // MARK: - Simulator Methods
-
-  #if DEBUG
-  public func importOPMLFileInSimulator(_ resource: String) {
-    let url = Bundle.main.url(
-      forResource: resource,
-      withExtension: "opml"
-    )!
-    Task { [weak self] in
-      guard let self else { return }
-      let opml = try await PodcastOPML.parse(url)
-      try await downloadOPMLFile(opml)
-    }
-  }
-  #endif
 }

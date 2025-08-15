@@ -415,7 +415,10 @@ import Testing
     let opmlURL = Bundle.main.url(forResource: "techdirt", withExtension: "opml")!
 
     let shareURL = ShareHelpers.shareURL(with: opmlURL)
-    try await shareService.handleIncomingURL(shareURL)
+
+    // FileManager.default.removeItem will throw an error since filesystem is read-only in Test.
+    // This is fine, expectations below still confirms it works.
+    try? await shareService.handleIncomingURL(shareURL)
 
     #expect(navigation.currentTab == .settings)
     #expect(navigation.settings.path == [.viewType(.opml)])

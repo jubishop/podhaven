@@ -58,31 +58,31 @@ struct OPMLImportSheet: View {
 }
 
 #if DEBUG
+func importOPMLFile(_ viewModel: OPMLViewModel, _ resource: String) {
+  Task {
+    let url = Bundle.main.url(
+      forResource: resource,
+      withExtension: "opml"
+    )!
+    await viewModel.importOPMLFromURL(url: url)
+  }
+}
+
 #Preview {
   @Previewable @State var viewModel = OPMLViewModel()
 
   Form {
     Button("Import Large") {
-      viewModel.importOPMLFileInSimulator("large")
+      importOPMLFile(viewModel, "large")
     }
     Button("Import Small") {
-      viewModel.importOPMLFileInSimulator("small")
+      importOPMLFile(viewModel, "small")
     }
     Button("Import Invalid") {
-      viewModel.importOPMLFileInSimulator("invalid")
+      importOPMLFile(viewModel, "invalid")
     }
     Button("Import Empty") {
-      viewModel.importOPMLFileInSimulator("empty")
-    }
-
-    Section("Debugging") {
-      Button("Clear DB") {
-        Task {  // No [self] in scope here.
-          try AppDB.onDisk.db.write { db in
-            try Podcast.deleteAll(db)
-          }
-        }
-      }
+      importOPMLFile(viewModel, "empty")
     }
   }
   .preview()
