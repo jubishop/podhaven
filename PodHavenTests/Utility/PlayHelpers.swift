@@ -147,6 +147,20 @@ enum PlayHelpers {
     )
   }
 
+  static func waitForIgnoringSeek() async throws {
+    try await Wait.until(
+      { await playManager.ignoreSeekCommands },
+      { "Expected playManager to ignore seek commands" }
+    )
+  }
+
+  static func waitForNotIgnoringSeek() async throws {
+    try await Wait.until(
+      { await playManager.ignoreSeekCommands == false },
+      { "Expected playManager to stop ignoring seek commands" }
+    )
+  }
+
   // MARK: - Timing Helpers
 
   static func executeMidLoad(

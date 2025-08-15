@@ -72,7 +72,7 @@ final class PlayManager {
   }
   private var loadTask: Task<Bool, any Error>?
   private var restartSeekCommandsTask: Task<Void, any Error>?
-  private var ignoreSeekCommands = false
+  var ignoreSeekCommands = false
 
   // MARK: - Initialization
 

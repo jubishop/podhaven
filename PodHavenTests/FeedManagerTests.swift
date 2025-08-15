@@ -9,7 +9,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of FeedManager tests", .container)
-class FeedManagerTests {
+actor FeedManagerTests {
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
   @LazyInjected(\.feedManager) private var feedManager
 
@@ -42,6 +42,9 @@ class FeedManagerTests {
     #expect(await feedManager.hasURL(feedURL))
     asyncSemaphore.signal()
     _ = try await feedTask.feedParsed()
-    #expect(!(await feedManager.hasURL(feedURL)))
+    try await Wait.until(
+      { await self.feedManager.hasURL(feedURL) == false },
+      { "Feed URL still exists" }
+    )
   }
 }

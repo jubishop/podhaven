@@ -333,21 +333,24 @@ import Testing
 
   @Test("seek commands are ignored during episode finish")
   func seekCommandsAreIgnoredDuringEpisodeFinish() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await playManager.load(podcastEpisode)
+    try await queue.unshift(queuedEpisode.id)
+    try await playManager.load(playingEpisode)
     await playManager.play()
     try await PlayHelpers.waitFor(.playing)
 
     // Finish episode which should start ignoring seek commands
     avPlayer.finishEpisode()
-    try await PlayHelpers.waitFor(.stopped)
-    await sleeper.advanceTime(by: .milliseconds(50))
+    try await PlayHelpers.waitForIgnoringSeek()
+    commandCenter.seek(to: .seconds(5))
+    try await PlayHelpers.waitForOnDeck(queuedEpisode)
     commandCenter.seek(to: .seconds(5))
     try await PlayHelpers.waitFor(.zero)
 
     // Advance time to end the halt period
-    await sleeper.advanceTime(by: .seconds(1))
+    await sleeper.advanceTime(by: .seconds(2))
+    try await PlayHelpers.waitForNotIgnoringSeek()
     commandCenter.seek(to: .seconds(10))
     try await PlayHelpers.waitFor(.seconds(10))
   }
