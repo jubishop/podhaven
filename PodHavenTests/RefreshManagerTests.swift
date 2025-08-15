@@ -19,7 +19,7 @@ actor RefreshManagerTests {
 
   @Test("that refreshSeries works")
   func testRefreshSeriesWorks() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(lastUpdate: 30.minutesAgo)
@@ -39,7 +39,7 @@ actor RefreshManagerTests {
 
     let updatedData = PreviewBundle.loadAsset(
       named: "hardfork_short_updated",
-      withExtension: "rss"
+      in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
@@ -63,7 +63,7 @@ actor RefreshManagerTests {
 
   @Test("that refreshSeries still updates lastUpdate even when everything else is the same")
   func testRefreshSeriesWorksAlwaysUpdatesLastUpdate() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(lastUpdate: 30.minutesAgo)
@@ -72,7 +72,7 @@ actor RefreshManagerTests {
       unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
     )
 
-    let updatedData = PreviewBundle.loadAsset(named: "hardfork_short", withExtension: "rss")
+    let updatedData = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
 
@@ -82,7 +82,7 @@ actor RefreshManagerTests {
 
   @Test("that selective updates only update changed content")
   func testSelectiveUpdates() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
@@ -95,7 +95,7 @@ actor RefreshManagerTests {
 
     let updatedData = PreviewBundle.loadAsset(
       named: "hardfork_short_updated",
-      withExtension: "rss"
+      in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
@@ -117,7 +117,7 @@ actor RefreshManagerTests {
 
   @Test("that no repo calls occur when content is unchanged")
   func testNoRepoCallsWhenContentUnchanged() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
@@ -137,7 +137,7 @@ actor RefreshManagerTests {
   // This is invalid behavior by a feed but sadly dumb dumbs still do it.
   @Test("that a feed can update when the guid changes with the same media")
   func testFeedUpdatesWhenGuidChangesButMediaRemainsSame() async throws {
-    let data = PreviewBundle.loadAsset(named: "thisamericanlife", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "thisamericanlife", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
@@ -151,7 +151,7 @@ actor RefreshManagerTests {
 
     let updatedData = PreviewBundle.loadAsset(
       named: "thisamericanlife_updated",
-      withExtension: "rss"
+      in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
@@ -177,7 +177,7 @@ actor RefreshManagerTests {
 
   @Test("refreshManager ignores request for already being fetched URL")
   func refreshManagerIgnoresRequestForAlreadyBeingFetchedURL() async throws {
-    let data = PreviewBundle.loadAsset(named: "hardfork_short", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast(lastUpdate: 30.minutesAgo)
@@ -188,7 +188,7 @@ actor RefreshManagerTests {
 
     let updatedData = PreviewBundle.loadAsset(
       named: "hardfork_short_updated",
-      withExtension: "rss"
+      in: .FeedRSS
     )
     let asyncSemaphore = await session.waitThenRespond(
       to: podcastSeries.podcast.feedURL.rawValue,

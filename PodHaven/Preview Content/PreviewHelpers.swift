@@ -22,7 +22,7 @@ enum PreviewHelpers {
     let allPodcasts = IdentifiedArray(uniqueElements: try await repo.allPodcasts(), id: \.feedURL)
     if allPodcasts.count >= number { return }
 
-    let data = PreviewBundle.loadAsset(named: fileName, withExtension: "opml")
+    let data = PreviewBundle.loadAsset(named: fileName, in: .OPML)
     let opml = try await PodcastOPML.parse(data)
 
     var remainingPodcasts = number - allPodcasts.count
@@ -59,7 +59,7 @@ enum PreviewHelpers {
   static func loadSeries(fileName: String = seriesFiles.keys.randomElement()!) async throws
     -> PodcastSeries
   {
-    let data = PreviewBundle.loadAsset(named: fileName, withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: fileName, in: .FeedRSS)
     // Create a fake URL for the data asset
     let fakeURL = FeedURL(URL(string: "https://example.com/\(fileName).rss")!)
     let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
@@ -117,7 +117,7 @@ enum PreviewHelpers {
     async throws
     -> (UnsavedPodcast, [UnsavedEpisode])
   {
-    let data = PreviewBundle.loadAsset(named: fileName, withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: fileName, in: .FeedRSS)
     // Create a fake URL for the data asset
     let fakeURL = FeedURL(URL(string: "https://example.com/\(fileName).rss")!)
     let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
@@ -181,25 +181,25 @@ enum PreviewHelpers {
 
   static func loadTrendingResult() async throws -> TrendingResult {
     try await SearchService.parse(
-      PreviewBundle.loadAsset(named: "trending_in_news", withExtension: "json")
+      PreviewBundle.loadAsset(named: "trending_in_news", in: .SearchResults)
     )
   }
 
   static func loadTitleResult() async throws -> TitleResult {
     try await SearchService.parse(
-      PreviewBundle.loadAsset(named: "hello_bytitle", withExtension: "json")
+      PreviewBundle.loadAsset(named: "hello_bytitle", in: .SearchResults)
     )
   }
 
   static func loadTermResult() async throws -> TermResult {
     try await SearchService.parse(
-      PreviewBundle.loadAsset(named: "hardfork_byterm", withExtension: "json")
+      PreviewBundle.loadAsset(named: "hardfork_byterm", in: .SearchResults)
     )
   }
 
   static func loadPersonResult() async throws -> PersonResult {
     try await SearchService.parse(
-      PreviewBundle.loadAsset(named: "ndg_byperson", withExtension: "json")
+      PreviewBundle.loadAsset(named: "ndg_byperson", in: .SearchResults)
     )
   }
 }

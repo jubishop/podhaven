@@ -23,14 +23,14 @@ import Testing
   func newApplePodcastURLImportsSuccessfully() async throws {
     #expect(try await repo.allPodcasts().isEmpty)
 
-    let itunesData = PreviewBundle.loadAsset(named: "lenny", withExtension: "json")
+    let itunesData = PreviewBundle.loadAsset(named: "lenny", in: .iTunesResults)
     let itunesID: String = "1627920305"
     await shareSession.respond(
       to: ShareHelpers.itunesPodcastLookupURL(for: itunesID),
       data: itunesData
     )
 
-    let feedData = PreviewBundle.loadAsset(named: "lenny", withExtension: "rss")
+    let feedData = PreviewBundle.loadAsset(named: "lenny", in: .FeedRSS)
     let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
     await feedSession.respond(to: feedURL, data: feedData)
 
@@ -68,14 +68,14 @@ import Testing
     )
     #expect(try await repo.allPodcasts().count == 1)
 
-    let itunesData = PreviewBundle.loadAsset(named: "lenny", withExtension: "json")
+    let itunesData = PreviewBundle.loadAsset(named: "lenny", in: .iTunesResults)
     let itunesID: String = "1627920305"
     await shareSession.respond(
       to: ShareHelpers.itunesPodcastLookupURL(for: itunesID),
       data: itunesData
     )
 
-    let feedData = PreviewBundle.loadAsset(named: "lenny", withExtension: "rss")
+    let feedData = PreviewBundle.loadAsset(named: "lenny", in: .FeedRSS)
     await feedSession.respond(to: feedURL, data: feedData)
 
     try await shareService.handleIncomingURL(
@@ -235,13 +235,13 @@ import Testing
 
     let podcastID = "1802645201"
     let episodeID = "1000716603402"
-    let itunesData = PreviewBundle.loadAsset(named: "dell", withExtension: "json")
+    let itunesData = PreviewBundle.loadAsset(named: "dell", in: .iTunesResults)
     await shareSession.respond(
       to: ShareHelpers.itunesEpisodeLookupURL(for: podcastID),
       data: itunesData
     )
 
-    let feedData = PreviewBundle.loadAsset(named: "dell", withExtension: "rss")
+    let feedData = PreviewBundle.loadAsset(named: "dell", in: .FeedRSS)
     let feedURL = URL(string: "https://feeds.simplecast.com/7_9d7yco")!
     await feedSession.respond(to: feedURL, data: feedData)
 
@@ -283,7 +283,7 @@ import Testing
   )
   func existingAppleEpisodeURLNavigatesSuccessfully(subscribed: Bool) async throws {
     let feedURL = URL(string: "https://feeds.simplecast.com/7_9d7yco")!
-    let feedData = PreviewBundle.loadAsset(named: "dell", withExtension: "rss")
+    let feedData = PreviewBundle.loadAsset(named: "dell", in: .FeedRSS)
 
     try await repo.insertSeries(
       Create.unsavedPodcast(
@@ -307,7 +307,7 @@ import Testing
 
     let podcastID = "1802645201"
     let episodeID = "1000716603402"
-    let itunesData = PreviewBundle.loadAsset(named: "dell", withExtension: "json")
+    let itunesData = PreviewBundle.loadAsset(named: "dell", in: .iTunesResults)
     await shareSession.respond(
       to: ShareHelpers.itunesEpisodeLookupURL(for: podcastID),
       data: itunesData
@@ -355,13 +355,13 @@ import Testing
 
     let podcastID = "1802645201"
     let episodeID = "69420"
-    let itunesData = PreviewBundle.loadAsset(named: "dell", withExtension: "json")
+    let itunesData = PreviewBundle.loadAsset(named: "dell", in: .iTunesResults)
     await shareSession.respond(
       to: ShareHelpers.itunesEpisodeLookupURL(for: podcastID),
       data: itunesData
     )
 
-    let feedData = PreviewBundle.loadAsset(named: "dell", withExtension: "rss")
+    let feedData = PreviewBundle.loadAsset(named: "dell", in: .FeedRSS)
     await feedSession.respond(to: feedURL, data: feedData)
 
     try await shareService.handleIncomingURL(
@@ -386,11 +386,11 @@ import Testing
     let feedURL = URL(
       string: "https://feeds.soundcloud.com/users/soundcloud:users:122508048/sounds.rss"
     )!
-    let feedData = PreviewBundle.loadAsset(named: "techdirt", withExtension: "rss")
+    let feedData = PreviewBundle.loadAsset(named: "techdirt", in: .FeedRSS)
     await feedSession.respond(to: feedURL, data: feedData)
 
     // OPML with just TechDirt in it
-    let opmlURL = PreviewBundle.createURL(forResource: "techdirt", withExtension: "opml")
+    let opmlURL = PreviewBundle.createURL(forAsset: "techdirt", from: .OPML)
     let shareURL = ShareHelpers.shareURL(with: opmlURL)
 
     // FileManager.default.removeItem will throw an error since filesystem is read-only in Test.
@@ -410,7 +410,7 @@ import Testing
     let feedURL = URL(
       string: "https://changelog.com/podcast/feed"
     )!
-    let feedData = PreviewBundle.loadAsset(named: "changelog", withExtension: "rss")
+    let feedData = PreviewBundle.loadAsset(named: "changelog", in: .FeedRSS)
     await feedSession.respond(to: feedURL, data: feedData)
 
     try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: feedURL))

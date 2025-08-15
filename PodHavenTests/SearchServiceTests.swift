@@ -20,7 +20,7 @@ class SearchServiceTests {
   @Test("basic search query")
   func testBasicSearchQuery() async throws {
     let searchTerm = "hard fork"
-    let data = PreviewBundle.loadAsset(named: "hardfork_byterm", withExtension: "json")
+    let data = PreviewBundle.loadAsset(named: "hardfork_byterm", in: .SearchResults)
     await session.respond(
       to: URL(string: Self.baseURLString + "/search/byterm?q=\(searchTerm)")!,
       data: data
@@ -37,7 +37,7 @@ class SearchServiceTests {
   @Test("search by title")
   func testSearchByTitle() async throws {
     let searchTerm = "this is important"
-    let data = PreviewBundle.loadAsset(named: "thisisimportant_bytitle", withExtension: "json")
+    let data = PreviewBundle.loadAsset(named: "thisisimportant_bytitle", in: .SearchResults)
     await session.respond(
       to: URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
       data: data
@@ -55,7 +55,7 @@ class SearchServiceTests {
   @Test("search by title missing categories")
   func testSearchByTitleMissingData() async throws {
     let searchTerm = "Hello"
-    let data = PreviewBundle.loadAsset(named: "hello_bytitle", withExtension: "json")
+    let data = PreviewBundle.loadAsset(named: "hello_bytitle", in: .SearchResults)
     await session.respond(
       to: URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
       data: data
@@ -70,7 +70,7 @@ class SearchServiceTests {
   @Test("search by person")
   func testSearchByPerson() async throws {
     let searchTerm = "Neil DeGrasse Tyson"
-    let data = PreviewBundle.loadAsset(named: "ndg_byperson", withExtension: "json")
+    let data = PreviewBundle.loadAsset(named: "ndg_byperson", in: .SearchResults)
     await session.respond(
       to: URL(string: Self.baseURLString + "/search/byperson?q=\(searchTerm)")!,
       data: data
@@ -119,7 +119,7 @@ class SearchServiceTests {
 
   @Test("search trending")
   func testSearchTrending() async throws {
-    let data = PreviewBundle.loadAsset(named: "trending", withExtension: "json")
+    let data = PreviewBundle.loadAsset(named: "trending", in: .SearchResults)
     await session.respond(
       to: URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
       data: data
@@ -136,7 +136,7 @@ class SearchServiceTests {
 
   @Test("search trending in News category")
   func testSearchTrendingInNews() async throws {
-    let data = PreviewBundle.loadAsset(named: "trending_in_news", withExtension: "json")
+    let data = PreviewBundle.loadAsset(named: "trending_in_news", in: .SearchResults)
     await session.respond(
       to: URL(string: Self.baseURLString + "/podcasts/trending?cat=News")!,
       data: data

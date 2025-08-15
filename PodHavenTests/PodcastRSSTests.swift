@@ -10,7 +10,7 @@ import XMLCoder
 struct PodcastRSSTests {
   @Test("parsing the Changelog feed")
   func parseChangelogFeed() async throws {
-    let data = PreviewBundle.loadAsset(named: "changelog", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "changelog", in: .FeedRSS)
     let podcast = try await PodcastRSS.parse(data)
     let episode = podcast.episodes.first!
     #expect(podcast.title == "The Changelog: Software Development, Open Source")
@@ -44,35 +44,35 @@ struct PodcastRSSTests {
 
   @Test("parsing the Marketplace feed")
   func parseMarketplaceFeed() async throws {
-    let data = PreviewBundle.loadAsset(named: "marketplace", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "marketplace", in: .FeedRSS)
     let podcast = try await PodcastRSS.parse(data)
     #expect(podcast.title == "Marketplace")
   }
 
   @Test("parsing the Unexplainable feed")
   func parseUnexplainableFeed() async throws {
-    let data = PreviewBundle.loadAsset(named: "unexplainable", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "unexplainable", in: .FeedRSS)
     let podcast = try await PodcastRSS.parse(data)
     #expect(podcast.title == "Unexplainable")
   }
 
   @Test("parsing TheTalkShow feed")
   func parseTheTalkShowFeed() async throws {
-    let data = PreviewBundle.loadAsset(named: "thetalkshow", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "thetalkshow", in: .FeedRSS)
     let podcast = try await PodcastRSS.parse(data)
     #expect(podcast.title == "The Talk Show With John Gruber")
   }
 
   @Test("parsing the Post Reports feed")
   func parsePostReports() async throws {
-    let data = PreviewBundle.loadAsset(named: "post_reports", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "post_reports", in: .FeedRSS)
     let podcast = try await PodcastRSS.parse(data)
     #expect(podcast.title == "Post Reports")
   }
 
   @Test("parsing the invalid Game Informer feed")
   func parseInvalidGameInformerFeed() async {
-    let data = PreviewBundle.loadAsset(named: "game_informer_invalid", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "game_informer_invalid", in: .FeedRSS)
     await #expect(throws: (any Error).self) {
       try await PodcastRSS.parse(data)
     }
@@ -80,21 +80,21 @@ struct PodcastRSSTests {
 
   @Test("parsing the seattle official feed with duplicate guids")
   func parseSeattleOfficialFeedWithDuplicateGuids() async throws {
-    let data = PreviewBundle.loadAsset(named: "seattle_official", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "seattle_official", in: .FeedRSS)
     let podcast = try await PodcastRSS.parse(data)
     #expect(podcast.title == "Official Seattle Seahawks Podcasts")
   }
 
   @Test("parsing the morningbrew feed with duplicate mediaURLs")
   func parseMorningBrewFeedWithDuplicateMediaURLs() async throws {
-    let data = PreviewBundle.loadAsset(named: "morningbrew", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "morningbrew", in: .FeedRSS)
     let podcast = try await PodcastRSS.parse(data)
     #expect(podcast.title == "Morning Brew Daily")
   }
 
   @Test("parsing the seattlenow feed with a <p> in its description")
   func parseSeattleNowFeedWithPTagInDescription() async throws {
-    let data = PreviewBundle.loadAsset(named: "seattlenow", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "seattlenow", in: .FeedRSS)
     let podcast = try await PodcastRSS.parse(data)
     #expect(
       podcast.description
@@ -104,7 +104,7 @@ struct PodcastRSSTests {
 
   @Test("parsing the makingsense feed with items missing media urls")
   func parseMakingSenseFeedWithMissingMediaUrls() async throws {
-    let data = PreviewBundle.loadAsset(named: "makingsense", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "makingsense", in: .FeedRSS)
     let podcast = try await PodcastRSS.parse(data)
 
     // Includes the last two that have no media urls.  They will be culled by PodcastFeed.
@@ -114,7 +114,7 @@ struct PodcastRSSTests {
 
   @Test("parsing the considerthis feed with items missing guids")
   func parseConsiderThisFeedWithMissingGuids() async throws {
-    let data = PreviewBundle.loadAsset(named: "considerthis", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "considerthis", in: .FeedRSS)
     let podcast = try await PodcastRSS.parse(data)
 
     // Includes the two that have no guids.  They will have guids assigned by PodcastFeed.

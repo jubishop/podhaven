@@ -11,7 +11,7 @@ import Testing
 struct PodcastFeedTests {
   @Test("parsing the Pod Save America feed")
   func parsePodSaveAmericaFeed() async throws {
-    let data = PreviewBundle.loadAsset(named: "pod_save_america", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let feed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try feed.toUnsavedPodcast()
@@ -24,7 +24,7 @@ struct PodcastFeedTests {
 
   @Test("parsing the Marketplace feed with an invalid MediaURL")
   func parseMarketplaceFeedWithInvalidMediaURL() async throws {
-    let data = PreviewBundle.loadAsset(named: "marketplace", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "marketplace", in: .FeedRSS)
     let feed = try await PodcastFeed.parse(data, from: FeedURL(URL.valid()))
     let unsavedPodcast = try feed.toUnsavedPodcast()
     let unsavedEpisodes = try feed.episodes.map { try $0.toUnsavedEpisode() }
@@ -39,8 +39,8 @@ struct PodcastFeedTests {
 
   @Test("parsing the Land of the Giants")
   func parseLandOfTheGiantsFeed() async throws {
-    let data = PreviewBundle.loadAsset(named: "land_of_the_giants", withExtension: "rss")
-    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let data = PreviewBundle.loadAsset(named: "land_of_the_giants", in: .FeedRSS)
+    let fakeURL = FeedURL(URL.valid())
     let feed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try feed.toUnsavedPodcast(subscriptionDate: Date())
     let unsavedEpisodes = try feed.episodes.map { try $0.toUnsavedEpisode() }
@@ -53,15 +53,16 @@ struct PodcastFeedTests {
 
   @Test("parsing the invalid Game Informer feed")
   func parseInvalidGameInformerFeed() async throws {
-    let url = PreviewBundle.createURL(forResource: "game_informer_invalid", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "game_informer_invalid", in: .FeedRSS)
+    let fakeURL = FeedURL(URL.valid())
     await #expect {
-      try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+      try await PodcastFeed.parse(data, from: fakeURL)
     } throws: { error in
       guard let error = error as? FeedError
       else { return false }
 
       if case .parseFailure(let thrownURL, _) = error {
-        return thrownURL.rawValue == url
+        return thrownURL.rawValue == fakeURL.rawValue
       }
 
       return false
@@ -71,7 +72,7 @@ struct PodcastFeedTests {
   // This is invalid behavior by a feed but sadly dumb dumbs still do it.
   @Test("parsing the seattle official feed with duplicate guids")
   func parseSeattleOfficialFeedWithDuplicateGuids() async throws {
-    let data = PreviewBundle.loadAsset(named: "seattle_official", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "seattle_official", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let feed = try await PodcastFeed.parse(data, from: fakeURL)
     let episodes = feed.toEpisodeArray()
@@ -81,7 +82,7 @@ struct PodcastFeedTests {
 
   @Test("parsing the morningbrew feed with duplicate mediaURLs")
   func parseMorningBrewFeedWithDuplicateMediaURLs() async throws {
-    let data = PreviewBundle.loadAsset(named: "morningbrew", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "morningbrew", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let feed = try await PodcastFeed.parse(data, from: fakeURL)
 
@@ -107,7 +108,7 @@ struct PodcastFeedTests {
 
   @Test("parsing the seattlenow feed with a <p> tagged description")
   func parseSeattleNowFeedWithPTagInDescription() async throws {
-    let data = PreviewBundle.loadAsset(named: "seattlenow", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "seattlenow", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let feed = try await PodcastFeed.parse(data, from: fakeURL)
     let unsavedPodcast = try feed.toUnsavedPodcast()
@@ -119,7 +120,7 @@ struct PodcastFeedTests {
 
   @Test("parsing the makingsense feed with items missing media urls")
   func parseMakingSenseFeedWithMissingMediaUrls() async throws {
-    let data = PreviewBundle.loadAsset(named: "makingsense", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "makingsense", in: .FeedRSS)
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let feed = try await PodcastFeed.parse(data, from: fakeURL)
     let episodes = feed.toEpisodeArray()
@@ -131,7 +132,7 @@ struct PodcastFeedTests {
 
   @Test("parsing the considerthis feed with items missing guids")
   func parseConsiderThisFeedWithMissingGuids() async throws {
-    let data = PreviewBundle.loadAsset(named: "considerthis", withExtension: "rss")
+    let data = PreviewBundle.loadAsset(named: "considerthis", in: .FeedRSS)
     let feed = try await PodcastFeed.parse(data, from: FeedURL(URL.valid()))
     let episodes = feed.toEpisodeArray()
 
@@ -154,10 +155,10 @@ struct PodcastFeedTests {
 
   @Test("parsing with invalid feedURL throws error")
   func parseWithInvalidFeedURL() async throws {
-    let url = PreviewBundle.createURL(forResource: "considerthis", withExtension: "rss")
+    let url = PreviewBundle.createURL(forAsset: "considerthis", from: .FeedRSS)
 
     await #expect(throws: FeedError.self) {
-      try await PodcastFeed.parse(try Data(contentsOf: url), from: FeedURL(url))
+      try await PodcastFeed.parse(FeedURL(url))
     }
   }
 }

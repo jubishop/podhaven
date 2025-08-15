@@ -13,7 +13,7 @@ struct PodcastOPMLTests {
 
   @Test("parsing large OPML file")
   func parseLargeOPMLFile() async throws {
-    let data = PreviewBundle.loadAsset(named: "large", withExtension: "opml")
+    let data = PreviewBundle.loadAsset(named: "large", in: .OPML)
     let opml = try await PodcastOPML.parse(data)
     #expect(opml.title == "Superphonic Podcast Subscriptions")
     #expect(opml.rssFeeds.count == 48)
@@ -25,7 +25,7 @@ struct PodcastOPMLTests {
 
   @Test("parsing overcast exported OPML file")
   func parseOvercastExportedOPMLFile() async throws {
-    let data = PreviewBundle.loadAsset(named: "overcast", withExtension: "opml")
+    let data = PreviewBundle.loadAsset(named: "overcast", in: .OPML)
     let opml = try await PodcastOPML.parse(data)
     #expect(opml.title == "Overcast Podcast Subscriptions")
     #expect(opml.rssFeeds.count == 43)
@@ -38,7 +38,7 @@ struct PodcastOPMLTests {
 
   @Test("parsing invalid OPML file")
   func parseInvalidOPMLFile() async throws {
-    let data = PreviewBundle.loadAsset(named: "invalid", withExtension: "opml")
+    let data = PreviewBundle.loadAsset(named: "invalid", in: .OPML)
     await #expect(throws: ParseError.self) {
       try await PodcastOPML.parse(data)
     }
@@ -46,7 +46,7 @@ struct PodcastOPMLTests {
 
   @Test("parsing empty OPML file")
   func parseEmptyOPMLFile() async throws {
-    let data = PreviewBundle.loadAsset(named: "empty", withExtension: "opml")
+    let data = PreviewBundle.loadAsset(named: "empty", in: .OPML)
     let opml = try await PodcastOPML.parse(data)
     #expect(opml.rssFeeds.isEmpty)
   }
