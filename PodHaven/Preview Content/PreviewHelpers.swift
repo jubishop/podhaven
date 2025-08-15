@@ -15,23 +15,6 @@ enum PreviewHelpers {
   ]
   private static let opmlFiles = ["large", "small"]
 
-  // MARK: - Data Asset Access
-
-  private static func loadDataAsset(named name: String) -> Data {
-    guard let dataAsset = NSDataAsset(name: name, bundle: Bundle.main) else {
-      fatalError("Could not load data asset: \(name)")
-    }
-    return dataAsset.data
-  }
-
-  private static func createTempURL(forAssetNamed name: String, withExtension ext: String) -> URL {
-    let data = loadDataAsset(named: "\(ext)/\(name)")
-    let tempURL = FileManager.default.temporaryDirectory
-      .appendingPathComponent("\(name).\(ext)")
-    try! data.write(to: tempURL)
-    return tempURL
-  }
-
   // MARK: - Full Importing From OPML
 
   static func importPodcasts(_ number: Int = 20, from fileName: String = "large") async throws {
@@ -39,7 +22,7 @@ enum PreviewHelpers {
     let allPodcasts = IdentifiedArray(uniqueElements: try await repo.allPodcasts(), id: \.feedURL)
     if allPodcasts.count >= number { return }
 
-    let data = loadDataAsset(named: "opml/\(fileName)")
+    let data = PreviewBundle.loadAsset(named: fileName, withExtension: "opml")
     let opml = try await PodcastOPML.parse(data)
 
     var remainingPodcasts = number - allPodcasts.count
@@ -76,7 +59,7 @@ enum PreviewHelpers {
   static func loadSeries(fileName: String = seriesFiles.keys.randomElement()!) async throws
     -> PodcastSeries
   {
-    let data = loadDataAsset(named: "rss/\(fileName)")
+    let data = PreviewBundle.loadAsset(named: fileName, withExtension: "rss")
     // Create a fake URL for the data asset
     let fakeURL = FeedURL(URL(string: "https://example.com/\(fileName).rss")!)
     let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
@@ -134,7 +117,7 @@ enum PreviewHelpers {
     async throws
     -> (UnsavedPodcast, [UnsavedEpisode])
   {
-    let data = loadDataAsset(named: "rss/\(fileName)")
+    let data = PreviewBundle.loadAsset(named: fileName, withExtension: "rss")
     // Create a fake URL for the data asset
     let fakeURL = FeedURL(URL(string: "https://example.com/\(fileName).rss")!)
     let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
@@ -197,19 +180,27 @@ enum PreviewHelpers {
   // MARK: - Searching
 
   static func loadTrendingResult() async throws -> TrendingResult {
-    try await SearchService.parse(loadDataAsset(named: "json/trending_in_news"))
+    try await SearchService.parse(
+      PreviewBundle.loadAsset(named: "trending_in_news", withExtension: "json")
+    )
   }
 
   static func loadTitleResult() async throws -> TitleResult {
-    try await SearchService.parse(loadDataAsset(named: "json/hello_bytitle"))
+    try await SearchService.parse(
+      PreviewBundle.loadAsset(named: "hello_bytitle", withExtension: "json")
+    )
   }
 
   static func loadTermResult() async throws -> TermResult {
-    try await SearchService.parse(loadDataAsset(named: "json/hardfork_byterm"))
+    try await SearchService.parse(
+      PreviewBundle.loadAsset(named: "hardfork_byterm", withExtension: "json")
+    )
   }
 
   static func loadPersonResult() async throws -> PersonResult {
-    try await SearchService.parse(loadDataAsset(named: "json/ndg_byperson"))
+    try await SearchService.parse(
+      PreviewBundle.loadAsset(named: "ndg_byperson", withExtension: "json")
+    )
   }
 }
 #endif
