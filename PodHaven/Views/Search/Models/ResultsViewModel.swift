@@ -10,7 +10,7 @@ import Foundation
   let unsavedPodcasts: [UnsavedPodcast]
 
   var searchText: String { searchResult.searchText }
-  var result: PodcastResultConvertible? { searchResult.result }
+  var result: any PodcastResultConvertible { searchResult.result }
 
   // MARK: - Initialization
 

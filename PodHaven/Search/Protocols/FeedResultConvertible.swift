@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol FeedResultConvertible {
+protocol FeedResultConvertible: Hashable, Identifiable {
   var url: FeedURL { get }
   var image: URL? { get }
   var title: String { get }

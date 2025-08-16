@@ -104,7 +104,7 @@ extension Container {
           id: "trending_\(category)"
         )
       case .categoryResults(let trendingSearchResult):
-        Text("Not yet implemented")
+        Text("Not yet implemented: \(trendingSearchResult)")
       case .searchedPodcast(let searchedPodcast):
         IdentifiableView(
           PodcastResultsDetailView(

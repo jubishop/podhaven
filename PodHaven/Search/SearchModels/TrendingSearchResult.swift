@@ -17,6 +17,6 @@ struct TrendingSearchResult: Hashable {
   }
 
   static func == (lhs: TrendingSearchResult, rhs: TrendingSearchResult) -> Bool {
-    lhs.category == rhs.category && AnyHashable(lhs.result) == AnyHashable(rhs.result)
+    lhs.category == rhs.category && lhs.result.id == rhs.result.id
   }
 }

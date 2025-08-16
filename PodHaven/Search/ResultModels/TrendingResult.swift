@@ -2,7 +2,7 @@
 
 import Foundation
 
-struct TrendingResult: Decodable, PodcastResultConvertible, Sendable {
+struct TrendingResult: Decodable, Hashable, PodcastResultConvertible, Sendable {
   struct FeedResult: Decodable, Hashable, Identifiable, FeedResultConvertible, Sendable {
     let id: Int
     let url: FeedURL
@@ -19,5 +19,5 @@ struct TrendingResult: Decodable, PodcastResultConvertible, Sendable {
   let feeds: [FeedResult]
   let since: Date
 
-  var convertibleFeeds: [FeedResultConvertible] { feeds }
+  var convertibleFeeds: [any FeedResultConvertible] { feeds }
 }

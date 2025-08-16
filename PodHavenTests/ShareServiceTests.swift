@@ -398,7 +398,7 @@ import Testing
     try? await shareService.handleIncomingURL(shareURL)
 
     #expect(navigation.currentTab == .settings)
-    #expect(navigation.settings.path == [.viewType(.opml)])
+    #expect(navigation.settings.path == [.section(.opml)])
 
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))
     #expect(podcastSeries?.podcast.title == "Techdirt")

@@ -4,9 +4,9 @@ import Foundation
 
 struct PodcastSearchResult {
   let searchText: String
-  let result: PodcastResultConvertible
+  let result: any PodcastResultConvertible
 
-  init(searchText: String, result: PodcastResultConvertible) {
+  init(searchText: String, result: any PodcastResultConvertible) {
     self.searchText = searchText
     self.result = result
   }
