@@ -4,44 +4,29 @@ import FactoryKit
 import SwiftUI
 
 struct SearchView: View {
-  @DynamicInjected(\.alert) private var alert
   @InjectedObservable(\.navigation) private var navigation
-
-  @State private var viewModel = SearchViewModel()
 
   var body: some View {
     NavigationStack(path: $navigation.search.path) {
-      ResultsView(viewModel: viewModel)
-        .searchable(
-          text: $viewModel.searchText,
-          tokens: $viewModel.currentTokens,
-          suggestedTokens: .constant(viewModel.allTokens),
-          isPresented: $viewModel.searchPresented
-        ) { token in
-          SearchTokenView(token: token)
+      Form {
+        NavigationLink("Trending") {
+          TrendingView()
         }
-        .onSubmit(of: .search, viewModel.searchSubmitted)
-        .navigationTitle("Search")
-        .navigationDestination(
-          for: Navigation.Search.Destination.self,
-          destination: navigation.search.navigationDestination
-        )
-        .background(
-          SizeReader { size in
-            viewModel.width = size.width
-          }
-          .padding()
-        )
-        .overlay(alignment: .top) {
-          if viewModel.showSearchWarning {
-            SearchWarning(warning: "Must Enter A Search Query")
-          }
-          if viewModel.showCategories {
-            CategoryGrid(viewModel: viewModel)
-          }
+
+        NavigationLink("Search Podcasts") {
+          SearchPodcastsView()
         }
+
+        NavigationLink("Search Episodes by Person") {
+          SearchEpisodesView()
+        }
+      }
+      .navigationTitle("Search")
+      .navigationDestination(
+        for: Navigation.Search.Destination.self,
+        destination: navigation.search.navigationDestination
+      )
     }
-    .task(viewModel.execute)
   }
 }
 
