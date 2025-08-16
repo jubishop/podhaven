@@ -9,9 +9,10 @@ struct SearchView: View {
   var body: some View {
     NavigationStack(path: $navigation.search.path) {
       Form {
-        NavigationLink("Trending") {
-          TrendingView()
-        }
+        NavigationLink(
+          value: Navigation.Search.Destination.searchType(.trending),
+          label: { Text("Trending") }
+        )
       }
       .navigationTitle("Search")
       .navigationDestination(
@@ -21,10 +22,3 @@ struct SearchView: View {
     }
   }
 }
-
-#if DEBUG
-#Preview {
-  SearchView()
-    .preview()
-}
-#endif

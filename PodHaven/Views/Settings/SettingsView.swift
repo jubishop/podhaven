@@ -13,7 +13,7 @@ struct SettingsView: View {
       Form {
         Section("Importing / Exporting") {
           NavigationLink(
-            value: Navigation.Settings.Destination.viewType(.opml),
+            value: Navigation.Settings.Destination.section(.opml),
             label: { Text("OPML") }
           )
         }

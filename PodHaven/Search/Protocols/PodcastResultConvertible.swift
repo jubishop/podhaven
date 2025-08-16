@@ -2,6 +2,6 @@
 
 import Foundation
 
-protocol PodcastResultConvertible {
+protocol PodcastResultConvertible: Hashable {
   var convertibleFeeds: [FeedResultConvertible] { get }
 }

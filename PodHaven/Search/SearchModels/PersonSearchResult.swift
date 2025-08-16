@@ -4,9 +4,9 @@ import Foundation
 
 struct PersonSearchResult {
   let searchText: String
-  let personResult: PersonResult?
+  let personResult: PersonResult
 
-  init(searchText: String = "", personResult: PersonResult? = nil) {
+  init(searchText: String, personResult: PersonResult) {
     self.searchText = searchText
     self.personResult = personResult
   }

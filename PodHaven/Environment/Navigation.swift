@@ -40,20 +40,20 @@ extension Container {
   class Settings {
     var path: [Destination] = []
 
-    enum ViewType {
+    enum Section {
       case opml
     }
 
     @CasePathable
     enum Destination: Hashable {
-      case viewType(ViewType)
+      case section(Section)
     }
 
     @ViewBuilder
     func navigationDestination(for destination: Destination) -> some View {
       switch destination {
-      case .viewType(let viewType):
-        switch viewType {
+      case .section(let section):
+        switch section {
         case .opml:
           IdentifiableView(OPMLView(), id: "opml")
         }
@@ -68,7 +68,7 @@ extension Container {
     Self.log.debug("Showing OPML import")
 
     currentTab = .settings
-    settings.path.append(.viewType(.opml))
+    settings.path.append(.section(.opml))
   }
 
   // MARK: - Search
@@ -77,8 +77,15 @@ extension Container {
   class Search {
     var path: [Destination] = []
 
+    enum SearchType {
+      case trending
+    }
+
     @CasePathable
     enum Destination: Hashable {
+      case searchType(SearchType)
+      case category(String)
+      case categoryResults(TrendingSearchResult)
       case searchedPodcast(SearchedPodcast)
       case searchedPodcastEpisode(SearchedPodcastEpisode)
     }
@@ -86,6 +93,18 @@ extension Container {
     @ViewBuilder
     func navigationDestination(for destination: Destination) -> some View {
       switch destination {
+      case .searchType(let searchType):
+        switch searchType {
+        case .trending:
+          IdentifiableView(TrendingView(), id: "trendingType")
+        }
+      case .category(let category):
+        IdentifiableView(
+          TrendingCategoryGridView(viewModel: TrendingCategoryGridViewModel(category: category)),
+          id: "trending_\(category)"
+        )
+      case .categoryResults(let trendingSearchResult):
+        Text("Not yet implemented")
       case .searchedPodcast(let searchedPodcast):
         IdentifiableView(
           PodcastResultsDetailView(

@@ -8,7 +8,7 @@ import Tagged
 
 typealias FeedURL = Tagged<UnsavedPodcast, URL>
 
-struct UnsavedPodcast: Identifiable, Savable, Stringable {
+struct UnsavedPodcast: Gridable, Identifiable, Savable, Stringable {
   var id: FeedURL { feedURL }
 
   static let databaseTableName: String = "podcast"

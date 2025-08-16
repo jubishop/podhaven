@@ -17,10 +17,6 @@ import Foundation
   init(title: String, searchResult: PodcastSearchResult) {
     self.title = title
     self.searchResult = searchResult
-    if let result = searchResult.result {
-      unsavedPodcasts = result.convertibleFeeds.compactMap { try? $0.toUnsavedPodcast() }
-    } else {
-      unsavedPodcasts = []
-    }
+    unsavedPodcasts = searchResult.result.convertibleFeeds.compactMap { try? $0.toUnsavedPodcast() }
   }
 }
