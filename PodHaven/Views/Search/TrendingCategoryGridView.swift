@@ -17,8 +17,6 @@ struct TrendingCategoryGridView: View {
       switch viewModel.state {
       case .loading:
         ProgressView("Loading \(viewModel.category) podcasts...")
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .padding()
 
       case .loaded(let trendingSearchResult):
         ItemGrid(
