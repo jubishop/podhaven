@@ -75,6 +75,10 @@ actor AppInfo {
     #endif
   }
 
+  static var languageCode: String? {
+    Locale.current.language.languageCode?.identifier
+  }
+
   // MARK: - Build Info
 
   static var version: String {

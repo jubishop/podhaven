@@ -17,6 +17,8 @@ struct DebugSection: View {
 
       Text("Device ID: \(AppInfo.deviceIdentifier)")
 
+      Text("Language: \(AppInfo.languageCode ?? "Unknown")")
+
       #if DEBUG
       Text("in DEBUG")
       #else

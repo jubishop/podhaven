@@ -36,7 +36,11 @@ import SwiftUI
     state = .loading
 
     do {
-      let result = try await searchService.searchTrending(categories: [category])
+      let categories = category == SearchService.allCategories ? [] : [category]
+      let result = try await searchService.searchTrending(
+        categories: categories,
+        language: AppInfo.languageCode
+      )
       state = .loaded(TrendingSearchResult(category: category, result: result))
     } catch {
       Self.log.error(error)

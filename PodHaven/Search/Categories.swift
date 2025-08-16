@@ -3,6 +3,7 @@
 import Foundation
 
 extension SearchService {
+  static let allCategories = "All Categories"
   static let categories = [
     "After-Shows",
     "Alternative",
