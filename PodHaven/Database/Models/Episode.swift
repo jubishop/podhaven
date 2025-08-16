@@ -10,7 +10,9 @@ import Tagged
 typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
 
-struct UnsavedEpisode: Savable, Stringable {
+struct UnsavedEpisode: Identifiable, Savable, Stringable {
+  var id: MediaURL { media }
+
   private static let log = Log.as(LogSubsystem.Database.episode)
 
   static let databaseTableName: String = "episode"
