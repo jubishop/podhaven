@@ -12,14 +12,6 @@ struct SearchView: View {
         NavigationLink("Trending") {
           TrendingView()
         }
-
-        NavigationLink("Search Podcasts") {
-          SearchPodcastsView()
-        }
-
-        NavigationLink("Search Episodes by Person") {
-          SearchEpisodesView()
-        }
       }
       .navigationTitle("Search")
       .navigationDestination(
