@@ -27,7 +27,13 @@ struct TrendingCategoryGridView: View {
           }
         ) { unsavedPodcast in
           NavigationLink(
-            value: Navigation.Search.Destination.categoryResults(trendingSearchResult),
+            value: Navigation.Search.Destination
+              .searchedPodcast(
+                SearchedPodcast(
+                  searchedText: trendingSearchResult.category,
+                  unsavedPodcast: unsavedPodcast
+                )
+              ),
             label: {
               SelectableGridItem(
                 viewModel: SelectableListItemModel<UnsavedPodcast>(

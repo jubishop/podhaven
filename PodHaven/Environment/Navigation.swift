@@ -85,7 +85,6 @@ extension Container {
     enum Destination: Hashable {
       case searchType(SearchType)
       case category(String)
-      case categoryResults(TrendingSearchResult)
       case searchedPodcast(SearchedPodcast)
       case searchedPodcastEpisode(SearchedPodcastEpisode)
     }
@@ -103,8 +102,6 @@ extension Container {
           TrendingCategoryGridView(viewModel: TrendingCategoryGridViewModel(category: category)),
           id: "trending_\(category)"
         )
-      case .categoryResults(let trendingSearchResult):
-        Text("Not yet implemented: \(trendingSearchResult)")
       case .searchedPodcast(let searchedPodcast):
         IdentifiableView(
           PodcastResultsDetailView(
