@@ -3,13 +3,13 @@
 import NukeUI
 import SwiftUI
 
-struct SelectablePodcastGridItem: View {
+struct SelectablePodcastGridItem<Item: Podcastable>: View {
   @State private var width: CGFloat = 0
 
-  private let viewModel: SelectablePodcastGridItemViewModel
+  private let viewModel: SelectableListItemModel<Item>
   private let cornerRadius: CGFloat = 8
 
-  init(viewModel: SelectablePodcastGridItemViewModel) {
+  init(viewModel: SelectableListItemModel<Item>) {
     self.viewModel = viewModel
   }
 
@@ -86,29 +86,6 @@ struct SelectablePodcastGridItem: View {
         .font(.caption)
         .lineLimit(1)
     }
-    .contextMenu {
-      Button(action: { viewModel.queueLatestEpisodeToTop() }) {
-        Label("Queue Latest To Top", systemImage: "text.line.first.and.arrowtriangle.forward")
-      }
-
-      Button(action: { viewModel.queueLatestEpisodeToBottom() }) {
-        Label("Queue Latest To Bottom", systemImage: "text.line.last.and.arrowtriangle.forward")
-      }
-
-      Button(action: { viewModel.deletePodcast() }) {
-        Label("Delete", systemImage: "trash")
-      }
-
-      if viewModel.item.subscribed {
-        Button(action: { viewModel.unsubscribePodcast() }) {
-          Label("Unsubscribe", systemImage: "minus.circle")
-        }
-      } else {
-        Button(action: { viewModel.subscribePodcast() }) {
-          Label("Subscribe", systemImage: "plus.circle")
-        }
-      }
-    }
   }
 }
 
@@ -121,15 +98,15 @@ struct SelectablePodcastGridItem: View {
     if let podcast = podcast, let invalidPodcast = invalidPodcast {
       ForEach([true, false], id: \.self) { isSelected in
         ForEach([true, false], id: \.self) { isSelecting in
-          SelectablePodcastGridItem(
-            viewModel: SelectablePodcastGridItemViewModel(
+          SelectablePodcastGridItem<Podcast>(
+            viewModel: SelectableListItemModel<Podcast>(
               isSelected: .constant(isSelected),
               item: podcast,
               isSelecting: isSelecting
             )
           )
           SelectablePodcastGridItem(
-            viewModel: SelectablePodcastGridItemViewModel(
+            viewModel: SelectableListItemModel<Podcast>(
               isSelected: .constant(isSelected),
               item: invalidPodcast,
               isSelecting: isSelecting

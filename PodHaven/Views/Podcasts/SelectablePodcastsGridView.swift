@@ -43,18 +43,56 @@ struct SelectablePodcastsGridView: View {
     ScrollView {
       ItemGrid(items: viewModel.podcastList.filteredSortedEntries) {
         podcastWithLatestEpisodeDates in
+        let podcast = podcastWithLatestEpisodeDates.podcast
+
         NavigationLink(
-          value: Navigation.Podcasts.Destination.podcast(
-            podcastWithLatestEpisodeDates.podcast
-          ),
+          value: Navigation.Podcasts.Destination.podcast(podcast),
           label: {
             SelectablePodcastGridItem(
-              viewModel: SelectablePodcastGridItemViewModel(
+              viewModel: SelectableListItemModel<Podcast>(
                 isSelected: $viewModel.podcastList.isSelected[podcastWithLatestEpisodeDates],
-                item: podcastWithLatestEpisodeDates.podcast,
+                item: podcast,
                 isSelecting: viewModel.isSelecting
               )
             )
+            .contextMenu {
+              Button(
+                action: { viewModel.queueLatestEpisodeToTop(podcast.id) },
+                label: {
+                  Label(
+                    "Queue Latest To Top",
+                    systemImage: "text.line.first.and.arrowtriangle.forward"
+                  )
+                }
+              )
+
+              Button(
+                action: { viewModel.queueLatestEpisodeToBottom(podcast.id) },
+                label: {
+                  Label(
+                    "Queue Latest To Bottom",
+                    systemImage: "text.line.last.and.arrowtriangle.forward"
+                  )
+                }
+              )
+
+              Button(
+                action: { viewModel.deletePodcast(podcast.id) },
+                label: { Label("Delete", systemImage: "trash") }
+              )
+
+              if podcast.subscribed {
+                Button(
+                  action: { viewModel.unsubscribePodcast(podcast.id) },
+                  label: { Label("Unsubscribe", systemImage: "minus.circle") }
+                )
+              } else {
+                Button(
+                  action: { viewModel.subscribePodcast(podcast.id) },
+                  label: { Label("Subscribe", systemImage: "plus.circle") }
+                )
+              }
+            }
           }
         )
       }

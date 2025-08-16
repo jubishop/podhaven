@@ -37,7 +37,7 @@ where P.Element == T {
     }
     ItemGrid(items: podcasts) { podcast in
       SelectablePodcastGridItem(
-        viewModel: SelectablePodcastGridItemViewModel(
+        viewModel: SelectableListItemModel<Podcast>(
           isSelected: $isSelected[podcast],
           item: podcast,
           isSelecting: isSelecting

@@ -54,7 +54,7 @@ struct UnsavedPodcast: Identifiable, Savable, Stringable {
 }
 
 @Saved<UnsavedPodcast>
-struct Podcast: Saved, RSSUpdatable {
+struct Podcast: Podcastable, Saved, RSSUpdatable {
   // MARK: - Associations
 
   static let episodes = hasMany(Episode.self).order(\.pubDate.desc)
@@ -98,6 +98,14 @@ struct Podcast: Saved, RSSUpdatable {
       && unsaved.image == other.unsaved.image && unsaved.description == other.unsaved.description
       && unsaved.link == other.unsaved.link && unsaved.lastUpdate == other.unsaved.lastUpdate
   }
+
+  // MARK: - Podcastable
+
+  var image: URL {
+    get { unsaved.image }
+    set { unsaved.image = newValue }
+  }
+  var title: String { unsaved.title }
 }
 
 extension DerivableRequest<Podcast> {

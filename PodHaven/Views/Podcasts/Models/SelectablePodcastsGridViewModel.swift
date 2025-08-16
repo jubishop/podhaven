@@ -12,6 +12,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
+  @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
   private static let log = Log.as(LogSubsystem.PodcastsView.standard)
@@ -120,7 +121,7 @@ import SwiftUI
     }
   }
 
-  // MARK: - Public Functions
+  // MARK: - Full Grid Items
 
   func refreshPodcasts() async throws(RefreshError) {
     try await refreshManager.performRefresh(
@@ -147,6 +148,57 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       try await repo.markUnsubscribed(podcastList.selectedEntryIDs)
+    }
+  }
+
+  // MARK: - Single Grid Item
+
+  func queueLatestEpisodeToTop(_ podcastID: Podcast.ID) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let latestEpisode = try await repo.latestEpisode(for: podcastID)
+        if let latestEpisode = latestEpisode {
+          try await queue.unshift(latestEpisode.id)
+        }
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
+
+  func queueLatestEpisodeToBottom(_ podcastID: Podcast.ID) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let latestEpisode = try await repo.latestEpisode(for: podcastID)
+        if let latestEpisode = latestEpisode {
+          try await queue.append(latestEpisode.id)
+        }
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
+
+  func deletePodcast(_ podcastID: Podcast.ID) {
+    Task { [weak self] in
+      guard let self else { return }
+      try await repo.delete(podcastID)
+    }
+  }
+
+  func subscribePodcast(_ podcastID: Podcast.ID) {
+    Task { [weak self] in
+      guard let self else { return }
+      try await repo.markSubscribed(podcastID)
+    }
+  }
+
+  func unsubscribePodcast(_ podcastID: Podcast.ID) {
+    Task { [weak self] in
+      guard let self else { return }
+      try await repo.markUnsubscribed(podcastID)
     }
   }
 }
