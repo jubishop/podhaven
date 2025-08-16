@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol Podcastable: Hashable {
+protocol Gridable: Hashable {
   var image: URL { get }
   var title: String { get }
 }

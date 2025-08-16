@@ -3,7 +3,7 @@
 import NukeUI
 import SwiftUI
 
-struct SelectablePodcastGridItem<Item: Podcastable>: View {
+struct SelectableGridItem<Item: Gridable>: View {
   @State private var width: CGFloat = 0
 
   private let viewModel: SelectableListItemModel<Item>
@@ -98,14 +98,14 @@ struct SelectablePodcastGridItem<Item: Podcastable>: View {
     if let podcast = podcast, let invalidPodcast = invalidPodcast {
       ForEach([true, false], id: \.self) { isSelected in
         ForEach([true, false], id: \.self) { isSelecting in
-          SelectablePodcastGridItem<Podcast>(
+          SelectableGridItem<Podcast>(
             viewModel: SelectableListItemModel<Podcast>(
               isSelected: .constant(isSelected),
               item: podcast,
               isSelecting: isSelecting
             )
           )
-          SelectablePodcastGridItem(
+          SelectableGridItem(
             viewModel: SelectableListItemModel<Podcast>(
               isSelected: .constant(isSelected),
               item: invalidPodcast,
