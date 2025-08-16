@@ -8,6 +8,8 @@ import IdentifiedCollections
 import UIKit
 
 enum PreviewHelpers {
+  // MARK: - Data Fetching
+
   static let dataFetcher = FakeDataFetchable { url in
     Assert.fatal(
       """
@@ -16,6 +18,8 @@ enum PreviewHelpers {
       """
     )
   }
+
+  // MARK: - Global Data Sets
 
   private static let seriesFiles = [
     "pod_save_america": "https://feeds.simplecast.com/dxZsm5kX",
