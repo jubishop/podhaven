@@ -26,22 +26,49 @@ class PodcastResultsDetailViewModel:
 
   // MARK: - State Management
 
-  var unplayedOnly: Bool = false
-  var subscribable: Bool = false
-  var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
+  enum FilterMethod: String, CaseIterable {
+    case all = "All Episodes"
+    case unstarted = "Unstarted"
+    case unfinished = "Unfinished"
+    case unqueued = "Unqueued"
+  }
 
+  private static func filterMethod(for filterMethod: FilterMethod) -> (UnsavedEpisode) -> Bool {
+    switch filterMethod {
+    case .all:
+      return { _ in true }
+    case .unstarted:
+      return { !$0.started }
+    case .unfinished:
+      return { !$0.completed }
+    case .unqueued:
+      return { !$0.queued }
+    }
+  }
+
+  var currentFilterMethod: FilterMethod = .all {
+    didSet {
+      episodeList.filterMethod = Self.filterMethod(for: currentFilterMethod)
+    }
+  }
+
+  var subscribable: Bool = false
+  var displayAboutSection: Bool = false
+
+  var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
   private var existingPodcastSeries: PodcastSeries?
   private var podcastFeed: PodcastFeed?
+
+  var mostRecentEpisodeDate: Date {
+    episodeList.allEntries.first?.pubDate ?? Date.epoch
+  }
 
   // MARK: - Initialization
 
   init(searchedPodcast: SearchedPodcast) {
     self.searchedText = searchedPodcast.searchedText
     self.unsavedPodcast = searchedPodcast.unsavedPodcast
-    episodeList.filterMethod = { [weak self] in
-      guard let self else { return true }
-      return !unplayedOnly || !$0.completed
-    }
+    episodeList.filterMethod = Self.filterMethod(for: currentFilterMethod)
   }
 
   func execute() async {

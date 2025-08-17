@@ -15,11 +15,17 @@ import Logging
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
+  // MARK: - State Management
+
+  var onDeck: Bool {
+    guard let onDeck = playState.onDeck else { return false }
+    return onDeck == podcastEpisode
+  }
+
   private var maxQueuePosition: Int? = nil
-  private var podcastEpisode: PodcastEpisode
-  var podcast: Podcast { podcastEpisode.podcast }
-  var episode: Episode { podcastEpisode.episode }
-  var image: URL { podcastEpisode.image }
+  var podcastEpisode: PodcastEpisode
+
+  // MARK: - Initialization
 
   init(podcastEpisode: PodcastEpisode) {
     self.podcastEpisode = podcastEpisode
@@ -43,12 +49,12 @@ import Logging
     Task { [weak self] in
       guard let self else { return }
       do {
-        for try await podcastEpisode in observatory.podcastEpisode(self.episode.id) {
+        for try await podcastEpisode in observatory.podcastEpisode(self.podcastEpisode.id) {
           guard let podcastEpisode = podcastEpisode
           else {
             throw ObservatoryError.recordNotFound(
               type: PodcastEpisode.self,
-              id: self.episode.id.rawValue
+              id: self.podcastEpisode.episode.id.rawValue
             )
           }
 
@@ -61,10 +67,7 @@ import Logging
     }
   }
 
-  var onDeck: Bool {
-    guard let onDeck = playState.onDeck else { return false }
-    return onDeck == podcastEpisode
-  }
+  // MARK: - Public Functions
 
   func playNow() {
     Task { [weak self] in
@@ -82,25 +85,25 @@ import Logging
   func addToTopOfQueue() {
     Task { [weak self] in
       guard let self else { return }
-      try await queue.unshift(episode.id)
+      try await queue.unshift(podcastEpisode.episode.id)
     }
   }
 
   func appendToQueue() {
     Task { [weak self] in
       guard let self else { return }
-      try await queue.append(episode.id)
+      try await queue.append(podcastEpisode.episode.id)
     }
   }
 
   // MARK: - Queue Position State
 
   var atTopOfQueue: Bool {
-    episode.queueOrder == 0
+    podcastEpisode.episode.queueOrder == 0
   }
 
   var atBottomOfQueue: Bool {
-    guard let queueOrder = episode.queueOrder
+    guard let queueOrder = podcastEpisode.episode.queueOrder
     else { return false }
 
     return queueOrder == maxQueuePosition

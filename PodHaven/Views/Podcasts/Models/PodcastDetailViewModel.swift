@@ -54,6 +54,7 @@ class PodcastDetailViewModel:
 
   var episodeList = SelectableListUseCase<Episode, Episode.ID>(idKeyPath: \.id)
   var podcast: Podcast { podcastSeries.podcast }
+
   var mostRecentEpisodeDate: Date {
     podcastSeries.episodes.first?.pubDate ?? Date.epoch
   }

@@ -17,10 +17,6 @@ import Logging
 
   // MARK: - State Management
 
-  let searchedText: String
-  var unsavedPodcast: UnsavedPodcast { unsavedPodcastEpisode.unsavedPodcast }
-  var unsavedEpisode: UnsavedEpisode { unsavedPodcastEpisode.unsavedEpisode }
-
   var onDeck: Bool {
     guard let podcastEpisode = self.podcastEpisode,
       let onDeck = playState.onDeck
@@ -29,8 +25,11 @@ import Logging
     return onDeck == podcastEpisode
   }
 
+  let searchedText: String
+
   private var podcastEpisode: PodcastEpisode?
-  private let unsavedPodcastEpisode: UnsavedPodcastEpisode
+  let unsavedPodcastEpisode: UnsavedPodcastEpisode
+  private var maxQueuePosition: Int? = nil
 
   // MARK: - Initialization
 
@@ -40,13 +39,30 @@ import Logging
   }
 
   func execute() async {
-    do {
-      for try await podcastEpisode in observatory.podcastEpisode(unsavedEpisode.media) {
-        if self.podcastEpisode == podcastEpisode { continue }
-        self.podcastEpisode = podcastEpisode
+    // Observe max queue position
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        for try await maxPosition in observatory.maxQueuePosition() {
+          self.maxQueuePosition = maxPosition
+        }
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.message(for: error))
       }
-    } catch {
-      alert("Couldn't observe podcast episode: \(unsavedPodcastEpisode.toString)")
+    }
+    
+    // Observe this episode record updates
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        for try await podcastEpisode in observatory.podcastEpisode(unsavedPodcastEpisode.unsavedEpisode.media) {
+          if self.podcastEpisode == podcastEpisode { continue }
+          self.podcastEpisode = podcastEpisode
+        }
+      } catch {
+        alert("Couldn't observe podcast episode: \(unsavedPodcastEpisode.toString)")
+      }
     }
   }
 
@@ -88,6 +104,21 @@ import Logging
       let podcastEpisode = try await fetchOrCreateEpisode()
       try await queue.append(podcastEpisode.episode.id)
     }
+  }
+
+  // MARK: - Queue Position State
+
+  var atTopOfQueue: Bool {
+    guard let podcastEpisode = self.podcastEpisode else { return false }
+    return podcastEpisode.episode.queueOrder == 0
+  }
+
+  var atBottomOfQueue: Bool {
+    guard let podcastEpisode = self.podcastEpisode,
+          let queueOrder = podcastEpisode.episode.queueOrder
+    else { return false }
+
+    return queueOrder == maxQueuePosition
   }
 
   // MARK: - Private Helpers

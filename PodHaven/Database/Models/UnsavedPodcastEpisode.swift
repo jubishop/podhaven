@@ -14,4 +14,8 @@ struct UnsavedPodcastEpisode: Codable, Equatable, Hashable, Identifiable, Search
 
   let unsavedPodcast: UnsavedPodcast
   let unsavedEpisode: UnsavedEpisode
+
+  // MARK: - Convenience Getters
+
+  var image: URL { unsavedEpisode.image ?? unsavedPodcast.image }
 }

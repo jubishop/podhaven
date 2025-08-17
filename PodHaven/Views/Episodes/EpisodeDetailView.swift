@@ -17,7 +17,7 @@ struct EpisodeDetailView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
         VStack(alignment: .center, spacing: 16) {
-          LazyImage(url: viewModel.image) { state in
+          LazyImage(url: viewModel.podcastEpisode.image) { state in
             if let image = state.image {
               image
                 .resizable()
@@ -25,6 +25,16 @@ struct EpisodeDetailView: View {
             } else {
               Rectangle()
                 .fill(Color.gray.opacity(0.3))
+                .overlay(
+                  VStack {
+                    Image(systemName: "photo")
+                      .foregroundColor(.white.opacity(0.8))
+                      .font(.title)
+                    Text("No Image")
+                      .font(.caption)
+                      .foregroundColor(.white.opacity(0.8))
+                  }
+                )
             }
           }
           .frame(width: 200, height: 200)
@@ -33,12 +43,12 @@ struct EpisodeDetailView: View {
           .shadow(radius: 4)
 
           VStack(spacing: 8) {
-            Text(viewModel.episode.title)
+            Text(viewModel.podcastEpisode.episode.title)
               .font(.title2)
               .fontWeight(.semibold)
               .multilineTextAlignment(.center)
 
-            Text(viewModel.podcast.title)
+            Text(viewModel.podcastEpisode.podcast.title)
               .font(.headline)
               .foregroundColor(.secondary)
               .multilineTextAlignment(.center)
@@ -54,13 +64,13 @@ struct EpisodeDetailView: View {
               Text("Published")
                 .font(.caption)
                 .foregroundColor(.secondary)
-              Text(viewModel.episode.pubDate.usShortWithTime)
+              Text(viewModel.podcastEpisode.episode.pubDate.usShortWithTime)
                 .font(.subheadline)
             }
 
             Spacer()
 
-            if viewModel.episode.cachedFilename != nil {
+            if viewModel.podcastEpisode.episode.cachedFilename != nil {
               VStack(spacing: 4) {
                 Image(systemName: "arrow.down.circle.fill")
                   .foregroundColor(.green)
@@ -78,13 +88,13 @@ struct EpisodeDetailView: View {
               Text("Duration")
                 .font(.caption)
                 .foregroundColor(.secondary)
-              Text(viewModel.episode.duration.shortDescription)
+              Text(viewModel.podcastEpisode.episode.duration.shortDescription)
                 .font(.subheadline)
             }
           }
           .padding(.horizontal)
 
-          if let description = viewModel.episode.description, !description.isEmpty {
+          if let description = viewModel.podcastEpisode.episode.description, !description.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
               Text("Description")
                 .font(.headline)
