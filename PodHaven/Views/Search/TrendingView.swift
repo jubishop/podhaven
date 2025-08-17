@@ -17,6 +17,6 @@ struct TrendingView: View {
         )
       }
     }
-    .navigationTitle("Trending Categories")
+    .navigationTitle("Categories")
   }
 }
