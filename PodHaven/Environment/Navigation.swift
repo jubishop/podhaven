@@ -79,8 +79,7 @@ extension Container {
 
     enum SearchType {
       case trending
-      case searchTerm
-      case searchTitle
+      case podcasts
     }
 
     @CasePathable
@@ -98,15 +97,10 @@ extension Container {
         switch searchType {
         case .trending:
           IdentifiableView(TrendingView(), id: "trendingType")
-        case .searchTerm:
+        case .podcasts:
           IdentifiableView(
-            PodcastSearchView(viewModel: TermSearchViewModel()),
-            id: "termSearchType"
-          )
-        case .searchTitle:
-          IdentifiableView(
-            PodcastSearchView(viewModel: TitleSearchViewModel()),
-            id: "titleSearchType"
+            PodcastSearchView(viewModel: PodcastSearchViewModel()),
+            id: "podcastSearchType"
           )
         }
       case .category(let category):

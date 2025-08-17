@@ -27,32 +27,15 @@ struct SearchView: View {
         )
 
         NavigationLink(
-          value: Navigation.Search.Destination.searchType(.searchTerm),
+          value: Navigation.Search.Destination.searchType(.podcasts),
           label: {
             HStack {
               Image(systemName: "magnifyingglass")
                 .foregroundColor(.blue)
               VStack(alignment: .leading) {
-                Text("Search by Term")
+                Text("Search Podcasts")
                   .font(.headline)
-                Text("Find podcasts by keywords")
-                  .font(.caption)
-                  .foregroundColor(.secondary)
-              }
-            }
-          }
-        )
-
-        NavigationLink(
-          value: Navigation.Search.Destination.searchType(.searchTitle),
-          label: {
-            HStack {
-              Image(systemName: "textformat.abc")
-                .foregroundColor(.green)
-              VStack(alignment: .leading) {
-                Text("Search by Title")
-                  .font(.headline)
-                Text("Find podcasts by exact title")
+                Text("Find podcasts by title or keywords")
                   .font(.caption)
                   .foregroundColor(.secondary)
               }

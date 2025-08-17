@@ -1,18 +1,23 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import SwiftUI
 
-struct PodcastSearchView<ViewModel: PodcastSearchViewableModel>: View {
-  @State var viewModel: ViewModel
+struct PodcastSearchView: View {
+  @State var viewModel: PodcastSearchViewModel
 
   var body: some View {
-    VStack {
+    VStack(spacing: 0) {
+      // Mode selection pills
+      ModeSelectionView(selectedMode: $viewModel.selectedMode)
+        .padding(.horizontal)
+        .padding(.bottom, 8)
+
+      // Main content
       switch viewModel.state {
       case .idle:
         IdleStateView(
-          title: viewModel.searchConfiguration.idleTitle,
-          description: viewModel.searchConfiguration.idleDescription
+          title: "Search for podcasts",
+          description: viewModel.selectedMode.idleDescription
         )
 
       case .loading:
@@ -36,12 +41,42 @@ struct PodcastSearchView<ViewModel: PodcastSearchViewableModel>: View {
         ErrorStateView(message: message)
       }
     }
-    .navigationTitle(viewModel.searchConfiguration.navigationTitle)
+    .navigationTitle("Search Podcasts")
     .searchable(
       text: $viewModel.searchText,
       placement: .navigationBarDrawer(displayMode: .always),
-      prompt: viewModel.searchConfiguration.searchPrompt
+      prompt: viewModel.selectedMode.searchPrompt
     )
+  }
+}
+
+// MARK: - Mode Selection
+
+private struct ModeSelectionView: View {
+  @Binding var selectedMode: PodcastSearchViewModel.SearchMode
+
+  var body: some View {
+    HStack {
+      ForEach(PodcastSearchViewModel.SearchMode.allCases, id: \.self) { mode in
+        Button(action: {
+          selectedMode = mode
+        }) {
+          Text(mode.displayName)
+            .font(.subheadline)
+            .fontWeight(.medium)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+              RoundedRectangle(cornerRadius: 20)
+                .fill(selectedMode == mode ? Color.accentColor : Color.secondary.opacity(0.2))
+            )
+            .foregroundColor(selectedMode == mode ? .white : .primary)
+        }
+        .buttonStyle(PlainButtonStyle())
+      }
+      Spacer()
+    }
+    .padding(.top, 8)
   }
 }
 
@@ -134,16 +169,9 @@ private struct PodcastResultsList: View {
 // MARK: - Previews
 
 #if DEBUG
-#Preview("Term Search") {
+#Preview("Search Podcasts") {
   NavigationStack {
-    PodcastSearchView(viewModel: TermSearchViewModel())
-  }
-  .preview()
-}
-
-#Preview("Title Search") {
-  NavigationStack {
-    PodcastSearchView(viewModel: TitleSearchViewModel())
+    PodcastSearchView(viewModel: PodcastSearchViewModel())
   }
   .preview()
 }
