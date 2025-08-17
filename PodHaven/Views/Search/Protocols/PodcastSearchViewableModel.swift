@@ -10,7 +10,7 @@ struct SearchConfiguration {
   let navigationTitle: String
   let idleTitle: String
   let idleDescription: String
-  let searchPrompt: String 
+  let searchPrompt: String
 }
 
 // MARK: - Protocol
@@ -18,6 +18,7 @@ struct SearchConfiguration {
 @MainActor
 protocol PodcastSearchViewableModel: Observable, AnyObject {
   var searchConfiguration: SearchConfiguration { get }
+  var searchTask: Task<Void, Never>? { get set }
 
   // State properties that must be implemented by conforming types
   var state: PodcastSearchState { get set }
@@ -60,25 +61,23 @@ extension PodcastSearchViewableModel {
   }
 
   func scheduleSearch() {
-    guard let searchableModel = self as? any SearchableModel else { return }
-
-    searchableModel.searchTask?.cancel()
+    searchTask?.cancel()
 
     if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       state = .idle
       return
     }
 
-    searchableModel.searchTask = Task { [weak self] in
+    searchTask = Task { [weak self] in
       guard let self else { return }
       try? await sleeper.sleep(for: .milliseconds(self.debounceMilliseconds))
 
       guard !Task.isCancelled else { return }
-      await self.performSearchInternal()
+      await self.executeSearch()
     }
   }
 
-  private func performSearchInternal() async {
+  private func executeSearch() async {
     let trimmedText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedText.isEmpty else {
       state = .idle
@@ -100,11 +99,4 @@ extension PodcastSearchViewableModel {
       alert(ErrorKit.message(for: error))
     }
   }
-}
-
-// MARK: - Supporting Protocol for Search Task Management
-
-@MainActor
-protocol SearchableModel: AnyObject {
-  var searchTask: Task<Void, Never>? { get set }
 }

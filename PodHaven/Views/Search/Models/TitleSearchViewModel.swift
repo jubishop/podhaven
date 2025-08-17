@@ -5,7 +5,7 @@ import Foundation
 import SwiftUI
 
 @Observable @MainActor
-final class TitleSearchViewModel: PodcastSearchViewableModel, SearchableModel {
+final class TitleSearchViewModel: PodcastSearchViewableModel {
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
 
   // MARK: - PodcastSearchViewableModel Requirements
@@ -16,9 +16,9 @@ final class TitleSearchViewModel: PodcastSearchViewableModel, SearchableModel {
     idleDescription: "Enter podcast titles to find exact or similar podcast matches.",
     searchPrompt: "Search podcast titles..."
   )
-  
-  var state: PodcastSearchState = .idle
+  @ObservationIgnored var searchTask: Task<Void, Never>?
 
+  var state: PodcastSearchState = .idle
   var searchText = "" {
     didSet {
       if searchText != oldValue {
@@ -31,10 +31,6 @@ final class TitleSearchViewModel: PodcastSearchViewableModel, SearchableModel {
     let result = try await searchService.searchByTitle(searchText)
     return result.convertibleFeeds.compactMap { try? $0.toUnsavedPodcast() }
   }
-
-  // MARK: - SearchableModel Requirements
-
-  @ObservationIgnored var searchTask: Task<Void, Never>?
 
   // MARK: - Cleanup
 
