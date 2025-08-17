@@ -99,21 +99,15 @@ extension Container {
         case .trending:
           IdentifiableView(TrendingView(), id: "trendingType")
         case .searchTerm:
-          let viewModel = PodcastSearchViewModel { searchText in
-            let result = try await Container.shared.searchService().searchByTerm(searchText)
-            return result.convertibleFeeds.compactMap {
-              try? $0.toUnsavedPodcast()
-            }
-          }
-          IdentifiableView(TermSearchView(viewModel: viewModel), id: "termSearchType")
+          IdentifiableView(
+            PodcastSearchView(viewModel: TermSearchViewModel()),
+            id: "termSearchType"
+          )
         case .searchTitle:
-          let viewModel = PodcastSearchViewModel { searchText in
-            let result = try await Container.shared.searchService().searchByTitle(searchText)
-            return result.convertibleFeeds.compactMap {
-              try? $0.toUnsavedPodcast()
-            }
-          }
-          IdentifiableView(TitleSearchView(viewModel: viewModel), id: "titleSearchType")
+          IdentifiableView(
+            PodcastSearchView(viewModel: TitleSearchViewModel()),
+            id: "titleSearchType"
+          )
         }
       case .category(let category):
         IdentifiableView(
