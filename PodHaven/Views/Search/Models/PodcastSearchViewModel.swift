@@ -113,8 +113,8 @@ final class PodcastSearchViewModel {
     searchTask = Task { [weak self] in
       guard let self else { return }
       try? await sleeper.sleep(for: .milliseconds(self.debounceMilliseconds))
-
       guard !Task.isCancelled else { return }
+
       await self.executeSearch()
     }
   }
