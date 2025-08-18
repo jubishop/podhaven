@@ -10,7 +10,7 @@ import Tagged
 typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
 
-struct UnsavedEpisode: Identifiable, Savable, Stringable {
+struct UnsavedEpisode: EpisodeFilterable, Identifiable, Savable, Stringable {
   var id: MediaURL { media }
 
   private static let log = Log.as(LogSubsystem.Database.episode)
@@ -86,7 +86,7 @@ struct UnsavedEpisode: Identifiable, Savable, Stringable {
 }
 
 @Saved<UnsavedEpisode>
-struct Episode: Saved, RSSUpdatable {
+struct Episode: EpisodeFilterable, Saved, RSSUpdatable {
   // MARK: - Equatable
 
   static func == (lhs: Episode, rhs: OnDeck) -> Bool { lhs.id == rhs.id }
@@ -147,6 +147,12 @@ struct Episode: Saved, RSSUpdatable {
       && unsaved.description == other.unsaved.description && unsaved.link == other.unsaved.link
       && unsaved.image == other.unsaved.image
   }
+
+  // MARK: - EpisodeFilterable
+
+  var started: Bool { unsaved.started }
+  var completed: Bool { unsaved.completed }
+  var queued: Bool { unsaved.queued }
 }
 
 extension DerivableRequest<Episode> {

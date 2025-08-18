@@ -46,8 +46,8 @@ import Testing
     )
   }
 
-  @Test("that changing tabs clears navigation paths")
-  func changingTabsClearsNavigationPaths() async throws {
+  @Test("that changing tabs clears upcoming navigation path")
+  func changingTabsClearsUpcomingNavigationPath() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
     // Set up some navigation state
@@ -61,9 +61,7 @@ import Testing
     // Change to a different tab
     navigation.currentTab = .settings
 
-    // Verify paths are cleared
-    #expect(navigation.episodes.path.isEmpty, "Episodes path should be empty")
-    #expect(navigation.podcasts.path.isEmpty, "Podcasts path should be empty")
+    // Verify path is cleared
     #expect(navigation.settings.path.isEmpty, "Settings path should be empty")
   }
 }

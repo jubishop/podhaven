@@ -120,8 +120,10 @@ struct SelectableGridItem<Item: Gridable>: View {
   .task {
     do {
       podcast = try await PreviewHelpers.loadPodcast()
-      invalidPodcast = try await PreviewHelpers.loadPodcast()
-      invalidPodcast?.image = URL(string: "http://nope.com/0.jpg")!
+      invalidPodcast = try await Create.podcast(
+        title: "Broken Image Podcast",
+        image: URL(string: "http://nope.com/0.jpg")!
+      )
     } catch { Assert.fatal("Couldn't preview podcast thumbnail: \(ErrorKit.message(for: error))") }
   }
 }

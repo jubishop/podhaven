@@ -51,7 +51,10 @@ where P.Element == T {
       let repo = Container.shared.repo()
       try await PreviewHelpers.importPodcasts(gridSize)
       var allPodcasts = try await repo.allPodcasts().shuffled()
-      allPodcasts[Int.random(in: 0...(gridSize - 1))].image = URL(string: "http://nope.com/0.jpg")!
+      allPodcasts[Int.random(in: 0...(gridSize - 1))] = try await Create.podcast(
+        title: "Broken Image Podcast",
+        image: URL(string: "http://nope.com/0.jpg")!
+      )
       podcasts = Array(allPodcasts.prefix(gridSize))
     } catch { Assert.fatal("Couldn't preview podcast grid: \(ErrorKit.message(for: error))") }
   }

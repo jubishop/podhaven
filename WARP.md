@@ -6,13 +6,13 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ### Building
 - Build from terminal: `xcodebuild -project PodHaven.xcodeproj -scheme PodHaven -configuration Debug build`
-- Don't try to build the project unless explicitly asked.
+- **IMPORTANT: Don't try to build the project unless explicitly asked.**
 
 ### Testing
 - Run all tests: `xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven`
 - Run specific test class: `xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven -only-testing:PodHavenTests/[TestClassName]`
 - Run individual test: `xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven -only-testing:PodHavenTests/[TestClassName]/[testMethodName]`
-- Don't try to run the tests unless explicitly asked.
+- **IMPORTANT: Don't try to run the tests unless explicitly asked.**
 
 ### Utilities
 - Repeat failing tests: `Tools/run_test_until_failure.sh [testMethodName]`

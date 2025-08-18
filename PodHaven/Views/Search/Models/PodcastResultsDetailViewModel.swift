@@ -26,29 +26,9 @@ class PodcastResultsDetailViewModel:
 
   // MARK: - State Management
 
-  enum FilterMethod: String, CaseIterable {
-    case all = "All Episodes"
-    case unstarted = "Unstarted"
-    case unfinished = "Unfinished"
-    case unqueued = "Unqueued"
-  }
-
-  private static func filterMethod(for filterMethod: FilterMethod) -> (UnsavedEpisode) -> Bool {
-    switch filterMethod {
-    case .all:
-      return { _ in true }
-    case .unstarted:
-      return { !$0.started }
-    case .unfinished:
-      return { !$0.completed }
-    case .unqueued:
-      return { !$0.queued }
-    }
-  }
-
-  var currentFilterMethod: FilterMethod = .all {
+  var currentFilterMethod: EpisodeFilterMethod = .all {
     didSet {
-      episodeList.filterMethod = Self.filterMethod(for: currentFilterMethod)
+      episodeList.filterMethod = currentFilterMethod.filterMethod(for: UnsavedEpisode.self)
     }
   }
 
@@ -68,7 +48,7 @@ class PodcastResultsDetailViewModel:
   init(searchedPodcast: SearchedPodcast) {
     self.searchedText = searchedPodcast.searchedText
     self.unsavedPodcast = searchedPodcast.unsavedPodcast
-    episodeList.filterMethod = Self.filterMethod(for: currentFilterMethod)
+    episodeList.filterMethod = currentFilterMethod.filterMethod(for: UnsavedEpisode.self)
   }
 
   func execute() async {

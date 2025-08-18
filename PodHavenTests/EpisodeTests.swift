@@ -93,13 +93,17 @@ class EpisodeTests {
     let newPodcastLink = URL.valid()
     let newLastUpdate = 10.minutesAgo
 
-    var updatedPodcast = originalPodcast
-    updatedPodcast.feedURL = newFeedURL
-    updatedPodcast.title = newPodcastTitle
-    updatedPodcast.image = newPodcastImage
-    updatedPodcast.description = newPodcastDescription
-    updatedPodcast.link = newPodcastLink
-    updatedPodcast.lastUpdate = newLastUpdate
+    let updatedPodcast = try Podcast(
+      id: originalPodcast.id,
+      from: Create.unsavedPodcast(
+        feedURL: newFeedURL,
+        title: newPodcastTitle,
+        image: newPodcastImage,
+        description: newPodcastDescription,
+        link: newPodcastLink,
+        lastUpdate: newLastUpdate
+      )
+    )
 
     let newEpisodeGUID: GUID = GUID(String.random())
     let newEpisodeMedia = MediaURL(URL.valid())

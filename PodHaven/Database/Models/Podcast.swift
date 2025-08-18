@@ -8,7 +8,7 @@ import Tagged
 
 typealias FeedURL = Tagged<UnsavedPodcast, URL>
 
-struct UnsavedPodcast: Gridable, Identifiable, Savable, Stringable {
+struct UnsavedPodcast: PodcastDisplayable, Identifiable, Savable, Stringable {
   var id: FeedURL { feedURL }
 
   static let databaseTableName: String = "podcast"
@@ -54,7 +54,7 @@ struct UnsavedPodcast: Gridable, Identifiable, Savable, Stringable {
 }
 
 @Saved<UnsavedPodcast>
-struct Podcast: Gridable, Saved, RSSUpdatable {
+struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   // MARK: - Associations
 
   static let episodes = hasMany(Episode.self).order(\.pubDate.desc)
@@ -99,16 +99,12 @@ struct Podcast: Gridable, Saved, RSSUpdatable {
       && unsaved.link == other.unsaved.link && unsaved.lastUpdate == other.unsaved.lastUpdate
   }
 
-  // MARK: - Gridable
+  // MARK: - PodcastDisplayable
 
-  var image: URL {
-    get { unsaved.image }
-    set { unsaved.image = newValue }
-  }
-  var title: String {
-    get { unsaved.title }
-    set { unsaved.title = newValue }
-  }
+  var image: URL { unsaved.image }
+  var title: String { unsaved.title }
+  var description: String { unsaved.description }
+  var link: URL? { unsaved.link }
 }
 
 extension DerivableRequest<Podcast> {
