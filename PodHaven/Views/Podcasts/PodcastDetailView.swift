@@ -24,32 +24,29 @@ struct PodcastDetailView: View {
   }
 
   var body: some View {
-    VStack(spacing: 0) {
-      VStack(spacing: 4) {
-        Group {
-          PodcastHeaderView(
-            podcast: viewModel.podcast,
-            subscribed: viewModel.podcast.subscribed,
-            subscribeAction: viewModel.subscribe,
-            unsubscribeAction: viewModel.unsubscribe
+    VStack(spacing: 4) {
+      Group {
+        PodcastHeaderView(
+          podcast: viewModel.podcast,
+          subscribed: viewModel.podcast.subscribed,
+          subscribeAction: viewModel.subscribe,
+          unsubscribeAction: viewModel.unsubscribe
+        )
+        PodcastAboutHeaderView(
+          displayAboutSection: $viewModel.displayAboutSection,
+          mostRecentEpisodeDate: viewModel.mostRecentEpisodeDate
+        )
+        if viewModel.displayAboutSection {
+          Divider()
+          PodcastMetadataView(
+            mostRecentEpisodeDate: viewModel.mostRecentEpisodeDate,
+            episodeCount: viewModel.episodeList.allEntries.count
           )
-          PodcastAboutHeaderView(
-            displayAboutSection: $viewModel.displayAboutSection,
-            mostRecentEpisodeDate: viewModel.mostRecentEpisodeDate
-          )
-          if viewModel.displayAboutSection {
-            Divider()
-            PodcastMetadataView(
-              mostRecentEpisodeDate: viewModel.mostRecentEpisodeDate,
-              episodeCount: viewModel.episodeList.allEntries.count
-            )
-            Divider()
-            PodcastExpandedAboutView(podcast: viewModel.podcast)
-          }
+          Divider()
+          PodcastExpandedAboutView(podcast: viewModel.podcast)
         }
-        .padding(.horizontal)
-        .padding(.bottom, 4)
       }
+      .padding(.horizontal)
       if !viewModel.displayAboutSection {
         EpisodeFilterView(
           entryFilter: $viewModel.episodeList.entryFilter,
