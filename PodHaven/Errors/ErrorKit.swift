@@ -12,7 +12,7 @@ enum ErrorKit {
     }
 
     if let localizedError = error as? LocalizedError,
-       let errorDescription = localizedError.errorDescription
+      let errorDescription = localizedError.errorDescription
     {
       return errorDescription
     }

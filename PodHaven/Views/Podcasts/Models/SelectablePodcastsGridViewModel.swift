@@ -116,7 +116,7 @@ import SwiftUI
       }
     } catch {
       Self.log.error(error)
-      if ErrorKit.baseError(for: error) is CancellationError { return }
+      if !ErrorKit.isRemarkable(error) { return }
       alert(ErrorKit.message(for: error))
     }
   }

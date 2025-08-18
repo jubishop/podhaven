@@ -8,7 +8,7 @@ struct EpisodesView: View {
   @InjectedObservable(\.navigation) private var navigation
 
   var body: some View {
-    NavigationStack(path: $navigation.episodes.path) {
+    IdentifiableNavigationStack(manager: navigation.episodes) {
       Form {
         NavigationLink(
           value: Navigation.Episodes.Destination.viewType(.recentEpisodes),

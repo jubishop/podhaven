@@ -23,22 +23,25 @@ extension Container {
   }
 
   var currentTab: Tab = .settings {
-    willSet { clearPaths() }
+    willSet { managerFor(tab: newValue).clearPath() }
   }
 
-  private func clearPaths() {
-    settings = Settings()
-    search = Search()
-    upNext = UpNext()
-    episodes = Episodes()
-    podcasts = Podcasts()
+  private func managerFor(tab: Tab) -> any NavigationPathManager {
+    switch tab {
+    case .settings: return settings
+    case .search: return search
+    case .upNext: return upNext
+    case .episodes: return episodes
+    case .podcasts: return podcasts
+    }
   }
 
   // MARK: - Settings
 
   @MainActor @Observable
-  class Settings {
+  class Settings: NavigationPathManager {
     var path: [Destination] = []
+    var resetId = UUID()
 
     enum Section {
       case opml
@@ -55,7 +58,7 @@ extension Container {
       case .section(let section):
         switch section {
         case .opml:
-          IdentifiableView(OPMLView(), id: "opml")
+          OPMLView().id("opml")
         }
       }
     }
@@ -74,8 +77,9 @@ extension Container {
   // MARK: - Search
 
   @MainActor @Observable
-  class Search {
+  class Search: NavigationPathManager {
     var path: [Destination] = []
+    var resetId = UUID()
 
     enum SearchType {
       case trending
@@ -96,32 +100,24 @@ extension Container {
       case .searchType(let searchType):
         switch searchType {
         case .trending:
-          IdentifiableView(TrendingView(), id: "trendingType")
+          TrendingView().id("trendingType")
         case .podcasts:
-          IdentifiableView(
-            PodcastSearchView(viewModel: PodcastSearchViewModel()),
-            id: "podcastSearchType"
-          )
+          PodcastSearchView(viewModel: PodcastSearchViewModel())
+            .id("podcastSearchType")
         }
       case .category(let category):
-        IdentifiableView(
-          TrendingCategoryGridView(viewModel: TrendingCategoryGridViewModel(category: category)),
-          id: "trending_\(category)"
-        )
+        TrendingCategoryGridView(viewModel: TrendingCategoryGridViewModel(category: category))
+          .id("trending_\(category)")
       case .searchedPodcast(let searchedPodcast):
-        IdentifiableView(
-          PodcastResultsDetailView(
-            viewModel: PodcastResultsDetailViewModel(searchedPodcast: searchedPodcast)
-          ),
-          id: searchedPodcast.unsavedPodcast.feedURL
+        PodcastResultsDetailView(
+          viewModel: PodcastResultsDetailViewModel(searchedPodcast: searchedPodcast)
         )
+        .id(searchedPodcast.unsavedPodcast.feedURL)
       case .searchedPodcastEpisode(let searchedPodcastEpisode):
-        IdentifiableView(
-          EpisodeResultsDetailView(
-            viewModel: EpisodeResultsDetailViewModel(searchedPodcastEpisode: searchedPodcastEpisode)
-          ),
-          id: searchedPodcastEpisode.unsavedPodcastEpisode.unsavedEpisode.media
+        EpisodeResultsDetailView(
+          viewModel: EpisodeResultsDetailViewModel(searchedPodcastEpisode: searchedPodcastEpisode)
         )
+        .id(searchedPodcastEpisode.unsavedPodcastEpisode.unsavedEpisode.media)
       }
     }
   }
@@ -130,8 +126,9 @@ extension Container {
   // MARK: - UpNext
 
   @MainActor @Observable
-  class UpNext {
+  class UpNext: NavigationPathManager {
     var path: [Destination] = []
+    var resetId = UUID()
 
     @CasePathable
     enum Destination: Hashable {
@@ -142,10 +139,8 @@ extension Container {
     func navigationDestination(for destination: Destination) -> some View {
       switch destination {
       case .episode(let podcastEpisode):
-        IdentifiableView(
-          EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode)),
-          id: podcastEpisode.id
-        )
+        EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
+          .id(podcastEpisode.id)
       }
     }
   }
@@ -154,8 +149,9 @@ extension Container {
   // MARK: - Episodes
 
   @MainActor @Observable
-  class Episodes {
+  class Episodes: NavigationPathManager {
     var path: [Destination] = []
+    var resetId = UUID()
 
     enum ViewType {
       case recentEpisodes, completed, unqueued, cached, unfinished, previouslyQueued
@@ -173,73 +169,59 @@ extension Container {
       case .viewType(let viewType):
         switch viewType {
         case .recentEpisodes:
-          IdentifiableView(
-            StandardEpisodesView(
-              viewModel: StandardEpisodesViewModel(
-                title: "Recent Episodes",
-                filter: AppDB.NoOp
-              )
-            ),
-            id: "recentEpisodes"
+          StandardEpisodesView(
+            viewModel: StandardEpisodesViewModel(
+              title: "Recent Episodes",
+              filter: AppDB.NoOp
+            )
           )
+          .id("recentEpisodes")
         case .unqueued:
-          IdentifiableView(
-            StandardEpisodesView(
-              viewModel: StandardEpisodesViewModel(
-                title: "Unqueued",
-                filter: Episode.uncompleted && Episode.unqueued
-              )
-            ),
-            id: "unqueued"
+          StandardEpisodesView(
+            viewModel: StandardEpisodesViewModel(
+              title: "Unqueued",
+              filter: Episode.uncompleted && Episode.unqueued
+            )
           )
+          .id("unqueued")
         case .cached:
-          IdentifiableView(
-            StandardEpisodesView(
-              viewModel: StandardEpisodesViewModel(
-                title: "Cached",
-                filter: Episode.cached
-              )
-            ),
-            id: "cached"
+          StandardEpisodesView(
+            viewModel: StandardEpisodesViewModel(
+              title: "Cached",
+              filter: Episode.cached
+            )
           )
+          .id("cached")
         case .completed:
-          IdentifiableView(
-            StandardEpisodesView(
-              viewModel: StandardEpisodesViewModel(
-                title: "Completed",
-                filter: Episode.completed,
-                order: Episode.Columns.completionDate.desc
-              )
-            ),
-            id: "completed"
+          StandardEpisodesView(
+            viewModel: StandardEpisodesViewModel(
+              title: "Completed",
+              filter: Episode.completed,
+              order: Episode.Columns.completionDate.desc
+            )
           )
+          .id("completed")
         case .unfinished:
-          IdentifiableView(
-            StandardEpisodesView(
-              viewModel: StandardEpisodesViewModel(
-                title: "Unfinished",
-                filter: Episode.started && Episode.uncompleted
-              )
-            ),
-            id: "unfinished"
+          StandardEpisodesView(
+            viewModel: StandardEpisodesViewModel(
+              title: "Unfinished",
+              filter: Episode.started && Episode.uncompleted
+            )
           )
+          .id("unfinished")
         case .previouslyQueued:
-          IdentifiableView(
-            StandardEpisodesView(
-              viewModel: StandardEpisodesViewModel(
-                title: "Previously Queued",
-                filter: Episode.previouslyQueued && Episode.unqueued && Episode.uncompleted,
-                order: Episode.Columns.lastQueued.desc
-              )
-            ),
-            id: "previouslyQueued"
+          StandardEpisodesView(
+            viewModel: StandardEpisodesViewModel(
+              title: "Previously Queued",
+              filter: Episode.previouslyQueued && Episode.unqueued && Episode.uncompleted,
+              order: Episode.Columns.lastQueued.desc
+            )
           )
+          .id("previouslyQueued")
         }
       case .episode(let podcastEpisode):
-        IdentifiableView(
-          EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode)),
-          id: podcastEpisode.id
-        )
+        EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
+          .id(podcastEpisode.id)
       }
     }
   }
@@ -255,8 +237,9 @@ extension Container {
   // MARK: - Podcasts
 
   @MainActor @Observable
-  class Podcasts {
+  class Podcasts: NavigationPathManager {
     var path: [Destination] = []
+    var resetId = UUID()
 
     enum ViewType {
       case all
@@ -277,43 +260,33 @@ extension Container {
       case .viewType(let viewType):
         switch viewType {
         case .all:
-          IdentifiableView(
-            SelectablePodcastsGridView(
-              viewModel: SelectablePodcastsGridViewModel(title: "All Podcasts")
-            ),
-            id: "all"
+          SelectablePodcastsGridView(
+            viewModel: SelectablePodcastsGridViewModel(title: "All Podcasts")
           )
+          .id("all")
         case .subscribed:
-          IdentifiableView(
-            SelectablePodcastsGridView(
-              viewModel: SelectablePodcastsGridViewModel(
-                title: "Subscribed",
-                filter: Podcast.subscribed
-              )
-            ),
-            id: "subscribed"
+          SelectablePodcastsGridView(
+            viewModel: SelectablePodcastsGridViewModel(
+              title: "Subscribed",
+              filter: Podcast.subscribed
+            )
           )
+          .id("subscribed")
         case .unsubscribed:
-          IdentifiableView(
-            SelectablePodcastsGridView(
-              viewModel: SelectablePodcastsGridViewModel(
-                title: "Unsubscribed",
-                filter: Podcast.unsubscribed
-              )
-            ),
-            id: "unsubscribed"
+          SelectablePodcastsGridView(
+            viewModel: SelectablePodcastsGridViewModel(
+              title: "Unsubscribed",
+              filter: Podcast.unsubscribed
+            )
           )
+          .id("unsubscribed")
         }
       case .podcast(let podcast):
-        IdentifiableView(
-          PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast)),
-          id: podcast.id
-        )
+        PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
+          .id(podcast.id)
       case .episode(let podcastEpisode):
-        IdentifiableView(
-          EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode)),
-          id: podcastEpisode.id
-        )
+        EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
+          .id(podcastEpisode.id)
       }
     }
   }

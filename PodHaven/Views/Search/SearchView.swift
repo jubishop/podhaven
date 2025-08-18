@@ -7,7 +7,7 @@ struct SearchView: View {
   @InjectedObservable(\.navigation) private var navigation
 
   var body: some View {
-    NavigationStack(path: $navigation.search.path) {
+    IdentifiableNavigationStack(manager: navigation.search) {
       Form {
         NavigationLink(
           value: Navigation.Search.Destination.searchType(.trending),

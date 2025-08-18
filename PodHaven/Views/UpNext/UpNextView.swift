@@ -10,7 +10,7 @@ struct UpNextView: View {
   @State private var viewModel = UpNextViewModel()
 
   var body: some View {
-    NavigationStack {
+    IdentifiableNavigationStack(manager: navigation.upNext) {
       List {
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
           NavigationLink(

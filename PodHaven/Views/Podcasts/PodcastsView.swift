@@ -8,7 +8,7 @@ struct PodcastsView: View {
   @InjectedObservable(\.navigation) private var navigation
 
   var body: some View {
-    NavigationStack(path: $navigation.podcasts.path) {
+    IdentifiableNavigationStack(manager: navigation.podcasts) {
       Form {
         Section("Standard") {
           NavigationLink(

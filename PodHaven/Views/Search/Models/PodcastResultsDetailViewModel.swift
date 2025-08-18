@@ -100,6 +100,7 @@ class PodcastResultsDetailViewModel:
       }
     } catch {
       Self.log.error(error)
+      if !ErrorKit.isRemarkable(error) { return }
       alert(ErrorKit.message(for: error))
     }
   }

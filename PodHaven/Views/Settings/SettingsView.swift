@@ -9,7 +9,7 @@ struct SettingsView: View {
   private let viewModel = SettingsViewModel()
 
   var body: some View {
-    NavigationStack(path: $navigation.settings.path) {
+    IdentifiableNavigationStack(manager: navigation.settings) {
       Form {
         Section("Importing / Exporting") {
           NavigationLink(
