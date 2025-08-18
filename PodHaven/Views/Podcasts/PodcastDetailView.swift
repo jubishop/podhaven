@@ -47,6 +47,7 @@ struct PodcastDetailView: View {
         }
       }
       .padding(.horizontal)
+
       if !viewModel.displayAboutSection {
         EpisodeFilterView(
           entryFilter: $viewModel.episodeList.entryFilter,

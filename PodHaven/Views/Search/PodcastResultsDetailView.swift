@@ -47,6 +47,7 @@ struct PodcastResultsDetailView: View {
         }
       }
       .padding(.horizontal)
+
       if !viewModel.displayAboutSection {
         EpisodeFilterView(
           entryFilter: $viewModel.episodeList.entryFilter,
@@ -55,40 +56,31 @@ struct PodcastResultsDetailView: View {
         .padding(.horizontal)
 
         if viewModel.subscribable {
-          if viewModel.episodeList.filteredEntries.isEmpty {
-            VStack {
-              Text("No matching episodes found.")
-                .foregroundColor(.secondary)
-                .padding()
-              Spacer()
-            }
-          } else {
-            List(viewModel.episodeList.filteredEntries, id: \.guid) { unsavedEpisode in
-              NavigationLink(
-                value: Navigation.Search.Destination.searchedPodcastEpisode(
-                  SearchedPodcastEpisode(
-                    searchedText: viewModel.searchedText,
-                    unsavedPodcastEpisode: UnsavedPodcastEpisode(
-                      unsavedPodcast: viewModel.unsavedPodcast,
-                      unsavedEpisode: unsavedEpisode
-                    )
+          List(viewModel.episodeList.filteredEntries, id: \.guid) { unsavedEpisode in
+            NavigationLink(
+              value: Navigation.Search.Destination.searchedPodcastEpisode(
+                SearchedPodcastEpisode(
+                  searchedText: viewModel.searchedText,
+                  unsavedPodcastEpisode: UnsavedPodcastEpisode(
+                    unsavedPodcast: viewModel.unsavedPodcast,
+                    unsavedEpisode: unsavedEpisode
                   )
-                ),
-                label: {
-                  EpisodeResultsListView(
-                    viewModel: EpisodeResultsListViewModel(
-                      isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
-                      item: unsavedEpisode,
-                      isSelecting: viewModel.episodeList.isSelecting
-                    )
+                )
+              ),
+              label: {
+                EpisodeResultsListView(
+                  viewModel: EpisodeResultsListViewModel(
+                    isSelected: $viewModel.episodeList.isSelected[unsavedEpisode],
+                    item: unsavedEpisode,
+                    isSelecting: viewModel.episodeList.isSelecting
                   )
-                }
-              )
-              .episodeQueueableSwipeActions(viewModel: viewModel, episode: unsavedEpisode)
-              .episodeQueueableContextMenu(viewModel: viewModel, episode: unsavedEpisode)
-            }
-            .animation(.default, value: viewModel.episodeList.filteredEntries)
+                )
+              }
+            )
+            .episodeQueueableSwipeActions(viewModel: viewModel, episode: unsavedEpisode)
+            .episodeQueueableContextMenu(viewModel: viewModel, episode: unsavedEpisode)
           }
+          .animation(.default, value: viewModel.episodeList.filteredEntries)
         } else {
           VStack {
             Text("Loading episodes...")
