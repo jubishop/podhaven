@@ -5,6 +5,10 @@ import RegexBuilder
 extension String {
   // MARK: - Hashing
 
+  private static let hashChars = Array(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+  )
+
   func hash(to length: Int = 8) -> String {
     guard length > 0 else { return "" }
 
@@ -12,13 +16,11 @@ extension String {
     let hash = SHA256.hash(data: data)
     let hashData = Data(hash)
 
-    let chars = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
-
     let result = (0..<length)
       .map { i in
         let byte = hashData[i % hashData.count]
-        let index = Int(byte) % chars.count
-        return chars[index]
+        let index = Int(byte) % Self.hashChars.count
+        return Self.hashChars[index]
       }
 
     return String(result)

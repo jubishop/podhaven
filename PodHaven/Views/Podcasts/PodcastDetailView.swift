@@ -58,24 +58,33 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
         .padding(.horizontal)
 
         if viewModel.subscribable {
-          List(viewModel.episodeList.filteredEntries) { episode in
-            NavigationLink(
-              value: viewModel.navigationDestination(for: episode),
-              label: {
-                EpisodeListView(
-                  viewModel: SelectableListItemModel(
-                    isSelected: $viewModel.episodeList.isSelected[episode],
-                    item: episode,
-                    isSelecting: viewModel.episodeList.isSelecting
+          if !viewModel.episodeList.filteredEntries.isEmpty {
+            List(viewModel.episodeList.filteredEntries) { episode in
+              NavigationLink(
+                value: viewModel.navigationDestination(for: episode),
+                label: {
+                  EpisodeListView(
+                    viewModel: SelectableListItemModel(
+                      isSelected: $viewModel.episodeList.isSelected[episode],
+                      item: episode,
+                      isSelecting: viewModel.episodeList.isSelecting
+                    )
                   )
-                )
-              }
-            )
-            .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
-            .episodeQueueableContextMenu(viewModel: viewModel, episode: episode)
+                }
+              )
+              .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
+              .episodeQueueableContextMenu(viewModel: viewModel, episode: episode)
+            }
+            .animation(.default, value: viewModel.episodeList.filteredEntries)
+            .conditionalRefreshable(enabled: viewModel.refreshable, action: viewModel.refreshSeries)
+          } else {
+            VStack {
+              Text("No episodes match the filters.")
+                .foregroundColor(.secondary)
+                .padding()
+              Spacer()
+            }
           }
-          .animation(.default, value: viewModel.episodeList.filteredEntries)
-          .conditionalRefreshable(enabled: viewModel.refreshable, action: viewModel.refreshSeries)
         } else {
           VStack {
             Text("Loading episodes...")
