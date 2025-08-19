@@ -1,11 +1,12 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import FactoryKit
 import Foundation
 import GRDB
 import Logging
 
-@Observable @MainActor class EpisodeDetailViewModel {
+@Observable @MainActor class EpisodeDetailViewModel: EpisodeDetailViewableModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
@@ -17,12 +18,7 @@ import Logging
 
   // MARK: - State Management
 
-  var onDeck: Bool {
-    guard let onDeck = playState.onDeck else { return false }
-    return onDeck == podcastEpisode
-  }
-
-  private var maxQueuePosition: Int? = nil
+  internal var maxQueuePosition: Int? = nil
   var podcastEpisode: PodcastEpisode
 
   // MARK: - Initialization
@@ -67,45 +63,21 @@ import Logging
     }
   }
 
-  // MARK: - Public Functions
+  // MARK: - EpisodeDetailViewableModel
 
-  func playNow() {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        try await playManager.load(podcastEpisode)
-        await playManager.play()
-      } catch {
-        alert("Failed to load next episode: \(podcastEpisode.episode.title)")
-        Self.log.error(error)
-      }
-    }
+  func getPodcastEpisode() -> PodcastEpisode? {
+    podcastEpisode
   }
 
-  func addToTopOfQueue() {
-    Task { [weak self] in
-      guard let self else { return }
-      try await queue.unshift(podcastEpisode.episode.id)
-    }
+  func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
+    podcastEpisode
   }
 
-  func appendToQueue() {
-    Task { [weak self] in
-      guard let self else { return }
-      try await queue.append(podcastEpisode.episode.id)
-    }
-  }
-
-  // MARK: - Queue Position State
-
-  var atTopOfQueue: Bool {
-    podcastEpisode.episode.queueOrder == 0
-  }
-
-  var atBottomOfQueue: Bool {
-    guard let queueOrder = podcastEpisode.episode.queueOrder
-    else { return false }
-
-    return queueOrder == maxQueuePosition
-  }
+  var episodeTitle: String { podcastEpisode.episode.title }
+  var episodePubDate: Date { podcastEpisode.episode.pubDate }
+  var episodeDuration: CMTime { podcastEpisode.episode.duration }
+  var episodeCachedFilename: String? { podcastEpisode.episode.cachedFilename }
+  var episodeImage: URL { podcastEpisode.image }
+  var episodeDescription: String? { podcastEpisode.episode.description }
+  var podcastTitle: String { podcastEpisode.podcast.title }
 }

@@ -19,7 +19,7 @@ struct StandardEpisodesView: View {
         value: Navigation.Episodes.Destination.episode(podcastEpisode),
         label: {
           PodcastEpisodeListView(
-            viewModel: PodcastEpisodeListViewModel(
+            viewModel: SelectableListItemModel(
               isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
               item: podcastEpisode,
               isSelecting: viewModel.episodeList.isSelecting

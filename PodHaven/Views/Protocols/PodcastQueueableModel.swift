@@ -4,7 +4,12 @@ import FactoryKit
 import Foundation
 import Logging
 
-@MainActor protocol PodcastQueueableModel: AnyObject, EpisodeQueueable, PodcastEpisodeGettable {}
+@MainActor protocol PodcastQueueableModel: AnyObject, EpisodeQueueable {
+  associatedtype EpisodeType
+
+  func getPodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode
+  func getEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID
+}
 
 extension PodcastQueueableModel {
   private var playManager: PlayManager { Container.shared.playManager() }

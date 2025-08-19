@@ -3,12 +3,10 @@
 import NukeUI
 import SwiftUI
 
-typealias PodcastEpisodeListViewModel = SelectableListItemModel<PodcastEpisode>
+struct PodcastEpisodeListView<EpisodeType: PodcastEpisodeDisplayable>: View {
+  private let viewModel: SelectableListItemModel<EpisodeType>
 
-struct PodcastEpisodeListView: View {
-  private let viewModel: PodcastEpisodeListViewModel
-
-  init(viewModel: PodcastEpisodeListViewModel) {
+  init(viewModel: SelectableListItemModel<EpisodeType>) {
     self.viewModel = viewModel
   }
 
@@ -42,7 +40,7 @@ struct PodcastEpisodeListView: View {
       .cornerRadius(8)
 
       VStack(alignment: .leading, spacing: 4) {
-        Text(viewModel.item.episode.title)
+        Text(viewModel.item.title)
           .lineLimit(2)
           .font(.body)
           .multilineTextAlignment(.leading)
@@ -52,14 +50,14 @@ struct PodcastEpisodeListView: View {
             Image(systemName: "calendar")
               .font(.caption2)
               .foregroundColor(.secondary)
-            Text(viewModel.item.episode.pubDate.usShort)
+            Text(viewModel.item.pubDate.usShort)
               .font(.caption)
               .foregroundColor(.secondary)
           }
 
           Spacer()
 
-          if viewModel.item.episode.cachedFilename != nil {
+          if viewModel.item.cachedFilename != nil {
             Image(systemName: "arrow.down.circle.fill")
               .font(.caption2)
               .foregroundColor(.green)
@@ -71,7 +69,7 @@ struct PodcastEpisodeListView: View {
             Image(systemName: "clock")
               .font(.caption2)
               .foregroundColor(.secondary)
-            Text(viewModel.item.episode.duration.shortDescription)
+            Text(viewModel.item.duration.shortDescription)
               .font(.caption)
               .foregroundColor(.secondary)
           }
@@ -92,7 +90,7 @@ struct PodcastEpisodeListView: View {
   List {
     if let podcastEpisode {
       PodcastEpisodeListView(
-        viewModel: PodcastEpisodeListViewModel(
+        viewModel: SelectableListItemModel(
           isSelected: .constant(false),
           item: podcastEpisode,
           isSelecting: false
@@ -101,7 +99,7 @@ struct PodcastEpisodeListView: View {
     }
     if let selectedPodcastEpisode {
       PodcastEpisodeListView(
-        viewModel: PodcastEpisodeListViewModel(
+        viewModel: SelectableListItemModel(
           isSelected: $isSelected,
           item: selectedPodcastEpisode,
           isSelecting: true

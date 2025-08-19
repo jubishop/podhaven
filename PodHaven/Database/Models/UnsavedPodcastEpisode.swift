@@ -1,8 +1,17 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import Foundation
 
-struct UnsavedPodcastEpisode: Codable, Equatable, Hashable, Identifiable, Searchable, Stringable {
+struct UnsavedPodcastEpisode:
+  Codable,
+  Equatable,
+  Hashable,
+  Identifiable,
+  PodcastEpisodeDisplayable,
+  Searchable,
+  Stringable
+{
   var id: MediaURL { unsavedEpisode.media }
 
   // MARK: - Stringable / Searchable
@@ -18,4 +27,11 @@ struct UnsavedPodcastEpisode: Codable, Equatable, Hashable, Identifiable, Search
   // MARK: - Convenience Getters
 
   var image: URL { unsavedEpisode.image ?? unsavedPodcast.image }
+
+  // MARK: - PodcastEpisodeDisplayable
+
+  var title: String { unsavedEpisode.title }
+  var pubDate: Date { unsavedEpisode.pubDate }
+  var duration: CMTime { unsavedEpisode.duration }
+  var cachedFilename: String? { unsavedEpisode.cachedFilename }
 }

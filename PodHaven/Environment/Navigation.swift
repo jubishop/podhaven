@@ -84,6 +84,7 @@ extension Container {
     enum SearchType {
       case trending
       case podcasts
+      case episodes
     }
 
     @CasePathable
@@ -104,6 +105,9 @@ extension Container {
         case .podcasts:
           PodcastSearchView(viewModel: PodcastSearchViewModel())
             .id("podcastSearchType")
+        case .episodes:
+          EpisodeSearchView(viewModel: EpisodeSearchViewModel())
+            .id("episodeSearchType")
         }
       case .category(let category):
         TrendingCategoryGridView(viewModel: TrendingCategoryGridViewModel(category: category))
@@ -114,7 +118,7 @@ extension Container {
         )
         .id(searchedPodcast.unsavedPodcast.feedURL)
       case .searchedPodcastEpisode(let searchedPodcastEpisode):
-        EpisodeResultsDetailView(
+        EpisodeDetailView(
           viewModel: EpisodeResultsDetailViewModel(searchedPodcastEpisode: searchedPodcastEpisode)
         )
         .id(searchedPodcastEpisode.unsavedPodcastEpisode.unsavedEpisode.media)

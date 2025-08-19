@@ -4,12 +4,12 @@ import FactoryKit
 import NukeUI
 import SwiftUI
 
-struct EpisodeDetailView: View {
+struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
   @DynamicInjected(\.alert) private var alert
 
-  private let viewModel: EpisodeDetailViewModel
+  private let viewModel: ViewModel
 
-  init(viewModel: EpisodeDetailViewModel) {
+  init(viewModel: ViewModel) {
     self.viewModel = viewModel
   }
 
@@ -17,7 +17,7 @@ struct EpisodeDetailView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
         VStack(alignment: .center, spacing: 16) {
-          LazyImage(url: viewModel.podcastEpisode.image) { state in
+          LazyImage(url: viewModel.episodeImage) { state in
             if let image = state.image {
               image
                 .resizable()
@@ -43,12 +43,12 @@ struct EpisodeDetailView: View {
           .shadow(radius: 4)
 
           VStack(spacing: 8) {
-            Text(viewModel.podcastEpisode.episode.title)
+            Text(viewModel.episodeTitle)
               .font(.title2)
               .fontWeight(.semibold)
               .multilineTextAlignment(.center)
 
-            Text(viewModel.podcastEpisode.podcast.title)
+            Text(viewModel.podcastTitle)
               .font(.headline)
               .foregroundColor(.secondary)
               .multilineTextAlignment(.center)
@@ -64,13 +64,13 @@ struct EpisodeDetailView: View {
               Text("Published")
                 .font(.caption)
                 .foregroundColor(.secondary)
-              Text(viewModel.podcastEpisode.episode.pubDate.usShortWithTime)
+              Text(viewModel.episodePubDate.usShortWithTime)
                 .font(.subheadline)
             }
 
             Spacer()
 
-            if viewModel.podcastEpisode.episode.cachedFilename != nil {
+            if viewModel.episodeCachedFilename != nil {
               VStack(spacing: 4) {
                 Image(systemName: "arrow.down.circle.fill")
                   .foregroundColor(.green)
@@ -88,13 +88,13 @@ struct EpisodeDetailView: View {
               Text("Duration")
                 .font(.caption)
                 .foregroundColor(.secondary)
-              Text(viewModel.podcastEpisode.episode.duration.shortDescription)
+              Text(viewModel.episodeDuration.shortDescription)
                 .font(.subheadline)
             }
           }
           .padding(.horizontal)
 
-          if let description = viewModel.podcastEpisode.episode.description, !description.isEmpty {
+          if let description = viewModel.episodeDescription, !description.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
               Text("Description")
                 .font(.headline)
@@ -150,7 +150,7 @@ struct EpisodeDetailView: View {
       }
       .padding(.vertical)
     }
-    .task(viewModel.execute)
+    .task { await viewModel.execute() }
   }
 }
 

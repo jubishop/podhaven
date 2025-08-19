@@ -42,6 +42,23 @@ struct SearchView: View {
             }
           }
         )
+
+        NavigationLink(
+          value: Navigation.Search.Destination.searchType(.episodes),
+          label: {
+            HStack {
+              Image(systemName: "person.circle")
+                .foregroundColor(.green)
+              VStack(alignment: .leading) {
+                Text("Search Episodes")
+                  .font(.headline)
+                Text("Find episodes with a specific person")
+                  .font(.caption)
+                  .foregroundColor(.secondary)
+              }
+            }
+          }
+        )
       }
       .navigationTitle("Search")
       .navigationDestination(

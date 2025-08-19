@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import Foundation
 import GRDB
 import IdentifiedCollections
@@ -12,6 +13,7 @@ struct PodcastEpisode:
   FetchableRecord,
   Hashable,
   Identifiable,
+  PodcastEpisodeDisplayable,
   Searchable,
   Stringable
 {
@@ -34,4 +36,11 @@ struct PodcastEpisode:
   // MARK: - Convenience Getters
 
   var image: URL { episode.image ?? podcast.image }
+
+  // MARK: - PodcastEpisodeDisplayable
+
+  var title: String { episode.title }
+  var pubDate: Date { episode.pubDate }
+  var duration: CMTime { episode.duration }
+  var cachedFilename: String? { episode.cachedFilename }
 }
