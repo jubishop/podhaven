@@ -2,12 +2,10 @@
 
 import SwiftUI
 
-typealias EpisodeListViewModel = SelectableListItemModel<Episode>
+struct EpisodeListView<EpisodeType: EpisodeDisplayable>: View {
+  private let viewModel: SelectableListItemModel<EpisodeType>
 
-struct EpisodeListView: View {
-  private let viewModel: EpisodeListViewModel
-
-  init(viewModel: EpisodeListViewModel) {
+  init(viewModel: SelectableListItemModel<EpisodeType>) {
     self.viewModel = viewModel
   }
 
@@ -77,7 +75,7 @@ struct EpisodeListView: View {
   List {
     if let episode {
       EpisodeListView(
-        viewModel: EpisodeListViewModel(
+        viewModel: SelectableListItemModel(
           isSelected: .constant(false),
           item: episode,
           isSelecting: false
@@ -86,7 +84,7 @@ struct EpisodeListView: View {
     }
     if let selectedEpisode {
       EpisodeListView(
-        viewModel: EpisodeListViewModel(
+        viewModel: SelectableListItemModel(
           isSelected: $isSelected,
           item: selectedEpisode,
           isSelecting: true

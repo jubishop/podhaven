@@ -12,27 +12,16 @@ struct PodcastHeaderView: View {
 
   init(
     podcast: any PodcastDisplayable,
+    subscribable: Bool,
     subscribed: Bool,
-    subscribeAction: @escaping (() -> Void),
-    unsubscribeAction: @escaping (() -> Void)
+    subscribeAction: (() -> Void)?,
+    unsubscribeAction: (() -> Void)?
   ) {
     self.podcast = podcast
-    self.subscribable = true
+    self.subscribable = subscribable
     self.subscribed = subscribed
     self.subscribeAction = subscribeAction
     self.unsubscribeAction = unsubscribeAction
-  }
-
-  init(
-    podcast: any PodcastDisplayable,
-    subscribable: Bool,
-    subscribeAction: @escaping (() -> Void)
-  ) {
-    self.podcast = podcast
-    self.subscribable = true
-    self.subscribed = false
-    self.subscribeAction = subscribeAction
-    self.unsubscribeAction = nil
   }
 
   var body: some View {

@@ -5,15 +5,15 @@ import Logging
 import NukeUI
 import SwiftUI
 
-struct PodcastDetailView: View {
+struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation
 
-  @State private var viewModel: PodcastDetailViewModel
+  @State private var viewModel: ViewModel
 
-  private static let log = Log.as(LogSubsystem.PodcastsView.detail)
+  private static var log: Logger { Log.as(LogSubsystem.PodcastsView.detail) }
 
-  init(viewModel: PodcastDetailViewModel) {
+  init(viewModel: ViewModel) {
     Self.log.debug(
       """
       Showing PodcastDetailView
@@ -28,10 +28,12 @@ struct PodcastDetailView: View {
       Group {
         PodcastHeaderView(
           podcast: viewModel.podcast,
+          subscribable: viewModel.subscribable,
           subscribed: viewModel.podcast.subscribed,
           subscribeAction: viewModel.subscribe,
           unsubscribeAction: viewModel.unsubscribe
         )
+
         PodcastAboutHeaderView(
           displayAboutSection: $viewModel.displayAboutSection,
           mostRecentEpisodeDate: viewModel.mostRecentEpisodeDate
@@ -55,38 +57,37 @@ struct PodcastDetailView: View {
         )
         .padding(.horizontal)
 
-        List(viewModel.episodeList.filteredEntries) { episode in
-          NavigationLink(
-            value: Navigation.Podcasts.Destination.episode(
-              PodcastEpisode(podcast: viewModel.podcast, episode: episode)
-            ),
-            label: {
-              EpisodeListView(
-                viewModel: EpisodeListViewModel(
-                  isSelected: $viewModel.episodeList.isSelected[episode],
-                  item: episode,
-                  isSelecting: viewModel.episodeList.isSelecting
+        if viewModel.subscribable {
+          List(viewModel.episodeList.filteredEntries) { episode in
+            NavigationLink(
+              value: viewModel.navigationDestination(for: episode),
+              label: {
+                EpisodeListView(
+                  viewModel: SelectableListItemModel(
+                    isSelected: $viewModel.episodeList.isSelected[episode],
+                    item: episode,
+                    isSelecting: viewModel.episodeList.isSelecting
+                  )
                 )
-              )
-            }
-          )
-          .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
-          .episodeQueueableContextMenu(viewModel: viewModel, episode: episode)
-        }
-        .animation(.default, value: viewModel.episodeList.filteredEntries)
-        .refreshable {
-          do {
-            try await viewModel.refreshSeries()
-          } catch {
-            Self.log.error(error)
-            if !ErrorKit.isRemarkable(error) { return }
-            alert(ErrorKit.message(for: error))
+              }
+            )
+            .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
+            .episodeQueueableContextMenu(viewModel: viewModel, episode: episode)
+          }
+          .animation(.default, value: viewModel.episodeList.filteredEntries)
+          .conditionalRefreshable(enabled: viewModel.refreshable, action: viewModel.refreshSeries)
+        } else {
+          VStack {
+            Text("Loading episodes...")
+              .foregroundColor(.secondary)
+              .padding()
+            Spacer()
           }
         }
       }
     }
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
-    .task(viewModel.execute)
+    .task { await viewModel.execute() }
   }
 }
 

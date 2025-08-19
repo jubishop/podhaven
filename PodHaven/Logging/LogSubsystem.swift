@@ -43,8 +43,7 @@ enum LogSubsystem {
   enum SearchView: String, LogCategorizable {
     case main
     case trending
-    case episodeDetail
-    case podcastDetail
+    case podcast
   }
 
   enum SettingsView: String, LogCategorizable {

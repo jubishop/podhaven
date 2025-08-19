@@ -105,7 +105,10 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   var title: String { unsaved.title }
   var description: String { unsaved.description }
   var link: URL? { unsaved.link }
+  var subscribed: Bool { unsaved.subscribed }
 }
+
+// MARK: - DerivableRequest
 
 extension DerivableRequest<Podcast> {
   func subscribed() -> Self {

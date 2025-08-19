@@ -8,8 +8,9 @@ import SwiftUI
 
 @Observable @MainActor
 class PodcastResultsDetailViewModel:
-  QueueableSelectableEpisodeList,
-  PodcastQueueableModel
+  PodcastDetailViewableModel,
+  PodcastQueueableModel,
+  QueueableSelectableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -17,7 +18,7 @@ class PodcastResultsDetailViewModel:
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private static let log = Log.as(LogSubsystem.SearchView.podcastDetail)
+  private static let log = Log.as(LogSubsystem.SearchView.podcast)
 
   // MARK: - Data
 
@@ -32,7 +33,6 @@ class PodcastResultsDetailViewModel:
     }
   }
 
-  var subscribable: Bool = false
   var displayAboutSection: Bool = false
 
   var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
@@ -42,6 +42,12 @@ class PodcastResultsDetailViewModel:
   var mostRecentEpisodeDate: Date {
     episodeList.allEntries.first?.pubDate ?? Date.epoch
   }
+
+  // MARK: - PodcastDetailViewableModel
+
+  var subscribable: Bool = false
+  let refreshable: Bool = false
+  var podcast: any PodcastDisplayable { unsavedPodcast }
 
   // MARK: - Initialization
 
@@ -150,5 +156,25 @@ class PodcastResultsDetailViewModel:
         alert(ErrorKit.message(for: error))
       }
     }
+  }
+
+  func unsubscribe() {
+    Assert.fatal("Trying to unsubscribe from a PodcastResult?")
+  }
+  
+  func refreshSeries() async {
+    Assert.fatal("Trying to refresh a PodcastResult?")
+  }
+  
+  func navigationDestination(for episode: UnsavedEpisode) -> Navigation.Search.Destination {
+    .searchedPodcastEpisode(
+      SearchedPodcastEpisode(
+        searchedText: searchedText,
+        unsavedPodcastEpisode: UnsavedPodcastEpisode(
+          unsavedPodcast: unsavedPodcast,
+          unsavedEpisode: episode
+        )
+      )
+    )
   }
 }

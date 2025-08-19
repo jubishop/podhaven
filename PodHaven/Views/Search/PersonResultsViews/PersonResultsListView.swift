@@ -35,27 +35,27 @@ struct PersonResultsListView: View {
       }
       .padding(.horizontal)
 
-      List(viewModel.episodeList.filteredEntries) { unsavedPodcastEpisode in
-        NavigationLink(
-          value: Navigation.Search.Destination.searchedPodcastEpisode(
-            SearchedPodcastEpisode(
-              searchedText: viewModel.searchText,
-              unsavedPodcastEpisode: unsavedPodcastEpisode
-            )
-          ),
-          label: {
-            EpisodeResultsListView(
-              viewModel: EpisodeResultsListViewModel(
-                isSelected: $viewModel.episodeList.isSelected[unsavedPodcastEpisode],
-                item: unsavedPodcastEpisode.unsavedEpisode,
-                isSelecting: viewModel.episodeList.isSelecting
-              )
-            )
-          }
-        )
-        .episodeQueueableSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
-        .episodeQueueableContextMenu(viewModel: viewModel, episode: unsavedPodcastEpisode)
-      }
+//      List(viewModel.episodeList.filteredEntries) { unsavedPodcastEpisode in
+//        NavigationLink(
+//          value: Navigation.Search.Destination.searchedPodcastEpisode(
+//            SearchedPodcastEpisode(
+//              searchedText: viewModel.searchText,
+//              unsavedPodcastEpisode: unsavedPodcastEpisode
+//            )
+//          ),
+//          label: {
+//            EpisodeResultsListView(
+//              viewModel: EpisodeResultsListViewModel(
+//                isSelected: $viewModel.episodeList.isSelected[unsavedPodcastEpisode],
+//                item: unsavedPodcastEpisode.unsavedEpisode,
+//                isSelecting: viewModel.episodeList.isSelecting
+//              )
+//            )
+//          }
+//        )
+//        .episodeQueueableSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
+//        .episodeQueueableContextMenu(viewModel: viewModel, episode: unsavedPodcastEpisode)
+//      }
       .animation(.default, value: viewModel.episodeList.filteredEntries)
     }
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)

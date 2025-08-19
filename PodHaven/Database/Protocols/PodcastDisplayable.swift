@@ -2,9 +2,10 @@
 
 import Foundation
 
-protocol PodcastDisplayable: Gridable, Hashable {
+protocol PodcastDisplayable: Gridable, Hashable, Stringable {
   var image: URL { get }
   var title: String { get }
   var description: String { get }
   var link: URL? { get }
+  var subscribed: Bool { get }
 }

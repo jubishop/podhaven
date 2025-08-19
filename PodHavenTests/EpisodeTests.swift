@@ -114,15 +114,19 @@ class EpisodeTests {
     let newEpisodeLink = URL.valid()
     let newEpisodeImage = URL.valid()
 
-    var updatedEpisode = originalEpisode
-    updatedEpisode.guid = newEpisodeGUID
-    updatedEpisode.media = newEpisodeMedia
-    updatedEpisode.title = newEpisodeTitle
-    updatedEpisode.pubDate = newEpisodePubDate
-    updatedEpisode.duration = newEpisodeDuration
-    updatedEpisode.description = newEpisodeDescription
-    updatedEpisode.link = newEpisodeLink
-    updatedEpisode.image = newEpisodeImage
+    let updatedEpisode = try Episode(
+      id: originalEpisode.id,
+      from: Create.unsavedEpisode(
+        guid: newEpisodeGUID,
+        media: newEpisodeMedia,
+        title: newEpisodeTitle,
+        pubDate: newEpisodePubDate,
+        duration: newEpisodeDuration,
+        description: newEpisodeDescription,
+        link: newEpisodeLink,
+        image: newEpisodeImage
+      )
+    )
 
     let newEpisode = try Create.unsavedEpisode(title: "episode 2")
     try await repo.updateSeriesFromFeed(

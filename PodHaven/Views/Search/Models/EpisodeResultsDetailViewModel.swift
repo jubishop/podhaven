@@ -13,7 +13,7 @@ import Logging
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private static let log = Log.as(LogSubsystem.SearchView.episodeDetail)
+  private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
   // MARK: - State Management
 

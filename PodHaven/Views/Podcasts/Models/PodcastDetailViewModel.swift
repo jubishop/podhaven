@@ -9,8 +9,9 @@ import SwiftUI
 
 @Observable @MainActor
 class PodcastDetailViewModel:
-  QueueableSelectableEpisodeList,
-  PodcastQueueableModel
+  PodcastDetailViewableModel,
+  PodcastQueueableModel,
+  QueueableSelectableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -33,7 +34,6 @@ class PodcastDetailViewModel:
   var displayAboutSection: Bool = false
 
   var episodeList = SelectableListUseCase<Episode, Episode.ID>(idKeyPath: \.id)
-  var podcast: Podcast { podcastSeries.podcast }
 
   var mostRecentEpisodeDate: Date {
     podcastSeries.episodes.first?.pubDate ?? Date.epoch
@@ -48,6 +48,12 @@ class PodcastDetailViewModel:
     }
   }
 
+  // MARK: - PodcastDetailViewableModel
+
+  let subscribable: Bool = true
+  let refreshable: Bool = true
+  var podcast: any PodcastDisplayable { podcastSeries.podcast }
+
   // MARK: - Initialization
 
   init(podcast: Podcast) {
@@ -61,13 +67,16 @@ class PodcastDetailViewModel:
         let podcastSeries = try await repo.podcastSeries(podcastSeries.id)
       {
         self.podcastSeries = podcastSeries
-        try await refreshSeries()
+        await refreshSeries()
       }
 
-      for try await podcastSeries in observatory.podcastSeries(podcast.id) {
+      for try await podcastSeries in observatory.podcastSeries(podcastSeries.id) {
         guard let podcastSeries = podcastSeries
         else {
-          throw ObservatoryError.recordNotFound(type: PodcastSeries.self, id: podcast.id.rawValue)
+          throw ObservatoryError.recordNotFound(
+            type: PodcastSeries.self,
+            id: self.podcastSeries.id.rawValue
+          )
         }
 
         if self.podcastSeries == podcastSeries { continue }
@@ -83,7 +92,7 @@ class PodcastDetailViewModel:
   // MARK: - PodcastQueueableModel
 
   func getPodcastEpisode(_ episode: Episode) async throws -> PodcastEpisode {
-    PodcastEpisode(podcast: podcast, episode: episode)
+    PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
   }
 
   // MARK: - QueueableSelectableEpisodeList
@@ -92,7 +101,7 @@ class PodcastDetailViewModel:
     get async throws {
       selectedEpisodes.map { episode in
         PodcastEpisode(
-          podcast: podcast,
+          podcast: podcastSeries.podcast,
           episode: episode
         )
       }
@@ -101,14 +110,20 @@ class PodcastDetailViewModel:
 
   // MARK: - Public Actions
 
-  func refreshSeries() async throws(RefreshError) {
-    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+  func refreshSeries() async {
+    do {
+      try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    } catch {
+      Self.log.error(error)
+      if !ErrorKit.isRemarkable(error) { return }
+      alert(ErrorKit.message(for: error))
+    }
   }
 
   func subscribe() {
     Task { [weak self] in
       guard let self else { return }
-      try await repo.markSubscribed(podcast.id)
+      try await repo.markSubscribed(podcastSeries.id)
       navigation.showPodcast(.subscribed, podcastSeries.podcast)
     }
   }
@@ -116,8 +131,12 @@ class PodcastDetailViewModel:
   func unsubscribe() {
     Task { [weak self] in
       guard let self else { return }
-      try await repo.markUnsubscribed(podcast.id)
+      try await repo.markUnsubscribed(podcastSeries.id)
       navigation.showPodcast(.unsubscribed, podcastSeries.podcast)
     }
+  }
+  
+  func navigationDestination(for episode: Episode) -> Navigation.Podcasts.Destination {
+    .episode(PodcastEpisode(podcast: podcastSeries.podcast, episode: episode))
   }
 }

@@ -109,7 +109,7 @@ extension Container {
         TrendingCategoryGridView(viewModel: TrendingCategoryGridViewModel(category: category))
           .id("trending_\(category)")
       case .searchedPodcast(let searchedPodcast):
-        PodcastResultsDetailView(
+        PodcastDetailView(
           viewModel: PodcastResultsDetailViewModel(searchedPodcast: searchedPodcast)
         )
         .id(searchedPodcast.unsavedPodcast.feedURL)
