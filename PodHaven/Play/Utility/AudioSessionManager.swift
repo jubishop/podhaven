@@ -11,7 +11,7 @@ extension Container {
   }
 }
 
-/// Manages audio session configuration and handles media services resets
+/// Manages audio session configuration
 @PlayActor
 final class AudioSessionManager {
   @DynamicInjected(\.notifications) private var notifications
@@ -23,10 +23,6 @@ final class AudioSessionManager {
   private let category: AVAudioSession.Category = .playback
   private let mode: AVAudioSession.Mode = .spokenAudio
   private let policy: AVAudioSession.RouteSharingPolicy = .longFormAudio
-
-  // MARK: - State Management
-
-  private var mediaServicesResetTask: Task<Void, Never>?
 
   // MARK: - Initialization
 
@@ -42,37 +38,5 @@ final class AudioSessionManager {
     try audioSession.setActive(true)
 
     Self.log.debug("configure: audio session configured successfully")
-
-    // Start monitoring for media services reset
-    startMediaServicesResetMonitoring()
-  }
-
-  /// Starts monitoring for media services reset notifications
-  private func startMediaServicesResetMonitoring() {
-    guard mediaServicesResetTask == nil else { return }
-
-    Self.log.debug("startMediaServicesResetMonitoring: starting monitoring")
-
-    mediaServicesResetTask = Task { [weak self] in
-      guard let self else { return }
-
-      for await _ in notifications(AVAudioSession.mediaServicesWereResetNotification) {
-        Self.log.warning("Media services were reset - attempting recovery")
-        await handleMediaServicesReset()
-      }
-    }
-  }
-
-  /// Handles recovery from media services reset
-  private func handleMediaServicesReset() async {
-    Self.log.info("handleMediaServicesReset: beginning recovery")
-
-    // Attempt to reconfigure the audio session
-    do {
-      try configure()
-      Self.log.info("handleMediaServicesReset: audio session recovery successful")
-    } catch {
-      Self.log.error(error)
-    }
   }
 }

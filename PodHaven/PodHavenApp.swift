@@ -80,6 +80,7 @@ struct PodHavenApp: App {
     do {
       try await audioSessionManager.configure()
     } catch {
+      Self.log.error(error)
       alert("Couldn't get audio permissions") {
         Button("Send Report and Crash") {
           Assert.fatal("Failed to initialize the audio session")

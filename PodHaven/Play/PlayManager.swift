@@ -72,6 +72,7 @@ final class PlayManager {
     }
   }
   private var loadTask: Task<Bool, any Error>?
+  private var recentFailureInfo: (onDeck: OnDeck?, playing: Bool) = (onDeck: nil, playing: false)
   private var restartSeekCommandsTask: Task<Void, any Error>?
   var ignoreSeekCommands = false
 
@@ -180,16 +181,6 @@ final class PlayManager {
       } catch {
         Self.log.error(error)
       }
-    }
-
-    if await playState.status == .stopped {
-      Self.log.warning(
-        """
-        cleanUpAfterLoadSuccess: status is stopped after successful load of: \
-        \(incoming.toString)?, changing status to .paused
-        """
-      )
-      await setStatus(.paused)
     }
   }
 
@@ -371,6 +362,7 @@ final class PlayManager {
       Self.log.debug(
         "handleItemStatusChange: failed for \(episodeID), clearing on deck and unshifting"
       )
+      recentFailureInfo = (onDeck: await playState.onDeck, playing: await playState.status.playing)
       await clearOnDeck()
       await setStatus(.stopped)
       do {
@@ -378,16 +370,8 @@ final class PlayManager {
       } catch {
         Self.log.error(error)
       }
-    } else if status == .readyToPlay {
-      if await playState.status == .stopped {
-        Self.log.warning(
-          """
-          handleItemStatusChange: readyToPlay for \(episodeID) \
-          but status is stopped?, setting status to paused
-          """
-        )
-        await setStatus(.paused)
-      }
+    } else {
+      recentFailureInfo = (onDeck: nil, playing: false)
     }
   }
 
@@ -435,8 +419,22 @@ final class PlayManager {
   private func handleMediaServicesReset() async {
     Self.log.info("handleMediaServicesReset: beginning recovery process")
 
-    let currentOnDeck = await playState.onDeck
-    let wasPlaying = await playState.status.playing
+    do {
+      try audioSessionManager.configure()
+    } catch {
+      Self.log.error(error)
+      Task { @MainActor in
+        await alert("Couldn't get audio permissions") {
+          Button("Send Report and Crash") {
+            Assert.fatal("Failed to initialize the audio session")
+          }
+        }
+      }
+      return
+    }
+
+    let currentOnDeck = await playState.onDeck ?? recentFailureInfo.onDeck
+    let wasPlaying = await playState.status.playing || recentFailureInfo.playing
     await clearOnDeck()
 
     // Force creation of a new AVPlayer instance since the old one is invalid
@@ -508,7 +506,6 @@ final class PlayManager {
     Task { [weak self] in
       guard let self else { return }
       for await _ in notifications(AVAudioSession.mediaServicesWereResetNotification) {
-        Self.log.warning("Media services were reset - attempting playback recovery")
         await handleMediaServicesReset()
       }
     }
