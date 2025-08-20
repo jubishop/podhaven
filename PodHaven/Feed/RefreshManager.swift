@@ -81,12 +81,13 @@ actor RefreshManager {
     Self.log.debug("Perform refresh completed")
   }
 
-  func refreshSeries(podcastSeries: PodcastSeries) async throws(RefreshError) {
+  @discardableResult
+  func refreshSeries(podcastSeries: PodcastSeries) async throws(RefreshError) -> Bool {
     Self.log.trace("refreshSeries: \(podcastSeries.toString)")
 
     if await feedManager.hasURL(podcastSeries.podcast.feedURL) {
       Self.log.debug("refreshSeries: URL for \(podcastSeries.toString) already being fetched")
-      return
+      return false
     }
 
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
@@ -97,6 +98,7 @@ actor RefreshManager {
       throw RefreshError.parseFailure(podcastSeries: podcastSeries, caught: error)
     }
     try await updateSeriesFromFeed(podcastSeries: podcastSeries, podcastFeed: podcastFeed)
+    return true
   }
 
   func updateSeriesFromFeed(podcastSeries: PodcastSeries, podcastFeed: PodcastFeed)

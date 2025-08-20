@@ -180,6 +180,16 @@ final class PlayManager {
         Self.log.error(error)
       }
     }
+
+    if await playState.status == .stopped {
+      Self.log.debug(
+        """
+        cleanUpAfterLoadSuccess: status is stopped after successful load of: \ 
+        \(incoming.toString)?, changing status to .paused
+        """
+      )
+      await setStatus(.paused)
+    }
   }
 
   private func cleanUpAfterLoadFailure(_ outgoing: OnDeck?, _ incoming: PodcastEpisode) async {
@@ -321,12 +331,6 @@ final class PlayManager {
   }
 
   private func setStatus(_ status: PlaybackStatus) async {
-    let currentStatus = await playState.status
-    if currentStatus.stopped && !status.loading {
-      Self.log.debug("setStatus: ignoring \(status) while stopped")
-      return
-    }
-
     Self.log.debug("setStatus: \(status)")
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status)
@@ -363,11 +367,24 @@ final class PlayManager {
     )
 
     if status == .failed {
+      Self.log.debug(
+        "handleItemStatusChange: failed for \(episodeID), clearing on deck and unshifting"
+      )
       await clearOnDeck()
       do {
         try await queue.unshift(episodeID)
       } catch {
         Self.log.error(error)
+      }
+    } else if status == .readyToPlay {
+      if await playState.status == .stopped {
+        Self.log.debug(
+          """
+          handleItemStatusChange: readyToPlay for \(episodeID) \
+          but status is stopped?, setting status to paused
+          """
+        )
+        await setStatus(.paused)
       }
     }
   }

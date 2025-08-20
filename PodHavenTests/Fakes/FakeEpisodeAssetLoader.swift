@@ -3,6 +3,7 @@
 import AVFoundation
 import FactoryKit
 import Foundation
+import Semaphore
 
 @testable import PodHaven
 
@@ -12,8 +13,9 @@ extension Container {
   }
 }
 
-class FakeEpisodeAssetLoader {
-  typealias LoadHandler = @Sendable (URL) async throws -> (Bool, CMTime)
+actor FakeEpisodeAssetLoader {
+  typealias ResponseData = (Bool, CMTime)
+  typealias LoadHandler = @Sendable (URL) async throws -> ResponseData
 
   private var responseCounts: [URL: Int] = [:]
   func responseCount(for podcastEpisode: PodcastEpisode) -> Int {
@@ -28,15 +30,48 @@ class FakeEpisodeAssetLoader {
   }
   private var fakeHandlers: [URL: LoadHandler] = [:]
 
-  func setDefaultResponse(_ handler: @escaping LoadHandler) {
+  func setDefaultHandler(_ handler: @escaping LoadHandler) {
     defaultHandler = handler
   }
 
   func respond(to episode: Episode, _ handler: @escaping LoadHandler) {
-    respond(to: episode.mediaURL, handler)
+    fakeHandlers[episode.mediaURL] = handler
   }
-  func respond(to url: URL, _ handler: @escaping LoadHandler) {
-    fakeHandlers[url] = handler
+
+  func respond(to episode: Episode, data: ResponseData) {
+    respond(to: episode) { episode in data }
+  }
+
+  func respond(to episode: Episode, error: Error) {
+    respond(to: episode) { _ in throw error }
+  }
+
+  func waitThenRespond(
+    to episode: Episode,
+    data: ResponseData = (true, CMTime.seconds(Double.random(in: 1...999)))
+  ) async
+    -> AsyncSemaphore
+  {
+    let asyncSemaphore = AsyncSemaphore(value: 0)
+    respond(to: episode) { episode in
+      try await asyncSemaphore.waitUnlessCancelled()
+      return data
+    }
+    return asyncSemaphore
+  }
+
+  func waitThenRespond(
+    to episode: Episode,
+    error: Error
+  ) async
+  -> AsyncSemaphore
+  {
+    let asyncSemaphore = AsyncSemaphore(value: 0)
+    respond(to: episode) { episode in
+      try await asyncSemaphore.waitUnlessCancelled()
+      throw error
+    }
+    return asyncSemaphore
   }
 
   func clearCustomHandler(for episode: Episode) {

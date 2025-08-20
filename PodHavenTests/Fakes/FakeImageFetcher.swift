@@ -38,7 +38,7 @@ actor FakeImageFetcher: ImageFetchable {
   private var defaultHandler: FetchHandler = { url in return FakeImageFetcher.create(url) }
   private var fakeHandlers: [URL: FetchHandler] = [:]
 
-  func setDefaultResponse(_ handler: @escaping FetchHandler) {
+  func setDefaultHandler(_ handler: @escaping FetchHandler) {
     defaultHandler = handler
   }
 

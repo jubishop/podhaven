@@ -170,7 +170,7 @@ enum PlayHelpers {
   ) async throws {
     let loadSemaphoreBegun = AsyncSemaphore(value: 0)
     let finishLoadingSemaphore = AsyncSemaphore(value: 0)
-    fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) { _ in
+    await fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) { _ in
       loadSemaphoreBegun.signal()
       await finishLoadingSemaphore.wait()
       return asyncProperties
@@ -275,7 +275,7 @@ enum PlayHelpers {
     !(avPlayer.timeObservers.isEmpty)
   }
 
-  static func responseCount(for podcastEpisode: PodcastEpisode) -> Int {
-    fakeEpisodeAssetLoader.responseCount(for: podcastEpisode)
+  static func responseCount(for podcastEpisode: PodcastEpisode) async -> Int {
+    await fakeEpisodeAssetLoader.responseCount(for: podcastEpisode)
   }
 }

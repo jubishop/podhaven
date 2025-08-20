@@ -84,8 +84,21 @@ actor FakeDataFetchable: DataFetchable {
     return asyncSemaphore
   }
 
+  func waitThenRespond(to url: URL, error: Error) async -> AsyncSemaphore {
+    let asyncSemaphore = AsyncSemaphore(value: 0)
+    respond(to: url) { url in
+      try await asyncSemaphore.waitUnlessCancelled()
+      throw error
+    }
+    return asyncSemaphore
+  }
+
   func respond(to url: URL, with handler: @escaping DataHandler) {
     fakeHandlers[url] = handler
+  }
+
+  func clearCustomHandler(for url: URL) {
+    fakeHandlers.removeValue(forKey: url)
   }
 }
 #endif
