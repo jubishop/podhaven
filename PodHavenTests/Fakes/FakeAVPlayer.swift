@@ -7,7 +7,12 @@ import Foundation
 @testable import PodHaven
 
 @MainActor
-class FakeAVPlayer: AVPlayable {
+class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
+  let id = UUID()
+  nonisolated static func == (lhs: FakeAVPlayer, rhs: FakeAVPlayer) -> Bool {
+    lhs.id == rhs.id
+  }
+
   @DynamicInjected(\.notifier) private var notifier
 
   private static let log = Log.as("FakeAVPlayer")

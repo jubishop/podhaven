@@ -17,6 +17,7 @@ actor FakeEpisodeAssetLoader {
   typealias ResponseData = (Bool, CMTime)
   typealias LoadHandler = @Sendable (URL) async throws -> ResponseData
 
+  private(set) var totalResponseCounts = 0
   private var responseCounts: [URL: Int] = [:]
   func responseCount(for podcastEpisode: PodcastEpisode) -> Int {
     responseCount(for: podcastEpisode.episode.mediaURL)

@@ -13,6 +13,9 @@ import Testing
 enum PlayHelpers {
   // MARK: - Dependency Access
 
+  private static var fakeAudioSessionConfigurer: FakeAudioSessionConfigurer {
+    Container.shared.fakeAudioSessionConfigurer()
+  }
   private static var fakeEpisodeAssetLoader: FakeEpisodeAssetLoader {
     Container.shared.fakeEpisodeAssetLoader()
   }
@@ -124,12 +127,24 @@ enum PlayHelpers {
 
   static func waitForResponse(for podcastEpisode: PodcastEpisode, count: Int = 1) async throws {
     try await Wait.until(
-      { await responseCount(for: podcastEpisode) == count },
+      { await fakeEpisodeAssetLoader.responseCount(for: podcastEpisode) == count },
       {
         """
         responseCount for \(podcastEpisode.episode.media.toString) is: \
-        \(await responseCount(for: podcastEpisode)), \
+        \(await fakeEpisodeAssetLoader.responseCount(for: podcastEpisode)), \
         expected: \(count)
+        """
+      }
+    )
+  }
+
+  static func waitForCallCount(callCount: Int) async throws {
+    try await Wait.until(
+      { await fakeAudioSessionConfigurer.callCount == callCount },
+      {
+        """
+        Expected callCount to be \(callCount), \
+        but was \(await fakeAudioSessionConfigurer.callCount)
         """
       }
     )
@@ -273,9 +288,5 @@ enum PlayHelpers {
 
   static func hasPeriodicTimeObservation() -> Bool {
     !(avPlayer.timeObservers.isEmpty)
-  }
-
-  static func responseCount(for podcastEpisode: PodcastEpisode) async -> Int {
-    await fakeEpisodeAssetLoader.responseCount(for: podcastEpisode)
   }
 }

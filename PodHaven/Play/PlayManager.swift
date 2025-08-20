@@ -94,9 +94,7 @@ final class PlayManager {
   func start() async {
     Assert.neverCalled()
 
-    if !(await configureAudioSession()) {
-      return
-    }
+    guard await configureAudioSession() else { return }
 
     notificationTracking()
     asyncStreams()
@@ -123,6 +121,7 @@ final class PlayManager {
   }
 
   func configureAudioSession() async -> Bool {
+    Self.log.info("configureAudioSession: executing")
     do {
       try Container.shared.configureAudioSession()()
     } catch {
@@ -451,9 +450,7 @@ final class PlayManager {
   private func handleMediaServicesReset() async {
     Self.log.info("handleMediaServicesReset: beginning recovery process")
 
-    if !(await configureAudioSession()) {
-      return
-    }
+    guard await configureAudioSession() else { return }
 
     let currentOnDeck = await playState.onDeck ?? recentFailureInfo.onDeck
     let wasPlaying = await playState.status.playing || recentFailureInfo.playing
