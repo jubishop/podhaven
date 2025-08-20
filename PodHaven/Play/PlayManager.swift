@@ -182,7 +182,7 @@ final class PlayManager {
     }
 
     if await playState.status == .stopped {
-      Self.log.debug(
+      Self.log.warning(
         """
         cleanUpAfterLoadSuccess: status is stopped after successful load of: \ 
         \(incoming.toString)?, changing status to .paused
@@ -378,7 +378,7 @@ final class PlayManager {
       }
     } else if status == .readyToPlay {
       if await playState.status == .stopped {
-        Self.log.debug(
+        Self.log.warning(
           """
           handleItemStatusChange: readyToPlay for \(episodeID) \
           but status is stopped?, setting status to paused
