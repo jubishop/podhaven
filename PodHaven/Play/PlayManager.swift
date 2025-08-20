@@ -10,6 +10,18 @@ import Sharing
 import SwiftUI
 
 extension Container {
+  var configureAudioSession: Factory<() throws -> Void> {
+    Factory(self) {
+      {
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
+        try audioSession.setMode(.spokenAudio)
+        try audioSession.setActive(true)
+      }
+    }
+    .scope(.cached)
+  }
+
   var playManager: Factory<PlayManager> {
     Factory(self) { @PlayActor in PlayManager() }.scope(.cached)
   }
@@ -22,7 +34,6 @@ actor PlayActor {
 
 @PlayActor
 final class PlayManager {
-  @DynamicInjected(\.audioSessionManager) private var audioSessionManager
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.notifications) private var notifications
@@ -83,6 +94,10 @@ final class PlayManager {
   func start() async {
     Assert.neverCalled()
 
+    if !(await configureAudioSession()) {
+      return
+    }
+
     notificationTracking()
     asyncStreams()
 
@@ -105,6 +120,23 @@ final class PlayManager {
         }
       }
     }
+  }
+
+  func configureAudioSession() async -> Bool {
+    do {
+      try Container.shared.configureAudioSession()()
+    } catch {
+      Self.log.error(error)
+      Task { @MainActor in
+        await alert("Couldn't get audio permissions") {
+          Button("Send Report and Crash") {
+            Assert.fatal("Failed to initialize the audio session")
+          }
+        }
+      }
+      return false
+    }
+    return true
   }
 
   // MARK: - Loading
@@ -419,17 +451,7 @@ final class PlayManager {
   private func handleMediaServicesReset() async {
     Self.log.info("handleMediaServicesReset: beginning recovery process")
 
-    do {
-      try audioSessionManager.configure()
-    } catch {
-      Self.log.error(error)
-      Task { @MainActor in
-        await alert("Couldn't get audio permissions") {
-          Button("Send Report and Crash") {
-            Assert.fatal("Failed to initialize the audio session")
-          }
-        }
-      }
+    if !(await configureAudioSession()) {
       return
     }
 

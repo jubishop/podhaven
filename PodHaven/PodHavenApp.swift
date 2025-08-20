@@ -10,7 +10,6 @@ import SwiftUI
 struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
   @InjectedObservable(\.sheet) private var sheet
-  @DynamicInjected(\.audioSessionManager) private var audioSessionManager
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
@@ -42,7 +41,6 @@ struct PodHavenApp: App {
         isInitialized = true
 
         if AppInfo.environment != .testing {
-          await configureAudioSession()
           startMemoryWarningMonitoring()
           await playManager.start()
           await refreshManager.start()
@@ -71,21 +69,6 @@ struct PodHavenApp: App {
     } else {
       Self.log.warning("Incoming URL: \(url) is not supported")
       alert("Incoming URL: \(url) is not supported")
-    }
-  }
-
-  // MARK: - System Permissions
-
-  private func configureAudioSession() async {
-    do {
-      try await audioSessionManager.configure()
-    } catch {
-      Self.log.error(error)
-      alert("Couldn't get audio permissions") {
-        Button("Send Report and Crash") {
-          Assert.fatal("Failed to initialize the audio session")
-        }
-      }
     }
   }
 
