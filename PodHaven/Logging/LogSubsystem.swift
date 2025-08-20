@@ -28,6 +28,7 @@ enum LogSubsystem {
   }
 
   enum Play: String, LogCategorizable {
+    case audioSession
     case commandCenter
     case manager
     case avPlayer

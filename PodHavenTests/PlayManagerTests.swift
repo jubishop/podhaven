@@ -620,6 +620,7 @@ import Testing
     try await PlayHelpers.waitForCurrentItem(nil)
     try await PlayHelpers.waitForQueue([podcastEpisode])
     try await PlayHelpers.waitForOnDeck(nil)
+    try await PlayHelpers.waitFor(.stopped)
   }
 
   // MARK: - Episode Finishing

@@ -10,6 +10,7 @@ import SwiftUI
 struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
   @InjectedObservable(\.sheet) private var sheet
+  @DynamicInjected(\.audioSessionManager) private var audioSessionManager
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
@@ -41,7 +42,7 @@ struct PodHavenApp: App {
         isInitialized = true
 
         if AppInfo.environment != .testing {
-          configureAudioSession()
+          await configureAudioSession()
           startMemoryWarningMonitoring()
           await playManager.start()
           await refreshManager.start()
@@ -75,12 +76,9 @@ struct PodHavenApp: App {
 
   // MARK: - System Permissions
 
-  private func configureAudioSession() {
-    let audioSession = AVAudioSession.sharedInstance()
+  private func configureAudioSession() async {
     do {
-      try audioSession.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
-      try audioSession.setMode(.spokenAudio)
-      try audioSession.setActive(true)
+      try await audioSessionManager.configure()
     } catch {
       alert("Couldn't get audio permissions") {
         Button("Send Report and Crash") {

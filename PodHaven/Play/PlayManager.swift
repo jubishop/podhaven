@@ -22,6 +22,7 @@ actor PlayActor {
 
 @PlayActor
 final class PlayManager {
+  @DynamicInjected(\.audioSessionManager) private var audioSessionManager
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.commandCenter) private var commandCenter
   @DynamicInjected(\.notifications) private var notifications
@@ -184,7 +185,7 @@ final class PlayManager {
     if await playState.status == .stopped {
       Self.log.warning(
         """
-        cleanUpAfterLoadSuccess: status is stopped after successful load of: \ 
+        cleanUpAfterLoadSuccess: status is stopped after successful load of: \
         \(incoming.toString)?, changing status to .paused
         """
       )
@@ -371,6 +372,7 @@ final class PlayManager {
         "handleItemStatusChange: failed for \(episodeID), clearing on deck and unshifting"
       )
       await clearOnDeck()
+      await setStatus(.stopped)
       do {
         try await queue.unshift(episodeID)
       } catch {
@@ -426,8 +428,61 @@ final class PlayManager {
       }
     } else {
       Self.log.debug("handleDidPlayToEnd: no next episode, stopping")
-      await clearOnDeck()
       await setStatus(.stopped)
+    }
+  }
+
+  private func handleMediaServicesReset() async {
+    Self.log.info("handleMediaServicesReset: beginning recovery process")
+
+    let currentOnDeck = await playState.onDeck
+    let wasPlaying = await playState.status.playing
+    await clearOnDeck()
+
+    // Force creation of a new AVPlayer instance since the old one is invalid
+    Container.shared.avPlayer.reset(.scope)
+
+    Self.log.debug(
+      """
+      handleMediaServicesReset: captured state:
+        currentOnDeck: \(String(describing: currentOnDeck?.toString))
+        wasPlaying: \(wasPlaying)
+      """
+    )
+
+    if let currentOnDeck {
+      do {
+        guard let podcastEpisode = try await repo.podcastEpisode(currentOnDeck.episodeID)
+        else {
+          Self.log.warning(
+            "handleMediaServicesReset: episode \(currentOnDeck.episodeID) no longer exists"
+          )
+          await setStatus(.stopped)
+          return
+        }
+
+        Self.log.info("handleMediaServicesReset: reloading \(podcastEpisode.toString)")
+        try await load(podcastEpisode)
+
+        if wasPlaying {
+          Self.log.debug("handleMediaServicesReset: resuming playback")
+          await play()
+        }
+
+        Self.log.info("handleMediaServicesReset: recovery completed successfully")
+
+      } catch {
+        Self.log.error(error)
+
+        await alert(
+          """
+          Playback was interrupted by a system issue and couldn't be restored automatically. \
+          The episode has been put back in your queue.
+          """
+        )
+      }
+    } else {
+      Self.log.debug("handleMediaServicesReset: no episode was playing, recovery not needed")
     }
   }
 
@@ -453,13 +508,8 @@ final class PlayManager {
     Task { [weak self] in
       guard let self else { return }
       for await _ in notifications(AVAudioSession.mediaServicesWereResetNotification) {
-        Self.log.critical("Media services were reset - this could cause playback to stop")
-        await alert(
-          """
-          Media services were reset, this has been reported.
-          You will have to restart the app.
-          """
-        )
+        Self.log.warning("Media services were reset - attempting playback recovery")
+        await handleMediaServicesReset()
       }
     }
 
