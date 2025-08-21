@@ -804,7 +804,7 @@ import Testing
       .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
 
     // Verify audio session was reconfigured
-    try await PlayHelpers.waitForCallCount(callCount: initialCallCount + 1)
+    try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
 
     // Verify new AVPlayer is created
     try await Wait.until(
@@ -813,7 +813,7 @@ import Testing
     )
 
     // Verify the episode was reloaded (asset loader called again)
-    try await PlayHelpers.waitForResponse(for: podcastEpisode, count: initialLoadCount + 1)
+    try await PlayHelpers.waitForLoadResponse(for: podcastEpisode, count: initialLoadCount + 1)
 
     // Verify onDeck is restored properly
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
@@ -835,8 +835,8 @@ import Testing
     // Trigger media services reset notification
     notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
       .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
-    try await PlayHelpers.waitForCallCount(callCount: initialCallCount + 1)
-    try await PlayHelpers.waitForResponse(for: podcastEpisode, count: initialLoadCount + 1)
+    try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
+    try await PlayHelpers.waitForLoadResponse(for: podcastEpisode, count: initialLoadCount + 1)
 
     // Verify onDeck is restored properly
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
@@ -866,7 +866,7 @@ import Testing
       .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
 
     // Verify audio session was reconfigured
-    try await PlayHelpers.waitForCallCount(callCount: initialCallCount + 1)
+    try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
 
     // Verify new AVPlayer is created
     try await Wait.until(
@@ -875,7 +875,7 @@ import Testing
     )
 
     // Verify the episode was reloaded (asset loader called again)
-    try await PlayHelpers.waitForResponse(for: podcastEpisode, count: initialLoadCount + 1)
+    try await PlayHelpers.waitForLoadResponse(for: podcastEpisode, count: initialLoadCount + 1)
 
     // Verify onDeck is restored properly
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
@@ -897,7 +897,7 @@ import Testing
       .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
 
     // Call count goes up, podAVPlayer reset, but nothing else changes.
-    try await PlayHelpers.waitForCallCount(callCount: initialCallCount + 1)
+    try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
     try await Wait.until(
       { await avPlayer != initialAVPlayer },
       { "Expected new AVPlayer to be created" }

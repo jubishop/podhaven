@@ -125,7 +125,7 @@ enum PlayHelpers {
     )
   }
 
-  static func waitForResponse(for podcastEpisode: PodcastEpisode, count: Int = 1) async throws {
+  static func waitForLoadResponse(for podcastEpisode: PodcastEpisode, count: Int = 1) async throws {
     try await Wait.until(
       { await fakeEpisodeAssetLoader.responseCount(for: podcastEpisode) == count },
       {
@@ -138,7 +138,7 @@ enum PlayHelpers {
     )
   }
 
-  static func waitForCallCount(callCount: Int) async throws {
+  static func waitForConfigureCallCount(callCount: Int) async throws {
     try await Wait.until(
       { await fakeAudioSessionConfigurer.callCount == callCount },
       {
