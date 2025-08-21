@@ -83,7 +83,7 @@ import Logging
   var episodeTitle: String { unsavedPodcastEpisode.unsavedEpisode.title }
   var episodePubDate: Date { unsavedPodcastEpisode.unsavedEpisode.pubDate }
   var episodeDuration: CMTime { unsavedPodcastEpisode.unsavedEpisode.duration }
-  var episodeCachedFilename: String? { unsavedPodcastEpisode.unsavedEpisode.cachedFilename }
+  var episodeCached: Bool { unsavedPodcastEpisode.unsavedEpisode.cached }
   var episodeImage: URL { unsavedPodcastEpisode.image }
   var episodeDescription: String? { unsavedPodcastEpisode.unsavedEpisode.description }
   var podcastTitle: String { unsavedPodcastEpisode.unsavedPodcast.title }

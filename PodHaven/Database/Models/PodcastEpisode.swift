@@ -42,5 +42,6 @@ struct PodcastEpisode:
   var title: String { episode.title }
   var pubDate: Date { episode.pubDate }
   var duration: CMTime { episode.duration }
-  var cachedFilename: String? { episode.cachedFilename }
+  var cached: Bool { episode.cached }
+  var completed: Bool { episode.completed }
 }

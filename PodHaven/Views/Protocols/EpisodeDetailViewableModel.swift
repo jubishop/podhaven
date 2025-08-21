@@ -9,7 +9,7 @@ import Logging
   var episodeTitle: String { get }
   var episodePubDate: Date { get }
   var episodeDuration: CMTime { get }
-  var episodeCachedFilename: String? { get }
+  var episodeCached: Bool { get }
   var episodeImage: URL { get }
   var episodeDescription: String? { get }
   var podcastTitle: String { get }

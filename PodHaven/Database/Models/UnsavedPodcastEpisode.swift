@@ -33,5 +33,6 @@ struct UnsavedPodcastEpisode:
   var title: String { unsavedEpisode.title }
   var pubDate: Date { unsavedEpisode.pubDate }
   var duration: CMTime { unsavedEpisode.duration }
-  var cachedFilename: String? { unsavedEpisode.cachedFilename }
+  var cached: Bool { unsavedEpisode.cached }
+  var completed: Bool { false }
 }

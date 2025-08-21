@@ -69,10 +69,14 @@ struct UnsavedEpisode: EpisodeFilterable, EpisodeDisplayable, Identifiable, Sava
   var toString: String { "(\(media.toString)) - \(self.title)" }
   var searchableString: String { self.title }
 
+  // MARK: - EpisodeDisplayable
+
+  var cached: Bool { self.cachedFilename != nil }
+  var completed: Bool { self.completionDate != nil }
+
   // MARK: - State Getters
 
   var queued: Bool { self.queueOrder != nil }
-  var completed: Bool { self.completionDate != nil }
   var started: Bool { self.currentTime.seconds > 0 }
 
   // MARK: - Derived Data
@@ -148,13 +152,7 @@ struct Episode: EpisodeDisplayable, EpisodeFilterable, Saved, RSSUpdatable {
       && unsaved.image == other.unsaved.image
   }
 
-  // MARK: - EpisodeFilterable
-
-  var started: Bool { unsaved.started }
-  var completed: Bool { unsaved.completed }
-  var queued: Bool { unsaved.queued }
-
-  // MARK: - EpisodeDisplayable
+  // MARK: - EpisodeDisplayable / EpisodeFilterable
 
   var title: String { unsaved.title }
   var pubDate: Date { unsaved.pubDate }
@@ -162,7 +160,10 @@ struct Episode: EpisodeDisplayable, EpisodeFilterable, Saved, RSSUpdatable {
     get { unsaved.duration }
     set { unsaved.duration = newValue }
   }
-  var cachedFilename: String? { unsaved.cachedFilename }
+  var cached: Bool { unsaved.cached }
+  var completed: Bool { unsaved.completed }
+  var started: Bool { unsaved.started }
+  var queued: Bool { unsaved.queued }
 }
 
 // MARK: - DerivableRequest

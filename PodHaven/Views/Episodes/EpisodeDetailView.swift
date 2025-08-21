@@ -70,7 +70,7 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
 
             Spacer()
 
-            if viewModel.episodeCachedFilename != nil {
+            if viewModel.episodeCached {
               VStack(spacing: 4) {
                 Image(systemName: "arrow.down.circle.fill")
                   .foregroundColor(.green)

@@ -77,7 +77,7 @@ import Logging
   var episodeTitle: String { podcastEpisode.episode.title }
   var episodePubDate: Date { podcastEpisode.episode.pubDate }
   var episodeDuration: CMTime { podcastEpisode.episode.duration }
-  var episodeCachedFilename: String? { podcastEpisode.episode.cachedFilename }
+  var episodeCached: Bool { podcastEpisode.episode.cached }
   var episodeImage: URL { podcastEpisode.image }
   var episodeDescription: String? { podcastEpisode.episode.description }
   var podcastTitle: String { podcastEpisode.podcast.title }

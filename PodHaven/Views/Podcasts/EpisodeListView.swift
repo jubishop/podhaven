@@ -42,11 +42,15 @@ struct EpisodeListView<EpisodeType: EpisodeDisplayable>: View {
 
           Spacer()
 
-          if viewModel.item.cachedFilename != nil {
-            Image(systemName: "arrow.down.circle.fill")
-              .font(.caption2)
-              .foregroundColor(.green)
-          }
+          Image(systemName: "arrow.down.circle.fill")
+            .font(.caption2)
+            .foregroundColor(.green)
+            .opacity(viewModel.item.cached ? 1 : 0)
+
+          Image(systemName: "checkmark.circle.fill")
+            .font(.caption2)
+            .foregroundColor(.blue)
+            .opacity(viewModel.item.completed ? 1 : 0)
 
           Spacer()
 
