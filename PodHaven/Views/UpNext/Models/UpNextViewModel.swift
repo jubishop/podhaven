@@ -8,7 +8,7 @@ import IdentifiedCollections
 import Logging
 import SwiftUI
 
-@Observable @MainActor class UpNextViewModel {
+@Observable @MainActor class UpNextViewModel: Sortable {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -51,6 +51,10 @@ import SwiftUI
       }
     }
   }
+  
+  // MARK: - Sortable Protocol
+  
+  var currentSortMethod: SortMethod? = nil
 
   // MARK: - Initialization
 

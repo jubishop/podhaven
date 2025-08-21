@@ -52,7 +52,9 @@ import SwiftUI
   // MARK: - Customization Parameters
 
   var filterMethod: (Item) -> Bool
-  var sortMethod: (Item, Item) -> Bool
+  var sortMethod: (Item, Item) -> Bool {
+    didSet { _allEntries.sort(by: sortMethod) }
+  }
   var entryFilter: String = ""
 
   private let idKeyPath: KeyPath<Item, ID>
