@@ -64,7 +64,8 @@ extension Container {
   }
 
   func showEpisodeDetail() {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       do {
         try await presentEpisodeDetail()
       } catch {

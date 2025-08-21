@@ -74,7 +74,8 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
   }
 
   func seek(to time: CMTime, completionHandler: @escaping @Sendable (Bool) -> Void) {
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       let success = await seekHandler(time)
       completionHandler(success)
       if success { currentTimeValue = time }
