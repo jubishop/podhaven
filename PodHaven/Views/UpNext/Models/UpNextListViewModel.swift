@@ -66,6 +66,5 @@ import SwiftUI
       guard let self else { return }
       try await queue.dequeue(episode.id)
     }
-
   }
 }

@@ -19,7 +19,7 @@ import Logging
   // MARK: - State Management
 
   internal var maxQueuePosition: Int? = nil
-  var podcastEpisode: PodcastEpisode
+  private var podcastEpisode: PodcastEpisode
 
   // MARK: - Initialization
 
@@ -28,50 +28,51 @@ import Logging
   }
 
   func execute() async {
-    // Observe max queue position
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        for try await maxPosition in observatory.maxQueuePosition() {
-          self.maxQueuePosition = maxPosition
-        }
-      } catch {
-        Self.log.error(error)
-        alert(ErrorKit.message(for: error))
-      }
-    }
-
-    // Observe this episode record updates
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        for try await podcastEpisode in observatory.podcastEpisode(self.podcastEpisode.id) {
-          guard let podcastEpisode = podcastEpisode
-          else {
-            throw ObservatoryError.recordNotFound(
-              type: PodcastEpisode.self,
-              id: self.podcastEpisode.episode.id.rawValue
-            )
+    await withTaskGroup { group in
+      // Observe max queue position
+      group.addTask { @MainActor @Sendable in
+        do {
+          for try await maxPosition in self.observatory.maxQueuePosition() {
+            try Task.checkCancellation()
+            self.maxQueuePosition = maxPosition
           }
-
-          self.podcastEpisode = podcastEpisode
+        } catch {
+          Self.log.error(error)
+          guard ErrorKit.isRemarkable(error) else { return }
+          self.alert(ErrorKit.message(for: error))
         }
-      } catch {
-        Self.log.error(error)
-        alert(ErrorKit.message(for: error))
+      }
+
+      // Observe this episode record updates
+      group.addTask { @MainActor @Sendable in
+        do {
+          for try await podcastEpisode in self.observatory.podcastEpisode(self.podcastEpisode.id) {
+            try Task.checkCancellation()
+
+            guard let podcastEpisode = podcastEpisode
+            else {
+              throw ObservatoryError.recordNotFound(
+                type: PodcastEpisode.self,
+                id: self.podcastEpisode.episode.id.rawValue
+              )
+            }
+
+            Self.log.debug("Updating observed podcast: \(podcastEpisode.toString)")
+            self.podcastEpisode = podcastEpisode
+          }
+        } catch {
+          Self.log.error(error)
+          guard ErrorKit.isRemarkable(error) else { return }
+          self.alert(ErrorKit.message(for: error))
+        }
       }
     }
   }
 
   // MARK: - EpisodeDetailViewableModel
 
-  func getPodcastEpisode() -> PodcastEpisode? {
-    podcastEpisode
-  }
-
-  func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
-    podcastEpisode
-  }
+  func getPodcastEpisode() -> PodcastEpisode? { podcastEpisode }
+  func getOrCreatePodcastEpisode() async throws -> PodcastEpisode { podcastEpisode }
 
   var episodeTitle: String { podcastEpisode.episode.title }
   var episodePubDate: Date { podcastEpisode.episode.pubDate }

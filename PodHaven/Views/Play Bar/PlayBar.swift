@@ -138,25 +138,28 @@ struct PlayBar: View {
   // MARK: - Shared Components
 
   private var episodeImage: some View {
-    Button(action: viewModel.showEpisodeDetail) {
-      Group {
-        if let image = viewModel.episodeImage {
-          Image(uiImage: image)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .frame(width: imageSize, height: imageSize)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-        } else {
-          RoundedRectangle(cornerRadius: 8)
-            .fill(Color.white.opacity(0.2))
-            .frame(width: imageSize, height: imageSize)
-            .overlay(
-              Image(systemName: "music.note")
-                .foregroundColor(.white.opacity(0.6))
-            )
+    Button(
+      action: viewModel.showEpisodeDetail,
+      label: {
+        Group {
+          if let image = viewModel.episodeImage {
+            Image(uiImage: image)
+              .resizable()
+              .aspectRatio(contentMode: .fill)
+              .frame(width: imageSize, height: imageSize)
+              .clipShape(RoundedRectangle(cornerRadius: 8))
+          } else {
+            RoundedRectangle(cornerRadius: 8)
+              .fill(Color.white.opacity(0.2))
+              .frame(width: imageSize, height: imageSize)
+              .overlay(
+                Image(systemName: "music.note")
+                  .foregroundColor(.white.opacity(0.6))
+              )
+          }
         }
       }
-    }
+    )
   }
 
   private var playbackControls: some View {

@@ -18,11 +18,11 @@ import Logging
 
   // MARK: - State Management
 
-  let searchedText: String
+  private let searchedText: String
+  private let unsavedPodcastEpisode: UnsavedPodcastEpisode
 
-  private var podcastEpisode: PodcastEpisode?
-  let unsavedPodcastEpisode: UnsavedPodcastEpisode
   internal var maxQueuePosition: Int? = nil
+  private var podcastEpisode: PodcastEpisode?
 
   // MARK: - Initialization
 
@@ -32,40 +32,45 @@ import Logging
   }
 
   func execute() async {
-    // Observe max queue position
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        for try await maxPosition in observatory.maxQueuePosition() {
-          self.maxQueuePosition = maxPosition
+    await withTaskGroup { group in
+      // Observe max queue position
+      group.addTask { @MainActor @Sendable in
+        do {
+          for try await maxPosition in self.observatory.maxQueuePosition() {
+            try Task.checkCancellation()
+            self.maxQueuePosition = maxPosition
+          }
+        } catch {
+          Self.log.error(error)
+          guard ErrorKit.isRemarkable(error) else { return }
+          self.alert(ErrorKit.message(for: error))
         }
-      } catch {
-        Self.log.error(error)
-        alert(ErrorKit.message(for: error))
       }
-    }
 
-    // Observe this episode record updates
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        for try await podcastEpisode in observatory.podcastEpisode(
-          unsavedPodcastEpisode.unsavedEpisode.media
-        ) {
-          if self.podcastEpisode == podcastEpisode { continue }
-          self.podcastEpisode = podcastEpisode
+      // Observe this episode record updates
+      group.addTask { @MainActor @Sendable in
+        do {
+          for try await podcastEpisode in self.observatory.podcastEpisode(
+            self.unsavedPodcastEpisode.unsavedEpisode.media
+          ) {
+            try Task.checkCancellation()
+            Self.log.debug(
+              "Updating observed podcast: \(String(describing: podcastEpisode?.toString))"
+            )
+            self.podcastEpisode = podcastEpisode
+          }
+        } catch {
+          Self.log.error(error)
+          guard ErrorKit.isRemarkable(error) else { return }
+          self.alert(ErrorKit.message(for: error))
         }
-      } catch {
-        alert("Couldn't observe podcast episode: \(unsavedPodcastEpisode.toString)")
       }
     }
   }
 
   // MARK: - EpisodeDetailViewableModel
 
-  func getPodcastEpisode() -> PodcastEpisode? {
-    podcastEpisode
-  }
+  func getPodcastEpisode() -> PodcastEpisode? { podcastEpisode }
 
   func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }

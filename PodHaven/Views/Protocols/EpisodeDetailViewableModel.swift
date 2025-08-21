@@ -5,7 +5,7 @@ import FactoryKit
 import Foundation
 import Logging
 
-@MainActor protocol EpisodeDetailViewableModel: ObservableObject {
+@MainActor protocol EpisodeDetailViewableModel {
   var episodeTitle: String { get }
   var episodePubDate: Date { get }
   var episodeDuration: CMTime { get }
@@ -49,8 +49,7 @@ extension EpisodeDetailViewableModel {
   }
 
   func playNow() {
-    Task { [weak self] in
-      guard let self else { return }
+    Task {
       let podcastEpisode: PodcastEpisode
       do {
         podcastEpisode = try await getOrCreatePodcastEpisode()
@@ -71,8 +70,7 @@ extension EpisodeDetailViewableModel {
   }
 
   func addToTopOfQueue() {
-    Task { [weak self] in
-      guard let self else { return }
+    Task {
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await Container.shared.queue().unshift(podcastEpisode.episode.id)
@@ -84,8 +82,7 @@ extension EpisodeDetailViewableModel {
   }
 
   func appendToQueue() {
-    Task { [weak self] in
-      guard let self else { return }
+    Task {
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await Container.shared.queue().append(podcastEpisode.episode.id)
