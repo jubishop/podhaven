@@ -25,14 +25,13 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
 
   var body: some View {
     VStack(spacing: 4) {
-      headerView.padding(.horizontal)
-      aboutHeaderView.padding(.horizontal)
+      headerView
+        .padding(.horizontal)
+        .padding(.bottom, 8)
 
       if viewModel.displayAboutSection {
-        Divider()
-        metadataView.padding(.horizontal)
-        Divider()
-        expandedAboutInfoView.padding(.horizontal)
+        expandedAboutInfoView
+          .padding(.horizontal)
       } else {
         episodeListView
       }
@@ -74,75 +73,33 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
       .cornerRadius(12)
       .shadow(radius: 4)
 
-      VStack(alignment: .leading, spacing: 8) {
+      VStack(alignment: .leading, spacing: 0) {
         Text(viewModel.podcast.title)
           .font(.title3)
           .fontWeight(.bold)
-          .lineLimit(2, reservesSpace: true)
+          .lineLimit(3, reservesSpace: true)
           .multilineTextAlignment(.leading)
           .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
 
-        if let link = viewModel.podcast.link {
-          Link(destination: link) {
-            HStack(spacing: 4) {
-              Image(systemName: "link")
-              Text("Visit Website")
-            }
-            .font(.caption)
-            .foregroundColor(.accentColor)
+        Spacer()
+
+        Button(action: {
+          withAnimation(.easeInOut(duration: 0.3)) {
+            viewModel.displayAboutSection.toggle()
           }
-        }
-
-        if viewModel.subscribable {
-          Button(action: {
-            if viewModel.podcast.subscribed {
-              viewModel.unsubscribe()
-            } else {
-              viewModel.subscribe()
-            }
-          }) {
-            HStack(spacing: 4) {
-              Image(systemName: viewModel.podcast.subscribed ? "minus.circle" : "plus.circle")
-              Text(viewModel.podcast.subscribed ? "Unsubscribe" : "Subscribe")
-            }
-            .font(.caption)
-            .foregroundColor(.accentColor)
+        }) {
+          HStack(spacing: 6) {
+            Image(systemName: viewModel.displayAboutSection ? "list.bullet" : "info.circle")
+            Text(viewModel.displayAboutSection ? "Show Episodes" : "Show Details")
           }
+          .font(.subheadline)
+          .foregroundColor(.accentColor)
+          .padding(.vertical, 8)
+          .padding(.horizontal, 4)
         }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-    }
-  }
-
-  private var aboutHeaderView: some View {
-    HStack {
-      if viewModel.displayAboutSection {
-        Text("About")
-          .font(.headline)
-          .fontWeight(.semibold)
-      } else {
-        HStack(spacing: 4) {
-          Image(systemName: "calendar")
-            .foregroundColor(.secondary)
-            .font(.caption)
-          Text(viewModel.mostRecentEpisodeDate.usShortWithTime)
-            .font(.subheadline)
-            .fontWeight(.medium)
-        }
-      }
-      Spacer()
-      Button(action: {
-        withAnimation(.easeInOut(duration: 0.3)) {
-          viewModel.displayAboutSection.toggle()
-        }
-      }) {
-        HStack(spacing: 4) {
-          Text(viewModel.displayAboutSection ? "Hide About" : "Show About")
-          Image(systemName: viewModel.displayAboutSection ? "chevron.up" : "chevron.down")
-        }
-        .font(.caption)
-        .foregroundColor(.accentColor)
-      }
+      .frame(maxWidth: .infinity, maxHeight: 120, alignment: .leading)
     }
   }
 
@@ -210,18 +167,65 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
   // MARK: - Expanded About
 
   private var expandedAboutInfoView: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 8) {
-        Text(viewModel.podcast.title)
-          .font(.headline)
-          .multilineTextAlignment(.leading)
-          .frame(maxWidth: .infinity, alignment: .leading)
+    VStack(spacing: 16) {
+      Divider()
 
-        HTMLText(viewModel.podcast.description)
-          .multilineTextAlignment(.leading)
-          .frame(maxWidth: .infinity, alignment: .leading)
+      metadataView
+
+      Divider()
+
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+          // Title
+          Text(viewModel.podcast.title)
+            .font(.headline)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+          // Action Links
+          VStack(alignment: .leading, spacing: 12) {
+            if let link = viewModel.podcast.link {
+              Link(destination: link) {
+                HStack(spacing: 8) {
+                  Image(systemName: "link")
+                  Text("Visit Website")
+                  Spacer()
+                  Image(systemName: "arrow.up.right")
+                }
+                .font(.subheadline)
+                .foregroundColor(.accentColor)
+                .padding(.vertical, 8)
+              }
+            }
+
+            if viewModel.subscribable {
+              Button(action: {
+                if viewModel.podcast.subscribed {
+                  viewModel.unsubscribe()
+                } else {
+                  viewModel.subscribe()
+                }
+              }) {
+                HStack(spacing: 8) {
+                  Image(systemName: viewModel.podcast.subscribed ? "minus.circle" : "plus.circle")
+                  Text(viewModel.podcast.subscribed ? "Unsubscribe" : "Subscribe")
+                  Spacer()
+                }
+                .font(.subheadline)
+                .foregroundColor(.accentColor)
+                .padding(.vertical, 8)
+              }
+            }
+          }
+          .padding(.bottom, 8)
+
+          // Description
+          HTMLText(viewModel.podcast.description)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 
@@ -257,6 +261,63 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
       Text(value)
         .font(.subheadline)
         .fontWeight(.medium)
+    }
+  }
+}
+
+// MARK: - EpisodeFilter
+
+enum EpisodeFilterMethod: String, CaseIterable {
+  case all = "All Episodes"
+  case unstarted = "Unstarted"
+  case unfinished = "Unfinished"
+  case unqueued = "Unqueued"
+
+  func filterMethod<T: EpisodeFilterable>(for type: T.Type) -> (T) -> Bool {
+    switch self {
+    case .all:
+      return { _ in true }
+    case .unstarted:
+      return { !$0.started }
+    case .unfinished:
+      return { !$0.completed }
+    case .unqueued:
+      return { !$0.queued }
+    }
+  }
+}
+
+struct EpisodeFilterView: View {
+  @Binding var entryFilter: String
+  @Binding var currentFilterMethod: EpisodeFilterMethod
+
+  var body: some View {
+    VStack(spacing: 12) {
+      Divider()
+
+      HStack {
+        SearchBar(
+          text: $entryFilter,
+          placeholder: "Filter episodes",
+          imageName: "line.horizontal.3.decrease.circle"
+        )
+
+        Menu(
+          content: {
+            ForEach(EpisodeFilterMethod.allCases, id: \.self) { filterMethod in
+              Button(filterMethod.rawValue) {
+                currentFilterMethod = filterMethod
+              }
+              .disabled(currentFilterMethod == filterMethod)
+            }
+          },
+          label: {
+            Image(systemName: "line.horizontal.3.decrease.circle")
+          }
+        )
+      }
+
+      Divider()
     }
   }
 }
