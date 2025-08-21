@@ -26,7 +26,12 @@ extension Container: @retroactive AutoRegistering {
     loadEpisodeAsset.context(.test) { self.fakeEpisodeAssetLoader().loadEpisodeAsset }
     configureAudioSession.context(.test) {
       {
-        Task { try await self.fakeAudioSessionConfigurer().configure() }
+        Task { try await self.fakeAudioSession().configure() }
+      }
+    }
+    setAudioSessionActive.context(.test) {
+      { active in
+        Task { try await self.fakeAudioSession().setActive(active) }
       }
     }
     imageFetcher.context(.test) { FakeImageFetcher() }.scope(.cached)

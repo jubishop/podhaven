@@ -13,8 +13,8 @@ import Testing
 enum PlayHelpers {
   // MARK: - Dependency Access
 
-  private static var fakeAudioSessionConfigurer: FakeAudioSessionConfigurer {
-    Container.shared.fakeAudioSessionConfigurer()
+  private static var fakeAudioSession: FakeAudioSession {
+    Container.shared.fakeAudioSession()
   }
   private static var fakeEpisodeAssetLoader: FakeEpisodeAssetLoader {
     Container.shared.fakeEpisodeAssetLoader()
@@ -138,13 +138,22 @@ enum PlayHelpers {
     )
   }
 
+  static func waitForAudioActive(_ active: Bool) async throws {
+    try await Wait.until(
+      { await fakeAudioSession.active == active },
+      {
+        "Expected active to be \(active), got \(await fakeAudioSession.active)"
+      }
+    )
+  }
+
   static func waitForConfigureCallCount(callCount: Int) async throws {
     try await Wait.until(
-      { await fakeAudioSessionConfigurer.callCount == callCount },
+      { await fakeAudioSession.configureCallCount == callCount },
       {
         """
         Expected callCount to be \(callCount), \
-        but was \(await fakeAudioSessionConfigurer.callCount)
+        but was \(await fakeAudioSession.configureCallCount)
         """
       }
     )

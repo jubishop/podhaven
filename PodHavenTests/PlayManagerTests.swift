@@ -12,7 +12,7 @@ import Testing
 
 @Suite("of PlayManager tests", .container)
 @MainActor struct PlayManagerTests {
-  @DynamicInjected(\.fakeAudioSessionConfigurer) private var audioSessionConfigurer
+  @DynamicInjected(\.fakeAudioSession) private var audioSession
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.notifier) private var notifier
@@ -115,6 +115,57 @@ import Testing
 
     try await PlayHelpers.waitForCurrentItem(podcastEpisode)
     try await PlayHelpers.waitFor(.playing)
+  }
+
+  @Test("loading an episode sets audio session active")
+  func loadingEpisodeSetsAudioSessionActive() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await PlayHelpers.waitForAudioActive(false)
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.waitForAudioActive(true)
+  }
+
+  @Test("finishing last episode sets audio session inactive")
+  func finishingLastEpisodeSetsAudioSessionInactive() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitForAudioActive(true)
+
+    avPlayer.finishEpisode()
+    try await PlayHelpers.waitForAudioActive(false)
+  }
+
+  @Test("episode failing makes audio session inactive")
+  func episodeFailingMakesAudioSessionInactive() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitForAudioActive(true)
+
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode)
+    let currentItem = avPlayer.current as! FakeAVPlayerItem
+    currentItem.setStatus(.failed)
+    try await PlayHelpers.waitForAudioActive(false)
+  }
+
+  @Test("failing to load episode makes audio session inactive")
+  func failingToLoadEpisodeMakesAudioSessionInactive() async throws {
+    let (podcastEpisode, failingEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await playManager.load(podcastEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitForAudioActive(true)
+
+    await episodeAssetLoader.respond(
+      to: failingEpisode.episode,
+      error: TestError.assetLoadFailure(failingEpisode.episode.mediaURL)
+    )
+    _ = try? await playManager.load(failingEpisode)
+    try await PlayHelpers.waitForAudioActive(false)
   }
 
   @Test("loading an episode sets loading status")
@@ -796,7 +847,7 @@ import Testing
 
     // Verify initial state
     let initialAVPlayer = avPlayer
-    let initialCallCount = await audioSessionConfigurer.callCount
+    let initialCallCount = await audioSession.configureCallCount
     let initialLoadCount = await episodeAssetLoader.responseCount(for: podcastEpisode)
 
     // Trigger media services reset notification
@@ -829,7 +880,7 @@ import Testing
     // Load an episode
     try await PlayHelpers.load(podcastEpisode)
     try await PlayHelpers.pause()
-    let initialCallCount = await audioSessionConfigurer.callCount
+    let initialCallCount = await audioSession.configureCallCount
     let initialLoadCount = await episodeAssetLoader.responseCount(for: podcastEpisode)
 
     // Trigger media services reset notification
@@ -852,7 +903,7 @@ import Testing
     try await PlayHelpers.load(podcastEpisode)
     try await PlayHelpers.play()
     let initialAVPlayer = avPlayer
-    let initialCallCount = await audioSessionConfigurer.callCount
+    let initialCallCount = await audioSession.configureCallCount
     let initialLoadCount = await episodeAssetLoader.responseCount(for: podcastEpisode)
 
     // Now simulate the podcastEpisode failing after it becomes currentItem
@@ -888,7 +939,7 @@ import Testing
   func mediaServicesResetNotificationWithNoEpisodeDoesNothing() async throws {
     // Start with no episode loaded
     let initialAVPlayer = avPlayer
-    let initialCallCount = await audioSessionConfigurer.callCount
+    let initialCallCount = await audioSession.configureCallCount
     #expect(playState.onDeck == nil)
     #expect(playState.status == .stopped)
 

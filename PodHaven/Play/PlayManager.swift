@@ -16,10 +16,18 @@ extension Container {
         let audioSession = AVAudioSession.sharedInstance()
         try audioSession.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
         try audioSession.setMode(.spokenAudio)
-        try audioSession.setActive(true)
       }
     }
     .scope(.cached)
+  }
+
+  var setAudioSessionActive: Factory<(Bool) throws -> Void> {
+    Factory(self) {
+      { active in
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setActive(active)
+      }
+    }
   }
 
   var playManager: Factory<PlayManager> {
@@ -166,6 +174,7 @@ final class PlayManager {
       await clearOnDeck()
 
       do {
+        try Container.shared.setAudioSessionActive()(true)
         try await setOnDeck(try await podAVPlayer.load(incoming))
       } catch {
         await Task { [weak self] in  // Task to execute even inside cancellation
@@ -357,6 +366,14 @@ final class PlayManager {
     Self.log.debug("setStatus: \(status)")
     nowPlayingInfo?.playing(status.playing)
     await playState.setStatus(status)
+
+    if status == .stopped {
+      do {
+        try Container.shared.setAudioSessionActive()(false)
+      } catch {
+        Self.log.error(error)
+      }
+    }
   }
 
   private func setCurrentTime(_ currentTime: CMTime) async {
