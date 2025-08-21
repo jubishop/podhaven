@@ -8,7 +8,7 @@ import Logging
 import Sharing
 import SwiftUI
 
-@Observable @MainActor class SelectablePodcastsGridViewModel: Sortable {
+@Observable @MainActor class SelectablePodcastsGridViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
@@ -79,10 +79,9 @@ import SwiftUI
 
   @ObservationIgnored @Shared private var storedSortMethod: SortMethod
   private var _currentSortMethod: SortMethod
-  var currentSortMethod: SortMethod? {
+  var currentSortMethod: SortMethod {
     get { _currentSortMethod }
     set {
-      guard let newValue else { return }
       _currentSortMethod = newValue
       $storedSortMethod.withLock { $0 = newValue }
       podcastList.sortMethod = Self.sortMethod(for: newValue)
@@ -201,11 +200,5 @@ import SwiftUI
       guard let self else { return }
       try await repo.markUnsubscribed(podcastID)
     }
-  }
-  
-  // MARK: - Sortable Protocol
-  
-  func sort(by method: SortMethod) {
-    currentSortMethod = method
   }
 }

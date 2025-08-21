@@ -104,7 +104,13 @@ struct UpNextView: View {
           }
 
           ToolbarItem(placement: .topBarTrailing) {
-            SortMenu(viewModel: viewModel)
+            Menu("Sort") {
+              ForEach(UpNextViewModel.SortMethod.allCases, id: \.self) { method in
+                Button(method.rawValue) {
+                  viewModel.sort(by: method)
+                }
+              }
+            }
           }
         }
 

@@ -24,7 +24,19 @@ struct SelectablePodcastsGridView: View {
         imageName: "line.horizontal.3.decrease.circle"
       )
 
-      SortMenu(viewModel: viewModel)
+      Menu(
+        content: {
+          ForEach(SelectablePodcastsGridViewModel.SortMethod.allCases, id: \.self) { method in
+            Button(method.rawValue) {
+              viewModel.currentSortMethod = method
+            }
+            .disabled(viewModel.currentSortMethod == method)
+          }
+        },
+        label: {
+          Text("Sort by")
+        }
+      )
     }
     .padding(.horizontal)
 
