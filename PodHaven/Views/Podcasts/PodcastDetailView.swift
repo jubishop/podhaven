@@ -41,6 +41,17 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
       episodeList: $viewModel.episodeList,
       selectText: "Select Episodes"
     )
+    .toolbar {
+      if !viewModel.episodeList.isSelecting && viewModel.subscribable
+        && !viewModel.podcast.subscribed
+      {
+        ToolbarItem(placement: .topBarLeading) {
+          Button("Subscribe") {
+            viewModel.subscribe()
+          }
+        }
+      }
+    }
     .task { await viewModel.execute() }
   }
 
