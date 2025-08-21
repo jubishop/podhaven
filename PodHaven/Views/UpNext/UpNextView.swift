@@ -105,12 +105,10 @@ struct UpNextView: View {
 
           ToolbarItem(placement: .topBarTrailing) {
             Menu("Sort") {
-              Button("Most Recent First") {
-                viewModel.sortByMostRecentFirst()
-              }
-
-              Button("Most Completed") {
-                viewModel.sortByMostCompleted()
+              ForEach(UpNextViewModel.SortMethod.allCases, id: \.self) { method in
+                Button(method.rawValue) {
+                  viewModel.sort(by: method)
+                }
               }
             }
           }

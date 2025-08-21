@@ -26,6 +26,32 @@ import SwiftUI
   var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
   var podcastEpisodes: IdentifiedArray<Episode.ID, PodcastEpisode> { episodeList.allEntries }
 
+  enum SortMethod: String, CaseIterable {
+    case oldestFirst = "Oldest First"
+    case mostRecentFirst = "Most Recent First"
+    case mostCompleted = "Most Completed"
+  }
+
+  private static func sortMethod(for sortMethod: SortMethod) -> (
+    PodcastEpisode, PodcastEpisode
+  ) -> Bool {
+    switch sortMethod {
+    case .oldestFirst:
+      return { lhs, rhs in lhs.episode.pubDate < rhs.episode.pubDate }
+    case .mostRecentFirst:
+      return { lhs, rhs in lhs.episode.pubDate > rhs.episode.pubDate }
+    case .mostCompleted:
+      return { lhs, rhs in
+        // Primary sort: most completed first (highest currentTime)
+        if lhs.episode.currentTime.seconds != rhs.episode.currentTime.seconds {
+          return lhs.episode.currentTime.seconds > rhs.episode.currentTime.seconds
+        }
+        // Secondary sort: oldest publication date first
+        return lhs.episode.pubDate < rhs.episode.pubDate
+      }
+    }
+  }
+
   // MARK: - Initialization
 
   func execute() async {
@@ -108,30 +134,11 @@ import SwiftUI
     }
   }
 
-  func sortByMostRecentFirst() {
+  func sort(by method: SortMethod) {
     Task { [weak self] in
       guard let self else { return }
       do {
-        let sortedEpisodes = podcastEpisodes.sorted { $0.episode.pubDate > $1.episode.pubDate }
-        try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
-  func sortByMostCompleted() {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        let sortedEpisodes = podcastEpisodes.sorted {
-          // Primary sort: most completed first (highest currentTime)
-          if $0.episode.currentTime.seconds != $1.episode.currentTime.seconds {
-            return $0.episode.currentTime.seconds > $1.episode.currentTime.seconds
-          }
-          // Secondary sort: most recent publication date first
-          return $0.episode.pubDate > $1.episode.pubDate
-        }
+        let sortedEpisodes = podcastEpisodes.sorted(by: Self.sortMethod(for: method))
         try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
       } catch {
         Self.log.error(error)
