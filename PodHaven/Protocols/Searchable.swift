@@ -2,6 +2,6 @@
 
 import Foundation
 
-protocol Searchable: Hashable, Identifiable {
+protocol Searchable: Equatable, Hashable, Identifiable {
   var searchableString: String { get }
 }

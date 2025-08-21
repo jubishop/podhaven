@@ -54,6 +54,7 @@ class PodcastResultsDetailViewModel:
   init(searchedPodcast: SearchedPodcast) {
     self.searchedText = searchedPodcast.searchedText
     self.unsavedPodcast = searchedPodcast.unsavedPodcast
+    episodeList.sortMethod = { $0.pubDate > $1.pubDate }
     episodeList.filterMethod = currentFilterMethod.filterMethod(for: UnsavedEpisode.self)
   }
 

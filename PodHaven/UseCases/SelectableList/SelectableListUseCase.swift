@@ -4,7 +4,7 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor class SelectableListUseCase<T: Searchable, ID: Hashable>: SelectableList {
+@Observable @MainActor class SelectableListUseCase<Item: Searchable, ID: Hashable>: SelectableList {
   // MARK: - Selection State Management
 
   private var _isSelecting = false
@@ -12,25 +12,25 @@ import SwiftUI
     get { _isSelecting }
     set { withAnimation { _isSelecting = newValue } }
   }
-  var isSelected = BindableDictionary<T, Bool>(defaultValue: false)
+  var isSelected = BindableDictionary<Item, Bool>(defaultValue: false)
   var anySelected: Bool { filteredEntries.contains { isSelected[$0] } }
   var anyNotSelected: Bool { filteredEntries.contains { !isSelected[$0] } }
-  var selectedEntries: IdentifiedArray<ID, T> { filteredEntries.filter({ isSelected[$0] }) }
+  var selectedEntries: IdentifiedArray<ID, Item> { filteredEntries.filter({ isSelected[$0] }) }
   var selectedEntryIDs: [ID] { selectedEntries.ids.elements }
 
   // MARK: - Entry List Getters / Setters
 
-  private var _allEntries: IdentifiedArray<ID, T>
-  var allEntries: IdentifiedArray<ID, T> {
+  private var _allEntries: IdentifiedArray<ID, Item>
+  var allEntries: IdentifiedArray<ID, Item> {
     get { _allEntries }
     set {
-      _allEntries = newValue
+      _allEntries = newValue.sorted(by: sortMethod)
       for entry in isSelected.keys where !allEntries.contains(entry) {
         isSelected.removeValue(forKey: entry)
       }
     }
   }
-  var filteredEntries: IdentifiedArray<ID, T> {
+  var filteredEntries: IdentifiedArray<ID, Item> {
     let filteredEntries = allEntries.filter { filterMethod($0) }
 
     let searchTerms =
@@ -48,22 +48,21 @@ import SwiftUI
     )
   }
   var filteredEntryIDs: [ID] { filteredEntries.ids.elements }
-  var filteredSortedEntries: [T] { filteredEntries.sorted(by: sortMethod) }
 
   // MARK: - Customization Parameters
 
-  var filterMethod: (T) -> Bool
-  var sortMethod: (T, T) -> Bool
+  var filterMethod: (Item) -> Bool
+  var sortMethod: (Item, Item) -> Bool
   var entryFilter: String = ""
 
-  private let idKeyPath: KeyPath<T, ID>
+  private let idKeyPath: KeyPath<Item, ID>
 
   // MARK: - Initialization
 
   init(
-    idKeyPath: KeyPath<T, ID>,
-    filterMethod: @escaping (T) -> Bool = { _ in true },
-    sortMethod: @escaping (T, T) -> Bool = { $0.searchableString < $1.searchableString }
+    idKeyPath: KeyPath<Item, ID>,
+    filterMethod: @escaping (Item) -> Bool = { _ in true },
+    sortMethod: @escaping (Item, Item) -> Bool = { _, _ in false }
   ) {
     self.idKeyPath = idKeyPath
     self.filterMethod = filterMethod
