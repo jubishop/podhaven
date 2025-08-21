@@ -143,7 +143,7 @@ extension Container {
     func navigationDestination(for destination: Destination) -> some View {
       switch destination {
       case .episode(let podcastEpisode):
-        EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
+        EpisodeDetailWrapperView(podcastEpisode: podcastEpisode)
           .id(podcastEpisode.id)
       }
     }

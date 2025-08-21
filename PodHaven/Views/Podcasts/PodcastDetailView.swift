@@ -181,8 +181,8 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
       .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
       .episodeQueueableContextMenu(viewModel: viewModel, episode: episode)
     }
-    .animation(.default, value: viewModel.episodeList.filteredEntries)
     .conditionalRefreshable(enabled: viewModel.refreshable, action: viewModel.refreshSeries)
+    .animation(.default, value: viewModel.episodeList.filteredEntries)
   }
 
   private var noEpisodesMessage: some View {
