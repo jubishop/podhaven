@@ -8,10 +8,12 @@ struct QueueableSelectableEpisodesToolbarModifier<
 >: ViewModifier {
   @Binding private var episodeList: EpisodeList
   private let viewModel: ViewModel
+  private let selectText: String
 
-  init(viewModel: ViewModel, episodeList: Binding<EpisodeList>) {
+  init(viewModel: ViewModel, episodeList: Binding<EpisodeList>, selectText: String) {
     self.viewModel = viewModel
     self._episodeList = episodeList
+    self.selectText = selectText
   }
 
   func body(content: Content) -> some View {
@@ -37,7 +39,7 @@ struct QueueableSelectableEpisodesToolbarModifier<
           }
         } else {
           ToolbarItem(placement: .topBarTrailing) {
-            Button("Select") {
+            Button(selectText) {
               episodeList.isSelecting = true
             }
           }
@@ -53,10 +55,15 @@ extension View {
     EpisodeList: SelectableList
   >(
     viewModel: ViewModel,
-    episodeList: Binding<EpisodeList>
+    episodeList: Binding<EpisodeList>,
+    selectText: String = "Select"
   ) -> some View {
     self.modifier(
-      QueueableSelectableEpisodesToolbarModifier(viewModel: viewModel, episodeList: episodeList)
+      QueueableSelectableEpisodesToolbarModifier(
+        viewModel: viewModel,
+        episodeList: episodeList,
+        selectText: selectText
+      )
     )
   }
 }
