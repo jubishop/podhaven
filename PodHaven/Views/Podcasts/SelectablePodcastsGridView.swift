@@ -24,19 +24,14 @@ struct SelectablePodcastsGridView: View {
         imageName: "line.horizontal.3.decrease.circle"
       )
 
-      Menu(
-        content: {
-          ForEach(SelectablePodcastsGridViewModel.SortMethod.allCases, id: \.self) { method in
-            Button(method.rawValue) {
-              viewModel.currentSortMethod = method
-            }
-            .disabled(viewModel.currentSortMethod == method)
+      Menu("Sort by") {
+        ForEach(SelectablePodcastsGridViewModel.SortMethod.allCases, id: \.self) { method in
+          Button(method.rawValue) {
+            viewModel.currentSortMethod = method
           }
-        },
-        label: {
-          Text("Sort by")
+          .disabled(viewModel.currentSortMethod == method)
         }
-      )
+      }
     }
     .padding(.horizontal)
 
