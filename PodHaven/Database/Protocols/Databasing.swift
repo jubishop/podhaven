@@ -83,6 +83,9 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func updateLastUpdate(_ podcastID: Podcast.ID) async throws -> Bool
+
+  @discardableResult
+  func updateCacheAll(_ podcastID: Podcast.ID, cacheAllEpisodes: Bool) async throws -> Bool
 }
 
 extension Databasing {

@@ -195,4 +195,13 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     recordCall(methodName: "updateLastUpdate", parameters: podcastID)
     return try await repo.updateLastUpdate(podcastID)
   }
+
+  @discardableResult
+  func updateCacheAll(_ podcastID: Podcast.ID, cacheAllEpisodes: Bool) async throws -> Bool {
+    recordCall(
+      methodName: "updateCacheAll",
+      parameters: (podcastID: podcastID, cacheAllEpisodes: cacheAllEpisodes)
+    )
+    return try await repo.updateCacheAll(podcastID, cacheAllEpisodes: cacheAllEpisodes)
+  }
 }

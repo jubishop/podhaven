@@ -338,6 +338,17 @@ struct Repo: Databasing, Sendable {
     } > 0
   }
 
+  @discardableResult
+  func updateCacheAll(_ podcastID: Podcast.ID, cacheAllEpisodes: Bool) async throws -> Bool {
+    Self.log.debug("updateCacheAll: \(podcastID) to \(cacheAllEpisodes)")
+
+    return try await appDB.db.write { db in
+      try Podcast
+        .withID(podcastID)
+        .updateAll(db, Podcast.Columns.cacheAllEpisodes.set(to: cacheAllEpisodes))
+    } > 0
+  }
+
   // MARK: Private Helpers
 
   private func _setSubscribedColumn(_ podcastIDs: [Podcast.ID], to subscribed: Bool) async throws

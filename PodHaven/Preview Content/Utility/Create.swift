@@ -48,7 +48,8 @@ enum Create {
     description: String = String.random(),
     link: URL? = nil,
     lastUpdate: Date? = nil,
-    subscriptionDate: Date? = nil
+    subscriptionDate: Date? = nil,
+    cacheAllEpisodes: Bool = false
   ) throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: feedURL,
@@ -57,7 +58,8 @@ enum Create {
       description: description,
       link: link,
       lastUpdate: lastUpdate,
-      subscriptionDate: subscriptionDate
+      subscriptionDate: subscriptionDate,
+      cacheAllEpisodes: cacheAllEpisodes
     )
   }
 
@@ -68,7 +70,8 @@ enum Create {
     description: String = String.random(),
     link: URL? = nil,
     lastUpdate: Date? = nil,
-    subscriptionDate: Date? = nil
+    subscriptionDate: Date? = nil,
+    cacheAllEpisodes: Bool = false
   ) async throws -> Podcast {
     try await Container.shared.repo()
       .insertSeries(
@@ -79,7 +82,8 @@ enum Create {
           description: description,
           link: link,
           lastUpdate: lastUpdate,
-          subscriptionDate: subscriptionDate
+          subscriptionDate: subscriptionDate,
+          cacheAllEpisodes: cacheAllEpisodes
         ),
         unsavedEpisodes: []
       )

@@ -20,6 +20,7 @@ struct UnsavedPodcast: PodcastDisplayable, Identifiable, Savable, Stringable {
   var link: URL?
   var lastUpdate: Date
   var subscriptionDate: Date?
+  var cacheAllEpisodes: Bool
 
   init(
     feedURL: FeedURL,
@@ -28,7 +29,8 @@ struct UnsavedPodcast: PodcastDisplayable, Identifiable, Savable, Stringable {
     description: String,
     link: URL? = nil,
     lastUpdate: Date? = nil,
-    subscriptionDate: Date? = nil
+    subscriptionDate: Date? = nil,
+    cacheAllEpisodes: Bool = false
   ) throws(ModelError) {
     do {
       self.feedURL = FeedURL(try feedURL.rawValue.convertToValidURL())
@@ -38,6 +40,7 @@ struct UnsavedPodcast: PodcastDisplayable, Identifiable, Savable, Stringable {
       self.link = try? link?.convertToValidURL()
       self.lastUpdate = lastUpdate ?? Date.epoch
       self.subscriptionDate = subscriptionDate
+      self.cacheAllEpisodes = cacheAllEpisodes
     } catch {
       throw ModelError.podcastInitializationFailure(feedURL: feedURL, title: title, caught: error)
     }
@@ -76,6 +79,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
     static let link = Column("link")
     static let lastUpdate = Column("lastUpdate")
     static let subscriptionDate = Column("subscriptionDate")
+    static let cacheAllEpisodes = Column("cacheAllEpisodes")
   }
 
   // MARK: - RSSUpdatable

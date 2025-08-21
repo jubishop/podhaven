@@ -288,6 +288,13 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v13") { db in
+      // Add cacheAllEpisodes column to podcast table for controlling episode caching behavior
+      try db.alter(table: "podcast") { t in
+        t.add(column: "cacheAllEpisodes", .boolean).notNull().defaults(to: false)
+      }
+    }
+
     return migrator
   }
 }

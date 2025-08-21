@@ -224,4 +224,34 @@ class PodcastTests {
     let fetchedPodcast = try await repo.podcastSeries(podcastSeries.podcast.id)!
     #expect(fetchedPodcast.podcast.lastUpdate.approximatelyEquals(updateTime))
   }
+
+  @Test("updateCacheAll() successfully updates podcast cacheAllEpisodes setting")
+  func testUpdateCacheAll() async throws {
+    // Insert a podcast with default cacheAllEpisodes value (false)
+    let podcastSeries = try await repo.insertSeries(
+      try Create.unsavedPodcast(cacheAllEpisodes: false)
+    )
+    #expect(podcastSeries.podcast.cacheAllEpisodes == false)
+
+    // Update cacheAllEpisodes to true
+    let updated = try await repo.updateCacheAll(podcastSeries.id, cacheAllEpisodes: true)
+    #expect(updated == true)
+
+    // Verify the update worked
+    let fetchedPodcast1 = try await repo.podcastSeries(podcastSeries.id)!
+    #expect(fetchedPodcast1.podcast.cacheAllEpisodes == true)
+
+    // Update cacheAllEpisodes back to false
+    let updated2 = try await repo.updateCacheAll(podcastSeries.id, cacheAllEpisodes: false)
+    #expect(updated2 == true)
+
+    // Verify the update worked
+    let fetchedPodcast2 = try await repo.podcastSeries(podcastSeries.id)!
+    #expect(fetchedPodcast2.podcast.cacheAllEpisodes == false)
+
+    // Try to update a non-existent podcast
+    let nonExistentID = Podcast.ID(99999)
+    let updated3 = try await repo.updateCacheAll(nonExistentID, cacheAllEpisodes: true)
+    #expect(updated3 == false)
+  }
 }

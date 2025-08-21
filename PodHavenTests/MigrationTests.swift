@@ -1330,4 +1330,136 @@ class MigrationTests {
       )
     }
   }
+
+  @Test("migrating to v13, adding cacheAllEpisodes column to podcast table")
+  func testV13Migration() async throws {
+    try migrator.migrate(appDB.db, upTo: "v12")
+
+    // Insert test data in v12 schema
+    let now = Date()
+
+    let (podcast1Id, podcast2Id) = try await appDB.db.write { db in
+      // Create two podcasts - one subscribed, one unsubscribed
+      try db.execute(
+        sql: """
+          INSERT INTO podcast (feedURL, title, image, description, subscriptionDate)
+          VALUES ('https://example1.com/feed.xml', 'Subscribed Podcast', 'https://example1.com/image.jpg', 'Subscribed Description', ?)
+          """,
+        arguments: [now]
+      )
+      let podcast1Id = db.lastInsertedRowID
+
+      try db.execute(
+        sql: """
+          INSERT INTO podcast (feedURL, title, image, description, subscriptionDate)
+          VALUES ('https://example2.com/feed.xml', 'Unsubscribed Podcast', 'https://example2.com/image.jpg', 'Unsubscribed Description', NULL)
+          """
+      )
+      let podcast2Id = db.lastInsertedRowID
+
+      return (podcast1Id, podcast2Id)
+    }
+
+    // Verify cacheAllEpisodes column does not exist before migration
+    try await appDB.db.read { db in
+      let columnNames = try db.columns(in: "podcast").map(\.name)
+      #expect(
+        !columnNames.contains("cacheAllEpisodes"),
+        "cacheAllEpisodes column should not exist before migration"
+      )
+    }
+
+    // Migrate to v13
+    try migrator.migrate(appDB.db, upTo: "v13")
+
+    // Verify the migration results
+    try await appDB.db.read { db in
+      // Verify cacheAllEpisodes column was added
+      let columnNames = try db.columns(in: "podcast").map(\.name)
+      #expect(
+        columnNames.contains("cacheAllEpisodes"),
+        "cacheAllEpisodes column should exist after migration"
+      )
+
+      // Verify existing podcasts have default cacheAllEpisodes value of false
+      let podcast1 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM podcast WHERE id = ?",
+        arguments: [podcast1Id]
+      )!
+      let podcast1CacheAll = podcast1[Column("cacheAllEpisodes")] as Bool
+      #expect(
+        podcast1CacheAll == false,
+        "Subscribed podcast should have cacheAllEpisodes defaulting to false"
+      )
+
+      let podcast2 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM podcast WHERE id = ?",
+        arguments: [podcast2Id]
+      )!
+      let podcast2CacheAll = podcast2[Column("cacheAllEpisodes")] as Bool
+      #expect(
+        podcast2CacheAll == false,
+        "Unsubscribed podcast should have cacheAllEpisodes defaulting to false"
+      )
+
+      // Verify all other podcast data is preserved
+      #expect(podcast1[Column("feedURL")] as String == "https://example1.com/feed.xml")
+      #expect(podcast1[Column("title")] as String == "Subscribed Podcast")
+      #expect(podcast1[Column("description")] as String == "Subscribed Description")
+      #expect(podcast1[Column("subscriptionDate")] as Date? != nil)
+
+      #expect(podcast2[Column("feedURL")] as String == "https://example2.com/feed.xml")
+      #expect(podcast2[Column("title")] as String == "Unsubscribed Podcast")
+      #expect(podcast2[Column("description")] as String == "Unsubscribed Description")
+      #expect(podcast2[Column("subscriptionDate")] as Date? == nil)
+    }
+
+    // Verify that cacheAllEpisodes can be updated after migration
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: "UPDATE podcast SET cacheAllEpisodes = ? WHERE id = ?",
+        arguments: [true, podcast1Id]
+      )
+    }
+
+    // Verify the update worked
+    try await appDB.db.read { db in
+      let updatedPodcast1 = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM podcast WHERE id = ?",
+        arguments: [podcast1Id]
+      )!
+      let updatedCacheAll = updatedPodcast1[Column("cacheAllEpisodes")] as Bool
+      #expect(
+        updatedCacheAll == true,
+        "Podcast cacheAllEpisodes should be updatable after migration"
+      )
+    }
+
+    // Verify that new podcasts can be inserted with cacheAllEpisodes values
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO podcast (feedURL, title, image, description, cacheAllEpisodes)
+          VALUES ('https://example3.com/feed.xml', 'New Podcast', 'https://example3.com/image.jpg', 'New Description', ?)
+          """,
+        arguments: [true]
+      )
+    }
+
+    // Verify the new podcast was inserted with correct cacheAllEpisodes value
+    try await appDB.db.read { db in
+      let newPodcast = try Row.fetchOne(
+        db,
+        sql: "SELECT * FROM podcast WHERE feedURL = 'https://example3.com/feed.xml'"
+      )!
+      let newCacheAll = newPodcast[Column("cacheAllEpisodes")] as Bool
+      #expect(
+        newCacheAll == true,
+        "New podcast should have cacheAllEpisodes set to true"
+      )
+    }
+  }
 }
