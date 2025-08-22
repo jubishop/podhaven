@@ -15,8 +15,7 @@ struct UnsavedEpisode:
   EpisodeDisplayable,
   Identifiable,
   Savable,
-  Stringable,
-  TimestampedRecord
+  Stringable
 {
   var id: MediaURL { media }
 
@@ -38,7 +37,6 @@ struct UnsavedEpisode:
   let queueOrder: Int?
   let lastQueued: Date?
   let cachedFilename: String?
-  var creationDate: Date?
 
   init(
     podcastId: Podcast.ID? = nil,
@@ -54,8 +52,7 @@ struct UnsavedEpisode:
     currentTime: CMTime? = nil,
     queueOrder: Int? = nil,
     lastQueued: Date? = nil,
-    cachedFilename: String? = nil,
-    creationDate: Date? = nil
+    cachedFilename: String? = nil
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
@@ -71,7 +68,6 @@ struct UnsavedEpisode:
     self.queueOrder = queueOrder
     self.lastQueued = lastQueued
     self.cachedFilename = cachedFilename
-    self.creationDate = creationDate
   }
 
   // MARK: - Savable

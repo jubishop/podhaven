@@ -15,8 +15,16 @@ import Tagged
 ///
 /// This will automatically generate:
 /// - typealias ID = Tagged<Self, Int64>
-/// - var id: ID
+/// - let id: ID
+/// - let creationDate: Date
 /// - var unsaved: UnsavedType
 /// - init(id:from:) implementation
-@attached(member, names: named(ID), named(id), named(unsaved), named(init(id:from:)))
+@attached(
+  member,
+  names: named(ID),
+  named(id),
+  named(unsaved),
+  named(creationDate),
+  named(init(id:creationDate:from:))
+)
 public macro Saved<T>() = #externalMacro(module: "SavedMacroPlugin", type: "SavedMacro")

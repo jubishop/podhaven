@@ -26,12 +26,15 @@ public struct SavedMacro: MemberMacro {
       DeclSyntax("// MARK: - Saved"),
       DeclSyntax(""),
       DeclSyntax("typealias ID = Tagged<Self, Int64>"),
-      DeclSyntax("var id: ID"),
+      DeclSyntax("let id: ID"),
+      DeclSyntax("let creationDate: Date"),
       DeclSyntax("var unsaved: \(raw: unsavedType)"),
+      DeclSyntax(""),
       DeclSyntax(
         """
-        init(id: ID, from unsaved: \(raw: unsavedType)) {
+        init(id: ID, creationDate: Date, from unsaved: \(raw: unsavedType)) {
           self.id = id
+          self.creationDate = creationDate
           self.unsaved = unsaved
         }
         """

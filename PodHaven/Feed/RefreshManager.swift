@@ -121,7 +121,11 @@ actor RefreshManager {
       let newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(
         merging: podcastSeries.podcast.unsaved
       )
-      let newPodcast = Podcast(id: podcastSeries.id, from: newUnsavedPodcast)
+      let newPodcast = Podcast(
+        id: podcastSeries.id,
+        creationDate: podcastSeries.podcast.creationDate,
+        from: newUnsavedPodcast
+      )
       var unsavedEpisodes: [UnsavedEpisode] = []
       var updatedEpisodes: [Episode] = []
 
@@ -132,6 +136,7 @@ actor RefreshManager {
           do {
             let updatedEpisode = Episode(
               id: existingEpisode.id,
+              creationDate: existingEpisode.creationDate,
               from: try feedItem.toUnsavedEpisode(merging: existingEpisode)
             )
 

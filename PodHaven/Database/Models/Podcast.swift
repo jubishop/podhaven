@@ -12,8 +12,7 @@ struct UnsavedPodcast:
   Identifiable,
   PodcastDisplayable,
   Savable,
-  Stringable,
-  TimestampedRecord
+  Stringable
 {
   var id: FeedURL { feedURL }
 
@@ -27,7 +26,6 @@ struct UnsavedPodcast:
   var lastUpdate: Date
   var subscriptionDate: Date?
   let cacheAllEpisodes: Bool
-  var creationDate: Date?
 
   init(
     feedURL: FeedURL,
@@ -37,8 +35,7 @@ struct UnsavedPodcast:
     link: URL? = nil,
     lastUpdate: Date? = nil,
     subscriptionDate: Date? = nil,
-    cacheAllEpisodes: Bool = false,
-    creationDate: Date? = nil,
+    cacheAllEpisodes: Bool = false
   ) throws(ModelError) {
     do {
       self.feedURL = FeedURL(try feedURL.rawValue.convertToValidURL())
@@ -49,7 +46,6 @@ struct UnsavedPodcast:
       self.lastUpdate = lastUpdate ?? Date.epoch
       self.subscriptionDate = subscriptionDate
       self.cacheAllEpisodes = cacheAllEpisodes
-      self.creationDate = creationDate
     } catch {
       throw ModelError.podcastInitializationFailure(feedURL: feedURL, title: title, caught: error)
     }

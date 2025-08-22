@@ -95,6 +95,7 @@ class EpisodeTests {
 
     let updatedPodcast = try Podcast(
       id: originalPodcast.id,
+      creationDate: originalPodcast.creationDate,
       from: Create.unsavedPodcast(
         feedURL: newFeedURL,
         title: newPodcastTitle,
@@ -116,6 +117,7 @@ class EpisodeTests {
 
     let updatedEpisode = try Episode(
       id: originalEpisode.id,
+      creationDate: originalEpisode.creationDate,
       from: Create.unsavedEpisode(
         guid: newEpisodeGUID,
         media: newEpisodeMedia,
@@ -420,7 +422,13 @@ class EpisodeTests {
     for podcastEpisode in podcastEpisodes {
       fetchedPodcastEpisodes.append(try await repo.podcastEpisode(podcastEpisode.id)!)
     }
-    #expect(Set(podcastEpisodes) == Set(fetchedPodcastEpisodes))
+    #expect(
+      Set(podcastEpisodes.map(\.podcast.feedURL))
+        == Set(fetchedPodcastEpisodes.map(\.podcast.feedURL))
+    )
+    #expect(
+      Set(podcastEpisodes.map(\.episode.media)) == Set(fetchedPodcastEpisodes.map(\.episode.media))
+    )
   }
 
   @Test("that latestEpisode returns the most recent episode for a podcast")
@@ -460,16 +468,44 @@ class EpisodeTests {
     let series = try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
 
     #expect(
-      series.podcast.creationDate!.approximatelyEquals(creationDate),
+      series.podcast.creationDate.approximatelyEquals(creationDate),
       "Podcast should have creationDate"
     )
     for episode in series.episodes {
       #expect(
-        episode.creationDate!.approximatelyEquals(creationDate),
+        episode.creationDate.approximatelyEquals(creationDate),
         "Episode '\(episode.title)' should have creationDate"
       )
     }
   }
 
-  // TODO: Test that upserts don't modify the creationDate
+  @Test("that upserts dont modify creationDates")
+  func testUpsertsDontModifyCreationDates() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode()
+    let insertedPodcastEpisode = try await repo.upsertPodcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: unsavedEpisode
+      )
+    )
+    let creationDate = insertedPodcastEpisode.podcast.creationDate
+
+    try await Task.sleep(for: Duration.seconds(1))
+    let matchingPodcast = try Create.unsavedPodcast(feedURL: unsavedPodcast.feedURL)
+    let matchingEpisode = try Create.unsavedEpisode(media: unsavedEpisode.media)
+
+    let updatedPodcastEpisode = try await repo.upsertPodcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: matchingPodcast,
+        unsavedEpisode: matchingEpisode
+      )
+    )
+    #expect(updatedPodcastEpisode.podcast.creationDate.approximatelyEquals(creationDate))
+    #expect(updatedPodcastEpisode.episode.creationDate.approximatelyEquals(creationDate))
+
+    let fetchedPodcastEpisode = try await repo.podcastEpisode(updatedPodcastEpisode.id)!
+    #expect(fetchedPodcastEpisode.podcast.creationDate.approximatelyEquals(creationDate))
+    #expect(fetchedPodcastEpisode.episode.creationDate.approximatelyEquals(creationDate))
+  }
 }

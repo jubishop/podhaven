@@ -7,6 +7,7 @@ enum Schema {
   // MARK: - Columns
 
   static let id = Column("id")
+  static let creationDate = Column("creationDate")
 
   // MARK: - Migrator
 
@@ -296,13 +297,12 @@ enum Schema {
     }
 
     migrator.registerMigration("v14") { db in
-      // Add creationDate columns to track when records are created
       try db.alter(table: "episode") { t in
-        t.add(column: "creationDate", .datetime).notNull()
+        t.add(column: "creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
       }
 
       try db.alter(table: "podcast") { t in
-        t.add(column: "creationDate", .datetime).notNull()
+        t.add(column: "creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
       }
     }
 
