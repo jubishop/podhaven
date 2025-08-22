@@ -28,7 +28,7 @@ import SwiftUI
 
   enum SortMethod: String, CaseIterable {
     case oldestFirst = "Oldest First"
-    case mostRecentFirst = "Most Recent First"
+    case newestFirst = "Newest First"
     case mostCompleted = "Most Completed"
   }
 
@@ -38,7 +38,7 @@ import SwiftUI
     switch sortMethod {
     case .oldestFirst:
       return { lhs, rhs in lhs.episode.pubDate < rhs.episode.pubDate }
-    case .mostRecentFirst:
+    case .newestFirst:
       return { lhs, rhs in lhs.episode.pubDate > rhs.episode.pubDate }
     case .mostCompleted:
       return { lhs, rhs in
