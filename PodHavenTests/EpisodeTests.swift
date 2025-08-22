@@ -451,4 +451,25 @@ class EpisodeTests {
 
     #expect(latestEpisode == nil)
   }
+
+  @Test("that insertSeries adds creationDates")
+  func testInsertSeriesCreationDate() async throws {
+    let creationDate = Date()
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisodes = try [Create.unsavedEpisode(), Create.unsavedEpisode()]
+    let series = try await repo.insertSeries(unsavedPodcast, unsavedEpisodes: unsavedEpisodes)
+
+    #expect(
+      series.podcast.creationDate!.approximatelyEquals(creationDate),
+      "Podcast should have creationDate"
+    )
+    for episode in series.episodes {
+      #expect(
+        episode.creationDate!.approximatelyEquals(creationDate),
+        "Episode '\(episode.title)' should have creationDate"
+      )
+    }
+  }
+
+  // TODO: Test that upserts don't modify the creationDate
 }

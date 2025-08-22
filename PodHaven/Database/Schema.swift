@@ -295,6 +295,17 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v14") { db in
+      // Add creationDate columns to track when records are created
+      try db.alter(table: "episode") { t in
+        t.add(column: "creationDate", .datetime).notNull()
+      }
+
+      try db.alter(table: "podcast") { t in
+        t.add(column: "creationDate", .datetime).notNull()
+      }
+    }
+
     return migrator
   }
 }

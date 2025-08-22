@@ -8,19 +8,26 @@ import Tagged
 
 typealias FeedURL = Tagged<UnsavedPodcast, URL>
 
-struct UnsavedPodcast: PodcastDisplayable, Identifiable, Savable, Stringable {
+struct UnsavedPodcast:
+  Identifiable,
+  PodcastDisplayable,
+  Savable,
+  Stringable,
+  TimestampedRecord
+{
   var id: FeedURL { feedURL }
 
   static let databaseTableName: String = "podcast"
 
-  var feedURL: FeedURL
-  var title: String
-  var image: URL
-  var description: String
-  var link: URL?
+  let feedURL: FeedURL
+  let title: String
+  let image: URL
+  let description: String
+  let link: URL?
   var lastUpdate: Date
   var subscriptionDate: Date?
-  var cacheAllEpisodes: Bool
+  let cacheAllEpisodes: Bool
+  var creationDate: Date?
 
   init(
     feedURL: FeedURL,
@@ -30,7 +37,8 @@ struct UnsavedPodcast: PodcastDisplayable, Identifiable, Savable, Stringable {
     link: URL? = nil,
     lastUpdate: Date? = nil,
     subscriptionDate: Date? = nil,
-    cacheAllEpisodes: Bool = false
+    cacheAllEpisodes: Bool = false,
+    creationDate: Date? = nil,
   ) throws(ModelError) {
     do {
       self.feedURL = FeedURL(try feedURL.rawValue.convertToValidURL())
@@ -41,6 +49,7 @@ struct UnsavedPodcast: PodcastDisplayable, Identifiable, Savable, Stringable {
       self.lastUpdate = lastUpdate ?? Date.epoch
       self.subscriptionDate = subscriptionDate
       self.cacheAllEpisodes = cacheAllEpisodes
+      self.creationDate = creationDate
     } catch {
       throw ModelError.podcastInitializationFailure(feedURL: feedURL, title: title, caught: error)
     }
@@ -80,6 +89,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
     static let lastUpdate = Column("lastUpdate")
     static let subscriptionDate = Column("subscriptionDate")
     static let cacheAllEpisodes = Column("cacheAllEpisodes")
+    static let creationDate = Column("creationDate")
   }
 
   // MARK: - RSSUpdatable

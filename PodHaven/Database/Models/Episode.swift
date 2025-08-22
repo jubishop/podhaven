@@ -10,7 +10,14 @@ import Tagged
 typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
 
-struct UnsavedEpisode: EpisodeFilterable, EpisodeDisplayable, Identifiable, Savable, Stringable {
+struct UnsavedEpisode:
+  EpisodeFilterable,
+  EpisodeDisplayable,
+  Identifiable,
+  Savable,
+  Stringable,
+  TimestampedRecord
+{
   var id: MediaURL { media }
 
   private static let log = Log.as(LogSubsystem.Database.episode)
@@ -20,17 +27,18 @@ struct UnsavedEpisode: EpisodeFilterable, EpisodeDisplayable, Identifiable, Sava
   var podcastId: Podcast.ID?
   var guid: GUID
   var media: MediaURL
-  var title: String
-  var pubDate: Date
+  let title: String
+  let pubDate: Date
   var duration: CMTime
-  var description: String?
-  var link: URL?
-  var image: URL?
-  var completionDate: Date?
-  var currentTime: CMTime
-  var queueOrder: Int?
-  var lastQueued: Date?
-  var cachedFilename: String?
+  let description: String?
+  let link: URL?
+  let image: URL?
+  let completionDate: Date?
+  let currentTime: CMTime
+  let queueOrder: Int?
+  let lastQueued: Date?
+  let cachedFilename: String?
+  var creationDate: Date?
 
   init(
     podcastId: Podcast.ID? = nil,
@@ -46,7 +54,8 @@ struct UnsavedEpisode: EpisodeFilterable, EpisodeDisplayable, Identifiable, Sava
     currentTime: CMTime? = nil,
     queueOrder: Int? = nil,
     lastQueued: Date? = nil,
-    cachedFilename: String? = nil
+    cachedFilename: String? = nil,
+    creationDate: Date? = nil
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
@@ -62,6 +71,7 @@ struct UnsavedEpisode: EpisodeFilterable, EpisodeDisplayable, Identifiable, Sava
     self.queueOrder = queueOrder
     self.lastQueued = lastQueued
     self.cachedFilename = cachedFilename
+    self.creationDate = creationDate
   }
 
   // MARK: - Savable
@@ -129,6 +139,7 @@ struct Episode: EpisodeDisplayable, EpisodeFilterable, Saved, RSSUpdatable {
     static let queueOrder = Column("queueOrder")
     static let lastQueued = Column("lastQueued")
     static let cachedFilename = Column("cachedFilename")
+    static let creationDate = Column("creationDate")
   }
 
   // MARK: - RSSUpdatable

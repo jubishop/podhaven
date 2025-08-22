@@ -128,6 +128,7 @@ struct Repo: Databasing, Sendable {
 
     do {
       return try await appDB.db.write { db in
+        var unsavedPodcast = unsavedPodcast
         let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
         var episodes: IdentifiedArray<GUID, Episode> = IdentifiedArray(id: \.guid)
         for var unsavedEpisode in unsavedEpisodes {
@@ -230,7 +231,8 @@ struct Repo: Databasing, Sendable {
           ] {
             podcast = upsertedPodcast
           } else {
-            podcast = try unsavedPodcastEpisode.unsavedPodcast.upsertAndFetch(db, as: Podcast.self)
+            var unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
+            podcast = try unsavedPodcast.upsertAndFetch(db, as: Podcast.self)
             upsertedPodcasts.append(podcast)
           }
 

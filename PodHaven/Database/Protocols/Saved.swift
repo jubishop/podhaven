@@ -46,4 +46,8 @@ extension Saved {
 
   public var toString: String { "[\(id)] - \(unsaved.toString)" }
   public var searchableString: String { unsaved.searchableString }
+
+  mutating func willInsert(_ db: Database) throws {
+    try unsaved.willInsert(db)
+  }
 }

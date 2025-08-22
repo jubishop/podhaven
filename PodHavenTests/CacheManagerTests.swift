@@ -116,6 +116,7 @@ actor CacheManagerTests {
     ])
   }
 
+  // TODO: This test has race condition issues and fails sometimes
   @Test("moving an episode in the queue reprioritizes it for download")
   func movingAnEpisodeInTheQueueReprioritizesItForDownload() async throws {
     // Create 7 episodes: 4 will be active, 3 will be pending

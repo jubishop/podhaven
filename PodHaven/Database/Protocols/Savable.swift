@@ -7,7 +7,7 @@ protocol Savable:
   Codable,
   Hashable,
   FetchableRecord,
-  PersistableRecord,
+  MutablePersistableRecord,
   Searchable,
   Sendable,
   Stringable

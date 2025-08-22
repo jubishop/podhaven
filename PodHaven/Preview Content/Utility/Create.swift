@@ -21,7 +21,8 @@ enum Create {
     currentTime: CMTime? = nil,
     queueOrder: Int? = nil,
     lastQueued: Date? = nil,
-    cachedFilename: String? = nil
+    cachedFilename: String? = nil,
+    creationDate: Date? = nil
   ) throws -> UnsavedEpisode {
     try UnsavedEpisode(
       podcastId: podcastId,
@@ -37,7 +38,8 @@ enum Create {
       currentTime: currentTime,
       queueOrder: queueOrder,
       lastQueued: lastQueued,
-      cachedFilename: cachedFilename
+      cachedFilename: cachedFilename,
+      creationDate: creationDate
     )
   }
 
@@ -49,7 +51,8 @@ enum Create {
     link: URL? = nil,
     lastUpdate: Date? = nil,
     subscriptionDate: Date? = nil,
-    cacheAllEpisodes: Bool = false
+    cacheAllEpisodes: Bool = false,
+    creationDate: Date? = nil
   ) throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: feedURL,
@@ -59,7 +62,8 @@ enum Create {
       link: link,
       lastUpdate: lastUpdate,
       subscriptionDate: subscriptionDate,
-      cacheAllEpisodes: cacheAllEpisodes
+      cacheAllEpisodes: cacheAllEpisodes,
+      creationDate: creationDate
     )
   }
 
@@ -71,7 +75,8 @@ enum Create {
     link: URL? = nil,
     lastUpdate: Date? = nil,
     subscriptionDate: Date? = nil,
-    cacheAllEpisodes: Bool = false
+    cacheAllEpisodes: Bool = false,
+    creationDate: Date = Date()
   ) async throws -> Podcast {
     try await Container.shared.repo()
       .insertSeries(
@@ -83,7 +88,8 @@ enum Create {
           link: link,
           lastUpdate: lastUpdate,
           subscriptionDate: subscriptionDate,
-          cacheAllEpisodes: cacheAllEpisodes
+          cacheAllEpisodes: cacheAllEpisodes,
+          creationDate: creationDate
         ),
         unsavedEpisodes: []
       )
