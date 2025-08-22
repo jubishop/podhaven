@@ -318,8 +318,8 @@ class EpisodeTests {
     #expect(completedEpisode?.currentTime == CMTime.zero)
   }
 
-  @Test("that upsertPodcastEpisode works when podcast exists or is new")
-  func testAddEpisode() async throws {
+  @Test("that upsertPodcastEpisode works")
+  func testUpsertPodcastEpisode() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsavedEpisode = try Create.unsavedEpisode()
     let insertedPodcastEpisode = try await repo.upsertPodcastEpisode(
@@ -345,11 +345,46 @@ class EpisodeTests {
 
     let fetchedPodcastSeries = try await repo.podcastSeries(unsavedPodcast.feedURL)!
     #expect(fetchedPodcastSeries.episodes.count == 2)
-
   }
 
-  @Test("that upsertPodcastEpisodes works when fetching existing")
-  func testAddEpisodesFetchExisting() async throws {
+  @Test("that upsertPodcastEpisode updates new podcast and episode with matching unique keys")
+  func testUpsertExistingPodcastAndEpisodeWithMatchingUniqueKeys() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode()
+    let originalPodcastEpisode = try await repo.upsertPodcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisode: unsavedEpisode
+      )
+    )
+
+    let matchingPodcast = try Create.unsavedPodcast(
+      feedURL: unsavedPodcast.feedURL,
+      title: "New Podcast Title"
+    )
+    let matchingEpisode = try Create.unsavedEpisode(
+      media: unsavedEpisode.media,
+      title: "New Episode Titlu"
+    )
+
+    let updatedPodcastEpisode = try await repo.upsertPodcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: matchingPodcast,
+        unsavedEpisode: matchingEpisode
+      )
+    )
+    #expect(originalPodcastEpisode.id == updatedPodcastEpisode.id)
+
+    #expect(updatedPodcastEpisode.podcast.title == matchingPodcast.title)
+    #expect(updatedPodcastEpisode.episode.title == matchingEpisode.title)
+
+    let fetchedPodcastEpisode = try await repo.podcastEpisode(updatedPodcastEpisode.id)!
+    #expect(fetchedPodcastEpisode.podcast.title == updatedPodcastEpisode.podcast.title)
+    #expect(fetchedPodcastEpisode.episode.title == updatedPodcastEpisode.episode.title)
+  }
+
+  @Test("that upsertPodcastEpisodes mix of Existing and New")
+  func testUpsertEpisodesMixOfExistingAndNew() async throws {
     let insertedPodcast = try Create.unsavedPodcast()
     let insertedEpisode = try Create.unsavedEpisode()
     let unsavedEpisodeInsertedPodcast = try Create.unsavedEpisode()
