@@ -18,11 +18,14 @@ struct UnsavedPodcast:
 
   static let databaseTableName: String = "podcast"
 
+  // Feed
   let feedURL: FeedURL
   let title: String
   let image: URL
   let description: String
   let link: URL?
+
+  // User
   var lastUpdate: Date
   var subscriptionDate: Date?
   let cacheAllEpisodes: Bool

@@ -23,6 +23,8 @@ struct UnsavedEpisode:
   static let databaseTableName: String = "episode"
 
   var podcastId: Podcast.ID?
+
+  // Feed
   var guid: GUID
   var media: MediaURL
   let title: String
@@ -31,6 +33,8 @@ struct UnsavedEpisode:
   let description: String?
   let link: URL?
   let image: URL?
+
+  // User
   let completionDate: Date?
   let currentTime: CMTime
   let queueOrder: Int?
