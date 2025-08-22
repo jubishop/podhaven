@@ -13,7 +13,6 @@ typealias MediaURL = Tagged<UnsavedEpisode, URL>
 struct UnsavedEpisode:
   EpisodeFilterable,
   EpisodeDisplayable,
-  Identifiable,
   Savable,
   Stringable
 {
