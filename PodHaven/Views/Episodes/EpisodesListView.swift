@@ -3,13 +3,13 @@
 import FactoryKit
 import SwiftUI
 
-struct StandardEpisodesView: View {
+struct EpisodesListView: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation
 
-  @State private var viewModel: StandardEpisodesViewModel
+  @State private var viewModel: EpisodesListViewModel
 
-  init(viewModel: StandardEpisodesViewModel) {
+  init(viewModel: EpisodesListViewModel) {
     self.viewModel = viewModel
   }
 
@@ -40,8 +40,8 @@ struct StandardEpisodesView: View {
 #if DEBUG
 #Preview {
   NavigationStack {
-    StandardEpisodesView(
-      viewModel: StandardEpisodesViewModel(title: "Completed", filter: Episode.completed)
+    EpisodesListView(
+      viewModel: EpisodesListViewModel(title: "Completed", filter: Episode.completed)
     )
   }
   .preview()

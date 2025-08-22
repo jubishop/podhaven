@@ -7,7 +7,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class StandardEpisodesViewModel: PodcastQueueableModel, QueueableSelectableEpisodeList {
+class EpisodesListViewModel: PodcastQueueableModel, QueueableSelectableEpisodeList {
   private static let log = Log.as(LogSubsystem.EpisodesView.standard)
 
   @ObservationIgnored @DynamicInjected(\.alert) private var alert

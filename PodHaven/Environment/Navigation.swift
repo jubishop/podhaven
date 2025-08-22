@@ -173,32 +173,32 @@ extension Container {
       case .viewType(let viewType):
         switch viewType {
         case .recentEpisodes:
-          StandardEpisodesView(
-            viewModel: StandardEpisodesViewModel(
+          EpisodesListView(
+            viewModel: EpisodesListViewModel(
               title: "Recent Episodes",
               filter: AppDB.NoOp
             )
           )
           .id("recentEpisodes")
         case .unqueued:
-          StandardEpisodesView(
-            viewModel: StandardEpisodesViewModel(
+          EpisodesListView(
+            viewModel: EpisodesListViewModel(
               title: "Unqueued",
               filter: Episode.uncompleted && Episode.unqueued
             )
           )
           .id("unqueued")
         case .cached:
-          StandardEpisodesView(
-            viewModel: StandardEpisodesViewModel(
+          EpisodesListView(
+            viewModel: EpisodesListViewModel(
               title: "Cached",
               filter: Episode.cached
             )
           )
           .id("cached")
         case .completed:
-          StandardEpisodesView(
-            viewModel: StandardEpisodesViewModel(
+          EpisodesListView(
+            viewModel: EpisodesListViewModel(
               title: "Completed",
               filter: Episode.completed,
               order: Episode.Columns.completionDate.desc
@@ -206,16 +206,16 @@ extension Container {
           )
           .id("completed")
         case .unfinished:
-          StandardEpisodesView(
-            viewModel: StandardEpisodesViewModel(
+          EpisodesListView(
+            viewModel: EpisodesListViewModel(
               title: "Unfinished",
               filter: Episode.started && Episode.uncompleted
             )
           )
           .id("unfinished")
         case .previouslyQueued:
-          StandardEpisodesView(
-            viewModel: StandardEpisodesViewModel(
+          EpisodesListView(
+            viewModel: EpisodesListViewModel(
               title: "Previously Queued",
               filter: Episode.previouslyQueued && Episode.unqueued && Episode.uncompleted,
               order: Episode.Columns.lastQueued.desc
