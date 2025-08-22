@@ -422,13 +422,7 @@ class EpisodeTests {
     for podcastEpisode in podcastEpisodes {
       fetchedPodcastEpisodes.append(try await repo.podcastEpisode(podcastEpisode.id)!)
     }
-    #expect(
-      Set(podcastEpisodes.map(\.podcast.feedURL))
-        == Set(fetchedPodcastEpisodes.map(\.podcast.feedURL))
-    )
-    #expect(
-      Set(podcastEpisodes.map(\.episode.media)) == Set(fetchedPodcastEpisodes.map(\.episode.media))
-    )
+    #expect(Set(podcastEpisodes) == Set(fetchedPodcastEpisodes))
   }
 
   @Test("that latestEpisode returns the most recent episode for a podcast")
