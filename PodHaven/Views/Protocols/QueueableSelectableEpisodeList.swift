@@ -40,7 +40,7 @@ extension QueueableSelectableEpisodeList {
     }
   }
 
-  func replaceQueue() {
+  func replaceQueueWithSelected() {
     Task { [weak self] in
       guard let self else { return }
       let episodeIDs = try await selectedEpisodeIDs
@@ -48,7 +48,7 @@ extension QueueableSelectableEpisodeList {
     }
   }
 
-  func replaceQueueAndPlay() {
+  func replaceQueueWithSelectedAndPlay() {
     Task { [weak self] in
       guard let self else { return }
       do {

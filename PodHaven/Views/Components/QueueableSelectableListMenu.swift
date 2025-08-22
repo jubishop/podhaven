@@ -19,10 +19,10 @@ struct QueueableSelectableListMenu: View {
           list.addSelectedEpisodesToBottomOfQueue()
         }
         Button("Replace Queue") {
-          list.replaceQueue()
+          list.replaceQueueWithSelected()
         }
         Button("Replace Queue and Play") {
-          list.replaceQueueAndPlay()
+          list.replaceQueueWithSelectedAndPlay()
         }
       },
       label: {
