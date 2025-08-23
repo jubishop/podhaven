@@ -27,7 +27,7 @@ struct EpisodesListView: View {
           )
         }
       )
-      .episodeQueueableSwipeActions(viewModel: viewModel, episode: podcastEpisode)
+      .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
       .episodeQueueableContextMenu(viewModel: viewModel, episode: podcastEpisode)
     }
     .animation(.default, value: viewModel.episodeList.filteredEntries)

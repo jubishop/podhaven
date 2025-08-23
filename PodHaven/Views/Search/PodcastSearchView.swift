@@ -156,10 +156,7 @@ private struct PodcastResultsList: View {
           )
         ),
         label: {
-          PodcastResultsListView(
-            podcast: podcast,
-            searchedText: searchedText
-          )
+          PodcastListView(podcast: podcast)
         }
       )
     }

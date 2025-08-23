@@ -150,7 +150,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
           )
         }
       )
-      .episodeQueueableSwipeActions(viewModel: viewModel, episode: episode)
+      .episodeSwipeActions(viewModel: viewModel, episode: episode)
       .episodeQueueableContextMenu(viewModel: viewModel, episode: episode)
     }
     .conditionalRefreshable(enabled: viewModel.refreshable, action: viewModel.refreshSeries)

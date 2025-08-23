@@ -3,9 +3,8 @@
 import NukeUI
 import SwiftUI
 
-struct PodcastResultsListView: View {
-  let podcast: UnsavedPodcast
-  let searchedText: String
+struct PodcastListView: View {
+  let podcast: any PodcastDisplayable
 
   var body: some View {
     HStack(spacing: 12) {
@@ -43,12 +42,6 @@ struct PodcastResultsListView: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-
-      Spacer()
-
-      Image(systemName: "chevron.right")
-        .foregroundColor(.secondary)
-        .font(.caption)
     }
     .padding(.vertical, 4)
   }
@@ -62,10 +55,7 @@ struct PodcastResultsListView: View {
     List {
       if let unsavedPodcast {
         NavigationLink(destination: Text("Detail View")) {
-          PodcastResultsListView(
-            podcast: unsavedPodcast,
-            searchedText: "test search"
-          )
+          PodcastListView(podcast: unsavedPodcast)
         }
       }
     }
