@@ -17,6 +17,13 @@ struct UpNextContextMenuViewModifier: ViewModifier {
           }
         )
 
+        Button(
+          action: { viewModel.showPodcast(podcastEpisode) },
+          label: {
+            Label("Show Podcast", systemImage: "info.circle")
+          }
+        )
+
         if let queueOrder = podcastEpisode.episode.queueOrder, queueOrder > 0 {
           Button(
             action: { viewModel.moveItemToTop(podcastEpisode) },

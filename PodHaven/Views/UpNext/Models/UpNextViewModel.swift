@@ -11,6 +11,7 @@ import SwiftUI
 @Observable @MainActor class UpNextViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
+  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
@@ -178,6 +179,10 @@ import SwiftUI
         Self.log.error(error)
       }
     }
+  }
+
+  func showPodcast(_ podcastEpisode: PodcastEpisode) {
+    navigation.showPodcast(podcastEpisode.podcast)
   }
 
   func cacheItem(_ podcastEpisode: PodcastEpisode) {

@@ -306,6 +306,10 @@ extension Container {
     podcasts.path.append(.podcast(podcast))
   }
 
+  func showPodcast(_ podcast: Podcast) {
+    showPodcast(podcast.subscribed ? .subscribed : .unsubscribed, podcast)
+  }
+
   func showEpisode(_ viewType: Podcasts.ViewType, _ podcastEpisode: PodcastEpisode) {
     Self.log.debug("Showing PodcastEpisode: \(podcastEpisode.toString)")
 
