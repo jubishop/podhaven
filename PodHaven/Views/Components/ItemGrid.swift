@@ -29,6 +29,7 @@ where P.Element == T {
   @Previewable @State var isSelecting: Bool = false
   @Previewable @State var isSelected = BindableDictionary<Podcast, Bool>(defaultValue: false)
   @Previewable @State var podcasts: [Podcast] = []
+  @Previewable @State var gridItemSize: CGFloat = 100
   let gridSize = 12
 
   VStack {
@@ -41,7 +42,8 @@ where P.Element == T {
           isSelected: $isSelected[podcast],
           item: podcast,
           isSelecting: isSelecting
-        )
+        ),
+        size: $gridItemSize
       )
     }
   }

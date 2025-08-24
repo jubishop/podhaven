@@ -7,11 +7,11 @@ import SwiftUI
 struct ImageGridItem: View {
   let cornerRadius: CGFloat
   let image: URL
-  @Binding var width: CGFloat
+  @Binding var size: CGFloat
 
-  init(image: URL, width: Binding<CGFloat>, cornerRadius: CGFloat = 8) {
+  init(image: URL, size: Binding<CGFloat>, cornerRadius: CGFloat = 8) {
     self.image = image
-    _width = width
+    _size = size
     self.cornerRadius = cornerRadius
   }
 
@@ -29,7 +29,7 @@ struct ImageGridItem: View {
             Image(systemName: "photo")
               .resizable()
               .scaledToFit()
-              .frame(width: width / 2, height: width / 2)
+              .frame(width: size / 2, height: size / 2)
               .foregroundColor(.white.opacity(0.8))
             Text("No Image")
               .font(.caption)
@@ -40,9 +40,9 @@ struct ImageGridItem: View {
     }
     .onGeometryChange(for: CGFloat.self) { geometry in
       geometry.size.width
-    } action: { newWidth in
-      width = newWidth
+    } action: { newSize in
+      size = newSize
     }
-    .frame(height: width)
+    .frame(height: size)
   }
 }

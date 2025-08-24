@@ -7,6 +7,7 @@ struct TrendingCategoryGridView: View {
   @DynamicInjected(\.alert) private var alert
 
   @State private var viewModel: TrendingCategoryGridViewModel
+  @State private var gridItemSize: CGFloat = 100
 
   init(viewModel: TrendingCategoryGridViewModel) {
     self.viewModel = viewModel
@@ -33,12 +34,9 @@ struct TrendingCategoryGridView: View {
                 )
               ),
             label: {
-              SelectableImageGridItem(
-                viewModel: SelectableListItemModel<UnsavedPodcast>(
-                  isSelected: $viewModel.podcastList.isSelected[unsavedPodcast],
-                  item: unsavedPodcast,
-                  isSelecting: viewModel.isSelecting
-                )
+              ImageGridItem(
+                image: unsavedPodcast.image,
+                size: $gridItemSize
               )
             }
           )

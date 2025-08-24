@@ -9,6 +9,7 @@ struct SelectablePodcastsGridView: View {
   @DynamicInjected(\.navigation) private var navigation
 
   @State private var viewModel: SelectablePodcastsGridViewModel
+  @State private var gridItemSize: CGFloat = 100
 
   private static let log = Log.as(LogSubsystem.PodcastsView.standard)
 
@@ -48,7 +49,8 @@ struct SelectablePodcastsGridView: View {
                 isSelected: $viewModel.podcastList.isSelected[podcastWithLatestEpisodeDates],
                 item: podcast,
                 isSelecting: viewModel.isSelecting
-              )
+              ),
+              size: $gridItemSize
             )
             .contextMenu {
               Button(

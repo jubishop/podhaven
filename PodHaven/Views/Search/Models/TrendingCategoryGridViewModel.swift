@@ -19,17 +19,8 @@ import SwiftUI
   let category: String
   private(set) var state: State = .loading
 
-  private var _isSelecting = false
-  var isSelecting: Bool {
-    get { _isSelecting }
-    set { withAnimation { _isSelecting = newValue } }
-  }
-
-  var podcastList: SelectableListUseCase<UnsavedPodcast, FeedURL>
-
   init(category: String) {
     self.category = category
-    self.podcastList = SelectableListUseCase<UnsavedPodcast, FeedURL>(idKeyPath: \.id)
   }
 
   func execute() async {

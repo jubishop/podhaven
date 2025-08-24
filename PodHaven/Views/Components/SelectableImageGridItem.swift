@@ -4,25 +4,26 @@ import NukeUI
 import SwiftUI
 
 struct SelectableImageGridItem<Item: Gridable>: View {
-  @State private var width: CGFloat = 0
+  @Binding var size: CGFloat
 
   private let viewModel: SelectableListItemModel<Item>
   private let cornerRadius: CGFloat = 8
 
-  init(viewModel: SelectableListItemModel<Item>) {
+  init(viewModel: SelectableListItemModel<Item>, size: Binding<CGFloat>) {
     self.viewModel = viewModel
+    self._size = size
   }
 
   var body: some View {
     VStack {
       ZStack {
-        ImageGridItem(image: viewModel.item.image, width: $width, cornerRadius: cornerRadius)
+        ImageGridItem(image: viewModel.item.image, size: $size, cornerRadius: cornerRadius)
 
         if viewModel.isSelecting {
           Rectangle()
             .fill(Color.black.opacity(viewModel.isSelected.wrappedValue ? 0.0 : 0.5))
             .cornerRadius(cornerRadius)
-            .frame(height: width)
+            .frame(height: size)
 
           VStack {
             Spacer()
@@ -49,7 +50,7 @@ struct SelectableImageGridItem<Item: Gridable>: View {
               .padding(8)
             }
           }
-          .frame(height: width)
+          .frame(height: size)
         }
       }
 
@@ -64,6 +65,7 @@ struct SelectableImageGridItem<Item: Gridable>: View {
 #Preview {
   @Previewable @State var podcast: Podcast?
   @Previewable @State var invalidPodcast: Podcast?
+  @Previewable @State var gridItemSize: CGFloat = 100
 
   LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
     if let podcast = podcast, let invalidPodcast = invalidPodcast {
@@ -74,14 +76,16 @@ struct SelectableImageGridItem<Item: Gridable>: View {
               isSelected: .constant(isSelected),
               item: podcast,
               isSelecting: isSelecting
-            )
+            ),
+            size: $gridItemSize
           )
           SelectableImageGridItem(
             viewModel: SelectableListItemModel<Podcast>(
               isSelected: .constant(isSelected),
               item: invalidPodcast,
               isSelecting: isSelecting
-            )
+            ),
+            size: $gridItemSize
           )
         }
       }
