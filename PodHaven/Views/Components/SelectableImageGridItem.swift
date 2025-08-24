@@ -3,7 +3,7 @@
 import NukeUI
 import SwiftUI
 
-struct SelectableGridItem<Item: Gridable>: View {
+struct SelectableImageGridItem<Item: Gridable>: View {
   @State private var width: CGFloat = 0
 
   private let viewModel: SelectableListItemModel<Item>
@@ -16,36 +16,7 @@ struct SelectableGridItem<Item: Gridable>: View {
   var body: some View {
     VStack {
       ZStack {
-        Group {
-          LazyImage(url: viewModel.item.image) { state in
-            if let image = state.image {
-              image
-                .resizable()
-                .cornerRadius(cornerRadius)
-            } else {
-              ZStack {
-                Color.gray
-                  .cornerRadius(cornerRadius)
-                VStack {
-                  Image(systemName: "photo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: width / 2, height: width / 2)
-                    .foregroundColor(.white.opacity(0.8))
-                  Text("No Image")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.8))
-                }
-              }
-            }
-          }
-          .onGeometryChange(for: CGFloat.self) { geometry in
-            geometry.size.width
-          } action: { newWidth in
-            width = newWidth
-          }
-          .frame(height: width)
-        }
+        ImageGridItem(image: viewModel.item.image, width: $width, cornerRadius: cornerRadius)
 
         if viewModel.isSelecting {
           Rectangle()
@@ -98,14 +69,14 @@ struct SelectableGridItem<Item: Gridable>: View {
     if let podcast = podcast, let invalidPodcast = invalidPodcast {
       ForEach([true, false], id: \.self) { isSelected in
         ForEach([true, false], id: \.self) { isSelecting in
-          SelectableGridItem<Podcast>(
+          SelectableImageGridItem<Podcast>(
             viewModel: SelectableListItemModel<Podcast>(
               isSelected: .constant(isSelected),
               item: podcast,
               isSelecting: isSelecting
             )
           )
-          SelectableGridItem(
+          SelectableImageGridItem(
             viewModel: SelectableListItemModel<Podcast>(
               isSelected: .constant(isSelected),
               item: invalidPodcast,

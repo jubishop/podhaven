@@ -33,7 +33,7 @@ struct TrendingCategoryGridView: View {
                 )
               ),
             label: {
-              SelectableGridItem(
+              SelectableImageGridItem(
                 viewModel: SelectableListItemModel<UnsavedPodcast>(
                   isSelected: $viewModel.podcastList.isSelected[unsavedPodcast],
                   item: unsavedPodcast,

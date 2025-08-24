@@ -36,7 +36,7 @@ where P.Element == T {
       isSelecting.toggle()
     }
     ItemGrid(items: podcasts) { podcast in
-      SelectableGridItem(
+      SelectableImageGridItem(
         viewModel: SelectableListItemModel<Podcast>(
           isSelected: $isSelected[podcast],
           item: podcast,
