@@ -20,7 +20,7 @@ struct UpNextContextMenuViewModifier: ViewModifier {
         Button(
           action: { viewModel.showPodcast(podcastEpisode) },
           label: {
-            Label("Show Podcast", systemImage: "info.circle")
+            Label("Show Podcast", systemImage: "antenna.radiowaves.left.and.right")
           }
         )
 

@@ -11,6 +11,7 @@ class EpisodesListViewModel: PodcastQueueableModel, QueueableSelectableEpisodeLi
   private static let log = Log.as(LogSubsystem.EpisodesView.standard)
 
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
@@ -51,5 +52,12 @@ class EpisodesListViewModel: PodcastQueueableModel, QueueableSelectableEpisodeLi
       Self.log.error(error)
       alert(ErrorKit.message(for: error))
     }
+  }
+
+  // MARK: - Navigation Actions
+
+  func showPodcast(for episode: PodcastEpisode) {
+    Self.log.debug("Showing podcast for episode: \(episode.toString)")
+    navigation.showPodcast(episode.podcast)
   }
 }

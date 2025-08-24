@@ -28,7 +28,11 @@ struct EpisodesListView: View {
         }
       )
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
-      .episodeQueueableContextMenu(viewModel: viewModel, episode: podcastEpisode)
+      .episodeQueueableContextMenu(viewModel: viewModel, episode: podcastEpisode) {
+        Button(action: { viewModel.showPodcast(for: podcastEpisode) }) {
+          Label("Show Podcast", systemImage: "antenna.radiowaves.left.and.right")
+        }
+      }
     }
     .animation(.default, value: viewModel.episodeList.filteredEntries)
     .navigationTitle(viewModel.title)
