@@ -27,15 +27,6 @@ struct UpNextView: View {
           )
           .swipeActions(edge: .leading) {
             Button(
-              action: { viewModel.playItem(podcastEpisode) },
-              label: {
-                Image(systemName: "play.fill")
-              }
-            )
-            .tint(.green)
-          }
-          .swipeActions(edge: .trailing) {
-            Button(
               role: .destructive,
               action: { viewModel.deleteItem(podcastEpisode) },
               label: {
@@ -43,6 +34,15 @@ struct UpNextView: View {
               }
             )
             .tint(.red)
+          }
+          .swipeActions(edge: .trailing) {
+            Button(
+              action: { viewModel.playItem(podcastEpisode) },
+              label: {
+                Image(systemName: "play.fill")
+              }
+            )
+            .tint(.green)
           }
           .contextMenu {
             Button(
