@@ -25,50 +25,8 @@ struct UpNextView: View {
               )
             }
           )
-          .swipeActions(edge: .leading) {
-            Button(
-              role: .destructive,
-              action: { viewModel.deleteItem(podcastEpisode) },
-              label: {
-                Image(systemName: "trash")
-              }
-            )
-            .tint(.red)
-          }
-          .swipeActions(edge: .trailing) {
-            Button(
-              action: { viewModel.playItem(podcastEpisode) },
-              label: {
-                Image(systemName: "play.fill")
-              }
-            )
-            .tint(.green)
-          }
-          .contextMenu {
-            Button(
-              action: { viewModel.playItem(podcastEpisode) },
-              label: {
-                Label("Play Episode", systemImage: "play.fill")
-              }
-            )
-
-            Button(
-              role: .destructive,
-              action: { viewModel.deleteItem(podcastEpisode) },
-              label: {
-                Label("Remove from Queue", systemImage: "trash")
-              }
-            )
-
-            if podcastEpisode.episode.cachedFilename == nil {
-              Button(
-                action: { viewModel.cacheItem(podcastEpisode) },
-                label: {
-                  Label("Cache Episode", systemImage: "arrow.down.circle.fill")
-                }
-              )
-            }
-          }
+          .upNextSwipeActions(viewModel: viewModel, podcastEpisode: podcastEpisode)
+          .upNextContextMenu(viewModel: viewModel, podcastEpisode: podcastEpisode)
         }
         .onMove(perform: viewModel.moveItem)
       }

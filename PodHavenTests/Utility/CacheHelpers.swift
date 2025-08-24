@@ -19,6 +19,18 @@ enum CacheHelpers {
     Container.shared.cacheManagerSession() as! FakeDataFetchable
   }
 
+  // MARK: - Queue Manipulation
+
+  static func unshiftToPending(podcastEpisode: PodcastEpisode) async throws {
+    try await queue.unshift(podcastEpisode.id)
+    try await waitForTopPendingDownload(podcastEpisode.episode.media.rawValue)
+  }
+
+  static func unshiftToActive(podcastEpisode: PodcastEpisode) async throws {
+    try await queue.unshift(podcastEpisode.id)
+    try await waitForActiveDownloadTask(podcastEpisode.id)
+  }
+
   // MARK: - Episode Status
 
   @discardableResult

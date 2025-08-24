@@ -40,7 +40,7 @@ struct UpNextListView: View {
       .cornerRadius(8)
 
       VStack(alignment: .leading, spacing: 4) {
-        Text(viewModel.episode.title)
+        Text(viewModel.podcastEpisode.episode.title)
           .lineLimit(2)
           .font(.body)
           .multilineTextAlignment(.leading)
@@ -50,14 +50,14 @@ struct UpNextListView: View {
             Image(systemName: "calendar")
               .font(.caption2)
               .foregroundColor(.secondary)
-            Text(viewModel.episode.pubDate.usShort)
+            Text(viewModel.podcastEpisode.episode.pubDate.usShort)
               .font(.caption)
               .foregroundColor(.secondary)
           }
 
           Spacer()
 
-          if viewModel.episode.cachedFilename != nil {
+          if viewModel.podcastEpisode.episode.cachedFilename != nil {
             Image(systemName: "arrow.down.circle.fill")
               .font(.caption2)
               .foregroundColor(.green)
@@ -69,7 +69,7 @@ struct UpNextListView: View {
             Image(systemName: "clock")
               .font(.caption2)
               .foregroundColor(.secondary)
-            Text(viewModel.episode.duration.shortDescription)
+            Text(viewModel.podcastEpisode.episode.duration.shortDescription)
               .font(.caption)
               .foregroundColor(.secondary)
           }

@@ -57,7 +57,6 @@ enum LogSubsystem {
 
   enum UpNextView: String, LogCategorizable {
     case main
-    case list
   }
 
   enum ViewProtocols: String, LogCategorizable {
