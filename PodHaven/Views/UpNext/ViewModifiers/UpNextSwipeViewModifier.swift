@@ -11,14 +11,23 @@ struct UpNextSwipeViewModifier: ViewModifier {
     content
       .swipeActions(edge: .leading) {
         Button(
+          action: { viewModel.moveItemToTop(podcastEpisode) },
+          label: {
+            Image(systemName: "arrow.up.to.line")
+          }
+        )
+        .tint(.blue)
+
+        Button(
           role: .destructive,
-          action: { viewModel.deleteItem(podcastEpisode) },
+          action: { viewModel.removeItemFromQueue(podcastEpisode) },
           label: {
             Image(systemName: "trash")
           }
         )
         .tint(.red)
       }
+
       .swipeActions(edge: .trailing) {
         Button(
           action: { viewModel.playItem(podcastEpisode) },

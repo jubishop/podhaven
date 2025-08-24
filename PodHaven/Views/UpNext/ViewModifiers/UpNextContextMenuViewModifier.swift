@@ -17,9 +17,18 @@ struct UpNextContextMenuViewModifier: ViewModifier {
           }
         )
 
+        if let queueOrder = podcastEpisode.episode.queueOrder, queueOrder > 0 {
+          Button(
+            action: { viewModel.moveItemToTop(podcastEpisode) },
+            label: {
+              Label("Move to Top", systemImage: "arrow.up.to.line")
+            }
+          )
+        }
+
         Button(
           role: .destructive,
-          action: { viewModel.deleteItem(podcastEpisode) },
+          action: { viewModel.removeItemFromQueue(podcastEpisode) },
           label: {
             Label("Remove from Queue", systemImage: "trash")
           }

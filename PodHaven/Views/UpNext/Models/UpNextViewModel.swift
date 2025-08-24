@@ -72,7 +72,7 @@ import SwiftUI
     }
   }
 
-  // MARK: - Public Functions
+  // MARK: - SwiftUI List Functions
 
   func moveItem(from: IndexSet, to: Int) {
     guard from.count == 1, let from = from.first
@@ -82,64 +82,6 @@ import SwiftUI
       guard let self else { return }
       do {
         try await queue.insert(podcastEpisodes[from].episode.id, at: to)
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
-  func deleteSelected() {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        try await queue.dequeue(episodeList.selectedEntryIDs)
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
-  func playItem(_ podcastEpisode: PodcastEpisode) {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        try await playManager.load(podcastEpisode)
-        await playManager.play()
-      } catch {
-        Self.log.error(error)
-        alert(ErrorKit.message(for: error))
-      }
-    }
-  }
-
-  func deleteItem(_ podcastEpisode: PodcastEpisode) {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        try await queue.dequeue(podcastEpisode.episode.id)
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
-  func cacheItem(_ podcastEpisode: PodcastEpisode) {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        try await cacheManager.downloadAndCache(podcastEpisode)
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
-  func sort(by method: SortMethod) {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        let sortedEpisodes = podcastEpisodes.sorted(by: Self.sortMethod(for: method))
-        try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
       } catch {
         Self.log.error(error)
       }
@@ -170,6 +112,81 @@ import SwiftUI
         } catch {
           Self.log.error(error)
         }
+      }
+    }
+  }
+
+  // MARK: - Full List Actions
+
+  func sort(by method: SortMethod) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let sortedEpisodes = podcastEpisodes.sorted(by: Self.sortMethod(for: method))
+        try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
+
+  // MARK: - Selected Item Actions
+
+  func deleteSelected() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await queue.dequeue(episodeList.selectedEntryIDs)
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
+
+  // MARK: - Individual Item Actions
+
+  func playItem(_ podcastEpisode: PodcastEpisode) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await playManager.load(podcastEpisode)
+        await playManager.play()
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func removeItemFromQueue(_ podcastEpisode: PodcastEpisode) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await queue.dequeue(podcastEpisode.episode.id)
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
+
+  func moveItemToTop(_ podcastEpisode: PodcastEpisode) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await queue.unshift(podcastEpisode.episode.id)
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
+
+  func cacheItem(_ podcastEpisode: PodcastEpisode) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await cacheManager.downloadAndCache(podcastEpisode)
+      } catch {
+        Self.log.error(error)
       }
     }
   }
