@@ -145,7 +145,7 @@ struct SelectablePodcastsGridView: View {
         }
       } else {
         ToolbarItem(placement: .topBarTrailing) {
-          Button("Select") {
+          Button("Select Podcasts") {
             viewModel.isSelecting = true
           }
         }
