@@ -5,6 +5,7 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
+import Semaphore
 import UIKit
 
 extension Container {
@@ -24,6 +25,7 @@ actor RefreshManager {
   // MARK: - State Management
 
   private var backgroundRefreshTask: Task<Void, Never>?
+  private let refreshSemaphore = AsyncSemaphore(value: 1)
 
   // MARK: - Initialization
 
@@ -78,7 +80,7 @@ actor RefreshManager {
       }
     }
 
-    Self.log.debug("Perform refresh completed")
+    Self.log.trace("performRefresh: completed")
   }
 
   @discardableResult
@@ -191,8 +193,12 @@ actor RefreshManager {
     backgroundRefreshTask = Task(priority: .background) { [weak self] in
       guard let self else { return }
       while !Task.isCancelled {
-        Self.log.debug("activated: performing refresh check")
+        Self.log.trace("backgroundRefreshTask: waiting for refreshSemaphore to complete")
+        await refreshSemaphore.wait()
+        defer { refreshSemaphore.signal() }
+
         do {
+          Self.log.debug("backgroundRefreshTask: performing refresh check")
           try await performRefresh(
             stalenessThreshold: 10.minutesAgo,
             filter: Podcast.subscribed
@@ -206,9 +212,12 @@ actor RefreshManager {
     }
   }
 
-  private func backgrounded() {
-    Self.log.trace("backgrounded: cancelling refresh task")
+  private func backgrounded() async {
+    Self.log.trace("backgrounded: waiting for refreshSemaphore to complete")
+    await refreshSemaphore.wait()
+    defer { refreshSemaphore.signal() }
 
+    Self.log.debug("backgrounded: cancelling refresh task")
     backgroundRefreshTask?.cancel()
     backgroundRefreshTask = nil
   }
