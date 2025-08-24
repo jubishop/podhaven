@@ -36,11 +36,6 @@ final class EpisodeSearchViewModel {
 
   private var debounceMilliseconds: Int { 500 }
 
-  func performSearch(with searchText: String) async throws -> [UnsavedPodcastEpisode] {
-    let result = try await searchService.searchByPerson(searchText)
-    return Array(result.toPodcastEpisodeArray())
-  }
-
   var episodes: [UnsavedPodcastEpisode] {
     switch state {
     case .loaded(let episodes):
@@ -86,6 +81,11 @@ final class EpisodeSearchViewModel {
 
       state = .error(ErrorKit.message(for: error))
     }
+  }
+
+  func performSearch(with searchText: String) async throws -> [UnsavedPodcastEpisode] {
+    let result = try await searchService.searchByPerson(searchText)
+    return Array(result.toPodcastEpisodeArray())
   }
 
   // MARK: - Cleanup

@@ -246,7 +246,6 @@ extension Container {
     var resetId = UUID()
 
     enum ViewType {
-      case all
       case subscribed
       case unsubscribed
     }
@@ -263,11 +262,6 @@ extension Container {
       switch destination {
       case .viewType(let viewType):
         switch viewType {
-        case .all:
-          SelectablePodcastsGridView(
-            viewModel: SelectablePodcastsGridViewModel(title: "All Podcasts")
-          )
-          .id("all")
         case .subscribed:
           SelectablePodcastsGridView(
             viewModel: SelectablePodcastsGridViewModel(

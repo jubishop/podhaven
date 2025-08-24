@@ -78,21 +78,6 @@ final class PodcastSearchViewModel {
 
   private var debounceMilliseconds: Int { 500 }
 
-  func performSearch(with searchText: String) async throws -> [UnsavedPodcast] {
-    let convertibleFeeds: [any FeedResultConvertible]
-
-    switch selectedMode {
-    case .allFields:
-      let result = try await searchService.searchByTerm(searchText)
-      convertibleFeeds = result.convertibleFeeds
-    case .titlesOnly:
-      let result = try await searchService.searchByTitle(searchText)
-      convertibleFeeds = result.convertibleFeeds
-    }
-
-    return convertibleFeeds.compactMap { try? $0.toUnsavedPodcast() }
-  }
-
   var podcasts: [UnsavedPodcast] {
     switch state {
     case .loaded(let podcasts):
@@ -138,6 +123,21 @@ final class PodcastSearchViewModel {
 
       state = .error(ErrorKit.message(for: error))
     }
+  }
+
+  func performSearch(with searchText: String) async throws -> [UnsavedPodcast] {
+    let convertibleFeeds: [any FeedResultConvertible]
+
+    switch selectedMode {
+    case .allFields:
+      let result = try await searchService.searchByTerm(searchText)
+      convertibleFeeds = result.convertibleFeeds
+    case .titlesOnly:
+      let result = try await searchService.searchByTitle(searchText)
+      convertibleFeeds = result.convertibleFeeds
+    }
+
+    return convertibleFeeds.compactMap { try? $0.toUnsavedPodcast() }
   }
 
   // MARK: - Cleanup

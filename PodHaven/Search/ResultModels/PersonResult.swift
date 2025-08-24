@@ -22,22 +22,6 @@ struct PersonResult: Sendable, Decodable {
     func toUnsavedPodcastEpisode(merging podcastEpisode: PodcastEpisode? = nil) throws
       -> UnsavedPodcastEpisode
     {
-      guard podcastEpisode == nil || podcastEpisode?.episode.media == enclosureUrl
-      else {
-        throw ParseError.mergingDifferentMediaURLs(
-          parsing: enclosureUrl,
-          merging: podcastEpisode?.episode.media
-        )
-      }
-
-      guard podcastEpisode == nil || podcastEpisode?.podcast.feedURL == feedUrl
-      else {
-        throw ParseError.mergingDifferentFeedURLs(
-          parsing: feedUrl,
-          merging: podcastEpisode?.podcast.feedURL
-        )
-      }
-
       guard let feedImage = feedImage ?? podcastEpisode?.podcast.image
       else { throw ParseError.missingImage(title) }
 

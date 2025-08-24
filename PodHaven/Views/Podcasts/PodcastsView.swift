@@ -12,10 +12,6 @@ struct PodcastsView: View {
       Form {
         Section("Standard") {
           NavigationLink(
-            value: Navigation.Podcasts.Destination.viewType(.all),
-            label: { Text("All") }
-          )
-          NavigationLink(
             value: Navigation.Podcasts.Destination.viewType(.subscribed),
             label: { Text("Subscribed") }
           )
