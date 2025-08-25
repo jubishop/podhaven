@@ -42,11 +42,19 @@ extension String {
     self.contains(
       Regex {
         ChoiceOf {
+          // Closing tags: </tag>
           Regex {
             "</"
           }
+          // Self-closing tags: <tag/>
           Regex {
             "/>"
+          }
+          // Opening tags: <tag> (to handle truncated content)
+          Regex {
+            "<"
+            OneOrMore(.word)
+            ">"
           }
         }
       }

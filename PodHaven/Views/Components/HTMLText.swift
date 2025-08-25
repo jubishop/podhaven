@@ -62,17 +62,14 @@ struct HTMLText: View {
     // Replace closing paragraphs with newlines
     result = result.replacingOccurrences(of: "</p>", with: "\n", options: .caseInsensitive)
 
-    // Handle opening paragraphs - add newline unless at start
-    if result.range(of: "^\\s*<p>", options: [.regularExpression, .caseInsensitive]) != nil {
-      // Remove leading <p> tag
-      result = result.replacingOccurrences(
-        of: "^\\s*<p>",
-        with: "",
-        options: [.regularExpression, .caseInsensitive]
-      )
-    }
+    // Remove leading <p> tag at start of text
+    result = result.replacingOccurrences(
+      of: "^\\s*<p>",
+      with: "",
+      options: [.regularExpression, .caseInsensitive]
+    )
 
-    // Replace remaining <p> tags with newlines
+    // Replace all remaining <p> tags with newlines
     result = result.replacingOccurrences(of: "<p>", with: "\n", options: .caseInsensitive)
 
     return result
@@ -500,6 +497,22 @@ struct HTMLText: View {
         HTMLText(
           "<b>Mixed content:</b> This &lsquo;podcast&rsquo; features &mdash; <em>amazing</em> &hellip; content!",
           color: .pink,
+          font: .body
+        )
+      }
+
+      Group {
+        Text("Truncated Search Results (Opening Tags Only)").font(.headline)
+
+        HTMLText(
+          "<p>Ever wondered how a podcast can truly reflect the soul of a city? Join us as we turn the tables on Erik Nilsson, the dynamic host who finds himself on the other side of the microphone...",
+          color: .orange,
+          font: .body
+        )
+
+        HTMLText(
+          "<h1>Episode Title That Got Cut Off</h1><p>This simulates how PodcastIndex API truncates descriptions mid-sentence without proper closing tags",
+          color: .red,
           font: .body
         )
       }
