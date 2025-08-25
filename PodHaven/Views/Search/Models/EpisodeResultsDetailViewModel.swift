@@ -71,7 +71,6 @@ import Logging
   // MARK: - EpisodeDetailViewableModel
 
   func getPodcastEpisode() -> PodcastEpisode? { podcastEpisode }
-
   func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 

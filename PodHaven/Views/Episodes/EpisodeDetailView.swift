@@ -48,10 +48,16 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
               .fontWeight(.semibold)
               .multilineTextAlignment(.center)
 
-            Text(viewModel.podcastTitle)
-              .font(.headline)
-              .foregroundColor(.secondary)
-              .multilineTextAlignment(.center)
+            Button(action: {
+              viewModel.showPodcast()
+            }) {
+              Text(viewModel.podcastTitle)
+                .font(.headline)
+                .foregroundColor(.accentColor)
+                .multilineTextAlignment(.center)
+                .underline()
+            }
+            .buttonStyle(PlainButtonStyle())
           }
         }
         .frame(maxWidth: .infinity)
@@ -135,7 +141,9 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
                 Button(action: viewModel.appendToQueue) {
                   HStack {
                     AppLabel.queueLatestToBottom.image
-                    Text(viewModel.atBottomOfQueue ? "Already at Bottom" : AppLabel.addToBottom.text)
+                    Text(
+                      viewModel.atBottomOfQueue ? "Already at Bottom" : AppLabel.addToBottom.text
+                    )
                   }
                   .frame(maxWidth: .infinity)
                   .padding()

@@ -23,6 +23,7 @@ import Logging
   func playNow()
   func addToTopOfQueue()
   func appendToQueue()
+  func showPodcast()
 
   func getPodcastEpisode() -> PodcastEpisode?
   func getOrCreatePodcastEpisode() async throws -> PodcastEpisode
@@ -93,6 +94,14 @@ extension EpisodeDetailViewableModel {
         Log.as(LogSubsystem.EpisodesView.detail).error(error)
         Container.shared.alert()(ErrorKit.message(for: error))
       }
+    }
+  }
+
+  func showPodcast() {
+    Task { [weak self] in
+      guard let self else { return }
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      Container.shared.navigation().showPodcast(podcastEpisode.podcast)
     }
   }
 }
