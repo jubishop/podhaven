@@ -12,6 +12,8 @@ extension Container {
 }
 
 @Observable @MainActor class Navigation {
+  @ObservationIgnored @DynamicInjected(\.sheet) private var sheet
+
   private static let log = Log.as("Navigation")
 
   fileprivate init() {}
@@ -23,7 +25,10 @@ extension Container {
   }
 
   var currentTab: Tab = .settings {
-    willSet { managerFor(tab: newValue).clearPath() }
+    willSet {
+      sheet.dismiss()
+      managerFor(tab: newValue).clearPath()
+    }
   }
 
   private func managerFor(tab: Tab) -> any NavigationPathManager {
