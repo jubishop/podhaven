@@ -14,15 +14,16 @@ enum EpisodeSearchState {
 }
 
 @Observable @MainActor
-final class EpisodeSearchViewModel {
-  @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
+final class EpisodeSearchViewModel: PodcastQueueableModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
 
   // MARK: - State Management
 
+  @ObservationIgnored private var searchTask: Task<Void, Never>?
   var state: EpisodeSearchState = .idle
-  @ObservationIgnored var searchTask: Task<Void, Never>?
 
   var searchText = "" {
     didSet {
@@ -32,18 +33,15 @@ final class EpisodeSearchViewModel {
     }
   }
 
+  // MARK: - PodcastQueueableModel
+
+  func getPodcastEpisode(_ episode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
+    try await repo.upsertPodcastEpisode(episode)
+  }
+
   // MARK: - Searching
 
   private var debounceMilliseconds: Int { 500 }
-
-  var episodes: [UnsavedPodcastEpisode] {
-    switch state {
-    case .loaded(let episodes):
-      return episodes
-    default:
-      return []
-    }
-  }
 
   func scheduleSearch() {
     searchTask?.cancel()
@@ -72,10 +70,10 @@ final class EpisodeSearchViewModel {
     state = .loading
 
     do {
-      let episodes = try await performSearch(with: trimmedText)
+      let unsavedPodcastEpisodes = try await performSearch(with: trimmedText)
       guard !Task.isCancelled else { return }
 
-      state = .loaded(episodes)
+      state = .loaded(unsavedPodcastEpisodes)
     } catch {
       guard !Task.isCancelled else { return }
 

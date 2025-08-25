@@ -103,10 +103,6 @@ class PodcastResultsDetailViewModel:
     )
   }
 
-  func getEpisodeID(_ episode: UnsavedEpisode) async throws -> Episode.ID {
-    try await getPodcastEpisode(episode).id
-  }
-
   // MARK: - QueueableSelectableEpisodeList
 
   var selectedPodcastEpisodes: [PodcastEpisode] {
@@ -162,11 +158,11 @@ class PodcastResultsDetailViewModel:
   func unsubscribe() {
     Assert.fatal("Trying to unsubscribe from a PodcastResult?")
   }
-  
+
   func refreshSeries() async {
     Assert.fatal("Trying to refresh a PodcastResult?")
   }
-  
+
   func navigationDestination(for episode: UnsavedEpisode) -> Navigation.Search.Destination {
     .searchedPodcastEpisode(
       SearchedPodcastEpisode(

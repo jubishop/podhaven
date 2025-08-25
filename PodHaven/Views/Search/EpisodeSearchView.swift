@@ -19,14 +19,32 @@ struct EpisodeSearchView: View {
           Spacer()
         }
 
-      case .loaded(let episodes):
-        if episodes.isEmpty {
+      case .loaded(let unsavedPodcastEpisodes):
+        if unsavedPodcastEpisodes.isEmpty {
           EmptyResultsView()
         } else {
-          EpisodeResultsList(
-            episodes: episodes,
-            searchedText: viewModel.searchText
-          )
+          List(unsavedPodcastEpisodes) { unsavedPodcastEpisode in
+            NavigationLink(
+              value: Navigation.Search.Destination.searchedPodcastEpisode(
+                SearchedPodcastEpisode(
+                  searchedText: viewModel.searchText,
+                  unsavedPodcastEpisode: unsavedPodcastEpisode
+                )
+              ),
+              label: {
+                PodcastEpisodeListView(
+                  viewModel: SelectableListItemModel(
+                    isSelected: .constant(false),
+                    item: unsavedPodcastEpisode,
+                    isSelecting: false
+                  )
+                )
+              }
+            )
+            .episodeSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
+            .episodeQueueableContextMenu(viewModel: viewModel, episode: unsavedPodcastEpisode)
+          }
+
         }
 
       case .error(let message):
@@ -98,33 +116,6 @@ private struct ErrorStateView: View {
         .padding(.horizontal)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-}
-
-private struct EpisodeResultsList: View {
-  let episodes: [UnsavedPodcastEpisode]
-  let searchedText: String
-
-  var body: some View {
-    List(episodes, id: \.id) { episode in
-      NavigationLink(
-        value: Navigation.Search.Destination.searchedPodcastEpisode(
-          SearchedPodcastEpisode(
-            searchedText: searchedText,
-            unsavedPodcastEpisode: episode
-          )
-        ),
-        label: {
-          PodcastEpisodeListView(
-            viewModel: SelectableListItemModel(
-              isSelected: .constant(false),
-              item: episode,
-              isSelecting: false
-            )
-          )
-        }
-      )
-    }
   }
 }
 

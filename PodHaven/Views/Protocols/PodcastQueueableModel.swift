@@ -49,9 +49,10 @@ extension PodcastQueueableModel {
 
 extension PodcastQueueableModel where EpisodeType == PodcastEpisode {
   func getPodcastEpisode(_ episode: PodcastEpisode) async throws -> PodcastEpisode { episode }
-  func getEpisodeID(_ episode: PodcastEpisode) async throws -> Episode.ID { episode.id }
 }
 
-extension PodcastQueueableModel where EpisodeType == Episode {
-  func getEpisodeID(_ episode: Episode) async throws -> Episode.ID { episode.id }
+extension PodcastQueueableModel {
+  func getEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID {
+    try await getPodcastEpisode(episode).id
+  }
 }

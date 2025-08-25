@@ -52,8 +52,8 @@ final class PodcastSearchViewModel {
 
   // MARK: - State Management
 
+  @ObservationIgnored private var searchTask: Task<Void, Never>?
   var state: PodcastSearchState = .idle
-  @ObservationIgnored var searchTask: Task<Void, Never>?
 
   var searchText = "" {
     didSet {
