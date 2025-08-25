@@ -22,7 +22,7 @@ struct SelectablePodcastsGridView: View {
       SearchBar(
         text: $viewModel.podcastList.entryFilter,
         placeholder: "Filter podcasts",
-        imageName: "line.horizontal.3.decrease.circle"
+        imageName: AppLabel.filter.systemImageName
       )
 
       Menu("Sort by") {
@@ -58,7 +58,7 @@ struct SelectablePodcastsGridView: View {
                 label: {
                   Label(
                     "Queue Latest To Top",
-                    systemImage: "text.line.first.and.arrowtriangle.forward"
+                    systemImage: AppLabel.queueLatestToTop.systemImageName
                   )
                 }
               )
@@ -68,25 +68,25 @@ struct SelectablePodcastsGridView: View {
                 label: {
                   Label(
                     "Queue Latest To Bottom",
-                    systemImage: "text.line.last.and.arrowtriangle.forward"
+                    systemImage: AppLabel.queueLatestToBottom.systemImageName
                   )
                 }
               )
 
               Button(
                 action: { viewModel.deletePodcast(podcast.id) },
-                label: { Label("Delete", systemImage: "trash") }
+                label: { AppLabel.delete.label }
               )
 
               if podcast.subscribed {
                 Button(
                   action: { viewModel.unsubscribePodcast(podcast.id) },
-                  label: { Label("Unsubscribe", systemImage: "minus.circle") }
+                  label: { AppLabel.unsubscribe.label }
                 )
               } else {
                 Button(
                   action: { viewModel.subscribePodcast(podcast.id) },
-                  label: { Label("Subscribe", systemImage: "plus.circle") }
+                  label: { AppLabel.subscribe.label }
                 )
               }
             }
@@ -131,7 +131,7 @@ struct SelectablePodcastsGridView: View {
               }
             },
             label: {
-              Image(systemName: "ellipsis.circle")
+              AppLabel.moreActions.image
             }
           )
         }

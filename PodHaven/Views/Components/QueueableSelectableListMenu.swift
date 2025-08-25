@@ -26,7 +26,7 @@ struct QueueableSelectableListMenu: View {
         }
       },
       label: {
-        Image(systemName: "text.badge.plus")
+        AppLabel.queueActions.image
       }
     )
   }

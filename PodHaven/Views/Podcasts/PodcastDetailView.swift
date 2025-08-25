@@ -69,7 +69,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
             .fill(Color.gray.opacity(0.3))
             .overlay(
               VStack {
-                Image(systemName: "photo")
+                AppLabel.noImage.image
                   .foregroundColor(.white.opacity(0.8))
                   .font(.title)
                 Text("No Image")
@@ -101,7 +101,8 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
           }
         }) {
           HStack(spacing: 6) {
-            Image(systemName: viewModel.displayAboutSection ? "list.bullet" : "info.circle")
+            (viewModel.displayAboutSection
+              ? AppLabel.episodesList : AppLabel.aboutInfo).image
             Text(viewModel.displayAboutSection ? "Show Episodes" : "Show Details")
           }
           .font(.subheadline)
@@ -198,10 +199,10 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
             if let link = viewModel.podcast.link {
               Link(destination: link) {
                 HStack(spacing: 8) {
-                  Image(systemName: "link")
+                  AppLabel.website.image
                   Text("Visit Website")
                   Spacer()
-                  Image(systemName: "arrow.up.right")
+                  AppLabel.externalLink.image
                 }
                 .font(.subheadline)
                 .foregroundColor(.accentColor)
@@ -218,7 +219,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
                 }
               }) {
                 HStack(spacing: 8) {
-                  Image(systemName: viewModel.podcast.subscribed ? "minus.circle" : "plus.circle")
+                  (viewModel.podcast.subscribed ? AppLabel.unsubscribe : AppLabel.subscribe).image
                   Text(viewModel.podcast.subscribed ? "Unsubscribe" : "Subscribe")
                   Spacer()
                 }
@@ -243,7 +244,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
   var metadataView: some View {
     HStack {
       metadataItem(
-        icon: "calendar",
+        icon: AppLabel.calendar.systemImageName,
         label: "Updated",
         value: viewModel.mostRecentEpisodeDate.usShortWithTime
       )
@@ -251,7 +252,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
       Spacer()
 
       metadataItem(
-        icon: "list.bullet",
+        icon: AppLabel.episodes.systemImageName,
         label: "Episodes",
         value: "\(viewModel.episodeList.allEntries.count)"
       )
@@ -310,7 +311,7 @@ struct EpisodeFilterView: View {
         SearchBar(
           text: $entryFilter,
           placeholder: "Filter episodes",
-          imageName: "line.horizontal.3.decrease.circle"
+          imageName: AppLabel.filter.systemImageName
         )
 
         Menu(
@@ -323,7 +324,7 @@ struct EpisodeFilterView: View {
             }
           },
           label: {
-            Image(systemName: "line.horizontal.3.decrease.circle")
+            AppLabel.filter.image
           }
         )
       }

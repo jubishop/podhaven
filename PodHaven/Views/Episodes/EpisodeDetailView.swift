@@ -27,7 +27,7 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
                 .fill(Color.gray.opacity(0.3))
                 .overlay(
                   VStack {
-                    Image(systemName: "photo")
+                    AppLabel.noImage.image
                       .foregroundColor(.white.opacity(0.8))
                       .font(.title)
                     Text("No Image")
@@ -59,7 +59,7 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
         VStack(alignment: .leading, spacing: 16) {
           HStack {
             HStack(spacing: 8) {
-              Image(systemName: "calendar")
+              AppLabel.publishDate.image
                 .foregroundColor(.secondary)
               Text("Published")
                 .font(.caption)
@@ -72,7 +72,7 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
 
             if viewModel.episodeCached {
               VStack(spacing: 4) {
-                Image(systemName: "arrow.down.circle.fill")
+                AppLabel.episodeCached.image
                   .foregroundColor(.green)
                 Text("Cached")
                   .font(.caption2)
@@ -83,7 +83,7 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
             Spacer()
 
             HStack(spacing: 8) {
-              Image(systemName: "clock")
+              AppLabel.duration.image
                 .foregroundColor(.secondary)
               Text("Duration")
                 .font(.caption)
@@ -110,8 +110,8 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
             VStack(spacing: 12) {
               Button(action: viewModel.playNow) {
                 HStack {
-                  Image(systemName: "play.fill")
-                  Text("Play Now")
+                  AppLabel.playNow.image
+                  Text(AppLabel.playNow.text)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -123,8 +123,8 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
               HStack(spacing: 12) {
                 Button(action: viewModel.addToTopOfQueue) {
                   HStack {
-                    Image(systemName: "text.line.first.and.arrowtriangle.forward")
-                    Text(viewModel.atTopOfQueue ? "Already at Top" : "Add to Top")
+                    AppLabel.queueLatestToTop.image
+                    Text(viewModel.atTopOfQueue ? "Already at Top" : AppLabel.addToTop.text)
                   }
                   .frame(maxWidth: .infinity)
                   .padding()
@@ -134,8 +134,8 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
 
                 Button(action: viewModel.appendToQueue) {
                   HStack {
-                    Image(systemName: "text.line.last.and.arrowtriangle.forward")
-                    Text(viewModel.atBottomOfQueue ? "Already at Bottom" : "Add to Bottom")
+                    AppLabel.queueLatestToBottom.image
+                    Text(viewModel.atBottomOfQueue ? "Already at Bottom" : AppLabel.addToBottom.text)
                   }
                   .frame(maxWidth: .infinity)
                   .padding()

@@ -52,8 +52,8 @@ extension Container {
     }
   }
 
-  var seekBackwardImage: Image { Image(systemName: "gobackward.15") }
-  var seekForwardImage: Image { Image(systemName: "goforward.30") }
+  var seekBackwardImage: Image { AppLabel.seekBackward.image }
+  var seekForwardImage: Image { AppLabel.seekForward.image }
 
   // MARK: - Actions
 

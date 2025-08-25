@@ -48,7 +48,7 @@ struct PlayBar: View {
 
   private var stoppedPlayBar: some View {
     HStack(spacing: viewModel.commonSpacing) {
-      Image(systemName: "waveform.slash")
+      AppLabel.noEpisodeSelected.image
         .font(.system(size: 20, weight: .medium))
         .foregroundColor(.white)
 
@@ -72,8 +72,8 @@ struct PlayBar: View {
 
       Spacer()
 
-      Button(action: viewModel.toggleExpansion) {
-        Image(systemName: "chevron.up")
+        Button(action: viewModel.toggleExpansion) {
+        AppLabel.expandUp.image
           .font(viewModel.textFont)
           .foregroundColor(.white)
       }
@@ -95,7 +95,7 @@ struct PlayBar: View {
         Spacer()
 
         Button(action: viewModel.toggleExpansion) {
-          Image(systemName: "chevron.down")
+          AppLabel.expandDown.image
             .font(viewModel.textFont)
             .foregroundColor(.white)
         }
@@ -153,7 +153,7 @@ struct PlayBar: View {
               .fill(Color.white.opacity(0.2))
               .frame(width: imageSize, height: imageSize)
               .overlay(
-                Image(systemName: "music.note")
+                AppLabel.audioPlaceholder.image
                   .foregroundColor(.white.opacity(0.6))
               )
           }
@@ -173,15 +173,15 @@ struct PlayBar: View {
       Button(action: viewModel.playOrPause) {
         Group {
           if viewModel.isWaiting {
-            Image(systemName: "hourglass.circle")
+            AppLabel.loading.image
               .font(.title)
               .foregroundColor(.white)
           } else if viewModel.isPlaying {
-            Image(systemName: "pause.circle.fill")
+            AppLabel.pauseButton.image
               .font(.title)
               .foregroundColor(.white)
           } else {
-            Image(systemName: "play.circle.fill")
+            AppLabel.playButton.image
               .font(.title)
               .foregroundColor(.white)
           }

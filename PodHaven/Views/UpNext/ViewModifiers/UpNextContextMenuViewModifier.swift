@@ -13,14 +13,14 @@ struct UpNextContextMenuViewModifier: ViewModifier {
         Button(
           action: { viewModel.playItem(podcastEpisode) },
           label: {
-            Label("Play Episode", systemImage: "play.fill")
+            AppLabel.playEpisode.label
           }
         )
 
         Button(
           action: { viewModel.showPodcast(podcastEpisode) },
           label: {
-            Label("Show Podcast", systemImage: "antenna.radiowaves.left.and.right")
+            AppLabel.showPodcast.label
           }
         )
 
@@ -28,7 +28,7 @@ struct UpNextContextMenuViewModifier: ViewModifier {
           Button(
             action: { viewModel.moveItemToTop(podcastEpisode) },
             label: {
-              Label("Move to Top", systemImage: "arrow.up.to.line")
+              AppLabel.moveToTop.label
             }
           )
         }
@@ -37,7 +37,7 @@ struct UpNextContextMenuViewModifier: ViewModifier {
           role: .destructive,
           action: { viewModel.removeItemFromQueue(podcastEpisode) },
           label: {
-            Label("Remove from Queue", systemImage: "trash")
+            AppLabel.removeFromQueue.label
           }
         )
 
@@ -45,7 +45,7 @@ struct UpNextContextMenuViewModifier: ViewModifier {
           Button(
             action: { viewModel.cacheItem(podcastEpisode) },
             label: {
-              Label("Cache Episode", systemImage: "arrow.down.circle.fill")
+              AppLabel.cacheEpisode.label
             }
           )
         }

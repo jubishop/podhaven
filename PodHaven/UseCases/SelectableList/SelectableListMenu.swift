@@ -24,7 +24,7 @@ struct SelectableListMenu: View {
         }
       },
       label: {
-        Image(systemName: "checklist")
+        AppLabel.selectAll.image
       }
     )
   }

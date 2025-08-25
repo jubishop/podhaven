@@ -16,10 +16,9 @@ struct UpNextListView: View {
         Button(
           action: { viewModel.isSelected.wrappedValue.toggle() },
           label: {
-            Image(
-              systemName: viewModel.isSelected.wrappedValue
-                ? "checkmark.circle.fill" : "circle"
-            )
+            (viewModel.isSelected.wrappedValue 
+              ? AppLabel.selectionFilled 
+              : AppLabel.selectionEmpty).image
           }
         )
         .buttonStyle(BorderlessButtonStyle())
@@ -47,7 +46,7 @@ struct UpNextListView: View {
 
         HStack {
           HStack(spacing: 4) {
-            Image(systemName: "calendar")
+            AppLabel.publishDate.image
               .font(.caption2)
               .foregroundColor(.secondary)
             Text(viewModel.podcastEpisode.episode.pubDate.usShort)
@@ -58,7 +57,7 @@ struct UpNextListView: View {
           Spacer()
 
           if viewModel.podcastEpisode.episode.cachedFilename != nil {
-            Image(systemName: "arrow.down.circle.fill")
+            AppLabel.episodeCached.image
               .font(.caption2)
               .foregroundColor(.green)
           }
@@ -66,7 +65,7 @@ struct UpNextListView: View {
           Spacer()
 
           HStack(spacing: 4) {
-            Image(systemName: "clock")
+            AppLabel.duration.image
               .font(.caption2)
               .foregroundColor(.secondary)
             Text(viewModel.podcastEpisode.episode.duration.shortDescription)

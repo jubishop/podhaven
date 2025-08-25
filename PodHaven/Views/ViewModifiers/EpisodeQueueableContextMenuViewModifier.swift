@@ -15,15 +15,15 @@ struct EpisodeQueueableContextMenuViewModifier<
     content
       .contextMenu {
         Button(action: { viewModel.playEpisode(episode) }) {
-          Label("Play Episode", systemImage: "play.fill")
+          AppLabel.playEpisode.label
         }
 
         Button(action: { viewModel.queueEpisodeOnTop(episode) }) {
-          Label("Queue at Top", systemImage: "text.line.first.and.arrowtriangle.forward")
+          AppLabel.queueAtTop.label
         }
 
         Button(action: { viewModel.queueEpisodeAtBottom(episode) }) {
-          Label("Queue at Bottom", systemImage: "text.line.last.and.arrowtriangle.forward")
+          AppLabel.queueAtBottom.label
         }
 
         additionalContent()

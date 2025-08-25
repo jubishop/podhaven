@@ -26,7 +26,7 @@ struct UpNextToolbarModifier: ViewModifier {
                   }
                 },
                 label: {
-                  Image(systemName: "minus.circle")
+                  AppLabel.unsubscribe.image
                 }
               )
             }

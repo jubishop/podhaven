@@ -9,7 +9,7 @@ struct SearchBar: View {
 
   @Binding var text: String
   var placeholder: String = "Search..."
-  var imageName: String = "magnifyingglass"
+  var imageName: String = AppLabel.search.systemImageName
 
   var body: some View {
     HStack {
@@ -27,7 +27,7 @@ struct SearchBar: View {
             isFocused = false
           },
           label: {
-            Image(systemName: "xmark.circle.fill")
+            AppLabel.clearSearch.image
           }
         )
       }

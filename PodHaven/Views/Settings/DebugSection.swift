@@ -30,14 +30,14 @@ struct DebugSection: View {
         item: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
           .appendingPathComponent("log.ndjson")
       ) {
-        Label("Share Logs", systemImage: "square.and.arrow.up")
+        AppLabel.shareLogs.label
       }
 
       ShareLink(
         item: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
           .appendingPathComponent("db.sqlite")
       ) {
-        Label("Share Database", systemImage: "square.and.arrow.up")
+        AppLabel.shareDatabase.label
       }
     }
   }

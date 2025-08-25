@@ -26,7 +26,7 @@ struct ImageGridItem: View {
           Color.gray
             .cornerRadius(cornerRadius)
           VStack {
-            Image(systemName: "photo")
+            AppLabel.noImage.image
               .resizable()
               .scaledToFit()
               .frame(width: size / 2, height: size / 2)

@@ -47,7 +47,7 @@ struct EpisodeSearchView: View {
 private struct IdleStateView: View {
   var body: some View {
     VStack(spacing: 16) {
-      Image(systemName: "person.circle")
+      AppLabel.personSearch.image
         .font(.system(size: 48))
         .foregroundColor(.secondary)
       Text("Search for episodes")
@@ -66,7 +66,7 @@ private struct IdleStateView: View {
 private struct EmptyResultsView: View {
   var body: some View {
     VStack(spacing: 16) {
-      Image(systemName: "person.circle.fill.badge.questionmark")
+      AppLabel.noPersonFound.image
         .font(.system(size: 48))
         .foregroundColor(.secondary)
       Text("No episodes found")
@@ -86,7 +86,7 @@ private struct ErrorStateView: View {
 
   var body: some View {
     VStack(spacing: 16) {
-      Image(systemName: "exclamationmark.triangle")
+      AppLabel.error.image
         .font(.system(size: 48))
         .foregroundColor(.red)
       Text("Search Error")

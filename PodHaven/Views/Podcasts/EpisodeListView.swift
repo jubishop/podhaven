@@ -15,10 +15,9 @@ struct EpisodeListView<EpisodeType: EpisodeDisplayable>: View {
         Button(
           action: { viewModel.isSelected.wrappedValue.toggle() },
           label: {
-            Image(
-              systemName: viewModel.isSelected.wrappedValue
-                ? "checkmark.circle.fill" : "circle"
-            )
+            (viewModel.isSelected.wrappedValue 
+              ? AppLabel.selectionFilled 
+              : AppLabel.selectionEmpty).image
           }
         )
         .buttonStyle(BorderlessButtonStyle())
@@ -32,7 +31,7 @@ struct EpisodeListView<EpisodeType: EpisodeDisplayable>: View {
 
         HStack {
           HStack(spacing: 4) {
-            Image(systemName: "calendar")
+            AppLabel.publishDate.image
               .font(.caption2)
               .foregroundColor(.secondary)
             Text(viewModel.item.pubDate.usShort)
@@ -42,12 +41,12 @@ struct EpisodeListView<EpisodeType: EpisodeDisplayable>: View {
 
           Spacer()
 
-          Image(systemName: "arrow.down.circle.fill")
+          AppLabel.episodeCached.image
             .font(.caption2)
             .foregroundColor(.green)
             .opacity(viewModel.item.cached ? 1 : 0)
 
-          Image(systemName: "checkmark.circle.fill")
+          AppLabel.episodeCompleted.image
             .font(.caption2)
             .foregroundColor(.blue)
             .opacity(viewModel.item.completed ? 1 : 0)
@@ -55,7 +54,7 @@ struct EpisodeListView<EpisodeType: EpisodeDisplayable>: View {
           Spacer()
 
           HStack(spacing: 4) {
-            Image(systemName: "clock")
+            AppLabel.duration.image
               .font(.caption2)
               .foregroundColor(.secondary)
             Text(viewModel.item.duration.shortDescription)

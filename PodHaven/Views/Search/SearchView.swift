@@ -13,10 +13,10 @@ struct SearchView: View {
           value: Navigation.Search.Destination.searchType(.trending),
           label: {
             HStack {
-              Image(systemName: "chart.line.uptrend.xyaxis")
+              AppLabel.trending.image
                 .foregroundColor(.orange)
               VStack(alignment: .leading) {
-                Text("Trending")
+                Text(AppLabel.trending.text)
                   .font(.headline)
                 Text("Browse trending podcasts")
                   .font(.caption)
@@ -30,10 +30,10 @@ struct SearchView: View {
           value: Navigation.Search.Destination.searchType(.podcasts),
           label: {
             HStack {
-              Image(systemName: "magnifyingglass")
+              AppLabel.searchPodcasts.image
                 .foregroundColor(.blue)
               VStack(alignment: .leading) {
-                Text("Search Podcasts")
+                Text(AppLabel.searchPodcasts.text)
                   .font(.headline)
                 Text("Find podcasts by title or keywords")
                   .font(.caption)
@@ -47,10 +47,10 @@ struct SearchView: View {
           value: Navigation.Search.Destination.searchType(.episodes),
           label: {
             HStack {
-              Image(systemName: "person.circle")
+              AppLabel.searchEpisodes.image
                 .foregroundColor(.green)
               VStack(alignment: .leading) {
-                Text("Search Episodes")
+                Text(AppLabel.searchEpisodes.text)
                   .font(.headline)
                 Text("Find episodes with a specific person")
                   .font(.caption)

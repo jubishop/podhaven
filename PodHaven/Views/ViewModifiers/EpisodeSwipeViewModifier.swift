@@ -13,7 +13,7 @@ struct EpisodeSwipeViewModifier<ViewModel: EpisodeQueueable>: ViewModifier {
         Button(
           action: { viewModel.queueEpisodeOnTop(episode) },
           label: {
-            Image(systemName: "text.line.first.and.arrowtriangle.forward")
+            AppLabel.queueAtTop.image
           }
         )
         .tint(.blue)
@@ -21,7 +21,7 @@ struct EpisodeSwipeViewModifier<ViewModel: EpisodeQueueable>: ViewModifier {
         Button(
           action: { viewModel.queueEpisodeAtBottom(episode) },
           label: {
-            Image(systemName: "text.line.last.and.arrowtriangle.forward")
+            AppLabel.queueAtBottom.image
           }
         )
         .tint(.purple)
@@ -31,7 +31,7 @@ struct EpisodeSwipeViewModifier<ViewModel: EpisodeQueueable>: ViewModifier {
         Button(
           action: { viewModel.playEpisode(episode) },
           label: {
-            Image(systemName: "play.fill")
+            AppLabel.playEpisode.image
           }
         )
         .tint(.green)

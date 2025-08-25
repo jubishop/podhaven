@@ -13,7 +13,7 @@ struct UpNextSwipeViewModifier: ViewModifier {
         Button(
           action: { viewModel.moveItemToTop(podcastEpisode) },
           label: {
-            Image(systemName: "arrow.up.to.line")
+            AppLabel.moveToTop.image
           }
         )
         .tint(.blue)
@@ -22,7 +22,7 @@ struct UpNextSwipeViewModifier: ViewModifier {
           role: .destructive,
           action: { viewModel.removeItemFromQueue(podcastEpisode) },
           label: {
-            Image(systemName: "trash")
+            AppLabel.delete.image
           }
         )
         .tint(.red)
@@ -32,7 +32,7 @@ struct UpNextSwipeViewModifier: ViewModifier {
         Button(
           action: { viewModel.playItem(podcastEpisode) },
           label: {
-            Image(systemName: "play.fill")
+            AppLabel.playEpisode.image
           }
         )
         .tint(.green)

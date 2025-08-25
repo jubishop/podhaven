@@ -88,7 +88,7 @@ private struct IdleStateView: View {
 
   var body: some View {
     VStack(spacing: 16) {
-      Image(systemName: "magnifyingglass")
+      AppLabel.search.image
         .font(.system(size: 48))
         .foregroundColor(.secondary)
       Text(title)
@@ -107,7 +107,7 @@ private struct IdleStateView: View {
 private struct EmptyResultsView: View {
   var body: some View {
     VStack(spacing: 16) {
-      Image(systemName: "magnifyingglass")
+      AppLabel.search.image
         .font(.system(size: 48))
         .foregroundColor(.secondary)
       Text("No results found")
@@ -127,7 +127,7 @@ private struct ErrorStateView: View {
 
   var body: some View {
     VStack(spacing: 16) {
-      Image(systemName: "exclamationmark.triangle")
+      AppLabel.error.image
         .font(.system(size: 48))
         .foregroundColor(.red)
       Text("Search Error")

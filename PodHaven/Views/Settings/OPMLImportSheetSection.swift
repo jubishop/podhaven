@@ -33,16 +33,16 @@ struct OPMLImportSheetSection: View {
             Spacer()
             switch status {
             case .failed:
-              Image(systemName: "x.circle")
+              AppLabel.failed.image
                 .foregroundColor(.red)
             case .waiting:
-              Image(systemName: "clock")
+              AppLabel.waiting.image
                 .foregroundColor(.gray)
             case .downloading:
-              Image(systemName: "arrow.down.circle")
+              AppLabel.downloadEpisode.image
                 .foregroundColor(.blue)
             case .finished:
-              Image(systemName: "checkmark.circle")
+              AppLabel.episodeCompleted.image
                 .foregroundColor(.green)
             }
           }

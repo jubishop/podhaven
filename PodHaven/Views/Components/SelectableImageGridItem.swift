@@ -34,10 +34,9 @@ struct SelectableImageGridItem<Item: Gridable>: View {
                   viewModel.isSelected.wrappedValue.toggle()
                 },
                 label: {
-                  Image(
-                    systemName: viewModel.isSelected.wrappedValue
-                      ? "checkmark.circle.fill" : "circle"
-                  )
+                  (viewModel.isSelected.wrappedValue 
+                    ? AppLabel.selectionFilled 
+                    : AppLabel.selectionEmpty).image
                   .font(.system(size: 24))
                   .foregroundColor(viewModel.isSelected.wrappedValue ? .blue : .white)
                   .background(

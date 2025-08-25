@@ -9,24 +9,41 @@ struct ContentView: View {
 
   var body: some View {
     TabView(selection: $navigation.currentTab) {
-      Tab("Settings", systemImage: "gear", value: .settings) {
+      Tab(
+        AppLabel.settings.text,
+        systemImage: AppLabel.settings.systemImageName,
+        value: .settings
+      ) {
         TabContentWithPlayBar { SettingsView() }
       }
-      Tab("Search", systemImage: "magnifyingglass", value: .search, role: .search) {
+      Tab(
+        AppLabel.search.text,
+        systemImage: AppLabel.search.systemImageName,
+        value: .search,
+        role: .search
+      ) {
         TabContentWithPlayBar { SearchView() }
       }
       Tab(
-        "Up Next",
-        systemImage: "text.line.first.and.arrowtriangle.forward",
+        AppLabel.upNext.text,
+        systemImage: AppLabel.upNext.systemImageName,
         value: .upNext,
         role: .search
       ) {
         TabContentWithPlayBar { UpNextView() }
       }
-      Tab("Episodes", systemImage: "list.bullet", value: .episodes) {
+      Tab(
+        AppLabel.episodes.text,
+        systemImage: AppLabel.episodes.systemImageName,
+        value: .episodes
+      ) {
         TabContentWithPlayBar { EpisodesView() }
       }
-      Tab("Podcasts", systemImage: "dot.radiowaves.left.and.right", value: .podcasts) {
+      Tab(
+        AppLabel.podcasts.text,
+        systemImage: AppLabel.podcasts.systemImageName,
+        value: .podcasts
+      ) {
         TabContentWithPlayBar { PodcastsView() }
       }
     }
