@@ -42,6 +42,7 @@ private enum SystemImageName: String, CaseIterable {
   case externalLink = "arrow.up.right"
   case share = "square.and.arrow.up"
   case website = "link"
+  case manualEntry = "link.badge.plus"
 
   // Filtering
   case filter = "line.horizontal.3.decrease.circle"
@@ -125,6 +126,9 @@ enum AppLabel: CaseIterable {
   case settings
   case trending
   case upNext
+
+  // Manual Entry
+  case manualEntry
 
   // General Actions
   case document
@@ -255,6 +259,9 @@ enum AppLabel: CaseIterable {
     case .selectionFilled: return LabelData(text: "Selected", systemImageName: .selectionFilled)
     case .waiting: return LabelData(text: "Waiting", systemImageName: .waiting)
     case .website: return LabelData(text: "Website", systemImageName: .website)
+
+    // Manual Entry
+    case .manualEntry: return LabelData(text: "Add Feed URL", systemImageName: .manualEntry)
     }
   }
 

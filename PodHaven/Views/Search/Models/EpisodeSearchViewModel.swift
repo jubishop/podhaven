@@ -20,6 +20,8 @@ final class EpisodeSearchViewModel: PodcastQueueableModel {
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
 
+  private static let log = Log.as(LogSubsystem.SearchView.episode)
+
   // MARK: - State Management
 
   @ObservationIgnored private var searchTask: Task<Void, Never>?
@@ -77,7 +79,8 @@ final class EpisodeSearchViewModel: PodcastQueueableModel {
     } catch {
       guard !Task.isCancelled else { return }
 
-      state = .error(ErrorKit.message(for: error))
+      Self.log.error(error)
+      state = .error(ErrorKit.coreMessage(for: error))
     }
   }
 

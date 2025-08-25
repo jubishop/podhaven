@@ -67,7 +67,7 @@ class ErrorTests {
       )
     )
 
-    #expect(ErrorKit.simpleMessage(for: error) == "Failure")
+    #expect(ErrorKit.coreMessage(for: error) == "Failure")
 
     #expect(
       ErrorKit.message(for: error) == """
@@ -102,7 +102,7 @@ class ErrorTests {
       )
     )
 
-    #expect(ErrorKit.simpleMessage(for: error) == "Failure")
+    #expect(ErrorKit.coreMessage(for: error) == "Failure")
 
     #expect(
       ErrorKit.message(for: error) == """
@@ -145,7 +145,7 @@ class ErrorTests {
       )
     )
 
-    #expect(ErrorKit.simpleMessage(for: error) == "Failure")
+    #expect(ErrorKit.coreMessage(for: error) == "Failure")
 
     #expect(
       ErrorKit.message(for: error) == """
@@ -217,7 +217,7 @@ class ErrorTests {
       )
     )
 
-    #expect(ErrorKit.simpleMessage(for: error) == "Failure")
+    #expect(ErrorKit.coreMessage(for: error) == "Failure")
 
     #expect(
       ErrorKit.message(for: error) == """
@@ -245,7 +245,7 @@ class ErrorTests {
       caught: FakeError.simple("Failed to fetch")
     )
 
-    #expect(ErrorKit.simpleMessage(for: error) == "Failed to fetch url: https://example.com/search")
+    #expect(ErrorKit.coreMessage(for: error) == "Failed to fetch url: https://example.com/search")
 
     #expect(
       ErrorKit.message(for: error) == """
@@ -271,7 +271,7 @@ class ErrorTests {
       )
     } throws: { error in
       #expect(
-        ErrorKit.simpleMessage(for: error) == "[NSURLErrorDomain: -1001] The request timed out."
+        ErrorKit.coreMessage(for: error) == "[NSURLErrorDomain: -1001] The request timed out."
       )
       #expect(ErrorKit.message(for: error) == "[NSURLErrorDomain: -1001] The request timed out.")
       #expect(
@@ -292,7 +292,7 @@ class ErrorTests {
           for: URLRequest(url: URL(string: "https://artisanalsoftware.com")!)
         )
       } throws: { error in
-        #expect(ErrorKit.simpleMessage(for: error) == "[NSURLErrorDomain: -999] cancelled")
+        #expect(ErrorKit.coreMessage(for: error) == "[NSURLErrorDomain: -999] cancelled")
         #expect(ErrorKit.message(for: error) == "[NSURLErrorDomain: -999] cancelled")
         #expect(
           ErrorKit.loggableMessage(for: error) == """
@@ -331,8 +331,9 @@ class ErrorTests {
       )
     )
 
+    #expect(ErrorKit.coreMessage(for: error) == "Failure")
+
     let baseError = ErrorKit.baseError(for: error)
-    #expect(ErrorKit.simpleMessage(for: baseError) == "At bottom")
     #expect(ErrorKit.message(for: baseError) == "At bottom")
     #expect(
       ErrorKit.loggableMessage(for: baseError) == """
@@ -340,5 +341,28 @@ class ErrorTests {
         At bottom
         """
     )
+  }
+
+  @Test("coreMessage uses baseError if top level is empty")
+  func testCoreMessageUsesBaseErrorIfTopLevelIsEmpty() async throws {
+    let error = FakeError.caught(
+      FakeError.complexCaught(
+        "hello world",
+        FakeError.failure(
+          underlying: FakeError.caught(
+            FakeError.failure(
+              underlying: FakeError.complexCaught(
+                "keep going",
+                FakeError.leafUnderlying(
+                  underlying: FakeError.simple("At bottom")
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+
+    #expect(ErrorKit.coreMessage(for: error) == "At bottom")
   }
 }

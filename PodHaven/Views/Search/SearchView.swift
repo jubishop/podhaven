@@ -59,6 +59,23 @@ struct SearchView: View {
             }
           }
         )
+
+        NavigationLink(
+          value: Navigation.Search.Destination.searchType(.manualEntry),
+          label: {
+            HStack {
+              AppLabel.manualEntry.image
+                .foregroundColor(.purple)
+              VStack(alignment: .leading) {
+                Text(AppLabel.manualEntry.text)
+                  .font(.headline)
+                Text("Paste a podcast RSS feed URL directly")
+                  .font(.caption)
+                  .foregroundColor(.secondary)
+              }
+            }
+          }
+        )
       }
       .navigationTitle("Search")
       .navigationDestination(

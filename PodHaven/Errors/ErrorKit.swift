@@ -6,18 +6,10 @@ import Logging
 enum ErrorKit {
   // MARK: - Messaging
 
-  static func simpleMessage(for error: Error) -> String {
-    if let readableError = error as? any ReadableError {
-      return readableError.message
-    }
-
-    if let localizedError = error as? LocalizedError,
-      let errorDescription = localizedError.errorDescription
-    {
-      return errorDescription
-    }
-
-    return "[\(domain(for: error)): \(code(for: error))] \(error.localizedDescription)"
+  static func coreMessage(for error: Error) -> String {
+    let topLevelMessage = simpleMessage(for: error)
+    if !topLevelMessage.isEmpty { return topLevelMessage }
+    return simpleMessage(for: baseError(for: error))
   }
 
   static func message(for error: Error) -> String {
@@ -70,6 +62,20 @@ enum ErrorKit {
   }
 
   // MARK: - Private Formatting Helpers
+
+  private static func simpleMessage(for error: Error) -> String {
+    if let readableError = error as? any ReadableError {
+      return readableError.message
+    }
+
+    if let localizedError = error as? LocalizedError,
+      let errorDescription = localizedError.errorDescription
+    {
+      return errorDescription
+    }
+
+    return "[\(domain(for: error)): \(code(for: error))] \(error.localizedDescription)"
+  }
 
   private static func typeName(for error: Error) -> String {
     let mirror = Mirror(reflecting: error)

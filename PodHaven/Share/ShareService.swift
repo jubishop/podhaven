@@ -67,6 +67,17 @@ actor ShareService {
     }
   }
 
+  func handlePodcastURL(_ feedURL: FeedURL) async throws(ShareError) {
+    Self.log.debug("handlePodcastURL: \(feedURL)")
+
+    let podcastSeries = try await findOrCreatePodcastSeries(feedURL: feedURL)
+
+    await navigation.showPodcast(
+      podcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
+      podcastSeries.podcast
+    )
+  }
+
   private func handleOPMLURL(_ url: URL) async throws(ShareError) {
     Self.log.debug("handleOPMLURL: \(url)")
 
@@ -117,17 +128,6 @@ actor ShareService {
     }
   }
 
-  private func handlePodcastURL(_ feedURL: FeedURL) async throws(ShareError) {
-    Self.log.debug("handlePodcastURL: \(feedURL)")
-
-    let podcastSeries = try await findOrCreatePodcastSeries(feedURL: feedURL)
-
-    await navigation.showPodcast(
-      podcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
-      podcastSeries.podcast
-    )
-  }
-
   // MARK: - Database Querying
 
   private func findOrCreatePodcastSeries(feedURL: FeedURL) async throws(ShareError) -> PodcastSeries
@@ -152,7 +152,6 @@ actor ShareService {
       }
 
       Self.log.debug("findOrCreatePodcastSeries: Adding new podcast from feed URL: \(feedURL)")
-
       let podcastFeed: PodcastFeed = try await feedManager.addURL(feedURL).feedParsed()
       return try await repo.insertSeries(
         try podcastFeed.toUnsavedPodcast(subscriptionDate: Date(), lastUpdate: Date()),

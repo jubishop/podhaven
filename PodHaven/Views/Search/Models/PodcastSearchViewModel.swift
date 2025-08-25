@@ -19,6 +19,8 @@ final class PodcastSearchViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
 
+  private static let log = Log.as(LogSubsystem.SearchView.podcast)
+
   // MARK: - Search Mode Configuration
 
   enum SearchMode: CaseIterable {
@@ -121,7 +123,8 @@ final class PodcastSearchViewModel {
     } catch {
       guard !Task.isCancelled else { return }
 
-      state = .error(ErrorKit.message(for: error))
+      Self.log.error(error)
+      state = .error(ErrorKit.coreMessage(for: error))
     }
   }
 

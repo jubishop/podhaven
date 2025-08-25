@@ -90,6 +90,7 @@ extension Container {
       case trending
       case podcasts
       case episodes
+      case manualEntry
     }
 
     @CasePathable
@@ -113,6 +114,9 @@ extension Container {
         case .episodes:
           EpisodeSearchView(viewModel: EpisodeSearchViewModel())
             .id("episodeSearchType")
+        case .manualEntry:
+          ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
+            .id("manualEntryType")
         }
       case .category(let category):
         TrendingCategoryGridView(viewModel: TrendingCategoryGridViewModel(category: category))

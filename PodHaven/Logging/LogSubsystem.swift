@@ -45,6 +45,8 @@ enum LogSubsystem {
     case main
     case trending
     case podcast
+    case episode
+    case manual
   }
 
   enum SettingsView: String, LogCategorizable {
