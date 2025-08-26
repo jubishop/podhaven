@@ -9,8 +9,9 @@ import Testing
 @testable import PodHaven
 
 @Suite("of CacheManager tests", .container)
-actor CacheManagerTests {
+@MainActor class CacheManagerTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.cacheState) private var cacheState
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
@@ -54,7 +55,6 @@ actor CacheManagerTests {
 
     // Remove from queue and verify cache is cleared
     try await queue.dequeue(podcastEpisode.id)
-    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFileRemoved(fileName)
   }
 
@@ -152,12 +152,13 @@ actor CacheManagerTests {
     let asyncSemaphore = await session.waitThenRespond(to: podcastEpisode.episode.media.rawValue)
 
     try await queue.unshift(podcastEpisode.id)
-    try await CacheHelpers.waitForActiveDownloadTask(podcastEpisode.id)
+    try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
+
     try await queue.dequeue(podcastEpisode.id)
-    try await CacheHelpers.waitForNotActiveDownloadTask(podcastEpisode.id)
+    try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
+
     asyncSemaphore.signal()
 
-    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
   }
 
   // MARK: - Artwork Prefetching
@@ -171,5 +172,92 @@ actor CacheManagerTests {
     try await CacheHelpers.waitForCachedFile(fileName)
 
     #expect(await imageFetcher.prefetchCounts[podcastEpisode.image] == 1)
+  }
+
+  // MARK: - CacheState Tests
+
+  @Test("CacheState is updated when episode starts downloading")
+  func cacheStateIsUpdatedWhenEpisodeStartsDownloading() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    // Initially, episode should not be downloading in CacheState
+    #expect(!cacheState.isDownloading(podcastEpisode.id))
+
+    // Set up delayed response to keep download active
+    let asyncSemaphore = await session.waitThenRespond(to: podcastEpisode.episode.media.rawValue)
+
+    try await queue.unshift(podcastEpisode.id)
+
+    // Verify CacheState shows episode as downloading
+    try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
+
+    // Complete the download
+    asyncSemaphore.signal()
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+
+    // Verify CacheState shows episode as not downloading
+    try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
+  }
+
+  @Test("CacheState is updated when episode download is cancelled")
+  func cacheStateIsUpdatedWhenEpisodeDownloadIsCancelled() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    // Set up delayed response to keep download active
+    let asyncSemaphore = await session.waitThenRespond(to: podcastEpisode.episode.media.rawValue)
+
+    try await queue.unshift(podcastEpisode.id)
+
+    // Verify CacheState shows episode as downloading
+    try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
+
+    // Remove from queue to cancel download
+    try await queue.dequeue(podcastEpisode.id)
+
+    // Verify CacheState shows episode as not downloading
+    try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
+
+    // Complete the original request (should be ignored since cancelled)
+    asyncSemaphore.signal()
+  }
+
+  @Test("CacheState tracks multiple episodes downloading simultaneously")
+  func cacheStateTracksMultipleEpisodesDownloadingSimultaneously() async throws {
+    // Create 3 episodes
+    let episode1 = try await Create.podcastEpisode()
+    let episode2 = try await Create.podcastEpisode()
+    let episode3 = try await Create.podcastEpisode()
+
+    // Set up delayed responses
+    let semaphore1 = await session.waitThenRespond(to: episode1.episode.media.rawValue)
+    let semaphore2 = await session.waitThenRespond(to: episode2.episode.media.rawValue)
+    let semaphore3 = await session.waitThenRespond(to: episode3.episode.media.rawValue)
+
+    // Add all to queue
+    try await queue.unshift(episode1.id)
+    try await queue.unshift(episode2.id)
+    try await queue.unshift(episode3.id)
+
+    // All should be downloading
+    try await CacheHelpers.waitForCacheStateDownloading(episode1.id)
+    try await CacheHelpers.waitForCacheStateDownloading(episode2.id)
+    try await CacheHelpers.waitForCacheStateDownloading(episode3.id)
+
+    // Complete episode1
+    semaphore1.signal()
+    try await CacheHelpers.waitForCached(episode1.id)
+    try await CacheHelpers.waitForCacheStateNotDownloading(episode1.id)
+
+    // Episode2 and episode3 should still be downloading
+    #expect(cacheState.isDownloading(episode2.id))
+    #expect(cacheState.isDownloading(episode3.id))
+
+    // Complete remaining episodes
+    semaphore2.signal()
+    try await CacheHelpers.waitForCached(episode2.id)
+    try await CacheHelpers.waitForCacheStateNotDownloading(episode2.id)
+    semaphore3.signal()
+    try await CacheHelpers.waitForCached(episode3.id)
+    try await CacheHelpers.waitForCacheStateNotDownloading(episode3.id)
   }
 }

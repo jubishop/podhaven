@@ -18,11 +18,13 @@ import Logging
   var onDeck: Bool { get }
   var atTopOfQueue: Bool { get }
   var atBottomOfQueue: Bool { get }
+  var isCaching: Bool { get }
 
   func execute() async
   func playNow()
   func addToTopOfQueue()
   func appendToQueue()
+  func cacheEpisode()
   func showPodcast()
 
   func getPodcastEpisode() -> PodcastEpisode?
@@ -30,9 +32,19 @@ import Logging
 }
 
 extension EpisodeDetailViewableModel {
+  private var alert: Alert { Container.shared.alert() }
+  private var cacheManager: CacheManager { Container.shared.cacheManager() }
+  private var cacheState: CacheState { Container.shared.cacheState() }
+  private var navigation: Navigation { Container.shared.navigation() }
+  private var playManager: PlayManager { Container.shared.playManager() }
+  private var playState: PlayState { Container.shared.playState() }
+  private var queue: any Queueing { Container.shared.queue() }
+  
+  private var log: Logger { Log.as(LogSubsystem.EpisodesView.detail) }
+  
   var onDeck: Bool {
     guard let podcastEpisode = getPodcastEpisode(),
-      let onDeck = Container.shared.playState().onDeck
+      let onDeck = playState.onDeck
     else { return false }
     return onDeck == podcastEpisode
   }
@@ -48,6 +60,11 @@ extension EpisodeDetailViewableModel {
     else { return false }
     return queueOrder == maxQueuePosition
   }
+  
+  var isCaching: Bool {
+    guard let podcastEpisode = getPodcastEpisode() else { return false }
+    return cacheState.isDownloading(podcastEpisode.id)
+  }
 
   func playNow() {
     Task { [weak self] in
@@ -56,17 +73,17 @@ extension EpisodeDetailViewableModel {
       do {
         podcastEpisode = try await getOrCreatePodcastEpisode()
       } catch {
-        Log.as(LogSubsystem.EpisodesView.detail).error(error)
-        Container.shared.alert()(ErrorKit.message(for: error))
+        log.error(error)
+        alert(ErrorKit.message(for: error))
         return
       }
 
       do {
-        try await Container.shared.playManager().load(podcastEpisode)
-        await Container.shared.playManager().play()
+        try await playManager.load(podcastEpisode)
+        await playManager.play()
       } catch {
-        Log.as(LogSubsystem.EpisodesView.detail).error(error)
-        Container.shared.alert()(ErrorKit.message(for: error))
+        log.error(error)
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -76,10 +93,10 @@ extension EpisodeDetailViewableModel {
       guard let self else { return }
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await Container.shared.queue().unshift(podcastEpisode.episode.id)
+        try await queue.unshift(podcastEpisode.episode.id)
       } catch {
-        Log.as(LogSubsystem.EpisodesView.detail).error(error)
-        Container.shared.alert()(ErrorKit.message(for: error))
+        log.error(error)
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -89,10 +106,23 @@ extension EpisodeDetailViewableModel {
       guard let self else { return }
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await Container.shared.queue().append(podcastEpisode.episode.id)
+        try await queue.append(podcastEpisode.episode.id)
       } catch {
-        Log.as(LogSubsystem.EpisodesView.detail).error(error)
-        Container.shared.alert()(ErrorKit.message(for: error))
+        log.error(error)
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+  
+  func cacheEpisode() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode()
+        try await cacheManager.downloadAndCache(podcastEpisode)
+      } catch {
+        log.error(error)
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -101,7 +131,7 @@ extension EpisodeDetailViewableModel {
     Task { [weak self] in
       guard let self else { return }
       let podcastEpisode = try await getOrCreatePodcastEpisode()
-      Container.shared.navigation().showPodcast(podcastEpisode.podcast)
+      navigation.showPodcast(podcastEpisode.podcast)
     }
   }
 }

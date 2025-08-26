@@ -151,6 +151,27 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
                 }
                 .disabled(viewModel.atBottomOfQueue)
               }
+              
+              if !viewModel.episodeCached {
+                Button(action: viewModel.cacheEpisode) {
+                  HStack {
+                    if viewModel.isCaching {
+                      ProgressView()
+                        .scaleEffect(0.8)
+                      Text("Caching in Progress")
+                    } else {
+                      AppLabel.cacheEpisode.image
+                      Text(AppLabel.cacheEpisode.text)
+                    }
+                  }
+                  .frame(maxWidth: .infinity)
+                  .padding()
+                  .background(viewModel.isCaching ? Color.orange.opacity(0.1) : Color.green.opacity(0.1))
+                  .foregroundColor(viewModel.isCaching ? .orange : .green)
+                  .cornerRadius(10)
+                }
+                .disabled(viewModel.isCaching)
+              }
             }
             .padding(.horizontal)
           }

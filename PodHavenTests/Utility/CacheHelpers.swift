@@ -11,6 +11,7 @@ enum CacheHelpers {
 
   private static var appDB: AppDB { Container.shared.appDB() }
   private static var cacheManager: CacheManager { Container.shared.cacheManager() }
+  private static var cacheState: CacheState { get async { await Container.shared.cacheState() } }
   private static var downloadManager: DownloadManager { Container.shared.cacheDownloadManager() }
   private static var queue: any Queueing { Container.shared.queue() }
   private static var repo: any Databasing { Container.shared.repo() }
@@ -28,7 +29,7 @@ enum CacheHelpers {
 
   static func unshiftToActive(podcastEpisode: PodcastEpisode) async throws {
     try await queue.unshift(podcastEpisode.id)
-    try await waitForActiveDownloadTask(podcastEpisode.id)
+    try await waitForCacheStateDownloading(podcastEpisode.id)
   }
 
   // MARK: - Episode Status
@@ -55,24 +56,26 @@ enum CacheHelpers {
 
   // MARK: - Download Status
 
-  static func waitForActiveDownloadTask(_ episodeID: Episode.ID) async throws {
-    try await Wait.until(
-      { await self.cacheManager.activeDownloadTasks[episodeID] != nil },
-      { "Expected episode id: \(episodeID) to be in active downloads" }
-    )
-  }
-
-  static func waitForNotActiveDownloadTask(_ episodeID: Episode.ID) async throws {
-    try await Wait.until(
-      { await self.cacheManager.activeDownloadTasks[episodeID] == nil },
-      { "Expected episode id: \(episodeID) to not be in active downloads" }
-    )
-  }
-
   static func waitForTopPendingDownload(_ url: URL) async throws {
     try await Wait.until(
-      { await self.downloadManager.pendingDownloads.first?.url == url },
+      { await downloadManager.pendingDownloads.first?.url == url },
       { "Expected episode url: \(url.hash()) to be the first pending download" }
+    )
+  }
+
+  // MARK: - CacheState Status
+
+  static func waitForCacheStateDownloading(_ episodeID: Episode.ID) async throws {
+    try await Wait.until(
+      { await cacheState.isDownloading(episodeID) },
+      { "Expected episode id: \(episodeID) to be downloading in CacheState" }
+    )
+  }
+
+  static func waitForCacheStateNotDownloading(_ episodeID: Episode.ID) async throws {
+    try await Wait.until(
+      { await cacheState.isDownloading(episodeID) == false },
+      { "Expected episode id: \(episodeID) to not be downloading in CacheState" }
     )
   }
 

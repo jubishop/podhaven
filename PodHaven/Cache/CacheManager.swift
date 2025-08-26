@@ -37,6 +37,7 @@ actor CacheManager {
   @DynamicInjected(\.imageFetcher) private var imageFetcher
 
   private var alert: Alert { get async { await Container.shared.alert() } }
+  private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
   private var playState: PlayState { get async { await Container.shared.playState() } }
 
   private static let log = Log.as(LogSubsystem.Cache.cacheManager)
@@ -45,7 +46,6 @@ actor CacheManager {
 
   private let downloadManager: DownloadManager
   private var currentQueuedEpisodeIDs: Set<Episode.ID> = []
-  private(set) var activeDownloadTasks: [Episode.ID: DownloadTask] = [:]
 
   // MARK: - Initialization
 
@@ -78,35 +78,37 @@ actor CacheManager {
       prioritize: true
     )
 
-    guard activeDownloadTasks[podcastEpisode.id] == nil
-    else {
+    if await cacheState.isDownloading(podcastEpisode.id) {
       Self.log.trace("downloadAndCache: \(podcastEpisode.toString) is already downloading")
       return false
     }
 
-    activeDownloadTasks[podcastEpisode.id] = downloadTask
-    defer { activeDownloadTasks.removeValue(forKey: podcastEpisode.id) }
+    await cacheState.setDownloadTask(podcastEpisode.id, downloadTask: downloadTask)
 
-    await imageFetcher.prefetch([podcastEpisode.image])
+    do {
+      return try await CacheError.catch {
+        await imageFetcher.prefetch([podcastEpisode.image])
 
-    let downloadData = try await CacheError.mapError(
-      { try await downloadTask.downloadFinished() },
-      { CacheError.failedToDownload(podcastEpisode: podcastEpisode, caught: $0) }
-    )
+        let downloadData = try await CacheError.mapError(
+          { try await downloadTask.downloadFinished() },
+          { CacheError.failedToDownload(podcastEpisode: podcastEpisode, caught: $0) }
+        )
 
-    let fileName = generateCacheFilename(for: podcastEpisode.episode)
-    let cacheURL = Self.resolveCachedFilepath(for: fileName)
+        let fileName = await generateCacheFilename(for: podcastEpisode.episode)
+        let cacheURL = Self.resolveCachedFilepath(for: fileName)
 
-    try CacheError.catch {
-      try downloadData.data.write(to: cacheURL)
+        try downloadData.data.write(to: cacheURL)
+
+        try await repo.updateCachedFilename(podcastEpisode.id, fileName)
+
+        await cacheState.removeDownloadTask(podcastEpisode.id)
+        Self.log.debug("downloadAndCache: successfully cached \(podcastEpisode.toString)")
+        return true
+      }
+    } catch {
+      await cacheState.removeDownloadTask(podcastEpisode.id)
+      throw error
     }
-
-    _ = try await CacheError.catch {
-      try await repo.updateCachedFilename(podcastEpisode.id, fileName)
-    }
-
-    Self.log.debug("downloadAndCache: successfully cached \(podcastEpisode.toString)")
-    return true
   }
 
   @discardableResult
@@ -237,10 +239,10 @@ actor CacheManager {
   }
 
   private func cancelDownloadTaskOrClearCache(for episodeID: Episode.ID) async throws(CacheError) {
-    if let downloadTask = activeDownloadTasks[episodeID] {
+    if let downloadTask = await cacheState.getDownloadTask(episodeID) {
       Self.log.debug("Cancelling cache download task for episode \(episodeID)")
 
-      activeDownloadTasks.removeValue(forKey: episodeID)
+      await cacheState.removeDownloadTask(episodeID)
       await downloadTask.cancel()
     } else {
       try await clearCache(for: episodeID)
