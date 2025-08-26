@@ -9,7 +9,7 @@ extension Container {
   }
 }
 
-struct PodFileManager: FileManageable, Sendable {
+struct PodFileManager: FileManageable {
   // MARK: - Initialization
 
   fileprivate init() {}
@@ -40,10 +40,6 @@ struct PodFileManager: FileManageable, Sendable {
 
   // MARK: - File Management Operations
 
-  func removeItem(at url: URL) throws {
-    try FileManager.default.removeItem(at: url)
-  }
-
   func removeItem(at url: URL) async throws {
     try await withCheckedThrowingContinuation { continuation in
       do {
@@ -57,27 +53,14 @@ struct PodFileManager: FileManageable, Sendable {
 
   func createDirectory(
     at url: URL,
-    withIntermediateDirectories createIntermediates: Bool = true,
-    attributes: [FileAttributeKey: Any]? = nil
-  ) throws {
-    try FileManager.default.createDirectory(
-      at: url,
-      withIntermediateDirectories: createIntermediates,
-      attributes: attributes
-    )
-  }
-
-  func createDirectory(
-    at url: URL,
-    withIntermediateDirectories createIntermediates: Bool = true,
-    attributes: [FileAttributeKey: Any]? = nil
+    withIntermediateDirectories createIntermediates: Bool = true
   ) async throws {
     try await withCheckedThrowingContinuation { continuation in
       do {
         try FileManager.default.createDirectory(
           at: url,
           withIntermediateDirectories: createIntermediates,
-          attributes: attributes
+          attributes: nil
         )
         continuation.resume()
       } catch {
@@ -88,29 +71,10 @@ struct PodFileManager: FileManageable, Sendable {
 
   // MARK: - File Attribute Operations
 
-  func fileExists(at url: URL) -> Bool {
-    FileManager.default.fileExists(atPath: url.path)
-  }
-
   func fileExists(at url: URL) async -> Bool {
     await withCheckedContinuation { continuation in
       let exists = FileManager.default.fileExists(atPath: url.path)
       continuation.resume(returning: exists)
-    }
-  }
-
-  func attributesOfItem(at url: URL) throws -> [FileAttributeKey: Any] {
-    try FileManager.default.attributesOfItem(atPath: url.path)
-  }
-
-  func attributesOfItem(at url: URL) async throws -> [FileAttributeKey: Any] {
-    try await withCheckedThrowingContinuation { continuation in
-      do {
-        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        continuation.resume(returning: attributes)
-      } catch {
-        continuation.resume(throwing: error)
-      }
     }
   }
 }

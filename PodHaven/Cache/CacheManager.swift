@@ -59,8 +59,7 @@ actor CacheManager {
     try await Container.shared.podFileManager()
       .createDirectory(
         at: Self.cacheDirectory,
-        withIntermediateDirectories: true,
-        attributes: nil
+        withIntermediateDirectories: true
       )
     startMonitoringQueue()
   }
