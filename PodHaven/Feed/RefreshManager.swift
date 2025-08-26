@@ -192,6 +192,7 @@ actor RefreshManager {
     backgroundRefreshTask?.cancel()
     backgroundRefreshTask = Task(priority: .background) { [weak self] in
       guard let self else { return }
+
       while !Task.isCancelled {
         Self.log.trace("backgroundRefreshTask: waiting for refreshSemaphore to complete")
         await refreshSemaphore.wait()
@@ -218,14 +219,13 @@ actor RefreshManager {
   private func backgrounded() async {
     Self.log.trace("backgrounded: waiting for refreshSemaphore to complete")
     await refreshSemaphore.wait()
-    defer {
-      Self.log.debug("backgrounded: releasing semaphore")
-      refreshSemaphore.signal()
-    }
 
     Self.log.debug("backgrounded: cancelling refresh task")
     backgroundRefreshTask?.cancel()
     backgroundRefreshTask = nil
+
+    Self.log.debug("backgrounded: releasing semaphore")
+    refreshSemaphore.signal()
   }
 
   private func startListeningToActivation() {
