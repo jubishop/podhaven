@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Synchronization
 
 @testable import PodHaven
 
@@ -11,10 +12,10 @@ extension Container {
   }
 }
 
-class Notifier {
-  private let lock = NSLock()
-  private var streamAndContinuations:
-    [Notification.Name: (AsyncStream<Notification>, AsyncStream<Notification>.Continuation)] = [:]
+final class Notifier: Sendable {
+  private let streamAndContinuations = Mutex<
+    [Notification.Name: (AsyncStream<Notification>, AsyncStream<Notification>.Continuation)]
+  >([:] as [Notification.Name: (AsyncStream<Notification>, AsyncStream<Notification>.Continuation)])
 
   fileprivate init() {}
 
@@ -31,15 +32,14 @@ class Notifier {
   private func streamAndContinuation(for name: Notification.Name) -> (
     AsyncStream<Notification>, AsyncStream<Notification>.Continuation
   ) {
-    lock.lock()
-    defer { lock.unlock() }
-    
-    if let (stream, continuation) = streamAndContinuations[name] {
+    streamAndContinuations.withLock { dict in
+      if let (stream, continuation) = dict[name] {
+        return (stream, continuation)
+      }
+
+      let (stream, continuation) = AsyncStream.makeStream(of: Notification.self)
+      dict[name] = (stream, continuation)
       return (stream, continuation)
     }
-
-    let (stream, continuation) = AsyncStream.makeStream(of: Notification.self)
-    streamAndContinuations[name] = (stream, continuation)
-    return (stream, continuation)
   }
 }
