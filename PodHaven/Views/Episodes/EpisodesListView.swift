@@ -14,7 +14,14 @@ struct EpisodesListView: View {
   }
 
   var body: some View {
-    List(viewModel.episodeList.allEntries) { podcastEpisode in
+    SearchBar(
+      text: $viewModel.episodeList.entryFilter,
+      placeholder: "Filter episodes",
+      imageName: AppLabel.filter.systemImageName
+    )
+    .padding(.horizontal)
+
+    List(viewModel.episodeList.filteredEntries) { podcastEpisode in
       NavigationLink(
         value: Navigation.Episodes.Destination.episode(podcastEpisode),
         label: {
@@ -34,7 +41,7 @@ struct EpisodesListView: View {
         }
       }
     }
-    .animation(.default, value: viewModel.episodeList.allEntries)
+    .animation(.default, value: viewModel.episodeList.filteredEntries)
     .navigationTitle(viewModel.title)
     .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
     .task(viewModel.execute)

@@ -102,7 +102,8 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
         }) {
           HStack(spacing: 6) {
             (viewModel.displayAboutSection
-              ? AppLabel.episodesList : AppLabel.aboutInfo).image
+              ? AppLabel.episodesList : AppLabel.aboutInfo)
+              .image
             Text(viewModel.displayAboutSection ? "Show Episodes" : "Show Details")
           }
           .font(.subheadline)
