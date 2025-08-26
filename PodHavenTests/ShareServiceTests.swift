@@ -392,12 +392,12 @@ import Testing
     await feedSession.respond(to: feedURL, data: feedData)
 
     // Create OPML file URL and data
-    let opmlURL = FileManager.default.temporaryDirectory.appendingPathComponent("techdirt.OPML")
+    let opmlURL = URL(fileURLWithPath: "/tmp/techdirt.OPML")
     let opmlData = PreviewBundle.loadAsset(named: "techdirt", in: .OPML)
-
+    
     // Set up the fake OPML session to respond to the file URL
     await opmlSession.respond(to: opmlURL, data: opmlData)
-
+    
     // Write the OPML data to the fake file manager
     let fakeFileManager = Container.shared.podFileManager() as! FakeFileManager
     try await fakeFileManager.writeData(opmlData, to: opmlURL)
