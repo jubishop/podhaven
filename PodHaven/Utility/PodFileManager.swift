@@ -9,7 +9,7 @@ extension Container {
   }
 }
 
-struct PodFileManager: FileManageable {
+struct PodFileManager: FileManageable, Sendable {
   // MARK: - Initialization
 
   fileprivate init() {}
