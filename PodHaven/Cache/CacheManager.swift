@@ -53,9 +53,13 @@ actor CacheManager {
     self.downloadManager = downloadManager
   }
 
-  func start() async {
+  func start() async throws {
     Self.log.debug("start: executing")
 
+    try await AsyncFileManager.createDirectory(
+      at: Self.cacheDirectory,
+      withIntermediateDirectories: true
+    )
     startMonitoringQueue()
   }
 
@@ -97,7 +101,7 @@ actor CacheManager {
         let fileName = await generateCacheFilename(for: podcastEpisode.episode)
         let cacheURL = Self.resolveCachedFilepath(for: fileName)
 
-        try downloadData.data.write(to: cacheURL)
+        try await AsyncFileManager.writeData(downloadData.data, to: cacheURL)
 
         try await repo.updateCachedFilename(podcastEpisode.id, fileName)
 
@@ -146,7 +150,7 @@ actor CacheManager {
 
     do {
       let cacheURL = Self.resolveCachedFilepath(for: cachedFilename)
-      try FileManager.default.removeItem(at: cacheURL)
+      try await AsyncFileManager.removeItem(at: cacheURL)
     } catch {
       Self.log.error(error)
     }
@@ -263,12 +267,10 @@ actor CacheManager {
   static func resolveCachedFilepath(for fileName: String) -> URL {
     Assert.precondition(!fileName.isEmpty, "Empty fileName in resolveCachedFilepath?")
 
-    return getCacheDirectory().appendingPathComponent(fileName)
+    return cacheDirectory.appendingPathComponent(fileName)
   }
 
-  private static func getCacheDirectory() -> URL {
-    let cacheDirectory = AppInfo.applicationSupportDirectory.appendingPathComponent("episodes")
-    try? FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
-    return cacheDirectory
+  private static var cacheDirectory: URL {
+    AppInfo.applicationSupportDirectory.appendingPathComponent("episodes")
   }
 }

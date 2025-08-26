@@ -44,7 +44,12 @@ struct PodHavenApp: App {
           startMemoryWarningMonitoring()
           await playManager.start()
           await refreshManager.start()
-          await cacheManager.start()
+          do {
+            try await cacheManager.start()
+          } catch {
+            Self.log.error(error)
+            alert(ErrorKit.coreMessage(for: error))
+          }
         }
       }
       .onOpenURL { url in

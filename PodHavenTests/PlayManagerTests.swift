@@ -802,7 +802,7 @@ import Testing
 
   @Test("episode cache is not cleared when loading")
   func episodeCacheIsNotClearedWhenLoading() async throws {
-    await cacheManager.start()
+    try await cacheManager.start()
 
     let podcastEpisode = try await Create.podcastEpisode(
       Create.unsavedEpisode(cachedFilename: "cached-episode.mp3")
