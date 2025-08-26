@@ -15,8 +15,7 @@ extension Container: @retroactive AutoRegistering {
     feedManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     shareServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     cacheManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
-    podcastFeedSession.context(.preview) { FakeDataFetchable() }.scope(.cached)
-    podcastOPMLSession.context(.preview) { FakeDataFetchable() }.scope(.cached)
+    podcastOPMLSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     notifications.context(.test) {
       { name in self.notifier().stream(for: name) }
     }

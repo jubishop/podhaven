@@ -12,12 +12,14 @@ import Testing
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
   @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.opmlViewModel) private var opmlViewModel
+  @DynamicInjected(\.podcastOPMLSession) private var podcastOPMLSession
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.shareServiceSession) private var shareServiceSession
   @DynamicInjected(\.shareService) private var shareService
 
   var shareSession: FakeDataFetchable { shareServiceSession as! FakeDataFetchable }
   var feedSession: FakeDataFetchable { feedManagerSession as! FakeDataFetchable }
+  var opmlSession: FakeDataFetchable { podcastOPMLSession as! FakeDataFetchable }
 
   @Test("that a new apple podcast URL is correctly imported")
   func newApplePodcastURLImportsSuccessfully() async throws {
@@ -389,13 +391,19 @@ import Testing
     let feedData = PreviewBundle.loadAsset(named: "techdirt", in: .FeedRSS)
     await feedSession.respond(to: feedURL, data: feedData)
 
-    // OPML with just TechDirt in it
-    let opmlURL = PreviewBundle.createURL(forAsset: "techdirt", from: .OPML)
-    let shareURL = ShareHelpers.shareURL(with: opmlURL)
+    // Create OPML file URL and data
+    let opmlURL = FileManager.default.temporaryDirectory.appendingPathComponent("techdirt.OPML")
+    let opmlData = PreviewBundle.loadAsset(named: "techdirt", in: .OPML)
 
-    // FileManager.default.removeItem will throw an error since filesystem is read-only in Test.
-    // This is fine, expectations below still confirms it works.
-    try? await shareService.handleIncomingURL(shareURL)
+    // Set up the fake OPML session to respond to the file URL
+    await opmlSession.respond(to: opmlURL, data: opmlData)
+
+    // Write the OPML data to the fake file manager
+    let fakeFileManager = Container.shared.podFileManager() as! FakeFileManager
+    try await fakeFileManager.writeData(opmlData, to: opmlURL)
+
+    let shareURL = ShareHelpers.shareURL(with: opmlURL)
+    try await shareService.handleIncomingURL(shareURL)
 
     #expect(navigation.currentTab == .settings)
     #expect(navigation.settings.path == [.section(.opml)])
