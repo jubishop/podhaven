@@ -39,8 +39,7 @@ import Testing
     let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFile(fileName)
 
-    let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
-    let actualData = try Data(contentsOf: fileURL)
+    let actualData = try await CacheHelpers.readCachedFileData(fileName)
     #expect(actualData == data)
   }
 

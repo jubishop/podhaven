@@ -52,7 +52,7 @@ struct FileLogManager: Sendable {
       guard let jsonString = String(data: try JSONEncoder().encode(fileLogEntry), encoding: .utf8)
       else { throw LoggingError.jsonStringCreationFailure(fileLogEntry) }
 
-      if FileManager.default.fileExists(atPath: logFileURL.path) {
+      if Container.shared.podFileManager().fileExists(at: logFileURL) {
         let fileHandle = try FileHandle(forWritingTo: logFileURL)
         fileHandle.seekToEndOfFile()
         fileHandle.write("\(jsonString)\n".data(using: .utf8)!)
@@ -114,7 +114,7 @@ struct FileLogManager: Sendable {
   }
 
   private func truncateLogFile() async throws {
-    guard FileManager.default.fileExists(atPath: logFileURL.path)
+    guard await Container.shared.podFileManager().fileExists(at: logFileURL)
     else { throw LoggingError.logFileDoesNotExist }
 
     let backgroundTaskID = await UIApplication.shared.beginBackgroundTask()

@@ -5,12 +5,6 @@ import GRDB
 import SwiftUI
 
 struct DebugSection: View {
-  @DynamicInjected(\.alert) private var alert
-  @DynamicInjected(\.fileLogManager) private var fileLogManager
-  @DynamicInjected(\.playManager) private var playManager
-  @DynamicInjected(\.refreshManager) private var refreshManager
-  @DynamicInjected(\.repo) private var repo
-
   var body: some View {
     Section("Debugging") {
       Text("Environment: \(AppInfo.environment)")
@@ -27,15 +21,13 @@ struct DebugSection: View {
       #endif
 
       ShareLink(
-        item: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-          .appendingPathComponent("log.ndjson")
+        item: AppInfo.documentsDirectory.appendingPathComponent("log.ndjson")
       ) {
         AppLabel.shareLogs.label
       }
 
       ShareLink(
-        item: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-          .appendingPathComponent("db.sqlite")
+        item: AppInfo.documentsDirectory.appendingPathComponent("db.sqlite")
       ) {
         AppLabel.shareDatabase.label
       }

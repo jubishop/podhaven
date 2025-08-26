@@ -36,5 +36,6 @@ extension Container: @retroactive AutoRegistering {
     }
     imageFetcher.context(.test) { FakeImageFetcher() }.scope(.cached)
     sleeper.context(.test) { FakeSleeper() }.scope(.cached)
+    podFileManager.context(.test) { FakeFileManager() }.scope(.cached)
   }
 }

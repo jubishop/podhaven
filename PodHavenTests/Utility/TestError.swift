@@ -15,6 +15,8 @@ enum TestError: ReadableError {
   case unexpectedCall(type: String, calls: [String])
   case unexpectedCallOrder(expected: [String], actual: [String])
   case unexpectedParameters(String)
+  case fileNotFound(URL)
+  case directoryNotFound(URL)
 
   var message: String {
     switch self {
@@ -38,6 +40,10 @@ enum TestError: ReadableError {
         """
     case .unexpectedParameters(let message):
       return "Unexpected parameters: \(message)"
+    case .fileNotFound(let url):
+      return "File not found at URL: \(url)"
+    case .directoryNotFound(let url):
+      return "Directory not found at URL: \(url)"
     }
   }
 }

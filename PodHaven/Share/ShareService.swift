@@ -88,7 +88,7 @@ actor ShareService {
       let opmlViewModel = await Container.shared.opmlViewModel()
       await opmlViewModel.importOPMLFromURL(url: url)
 
-      try await AsyncFileManager.removeItem(at: url)
+      try await Container.shared.podFileManager().removeItem(at: url)
       Self.log.debug("Cleaned up shared OPML file: \(url)")
     }
   }

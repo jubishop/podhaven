@@ -13,6 +13,7 @@ enum CacheHelpers {
   private static var cacheManager: CacheManager { Container.shared.cacheManager() }
   private static var cacheState: CacheState { get async { await Container.shared.cacheState() } }
   private static var downloadManager: DownloadManager { Container.shared.cacheDownloadManager() }
+  private static var podFileManager: any FileManageable { Container.shared.podFileManager() }
   private static var queue: any Queueing { Container.shared.queue() }
   private static var repo: any Databasing { Container.shared.repo() }
 
@@ -85,7 +86,7 @@ enum CacheHelpers {
     try await Wait.until(
       {
         let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
-        return FileManager.default.fileExists(atPath: fileURL.path)
+        return await podFileManager.fileExists(at: fileURL)
       },
       { "Cached file: \(fileName) does not exist on disk" }
     )
@@ -95,7 +96,7 @@ enum CacheHelpers {
     try await Wait.until(
       {
         let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
-        return !FileManager.default.fileExists(atPath: fileURL.path)
+        return await !podFileManager.fileExists(at: fileURL)
       },
       { "Cached file: \(fileName) still exists on disk" }
     )
@@ -109,5 +110,10 @@ enum CacheHelpers {
       data.append(UInt8.random(in: 0...255))
     }
     return data
+  }
+
+  static func readCachedFileData(_ fileName: String) async throws -> Data {
+    let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
+    return try await podFileManager.readData(from: fileURL)
   }
 }

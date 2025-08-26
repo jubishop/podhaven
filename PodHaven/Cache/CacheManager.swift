@@ -56,10 +56,12 @@ actor CacheManager {
   func start() async throws {
     Self.log.debug("start: executing")
 
-    try await AsyncFileManager.createDirectory(
-      at: Self.cacheDirectory,
-      withIntermediateDirectories: true
-    )
+    try await Container.shared.podFileManager()
+      .createDirectory(
+        at: Self.cacheDirectory,
+        withIntermediateDirectories: true,
+        attributes: nil
+      )
     startMonitoringQueue()
   }
 
@@ -101,7 +103,7 @@ actor CacheManager {
         let fileName = await generateCacheFilename(for: podcastEpisode.episode)
         let cacheURL = Self.resolveCachedFilepath(for: fileName)
 
-        try await AsyncFileManager.writeData(downloadData.data, to: cacheURL)
+        try await Container.shared.podFileManager().writeData(downloadData.data, to: cacheURL)
 
         try await repo.updateCachedFilename(podcastEpisode.id, fileName)
 
@@ -150,7 +152,7 @@ actor CacheManager {
 
     do {
       let cacheURL = Self.resolveCachedFilepath(for: cachedFilename)
-      try await AsyncFileManager.removeItem(at: cacheURL)
+      try await Container.shared.podFileManager().removeItem(at: cacheURL)
     } catch {
       Self.log.error(error)
     }
