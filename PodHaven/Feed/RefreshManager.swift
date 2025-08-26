@@ -195,10 +195,9 @@ actor RefreshManager {
       while !Task.isCancelled {
         Self.log.trace("backgroundRefreshTask: waiting for refreshSemaphore to complete")
         await refreshSemaphore.wait()
-        defer { refreshSemaphore.signal() }
 
         do {
-          Self.log.debug("backgroundRefreshTask: performing refresh check")
+          Self.log.debug("backgroundRefreshTask: performing refresh")
           try await performRefresh(
             stalenessThreshold: 10.minutesAgo,
             filter: Podcast.subscribed
@@ -207,6 +206,10 @@ actor RefreshManager {
           Self.log.error(error)
         }
 
+        Self.log.trace("backgroundRefreshTask: releasing semaphore")
+        refreshSemaphore.signal()
+
+        // Sleep without holding the semaphore
         try? await sleeper.sleep(for: .minutes(15))
       }
     }
@@ -215,7 +218,10 @@ actor RefreshManager {
   private func backgrounded() async {
     Self.log.trace("backgrounded: waiting for refreshSemaphore to complete")
     await refreshSemaphore.wait()
-    defer { refreshSemaphore.signal() }
+    defer {
+      Self.log.debug("backgrounded: releasing semaphore")
+      refreshSemaphore.signal()
+    }
 
     Self.log.debug("backgrounded: cancelling refresh task")
     backgroundRefreshTask?.cancel()
