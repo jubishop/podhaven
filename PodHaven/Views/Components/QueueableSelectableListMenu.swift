@@ -24,6 +24,9 @@ struct QueueableSelectableListMenu: View {
         Button("Replace Queue and Play") {
           list.replaceQueueWithSelectedAndPlay()
         }
+        Button("Cache Selected") {
+          list.cacheSelectedEpisodes()
+        }
       },
       label: {
         AppLabel.queueActions.image

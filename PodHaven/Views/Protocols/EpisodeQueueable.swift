@@ -8,4 +8,5 @@ import Foundation
   func playEpisode(_ episode: EpisodeType)
   func queueEpisodeOnTop(_ episode: EpisodeType)
   func queueEpisodeAtBottom(_ episode: EpisodeType)
+  func cacheEpisode(_ episode: EpisodeType)
 }

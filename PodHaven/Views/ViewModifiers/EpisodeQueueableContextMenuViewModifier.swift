@@ -25,6 +25,10 @@ struct EpisodeQueueableContextMenuViewModifier<
         Button(action: { viewModel.queueEpisodeAtBottom(episode) }) {
           AppLabel.queueAtBottom.label
         }
+        
+        Button(action: { viewModel.cacheEpisode(episode) }) {
+          AppLabel.cacheEpisode.label
+        }
 
         additionalContent()
       }

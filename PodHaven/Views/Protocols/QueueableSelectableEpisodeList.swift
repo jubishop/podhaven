@@ -17,6 +17,7 @@ import Logging
 }
 
 extension QueueableSelectableEpisodeList {
+  private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }
 
@@ -58,6 +59,31 @@ extension QueueableSelectableEpisodeList {
           await playManager.play()
           let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
           try await queue.replace(allExceptFirstPodcastEpisode.map(\.id))
+        }
+      } catch {
+        log.error(error)
+      }
+    }
+  }
+
+  func cacheSelectedEpisodes() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        // Capture instances to avoid MainActor concurrency errors.
+        let podcastEpisodes = try await selectedPodcastEpisodes
+        let cacheManager = cacheManager
+        let log = log
+        await withTaskGroup(of: Void.self) { group in
+          for podcastEpisode in podcastEpisodes {
+            group.addTask {
+              do {
+                try await cacheManager.downloadAndCache(podcastEpisode)
+              } catch {
+                log.error(error)
+              }
+            }
+          }
         }
       } catch {
         log.error(error)

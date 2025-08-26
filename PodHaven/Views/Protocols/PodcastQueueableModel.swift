@@ -12,6 +12,7 @@ import Logging
 }
 
 extension PodcastQueueableModel {
+  private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }
 
@@ -43,6 +44,18 @@ extension PodcastQueueableModel {
       guard let self else { return }
       let episodeID = try await getEpisodeID(episode)
       try await queue.append(episodeID)
+    }
+  }
+  
+  func cacheEpisode(_ episode: EpisodeType) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let podcastEpisode = try await getPodcastEpisode(episode)
+        try await cacheManager.downloadAndCache(podcastEpisode)
+      } catch {
+        log.error(error)
+      }
     }
   }
 }

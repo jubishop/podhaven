@@ -9,5 +9,6 @@ import SwiftUI
   func addSelectedEpisodesToBottomOfQueue() {}
   func replaceQueueWithSelected() {}
   func replaceQueueWithSelectedAndPlay() {}
+  func cacheSelectedEpisodes() {}
 }
 #endif

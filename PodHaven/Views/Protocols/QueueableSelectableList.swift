@@ -7,4 +7,5 @@ import Foundation
   func addSelectedEpisodesToBottomOfQueue()
   func replaceQueueWithSelected()
   func replaceQueueWithSelectedAndPlay()
+  func cacheSelectedEpisodes()
 }
