@@ -13,7 +13,7 @@ import Testing
     #expect("Words with <br /> spaced properly".hasHTMLTags() == true)
     #expect("Gotta love <p> for paragraphs</p>".hasHTMLTags() == true)
     #expect("Normal text discussing 1 < 2 and 4 > 3".hasHTMLTags() == false)
-    #expect("If you open a tag <p> but don't close it".hasHTMLTags() == false)
+    #expect("If you open a tag <p> but don't close it".hasHTMLTags() == true)
     #expect("Hello, world. New stuff! And, commas; too".hasHTMLTags() == false)
   }
 
