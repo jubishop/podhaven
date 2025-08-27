@@ -34,6 +34,7 @@ struct EpisodesListView: View {
           )
         }
       )
+      .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
       .episodeQueueableContextMenu(viewModel: viewModel, episode: podcastEpisode) {
         Button(action: { viewModel.showPodcast(for: podcastEpisode) }) {

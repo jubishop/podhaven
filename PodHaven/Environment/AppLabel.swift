@@ -70,6 +70,7 @@ private enum SystemImageName: String, CaseIterable {
   case seekForward = "goforward.30"
 
   // Queue Management
+  case episodeQueued = "line.3.horizontal"
   case moveToTop = "arrow.up.to.line"
   case queueBottom = "text.line.last.and.arrowtriangle.forward"
   case queueTop = "text.line.first.and.arrowtriangle.forward"
@@ -159,6 +160,7 @@ enum AppLabel: CaseIterable {
   case editComplete
   case episodeCached
   case episodeCompleted
+  case episodeQueued
   case externalLink
   case expandDown
   case expandUp
@@ -240,6 +242,7 @@ enum AppLabel: CaseIterable {
     case .editComplete: return LabelData(text: "Done", systemImageName: .editComplete)
     case .episodeCached: return LabelData(text: "Cached", systemImageName: .episodeCached)
     case .episodeCompleted: return LabelData(text: "Completed", systemImageName: .episodeCompleted)
+    case .episodeQueued: return LabelData(text: "Queued", systemImageName: .episodeQueued)
     case .externalLink: return LabelData(text: "External Link", systemImageName: .externalLink)
     case .expandDown: return LabelData(text: "Collapse", systemImageName: .expandDown)
     case .expandUp: return LabelData(text: "Expand", systemImageName: .expandUp)

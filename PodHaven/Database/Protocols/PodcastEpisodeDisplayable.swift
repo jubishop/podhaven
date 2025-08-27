@@ -10,4 +10,5 @@ protocol PodcastEpisodeDisplayable: Hashable, Identifiable {
   var image: URL { get }
   var cached: Bool { get }
   var completed: Bool { get }
+  var queued: Bool { get }
 }

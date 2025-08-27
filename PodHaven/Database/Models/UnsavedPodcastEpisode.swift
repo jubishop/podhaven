@@ -35,4 +35,5 @@ struct UnsavedPodcastEpisode:
   var duration: CMTime { unsavedEpisode.duration }
   var cached: Bool { unsavedEpisode.cached }
   var completed: Bool { false }
+  var queued: Bool { unsavedEpisode.queued }
 }

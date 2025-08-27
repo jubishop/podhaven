@@ -9,4 +9,5 @@ protocol EpisodeDisplayable: Hashable, Identifiable, Searchable {
   var duration: CMTime { get set }
   var cached: Bool { get }
   var completed: Bool { get }
+  var queued: Bool { get }
 }

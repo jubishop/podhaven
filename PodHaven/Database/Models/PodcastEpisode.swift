@@ -44,4 +44,5 @@ struct PodcastEpisode:
   var duration: CMTime { episode.duration }
   var cached: Bool { episode.cached }
   var completed: Bool { episode.completed }
+  var queued: Bool { episode.queued }
 }

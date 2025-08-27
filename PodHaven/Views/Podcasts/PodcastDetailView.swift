@@ -148,10 +148,12 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
               isSelected: $viewModel.episodeList.isSelected[episode],
               item: episode,
               isSelecting: viewModel.episodeList.isSelecting
-            )
+            ),
+            podcastImageURL: viewModel.podcast.image
           )
         }
       )
+      .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: episode)
       .episodeQueueableContextMenu(viewModel: viewModel, episode: episode)
     }

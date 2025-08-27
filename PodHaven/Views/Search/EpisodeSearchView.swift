@@ -41,10 +41,10 @@ struct EpisodeSearchView: View {
                 )
               }
             )
+            .episodeListRow()
             .episodeSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
             .episodeQueueableContextMenu(viewModel: viewModel, episode: unsavedPodcastEpisode)
           }
-
         }
 
       case .error(let message):
