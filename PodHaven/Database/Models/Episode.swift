@@ -11,8 +11,6 @@ typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
 
 struct UnsavedEpisode:
-  EpisodeFilterable,
-  EpisodeDisplayable,
   Savable,
   Stringable
 {
@@ -99,7 +97,7 @@ struct UnsavedEpisode:
 }
 
 @Saved<UnsavedEpisode>
-struct Episode: EpisodeDisplayable, EpisodeFilterable, Saved, RSSUpdatable {
+struct Episode: Saved, RSSUpdatable {
   // MARK: - Equatable
 
   static func == (lhs: Episode, rhs: OnDeck) -> Bool { lhs.id == rhs.id }
@@ -161,19 +159,6 @@ struct Episode: EpisodeDisplayable, EpisodeFilterable, Saved, RSSUpdatable {
       && unsaved.description == other.unsaved.description && unsaved.link == other.unsaved.link
       && unsaved.image == other.unsaved.image
   }
-
-  // MARK: - EpisodeDisplayable / EpisodeFilterable
-
-  var title: String { unsaved.title }
-  var pubDate: Date { unsaved.pubDate }
-  var duration: CMTime {
-    get { unsaved.duration }
-    set { unsaved.duration = newValue }
-  }
-  var cached: Bool { unsaved.cached }
-  var completed: Bool { unsaved.completed }
-  var started: Bool { unsaved.started }
-  var queued: Bool { unsaved.queued }
 }
 
 // MARK: - DerivableRequest

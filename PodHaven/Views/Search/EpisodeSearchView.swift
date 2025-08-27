@@ -32,7 +32,7 @@ struct EpisodeSearchView: View {
                 )
               ),
               label: {
-                PodcastEpisodeListView(
+                EpisodeListView(
                   viewModel: SelectableListItemModel(
                     isSelected: .constant(false),
                     item: unsavedPodcastEpisode,

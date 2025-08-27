@@ -3,7 +3,7 @@
 import NukeUI
 import SwiftUI
 
-struct PodcastEpisodeListView<EpisodeType: PodcastEpisodeDisplayable>: View {
+struct EpisodeListView<EpisodeType: EpisodeDisplayable>: View {
   private let viewModel: SelectableListItemModel<EpisodeType>
 
   init(viewModel: SelectableListItemModel<EpisodeType>) {
@@ -120,7 +120,7 @@ struct PodcastEpisodeListView<EpisodeType: PodcastEpisodeDisplayable>: View {
 
   List {
     if let podcastEpisode {
-      PodcastEpisodeListView(
+      EpisodeListView(
         viewModel: SelectableListItemModel(
           isSelected: .constant(false),
           item: podcastEpisode,
@@ -129,7 +129,7 @@ struct PodcastEpisodeListView<EpisodeType: PodcastEpisodeDisplayable>: View {
       )
     }
     if let selectedPodcastEpisode {
-      PodcastEpisodeListView(
+      EpisodeListView(
         viewModel: SelectableListItemModel(
           isSelected: $isSelected,
           item: selectedPodcastEpisode,

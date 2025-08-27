@@ -25,7 +25,7 @@ struct EpisodesListView: View {
       NavigationLink(
         value: Navigation.Episodes.Destination.episode(podcastEpisode),
         label: {
-          PodcastEpisodeListView(
+          EpisodeListView(
             viewModel: SelectableListItemModel(
               isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
               item: podcastEpisode,

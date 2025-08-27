@@ -9,11 +9,12 @@ import UIKit
 
 struct PodcastEpisode:
   Codable,
+  EpisodeDisplayable,
+  EpisodeFilterable,
   Equatable,
   FetchableRecord,
   Hashable,
   Identifiable,
-  PodcastEpisodeDisplayable,
   Searchable,
   Stringable
 {
@@ -37,12 +38,13 @@ struct PodcastEpisode:
 
   var image: URL { episode.image ?? podcast.image }
 
-  // MARK: - PodcastEpisodeDisplayable
+  // MARK: - EpisodeDisplayable // EpisodeFilterable
 
   var title: String { episode.title }
   var pubDate: Date { episode.pubDate }
   var duration: CMTime { episode.duration }
   var cached: Bool { episode.cached }
+  var started: Bool { episode.started }
   var completed: Bool { episode.completed }
   var queued: Bool { episode.queued }
 }

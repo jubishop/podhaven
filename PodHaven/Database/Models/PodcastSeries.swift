@@ -9,6 +9,13 @@ struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifia
 
   let podcast: Podcast
   let episodes: IdentifiedArray<GUID, Episode>
+  var podcastEpisodes: IdentifiedArray<GUID, PodcastEpisode> {
+    IdentifiedArray(
+      uniqueElements:
+        episodes.map { PodcastEpisode(podcast: podcast, episode: $0) },
+      id: \.episode.guid
+    )
+  }
 
   init(podcast: Podcast, episodes: [Episode] = []) {
     self.init(podcast: podcast, episodes: IdentifiedArray(uniqueElements: episodes, id: \.guid))
@@ -26,7 +33,7 @@ struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifia
     podcast = try container.decode(Podcast.self, forKey: .podcast)
     episodes = IdentifiedArray(
       uniqueElements: try container.decode([Episode].self, forKey: .episodes),
-      id: \Episode.guid
+      id: \.guid
     )
   }
 

@@ -27,13 +27,13 @@ class PodcastDetailViewModel:
 
   var currentFilterMethod: EpisodeFilterMethod = .all {
     didSet {
-      episodeList.filterMethod = currentFilterMethod.filterMethod(for: Episode.self)
+      episodeList.filterMethod = currentFilterMethod.filterMethod(for: PodcastEpisode.self)
     }
   }
 
   var displayAboutSection: Bool = false
 
-  var episodeList = SelectableListUseCase<Episode, Episode.ID>(idKeyPath: \.id)
+  var episodeList = SelectableListUseCase<PodcastEpisode, GUID>(idKeyPath: \.episode.guid)
 
   var mostRecentEpisodeDate: Date {
     podcastSeries.episodes.first?.pubDate ?? Date.epoch
@@ -44,7 +44,7 @@ class PodcastDetailViewModel:
     get { _podcastSeries }
     set {
       _podcastSeries = newValue
-      episodeList.allEntries = IdentifiedArray(uniqueElements: newValue.episodes)
+      episodeList.allEntries = newValue.podcastEpisodes
     }
   }
 
@@ -58,7 +58,7 @@ class PodcastDetailViewModel:
 
   init(podcast: Podcast) {
     self._podcastSeries = PodcastSeries(podcast: podcast)
-    episodeList.filterMethod = currentFilterMethod.filterMethod(for: Episode.self)
+    episodeList.filterMethod = currentFilterMethod.filterMethod(for: PodcastEpisode.self)
   }
 
   func execute() async {
@@ -98,14 +98,7 @@ class PodcastDetailViewModel:
   // MARK: - QueueableSelectableEpisodeList
 
   var selectedPodcastEpisodes: [PodcastEpisode] {
-    get async throws {
-      selectedEpisodes.map { episode in
-        PodcastEpisode(
-          podcast: podcastSeries.podcast,
-          episode: episode
-        )
-      }
-    }
+    get async throws { selectedEpisodes }
   }
 
   // MARK: - Public Actions
@@ -135,8 +128,8 @@ class PodcastDetailViewModel:
       navigation.showPodcast(.unsubscribed, podcastSeries.podcast)
     }
   }
-  
-  func navigationDestination(for episode: Episode) -> Navigation.Podcasts.Destination {
-    .episode(PodcastEpisode(podcast: podcastSeries.podcast, episode: episode))
+
+  func navigationDestination(for episode: PodcastEpisode) -> Navigation.Podcasts.Destination {
+    .episode(episode)
   }
 }

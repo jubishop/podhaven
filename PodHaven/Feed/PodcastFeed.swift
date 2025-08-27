@@ -143,11 +143,11 @@ struct PodcastFeed: Sendable, Stringable {
     }
   }
 
-  func toUnsavedPodcast(merging unsavedPodcast: UnsavedPodcast) throws(FeedError) -> UnsavedPodcast
+  func toUnsavedPodcast(merging unsavedPodcast: UnsavedPodcast?) throws(FeedError) -> UnsavedPodcast
   {
     try toUnsavedPodcast(
-      subscriptionDate: unsavedPodcast.subscriptionDate,
-      lastUpdate: unsavedPodcast.lastUpdate
+      subscriptionDate: unsavedPodcast?.subscriptionDate,
+      lastUpdate: unsavedPodcast?.lastUpdate
     )
   }
 

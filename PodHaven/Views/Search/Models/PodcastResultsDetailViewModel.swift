@@ -29,13 +29,15 @@ class PodcastResultsDetailViewModel:
 
   var currentFilterMethod: EpisodeFilterMethod = .all {
     didSet {
-      episodeList.filterMethod = currentFilterMethod.filterMethod(for: UnsavedEpisode.self)
+      episodeList.filterMethod = currentFilterMethod.filterMethod(for: UnsavedPodcastEpisode.self)
     }
   }
 
   var displayAboutSection: Bool = false
 
-  var episodeList = SelectableListUseCase<UnsavedEpisode, GUID>(idKeyPath: \.guid)
+  var episodeList = SelectableListUseCase<UnsavedPodcastEpisode, GUID>(
+    idKeyPath: \.unsavedEpisode.guid
+  )
   private var existingPodcastSeries: PodcastSeries?
   private var podcastFeed: PodcastFeed?
 
@@ -55,7 +57,7 @@ class PodcastResultsDetailViewModel:
     self.searchedText = searchedPodcast.searchedText
     self.unsavedPodcast = searchedPodcast.unsavedPodcast
     episodeList.sortMethod = { $0.pubDate > $1.pubDate }
-    episodeList.filterMethod = currentFilterMethod.filterMethod(for: UnsavedEpisode.self)
+    episodeList.filterMethod = currentFilterMethod.filterMethod(for: UnsavedPodcastEpisode.self)
   }
 
   func execute() async {
@@ -76,13 +78,14 @@ class PodcastResultsDetailViewModel:
         }
 
         existingPodcastSeries = podcastSeries
-        if let podcastSeries = existingPodcastSeries {
-          unsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries.podcast.unsaved)
-        } else {
-          unsavedPodcast = try podcastFeed.toUnsavedPodcast()
-        }
-
-        episodeList.allEntries = podcastFeed.toEpisodeArray(merging: existingPodcastSeries)
+        unsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries?.podcast.unsaved)
+        episodeList.allEntries = IdentifiedArray(
+          uniqueElements: podcastFeed.toEpisodeArray(merging: existingPodcastSeries)
+            .map {
+              UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: $0)
+            },
+          id: \.unsavedEpisode.guid
+        )
         subscribable = true
       }
     } catch {
@@ -94,27 +97,17 @@ class PodcastResultsDetailViewModel:
 
   // MARK: - PodcastQueueableModel
 
-  func getPodcastEpisode(_ episode: UnsavedEpisode) async throws -> PodcastEpisode {
-    try await repo.upsertPodcastEpisode(
-      UnsavedPodcastEpisode(
-        unsavedPodcast: unsavedPodcast,
-        unsavedEpisode: episode
-      )
-    )
+  func getPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws
+    -> PodcastEpisode
+  {
+    try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
   }
 
   // MARK: - QueueableSelectableEpisodeList
 
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
-      try await repo.upsertPodcastEpisodes(
-        selectedEpisodes.map { unsavedEpisode in
-          UnsavedPodcastEpisode(
-            unsavedPodcast: unsavedPodcast,
-            unsavedEpisode: unsavedEpisode
-          )
-        }
-      )
+      try await repo.upsertPodcastEpisodes(selectedEpisodes)
     }
   }
 
@@ -144,7 +137,7 @@ class PodcastResultsDetailViewModel:
           unsavedPodcast.lastUpdate = Date()
           let newPodcastSeries = try await repo.insertSeries(
             unsavedPodcast,
-            unsavedEpisodes: episodeList.allEntries.elements
+            unsavedEpisodes: episodeList.allEntries.elements.map(\.unsavedEpisode)
           )
           navigation.showPodcast(.subscribed, newPodcastSeries.podcast)
         }
@@ -163,14 +156,11 @@ class PodcastResultsDetailViewModel:
     Assert.fatal("Trying to refresh a PodcastResult?")
   }
 
-  func navigationDestination(for episode: UnsavedEpisode) -> Navigation.Search.Destination {
+  func navigationDestination(for episode: UnsavedPodcastEpisode) -> Navigation.Search.Destination {
     .searchedPodcastEpisode(
       SearchedPodcastEpisode(
         searchedText: searchedText,
-        unsavedPodcastEpisode: UnsavedPodcastEpisode(
-          unsavedPodcast: unsavedPodcast,
-          unsavedEpisode: episode
-        )
+        unsavedPodcastEpisode: episode
       )
     )
   }
