@@ -14,15 +14,6 @@ enum LogSubsystem {
     case observatory
     case repo
     case queue
-
-    var level: Logger.Level {
-      switch self {
-      case .appDB:
-        return .debug
-      default:
-        return .trace
-      }
-    }
   }
 
   enum EpisodesView: String, LogCategorizable {
