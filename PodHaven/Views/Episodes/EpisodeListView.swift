@@ -16,7 +16,9 @@ struct EpisodeListView<EpisodeType: EpisodeDisplayable>: View {
         selectionButton
       }
       episodeImage
-      statusIconColumn
+      if !viewModel.isSelecting {
+        statusIconColumn
+      }
       episodeInfoSection
     }
     .padding(.bottom, 12)
