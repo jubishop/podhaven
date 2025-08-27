@@ -52,44 +52,10 @@ struct SelectablePodcastsGridView: View {
               ),
               size: $gridItemSize
             )
-            .contextMenu {
-              Button(
-                action: { viewModel.queueLatestEpisodeToTop(podcast.id) },
-                label: {
-                  Label(
-                    "Queue Latest To Top",
-                    systemImage: AppLabel.queueLatestToTop.systemImageName
-                  )
-                }
-              )
-
-              Button(
-                action: { viewModel.queueLatestEpisodeToBottom(podcast.id) },
-                label: {
-                  Label(
-                    "Queue Latest To Bottom",
-                    systemImage: AppLabel.queueLatestToBottom.systemImageName
-                  )
-                }
-              )
-
-              Button(
-                action: { viewModel.deletePodcast(podcast.id) },
-                label: { AppLabel.delete.label }
-              )
-
-              if podcast.subscribed {
-                Button(
-                  action: { viewModel.unsubscribePodcast(podcast.id) },
-                  label: { AppLabel.unsubscribe.label }
-                )
-              } else {
-                Button(
-                  action: { viewModel.subscribePodcast(podcast.id) },
-                  label: { AppLabel.subscribe.label }
-                )
-              }
-            }
+            .selectablePodcastsGridContextMenu(
+              viewModel: viewModel,
+              podcast: podcast
+            )
           }
         )
       }
@@ -105,53 +71,7 @@ struct SelectablePodcastsGridView: View {
         alert(ErrorKit.message(for: error))
       }
     }
-    .toolbar {
-      if viewModel.isSelecting {
-        ToolbarItem(placement: .topBarTrailing) {
-          SelectableListMenu(list: viewModel.podcastList)
-        }
-      }
-
-      if viewModel.isSelecting, viewModel.podcastList.anySelected {
-        ToolbarItem(placement: .topBarTrailing) {
-          Menu(
-            content: {
-              Button("Delete") {
-                viewModel.deleteSelectedPodcasts()
-              }
-              if viewModel.anySelectedUnsubscribed {
-                Button("Subscribe") {
-                  viewModel.subscribeSelectedPodcasts()
-                }
-              }
-              if viewModel.anySelectedSubscribed {
-                Button("Unsubscribe") {
-                  viewModel.unsubscribeSelectedPodcasts()
-                }
-              }
-            },
-            label: {
-              AppLabel.moreActions.image
-            }
-          )
-        }
-      }
-
-      if viewModel.isSelecting {
-        ToolbarItem(placement: .topBarLeading) {
-          Button("Done") {
-            viewModel.isSelecting = false
-          }
-        }
-      } else {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button("Select Podcasts") {
-            viewModel.isSelecting = true
-          }
-        }
-      }
-    }
-    .toolbarRole(.editor)
+    .selectablePodcastsGridToolbar(viewModel: viewModel)
     .task(viewModel.execute)
   }
 }
