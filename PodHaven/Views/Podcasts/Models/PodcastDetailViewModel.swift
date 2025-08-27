@@ -105,16 +105,6 @@ class PodcastDetailViewModel:
 
   // MARK: - PodcastDetailViewableModel
 
-  func refreshSeries() async {
-    do {
-      try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
-    } catch {
-      Self.log.error(error)
-      if !ErrorKit.isRemarkable(error) { return }
-      alert(ErrorKit.message(for: error))
-    }
-  }
-
   func subscribe() {
     Task { [weak self] in
       guard let self else { return }
@@ -128,6 +118,16 @@ class PodcastDetailViewModel:
       guard let self else { return }
       try await repo.markUnsubscribed(podcastSeries.id)
       navigation.showPodcast(.unsubscribed, podcastSeries.podcast)
+    }
+  }
+
+  func refreshSeries() async {
+    do {
+      try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    } catch {
+      Self.log.error(error)
+      if !ErrorKit.isRemarkable(error) { return }
+      alert(ErrorKit.message(for: error))
     }
   }
 

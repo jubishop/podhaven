@@ -16,9 +16,9 @@ where EpisodeType: EpisodeDisplayable {
   var displayAboutSection: Bool { get set }
   var mostRecentEpisodeDate: Date { get }
 
+  func execute() async
   func subscribe()
   func unsubscribe()
-  func execute() async
   func refreshSeries() async
   func navigationDestination(for episode: EpisodeType) -> NavigationDestination
 }
