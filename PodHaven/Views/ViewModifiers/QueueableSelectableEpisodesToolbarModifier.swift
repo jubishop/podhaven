@@ -3,7 +3,7 @@
 import SwiftUI
 
 struct QueueableSelectableEpisodesToolbarModifier<
-  ViewModel: QueueableSelectableList & SelectableModel,
+  ViewModel: QueueableSelectableListModel,
   EpisodeList: SelectableList
 >: ViewModifier {
   @Binding private var viewModel: ViewModel
@@ -51,7 +51,7 @@ struct QueueableSelectableEpisodesToolbarModifier<
 
 extension View {
   func queueableSelectableEpisodesToolbar<
-    ViewModel: QueueableSelectableList & SelectableModel,
+    ViewModel: QueueableSelectableListModel,
     EpisodeList: SelectableList
   >(
     viewModel: Binding<ViewModel>,

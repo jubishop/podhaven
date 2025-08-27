@@ -11,7 +11,7 @@ import SwiftUI
 class PodcastDetailViewModel:
   PodcastDetailViewableModel,
   PodcastQueueableModel,
-  QueueableSelectableEpisodeList
+  QueueableSelectableListModel
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -30,11 +30,7 @@ class PodcastDetailViewModel:
       episodeList.filterMethod = currentFilterMethod.filterMethod(for: PodcastEpisode.self)
     }
   }
-
   var displayAboutSection: Bool = false
-
-  var episodeList = SelectableListUseCase<PodcastEpisode, GUID>(idKeyPath: \.episode.guid)
-
   var mostRecentEpisodeDate: Date {
     podcastSeries.episodes.first?.pubDate ?? Date.epoch
   }
@@ -48,12 +44,16 @@ class PodcastDetailViewModel:
     }
   }
 
-  // MARK: - SelectableModel
+  // MARK: - QueueableSelectableListModel
 
+  var episodeList = SelectableListUseCase<PodcastEpisode, GUID>(idKeyPath: \.episode.guid)
   private var _isSelecting = false
   var isSelecting: Bool {
     get { _isSelecting }
     set { withAnimation { _isSelecting = newValue } }
+  }
+  var selectedPodcastEpisodes: [PodcastEpisode] {
+    get async throws { selectedEpisodes }
   }
 
   // MARK: - PodcastDetailViewableModel
@@ -103,13 +103,7 @@ class PodcastDetailViewModel:
     PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
   }
 
-  // MARK: - QueueableSelectableEpisodeList
-
-  var selectedPodcastEpisodes: [PodcastEpisode] {
-    get async throws { selectedEpisodes }
-  }
-
-  // MARK: - Public Actions
+  // MARK: - PodcastDetailViewableModel
 
   func refreshSeries() async {
     do {

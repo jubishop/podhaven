@@ -10,7 +10,7 @@ import SwiftUI
 class PodcastResultsDetailViewModel:
   PodcastDetailViewableModel,
   PodcastQueueableModel,
-  QueueableSelectableEpisodeList
+  QueueableSelectableListModel
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -32,25 +32,28 @@ class PodcastResultsDetailViewModel:
       episodeList.filterMethod = currentFilterMethod.filterMethod(for: UnsavedPodcastEpisode.self)
     }
   }
-
   var displayAboutSection: Bool = false
-
-  var episodeList = SelectableListUseCase<UnsavedPodcastEpisode, GUID>(
-    idKeyPath: \.unsavedEpisode.guid
-  )
-  private var existingPodcastSeries: PodcastSeries?
-  private var podcastFeed: PodcastFeed?
-
   var mostRecentEpisodeDate: Date {
     episodeList.allEntries.first?.pubDate ?? Date.epoch
   }
 
-  // MARK: - SelectableModel
+  private var existingPodcastSeries: PodcastSeries?
+  private var podcastFeed: PodcastFeed?
 
+  // MARK: - QueueableSelectableListModel
+
+  var episodeList = SelectableListUseCase<UnsavedPodcastEpisode, GUID>(
+    idKeyPath: \.unsavedEpisode.guid
+  )
   private var _isSelecting = false
   var isSelecting: Bool {
     get { _isSelecting }
     set { withAnimation { _isSelecting = newValue } }
+  }
+  var selectedPodcastEpisodes: [PodcastEpisode] {
+    get async throws {
+      try await repo.upsertPodcastEpisodes(selectedEpisodes)
+    }
   }
 
   // MARK: - PodcastDetailViewableModel
@@ -111,15 +114,7 @@ class PodcastResultsDetailViewModel:
     try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
   }
 
-  // MARK: - QueueableSelectableEpisodeList
-
-  var selectedPodcastEpisodes: [PodcastEpisode] {
-    get async throws {
-      try await repo.upsertPodcastEpisodes(selectedEpisodes)
-    }
-  }
-
-  // MARK: - Public Functions
+  // MARK: - PodcastDetailViewableModel
 
   func subscribe() {
     guard subscribable

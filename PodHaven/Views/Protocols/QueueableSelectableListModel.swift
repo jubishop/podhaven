@@ -5,18 +5,20 @@ import Foundation
 import IdentifiedCollections
 import Logging
 
-@MainActor protocol QueueableSelectableEpisodeList: AnyObject, QueueableSelectableList {
+@MainActor protocol QueueableSelectableListModel: AnyObject, QueueableSelectableList {
   associatedtype EpisodeType: Searchable
   associatedtype EpisodeID: Hashable
 
+  var isSelecting: Bool { get set }
   var episodeList: SelectableListUseCase<EpisodeType, EpisodeID> { get set }
   var selectedEpisodes: [EpisodeType] { get }
+  var selectedEpisodeIDs: [EpisodeID] { get }
 
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
-  var selectedEpisodeIDs: [Episode.ID] { get async throws }
+  var selectedPodcastEpisodeIDs: [Episode.ID] { get async throws }
 }
 
-extension QueueableSelectableEpisodeList {
+extension QueueableSelectableListModel {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }
@@ -24,11 +26,17 @@ extension QueueableSelectableEpisodeList {
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 
   var selectedEpisodes: [EpisodeType] { episodeList.selectedEntries.elements }
+  var selectedEpisodeIDs: [EpisodeID] { Array(episodeList.selectedEntries.ids) }
+  var selectedPodcastEpisodeIDs: [Episode.ID] {
+    get async throws {
+      try await selectedPodcastEpisodes.map(\.id)
+    }
+  }
 
   func addSelectedEpisodesToBottomOfQueue() {
     Task { [weak self] in
       guard let self else { return }
-      let episodeIDs = try await selectedEpisodeIDs
+      let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.append(episodeIDs)
     }
   }
@@ -36,7 +44,7 @@ extension QueueableSelectableEpisodeList {
   func addSelectedEpisodesToTopOfQueue() {
     Task { [weak self] in
       guard let self else { return }
-      let episodeIDs = try await selectedEpisodeIDs
+      let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.unshift(episodeIDs)
     }
   }
@@ -44,7 +52,7 @@ extension QueueableSelectableEpisodeList {
   func replaceQueueWithSelected() {
     Task { [weak self] in
       guard let self else { return }
-      let episodeIDs = try await selectedEpisodeIDs
+      let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.replace(episodeIDs)
     }
   }
@@ -90,14 +98,8 @@ extension QueueableSelectableEpisodeList {
       }
     }
   }
-
-  var selectedEpisodeIDs: [Episode.ID] {
-    get async throws {
-      try await selectedPodcastEpisodes.map(\.id)
-    }
-  }
 }
 
-extension QueueableSelectableEpisodeList where EpisodeType == PodcastEpisode {
+extension QueueableSelectableListModel where EpisodeType == PodcastEpisode {
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws { selectedEpisodes } }
 }
