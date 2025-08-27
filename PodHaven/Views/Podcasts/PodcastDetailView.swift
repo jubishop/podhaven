@@ -37,12 +37,12 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
       }
     }
     .queueableSelectableEpisodesToolbar(
-      viewModel: viewModel,
+      viewModel: $viewModel,
       episodeList: $viewModel.episodeList,
       selectText: "Select Episodes"
     )
     .toolbar {
-      if !viewModel.episodeList.isSelecting && viewModel.subscribable
+      if !viewModel.isSelecting && viewModel.subscribable
         && !viewModel.podcast.subscribed
       {
         ToolbarItem(placement: .topBarLeading) {
@@ -147,7 +147,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
             viewModel: SelectableListItemModel(
               isSelected: $viewModel.episodeList.isSelected[episode],
               item: episode,
-              isSelecting: viewModel.episodeList.isSelecting
+              isSelecting: viewModel.isSelecting
             )
           )
         }

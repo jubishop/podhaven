@@ -7,7 +7,11 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-class EpisodesListViewModel: PodcastQueueableModel, QueueableSelectableEpisodeList {
+class EpisodesListViewModel:
+  PodcastQueueableModel,
+  QueueableSelectableEpisodeList,
+  SelectableModel
+{
   private static let log = Log.as(LogSubsystem.EpisodesView.standard)
 
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
@@ -24,6 +28,14 @@ class EpisodesListViewModel: PodcastQueueableModel, QueueableSelectableEpisodeLi
   let filter: SQLExpression
   let order: SQLOrdering
   let limit: Int
+
+  // MARK: - SelectableModel
+
+  private var _isSelecting = false
+  var isSelecting: Bool {
+    get { _isSelecting }
+    set { withAnimation { _isSelecting = newValue } }
+  }
 
   // MARK: - Initialization
 

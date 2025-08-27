@@ -48,6 +48,14 @@ class PodcastDetailViewModel:
     }
   }
 
+  // MARK: - SelectableModel
+
+  private var _isSelecting = false
+  var isSelecting: Bool {
+    get { _isSelecting }
+    set { withAnimation { _isSelecting = newValue } }
+  }
+
   // MARK: - PodcastDetailViewableModel
 
   let subscribable: Bool = true

@@ -16,15 +16,16 @@ struct UpNextView: View {
           NavigationLink(
             value: Navigation.UpNext.Destination.episode(podcastEpisode),
             label: {
-              UpNextListView(
-                viewModel: UpNextListViewModel(
+              EpisodeListView(
+                viewModel: SelectableListItemModel(
                   isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
-                  podcastEpisode: podcastEpisode,
-                  editMode: viewModel.editMode
+                  item: podcastEpisode,
+                  isSelecting: viewModel.isEditing
                 )
               )
             }
           )
+          .episodeListRow()
           .upNextSwipeActions(viewModel: viewModel, podcastEpisode: podcastEpisode)
           .upNextContextMenu(viewModel: viewModel, podcastEpisode: podcastEpisode)
         }

@@ -45,6 +45,14 @@ class PodcastResultsDetailViewModel:
     episodeList.allEntries.first?.pubDate ?? Date.epoch
   }
 
+  // MARK: - SelectableModel
+
+  private var _isSelecting = false
+  var isSelecting: Bool {
+    get { _isSelecting }
+    set { withAnimation { _isSelecting = newValue } }
+  }
+
   // MARK: - PodcastDetailViewableModel
 
   var subscribable: Bool = false

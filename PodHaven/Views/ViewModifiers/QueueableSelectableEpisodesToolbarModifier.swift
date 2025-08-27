@@ -3,15 +3,15 @@
 import SwiftUI
 
 struct QueueableSelectableEpisodesToolbarModifier<
-  ViewModel: QueueableSelectableList,
+  ViewModel: QueueableSelectableList & SelectableModel,
   EpisodeList: SelectableList
 >: ViewModifier {
+  @Binding private var viewModel: ViewModel
   @Binding private var episodeList: EpisodeList
-  private let viewModel: ViewModel
   private let selectText: String
 
-  init(viewModel: ViewModel, episodeList: Binding<EpisodeList>, selectText: String) {
-    self.viewModel = viewModel
+  init(viewModel: Binding<ViewModel>, episodeList: Binding<EpisodeList>, selectText: String) {
+    self._viewModel = viewModel
     self._episodeList = episodeList
     self.selectText = selectText
   }
@@ -19,28 +19,28 @@ struct QueueableSelectableEpisodesToolbarModifier<
   func body(content: Content) -> some View {
     content
       .toolbar {
-        if episodeList.isSelecting {
+        if viewModel.isSelecting {
           ToolbarItem(placement: .topBarTrailing) {
             SelectableListMenu(list: episodeList)
           }
         }
 
-        if episodeList.isSelecting, episodeList.anySelected {
+        if viewModel.isSelecting, episodeList.anySelected {
           ToolbarItem(placement: .topBarTrailing) {
             QueueableSelectableListMenu(list: viewModel)
           }
         }
 
-        if episodeList.isSelecting {
+        if viewModel.isSelecting {
           ToolbarItem(placement: .topBarLeading) {
             Button("Done") {
-              episodeList.isSelecting = false
+              viewModel.isSelecting = false
             }
           }
         } else {
           ToolbarItem(placement: .topBarTrailing) {
             Button(selectText) {
-              episodeList.isSelecting = true
+              viewModel.isSelecting = true
             }
           }
         }
@@ -51,10 +51,10 @@ struct QueueableSelectableEpisodesToolbarModifier<
 
 extension View {
   func queueableSelectableEpisodesToolbar<
-    ViewModel: QueueableSelectableList,
+    ViewModel: QueueableSelectableList & SelectableModel,
     EpisodeList: SelectableList
   >(
-    viewModel: ViewModel,
+    viewModel: Binding<ViewModel>,
     episodeList: Binding<EpisodeList>,
     selectText: String = "Select"
   ) -> some View {

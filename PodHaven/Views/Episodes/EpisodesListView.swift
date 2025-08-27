@@ -29,7 +29,7 @@ struct EpisodesListView: View {
             viewModel: SelectableListItemModel(
               isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
               item: podcastEpisode,
-              isSelecting: viewModel.episodeList.isSelecting
+              isSelecting: viewModel.isSelecting
             )
           )
         }
@@ -44,7 +44,7 @@ struct EpisodesListView: View {
     }
     .animation(.default, value: viewModel.episodeList.filteredEntries)
     .navigationTitle(viewModel.title)
-    .queueableSelectableEpisodesToolbar(viewModel: viewModel, episodeList: $viewModel.episodeList)
+    .queueableSelectableEpisodesToolbar(viewModel: $viewModel, episodeList: $viewModel.episodeList)
     .task(viewModel.execute)
   }
 }

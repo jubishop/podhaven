@@ -2,7 +2,11 @@
 
 import Foundation
 
-@MainActor protocol PodcastDetailViewableModel: EpisodeQueueable, QueueableSelectableList
+@MainActor
+protocol PodcastDetailViewableModel:
+  EpisodeQueueable,
+  QueueableSelectableList,
+  SelectableModel
 where EpisodeType: EpisodeDisplayable {
   associatedtype EpisodeID: Hashable
   associatedtype NavigationDestination: Hashable
