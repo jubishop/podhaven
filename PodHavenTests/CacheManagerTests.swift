@@ -118,30 +118,32 @@ import Testing
   // TODO: still fails sometimes, dammit.
   @Test("moving an episode in the queue reprioritizes it for download")
   func movingAnEpisodeInTheQueueReprioritizesItForDownload() async throws {
-    // Create 7 episodes: 4 will be active, 3 will be pending
-    var podcastEpisodes: [PodcastEpisode] = Array.init(capacity: 7)
-    for _ in 0..<7 { podcastEpisodes.append(try await Create.podcastEpisode()) }
+    try await TestHelpers.withTestContext {
+      // Create 7 episodes: 4 will be active, 3 will be pending
+      var podcastEpisodes: [PodcastEpisode] = Array.init(capacity: 7)
+      for _ in 0..<7 { podcastEpisodes.append(try await Create.podcastEpisode()) }
 
-    // Set up all podcastEpisodes to block until signaled
-    var semaphores: [AsyncSemaphore] = []
-    for podcastEpisode in podcastEpisodes {
-      let semaphore = await session.waitThenRespond(to: podcastEpisode.episode.media.rawValue)
-      semaphores.append(semaphore)
+      // Set up all podcastEpisodes to block until signaled
+      var semaphores: [AsyncSemaphore] = []
+      for podcastEpisode in podcastEpisodes {
+        let semaphore = await session.waitThenRespond(to: podcastEpisode.episode.media.rawValue)
+        semaphores.append(semaphore)
+      }
+
+      // Add first 4 podcastEpisodes to fill all concurrent slots
+      try await CacheHelpers.unshiftToActive(podcastEpisode: podcastEpisodes[3])
+      try await CacheHelpers.unshiftToActive(podcastEpisode: podcastEpisodes[2])
+      try await CacheHelpers.unshiftToActive(podcastEpisode: podcastEpisodes[1])
+      try await CacheHelpers.unshiftToActive(podcastEpisode: podcastEpisodes[0])
+
+      // Now add 3 more podcastEpisodes that will be pending
+      try await CacheHelpers.unshiftToPending(podcastEpisode: podcastEpisodes[6])
+      try await CacheHelpers.unshiftToPending(podcastEpisode: podcastEpisodes[5])
+      try await CacheHelpers.unshiftToPending(podcastEpisode: podcastEpisodes[4])
+
+      // Now move episode 6 to the top of the queue, reprioritizing it to come next
+      try await CacheHelpers.unshiftToPending(podcastEpisode: podcastEpisodes[6])
     }
-
-    // Add first 4 podcastEpisodes to fill all concurrent slots
-    try await CacheHelpers.unshiftToActive(podcastEpisode: podcastEpisodes[3])
-    try await CacheHelpers.unshiftToActive(podcastEpisode: podcastEpisodes[2])
-    try await CacheHelpers.unshiftToActive(podcastEpisode: podcastEpisodes[1])
-    try await CacheHelpers.unshiftToActive(podcastEpisode: podcastEpisodes[0])
-
-    // Now add 3 more podcastEpisodes that will be pending
-    try await CacheHelpers.unshiftToPending(podcastEpisode: podcastEpisodes[6])
-    try await CacheHelpers.unshiftToPending(podcastEpisode: podcastEpisodes[5])
-    try await CacheHelpers.unshiftToPending(podcastEpisode: podcastEpisodes[4])
-
-    // Now move episode 6 to the top of the queue, reprioritizing it to come next
-    try await CacheHelpers.unshiftToPending(podcastEpisode: podcastEpisodes[6])
   }
 
   @Test("episode dequeued mid-download does not get cached when download completes")
