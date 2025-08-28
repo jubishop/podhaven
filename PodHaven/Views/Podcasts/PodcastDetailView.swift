@@ -36,12 +36,13 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
         episodeListView
       }
     }
-    .queueableSelectableEpisodesToolbar(
-      viewModel: $viewModel,
-      episodeList: $viewModel.episodeList,
-      selectText: "Select Episodes"
-    )
     .toolbar {
+      queueableSelectableEpisodesToolbarItems(
+        viewModel: $viewModel,
+        episodeList: $viewModel.episodeList,
+        selectText: "Select Episodes"
+      )
+
       if !viewModel.isSelecting && viewModel.subscribable
         && !viewModel.podcast.subscribed
       {
@@ -52,6 +53,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
         }
       }
     }
+    .toolbarRole(.editor)
     .task { await viewModel.execute() }
   }
 

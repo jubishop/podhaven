@@ -44,7 +44,13 @@ struct EpisodesListView: View {
     }
     .animation(.default, value: viewModel.episodeList.filteredEntries)
     .navigationTitle(viewModel.title)
-    .queueableSelectableEpisodesToolbar(viewModel: $viewModel, episodeList: $viewModel.episodeList)
+    .toolbar {
+      queueableSelectableEpisodesToolbarItems(
+        viewModel: $viewModel, 
+        episodeList: $viewModel.episodeList
+      )
+    }
+    .toolbarRole(.editor)
     .task(viewModel.execute)
   }
 }
