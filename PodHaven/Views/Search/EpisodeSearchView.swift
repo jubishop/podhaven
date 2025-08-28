@@ -10,45 +10,20 @@ struct EpisodeSearchView: View {
       // Main content
       switch viewModel.state {
       case .idle:
-        IdleStateView()
+        idleStateView
 
       case .loading:
-        VStack {
-          ProgressView("Searching...")
-            .padding()
-          Spacer()
-        }
+        loadingStateView
 
       case .loaded(let unsavedPodcastEpisodes):
         if unsavedPodcastEpisodes.isEmpty {
-          EmptyResultsView()
+          emptyResultsView
         } else {
-          List(unsavedPodcastEpisodes) { unsavedPodcastEpisode in
-            NavigationLink(
-              value: Navigation.Search.Destination.searchedPodcastEpisode(
-                SearchedPodcastEpisode(
-                  searchedText: viewModel.searchText,
-                  unsavedPodcastEpisode: unsavedPodcastEpisode
-                )
-              ),
-              label: {
-                EpisodeListView(
-                  viewModel: SelectableListItemModel(
-                    isSelected: .constant(false),
-                    item: unsavedPodcastEpisode,
-                    isSelecting: false
-                  )
-                )
-              }
-            )
-            .episodeListRow()
-            .episodeSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
-            .episodeContextMenu(viewModel: viewModel, episode: unsavedPodcastEpisode)
-          }
+          episodeResultsList(unsavedPodcastEpisodes)
         }
 
       case .error(let message):
-        ErrorStateView(message: message)
+        errorStateView(message: message)
       }
     }
     .navigationTitle("Search Episodes")
@@ -58,12 +33,8 @@ struct EpisodeSearchView: View {
       prompt: "Enter person's name..."
     )
   }
-}
 
-// MARK: - Subviews
-
-private struct IdleStateView: View {
-  var body: some View {
+  var idleStateView: some View {
     VStack(spacing: 16) {
       AppLabel.personSearch.image
         .font(.system(size: 48))
@@ -79,10 +50,16 @@ private struct IdleStateView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
-}
 
-private struct EmptyResultsView: View {
-  var body: some View {
+  var loadingStateView: some View {
+    VStack {
+      ProgressView("Searching...")
+        .padding()
+      Spacer()
+    }
+  }
+
+  var emptyResultsView: some View {
     VStack(spacing: 16) {
       AppLabel.noPersonFound.image
         .font(.system(size: 48))
@@ -97,12 +74,33 @@ private struct EmptyResultsView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
-}
 
-private struct ErrorStateView: View {
-  let message: String
+  func episodeResultsList(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]) -> some View {
+    List(unsavedPodcastEpisodes) { unsavedPodcastEpisode in
+      NavigationLink(
+        value: Navigation.Search.Destination.searchedPodcastEpisode(
+          SearchedPodcastEpisode(
+            searchedText: viewModel.searchText,
+            unsavedPodcastEpisode: unsavedPodcastEpisode
+          )
+        ),
+        label: {
+          EpisodeListView(
+            viewModel: SelectableListItemModel(
+              isSelected: .constant(false),
+              item: unsavedPodcastEpisode,
+              isSelecting: false
+            )
+          )
+        }
+      )
+      .episodeListRow()
+      .episodeSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
+      .episodeContextMenu(viewModel: viewModel, episode: unsavedPodcastEpisode)
+    }
+  }
 
-  var body: some View {
+  func errorStateView(message: String) -> some View {
     VStack(spacing: 16) {
       AppLabel.error.image
         .font(.system(size: 48))
