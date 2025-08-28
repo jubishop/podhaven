@@ -45,7 +45,7 @@ struct SelectablePodcastsGridView: View {
           value: Navigation.Podcasts.Destination.podcast(podcast),
           label: {
             SelectableImageGridItem(
-              viewModel: SelectableListItemModel<Podcast>(
+              viewModel: SelectableListItemModel(
                 isSelected: $viewModel.podcastList.isSelected[podcastWithLatestEpisodeDates],
                 item: podcast,
                 isSelecting: viewModel.isSelecting

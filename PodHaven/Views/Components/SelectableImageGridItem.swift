@@ -71,7 +71,7 @@ struct SelectableImageGridItem<Item: Gridable>: View {
       ForEach([true, false], id: \.self) { isSelected in
         ForEach([true, false], id: \.self) { isSelecting in
           SelectableImageGridItem<Podcast>(
-            viewModel: SelectableListItemModel<Podcast>(
+            viewModel: SelectableListItemModel(
               isSelected: .constant(isSelected),
               item: podcast,
               isSelecting: isSelecting
@@ -79,7 +79,7 @@ struct SelectableImageGridItem<Item: Gridable>: View {
             size: $gridItemSize
           )
           SelectableImageGridItem(
-            viewModel: SelectableListItemModel<Podcast>(
+            viewModel: SelectableListItemModel(
               isSelected: .constant(isSelected),
               item: invalidPodcast,
               isSelecting: isSelecting
