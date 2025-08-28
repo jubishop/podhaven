@@ -5,6 +5,7 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import GRDB
+import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -222,22 +223,26 @@ actor RefreshManagerTests {
 
     #expect(podcastSeries.episodes.count == 2)
 
-    // Set up Observatory observation on UI repo
+    // Set up Observatory observation on UI repo using ActorContainer
     let updateCounter = Counter()
-    let observedEpisodesCount = Counter()
+    let latestEpisodes = ActorContainer<[PodcastEpisode]>()
 
     Task {
       for try await podcastEpisodes in observatory.podcastEpisodes(
         filter: Episode.Columns.podcastId == podcastSeries.podcast.id
       ) {
         await updateCounter.increment()
-        await observedEpisodesCount(podcastEpisodes.count)
+        await latestEpisodes.set(podcastEpisodes)
       }
     }
 
     // Wait for initial observation
     try await updateCounter.wait(for: 1)
-    try await observedEpisodesCount.wait(for: 2)
+    try await latestEpisodes.waitForItem()
+
+    // Verify initial state
+    let initialEpisodes = await latestEpisodes.get()!
+    #expect(initialEpisodes.count == 2)
 
     // Prepare updated feed data
     let updatedData = PreviewBundle.loadAsset(
@@ -254,14 +259,18 @@ actor RefreshManagerTests {
 
     // Observatory should receive notification about the background changes
     try await updateCounter.wait(for: 2)
-    try await observedEpisodesCount.wait(for: 3)  // Should see new episode
+
+    // Wait for updated episodes in the container
+    try await Wait.until(
+      {
+        guard let episodes = await latestEpisodes.get() else { return false }
+        return episodes.count == 3
+      },
+      { "Expected updated episodes count to be 3" }
+    )
 
     // Verify the UI repo sees the changes via Observatory
-    let finalObservedEpisodes =
-      try await observatory.podcastEpisodes(
-        filter: Episode.Columns.podcastId == podcastSeries.podcast.id
-      )
-      .get()
+    let finalObservedEpisodes = await latestEpisodes.get()!
     #expect(finalObservedEpisodes.count == 3)
     #expect(
       finalObservedEpisodes.map(\.episode.title) == [
