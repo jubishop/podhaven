@@ -86,11 +86,9 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func updateCacheAll(_ podcastID: Podcast.ID, cacheAllEpisodes: Bool) async throws -> Bool
-  
+
   // MARK: - Database Bridge
-  
-  /// Notifies the database about changes to podcast and episode tables for the given podcast ID
-  /// This triggers Observatory notifications for any observers watching these tables
+
   func notifyChanges(for podcastID: Podcast.ID) async throws
 }
 

@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import GRDB
 import Testing
 
 @testable import PodHaven
@@ -11,6 +12,7 @@ import Testing
 @Suite("of RefreshManager tests", .container)
 actor RefreshManagerTests {
   @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
   @DynamicInjected(\.refreshManager) private var refreshManager
 
@@ -204,5 +206,69 @@ actor RefreshManagerTests {
     // The test is that this second call doesn't hang because it early exits.
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
     asyncSemaphore.signal()
+  }
+
+  @Test("that background refresh triggers Observatory notifications on UI repo")
+  func testBackgroundRefreshTriggersObservatoryNotifications() async throws {
+    // Create initial podcast series
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(lastUpdate: 30.minutesAgo)
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+    )
+
+    #expect(podcastSeries.episodes.count == 2)
+
+    // Set up Observatory observation on UI repo
+    let updateCounter = Counter()
+    let observedEpisodesCount = Counter()
+
+    Task {
+      for try await podcastEpisodes in observatory.podcastEpisodes(
+        filter: Episode.Columns.podcastId == podcastSeries.podcast.id
+      ) {
+        await updateCounter.increment()
+        await observedEpisodesCount(podcastEpisodes.count)
+      }
+    }
+
+    // Wait for initial observation
+    try await updateCounter.wait(for: 1)
+    try await observedEpisodesCount.wait(for: 2)
+
+    // Prepare updated feed data
+    let updatedData = PreviewBundle.loadAsset(
+      named: "hardfork_short_updated",
+      in: .FeedRSS
+    )
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+
+    // Refresh using background priority - this should trigger cross-connection notification
+    try await refreshManager.refreshSeries(
+      podcastSeries: podcastSeries,
+      priority: .background
+    )
+
+    // Observatory should receive notification about the background changes
+    try await updateCounter.wait(for: 2)
+    try await observedEpisodesCount.wait(for: 3)  // Should see new episode
+
+    // Verify the UI repo sees the changes via Observatory
+    let finalObservedEpisodes =
+      try await observatory.podcastEpisodes(
+        filter: Episode.Columns.podcastId == podcastSeries.podcast.id
+      )
+      .get()
+    #expect(finalObservedEpisodes.count == 3)
+    #expect(
+      finalObservedEpisodes.map(\.episode.title) == [
+        "Our 2026 Tech Predictions and Resolutions + We Answer Your Questions",
+        "Gear That Lasts a Lifetime Updated",
+        "Is Amazon's Drone Delivery Finally Ready for Prime Time?",
+      ]
+    )
   }
 }

@@ -7,9 +7,12 @@ import Foundation
 
 extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
-    // Test setup
-    appDB.context(.test) { AppDB.inMemory() }.scope(.cached)
+    // Test setup  
+    let sharedDB = AppDB.inMemory()
+    appDB.context(.test) { sharedDB }.scope(.cached)
+    backgroundAppDB.context(.test) { sharedDB }.scope(.cached)
     repo.context(.test) { FakeRepo(self.makeRepo()) }.scope(.cached)
+    backgroundRepo.context(.test) { FakeRepo(self.makeBackgroundRepo()) }.scope(.cached)
     queue.context(.test) { FakeQueue(self.makeQueue()) }.scope(.cached)
     searchServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     feedManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
