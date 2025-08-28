@@ -37,7 +37,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
       }
     }
     .toolbar {
-      queueableSelectableEpisodesToolbarItems(
+      selectableEpisodesToolbarItems(
         viewModel: $viewModel,
         episodeList: $viewModel.episodeList,
         selectText: "Select Episodes"
@@ -184,7 +184,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
       )
       .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: episode)
-      .episodeQueueableContextMenu(viewModel: viewModel, episode: episode)
+      .episodeContextMenu(viewModel: viewModel, episode: episode)
     }
     .conditionalRefreshable(enabled: viewModel.refreshable, action: viewModel.refreshSeries)
     .animation(.default, value: viewModel.episodeList.filteredEntries)

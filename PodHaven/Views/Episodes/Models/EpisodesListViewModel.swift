@@ -8,8 +8,8 @@ import SwiftUI
 
 @Observable @MainActor
 class EpisodesListViewModel:
-  PodcastQueueableModel,
-  QueueableSelectableListModel
+  PodcastingModel,
+  SelectableEpisodeListModel
 {
   private static let log = Log.as(LogSubsystem.EpisodesView.standard)
 
@@ -27,7 +27,7 @@ class EpisodesListViewModel:
   let order: SQLOrdering
   let limit: Int
 
-  // MARK: - QueueableSelectableListModel
+  // MARK: - SelectableEpisodeListModel
 
   var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
   private var _isSelecting = false

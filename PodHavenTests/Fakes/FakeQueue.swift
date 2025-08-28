@@ -16,7 +16,7 @@ actor FakeQueue: Sendable, FakeCallable, Queueing {
     self.queue = queue
   }
 
-  // MARK: - Queue Protocol
+  // MARK: - Queueing
 
   var nextEpisode: PodcastEpisode? {
     get async throws {

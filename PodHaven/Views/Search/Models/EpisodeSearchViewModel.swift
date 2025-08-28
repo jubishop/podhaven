@@ -14,7 +14,7 @@ enum EpisodeSearchState {
 }
 
 @Observable @MainActor
-final class EpisodeSearchViewModel: PodcastQueueableModel {
+final class EpisodeSearchViewModel: PodcastingModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
@@ -35,7 +35,7 @@ final class EpisodeSearchViewModel: PodcastQueueableModel {
     }
   }
 
-  // MARK: - PodcastQueueableModel
+  // MARK: - PodcastingModel
 
   func getPodcastEpisode(_ episode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
     try await repo.upsertPodcastEpisode(episode)

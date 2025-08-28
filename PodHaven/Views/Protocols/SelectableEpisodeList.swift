@@ -2,7 +2,7 @@
 
 import Foundation
 
-@MainActor protocol QueueableSelectableList {
+@MainActor protocol SelectableEpisodeList {
   func addSelectedEpisodesToTopOfQueue()
   func addSelectedEpisodesToBottomOfQueue()
   func replaceQueueWithSelected()

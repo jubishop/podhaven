@@ -3,8 +3,8 @@
 import Foundation
 import SwiftUI
 
-struct EpisodeQueueableContextMenuViewModifier<
-  ViewModel: EpisodeQueueable,
+struct EpisodeContextMenuViewModifier<
+  ViewModel: ManagingEpisodes,
   AdditionalContent: View
 >: ViewModifier {
   let viewModel: ViewModel
@@ -25,7 +25,7 @@ struct EpisodeQueueableContextMenuViewModifier<
         Button(action: { viewModel.queueEpisodeAtBottom(episode) }) {
           AppLabel.queueAtBottom.label
         }
-        
+
         Button(action: { viewModel.cacheEpisode(episode) }) {
           AppLabel.cacheEpisode.label
         }
@@ -36,13 +36,13 @@ struct EpisodeQueueableContextMenuViewModifier<
 }
 
 extension View {
-  func episodeQueueableContextMenu<ViewModel: EpisodeQueueable, AdditionalContent: View>(
+  func episodeContextMenu<ViewModel: ManagingEpisodes, AdditionalContent: View>(
     viewModel: ViewModel,
     episode: ViewModel.EpisodeType,
     @ViewBuilder additionalContent: @escaping () -> AdditionalContent = { EmptyView() }
   ) -> some View {
     self.modifier(
-      EpisodeQueueableContextMenuViewModifier(
+      EpisodeContextMenuViewModifier(
         viewModel: viewModel,
         episode: episode,
         additionalContent: additionalContent

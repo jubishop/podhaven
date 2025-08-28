@@ -10,8 +10,8 @@ import SwiftUI
 @Observable @MainActor
 class PodcastDetailViewModel:
   PodcastDetailViewableModel,
-  PodcastQueueableModel,
-  QueueableSelectableListModel
+  PodcastingModel,
+  SelectableEpisodeListModel
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -44,7 +44,7 @@ class PodcastDetailViewModel:
     }
   }
 
-  // MARK: - QueueableSelectableListModel
+  // MARK: - SelectableEpisodeListModel
 
   var episodeList = SelectableListUseCase<PodcastEpisode, GUID>(idKeyPath: \.episode.guid)
   private var _isSelecting = false
@@ -97,7 +97,7 @@ class PodcastDetailViewModel:
     }
   }
 
-  // MARK: - PodcastQueueableModel
+  // MARK: - PodcastingModel
 
   func getPodcastEpisode(_ episode: Episode) async throws -> PodcastEpisode {
     PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)

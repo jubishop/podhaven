@@ -2,7 +2,7 @@
 
 import Foundation
 
-@MainActor protocol EpisodeQueueable {
+@MainActor protocol ManagingEpisodes {
   associatedtype EpisodeType
 
   func playEpisode(_ episode: EpisodeType)

@@ -36,7 +36,7 @@ struct EpisodesListView: View {
       )
       .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
-      .episodeQueueableContextMenu(viewModel: viewModel, episode: podcastEpisode) {
+      .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode) {
         Button(action: { viewModel.showPodcast(for: podcastEpisode) }) {
           AppLabel.showPodcast.label
         }
@@ -45,7 +45,7 @@ struct EpisodesListView: View {
     .animation(.default, value: viewModel.episodeList.filteredEntries)
     .navigationTitle(viewModel.title)
     .toolbar {
-      queueableSelectableEpisodesToolbarItems(
+      selectableEpisodesToolbarItems(
         viewModel: $viewModel, 
         episodeList: $viewModel.episodeList
       )

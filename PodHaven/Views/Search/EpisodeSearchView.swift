@@ -43,7 +43,7 @@ struct EpisodeSearchView: View {
             )
             .episodeListRow()
             .episodeSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
-            .episodeQueueableContextMenu(viewModel: viewModel, episode: unsavedPodcastEpisode)
+            .episodeContextMenu(viewModel: viewModel, episode: unsavedPodcastEpisode)
           }
         }
 

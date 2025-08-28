@@ -4,7 +4,7 @@
 import Foundation
 import SwiftUI
 
-@Observable @MainActor class StubQueueableSelectableList: QueueableSelectableList {
+@Observable @MainActor class StubSelectableEpisodeList: SelectableEpisodeList {
   func addSelectedEpisodesToTopOfQueue() {}
   func addSelectedEpisodesToBottomOfQueue() {}
   func replaceQueueWithSelected() {}

@@ -17,7 +17,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     self.repo = repo
   }
 
-  // MARK: - Databasing Protocol
+  // MARK: - Databasing
 
   nonisolated var db: any DatabaseReader { repo.db }
 

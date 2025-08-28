@@ -31,7 +31,7 @@ extension Container {
     }
   }
 
-  private func managerFor(tab: Tab) -> any NavigationPathManager {
+  private func managerFor(tab: Tab) -> any ManagingNavigationPaths {
     switch tab {
     case .settings: return settings
     case .search: return search
@@ -44,7 +44,7 @@ extension Container {
   // MARK: - Settings
 
   @MainActor @Observable
-  class Settings: NavigationPathManager {
+  class Settings: ManagingNavigationPaths {
     var path: [Destination] = []
     var resetId = UUID()
 
@@ -82,7 +82,7 @@ extension Container {
   // MARK: - Search
 
   @MainActor @Observable
-  class Search: NavigationPathManager {
+  class Search: ManagingNavigationPaths {
     var path: [Destination] = []
     var resetId = UUID()
 
@@ -139,7 +139,7 @@ extension Container {
   // MARK: - UpNext
 
   @MainActor @Observable
-  class UpNext: NavigationPathManager {
+  class UpNext: ManagingNavigationPaths {
     var path: [Destination] = []
     var resetId = UUID()
 
@@ -162,7 +162,7 @@ extension Container {
   // MARK: - Episodes
 
   @MainActor @Observable
-  class Episodes: NavigationPathManager {
+  class Episodes: ManagingNavigationPaths {
     var path: [Destination] = []
     var resetId = UUID()
 
@@ -250,7 +250,7 @@ extension Container {
   // MARK: - Podcasts
 
   @MainActor @Observable
-  class Podcasts: NavigationPathManager {
+  class Podcasts: ManagingNavigationPaths {
     var path: [Destination] = []
     var resetId = UUID()
 

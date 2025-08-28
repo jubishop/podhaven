@@ -3,8 +3,8 @@
 import SwiftUI
 
 @MainActor
-struct QueueableSelectableEpisodesToolbarItems<
-  ViewModel: QueueableSelectableListModel,
+struct SelectableEpisodesToolbarItems<
+  ViewModel: SelectableEpisodeListModel,
   EpisodeList: SelectableList
 > {
   let viewModel: Binding<ViewModel>
@@ -31,7 +31,7 @@ struct QueueableSelectableEpisodesToolbarItems<
 
     if viewModel.wrappedValue.isSelecting, episodeList.wrappedValue.anySelected {
       ToolbarItem(placement: .topBarTrailing) {
-        QueueableSelectableListMenu(list: viewModel.wrappedValue)
+        SelectableEpisodeListMenu(list: viewModel.wrappedValue)
       }
     }
 
@@ -51,19 +51,19 @@ struct QueueableSelectableEpisodesToolbarItems<
   }
 }
 
-// Convenience function to create toolbar content
 @MainActor
-func queueableSelectableEpisodesToolbarItems<
-  ViewModel: QueueableSelectableListModel,
+func selectableEpisodesToolbarItems<
+  ViewModel: SelectableEpisodeListModel,
   EpisodeList: SelectableList
 >(
   viewModel: Binding<ViewModel>,
   episodeList: Binding<EpisodeList>,
   selectText: String = "Select"
 ) -> some ToolbarContent {
-  QueueableSelectableEpisodesToolbarItems(
+  SelectableEpisodesToolbarItems(
     viewModel: viewModel,
     episodeList: episodeList,
     selectText: selectText
-  ).content
+  )
+  .content
 }

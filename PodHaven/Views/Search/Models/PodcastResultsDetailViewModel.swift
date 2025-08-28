@@ -9,8 +9,8 @@ import SwiftUI
 @Observable @MainActor
 class PodcastResultsDetailViewModel:
   PodcastDetailViewableModel,
-  PodcastQueueableModel,
-  QueueableSelectableListModel
+  PodcastingModel,
+  SelectableEpisodeListModel
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -40,7 +40,7 @@ class PodcastResultsDetailViewModel:
   private var existingPodcastSeries: PodcastSeries?
   private var podcastFeed: PodcastFeed?
 
-  // MARK: - QueueableSelectableListModel
+  // MARK: - SelectableEpisodeListModel
 
   var episodeList = SelectableListUseCase<UnsavedPodcastEpisode, GUID>(
     idKeyPath: \.unsavedEpisode.guid
@@ -106,7 +106,7 @@ class PodcastResultsDetailViewModel:
     }
   }
 
-  // MARK: - PodcastQueueableModel
+  // MARK: - PodcastingModel
 
   func getPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws
     -> PodcastEpisode

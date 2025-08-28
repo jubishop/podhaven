@@ -24,8 +24,8 @@ enum EpisodeFilterMethod: String, CaseIterable {
 
 @MainActor
 protocol PodcastDetailViewableModel:
-  EpisodeQueueable,
-  QueueableSelectableListModel
+  ManagingEpisodes,
+  SelectableEpisodeListModel
 where EpisodeType: EpisodeDisplayable {
   associatedtype NavigationDestination: Hashable
 

@@ -5,7 +5,7 @@ import Foundation
 import IdentifiedCollections
 import Logging
 
-@MainActor protocol QueueableSelectableListModel: AnyObject, QueueableSelectableList {
+@MainActor protocol SelectableEpisodeListModel: AnyObject, SelectableEpisodeList {
   associatedtype EpisodeType: Searchable
   associatedtype EpisodeID: Hashable
 
@@ -18,7 +18,7 @@ import Logging
   var selectedPodcastEpisodeIDs: [Episode.ID] { get async throws }
 }
 
-extension QueueableSelectableListModel {
+extension SelectableEpisodeListModel {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }
@@ -100,6 +100,6 @@ extension QueueableSelectableListModel {
   }
 }
 
-extension QueueableSelectableListModel where EpisodeType == PodcastEpisode {
+extension SelectableEpisodeListModel where EpisodeType == PodcastEpisode {
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws { selectedEpisodes } }
 }

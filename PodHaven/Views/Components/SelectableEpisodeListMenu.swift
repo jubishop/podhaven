@@ -2,10 +2,10 @@
 
 import SwiftUI
 
-struct QueueableSelectableListMenu: View {
-  private let list: QueueableSelectableList
+struct SelectableEpisodeListMenu: View {
+  private let list: SelectableEpisodeList
 
-  init(list: QueueableSelectableList) {
+  init(list: SelectableEpisodeList) {
     self.list = list
   }
 
@@ -37,6 +37,6 @@ struct QueueableSelectableListMenu: View {
 
 #if DEBUG
 #Preview {
-  QueueableSelectableListMenu(list: StubQueueableSelectableList())
+  SelectableEpisodeListMenu(list: StubSelectableEpisodeList())
 }
 #endif

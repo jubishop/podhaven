@@ -2,11 +2,11 @@
 
 import SwiftUI
 
-/// A NavigationStack wrapper that automatically resets when the NavigationPathManager is cleared.
+/// A NavigationStack wrapper that automatically resets when the ManagingNavigationPaths is cleared.
 /// This ensures that when navigation paths are cleared, the NavigationStack
 /// properly resets to its root state without retaining stale navigation state.
 struct IdentifiableNavigationStack<Manager, Content>: View 
-where Manager: NavigationPathManager, Content: View {
+where Manager: ManagingNavigationPaths, Content: View {
   @Bindable var manager: Manager
   let content: () -> Content
   
