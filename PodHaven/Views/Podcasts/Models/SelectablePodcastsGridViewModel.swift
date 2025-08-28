@@ -43,6 +43,7 @@ import SwiftUI
     case byMostRecentUnqueued = "Most Recent Unqueued"
     case byMostRecentlySubscribed = "Most Recently Subscribed"
   }
+  let allSortMethods = SortMethod.allCases
 
   private static func sortMethod(for sortMethod: SortMethod) -> (
     PodcastWithLatestEpisodeDates, PodcastWithLatestEpisodeDates

@@ -122,11 +122,8 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
 
   private var episodeListView: some View {
     VStack {
-      EpisodeFilterView(
-        entryFilter: $viewModel.episodeList.entryFilter,
-        currentFilterMethod: $viewModel.currentFilterMethod
-      )
-      .padding(.horizontal)
+      episodeFilterView
+        .padding(.horizontal)
 
       if viewModel.subscribable {
         if !viewModel.episodeList.filteredEntries.isEmpty {
@@ -137,6 +134,37 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
       } else {
         loadingEpisodesMessage
       }
+    }
+  }
+
+  private var episodeFilterView: some View {
+    VStack(spacing: 12) {
+      Divider()
+
+      HStack {
+        SearchBar(
+          text: $viewModel.episodeList.entryFilter,
+          placeholder: "Filter episodes",
+          imageName: AppLabel.filter.systemImageName
+        )
+
+        Menu(
+          content: {
+            ForEach(EpisodeFilterMethod.allCases, id: \.self) {
+              filterMethod in
+              Button(filterMethod.rawValue) {
+                viewModel.currentFilterMethod = filterMethod
+              }
+              .disabled(viewModel.currentFilterMethod == filterMethod)
+            }
+          },
+          label: {
+            AppLabel.filter.image
+          }
+        )
+      }
+
+      Divider()
     }
   }
 
@@ -277,63 +305,6 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
       Text(value)
         .font(.subheadline)
         .fontWeight(.medium)
-    }
-  }
-}
-
-// MARK: - EpisodeFilter
-
-enum EpisodeFilterMethod: String, CaseIterable {
-  case all = "All Episodes"
-  case unstarted = "Unstarted"
-  case unfinished = "Unfinished"
-  case unqueued = "Unqueued"
-
-  func filterMethod<T: EpisodeFilterable>(for type: T.Type) -> (T) -> Bool {
-    switch self {
-    case .all:
-      return { _ in true }
-    case .unstarted:
-      return { !$0.started }
-    case .unfinished:
-      return { !$0.completed }
-    case .unqueued:
-      return { !$0.queued }
-    }
-  }
-}
-
-struct EpisodeFilterView: View {
-  @Binding var entryFilter: String
-  @Binding var currentFilterMethod: EpisodeFilterMethod
-
-  var body: some View {
-    VStack(spacing: 12) {
-      Divider()
-
-      HStack {
-        SearchBar(
-          text: $entryFilter,
-          placeholder: "Filter episodes",
-          imageName: AppLabel.filter.systemImageName
-        )
-
-        Menu(
-          content: {
-            ForEach(EpisodeFilterMethod.allCases, id: \.self) { filterMethod in
-              Button(filterMethod.rawValue) {
-                currentFilterMethod = filterMethod
-              }
-              .disabled(currentFilterMethod == filterMethod)
-            }
-          },
-          label: {
-            AppLabel.filter.image
-          }
-        )
-      }
-
-      Divider()
     }
   }
 }

@@ -26,7 +26,7 @@ struct SelectablePodcastsGridView: View {
       )
 
       Menu("Sort by") {
-        ForEach(SelectablePodcastsGridViewModel.SortMethod.allCases, id: \.self) { method in
+        ForEach(viewModel.allSortMethods, id: \.self) { method in
           Button(method.rawValue) {
             viewModel.currentSortMethod = method
           }

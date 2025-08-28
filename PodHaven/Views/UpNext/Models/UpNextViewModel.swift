@@ -32,6 +32,7 @@ import SwiftUI
     case newestFirst = "Newest First"
     case mostCompleted = "Most Completed"
   }
+  let allSortMethods = SortMethod.allCases
 
   private static func sortMethod(for sortMethod: SortMethod) -> (
     PodcastEpisode, PodcastEpisode

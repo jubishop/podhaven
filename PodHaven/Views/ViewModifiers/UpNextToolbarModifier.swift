@@ -40,7 +40,7 @@ struct UpNextToolbarModifier: ViewModifier {
 
           ToolbarItem(placement: .topBarTrailing) {
             Menu("Sort") {
-              ForEach(UpNextViewModel.SortMethod.allCases, id: \.self) { method in
+              ForEach(viewModel.allSortMethods, id: \.self) { method in
                 Button(method.rawValue) {
                   viewModel.sort(by: method)
                 }

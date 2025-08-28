@@ -2,6 +2,26 @@
 
 import Foundation
 
+enum EpisodeFilterMethod: String, CaseIterable {
+  case all = "All Episodes"
+  case unstarted = "Unstarted"
+  case unfinished = "Unfinished"
+  case unqueued = "Unqueued"
+
+  func filterMethod<T: EpisodeFilterable>(for type: T.Type) -> (T) -> Bool {
+    switch self {
+    case .all:
+      return { _ in true }
+    case .unstarted:
+      return { !$0.started }
+    case .unfinished:
+      return { !$0.completed }
+    case .unqueued:
+      return { !$0.queued }
+    }
+  }
+}
+
 @MainActor
 protocol PodcastDetailViewableModel:
   EpisodeQueueable,
