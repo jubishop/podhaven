@@ -17,10 +17,16 @@ extension Container {
 actor RefreshManager {
   @LazyInjected(\.feedManager) var feedManager
   @DynamicInjected(\.notifications) private var notifications
-  @DynamicInjected(\.repo) private var repo
+  @DynamicInjected(\.repo) private var uiRepo
+  @DynamicInjected(\.backgroundRepo) private var backgroundRepo
   @DynamicInjected(\.sleeper) private var sleeper
 
   private static let log = Log.as(LogSubsystem.Feed.refreshManager)
+
+  enum RefreshPriority {
+    case ui
+    case background
+  }
 
   // MARK: - State Management
 
@@ -47,17 +53,21 @@ actor RefreshManager {
 
   // MARK: - Refresh Management
 
-  func performRefresh(stalenessThreshold: Date, filter: SQLExpression = AppDB.NoOp)
-    async throws(RefreshError)
-  {
+  func performRefresh(
+    stalenessThreshold: Date,
+    filter: SQLExpression = AppDB.NoOp,
+    priority: RefreshPriority = .ui
+  ) async throws(RefreshError) {
     Self.log.debug(
       """
       performRefresh:
         stalenessThreshold: \(stalenessThreshold)
         filter: \(filter)
+        priority: \(priority)
       """
     )
 
+    let repo = priority == .ui ? uiRepo : backgroundRepo
     try await RefreshError.catch {
       try await withThrowingDiscardingTaskGroup { group in
         let allStaleSubscribedPodcastSeries = try await repo.allPodcastSeries(
@@ -71,7 +81,7 @@ actor RefreshManager {
           group.addTask { [weak self] in
             guard let self else { return }
             do {
-              try await refreshSeries(podcastSeries: podcastSeries)
+              try await refreshSeries(podcastSeries: podcastSeries, priority: priority)
             } catch {
               Self.log.error(error, mundane: .trace)
             }
@@ -84,8 +94,16 @@ actor RefreshManager {
   }
 
   @discardableResult
-  func refreshSeries(podcastSeries: PodcastSeries) async throws(RefreshError) -> Bool {
-    Self.log.trace("refreshSeries: \(podcastSeries.toString)")
+  func refreshSeries(podcastSeries: PodcastSeries, priority: RefreshPriority = .ui)
+    async throws(RefreshError) -> Bool
+  {
+    Self.log.trace(
+      """
+      refreshSeries: 
+        podcastSeries: \(podcastSeries.toString)
+        priority: \(priority)
+      """
+    )
 
     if await feedManager.hasURL(podcastSeries.podcast.feedURL) {
       Self.log.debug("refreshSeries: URL for \(podcastSeries.toString) already being fetched")
@@ -99,18 +117,25 @@ actor RefreshManager {
     } catch {
       throw RefreshError.parseFailure(podcastSeries: podcastSeries, caught: error)
     }
-    try await updateSeriesFromFeed(podcastSeries: podcastSeries, podcastFeed: podcastFeed)
+    try await updateSeriesFromFeed(
+      podcastSeries: podcastSeries,
+      podcastFeed: podcastFeed,
+      priority: priority
+    )
     return true
   }
 
-  func updateSeriesFromFeed(podcastSeries: PodcastSeries, podcastFeed: PodcastFeed)
-    async throws(RefreshError)
-  {
+  func updateSeriesFromFeed(
+    podcastSeries: PodcastSeries,
+    podcastFeed: PodcastFeed,
+    priority: RefreshPriority = .ui
+  ) async throws(RefreshError) {
     Self.log.trace(
       """
       updateSeriesFromFeed
         podcastSeries: \(podcastSeries.toString)
         podcastFeed: \(podcastFeed.toString)
+        priority: \(priority)
       """
     )
 
@@ -119,6 +144,7 @@ actor RefreshManager {
       id: \.media
     )
 
+    let repo = priority == .ui ? uiRepo : backgroundRepo
     try await RefreshError.catch {
       let newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(
         merging: podcastSeries.podcast.unsaved
@@ -178,9 +204,25 @@ actor RefreshManager {
           unsavedEpisodes: unsavedEpisodes,
           existingEpisodes: updatedEpisodes
         )
+
+        // Only bother notifying for significant changes
+        if priority == .background {
+          await notifyUIOfDatabaseChanges(podcastID: podcastSeries.id)
+        }
       } else {
         try await repo.updateLastUpdate(podcastSeries.id)
       }
+    }
+  }
+
+  // MARK: - Database Bridge
+
+  private func notifyUIOfDatabaseChanges(podcastID: Podcast.ID) async {
+    do {
+      try await uiRepo.notifyChanges(for: podcastID)
+      Self.log.trace("Notified UI database of changes for podcast \(podcastID)")
+    } catch {
+      Self.log.error(error)
     }
   }
 
@@ -201,7 +243,8 @@ actor RefreshManager {
           Self.log.debug("backgroundRefreshTask: performing refresh")
           try await performRefresh(
             stalenessThreshold: 10.minutesAgo,
-            filter: Podcast.subscribed
+            filter: Podcast.subscribed,
+            priority: .background
           )
         } catch {
           Self.log.error(error)

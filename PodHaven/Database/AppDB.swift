@@ -9,6 +9,10 @@ extension Container {
   internal var appDB: Factory<AppDB> {
     Factory(self) { AppDB._onDisk }.scope(.cached)
   }
+
+  internal var backgroundAppDB: Factory<AppDB> {
+    Factory(self) { AppDB._onDiskBackground }.scope(.cached)
+  }
 }
 
 struct AppDB {
@@ -26,6 +30,9 @@ struct AppDB {
   }
   #endif
 
+  private static let sqlitePath: String =
+    AppInfo.documentsDirectory.appendingPathComponent("db.sqlite").path
+
   fileprivate static let _onDisk = {
     Self.log.debug("creating onDisk AppDB")
     do {
@@ -33,13 +40,29 @@ struct AppDB {
         AppInfo.environment != .preview,
         "Creating onDisk AppDB in preview is not supported"
       )
-      let dbPool = try DatabasePool(
-        path: AppInfo.documentsDirectory.appendingPathComponent("db.sqlite").path,
-        configuration: makeConfiguration()
-      )
+      let dbPool = try DatabasePool(path: sqlitePath, configuration: makeConfiguration())
       return try AppDB(dbPool)
     } catch {
       Assert.fatal("Failed to initialize onDisk AppDB pool: \(ErrorKit.message(for: error))")
+    }
+  }()
+
+  fileprivate static let _onDiskBackground = {
+    Self.log.debug("creating onDiskBackground AppDB")
+    do {
+      Assert.precondition(
+        AppInfo.environment != .preview,
+        "Creating onDiskBackground AppDB in preview is not supported"
+      )
+      let dbPool = try DatabasePool(
+        path: sqlitePath,
+        configuration: makeConfiguration(qos: .background)
+      )
+      return try AppDB(dbPool)
+    } catch {
+      Assert.fatal(
+        "Failed to initialize onDiskBackground AppDB pool: \(ErrorKit.message(for: error))"
+      )
     }
   }()
 
@@ -65,8 +88,9 @@ struct AppDB {
 
   // MARK: - Private Static Helpers
 
-  private static func makeConfiguration() -> Configuration {
+  private static func makeConfiguration(qos: DispatchQoS? = nil) -> Configuration {
     var config = Configuration()
+    if let qos = qos { config.qos = qos }
 
     #if DEBUG
     config.publicStatementArguments = true
