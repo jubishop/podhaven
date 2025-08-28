@@ -15,11 +15,11 @@ struct EpisodeSearchView: View {
       case .loading:
         loadingStateView
 
-      case .loaded(let unsavedPodcastEpisodes):
-        if unsavedPodcastEpisodes.isEmpty {
+      case .loaded:
+        if viewModel.podcastEpisodes.isEmpty {
           emptyResultsView
         } else {
-          episodeResultsList(unsavedPodcastEpisodes)
+          episodeResultsList
         }
 
       case .error(let message):
@@ -75,28 +75,28 @@ struct EpisodeSearchView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
-  func episodeResultsList(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode]) -> some View {
-    List(unsavedPodcastEpisodes) { unsavedPodcastEpisode in
+  var episodeResultsList: some View {
+    List(viewModel.podcastEpisodes, id: \.mediaURL) { episode in
       NavigationLink(
         value: Navigation.Search.Destination.searchedPodcastEpisode(
           SearchedPodcastEpisode(
             searchedText: viewModel.searchText,
-            unsavedPodcastEpisode: unsavedPodcastEpisode
+            episode: episode
           )
         ),
         label: {
           EpisodeListView(
             viewModel: SelectableListItemModel(
               isSelected: .constant(false),
-              item: unsavedPodcastEpisode,
+              item: episode,
               isSelecting: false
             )
           )
         }
       )
       .episodeListRow()
-      .episodeSwipeActions(viewModel: viewModel, episode: unsavedPodcastEpisode)
-      .episodeContextMenu(viewModel: viewModel, episode: unsavedPodcastEpisode)
+      .episodeSwipeActions(viewModel: viewModel, episode: episode)
+      .episodeContextMenu(viewModel: viewModel, episode: episode)
     }
   }
 

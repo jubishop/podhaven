@@ -163,7 +163,7 @@ class PodcastResultsDetailViewModel:
     .searchedPodcastEpisode(
       SearchedPodcastEpisode(
         searchedText: searchedText,
-        unsavedPodcastEpisode: episode
+        episode: episode
       )
     )
   }

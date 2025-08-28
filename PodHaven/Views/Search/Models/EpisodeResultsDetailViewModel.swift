@@ -19,7 +19,7 @@ import Logging
   // MARK: - State Management
 
   private let searchedText: String
-  private let unsavedPodcastEpisode: UnsavedPodcastEpisode
+  private let episode: any EpisodeDisplayable
 
   internal var maxQueuePosition: Int? = nil
   private var podcastEpisode: PodcastEpisode?
@@ -28,7 +28,7 @@ import Logging
 
   init(searchedPodcastEpisode: SearchedPodcastEpisode) {
     self.searchedText = searchedPodcastEpisode.searchedText
-    self.unsavedPodcastEpisode = searchedPodcastEpisode.unsavedPodcastEpisode
+    self.episode = searchedPodcastEpisode.episode
   }
 
   func execute() async {
@@ -51,7 +51,7 @@ import Logging
       group.addTask { @MainActor @Sendable in
         do {
           for try await podcastEpisode in self.observatory.podcastEpisode(
-            self.unsavedPodcastEpisode.unsavedEpisode.media
+            self.episode.mediaURL
           ) {
             try Task.checkCancellation()
             Self.log.debug(
@@ -74,17 +74,25 @@ import Logging
   func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
-    let podcastEpisode = try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
+    let podcastEpisode: PodcastEpisode
+    if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
+      podcastEpisode = try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
+    } else if let existingPodcastEpisode = episode as? PodcastEpisode {
+      podcastEpisode = existingPodcastEpisode
+    } else {
+      Assert.fatal("Unsupported episode type: \(type(of: episode))")
+    }
+
     self.podcastEpisode = podcastEpisode
     return podcastEpisode
   }
 
-  var episodeTitle: String { unsavedPodcastEpisode.unsavedEpisode.title }
-  var episodePubDate: Date { unsavedPodcastEpisode.unsavedEpisode.pubDate }
-  var episodeDuration: CMTime { unsavedPodcastEpisode.unsavedEpisode.duration }
-  var episodeCached: Bool { unsavedPodcastEpisode.unsavedEpisode.cached }
-  var episodeImage: URL { unsavedPodcastEpisode.image }
-  var episodeDescription: String? { unsavedPodcastEpisode.unsavedEpisode.description }
-  var podcastTitle: String { unsavedPodcastEpisode.unsavedPodcast.title }
+  var episodeTitle: String { episode.title }
+  var episodePubDate: Date { episode.pubDate }
+  var episodeDuration: CMTime { episode.duration }
+  var episodeCached: Bool { episode.cached }
+  var episodeImage: URL { episode.image }
+  var episodeDescription: String? { episode.description }
+  var podcastTitle: String { episode.podcastTitle }
 
 }

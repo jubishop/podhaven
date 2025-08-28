@@ -2,19 +2,13 @@
 
 import FactoryKit
 import Foundation
+import IdentifiedCollections
 import SwiftUI
-
-// MARK: - Search State
-
-enum EpisodeSearchState {
-  case idle
-  case loading
-  case loaded([UnsavedPodcastEpisode])
-  case error(String)
-}
 
 @Observable @MainActor
 final class EpisodeSearchViewModel: PodcastingModel {
+  typealias EpisodeType = any EpisodeDisplayable
+
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
@@ -25,6 +19,16 @@ final class EpisodeSearchViewModel: PodcastingModel {
   // MARK: - State Management
 
   @ObservationIgnored private var searchTask: Task<Void, Never>?
+
+  var podcastEpisodes: IdentifiedArray<MediaURL, any EpisodeDisplayable> =
+    IdentifiedArray(id: \.mediaURL)
+
+  enum EpisodeSearchState {
+    case idle
+    case loading
+    case loaded
+    case error(String)
+  }
   var state: EpisodeSearchState = .idle
 
   var searchText = "" {
@@ -37,8 +41,14 @@ final class EpisodeSearchViewModel: PodcastingModel {
 
   // MARK: - PodcastingModel
 
-  func getPodcastEpisode(_ episode: UnsavedPodcastEpisode) async throws -> PodcastEpisode {
-    try await repo.upsertPodcastEpisode(episode)
+  func getPodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
+    if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
+      return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
+    } else if let podcastEpisode = episode as? PodcastEpisode {
+      return podcastEpisode
+    } else {
+      Assert.fatal("Unsupported episode type: \(type(of: episode))")
+    }
   }
 
   // MARK: - Searching
@@ -75,7 +85,11 @@ final class EpisodeSearchViewModel: PodcastingModel {
       let unsavedPodcastEpisodes = try await performSearch(with: trimmedText)
       guard !Task.isCancelled else { return }
 
-      state = .loaded(unsavedPodcastEpisodes)
+      podcastEpisodes = IdentifiedArray(
+        uniqueElements: unsavedPodcastEpisodes.map { $0 as any EpisodeDisplayable },
+        id: \.mediaURL
+      )
+      state = .loaded
     } catch {
       guard !Task.isCancelled else { return }
 
@@ -84,9 +98,11 @@ final class EpisodeSearchViewModel: PodcastingModel {
     }
   }
 
-  func performSearch(with searchText: String) async throws -> [UnsavedPodcastEpisode] {
+  func performSearch(with searchText: String) async throws -> IdentifiedArray<
+    MediaURL, UnsavedPodcastEpisode
+  > {
     let result = try await searchService.searchByPerson(searchText)
-    return Array(result.toPodcastEpisodeArray())
+    return result.toPodcastEpisodeArray()
   }
 
   // MARK: - Cleanup

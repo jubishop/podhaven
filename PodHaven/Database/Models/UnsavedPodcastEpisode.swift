@@ -31,6 +31,7 @@ struct UnsavedPodcastEpisode:
 
   // MARK: - EpisodeDisplayable / EpisodeFilterable
 
+  var mediaURL: MediaURL { unsavedEpisode.media }
   var title: String { unsavedEpisode.title }
   var pubDate: Date { unsavedEpisode.pubDate }
   var duration: CMTime { unsavedEpisode.duration }
@@ -38,4 +39,6 @@ struct UnsavedPodcastEpisode:
   var started: Bool { unsavedEpisode.started }
   var completed: Bool { unsavedEpisode.completed }
   var queued: Bool { unsavedEpisode.queued }
+  var description: String? { unsavedEpisode.description }
+  var podcastTitle: String { unsavedPodcast.title }
 }

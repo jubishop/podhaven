@@ -3,7 +3,7 @@
 import Foundation
 import SwiftUI
 
-@Observable @MainActor class SelectableListItemModel<Item: Hashable> {
+@Observable @MainActor class SelectableListItemModel<Item: Any> {
   let isSelected: Binding<Bool>
   let item: Item
   let isSelecting: Bool

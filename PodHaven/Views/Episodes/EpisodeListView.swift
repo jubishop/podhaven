@@ -3,10 +3,10 @@
 import NukeUI
 import SwiftUI
 
-struct EpisodeListView<EpisodeType: EpisodeDisplayable>: View {
-  private let viewModel: SelectableListItemModel<EpisodeType>
+struct EpisodeListView: View {
+  private let viewModel: SelectableListItemModel<any EpisodeDisplayable>
 
-  init(viewModel: SelectableListItemModel<EpisodeType>) {
+  init(viewModel: SelectableListItemModel<any EpisodeDisplayable>) {
     self.viewModel = viewModel
   }
 

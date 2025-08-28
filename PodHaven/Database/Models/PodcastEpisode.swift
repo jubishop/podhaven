@@ -40,6 +40,7 @@ struct PodcastEpisode:
 
   // MARK: - EpisodeDisplayable // EpisodeFilterable
 
+  var mediaURL: MediaURL { episode.media }
   var title: String { episode.title }
   var pubDate: Date { episode.pubDate }
   var duration: CMTime { episode.duration }
@@ -47,4 +48,6 @@ struct PodcastEpisode:
   var started: Bool { episode.started }
   var completed: Bool { episode.completed }
   var queued: Bool { episode.queued }
+  var description: String? { episode.description }
+  var podcastTitle: String { podcast.title }
 }
