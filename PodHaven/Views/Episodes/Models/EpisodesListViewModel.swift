@@ -8,7 +8,7 @@ import SwiftUI
 
 @Observable @MainActor
 class EpisodesListViewModel:
-  PodcastingModel,
+  ManagingEpisodesModel,
   SelectableEpisodeListModel
 {
   private static let log = Log.as(LogSubsystem.EpisodesView.standard)

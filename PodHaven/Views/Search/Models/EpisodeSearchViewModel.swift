@@ -6,7 +6,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-final class EpisodeSearchViewModel: PodcastingModel {
+final class EpisodeSearchViewModel: ManagingEpisodesModel {
   typealias EpisodeType = any EpisodeDisplayable
 
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
@@ -41,7 +41,7 @@ final class EpisodeSearchViewModel: PodcastingModel {
     }
   }
 
-  // MARK: - PodcastingModel
+  // MARK: - ManagingEpisodesModel
 
   func getPodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
     if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {

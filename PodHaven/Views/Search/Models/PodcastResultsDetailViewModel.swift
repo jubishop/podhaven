@@ -9,7 +9,7 @@ import SwiftUI
 @Observable @MainActor
 class PodcastResultsDetailViewModel:
   PodcastDetailViewableModel,
-  PodcastingModel,
+  ManagingEpisodesModel,
   SelectableEpisodeListModel
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
@@ -106,7 +106,7 @@ class PodcastResultsDetailViewModel:
     }
   }
 
-  // MARK: - PodcastingModel
+  // MARK: - ManagingEpisodesModel
 
   func getPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws
     -> PodcastEpisode

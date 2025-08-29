@@ -4,14 +4,14 @@ import FactoryKit
 import Foundation
 import Logging
 
-@MainActor protocol PodcastingModel: AnyObject, ManagingEpisodes {
+@MainActor protocol ManagingEpisodesModel: AnyObject, ManagingEpisodes {
   associatedtype EpisodeType
 
   func getPodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode
   func getEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID
 }
 
-extension PodcastingModel {
+extension ManagingEpisodesModel {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }
@@ -60,11 +60,11 @@ extension PodcastingModel {
   }
 }
 
-extension PodcastingModel where EpisodeType == PodcastEpisode {
+extension ManagingEpisodesModel where EpisodeType == PodcastEpisode {
   func getPodcastEpisode(_ episode: PodcastEpisode) async throws -> PodcastEpisode { episode }
 }
 
-extension PodcastingModel {
+extension ManagingEpisodesModel {
   func getEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID {
     try await getPodcastEpisode(episode).id
   }
