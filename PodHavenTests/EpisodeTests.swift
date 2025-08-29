@@ -483,9 +483,8 @@ class EpisodeTests {
         unsavedEpisode: unsavedEpisode
       )
     )
-    let creationDate = insertedPodcastEpisode.podcast.creationDate
 
-    try await Task.sleep(for: Duration.seconds(1))
+    let creationDate = insertedPodcastEpisode.podcast.creationDate
     let matchingPodcast = try Create.unsavedPodcast(feedURL: unsavedPodcast.feedURL)
     let matchingEpisode = try Create.unsavedEpisode(media: unsavedEpisode.media)
 

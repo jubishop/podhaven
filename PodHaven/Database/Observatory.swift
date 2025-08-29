@@ -53,6 +53,18 @@ struct Observatory {
     }
   }
 
+  func podcastEpisodesByMediaURLs(
+    _ mediaURLs: [MediaURL],
+    order: SQLOrdering = Episode.Columns.pubDate.desc,
+    limit: Int = Int.max
+  ) -> AsyncValueObservation<[PodcastEpisode]> {
+    podcastEpisodes(
+      filter: mediaURLs.contains(Episode.Columns.media),
+      order: order,
+      limit: limit
+    )
+  }
+
   func queuedPodcastEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
     podcastEpisodes(
       filter: Episode.queued,

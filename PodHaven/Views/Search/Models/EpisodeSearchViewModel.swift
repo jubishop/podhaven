@@ -10,6 +10,7 @@ final class EpisodeSearchViewModel: PodcastingModel {
   typealias EpisodeType = any EpisodeDisplayable
 
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
@@ -19,6 +20,7 @@ final class EpisodeSearchViewModel: PodcastingModel {
   // MARK: - State Management
 
   @ObservationIgnored private var searchTask: Task<Void, Never>?
+  @ObservationIgnored private var observationTask: Task<Void, Never>?
 
   var podcastEpisodes: IdentifiedArray<MediaURL, any EpisodeDisplayable> =
     IdentifiedArray(id: \.mediaURL)
@@ -57,6 +59,7 @@ final class EpisodeSearchViewModel: PodcastingModel {
 
   func scheduleSearch() {
     searchTask?.cancel()
+    observationTask?.cancel()
 
     if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       state = .idle
@@ -90,6 +93,7 @@ final class EpisodeSearchViewModel: PodcastingModel {
         id: \.mediaURL
       )
       state = .loaded
+      startObservingEpisodes()
     } catch {
       guard !Task.isCancelled else { return }
 
@@ -105,9 +109,37 @@ final class EpisodeSearchViewModel: PodcastingModel {
     return result.toPodcastEpisodeArray()
   }
 
+  // MARK: - Episode Observation
+
+  private func startObservingEpisodes() {
+    // Cancel any existing observation task
+    observationTask?.cancel()
+
+    // Get the current mediaURLs to observe
+    let mediaURLs = Array(podcastEpisodes.ids)
+
+    observationTask = Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        for try await databaseEpisodes in self.observatory.podcastEpisodesByMediaURLs(mediaURLs) {
+          try Task.checkCancellation()
+
+          // Swap out any episodes that exist in the database
+          for databaseEpisode in databaseEpisodes {
+            self.podcastEpisodes[id: databaseEpisode.mediaURL] = databaseEpisode
+          }
+        }
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
+
   // MARK: - Cleanup
 
   deinit {
     searchTask?.cancel()
+    observationTask?.cancel()
   }
 }

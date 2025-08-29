@@ -200,4 +200,209 @@ actor ObservatoryTests {
     maxPosition = try await observatory.maxQueuePosition().get()
     #expect(maxPosition == 2)
   }
+
+  @Test("podcastEpisodesByMediaURLs() with empty array")
+  func testPodcastEpisodesByMediaURLsEmpty() async throws {
+    // Test with empty array
+    let episodes = try await observatory.podcastEpisodesByMediaURLs([]).get()
+    #expect(episodes.isEmpty)
+  }
+
+  @Test("podcastEpisodesByMediaURLs() with non-existing episodes")
+  func testPodcastEpisodesByMediaURLsNonExisting() async throws {
+    // Test with media URLs that don't exist in database
+    let nonExistentMediaURLs = [
+      MediaURL(URL.valid()),
+      MediaURL(URL.valid()),
+      MediaURL(URL.valid()),
+    ]
+
+    let episodes = try await observatory.podcastEpisodesByMediaURLs(nonExistentMediaURLs).get()
+    #expect(episodes.isEmpty)
+  }
+
+  @Test("podcastEpisodesByMediaURLs() with existing episodes")
+  func testPodcastEpisodesByMediaURLsExisting() async throws {
+    // Create test episodes with specific media URLs
+    let mediaURL1 = MediaURL(URL.valid())
+    let mediaURL2 = MediaURL(URL.valid())
+    let mediaURL3 = MediaURL(URL.valid())
+
+    let unsavedPodcast = try Create.unsavedPodcast()
+    try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [
+        Create.unsavedEpisode(guid: "episode1", media: mediaURL1, title: "Episode 1"),
+        Create.unsavedEpisode(guid: "episode2", media: mediaURL2, title: "Episode 2"),
+        Create.unsavedEpisode(guid: "episode3", media: mediaURL3, title: "Episode 3"),
+        Create.unsavedEpisode(guid: "episode4", title: "Episode 4"),  // Different media URL
+      ]
+    )
+
+    // Test querying for specific episodes
+    let episodes =
+      try await observatory.podcastEpisodesByMediaURLs(
+        [mediaURL1, mediaURL2]
+      )
+      .get()
+
+    #expect(episodes.count == 2)
+    let episodeTitles = Set(episodes.map(\.episode.title))
+    #expect(episodeTitles == Set(["Episode 1", "Episode 2"]))
+
+    // Verify the media URLs match
+    let returnedMediaURLs = Set(episodes.map(\.episode.media))
+    #expect(returnedMediaURLs == Set([mediaURL1, mediaURL2]))
+  }
+
+  @Test("podcastEpisodesByMediaURLs() with mixed existing and non-existing")
+  func testPodcastEpisodesByMediaURLsMixed() async throws {
+    // Create test episodes
+    let existingMediaURL1 = MediaURL(URL.valid())
+    let existingMediaURL2 = MediaURL(URL.valid())
+    let nonExistentMediaURL = MediaURL(URL.valid())
+
+    let unsavedPodcast = try Create.unsavedPodcast()
+    try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [
+        Create.unsavedEpisode(guid: "existing1", media: existingMediaURL1, title: "Existing 1"),
+        Create.unsavedEpisode(guid: "existing2", media: existingMediaURL2, title: "Existing 2"),
+      ]
+    )
+
+    // Query with mix of existing and non-existing media URLs
+    let episodes =
+      try await observatory.podcastEpisodesByMediaURLs(
+        [existingMediaURL1, nonExistentMediaURL, existingMediaURL2]
+      )
+      .get()
+
+    #expect(episodes.count == 2)
+    let episodeTitles = Set(episodes.map(\.episode.title))
+    #expect(episodeTitles == Set(["Existing 1", "Existing 2"]))
+  }
+
+  @Test("podcastEpisodesByMediaURLs() with custom order and limit")
+  func testPodcastEpisodesByMediaURLsOrderAndLimit() async throws {
+    // Create episodes with different pub dates
+    let mediaURL1 = MediaURL(URL.valid())
+    let mediaURL2 = MediaURL(URL.valid())
+    let mediaURL3 = MediaURL(URL.valid())
+
+    let unsavedPodcast = try Create.unsavedPodcast()
+    try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [
+        Create.unsavedEpisode(
+          guid: "newest",
+          media: mediaURL1,
+          title: "Newest Episode",
+          pubDate: 1.minutesAgo
+        ),
+        Create.unsavedEpisode(
+          guid: "oldest",
+          media: mediaURL2,
+          title: "Oldest Episode",
+          pubDate: 60.minutesAgo
+        ),
+        Create.unsavedEpisode(
+          guid: "middle",
+          media: mediaURL3,
+          title: "Middle Episode",
+          pubDate: 30.minutesAgo
+        ),
+      ]
+    )
+
+    // Test ascending order
+    let episodesAsc =
+      try await observatory.podcastEpisodesByMediaURLs(
+        [mediaURL1, mediaURL2, mediaURL3],
+        order: Episode.Columns.pubDate.asc
+      )
+      .get()
+
+    #expect(episodesAsc.count == 3)
+    #expect(
+      episodesAsc.map(\.episode.title) == ["Oldest Episode", "Middle Episode", "Newest Episode"]
+    )
+
+    // Test with limit
+    let episodesLimited =
+      try await observatory.podcastEpisodesByMediaURLs(
+        [mediaURL1, mediaURL2, mediaURL3],
+        order: Episode.Columns.pubDate.desc,
+        limit: 2
+      )
+      .get()
+
+    #expect(episodesLimited.count == 2)
+    #expect(episodesLimited.map(\.episode.title) == ["Newest Episode", "Middle Episode"])
+  }
+
+  @Test("podcastEpisodesByMediaURLs() AsyncSequence receives updates")
+  func testPodcastEpisodesByMediaURLsAsyncSequence() async throws {
+    let mediaURL1 = MediaURL(URL.valid())
+    let mediaURL2 = MediaURL(URL.valid())
+
+    let observedEpisodes = ActorArray<PodcastEpisode>()
+
+    // Start observing before any episodes exist
+    Task {
+      for try await episodes in observatory.podcastEpisodesByMediaURLs([mediaURL1, mediaURL2]) {
+        await observedEpisodes.setItems(episodes)
+      }
+    }
+
+    // Step 1: Wait for initial empty observation
+    try await observedEpisodes.waitForEquals([])
+
+    // Step 2: Insert first episode (newer)
+    let unsavedPodcast1 = try Create.unsavedPodcast()
+    let series1 = try await repo.insertSeries(
+      unsavedPodcast1,
+      unsavedEpisodes: [
+        Create.unsavedEpisode(
+          guid: "episode1",
+          media: mediaURL1,
+          title: "Episode 1",
+          pubDate: 1.minutesAgo
+        )
+      ]
+    )
+    let episode1 = PodcastEpisode(podcast: series1.podcast, episode: series1.episodes[0])
+
+    // Wait for observation with first episode
+    try await observedEpisodes.waitForEquals([episode1])
+
+    // Step 3: Insert second episode (older)
+    let unsavedPodcast2 = try Create.unsavedPodcast()
+    let series2 = try await repo.insertSeries(
+      unsavedPodcast2,
+      unsavedEpisodes: [
+        Create.unsavedEpisode(
+          guid: "episode2",
+          media: mediaURL2,
+          title: "Episode 2",
+          pubDate: 10.minutesAgo
+        )
+      ]
+    )
+    let episode2 = PodcastEpisode(podcast: series2.podcast, episode: series2.episodes[0])
+
+    // Wait for observation with both episodes (ordered by pubDate desc by default)
+    // Episode 1 should come first since it's newer
+    try await observedEpisodes.waitForEquals([episode1, episode2])
+
+    // Step 4: Insert episode with different media URL (should not trigger update)
+    let unsavedPodcast3 = try Create.unsavedPodcast()
+    try await repo.insertSeries(
+      unsavedPodcast3,
+      unsavedEpisodes: [Create.unsavedEpisode(title: "Episode 3 - Different Media")]
+    )
+
+    // Should still have only 2 podcastEpisodes (no new update for unrelated episode)
+    try await observedEpisodes.waitForEquals([episode1, episode2])
+  }
 }
