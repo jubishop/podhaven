@@ -29,3 +29,39 @@ actor ActorContainer<T: Sendable & Equatable> {
     )
   }
 }
+
+// MARK: - Collection Extensions
+
+extension ActorContainer where T: Collection {
+  func count() -> Int {
+    item?.count ?? 0
+  }
+
+  func contains(_ element: T.Element) -> Bool where T.Element: Equatable {
+    item?.contains(element) ?? false
+  }
+
+  func waitForContains(item element: T.Element) async throws where T.Element: Equatable & Sendable {
+    try await Wait.until(
+      { await self.contains(element) },
+      { "Expected to contain \(element)" }
+    )
+  }
+
+  func waitForCount(_ expectedCount: Int) async throws {
+    try await Wait.until(
+      { await self.count() >= expectedCount },
+      { "Expected count \(expectedCount), but got \(await self.count())" }
+    )
+  }
+}
+
+// MARK: - RangeReplaceableCollection Extensions
+
+extension ActorContainer where T: RangeReplaceableCollection {
+  func append(_ element: T.Element) {
+    var collection = item ?? T()
+    collection.append(element)
+    item = collection
+  }
+}

@@ -346,17 +346,17 @@ actor ObservatoryTests {
     let mediaURL1 = MediaURL(URL.valid())
     let mediaURL2 = MediaURL(URL.valid())
 
-    let observedEpisodes = ActorArray<PodcastEpisode>()
+    let observedEpisodes = ActorContainer<[PodcastEpisode]>()
 
     // Start observing before any episodes exist
     Task {
       for try await episodes in observatory.podcastEpisodesByMediaURLs([mediaURL1, mediaURL2]) {
-        await observedEpisodes.setItems(episodes)
+        await observedEpisodes.set(episodes)
       }
     }
 
     // Step 1: Wait for initial empty observation
-    try await observedEpisodes.waitForEquals([])
+    try await observedEpisodes.waitForEqual(to: [])
 
     // Step 2: Insert first episode (newer)
     let unsavedPodcast1 = try Create.unsavedPodcast()
@@ -374,7 +374,7 @@ actor ObservatoryTests {
     let episode1 = PodcastEpisode(podcast: series1.podcast, episode: series1.episodes[0])
 
     // Wait for observation with first episode
-    try await observedEpisodes.waitForEquals([episode1])
+    try await observedEpisodes.waitForEqual(to: [episode1])
 
     // Step 3: Insert second episode (older)
     let unsavedPodcast2 = try Create.unsavedPodcast()
@@ -393,7 +393,7 @@ actor ObservatoryTests {
 
     // Wait for observation with both episodes (ordered by pubDate desc by default)
     // Episode 1 should come first since it's newer
-    try await observedEpisodes.waitForEquals([episode1, episode2])
+    try await observedEpisodes.waitForEqual(to: [episode1, episode2])
 
     // Step 4: Insert episode with different media URL (should not trigger update)
     let unsavedPodcast3 = try Create.unsavedPodcast()
@@ -403,6 +403,6 @@ actor ObservatoryTests {
     )
 
     // Should still have only 2 podcastEpisodes (no new update for unrelated episode)
-    try await observedEpisodes.waitForEquals([episode1, episode2])
+    try await observedEpisodes.waitForEqual(to: [episode1, episode2])
   }
 }
