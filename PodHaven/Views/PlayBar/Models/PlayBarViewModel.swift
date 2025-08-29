@@ -80,7 +80,7 @@ extension Container {
     else { return }
 
     sheet {
-      EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
+      EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: podcastEpisode))
     }
   }
 

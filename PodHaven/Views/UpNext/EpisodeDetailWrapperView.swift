@@ -8,6 +8,6 @@ struct EpisodeDetailWrapperView: View {
   let podcastEpisode: PodcastEpisode
 
   var body: some View {
-    EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
+    EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: podcastEpisode))
   }
 }

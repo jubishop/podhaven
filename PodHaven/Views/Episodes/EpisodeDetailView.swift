@@ -190,7 +190,7 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
   NavigationStack {
     Group {
       if let podcastEpisode {
-        EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
+        EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: podcastEpisode))
       } else {
         Text("No episodes in DB")
       }

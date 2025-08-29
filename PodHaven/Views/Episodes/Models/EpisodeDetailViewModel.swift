@@ -18,13 +18,14 @@ import Logging
 
   // MARK: - State Management
 
+  private let episode: any EpisodeDisplayable
+  private var podcastEpisode: PodcastEpisode?
   internal var maxQueuePosition: Int? = nil
-  private var podcastEpisode: PodcastEpisode
 
   // MARK: - Initialization
 
-  init(podcastEpisode: PodcastEpisode) {
-    self.podcastEpisode = podcastEpisode
+  init(episode: any EpisodeDisplayable) {
+    self.episode = episode
   }
 
   func execute() async {
@@ -46,18 +47,11 @@ import Logging
       // Observe this episode record updates
       group.addTask { @MainActor @Sendable in
         do {
-          for try await podcastEpisode in self.observatory.podcastEpisode(self.podcastEpisode.id) {
+          for try await podcastEpisode in self.observatory.podcastEpisode(self.episode.mediaURL) {
             try Task.checkCancellation()
-
-            guard let podcastEpisode = podcastEpisode
-            else {
-              throw ObservatoryError.recordNotFound(
-                type: PodcastEpisode.self,
-                id: self.podcastEpisode.episode.id.rawValue
-              )
-            }
-
-            Self.log.debug("Updating observed podcast: \(podcastEpisode.toString)")
+            Self.log.debug(
+              "Updating observed podcast: \(String(describing: podcastEpisode?.toString))"
+            )
             self.podcastEpisode = podcastEpisode
           }
         } catch {
@@ -72,13 +66,27 @@ import Logging
   // MARK: - EpisodeDetailViewableModel
 
   func getPodcastEpisode() -> PodcastEpisode? { podcastEpisode }
-  func getOrCreatePodcastEpisode() async throws -> PodcastEpisode { podcastEpisode }
+  func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
+    if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
-  var episodeTitle: String { podcastEpisode.episode.title }
-  var episodePubDate: Date { podcastEpisode.episode.pubDate }
-  var episodeDuration: CMTime { podcastEpisode.episode.duration }
-  var episodeCached: Bool { podcastEpisode.episode.cached }
-  var episodeImage: URL { podcastEpisode.image }
-  var episodeDescription: String? { podcastEpisode.episode.description }
-  var podcastTitle: String { podcastEpisode.podcast.title }
+    let podcastEpisode: PodcastEpisode
+    if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
+      podcastEpisode = try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
+    } else if let existingPodcastEpisode = episode as? PodcastEpisode {
+      podcastEpisode = existingPodcastEpisode
+    } else {
+      Assert.fatal("Unsupported episode type: \(type(of: episode))")
+    }
+
+    self.podcastEpisode = podcastEpisode
+    return podcastEpisode
+  }
+
+  var episodeTitle: String { episode.title }
+  var episodePubDate: Date { episode.pubDate }
+  var episodeDuration: CMTime { episode.duration }
+  var episodeCached: Bool { episode.cached }
+  var episodeImage: URL { episode.image }
+  var episodeDescription: String? { episode.description }
+  var podcastTitle: String { episode.podcastTitle }
 }

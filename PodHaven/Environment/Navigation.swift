@@ -128,7 +128,7 @@ extension Container {
         .id(searchedPodcast.unsavedPodcast.feedURL)
       case .searchedPodcastEpisode(let searchedPodcastEpisode):
         EpisodeDetailView(
-          viewModel: EpisodeResultsDetailViewModel(searchedPodcastEpisode: searchedPodcastEpisode)
+          viewModel: EpisodeDetailViewModel(episode: searchedPodcastEpisode.episode)
         )
         .id(searchedPodcastEpisode.episode.mediaURL)
       }
@@ -233,7 +233,7 @@ extension Container {
           .id("previouslyQueued")
         }
       case .episode(let podcastEpisode):
-        EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
+        EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: podcastEpisode))
           .id(podcastEpisode.id)
       }
     }
@@ -292,7 +292,7 @@ extension Container {
         PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
           .id(podcast.id)
       case .episode(let podcastEpisode):
-        EpisodeDetailView(viewModel: EpisodeDetailViewModel(podcastEpisode: podcastEpisode))
+        EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: podcastEpisode))
           .id(podcastEpisode.id)
       }
     }
