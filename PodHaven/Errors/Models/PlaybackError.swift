@@ -18,14 +18,14 @@ enum PlaybackError: ReadableError, CatchingError {
         """
         Failed to load avAsset
           PodcastEpisode: \(podcastEpisode.toString)
-          MediaURL: \(podcastEpisode.episode.mediaURL)
+          MediaGUID: \(podcastEpisode.episode.unsaved.id)
         """
     case .mediaNotPlayable(let podcastEpisode):
       return
         """
-        MediaURL Not Playable
+        MediaGUID Not Playable
           PodcastEpisode: \(podcastEpisode.toString)
-          MediaURL: \(podcastEpisode.episode.mediaURL)
+          MediaGUID: \(podcastEpisode.episode.unsaved.id)
         """
     case .settingCurrentTimeOnNil(let cmTime):
       return "Setting current time on nil player item with CMTime: \(cmTime)"

@@ -13,7 +13,7 @@ struct UnsavedPodcastEpisode:
   Searchable,
   Stringable
 {
-  var id: MediaURL { unsavedEpisode.media }
+  var id: MediaGUID { unsavedEpisode.id }
 
   // MARK: - Stringable / Searchable
 
@@ -31,7 +31,7 @@ struct UnsavedPodcastEpisode:
 
   // MARK: - EpisodeDisplayable / EpisodeFilterable
 
-  var mediaURL: MediaURL { unsavedEpisode.media }
+  var mediaGUID: MediaGUID { unsavedEpisode.id }
   var title: String { unsavedEpisode.title }
   var pubDate: Date { unsavedEpisode.pubDate }
   var duration: CMTime { unsavedEpisode.duration }

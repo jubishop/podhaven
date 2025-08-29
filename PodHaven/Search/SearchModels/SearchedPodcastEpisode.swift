@@ -8,10 +8,10 @@ struct SearchedPodcastEpisode: Hashable {
 
   func hash(into hasher: inout Hasher) {
     hasher.combine(searchedText)
-    hasher.combine(episode.mediaURL)
+    hasher.combine(episode.mediaGUID)
   }
 
   static func == (lhs: SearchedPodcastEpisode, rhs: SearchedPodcastEpisode) -> Bool {
-    lhs.searchedText == rhs.searchedText && lhs.episode.mediaURL == rhs.episode.mediaURL
+    lhs.searchedText == rhs.searchedText && lhs.episode.mediaGUID == rhs.episode.mediaGUID
   }
 }

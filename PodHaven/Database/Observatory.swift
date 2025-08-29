@@ -53,13 +53,20 @@ struct Observatory {
     }
   }
 
-  func podcastEpisodesByMediaURLs(
-    _ mediaURLs: [MediaURL],
+  func podcastEpisodes(
+    _ mediaGUIDs: [MediaGUID],
     order: SQLOrdering = Episode.Columns.pubDate.desc,
     limit: Int = Int.max
   ) -> AsyncValueObservation<[PodcastEpisode]> {
-    podcastEpisodes(
-      filter: mediaURLs.contains(Episode.Columns.media),
+    let mediaGUIDFilters = mediaGUIDs.map { mediaGUID in
+      Episode.Columns.guid == mediaGUID.guid && Episode.Columns.media == mediaGUID.media
+    }
+    let combinedFilter = mediaGUIDFilters.reduce(false.sqlExpression) { result, filter in
+      result || filter
+    }
+
+    return podcastEpisodes(
+      filter: combinedFilter,
       order: order,
       limit: limit
     )
@@ -100,10 +107,10 @@ struct Observatory {
     }
   }
 
-  func podcastEpisode(_ mediaURL: MediaURL) -> AsyncValueObservation<PodcastEpisode?> {
+  func podcastEpisode(_ mediaGUID: MediaGUID) -> AsyncValueObservation<PodcastEpisode?> {
     _observe { db in
       try Episode
-        .filter { $0.media == mediaURL }
+        .filter { $0.guid == mediaGUID.guid && $0.media == mediaGUID.media }
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)

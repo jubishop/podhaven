@@ -130,7 +130,7 @@ extension Container {
         EpisodeDetailView(
           viewModel: EpisodeDetailViewModel(episode: searchedPodcastEpisode.episode)
         )
-        .id(searchedPodcastEpisode.episode.mediaURL)
+        .id(searchedPodcastEpisode.episode.mediaGUID)
       }
     }
   }

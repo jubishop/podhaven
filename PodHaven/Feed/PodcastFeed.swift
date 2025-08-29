@@ -15,6 +15,8 @@ struct EpisodeFeed: Sendable, Equatable {
   let guid: GUID
   let media: MediaURL
 
+  var mediaGUID: MediaGUID { MediaGUID(guid: guid, media: media) }
+
   private let rssEpisode: PodcastRSS.Episode
 
   fileprivate init(rssEpisode: PodcastRSS.Episode) throws(ParseError) {
@@ -152,11 +154,11 @@ struct PodcastFeed: Sendable, Stringable {
   }
 
   func toEpisodeArray(merging podcastSeries: PodcastSeries? = nil)
-    -> IdentifiedArray<GUID, UnsavedEpisode>
+    -> IdentifiedArray<MediaGUID, UnsavedEpisode>
   {
     let allEpisodes = episodes.compactMap { episodeFeed in
       try? episodeFeed.toUnsavedEpisode(
-        merging: podcastSeries?.episodes[id: episodeFeed.guid]
+        merging: podcastSeries?.episodes[id: episodeFeed.mediaGUID]
       )
     }
 
@@ -186,7 +188,7 @@ struct PodcastFeed: Sendable, Stringable {
       seenMediaURLs[episode.media] = episode
     }
 
-    return IdentifiedArray(uniqueElements: seenGUIDs.values, id: \.guid)
+    return IdentifiedArray(uniqueElements: seenGUIDs.values, id: \.id)
   }
 
   // MARK: - Stringable

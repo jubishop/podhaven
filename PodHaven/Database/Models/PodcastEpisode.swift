@@ -40,7 +40,7 @@ struct PodcastEpisode:
 
   // MARK: - EpisodeDisplayable // EpisodeFilterable
 
-  var mediaURL: MediaURL { episode.media }
+  var mediaGUID: MediaGUID { episode.unsaved.id }
   var title: String { episode.title }
   var pubDate: Date { episode.pubDate }
   var duration: CMTime { episode.duration }

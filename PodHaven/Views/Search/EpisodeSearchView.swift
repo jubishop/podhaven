@@ -76,7 +76,7 @@ struct EpisodeSearchView: View {
   }
 
   var episodeResultsList: some View {
-    List(viewModel.podcastEpisodes, id: \.mediaURL) { episode in
+    List(viewModel.podcastEpisodes, id: \.mediaGUID) { episode in
       NavigationLink(
         value: Navigation.Search.Destination.searchedPodcastEpisode(
           SearchedPodcastEpisode(

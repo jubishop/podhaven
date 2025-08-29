@@ -111,7 +111,7 @@ enum PreviewHelpers {
   }
 
   static func loadEpisodes(fileName: String = seriesFiles.keys.randomElement()!) async throws
-    -> IdentifiedArray<GUID, Episode>
+    -> IdentifiedArray<MediaGUID, Episode>
   {
     let podcastSeries = try await loadSeries(fileName: fileName)
     return podcastSeries.episodes

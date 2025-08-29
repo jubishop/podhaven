@@ -46,7 +46,9 @@ class PodcastDetailViewModel:
 
   // MARK: - SelectableEpisodeListModel
 
-  var episodeList = SelectableListUseCase<PodcastEpisode, GUID>(idKeyPath: \.episode.guid)
+  var episodeList = SelectableListUseCase<PodcastEpisode, MediaGUID>(
+    idKeyPath: \.episode.unsaved.id
+  )
   private var _isSelecting = false
   var isSelecting: Bool {
     get { _isSelecting }

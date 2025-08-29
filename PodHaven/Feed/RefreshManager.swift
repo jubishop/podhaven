@@ -158,7 +158,7 @@ actor RefreshManager {
       var updatedEpisodes: [Episode] = []
 
       for feedItem in podcastFeed.episodes {
-        if let existingEpisode = podcastSeries.episodes[id: feedItem.guid]
+        if let existingEpisode = podcastSeries.episodes[id: feedItem.mediaGUID]
           ?? episodesByMedia[id: feedItem.media]
         {
           do {

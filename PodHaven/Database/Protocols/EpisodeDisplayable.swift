@@ -4,7 +4,7 @@ import AVFoundation
 import Foundation
 
 protocol EpisodeDisplayable: Identifiable, Searchable {
-  var mediaURL: MediaURL { get }
+  var mediaGUID: MediaGUID { get }
   var title: String { get }
   var pubDate: Date { get }
   var duration: CMTime { get }

@@ -19,6 +19,8 @@ struct PersonResult: Sendable, Decodable {
     @OptionalURL var feedImage: URL?
     let feedTitle: String
 
+    var mediaGUID: MediaGUID { MediaGUID(guid: guid, media: enclosureUrl) }
+
     func toUnsavedPodcastEpisode(merging podcastEpisode: PodcastEpisode? = nil) throws
       -> UnsavedPodcastEpisode
     {
@@ -54,19 +56,19 @@ struct PersonResult: Sendable, Decodable {
   let items: [ItemResult]
 
   func toPodcastEpisodeArray(merging podcastSeries: IdentifiedArray<FeedURL, PodcastSeries>? = nil)
-    -> IdentifiedArray<MediaURL, UnsavedPodcastEpisode>
+    -> IdentifiedArray<MediaGUID, UnsavedPodcastEpisode>
   {
     IdentifiedArray(
       items.compactMap { item in
         guard let series = podcastSeries?[id: item.feedUrl],
-          let episode = series.episodes[id: item.guid]
+          let episode = series.episodes[id: item.mediaGUID]
         else { return try? item.toUnsavedPodcastEpisode() }
 
         return try? item.toUnsavedPodcastEpisode(
           merging: PodcastEpisode(podcast: series.podcast, episode: episode)
         )
       },
-      id: \.unsavedEpisode.media,
+      id: \.id,
       uniquingIDsWith: { a, b in
         // Keep whichever is the newest
         a.unsavedEpisode.pubDate >= b.unsavedEpisode.pubDate ? a : b

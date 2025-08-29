@@ -47,7 +47,7 @@ import Logging
       // Observe this episode record updates
       group.addTask { @MainActor @Sendable in
         do {
-          for try await podcastEpisode in self.observatory.podcastEpisode(self.episode.mediaURL) {
+          for try await podcastEpisode in self.observatory.podcastEpisode(self.episode.mediaGUID) {
             try Task.checkCancellation()
             Self.log.debug(
               "Updating observed podcast: \(String(describing: podcastEpisode?.toString))"

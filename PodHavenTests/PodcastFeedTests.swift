@@ -76,7 +76,9 @@ struct PodcastFeedTests {
     let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
     let feed = try await PodcastFeed.parse(data, from: fakeURL)
     let episodes = feed.toEpisodeArray()
-    let duplicatedEpisode = episodes[id: "178f32e0-7246-11ec-b14e-19521896ea35"]!
+    let duplicatedEpisode = episodes.first(where: {
+      $0.guid == GUID("178f32e0-7246-11ec-b14e-19521896ea35")
+    })!
     #expect(Calendar.current.component(.year, from: duplicatedEpisode.pubDate) == 2024)
   }
 
@@ -138,17 +140,21 @@ struct PodcastFeedTests {
 
     // These are the mediaURLs of the two entries with no guids
     #expect(
-      episodes.ids.contains(
-        GUID(
-          "https://chrt.fm/track/138C95/prfx.byspotify.com/e/play.podtrac.com/npr-510355/traffic.megaphone.fm/NPR8510690925.mp3?d=736&size=11791509&e=1254697878&t=podcast&p=510355"
-        )
+      episodes.contains(where: {
+        $0.guid
+          == GUID(
+            "https://chrt.fm/track/138C95/prfx.byspotify.com/e/play.podtrac.com/npr-510355/traffic.megaphone.fm/NPR8510690925.mp3?d=736&size=11791509&e=1254697878&t=podcast&p=510355"
+          )
+      }
       )
     )
     #expect(
-      episodes.ids.contains(
-        GUID(
-          "https://chrt.fm/track/138C95/prfx.byspotify.com/e/play.podtrac.com/npr-510355/traffic.megaphone.fm/NPR7873235626.mp3?d=489&size=7834271&e=1254264642&t=podcast&p=510355"
-        )
+      episodes.contains(where: {
+        $0.guid
+          == GUID(
+            "https://chrt.fm/track/138C95/prfx.byspotify.com/e/play.podtrac.com/npr-510355/traffic.megaphone.fm/NPR7873235626.mp3?d=489&size=7834271&e=1254264642&t=podcast&p=510355"
+          )
+      }
       )
     )
   }

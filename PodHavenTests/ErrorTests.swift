@@ -224,9 +224,9 @@ class ErrorTests {
         Failure
         FakeError.caught ->
           PlaybackError.mediaNotPlayable ->
-            MediaURL Not Playable
+            MediaGUID Not Playable
               PodcastEpisode: \(podcastEpisode.toString)
-              MediaURL: https://example.com/data
+              MediaGUID: \(podcastEpisode.mediaGUID)
         """
     )
 

@@ -272,7 +272,9 @@ import Testing
         .episode(
           PodcastEpisode(
             podcast: podcastSeries.podcast,
-            episode: podcastSeries.episodes[id: GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")]!
+            episode: podcastSeries.episodes.first(where: {
+              $0.guid == GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")
+            })!
           )
         ),
       ]
@@ -338,7 +340,9 @@ import Testing
         .episode(
           PodcastEpisode(
             podcast: podcastSeries.podcast,
-            episode: podcastSeries.episodes[id: GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")]!
+            episode: podcastSeries.episodes.first(where: {
+              $0.guid == GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")
+            })!
           )
         ),
       ]
@@ -394,10 +398,10 @@ import Testing
     // Create OPML file URL and data
     let opmlURL = URL(fileURLWithPath: "/tmp/techdirt.OPML")
     let opmlData = PreviewBundle.loadAsset(named: "techdirt", in: .OPML)
-    
+
     // Set up the fake OPML session to respond to the file URL
     await opmlSession.respond(to: opmlURL, data: opmlData)
-    
+
     // Write the OPML data to the fake file manager
     let fakeFileManager = Container.shared.podFileManager() as! FakeFileManager
     try await fakeFileManager.writeData(opmlData, to: opmlURL)

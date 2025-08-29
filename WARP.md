@@ -14,6 +14,8 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 - Run individual test: `xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven -only-testing:PodHavenTests/[TestClassName]/[testMethodName]`
 - **IMPORTANT: Don't try to run the tests unless explicitly asked.**
 
+**IMPORTANT: If you do try to build or test using MCP Tools build_macos and test_macos**
+
 ### Utilities
 - Repeat failing tests: `Tools/run_test_until_failure.sh [testMethodName]`
 - RSS validation: `Tools/validate_rss.rb [rss_file]`

@@ -22,8 +22,8 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
   @ObservationIgnored private var searchTask: Task<Void, Never>?
   @ObservationIgnored private var observationTask: Task<Void, Never>?
 
-  var podcastEpisodes: IdentifiedArray<MediaURL, any EpisodeDisplayable> =
-    IdentifiedArray(id: \.mediaURL)
+  var podcastEpisodes: IdentifiedArray<MediaGUID, any EpisodeDisplayable> =
+    IdentifiedArray(id: \.mediaGUID)
 
   enum EpisodeSearchState {
     case idle
@@ -90,7 +90,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
 
       podcastEpisodes = IdentifiedArray(
         uniqueElements: unsavedPodcastEpisodes.map { $0 as any EpisodeDisplayable },
-        id: \.mediaURL
+        id: \.mediaGUID
       )
       state = .loaded
       startObservingEpisodes()
@@ -103,7 +103,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
   }
 
   func performSearch(with searchText: String) async throws -> IdentifiedArray<
-    MediaURL, UnsavedPodcastEpisode
+    MediaGUID, UnsavedPodcastEpisode
   > {
     let result = try await searchService.searchByPerson(searchText)
     return result.toPodcastEpisodeArray()
@@ -115,19 +115,19 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
     // Cancel any existing observation task
     observationTask?.cancel()
 
-    // Get the current mediaURLs to observe
-    let mediaURLs = Array(podcastEpisodes.ids)
+    // Get the current mediaGUIDs to observe
+    let mediaGUIDs = Array(podcastEpisodes.ids)
 
     observationTask = Task { [weak self] in
       guard let self else { return }
 
       do {
-        for try await databaseEpisodes in self.observatory.podcastEpisodesByMediaURLs(mediaURLs) {
+        for try await databaseEpisodes in self.observatory.podcastEpisodes(mediaGUIDs) {
           try Task.checkCancellation()
 
           // Swap out any episodes that exist in the database
           for databaseEpisode in databaseEpisodes {
-            self.podcastEpisodes[id: databaseEpisode.mediaURL] = databaseEpisode
+            self.podcastEpisodes[id: databaseEpisode.mediaGUID] = databaseEpisode
           }
         }
       } catch {

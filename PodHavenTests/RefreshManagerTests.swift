@@ -149,7 +149,9 @@ actor RefreshManagerTests {
       unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
     )
 
-    let originalEpisode = podcastSeries.episodes[id: "37163 at https://www.thisamericanlife.org"]!
+    let originalEpisode = podcastSeries.episodes.first(where: {
+      $0.guid == GUID("37163 at https://www.thisamericanlife.org")
+    })!
     #expect(originalEpisode.title == "510: Fiasco! (2013)")
 
     let updatedData = PreviewBundle.loadAsset(
@@ -162,10 +164,16 @@ actor RefreshManagerTests {
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
 
     // Old guid that got changed
-    #expect(updatedSeries.episodes[id: "37163 at https://www.thisamericanlife.org"] == nil)
+    #expect(
+      updatedSeries.episodes.first(where: {
+        $0.guid == GUID("37163 at https://www.thisamericanlife.org")
+      }) == nil
+    )
 
     // New guid
-    let updatedEpisode = updatedSeries.episodes[id: "45921 at https://www.thisamericanlife.org"]!
+    let updatedEpisode = updatedSeries.episodes.first(where: {
+      $0.guid == GUID("45921 at https://www.thisamericanlife.org")
+    })!
     #expect(
       updatedEpisode.media
         == MediaURL(

@@ -42,8 +42,8 @@ class PodcastResultsDetailViewModel:
 
   // MARK: - SelectableEpisodeListModel
 
-  var episodeList = SelectableListUseCase<UnsavedPodcastEpisode, GUID>(
-    idKeyPath: \.unsavedEpisode.guid
+  var episodeList = SelectableListUseCase<UnsavedPodcastEpisode, MediaGUID>(
+    idKeyPath: \.id
   )
   private var _isSelecting = false
   var isSelecting: Bool {
@@ -95,7 +95,7 @@ class PodcastResultsDetailViewModel:
             .map {
               UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: $0)
             },
-          id: \.unsavedEpisode.guid
+          id: \.id
         )
         subscribable = true
       }
