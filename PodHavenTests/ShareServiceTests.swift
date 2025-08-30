@@ -270,7 +270,7 @@ import Testing
         .podcastsViewType(.subscribed),
         .podcast(podcastSeries.podcast),
         .episode(
-          DisplayableEpisode(episode: PodcastEpisode(
+          DisplayableEpisode(PodcastEpisode(
             podcast: podcastSeries.podcast,
             episode: podcastSeries.episodes.first(where: {
               $0.guid == GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")
@@ -338,7 +338,7 @@ import Testing
         .podcastsViewType(.subscribed),
         .podcast(podcastSeries.podcast),
         .episode(
-          DisplayableEpisode(episode: PodcastEpisode(
+          DisplayableEpisode(PodcastEpisode(
             podcast: podcastSeries.podcast,
             episode: podcastSeries.episodes.first(where: {
               $0.guid == GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")

@@ -7,7 +7,7 @@ import SwiftUI
 
 @Observable @MainActor
 final class EpisodeSearchViewModel: ManagingEpisodesModel {
-  typealias EpisodeType = any EpisodeDisplayable & EpisodeFilterable
+  typealias EpisodeType = any EpisodeDisplayable
 
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -22,7 +22,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
   @ObservationIgnored private var searchTask: Task<Void, Never>?
   @ObservationIgnored private var observationTask: Task<Void, Never>?
 
-  var podcastEpisodes: IdentifiedArray<MediaGUID, any EpisodeDisplayable & EpisodeFilterable> =
+  var podcastEpisodes: IdentifiedArray<MediaGUID, any EpisodeDisplayable> =
     IdentifiedArray(id: \.mediaGUID)
 
   enum EpisodeSearchState {
@@ -94,7 +94,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
       guard !Task.isCancelled else { return }
 
       podcastEpisodes = IdentifiedArray(
-        uniqueElements: unsavedPodcastEpisodes.map { $0 as any EpisodeDisplayable & EpisodeFilterable },
+        uniqueElements: unsavedPodcastEpisodes.map { $0 as any EpisodeDisplayable },
         id: \.mediaGUID
       )
       state = .loaded

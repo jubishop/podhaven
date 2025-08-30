@@ -10,7 +10,6 @@ import UIKit
 struct PodcastEpisode:
   Codable,
   EpisodeDisplayable,
-  EpisodeFilterable,
   Equatable,
   FetchableRecord,
   Hashable,
@@ -38,7 +37,7 @@ struct PodcastEpisode:
 
   var image: URL { episode.image ?? podcast.image }
 
-  // MARK: - EpisodeDisplayable // EpisodeFilterable
+  // MARK: - EpisodeDisplayable
 
   var mediaGUID: MediaGUID { episode.unsaved.id }
   var title: String { episode.title }

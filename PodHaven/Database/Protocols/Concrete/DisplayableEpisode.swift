@@ -7,7 +7,6 @@ import Foundation
 @dynamicMemberLookup
 struct DisplayableEpisode:
   EpisodeDisplayable,
-  EpisodeFilterable,
   Identifiable,
   Searchable,
   Hashable,
@@ -15,7 +14,11 @@ struct DisplayableEpisode:
 {
   @DynamicInjected(\.repo) private var repo
 
-  let episode: any EpisodeDisplayable & EpisodeFilterable
+  let episode: any EpisodeDisplayable
+
+  init(_ episode: any EpisodeDisplayable) {
+    self.episode = episode
+  }
 
   subscript<T>(dynamicMember keyPath: KeyPath<any EpisodeDisplayable, T>) -> T {
     episode[keyPath: keyPath]
@@ -39,7 +42,7 @@ struct DisplayableEpisode:
 
   var searchableString: String { episode.searchableString }
 
-  // MARK: - EpisodeDisplayable / EpisodeFilterable
+  // MARK: - EpisodeDisplayable
 
   var mediaGUID: MediaGUID { episode.mediaGUID }
   var title: String { episode.title }

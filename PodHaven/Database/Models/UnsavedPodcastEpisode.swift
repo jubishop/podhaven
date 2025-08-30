@@ -6,7 +6,6 @@ import Foundation
 struct UnsavedPodcastEpisode:
   Codable,
   EpisodeDisplayable,
-  EpisodeFilterable,
   Equatable,
   Hashable,
   Identifiable,
@@ -29,7 +28,7 @@ struct UnsavedPodcastEpisode:
 
   var image: URL { unsavedEpisode.image ?? unsavedPodcast.image }
 
-  // MARK: - EpisodeDisplayable / EpisodeFilterable
+  // MARK: - EpisodeDisplayable
 
   var mediaGUID: MediaGUID { unsavedEpisode.id }
   var title: String { unsavedEpisode.title }

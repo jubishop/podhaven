@@ -47,23 +47,23 @@ extension Container {
   enum Destination: Hashable {
     // Settings destinations
     case settingsSection(SettingsSection)
-    
+
     // Search destinations
     case searchType(SearchType)
     case category(String)
     case searchedPodcast(SearchedPodcast)
-    
+
     // Episodes destinations
     case episodesViewType(EpisodesViewType)
-    
+
     // Podcasts destinations
     case podcastsViewType(PodcastsViewType)
     case podcast(Podcast)
-    
+
     // UpNext destinations
     case upNextEpisode(PodcastEpisode)
-    
-    // Universal episode destination
+
+    // Universal destinations
     case episode(DisplayableEpisode)
   }
 
@@ -96,7 +96,7 @@ extension Container {
       case .opml:
         OPMLView().id("opml")
       }
-      
+
     // Search destinations
     case .searchType(let searchType):
       switch searchType {
@@ -120,7 +120,7 @@ extension Container {
         viewModel: UnifiedPodcastDetailViewModel(podcast: searchedPodcast.unsavedPodcast)
       )
       .id(searchedPodcast.unsavedPodcast.feedURL)
-      
+
     // Episodes destinations
     case .episodesViewType(let viewType):
       switch viewType {
@@ -175,7 +175,7 @@ extension Container {
         )
         .id("previouslyQueued")
       }
-      
+
     // Podcasts destinations
     case .podcastsViewType(let viewType):
       switch viewType {
@@ -199,13 +199,13 @@ extension Container {
     case .podcast(let podcast):
       PodcastDetailView(viewModel: UnifiedPodcastDetailViewModel(podcast: podcast))
         .id(podcast.id)
-        
+
     // UpNext destinations
     case .upNextEpisode(let podcastEpisode):
       EpisodeDetailWrapperView(podcastEpisode: podcastEpisode)
         .id(podcastEpisode.id)
-        
-    // Universal episode destination
+
+    // Universal destinations
     case .episode(let displayableEpisode):
       EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: displayableEpisode.episode))
         .id(displayableEpisode.mediaGUID)
@@ -297,6 +297,6 @@ extension Container {
     Self.log.debug("Showing PodcastEpisode: \(podcastEpisode.toString)")
 
     showPodcast(viewType, podcastEpisode.podcast)
-    podcasts.path.append(.episode(DisplayableEpisode(episode: podcastEpisode)))
+    podcasts.path.append(.episode(DisplayableEpisode(podcastEpisode)))
   }
 }
