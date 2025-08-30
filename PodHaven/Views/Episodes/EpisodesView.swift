@@ -36,10 +36,6 @@ struct EpisodesView: View {
         )
       }
       .navigationTitle("All Episode Lists")
-      .navigationDestination(
-        for: Navigation.Destination.self,
-        destination: navigation.navigationDestination
-      )
     }
   }
 }

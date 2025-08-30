@@ -78,10 +78,6 @@ struct SearchView: View {
         )
       }
       .navigationTitle("Search")
-      .navigationDestination(
-        for: Navigation.Destination.self,
-        destination: navigation.navigationDestination
-      )
     }
   }
 }

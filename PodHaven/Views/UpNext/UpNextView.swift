@@ -36,10 +36,6 @@ struct UpNextView: View {
       .environment(\.editMode, $viewModel.editMode)
       .animation(.default, value: viewModel.podcastEpisodes)
       .upNextToolbar(viewModel: viewModel)
-      .navigationDestination(
-        for: Navigation.Destination.self,
-        destination: navigation.navigationDestination
-      )
     }
     .task(viewModel.execute)
   }

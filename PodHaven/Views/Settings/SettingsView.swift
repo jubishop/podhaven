@@ -23,10 +23,6 @@ struct SettingsView: View {
         }
       }
       .navigationTitle("Settings")
-      .navigationDestination(
-        for: Navigation.Destination.self,
-        destination: navigation.navigationDestination
-      )
     }
   }
 }
