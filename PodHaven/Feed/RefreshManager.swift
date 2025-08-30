@@ -201,7 +201,7 @@ actor RefreshManager {
     Self.log.trace("activated: starting background refresh task")
 
     cancelRefreshTasks()
-    backgroundRefreshTask = Task(priority: .background) { [weak self] in
+    backgroundRefreshTask = Task { [weak self] in
       guard let self else { return }
 
       while !Task.isCancelled {
@@ -257,7 +257,7 @@ actor RefreshManager {
   private func startListeningToActivation() {
     Assert.neverCalled()
 
-    Task { [weak self] in
+    Task(priority: .background) { [weak self] in
       guard let self else { return }
       for await _ in await notifications(UIApplication.didBecomeActiveNotification) {
         await activated()
@@ -268,7 +268,7 @@ actor RefreshManager {
   private func startListeningToDeactivation() {
     Assert.neverCalled()
 
-    Task { [weak self] in
+    Task(priority: .background) { [weak self] in
       guard let self else { return }
       for await _ in await notifications(UIApplication.willResignActiveNotification) {
         await backgrounded()
