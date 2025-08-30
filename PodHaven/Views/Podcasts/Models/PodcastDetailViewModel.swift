@@ -8,8 +8,7 @@ import Logging
 import SwiftUI
 
 @Observable @MainActor
-class UnifiedPodcastDetailViewModel:
-  PodcastDetailViewableModel,
+class PodcastDetailViewModel:
   ManagingEpisodesModel,
   SelectableEpisodeListModel
 {
@@ -23,13 +22,36 @@ class UnifiedPodcastDetailViewModel:
 
   private static let log = Log.as(LogSubsystem.PodcastsView.detail)
 
-  // MARK: - State Management
+  // MARK: - Filtering
 
+  enum EpisodeFilterMethod: String, CaseIterable {
+    case all = "All Episodes"
+    case unstarted = "Unstarted"
+    case unfinished = "Unfinished"
+    case unqueued = "Unqueued"
+
+    func filterMethod<T: EpisodeDisplayable>() -> (T) -> Bool {
+      switch self {
+      case .all:
+        return { _ in true }
+      case .unstarted:
+        return { !$0.started }
+      case .unfinished:
+        return { !$0.completed }
+      case .unqueued:
+        return { !$0.queued }
+      }
+    }
+  }
+  let allFilterMethods = EpisodeFilterMethod.allCases
   var currentFilterMethod: EpisodeFilterMethod = .all {
     didSet {
       episodeList.filterMethod = currentFilterMethod.filterMethod()
     }
   }
+
+  // MARK: - State Management
+
   var displayAboutSection: Bool = false
   var mostRecentEpisodeDate: Date {
     episodeList.allEntries.first?.pubDate ?? Date.epoch

@@ -5,15 +5,15 @@ import Logging
 import NukeUI
 import SwiftUI
 
-struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
+struct PodcastDetailView: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation
 
-  @State private var viewModel: ViewModel
+  @State private var viewModel: PodcastDetailViewModel
 
   private static var log: Logger { Log.as(LogSubsystem.PodcastsView.detail) }
 
-  init(viewModel: ViewModel) {
+  init(viewModel: PodcastDetailViewModel) {
     Self.log.debug(
       """
       Showing PodcastDetailView
@@ -150,7 +150,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
 
         Menu(
           content: {
-            ForEach(EpisodeFilterMethod.allCases, id: \.self) {
+            ForEach(viewModel.allFilterMethods, id: \.self) {
               filterMethod in
               Button(filterMethod.rawValue) {
                 viewModel.currentFilterMethod = filterMethod
@@ -317,7 +317,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
 
   NavigationStack {
     if let podcast {
-      PodcastDetailView(viewModel: UnifiedPodcastDetailViewModel(podcast: podcast))
+      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
     }
   }
   .preview()
@@ -336,7 +336,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
 
   NavigationStack {
     if let podcast {
-      PodcastDetailView(viewModel: UnifiedPodcastDetailViewModel(podcast: podcast))
+      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
     }
   }
   .preview()

@@ -116,10 +116,8 @@ extension Container {
       TrendingCategoryGridView(viewModel: TrendingCategoryGridViewModel(category: category))
         .id("trending_\(category)")
     case .searchedPodcast(let searchedPodcast):
-      PodcastDetailView(
-        viewModel: UnifiedPodcastDetailViewModel(podcast: searchedPodcast.unsavedPodcast)
-      )
-      .id(searchedPodcast.unsavedPodcast.feedURL)
+      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: searchedPodcast.unsavedPodcast))
+        .id(searchedPodcast.unsavedPodcast.feedURL)
 
     // Episodes destinations
     case .episodesViewType(let viewType):
@@ -197,7 +195,7 @@ extension Container {
         .id("unsubscribed")
       }
     case .podcast(let podcast):
-      PodcastDetailView(viewModel: UnifiedPodcastDetailViewModel(podcast: podcast))
+      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
         .id(podcast.id)
 
     // UpNext destinations
