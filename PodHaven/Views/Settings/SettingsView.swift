@@ -13,7 +13,7 @@ struct SettingsView: View {
       Form {
         Section("Importing / Exporting") {
           NavigationLink(
-            value: Navigation.Settings.Destination.section(.opml),
+            value: Navigation.Destination.settingsSection(.opml),
             label: { Text("OPML") }
           )
         }
@@ -24,8 +24,8 @@ struct SettingsView: View {
       }
       .navigationTitle("Settings")
       .navigationDestination(
-        for: Navigation.Settings.Destination.self,
-        destination: navigation.settings.navigationDestination
+        for: Navigation.Destination.self,
+        destination: navigation.navigationDestination
       )
     }
   }

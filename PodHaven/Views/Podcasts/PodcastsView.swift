@@ -12,19 +12,19 @@ struct PodcastsView: View {
       Form {
         Section("Standard") {
           NavigationLink(
-            value: Navigation.Podcasts.Destination.viewType(.subscribed),
+            value: Navigation.Destination.podcastsViewType(.subscribed),
             label: { Text("Subscribed") }
           )
           NavigationLink(
-            value: Navigation.Podcasts.Destination.viewType(.unsubscribed),
+            value: Navigation.Destination.podcastsViewType(.unsubscribed),
             label: { Text("Unsubscribed") }
           )
         }
       }
       .navigationTitle("All Podcast Lists")
       .navigationDestination(
-        for: Navigation.Podcasts.Destination.self,
-        destination: navigation.podcasts.navigationDestination
+        for: Navigation.Destination.self,
+        destination: navigation.navigationDestination
       )
     }
   }

@@ -10,7 +10,7 @@ struct SearchView: View {
     IdentifiableNavigationStack(manager: navigation.search) {
       Form {
         NavigationLink(
-          value: Navigation.Search.Destination.searchType(.trending),
+          value: Navigation.Destination.searchType(.trending),
           label: {
             HStack {
               AppLabel.trending.image
@@ -27,7 +27,7 @@ struct SearchView: View {
         )
 
         NavigationLink(
-          value: Navigation.Search.Destination.searchType(.podcasts),
+          value: Navigation.Destination.searchType(.podcasts),
           label: {
             HStack {
               AppLabel.searchPodcasts.image
@@ -44,7 +44,7 @@ struct SearchView: View {
         )
 
         NavigationLink(
-          value: Navigation.Search.Destination.searchType(.episodes),
+          value: Navigation.Destination.searchType(.episodes),
           label: {
             HStack {
               AppLabel.searchEpisodes.image
@@ -61,7 +61,7 @@ struct SearchView: View {
         )
 
         NavigationLink(
-          value: Navigation.Search.Destination.searchType(.manualEntry),
+          value: Navigation.Destination.searchType(.manualEntry),
           label: {
             HStack {
               AppLabel.manualEntry.image
@@ -79,8 +79,8 @@ struct SearchView: View {
       }
       .navigationTitle("Search")
       .navigationDestination(
-        for: Navigation.Search.Destination.self,
-        destination: navigation.search.navigationDestination
+        for: Navigation.Destination.self,
+        destination: navigation.navigationDestination
       )
     }
   }

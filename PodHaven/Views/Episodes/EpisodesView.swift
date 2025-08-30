@@ -11,34 +11,34 @@ struct EpisodesView: View {
     IdentifiableNavigationStack(manager: navigation.episodes) {
       Form {
         NavigationLink(
-          value: Navigation.Episodes.Destination.viewType(.recentEpisodes),
+          value: Navigation.Destination.episodesViewType(.recentEpisodes),
           label: { Text("Recent Episodes") }
         )
         NavigationLink(
-          value: Navigation.Episodes.Destination.viewType(.unqueued),
+          value: Navigation.Destination.episodesViewType(.unqueued),
           label: { Text("Unqueued") }
         )
         NavigationLink(
-          value: Navigation.Episodes.Destination.viewType(.cached),
+          value: Navigation.Destination.episodesViewType(.cached),
           label: { Text("Cached") }
         )
         NavigationLink(
-          value: Navigation.Episodes.Destination.viewType(.completed),
+          value: Navigation.Destination.episodesViewType(.completed),
           label: { Text("Completed") }
         )
         NavigationLink(
-          value: Navigation.Episodes.Destination.viewType(.unfinished),
+          value: Navigation.Destination.episodesViewType(.unfinished),
           label: { Text("Unfinished") }
         )
         NavigationLink(
-          value: Navigation.Episodes.Destination.viewType(.previouslyQueued),
+          value: Navigation.Destination.episodesViewType(.previouslyQueued),
           label: { Text("Previously Queued") }
         )
       }
       .navigationTitle("All Episode Lists")
       .navigationDestination(
-        for: Navigation.Episodes.Destination.self,
-        destination: navigation.episodes.navigationDestination
+        for: Navigation.Destination.self,
+        destination: navigation.navigationDestination
       )
     }
   }

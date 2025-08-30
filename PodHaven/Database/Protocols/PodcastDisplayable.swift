@@ -3,6 +3,7 @@
 import Foundation
 
 protocol PodcastDisplayable: Gridable, Hashable, Stringable {
+  var feedURL: FeedURL { get }
   var image: URL { get }
   var title: String { get }
   var description: String { get }

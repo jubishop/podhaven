@@ -42,7 +42,7 @@ struct SelectablePodcastsGridView: View {
         let podcast = podcastWithLatestEpisodeDates.podcast
 
         NavigationLink(
-          value: Navigation.Podcasts.Destination.podcast(podcast),
+          value: Navigation.Destination.podcast(podcast),
           label: {
             SelectableImageGridItem(
               viewModel: SelectableListItemModel(

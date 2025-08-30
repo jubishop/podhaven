@@ -6,13 +6,13 @@ struct TrendingView: View {
   var body: some View {
     Form {
       NavigationLink(
-        value: Navigation.Search.Destination.category(SearchService.allCategories),
+        value: Navigation.Destination.category(SearchService.allCategories),
         label: { Text(SearchService.allCategories) }
       )
 
       ForEach(SearchService.categories, id: \.self) { category in
         NavigationLink(
-          value: Navigation.Search.Destination.category(category),
+          value: Navigation.Destination.category(category),
           label: { Text(category) }
         )
       }

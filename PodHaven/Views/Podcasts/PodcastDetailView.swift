@@ -317,7 +317,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
 
   NavigationStack {
     if let podcast {
-      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
+      PodcastDetailView(viewModel: UnifiedPodcastDetailViewModel(podcast: podcast))
     }
   }
   .preview()
@@ -336,7 +336,7 @@ struct PodcastDetailView<ViewModel: PodcastDetailViewableModel>: View {
 
   NavigationStack {
     if let podcast {
-      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
+      PodcastDetailView(viewModel: UnifiedPodcastDetailViewModel(podcast: podcast))
     }
   }
   .preview()

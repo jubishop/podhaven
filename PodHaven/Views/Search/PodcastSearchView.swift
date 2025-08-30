@@ -149,7 +149,7 @@ private struct PodcastResultsList: View {
   var body: some View {
     List(podcasts, id: \.feedURL) { podcast in
       NavigationLink(
-        value: Navigation.Search.Destination.searchedPodcast(
+        value: Navigation.Destination.searchedPodcast(
           SearchedPodcast(
             searchedText: searchedText,
             unsavedPodcast: podcast

@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol EpisodeFilterable {
+protocol EpisodeFilterable: Sendable {
   var started: Bool { get }
   var completed: Bool { get }
   var queued: Bool { get }

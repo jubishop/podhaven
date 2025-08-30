@@ -114,6 +114,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
 
   // MARK: - PodcastDisplayable
 
+  var feedURL: FeedURL { unsaved.feedURL }
   var image: URL { unsaved.image }
   var title: String { unsaved.title }
   var description: String { unsaved.description }

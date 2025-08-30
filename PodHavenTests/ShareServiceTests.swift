@@ -52,7 +52,7 @@ import Testing
 
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [.viewType(.subscribed), .podcast(podcastSeries.podcast)]
+      navigation.podcasts.path == [.podcastsViewType(.subscribed), .podcast(podcastSeries.podcast)]
     )
   }
 
@@ -97,7 +97,7 @@ import Testing
 
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [.viewType(.subscribed), .podcast(podcastSeries.podcast)]
+      navigation.podcasts.path == [.podcastsViewType(.subscribed), .podcast(podcastSeries.podcast)]
     )
   }
 
@@ -267,15 +267,15 @@ import Testing
     #expect(navigation.currentTab == .podcasts)
     #expect(
       navigation.podcasts.path == [
-        .viewType(.subscribed),
+        .podcastsViewType(.subscribed),
         .podcast(podcastSeries.podcast),
         .episode(
-          PodcastEpisode(
+          DisplayableEpisode(episode: PodcastEpisode(
             podcast: podcastSeries.podcast,
             episode: podcastSeries.episodes.first(where: {
               $0.guid == GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")
             })!
-          )
+          ))
         ),
       ]
     )
@@ -335,15 +335,15 @@ import Testing
     #expect(navigation.currentTab == .podcasts)
     #expect(
       navigation.podcasts.path == [
-        .viewType(.subscribed),
+        .podcastsViewType(.subscribed),
         .podcast(podcastSeries.podcast),
         .episode(
-          PodcastEpisode(
+          DisplayableEpisode(episode: PodcastEpisode(
             podcast: podcastSeries.podcast,
             episode: podcastSeries.episodes.first(where: {
               $0.guid == GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")
             })!
-          )
+          ))
         ),
       ]
     )
@@ -383,7 +383,7 @@ import Testing
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [.viewType(.subscribed), .podcast(podcastSeries.podcast)]
+      navigation.podcasts.path == [.podcastsViewType(.subscribed), .podcast(podcastSeries.podcast)]
     )
   }
 
@@ -410,7 +410,7 @@ import Testing
     try await shareService.handleIncomingURL(shareURL)
 
     #expect(navigation.currentTab == .settings)
-    #expect(navigation.settings.path == [.section(.opml)])
+    #expect(navigation.settings.path == [.settingsSection(.opml)])
 
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))
     #expect(podcastSeries?.podcast.title == "Techdirt")
@@ -434,7 +434,7 @@ import Testing
 
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [.viewType(.subscribed), .podcast(podcastSeries.podcast)]
+      navigation.podcasts.path == [.podcastsViewType(.subscribed), .podcast(podcastSeries.podcast)]
     )
   }
 }

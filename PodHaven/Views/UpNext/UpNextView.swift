@@ -14,7 +14,7 @@ struct UpNextView: View {
       List {
         ForEach(viewModel.podcastEpisodes) { podcastEpisode in
           NavigationLink(
-            value: Navigation.UpNext.Destination.episode(podcastEpisode),
+            value: Navigation.Destination.upNextEpisode(podcastEpisode),
             label: {
               EpisodeListView(
                 viewModel: SelectableListItemModel(
@@ -37,8 +37,8 @@ struct UpNextView: View {
       .animation(.default, value: viewModel.podcastEpisodes)
       .upNextToolbar(viewModel: viewModel)
       .navigationDestination(
-        for: Navigation.UpNext.Destination.self,
-        destination: navigation.upNext.navigationDestination
+        for: Navigation.Destination.self,
+        destination: navigation.navigationDestination
       )
     }
     .task(viewModel.execute)

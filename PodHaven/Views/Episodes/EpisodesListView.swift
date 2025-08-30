@@ -23,7 +23,7 @@ struct EpisodesListView: View {
 
     List(viewModel.episodeList.filteredEntries) { podcastEpisode in
       NavigationLink(
-        value: Navigation.Episodes.Destination.episode(podcastEpisode),
+        value: Navigation.Destination.episode(DisplayableEpisode(episode: podcastEpisode)),
         label: {
           EpisodeListView(
             viewModel: SelectableListItemModel(

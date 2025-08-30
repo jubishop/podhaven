@@ -26,7 +26,7 @@ struct TrendingCategoryGridView: View {
           }
         ) { unsavedPodcast in
           NavigationLink(
-            value: Navigation.Search.Destination
+            value: Navigation.Destination
               .searchedPodcast(
                 SearchedPodcast(
                   searchedText: trendingSearchResult.category,

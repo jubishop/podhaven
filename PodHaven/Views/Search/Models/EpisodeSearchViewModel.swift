@@ -7,7 +7,7 @@ import SwiftUI
 
 @Observable @MainActor
 final class EpisodeSearchViewModel: ManagingEpisodesModel {
-  typealias EpisodeType = any EpisodeDisplayable
+  typealias EpisodeType = any EpisodeDisplayable & EpisodeFilterable
 
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -22,7 +22,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
   @ObservationIgnored private var searchTask: Task<Void, Never>?
   @ObservationIgnored private var observationTask: Task<Void, Never>?
 
-  var podcastEpisodes: IdentifiedArray<MediaGUID, any EpisodeDisplayable> =
+  var podcastEpisodes: IdentifiedArray<MediaGUID, any EpisodeDisplayable & EpisodeFilterable> =
     IdentifiedArray(id: \.mediaGUID)
 
   enum EpisodeSearchState {
@@ -43,7 +43,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
 
   // MARK: - ManagingEpisodesModel
 
-  func getPodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
+  func getPodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode {
     if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
       return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
     } else if let podcastEpisode = episode as? PodcastEpisode {
@@ -51,6 +51,11 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
     } else {
       Assert.fatal("Unsupported episode type: \(type(of: episode))")
     }
+  }
+
+  func getEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID {
+    let podcastEpisode = try await getPodcastEpisode(episode)
+    return podcastEpisode.id
   }
 
   // MARK: - Searching
@@ -89,7 +94,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
       guard !Task.isCancelled else { return }
 
       podcastEpisodes = IdentifiedArray(
-        uniqueElements: unsavedPodcastEpisodes.map { $0 as any EpisodeDisplayable },
+        uniqueElements: unsavedPodcastEpisodes.map { $0 as any EpisodeDisplayable & EpisodeFilterable },
         id: \.mediaGUID
       )
       state = .loaded
