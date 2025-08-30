@@ -45,9 +45,7 @@ class PodcastDetailViewModel:
   }
   let allFilterMethods = EpisodeFilterMethod.allCases
   var currentFilterMethod: EpisodeFilterMethod = .all {
-    didSet {
-      episodeList.filterMethod = currentFilterMethod.filterMethod()
-    }
+    didSet { episodeList.filterMethod = currentFilterMethod.filterMethod() }
   }
 
   // MARK: - State Management
@@ -56,6 +54,8 @@ class PodcastDetailViewModel:
   var mostRecentEpisodeDate: Date {
     episodeList.allEntries.first?.pubDate ?? Date.epoch
   }
+  var subscribable: Bool = false
+  var refreshable: Bool { podcastSeries != nil }
 
   // MARK: - Data Properties
 
@@ -75,7 +75,6 @@ class PodcastDetailViewModel:
   }
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
-      // Convert all selected episodes to PodcastEpisodes
       var podcastEpisodes: [PodcastEpisode] = []
       for episode in selectedEpisodes {
         podcastEpisodes.append(try await episode.toPodcastEpisode())
@@ -83,11 +82,6 @@ class PodcastDetailViewModel:
       return podcastEpisodes
     }
   }
-
-  // MARK: - PodcastDetailViewableModel
-
-  var subscribable: Bool = false
-  var refreshable: Bool { podcastSeries != nil }
 
   // MARK: - Initialization
 
