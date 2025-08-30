@@ -27,7 +27,7 @@ class PodcastDetailViewModel:
 
   var currentFilterMethod: EpisodeFilterMethod = .all {
     didSet {
-      episodeList.filterMethod = currentFilterMethod.filterMethod(for: PodcastEpisode.self)
+      episodeList.filterMethod = currentFilterMethod.filterMethod()
     }
   }
   var displayAboutSection: Bool = false
@@ -68,7 +68,7 @@ class PodcastDetailViewModel:
 
   init(podcast: Podcast) {
     self._podcastSeries = PodcastSeries(podcast: podcast)
-    episodeList.filterMethod = currentFilterMethod.filterMethod(for: PodcastEpisode.self)
+    episodeList.filterMethod = currentFilterMethod.filterMethod()
   }
 
   func execute() async {

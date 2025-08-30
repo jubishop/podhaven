@@ -8,7 +8,7 @@ enum EpisodeFilterMethod: String, CaseIterable {
   case unfinished = "Unfinished"
   case unqueued = "Unqueued"
 
-  func filterMethod<T: EpisodeFilterable>(for type: T.Type) -> (T) -> Bool {
+  func filterMethod<T: EpisodeFilterable>() -> (T) -> Bool {
     switch self {
     case .all:
       return { _ in true }

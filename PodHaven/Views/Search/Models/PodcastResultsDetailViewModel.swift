@@ -29,7 +29,7 @@ class PodcastResultsDetailViewModel:
 
   var currentFilterMethod: EpisodeFilterMethod = .all {
     didSet {
-      episodeList.filterMethod = currentFilterMethod.filterMethod(for: UnsavedPodcastEpisode.self)
+      episodeList.filterMethod = currentFilterMethod.filterMethod()
     }
   }
   var displayAboutSection: Bool = false
@@ -68,7 +68,7 @@ class PodcastResultsDetailViewModel:
     self.searchedText = searchedPodcast.searchedText
     self.unsavedPodcast = searchedPodcast.unsavedPodcast
     episodeList.sortMethod = { $0.pubDate > $1.pubDate }
-    episodeList.filterMethod = currentFilterMethod.filterMethod(for: UnsavedPodcastEpisode.self)
+    episodeList.filterMethod = currentFilterMethod.filterMethod()
   }
 
   func execute() async {
