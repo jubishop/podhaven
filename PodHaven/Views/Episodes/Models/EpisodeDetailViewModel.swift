@@ -69,15 +69,7 @@ import Logging
   func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
-    let podcastEpisode: PodcastEpisode
-    if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
-      podcastEpisode = try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
-    } else if let existingPodcastEpisode = episode as? PodcastEpisode {
-      podcastEpisode = existingPodcastEpisode
-    } else {
-      Assert.fatal("Unsupported episode type: \(type(of: episode))")
-    }
-
+    let podcastEpisode = try await DisplayableEpisode.toPodcastEpisode(episode)
     self.podcastEpisode = podcastEpisode
     return podcastEpisode
   }

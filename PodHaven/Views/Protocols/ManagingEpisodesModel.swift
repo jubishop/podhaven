@@ -4,12 +4,7 @@ import FactoryKit
 import Foundation
 import Logging
 
-@MainActor protocol ManagingEpisodesModel: AnyObject, ManagingEpisodes {
-  associatedtype EpisodeType
-
-  func getPodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode
-  func getEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID
-}
+@MainActor protocol ManagingEpisodesModel: AnyObject, ManagingEpisodes {}
 
 extension ManagingEpisodesModel {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
@@ -18,7 +13,7 @@ extension ManagingEpisodesModel {
 
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcast) }
 
-  func playEpisode(_ episode: EpisodeType) {
+  func playEpisode(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
       do {
@@ -31,7 +26,7 @@ extension ManagingEpisodesModel {
     }
   }
 
-  func queueEpisodeOnTop(_ episode: EpisodeType) {
+  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
       let episodeID = try await getEpisodeID(episode)
@@ -39,7 +34,7 @@ extension ManagingEpisodesModel {
     }
   }
 
-  func queueEpisodeAtBottom(_ episode: EpisodeType) {
+  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
       let episodeID = try await getEpisodeID(episode)
@@ -47,7 +42,7 @@ extension ManagingEpisodesModel {
     }
   }
 
-  func cacheEpisode(_ episode: EpisodeType) {
+  func cacheEpisode(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
       do {
@@ -58,14 +53,14 @@ extension ManagingEpisodesModel {
       }
     }
   }
-}
 
-extension ManagingEpisodesModel where EpisodeType == PodcastEpisode {
-  func getPodcastEpisode(_ episode: PodcastEpisode) async throws -> PodcastEpisode { episode }
-}
+  // MARK: - Helpers
 
-extension ManagingEpisodesModel {
-  func getEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID {
+  private func getPodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
+    try await DisplayableEpisode.toPodcastEpisode(episode)
+  }
+
+  private func getEpisodeID(_ episode: any EpisodeDisplayable) async throws -> Episode.ID {
     try await getPodcastEpisode(episode).id
   }
 }

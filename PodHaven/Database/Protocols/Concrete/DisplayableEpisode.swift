@@ -17,6 +17,11 @@ struct DisplayableEpisode:
   let episode: any EpisodeDisplayable
 
   init(_ episode: any EpisodeDisplayable) {
+    Assert.precondition(
+      !(episode is DisplayableEpisode),
+      "Cannot wrap an instance of itself as an EpisodeDisplayable"
+    )
+
     self.episode = episode
   }
 
@@ -57,6 +62,15 @@ struct DisplayableEpisode:
   var queued: Bool { episode.queued }
 
   // MARK: - Helpers
+
+  static func toPodcastEpisode(_ episode: any EpisodeDisplayable) async throws
+    -> PodcastEpisode
+  {
+    guard let displayableEpisode = episode as? DisplayableEpisode
+    else { return try await DisplayableEpisode(episode).toPodcastEpisode() }
+
+    return try await displayableEpisode.toPodcastEpisode()
+  }
 
   func toPodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = episode as? PodcastEpisode {

@@ -41,18 +41,6 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
     }
   }
 
-  // MARK: - ManagingEpisodesModel
-
-  func getPodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
-    if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
-      return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
-    } else if let podcastEpisode = episode as? PodcastEpisode {
-      return podcastEpisode
-    } else {
-      Assert.fatal("Unsupported episode type: \(type(of: episode))")
-    }
-  }
-
   // MARK: - Searching
 
   private var debounceMilliseconds: Int { 500 }

@@ -3,10 +3,8 @@
 import Foundation
 
 @MainActor protocol ManagingEpisodes {
-  associatedtype EpisodeType
-
-  func playEpisode(_ episode: EpisodeType)
-  func queueEpisodeOnTop(_ episode: EpisodeType)
-  func queueEpisodeAtBottom(_ episode: EpisodeType)
-  func cacheEpisode(_ episode: EpisodeType)
+  func playEpisode(_ episode: any EpisodeDisplayable)
+  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable)
+  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable)
+  func cacheEpisode(_ episode: any EpisodeDisplayable)
 }
