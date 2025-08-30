@@ -46,7 +46,7 @@ extension ManagingEpisodesModel {
       try await queue.append(episodeID)
     }
   }
-  
+
   func cacheEpisode(_ episode: EpisodeType) {
     Task { [weak self] in
       guard let self else { return }

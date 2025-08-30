@@ -34,7 +34,7 @@ import Testing
 
   @Test("that showEpisode sets current tab and appends to podcasts path")
   func showEpisodeNavigatesToCorrectTab() async throws {
-    var podcastEpisode = try await Create.podcastEpisode(
+    let podcastEpisode = try await Create.podcastEpisode(
       UnsavedPodcastEpisode(
         unsavedPodcast: Create.unsavedPodcast(subscriptionDate: Date()),
         unsavedEpisode: Create.unsavedEpisode()
