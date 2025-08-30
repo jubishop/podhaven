@@ -72,10 +72,7 @@ actor ShareService {
 
     let podcastSeries = try await findOrCreatePodcastSeries(feedURL: feedURL)
 
-    await navigation.showPodcast(
-      podcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
-      podcastSeries.podcast
-    )
+    await navigation.showPodcast(podcastSeries.podcast)
   }
 
   private func handleOPMLURL(_ url: URL) async throws(ShareError) {
@@ -115,15 +112,11 @@ actor ShareService {
       ) {
         Self.log.debug("handleEpisodeURL: Found matching episode: \(matchingEpisode.toString)")
         await navigation.showEpisode(
-          podcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
           PodcastEpisode(podcast: podcastSeries.podcast, episode: matchingEpisode)
         )
       } else {
         Self.log.debug("handleEpisodeURL: Episode not found, showing podcast instead")
-        await navigation.showPodcast(
-          podcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
-          podcastSeries.podcast
-        )
+        await navigation.showPodcast(podcastSeries.podcast)
       }
     }
   }
@@ -144,10 +137,7 @@ actor ShareService {
         try await repo.markSubscribed(podcastSeries.id)
         try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
         let updatedPodcastSeries = try await repo.podcastSeries(feedURL) ?? podcastSeries
-        await navigation.showPodcast(
-          updatedPodcastSeries.podcast.subscribed ? .subscribed : .unsubscribed,
-          updatedPodcastSeries.podcast
-        )
+        await navigation.showPodcast(updatedPodcastSeries.podcast)
         return updatedPodcastSeries
       }
 

@@ -282,21 +282,17 @@ extension Container {
     podcasts.path.append(.podcastsViewType(viewType))
   }
 
-  func showPodcast(_ viewType: PodcastsViewType, _ podcast: Podcast) {
+  func showPodcast(_ podcast: Podcast) {
     Self.log.debug("Showing podcast: \(podcast.toString)")
 
-    showPodcastList(viewType)
+    showPodcastList(podcast.subscribed ? .subscribed : .unsubscribed)
     podcasts.path.append(.podcast(podcast))
   }
 
-  func showPodcast(_ podcast: Podcast) {
-    showPodcast(podcast.subscribed ? .subscribed : .unsubscribed, podcast)
-  }
-
-  func showEpisode(_ viewType: PodcastsViewType, _ podcastEpisode: PodcastEpisode) {
+  func showEpisode(_ podcastEpisode: PodcastEpisode) {
     Self.log.debug("Showing PodcastEpisode: \(podcastEpisode.toString)")
 
-    showPodcast(viewType, podcastEpisode.podcast)
+    showPodcast(podcastEpisode.podcast)
     podcasts.path.append(.episode(DisplayableEpisode(podcastEpisode)))
   }
 }

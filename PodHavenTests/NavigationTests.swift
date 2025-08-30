@@ -26,17 +26,22 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     let podcast = podcastEpisode.podcast
 
-    navigation.showPodcast(.subscribed, podcast)
+    navigation.showPodcast(podcast)
 
     #expect(navigation.currentTab == .podcasts, "Current tab should be podcasts")
-    #expect(navigation.podcasts.path == [.podcastsViewType(.subscribed), .podcast(podcast)])
+    #expect(navigation.podcasts.path == [.podcastsViewType(.unsubscribed), .podcast(podcast)])
   }
 
   @Test("that showEpisode sets current tab and appends to podcasts path")
   func showEpisodeNavigatesToCorrectTab() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
+    var podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: Create.unsavedPodcast(subscriptionDate: Date()),
+        unsavedEpisode: Create.unsavedEpisode()
+      )
+    )
 
-    navigation.showEpisode(.subscribed, podcastEpisode)
+    navigation.showEpisode(podcastEpisode)
 
     #expect(navigation.currentTab == .podcasts, "Current tab should be podcasts")
     #expect(
@@ -52,7 +57,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     // Set up some navigation state
-    navigation.showPodcast(.subscribed, podcastEpisode.podcast)
+    navigation.showPodcast(podcastEpisode.podcast)
     navigation.showEpisodes(.completed)
 
     // Verify initial state

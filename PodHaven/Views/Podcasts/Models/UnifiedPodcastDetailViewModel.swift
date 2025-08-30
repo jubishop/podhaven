@@ -177,7 +177,7 @@ class UnifiedPodcastDetailViewModel:
             podcastSeries: updatedPodcastSeries,
             podcastFeed: podcastFeed
           )
-          navigation.showPodcast(.subscribed, updatedPodcastSeries.podcast)
+          navigation.showPodcast(updatedPodcastSeries.podcast)
         } else if let unsavedPodcast = podcast as? UnsavedPodcast {
           // Create new series
           var unsavedPodcast = unsavedPodcast
@@ -196,7 +196,7 @@ class UnifiedPodcastDetailViewModel:
             unsavedPodcast,
             unsavedEpisodes: unsavedEpisodes
           )
-          navigation.showPodcast(.subscribed, newPodcastSeries.podcast)
+          navigation.showPodcast(newPodcastSeries.podcast)
         }
       } catch {
         Self.log.error(error)
@@ -213,7 +213,7 @@ class UnifiedPodcastDetailViewModel:
     Task { [weak self] in
       guard let self else { return }
       try await repo.markUnsubscribed(podcastSeries.id)
-      navigation.showPodcast(.unsubscribed, podcastSeries.podcast)
+      navigation.showPodcast(podcastSeries.podcast)
     }
   }
 
