@@ -204,11 +204,4 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     )
     return try await repo.updateCacheAll(podcastID, cacheAllEpisodes: cacheAllEpisodes)
   }
-  
-  // MARK: - Database Bridge
-  
-  func notifyChanges(for podcastID: Podcast.ID) async throws {
-    recordCall(methodName: "notifyChanges", parameters: podcastID)
-    try await repo.notifyChanges(for: podcastID)
-  }
 }

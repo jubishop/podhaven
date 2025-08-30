@@ -10,9 +10,6 @@ extension Container {
     Factory(self) { AppDB._onDisk }.scope(.cached)
   }
 
-  internal var backgroundAppDB: Factory<AppDB> {
-    Factory(self) { AppDB._onDiskBackground }.scope(.cached)
-  }
 }
 
 struct AppDB {
@@ -44,25 +41,6 @@ struct AppDB {
       return try AppDB(dbPool)
     } catch {
       Assert.fatal("Failed to initialize onDisk AppDB pool: \(ErrorKit.message(for: error))")
-    }
-  }()
-
-  fileprivate static let _onDiskBackground = {
-    Self.log.debug("creating onDiskBackground AppDB")
-    do {
-      Assert.precondition(
-        AppInfo.environment != .preview,
-        "Creating onDiskBackground AppDB in preview is not supported"
-      )
-      let dbPool = try DatabasePool(
-        path: sqlitePath,
-        configuration: makeConfiguration(qos: .background)
-      )
-      return try AppDB(dbPool)
-    } catch {
-      Assert.fatal(
-        "Failed to initialize onDiskBackground AppDB pool: \(ErrorKit.message(for: error))"
-      )
     }
   }()
 

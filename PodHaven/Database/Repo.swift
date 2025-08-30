@@ -13,10 +13,6 @@ extension Container {
     Factory(self) { self.makeRepo() }.scope(.cached)
   }
 
-  internal func makeBackgroundRepo() -> Repo { Repo(self.backgroundAppDB()) }
-  var backgroundRepo: Factory<any Databasing> {
-    Factory(self) { self.makeBackgroundRepo() }.scope(.cached)
-  }
 }
 
 struct Repo: Databasing, Sendable {
@@ -354,15 +350,6 @@ struct Repo: Databasing, Sendable {
         .withID(podcastID)
         .updateAll(db, Podcast.Columns.cacheAllEpisodes.set(to: cacheAllEpisodes))
     } > 0
-  }
-
-  // MARK: - Database Bridge (For Background Updates)
-
-  func notifyChanges(for podcastID: Podcast.ID) async throws {
-    try await appDB.db.write { db in
-      try db.notifyChanges(in: Podcast.withID(podcastID))
-      try db.notifyChanges(in: Episode.filter(Episode.Columns.podcastId == podcastID))
-    }
   }
 
   // MARK: Private Helpers
