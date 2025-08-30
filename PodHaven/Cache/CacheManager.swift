@@ -3,7 +3,6 @@
 import FactoryKit
 import Foundation
 import GRDB
-import Semaphore
 
 extension Container {
   var cacheManagerSession: Factory<DataFetchable> {
@@ -184,12 +183,12 @@ actor CacheManager {
 
     Self.log.debug("startMonitoringQueue: starting")
 
-    Task(priority: .utility) { [weak self] in
+    Task { [weak self] in
       guard let self else { return }
 
       do {
         for try await queuedEpisodes in await observatory.queuedPodcastEpisodes() {
-          await handleQueueChange(queuedEpisodes)
+          Task { await handleQueueChange(queuedEpisodes) }
         }
       } catch {
         Self.log.error(error)
@@ -213,22 +212,19 @@ actor CacheManager {
       """
     )
 
-    // Cache new episodes in reverse order (most imminent first)
-    for podcastEpisode in queuedEpisodes.reversed() {
-      let asyncSemaphore = AsyncSemaphore(value: 0)
-      Task { [weak self] in
-        guard let self else { return }
-        do {
-          asyncSemaphore.signal()
-          try await downloadAndCache(podcastEpisode)
-        } catch {
-          Self.log.error(error)
+    await withDiscardingTaskGroup { group in
+      // Cache new episodes in reverse order (most imminent first)
+      for podcastEpisode in queuedEpisodes.reversed() {
+        group.addTask { [weak self] in
+          guard let self else { return }
+          do {
+            try await downloadAndCache(podcastEpisode)
+          } catch {
+            Self.log.error(error)
+          }
         }
       }
-      await asyncSemaphore.wait()
-    }
 
-    await withDiscardingTaskGroup { group in
       // Clear cache for removed episodes
       for episodeID in removedEpisodeIDs {
         group.addTask { [weak self] in

@@ -5,7 +5,6 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
-import Semaphore
 import UIKit
 
 extension Container {
@@ -31,7 +30,7 @@ actor RefreshManager {
   // MARK: - State Management
 
   private var backgroundRefreshTask: Task<Void, Never>?
-  private let refreshSemaphore = AsyncSemaphore(value: 1)
+  private var activeRefreshTask: Task<Void, any Error>?
 
   // MARK: - Initialization
 
@@ -231,44 +230,59 @@ actor RefreshManager {
   private func activated() {
     Self.log.trace("activated: starting background refresh task")
 
-    backgroundRefreshTask?.cancel()
+    cancelRefreshTasks()
     backgroundRefreshTask = Task(priority: .background) { [weak self] in
       guard let self else { return }
 
       while !Task.isCancelled {
-        Self.log.trace("backgroundRefreshTask: waiting for refreshSemaphore to complete")
-        await refreshSemaphore.wait()
-
-        do {
+        let refreshTask = Task {
           Self.log.debug("backgroundRefreshTask: performing refresh")
-          try await performRefresh(
+          try await self.performRefresh(
             stalenessThreshold: 10.minutesAgo,
             filter: Podcast.subscribed,
             priority: .background
           )
+        }
+
+        await self.setActiveRefreshTask(refreshTask)
+        do {
+          try await refreshTask.value
         } catch {
           Self.log.error(error)
         }
+        await self.setActiveRefreshTask(nil)
 
-        Self.log.trace("backgroundRefreshTask: releasing semaphore")
-        refreshSemaphore.signal()
-
-        // Sleep without holding the semaphore
-        try? await sleeper.sleep(for: .minutes(15))
+        try? await self.sleeper.sleep(for: .minutes(15))
       }
     }
   }
 
   private func backgrounded() async {
-    Self.log.trace("backgrounded: waiting for refreshSemaphore to complete")
-    await refreshSemaphore.wait()
+    Self.log.trace("backgrounded: waiting for active refresh to complete")
 
-    Self.log.debug("backgrounded: cancelling refresh task")
+    if let activeRefreshTask {
+      Self.log.debug("backgrounded: waiting for active refresh task to complete")
+      do {
+        try await activeRefreshTask.value
+        Self.log.debug("backgrounded: active refresh completed gracefully")
+      } catch {
+        Self.log.error(error)
+      }
+    }
+
+    Self.log.debug("backgrounded: cancelling background refresh task")
+    cancelRefreshTasks()
+  }
+
+  private func cancelRefreshTasks() {
+    activeRefreshTask?.cancel()
+    activeRefreshTask = nil
     backgroundRefreshTask?.cancel()
     backgroundRefreshTask = nil
+  }
 
-    Self.log.debug("backgrounded: releasing semaphore")
-    refreshSemaphore.signal()
+  private func setActiveRefreshTask(_ task: Task<Void, any Error>?) async {
+    activeRefreshTask = task
   }
 
   private func startListeningToActivation() {

@@ -5,7 +5,6 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
-import Semaphore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -83,8 +82,6 @@ extension Container {
 
   var opmlFile: OPMLFile?
 
-  private var downloadSemaphor = AsyncSemaphore(value: 1)
-
   init() {}
 
   func opmlFileImporterCompletion(_ result: Result<URL, any Error>) {
@@ -134,9 +131,6 @@ extension Container {
   // MARK: - Private Helpers
 
   private func downloadOPMLFile(_ opml: PodcastOPML) async throws {
-    try await downloadSemaphor.waitUnlessCancelled()
-    defer { downloadSemaphor.signal() }
-
     let opmlFile = OPMLFile(title: opml.title ?? "Podcast Subscriptions")
     let allPodcasts = IdentifiedArray(uniqueElements: try await repo.allPodcasts(), id: \.feedURL)
 
