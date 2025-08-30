@@ -50,19 +50,6 @@ struct OSLogHandler: LogHandler {
     function: String,
     line: UInt
   ) {
-    let finalMessage: String
-
-    #if DEBUG
-    // Add test context prefix if available (only during testing)
-    if let testContext = TestContext.current {
-      finalMessage = "[\(testContext)] \(message)"
-    } else {
-      finalMessage = "\(message)"
-    }
-    #else
-    finalMessage = "\(message)"
-    #endif
-
-    logger.log(level: level.osLogLevel, "\(finalMessage, privacy: .public)")
+    logger.log(level: level.osLogLevel, "\(message, privacy: .public)")
   }
 }
