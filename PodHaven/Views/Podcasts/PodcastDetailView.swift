@@ -171,7 +171,7 @@ struct PodcastDetailView: View {
   private var episodeList: some View {
     List(viewModel.episodeList.filteredEntries) { episode in
       NavigationLink(
-        value: viewModel.navigationDestination(for: episode),
+        value: Navigation.Destination.episode(episode),
         label: {
           EpisodeListView(
             viewModel: SelectableListItemModel(

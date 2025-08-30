@@ -9,13 +9,6 @@ struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifia
 
   let podcast: Podcast
   let episodes: IdentifiedArray<MediaGUID, Episode>
-  var podcastEpisodes: IdentifiedArray<MediaGUID, PodcastEpisode> {
-    IdentifiedArray(
-      uniqueElements:
-        episodes.map { PodcastEpisode(podcast: podcast, episode: $0) },
-      id: \.episode.unsaved.id
-    )
-  }
 
   init(podcast: Podcast, episodes: [Episode] = []) {
     self.init(

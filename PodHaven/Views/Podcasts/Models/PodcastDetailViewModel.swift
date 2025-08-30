@@ -54,14 +54,27 @@ class PodcastDetailViewModel:
   var mostRecentEpisodeDate: Date {
     episodeList.allEntries.first?.pubDate ?? Date.epoch
   }
-  var subscribable: Bool = false
+  var subscribable = false
   var refreshable: Bool { podcastSeries != nil }
 
   // MARK: - Data Properties
 
   var podcast: any PodcastDisplayable
-  private var podcastSeries: PodcastSeries?
   private var podcastFeed: PodcastFeed?
+  private var podcastSeries: PodcastSeries? {
+    didSet {
+      if let podcastSeries {
+        self.podcast = podcastSeries.podcast
+        episodeList.allEntries = IdentifiedArray(
+          uniqueElements:
+            podcastSeries.episodes.map {
+              DisplayableEpisode(PodcastEpisode(podcast: podcastSeries.podcast, episode: $0))
+            },
+          id: \.id
+        )
+      }
+    }
+  }
 
   // MARK: - SelectableEpisodeListModel
 
@@ -93,90 +106,62 @@ class PodcastDetailViewModel:
 
   func execute() async {
     do {
-      // Step 1: Check for existing saved podcast series by feedURL
-      if let existingPodcastSeries = try await repo.podcastSeries(podcast.feedURL) {
-
-        // Path A: Saved series exists - use refresh manager
-        self.podcastSeries = existingPodcastSeries
-        self.podcast = existingPodcastSeries.podcast  // Update to saved version
-
-        // Refresh the series if it's stale
-        if existingPodcastSeries.podcast.lastUpdate < 15.minutesAgo {
-          await refreshSeries()
-        }
-
-        // Observe the saved series using its ID
-        for try await updatedSeries in observatory.podcastSeries(existingPodcastSeries.id) {
-          guard let updatedSeries = updatedSeries else {
-            throw ObservatoryError.recordNotFound(
-              type: PodcastSeries.self,
-              id: existingPodcastSeries.id.rawValue
-            )
-          }
-
-          if self.podcastSeries == updatedSeries { continue }
-          self.podcastSeries = updatedSeries
-          self.podcast = updatedSeries.podcast
-
-          // Update episode list with saved PodcastEpisodes wrapped in DisplayableEpisode
-          let episodes = updatedSeries.podcastEpisodes.map { DisplayableEpisode($0) }
-          episodeList.allEntries = IdentifiedArray(
-            uniqueElements: episodes,
-            id: \.mediaGUID
-          )
-          subscribable = true
-        }
-
-      } else {
-
-        // Path B: No saved series - parse feed directly
-        let podcastFeed = try await PodcastFeed.parse(podcast.feedURL)
-        self.podcastFeed = podcastFeed
-
-        // Observe using the updated feed URL from the parsed feed
-        for try await podcastSeries in observatory.podcastSeries(podcastFeed.updatedFeedURL) {
-
-          // Update podcast with fresh feed data
-          self.podcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries?.podcast.unsaved)
-
-          // Create UnsavedPodcastEpisodes from fresh feed data wrapped in DisplayableEpisode
-          let freshEpisodes = podcastFeed.toEpisodeArray(merging: podcastSeries)
-            .map {
-              UnsavedPodcastEpisode(
-                unsavedPodcast: self.podcast as! UnsavedPodcast,
-                unsavedEpisode: $0
-              )
-            }
-
-          let episodes = freshEpisodes.map { DisplayableEpisode($0) }
-          episodeList.allEntries = IdentifiedArray(uniqueElements: episodes, id: \.mediaGUID)
-          subscribable = true
-        }
-      }
-
+      try await performExecute()
     } catch {
       Self.log.error(error)
       if !ErrorKit.isRemarkable(error) { return }
       alert(ErrorKit.message(for: error))
+      return
     }
   }
 
-  // MARK: - ManagingEpisodesModel
+  func performExecute() async throws {
+    let podcastSeries = try await repo.podcastSeries(podcast.feedURL)
 
-  // This will be our main type-checking method
-  func getPodcastEpisode(_ episode: DisplayableEpisode) async throws -> PodcastEpisode {
-    try await episode.toPodcastEpisode()
+    if let podcastSeries {
+      Self.log.debug("Podcast series: \(podcastSeries.toString) exists in db")
+
+      self.podcastSeries = podcastSeries
+
+      if podcastSeries.podcast.lastUpdate < 15.minutesAgo {
+        await refreshSeries()
+      }
+    } else {
+      Self.log.debug("Podcast series: \(podcast.toString) does not exist in db")
+
+      let podcastFeed = try await PodcastFeed.parse(podcast.feedURL)
+      self.podcastFeed = podcastFeed
+
+      let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+      self.podcast = unsavedPodcast
+
+      episodeList.allEntries = IdentifiedArray(
+        uniqueElements: podcastFeed.toEpisodeArray(merging: podcastSeries)
+          .map {
+            DisplayableEpisode(
+              UnsavedPodcastEpisode(
+                unsavedPodcast: unsavedPodcast,
+                unsavedEpisode: $0
+              )
+            )
+          },
+        id: \.mediaGUID
+      )
+    }
+
+    for try await podcastSeries in observatory.podcastSeries(podcast.feedURL) {
+      guard let podcastSeries else { continue }
+      self.podcastSeries = podcastSeries
+    }
+
+    subscribable = true
   }
 
-  func getEpisodeID(_ episode: DisplayableEpisode) async throws -> Episode.ID {
-    let podcastEpisode = try await getPodcastEpisode(episode)
-    return podcastEpisode.id
-  }
-
-  // MARK: - PodcastDetailViewableModel
+  // MARK: - Public Methods
 
   func subscribe() {
-    guard subscribable else { return }
+    guard subscribable
+    else { Assert.fatal("Can't subscribe to non-subscribable podcast") }
 
     Task { [weak self] in
       guard let self else { return }
@@ -222,20 +207,29 @@ class PodcastDetailViewModel:
   }
 
   func unsubscribe() {
-    guard let podcastSeries = podcastSeries else {
-      Assert.fatal("Trying to unsubscribe from a non-saved podcast")
-    }
+    guard let podcastSeries = podcastSeries
+    else { Assert.fatal("Trying to unsubscribe from a non-saved podcast") }
 
     Task { [weak self] in
       guard let self else { return }
-      try await repo.markUnsubscribed(podcastSeries.id)
-      navigation.showPodcast(podcastSeries.podcast)
+      do {
+        try await repo.markUnsubscribed(podcastSeries.id)
+      } catch {
+        Self.log.error(error)
+        if !ErrorKit.isRemarkable(error) { return }
+        alert(ErrorKit.message(for: error))
+      }
     }
   }
 
   func refreshSeries() async {
-    guard let podcastSeries = podcastSeries else { return }
+    guard let podcastSeries = podcastSeries
+    else { Assert.fatal("Trying to refresh a non-saved podcast") }
 
+    guard podcastSeries.podcast.lastUpdate > 1.minutesAgo
+    else { return }
+
+    Self.log.debug("Refreshing podcast series \(podcastSeries.toString)")
     do {
       try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
     } catch {
@@ -243,9 +237,5 @@ class PodcastDetailViewModel:
       if !ErrorKit.isRemarkable(error) { return }
       alert(ErrorKit.message(for: error))
     }
-  }
-
-  func navigationDestination(for episode: DisplayableEpisode) -> Navigation.Destination {
-    .episode(episode)
   }
 }
