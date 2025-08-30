@@ -8,7 +8,7 @@ protocol ReadableError: CustomNSError, Equatable, LocalizedError, Sendable {
 }
 
 extension ReadableError {
-  static func == (_ lhs: Self, _ rhs: Self) -> Bool {
+  static func == (lhs: Self, rhs: Self) -> Bool {
     lhs.message == rhs.message
   }
 
