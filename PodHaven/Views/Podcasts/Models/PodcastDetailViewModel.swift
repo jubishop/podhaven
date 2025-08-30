@@ -63,16 +63,17 @@ class PodcastDetailViewModel:
   private var podcastFeed: PodcastFeed?
   private var podcastSeries: PodcastSeries? {
     didSet {
-      if let podcastSeries {
-        self.podcast = podcastSeries.podcast
-        episodeList.allEntries = IdentifiedArray(
-          uniqueElements:
-            podcastSeries.episodes.map {
-              DisplayableEpisode(PodcastEpisode(podcast: podcastSeries.podcast, episode: $0))
-            },
-          id: \.id
-        )
-      }
+      guard let podcastSeries = podcastSeries
+      else { Assert.fatal("Setting podcastSeries to nil is not allowed") }
+
+      self.podcast = podcastSeries.podcast
+      episodeList.allEntries = IdentifiedArray(
+        uniqueElements:
+          podcastSeries.episodes.map {
+            DisplayableEpisode(PodcastEpisode(podcast: podcastSeries.podcast, episode: $0))
+          },
+        id: \.id
+      )
     }
   }
 
@@ -110,8 +111,7 @@ class PodcastDetailViewModel:
     } catch {
       Self.log.error(error)
       if !ErrorKit.isRemarkable(error) { return }
-      alert(ErrorKit.message(for: error))
-      return
+      alert(ErrorKit.coreMessage(for: error))
     }
   }
 
@@ -122,10 +122,7 @@ class PodcastDetailViewModel:
       Self.log.debug("Podcast series: \(podcastSeries.toString) exists in db")
 
       self.podcastSeries = podcastSeries
-
-      if podcastSeries.podcast.lastUpdate < 15.minutesAgo {
-        await refreshSeries()
-      }
+      startObservation()
     } else {
       Self.log.debug("Podcast series: \(podcast.toString) does not exist in db")
 
@@ -149,11 +146,6 @@ class PodcastDetailViewModel:
       )
     }
 
-    for try await podcastSeries in observatory.podcastSeries(podcast.feedURL) {
-      guard let podcastSeries else { continue }
-      self.podcastSeries = podcastSeries
-    }
-
     subscribable = true
   }
 
@@ -166,42 +158,25 @@ class PodcastDetailViewModel:
     Task { [weak self] in
       guard let self else { return }
       do {
-        if let podcastSeries = podcastSeries, let podcastFeed = podcastFeed {
-          // Update existing series
-          var podcast = podcastSeries.podcast
-          podcast.subscriptionDate = Date()
-          let updatedPodcastSeries = PodcastSeries(
-            podcast: podcast,
-            episodes: podcastSeries.episodes
-          )
-          try await refreshManager.updateSeriesFromFeed(
-            podcastSeries: updatedPodcastSeries,
-            podcastFeed: podcastFeed
-          )
-          navigation.showPodcast(updatedPodcastSeries.podcast)
-        } else if let unsavedPodcast = podcast as? UnsavedPodcast {
-          // Create new series
-          var unsavedPodcast = unsavedPodcast
+        if let podcastSeries = podcastSeries {
+          try await repo.markSubscribed(podcastSeries.id)
+        } else if var unsavedPodcast = podcast as? UnsavedPodcast {
           unsavedPodcast.subscriptionDate = Date()
-          unsavedPodcast.lastUpdate = Date()
 
-          let unsavedEpisodes = episodeList.allEntries.elements.compactMap {
-            episode -> UnsavedEpisode? in
-            if let unsavedPodcastEpisode = episode.episode as? UnsavedPodcastEpisode {
-              return unsavedPodcastEpisode.unsavedEpisode
-            }
-            return nil
-          }
-
-          let newPodcastSeries = try await repo.insertSeries(
+          self.podcastSeries = try await repo.insertSeries(
             unsavedPodcast,
-            unsavedEpisodes: unsavedEpisodes
+            unsavedEpisodes: episodeList.allEntries.map {
+              $0.toUnsavedPodcastEpisode().unsavedEpisode
+            }
           )
-          navigation.showPodcast(newPodcastSeries.podcast)
+          startObservation()
+        } else {
+          Assert.fatal("Podcast type is not supported: \(String(describing: podcast))")
         }
       } catch {
         Self.log.error(error)
-        alert(ErrorKit.message(for: error))
+        if !ErrorKit.isRemarkable(error) { return }
+        alert(ErrorKit.coreMessage(for: error))
       }
     }
   }
@@ -217,7 +192,7 @@ class PodcastDetailViewModel:
       } catch {
         Self.log.error(error)
         if !ErrorKit.isRemarkable(error) { return }
-        alert(ErrorKit.message(for: error))
+        alert(ErrorKit.coreMessage(for: error))
       }
     }
   }
@@ -237,5 +212,43 @@ class PodcastDetailViewModel:
       if !ErrorKit.isRemarkable(error) { return }
       alert(ErrorKit.message(for: error))
     }
+  }
+
+  // MARK: - Observation Management
+
+  @ObservationIgnored private var observationTask: Task<Void, Never>?
+
+  private func startObservation() {
+    Assert.precondition(
+      observationTask == nil,
+      "Already observing"
+    )
+
+    observationTask = Task { [weak self] in
+      guard let self else { return }
+      await observePodcastSeries()
+    }
+  }
+
+  private func observePodcastSeries() async {
+    guard let podcastSeries = self.podcastSeries
+    else { Assert.fatal("Observing a non-saved podcast") }
+
+    do {
+      Self.log.debug("Starting observation by ID: \(podcastSeries.id)")
+      for try await updatedSeries in observatory.podcastSeries(podcastSeries.id) {
+        guard !Task.isCancelled else { break }
+        guard let updatedSeries, updatedSeries != self.podcastSeries else { continue }
+        self.podcastSeries = updatedSeries
+      }
+    } catch {
+      Self.log.error(error)
+      if !ErrorKit.isRemarkable(error) { return }
+      alert(ErrorKit.coreMessage(for: error))
+    }
+  }
+
+  deinit {
+    observationTask?.cancel()
   }
 }

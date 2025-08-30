@@ -4,7 +4,6 @@ import AVFoundation
 import FactoryKit
 import Foundation
 import Logging
-import Semaphore
 
 extension Container {
   @MainActor var podAVPlayer: Factory<PodAVPlayer> {

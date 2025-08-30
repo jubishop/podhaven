@@ -5,7 +5,6 @@ import FactoryKit
 import Foundation
 import GRDB
 import Logging
-import Semaphore
 import Sharing
 import SwiftUI
 

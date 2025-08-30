@@ -78,7 +78,15 @@ struct DisplayableEpisode:
     } else if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
       return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
     } else {
-      Assert.fatal("Unsupported episode type: \(type(of: episode))")
+      Assert.fatal("Can't make PodcastEpisode from: \(type(of: episode))")
+    }
+  }
+
+  func toUnsavedPodcastEpisode() -> UnsavedPodcastEpisode {
+    if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
+      return unsavedPodcastEpisode
+    } else {
+      Assert.fatal("Can't make UnsavedPodcastEpisode from \(type(of: episode))")
     }
   }
 }
