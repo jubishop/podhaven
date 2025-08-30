@@ -98,7 +98,7 @@ extension Container {
       case searchType(SearchType)
       case category(String)
       case searchedPodcast(SearchedPodcast)
-      case searchedPodcastEpisode(SearchedPodcastEpisode)
+      case searchedPodcastEpisode(DisplayableEpisode)
     }
 
     @ViewBuilder
@@ -126,11 +126,11 @@ extension Container {
           viewModel: PodcastResultsDetailViewModel(searchedPodcast: searchedPodcast)
         )
         .id(searchedPodcast.unsavedPodcast.feedURL)
-      case .searchedPodcastEpisode(let searchedPodcastEpisode):
+      case .searchedPodcastEpisode(let displayableEpisode):
         EpisodeDetailView(
-          viewModel: EpisodeDetailViewModel(episode: searchedPodcastEpisode.episode)
+          viewModel: EpisodeDetailViewModel(episode: displayableEpisode.episode)
         )
-        .id(searchedPodcastEpisode.episode.mediaGUID)
+        .id(displayableEpisode.mediaGUID)
       }
     }
   }

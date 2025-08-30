@@ -161,10 +161,7 @@ class PodcastResultsDetailViewModel:
 
   func navigationDestination(for episode: UnsavedPodcastEpisode) -> Navigation.Search.Destination {
     .searchedPodcastEpisode(
-      SearchedPodcastEpisode(
-        searchedText: searchedText,
-        episode: episode
-      )
+      DisplayableEpisode(episode: episode)
     )
   }
 }
