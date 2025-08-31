@@ -156,39 +156,28 @@ struct PodcastFeed: Sendable, Stringable {
   func toEpisodeArray(merging podcastSeries: PodcastSeries? = nil)
     -> IdentifiedArray<MediaGUID, UnsavedEpisode>
   {
-    let allEpisodes = episodes.compactMap { episodeFeed in
-      try? episodeFeed.toUnsavedEpisode(
-        merging: podcastSeries?.episodes[id: episodeFeed.mediaGUID]
-      )
-    }
-
-    var seenGUIDs: [GUID: UnsavedEpisode] = Dictionary(capacity: allEpisodes.count)
-    var seenMediaURLs: [MediaURL: UnsavedEpisode] = Dictionary(capacity: allEpisodes.count)
-
-    for episode in allEpisodes {
-      // Check GUID conflict
-      if let existingByGUID = seenGUIDs[episode.guid] {
-        guard episode.pubDate >= existingByGUID.pubDate
-        else { continue }
-
-        // Remove the old one from media URLs
-        seenMediaURLs.removeValue(forKey: existingByGUID.media)
+    let allEpisodes =
+      episodes.compactMap { episodeFeed in
+        try? episodeFeed.toUnsavedEpisode(
+          merging: podcastSeries?.episodes[id: episodeFeed.mediaGUID]
+        )
       }
+      .sorted { $0.pubDate > $1.pubDate }
 
-      // Check media URL conflict
-      if let existingByMedia = seenMediaURLs[episode.media] {
-        guard episode.pubDate >= existingByMedia.pubDate
-        else { continue }
+    var seenGUIDs = Set<GUID>(capacity: allEpisodes.count)
+    var seenMediaURLs = Set<MediaURL>(capacity: allEpisodes.count)
+    return IdentifiedArrayOf<UnsavedEpisode>(
+      uniqueElements:
+        allEpisodes.compactMap { episode in
+          if seenGUIDs.contains(episode.guid) || seenMediaURLs.contains(episode.media) {
+            return nil
+          }
 
-        // Remove the old one from GUIDs
-        seenGUIDs.removeValue(forKey: existingByMedia.guid)
-      }
-
-      seenGUIDs[episode.guid] = episode
-      seenMediaURLs[episode.media] = episode
-    }
-
-    return IdentifiedArray(uniqueElements: seenGUIDs.values, id: \.id)
+          seenGUIDs.insert(episode.guid)
+          seenMediaURLs.insert(episode.media)
+          return episode
+        }
+    )
   }
 
   // MARK: - Stringable
