@@ -501,4 +501,142 @@ class EpisodeTests {
     #expect(fetchedPodcastEpisode.podcast.creationDate.approximatelyEquals(creationDate))
     #expect(fetchedPodcastEpisode.episode.creationDate.approximatelyEquals(creationDate))
   }
+
+  @Test("that episode can be queried by MediaGUID")
+  func testEpisodeQueryByMediaGUID() async throws {
+    let guid = GUID("test-guid")
+    let mediaURL = MediaURL(URL.valid())
+    let mediaGUID = MediaGUID(guid: guid, media: mediaURL)
+
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode(
+      guid: guid,
+      media: mediaURL,
+      title: "Episode with MediaGUID"
+    )
+
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode]
+    )
+
+    let insertedEpisode = podcastSeries.episodes.first!
+
+    // Query by MediaGUID should return the same episode as query by ID
+    let episodeByGUID = try await repo.episode(mediaGUID)
+    let episodeByID = try await repo.episode(insertedEpisode.id)
+
+    #expect(episodeByGUID != nil)
+    #expect(episodeByID != nil)
+    #expect(episodeByGUID?.id == episodeByID?.id)
+    #expect(episodeByGUID?.guid == guid)
+    #expect(episodeByGUID?.media == mediaURL)
+    #expect(episodeByGUID?.title == "Episode with MediaGUID")
+  }
+
+  @Test("that episode query by MediaGUID returns nil for non-existent episode")
+  func testEpisodeQueryByMediaGUIDNonExistent() async throws {
+    let nonExistentMediaGUID = MediaGUID(
+      guid: GUID("non-existent-guid"),
+      media: MediaURL(URL.valid())
+    )
+
+    let episode = try await repo.episode(nonExistentMediaGUID)
+    #expect(episode == nil)
+  }
+
+  @Test("that podcastEpisode can be queried by MediaGUID")
+  func testPodcastEpisodeQueryByMediaGUID() async throws {
+    let guid = GUID("test-podcast-episode-guid")
+    let mediaURL = MediaURL(URL.valid())
+    let mediaGUID = MediaGUID(guid: guid, media: mediaURL)
+
+    let unsavedPodcast = try Create.unsavedPodcast(title: "Test Podcast")
+    let unsavedEpisode = try Create.unsavedEpisode(
+      guid: guid,
+      media: mediaURL,
+      title: "Test Episode"
+    )
+
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode]
+    )
+
+    let insertedEpisode = podcastSeries.episodes.first!
+
+    // Query by MediaGUID should return the same podcastEpisode as query by ID
+    let podcastEpisodeByGUID = try await repo.podcastEpisode(mediaGUID)
+    let podcastEpisodeByID = try await repo.podcastEpisode(insertedEpisode.id)
+
+    #expect(podcastEpisodeByGUID != nil)
+    #expect(podcastEpisodeByID != nil)
+    #expect(podcastEpisodeByGUID?.id == podcastEpisodeByID?.id)
+    #expect(podcastEpisodeByGUID?.episode.guid == guid)
+    #expect(podcastEpisodeByGUID?.episode.media == mediaURL)
+    #expect(podcastEpisodeByGUID?.episode.title == "Test Episode")
+    #expect(podcastEpisodeByGUID?.podcast.title == "Test Podcast")
+  }
+
+  @Test("that podcastEpisode query by MediaGUID returns nil for non-existent episode")
+  func testPodcastEpisodeQueryByMediaGUIDNonExistent() async throws {
+    let nonExistentMediaGUID = MediaGUID(
+      guid: GUID("non-existent-podcast-episode-guid"),
+      media: MediaURL(URL.valid())
+    )
+
+    let podcastEpisode = try await repo.podcastEpisode(nonExistentMediaGUID)
+    #expect(podcastEpisode == nil)
+  }
+
+  @Test("that MediaGUID queries are consistent across multiple episodes")
+  func testMediaGUIDQueriesConsistency() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+
+    let episode1GUID = GUID("episode-1")
+    let episode1Media = MediaURL(URL.valid())
+    let episode1MediaGUID = MediaGUID(guid: episode1GUID, media: episode1Media)
+
+    let episode2GUID = GUID("episode-2")
+    let episode2Media = MediaURL(URL.valid())
+    let episode2MediaGUID = MediaGUID(guid: episode2GUID, media: episode2Media)
+
+    let unsavedEpisode1 = try Create.unsavedEpisode(
+      guid: episode1GUID,
+      media: episode1Media,
+      title: "Episode 1"
+    )
+    let unsavedEpisode2 = try Create.unsavedEpisode(
+      guid: episode2GUID,
+      media: episode2Media,
+      title: "Episode 2"
+    )
+
+    try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode1, unsavedEpisode2]
+    )
+
+    // Test that each MediaGUID returns the correct episode
+    let foundEpisode1 = try await repo.episode(episode1MediaGUID)
+    let foundEpisode2 = try await repo.episode(episode2MediaGUID)
+
+    #expect(foundEpisode1 != nil)
+    #expect(foundEpisode2 != nil)
+    #expect(foundEpisode1?.title == "Episode 1")
+    #expect(foundEpisode2?.title == "Episode 2")
+    #expect(foundEpisode1?.guid == episode1GUID)
+    #expect(foundEpisode2?.guid == episode2GUID)
+    #expect(foundEpisode1?.media == episode1Media)
+    #expect(foundEpisode2?.media == episode2Media)
+
+    // Test with podcastEpisode queries as well
+    let foundPodcastEpisode1 = try await repo.podcastEpisode(episode1MediaGUID)
+    let foundPodcastEpisode2 = try await repo.podcastEpisode(episode2MediaGUID)
+
+    #expect(foundPodcastEpisode1 != nil)
+    #expect(foundPodcastEpisode2 != nil)
+    #expect(foundPodcastEpisode1?.episode.title == "Episode 1")
+    #expect(foundPodcastEpisode2?.episode.title == "Episode 2")
+  }
 }

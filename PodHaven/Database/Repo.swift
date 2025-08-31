@@ -69,19 +69,14 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func podcastSeries(_ feedURLs: [FeedURL]) async throws -> IdentifiedArray<FeedURL, PodcastSeries>
-  {
+  func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
     try await appDB.db.read { db in
       try Podcast
-        .filter { feedURLs.contains($0.feedURL) }
+        .filter { $0.feedURL == feedURL }
         .including(all: Podcast.episodes)
         .asRequest(of: PodcastSeries.self)
-        .fetchIdentifiedArray(db, id: \.podcast.feedURL)
+        .fetchOne(db)
     }
-  }
-
-  func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
-    try await podcastSeries([feedURL]).first
   }
 
   // MARK: - Episode Readers
@@ -94,10 +89,28 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  func episode(_ mediaGUID: MediaGUID) async throws -> Episode? {
+    try await appDB.db.read { db in
+      try Episode
+        .filter { $0.guid == mediaGUID.guid && $0.media == mediaGUID.media }
+        .fetchOne(db)
+    }
+  }
+
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
         .withID(episodeID)
+        .including(required: Episode.podcast)
+        .asRequest(of: PodcastEpisode.self)
+        .fetchOne(db)
+    }
+  }
+
+  func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode? {
+    try await appDB.db.read { db in
+      try Episode
+        .filter { $0.guid == mediaGUID.guid && $0.media == mediaGUID.media }
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)

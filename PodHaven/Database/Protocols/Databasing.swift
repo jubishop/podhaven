@@ -17,13 +17,14 @@ protocol Databasing: Sendable {
   // MARK: - Series Readers
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws(RepoError) -> PodcastSeries?
-  func podcastSeries(_ feedURLs: [FeedURL]) async throws -> IdentifiedArray<FeedURL, PodcastSeries>
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries?
 
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode?
+  func episode(_ mediaGUID: MediaGUID) async throws -> Episode?
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode?
+  func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode?
   func latestEpisode(for podcastID: Podcast.ID) async throws -> Episode?
 
   // MARK: - Series Writers
