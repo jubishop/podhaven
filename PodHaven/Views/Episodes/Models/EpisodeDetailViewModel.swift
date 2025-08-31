@@ -214,8 +214,8 @@ import Logging
     }
   }
 
-  deinit {
-    Log.as(LogSubsystem.EpisodesView.detail).debug("Deiniting EpisodeDetailViewModel")
+  func disappear() {
+    Self.log.debug("disappear: executing")
     observationTask?.cancel()
   }
 

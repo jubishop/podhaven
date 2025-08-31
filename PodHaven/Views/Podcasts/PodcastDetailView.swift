@@ -55,6 +55,7 @@ struct PodcastDetailView: View {
     }
     .toolbarRole(.editor)
     .task { await viewModel.execute() }
+    .onDisappear { viewModel.disappear() }
   }
 
   // MARK: - Header

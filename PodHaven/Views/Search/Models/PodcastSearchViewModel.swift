@@ -145,7 +145,8 @@ final class PodcastSearchViewModel {
 
   // MARK: - Cleanup
 
-  deinit {
+  func disappear() {
+    Self.log.debug("disappear: executing")
     searchTask?.cancel()
   }
 }

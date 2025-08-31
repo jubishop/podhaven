@@ -250,8 +250,8 @@ class PodcastDetailViewModel:
     }
   }
 
-  deinit {
-    Log.as(LogSubsystem.PodcastsView.detail).debug("Deiniting PodcastDetailViewModel")
+  func disappear() {
+    Self.log.debug("disappear: executing")
     observationTask?.cancel()
   }
 

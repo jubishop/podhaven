@@ -138,8 +138,8 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
 
   // MARK: - Cleanup
 
-  deinit {
-    Log.as(LogSubsystem.SearchView.episode).debug("Deiniting EpisodeSearchViewModel")
+  func disappear() {
+    Self.log.debug("disappear: executing")
     searchTask?.cancel()
     observationTask?.cancel()
   }

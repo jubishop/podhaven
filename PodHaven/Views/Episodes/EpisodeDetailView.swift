@@ -182,6 +182,7 @@ struct EpisodeDetailView: View {
       .padding(.vertical)
     }
     .task { await viewModel.execute() }
+    .onDisappear { viewModel.disappear() }
   }
 }
 

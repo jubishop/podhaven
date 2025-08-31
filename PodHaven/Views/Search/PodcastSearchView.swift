@@ -47,6 +47,7 @@ struct PodcastSearchView: View {
       placement: .navigationBarDrawer(displayMode: .always),
       prompt: viewModel.selectedMode.searchPrompt
     )
+    .onDisappear { viewModel.disappear() }
   }
 }
 

@@ -32,6 +32,7 @@ struct EpisodeSearchView: View {
       placement: .navigationBarDrawer(displayMode: .always),
       prompt: "Enter person's name..."
     )
+    .onDisappear { viewModel.disappear() }
   }
 
   var idleStateView: some View {
