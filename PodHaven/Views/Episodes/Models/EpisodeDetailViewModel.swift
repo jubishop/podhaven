@@ -22,8 +22,8 @@ import Logging
   // MARK: - State Management
 
   var episode: any EpisodeDisplayable
+  private var maxQueuePosition: Int? = nil
   private var podcastEpisode: PodcastEpisode?
-  internal var maxQueuePosition: Int? = nil
 
   // MARK: - Initialization
 
@@ -32,56 +32,27 @@ import Logging
   }
 
   func execute() async {
+    do {
+      try await performExecute()
+    } catch {
+      Self.log.error(error)
+      if !ErrorKit.isRemarkable(error) { return }
+      alert(ErrorKit.coreMessage(for: error))
+    }
+  }
+
+  func performExecute() async throws {
     let podcastEpisode = try await repo.podcastEpisode(episode.mediaGUID)
 
-    if let podcastSeries {
-      Self.log.debug("Podcast series: \(podcastSeries.toString) exists in db")
+    if let podcastEpisode {
+      Self.log.debug("Podcast episode: \(podcastEpisode.toString) exists in db")
 
-      self.podcastSeries = podcastSeries
+      self.podcastEpisode = podcastEpisode
       startObservation()
     } else {
-      Self.log.debug("Podcast series: \(podcast.toString) does not exist in db")
-
-      let podcastFeed = try await PodcastFeed.parse(podcast.feedURL)
-      self.podcastFeed = podcastFeed
-
-      let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
-      self.podcast = unsavedPodcast
-
-      episodeList.allEntries = IdentifiedArray(
-        uniqueElements: podcastFeed.toEpisodeArray(merging: podcastSeries)
-          .map {
-            DisplayableEpisode(
-              UnsavedPodcastEpisode(
-                unsavedPodcast: unsavedPodcast,
-                unsavedEpisode: $0
-              )
-            )
-          },
-        id: \.mediaGUID
-      )
+      Self.log.debug("Podcast episode: \(episode.toString) does not exist in db")
     }
 
-    subscribable = true
-
-      group.addTask { @MainActor @Sendable in
-        do {
-          for try await podcastEpisode in self.observatory.podcastEpisode(self.episode.mediaGUID) {
-            try Task.checkCancellation()
-            Self.log.debug(
-              "Updating observed podcast: \(String(describing: podcastEpisode?.toString))"
-            )
-            if let podcastEpisode { self.episode = podcastEpisode }
-            self.podcastEpisode = podcastEpisode
-          }
-        } catch {
-          Self.log.error(error)
-          guard ErrorKit.isRemarkable(error) else { return }
-          self.alert(ErrorKit.coreMessage(for: error))
-        }
-      }
-    }
-    
     do {
       for try await maxPosition in self.observatory.maxQueuePosition() {
         try Task.checkCancellation()
@@ -203,25 +174,27 @@ import Logging
 
     observationTask = Task { [weak self] in
       guard let self else { return }
-      await observePodcastSeries()
+      await observePodcastEpisode()
     }
   }
 
-  private func observePodcastSeries() async {
-    guard let podcastSeries = self.podcastSeries
-    else { Assert.fatal("Observing a non-saved podcast") }
+  private func observePodcastEpisode() async {
+    guard let podcastEpisode = self.podcastEpisode
+    else { Assert.fatal("Observing a non-saved podcastEpisode") }
 
     do {
-      Self.log.debug("Starting observation by ID: \(podcastSeries.id)")
-      for try await updatedSeries in observatory.podcastSeries(podcastSeries.id) {
-        guard !Task.isCancelled else { break }
-        guard let updatedSeries, updatedSeries != self.podcastSeries else { continue }
-        self.podcastSeries = updatedSeries
+      for try await updatedEpisode in self.observatory.podcastEpisode(self.episode.mediaGUID) {
+        try Task.checkCancellation()
+        Self.log.debug(
+          "Updating observed podcast: \(String(describing: updatedEpisode?.toString))"
+        )
+        guard let updatedEpisode, updatedEpisode != self.podcastEpisode else { continue }
+        self.podcastEpisode = updatedEpisode
       }
     } catch {
       Self.log.error(error)
-      if !ErrorKit.isRemarkable(error) { return }
-      alert(ErrorKit.coreMessage(for: error))
+      guard ErrorKit.isRemarkable(error) else { return }
+      self.alert(ErrorKit.coreMessage(for: error))
     }
   }
 
@@ -236,6 +209,7 @@ import Logging
 
     let podcastEpisode = try await DisplayableEpisode.toPodcastEpisode(episode)
     self.podcastEpisode = podcastEpisode
+    startObservation()
     return podcastEpisode
   }
 }
