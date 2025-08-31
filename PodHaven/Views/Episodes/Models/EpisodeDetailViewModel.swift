@@ -63,6 +63,7 @@ import Logging
     do {
       for try await maxPosition in self.observatory.maxQueuePosition() {
         try Task.checkCancellation()
+        Self.log.debug("Updating observed max queue position: \(String(describing: maxPosition))")
         self.maxQueuePosition = maxPosition
       }
     } catch {
@@ -199,7 +200,7 @@ import Logging
       for try await updatedEpisode in self.observatory.podcastEpisode(podcastEpisode.id) {
         try Task.checkCancellation()
         Self.log.debug(
-          "Updating observed podcast: \(String(describing: updatedEpisode?.toString))"
+          "Updating observed episode: \(String(describing: updatedEpisode?.toString))"
         )
         guard let updatedEpisode, updatedEpisode != self.podcastEpisode else { continue }
         self.podcastEpisode = updatedEpisode
@@ -212,6 +213,7 @@ import Logging
   }
 
   deinit {
+    Log.as(LogSubsystem.EpisodesView.detail).debug("Deiniting EpisodeDetailViewModel")
     observationTask?.cancel()
   }
 

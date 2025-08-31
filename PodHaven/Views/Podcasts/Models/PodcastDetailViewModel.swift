@@ -241,13 +241,17 @@ class PodcastDetailViewModel:
     Self.log.debug("observePodcastSeries: \(podcastID)")
 
     for try await updatedSeries in observatory.podcastSeries(podcastID) {
-      guard !Task.isCancelled else { break }
+      try Task.checkCancellation()
+      Self.log.debug(
+        "Updating observed series: \(String(describing: updatedSeries?.toString))"
+      )
       guard let updatedSeries, updatedSeries != self.podcastSeries else { continue }
       self.podcastSeries = updatedSeries
     }
   }
 
   deinit {
+    Log.as(LogSubsystem.PodcastsView.detail).debug("Deiniting PodcastDetailViewModel")
     observationTask?.cancel()
   }
 

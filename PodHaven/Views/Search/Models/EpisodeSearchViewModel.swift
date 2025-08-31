@@ -118,8 +118,12 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
       do {
         for try await databaseEpisodes in self.observatory.podcastEpisodes(mediaGUIDs) {
           try Task.checkCancellation()
-
-          // Swap out any episodes that exist in the database
+          Self.log.debug(
+            """
+            Updating observed episodes:
+              \(databaseEpisodes.map(\.toString).joined(separator: "\n  "))
+            """
+          )
           for databaseEpisode in databaseEpisodes {
             self.podcastEpisodes[id: databaseEpisode.mediaGUID] = databaseEpisode
           }
