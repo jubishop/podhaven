@@ -115,6 +115,8 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
     observationTask = Task { [weak self] in
       guard let self else { return }
 
+      Self.log.debug("Starting observation for \(mediaGUIDs.count) episodes")
+
       do {
         for try await databaseEpisodes in self.observatory.podcastEpisodes(mediaGUIDs) {
           try Task.checkCancellation()
@@ -137,6 +139,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
   // MARK: - Cleanup
 
   deinit {
+    Log.as(LogSubsystem.SearchView.episode).debug("Deiniting EpisodeSearchViewModel")
     searchTask?.cancel()
     observationTask?.cancel()
   }

@@ -196,6 +196,8 @@ import Logging
     guard let podcastEpisode = self.podcastEpisode
     else { Assert.fatal("Observing a non-saved podcastEpisode") }
 
+    Self.log.debug("Starting observation for episode: \(podcastEpisode.toString)")
+    
     do {
       for try await updatedEpisode in self.observatory.podcastEpisode(podcastEpisode.id) {
         try Task.checkCancellation()
