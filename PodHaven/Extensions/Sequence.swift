@@ -20,3 +20,10 @@ extension Dictionary {
     self.reserveCapacity(capacity)
   }
 }
+
+extension Set {
+  public init(capacity: Int) {
+    self.init()
+    self.reserveCapacity(capacity)
+  }
+}

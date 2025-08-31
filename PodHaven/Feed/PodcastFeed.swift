@@ -156,39 +156,28 @@ struct PodcastFeed: Sendable, Stringable {
   func toEpisodeArray(merging podcastSeries: PodcastSeries? = nil)
     -> IdentifiedArray<MediaGUID, UnsavedEpisode>
   {
-    let allEpisodes = episodes.compactMap { episodeFeed in
-      try? episodeFeed.toUnsavedEpisode(
-        merging: podcastSeries?.episodes[id: episodeFeed.mediaGUID]
-      )
-    }
+    let allEpisodes =
+      episodes.compactMap { episodeFeed in
+        try? episodeFeed.toUnsavedEpisode(
+          merging: podcastSeries?.episodes[id: episodeFeed.mediaGUID]
+        )
+      }
+      .sorted { $0.pubDate > $1.pubDate }
 
-    var seenGUIDs: [GUID: UnsavedEpisode] = Dictionary(capacity: allEpisodes.count)
-    var seenMediaURLs: [MediaURL: UnsavedEpisode] = Dictionary(capacity: allEpisodes.count)
-
+    var seenGUIDs = Set<GUID>(capacity: allEpisodes.count)
+    var seenMediaURLs = Set<MediaURL>(capacity: allEpisodes.count)
+    var dedupedEpisodes = IdentifiedArray<MediaGUID, UnsavedEpisode>()
     for episode in allEpisodes {
-      // Check GUID conflict
-      if let existingByGUID = seenGUIDs[episode.guid] {
-        guard episode.pubDate >= existingByGUID.pubDate
-        else { continue }
-
-        // Remove the old one from media URLs
-        seenMediaURLs.removeValue(forKey: existingByGUID.media)
+      if seenGUIDs.contains(episode.guid) || seenMediaURLs.contains(episode.media) {
+        continue
       }
 
-      // Check media URL conflict
-      if let existingByMedia = seenMediaURLs[episode.media] {
-        guard episode.pubDate >= existingByMedia.pubDate
-        else { continue }
-
-        // Remove the old one from GUIDs
-        seenGUIDs.removeValue(forKey: existingByMedia.guid)
-      }
-
-      seenGUIDs[episode.guid] = episode
-      seenMediaURLs[episode.media] = episode
+      dedupedEpisodes.append(episode)
+      seenGUIDs.insert(episode.guid)
+      seenMediaURLs.insert(episode.media)
     }
 
-    return IdentifiedArray(uniqueElements: seenGUIDs.values, id: \.id)
+    return dedupedEpisodes
   }
 
   // MARK: - Stringable

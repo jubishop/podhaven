@@ -129,6 +129,10 @@ actor RefreshManager {
       uniqueElements: podcastSeries.episodes,
       id: \.media
     )
+    let episodesByGUID = IdentifiedArray(
+      uniqueElements: podcastSeries.episodes,
+      id: \.guid
+    )
 
     try await RefreshError.catch {
       let newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(
@@ -145,6 +149,7 @@ actor RefreshManager {
       for feedItem in podcastFeed.episodes {
         if let existingEpisode = podcastSeries.episodes[id: feedItem.mediaGUID]
           ?? episodesByMedia[id: feedItem.media]
+          ?? episodesByGUID[id: feedItem.guid]
         {
           do {
             let updatedEpisode = Episode(
