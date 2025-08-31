@@ -21,7 +21,7 @@ import Logging
 
   // MARK: - State Management
 
-  private let episode: any EpisodeDisplayable
+  let episode: any EpisodeDisplayable
   private var podcastEpisode: PodcastEpisode?
   internal var maxQueuePosition: Int? = nil
 

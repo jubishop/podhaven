@@ -43,7 +43,7 @@ struct EpisodeDetailView: View {
           .shadow(radius: 4)
 
           VStack(spacing: 8) {
-            Text(viewModel.episodeTitle)
+            Text(viewModel.episode.title)
               .font(.title2)
               .fontWeight(.semibold)
               .multilineTextAlignment(.center)
@@ -51,7 +51,7 @@ struct EpisodeDetailView: View {
             Button(action: {
               viewModel.showPodcast()
             }) {
-              Text(viewModel.podcastTitle)
+              Text(viewModel.episode.podcastTitle)
                 .font(.headline)
                 .foregroundColor(.accentColor)
                 .multilineTextAlignment(.center)
@@ -70,13 +70,13 @@ struct EpisodeDetailView: View {
               Text("Published")
                 .font(.caption)
                 .foregroundColor(.secondary)
-              Text(viewModel.episodePubDate.usShortWithTime)
+              Text(viewModel.episode.pubDate.usShortWithTime)
                 .font(.subheadline)
             }
 
             Spacer()
 
-            if viewModel.episodeCached {
+            if viewModel.episode.cached {
               VStack(spacing: 4) {
                 AppLabel.episodeCached.image
                   .foregroundColor(.green)
@@ -94,13 +94,13 @@ struct EpisodeDetailView: View {
               Text("Duration")
                 .font(.caption)
                 .foregroundColor(.secondary)
-              Text(viewModel.episodeDuration.shortDescription)
+              Text(viewModel.episode.duration.shortDescription)
                 .font(.subheadline)
             }
           }
           .padding(.horizontal)
 
-          if let description = viewModel.episodeDescription, !description.isEmpty {
+          if let description = viewModel.episode.description, !description.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
               Text("Description")
                 .font(.headline)
@@ -152,7 +152,7 @@ struct EpisodeDetailView: View {
                 .disabled(viewModel.atBottomOfQueue)
               }
               
-              if !viewModel.episodeCached {
+              if !viewModel.episode.cached {
                 Button(action: viewModel.cacheEpisode) {
                   HStack {
                     if viewModel.isCaching {
