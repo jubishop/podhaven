@@ -48,15 +48,6 @@ class PodcastDetailViewModel:
     didSet { episodeList.filterMethod = currentFilterMethod.filterMethod() }
   }
 
-  // MARK: - State Management
-
-  var displayAboutSection: Bool = false
-  var mostRecentEpisodeDate: Date {
-    episodeList.allEntries.first?.pubDate ?? Date.epoch
-  }
-  var subscribable = false
-  var refreshable: Bool { podcastSeries != nil }
-
   // MARK: - Data Properties
 
   var podcast: any PodcastDisplayable
@@ -148,6 +139,15 @@ class PodcastDetailViewModel:
 
     subscribable = true
   }
+
+  // MARK: - Derived State
+
+  var displayAboutSection: Bool = false
+  var mostRecentEpisodeDate: Date {
+    episodeList.allEntries.first?.pubDate ?? Date.epoch
+  }
+  var subscribable = false
+  var refreshable: Bool { podcastSeries != nil }
 
   // MARK: - Public Methods
 

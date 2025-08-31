@@ -6,8 +6,11 @@ import Foundation
 import GRDB
 import Logging
 
-@Observable @MainActor class EpisodeDetailViewModel: EpisodeDetailViewableModel {
+@Observable @MainActor class EpisodeDetailViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.cacheState) private var cacheState
+  @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
+  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.playState) private var playState
@@ -40,7 +43,7 @@ import Logging
         } catch {
           Self.log.error(error)
           guard ErrorKit.isRemarkable(error) else { return }
-          self.alert(ErrorKit.message(for: error))
+          self.alert(ErrorKit.coreMessage(for: error))
         }
       }
 
@@ -57,28 +60,116 @@ import Logging
         } catch {
           Self.log.error(error)
           guard ErrorKit.isRemarkable(error) else { return }
-          self.alert(ErrorKit.message(for: error))
+          self.alert(ErrorKit.coreMessage(for: error))
         }
       }
     }
   }
 
-  // MARK: - EpisodeDetailViewableModel
+  // MARK: - Derived State
 
-  func getPodcastEpisode() -> PodcastEpisode? { podcastEpisode }
-  func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
+  var onDeck: Bool {
+    guard let podcastEpisode = podcastEpisode,
+      let onDeck = playState.onDeck
+    else { return false }
+    return onDeck == podcastEpisode
+  }
+
+  var atTopOfQueue: Bool {
+    guard let podcastEpisode = podcastEpisode else { return false }
+    return podcastEpisode.episode.queueOrder == 0
+  }
+
+  var atBottomOfQueue: Bool {
+    guard let podcastEpisode = podcastEpisode,
+      let queueOrder = podcastEpisode.episode.queueOrder
+    else { return false }
+    return queueOrder == maxQueuePosition
+  }
+
+  var isCaching: Bool {
+    guard let podcastEpisode = podcastEpisode else { return false }
+    return cacheState.isDownloading(podcastEpisode.id)
+  }
+
+  // MARK: - Public Methods
+
+  func playNow() {
+    Task { [weak self] in
+      guard let self else { return }
+      let podcastEpisode: PodcastEpisode
+      do {
+        podcastEpisode = try await getOrCreatePodcastEpisode()
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.coreMessage(for: error))
+        return
+      }
+
+      do {
+        try await playManager.load(podcastEpisode)
+        await playManager.play()
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.coreMessage(for: error))
+      }
+    }
+  }
+
+  func addToTopOfQueue() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode()
+        try await queue.unshift(podcastEpisode.episode.id)
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.coreMessage(for: error))
+      }
+    }
+  }
+
+  func appendToQueue() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode()
+        try await queue.append(podcastEpisode.episode.id)
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.coreMessage(for: error))
+      }
+    }
+  }
+
+  func cacheEpisode() {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode()
+        try await cacheManager.downloadAndCache(podcastEpisode)
+      } catch {
+        Self.log.error(error)
+        alert(ErrorKit.message(for: error))
+      }
+    }
+  }
+
+  func showPodcast() {
+    Task { [weak self] in
+      guard let self else { return }
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      navigation.showPodcast(podcastEpisode.podcast)
+    }
+  }
+
+  // MARK: - Private Helpers
+
+  private func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
     let podcastEpisode = try await DisplayableEpisode.toPodcastEpisode(episode)
     self.podcastEpisode = podcastEpisode
     return podcastEpisode
   }
-
-  var episodeTitle: String { episode.title }
-  var episodePubDate: Date { episode.pubDate }
-  var episodeDuration: CMTime { episode.duration }
-  var episodeCached: Bool { episode.cached }
-  var episodeImage: URL { episode.image }
-  var episodeDescription: String? { episode.description }
-  var podcastTitle: String { episode.podcastTitle }
 }

@@ -4,12 +4,12 @@ import FactoryKit
 import NukeUI
 import SwiftUI
 
-struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
+struct EpisodeDetailView: View {
   @DynamicInjected(\.alert) private var alert
 
-  private let viewModel: ViewModel
+  private let viewModel: EpisodeDetailViewModel
 
-  init(viewModel: ViewModel) {
+  init(viewModel: EpisodeDetailViewModel) {
     self.viewModel = viewModel
   }
 
@@ -17,7 +17,7 @@ struct EpisodeDetailView<ViewModel: EpisodeDetailViewableModel>: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
         VStack(alignment: .center, spacing: 16) {
-          LazyImage(url: viewModel.episodeImage) { state in
+          LazyImage(url: viewModel.episode.image) { state in
             if let image = state.image {
               image
                 .resizable()
