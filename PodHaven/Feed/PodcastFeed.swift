@@ -166,18 +166,18 @@ struct PodcastFeed: Sendable, Stringable {
 
     var seenGUIDs = Set<GUID>(capacity: allEpisodes.count)
     var seenMediaURLs = Set<MediaURL>(capacity: allEpisodes.count)
-    var dedupedEpisodes = IdentifiedArray<MediaGUID, UnsavedEpisode>()
-    for episode in allEpisodes {
-      if seenGUIDs.contains(episode.guid) || seenMediaURLs.contains(episode.media) {
-        continue
-      }
+    return IdentifiedArrayOf<UnsavedEpisode>(
+      uniqueElements:
+        allEpisodes.compactMap { episode in
+          if seenGUIDs.contains(episode.guid) || seenMediaURLs.contains(episode.media) {
+            return nil
+          }
 
-      dedupedEpisodes.append(episode)
-      seenGUIDs.insert(episode.guid)
-      seenMediaURLs.insert(episode.media)
-    }
-
-    return dedupedEpisodes
+          seenGUIDs.insert(episode.guid)
+          seenMediaURLs.insert(episode.media)
+          return episode
+        }
+    )
   }
 
   // MARK: - Stringable
