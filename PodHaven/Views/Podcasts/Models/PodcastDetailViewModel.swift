@@ -48,7 +48,7 @@ class PodcastDetailViewModel:
     didSet { episodeList.filterMethod = currentFilterMethod.filterMethod() }
   }
 
-  // MARK: - Data Properties
+  // MARK: - Data
 
   var podcast: any PodcastDisplayable
   private var podcastFeed: PodcastFeed?
@@ -70,9 +70,7 @@ class PodcastDetailViewModel:
 
   // MARK: - SelectableEpisodeListModel
 
-  var episodeList = SelectableListUseCase<DisplayableEpisode, MediaGUID>(
-    idKeyPath: \.mediaGUID
-  )
+  var episodeList = SelectableListUseCase<DisplayableEpisode, MediaGUID>(idKeyPath: \.mediaGUID)
   private var _isSelecting = false
   var isSelecting: Bool {
     get { _isSelecting }

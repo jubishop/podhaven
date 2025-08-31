@@ -9,6 +9,7 @@ struct DisplayableEpisode:
   EpisodeDisplayable,
   Identifiable,
   Searchable,
+  Stringable,
   Hashable,
   Sendable
 {
@@ -42,6 +43,10 @@ struct DisplayableEpisode:
   static func == (lhs: DisplayableEpisode, rhs: DisplayableEpisode) -> Bool {
     lhs.mediaGUID == rhs.mediaGUID
   }
+
+  // MARK: - Stringable
+
+  var toString: String { episode.toString }
 
   // MARK: - Searchable
 

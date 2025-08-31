@@ -151,7 +151,7 @@ struct EpisodeDetailView: View {
                 }
                 .disabled(viewModel.atBottomOfQueue)
               }
-              
+
               if !viewModel.episode.cached {
                 Button(action: viewModel.cacheEpisode) {
                   HStack {
@@ -166,7 +166,9 @@ struct EpisodeDetailView: View {
                   }
                   .frame(maxWidth: .infinity)
                   .padding()
-                  .background(viewModel.isCaching ? Color.orange.opacity(0.1) : Color.green.opacity(0.1))
+                  .background(
+                    viewModel.isCaching ? Color.orange.opacity(0.1) : Color.green.opacity(0.1)
+                  )
                   .foregroundColor(viewModel.isCaching ? .orange : .green)
                   .cornerRadius(10)
                 }

@@ -19,11 +19,18 @@ import Logging
 
   private static let log = Log.as(LogSubsystem.EpisodesView.detail)
 
-  // MARK: - State Management
+  // MARK: - Data
 
   var episode: any EpisodeDisplayable
   private var maxQueuePosition: Int? = nil
-  private var podcastEpisode: PodcastEpisode?
+  private var podcastEpisode: PodcastEpisode? {
+    didSet {
+      guard let podcastEpisode = podcastEpisode
+      else { Assert.fatal("Setting podcastEpisode to nil is not allowed") }
+
+      self.episode = podcastEpisode
+    }
+  }
 
   // MARK: - Initialization
 
@@ -183,7 +190,7 @@ import Logging
     else { Assert.fatal("Observing a non-saved podcastEpisode") }
 
     do {
-      for try await updatedEpisode in self.observatory.podcastEpisode(self.episode.mediaGUID) {
+      for try await updatedEpisode in self.observatory.podcastEpisode(podcastEpisode.id) {
         try Task.checkCancellation()
         Self.log.debug(
           "Updating observed podcast: \(String(describing: updatedEpisode?.toString))"
