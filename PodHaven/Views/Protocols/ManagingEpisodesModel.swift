@@ -4,7 +4,9 @@ import FactoryKit
 import Foundation
 import Logging
 
-@MainActor protocol ManagingEpisodesModel: AnyObject, ManagingEpisodes {}
+@MainActor protocol ManagingEpisodesModel: AnyObject, ManagingEpisodes {
+  func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode
+}
 
 extension ManagingEpisodesModel {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
@@ -55,12 +57,6 @@ extension ManagingEpisodesModel {
   }
 
   // MARK: - Helpers
-
-  private func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws
-    -> PodcastEpisode
-  {
-    try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
-  }
 
   private func getEpisodeID(_ episode: any EpisodeDisplayable) async throws -> Episode.ID {
     try await getOrCreatePodcastEpisode(episode).id

@@ -64,8 +64,15 @@ class PodcastDetailViewModel:
           PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
         )
       }
-      if oldValue == nil { startObservation() }
     }
+  }
+
+  // MARK: - ManagingEpisodesModel
+
+  func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
+    let podcastEpisode = try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
+    startObservation(podcastEpisode.podcast.id)
+    return podcastEpisode
   }
 
   // MARK: - SelectableEpisodeListModel
@@ -78,10 +85,22 @@ class PodcastDetailViewModel:
   }
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
+      guard !selectedEpisodes.isEmpty else { return [] }
+
       Self.log.debug("selectedPodcastEpisodes: \(selectedEpisodes.count) episodes selected")
 
       let unsavedPodcastEpisodes = selectedEpisodes.compactMap { $0.getUnsavedPodcastEpisode() }
-      try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
+      let podcastEpisodes = try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
+
+      if observationTask == nil {
+        guard
+          let podcastID =
+            (podcastEpisodes.first?.podcast.id
+              ?? selectedEpisodes.first { $0.getPodcastEpisode() != nil }?.getPodcastEpisode()?
+              .podcast.id)
+        else { Assert.fatal("No podcastID found in \(selectedEpisodes.count) selected episodes") }
+        startObservation(podcastID)
+      }
 
       return selectedEpisodes.compactMap { $0.getPodcastEpisode() }
     }
@@ -115,11 +134,11 @@ class PodcastDetailViewModel:
 
       try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
       self.podcastSeries = podcastSeries
+      startObservation(podcastSeries.id)
     } else {
       Self.log.debug("performExecute: \(podcast.toString) does not exist in db")
 
       try await parsePodcastSeries()
-      startObservation()
     }
   }
 
@@ -202,12 +221,14 @@ class PodcastDetailViewModel:
 
   @ObservationIgnored private var observationTask: Task<Void, Never>?
 
-  private func startObservation() {
-    observationTask?.cancel()
+  private func startObservation(_ podcastID: Podcast.ID) {
+    guard observationTask == nil
+    else { return }
+
     observationTask = Task { [weak self] in
       guard let self else { return }
       do {
-        try await observePodcastSeries()
+        try await observePodcastSeries(podcastID)
       } catch {
         Self.log.error(error)
         if !ErrorKit.isRemarkable(error) { return }
@@ -216,25 +237,14 @@ class PodcastDetailViewModel:
     }
   }
 
-  private func observePodcastSeries() async throws {
-    Self.log.debug("observePodcastSeries: starting")
+  private func observePodcastSeries(_ podcastID: Podcast.ID) async throws {
+    Self.log.debug("observePodcastSeries: \(podcastID)")
 
-    for try await updatedSeries in createObservation() {
+    for try await updatedSeries in observatory.podcastSeries(podcastID) {
       guard !Task.isCancelled else { break }
       guard let updatedSeries, updatedSeries != self.podcastSeries else { continue }
       self.podcastSeries = updatedSeries
     }
-  }
-
-  private func createObservation() -> AsyncValueObservation<PodcastSeries?> {
-    guard let podcastSeries
-    else {
-      Self.log.debug("createObservation: by FeedURL: \(podcast.feedURL)")
-      return observatory.podcastSeries(podcast.feedURL)
-    }
-
-    Self.log.debug("createObservation: by PodcastID: \(podcastSeries.id)")
-    return observatory.podcastSeries(podcastSeries.id)
   }
 
   deinit {
@@ -259,6 +269,5 @@ class PodcastDetailViewModel:
         },
       id: \.mediaGUID
     )
-    startObservation()
   }
 }

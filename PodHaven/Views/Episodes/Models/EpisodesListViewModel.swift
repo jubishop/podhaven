@@ -36,6 +36,12 @@ class EpisodesListViewModel:
     set { withAnimation { _isSelecting = newValue } }
   }
 
+  // MARK: - ManagingEpisodesModel
+
+  func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
+    try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
+  }
+
   // MARK: - Initialization
 
   init(

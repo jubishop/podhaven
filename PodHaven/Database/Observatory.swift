@@ -22,17 +22,33 @@ struct Observatory {
 
   // MARK: - Public Functions
 
-  func allPodcasts(_ filter: SQLExpression = AppDB.NoOp) -> AsyncValueObservation<[Podcast]> {
+  func podcasts(
+    _ filter: SQLExpression,
+    order: SQLOrdering = Episode.Columns.pubDate.desc,
+    limit: Int = Int.max
+  ) -> AsyncValueObservation<[Podcast]> {
     _observe { db in
-      try Podcast.all().filter(filter).fetchAll(db)
+      try Podcast
+        .all()
+        .filter(filter)
+        .order(order)
+        .limit(limit)
+        .fetchAll(db)
     }
   }
 
-  func allPodcastsWithLatestEpisodeDates(_ filter: SQLExpression = AppDB.NoOp)
+  func podcastsWithLatestEpisodeDates(
+    _ filter: SQLExpression,
+    limit: Int = Int.max
+  )
     -> AsyncValueObservation<[PodcastWithLatestEpisodeDates]>
   {
     _observe { db in
-      try PodcastWithLatestEpisodeDates.all().filter(filter).fetchAll(db)
+      try PodcastWithLatestEpisodeDates
+        .all()
+        .filter(filter)
+        .limit(limit)
+        .fetchAll(db)
     }
   }
 
@@ -103,28 +119,6 @@ struct Observatory {
         .withID(episodeID)
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
-        .fetchOne(db)
-    }
-  }
-
-  func podcastEpisode(_ mediaGUID: MediaGUID) -> AsyncValueObservation<PodcastEpisode?> {
-    _observe { db in
-      try Episode
-        .filter { $0.guid == mediaGUID.guid && $0.media == mediaGUID.media }
-        .including(required: Episode.podcast)
-        .asRequest(of: PodcastEpisode.self)
-        .fetchOne(db)
-    }
-  }
-
-  func podcastSeries(_ feedURL: FeedURL) -> AsyncValueObservation<PodcastSeries?> {
-    Self.log.debug("Observing PodcastSeries with feedURL: \(feedURL)")
-
-    return _observe { db in
-      try Podcast
-        .filter { $0.feedURL == feedURL }
-        .including(all: Podcast.episodes)
-        .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
     }
   }

@@ -19,7 +19,6 @@ import Logging
 }
 
 extension SelectableEpisodeListModel {
-  private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }
 
@@ -36,6 +35,7 @@ extension SelectableEpisodeListModel {
   func addSelectedEpisodesToBottomOfQueue() {
     Task { [weak self] in
       guard let self else { return }
+      guard !selectedEpisodes.isEmpty else { return }
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.append(episodeIDs)
     }
@@ -44,6 +44,7 @@ extension SelectableEpisodeListModel {
   func addSelectedEpisodesToTopOfQueue() {
     Task { [weak self] in
       guard let self else { return }
+      guard !selectedEpisodes.isEmpty else { return }
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.unshift(episodeIDs)
     }
@@ -52,6 +53,7 @@ extension SelectableEpisodeListModel {
   func replaceQueueWithSelected() {
     Task { [weak self] in
       guard let self else { return }
+      guard !selectedEpisodes.isEmpty else { return }
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.replace(episodeIDs)
     }
@@ -60,16 +62,13 @@ extension SelectableEpisodeListModel {
   func replaceQueueWithSelectedAndPlay() {
     Task { [weak self] in
       guard let self else { return }
-      do {
-        let podcastEpisodes = try await selectedPodcastEpisodes
-        if let firstPodcastEpisode = podcastEpisodes.first {
-          try await playManager.load(firstPodcastEpisode)
-          await playManager.play()
-          let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
-          try await queue.replace(allExceptFirstPodcastEpisode.map(\.id))
-        }
-      } catch {
-        log.error(error)
+      guard !selectedEpisodes.isEmpty else { return }
+      let podcastEpisodes = try await selectedPodcastEpisodes
+      if let firstPodcastEpisode = podcastEpisodes.first {
+        try await playManager.load(firstPodcastEpisode)
+        await playManager.play()
+        let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
+        try await queue.replace(allExceptFirstPodcastEpisode.map(\.id))
       }
     }
   }
@@ -77,24 +76,13 @@ extension SelectableEpisodeListModel {
   func cacheSelectedEpisodes() {
     Task { [weak self] in
       guard let self else { return }
-      do {
-        // Capture instances to avoid MainActor concurrency errors.
-        let podcastEpisodes = try await selectedPodcastEpisodes
-        let cacheManager = cacheManager
-        let log = log
-        await withTaskGroup(of: Void.self) { group in
-          for podcastEpisode in podcastEpisodes {
-            group.addTask {
-              do {
-                try await cacheManager.downloadAndCache(podcastEpisode)
-              } catch {
-                log.error(error)
-              }
-            }
+      guard !selectedEpisodes.isEmpty else { return }
+      try await withThrowingTaskGroup(of: Void.self) { group in
+        for podcastEpisode in try await selectedPodcastEpisodes {
+          group.addTask {
+            try await Container.shared.cacheManager().downloadAndCache(podcastEpisode)
           }
         }
-      } catch {
-        log.error(error)
       }
     }
   }

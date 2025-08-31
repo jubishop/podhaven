@@ -108,7 +108,7 @@ import SwiftUI
 
   func execute() async {
     do {
-      for try await podcastsWithLatestEpisodeDates in observatory.allPodcastsWithLatestEpisodeDates(
+      for try await podcastsWithLatestEpisodeDates in observatory.podcastsWithLatestEpisodeDates(
         filter
       ) {
         self.podcastList.allEntries = IdentifiedArray(
