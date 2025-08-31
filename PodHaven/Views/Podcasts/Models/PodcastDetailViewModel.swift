@@ -111,28 +111,12 @@ class PodcastDetailViewModel:
       Self.log.debug("Podcast series: \(podcastSeries.toString) exists in db")
 
       self.podcastSeries = podcastSeries
+      try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
       startObservation()
     } else {
       Self.log.debug("Podcast series: \(podcast.toString) does not exist in db")
 
-      let podcastFeed = try await PodcastFeed.parse(podcast.feedURL)
-      self.podcastFeed = podcastFeed
-
-      let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
-      self.podcast = unsavedPodcast
-
-      episodeList.allEntries = IdentifiedArray(
-        uniqueElements: podcastFeed.toEpisodeArray(merging: podcastSeries)
-          .map {
-            DisplayableEpisode(
-              UnsavedPodcastEpisode(
-                unsavedPodcast: unsavedPodcast,
-                unsavedEpisode: $0
-              )
-            )
-          },
-        id: \.mediaGUID
-      )
+      try await parsePodcastSeries()
     }
 
     subscribable = true
@@ -145,7 +129,6 @@ class PodcastDetailViewModel:
     episodeList.allEntries.first?.pubDate ?? Date.epoch
   }
   var subscribable = false
-  var refreshable: Bool { podcastSeries != nil }
 
   // MARK: - Public Methods
 
@@ -196,15 +179,14 @@ class PodcastDetailViewModel:
   }
 
   func refreshSeries() async {
-    guard let podcastSeries = podcastSeries
-    else { Assert.fatal("Trying to refresh a non-saved podcast") }
-
-    guard podcastSeries.podcast.lastUpdate > 1.minutesAgo
-    else { return }
-
-    Self.log.debug("Refreshing podcast series \(podcastSeries.toString)")
     do {
-      try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+      if let podcastSeries = podcastSeries {
+        Self.log.debug("Refreshing saved podcast series \(podcastSeries.toString)")
+        try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+      } else {
+        Self.log.debug("Refreshing unsaved podcast series \(podcast.toString)")
+        try await parsePodcastSeries()
+      }
     } catch {
       Self.log.error(error)
       if !ErrorKit.isRemarkable(error) { return }
@@ -248,5 +230,28 @@ class PodcastDetailViewModel:
 
   deinit {
     observationTask?.cancel()
+  }
+
+  // MARK: - Private Helpers
+
+  private func parsePodcastSeries() async throws {
+    let podcastFeed = try await PodcastFeed.parse(podcast.feedURL)
+    self.podcastFeed = podcastFeed
+
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+    self.podcast = unsavedPodcast
+
+    episodeList.allEntries = IdentifiedArray(
+      uniqueElements: podcastFeed.toEpisodeArray(merging: podcastSeries)
+        .map {
+          DisplayableEpisode(
+            UnsavedPodcastEpisode(
+              unsavedPodcast: unsavedPodcast,
+              unsavedEpisode: $0
+            )
+          )
+        },
+      id: \.mediaGUID
+    )
   }
 }

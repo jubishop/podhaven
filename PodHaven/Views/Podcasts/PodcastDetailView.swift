@@ -186,7 +186,7 @@ struct PodcastDetailView: View {
       .episodeSwipeActions(viewModel: viewModel, episode: episode)
       .episodeContextMenu(viewModel: viewModel, episode: episode)
     }
-    .conditionalRefreshable(enabled: viewModel.refreshable, action: viewModel.refreshSeries)
+    .refreshable(action: viewModel.refreshSeries)
     .animation(.default, value: viewModel.episodeList.filteredEntries)
   }
 
