@@ -68,17 +68,17 @@ struct DisplayableEpisode:
 
   // MARK: - Helpers
 
-  static func toPodcastEpisode(_ episode: any EpisodeDisplayable) async throws
+  static func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws
     -> PodcastEpisode
   {
     guard let displayableEpisode = episode as? DisplayableEpisode
-    else { return try await DisplayableEpisode(episode).toPodcastEpisode() }
+    else { return try await DisplayableEpisode(episode).getOrCreatePodcastEpisode() }
 
-    return try await displayableEpisode.toPodcastEpisode()
+    return try await displayableEpisode.getOrCreatePodcastEpisode()
   }
 
-  func toPodcastEpisode() async throws -> PodcastEpisode {
-    if let podcastEpisode = episode as? PodcastEpisode {
+  func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
+    if let podcastEpisode = getPodcastEpisode() {
       return podcastEpisode
     } else if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
       return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
@@ -87,11 +87,11 @@ struct DisplayableEpisode:
     }
   }
 
-  func toUnsavedPodcastEpisode() -> UnsavedPodcastEpisode {
-    if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
-      return unsavedPodcastEpisode
-    } else {
-      Assert.fatal("Can't make UnsavedPodcastEpisode from \(type(of: episode))")
-    }
+  func getPodcastEpisode() -> PodcastEpisode? {
+    episode as? PodcastEpisode
+  }
+
+  func getUnsavedPodcastEpisode() -> UnsavedPodcastEpisode? {
+    episode as? UnsavedPodcastEpisode
   }
 }

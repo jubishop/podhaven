@@ -181,11 +181,17 @@ import Logging
 
     observationTask = Task { [weak self] in
       guard let self else { return }
-      await observePodcastEpisode()
+      do {
+        try await observePodcastEpisode()
+      } catch {
+        Self.log.error(error)
+        if !ErrorKit.isRemarkable(error) { return }
+        alert(ErrorKit.coreMessage(for: error))
+      }
     }
   }
 
-  private func observePodcastEpisode() async {
+  private func observePodcastEpisode() async throws {
     guard let podcastEpisode = self.podcastEpisode
     else { Assert.fatal("Observing a non-saved podcastEpisode") }
 
@@ -214,7 +220,7 @@ import Logging
   private func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
-    let podcastEpisode = try await DisplayableEpisode.toPodcastEpisode(episode)
+    let podcastEpisode = try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
     self.podcastEpisode = podcastEpisode
     startObservation()
     return podcastEpisode

@@ -51,20 +51,20 @@ class PodcastDetailViewModel:
   // MARK: - Data
 
   var podcast: any PodcastDisplayable
-  private var podcastFeed: PodcastFeed?
   private var podcastSeries: PodcastSeries? {
     didSet {
       guard let podcastSeries = podcastSeries
       else { Assert.fatal("Setting podcastSeries to nil is not allowed") }
 
+      Self.log.debug("Setting podcastSeries: \(podcastSeries.toString)")
+
       self.podcast = podcastSeries.podcast
-      episodeList.allEntries = IdentifiedArray(
-        uniqueElements:
-          podcastSeries.episodes.map {
-            DisplayableEpisode(PodcastEpisode(podcast: podcastSeries.podcast, episode: $0))
-          },
-        id: \.id
-      )
+      for episode in podcastSeries.episodes {
+        episodeList.allEntries[id: episode.unsaved.id] = DisplayableEpisode(
+          PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
+        )
+      }
+      if oldValue == nil { startObservation() }
     }
   }
 
@@ -78,11 +78,12 @@ class PodcastDetailViewModel:
   }
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
-      var podcastEpisodes: [PodcastEpisode] = []
-      for episode in selectedEpisodes {
-        podcastEpisodes.append(try await episode.toPodcastEpisode())
-      }
-      return podcastEpisodes
+      Self.log.debug("selectedPodcastEpisodes: \(selectedEpisodes.count) episodes selected")
+
+      let unsavedPodcastEpisodes = selectedEpisodes.compactMap { $0.getUnsavedPodcastEpisode() }
+      try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
+
+      return selectedEpisodes.compactMap { $0.getPodcastEpisode() }
     }
   }
 
@@ -95,6 +96,8 @@ class PodcastDetailViewModel:
   }
 
   func execute() async {
+    defer { subscribable = true }
+
     do {
       try await performExecute()
     } catch {
@@ -108,18 +111,16 @@ class PodcastDetailViewModel:
     let podcastSeries = try await repo.podcastSeries(podcast.feedURL)
 
     if let podcastSeries {
-      Self.log.debug("Podcast series: \(podcastSeries.toString) exists in db")
+      Self.log.debug("performExecute: \(podcastSeries.toString) exists in db")
 
-      self.podcastSeries = podcastSeries
       try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
-      startObservation()
+      self.podcastSeries = podcastSeries
     } else {
-      Self.log.debug("Podcast series: \(podcast.toString) does not exist in db")
+      Self.log.debug("performExecute: \(podcast.toString) does not exist in db")
 
       try await parsePodcastSeries()
+      startObservation()
     }
-
-    subscribable = true
   }
 
   // MARK: - Derived State
@@ -142,15 +143,18 @@ class PodcastDetailViewModel:
         if let podcastSeries = podcastSeries {
           try await repo.markSubscribed(podcastSeries.id)
         } else if var unsavedPodcast = podcast as? UnsavedPodcast {
-          unsavedPodcast.subscriptionDate = Date()
+          Assert.precondition(
+            episodeList.allEntries.allSatisfy { $0.getPodcastEpisode() == nil },
+            "Some episodes of the podcastSeries are already saved but podcastSeries is nil?"
+          )
 
+          unsavedPodcast.subscriptionDate = Date()
           self.podcastSeries = try await repo.insertSeries(
             unsavedPodcast,
-            unsavedEpisodes: episodeList.allEntries.map {
-              $0.toUnsavedPodcastEpisode().unsavedEpisode
+            unsavedEpisodes: episodeList.allEntries.compactMap {
+              $0.getUnsavedPodcastEpisode()?.unsavedEpisode
             }
           )
-          startObservation()
         } else {
           Assert.fatal("Podcast type is not supported: \(String(describing: podcast))")
         }
@@ -181,10 +185,10 @@ class PodcastDetailViewModel:
   func refreshSeries() async {
     do {
       if let podcastSeries = podcastSeries {
-        Self.log.debug("Refreshing saved podcast series \(podcastSeries.toString)")
+        Self.log.debug("refreshSeries: saved podcast series \(podcastSeries.toString)")
         try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
       } else {
-        Self.log.debug("Refreshing unsaved podcast series \(podcast.toString)")
+        Self.log.debug("refreshSeries: unsaved podcast series \(podcast.toString)")
         try await parsePodcastSeries()
       }
     } catch {
@@ -199,33 +203,38 @@ class PodcastDetailViewModel:
   @ObservationIgnored private var observationTask: Task<Void, Never>?
 
   private func startObservation() {
-    Assert.precondition(
-      observationTask == nil,
-      "Already observing"
-    )
-
+    observationTask?.cancel()
     observationTask = Task { [weak self] in
       guard let self else { return }
-      await observePodcastSeries()
+      do {
+        try await observePodcastSeries()
+      } catch {
+        Self.log.error(error)
+        if !ErrorKit.isRemarkable(error) { return }
+        alert(ErrorKit.coreMessage(for: error))
+      }
     }
   }
 
-  private func observePodcastSeries() async {
-    guard let podcastSeries = self.podcastSeries
-    else { Assert.fatal("Observing a non-saved podcast") }
+  private func observePodcastSeries() async throws {
+    Self.log.debug("observePodcastSeries: starting")
 
-    do {
-      Self.log.debug("Starting observation by ID: \(podcastSeries.id)")
-      for try await updatedSeries in observatory.podcastSeries(podcastSeries.id) {
-        guard !Task.isCancelled else { break }
-        guard let updatedSeries, updatedSeries != self.podcastSeries else { continue }
-        self.podcastSeries = updatedSeries
-      }
-    } catch {
-      Self.log.error(error)
-      if !ErrorKit.isRemarkable(error) { return }
-      alert(ErrorKit.coreMessage(for: error))
+    for try await updatedSeries in createObservation() {
+      guard !Task.isCancelled else { break }
+      guard let updatedSeries, updatedSeries != self.podcastSeries else { continue }
+      self.podcastSeries = updatedSeries
     }
+  }
+
+  private func createObservation() -> AsyncValueObservation<PodcastSeries?> {
+    guard let podcastSeries
+    else {
+      Self.log.debug("createObservation: by FeedURL: \(podcast.feedURL)")
+      return observatory.podcastSeries(podcast.feedURL)
+    }
+
+    Self.log.debug("createObservation: by PodcastID: \(podcastSeries.id)")
+    return observatory.podcastSeries(podcastSeries.id)
   }
 
   deinit {
@@ -236,11 +245,8 @@ class PodcastDetailViewModel:
 
   private func parsePodcastSeries() async throws {
     let podcastFeed = try await PodcastFeed.parse(podcast.feedURL)
-    self.podcastFeed = podcastFeed
-
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
     self.podcast = unsavedPodcast
-
     episodeList.allEntries = IdentifiedArray(
       uniqueElements: podcastFeed.toEpisodeArray(merging: podcastSeries)
         .map {
@@ -253,5 +259,6 @@ class PodcastDetailViewModel:
         },
       id: \.mediaGUID
     )
+    startObservation()
   }
 }

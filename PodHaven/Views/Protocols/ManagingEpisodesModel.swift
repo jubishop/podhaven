@@ -17,7 +17,7 @@ extension ManagingEpisodesModel {
     Task { [weak self] in
       guard let self else { return }
       do {
-        let podcastEpisode = try await getPodcastEpisode(episode)
+        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
         try await playManager.load(podcastEpisode)
         await playManager.play()
       } catch {
@@ -46,7 +46,7 @@ extension ManagingEpisodesModel {
     Task { [weak self] in
       guard let self else { return }
       do {
-        let podcastEpisode = try await getPodcastEpisode(episode)
+        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
         try await cacheManager.downloadAndCache(podcastEpisode)
       } catch {
         log.error(error)
@@ -56,11 +56,13 @@ extension ManagingEpisodesModel {
 
   // MARK: - Helpers
 
-  private func getPodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
-    try await DisplayableEpisode.toPodcastEpisode(episode)
+  private func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws
+    -> PodcastEpisode
+  {
+    try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
   }
 
   private func getEpisodeID(_ episode: any EpisodeDisplayable) async throws -> Episode.ID {
-    try await getPodcastEpisode(episode).id
+    try await getOrCreatePodcastEpisode(episode).id
   }
 }
