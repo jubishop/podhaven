@@ -39,12 +39,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.podcastSeries(podcastID)
   }
 
-  func podcastSeries(_ feedURLs: [FeedURL]) async throws -> IdentifiedArray<FeedURL, PodcastSeries>
-  {
-    recordCall(methodName: "podcastSeries", parameters: feedURLs)
-    return try await repo.podcastSeries(feedURLs)
-  }
-
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
     recordCall(methodName: "podcastSeries", parameters: feedURL)
     return try await repo.podcastSeries(feedURL)
@@ -57,9 +51,19 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.episode(episodeID)
   }
 
+  func episode(_ mediaGUID: MediaGUID) async throws -> Episode? {
+    recordCall(methodName: "episode", parameters: mediaGUID)
+    return try await repo.episode(mediaGUID)
+  }
+
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     recordCall(methodName: "podcastEpisode", parameters: episodeID)
     return try await repo.podcastEpisode(episodeID)
+  }
+
+  func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode? {
+    recordCall(methodName: "podcastEpisode", parameters: mediaGUID)
+    return try await repo.podcastEpisode(mediaGUID)
   }
 
   func latestEpisode(for podcastID: Podcast.ID) async throws -> Episode? {
