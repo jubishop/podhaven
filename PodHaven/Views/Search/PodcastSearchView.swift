@@ -31,10 +31,7 @@ struct PodcastSearchView: View {
         if podcasts.isEmpty {
           EmptyResultsView()
         } else {
-          PodcastResultsList(
-            podcasts: podcasts,
-            searchedText: viewModel.searchText
-          )
+          PodcastResultsList(podcasts: podcasts)
         }
 
       case .error(let message):
@@ -145,17 +142,11 @@ private struct ErrorStateView: View {
 
 private struct PodcastResultsList: View {
   let podcasts: [UnsavedPodcast]
-  let searchedText: String
 
   var body: some View {
     List(podcasts, id: \.feedURL) { podcast in
       NavigationLink(
-        value: Navigation.Destination.searchedPodcast(
-          SearchedPodcast(
-            searchedText: searchedText,
-            unsavedPodcast: podcast
-          )
-        ),
+        value: Navigation.Destination.podcast(DisplayablePodcast(podcast)),
         label: {
           PodcastListView(podcast: podcast)
         }

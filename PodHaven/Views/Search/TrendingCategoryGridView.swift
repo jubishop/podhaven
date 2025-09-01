@@ -26,13 +26,7 @@ struct TrendingCategoryGridView: View {
           }
         ) { unsavedPodcast in
           NavigationLink(
-            value: Navigation.Destination
-              .searchedPodcast(
-                SearchedPodcast(
-                  searchedText: trendingSearchResult.category,
-                  unsavedPodcast: unsavedPodcast
-                )
-              ),
+            value: Navigation.Destination.podcast(DisplayablePodcast(unsavedPodcast)),
             label: {
               ImageGridItem(
                 image: unsavedPodcast.image,

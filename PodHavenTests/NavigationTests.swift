@@ -29,7 +29,11 @@ import Testing
     navigation.showPodcast(podcast)
 
     #expect(navigation.currentTab == .podcasts, "Current tab should be podcasts")
-    #expect(navigation.podcasts.path == [.podcastsViewType(.unsubscribed), .podcast(podcast)])
+    #expect(
+      navigation.podcasts.path == [
+        .podcastsViewType(.unsubscribed), .podcast(DisplayablePodcast(podcast)),
+      ]
+    )
   }
 
   @Test("that showEpisode sets current tab and appends to podcasts path")
@@ -46,7 +50,7 @@ import Testing
     #expect(navigation.currentTab == .podcasts, "Current tab should be podcasts")
     #expect(
       navigation.podcasts.path == [
-        .podcastsViewType(.subscribed), .podcast(podcastEpisode.podcast),
+        .podcastsViewType(.subscribed), .podcast(DisplayablePodcast(podcastEpisode.podcast)),
         .episode(DisplayableEpisode(podcastEpisode)),
       ]
     )

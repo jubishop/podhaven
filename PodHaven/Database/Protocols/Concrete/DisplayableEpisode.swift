@@ -20,7 +20,7 @@ struct DisplayableEpisode:
   init(_ episode: any EpisodeDisplayable) {
     Assert.precondition(
       !(episode is DisplayableEpisode),
-      "Cannot wrap an instance of itself as an EpisodeDisplayable"
+      "Cannot wrap an instance of itself as a DisplayableEpisode"
     )
 
     self.episode = episode

@@ -51,19 +51,18 @@ extension Container {
     // Search destinations
     case searchType(SearchType)
     case category(String)
-    case searchedPodcast(SearchedPodcast)
 
     // Episodes destinations
     case episodesViewType(EpisodesViewType)
 
     // Podcasts destinations
     case podcastsViewType(PodcastsViewType)
-    case podcast(Podcast)
 
     // UpNext destinations
     case upNextEpisode(PodcastEpisode)
 
     // Universal destinations
+    case podcast(DisplayablePodcast)
     case episode(DisplayableEpisode)
   }
 
@@ -115,9 +114,6 @@ extension Container {
     case .category(let category):
       TrendingCategoryGridView(viewModel: TrendingCategoryGridViewModel(category: category))
         .id("trending_\(category)")
-    case .searchedPodcast(let searchedPodcast):
-      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: searchedPodcast.unsavedPodcast))
-        .id(searchedPodcast.unsavedPodcast.feedURL)
 
     // Episodes destinations
     case .episodesViewType(let viewType):
@@ -194,9 +190,6 @@ extension Container {
         )
         .id("unsubscribed")
       }
-    case .podcast(let podcast):
-      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
-        .id(podcast.id)
 
     // UpNext destinations
     case .upNextEpisode(let podcastEpisode):
@@ -207,6 +200,9 @@ extension Container {
     case .episode(let displayableEpisode):
       EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: displayableEpisode.episode))
         .id(displayableEpisode.mediaGUID)
+    case .podcast(let podcast):
+      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
+        .id(podcast.id)
     }
   }
 
@@ -284,7 +280,7 @@ extension Container {
     Self.log.debug("Showing podcast: \(podcast.toString)")
 
     showPodcastList(podcast.subscribed ? .subscribed : .unsubscribed)
-    podcasts.path.append(.podcast(podcast))
+    podcasts.path.append(.podcast(DisplayablePodcast(podcast)))
   }
 
   func showEpisode(_ podcastEpisode: PodcastEpisode) {

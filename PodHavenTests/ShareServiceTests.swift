@@ -52,7 +52,9 @@ import Testing
 
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [.podcastsViewType(.subscribed), .podcast(podcastSeries.podcast)]
+      navigation.podcasts.path == [
+        .podcastsViewType(.subscribed), .podcast(DisplayablePodcast(podcastSeries.podcast)),
+      ]
     )
   }
 
@@ -97,7 +99,9 @@ import Testing
 
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [.podcastsViewType(.subscribed), .podcast(podcastSeries.podcast)]
+      navigation.podcasts.path == [
+        .podcastsViewType(.subscribed), .podcast(DisplayablePodcast(podcastSeries.podcast)),
+      ]
     )
   }
 
@@ -268,14 +272,16 @@ import Testing
     #expect(
       navigation.podcasts.path == [
         .podcastsViewType(.subscribed),
-        .podcast(podcastSeries.podcast),
+        .podcast(DisplayablePodcast(podcastSeries.podcast)),
         .episode(
-          DisplayableEpisode(PodcastEpisode(
-            podcast: podcastSeries.podcast,
-            episode: podcastSeries.episodes.first(where: {
-              $0.guid == GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")
-            })!
-          ))
+          DisplayableEpisode(
+            PodcastEpisode(
+              podcast: podcastSeries.podcast,
+              episode: podcastSeries.episodes.first(where: {
+                $0.guid == GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")
+              })!
+            )
+          )
         ),
       ]
     )
@@ -336,14 +342,16 @@ import Testing
     #expect(
       navigation.podcasts.path == [
         .podcastsViewType(.subscribed),
-        .podcast(podcastSeries.podcast),
+        .podcast(DisplayablePodcast(podcastSeries.podcast)),
         .episode(
-          DisplayableEpisode(PodcastEpisode(
-            podcast: podcastSeries.podcast,
-            episode: podcastSeries.episodes.first(where: {
-              $0.guid == GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")
-            })!
-          ))
+          DisplayableEpisode(
+            PodcastEpisode(
+              podcast: podcastSeries.podcast,
+              episode: podcastSeries.episodes.first(where: {
+                $0.guid == GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c")
+              })!
+            )
+          )
         ),
       ]
     )
@@ -383,7 +391,9 @@ import Testing
     let podcastSeries = try await repo.podcastSeries(FeedURL(feedURL))!
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [.podcastsViewType(.subscribed), .podcast(podcastSeries.podcast)]
+      navigation.podcasts.path == [
+        .podcastsViewType(.subscribed), .podcast(DisplayablePodcast(podcastSeries.podcast)),
+      ]
     )
   }
 
@@ -434,7 +444,9 @@ import Testing
 
     #expect(navigation.currentTab == .podcasts)
     #expect(
-      navigation.podcasts.path == [.podcastsViewType(.subscribed), .podcast(podcastSeries.podcast)]
+      navigation.podcasts.path == [
+        .podcastsViewType(.subscribed), .podcast(DisplayablePodcast(podcastSeries.podcast)),
+      ]
     )
   }
 }
