@@ -2,21 +2,14 @@
 
 import FactoryKit
 import Foundation
+import IdentifiedCollections
 import SwiftUI
-
-// MARK: - Search State
-
-enum PodcastSearchState {
-  case idle
-  case loading
-  case loaded([UnsavedPodcast])
-  case error(String)
-}
 
 @Observable @MainActor
 final class PodcastSearchViewModel {
-  @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
+  @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
 
   private static let log = Log.as(LogSubsystem.SearchView.podcast)
@@ -55,6 +48,18 @@ final class PodcastSearchViewModel {
   // MARK: - State Management
 
   @ObservationIgnored private var searchTask: Task<Void, Never>?
+  @ObservationIgnored private var observationTask: Task<Void, Never>?
+
+  var podcasts: IdentifiedArray<FeedURL, any PodcastDisplayable> = IdentifiedArray(
+    id: \.feedURL
+  )
+
+  enum PodcastSearchState {
+    case idle
+    case loading
+    case loaded
+    case error(String)
+  }
   var state: PodcastSearchState = .idle
 
   var searchText = "" {
@@ -80,17 +85,9 @@ final class PodcastSearchViewModel {
 
   private var debounceMilliseconds: Int { 500 }
 
-  var podcasts: [UnsavedPodcast] {
-    switch state {
-    case .loaded(let podcasts):
-      return podcasts
-    default:
-      return []
-    }
-  }
-
   func scheduleSearch() {
     searchTask?.cancel()
+    observationTask?.cancel()
 
     if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       state = .idle
@@ -119,7 +116,12 @@ final class PodcastSearchViewModel {
       let unsavedPodcasts = try await performSearch(with: trimmedText)
       guard !Task.isCancelled else { return }
 
-      state = .loaded(unsavedPodcasts)
+      podcasts = IdentifiedArray(
+        uniqueElements: unsavedPodcasts.map { $0 as any PodcastDisplayable },
+        id: \.feedURL
+      )
+      state = .loaded
+      startObservingPodcasts()
     } catch {
       guard !Task.isCancelled else { return }
 
@@ -128,7 +130,9 @@ final class PodcastSearchViewModel {
     }
   }
 
-  func performSearch(with searchText: String) async throws -> [UnsavedPodcast] {
+  func performSearch(with searchText: String) async throws -> IdentifiedArray<
+    FeedURL, UnsavedPodcast
+  > {
     let convertibleFeeds: [any FeedResultConvertible]
 
     switch selectedMode {
@@ -140,7 +144,43 @@ final class PodcastSearchViewModel {
       convertibleFeeds = result.convertibleFeeds
     }
 
-    return convertibleFeeds.compactMap { try? $0.toUnsavedPodcast() }
+    return IdentifiedArray(
+      uniqueElements: convertibleFeeds.compactMap { try? $0.toUnsavedPodcast() },
+      id: \.feedURL
+    )
+  }
+
+  // MARK: - Podcast Observation
+
+  private func startObservingPodcasts() {
+    // Cancel any existing observation task
+    observationTask?.cancel()
+
+    // Get the current feedURLs to observe
+    let feedURLs = Array(podcasts.ids)
+
+    observationTask = Task { [weak self] in
+      guard let self else { return }
+
+      Self.log.debug("Starting observation for \(feedURLs.count) podcasts")
+
+      do {
+        for try await existingPodcasts in self.observatory.podcasts(feedURLs) {
+          try Task.checkCancellation()
+          Self.log.debug(
+            """
+            Updating observed podcasts:
+              \(existingPodcasts.map(\.toString).joined(separator: "\n  "))
+            """
+          )
+          for existingPodcast in existingPodcasts {
+            podcasts[id: existingPodcast.feedURL] = existingPodcast
+          }
+        }
+      } catch {
+        Self.log.error(error)
+      }
+    }
   }
 
   // MARK: - Cleanup
@@ -148,5 +188,6 @@ final class PodcastSearchViewModel {
   func disappear() {
     Self.log.debug("disappear: executing")
     searchTask?.cancel()
+    observationTask?.cancel()
   }
 }

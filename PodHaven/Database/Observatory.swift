@@ -20,21 +20,29 @@ struct Observatory {
     self.repo = repo
   }
 
-  // MARK: - Public Functions
+  // MARK: - Podcasts
 
   func podcasts(
     _ filter: SQLExpression,
-    order: SQLOrdering = Episode.Columns.pubDate.desc,
     limit: Int = Int.max
   ) -> AsyncValueObservation<[Podcast]> {
     _observe { db in
       try Podcast
         .all()
         .filter(filter)
-        .order(order)
         .limit(limit)
         .fetchAll(db)
     }
+  }
+
+  func podcasts(
+    _ feedURLs: [FeedURL],
+    limit: Int = Int.max
+  ) -> AsyncValueObservation<[Podcast]> {
+    podcasts(
+      feedURLs.contains(Podcast.Columns.feedURL),
+      limit: limit
+    )
   }
 
   func podcastsWithLatestEpisodeDates(
@@ -51,6 +59,8 @@ struct Observatory {
         .fetchAll(db)
     }
   }
+
+  // MARK: - PodcastEpisodes
 
   func podcastEpisodes(
     filter: SQLExpression,
@@ -88,10 +98,13 @@ struct Observatory {
     )
   }
 
-  func queuedPodcastEpisodes() -> AsyncValueObservation<[PodcastEpisode]> {
+  // MARK: - Queue
+
+  func queuedPodcastEpisodes(limit: Int = Int.max) -> AsyncValueObservation<[PodcastEpisode]> {
     podcastEpisodes(
       filter: Episode.queued,
-      order: Episode.Columns.queueOrder.asc
+      order: Episode.Columns.queueOrder.asc,
+      limit: limit
     )
   }
 
@@ -102,6 +115,8 @@ struct Observatory {
         .fetchOne(db)
     }
   }
+
+  // MARK: - Singular Observations
 
   func podcastSeries(_ podcastID: Podcast.ID) -> AsyncValueObservation<PodcastSeries?> {
     _observe { db in

@@ -16,7 +16,7 @@ struct EpisodeSearchView: View {
         loadingStateView
 
       case .loaded:
-        if viewModel.podcastEpisodes.isEmpty {
+        if viewModel.episodes.isEmpty {
           emptyResultsView
         } else {
           episodeResultsList

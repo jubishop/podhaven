@@ -20,11 +20,11 @@ struct PodcastSearchView: View {
       case .loading:
         loadingStateView
 
-      case .loaded(let podcasts):
-        if podcasts.isEmpty {
+      case .loaded:
+        if viewModel.podcasts.isEmpty {
           emptyResultsView
         } else {
-          podcastResultsList(podcasts: podcasts)
+          podcastResultsList
         }
 
       case .error(let message):
@@ -109,8 +109,8 @@ struct PodcastSearchView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
-  func podcastResultsList(podcasts: [UnsavedPodcast]) -> some View {
-    List(podcasts, id: \.feedURL) { podcast in
+  var podcastResultsList: some View {
+    List(viewModel.podcasts, id: \.feedURL) { podcast in
       NavigationLink(
         value: Navigation.Destination.podcast(DisplayablePodcast(podcast)),
         label: {
