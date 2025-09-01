@@ -89,6 +89,15 @@ actor DownloadTask: Identifiable {
     }
     finishedContinuations.removeAll()
   }
+
+  deinit {
+    for beganContinuation in beganContinuations {
+      beganContinuation.resume()
+    }
+    for finishedContinuation in finishedContinuations {
+      finishedContinuation.resume(returning: .failure(DownloadError.cancelled(url)))
+    }
+  }
 }
 
 actor DownloadManager {
