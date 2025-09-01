@@ -301,4 +301,12 @@ extension Container {
       self.didPlayToEndTask = nil
     }
   }
+
+  deinit {
+    currentTimeContinuation.finish()
+    itemStatusContinuation.finish()
+    controlStatusContinuation.finish()
+    rateContinuation.finish()
+    didPlayToEndContinuation.finish()
+  }
 }
