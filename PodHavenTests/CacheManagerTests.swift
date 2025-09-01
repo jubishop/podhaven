@@ -21,8 +21,12 @@ import Testing
   private var imageFetcher: FakeImageFetcher {
     Container.shared.imageFetcher() as! FakeImageFetcher
   }
+  private var sleeper: FakeSleeper {
+    Container.shared.sleeper() as! FakeSleeper
+  }
 
   init() async throws {
+    await sleeper.skipAllSleeps()
     try await cacheManager.start()
   }
 

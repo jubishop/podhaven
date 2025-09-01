@@ -31,9 +31,10 @@ extension Container {
 }
 
 actor CacheManager {
+  @DynamicInjected(\.imageFetcher) private var imageFetcher
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
-  @DynamicInjected(\.imageFetcher) private var imageFetcher
+  @DynamicInjected(\.sleeper) private var sleeper
 
   private var alert: Alert { get async { await Container.shared.alert() } }
   private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
@@ -192,6 +193,7 @@ actor CacheManager {
             guard let self else { return }
             await handleQueueChange(queuedEpisodes)
           }
+          try await sleeper.sleep(for: Duration.milliseconds(250))
         }
       } catch {
         Self.log.error(error)

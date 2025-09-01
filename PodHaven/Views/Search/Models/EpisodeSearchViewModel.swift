@@ -49,7 +49,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
 
   // MARK: - Searching
 
-  private var debounceMilliseconds: Int { 500 }
+  private var debounceMilliseconds: Int { 250 }
 
   func scheduleSearch() {
     searchTask?.cancel()
