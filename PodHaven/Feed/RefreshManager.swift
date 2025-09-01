@@ -224,7 +224,7 @@ actor RefreshManager {
         } catch {
           Self.log.error(error)
         }
-        await self.setActiveRefreshTask(nil)
+        await self.clearActiveRefreshTask()
 
         try? await self.sleeper.sleep(for: .minutes(15))
       }
@@ -255,7 +255,12 @@ actor RefreshManager {
     backgroundRefreshTask = nil
   }
 
-  private func setActiveRefreshTask(_ task: Task<Void, any Error>?) async {
+  private func clearActiveRefreshTask() {
+    activeRefreshTask?.cancel()
+    activeRefreshTask = nil
+  }
+
+  private func setActiveRefreshTask(_ task: Task<Void, any Error>) {
     activeRefreshTask = task
   }
 

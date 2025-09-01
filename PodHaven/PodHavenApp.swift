@@ -83,7 +83,9 @@ struct PodHavenApp: App {
     Task {
       for await _ in notifications(UIApplication.didReceiveMemoryWarningNotification) {
         Self.log.warning("System memory warning received")
-        alert("Memory warning received")
+        if AppInfo.myDevice {
+          alert("Memory warning received")
+        }
       }
     }
   }
