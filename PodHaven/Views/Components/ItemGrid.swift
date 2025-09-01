@@ -27,7 +27,7 @@ where P.Element == T {
 #if DEBUG
 #Preview {
   @Previewable @State var isSelecting: Bool = false
-  @Previewable @State var isSelected = BindableDictionary<Podcast, Bool>(defaultValue: false)
+  @Previewable @State var isSelected = BindableDictionary<Podcast.ID, Bool>(defaultValue: false)
   @Previewable @State var podcasts: [Podcast] = []
   @Previewable @State var gridItemSize: CGFloat = 100
   let gridSize = 12
@@ -39,7 +39,7 @@ where P.Element == T {
     ItemGrid(items: podcasts) { podcast in
       SelectableImageGridItem(
         viewModel: SelectableListItemModel(
-          isSelected: $isSelected[podcast],
+          isSelected: $isSelected[podcast.id],
           item: podcast,
           isSelecting: isSelecting
         ),

@@ -7,10 +7,12 @@ import SwiftUI
 @Observable @MainActor class SelectableListUseCase<Item: Searchable, ID: Hashable>: SelectableList {
   // MARK: - Selection State Management
 
-  var isSelected = BindableDictionary<Item, Bool>(defaultValue: false)
-  var anySelected: Bool { filteredEntries.contains { isSelected[$0] } }
-  var anyNotSelected: Bool { filteredEntries.contains { !isSelected[$0] } }
-  var selectedEntries: IdentifiedArray<ID, Item> { filteredEntries.filter({ isSelected[$0] }) }
+  var isSelected = BindableDictionary<ID, Bool>(defaultValue: false)
+  var anySelected: Bool { filteredEntries.ids.contains { isSelected[$0] } }
+  var anyNotSelected: Bool { filteredEntries.ids.contains { !isSelected[$0] } }
+  var selectedEntries: IdentifiedArray<ID, Item> {
+    filteredEntries.filter({ isSelected[$0[keyPath: idKeyPath]] })
+  }
   var selectedEntryIDs: [ID] { selectedEntries.ids.elements }
 
   // MARK: - Entry List Getters / Setters
@@ -20,7 +22,7 @@ import SwiftUI
     get { _allEntries }
     set {
       _allEntries = newValue.sorted(by: sortMethod)
-      for entry in isSelected.keys where !allEntries.contains(entry) {
+      for entry in isSelected.keys where !allEntries.ids.contains(entry) {
         isSelected.removeValue(forKey: entry)
       }
     }
@@ -71,13 +73,13 @@ import SwiftUI
 
   func selectAllEntries() {
     for entry in filteredEntries {
-      isSelected[entry] = true
+      isSelected[entry[keyPath: idKeyPath]] = true
     }
   }
 
   func unselectAllEntries() {
     for entry in filteredEntries {
-      isSelected[entry] = false
+      isSelected[entry[keyPath: idKeyPath]] = false
     }
   }
 }

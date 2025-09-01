@@ -18,7 +18,7 @@ struct UpNextView: View {
             label: {
               EpisodeListView(
                 viewModel: SelectableListItemModel(
-                  isSelected: $viewModel.episodeList.isSelected[podcastEpisode],
+                  isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id],
                   item: podcastEpisode,
                   isSelecting: viewModel.isEditing
                 )
