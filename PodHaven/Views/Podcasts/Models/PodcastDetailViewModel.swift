@@ -30,10 +30,10 @@ class PodcastDetailViewModel:
     case unfinished = "Unfinished"
     case unqueued = "Unqueued"
 
-    func filterMethod<T: EpisodeDisplayable>() -> (T) -> Bool {
+    func filterMethod<T: EpisodeDisplayable>() -> ((T) -> Bool)? {
       switch self {
       case .all:
-        return { _ in true }
+        return nil
       case .unstarted:
         return { !$0.started }
       case .unfinished:
@@ -61,7 +61,7 @@ class PodcastDetailViewModel:
       self.podcast = podcastSeries.podcast
 
       // Careful to only update allEntries once
-      var allEntries: IdentifiedArray<MediaGUID, DisplayableEpisode> = episodeList.allEntries
+      var allEntries = episodeList.allEntries
       for episode in podcastSeries.episodes {
         allEntries[id: episode.unsaved.id] = DisplayableEpisode(
           PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)

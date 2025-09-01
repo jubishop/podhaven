@@ -21,14 +21,26 @@ import SwiftUI
   var allEntries: IdentifiedArray<ID, Item> {
     get { _allEntries }
     set {
-      _allEntries = newValue.sorted(by: sortMethod)
+      if let sortMethod {
+        _allEntries = newValue.sorted(by: sortMethod)
+      } else {
+        _allEntries = newValue
+      }
+
       for entry in isSelected.keys where !allEntries.ids.contains(entry) {
         isSelected.removeValue(forKey: entry)
       }
     }
   }
   var filteredEntries: IdentifiedArray<ID, Item> {
-    let filteredEntries = allEntries.filter { filterMethod($0) }
+    let filteredEntries: IdentifiedArray<ID, Item>
+    if let filterMethod {
+      filteredEntries = allEntries.filter { filterMethod($0) }
+    } else {
+      filteredEntries = allEntries
+    }
+
+    if entryFilter.isEmpty { return filteredEntries }
 
     let searchTerms =
       entryFilter
@@ -48,9 +60,13 @@ import SwiftUI
 
   // MARK: - Customization Parameters
 
-  var filterMethod: (Item) -> Bool
-  var sortMethod: (Item, Item) -> Bool {
-    didSet { _allEntries.sort(by: sortMethod) }
+  var filterMethod: ((Item) -> Bool)?
+  var sortMethod: ((Item, Item) -> Bool)? {
+    didSet {
+      if let sortMethod {
+        _allEntries.sort(by: sortMethod)
+      }
+    }
   }
   var entryFilter: String = ""
 
@@ -60,8 +76,8 @@ import SwiftUI
 
   init(
     idKeyPath: KeyPath<Item, ID>,
-    filterMethod: @escaping (Item) -> Bool = { _ in true },
-    sortMethod: @escaping (Item, Item) -> Bool = { _, _ in false }
+    filterMethod: ((Item) -> Bool)? = nil,
+    sortMethod: ((Item, Item) -> Bool)? = nil
   ) {
     self.idKeyPath = idKeyPath
     self.filterMethod = filterMethod
