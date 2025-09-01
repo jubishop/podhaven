@@ -31,7 +31,7 @@ import SwiftUI
     let filteredEntries = allEntries.filter { filterMethod($0) }
 
     let searchTerms =
-      _entryFilter
+      entryFilter
       .lowercased()
       .components(separatedBy: CharacterSet.whitespacesAndNewlines)
       .filter { !$0.isEmpty }
