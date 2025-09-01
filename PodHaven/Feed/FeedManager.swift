@@ -17,8 +17,15 @@ extension Container {
     .scope(.cached)
   }
 
+  var feedDownloadManager: Factory<DownloadManager> {
+    Factory(self) {
+      DownloadManager(session: self.feedManagerSession())
+    }
+    .scope(.cached)
+  }
+
   var feedManager: Factory<FeedManager> {
-    Factory(self) { FeedManager(session: self.feedManagerSession()) }.scope(.unique)
+    Factory(self) { FeedManager(downloadManager: self.feedDownloadManager()) }.scope(.cached)
   }
 }
 
@@ -60,8 +67,8 @@ actor FeedManager {
 
   var remainingFeeds: Int { feedTasks.count }
 
-  fileprivate init(session: DataFetchable) {
-    downloadManager = DownloadManager(session: session)
+  fileprivate init(downloadManager: DownloadManager) {
+    self.downloadManager = downloadManager
   }
 
   // MARK: - Downloading Feeds

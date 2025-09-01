@@ -71,7 +71,7 @@ extension Container {
 
 @Observable @MainActor class OPMLViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
-  @ObservationIgnored @LazyInjected(\.feedManager) private var feedManager
+  @ObservationIgnored @DynamicInjected(\.feedManager) private var feedManager
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo

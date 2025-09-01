@@ -14,7 +14,7 @@ extension Container {
 }
 
 actor RefreshManager {
-  @LazyInjected(\.feedManager) var feedManager
+  @DynamicInjected(\.feedManager) var feedManager
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sleeper) private var sleeper
@@ -210,7 +210,9 @@ actor RefreshManager {
       guard let self else { return }
 
       while !Task.isCancelled {
-        let refreshTask = Task {
+        let refreshTask = Task { [weak self] in
+          guard let self else { return }
+
           Self.log.debug("backgroundRefreshTask: performing refresh")
           try await self.performRefresh(
             stalenessThreshold: 10.minutesAgo,

@@ -11,7 +11,7 @@ import Testing
 @Suite("of FeedManager tests", .container)
 actor FeedManagerTests {
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
-  @LazyInjected(\.feedManager) private var feedManager
+  @DynamicInjected(\.feedManager) private var feedManager
 
   var session: FakeDataFetchable { feedManagerSession as! FakeDataFetchable }
 

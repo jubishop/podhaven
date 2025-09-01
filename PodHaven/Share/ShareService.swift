@@ -23,7 +23,7 @@ extension Container {
 }
 
 actor ShareService {
-  @LazyInjected(\.feedManager) private var feedManager
+  @DynamicInjected(\.feedManager) private var feedManager
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.refreshManager) private var refreshManager
 
