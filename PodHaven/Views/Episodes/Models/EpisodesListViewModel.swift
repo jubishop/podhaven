@@ -11,14 +11,14 @@ class EpisodesListViewModel:
   ManagingEpisodesModel,
   SelectableEpisodeListModel
 {
-  private static let log = Log.as(LogSubsystem.EpisodesView.standard)
-
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
+
+  private static let log = Log.as(LogSubsystem.EpisodesView.standard)
 
   // MARK: - State Management
 

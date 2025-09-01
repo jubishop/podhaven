@@ -77,7 +77,7 @@ struct EpisodeSearchView: View {
   }
 
   var episodeResultsList: some View {
-    List(viewModel.podcastEpisodes, id: \.mediaGUID) { episode in
+    List(viewModel.episodes, id: \.mediaGUID) { episode in
       NavigationLink(
         value: Navigation.Destination.episode(DisplayableEpisode(episode)),
         label: {
@@ -92,7 +92,13 @@ struct EpisodeSearchView: View {
       )
       .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: episode)
-      .episodeContextMenu(viewModel: viewModel, episode: episode)
+      .episodeContextMenu(viewModel: viewModel, episode: episode) {
+        if let podcastEpisode = episode as? PodcastEpisode {
+          Button(action: { viewModel.showPodcast(for: podcastEpisode) }) {
+            AppLabel.showPodcast.label
+          }
+        }
+      }
     }
   }
 

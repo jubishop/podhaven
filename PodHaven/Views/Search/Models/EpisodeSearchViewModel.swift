@@ -7,9 +7,8 @@ import SwiftUI
 
 @Observable @MainActor
 final class EpisodeSearchViewModel: ManagingEpisodesModel {
-  typealias EpisodeType = any EpisodeDisplayable
-
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
@@ -22,8 +21,9 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
   @ObservationIgnored private var searchTask: Task<Void, Never>?
   @ObservationIgnored private var observationTask: Task<Void, Never>?
 
-  var podcastEpisodes: IdentifiedArray<MediaGUID, any EpisodeDisplayable> =
-    IdentifiedArray(id: \.mediaGUID)
+  var episodes: IdentifiedArray<MediaGUID, any EpisodeDisplayable> = IdentifiedArray(
+    id: \.mediaGUID
+  )
 
   enum EpisodeSearchState {
     case idle
@@ -82,7 +82,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
       let unsavedPodcastEpisodes = try await performSearch(with: trimmedText)
       guard !Task.isCancelled else { return }
 
-      podcastEpisodes = IdentifiedArray(
+      episodes = IdentifiedArray(
         uniqueElements: unsavedPodcastEpisodes.map { $0 as any EpisodeDisplayable },
         id: \.mediaGUID
       )
@@ -110,7 +110,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
     observationTask?.cancel()
 
     // Get the current mediaGUIDs to observe
-    let mediaGUIDs = Array(podcastEpisodes.ids)
+    let mediaGUIDs = Array(episodes.ids)
 
     observationTask = Task { [weak self] in
       guard let self else { return }
@@ -118,22 +118,29 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
       Self.log.debug("Starting observation for \(mediaGUIDs.count) episodes")
 
       do {
-        for try await databaseEpisodes in self.observatory.podcastEpisodes(mediaGUIDs) {
+        for try await podcastEpisode in self.observatory.podcastEpisodes(mediaGUIDs) {
           try Task.checkCancellation()
           Self.log.debug(
             """
             Updating observed episodes:
-              \(databaseEpisodes.map(\.toString).joined(separator: "\n  "))
+              \(podcastEpisode.map(\.toString).joined(separator: "\n  "))
             """
           )
-          for databaseEpisode in databaseEpisodes {
-            self.podcastEpisodes[id: databaseEpisode.mediaGUID] = databaseEpisode
+          for podcastEpisode in podcastEpisode {
+            episodes[id: podcastEpisode.mediaGUID] = podcastEpisode
           }
         }
       } catch {
         Self.log.error(error)
       }
     }
+  }
+
+  // MARK: - Navigation Actions
+
+  func showPodcast(for episode: PodcastEpisode) {
+    Self.log.debug("Showing podcast for episode: \(episode.toString)")
+    navigation.showPodcast(episode.podcast)
   }
 
   // MARK: - Cleanup
