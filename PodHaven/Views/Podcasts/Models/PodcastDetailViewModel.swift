@@ -58,29 +58,16 @@ class PodcastDetailViewModel:
 
       Self.log.debug("podcastSeries: \(podcastSeries.toString)")
 
-      let podcastChanged = self.podcast as? Podcast != podcastSeries.podcast
-      if podcastChanged {
-        Self.log.debug("podcastSeries: podcast: \(podcastSeries.podcast.toString) has changed")
-        self.podcast = podcastSeries.podcast
-      }
+      self.podcast = podcastSeries.podcast
 
-      // Careful to only update allEntries once.
-      var episodesChanged = false
+      // Careful to only update allEntries once
       var allEntries: IdentifiedArray<MediaGUID, DisplayableEpisode> = episodeList.allEntries
-      for newEpisode in podcastSeries.episodes {
-        let mediaGUID = newEpisode.unsaved.id
-        let currentPodcastEpisode = episodeList.allEntries[id: mediaGUID]?.getPodcastEpisode()
-        if newEpisode != currentPodcastEpisode?.episode {
-          episodesChanged = true
-          allEntries[id: mediaGUID] = DisplayableEpisode(
-            PodcastEpisode(podcast: podcastSeries.podcast, episode: newEpisode)
-          )
-        }
+      for episode in podcastSeries.episodes {
+        allEntries[id: episode.unsaved.id] = DisplayableEpisode(
+          PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
+        )
       }
-      if episodesChanged {
-        Self.log.debug("podcastSeries: episodes have changed")
-        episodeList.allEntries = allEntries
-      }
+      episodeList.allEntries = allEntries
     }
   }
 
