@@ -56,13 +56,30 @@ class PodcastDetailViewModel:
       guard let podcastSeries = podcastSeries
       else { Assert.fatal("Setting podcastSeries to nil is not allowed") }
 
-      Self.log.debug("Setting podcastSeries: \(podcastSeries.toString)")
+      Self.log.debug("podcastSeries: \(podcastSeries.toString)")
 
-      self.podcast = podcastSeries.podcast
-      for episode in podcastSeries.episodes {
-        episodeList.allEntries[id: episode.unsaved.id] = DisplayableEpisode(
-          PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
-        )
+      let podcastChanged = self.podcast as? Podcast != podcastSeries.podcast
+      if podcastChanged {
+        Self.log.debug("podcastSeries: podcast: \(podcastSeries.podcast.toString) has changed")
+        self.podcast = podcastSeries.podcast
+      }
+
+      // Careful to only update allEntries once.
+      var episodesChanged = false
+      var allEntries: IdentifiedArray<MediaGUID, DisplayableEpisode> = episodeList.allEntries
+      for newEpisode in podcastSeries.episodes {
+        let mediaGUID = newEpisode.unsaved.id
+        let currentPodcastEpisode = episodeList.allEntries[id: mediaGUID]?.getPodcastEpisode()
+        if newEpisode != currentPodcastEpisode?.episode {
+          episodesChanged = true
+          allEntries[id: mediaGUID] = DisplayableEpisode(
+            PodcastEpisode(podcast: podcastSeries.podcast, episode: newEpisode)
+          )
+        }
+      }
+      if episodesChanged {
+        Self.log.debug("podcastSeries: episodes have changed")
+        episodeList.allEntries = allEntries
       }
     }
   }
@@ -138,7 +155,7 @@ class PodcastDetailViewModel:
     } else {
       Self.log.debug("performExecute: \(podcast.toString) does not exist in db")
 
-      try await parsePodcastSeries()
+      try await parsePodcastFeed()
     }
   }
 
@@ -208,7 +225,7 @@ class PodcastDetailViewModel:
         try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
       } else {
         Self.log.debug("refreshSeries: unsaved podcast series \(podcast.toString)")
-        try await parsePodcastSeries()
+        try await parsePodcastFeed()
       }
     } catch {
       Self.log.error(error)
@@ -257,7 +274,7 @@ class PodcastDetailViewModel:
 
   // MARK: - Private Helpers
 
-  private func parsePodcastSeries() async throws {
+  private func parsePodcastFeed() async throws {
     let podcastFeed = try await PodcastFeed.parse(podcast.feedURL)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
     self.podcast = unsavedPodcast

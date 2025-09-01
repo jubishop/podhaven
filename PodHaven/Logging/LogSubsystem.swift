@@ -4,6 +4,10 @@ import Foundation
 import Logging
 
 enum LogSubsystem {
+  enum Cache: String, LogCategorizable {
+    case cacheManager
+  }
+
   enum Database: String, LogCategorizable {
     case appDB
     case episode
