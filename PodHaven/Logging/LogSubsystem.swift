@@ -4,17 +4,6 @@ import Foundation
 import Logging
 
 enum LogSubsystem {
-  enum Cache: String, LogCategorizable {
-    case cacheManager
-
-    var level: Logger.Level {
-      switch self {
-      case .cacheManager:
-        return .trace
-      }
-    }
-  }
-
   enum Database: String, LogCategorizable {
     case appDB
     case episode
