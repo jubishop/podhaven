@@ -122,7 +122,7 @@ import SwiftUI
     }
   }
 
-  // MARK: - Full Grid Items
+  // MARK: - Full Grid Functions
 
   func refreshPodcasts() async throws(RefreshError) {
     try await refreshManager.performRefresh(
@@ -152,7 +152,7 @@ import SwiftUI
     }
   }
 
-  // MARK: - Single Grid Item
+  // MARK: - Single Item Functions
 
   func queueLatestEpisodeToTop(_ podcastID: Podcast.ID) {
     Task { [weak self] in

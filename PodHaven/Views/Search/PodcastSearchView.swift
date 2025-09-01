@@ -8,34 +8,27 @@ struct PodcastSearchView: View {
   var body: some View {
     VStack(spacing: 0) {
       // Mode selection pills
-      ModeSelectionView(selectedMode: $viewModel.selectedMode)
+      modeSelectionView
         .padding(.horizontal)
         .padding(.bottom, 8)
 
       // Main content
       switch viewModel.state {
       case .idle:
-        IdleStateView(
-          title: "Search for podcasts",
-          description: viewModel.selectedMode.idleDescription
-        )
+        idleStateView
 
       case .loading:
-        VStack {
-          ProgressView("Searching...")
-            .padding()
-          Spacer()
-        }
+        loadingStateView
 
       case .loaded(let podcasts):
         if podcasts.isEmpty {
-          EmptyResultsView()
+          emptyResultsView
         } else {
-          PodcastResultsList(podcasts: podcasts)
+          podcastResultsList(podcasts: podcasts)
         }
 
       case .error(let message):
-        ErrorStateView(message: message)
+        errorStateView(message: message)
       }
     }
     .navigationTitle("Search Podcasts")
@@ -46,18 +39,14 @@ struct PodcastSearchView: View {
     )
     .onDisappear { viewModel.disappear() }
   }
-}
 
-// MARK: - Mode Selection
+  // MARK: - Computed View Properties
 
-private struct ModeSelectionView: View {
-  @Binding var selectedMode: PodcastSearchViewModel.SearchMode
-
-  var body: some View {
+  var modeSelectionView: some View {
     HStack {
       ForEach(PodcastSearchViewModel.SearchMode.allCases, id: \.self) { mode in
         Button(action: {
-          selectedMode = mode
+          viewModel.selectedMode = mode
         }) {
           Text(mode.displayName)
             .font(.subheadline)
@@ -66,9 +55,11 @@ private struct ModeSelectionView: View {
             .padding(.vertical, 8)
             .background(
               RoundedRectangle(cornerRadius: 20)
-                .fill(selectedMode == mode ? Color.accentColor : Color.secondary.opacity(0.2))
+                .fill(
+                  viewModel.selectedMode == mode ? Color.accentColor : Color.secondary.opacity(0.2)
+                )
             )
-            .foregroundColor(selectedMode == mode ? .white : .primary)
+            .foregroundColor(viewModel.selectedMode == mode ? .white : .primary)
         }
         .buttonStyle(PlainButtonStyle())
       }
@@ -76,23 +67,16 @@ private struct ModeSelectionView: View {
     }
     .padding(.top, 8)
   }
-}
 
-// MARK: - Subviews
-
-private struct IdleStateView: View {
-  let title: String
-  let description: String
-
-  var body: some View {
+  var idleStateView: some View {
     VStack(spacing: 16) {
       AppLabel.search.image
         .font(.system(size: 48))
         .foregroundColor(.secondary)
-      Text(title)
+      Text("Search for podcasts")
         .font(.headline)
         .multilineTextAlignment(.center)
-      Text(description)
+      Text(viewModel.selectedMode.idleDescription)
         .font(.subheadline)
         .foregroundColor(.secondary)
         .multilineTextAlignment(.center)
@@ -100,10 +84,16 @@ private struct IdleStateView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
-}
 
-private struct EmptyResultsView: View {
-  var body: some View {
+  var loadingStateView: some View {
+    VStack {
+      ProgressView("Searching...")
+        .padding()
+      Spacer()
+    }
+  }
+
+  var emptyResultsView: some View {
     VStack(spacing: 16) {
       AppLabel.search.image
         .font(.system(size: 48))
@@ -118,12 +108,19 @@ private struct EmptyResultsView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
-}
 
-private struct ErrorStateView: View {
-  let message: String
+  func podcastResultsList(podcasts: [UnsavedPodcast]) -> some View {
+    List(podcasts, id: \.feedURL) { podcast in
+      NavigationLink(
+        value: Navigation.Destination.podcast(DisplayablePodcast(podcast)),
+        label: {
+          PodcastListView(podcast: podcast)
+        }
+      )
+    }
+  }
 
-  var body: some View {
+  func errorStateView(message: String) -> some View {
     VStack(spacing: 16) {
       AppLabel.error.image
         .font(.system(size: 48))
@@ -137,21 +134,6 @@ private struct ErrorStateView: View {
         .padding(.horizontal)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-}
-
-private struct PodcastResultsList: View {
-  let podcasts: [UnsavedPodcast]
-
-  var body: some View {
-    List(podcasts, id: \.feedURL) { podcast in
-      NavigationLink(
-        value: Navigation.Destination.podcast(DisplayablePodcast(podcast)),
-        label: {
-          PodcastListView(podcast: podcast)
-        }
-      )
-    }
   }
 }
 

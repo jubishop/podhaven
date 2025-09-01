@@ -30,7 +30,7 @@ class PodcastDetailViewModel:
     case unfinished = "Unfinished"
     case unqueued = "Unqueued"
 
-    func filterMethod<T: EpisodeDisplayable>() -> ((T) -> Bool)? {
+    func filterMethod() -> ((DisplayableEpisode) -> Bool)? {
       switch self {
       case .all:
         return nil
