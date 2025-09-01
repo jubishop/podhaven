@@ -28,6 +28,8 @@ import Logging
       guard let podcastEpisode = podcastEpisode
       else { Assert.fatal("Setting podcastEpisode to nil is not allowed") }
 
+      Self.log.debug("podcastEpisode: \(podcastEpisode.toString)")
+
       self.episode = podcastEpisode
     }
   }
@@ -197,7 +199,7 @@ import Logging
     else { Assert.fatal("Observing a non-saved podcastEpisode") }
 
     Self.log.debug("Starting observation for episode: \(podcastEpisode.toString)")
-    
+
     do {
       for try await updatedEpisode in self.observatory.podcastEpisode(podcastEpisode.id) {
         try Task.checkCancellation()
