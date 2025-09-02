@@ -189,7 +189,6 @@ actor CacheManager {
             guard let self else { return }
             await handleQueueChange(queuedEpisodes)
           }
-          try await sleeper.sleep(for: Duration.milliseconds(250))
         }
       } catch {
         Self.log.error(error)
