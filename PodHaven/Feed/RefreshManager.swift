@@ -220,21 +220,24 @@ actor RefreshManager {
         let refreshTask = Task { [weak self] in
           guard let self else { return }
 
-          Self.log.debug("backgroundRefreshTask: performing refresh")
+          Self.log.debug("activeRefreshTask: performing refresh")
           try await self.performRefresh(
             stalenessThreshold: 10.minutesAgo,
             filter: Podcast.subscribed
           )
+          Self.log.debug("activeRefreshTask: refresh completed")
         }
 
         await self.setActiveRefreshTask(refreshTask)
         do {
           try await refreshTask.value
+          Self.log.debug("backgroundRefreshTask: active refresh completed gracefully")
         } catch {
           Self.log.error(error)
         }
         await self.cancelActiveRefreshTask()
 
+        Self.log.debug("backgroundRefreshTask: now sleeping")
         try? await self.sleeper.sleep(for: .minutes(15))
       }
     }
