@@ -16,65 +16,76 @@ actor TaskMapStore {
   private var byKey: [MediaGUID: Int] = [:]
 
   private let fileURL: URL
+  private var isLoaded = false
 
   init() {
     // Store under Application Support
     let dir = AppInfo.applicationSupportDirectory.appendingPathComponent("background-downloads")
-    do {
-      try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    } catch {
-      Self.log.error(error)
-    }
     fileURL = dir.appendingPathComponent("taskmap.json")
-
-    do {
-      guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
-      let data = try Data(contentsOf: fileURL)
-      let decoded = try JSONDecoder().decode([Int: MediaGUID].self, from: data)
-      byTaskID = decoded
-      byKey = Dictionary(uniqueKeysWithValues: decoded.map { ($0.value, $0.key) })
-    } catch {
-      Self.log.error(error)
-    }
   }
 
   // MARK: - Public API
 
-  func set(taskID: Int, for key: MediaGUID) {
+  func set(taskID: Int, for key: MediaGUID) async {
+    await ensureLoaded()
     byTaskID[taskID] = key
     byKey[key] = taskID
-    persist()
+    await persist()
   }
 
-  func taskID(for key: MediaGUID) -> Int? {
-    byKey[key]
+  func taskID(for key: MediaGUID) async -> Int? {
+    await ensureLoaded()
+    return byKey[key]
   }
 
-  func key(for taskID: Int) -> MediaGUID? {
-    byTaskID[taskID]
+  func key(for taskID: Int) async -> MediaGUID? {
+    await ensureLoaded()
+    return byTaskID[taskID]
   }
 
-  func remove(taskID: Int) {
+  func remove(taskID: Int) async {
+    await ensureLoaded()
     if let key = byTaskID.removeValue(forKey: taskID) {
       byKey.removeValue(forKey: key)
-      persist()
+      await persist()
     }
   }
 
   // MARK: - Persistence
 
-  private func persist() {
+  private func ensureLoaded() async {
+    guard !isLoaded else { return }
+    let fm: any FileManageable = Container.shared.podFileManager()
+
+    // Ensure directory exists
+    let dir = fileURL.deletingLastPathComponent()
+    do { try await fm.createDirectory(at: dir, withIntermediateDirectories: true) } catch {}
+
+    // Load if file exists
+    if await fm.fileExists(at: fileURL) {
+      do {
+        let data = try await fm.readData(from: fileURL)
+        let decoded = try JSONDecoder().decode([Int: MediaGUID].self, from: data)
+        byTaskID = decoded
+        byKey = Dictionary(uniqueKeysWithValues: decoded.map { ($0.value, $0.key) })
+      } catch {
+        Self.log.error(error)
+      }
+    }
+
+    isLoaded = true
+  }
+
+  private func persist() async {
+    let fm: any FileManageable = Container.shared.podFileManager()
     do {
       let data = try JSONEncoder().encode(byTaskID)
-      try data.write(to: fileURL, options: .atomic)
+      try await fm.writeData(data, to: fileURL)
     } catch {
       Self.log.error(error)
     }
   }
 }
-
-// MARK: - DI
-
 extension Container {
   var cacheTaskMapStore: Factory<TaskMapStore> {
     Factory(self) { TaskMapStore() }.scope(.cached)

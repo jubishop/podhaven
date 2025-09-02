@@ -191,7 +191,7 @@ import Testing
     let data = CacheHelpers.createRandomData(size: 128)
     try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
     try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
-    #expect(await cs.progress(podcastEpisode.id) == nil)
+    #expect(cs.progress(podcastEpisode.id) == nil)
   }
 
   @Test("progress is updated and cleared on finish")
@@ -208,13 +208,13 @@ import Testing
     await cs.updateProgress(for: mg, progress: 0.42)
 
     // Assert progress visible
-    #expect(await cs.progress(podcastEpisode.id) == 0.42)
+    #expect(cs.progress(podcastEpisode.id) == 0.42)
 
     // Finish download and ensure progress cleared
     let data = CacheHelpers.createRandomData(size: 256)
     try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
     try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
-    #expect(await cs.progress(podcastEpisode.id) == nil)
+    #expect(cs.progress(podcastEpisode.id) == nil)
   }
 
   @Test("background delegate caches file when queued")
