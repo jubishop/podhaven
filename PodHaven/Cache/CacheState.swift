@@ -12,20 +12,13 @@ extension Container {
 @Observable @MainActor class CacheState {
   // MARK: - State Management
 
-  // Foreground (testing) download tracking
-  private var activeDownloadTasks: [Episode.ID: DownloadTask] = [:]
-  // Background session tracking (production)
   private var activeBackgroundTaskIDs: [Episode.ID: Int] = [:]
   private var progressByEpisode: [Episode.ID: Double] = [:]
 
   // MARK: - State Getters
 
   func isDownloading(_ episodeID: Episode.ID) -> Bool {
-    activeDownloadTasks[episodeID] != nil || activeBackgroundTaskIDs[episodeID] != nil
-  }
-
-  func getDownloadTask(_ episodeID: Episode.ID) -> DownloadTask? {
-    activeDownloadTasks[episodeID]
+    activeBackgroundTaskIDs[episodeID] != nil
   }
 
   func getBackgroundTaskIdentifier(_ episodeID: Episode.ID) -> Int? {
@@ -37,10 +30,6 @@ extension Container {
   }
 
   // MARK: - State Setters
-
-  func setDownloadTask(_ episodeID: Episode.ID, downloadTask: DownloadTask) {
-    activeDownloadTasks[episodeID] = downloadTask
-  }
 
   func setDownloadTaskIdentifier(_ episodeID: Episode.ID, taskIdentifier: Int) {
     activeBackgroundTaskIDs[episodeID] = taskIdentifier
@@ -63,7 +52,6 @@ extension Container {
   }
 
   func removeDownloadTask(_ episodeID: Episode.ID) {
-    activeDownloadTasks.removeValue(forKey: episodeID)
     activeBackgroundTaskIDs.removeValue(forKey: episodeID)
     progressByEpisode.removeValue(forKey: episodeID)
   }

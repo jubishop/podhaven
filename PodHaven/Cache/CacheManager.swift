@@ -211,14 +211,6 @@ actor CacheManager {
   }
 
   private func cancelDownloadTaskOrClearCache(for episodeID: Episode.ID) async throws(CacheError) {
-    if let downloadTask = await cacheState.getDownloadTask(episodeID) {
-      Self.log.debug("Cancelling cache download task for episode \(episodeID)")
-
-      await cacheState.removeDownloadTask(episodeID)
-      await downloadTask.cancel()
-      // Do not return; fall through and attempt to clear any existing cache file
-    }
-
     // Cancel background task if present (and still fall through to attempt clear)
     if let episode: Episode = try await CacheError.catch({ try await repo.episode(episodeID) }) {
       let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
