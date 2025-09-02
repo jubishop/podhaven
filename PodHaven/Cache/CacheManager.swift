@@ -3,19 +3,16 @@
 import FactoryKit
 import Foundation
 import GRDB
+import UIKit
 
 extension Container {
   var cacheManagerSession: Factory<DataFetchable> {
     Factory(self) {
-      let configuration = URLSessionConfiguration.background(
-        withIdentifier: "\(AppInfo.bundleIdentifier).episode-downloads"
-      )
+      let configuration = URLSessionConfiguration.ephemeral
       configuration.allowsCellularAccess = true
       configuration.waitsForConnectivity = true
-      configuration.sessionSendsLaunchEvents = true
-      configuration.isDiscretionary = true
-      configuration.timeoutIntervalForRequest = Double(60)
-      configuration.timeoutIntervalForResource = Double(3600)
+      configuration.timeoutIntervalForRequest = Double(30)
+      configuration.timeoutIntervalForResource = Double(120)
       return URLSession(configuration: configuration)
     }
     .scope(.cached)
@@ -86,8 +83,16 @@ actor CacheManager {
       return false
     }
 
+    let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
+      Log.as(LogSubsystem.Cache.cacheManager).warning("downloadAndCache: task expired")
+    }
     await cacheState.setDownloadTask(podcastEpisode.id, downloadTask: downloadTask)
-    defer { Task { await cacheState.removeDownloadTask(podcastEpisode.id) } }
+    defer {
+      Task {
+        await cacheState.removeDownloadTask(podcastEpisode.id)
+        await UIApplication.shared.endBackgroundTask(backgroundTaskID)
+      }
+    }
 
     return try await CacheError.catch {
       await imageFetcher.prefetch([podcastEpisode.image])
@@ -99,13 +104,10 @@ actor CacheManager {
 
       let fileName = await generateCacheFilename(for: podcastEpisode.episode)
       let cacheURL = Self.resolveCachedFilepath(for: fileName)
-
       try await Container.shared.podFileManager().writeData(downloadData.data, to: cacheURL)
-
       try await repo.updateCachedFilename(podcastEpisode.id, fileName)
 
       Self.log.debug("downloadAndCache: successfully cached \(podcastEpisode.toString)")
-
       return true
     }
   }

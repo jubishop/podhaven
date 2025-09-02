@@ -9,9 +9,8 @@ extension Container {
       let configuration = URLSessionConfiguration.ephemeral
       configuration.allowsCellularAccess = true
       configuration.waitsForConnectivity = true
-      let timeout = Double(10)
-      configuration.timeoutIntervalForRequest = timeout
-      configuration.timeoutIntervalForResource = timeout
+      configuration.timeoutIntervalForRequest = Double(10)
+      configuration.timeoutIntervalForResource = Double(30)
       return URLSession(configuration: configuration)
     }
     .scope(.cached)

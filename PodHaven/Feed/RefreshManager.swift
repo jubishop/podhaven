@@ -64,7 +64,7 @@ final class RefreshManager {
     )
 
     let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
-      Log.as(LogSubsystem.Feed.refreshManager).warning("refreshSeries: background task expired")
+      Log.as(LogSubsystem.Feed.refreshManager).warning("performRefresh: task expired")
     }
     defer {
       Task { await UIApplication.shared.endBackgroundTask(backgroundTaskID) }
@@ -112,14 +112,13 @@ final class RefreshManager {
     }
 
     let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
-      Log.as(LogSubsystem.Feed.refreshManager).warning("refreshSeries: background task expired")
+      Log.as(LogSubsystem.Feed.refreshManager).warning("refreshSeries: task expired")
     }
     defer {
       Task { await UIApplication.shared.endBackgroundTask(backgroundTaskID) }
     }
 
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
-
     let podcastFeed: PodcastFeed
     do {
       podcastFeed = try await feedTask.feedParsed()
