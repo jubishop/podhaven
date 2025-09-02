@@ -87,6 +87,9 @@ import Testing
 
     try await queue.unshift(podcastEpisode.id)
 
+    // Ensure the download was scheduled (triggers artwork prefetch)
+    try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
+
     // Simulate background completion
     let data = CacheHelpers.createRandomData()
     try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
@@ -183,17 +186,15 @@ import Testing
     try await queue.unshift(podcastEpisode.id)
     try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
 
-    // Obtain the scheduled background task ID from CacheState
-    let cs: CacheState = Container.shared.cacheState()
-    let maybeTaskID = cs.getBackgroundTaskIdentifier(podcastEpisode.id)
-    #expect(maybeTaskID != nil)
-    guard let taskID = maybeTaskID else { return }
+    // Obtain the scheduled background task ID from TaskMap (ensures mapping exists)
+    let taskID = try await CacheHelpers.waitForTaskID(for: podcastEpisode.id)
 
     // Simulate progress through the fake harness
     if let fake = Container.shared.cacheBackgroundFetchable() as? FakeDataFetchable {
       await fake.progressDownload(taskID: taskID, totalBytesWritten: 50, totalBytesExpectedToWrite: 100)
     }
 
+    let cs: CacheState = Container.shared.cacheState()
     // Verify progress reflects 50%
     #expect(cs.progress(podcastEpisode.id) == 0.5)
 

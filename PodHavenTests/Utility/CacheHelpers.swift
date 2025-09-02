@@ -117,6 +117,18 @@ enum CacheHelpers {
     return try await podFileManager.readData(from: fileURL)
   }
 
+  // MARK: - Task Map Helpers
+
+  static func waitForTaskID(for episodeID: Episode.ID) async throws -> Int {
+    try await Wait.forValue {
+      let repo: any Databasing = Container.shared.repo()
+      guard let episode = try await repo.episode(episodeID) else { return nil }
+      let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
+      let taskMap = Container.shared.cacheTaskMapStore()
+      return await taskMap.taskID(for: mg)
+    }
+  }
+
   // MARK: - Background Download Simulation
 
   static func simulateBackgroundFinish(_ episodeID: Episode.ID, data: Data) async throws {
