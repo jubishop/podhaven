@@ -253,7 +253,6 @@ actor RefreshManager {
         activeRefreshTask.cancel()
         backgroundRefreshTask?.cancel()
       }
-
       do {
         try await activeRefreshTask.value
         Self.log.debug("backgrounded: active refresh completed gracefully")
