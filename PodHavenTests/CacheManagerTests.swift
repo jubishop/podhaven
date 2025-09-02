@@ -15,6 +15,9 @@ import Testing
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
+  private var session: FakeDataFetchable {
+    Container.shared.cacheManagerSession() as! FakeDataFetchable
+  }
   private var imageFetcher: FakeImageFetcher {
     Container.shared.imageFetcher() as! FakeImageFetcher
   }
@@ -190,9 +193,11 @@ import Testing
     let taskID = try await CacheHelpers.waitForTaskID(for: podcastEpisode.id)
 
     // Simulate progress through the fake harness
-    if let fake = Container.shared.cacheBackgroundFetchable() as? FakeDataFetchable {
-      await fake.progressDownload(taskID: taskID, totalBytesWritten: 50, totalBytesExpectedToWrite: 100)
-    }
+    await session.progressDownload(
+      taskID: taskID,
+      totalBytesWritten: 50,
+      totalBytesExpectedToWrite: 100
+    )
 
     let cs: CacheState = Container.shared.cacheState()
     // Verify progress reflects 50%

@@ -31,6 +31,7 @@ extension Container {
 }
 
 actor CacheManager {
+  @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
   @DynamicInjected(\.imageFetcher) private var imageFetcher
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
@@ -218,11 +219,10 @@ actor CacheManager {
     }
 
     // Cancel background task if present
-    let bgFetch: any DataFetchable = Container.shared.cacheBackgroundFetchable()
     if let episode: Episode = try await CacheError.catch({ try await repo.episode(episodeID) }) {
       let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
       if let taskID = await Container.shared.cacheTaskMapStore().taskID(for: mg) {
-        await bgFetch.cancelDownload(taskID: taskID)
+        await cacheManagerSession.cancelDownload(taskID: taskID)
         await Container.shared.cacheTaskMapStore().remove(taskID: taskID)
         await cacheState.removeDownloadTask(episodeID)
         return
@@ -256,8 +256,7 @@ actor CacheManager {
   // MARK: - Background Session Adoption
 
   private func adoptInFlightBackgroundDownloads() async {
-    let bgFetch: any DataFetchable = Container.shared.cacheBackgroundFetchable()
-    let taskIDs = await bgFetch.listDownloadTaskIDs()
+    let taskIDs = await cacheManagerSession.listDownloadTaskIDs()
 
     let taskMap = Container.shared.cacheTaskMapStore()
     for taskID in taskIDs {

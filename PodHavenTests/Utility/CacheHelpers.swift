@@ -11,6 +11,9 @@ enum CacheHelpers {
 
   private static var appDB: AppDB { Container.shared.appDB() }
   private static var cacheManager: CacheManager { Container.shared.cacheManager() }
+  private static var cacheManagerSession: FakeDataFetchable {
+    Container.shared.cacheManagerSession() as! FakeDataFetchable
+  }
   private static var cacheState: CacheState { get async { await Container.shared.cacheState() } }
   private static var podFileManager: any FileManageable { Container.shared.podFileManager() }
   private static var queue: any Queueing { Container.shared.queue() }
@@ -135,12 +138,7 @@ enum CacheHelpers {
     try await pfm.writeData(data, to: tmpURL)
 
     // Ask the fake background fetchable to complete by invoking the delegate
-    if let fake = Container.shared.cacheBackgroundFetchable() as? FakeDataFetchable {
-      await fake.finishDownload(taskID: taskID, tmpURL: tmpURL)
-    } else {
-      let delegate = Container.shared.cacheBackgroundDelegate()
-      await delegate.handleDidFinish(taskIdentifier: taskID, location: tmpURL)
-    }
+    await cacheManagerSession.finishDownload(taskID: taskID, tmpURL: tmpURL)
   }
 
   static func simulateBackgroundFailure(
@@ -159,11 +157,6 @@ enum CacheHelpers {
     let cacheState: CacheState = await Container.shared.cacheState()
     await cacheState.setDownloadTaskIdentifier(episodeID, taskIdentifier: taskID)
 
-    if let fake = Container.shared.cacheBackgroundFetchable() as? FakeDataFetchable {
-      await fake.failDownload(taskID: taskID, error: error)
-    } else {
-      let delegate = Container.shared.cacheBackgroundDelegate()
-      await delegate.handleDidComplete(taskIdentifier: taskID, error: error)
-    }
+    await cacheManagerSession.failDownload(taskID: taskID, error: error)
   }
 }

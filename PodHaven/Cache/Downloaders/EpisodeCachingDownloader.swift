@@ -13,6 +13,7 @@ protocol EpisodeCachingDownloader: Sendable {
 // MARK: - Background (Production) implementation
 
 struct BackgroundCacheDownloader: EpisodeCachingDownloader, Sendable {
+  @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
   @DynamicInjected(\.imageFetcher) private var imageFetcher
 
   func start(_ podcastEpisode: PodcastEpisode) async throws(CacheError) -> Bool {
@@ -27,8 +28,7 @@ struct BackgroundCacheDownloader: EpisodeCachingDownloader, Sendable {
     request.allowsExpensiveNetworkAccess = true
     request.allowsConstrainedNetworkAccess = true
 
-    let bgFetch: any DataFetchable = Container.shared.cacheBackgroundFetchable()
-    let taskID = await bgFetch.scheduleDownload(request)
+    let taskID = await cacheManagerSession.scheduleDownload(request)
 
     let cacheState: CacheState = await Container.shared.cacheState()
     await cacheState.setDownloadTaskIdentifier(podcastEpisode.id, taskIdentifier: taskID)
