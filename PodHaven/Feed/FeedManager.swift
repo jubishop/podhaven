@@ -25,7 +25,10 @@ extension Container {
   }
 
   var feedManager: Factory<FeedManager> {
-    Factory(self) { FeedManager(downloadManager: self.feedDownloadManager()) }.scope(.cached)
+    Factory(self) { @FeedActor in
+      FeedManager(downloadManager: self.feedDownloadManager())
+    }
+    .scope(.cached)
   }
 }
 
@@ -57,7 +60,13 @@ struct FeedTask {
   }
 }
 
-actor FeedManager {
+@globalActor
+actor FeedActor {
+  static let shared = PlayActor()
+}
+
+@FeedActor
+final class FeedManager {
   private static let log = Log.as(LogSubsystem.Feed.feedManager)
 
   // MARK: - Concurrent Download Management
@@ -84,7 +93,7 @@ actor FeedManager {
     Task { [weak self] in
       guard let self else { return }
       _ = try? await feedTask.feedParsed()
-      await removeFeedTask(feedURL: url)
+      feedTasks.removeValue(forKey: url)
     }
 
     return feedTask
@@ -95,11 +104,5 @@ actor FeedManager {
       await feedTask.cancel()
     }
     feedTasks.removeAll()
-  }
-
-  private func removeFeedTask(feedURL: FeedURL) {
-    Self.log.trace("Removing feed task for \(feedURL)")
-
-    feedTasks.removeValue(forKey: feedURL)
   }
 }

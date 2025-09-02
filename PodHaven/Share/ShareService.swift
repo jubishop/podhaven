@@ -22,7 +22,7 @@ extension Container {
   }
 }
 
-actor ShareService {
+struct ShareService {
   @DynamicInjected(\.feedManager) private var feedManager
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.refreshManager) private var refreshManager

@@ -30,7 +30,7 @@ final class RefreshManager {
   // MARK: - State Management
 
   private var backgroundRefreshTask: Task<Void, Never>?
-  private var activeRefreshTask: Task<Void, any Error>?
+  private var currentlyBackgroundRefreshing = false
 
   // MARK: - Initialization
 
@@ -227,35 +227,28 @@ final class RefreshManager {
   private func activated() {
     Self.log.trace("activated: starting background refresh task")
 
-    if let activeRefreshTask = activeRefreshTask, !activeRefreshTask.isCancelled {
-      Self.log.debug("activated: refresh task already running")
+    if currentlyBackgroundRefreshing {
+      Self.log.debug("activated: already refreshing")
       return
     }
 
     backgroundRefreshTask?.cancel()
-    backgroundRefreshTask = Task { [weak self] in
+    backgroundRefreshTask = Task(priority: .background) { [weak self] in
       guard let self else { return }
 
       while !Task.isCancelled {
-        let refreshTask = Task { [weak self] in
-          guard let self else { return }
-
-          Self.log.debug("activeRefreshTask: performing refresh")
+        currentlyBackgroundRefreshing = true
+        do {
+          Self.log.debug("backgroundRefreshTask: performing refresh")
           try await self.performRefresh(
             stalenessThreshold: 10.minutesAgo,
             filter: Podcast.subscribed
           )
-          Self.log.debug("activeRefreshTask: refresh completed")
-        }
-
-        activeRefreshTask = refreshTask
-        do {
-          try await refreshTask.value
-          Self.log.debug("backgroundRefreshTask: active refresh completed gracefully")
+          Self.log.debug("backgroundRefreshTask: refresh completed gracefully")
         } catch {
           Self.log.error(error)
         }
-        refreshTask.cancel()
+        currentlyBackgroundRefreshing = false
 
         Self.log.debug("backgroundRefreshTask: now sleeping")
         try? await self.sleeper.sleep(for: .minutes(15))
@@ -266,7 +259,7 @@ final class RefreshManager {
   private func startListeningToActivation() {
     Assert.neverCalled()
 
-    Task(priority: .background) { [weak self] in
+    Task { [weak self] in
       guard let self else { return }
       for await _ in notifications(UIApplication.didBecomeActiveNotification) {
         activated()

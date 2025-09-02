@@ -197,7 +197,7 @@ actor CacheManager {
         }
       } catch {
         Self.log.error(error)
-        await alert(ErrorKit.message(for: error))
+        await alert(ErrorKit.coreMessage(for: error))
       }
     }
   }
