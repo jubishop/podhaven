@@ -8,19 +8,18 @@ import UIKit
 // MARK: - CacheBackgroundDelegate
 
 final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
-  @DynamicInjected(\.repo) private var repo
-  @DynamicInjected(\.sleeper) private var sleeper
-
+  private var repo: any Databasing { Container.shared.repo() }
   private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
-  private var taskMap: TaskMapStore { get async { await Container.shared.cacheTaskMapStore() } }
+  private var sleeper: any Sleepable { Container.shared.sleeper() }
+  private var taskMap: TaskMapStore { Container.shared.cacheTaskMapStore() }
 
   private static let log = Log.as("CacheBackgroundDelegate")
 
   // These internal helpers are used by the delegate to reuse logic.
   func handleDidFinish(taskIdentifier: Int, location: URL) async {
-    defer { await (await taskMap).remove(taskID: taskIdentifier) }
+    defer { Task { await taskMap.remove(taskID: taskIdentifier) } }
 
-    guard let mg = await (await taskMap).key(for: taskIdentifier) else {
+    guard let mg = await taskMap.key(for: taskIdentifier) else {
       Self.log.warning("handleDidFinish: No mapping for task \(taskIdentifier)")
       return
     }
@@ -52,7 +51,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   }
 
   func handleDidComplete(taskIdentifier: Int, error: Error) async {
-    if let mg = await (await taskMap).key(for: taskIdentifier) {
+    if let mg = await taskMap.key(for: taskIdentifier) {
       do {
         if let episode = try await repo.episode(mg) {
           await (await cacheState).markFailed(episode.id, error: error)
@@ -75,7 +74,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     guard totalBytesExpectedToWrite > 0 else { return }
     let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
     Task { [progress] in
-      if let mg = await (await taskMap).key(for: downloadTask.taskIdentifier) {
+      if let mg = await taskMap.key(for: downloadTask.taskIdentifier) {
         await (await cacheState).updateProgress(for: mg, progress: progress)
       }
     }
@@ -101,7 +100,8 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   }
 
   func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
-    BackgroundURLSessionCompletionCenter.shared.complete(for: session.configuration.identifier)
+    Container.shared.backgroundURLSessionCompletionCenter()
+      .complete(for: session.configuration.identifier)
   }
 }
 

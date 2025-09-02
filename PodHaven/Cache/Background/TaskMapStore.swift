@@ -26,7 +26,16 @@ actor TaskMapStore {
       Self.log.error(error)
     }
     fileURL = dir.appendingPathComponent("taskmap.json")
-    loadFromDisk()
+
+    do {
+      guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+      let data = try Data(contentsOf: fileURL)
+      let decoded = try JSONDecoder().decode([Int: MediaGUID].self, from: data)
+      byTaskID = decoded
+      byKey = Dictionary(uniqueKeysWithValues: decoded.map { ($0.value, $0.key) })
+    } catch {
+      Self.log.error(error)
+    }
   }
 
   // MARK: - Public API
@@ -53,18 +62,6 @@ actor TaskMapStore {
   }
 
   // MARK: - Persistence
-
-  private func loadFromDisk() {
-    do {
-      guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
-      let data = try Data(contentsOf: fileURL)
-      let decoded = try JSONDecoder().decode([Int: MediaGUID].self, from: data)
-      byTaskID = decoded
-      byKey = Dictionary(uniqueKeysWithValues: decoded.map { ($0.value, $0.key) })
-    } catch {
-      Self.log.error(error)
-    }
-  }
 
   private func persist() {
     do {

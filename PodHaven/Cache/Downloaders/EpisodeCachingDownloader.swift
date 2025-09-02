@@ -34,7 +34,7 @@ struct BackgroundCacheDownloader: EpisodeCachingDownloader, Sendable {
     await cacheState.setDownloadTaskIdentifier(podcastEpisode.id, taskIdentifier: taskID)
 
     let mg = MediaGUID(guid: podcastEpisode.episode.guid, media: podcastEpisode.episode.media)
-    let taskMap = await Container.shared.cacheTaskMapStore()
+    let taskMap = Container.shared.cacheTaskMapStore()
     await taskMap.set(taskID: taskID, for: mg)
 
     return true

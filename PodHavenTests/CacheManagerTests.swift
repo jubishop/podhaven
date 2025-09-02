@@ -174,8 +174,8 @@ import Testing
     try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
 
     // Obtain the scheduled background task ID from CacheState
-    let cs: CacheState = await Container.shared.cacheState()
-    let maybeTaskID = await cs.getBackgroundTaskIdentifier(podcastEpisode.id)
+    let cs: CacheState = Container.shared.cacheState()
+    let maybeTaskID = cs.getBackgroundTaskIdentifier(podcastEpisode.id)
     #expect(maybeTaskID != nil)
     guard let taskID = maybeTaskID else { return }
 
@@ -185,7 +185,7 @@ import Testing
     }
 
     // Verify progress reflects 50%
-    #expect(await cs.progress(podcastEpisode.id) == 0.5)
+    #expect(cs.progress(podcastEpisode.id) == 0.5)
 
     // Finish and verify progress cleared
     let data = CacheHelpers.createRandomData(size: 128)
@@ -204,7 +204,7 @@ import Testing
 
     // Simulate progress by calling CacheState directly using MediaGUID
     let mg = podcastEpisode.episode.unsaved.id
-    let cs: CacheState = await Container.shared.cacheState()
+    let cs: CacheState = Container.shared.cacheState()
     await cs.updateProgress(for: mg, progress: 0.42)
 
     // Assert progress visible

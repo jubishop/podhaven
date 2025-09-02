@@ -3,6 +3,7 @@
 
 import Foundation
 import Semaphore
+import FactoryKit
 
 actor FakeDataFetchable: DataFetchable {
   typealias DataHandler = @Sendable (URL) async throws -> (Data, URLResponse)
@@ -89,10 +90,12 @@ actor FakeDataFetchable: DataFetchable {
     await delegate.handleDidComplete(taskIdentifier: taskID, error: error)
   }
 
-  func progressDownload(taskID: Int, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) async {
+  func progressDownload(taskID: Int, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64)
+    async
+  {
     guard totalBytesExpectedToWrite > 0 else { return }
     let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-    let taskMap = await Container.shared.cacheTaskMapStore()
+    let taskMap = Container.shared.cacheTaskMapStore()
     if let mg = await taskMap.key(for: taskID) {
       let cs: CacheState = await Container.shared.cacheState()
       await cs.updateProgress(for: mg, progress: progress)

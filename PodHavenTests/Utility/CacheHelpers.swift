@@ -127,7 +127,7 @@ enum CacheHelpers {
       throw CacheError.episodeNotFound(episodeID)
     }
     let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
-    let taskMap = await Container.shared.cacheTaskMapStore()
+    let taskMap = Container.shared.cacheTaskMapStore()
     await taskMap.set(taskID: taskID, for: mg)
 
     // Also mark CacheState as downloading for more realistic simulation
@@ -158,7 +158,7 @@ enum CacheHelpers {
       throw CacheError.episodeNotFound(episodeID)
     }
     let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
-    let taskMap = await Container.shared.cacheTaskMapStore()
+    let taskMap = Container.shared.cacheTaskMapStore()
     await taskMap.set(taskID: taskID, for: mg)
     let cacheState: CacheState = await Container.shared.cacheState()
     await cacheState.setDownloadTaskIdentifier(episodeID, taskIdentifier: taskID)

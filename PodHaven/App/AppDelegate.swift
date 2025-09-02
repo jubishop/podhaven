@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import UIKit
 
 // MARK: - AppDelegate
@@ -10,9 +11,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     handleEventsForBackgroundURLSession identifier: String,
     completionHandler: @escaping () -> Void
   ) {
-    BackgroundURLSessionCompletionCenter.shared.store(
-      identifier: identifier,
-      completion: completionHandler
-    )
+    Container.shared.backgroundURLSessionCompletionCenter()
+      .store(
+        identifier: identifier,
+        completion: completionHandler
+      )
   }
 }

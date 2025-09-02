@@ -1,19 +1,23 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 
 // MARK: - BackgroundURLSessionCompletionCenter
 
+extension Container {
+  var backgroundURLSessionCompletionCenter: Factory<BackgroundURLSessionCompletionCenter> {
+    Factory(self) { BackgroundURLSessionCompletionCenter() }.scope(.cached)
+  }
+}
 /// Stores and invokes the completion handlers that iOS provides when delivering
 /// background URLSession events to the app. AppDelegate will save the handler,
 /// and the URLSession delegate calls `complete(for:)` when it's finished.
 final class BackgroundURLSessionCompletionCenter {
-  static let shared = BackgroundURLSessionCompletionCenter()
-
   private let lock = NSLock()
   private var completions: [String: () -> Void] = [:]
 
-  private init() {}
+  fileprivate init() {}
 
   func store(identifier: String?, completion: @escaping () -> Void) {
     guard let id = identifier else { return }

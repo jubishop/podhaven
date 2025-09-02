@@ -222,11 +222,11 @@ actor CacheManager {
 
     // Cancel background task if present
     let bgFetch: any DataFetchable = Container.shared.cacheBackgroundFetchable()
-    if let episode: Episode = try await repo.episode(episodeID) {
+    if let episode: Episode = try await CacheError.catch({ try await repo.episode(episodeID) }) {
       let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
-      if let taskID = await (await Container.shared.cacheTaskMapStore()).taskID(for: mg) {
+      if let taskID = await Container.shared.cacheTaskMapStore().taskID(for: mg) {
         await bgFetch.cancelDownload(taskID: taskID)
-        await (await Container.shared.cacheTaskMapStore()).remove(taskID: taskID)
+        await Container.shared.cacheTaskMapStore().remove(taskID: taskID)
         await cacheState.removeDownloadTask(episodeID)
         return
       }
@@ -272,7 +272,7 @@ actor CacheManager {
     let bgFetch: any DataFetchable = Container.shared.cacheBackgroundFetchable()
     let taskIDs = await bgFetch.listDownloadTaskIDs()
 
-    let taskMap = await Container.shared.cacheTaskMapStore()
+    let taskMap = Container.shared.cacheTaskMapStore()
     for taskID in taskIDs {
       if let mg = await taskMap.key(for: taskID) {
         do {
