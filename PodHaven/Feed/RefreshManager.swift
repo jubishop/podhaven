@@ -59,6 +59,13 @@ actor RefreshManager {
       """
     )
 
+    let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
+      Self.log.warning("refreshSeries: background task expired")
+    }
+    defer {
+      Task { await UIApplication.shared.endBackgroundTask(backgroundTaskID) }
+    }
+
     try await RefreshError.catch {
       try await withThrowingDiscardingTaskGroup { group in
         let allStaleSubscribedPodcastSeries = try await repo.allPodcastSeries(
@@ -100,17 +107,27 @@ actor RefreshManager {
       return false
     }
 
+    let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
+      Self.log.warning("refreshSeries: background task expired")
+    }
+    defer {
+      Task { await UIApplication.shared.endBackgroundTask(backgroundTaskID) }
+    }
+
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
+
     let podcastFeed: PodcastFeed
     do {
       podcastFeed = try await feedTask.feedParsed()
     } catch {
       throw RefreshError.parseFailure(podcastSeries: podcastSeries, caught: error)
     }
+
     try await updateSeriesFromFeed(
       podcastSeries: podcastSeries,
       podcastFeed: podcastFeed
     )
+
     return true
   }
 
@@ -250,19 +267,12 @@ actor RefreshManager {
     if let activeRefreshTask = activeRefreshTask, !activeRefreshTask.isCancelled {
       Self.log.debug("backgrounded: waiting for active refresh task to complete")
 
-      let backgroundRefreshTask = self.backgroundRefreshTask
-      let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
-        Self.log.warning("backgrounded: background task expired, forcing cleanup")
-        activeRefreshTask.cancel()
-        backgroundRefreshTask?.cancel()
-      }
       do {
         try await activeRefreshTask.value
         Self.log.debug("backgrounded: active refresh completed gracefully")
       } catch {
         Self.log.error(error)
       }
-      await UIApplication.shared.endBackgroundTask(backgroundTaskID)
 
       if isActive {
         Self.log.debug("backgrounded: became active again after refresh completion")

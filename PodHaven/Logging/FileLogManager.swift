@@ -3,7 +3,7 @@
 import FactoryKit
 import Foundation
 import Logging
-import Sentry
+import UIKit
 
 extension Container {
   var fileLogManager: Factory<FileLogManager> {
@@ -70,8 +70,12 @@ struct FileLogManager: Sendable {
     Task(priority: .background) {
       while true {
         do {
+          let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
+            Self.log.warning("startPeriodicCleanup: background task expired")
+          }
           Self.log.debug("Running periodic log truncation after \(periodicCleanupInterval)")
           await truncateLogFile()
+          await UIApplication.shared.endBackgroundTask(backgroundTaskID)
 
           try await sleeper.sleep(for: periodicCleanupInterval)
         } catch {
