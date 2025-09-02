@@ -13,7 +13,6 @@ extension Container: @retroactive AutoRegistering {
     searchServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     feedManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     shareServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
-    cacheManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     podcastOPMLSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     notifications.context(.test) {
       { name in self.notifier().stream(for: name) }

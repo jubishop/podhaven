@@ -6,25 +6,6 @@ import GRDB
 import UIKit
 
 extension Container {
-  var cacheManagerSession: Factory<DataFetchable> {
-    Factory(self) {
-      let configuration = URLSessionConfiguration.ephemeral
-      configuration.allowsCellularAccess = true
-      configuration.waitsForConnectivity = true
-      configuration.timeoutIntervalForRequest = Double(30)
-      configuration.timeoutIntervalForResource = Double(120)
-      return URLSession(configuration: configuration)
-    }
-    .scope(.cached)
-  }
-
-  var cacheDownloadManager: Factory<DownloadManager> {
-    Factory(self) {
-      DownloadManager(session: self.cacheManagerSession(), maxConcurrentDownloads: 8)
-    }
-    .scope(.cached)
-  }
-
   var cacheManager: Factory<CacheManager> {
     Factory(self) { CacheManager() }.scope(.cached)
   }

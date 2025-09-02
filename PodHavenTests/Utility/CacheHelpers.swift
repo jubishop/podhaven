@@ -12,21 +12,11 @@ enum CacheHelpers {
   private static var appDB: AppDB { Container.shared.appDB() }
   private static var cacheManager: CacheManager { Container.shared.cacheManager() }
   private static var cacheState: CacheState { get async { await Container.shared.cacheState() } }
-  private static var downloadManager: DownloadManager { Container.shared.cacheDownloadManager() }
   private static var podFileManager: any FileManageable { Container.shared.podFileManager() }
   private static var queue: any Queueing { Container.shared.queue() }
   private static var repo: any Databasing { Container.shared.repo() }
 
-  private static var session: FakeDataFetchable {
-    Container.shared.cacheManagerSession() as! FakeDataFetchable
-  }
-
   // MARK: - Queue Manipulation
-
-  static func unshiftToPending(podcastEpisode: PodcastEpisode) async throws {
-    try await queue.unshift(podcastEpisode.id)
-    try await waitForTopPendingDownload(podcastEpisode.episode.media.rawValue)
-  }
 
   static func unshiftToActive(podcastEpisode: PodcastEpisode) async throws {
     try await queue.unshift(podcastEpisode.id)
@@ -56,13 +46,6 @@ enum CacheHelpers {
   }
 
   // MARK: - Download Status
-
-  static func waitForTopPendingDownload(_ url: URL) async throws {
-    try await Wait.until(
-      { await downloadManager.pendingDownloads.first?.url == url },
-      { "Expected episode url: \(url.hash()) to be the first pending download" }
-    )
-  }
 
   // MARK: - CacheState Status
 
