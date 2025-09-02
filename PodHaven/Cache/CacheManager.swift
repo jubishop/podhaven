@@ -139,10 +139,7 @@ actor CacheManager {
 
       do {
         for try await queuedEpisodes in await observatory.queuedPodcastEpisodes() {
-          Task { [weak self] in
-            guard let self else { return }
-            await handleQueueChange(queuedEpisodes)
-          }
+          await handleQueueChange(queuedEpisodes)
         }
       } catch {
         Self.log.error(error)
