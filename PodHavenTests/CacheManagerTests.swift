@@ -284,4 +284,171 @@ import Testing
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
     try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
   }
+
+  // MARK: - Additional Edge Cases
+
+  @Test("dequeue while onDeck does not clear cache")
+  func dequeueWhileOnDeckDoesNotClearCache() async throws {
+    // Create episode already marked as cached in DB
+    let data = CacheHelpers.createRandomData()
+    let cachedName = "cached-episode.mp3"
+    let pe = try await Create.podcastEpisode(
+      Create.unsavedEpisode(cachedFilename: cachedName)
+    )
+
+    // Write the cached file to disk
+    let fileURL = CacheManager.resolveCachedFilepath(for: cachedName)
+    try await Container.shared.podFileManager().writeData(data, to: fileURL)
+
+    // Queue it so CacheManager observes it
+    try await queue.unshift(pe.id)
+
+    // Put the episode on-deck (simulating currently loaded/playing)
+    let ps: PlayState = Container.shared.playState()
+    let od = OnDeck(
+      episodeID: pe.id,
+      feedURL: pe.podcast.feedURL,
+      guid: pe.episode.unsaved.guid,
+      podcastTitle: pe.podcast.title,
+      podcastURL: pe.podcast.link,
+      episodeTitle: pe.episode.title,
+      duration: pe.episode.duration,
+      image: nil,
+      mediaURL: pe.episode.mediaURL,
+      pubDate: pe.episode.pubDate
+    )
+    ps.setOnDeck(od)
+
+    // Dequeue and verify the file was NOT removed because onDeck protects it
+    try await queue.dequeue(pe.id)
+    try await Wait.until(
+      { try await self.repo.episode(pe.id)?.queued == false },
+      { "Expected episode dequeued" }
+    )
+
+    try await CacheHelpers.waitForCachedFile(cachedName)
+    #expect(try await repo.episode(pe.id)?.cachedFilename == cachedName)
+  }
+
+  @Test("clearCache returns false if queued")
+  func clearCacheReturnsFalseIfQueued() async throws {
+    let pe = try await Create.podcastEpisode(
+      Create.unsavedEpisode(queueOrder: 0, cachedFilename: "cached.mp3")
+    )
+    let didClear = try await cacheManager.clearCache(for: pe.id)
+    #expect(didClear == false)
+    #expect(try await repo.episode(pe.id)?.cachedFilename != nil)
+  }
+
+  @Test("clearCache returns false if not cached")
+  func clearCacheReturnsFalseIfNotCached() async throws {
+    let pe = try await Create.podcastEpisode()
+    let didClear = try await cacheManager.clearCache(for: pe.id)
+    #expect(didClear == false)
+    #expect(try await repo.episode(pe.id)?.cachedFilename == nil)
+  }
+
+  @Test("clearCache nulls DB when file missing")
+  func clearCacheNullsDBWhenFileMissing() async throws {
+    let pe = try await Create.podcastEpisode(
+      Create.unsavedEpisode(cachedFilename: "missing.mp3")
+    )
+    let didClear = try await cacheManager.clearCache(for: pe.id)
+    #expect(didClear == true)
+    #expect(try await repo.episode(pe.id)?.cachedFilename == nil)
+  }
+
+  @Test("progress is cleared on dequeue mid-download (explicit)")
+  func progressClearedOnDequeue() async throws {
+    let pe = try await Create.podcastEpisode()
+
+    try await queue.unshift(pe.id)
+    try await CacheHelpers.waitForCacheStateDownloading(pe.id)
+
+    // Set progress and then dequeue, it should clear
+    cacheState.updateProgress(for: pe.id, progress: 0.42)
+    try await queue.dequeue(pe.id)
+    try await CacheHelpers.waitForCacheStateNotDownloading(pe.id)
+
+    #expect(cacheState.progress(pe.id) == nil)
+  }
+
+  @Test("already cached episode added to queue does not prefetch artwork")
+  func alreadyCachedDoesNotPrefetchArtwork() async throws {
+    let pe = try await Create.podcastEpisode(
+      Create.unsavedEpisode(image: URL.valid(), cachedFilename: "already-cached.mp3")
+    )
+
+    let img = pe.image
+    #expect(await imageFetcher.prefetchCounts[img] == nil)
+
+    try await queue.unshift(pe.id)
+
+    // Image prefetch should be skipped because cachedFilename exists
+    let count = await imageFetcher.prefetchCounts[img]
+    #expect(count == nil || count == 0)
+  }
+
+  @Test("replace clears removed caches and keeps remaining")
+  func replaceClearsRemovedKeepsRemaining() async throws {
+    let (ep1, ep2) = try await Create.twoPodcastEpisodes(
+      try Create.unsavedEpisode(cachedFilename: "one.mp3"),
+      try Create.unsavedEpisode(cachedFilename: "two.mp3")
+    )
+
+    // Queue both and simulate background completion for each
+    try await queue.unshift(ep1.id)
+    try await queue.unshift(ep2.id)
+
+    let d1 = CacheHelpers.createRandomData()
+    let d2 = CacheHelpers.createRandomData()
+    try await CacheHelpers.simulateBackgroundFinish(ep1.id, data: d1)
+    try await CacheHelpers.simulateBackgroundFinish(ep2.id, data: d2)
+
+    let f1 = try await CacheHelpers.waitForCached(ep1.id)
+    let f2 = try await CacheHelpers.waitForCached(ep2.id)
+    try await CacheHelpers.waitForCachedFile(f1)
+    try await CacheHelpers.waitForCachedFile(f2)
+
+    // Replace queue with only ep2, ep1 should be cleared
+    try await queue.replace([ep2.id])
+
+    try await CacheHelpers.waitForCachedFileRemoved(f1)
+    try await CacheHelpers.waitForCachedFile(f2)
+  }
+
+  @Test("generateCacheFilename falls back to mp3 and preserves extension")
+  func generateCacheFilenameFallbackAndPreserve() async throws {
+    let noExt = try await Create.podcastEpisode(
+      Create.unsavedEpisode(media: MediaURL(URL(string: "https://a.b/c/d")!))
+    )
+    let withExt = try await Create.podcastEpisode(
+      Create.unsavedEpisode(media: MediaURL(URL(string: "https://a.b/c/d.wav")!))
+    )
+
+    let name1 = CacheManager.generateCacheFilename(for: noExt.episode)
+    let name2 = CacheManager.generateCacheFilename(for: withExt.episode)
+    #expect(name1.hasSuffix(".mp3"))
+    #expect(name2.hasSuffix(".wav"))
+  }
+
+  @Test("requeue immediately after dequeue re-caches")
+  func requeueAfterDequeueReCaches() async throws {
+    let pe = try await Create.podcastEpisode()
+
+    try await queue.unshift(pe.id)
+    let d1 = CacheHelpers.createRandomData()
+    try await CacheHelpers.simulateBackgroundFinish(pe.id, data: d1)
+    let f1 = try await CacheHelpers.waitForCached(pe.id)
+    try await CacheHelpers.waitForCachedFile(f1)
+
+    try await queue.dequeue(pe.id)
+    try await CacheHelpers.waitForCachedFileRemoved(f1)
+
+    try await queue.unshift(pe.id)
+    let d2 = CacheHelpers.createRandomData()
+    try await CacheHelpers.simulateBackgroundFinish(pe.id, data: d2)
+    let f2 = try await CacheHelpers.waitForCached(pe.id)
+    try await CacheHelpers.waitForCachedFile(f2)
+  }
 }
