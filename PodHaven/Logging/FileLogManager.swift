@@ -4,8 +4,6 @@ import FactoryKit
 import Foundation
 import Logging
 import Sentry
-import Sharing
-import UIKit
 
 extension Container {
   var fileLogManager: Factory<FileLogManager> {
@@ -14,11 +12,10 @@ extension Container {
 }
 
 struct FileLogManager: Sendable {
-  @DynamicInjected(\.notifications) private var notifications
+  @DynamicInjected(\.sleeper) private var sleeper
 
-  @Shared(.appStorage("FileLogManager-lastCleanup")) private var lastCleanup: Double = 0
   private let maxLogEntries = 2500
-  private let periodicCleanupInterval = 15.minutes
+  private let periodicCleanupInterval = Duration.minutes(15)
 
   private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
   private let logFileURL: URL = {
@@ -71,53 +68,25 @@ struct FileLogManager: Sendable {
     Assert.neverCalled()
 
     Task(priority: .background) {
-      if await UIApplication.shared.applicationState == .active {
-        Self.log.trace("App launched, checking if log truncation needed")
-        await truncateIfNeeded()
-      }
-    }
+      while true {
+        do {
+          Self.log.debug("Running periodic log truncation after \(periodicCleanupInterval)")
+          await truncateLogFile()
 
-    Task(priority: .background) {
-      for await _ in notifications(UIApplication.didBecomeActiveNotification) {
-        Self.log.trace("App became active, checking if log truncation needed")
-        await truncateIfNeeded()
-      }
-    }
-
-    Task(priority: .background) {
-      for await _ in notifications(UIApplication.willResignActiveNotification) {
-        Self.log.trace("App will resign active, checking if log truncation needed")
-        await truncateIfNeeded()
+          try await sleeper.sleep(for: periodicCleanupInterval)
+        } catch {
+          Self.log.error(error)
+        }
       }
     }
   }
 
-  private func truncateIfNeeded() async {
-    let now = Date().timeIntervalSince1970
-    let timeSinceLastCleanup = now - lastCleanup
-
-    if timeSinceLastCleanup > periodicCleanupInterval {
-      Self.log.debug(
-        """
-        Running periodic log truncation, \
-        last cleanup was: \(timeSinceLastCleanup.compactReadableFormat) ago
-        """
-      )
-      $lastCleanup.withLock { $0 = now }
-
-      do {
-        try await truncateLogFile()
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
-  private func truncateLogFile() async throws {
+  private func truncateLogFile() async {
     guard FileManager.default.fileExists(atPath: logFileURL.path)
-    else { throw LoggingError.logFileDoesNotExist }
-
-    let backgroundTaskID = await UIApplication.shared.beginBackgroundTask()
+    else {
+      Self.log.error("Log file does not exist?")
+      return
+    }
 
     await withCheckedContinuation { continuation in
       logQueue.async {
@@ -126,12 +95,14 @@ struct FileLogManager: Sendable {
           let lines = logContent.components(separatedBy: .newlines).filter { !$0.isEmpty }
 
           guard lines.count > maxLogEntries
-          else { throw LoggingError.logFileHasNotGrown(lines.count) }
+          else {
+            Self.log.debug("Log file has \(lines.count) entries, no truncation needed")
+            return
+          }
 
           let keepLines = Array(lines.suffix(maxLogEntries))
           let truncatedContent = keepLines.joined(separator: "\n")
           try (truncatedContent + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
-
           Self.log.info("Truncated log file from \(lines.count) to \(keepLines.count) entries")
         } catch {
           Self.log.error(error)
@@ -140,10 +111,5 @@ struct FileLogManager: Sendable {
         continuation.resume()
       }
     }
-
-    guard backgroundTaskID != .invalid
-    else { throw LoggingError.backgroundTaskInvalid }
-
-    await UIApplication.shared.endBackgroundTask(backgroundTaskID)
   }
 }
