@@ -104,8 +104,7 @@ struct SearchService {
     }
   }
 
-  private func buildRequest(_ path: String, _ queryItems: [URLQueryItem] = []) -> URLRequest
-  {
+  private func buildRequest(_ path: String, _ queryItems: [URLQueryItem] = []) -> URLRequest {
     var components = URLComponents()
     components.scheme = "https"
     components.host = Self.baseHost

@@ -181,29 +181,34 @@ enum Schema {
       // Add unique constraint on the combination of guid and media across all episodes
       // This ensures that the same episode (identified by guid + media URL) cannot exist
       // multiple times in the database, even across different podcasts
-      
+
       // First, check for any existing duplicate combinations and handle them
       // This query finds episodes that have the same guid + media combination
-      let duplicates = try Row.fetchAll(db, sql: """
-        SELECT guid, media, COUNT(*) as count
-        FROM episode 
-        GROUP BY guid, media 
-        HAVING COUNT(*) > 1
-        """)
-      
+      let duplicates = try Row.fetchAll(
+        db,
+        sql: """
+          SELECT guid, media, COUNT(*) as count
+          FROM episode 
+          GROUP BY guid, media 
+          HAVING COUNT(*) > 1
+          """
+      )
+
       if !duplicates.isEmpty {
         // If duplicates exist, keep only the oldest episode for each guid+media combination
         // and delete the newer ones (based on creationDate)
-        try db.execute(sql: """
-          DELETE FROM episode 
-          WHERE id NOT IN (
-            SELECT MIN(id) 
-            FROM episode 
-            GROUP BY guid, media
-          )
-          """)
+        try db.execute(
+          sql: """
+            DELETE FROM episode 
+            WHERE id NOT IN (
+              SELECT MIN(id) 
+              FROM episode 
+              GROUP BY guid, media
+            )
+            """
+        )
       }
-      
+
       // Now add the unique constraint on the combination of guid and media
       try db.execute(sql: "CREATE UNIQUE INDEX episode_on_guid_media ON episode(guid, media)")
     }

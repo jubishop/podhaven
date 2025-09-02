@@ -34,16 +34,17 @@ struct SelectableImageGridItem<Item: Gridable>: View {
                   viewModel.isSelected.wrappedValue.toggle()
                 },
                 label: {
-                  (viewModel.isSelected.wrappedValue 
-                    ? AppLabel.selectionFilled 
-                    : AppLabel.selectionEmpty).image
-                  .font(.system(size: 24))
-                  .foregroundColor(viewModel.isSelected.wrappedValue ? .blue : .white)
-                  .background(
-                    Circle()
-                      .fill(Color.black.opacity(0.5))
-                      .padding(-3)
-                  )
+                  (viewModel.isSelected.wrappedValue
+                    ? AppLabel.selectionFilled
+                    : AppLabel.selectionEmpty)
+                    .image
+                    .font(.system(size: 24))
+                    .foregroundColor(viewModel.isSelected.wrappedValue ? .blue : .white)
+                    .background(
+                      Circle()
+                        .fill(Color.black.opacity(0.5))
+                        .padding(-3)
+                    )
                 }
               )
               .padding(8)
