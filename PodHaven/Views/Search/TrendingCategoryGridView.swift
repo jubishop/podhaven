@@ -19,12 +19,8 @@ struct TrendingCategoryGridView: View {
       case .loading:
         ProgressView("Loading \(viewModel.category) podcasts...")
 
-      case .loaded(let trendingSearchResult):
-        ItemGrid(
-          items: trendingSearchResult.result.convertibleFeeds.compactMap {
-            try? $0.toUnsavedPodcast()
-          }
-        ) { unsavedPodcast in
+      case .loaded(let unsavedPodcasts):
+        ItemGrid(items: unsavedPodcasts) { unsavedPodcast in
           NavigationLink(
             value: Navigation.Destination.podcast(DisplayablePodcast(unsavedPodcast)),
             label: {
