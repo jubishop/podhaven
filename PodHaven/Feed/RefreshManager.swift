@@ -213,7 +213,7 @@ actor RefreshManager {
       return
     }
 
-    cancelRefreshTasks()
+    clearRefreshTasks()
     backgroundRefreshTask = Task { [weak self] in
       guard let self else { return }
 
@@ -262,19 +262,22 @@ actor RefreshManager {
     }
 
     Self.log.debug("backgrounded: cancelling background refresh task")
-    cancelRefreshTasks()
+    clearRefreshTasks()
   }
 
-  private func cancelRefreshTasks() {
-    activeRefreshTask?.cancel()
-    activeRefreshTask = nil
-    backgroundRefreshTask?.cancel()
-    backgroundRefreshTask = nil
+  private func clearRefreshTasks() {
+    clearActiveRefreshTask()
+    clearBackgroundRefreshTask()
   }
 
   private func clearActiveRefreshTask() {
     activeRefreshTask?.cancel()
     activeRefreshTask = nil
+  }
+
+  private func clearBackgroundRefreshTask() {
+    backgroundRefreshTask?.cancel()
+    backgroundRefreshTask = nil
   }
 
   private func setActiveRefreshTask(_ task: Task<Void, any Error>) {
