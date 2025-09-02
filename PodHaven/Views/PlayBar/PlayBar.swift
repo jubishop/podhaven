@@ -72,7 +72,7 @@ struct PlayBar: View {
 
       Spacer()
 
-        Button(action: viewModel.toggleExpansion) {
+      Button(action: viewModel.toggleExpansion) {
         AppLabel.expandUp.image
           .font(viewModel.textFont)
           .foregroundColor(.white)

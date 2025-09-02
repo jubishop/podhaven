@@ -65,7 +65,7 @@ actor FakeEpisodeAssetLoader {
     to episode: Episode,
     error: Error
   ) async
-  -> AsyncSemaphore
+    -> AsyncSemaphore
   {
     let asyncSemaphore = AsyncSemaphore(value: 0)
     respond(to: episode) { episode in

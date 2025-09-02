@@ -15,9 +15,6 @@ import Testing
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
-  private var session: FakeDataFetchable {
-    Container.shared.cacheManagerSession() as! FakeDataFetchable
-  }
   private var imageFetcher: FakeImageFetcher {
     Container.shared.imageFetcher() as! FakeImageFetcher
   }
@@ -37,9 +34,10 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     let data = CacheHelpers.createRandomData()
-    await session.respond(to: podcastEpisode.episode.media.rawValue, data: data)
 
     try await queue.unshift(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
+
     let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFile(fileName)
 
@@ -65,16 +63,15 @@ import Testing
   func episodeDequeuedMidDownloadDoesNotGetCachedWhenDownloadCompletes() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    // Set up delayed response
-    let asyncSemaphore = await session.waitThenRespond(to: podcastEpisode.episode.media.rawValue)
-
     try await queue.unshift(podcastEpisode.id)
     try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
 
     try await queue.dequeue(podcastEpisode.id)
     try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
 
-    asyncSemaphore.signal()
+    // Simulate finish should be ignored
+    let data = CacheHelpers.createRandomData()
+    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
   }
 
   // MARK: - Artwork Prefetching
@@ -99,17 +96,14 @@ import Testing
     // Initially, episode should not be downloading in CacheState
     #expect(!cacheState.isDownloading(podcastEpisode.id))
 
-    // Set up delayed response to keep download active
-    let asyncSemaphore = await session.waitThenRespond(to: podcastEpisode.episode.media.rawValue)
-
     try await queue.unshift(podcastEpisode.id)
 
     // Verify CacheState shows episode as downloading
     try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
 
-    // Complete the download
-    asyncSemaphore.signal()
-    try await CacheHelpers.waitForCached(podcastEpisode.id)
+    // Complete the download via simulation
+    let data = CacheHelpers.createRandomData()
+    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
 
     // Verify CacheState shows episode as not downloading
     try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
@@ -118,9 +112,6 @@ import Testing
   @Test("CacheState is updated when episode download is cancelled")
   func cacheStateIsUpdatedWhenEpisodeDownloadIsCancelled() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
-
-    // Set up delayed response to keep download active
-    let asyncSemaphore = await session.waitThenRespond(to: podcastEpisode.episode.media.rawValue)
 
     try await queue.unshift(podcastEpisode.id)
 
@@ -132,9 +123,6 @@ import Testing
 
     // Verify CacheState shows episode as not downloading
     try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
-
-    // Complete the original request (should be ignored since cancelled)
-    asyncSemaphore.signal()
   }
 
   @Test("CacheState tracks multiple episodes downloading simultaneously")
@@ -143,11 +131,6 @@ import Testing
     let episode1 = try await Create.podcastEpisode()
     let episode2 = try await Create.podcastEpisode()
     let episode3 = try await Create.podcastEpisode()
-
-    // Set up delayed responses
-    let semaphore1 = await session.waitThenRespond(to: episode1.episode.media.rawValue)
-    let semaphore2 = await session.waitThenRespond(to: episode2.episode.media.rawValue)
-    let semaphore3 = await session.waitThenRespond(to: episode3.episode.media.rawValue)
 
     // Add all to queue
     try await queue.unshift(episode1.id)
@@ -160,7 +143,8 @@ import Testing
     try await CacheHelpers.waitForCacheStateDownloading(episode3.id)
 
     // Complete episode1
-    semaphore1.signal()
+    let data1 = CacheHelpers.createRandomData()
+    try await CacheHelpers.simulateBackgroundFinish(episode1.id, data: data1)
     try await CacheHelpers.waitForCached(episode1.id)
     try await CacheHelpers.waitForCacheStateNotDownloading(episode1.id)
 
@@ -169,11 +153,119 @@ import Testing
     #expect(cacheState.isDownloading(episode3.id))
 
     // Complete remaining episodes
-    semaphore2.signal()
+    let data2 = CacheHelpers.createRandomData()
+    let data3 = CacheHelpers.createRandomData()
+    try await CacheHelpers.simulateBackgroundFinish(episode2.id, data: data2)
     try await CacheHelpers.waitForCached(episode2.id)
     try await CacheHelpers.waitForCacheStateNotDownloading(episode2.id)
-    semaphore3.signal()
+    try await CacheHelpers.simulateBackgroundFinish(episode3.id, data: data3)
     try await CacheHelpers.waitForCached(episode3.id)
     try await CacheHelpers.waitForCacheStateNotDownloading(episode3.id)
+  }
+
+  // MARK: - Background Download (Simulated)
+
+  @Test("progress updates via fake harness and clears on finish")
+  func progressViaHarnessUpdatesCacheState() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    // Queue the episode and wait for scheduling
+    try await queue.unshift(podcastEpisode.id)
+    try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
+
+    // Obtain the scheduled background task ID from CacheState
+    let cs: CacheState = await Container.shared.cacheState()
+    let maybeTaskID = await cs.getBackgroundTaskIdentifier(podcastEpisode.id)
+    #expect(maybeTaskID != nil)
+    guard let taskID = maybeTaskID else { return }
+
+    // Simulate progress through the fake harness
+    if let fake = Container.shared.cacheBackgroundFetchable() as? FakeDataFetchable {
+      await fake.progressDownload(taskID: taskID, totalBytesWritten: 50, totalBytesExpectedToWrite: 100)
+    }
+
+    // Verify progress reflects 50%
+    #expect(await cs.progress(podcastEpisode.id) == 0.5)
+
+    // Finish and verify progress cleared
+    let data = CacheHelpers.createRandomData(size: 128)
+    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
+    try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
+    #expect(await cs.progress(podcastEpisode.id) == nil)
+  }
+
+  @Test("progress is updated and cleared on finish")
+  func progressIsUpdatedAndClearedOnFinish() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    // Queue the episode (kicks off scheduling, CacheState will show downloading)
+    try await queue.unshift(podcastEpisode.id)
+    try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
+
+    // Simulate progress by calling CacheState directly using MediaGUID
+    let mg = podcastEpisode.episode.unsaved.id
+    let cs: CacheState = await Container.shared.cacheState()
+    await cs.updateProgress(for: mg, progress: 0.42)
+
+    // Assert progress visible
+    #expect(await cs.progress(podcastEpisode.id) == 0.42)
+
+    // Finish download and ensure progress cleared
+    let data = CacheHelpers.createRandomData(size: 256)
+    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
+    try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
+    #expect(await cs.progress(podcastEpisode.id) == nil)
+  }
+
+  @Test("background delegate caches file when queued")
+  func backgroundDelegateCachesWhenQueued() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    // Ensure episode is queued so delegate caches on finish
+    try await queue.unshift(podcastEpisode.id)
+
+    // Simulate background completion
+    let data = CacheHelpers.createRandomData(size: 2048)
+    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
+
+    // Validate cached filename and file contents
+    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(fileName)
+    let actualData = try await CacheHelpers.readCachedFileData(fileName)
+    #expect(actualData == data)
+  }
+
+  @Test("background delegate skips caching when dequeued before finish")
+  func backgroundDelegateSkipsWhenDequeuedBeforeFinish() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    // Queue then dequeue before simulating finish
+    try await queue.unshift(podcastEpisode.id)
+    try await queue.dequeue(podcastEpisode.id)
+
+    // Simulate background completion
+    let data = CacheHelpers.createRandomData(size: 1024)
+    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
+
+    // Should not be cached
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+  }
+
+  @Test("background delegate marks failure and clears state")
+  func backgroundDelegateMarksFailureAndClearsState() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    // Mark as queued to simulate a user-initiated download
+    try await queue.unshift(podcastEpisode.id)
+
+    // Simulate an error from background session
+    try await CacheHelpers.simulateBackgroundFailure(
+      podcastEpisode.id,
+      error: NSError(domain: "Test", code: -999)
+    )
+
+    // Should not be cached and not downloading anymore
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
   }
 }

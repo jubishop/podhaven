@@ -116,4 +116,58 @@ enum CacheHelpers {
     let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
     return try await podFileManager.readData(from: fileURL)
   }
+
+  // MARK: - Background Download Simulation
+
+  static func simulateBackgroundFinish(_ episodeID: Episode.ID, data: Data) async throws {
+    // Persist a mapping for a fake background task
+    let taskID = Int.random(in: 1000...9_999_999)
+    let repo: any Databasing = Container.shared.repo()
+    guard let episode = try await repo.episode(episodeID) else {
+      throw CacheError.episodeNotFound(episodeID)
+    }
+    let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
+    let taskMap = await Container.shared.cacheTaskMapStore()
+    await taskMap.set(taskID: taskID, for: mg)
+
+    // Also mark CacheState as downloading for more realistic simulation
+    let cacheState: CacheState = await Container.shared.cacheState()
+    await cacheState.setDownloadTaskIdentifier(episodeID, taskIdentifier: taskID)
+
+    // Write data to a temp location simulating the downloaded file
+    let tmpURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try data.write(to: tmpURL)
+
+    // Ask the fake background fetchable to complete by invoking the delegate
+    if let fake = Container.shared.cacheBackgroundFetchable() as? FakeDataFetchable {
+      await fake.finishDownload(taskID: taskID, tmpURL: tmpURL)
+    } else {
+      let delegate = Container.shared.cacheBackgroundDelegate()
+      await delegate.handleDidFinish(taskIdentifier: taskID, location: tmpURL)
+    }
+  }
+
+  static func simulateBackgroundFailure(
+    _ episodeID: Episode.ID,
+    error: Error = NSError(domain: "Test", code: -1)
+  ) async throws {
+    // Persist mapping and CacheState download indicator
+    let taskID = Int.random(in: 10_000_000...99_999_999)
+    let repo: any Databasing = Container.shared.repo()
+    guard let episode = try await repo.episode(episodeID) else {
+      throw CacheError.episodeNotFound(episodeID)
+    }
+    let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
+    let taskMap = await Container.shared.cacheTaskMapStore()
+    await taskMap.set(taskID: taskID, for: mg)
+    let cacheState: CacheState = await Container.shared.cacheState()
+    await cacheState.setDownloadTaskIdentifier(episodeID, taskIdentifier: taskID)
+
+    if let fake = Container.shared.cacheBackgroundFetchable() as? FakeDataFetchable {
+      await fake.failDownload(taskID: taskID, error: error)
+    } else {
+      let delegate = Container.shared.cacheBackgroundDelegate()
+      await delegate.handleDidComplete(taskIdentifier: taskID, error: error)
+    }
+  }
 }

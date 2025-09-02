@@ -8,6 +8,8 @@ import SwiftUI
 
 @main
 struct PodHavenApp: App {
+  @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
   @InjectedObservable(\.alert) private var alert
   @InjectedObservable(\.sheet) private var sheet
   @DynamicInjected(\.cacheManager) private var cacheManager

@@ -9,7 +9,7 @@ import Tagged
 
 typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
-struct MediaGUID: Hashable, Equatable, CustomStringConvertible {
+struct MediaGUID: Codable, Hashable, Equatable, CustomStringConvertible {
   let guid: GUID
   let media: MediaURL
 

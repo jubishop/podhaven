@@ -26,7 +26,7 @@ extension Container {
   }
 
   var cacheManager: Factory<CacheManager> {
-    Factory(self) { CacheManager(downloadManager: self.cacheDownloadManager()) }.scope(.cached)
+    Factory(self) { CacheManager() }.scope(.cached)
   }
 }
 
@@ -44,14 +44,11 @@ actor CacheManager {
 
   // MARK: - State Management
 
-  private let downloadManager: DownloadManager
   private var currentQueuedEpisodeIDs: Set<Episode.ID> = []
 
   // MARK: - Initialization
 
-  fileprivate init(downloadManager: DownloadManager) {
-    self.downloadManager = downloadManager
-  }
+  fileprivate init() {}
 
   func start() async throws {
     Self.log.debug("start: executing")
@@ -62,6 +59,8 @@ actor CacheManager {
         withIntermediateDirectories: true
       )
     startMonitoringQueue()
+
+    await adoptInFlightBackgroundDownloads()
   }
 
   // MARK: - Public Methods
@@ -76,40 +75,14 @@ actor CacheManager {
       return false
     }
 
-    let downloadTask = await downloadManager.addURL(podcastEpisode.episode.media.rawValue)
-
     if await cacheState.isDownloading(podcastEpisode.id) {
       Self.log.trace("downloadAndCache: \(podcastEpisode.toString) is already downloading")
       return false
     }
 
-    let backgroundTask = await BackgroundTask.start(
-      withName: "CacheManager.downloadAndCache: \(podcastEpisode.toString)"
-    )
-    await cacheState.setDownloadTask(podcastEpisode.id, downloadTask: downloadTask)
-    defer {
-      Task {
-        await cacheState.removeDownloadTask(podcastEpisode.id)
-        await backgroundTask.end()
-      }
-    }
-
-    return try await CacheError.catch {
-      await imageFetcher.prefetch([podcastEpisode.image])
-
-      let downloadData = try await CacheError.mapError(
-        { try await downloadTask.downloadFinished() },
-        { CacheError.failedToDownload(podcastEpisode: podcastEpisode, caught: $0) }
-      )
-
-      let fileName = await generateCacheFilename(for: podcastEpisode.episode)
-      let cacheURL = Self.resolveCachedFilepath(for: fileName)
-      try await Container.shared.podFileManager().writeData(downloadData.data, to: cacheURL)
-      try await repo.updateCachedFilename(podcastEpisode.id, fileName)
-
-      Self.log.debug("downloadAndCache: successfully cached \(podcastEpisode.toString)")
-      return true
-    }
+    // Delegate to injected downloader via DI so CacheManager is environment-agnostic
+    let downloader: any EpisodeCachingDownloader = Container.shared.cacheEpisodeDownloader()
+    return try await downloader.start(podcastEpisode)
   }
 
   @discardableResult
@@ -189,6 +162,7 @@ actor CacheManager {
             guard let self else { return }
             await handleQueueChange(queuedEpisodes)
           }
+          try await sleeper.sleep(for: Duration.milliseconds(250))
         }
       } catch {
         Self.log.error(error)
@@ -244,12 +218,35 @@ actor CacheManager {
 
       await cacheState.removeDownloadTask(episodeID)
       await downloadTask.cancel()
-    } else {
-      try await clearCache(for: episodeID)
+      return
     }
+
+    // Cancel background task if present
+    let bgFetch: any DataFetchable = Container.shared.cacheBackgroundFetchable()
+    if let episode: Episode = try await repo.episode(episodeID) {
+      let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
+      if let taskID = await (await Container.shared.cacheTaskMapStore()).taskID(for: mg) {
+        await bgFetch.cancelDownload(taskID: taskID)
+        await (await Container.shared.cacheTaskMapStore()).remove(taskID: taskID)
+        await cacheState.removeDownloadTask(episodeID)
+        return
+      }
+    }
+
+    try await clearCache(for: episodeID)
   }
 
   private func generateCacheFilename(for episode: Episode) -> String {
+    let mediaURL = episode.media.rawValue
+    let fileExtension =
+      mediaURL.pathExtension.isEmpty == false
+      ? mediaURL.pathExtension
+      : "mp3"
+    return "\(mediaURL.hash(to: 12)).\(fileExtension)"
+  }
+
+  // Static so background delegate can reuse filename rule
+  static func generateCacheFilenameStatic(for episode: Episode) -> String {
     let mediaURL = episode.media.rawValue
     let fileExtension =
       mediaURL.pathExtension.isEmpty == false
@@ -268,5 +265,26 @@ actor CacheManager {
 
   private static var cacheDirectory: URL {
     AppInfo.applicationSupportDirectory.appendingPathComponent("episodes")
+  }
+
+  // MARK: - Background Session Adoption
+
+  private func adoptInFlightBackgroundDownloads() async {
+    let bgFetch: any DataFetchable = Container.shared.cacheBackgroundFetchable()
+    let taskIDs = await bgFetch.listDownloadTaskIDs()
+
+    let taskMap = await Container.shared.cacheTaskMapStore()
+    for taskID in taskIDs {
+      if let mg = await taskMap.key(for: taskID) {
+        do {
+          if let episode = try await repo.episode(mg) {
+            await cacheState.setDownloadTaskIdentifier(episode.id, taskIdentifier: taskID)
+            Self.log.debug("adoptInFlight: episode \(episode.id) task #\(taskID)")
+          }
+        } catch {
+          Self.log.error(error)
+        }
+      }
+    }
   }
 }

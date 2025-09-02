@@ -384,25 +384,32 @@ class MigrationTests {
       // Get all indexes in the database
       let indexes = try Row.fetchAll(
         db,
-        sql: "SELECT name, tbl_name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        sql:
+          "SELECT name, tbl_name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name"
       )
-      
+
       let expectedIndexes = [
         "episode_on_guid": "episode",
         "episode_on_media": "episode",
         "episode_on_podcastId": "episode",
-        "podcast_on_feedURL": "podcast"
+        "podcast_on_feedURL": "podcast",
       ]
-      
+
       // Check that we have exactly the expected indexes
-      #expect(indexes.count == expectedIndexes.count, "Should have exactly \(expectedIndexes.count) indexes")
-      
+      #expect(
+        indexes.count == expectedIndexes.count,
+        "Should have exactly \(expectedIndexes.count) indexes"
+      )
+
       for index in indexes {
         let indexName = index["name"] as! String
         let tableName = index["tbl_name"] as! String
-        
+
         #expect(expectedIndexes[indexName] != nil, "Unexpected index: \(indexName)")
-        #expect(expectedIndexes[indexName] == tableName, "Index \(indexName) should be on table \(expectedIndexes[indexName]!) but is on \(tableName)")
+        #expect(
+          expectedIndexes[indexName] == tableName,
+          "Index \(indexName) should be on table \(expectedIndexes[indexName]!) but is on \(tableName)"
+        )
       }
     }
   }
@@ -415,69 +422,70 @@ class MigrationTests {
     let now = Date()
     let yesterday = 24.hoursAgo
 
-    let (podcast1Id, podcast2Id, episode1Id, episode2Id, episode3Id, episode4Id) = try await appDB.db.write { db in
-      // Create two podcasts
-      try db.execute(
-        sql: """
-          INSERT INTO podcast (feedURL, title, image, description, subscriptionDate, cacheAllEpisodes)
-          VALUES ('https://example1.com/feed.xml', 'Podcast 1', 'https://example1.com/image.jpg', 'Description 1', ?, ?)
-          """,
-        arguments: [now, false]
-      )
-      let podcast1Id = db.lastInsertedRowID
+    let (podcast1Id, podcast2Id, episode1Id, episode2Id, episode3Id, episode4Id) =
+      try await appDB.db.write { db in
+        // Create two podcasts
+        try db.execute(
+          sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscriptionDate, cacheAllEpisodes)
+            VALUES ('https://example1.com/feed.xml', 'Podcast 1', 'https://example1.com/image.jpg', 'Description 1', ?, ?)
+            """,
+          arguments: [now, false]
+        )
+        let podcast1Id = db.lastInsertedRowID
 
-      try db.execute(
-        sql: """
-          INSERT INTO podcast (feedURL, title, image, description, subscriptionDate, cacheAllEpisodes)
-          VALUES ('https://example2.com/feed.xml', 'Podcast 2', 'https://example2.com/image.jpg', 'Description 2', ?, ?)
-          """,
-        arguments: [yesterday, true]
-      )
-      let podcast2Id = db.lastInsertedRowID
+        try db.execute(
+          sql: """
+            INSERT INTO podcast (feedURL, title, image, description, subscriptionDate, cacheAllEpisodes)
+            VALUES ('https://example2.com/feed.xml', 'Podcast 2', 'https://example2.com/image.jpg', 'Description 2', ?, ?)
+            """,
+          arguments: [yesterday, true]
+        )
+        let podcast2Id = db.lastInsertedRowID
 
-      // Create episodes - some with duplicate guid+media combinations across podcasts
-      // Episode 1 in Podcast 1 - unique
-      try db.execute(
-        sql: """
-          INSERT INTO episode (podcastId, guid, media, title, pubDate, duration, currentTime)
-          VALUES (?, 'unique-guid-1', 'https://example.com/unique1.mp3', 'Unique Episode 1', ?, ?, ?)
-          """,
-        arguments: [podcast1Id, yesterday, 1800, 0]
-      )
-      let episode1Id = db.lastInsertedRowID
+        // Create episodes - some with duplicate guid+media combinations across podcasts
+        // Episode 1 in Podcast 1 - unique
+        try db.execute(
+          sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, duration, currentTime)
+            VALUES (?, 'unique-guid-1', 'https://example.com/unique1.mp3', 'Unique Episode 1', ?, ?, ?)
+            """,
+          arguments: [podcast1Id, yesterday, 1800, 0]
+        )
+        let episode1Id = db.lastInsertedRowID
 
-      // Episode 2 in Podcast 1 - will have same guid+media as episode 3
-      try db.execute(
-        sql: """
-          INSERT INTO episode (podcastId, guid, media, title, pubDate, duration, currentTime)
-          VALUES (?, 'duplicate-guid', 'https://example.com/duplicate.mp3', 'Original Episode', ?, ?, ?)
-          """,
-        arguments: [podcast1Id, yesterday, 2400, 300]
-      )
-      let episode2Id = db.lastInsertedRowID
+        // Episode 2 in Podcast 1 - will have same guid+media as episode 3
+        try db.execute(
+          sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, duration, currentTime)
+            VALUES (?, 'duplicate-guid', 'https://example.com/duplicate.mp3', 'Original Episode', ?, ?, ?)
+            """,
+          arguments: [podcast1Id, yesterday, 2400, 300]
+        )
+        let episode2Id = db.lastInsertedRowID
 
-      // Episode 3 in Podcast 2 - same guid+media as Episode 2 (creates duplicate across podcasts)
-      try db.execute(
-        sql: """
-          INSERT INTO episode (podcastId, guid, media, title, pubDate, duration, currentTime, cachedFilename)
-          VALUES (?, 'duplicate-guid', 'https://example.com/duplicate.mp3', 'Duplicate Episode', ?, ?, ?, ?)
-          """,
-        arguments: [podcast2Id, now, 1200, 600, "cached.mp3"]
-      )
-      let episode3Id = db.lastInsertedRowID
+        // Episode 3 in Podcast 2 - same guid+media as Episode 2 (creates duplicate across podcasts)
+        try db.execute(
+          sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, duration, currentTime, cachedFilename)
+            VALUES (?, 'duplicate-guid', 'https://example.com/duplicate.mp3', 'Duplicate Episode', ?, ?, ?, ?)
+            """,
+          arguments: [podcast2Id, now, 1200, 600, "cached.mp3"]
+        )
+        let episode3Id = db.lastInsertedRowID
 
-      // Episode 4 in Podcast 1 - unique
-      try db.execute(
-        sql: """
-          INSERT INTO episode (podcastId, guid, media, title, pubDate, duration, currentTime)
-          VALUES (?, 'unique-guid-2', 'https://example.com/unique2.mp3', 'Unique Episode 2', ?, ?, ?)
-          """,
-        arguments: [podcast1Id, now, 900, 450]
-      )
-      let episode4Id = db.lastInsertedRowID
+        // Episode 4 in Podcast 1 - unique
+        try db.execute(
+          sql: """
+            INSERT INTO episode (podcastId, guid, media, title, pubDate, duration, currentTime)
+            VALUES (?, 'unique-guid-2', 'https://example.com/unique2.mp3', 'Unique Episode 2', ?, ?, ?)
+            """,
+          arguments: [podcast1Id, now, 900, 450]
+        )
+        let episode4Id = db.lastInsertedRowID
 
-      return (podcast1Id, podcast2Id, episode1Id, episode2Id, episode3Id, episode4Id)
-    }
+        return (podcast1Id, podcast2Id, episode1Id, episode2Id, episode3Id, episode4Id)
+      }
 
     // Verify we have the expected episodes before migration
     try await appDB.db.read { db in
@@ -485,22 +493,29 @@ class MigrationTests {
       #expect(episodeCount == 4, "Should have 4 episodes before migration")
 
       // Verify we have duplicate guid+media combinations
-      let duplicateCount = try Int.fetchOne(db, sql: """
-        SELECT COUNT(*) FROM (
-          SELECT guid, media, COUNT(*) as count
-          FROM episode 
-          GROUP BY guid, media 
-          HAVING COUNT(*) > 1
-        )
-        """)!
-      #expect(duplicateCount == 1, "Should have 1 duplicate guid+media combination before migration")
+      let duplicateCount = try Int.fetchOne(
+        db,
+        sql: """
+          SELECT COUNT(*) FROM (
+            SELECT guid, media, COUNT(*) as count
+            FROM episode 
+            GROUP BY guid, media 
+            HAVING COUNT(*) > 1
+          )
+          """
+      )!
+      #expect(
+        duplicateCount == 1,
+        "Should have 1 duplicate guid+media combination before migration"
+      )
     }
 
     // Verify unique constraint doesn't exist before migration
     try await appDB.db.read { db in
       let indexes = try Row.fetchAll(
         db,
-        sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'episode_on_guid_media'"
+        sql:
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'episode_on_guid_media'"
       )
       #expect(indexes.isEmpty, "episode_on_guid_media index should not exist before migration")
     }
@@ -513,7 +528,8 @@ class MigrationTests {
       // Verify unique index was created
       let indexes = try Row.fetchAll(
         db,
-        sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'episode_on_guid_media'"
+        sql:
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'episode_on_guid_media'"
       )
       #expect(indexes.count == 1, "episode_on_guid_media unique index should exist after migration")
 
@@ -522,15 +538,21 @@ class MigrationTests {
       #expect(episodeCount == 3, "Should have 3 episodes after removing duplicates")
 
       // Verify no duplicate guid+media combinations remain
-      let duplicateCount = try Int.fetchOne(db, sql: """
-        SELECT COUNT(*) FROM (
-          SELECT guid, media, COUNT(*) as count
-          FROM episode 
-          GROUP BY guid, media 
-          HAVING COUNT(*) > 1
-        )
-        """)!
-      #expect(duplicateCount == 0, "Should have no duplicate guid+media combinations after migration")
+      let duplicateCount = try Int.fetchOne(
+        db,
+        sql: """
+          SELECT COUNT(*) FROM (
+            SELECT guid, media, COUNT(*) as count
+            FROM episode 
+            GROUP BY guid, media 
+            HAVING COUNT(*) > 1
+          )
+          """
+      )!
+      #expect(
+        duplicateCount == 0,
+        "Should have no duplicate guid+media combinations after migration"
+      )
 
       // Verify which episodes were kept (should be the ones with lowest IDs)
       let remainingEpisodes = try Row.fetchAll(
@@ -549,7 +571,10 @@ class MigrationTests {
       let episode2 = remainingEpisodes[1]
       #expect(episode2["id"] as! Int64 == episode2Id, "Episode 2 should remain (oldest duplicate)")
       #expect(episode2["guid"] as! String == "duplicate-guid", "Episode 2 should have correct guid")
-      #expect(episode2["title"] as! String == "Original Episode", "Episode 2 should be the original")
+      #expect(
+        episode2["title"] as! String == "Original Episode",
+        "Episode 2 should be the original"
+      )
 
       // Episode 4 should remain (unique)
       let episode4 = remainingEpisodes[2]
@@ -630,17 +655,23 @@ class MigrationTests {
     // Verify both episodes were inserted
     try await appDB.db.read { db in
       let episodeCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM episode")!
-      #expect(episodeCount == 6, "Should have 6 episodes after inserting episodes with partial matches")
+      #expect(
+        episodeCount == 6,
+        "Should have 6 episodes after inserting episodes with partial matches"
+      )
 
       // Verify we still have no duplicate guid+media combinations
-      let duplicateCount = try Int.fetchOne(db, sql: """
-        SELECT COUNT(*) FROM (
-          SELECT guid, media, COUNT(*) as count
-          FROM episode 
-          GROUP BY guid, media 
-          HAVING COUNT(*) > 1
-        )
-        """)!
+      let duplicateCount = try Int.fetchOne(
+        db,
+        sql: """
+          SELECT COUNT(*) FROM (
+            SELECT guid, media, COUNT(*) as count
+            FROM episode 
+            GROUP BY guid, media 
+            HAVING COUNT(*) > 1
+          )
+          """
+      )!
       #expect(duplicateCount == 0, "Should still have no duplicate guid+media combinations")
     }
   }
