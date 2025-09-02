@@ -207,13 +207,12 @@ actor RefreshManager {
     Self.log.trace("activated: starting background refresh task")
     isActive = true
 
-    guard activeRefreshTask == nil
-    else {
+    if let activeRefreshTask = activeRefreshTask, !activeRefreshTask.isCancelled {
       Self.log.debug("activated: refresh task already running")
       return
     }
 
-    clearRefreshTasks()
+    cancelRefreshTasks()
     backgroundRefreshTask = Task { [weak self] in
       guard let self else { return }
 
@@ -234,7 +233,7 @@ actor RefreshManager {
         } catch {
           Self.log.error(error)
         }
-        await self.clearActiveRefreshTask()
+        await self.cancelActiveRefreshTask()
 
         try? await self.sleeper.sleep(for: .minutes(15))
       }
@@ -245,43 +244,45 @@ actor RefreshManager {
     Self.log.trace("backgrounded: waiting for active refresh to complete")
     isActive = false
 
-    if let activeRefreshTask {
+    if let activeRefreshTask = activeRefreshTask, !activeRefreshTask.isCancelled {
       Self.log.debug("backgrounded: waiting for active refresh task to complete")
+
+      let backgroundRefreshTask = self.backgroundRefreshTask
+      let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
+        Self.log.warning("backgrounded: background task expired, forcing cleanup")
+        activeRefreshTask.cancel()
+        backgroundRefreshTask?.cancel()
+      }
+
       do {
         try await activeRefreshTask.value
-        guard !isActive
-        else {
-          Self.log.debug("backgrounded: became active again awaiting refresh completion")
-          return
-        }
-
         Self.log.debug("backgrounded: active refresh completed gracefully")
       } catch {
         Self.log.error(error)
       }
+      await UIApplication.shared.endBackgroundTask(backgroundTaskID)
+
+      if isActive {
+        Self.log.debug("backgrounded: became active again after refresh completion")
+        return
+      }
     }
 
     Self.log.debug("backgrounded: cancelling background refresh task")
-    clearRefreshTasks()
+    cancelRefreshTasks()
   }
 
-  private func clearRefreshTasks() {
-    clearActiveRefreshTask()
-    clearBackgroundRefreshTask()
-  }
-
-  private func clearActiveRefreshTask() {
+  private func cancelRefreshTasks() {
     activeRefreshTask?.cancel()
-    activeRefreshTask = nil
-  }
-
-  private func clearBackgroundRefreshTask() {
     backgroundRefreshTask?.cancel()
-    backgroundRefreshTask = nil
   }
 
   private func setActiveRefreshTask(_ task: Task<Void, any Error>) {
     activeRefreshTask = task
+  }
+
+  private func cancelActiveRefreshTask() {
+    activeRefreshTask?.cancel()
   }
 
   private func startListeningToActivation() {
