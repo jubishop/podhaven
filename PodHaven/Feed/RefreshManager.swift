@@ -9,11 +9,17 @@ import UIKit
 
 extension Container {
   var refreshManager: Factory<RefreshManager> {
-    Factory(self) { RefreshManager() }.scope(.cached)
+    Factory(self) { @RefreshActor in RefreshManager() }.scope(.cached)
   }
 }
 
-actor RefreshManager {
+@globalActor
+actor RefreshActor {
+  static let shared = PlayActor()
+}
+
+@RefreshActor
+final class RefreshManager {
   @DynamicInjected(\.feedManager) var feedManager
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.repo) private var repo
@@ -23,7 +29,6 @@ actor RefreshManager {
 
   // MARK: - State Management
 
-  private var isActive = false
   private var backgroundRefreshTask: Task<Void, Never>?
   private var activeRefreshTask: Task<Void, any Error>?
 
@@ -42,7 +47,6 @@ actor RefreshManager {
     }
 
     startListeningToActivation()
-    startListeningToDeactivation()
   }
 
   // MARK: - Refresh Management
@@ -60,7 +64,7 @@ actor RefreshManager {
     )
 
     let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
-      Self.log.warning("refreshSeries: background task expired")
+      Log.as(LogSubsystem.Feed.refreshManager).warning("refreshSeries: background task expired")
     }
     defer {
       Task { await UIApplication.shared.endBackgroundTask(backgroundTaskID) }
@@ -71,7 +75,7 @@ actor RefreshManager {
         let allStaleSubscribedPodcastSeries = try await repo.allPodcastSeries(
           Podcast.Columns.lastUpdate < stalenessThreshold && filter
         )
-        Self.log.debug(
+        await Self.log.debug(
           "performRefresh: found \(allStaleSubscribedPodcastSeries.count) stale series"
         )
 
@@ -81,7 +85,7 @@ actor RefreshManager {
             do {
               try await refreshSeries(podcastSeries: podcastSeries)
             } catch {
-              Self.log.error(error, mundane: .trace)
+              await Self.log.error(error, mundane: .trace)
             }
           }
         }
@@ -108,7 +112,7 @@ actor RefreshManager {
     }
 
     let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
-      Self.log.warning("refreshSeries: background task expired")
+      Log.as(LogSubsystem.Feed.refreshManager).warning("refreshSeries: background task expired")
     }
     defer {
       Task { await UIApplication.shared.endBackgroundTask(backgroundTaskID) }
@@ -180,18 +184,18 @@ actor RefreshManager {
               updatedEpisodes.append(updatedEpisode)
             }
           } catch {
-            Self.log.error(error)
+            await Self.log.error(error)
           }
         } else {
           do {
             unsavedEpisodes.append(try feedItem.toUnsavedEpisode())
           } catch {
-            Self.log.error(error)
+            await Self.log.error(error)
           }
         }
       }
 
-      Self.log.log(
+      await Self.log.log(
         level: unsavedEpisodes.isEmpty ? .trace : .debug,
         """
         updateSeriesFromFeed: \(podcastSeries.toString)
@@ -222,14 +226,13 @@ actor RefreshManager {
 
   private func activated() {
     Self.log.trace("activated: starting background refresh task")
-    isActive = true
 
     if let activeRefreshTask = activeRefreshTask, !activeRefreshTask.isCancelled {
       Self.log.debug("activated: refresh task already running")
       return
     }
 
-    cancelRefreshTasks()
+    backgroundRefreshTask?.cancel()
     backgroundRefreshTask = Task { [weak self] in
       guard let self else { return }
 
@@ -245,14 +248,14 @@ actor RefreshManager {
           Self.log.debug("activeRefreshTask: refresh completed")
         }
 
-        await self.setActiveRefreshTask(refreshTask)
+        activeRefreshTask = refreshTask
         do {
           try await refreshTask.value
           Self.log.debug("backgroundRefreshTask: active refresh completed gracefully")
         } catch {
           Self.log.error(error)
         }
-        await self.cancelActiveRefreshTask()
+        refreshTask.cancel()
 
         Self.log.debug("backgroundRefreshTask: now sleeping")
         try? await self.sleeper.sleep(for: .minutes(15))
@@ -260,61 +263,13 @@ actor RefreshManager {
     }
   }
 
-  private func backgrounded() async {
-    Self.log.trace("backgrounded: waiting for active refresh to complete")
-    isActive = false
-
-    if let activeRefreshTask = activeRefreshTask, !activeRefreshTask.isCancelled {
-      Self.log.debug("backgrounded: waiting for active refresh task to complete")
-
-      do {
-        try await activeRefreshTask.value
-        Self.log.debug("backgrounded: active refresh completed gracefully")
-      } catch {
-        Self.log.error(error)
-      }
-
-      if isActive {
-        Self.log.debug("backgrounded: became active again after refresh completion")
-        return
-      }
-    }
-
-    Self.log.debug("backgrounded: cancelling background refresh task")
-    cancelRefreshTasks()
-  }
-
-  private func cancelRefreshTasks() {
-    activeRefreshTask?.cancel()
-    backgroundRefreshTask?.cancel()
-  }
-
-  private func setActiveRefreshTask(_ task: Task<Void, any Error>) {
-    activeRefreshTask = task
-  }
-
-  private func cancelActiveRefreshTask() {
-    activeRefreshTask?.cancel()
-  }
-
   private func startListeningToActivation() {
     Assert.neverCalled()
 
     Task(priority: .background) { [weak self] in
       guard let self else { return }
-      for await _ in await notifications(UIApplication.didBecomeActiveNotification) {
-        await activated()
-      }
-    }
-  }
-
-  private func startListeningToDeactivation() {
-    Assert.neverCalled()
-
-    Task(priority: .background) { [weak self] in
-      guard let self else { return }
-      for await _ in await notifications(UIApplication.willResignActiveNotification) {
-        await backgrounded()
+      for await _ in notifications(UIApplication.didBecomeActiveNotification) {
+        activated()
       }
     }
   }
