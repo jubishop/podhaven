@@ -23,6 +23,7 @@ actor RefreshManager {
 
   // MARK: - State Management
 
+  private var isActive = false
   private var backgroundRefreshTask: Task<Void, Never>?
   private var activeRefreshTask: Task<Void, any Error>?
 
@@ -204,6 +205,13 @@ actor RefreshManager {
 
   private func activated() {
     Self.log.trace("activated: starting background refresh task")
+    isActive = true
+
+    guard backgroundRefreshTask == nil
+    else {
+      Self.log.debug("activated: refresh task already running")
+      return
+    }
 
     cancelRefreshTasks()
     backgroundRefreshTask = Task { [weak self] in
@@ -235,11 +243,18 @@ actor RefreshManager {
 
   private func backgrounded() async {
     Self.log.trace("backgrounded: waiting for active refresh to complete")
+    isActive = false
 
     if let activeRefreshTask {
       Self.log.debug("backgrounded: waiting for active refresh task to complete")
       do {
         try await activeRefreshTask.value
+        guard !isActive
+        else {
+          Self.log.debug("backgrounded: became active again awaiting refresh completion")
+          return
+        }
+
         Self.log.debug("backgrounded: active refresh completed gracefully")
       } catch {
         Self.log.error(error)
