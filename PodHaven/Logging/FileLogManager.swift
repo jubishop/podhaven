@@ -22,7 +22,7 @@ struct FileLogManager: Sendable {
     return AppInfo.documentsDirectory.appendingPathComponent("log.ndjson")
   }()
 
-  private static let log = Log.as("FileLogCleaner", level: .debug)
+  private static let log = Log.as("FileLogManager", level: .debug)
 
   // MARK: - Initialization
 
@@ -70,7 +70,9 @@ struct FileLogManager: Sendable {
     Task(priority: .background) {
       while true {
         do {
-          let backgroundTaskID = await UIApplication.shared.beginBackgroundTask {
+          let backgroundTaskID = await UIApplication.shared.beginBackgroundTask(
+            withName: "FileLogManager.startPeriodicCleanup"
+          ) {
             Self.log.warning("startPeriodicCleanup: background task expired")
           }
           Self.log.debug("Running periodic log truncation after \(periodicCleanupInterval)")
