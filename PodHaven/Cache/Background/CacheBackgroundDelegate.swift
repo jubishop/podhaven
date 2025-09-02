@@ -34,7 +34,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       if episode.queued == false {
         Self.log.debug("Episode dequeued mid-download; skipping cache move for \(episode.id)")
         try? await podFileManager.removeItem(at: location)
-        await (await cacheState).markFinished(episode.id)
+        await cacheState.markFinished(episode.id)
         return
       }
 
@@ -48,7 +48,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       try? await podFileManager.removeItem(at: location)
       _ = try await repo.updateCachedFilename(episode.id, fileName)
 
-      await (await cacheState).markFinished(episode.id)
+      await cacheState.markFinished(episode.id)
       Self.log.debug("Cached episode \(episode.id) to \(fileName)")
     } catch {
       Self.log.error(error)
@@ -59,7 +59,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     if let mg = await taskMap.key(for: taskIdentifier) {
       do {
         if let episode = try await repo.episode(mg) {
-          await (await cacheState).markFailed(episode.id, error: error)
+          await cacheState.markFailed(episode.id, error: error)
         }
       } catch {
         Self.log.error(error)
@@ -80,7 +80,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
     Task { [progress] in
       if let mg = await taskMap.key(for: downloadTask.taskIdentifier) {
-        await (await cacheState).updateProgress(for: mg, progress: progress)
+        await cacheState.updateProgress(for: mg, progress: progress)
       }
     }
   }
