@@ -12,7 +12,7 @@ import SwiftUI
 
   enum State {
     case loading
-    case loaded(TrendingSearchResult)
+    case loaded([UnsavedPodcast])
     case error(String)
   }
 
@@ -32,7 +32,11 @@ import SwiftUI
         categories: categories,
         language: AppInfo.languageCode
       )
-      state = .loaded(TrendingSearchResult(category: category, result: result))
+      state = .loaded(
+        result.convertibleFeeds.compactMap {
+          try? $0.toUnsavedPodcast()
+        }
+      )
     } catch {
       Self.log.error(error)
       state = .error(ErrorKit.message(for: error))
