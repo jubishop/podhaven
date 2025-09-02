@@ -207,7 +207,7 @@ actor RefreshManager {
     Self.log.trace("activated: starting background refresh task")
     isActive = true
 
-    guard backgroundRefreshTask == nil
+    guard activeRefreshTask == nil
     else {
       Self.log.debug("activated: refresh task already running")
       return
