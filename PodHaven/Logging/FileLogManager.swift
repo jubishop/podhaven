@@ -70,14 +70,10 @@ struct FileLogManager: Sendable {
     Task(priority: .background) {
       while true {
         do {
-          let backgroundTaskID = await UIApplication.shared.beginBackgroundTask(
-            withName: "FileLogManager.startPeriodicCleanup"
-          ) {
-            Self.log.warning("startPeriodicCleanup: background task expired")
+          await BackgroundTask.start(withName: "FileLogManager.startPeriodicCleanup") {
+            Self.log.debug("Running periodic log truncation after \(periodicCleanupInterval)")
+            await truncateLogFile()
           }
-          Self.log.debug("Running periodic log truncation after \(periodicCleanupInterval)")
-          await truncateLogFile()
-          await UIApplication.shared.endBackgroundTask(backgroundTaskID)
 
           try await sleeper.sleep(for: periodicCleanupInterval)
         } catch {

@@ -63,14 +63,8 @@ final class RefreshManager {
       """
     )
 
-    let backgroundTaskID = await UIApplication.shared.beginBackgroundTask(
-      withName: "RefreshManager.performRefresh"
-    ) {
-      Log.as(LogSubsystem.Feed.refreshManager).warning("performRefresh: task expired")
-    }
-    defer {
-      Task { await UIApplication.shared.endBackgroundTask(backgroundTaskID) }
-    }
+    let backgroundTask = await BackgroundTask.start(withName: "RefreshManager.performRefresh")
+    defer { Task { await backgroundTask.end() } }
 
     try await RefreshError.catch {
       try await withThrowingDiscardingTaskGroup { group in
@@ -113,14 +107,10 @@ final class RefreshManager {
       return false
     }
 
-    let backgroundTaskID = await UIApplication.shared.beginBackgroundTask(
+    let backgroundTask = await BackgroundTask.start(
       withName: "RefreshManager.refreshSeries: \(podcastSeries.toString)"
-    ) {
-      Log.as(LogSubsystem.Feed.refreshManager).warning("refreshSeries: task expired")
-    }
-    defer {
-      Task { await UIApplication.shared.endBackgroundTask(backgroundTaskID) }
-    }
+    )
+    defer { Task { await backgroundTask.end() } }
 
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
     let podcastFeed: PodcastFeed

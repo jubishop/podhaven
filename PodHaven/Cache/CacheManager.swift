@@ -83,16 +83,14 @@ actor CacheManager {
       return false
     }
 
-    let backgroundTaskID = await UIApplication.shared.beginBackgroundTask(
+    let backgroundTask = await BackgroundTask.start(
       withName: "CacheManager.downloadAndCache: \(podcastEpisode.toString)"
-    ) {
-      Log.as(LogSubsystem.Cache.cacheManager).warning("downloadAndCache: task expired")
-    }
+    )
     await cacheState.setDownloadTask(podcastEpisode.id, downloadTask: downloadTask)
     defer {
       Task {
         await cacheState.removeDownloadTask(podcastEpisode.id)
-        await UIApplication.shared.endBackgroundTask(backgroundTaskID)
+        await backgroundTask.end()
       }
     }
 
