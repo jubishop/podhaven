@@ -7,12 +7,15 @@ import GRDB
 extension Container {
   var cacheManagerSession: Factory<DataFetchable> {
     Factory(self) {
-      let configuration = URLSessionConfiguration.ephemeral
+      let configuration = URLSessionConfiguration.background(
+        withIdentifier: "\(AppInfo.bundleIdentifier).episode-downloads"
+      )
       configuration.allowsCellularAccess = true
       configuration.waitsForConnectivity = true
-      let timeout = Double(30)
-      configuration.timeoutIntervalForRequest = timeout
-      configuration.timeoutIntervalForResource = timeout
+      configuration.sessionSendsLaunchEvents = true
+      configuration.isDiscretionary = true
+      configuration.timeoutIntervalForRequest = Double(60)
+      configuration.timeoutIntervalForResource = Double(3600)
       return URLSession(configuration: configuration)
     }
     .scope(.cached)
@@ -20,7 +23,7 @@ extension Container {
 
   var cacheDownloadManager: Factory<DownloadManager> {
     Factory(self) {
-      DownloadManager(session: self.cacheManagerSession(), maxConcurrentDownloads: 4)
+      DownloadManager(session: self.cacheManagerSession(), maxConcurrentDownloads: 8)
     }
     .scope(.cached)
   }
@@ -76,12 +79,7 @@ actor CacheManager {
       return false
     }
 
-    // Always requeue the task first even if the task already exists, so it can get moved to
-    // to the front of the queue.
-    let downloadTask = await downloadManager.addURL(
-      podcastEpisode.episode.media.rawValue,
-      prioritize: true
-    )
+    let downloadTask = await downloadManager.addURL(podcastEpisode.episode.media.rawValue)
 
     if await cacheState.isDownloading(podcastEpisode.id) {
       Self.log.trace("downloadAndCache: \(podcastEpisode.toString) is already downloading")
@@ -89,30 +87,26 @@ actor CacheManager {
     }
 
     await cacheState.setDownloadTask(podcastEpisode.id, downloadTask: downloadTask)
+    defer { Task { await cacheState.removeDownloadTask(podcastEpisode.id) } }
 
-    do {
-      return try await CacheError.catch {
-        await imageFetcher.prefetch([podcastEpisode.image])
+    return try await CacheError.catch {
+      await imageFetcher.prefetch([podcastEpisode.image])
 
-        let downloadData = try await CacheError.mapError(
-          { try await downloadTask.downloadFinished() },
-          { CacheError.failedToDownload(podcastEpisode: podcastEpisode, caught: $0) }
-        )
+      let downloadData = try await CacheError.mapError(
+        { try await downloadTask.downloadFinished() },
+        { CacheError.failedToDownload(podcastEpisode: podcastEpisode, caught: $0) }
+      )
 
-        let fileName = await generateCacheFilename(for: podcastEpisode.episode)
-        let cacheURL = Self.resolveCachedFilepath(for: fileName)
+      let fileName = await generateCacheFilename(for: podcastEpisode.episode)
+      let cacheURL = Self.resolveCachedFilepath(for: fileName)
 
-        try await Container.shared.podFileManager().writeData(downloadData.data, to: cacheURL)
+      try await Container.shared.podFileManager().writeData(downloadData.data, to: cacheURL)
 
-        try await repo.updateCachedFilename(podcastEpisode.id, fileName)
+      try await repo.updateCachedFilename(podcastEpisode.id, fileName)
 
-        await cacheState.removeDownloadTask(podcastEpisode.id)
-        Self.log.debug("downloadAndCache: successfully cached \(podcastEpisode.toString)")
-        return true
-      }
-    } catch {
-      await cacheState.removeDownloadTask(podcastEpisode.id)
-      throw error
+      Self.log.debug("downloadAndCache: successfully cached \(podcastEpisode.toString)")
+
+      return true
     }
   }
 
@@ -218,8 +212,7 @@ actor CacheManager {
     )
 
     await withDiscardingTaskGroup { group in
-      // Cache new episodes in reverse order (most imminent first)
-      for podcastEpisode in queuedEpisodes.reversed() {
+      for podcastEpisode in queuedEpisodes {
         group.addTask { [weak self] in
           guard let self else { return }
           do {
