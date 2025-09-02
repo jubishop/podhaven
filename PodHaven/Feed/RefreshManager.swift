@@ -107,11 +107,6 @@ final class RefreshManager {
       return false
     }
 
-    let backgroundTask = await BackgroundTask.start(
-      withName: "RefreshManager.refreshSeries: \(podcastSeries.toString)"
-    )
-    defer { Task { await backgroundTask.end() } }
-
     let feedTask = await feedManager.addURL(podcastSeries.podcast.feedURL)
     let podcastFeed: PodcastFeed
     do {
