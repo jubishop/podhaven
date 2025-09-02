@@ -38,7 +38,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         return
       }
 
-      let fileName = CacheManager.generateCacheFilenameStatic(for: episode)
+      let fileName = CacheManager.generateCacheFilename(for: episode)
       let destURL = CacheManager.resolveCachedFilepath(for: fileName)
       if await podFileManager.fileExists(at: destURL) {
         try? await podFileManager.removeItem(at: destURL)

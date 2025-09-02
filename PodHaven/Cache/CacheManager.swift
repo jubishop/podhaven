@@ -235,17 +235,7 @@ actor CacheManager {
     try await clearCache(for: episodeID)
   }
 
-  private func generateCacheFilename(for episode: Episode) -> String {
-    let mediaURL = episode.media.rawValue
-    let fileExtension =
-      mediaURL.pathExtension.isEmpty == false
-      ? mediaURL.pathExtension
-      : "mp3"
-    return "\(mediaURL.hash(to: 12)).\(fileExtension)"
-  }
-
-  // Static so background delegate can reuse filename rule
-  static func generateCacheFilenameStatic(for episode: Episode) -> String {
+  static func generateCacheFilename(for episode: Episode) -> String {
     let mediaURL = episode.media.rawValue
     let fileExtension =
       mediaURL.pathExtension.isEmpty == false
