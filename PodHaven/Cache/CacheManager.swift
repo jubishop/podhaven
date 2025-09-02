@@ -159,7 +159,7 @@ actor CacheManager {
 
       do {
         for try await queuedEpisodes in await observatory.queuedPodcastEpisodes() {
-          await handleQueueChange(queuedEpisodes)
+          await handleQueueChange(queuedEpisodes.map(\.id))
         }
       } catch {
         Self.log.error(error)
@@ -168,27 +168,28 @@ actor CacheManager {
     }
   }
 
-  private func handleQueueChange(_ queuedEpisodes: [PodcastEpisode]) async {
-    let queuedEpisodeIDs = Set(queuedEpisodes.map(\.id))
+  private func handleQueueChange(_ queuedEpisodeIDsList: [Episode.ID]) async {
+    let queuedEpisodeIDs = Set(queuedEpisodeIDsList)
     let removedEpisodeIDs = currentQueuedEpisodeIDs.subtracting(queuedEpisodeIDs)
     currentQueuedEpisodeIDs = queuedEpisodeIDs
 
     Self.log.debug(
       """
       handleQueueChange:
-        current queue: 
-          \(queuedEpisodes.map(\.toString).joined(separator: "\n    "))
-        removed: 
+        current queue IDs: 
+          \(queuedEpisodeIDsList)
+        removed IDs: 
           \(removedEpisodeIDs)
       """
     )
 
     await withDiscardingTaskGroup { group in
-      for podcastEpisode in queuedEpisodes {
+      // For queued episodes, trigger download scheduling by ID to re-resolve from DB
+      for episodeID in queuedEpisodeIDsList {
         group.addTask { [weak self] in
           guard let self else { return }
           do {
-            try await downloadAndCache(podcastEpisode)
+            try await downloadAndCache(episodeID)
           } catch {
             Self.log.error(error)
           }
@@ -215,17 +216,17 @@ actor CacheManager {
 
       await cacheState.removeDownloadTask(episodeID)
       await downloadTask.cancel()
-      return
+      // Do not return; fall through and attempt to clear any existing cache file
     }
 
-    // Cancel background task if present
+    // Cancel background task if present (and still fall through to attempt clear)
     if let episode: Episode = try await CacheError.catch({ try await repo.episode(episodeID) }) {
       let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
       if let taskID = await Container.shared.cacheTaskMapStore().taskID(for: mg) {
         await cacheManagerSession.cancelDownload(taskID: taskID)
         await Container.shared.cacheTaskMapStore().remove(taskID: taskID)
         await cacheState.removeDownloadTask(episodeID)
-        return
+        // Do not return; fall through and attempt to clear any existing cache file
       }
     }
 
