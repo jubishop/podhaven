@@ -51,6 +51,11 @@ import Testing
 
     // First cache the episode
     try await queue.unshift(podcastEpisode.id)
+
+    // Simulate background completion
+    let data = CacheHelpers.createRandomData()
+    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
+
     let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFile(fileName)
 
@@ -81,6 +86,11 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await queue.unshift(podcastEpisode.id)
+
+    // Simulate background completion
+    let data = CacheHelpers.createRandomData()
+    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
+
     let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFile(fileName)
 

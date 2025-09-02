@@ -12,6 +12,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var taskMap: TaskMapStore { Container.shared.cacheTaskMapStore() }
+  private var podFileManager: any FileManageable { Container.shared.podFileManager() }
 
   private static let log = Log.as("CacheBackgroundDelegate")
 
@@ -32,15 +33,19 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
       if episode.queued == false {
         Self.log.debug("Episode dequeued mid-download; skipping cache move for \(episode.id)")
-        try? FileManager.default.removeItem(at: location)
+        try? await podFileManager.removeItem(at: location)
         await (await cacheState).markFinished(episode.id)
         return
       }
 
       let fileName = CacheManager.generateCacheFilenameStatic(for: episode)
       let destURL = CacheManager.resolveCachedFilepath(for: fileName)
-      try? FileManager.default.removeItem(at: destURL)
-      try FileManager.default.moveItem(at: location, to: destURL)
+      if await podFileManager.fileExists(at: destURL) {
+        try? await podFileManager.removeItem(at: destURL)
+      }
+      let data = try await podFileManager.readData(from: location)
+      try await podFileManager.writeData(data, to: destURL)
+      try? await podFileManager.removeItem(at: location)
       _ = try await repo.updateCachedFilename(episode.id, fileName)
 
       await (await cacheState).markFinished(episode.id)

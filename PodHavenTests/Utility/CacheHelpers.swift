@@ -136,7 +136,8 @@ enum CacheHelpers {
 
     // Write data to a temp location simulating the downloaded file
     let tmpURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try data.write(to: tmpURL)
+    let pfm: any FileManageable = Container.shared.podFileManager()
+    try await pfm.writeData(data, to: tmpURL)
 
     // Ask the fake background fetchable to complete by invoking the delegate
     if let fake = Container.shared.cacheBackgroundFetchable() as? FakeDataFetchable {
