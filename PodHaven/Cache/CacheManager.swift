@@ -6,6 +6,25 @@ import GRDB
 import UIKit
 
 extension Container {
+  var cacheManagerSession: Factory<any DataFetchable> {
+    Factory(self) {
+      let config = URLSessionConfiguration.background(
+        withIdentifier: AppInfo.bundleIdentifier + ".cache.bg"
+      )
+      config.sessionSendsLaunchEvents = true
+      config.allowsCellularAccess = true
+      config.waitsForConnectivity = true
+      config.isDiscretionary = false
+      config.httpMaximumConnectionsPerHost = 4
+      return URLSession(
+        configuration: config,
+        delegate: self.cacheBackgroundDelegate(),
+        delegateQueue: nil
+      )
+    }
+    .scope(.cached)
+  }
+
   var cacheManager: Factory<CacheManager> {
     Factory(self) { CacheManager() }.scope(.cached)
   }

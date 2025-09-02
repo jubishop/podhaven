@@ -47,11 +47,4 @@ extension Container {
   var cacheEpisodeDownloader: Factory<any EpisodeCachingDownloader> {
     Factory(self) { BackgroundCacheDownloader() }.scope(.cached)
   }
-
-  // Fetchable that points at the background session in prod, and a fake in tests
-  var cacheBackgroundFetchable: Factory<any DataFetchable> {
-    Factory(self) { self.cacheBackgroundSession() as any DataFetchable }
-      .context(.test) { FakeDataFetchable() }
-      .scope(.cached)
-  }
 }

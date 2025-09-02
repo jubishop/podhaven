@@ -116,22 +116,4 @@ extension Container {
   var cacheBackgroundDelegate: Factory<CacheBackgroundDelegate> {
     Factory(self) { CacheBackgroundDelegate() }.scope(.cached)
   }
-
-  var cacheBackgroundSession: Factory<URLSession> {
-    Factory(self) {
-      let identifier = (Bundle.main.bundleIdentifier ?? "PodHaven") + ".cache.bg"
-      let config = URLSessionConfiguration.background(withIdentifier: identifier)
-      config.sessionSendsLaunchEvents = true
-      config.allowsCellularAccess = true
-      config.waitsForConnectivity = true
-      config.isDiscretionary = false
-      config.httpMaximumConnectionsPerHost = 4
-      return URLSession(
-        configuration: config,
-        delegate: self.cacheBackgroundDelegate(),
-        delegateQueue: nil
-      )
-    }
-    .scope(.cached)
-  }
 }
