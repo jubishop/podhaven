@@ -46,7 +46,7 @@ struct EpisodesListView: View {
     .navigationTitle(viewModel.title)
     .toolbar {
       selectableEpisodesToolbarItems(
-        viewModel: $viewModel, 
+        viewModel: $viewModel,
         episodeList: $viewModel.episodeList
       )
     }
