@@ -81,9 +81,7 @@ actor CacheManager {
       return false
     }
 
-    // Delegate to injected downloader via DI so CacheManager is environment-agnostic
-    let downloader: any EpisodeCachingDownloader = Container.shared.cacheEpisodeDownloader()
-    return try await downloader.start(podcastEpisode)
+    return try await startDownloading(podcastEpisode)
   }
 
   @discardableResult
@@ -232,6 +230,30 @@ actor CacheManager {
       ? mediaURL.pathExtension
       : "mp3"
     return "\(mediaURL.hash(to: 12)).\(fileExtension)"
+  }
+
+  private func startDownloading(_ podcastEpisode: PodcastEpisode) async throws(CacheError) -> Bool {
+    // If already cached, no work
+    guard podcastEpisode.episode.cachedFilename == nil else { return false }
+
+    // Prefetch artwork up-front
+    await imageFetcher.prefetch([podcastEpisode.image])
+
+    // Schedule background download via harness
+    var request = URLRequest(url: podcastEpisode.episode.media.rawValue)
+    request.allowsExpensiveNetworkAccess = true
+    request.allowsConstrainedNetworkAccess = true
+
+    let taskID = await cacheManagerSession.scheduleDownload(request)
+
+    let cacheState: CacheState = await Container.shared.cacheState()
+    await cacheState.setDownloadTaskIdentifier(podcastEpisode.id, taskIdentifier: taskID)
+
+    let mg = MediaGUID(guid: podcastEpisode.episode.guid, media: podcastEpisode.episode.media)
+    let taskMap = Container.shared.cacheTaskMapStore()
+    await taskMap.set(taskID: taskID, for: mg)
+
+    return true
   }
 
   // MARK: - Static Helpers
