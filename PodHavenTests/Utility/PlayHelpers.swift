@@ -28,9 +28,6 @@ enum PlayHelpers {
   private static var avPlayer: FakeAVPlayer {
     Container.shared.avPlayer() as! FakeAVPlayer
   }
-  private static var commandCenter: FakeCommandCenter {
-    Container.shared.commandCenter() as! FakeCommandCenter
-  }
   private static var fakeImageFetcher: FakeImageFetcher { imageFetcher as! FakeImageFetcher }
   private static var nowPlayingInfo: [String: Any?]? {
     Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
