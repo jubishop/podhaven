@@ -15,7 +15,7 @@ extension Container {
 final class Notifier: Sendable {
   private let streamAndContinuations = Mutex<
     [Notification.Name: (AsyncStream<Notification>, AsyncStream<Notification>.Continuation)]
-  >([:] as [Notification.Name: (AsyncStream<Notification>, AsyncStream<Notification>.Continuation)])
+  >([:])
 
   fileprivate init() {}
 
