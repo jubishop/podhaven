@@ -12,7 +12,7 @@ extension Container {
 @Observable @MainActor class CacheState {
   // MARK: - State Management
 
-  private var activeBackgroundTaskIDs: [Episode.ID: Int] = [:]
+  private var activeBackgroundTaskIDs: [Episode.ID: DownloadTaskID] = [:]
   private var progressByEpisode: [Episode.ID: Double] = [:]
 
   // MARK: - State Getters
@@ -21,7 +21,7 @@ extension Container {
     activeBackgroundTaskIDs[episodeID] != nil
   }
 
-  func getBackgroundTaskIdentifier(_ episodeID: Episode.ID) -> Int? {
+  func getBackgroundTaskIdentifier(_ episodeID: Episode.ID) -> DownloadTaskID? {
     activeBackgroundTaskIDs[episodeID]
   }
 
@@ -31,8 +31,8 @@ extension Container {
 
   // MARK: - State Setters
 
-  func setDownloadTaskIdentifier(_ episodeID: Episode.ID, taskIdentifier: Int) {
-    activeBackgroundTaskIDs[episodeID] = taskIdentifier
+  func setDownloadTaskID(_ episodeID: Episode.ID, taskID: DownloadTaskID) {
+    activeBackgroundTaskIDs[episodeID] = taskID
   }
 
   func updateProgress(for episodeID: Episode.ID, progress: Double) {

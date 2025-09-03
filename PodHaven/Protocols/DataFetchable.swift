@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import IdentifiedCollections
 
 protocol DataFetchable: Sendable {
   // Data APIs
@@ -10,7 +11,6 @@ protocol DataFetchable: Sendable {
   func validatedData(for request: URLRequest) async throws(DownloadError) -> Data
 
   // Background Download APIs
-  func scheduleDownload(_ request: URLRequest) async -> Int
-  func listDownloadTaskIDs() async -> [Int]
-  func cancelDownload(taskID: Int) async
+  var allCreatedTasks: IdentifiedArray<DownloadTaskID, any DownloadingTask> { get async }
+  func createDownloadTask(with request: URLRequest) -> any DownloadingTask
 }

@@ -4,16 +4,22 @@
 import Foundation
 import Semaphore
 import FactoryKit
+import IdentifiedCollections
 
 actor FakeDataFetchable: DataFetchable {
   typealias DataHandler = @Sendable (URL) async throws -> (Data, URLResponse)
 
+  private var defaultHandler: DataHandler
   private var fakeHandlers: [URL: DataHandler] = [:]
   private(set) var requests: [URL] = []
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
-  private var downloadTaskIDs: Set<Int> = []
-  private var defaultHandler: DataHandler
+
+  private var downloadTasks: IdentifiedArray<DownloadTaskID, FakeURLSessionDownloadTask> =
+    IdentifiedArray(id: \.taskID)
+  private func addDownloadTask(_ downloadTask: FakeURLSessionDownloadTask) {
+    downloadTasks.append(downloadTask)
+  }
 
   init(
     defaultHandler: @escaping @Sendable DataHandler = { url in
@@ -59,18 +65,19 @@ actor FakeDataFetchable: DataFetchable {
     }
   }
 
-  func scheduleDownload(_ request: URLRequest) async -> Int {
-    let id = Int.random(in: 1_000_000...9_999_999)
-    downloadTaskIDs.insert(id)
-    return id
+  var allCreatedTasks: IdentifiedArray<DownloadTaskID, any DownloadingTask> {
+    get async {
+      IdentifiedArray(
+        uniqueElements: downloadTasks.map { $0 as any DownloadingTask },
+        id: \.taskID
+      )
+    }
   }
 
-  func listDownloadTaskIDs() async -> [Int] {
-    Array(downloadTaskIDs)
-  }
-
-  func cancelDownload(taskID: Int) async {
-    downloadTaskIDs.remove(taskID)
+  nonisolated func createDownloadTask(with request: URLRequest) -> any DownloadingTask {
+    let downloadTask = FakeURLSessionDownloadTask()
+    Task { await addDownloadTask(downloadTask) }
+    return downloadTask
   }
 
   // MARK: - Test Helpers
@@ -117,20 +124,31 @@ actor FakeDataFetchable: DataFetchable {
     return asyncSemaphore
   }
 
-  func finishDownload(taskID: Int, tmpURL: URL) async {
+  func finishDownload(taskID: DownloadTaskID, tmpURL: URL) async {
+    await downloadTasks[id: taskID]?.assertResumed()
+    await downloadTasks[id: taskID]?.assertCancelled(false)
     let delegate = Container.shared.cacheBackgroundDelegate()
-    await delegate.handleDidFinish(taskIdentifier: taskID, location: tmpURL)
+    await delegate.handleDidFinish(taskID: taskID, location: tmpURL)
   }
 
-  func failDownload(taskID: Int, error: Error) async {
+  func failDownload(taskID: DownloadTaskID, error: Error) async {
+    await downloadTasks[id: taskID]?.assertResumed()
+    await downloadTasks[id: taskID]?.assertCancelled(false)
     let delegate = Container.shared.cacheBackgroundDelegate()
-    await delegate.handleDidComplete(taskIdentifier: taskID, error: error)
+    await delegate.handleDidComplete(taskID: taskID, error: error)
   }
 
-  func progressDownload(taskID: Int, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64)
+  func progressDownload(
+    taskID: DownloadTaskID,
+    totalBytesWritten: Int64,
+    totalBytesExpectedToWrite: Int64
+  )
     async
   {
     guard totalBytesExpectedToWrite > 0 else { return }
+    await downloadTasks[id: taskID]?.assertResumed()
+    await downloadTasks[id: taskID]?.assertCancelled(false)
+
     let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
     let taskMap = Container.shared.taskMapStore()
     if let mg = await taskMap.key(for: taskID) {

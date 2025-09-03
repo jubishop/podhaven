@@ -105,7 +105,7 @@ enum CacheHelpers {
 
   // MARK: - Task Map Helpers
 
-  static func waitForTaskID(for episodeID: Episode.ID) async throws -> Int {
+  static func waitForTaskID(for episodeID: Episode.ID) async throws -> DownloadTaskID {
     try await Wait.forValue {
       let repo: any Databasing = Container.shared.repo()
       guard let episode = try await repo.episode(episodeID) else { return nil }
@@ -119,7 +119,7 @@ enum CacheHelpers {
 
   static func simulateBackgroundFinish(_ episodeID: Episode.ID, data: Data) async throws {
     // Persist a mapping for a fake background task
-    let taskID = Int.random(in: 1000...9_999_999)
+    let taskID = DownloadTaskID(Int.random(in: 1000...9_999_999))
     let repo: any Databasing = Container.shared.repo()
     guard let episode = try await repo.episode(episodeID) else {
       throw CacheError.episodeNotFound(episodeID)
@@ -130,7 +130,7 @@ enum CacheHelpers {
 
     // Also mark CacheState as downloading for more realistic simulation
     let cacheState: CacheState = await Container.shared.cacheState()
-    await cacheState.setDownloadTaskIdentifier(episodeID, taskIdentifier: taskID)
+    await cacheState.setDownloadTaskID(episodeID, taskID: taskID)
 
     // Write data to a temp location simulating the downloaded file
     let tmpURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -146,7 +146,7 @@ enum CacheHelpers {
     error: Error = NSError(domain: "Test", code: -1)
   ) async throws {
     // Persist mapping and CacheState download indicator
-    let taskID = Int.random(in: 10_000_000...99_999_999)
+    let taskID = DownloadTaskID(Int.random(in: 10_000_000...99_999_999))
     let repo: any Databasing = Container.shared.repo()
     guard let episode = try await repo.episode(episodeID) else {
       throw CacheError.episodeNotFound(episodeID)
@@ -155,7 +155,7 @@ enum CacheHelpers {
     let taskMap = Container.shared.taskMapStore()
     await taskMap.set(taskID: taskID, for: mg)
     let cacheState: CacheState = await Container.shared.cacheState()
-    await cacheState.setDownloadTaskIdentifier(episodeID, taskIdentifier: taskID)
+    await cacheState.setDownloadTaskID(episodeID, taskID: taskID)
 
     await cacheManagerSession.failDownload(taskID: taskID, error: error)
   }

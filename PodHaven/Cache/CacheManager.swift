@@ -87,11 +87,15 @@ actor CacheManager {
     request.allowsExpensiveNetworkAccess = true
     request.allowsConstrainedNetworkAccess = true
 
-    let taskID = await cacheManagerSession.scheduleDownload(request)
+    let downloadTask = cacheManagerSession.createDownloadTask(with: request)
+    downloadTask.resume()
 
-    await cacheState.setDownloadTaskIdentifier(podcastEpisode.id, taskIdentifier: taskID)
+    await cacheState.setDownloadTaskID(
+      podcastEpisode.id,
+      taskID: downloadTask.taskID
+    )
 
-    await taskMapStore.set(taskID: taskID, for: podcastEpisode.mediaGUID)
+    await taskMapStore.set(taskID: downloadTask.taskID, for: podcastEpisode.mediaGUID)
 
     return true
   }
@@ -225,7 +229,7 @@ actor CacheManager {
     if let episode: Episode = try await CacheError.catch({ try await repo.episode(episodeID) }) {
       let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
       if let taskID = await taskMapStore.taskID(for: mg) {
-        await cacheManagerSession.cancelDownload(taskID: taskID)
+        await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
         await taskMapStore.remove(taskID: taskID)
         await cacheState.removeDownloadTask(episodeID)
         // Do not return; fall through and attempt to clear any existing cache file
@@ -259,14 +263,12 @@ actor CacheManager {
   // MARK: - Background Session Adoption
 
   private func adoptInFlightBackgroundDownloads() async {
-    let taskIDs = await cacheManagerSession.listDownloadTaskIDs()
-
-    for taskID in taskIDs {
-      if let mg = await taskMapStore.key(for: taskID) {
+    for backgroundTask in await cacheManagerSession.allCreatedTasks {
+      if let mg = await taskMapStore.key(for: backgroundTask.taskID) {
         do {
           if let episode = try await repo.episode(mg) {
-            await cacheState.setDownloadTaskIdentifier(episode.id, taskIdentifier: taskID)
-            Self.log.debug("adoptInFlight: episode \(episode.id) task #\(taskID)")
+            await cacheState.setDownloadTaskID(episode.id, taskID: backgroundTask.taskID)
+            Self.log.debug("adoptInFlight: episode \(episode.id) task #\(backgroundTask.taskID)")
           }
         } catch {
           Self.log.error(error)

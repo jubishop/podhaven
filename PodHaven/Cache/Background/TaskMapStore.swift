@@ -16,8 +16,8 @@ extension Container {
 actor TaskMapStore {
   private static let log = Log.as("TaskMapStore")
 
-  private var byTaskID: [Int: MediaGUID] = [:]
-  private var byKey: [MediaGUID: Int] = [:]
+  private var byTaskID: [DownloadTaskID: MediaGUID] = [:]
+  private var byKey: [MediaGUID: DownloadTaskID] = [:]
 
   private let fileURL: URL
   private var isLoaded = false
@@ -30,24 +30,24 @@ actor TaskMapStore {
 
   // MARK: - Public API
 
-  func set(taskID: Int, for key: MediaGUID) async {
+  func set(taskID: DownloadTaskID, for key: MediaGUID) async {
     await ensureLoaded()
     byTaskID[taskID] = key
     byKey[key] = taskID
     await persist()
   }
 
-  func taskID(for key: MediaGUID) async -> Int? {
+  func taskID(for key: MediaGUID) async -> DownloadTaskID? {
     await ensureLoaded()
     return byKey[key]
   }
 
-  func key(for taskID: Int) async -> MediaGUID? {
+  func key(for taskID: DownloadTaskID) async -> MediaGUID? {
     await ensureLoaded()
     return byTaskID[taskID]
   }
 
-  func remove(taskID: Int) async {
+  func remove(taskID: DownloadTaskID) async {
     await ensureLoaded()
     if let key = byTaskID.removeValue(forKey: taskID) {
       byKey.removeValue(forKey: key)
@@ -69,7 +69,7 @@ actor TaskMapStore {
     if await fm.fileExists(at: fileURL) {
       do {
         let data = try await fm.readData(from: fileURL)
-        let decoded = try JSONDecoder().decode([Int: MediaGUID].self, from: data)
+        let decoded = try JSONDecoder().decode([DownloadTaskID: MediaGUID].self, from: data)
         byTaskID = decoded
         byKey = Dictionary(uniqueKeysWithValues: decoded.map { ($0.value, $0.key) })
       } catch {

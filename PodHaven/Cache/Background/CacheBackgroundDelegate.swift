@@ -17,11 +17,11 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private static let log = Log.as("CacheBackgroundDelegate")
 
   // These internal helpers are used by the delegate to reuse logic.
-  func handleDidFinish(taskIdentifier: Int, location: URL) async {
-    defer { Task { await taskMapStore.remove(taskID: taskIdentifier) } }
+  func handleDidFinish(taskID: DownloadTaskID, location: URL) async {
+    defer { Task { await taskMapStore.remove(taskID: taskID) } }
 
-    guard let mg = await taskMapStore.key(for: taskIdentifier) else {
-      Self.log.warning("handleDidFinish: No mapping for task \(taskIdentifier)")
+    guard let mg = await taskMapStore.key(for: taskID) else {
+      Self.log.warning("handleDidFinish: No mapping for task \(taskID)")
       return
     }
 
@@ -55,8 +55,8 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     }
   }
 
-  func handleDidComplete(taskIdentifier: Int, error: Error) async {
-    if let mg = await taskMapStore.key(for: taskIdentifier) {
+  func handleDidComplete(taskID: DownloadTaskID, error: Error) async {
+    if let mg = await taskMapStore.key(for: taskID) {
       do {
         if let episode = try await repo.episode(mg) {
           await cacheState.markFailed(episode.id, error: error)
@@ -79,7 +79,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     guard totalBytesExpectedToWrite > 0 else { return }
     let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
     Task { [progress] in
-      if let mg = await taskMapStore.key(for: downloadTask.taskIdentifier) {
+      if let mg = await taskMapStore.key(for: downloadTask.taskID) {
         await cacheState.updateProgress(for: mg, progress: progress)
       }
     }
@@ -91,7 +91,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     didFinishDownloadingTo location: URL
   ) {
     Task {
-      await handleDidFinish(taskIdentifier: downloadTask.taskIdentifier, location: location)
+      await handleDidFinish(taskID: downloadTask.taskID, location: location)
     }
   }
 
@@ -101,7 +101,8 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     didCompleteWithError error: Error?
   ) {
     guard let error else { return }
-    Task { await handleDidComplete(taskIdentifier: task.taskIdentifier, error: error) }
+    guard let downloadTask = task as? URLSessionDownloadTask else { return }
+    Task { await handleDidComplete(taskID: downloadTask.taskID, error: error) }
   }
 
   func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {

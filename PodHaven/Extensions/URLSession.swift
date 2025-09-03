@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import IdentifiedCollections
 
 extension URLSession: DataFetchable {
   func validatedData(from url: URL) async throws(DownloadError) -> Data {
@@ -40,17 +41,16 @@ extension URLSession: DataFetchable {
     }
   }
 
-  func scheduleDownload(_ request: URLRequest) async -> Int {
-    let task = downloadTask(with: request)
-    task.resume()
-    return task.taskIdentifier
+  var allCreatedTasks: IdentifiedArray<DownloadTaskID, any DownloadingTask> {
+    get async {
+      IdentifiedArray(
+        uniqueElements: await allTasks.compactMap { $0 as? URLSessionDownloadTask },
+        id: \.taskID
+      )
+    }
   }
 
-  func listDownloadTaskIDs() async -> [Int] {
-    return await allTasks.map { $0.taskIdentifier }
-  }
-
-  func cancelDownload(taskID: Int) async {
-    await allTasks.first(where: { $0.taskIdentifier == taskID })?.cancel()
+  func createDownloadTask(with request: URLRequest) -> any DownloadingTask {
+    downloadTask(with: request)
   }
 }
