@@ -104,13 +104,42 @@ actor CacheManager {
   func downloadAndCache(_ episodeID: Episode.ID) async throws(CacheError) -> Bool {
     Self.log.trace("downloadAndCache: \(episodeID)")
 
-    return try await CacheError.catch {
+    if await cacheState.isDownloading(episodeID) {
+      Self.log.trace("downloadAndCache: \(episodeID) is already downloading")
+      return false
+    }
+
+    let podcastEpisode = try await CacheError.catch {
       let podcastEpisode = try await repo.podcastEpisode(episodeID)
       guard let podcastEpisode
       else { throw CacheError.episodeNotFound(episodeID) }
 
-      return try await downloadAndCache(podcastEpisode)
+      return podcastEpisode
     }
+
+    guard podcastEpisode.episode.cachedFilename == nil
+    else {
+      Self.log.trace("downloadAndCache: \(podcastEpisode.toString) already cached")
+      return false
+    }
+
+    await imageFetcher.prefetch([podcastEpisode.image])
+
+    var request = URLRequest(url: podcastEpisode.episode.media.rawValue)
+    request.allowsExpensiveNetworkAccess = true
+    request.allowsConstrainedNetworkAccess = true
+
+    let downloadTask = cacheManagerSession.createDownloadTask(with: request)
+    downloadTask.resume()
+
+    await cacheState.setDownloadTaskID(
+      podcastEpisode.id,
+      taskID: downloadTask.taskID
+    )
+
+    await taskMapStore.set(taskID: downloadTask.taskID, for: podcastEpisode.mediaGUID)
+
+    return true
   }
 
   func clearCache(for episode: Episode) async throws(CacheError) -> Bool {
