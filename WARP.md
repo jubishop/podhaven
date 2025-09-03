@@ -4,7 +4,7 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## GIT
 
-- **IMPORTANT: Unless explicitly asked don't do git commit your changes.**
+- **IMPORTANT: Unless explicitly asked don't git commit your changes.**
 
 ## Essential Build & Test Commands
 
