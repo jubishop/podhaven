@@ -106,11 +106,11 @@ import SwiftUI
       """
     )
 
-    for podcastEpisode in uncachedEpisodes.reversed() {
+    for podcastEpisode in uncachedEpisodes {
       Task { [weak self] in
         guard let self else { return }
         do {
-          try await cacheManager.downloadAndCache(podcastEpisode)
+          try await cacheManager.downloadAndCache(podcastEpisode.id)
         } catch {
           Self.log.error(error)
         }
@@ -190,7 +190,7 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        try await cacheManager.downloadAndCache(podcastEpisode)
+        try await cacheManager.downloadAndCache(podcastEpisode.id)
       } catch {
         Self.log.error(error)
       }
