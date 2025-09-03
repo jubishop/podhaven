@@ -4,7 +4,11 @@ import FactoryKit
 import Foundation
 import Logging
 
-// MARK: - TaskMapStore
+extension Container {
+  var taskMapStore: Factory<TaskMapStore> {
+    Factory(self) { TaskMapStore() }.scope(.cached)
+  }
+}
 
 /// Persists a mapping between URLSessionTask identifiers and the episode they belong to.
 /// This allows the app to recover in-flight tasks after relaunch and correlate
@@ -84,10 +88,5 @@ actor TaskMapStore {
     } catch {
       Self.log.error(error)
     }
-  }
-}
-extension Container {
-  var cacheTaskMapStore: Factory<TaskMapStore> {
-    Factory(self) { TaskMapStore() }.scope(.cached)
   }
 }

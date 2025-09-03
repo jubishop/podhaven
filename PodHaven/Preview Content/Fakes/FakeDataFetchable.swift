@@ -95,7 +95,7 @@ actor FakeDataFetchable: DataFetchable {
   {
     guard totalBytesExpectedToWrite > 0 else { return }
     let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-    let taskMap = Container.shared.cacheTaskMapStore()
+    let taskMap = Container.shared.taskMapStore()
     if let mg = await taskMap.key(for: taskID) {
       let cs: CacheState = await Container.shared.cacheState()
       await cs.updateProgress(for: mg, progress: progress)

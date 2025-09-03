@@ -110,7 +110,7 @@ enum CacheHelpers {
       let repo: any Databasing = Container.shared.repo()
       guard let episode = try await repo.episode(episodeID) else { return nil }
       let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
-      let taskMap = Container.shared.cacheTaskMapStore()
+      let taskMap = Container.shared.taskMapStore()
       return await taskMap.taskID(for: mg)
     }
   }
@@ -125,7 +125,7 @@ enum CacheHelpers {
       throw CacheError.episodeNotFound(episodeID)
     }
     let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
-    let taskMap = Container.shared.cacheTaskMapStore()
+    let taskMap = Container.shared.taskMapStore()
     await taskMap.set(taskID: taskID, for: mg)
 
     // Also mark CacheState as downloading for more realistic simulation
@@ -152,7 +152,7 @@ enum CacheHelpers {
       throw CacheError.episodeNotFound(episodeID)
     }
     let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
-    let taskMap = Container.shared.cacheTaskMapStore()
+    let taskMap = Container.shared.taskMapStore()
     await taskMap.set(taskID: taskID, for: mg)
     let cacheState: CacheState = await Container.shared.cacheState()
     await cacheState.setDownloadTaskIdentifier(episodeID, taskIdentifier: taskID)

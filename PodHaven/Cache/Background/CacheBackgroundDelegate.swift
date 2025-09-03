@@ -11,16 +11,16 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private var repo: any Databasing { Container.shared.repo() }
   private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
-  private var taskMap: TaskMapStore { Container.shared.cacheTaskMapStore() }
+  private var taskMapStore: TaskMapStore { Container.shared.taskMapStore() }
   private var podFileManager: any FileManageable { Container.shared.podFileManager() }
 
   private static let log = Log.as("CacheBackgroundDelegate")
 
   // These internal helpers are used by the delegate to reuse logic.
   func handleDidFinish(taskIdentifier: Int, location: URL) async {
-    defer { Task { await taskMap.remove(taskID: taskIdentifier) } }
+    defer { Task { await taskMapStore.remove(taskID: taskIdentifier) } }
 
-    guard let mg = await taskMap.key(for: taskIdentifier) else {
+    guard let mg = await taskMapStore.key(for: taskIdentifier) else {
       Self.log.warning("handleDidFinish: No mapping for task \(taskIdentifier)")
       return
     }
@@ -56,7 +56,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   }
 
   func handleDidComplete(taskIdentifier: Int, error: Error) async {
-    if let mg = await taskMap.key(for: taskIdentifier) {
+    if let mg = await taskMapStore.key(for: taskIdentifier) {
       do {
         if let episode = try await repo.episode(mg) {
           await cacheState.markFailed(episode.id, error: error)
@@ -79,7 +79,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     guard totalBytesExpectedToWrite > 0 else { return }
     let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
     Task { [progress] in
-      if let mg = await taskMap.key(for: downloadTask.taskIdentifier) {
+      if let mg = await taskMapStore.key(for: downloadTask.taskIdentifier) {
         await cacheState.updateProgress(for: mg, progress: progress)
       }
     }

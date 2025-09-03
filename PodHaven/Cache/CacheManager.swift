@@ -35,7 +35,7 @@ actor CacheManager {
   @DynamicInjected(\.imageFetcher) private var imageFetcher
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
-  @DynamicInjected(\.sleeper) private var sleeper
+  @DynamicInjected(\.taskMapStore) private var taskMapStore
 
   private var alert: Alert { get async { await Container.shared.alert() } }
   private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
@@ -81,7 +81,19 @@ actor CacheManager {
       return false
     }
 
-    return try await startDownloading(podcastEpisode)
+    await imageFetcher.prefetch([podcastEpisode.image])
+
+    var request = URLRequest(url: podcastEpisode.episode.media.rawValue)
+    request.allowsExpensiveNetworkAccess = true
+    request.allowsConstrainedNetworkAccess = true
+
+    let taskID = await cacheManagerSession.scheduleDownload(request)
+
+    await cacheState.setDownloadTaskIdentifier(podcastEpisode.id, taskIdentifier: taskID)
+
+    await taskMapStore.set(taskID: taskID, for: podcastEpisode.mediaGUID)
+
+    return true
   }
 
   @discardableResult
@@ -212,9 +224,9 @@ actor CacheManager {
     // Cancel background task if present (and still fall through to attempt clear)
     if let episode: Episode = try await CacheError.catch({ try await repo.episode(episodeID) }) {
       let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
-      if let taskID = await Container.shared.cacheTaskMapStore().taskID(for: mg) {
+      if let taskID = await taskMapStore.taskID(for: mg) {
         await cacheManagerSession.cancelDownload(taskID: taskID)
-        await Container.shared.cacheTaskMapStore().remove(taskID: taskID)
+        await taskMapStore.remove(taskID: taskID)
         await cacheState.removeDownloadTask(episodeID)
         // Do not return; fall through and attempt to clear any existing cache file
       }
@@ -230,30 +242,6 @@ actor CacheManager {
       ? mediaURL.pathExtension
       : "mp3"
     return "\(mediaURL.hash(to: 12)).\(fileExtension)"
-  }
-
-  private func startDownloading(_ podcastEpisode: PodcastEpisode) async throws(CacheError) -> Bool {
-    // If already cached, no work
-    guard podcastEpisode.episode.cachedFilename == nil else { return false }
-
-    // Prefetch artwork up-front
-    await imageFetcher.prefetch([podcastEpisode.image])
-
-    // Schedule background download via harness
-    var request = URLRequest(url: podcastEpisode.episode.media.rawValue)
-    request.allowsExpensiveNetworkAccess = true
-    request.allowsConstrainedNetworkAccess = true
-
-    let taskID = await cacheManagerSession.scheduleDownload(request)
-
-    let cacheState: CacheState = await Container.shared.cacheState()
-    await cacheState.setDownloadTaskIdentifier(podcastEpisode.id, taskIdentifier: taskID)
-
-    let mg = MediaGUID(guid: podcastEpisode.episode.guid, media: podcastEpisode.episode.media)
-    let taskMap = Container.shared.cacheTaskMapStore()
-    await taskMap.set(taskID: taskID, for: mg)
-
-    return true
   }
 
   // MARK: - Static Helpers
@@ -273,9 +261,8 @@ actor CacheManager {
   private func adoptInFlightBackgroundDownloads() async {
     let taskIDs = await cacheManagerSession.listDownloadTaskIDs()
 
-    let taskMap = Container.shared.cacheTaskMapStore()
     for taskID in taskIDs {
-      if let mg = await taskMap.key(for: taskID) {
+      if let mg = await taskMapStore.key(for: taskID) {
         do {
           if let episode = try await repo.episode(mg) {
             await cacheState.setDownloadTaskIdentifier(episode.id, taskIdentifier: taskID)
