@@ -174,7 +174,7 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 - **Share Extension**: `PodHavenShare` handles external podcast URL sharing
 
 ### Code Formatting
-- Run swift-format on any files you change
+- **IMPORTANT: Run swift-format on any files you change**
 
 ## Detailed Project Structure
 
