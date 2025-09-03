@@ -12,10 +12,7 @@ actor FakeDataFetchable: DataFetchable {
   private(set) var requests: [URL] = []
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
-
-  // Background download simulation
   private var downloadTaskIDs: Set<Int> = []
-
   private var defaultHandler: DataHandler
 
   init(
@@ -25,6 +22,8 @@ actor FakeDataFetchable: DataFetchable {
   ) {
     self.defaultHandler = defaultHandler
   }
+
+  // MARK: - DataFetchable
 
   func data(for urlRequest: URLRequest) async throws -> (Data, URLResponse) {
     guard let url = urlRequest.url
@@ -39,7 +38,6 @@ actor FakeDataFetchable: DataFetchable {
       return try await handler(url)
     }
 
-    // Default fallback behavior if no handler is set
     return try await defaultHandler(url)
   }
 
@@ -61,8 +59,6 @@ actor FakeDataFetchable: DataFetchable {
     }
   }
 
-  // MARK: - Background Download APIs
-
   func scheduleDownload(_ request: URLRequest) async -> Int {
     let id = Int.random(in: 1_000_000...9_999_999)
     downloadTaskIDs.insert(id)
@@ -77,33 +73,18 @@ actor FakeDataFetchable: DataFetchable {
     downloadTaskIDs.remove(taskID)
   }
 
-  // MARK: - Convenience Methods
-
-  // Simulate background completion by invoking the app's delegate logic
-  func finishDownload(taskID: Int, tmpURL: URL) async {
-    let delegate = Container.shared.cacheBackgroundDelegate()
-    await delegate.handleDidFinish(taskIdentifier: taskID, location: tmpURL)
-  }
-
-  func failDownload(taskID: Int, error: Error) async {
-    let delegate = Container.shared.cacheBackgroundDelegate()
-    await delegate.handleDidComplete(taskIdentifier: taskID, error: error)
-  }
-
-  func progressDownload(taskID: Int, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64)
-    async
-  {
-    guard totalBytesExpectedToWrite > 0 else { return }
-    let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-    let taskMap = Container.shared.taskMapStore()
-    if let mg = await taskMap.key(for: taskID) {
-      let cs: CacheState = await Container.shared.cacheState()
-      await cs.updateProgress(for: mg, progress: progress)
-    }
-  }
+  // MARK: - Test Helpers
 
   func setDefaultHandler(_ handler: @escaping DataHandler) {
     defaultHandler = handler
+  }
+
+  func clearCustomHandler(for url: URL) {
+    fakeHandlers.removeValue(forKey: url)
+  }
+
+  func respond(to url: URL, with handler: @escaping DataHandler) {
+    fakeHandlers[url] = handler
   }
 
   func respond(to url: URL, data: Data) {
@@ -136,12 +117,26 @@ actor FakeDataFetchable: DataFetchable {
     return asyncSemaphore
   }
 
-  func respond(to url: URL, with handler: @escaping DataHandler) {
-    fakeHandlers[url] = handler
+  func finishDownload(taskID: Int, tmpURL: URL) async {
+    let delegate = Container.shared.cacheBackgroundDelegate()
+    await delegate.handleDidFinish(taskIdentifier: taskID, location: tmpURL)
   }
 
-  func clearCustomHandler(for url: URL) {
-    fakeHandlers.removeValue(forKey: url)
+  func failDownload(taskID: Int, error: Error) async {
+    let delegate = Container.shared.cacheBackgroundDelegate()
+    await delegate.handleDidComplete(taskIdentifier: taskID, error: error)
+  }
+
+  func progressDownload(taskID: Int, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64)
+    async
+  {
+    guard totalBytesExpectedToWrite > 0 else { return }
+    let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+    let taskMap = Container.shared.taskMapStore()
+    if let mg = await taskMap.key(for: taskID) {
+      let cs: CacheState = await Container.shared.cacheState()
+      await cs.updateProgress(for: mg, progress: progress)
+    }
   }
 }
 #endif
