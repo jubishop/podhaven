@@ -2,7 +2,7 @@
 
 import Foundation
 
-extension URLSession {
+extension URLSession: DataFetchable {
   func validatedData(from url: URL) async throws(DownloadError) -> Data {
     do {
       let (data, response) = try await data(from: url)
@@ -38,5 +38,19 @@ extension URLSession {
     } catch {
       throw DownloadError.caught(error)
     }
+  }
+
+  func scheduleDownload(_ request: URLRequest) async -> Int {
+    let task = downloadTask(with: request)
+    task.resume()
+    return task.taskIdentifier
+  }
+
+  func listDownloadTaskIDs() async -> [Int] {
+    return await allTasks.map { $0.taskIdentifier }
+  }
+
+  func cancelDownload(taskID: Int) async {
+    await allTasks.first(where: { $0.taskIdentifier == taskID })?.cancel()
   }
 }
