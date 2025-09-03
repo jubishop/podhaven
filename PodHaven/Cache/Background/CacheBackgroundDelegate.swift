@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import Logging
+import Synchronization
 import UIKit
 
 extension Container {
@@ -11,25 +12,30 @@ extension Container {
   }
 }
 
-actor CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
+final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private var repo: any Databasing { Container.shared.repo() }
   private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var taskMapStore: TaskMapStore { Container.shared.taskMapStore() }
   private var podFileManager: any FileManageable { Container.shared.podFileManager() }
 
-  private var completions: [String: () -> Void] = [:]
-  func store(identifier: String?, completion: @escaping () -> Void) {
+  private let completions = Mutex<[String: @MainActor () -> Void]>([:])
+
+  func store(identifier: String?, completion: @escaping @MainActor () -> Void) {
     guard let id = identifier else { return }
-    completions[id] = completion
+    completions.withLock { dict in
+      dict[id] = completion
+    }
   }
 
   func complete(for identifier: String?) {
     guard let id = identifier else { return }
-    let completion: (() -> Void)? = {
-      return completions.removeValue(forKey: id)
-    }()
-    completion?()
+    let completion = completions.withLock { dict in
+      dict.removeValue(forKey: id)
+    }
+    if let completion {
+      Task { @MainActor in completion() }
+    }
   }
 
   private static let log = Log.as("CacheBackgroundDelegate")
@@ -88,7 +94,7 @@ actor CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
   // MARK: - URLSessionDownloadDelegate
 
-  nonisolated func urlSession(
+  func urlSession(
     _ session: URLSession,
     downloadTask: URLSessionDownloadTask,
     didWriteData bytesWritten: Int64,
@@ -104,7 +110,7 @@ actor CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     }
   }
 
-  nonisolated func urlSession(
+  func urlSession(
     _ session: URLSession,
     downloadTask: URLSessionDownloadTask,
     didFinishDownloadingTo location: URL
@@ -112,7 +118,7 @@ actor CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     Task { await handleDidFinish(taskID: downloadTask.taskID, location: location) }
   }
 
-  nonisolated func urlSession(
+  func urlSession(
     _ session: URLSession,
     task: URLSessionTask,
     didCompleteWithError error: Error?
@@ -122,7 +128,7 @@ actor CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     Task { await handleDidComplete(taskID: downloadTask.taskID, error: error) }
   }
 
-  nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
-    Task { await complete(for: session.configuration.identifier) }
+  func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+    complete(for: session.configuration.identifier)
   }
 }

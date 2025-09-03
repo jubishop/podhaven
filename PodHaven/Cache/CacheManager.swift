@@ -67,7 +67,7 @@ actor CacheManager {
   // MARK: - Public Methods
 
   @discardableResult
-  func downloadAndCache(_ podcastEpisode: PodcastEpisode) async throws(CacheError) -> Bool {
+  private func downloadAndCache(_ podcastEpisode: PodcastEpisode) async throws(CacheError) -> Bool {
     Self.log.trace("downloadAndCache: \(podcastEpisode.toString)")
 
     guard podcastEpisode.episode.cachedFilename == nil

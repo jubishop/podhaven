@@ -13,11 +13,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     handleEventsForBackgroundURLSession identifier: String,
     completionHandler: @escaping () -> Void
   ) {
-    Task {
-      await cacheBackgroundDelegate.store(
-        identifier: identifier,
-        completion: completionHandler
-      )
-    }
+    cacheBackgroundDelegate.store(
+      identifier: identifier,
+      completion: { @MainActor in completionHandler() }
+    )
   }
 }
