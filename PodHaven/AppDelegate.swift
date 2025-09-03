@@ -6,15 +6,18 @@ import UIKit
 // MARK: - AppDelegate
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
+  @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
+
   func application(
     _ application: UIApplication,
     handleEventsForBackgroundURLSession identifier: String,
     completionHandler: @escaping () -> Void
   ) {
-    Container.shared.backgroundURLSessionCompletionCenter()
-      .store(
+    Task {
+      await cacheBackgroundDelegate.store(
         identifier: identifier,
         completion: completionHandler
       )
+    }
   }
 }

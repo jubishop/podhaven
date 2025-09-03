@@ -274,6 +274,9 @@ import Testing
     // Mark as queued to simulate a user-initiated download
     try await queue.unshift(podcastEpisode.id)
 
+    // Wait for scheduling to avoid race with failure path
+    try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
+
     // Simulate an error from background session
     try await CacheHelpers.simulateBackgroundFailure(
       podcastEpisode.id,
