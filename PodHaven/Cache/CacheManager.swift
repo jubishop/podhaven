@@ -34,6 +34,7 @@ actor CacheManager {
   @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
   @DynamicInjected(\.imageFetcher) private var imageFetcher
   @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.podFileManager) private var podFileManager
   @DynamicInjected(\.repo) private var repo
 
   private var alert: Alert { get async { await Container.shared.alert() } }
@@ -53,11 +54,10 @@ actor CacheManager {
   func start() async throws {
     Self.log.debug("start: executing")
 
-    try await Container.shared.podFileManager()
-      .createDirectory(
-        at: Self.cacheDirectory,
-        withIntermediateDirectories: true
-      )
+    try await podFileManager.createDirectory(
+      at: Self.cacheDirectory,
+      withIntermediateDirectories: true
+    )
     startMonitoringQueue()
   }
 
@@ -128,6 +128,7 @@ actor CacheManager {
 
     if let taskID = episode.downloadTaskID {
       await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
+      await cacheState.clearProgress(for: episodeID)
       try await repo.updateDownloadTaskID(episode.id, nil)
     }
 
@@ -139,7 +140,7 @@ actor CacheManager {
 
     try await repo.updateCachedFilename(episode.id, nil)
     let cacheURL = Self.resolveCachedFilepath(for: cachedFilename)
-    try await Container.shared.podFileManager().removeItem(at: cacheURL)
+    try await podFileManager.removeItem(at: cacheURL)
 
     Self.log.debug("cache cleared for: \(episode.toString)")
 

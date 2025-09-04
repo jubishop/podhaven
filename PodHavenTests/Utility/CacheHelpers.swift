@@ -97,6 +97,15 @@ enum CacheHelpers {
     )
   }
 
+  // MARK: - Progress Status
+
+  static func waitForProgress(_ episodeID: Episode.ID, progress: Double?) async throws {
+    try await Wait.until(
+      { await cacheState.progress(episodeID) == progress },
+      { "Progress for Episode \(episodeID) never become \(String(describing: progress))" }
+    )
+  }
+
   // MARK: - File Status
 
   static func waitForCachedFile(_ fileName: String) async throws {

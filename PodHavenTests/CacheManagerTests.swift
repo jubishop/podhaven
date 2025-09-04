@@ -87,43 +87,21 @@ import Testing
 
   // MARK: - Background Download (Simulated)
 
-  @Test("progress updates via fake harness and clears on finish")
-  func progressViaHarnessUpdatesCacheState() async throws {
+  @Test("progress updates cache state and clears on finish")
+  func progressUpdatesCacheStateAndClearsOnFinish() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
     let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 
-    // Simulate progress through the fake harness
     await session.progressDownload(
       taskID: taskID,
       totalBytesWritten: 50,
       totalBytesExpectedToWrite: 100
     )
-
     #expect(cacheState.progress(podcastEpisode.id) == 0.5)
-  }
 
-  //
-  //  @Test("progress is updated and cleared on finish")
-  //  func progressIsUpdatedAndClearedOnFinish() async throws {
-  //    let podcastEpisode = try await Create.podcastEpisode()
-  //
-  //    // Queue the episode (kicks off scheduling, CacheState will show downloading)
-  //    try await queue.unshift(podcastEpisode.id)
-  //    try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
-  //
-  //    // Simulate progress by calling CacheState directly using MediaGUID
-  //    let cs: CacheState = Container.shared.cacheState()
-  //    cs.updateProgress(for: podcastEpisode.id, progress: 0.42)
-  //
-  //    // Assert progress visible
-  //    #expect(cs.progress(podcastEpisode.id) == 0.42)
-  //
-  //    // Finish download and ensure progress cleared
-  //    let data = CacheHelpers.createRandomData(size: 256)
-  //    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
-  //    try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
-  //    #expect(cs.progress(podcastEpisode.id) == nil)
-  //  }
+    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id)
+    try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: nil)
+  }
   //
   //  @Test("background delegate caches file when queued")
   //  func backgroundDelegateCachesWhenQueued() async throws {

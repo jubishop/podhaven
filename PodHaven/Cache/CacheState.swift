@@ -26,6 +26,10 @@ extension Container {
     progressByEpisode[episodeID] = progress
   }
 
+  func clearProgress(for episodeID: Episode.ID) {
+    progressByEpisode.removeValue(forKey: episodeID)
+  }
+
   // MARK: - Initialization
 
   fileprivate init() {}

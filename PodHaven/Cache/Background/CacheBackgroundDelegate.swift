@@ -96,6 +96,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         return
       }
 
+      await cacheState.clearProgress(for: episode.id)
       try await repo.updateDownloadTaskID(episode.id, nil)
 
       if episode.queued == false {
@@ -139,12 +140,14 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     guard error != nil else { return }
 
     do {
-      if let episode = try await repo.episode(task.taskID) {
-        try await repo.updateDownloadTaskID(episode.id, nil)
-        Self.log.notice("Episode \(episode.toString) completed with error")
-      } else {
-        Self.log.warning("taskID: \(task.taskID) has no episode associated")
+      guard let episode = try await repo.episode(task.taskID) else {
+        Self.log.warning("No episode for task #\(task.taskID)?")
+        return
       }
+
+      await cacheState.clearProgress(for: episode.id)
+      try await repo.updateDownloadTaskID(episode.id, nil)
+      Self.log.notice("Episode \(episode.toString) completed with error")
     } catch {
       Self.log.error(error)
     }
