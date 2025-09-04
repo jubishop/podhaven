@@ -80,7 +80,7 @@ extension SelectableEpisodeListModel {
       try await withThrowingTaskGroup(of: Void.self) { group in
         for podcastEpisode in try await selectedPodcastEpisodes {
           group.addTask {
-            try await Container.shared.cacheManager().downloadAndCache(podcastEpisode.id)
+            try await Container.shared.cacheManager().downloadToCache(podcastEpisode.id)
           }
         }
       }

@@ -33,7 +33,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       if episode.queued == false {
         Self.log.debug("Episode dequeued mid-download; skipping cache move for \(episode.id)")
         try await podFileManager.removeItem(at: location)
-        await cacheState.markFinished(episode.id)
         try await repo.updateDownloadTaskID(episode.id, nil)
         return
       }
@@ -48,8 +47,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       try await podFileManager.removeItem(at: location)
       try await repo.updateCachedFilename(episode.id, fileName)
       try await repo.updateDownloadTaskID(episode.id, nil)
-
-      await cacheState.markFinished(episode.id)
       Self.log.debug("Cached episode \(episode.id) to \(fileName)")
     } catch {
       Self.log.error(error)
@@ -59,8 +56,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   func handleDidComplete(taskID: DownloadTaskID, error: Error) async {
     do {
       if let episode = try await repo.episode(taskID) {
-        await cacheState.markFailed(episode.id, error: error)
         try await repo.updateDownloadTaskID(episode.id, nil)
+        Self.log.debug("Episode \(episode.toString) did complete")
+      } else {
+        Self.log.warning("taskID: \(taskID) has no episode associated")
       }
     } catch {
       Self.log.error(error)

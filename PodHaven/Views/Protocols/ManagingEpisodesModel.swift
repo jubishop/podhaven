@@ -49,7 +49,7 @@ extension ManagingEpisodesModel {
       guard let self else { return }
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
-        try await cacheManager.downloadAndCache(podcastEpisode.id)
+        try await cacheManager.downloadToCache(podcastEpisode.id)
       } catch {
         log.error(error)
       }

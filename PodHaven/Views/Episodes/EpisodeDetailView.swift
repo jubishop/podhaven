@@ -155,7 +155,7 @@ struct EpisodeDetailView: View {
               if !viewModel.episode.cached {
                 Button(action: viewModel.cacheEpisode) {
                   HStack {
-                    if viewModel.isCaching {
+                    if viewModel.episode.caching {
                       ProgressView()
                         .scaleEffect(0.8)
                       Text("Caching in Progress")
@@ -167,12 +167,12 @@ struct EpisodeDetailView: View {
                   .frame(maxWidth: .infinity)
                   .padding()
                   .background(
-                    viewModel.isCaching ? Color.orange.opacity(0.1) : Color.green.opacity(0.1)
+                    viewModel.episode.caching ? Color.orange.opacity(0.1) : Color.green.opacity(0.1)
                   )
-                  .foregroundColor(viewModel.isCaching ? .orange : .green)
+                  .foregroundColor(viewModel.episode.caching ? .orange : .green)
                   .cornerRadius(10)
                 }
-                .disabled(viewModel.isCaching)
+                .disabled(viewModel.episode.caching)
               }
             }
             .padding(.horizontal)

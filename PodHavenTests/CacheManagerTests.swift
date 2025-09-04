@@ -11,15 +11,16 @@ import Testing
 @Suite("of CacheManager tests", .container)
 @MainActor class CacheManagerTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
   @DynamicInjected(\.cacheState) private var cacheState
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
-  private var session: FakeDataFetchable {
-    Container.shared.cacheManagerSession() as! FakeDataFetchable
-  }
   private var imageFetcher: FakeImageFetcher {
     Container.shared.imageFetcher() as! FakeImageFetcher
+  }
+  private var session: FakeDataFetchable {
+    Container.shared.cacheManagerSession() as! FakeDataFetchable
   }
   private var sleeper: FakeSleeper {
     Container.shared.sleeper() as! FakeSleeper

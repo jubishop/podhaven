@@ -44,6 +44,7 @@ struct PodcastEpisode:
   var duration: CMTime { episode.duration }
   var image: URL { episode.image ?? podcast.image }
   var cached: Bool { episode.cached }
+  var caching: Bool { episode.caching }
   var started: Bool { episode.started }
   var completed: Bool { episode.completed }
   var queued: Bool { episode.queued }

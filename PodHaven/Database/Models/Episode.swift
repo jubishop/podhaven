@@ -91,6 +91,7 @@ struct UnsavedEpisode:
   // MARK: - EpisodeDisplayable
 
   var cached: Bool { self.cachedFilename != nil }
+  var caching: Bool { self.downloadTaskID != nil }
   var completed: Bool { self.completionDate != nil }
 
   // MARK: - State Getters

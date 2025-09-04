@@ -96,11 +96,6 @@ import Logging
     return queueOrder == maxQueuePosition
   }
 
-  var isCaching: Bool {
-    guard let podcastEpisode = podcastEpisode else { return false }
-    return cacheState.isDownloading(podcastEpisode.id)
-  }
-
   // MARK: - Public Methods
 
   func playNow() {
@@ -156,7 +151,7 @@ import Logging
       guard let self else { return }
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await cacheManager.downloadAndCache(podcastEpisode.id)
+        try await cacheManager.downloadToCache(podcastEpisode.id)
       } catch {
         Self.log.error(error)
         alert(ErrorKit.message(for: error))

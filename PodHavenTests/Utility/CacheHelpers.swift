@@ -7,38 +7,26 @@ import Testing
 @testable import PodHaven
 
 enum CacheHelpers {
-  // MARK: - Scheduling Waits
-
-  static func waitForScheduledTaskID(_ episodeID: Episode.ID) async throws -> DownloadTaskID {
-    try await Wait.forValue {
-      let repo: any Databasing = Container.shared.repo()
-      guard let episode = try await repo.episode(episodeID),
-        let dbTaskID = episode.unsaved.downloadTaskID
-      else { return nil }
-      let cs: CacheState = await Container.shared.cacheState()
-      guard let stateTaskID = await cs.getBackgroundTaskIdentifier(episodeID),
-        stateTaskID == dbTaskID
-      else { return nil }
-      return dbTaskID
-    }
-  }
-  // MARK: - Dependency Access
-
-  private static var appDB: AppDB { Container.shared.appDB() }
   private static var cacheManager: CacheManager { Container.shared.cacheManager() }
-  private static var cacheManagerSession: FakeDataFetchable {
-    Container.shared.cacheManagerSession() as! FakeDataFetchable
+  private static var cacheBackgroundDelegate: CacheBackgroundDelegate {
+    Container.shared.cacheBackgroundDelegate()
   }
   private static var cacheState: CacheState { get async { await Container.shared.cacheState() } }
-  private static var podFileManager: any FileManageable { Container.shared.podFileManager() }
   private static var queue: any Queueing { Container.shared.queue() }
   private static var repo: any Databasing { Container.shared.repo() }
+
+  private static var fileManager: any FileManageable {
+    Container.shared.podFileManager() as! FakeFileManager
+  }
+  private static var session: FakeDataFetchable {
+    Container.shared.cacheManagerSession() as! FakeDataFetchable
+  }
 
   // MARK: - Queue Manipulation
 
   static func unshiftToActive(podcastEpisode: PodcastEpisode) async throws {
     try await queue.unshift(podcastEpisode.id)
-    try await waitForCacheStateDownloading(podcastEpisode.id)
+    try await waitForDownloadTaskID(podcastEpisode.id)
   }
 
   // MARK: - Episode Status
@@ -83,29 +71,13 @@ enum CacheHelpers {
     )
   }
 
-  // MARK: - CacheState Status
-
-  static func waitForCacheStateDownloading(_ episodeID: Episode.ID) async throws {
-    try await Wait.until(
-      { await cacheState.isDownloading(episodeID) },
-      { "Expected episode id: \(episodeID) to be downloading in CacheState" }
-    )
-  }
-
-  static func waitForCacheStateNotDownloading(_ episodeID: Episode.ID) async throws {
-    try await Wait.until(
-      { await cacheState.isDownloading(episodeID) == false },
-      { "Expected episode id: \(episodeID) to not be downloading in CacheState" }
-    )
-  }
-
   // MARK: - File Status
 
   static func waitForCachedFile(_ fileName: String) async throws {
     try await Wait.until(
       {
         let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
-        return await podFileManager.fileExists(at: fileURL)
+        return await fileManager.fileExists(at: fileURL)
       },
       { "Cached file: \(fileName) does not exist on disk" }
     )
@@ -115,7 +87,7 @@ enum CacheHelpers {
     try await Wait.until(
       {
         let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
-        return await !podFileManager.fileExists(at: fileURL)
+        return await !fileManager.fileExists(at: fileURL)
       },
       { "Cached file: \(fileName) still exists on disk" }
     )
@@ -133,43 +105,29 @@ enum CacheHelpers {
 
   static func readCachedFileData(_ fileName: String) async throws -> Data {
     let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
-    return try await podFileManager.readData(from: fileURL)
-  }
-
-  // MARK: - Task Map Helpers
-
-  static func waitForTaskID(for episodeID: Episode.ID) async throws -> DownloadTaskID {
-    try await Wait.forValue {
-      let repo: any Databasing = Container.shared.repo()
-      guard let episode = try await repo.episode(episodeID) else { return nil }
-      return episode.unsaved.downloadTaskID
-    }
+    return try await fileManager.readData(from: fileURL)
   }
 
   // MARK: - Background Download Simulation
 
   static func simulateBackgroundFinish(_ episodeID: Episode.ID, data: Data) async throws {
-    // Prefer the real scheduled task if present; otherwise finish with a synthetic taskID
-    let taskID: DownloadTaskID =
-      (try? await waitForScheduledTaskID(episodeID))
-      ?? DownloadTaskID(Int.random(in: 1_000_000...9_999_999))
+    let taskID: DownloadTaskID = try await repo.episode(episodeID)!.downloadTaskID!
 
     // Write data to a temp location simulating the downloaded file
     let tmpURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    let pfm: any FileManageable = Container.shared.podFileManager()
-    try await pfm.writeData(data, to: tmpURL)
+    try await fileManager.writeData(data, to: tmpURL)
 
     // Ask the fake background fetchable to complete by invoking the delegate
-    await cacheManagerSession.finishDownload(taskID: taskID, tmpURL: tmpURL)
+    await session.finishDownload(taskID: taskID, tmpURL: tmpURL)
   }
 
   static func simulateBackgroundFailure(
     _ episodeID: Episode.ID,
     error: Error = NSError(domain: "Test", code: -1)
   ) async throws {
-    let taskID = try await waitForScheduledTaskID(episodeID)
+    let taskID: DownloadTaskID = try await repo.episode(episodeID)!.downloadTaskID!
 
     // Invoke failure on the fake background session
-    await cacheManagerSession.failDownload(taskID: taskID, error: error)
+    await session.failDownload(taskID: taskID, error: error)
   }
 }

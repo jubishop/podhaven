@@ -10,6 +10,7 @@ protocol EpisodeDisplayable: Identifiable, Searchable, Sendable, Stringable {
   var duration: CMTime { get }
   var image: URL { get }
   var cached: Bool { get }
+  var caching: Bool { get }
   var description: String? { get }
   var podcastTitle: String { get }
   var started: Bool { get }

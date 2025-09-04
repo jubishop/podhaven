@@ -242,7 +242,7 @@ struct Repo: Databasing, Sendable {
     try await delete([podcastID]) > 0
   }
 
-  // MARK: - Episode Writers
+  // MARK: - Episode Upserting
 
   @discardableResult
   func upsertPodcastEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode])
@@ -292,6 +292,8 @@ struct Repo: Databasing, Sendable {
 
     return podcastEpisode
   }
+
+  // MARK: - Episode Attribute Writers
 
   @discardableResult
   func updateDuration(_ episodeID: Episode.ID, _ duration: CMTime) async throws -> Bool {

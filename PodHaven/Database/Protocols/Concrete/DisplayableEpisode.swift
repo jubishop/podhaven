@@ -60,6 +60,7 @@ struct DisplayableEpisode:
   var duration: CMTime { episode.duration }
   var image: URL { episode.image }
   var cached: Bool { episode.cached }
+  var caching: Bool { episode.caching }
   var description: String? { episode.description }
   var podcastTitle: String { episode.podcastTitle }
   var started: Bool { episode.started }

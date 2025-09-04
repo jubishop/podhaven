@@ -59,24 +59,23 @@ actor CacheManager {
         withIntermediateDirectories: true
       )
     startMonitoringQueue()
-
-    await adoptInFlightBackgroundDownloads()
   }
 
   // MARK: - Public Methods
 
   @discardableResult
-  private func downloadAndCache(_ podcastEpisode: PodcastEpisode) async throws(CacheError) -> Bool {
-    Self.log.trace("downloadAndCache: \(podcastEpisode.toString)")
+  private func downloadToCache(_ podcastEpisode: PodcastEpisode) async throws(CacheError) -> Bool {
+    Self.log.trace("downloadToCache: \(podcastEpisode.toString)")
 
     guard podcastEpisode.episode.cachedFilename == nil
     else {
-      Self.log.trace("downloadAndCache: \(podcastEpisode.toString) already cached")
+      Self.log.trace("downloadToCache: \(podcastEpisode.toString) already cached")
       return false
     }
 
-    if await cacheState.isDownloading(podcastEpisode.id) {
-      Self.log.trace("downloadAndCache: \(podcastEpisode.toString) is already downloading")
+    guard podcastEpisode.episode.downloadTaskID == nil
+    else {
+      Self.log.trace("downloadToCache: \(podcastEpisode.toString) is already downloading")
       return false
     }
 
@@ -92,35 +91,26 @@ actor CacheManager {
     _ = try await CacheError.catch {
       try await repo.updateDownloadTaskID(podcastEpisode.id, downloadTask.taskID)
     }
-
-    await cacheState.setDownloadTaskID(
-      podcastEpisode.id,
-      taskID: downloadTask.taskID
-    )
 
     return true
   }
 
   @discardableResult
-  func downloadAndCache(_ episodeID: Episode.ID) async throws(CacheError) -> Bool {
-    Self.log.trace("downloadAndCache: \(episodeID)")
+  func downloadToCache(_ episodeID: Episode.ID) async throws(CacheError) -> Bool {
+    Self.log.trace("downloadToCache: \(episodeID)")
 
-    if await cacheState.isDownloading(episodeID) {
-      Self.log.trace("downloadAndCache: \(episodeID) is already downloading")
-      return false
+    return try await CacheError.catch {
+      try await performDownloadAndCache(episodeID)
     }
-
-    let podcastEpisode = try await CacheError.catch {
-      let podcastEpisode = try await repo.podcastEpisode(episodeID)
-      guard let podcastEpisode
-      else { throw CacheError.episodeNotFound(episodeID) }
-
-      return podcastEpisode
-    }
+  }
+  private func performDownloadAndCache(_ episodeID: Episode.ID) async throws -> Bool {
+    let podcastEpisode = try await repo.podcastEpisode(episodeID)
+    guard let podcastEpisode
+    else { throw CacheError.episodeNotFound(episodeID) }
 
     guard podcastEpisode.episode.cachedFilename == nil
     else {
-      Self.log.trace("downloadAndCache: \(podcastEpisode.toString) already cached")
+      Self.log.trace("downloadToCache: \(podcastEpisode.toString) already cached")
       return false
     }
 
@@ -133,20 +123,23 @@ actor CacheManager {
     let downloadTask = cacheManagerSession.createDownloadTask(with: request)
     downloadTask.resume()
 
-    _ = try await CacheError.catch {
-      try await repo.updateDownloadTaskID(podcastEpisode.id, downloadTask.taskID)
-    }
-
-    await cacheState.setDownloadTaskID(
-      podcastEpisode.id,
-      taskID: downloadTask.taskID
-    )
+    try await repo.updateDownloadTaskID(podcastEpisode.id, downloadTask.taskID)
 
     return true
   }
 
-  func clearCache(for episode: Episode) async throws(CacheError) -> Bool {
-    Self.log.trace("clearCache: \(episode.toString)")
+  @discardableResult
+  func clearCache(for episodeID: Episode.ID) async throws(CacheError) -> Bool {
+    Self.log.debug("clearCache: \(episodeID)")
+
+    return try await CacheError.catch {
+      try await performClearCache(episodeID)
+    }
+  }
+  private func performClearCache(_ episodeID: Episode.ID) async throws -> Bool {
+    let episode = try await repo.episode(episodeID)
+    guard let episode
+    else { throw CacheError.episodeNotFound(episodeID) }
 
     guard !episode.queued
     else {
@@ -159,38 +152,24 @@ actor CacheManager {
       return false
     }
 
+    if let taskID = episode.downloadTaskID {
+      await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
+      try await repo.updateDownloadTaskID(episode.id, nil)
+    }
+
     guard let cachedFilename = episode.cachedFilename
     else {
       Self.log.trace("clearCache: episode: \(episode.toString) has no cached filename")
       return false
     }
 
-    do {
-      let cacheURL = Self.resolveCachedFilepath(for: cachedFilename)
-      try await Container.shared.podFileManager().removeItem(at: cacheURL)
-    } catch {
-      Self.log.error(error)
-    }
-
-    _ = try await CacheError.catch {
-      try await repo.updateCachedFilename(episode.id, nil)
-    }
+    try await repo.updateCachedFilename(episode.id, nil)
+    let cacheURL = Self.resolveCachedFilepath(for: cachedFilename)
+    try await Container.shared.podFileManager().removeItem(at: cacheURL)
 
     Self.log.debug("clearCache: cache cleared for: \(episode.toString)")
+
     return true
-  }
-
-  @discardableResult
-  func clearCache(for episodeID: Episode.ID) async throws(CacheError) -> Bool {
-    Self.log.debug("clearCache: \(episodeID)")
-
-    return try await CacheError.catch {
-      let episode: Episode? = try await repo.episode(episodeID)
-      guard let episode
-      else { throw CacheError.episodeNotFound(episodeID) }
-
-      return try await clearCache(for: episode)
-    }
   }
 
   // MARK: - Private Helpers
@@ -230,24 +209,22 @@ actor CacheManager {
     )
 
     await withDiscardingTaskGroup { group in
-      // For queued episodes, trigger download scheduling by ID to re-resolve from DB
       for episodeID in queuedEpisodeIDsList {
         group.addTask { [weak self] in
           guard let self else { return }
           do {
-            try await downloadAndCache(episodeID)
+            try await downloadToCache(episodeID)
           } catch {
             Self.log.error(error)
           }
         }
       }
 
-      // Clear cache for removed episodes
       for episodeID in removedEpisodeIDs {
         group.addTask { [weak self] in
           guard let self else { return }
           do {
-            try await cancelDownloadTaskOrClearCache(for: episodeID)
+            try await clearCache(for: episodeID)
           } catch {
             Self.log.error(error)
           }
@@ -256,21 +233,7 @@ actor CacheManager {
     }
   }
 
-  private func cancelDownloadTaskOrClearCache(for episodeID: Episode.ID) async throws(CacheError) {
-    // Cancel background task if present (and still fall through to attempt clear)
-    try await CacheError.catch {
-      if let episode: Episode = try await repo.episode(episodeID) {
-        if let taskID = episode.unsaved.downloadTaskID {
-          await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
-          try await repo.updateDownloadTaskID(episode.id, nil)
-          await cacheState.removeDownloadTask(episodeID)
-          // Do not return; fall through and attempt to clear any existing cache file
-        }
-      }
-    }
-
-    try await clearCache(for: episodeID)
-  }
+  // MARK: - Static Helpers
 
   static func generateCacheFilename(for episode: Episode) -> String {
     let mediaURL = episode.media.rawValue
@@ -281,8 +244,6 @@ actor CacheManager {
     return "\(mediaURL.hash(to: 12)).\(fileExtension)"
   }
 
-  // MARK: - Static Helpers
-
   static func resolveCachedFilepath(for fileName: String) -> URL {
     Assert.precondition(!fileName.isEmpty, "Empty fileName in resolveCachedFilepath?")
 
@@ -291,23 +252,5 @@ actor CacheManager {
 
   private static var cacheDirectory: URL {
     AppInfo.applicationSupportDirectory.appendingPathComponent("episodes")
-  }
-
-  // MARK: - Background Session Adoption
-
-  private func adoptInFlightBackgroundDownloads() async {
-    let taskIDs = await cacheManagerSession.allCreatedTasks.map(\.taskID)
-    guard !taskIDs.isEmpty else { return }
-    do {
-      let episodes = try await repo.episodes(taskIDs)
-      for episode in episodes {
-        if let taskID = episode.unsaved.downloadTaskID {
-          await cacheState.setDownloadTaskID(episode.id, taskID: taskID)
-          Self.log.debug("adoptInFlight: episode \(episode.id) task #\(taskID)")
-        }
-      }
-    } catch {
-      Self.log.error(error)
-    }
   }
 }
