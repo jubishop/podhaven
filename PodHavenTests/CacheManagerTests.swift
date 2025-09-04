@@ -38,7 +38,8 @@ import Testing
 
     let data = Data.random()
 
-    try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+
     try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
 
     let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)

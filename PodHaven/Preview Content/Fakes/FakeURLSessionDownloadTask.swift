@@ -35,6 +35,9 @@ actor FakeURLSessionDownloadTask: DownloadingTask {
     )
   }
 
+  var isResumed: Bool { resumed }
+  var isCancelled: Bool { cancelled }
+
   private func markAsResumed() {
     resumed = true
   }

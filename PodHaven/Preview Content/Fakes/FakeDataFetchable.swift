@@ -15,7 +15,7 @@ actor FakeDataFetchable: DataFetchable {
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
 
-  private var downloadTasks: IdentifiedArray<DownloadTaskID, FakeURLSessionDownloadTask> =
+  private(set) var downloadTasks: IdentifiedArray<DownloadTaskID, FakeURLSessionDownloadTask> =
     IdentifiedArray(id: \.taskID)
   private func addDownloadTask(_ downloadTask: FakeURLSessionDownloadTask) {
     downloadTasks.append(downloadTask)

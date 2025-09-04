@@ -24,9 +24,12 @@ enum CacheHelpers {
 
   // MARK: - Queue Manipulation
 
-  static func unshiftToQueue(_ episodeID: Episode.ID) async throws {
+  @discardableResult
+  static func unshiftToQueue(_ episodeID: Episode.ID) async throws -> DownloadTaskID {
     try await queue.unshift(episodeID)
-    try await waitForDownloadTaskID(episodeID)
+    let taskID = try await waitForDownloadTaskID(episodeID)
+    try await waitForResumed(taskID)
+    return taskID
   }
 
   // MARK: - Episode Status
@@ -68,6 +71,26 @@ enum CacheHelpers {
         return episode?.downloadTaskID == nil
       },
       { "Episode \(episodeID) downloadTaskID is not nil" }
+    )
+  }
+
+  // MARK: - Task Status
+
+  static func waitForResumed(_ taskID: DownloadTaskID) async throws {
+    try await Wait.until(
+      {
+        await session.downloadTasks[id: taskID]?.isResumed == true
+      },
+      { "Task \(taskID) is not resumed" }
+    )
+  }
+
+  static func waitForCancelled(_ taskID: DownloadTaskID) async throws {
+    try await Wait.until(
+      {
+        await session.downloadTasks[id: taskID]?.isCancelled == true
+      },
+      { "Task \(taskID) is not cancelled" }
     )
   }
 

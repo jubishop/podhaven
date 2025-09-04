@@ -103,27 +103,6 @@ actor CacheManager {
   }
 
   @discardableResult
-  func cancelDownloadTask(for episodeID: Episode.ID) async throws(CacheError) -> Bool {
-    try await CacheError.catch {
-      try await performCancelDownloadTask(episodeID)
-    }
-  }
-  private func performCancelDownloadTask(_ episodeID: Episode.ID) async throws -> Bool {
-    let episode = try await repo.episode(episodeID)
-    guard let episode
-    else { throw CacheError.episodeNotFound(episodeID) }
-
-    if let taskID = episode.downloadTaskID {
-      await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
-      try await repo.updateDownloadTaskID(episode.id, nil)
-
-      return true
-    }
-
-    return false
-  }
-
-  @discardableResult
   func clearCache(for episodeID: Episode.ID) async throws(CacheError) -> Bool {
     Self.log.debug("clearCache: \(episodeID)")
 
@@ -145,6 +124,11 @@ actor CacheManager {
     if let onDeck = await playState.onDeck, onDeck == episode {
       Self.log.trace("clearCache: currently playing, keeping cache for: \(episode.toString)")
       return false
+    }
+
+    if let taskID = episode.downloadTaskID {
+      await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
+      try await repo.updateDownloadTaskID(episode.id, nil)
     }
 
     guard let cachedFilename = episode.cachedFilename
