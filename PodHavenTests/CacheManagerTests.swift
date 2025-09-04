@@ -38,7 +38,8 @@ import Testing
     let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 
     let data = Data.random()
-    try await CacheHelpers.simulateBackgroundFinish(taskID, data: data)
+    let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID, data: data)
+    try await CacheHelpers.waitForFileRemoved(fileURL)
 
     let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFile(fileName)
