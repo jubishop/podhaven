@@ -128,6 +128,13 @@ enum CacheHelpers {
     )
   }
 
+  static func waitForFileRemoved(_ fileURL: URL) async throws {
+    try await Wait.until(
+      { await !fileManager.fileExists(at: fileURL) },
+      { "File: \(fileURL) still exists on disk" }
+    )
+  }
+
   // MARK: - Image Prefetching
 
   static func waitForImagePrefetched(_ imageURL: URL) async throws {
@@ -146,17 +153,19 @@ enum CacheHelpers {
 
   // MARK: - Background Download Simulation
 
-  static func simulateBackgroundFinish(_ episodeID: Episode.ID, data: Data = Data.random())
-    async throws
+  @discardableResult
+  static func simulateBackgroundFinish(_ taskID: DownloadTaskID, data: Data = Data.random())
+    async throws -> URL
   {
-    // Write data to a temp location simulating the file being downloaded
-    let tmpURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try await fileManager.writeData(data, to: tmpURL)
+    let fileURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try await fileManager.writeData(data, to: fileURL)
 
     await session.finishDownload(
-      taskID: try await repo.episode(episodeID)!.downloadTaskID!,
-      didFinishDownloadingTo: tmpURL
+      taskID: taskID,
+      didFinishDownloadingTo: fileURL
     )
+
+    return fileURL
   }
 
   static func simulateBackgroundFailure(

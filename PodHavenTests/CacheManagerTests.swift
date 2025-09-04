@@ -35,10 +35,10 @@ import Testing
   @Test("episode added to queue gets cached")
   func episodeAddedToQueueGetsCached() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
-    try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 
     let data = Data.random()
-    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
+    try await CacheHelpers.simulateBackgroundFinish(taskID, data: data)
 
     let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFile(fileName)
@@ -50,9 +50,9 @@ import Testing
   @Test("episode removed from queue gets cache cleared")
   func episodeRemovedFromQueueGetsCacheCleared() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
-    try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 
-    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
 
     let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFile(fileName)
@@ -65,12 +65,17 @@ import Testing
   @Test("episode dequeued mid-download does not get cached when download completes")
   func episodeDequeuedMidDownloadDoesNotGetCachedWhenDownloadCompletes() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
-    try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 
-    // Dequeue to cancel scheduling and clear state
     try await queue.dequeue(podcastEpisode.id)
+    try await CacheHelpers.waitForCancelled(taskID)
+    try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
 
-    // Assert episode remains not cached and no download state remains
+    let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForFileRemoved(fileURL)
+
+    try await CacheHelpers.waitForCancelled(taskID)
     try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
   }
@@ -85,7 +90,7 @@ import Testing
     try await CacheHelpers.waitForImagePrefetched(podcastEpisode.image)
   }
 
-  // MARK: - Background Download (Simulated)
+  // MARK: - Progress Tracking
 
   @Test("progress updates cache state and clears on finish")
   func progressUpdatesCacheStateAndClearsOnFinish() async throws {
@@ -99,45 +104,10 @@ import Testing
     )
     #expect(cacheState.progress(podcastEpisode.id) == 0.5)
 
-    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
     try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: nil)
   }
-  //
-  //  @Test("background delegate caches file when queued")
-  //  func backgroundDelegateCachesWhenQueued() async throws {
-  //    let podcastEpisode = try await Create.podcastEpisode()
-  //
-  //    // Ensure episode is queued so delegate caches on finish
-  //    try await queue.unshift(podcastEpisode.id)
-  //
-  //    // Simulate background completion
-  //    let data = CacheHelpers.createRandomData(size: 2048)
-  //    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
-  //
-  //    // Validate cached filename and file contents
-  //    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
-  //    try await CacheHelpers.waitForCachedFile(fileName)
-  //    let actualData = try await CacheHelpers.readCachedFileData(fileName)
-  //    #expect(actualData == data)
-  //  }
-  //
-  //  @Test("background delegate skips caching when dequeued before finish")
-  //  func backgroundDelegateSkipsWhenDequeuedBeforeFinish() async throws {
-  //    let podcastEpisode = try await Create.podcastEpisode()
-  //
-  //    // Queue then dequeue before simulating finish
-  //    try await queue.unshift(podcastEpisode.id)
-  //    _ = try await CacheHelpers.waitForScheduledTaskID(podcastEpisode.id)
-  //    try await queue.dequeue(podcastEpisode.id)
-  //    try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
-  //
-  //    // Simulate background completion
-  //    let data = CacheHelpers.createRandomData(size: 1024)
-  //    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
-  //
-  //    // Should not be cached
-  //    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-  //  }
+
   //
   //  @Test("background delegate marks failure and clears state")
   //  func backgroundDelegateMarksFailureAndClearsState() async throws {

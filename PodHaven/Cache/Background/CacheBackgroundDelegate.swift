@@ -93,13 +93,14 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     do {
       guard let episode = try await repo.episode(downloadTask.taskID) else {
         Self.log.warning("No episode for task #\(downloadTask.taskID)?")
+        try await podFileManager.removeItem(at: location)
         return
       }
 
       await cacheState.clearProgress(for: episode.id)
       try await repo.updateDownloadTaskID(episode.id, nil)
 
-      if episode.queued == false {
+      if !episode.queued {
         Self.log.debug("Episode dequeued mid-download; skipping cache move for \(episode.id)")
         try await podFileManager.removeItem(at: location)
         return
