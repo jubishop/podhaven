@@ -19,26 +19,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private var taskMapStore: TaskMapStore { Container.shared.taskMapStore() }
   private var podFileManager: any FileManageable { Container.shared.podFileManager() }
 
-  private let completions = Mutex<[String: @MainActor () -> Void]>([:])
-
-  func store(identifier: String?, completion: @escaping @MainActor () -> Void) {
-    guard let id = identifier else { return }
-    completions.withLock { dict in
-      dict[id] = completion
-    }
-  }
-
-  func complete(for identifier: String?) {
-    guard let id = identifier else { return }
-    let completion = completions.withLock { dict in
-      dict.removeValue(forKey: id)
-    }
-    if let completion {
-      Task { @MainActor in completion() }
-    }
-  }
-
   private static let log = Log.as("CacheBackgroundDelegate")
+
+  private let completions = Mutex<[String: @MainActor () -> Void]>([:])
 
   // These internal helpers are used by the delegate to reuse logic.
   func handleDidFinish(taskID: DownloadTaskID, location: URL) async {
@@ -90,6 +73,25 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       }
     }
     await taskMapStore.remove(taskID: taskID)
+  }
+
+  // MARK: - Completion Management
+
+  func store(identifier: String?, completion: @escaping @MainActor () -> Void) {
+    guard let id = identifier else { return }
+    completions.withLock { dict in
+      dict[id] = completion
+    }
+  }
+
+  func complete(for identifier: String?) {
+    guard let id = identifier else { return }
+    let completion = completions.withLock { dict in
+      dict.removeValue(forKey: id)
+    }
+    if let completion {
+      Task { @MainActor in completion() }
+    }
   }
 
   // MARK: - URLSessionDownloadDelegate
