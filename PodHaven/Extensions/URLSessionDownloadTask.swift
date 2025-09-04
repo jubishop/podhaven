@@ -4,6 +4,6 @@ import Foundation
 import Tagged
 
 extension URLSessionDownloadTask: DownloadingTask {
-  typealias ID = Tagged<any DownloadingTask, Int>
+  typealias ID = Tagged<URLSessionDownloadTask, Int>
   var taskID: ID { ID(taskIdentifier) }
 }

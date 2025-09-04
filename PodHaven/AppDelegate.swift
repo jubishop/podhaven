@@ -14,7 +14,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     completionHandler: @escaping () -> Void
   ) {
     cacheBackgroundDelegate.store(
-      id: SessionConfigurationID(identifier),
+      id: URLSessionConfiguration.ID(identifier),
       completion: { @MainActor in completionHandler() }
     )
   }
