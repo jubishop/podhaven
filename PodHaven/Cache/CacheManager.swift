@@ -78,13 +78,13 @@ actor CacheManager {
 
     guard !podcastEpisode.episode.cached
     else {
-      Self.log.trace("downloadToCache: \(podcastEpisode.toString) already cached")
+      Self.log.trace("\(podcastEpisode.toString) already cached")
       return false
     }
 
     guard !podcastEpisode.episode.caching
     else {
-      Self.log.trace("downloadToCache: \(podcastEpisode.toString) already being downloaded")
+      Self.log.trace("\(podcastEpisode.toString) already being downloaded")
       return false
     }
 
@@ -117,12 +117,12 @@ actor CacheManager {
 
     guard !episode.queued
     else {
-      Self.log.trace("clearCache: still queued, keeping cache for: \(episode.toString)")
+      Self.log.trace("still queued, keeping cache for: \(episode.toString)")
       return false
     }
 
     if let onDeck = await playState.onDeck, onDeck == episode {
-      Self.log.trace("clearCache: currently playing, keeping cache for: \(episode.toString)")
+      Self.log.trace("currently playing, keeping cache for: \(episode.toString)")
       return false
     }
 
@@ -133,7 +133,7 @@ actor CacheManager {
 
     guard let cachedFilename = episode.cachedFilename
     else {
-      Self.log.trace("clearCache: episode: \(episode.toString) has no cached filename")
+      Self.log.trace("episode: \(episode.toString) has no cached filename")
       return false
     }
 
@@ -141,7 +141,7 @@ actor CacheManager {
     let cacheURL = Self.resolveCachedFilepath(for: cachedFilename)
     try await Container.shared.podFileManager().removeItem(at: cacheURL)
 
-    Self.log.debug("clearCache: cache cleared for: \(episode.toString)")
+    Self.log.debug("cache cleared for: \(episode.toString)")
 
     return true
   }
