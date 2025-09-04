@@ -95,15 +95,7 @@ enum CacheHelpers {
 
   // MARK: - Data Generation
 
-  static func createRandomData(size: Int = 1024) -> Data {
-    var data = Data(capacity: size)
-    for _ in 0..<size {
-      data.append(UInt8.random(in: 0...255))
-    }
-    return data
-  }
-
-  static func readCachedFileData(_ fileName: String) async throws -> Data {
+  static func cachedFileData(_ fileName: String) async throws -> Data {
     let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
     return try await fileManager.readData(from: fileURL)
   }
