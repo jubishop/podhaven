@@ -18,6 +18,9 @@ enum CacheHelpers {
   private static var fileManager: any FileManageable {
     Container.shared.podFileManager() as! FakeFileManager
   }
+  private static var imageFetcher: FakeImageFetcher {
+    Container.shared.imageFetcher() as! FakeImageFetcher
+  }
   private static var session: FakeDataFetchable {
     Container.shared.cacheManagerSession() as! FakeDataFetchable
   }
@@ -113,6 +116,15 @@ enum CacheHelpers {
         return await !fileManager.fileExists(at: fileURL)
       },
       { "Cached file: \(fileName) still exists on disk" }
+    )
+  }
+
+  // MARK: - Image Prefetching
+
+  static func waitForImagePrefetched(_ imageURL: URL) async throws {
+    try await Wait.until(
+      { await imageFetcher.prefetchCounts[imageURL] == 1 },
+      { "ImageURL: \(imageURL) was not prefetched" }
     )
   }
 

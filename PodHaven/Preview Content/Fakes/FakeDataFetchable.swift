@@ -9,6 +9,8 @@ import IdentifiedCollections
 actor FakeDataFetchable: DataFetchable {
   typealias DataHandler = @Sendable (URL) async throws -> (Data, URLResponse)
 
+  @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
+
   private var defaultHandler: DataHandler
   private var fakeHandlers: [URL: DataHandler] = [:]
   private(set) var requests: [URL] = []
@@ -127,32 +129,28 @@ actor FakeDataFetchable: DataFetchable {
   func finishDownload(taskID: DownloadTaskID, tmpURL: URL) async {
     await downloadTasks[id: taskID]?.assertResumed()
     await downloadTasks[id: taskID]?.assertCancelled(false)
-    let delegate = Container.shared.cacheBackgroundDelegate()
-    await delegate.handleDidFinish(taskID: taskID, location: tmpURL)
+    await cacheBackgroundDelegate.handleDidFinish(taskID: taskID, location: tmpURL)
   }
 
   func failDownload(taskID: DownloadTaskID, error: Error) async {
     await downloadTasks[id: taskID]?.assertResumed()
     await downloadTasks[id: taskID]?.assertCancelled(false)
-    let delegate = Container.shared.cacheBackgroundDelegate()
-    await delegate.handleDidComplete(taskID: taskID, error: error)
+    await cacheBackgroundDelegate.handleDidComplete(taskID: taskID, error: error)
   }
 
   func progressDownload(
     taskID: DownloadTaskID,
     totalBytesWritten: Int64,
     totalBytesExpectedToWrite: Int64
-  )
-    async
-  {
+  ) async {
     guard totalBytesExpectedToWrite > 0 else { return }
     await downloadTasks[id: taskID]?.assertResumed()
     await downloadTasks[id: taskID]?.assertCancelled(false)
 
-    let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-    let episode = try! await Container.shared.repo().episode(taskID)!
-    let cs: CacheState = await Container.shared.cacheState()
-    await cs.updateProgress(for: episode.id, progress: progress)
+    await cacheBackgroundDelegate.handleProgress(
+      taskID: taskID,
+      progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+    )
   }
 }
 #endif

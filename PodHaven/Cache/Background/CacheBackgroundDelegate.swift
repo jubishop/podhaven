@@ -22,7 +22,16 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
   private let completions = Mutex<[String: @MainActor () -> Void]>([:])
 
-  // These internal helpers are used by the delegate to reuse logic.
+  func handleProgress(taskID: DownloadTaskID, progress: Double) async {
+    do {
+      if let episode = try await repo.episode(taskID) {
+        await cacheState.updateProgress(for: episode.id, progress: progress)
+      }
+    } catch {
+      Self.log.error(error)
+    }
+  }
+
   func handleDidFinish(taskID: DownloadTaskID, location: URL) async {
     do {
       guard let episode = try await repo.episode(taskID) else {
@@ -95,11 +104,11 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     totalBytesExpectedToWrite: Int64
   ) {
     guard totalBytesExpectedToWrite > 0 else { return }
-    let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-    Task { [progress] in
-      if let episode = try await repo.episode(downloadTask.taskID) {
-        await cacheState.updateProgress(for: episode.id, progress: progress)
-      }
+    Task {
+      await handleProgress(
+        taskID: downloadTask.taskID,
+        progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+      )
     }
   }
 
