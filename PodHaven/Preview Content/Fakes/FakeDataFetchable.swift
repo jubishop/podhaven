@@ -135,7 +135,10 @@ actor FakeDataFetchable: DataFetchable {
   func failDownload(taskID: DownloadTaskID, error: Error) async {
     await downloadTasks[id: taskID]!.assertResumed()
     await downloadTasks[id: taskID]!.assertCancelled(false)
-    await cacheBackgroundDelegate.handleDidComplete(taskID: taskID, error: error)
+    await cacheBackgroundDelegate.urlSession(
+      task: downloadTasks[id: taskID]!,
+      didCompleteWithError: error
+    )
   }
 
   func progressDownload(

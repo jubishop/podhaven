@@ -52,19 +52,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     }
   }
 
-  func handleDidComplete(taskID: DownloadTaskID, error: Error) async {
-    do {
-      if let episode = try await repo.episode(taskID) {
-        try await repo.updateDownloadTaskID(episode.id, nil)
-        Self.log.debug("Episode \(episode.toString) did complete")
-      } else {
-        Self.log.warning("taskID: \(taskID) has no episode associated")
-      }
-    } catch {
-      Self.log.error(error)
-    }
-  }
-
   // MARK: - Completion Management
 
   func store(identifier: String?, completion: @escaping @MainActor () -> Void) {
@@ -134,9 +121,22 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) {
     guard let error else { return }
     guard let downloadTask = task as? URLSessionDownloadTask else { return }
-    Task { await handleDidComplete(taskID: downloadTask.taskID, error: error) }
+    Task { await urlSession(task: downloadTask, didCompleteWithError: error) }
+  }
+  func urlSession(task: any DownloadingTask, didCompleteWithError: Error) async {
+    do {
+      if let episode = try await repo.episode(task.taskID) {
+        try await repo.updateDownloadTaskID(episode.id, nil)
+        Self.log.debug("Episode \(episode.toString) did complete")
+      } else {
+        Self.log.warning("taskID: \(task.taskID) has no episode associated")
+      }
+    } catch {
+      Self.log.error(error)
+    }
   }
 
+  // TODO: turn identifier into something Tagged
   func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
     complete(for: session.configuration.identifier)
   }
