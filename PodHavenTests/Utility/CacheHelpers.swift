@@ -41,8 +41,8 @@ enum CacheHelpers {
   static func waitForCached(_ episodeID: Episode.ID) async throws -> String {
     try await Wait.forValue(
       {
-        let episode: Episode? = try await repo.episode(episodeID)
-        return episode?.cachedFilename
+        let episode: Episode = try await repo.episode(episodeID)!
+        return episode.cachedFilename
       }
     )
   }
@@ -50,8 +50,8 @@ enum CacheHelpers {
   static func waitForNotCached(_ episodeID: Episode.ID) async throws {
     try await Wait.until(
       {
-        let episode: Episode? = try await repo.episode(episodeID)
-        return episode?.cachedFilename == nil
+        let episode: Episode = try await repo.episode(episodeID)!
+        return episode.cachedFilename == nil
       },
       { "Episode \(episodeID) cachedFilename is not nil" }
     )
@@ -63,8 +63,8 @@ enum CacheHelpers {
   {
     try await Wait.forValue(
       {
-        let episode: Episode? = try await repo.episode(episodeID)
-        return episode?.downloadTaskID
+        let episode: Episode = try await repo.episode(episodeID)!
+        return episode.downloadTaskID
       }
     )
   }
@@ -72,8 +72,8 @@ enum CacheHelpers {
   static func waitForNoDownloadTaskID(_ episodeID: Episode.ID) async throws {
     try await Wait.until(
       {
-        let episode: Episode? = try await repo.episode(episodeID)
-        return episode?.downloadTaskID == nil
+        let episode: Episode = try await repo.episode(episodeID)!
+        return episode.downloadTaskID == nil
       },
       { "Episode \(episodeID) downloadTaskID is not nil" }
     )
@@ -92,9 +92,7 @@ enum CacheHelpers {
 
   static func waitForCancelled(_ taskID: URLSessionDownloadTask.ID) async throws {
     try await Wait.until(
-      {
-        await session.downloadTasks[id: taskID]?.isCancelled == true
-      },
+      { await session.downloadTasks[id: taskID]?.isCancelled == true },
       { "Task \(taskID) is not cancelled" }
     )
   }
@@ -159,9 +157,7 @@ enum CacheHelpers {
   static func simulateBackgroundFinish(
     _ taskID: URLSessionDownloadTask.ID,
     data: Data = Data.random()
-  )
-    async throws -> URL
-  {
+  ) async throws -> URL {
     let fileURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try await fileManager.writeData(data, to: fileURL)
 

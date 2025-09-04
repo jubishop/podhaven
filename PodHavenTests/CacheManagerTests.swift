@@ -81,6 +81,17 @@ import Testing
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
   }
 
+  @Test("download failure clears cache for episode")
+  func downloadFailureClearsCacheForEpisode() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+
+    try await CacheHelpers.simulateBackgroundFailure(taskID)
+
+    try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+  }
+
   // MARK: - Artwork Prefetching
 
   @Test("episode artwork is prefetched when episode is cached")
