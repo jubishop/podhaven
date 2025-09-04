@@ -4,13 +4,13 @@
 import Foundation
 
 actor FakeURLSessionDownloadTask: DownloadingTask {
-  let taskID: DownloadTaskID
+  let taskID: URLSessionDownloadTask.ID
 
   private var resumed = false
   private var cancelled = false
 
   init() {
-    taskID = DownloadTaskID(Int.random(in: 1_000_000...9_999_999))
+    taskID = URLSessionDownloadTask.ID(Int.random(in: 1_000_000...9_999_999))
   }
 
   nonisolated func resume() {

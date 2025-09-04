@@ -28,7 +28,7 @@ enum CacheHelpers {
   // MARK: - Queue Manipulation
 
   @discardableResult
-  static func unshiftToQueue(_ episodeID: Episode.ID) async throws -> DownloadTaskID {
+  static func unshiftToQueue(_ episodeID: Episode.ID) async throws -> URLSessionDownloadTask.ID {
     try await queue.unshift(episodeID)
     let taskID = try await waitForDownloadTaskID(episodeID)
     try await waitForResumed(taskID)
@@ -58,7 +58,9 @@ enum CacheHelpers {
   }
 
   @discardableResult
-  static func waitForDownloadTaskID(_ episodeID: Episode.ID) async throws -> DownloadTaskID {
+  static func waitForDownloadTaskID(_ episodeID: Episode.ID) async throws
+    -> URLSessionDownloadTask.ID
+  {
     try await Wait.forValue(
       {
         let episode: Episode? = try await repo.episode(episodeID)
@@ -79,7 +81,7 @@ enum CacheHelpers {
 
   // MARK: - Task Status
 
-  static func waitForResumed(_ taskID: DownloadTaskID) async throws {
+  static func waitForResumed(_ taskID: URLSessionDownloadTask.ID) async throws {
     try await Wait.until(
       {
         await session.downloadTasks[id: taskID]?.isResumed == true
@@ -88,7 +90,7 @@ enum CacheHelpers {
     )
   }
 
-  static func waitForCancelled(_ taskID: DownloadTaskID) async throws {
+  static func waitForCancelled(_ taskID: URLSessionDownloadTask.ID) async throws {
     try await Wait.until(
       {
         await session.downloadTasks[id: taskID]?.isCancelled == true
@@ -154,7 +156,10 @@ enum CacheHelpers {
   // MARK: - Background Download Simulation
 
   @discardableResult
-  static func simulateBackgroundFinish(_ taskID: DownloadTaskID, data: Data = Data.random())
+  static func simulateBackgroundFinish(
+    _ taskID: URLSessionDownloadTask.ID,
+    data: Data = Data.random()
+  )
     async throws -> URL
   {
     let fileURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)

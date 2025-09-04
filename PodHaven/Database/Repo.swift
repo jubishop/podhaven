@@ -97,7 +97,7 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func episode(_ downloadTaskID: DownloadTaskID) async throws -> Episode? {
+  func episode(_ downloadTaskID: URLSessionDownloadTask.ID) async throws -> Episode? {
     try await appDB.db.read { db in
       try Episode
         .filter(Episode.Columns.downloadTaskID == downloadTaskID)
@@ -105,7 +105,7 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func episodes(_ downloadTaskIDs: [DownloadTaskID]) async throws -> [Episode] {
+  func episodes(_ downloadTaskIDs: [URLSessionDownloadTask.ID]) async throws -> [Episode] {
     guard !downloadTaskIDs.isEmpty else { return [] }
     return try await appDB.db.read { db in
       try Episode
@@ -328,7 +328,8 @@ struct Repo: Databasing, Sendable {
   }
 
   @discardableResult
-  func updateDownloadTaskID(_ episodeID: Episode.ID, _ downloadTaskID: DownloadTaskID?) async throws
+  func updateDownloadTaskID(_ episodeID: Episode.ID, _ downloadTaskID: URLSessionDownloadTask.ID?)
+    async throws
     -> Bool
   {
     Self.log.trace("updateDownloadTaskID: \(episodeID) to \(String(describing: downloadTaskID))")

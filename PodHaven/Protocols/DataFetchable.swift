@@ -14,6 +14,6 @@ protocol DataFetchable: Sendable {
   func validatedData(for request: URLRequest) async throws(DownloadError) -> Data
 
   // Background Download APIs
-  var allCreatedTasks: IdentifiedArray<DownloadTaskID, any DownloadingTask> { get async }
+  var allCreatedTasks: IdentifiedArray<URLSessionDownloadTask.ID, any DownloadingTask> { get async }
   func createDownloadTask(with request: URLRequest) -> any DownloadingTask
 }

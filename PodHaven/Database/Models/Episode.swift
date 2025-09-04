@@ -47,7 +47,7 @@ struct UnsavedEpisode:
   let queueOrder: Int?
   let lastQueued: Date?
   let cachedFilename: String?
-  let downloadTaskID: DownloadTaskID?
+  let downloadTaskID: URLSessionDownloadTask.ID?
 
   init(
     podcastId: Podcast.ID? = nil,
@@ -64,7 +64,7 @@ struct UnsavedEpisode:
     queueOrder: Int? = nil,
     lastQueued: Date? = nil,
     cachedFilename: String? = nil,
-    downloadTaskID: DownloadTaskID? = nil
+    downloadTaskID: URLSessionDownloadTask.ID? = nil
   ) throws {
     self.podcastId = podcastId
     self.guid = guid

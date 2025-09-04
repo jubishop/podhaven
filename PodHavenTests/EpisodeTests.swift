@@ -645,8 +645,8 @@ class EpisodeTests {
     // Create two episodes
     let (one, two) = try await Create.twoPodcastEpisodes()
 
-    let id1 = DownloadTaskID(101)
-    let id2 = DownloadTaskID(202)
+    let id1 = URLSessionDownloadTask.ID(101)
+    let id2 = URLSessionDownloadTask.ID(202)
 
     // Set mapping for first
     let updated1 = try await repo.updateDownloadTaskID(one.id, id1)
@@ -675,7 +675,7 @@ class EpisodeTests {
   @Test("unique constraint enforced when assigning duplicate downloadTaskID")
   func uniqueConstraintOnTaskID() async throws {
     let (one, two) = try await Create.twoPodcastEpisodes()
-    let sharedID = DownloadTaskID(4242)
+    let sharedID = URLSessionDownloadTask.ID(4242)
 
     _ = try await repo.updateDownloadTaskID(one.id, sharedID)
 

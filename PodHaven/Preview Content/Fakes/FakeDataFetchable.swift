@@ -17,7 +17,7 @@ actor FakeDataFetchable: DataFetchable {
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
 
-  private(set) var downloadTasks: IdentifiedArray<DownloadTaskID, FakeURLSessionDownloadTask> =
+  private(set) var downloadTasks: IdentifiedArray<URLSessionDownloadTask.ID, FakeURLSessionDownloadTask> =
     IdentifiedArray(id: \.taskID)
   private func addDownloadTask(_ downloadTask: FakeURLSessionDownloadTask) {
     downloadTasks.append(downloadTask)
@@ -67,7 +67,7 @@ actor FakeDataFetchable: DataFetchable {
     }
   }
 
-  var allCreatedTasks: IdentifiedArray<DownloadTaskID, any DownloadingTask> {
+  var allCreatedTasks: IdentifiedArray<URLSessionDownloadTask.ID, any DownloadingTask> {
     get async {
       IdentifiedArray(
         uniqueElements: downloadTasks.map { $0 as any DownloadingTask },
@@ -126,7 +126,7 @@ actor FakeDataFetchable: DataFetchable {
     return asyncSemaphore
   }
 
-  func finishDownload(taskID: DownloadTaskID, didFinishDownloadingTo location: URL) async {
+  func finishDownload(taskID: URLSessionDownloadTask.ID, didFinishDownloadingTo location: URL) async {
     await downloadTasks[id: taskID]!.assertResumed()
     await cacheBackgroundDelegate.urlSession(
       self,
@@ -135,7 +135,7 @@ actor FakeDataFetchable: DataFetchable {
     )
   }
 
-  func failDownload(taskID: DownloadTaskID, error: Error) async {
+  func failDownload(taskID: URLSessionDownloadTask.ID, error: Error) async {
     await downloadTasks[id: taskID]!.assertResumed()
     await cacheBackgroundDelegate.urlSession(
       self,
@@ -145,7 +145,7 @@ actor FakeDataFetchable: DataFetchable {
   }
 
   func progressDownload(
-    taskID: DownloadTaskID,
+    taskID: URLSessionDownloadTask.ID,
     totalBytesWritten: Int64,
     totalBytesExpectedToWrite: Int64
   ) async {

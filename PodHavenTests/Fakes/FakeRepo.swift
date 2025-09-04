@@ -56,12 +56,12 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.episode(mediaGUID)
   }
 
-  func episode(_ downloadTaskID: DownloadTaskID) async throws -> Episode? {
+  func episode(_ downloadTaskID: URLSessionDownloadTask.ID) async throws -> Episode? {
     recordCall(methodName: "episode", parameters: downloadTaskID)
     return try await repo.episode(downloadTaskID)
   }
 
-  func episodes(_ downloadTaskIDs: [DownloadTaskID]) async throws -> [Episode] {
+  func episodes(_ downloadTaskIDs: [URLSessionDownloadTask.ID]) async throws -> [Episode] {
     recordCall(methodName: "episodes", parameters: downloadTaskIDs)
     return try await repo.episodes(downloadTaskIDs)
   }
@@ -175,7 +175,8 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
-  func updateDownloadTaskID(_ episodeID: Episode.ID, _ downloadTaskID: DownloadTaskID?) async throws
+  func updateDownloadTaskID(_ episodeID: Episode.ID, _ downloadTaskID: URLSessionDownloadTask.ID?)
+    async throws
     -> Bool
   {
     recordCall(
