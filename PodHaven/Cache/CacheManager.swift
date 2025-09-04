@@ -64,46 +64,14 @@ actor CacheManager {
   // MARK: - Public Methods
 
   @discardableResult
-  private func downloadToCache(_ podcastEpisode: PodcastEpisode) async throws(CacheError) -> Bool {
-    Self.log.trace("downloadToCache: \(podcastEpisode.toString)")
-
-    guard podcastEpisode.episode.cachedFilename == nil
-    else {
-      Self.log.trace("downloadToCache: \(podcastEpisode.toString) already cached")
-      return false
-    }
-
-    guard podcastEpisode.episode.downloadTaskID == nil
-    else {
-      Self.log.trace("downloadToCache: \(podcastEpisode.toString) is already downloading")
-      return false
-    }
-
-    await imageFetcher.prefetch([podcastEpisode.image])
-
-    var request = URLRequest(url: podcastEpisode.episode.media.rawValue)
-    request.allowsExpensiveNetworkAccess = true
-    request.allowsConstrainedNetworkAccess = true
-
-    let downloadTask = cacheManagerSession.createDownloadTask(with: request)
-    downloadTask.resume()
-
-    _ = try await CacheError.catch {
-      try await repo.updateDownloadTaskID(podcastEpisode.id, downloadTask.taskID)
-    }
-
-    return true
-  }
-
-  @discardableResult
   func downloadToCache(_ episodeID: Episode.ID) async throws(CacheError) -> Bool {
     Self.log.trace("downloadToCache: \(episodeID)")
 
     return try await CacheError.catch {
-      try await performDownloadAndCache(episodeID)
+      try await performDownloadToCache(episodeID)
     }
   }
-  private func performDownloadAndCache(_ episodeID: Episode.ID) async throws -> Bool {
+  private func performDownloadToCache(_ episodeID: Episode.ID) async throws -> Bool {
     let podcastEpisode = try await repo.podcastEpisode(episodeID)
     guard let podcastEpisode
     else { throw CacheError.episodeNotFound(episodeID) }
