@@ -146,7 +146,7 @@ enum CacheHelpers {
 
     await session.finishDownload(
       taskID: try await repo.episode(episodeID)!.downloadTaskID!,
-      tmpURL: tmpURL
+      didFinishDownloadingTo: tmpURL
     )
   }
 

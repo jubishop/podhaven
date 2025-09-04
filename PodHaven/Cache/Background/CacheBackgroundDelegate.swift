@@ -22,36 +22,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
   private let completions = Mutex<[String: @MainActor () -> Void]>([:])
 
-  func handleDidFinish(taskID: DownloadTaskID, location: URL) async {
-    do {
-      guard let episode = try await repo.episode(taskID) else {
-        Self.log.warning("handleDidFinish: No episode for task #\(taskID)")
-        return
-      }
-
-      if episode.queued == false {
-        Self.log.debug("Episode dequeued mid-download; skipping cache move for \(episode.id)")
-        try await podFileManager.removeItem(at: location)
-        try await repo.updateDownloadTaskID(episode.id, nil)
-        return
-      }
-
-      let fileName = CacheManager.generateCacheFilename(for: episode)
-      let destURL = CacheManager.resolveCachedFilepath(for: fileName)
-      if await podFileManager.fileExists(at: destURL) {
-        try await podFileManager.removeItem(at: destURL)
-      }
-      let data = try await podFileManager.readData(from: location)
-      try await podFileManager.writeData(data, to: destURL)
-      try await podFileManager.removeItem(at: location)
-      try await repo.updateCachedFilename(episode.id, fileName)
-      try await repo.updateDownloadTaskID(episode.id, nil)
-      Self.log.debug("Cached episode \(episode.id) to \(fileName)")
-    } catch {
-      Self.log.error(error)
-    }
-  }
-
   // MARK: - Completion Management
 
   func store(identifier: String?, completion: @escaping @MainActor () -> Void) {
@@ -80,20 +50,24 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     totalBytesWritten: Int64,
     totalBytesExpectedToWrite: Int64
   ) {
-    guard totalBytesExpectedToWrite > 0 else { return }
     Task {
       await urlSession(
+        session,
         downloadTask: downloadTask,
+        didWriteData: bytesWritten,
         totalBytesWritten: totalBytesWritten,
         totalBytesExpectedToWrite: totalBytesExpectedToWrite
       )
     }
   }
   func urlSession(
+    _ session: any DataFetchable,
     downloadTask: any DownloadingTask,
+    didWriteData bytesWritten: Int64,
     totalBytesWritten: Int64,
     totalBytesExpectedToWrite: Int64
   ) async {
+    guard totalBytesExpectedToWrite > 0 else { return }
     do {
       if let episode = try await repo.episode(downloadTask.taskID) {
         await cacheState.updateProgress(
@@ -111,7 +85,42 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     downloadTask: URLSessionDownloadTask,
     didFinishDownloadingTo location: URL
   ) {
-    Task { await handleDidFinish(taskID: downloadTask.taskID, location: location) }
+    Task { await urlSession(session, downloadTask: downloadTask, didFinishDownloadingTo: location) }
+  }
+  func urlSession(
+    _ session: any DataFetchable,
+    downloadTask: any DownloadingTask,
+    didFinishDownloadingTo location: URL
+  ) async {
+    do {
+      guard let episode = try await repo.episode(downloadTask.taskID) else {
+        Self.log.warning("No episode for task #\(downloadTask.taskID)?")
+        return
+      }
+
+      try await repo.updateDownloadTaskID(episode.id, nil)
+
+      if episode.queued == false {
+        Self.log.debug("Episode dequeued mid-download; skipping cache move for \(episode.id)")
+        try await podFileManager.removeItem(at: location)
+        return
+      }
+
+      let fileName = CacheManager.generateCacheFilename(for: episode)
+      let destURL = CacheManager.resolveCachedFilepath(for: fileName)
+      if await podFileManager.fileExists(at: destURL) {
+        Self.log.notice("File already cached for \(episode.id) at \(destURL), removing")
+        try await podFileManager.removeItem(at: destURL)
+      }
+
+      let data = try await podFileManager.readData(from: location)
+      try await podFileManager.writeData(data, to: destURL)
+      try await podFileManager.removeItem(at: location)
+      try await repo.updateCachedFilename(episode.id, fileName)
+      Self.log.debug("Cached episode \(episode.id) to \(fileName)")
+    } catch {
+      Self.log.error(error)
+    }
   }
 
   func urlSession(
@@ -119,15 +128,22 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     task: URLSessionTask,
     didCompleteWithError error: Error?
   ) {
-    guard let error else { return }
-    guard let downloadTask = task as? URLSessionDownloadTask else { return }
-    Task { await urlSession(task: downloadTask, didCompleteWithError: error) }
+    guard let downloadTask = task as? URLSessionDownloadTask
+    else { Assert.fatal("didCompleteWithError passed non URLSessionDownloadTask? \(task)") }
+
+    Task { await urlSession(session, task: downloadTask, didCompleteWithError: error) }
   }
-  func urlSession(task: any DownloadingTask, didCompleteWithError: Error) async {
+  func urlSession(
+    _ session: any DataFetchable,
+    task: any DownloadingTask,
+    didCompleteWithError error: Error?
+  ) async {
+    guard error != nil else { return }
+
     do {
       if let episode = try await repo.episode(task.taskID) {
         try await repo.updateDownloadTaskID(episode.id, nil)
-        Self.log.debug("Episode \(episode.toString) did complete")
+        Self.log.notice("Episode \(episode.toString) completed with error")
       } else {
         Self.log.warning("taskID: \(task.taskID) has no episode associated")
       }
