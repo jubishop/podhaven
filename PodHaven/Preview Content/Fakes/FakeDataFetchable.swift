@@ -127,14 +127,14 @@ actor FakeDataFetchable: DataFetchable {
   }
 
   func finishDownload(taskID: DownloadTaskID, tmpURL: URL) async {
-    await downloadTasks[id: taskID]?.assertResumed()
-    await downloadTasks[id: taskID]?.assertCancelled(false)
+    await downloadTasks[id: taskID]!.assertResumed()
+    await downloadTasks[id: taskID]!.assertCancelled(false)
     await cacheBackgroundDelegate.handleDidFinish(taskID: taskID, location: tmpURL)
   }
 
   func failDownload(taskID: DownloadTaskID, error: Error) async {
-    await downloadTasks[id: taskID]?.assertResumed()
-    await downloadTasks[id: taskID]?.assertCancelled(false)
+    await downloadTasks[id: taskID]!.assertResumed()
+    await downloadTasks[id: taskID]!.assertCancelled(false)
     await cacheBackgroundDelegate.handleDidComplete(taskID: taskID, error: error)
   }
 
@@ -144,12 +144,13 @@ actor FakeDataFetchable: DataFetchable {
     totalBytesExpectedToWrite: Int64
   ) async {
     guard totalBytesExpectedToWrite > 0 else { return }
-    await downloadTasks[id: taskID]?.assertResumed()
-    await downloadTasks[id: taskID]?.assertCancelled(false)
+    await downloadTasks[id: taskID]!.assertResumed()
+    await downloadTasks[id: taskID]!.assertCancelled(false)
 
-    await cacheBackgroundDelegate.handleProgress(
-      taskID: taskID,
-      progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+    await cacheBackgroundDelegate.urlSession(
+      downloadTask: downloadTasks[id: taskID]!,
+      totalBytesWritten: totalBytesWritten,
+      totalBytesExpectedToWrite: totalBytesExpectedToWrite
     )
   }
 }

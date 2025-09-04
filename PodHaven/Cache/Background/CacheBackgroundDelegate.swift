@@ -22,16 +22,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
   private let completions = Mutex<[String: @MainActor () -> Void]>([:])
 
-  func handleProgress(taskID: DownloadTaskID, progress: Double) async {
-    do {
-      if let episode = try await repo.episode(taskID) {
-        await cacheState.updateProgress(for: episode.id, progress: progress)
-      }
-    } catch {
-      Self.log.error(error)
-    }
-  }
-
   func handleDidFinish(taskID: DownloadTaskID, location: URL) async {
     do {
       guard let episode = try await repo.episode(taskID) else {
@@ -105,10 +95,27 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) {
     guard totalBytesExpectedToWrite > 0 else { return }
     Task {
-      await handleProgress(
-        taskID: downloadTask.taskID,
-        progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+      await urlSession(
+        downloadTask: downloadTask,
+        totalBytesWritten: totalBytesWritten,
+        totalBytesExpectedToWrite: totalBytesExpectedToWrite
       )
+    }
+  }
+  func urlSession(
+    downloadTask: any DownloadingTask,
+    totalBytesWritten: Int64,
+    totalBytesExpectedToWrite: Int64
+  ) async {
+    do {
+      if let episode = try await repo.episode(downloadTask.taskID) {
+        await cacheState.updateProgress(
+          for: episode.id,
+          progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        )
+      }
+    } catch {
+      Self.log.error(error)
     }
   }
 
