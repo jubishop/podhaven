@@ -2,6 +2,9 @@
 
 import Foundation
 import IdentifiedCollections
+import Tagged
+
+typealias SessionConfigurationID = Tagged<any DataFetchable, String>
 
 protocol DataFetchable: Sendable {
   // Data APIs
