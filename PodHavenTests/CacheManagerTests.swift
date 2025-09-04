@@ -26,7 +26,6 @@ import Testing
   }
 
   init() async throws {
-    await sleeper.skipAllSleeps()
     try await cacheManager.start()
   }
 
