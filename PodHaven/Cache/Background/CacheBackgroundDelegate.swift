@@ -16,7 +16,6 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private var repo: any Databasing { Container.shared.repo() }
   private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
-  private var taskMapStore: TaskMapStore { Container.shared.taskMapStore() }
   private var podFileManager: any FileManageable { Container.shared.podFileManager() }
 
   private static let log = Log.as("CacheBackgroundDelegate")
@@ -25,35 +24,30 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
   // These internal helpers are used by the delegate to reuse logic.
   func handleDidFinish(taskID: DownloadTaskID, location: URL) async {
-    defer { Task { await taskMapStore.remove(taskID: taskID) } }
-
-    guard let mg = await taskMapStore.key(for: taskID) else {
-      Self.log.warning("handleDidFinish: No mapping for task \(taskID)")
-      return
-    }
-
     do {
-      guard let episode = try await repo.episode(mg) else {
-        Self.log.warning("Episode not found for guid: \(mg)")
+      guard let episode = try await repo.episode(taskID) else {
+        Self.log.warning("handleDidFinish: No episode for task #\(taskID)")
         return
       }
 
       if episode.queued == false {
         Self.log.debug("Episode dequeued mid-download; skipping cache move for \(episode.id)")
-        try? await podFileManager.removeItem(at: location)
+        try await podFileManager.removeItem(at: location)
         await cacheState.markFinished(episode.id)
+        try await repo.updateDownloadTaskID(episode.id, nil)
         return
       }
 
       let fileName = CacheManager.generateCacheFilename(for: episode)
       let destURL = CacheManager.resolveCachedFilepath(for: fileName)
       if await podFileManager.fileExists(at: destURL) {
-        try? await podFileManager.removeItem(at: destURL)
+        try await podFileManager.removeItem(at: destURL)
       }
       let data = try await podFileManager.readData(from: location)
       try await podFileManager.writeData(data, to: destURL)
-      try? await podFileManager.removeItem(at: location)
-      _ = try await repo.updateCachedFilename(episode.id, fileName)
+      try await podFileManager.removeItem(at: location)
+      try await repo.updateCachedFilename(episode.id, fileName)
+      try await repo.updateDownloadTaskID(episode.id, nil)
 
       await cacheState.markFinished(episode.id)
       Self.log.debug("Cached episode \(episode.id) to \(fileName)")
@@ -63,16 +57,14 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   }
 
   func handleDidComplete(taskID: DownloadTaskID, error: Error) async {
-    if let mg = await taskMapStore.key(for: taskID) {
-      do {
-        if let episode = try await repo.episode(mg) {
-          await cacheState.markFailed(episode.id, error: error)
-        }
-      } catch {
-        Self.log.error(error)
+    do {
+      if let episode = try await repo.episode(taskID) {
+        await cacheState.markFailed(episode.id, error: error)
+        try await repo.updateDownloadTaskID(episode.id, nil)
       }
+    } catch {
+      Self.log.error(error)
     }
-    await taskMapStore.remove(taskID: taskID)
   }
 
   // MARK: - Completion Management
@@ -106,8 +98,8 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     guard totalBytesExpectedToWrite > 0 else { return }
     let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
     Task { [progress] in
-      if let mg = await taskMapStore.key(for: downloadTask.taskID) {
-        await cacheState.updateProgress(for: mg, progress: progress)
+      if let episode = try await repo.episode(downloadTask.taskID) {
+        await cacheState.updateProgress(for: episode.id, progress: progress)
       }
     }
   }

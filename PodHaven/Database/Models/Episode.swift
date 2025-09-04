@@ -47,6 +47,7 @@ struct UnsavedEpisode:
   let queueOrder: Int?
   let lastQueued: Date?
   let cachedFilename: String?
+  let downloadTaskID: DownloadTaskID?
 
   init(
     podcastId: Podcast.ID? = nil,
@@ -62,7 +63,8 @@ struct UnsavedEpisode:
     currentTime: CMTime? = nil,
     queueOrder: Int? = nil,
     lastQueued: Date? = nil,
-    cachedFilename: String? = nil
+    cachedFilename: String? = nil,
+    downloadTaskID: DownloadTaskID? = nil
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
@@ -78,6 +80,7 @@ struct UnsavedEpisode:
     self.queueOrder = queueOrder
     self.lastQueued = lastQueued
     self.cachedFilename = cachedFilename
+    self.downloadTaskID = downloadTaskID
   }
 
   // MARK: - Savable
@@ -145,6 +148,7 @@ struct Episode: Saved, RSSUpdatable {
     static let queueOrder = Column("queueOrder")
     static let lastQueued = Column("lastQueued")
     static let cachedFilename = Column("cachedFilename")
+    static let downloadTaskID = Column("downloadTaskID")
     static let creationDate = Column("creationDate")
   }
 

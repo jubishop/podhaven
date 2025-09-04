@@ -639,4 +639,54 @@ class EpisodeTests {
     #expect(foundPodcastEpisode1?.episode.title == "Episode 1")
     #expect(foundPodcastEpisode2?.episode.title == "Episode 2")
   }
+
+  @Test("update and fetch episode by downloadTaskID")
+  func updateAndFetchByTaskID() async throws {
+    // Create two episodes
+    let (one, two) = try await Create.twoPodcastEpisodes()
+
+    let id1 = DownloadTaskID(101)
+    let id2 = DownloadTaskID(202)
+
+    // Set mapping for first
+    let updated1 = try await repo.updateDownloadTaskID(one.id, id1)
+    #expect(updated1)
+
+    // Fetch by single task id
+    let fetched1 = try await repo.episode(id1)
+    #expect(fetched1 != nil)
+    #expect(fetched1?.id == one.id)
+
+    // Set mapping for second and verify batch fetch
+    let updated2 = try await repo.updateDownloadTaskID(two.id, id2)
+    #expect(updated2)
+
+    let fetchedBatch = try await repo.episodes([id1, id2])
+    #expect(fetchedBatch.count == 2)
+    let fetchedIDs = Set(fetchedBatch.map(\.id))
+    #expect(fetchedIDs == Set([one.id, two.id]))
+
+    // Clear first mapping and verify lookup is nil
+    _ = try await repo.updateDownloadTaskID(one.id, nil)
+    let shouldBeNil = try await repo.episode(id1)
+    #expect(shouldBeNil == nil)
+  }
+
+  @Test("unique constraint enforced when assigning duplicate downloadTaskID")
+  func uniqueConstraintOnTaskID() async throws {
+    let (one, two) = try await Create.twoPodcastEpisodes()
+    let sharedID = DownloadTaskID(4242)
+
+    _ = try await repo.updateDownloadTaskID(one.id, sharedID)
+
+    await #expect(throws: DatabaseError.self) {
+      _ = try await self.repo.updateDownloadTaskID(two.id, sharedID)
+    }
+  }
+
+  @Test("episodes([]) returns empty array")
+  func episodesEmptyBatch() async throws {
+    let results = try await repo.episodes([])
+    #expect(results.isEmpty)
+  }
 }

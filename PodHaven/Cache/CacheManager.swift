@@ -35,7 +35,6 @@ actor CacheManager {
   @DynamicInjected(\.imageFetcher) private var imageFetcher
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
-  @DynamicInjected(\.taskMapStore) private var taskMapStore
 
   private var alert: Alert { get async { await Container.shared.alert() } }
   private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
@@ -90,12 +89,14 @@ actor CacheManager {
     let downloadTask = cacheManagerSession.createDownloadTask(with: request)
     downloadTask.resume()
 
+    _ = try await CacheError.catch {
+      try await repo.updateDownloadTaskID(podcastEpisode.id, downloadTask.taskID)
+    }
+
     await cacheState.setDownloadTaskID(
       podcastEpisode.id,
       taskID: downloadTask.taskID
     )
-
-    await taskMapStore.set(taskID: downloadTask.taskID, for: podcastEpisode.mediaGUID)
 
     return true
   }
@@ -132,12 +133,14 @@ actor CacheManager {
     let downloadTask = cacheManagerSession.createDownloadTask(with: request)
     downloadTask.resume()
 
+    _ = try await CacheError.catch {
+      try await repo.updateDownloadTaskID(podcastEpisode.id, downloadTask.taskID)
+    }
+
     await cacheState.setDownloadTaskID(
       podcastEpisode.id,
       taskID: downloadTask.taskID
     )
-
-    await taskMapStore.set(taskID: downloadTask.taskID, for: podcastEpisode.mediaGUID)
 
     return true
   }
@@ -255,13 +258,14 @@ actor CacheManager {
 
   private func cancelDownloadTaskOrClearCache(for episodeID: Episode.ID) async throws(CacheError) {
     // Cancel background task if present (and still fall through to attempt clear)
-    if let episode: Episode = try await CacheError.catch({ try await repo.episode(episodeID) }) {
-      let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
-      if let taskID = await taskMapStore.taskID(for: mg) {
-        await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
-        await taskMapStore.remove(taskID: taskID)
-        await cacheState.removeDownloadTask(episodeID)
-        // Do not return; fall through and attempt to clear any existing cache file
+    try await CacheError.catch {
+      if let episode: Episode = try await repo.episode(episodeID) {
+        if let taskID = episode.unsaved.downloadTaskID {
+          await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
+          try await repo.updateDownloadTaskID(episode.id, nil)
+          await cacheState.removeDownloadTask(episodeID)
+          // Do not return; fall through and attempt to clear any existing cache file
+        }
       }
     }
 
@@ -292,17 +296,18 @@ actor CacheManager {
   // MARK: - Background Session Adoption
 
   private func adoptInFlightBackgroundDownloads() async {
-    for backgroundTask in await cacheManagerSession.allCreatedTasks {
-      if let mg = await taskMapStore.key(for: backgroundTask.taskID) {
-        do {
-          if let episode = try await repo.episode(mg) {
-            await cacheState.setDownloadTaskID(episode.id, taskID: backgroundTask.taskID)
-            Self.log.debug("adoptInFlight: episode \(episode.id) task #\(backgroundTask.taskID)")
-          }
-        } catch {
-          Self.log.error(error)
+    let taskIDs = await cacheManagerSession.allCreatedTasks.map(\.taskID)
+    guard !taskIDs.isEmpty else { return }
+    do {
+      let episodes = try await repo.episodes(taskIDs)
+      for episode in episodes {
+        if let taskID = episode.unsaved.downloadTaskID {
+          await cacheState.setDownloadTaskID(episode.id, taskID: taskID)
+          Self.log.debug("adoptInFlight: episode \(episode.id) task #\(taskID)")
         }
       }
+    } catch {
+      Self.log.error(error)
     }
   }
 }

@@ -98,6 +98,18 @@ enum Schema {
       try db.execute(sql: "CREATE UNIQUE INDEX episode_on_guid_media ON episode(guid, media)")
     }
 
+    // v16: Add nullable downloadTaskID to episode and unique index on it
+    migrator.registerMigration("v16") { db in
+      try db.alter(table: "episode") { t in
+        t.add(column: "downloadTaskID", .integer)
+      }
+
+      // Unique index bothenforces one-to-one mapping and provides an index for lookups
+      try db.execute(
+        sql: "CREATE UNIQUE INDEX episode_on_downloadTaskID ON episode(downloadTaskID)"
+      )
+    }
+
     return migrator
   }
 }

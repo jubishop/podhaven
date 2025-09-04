@@ -39,18 +39,6 @@ extension Container {
     progressByEpisode[episodeID] = progress
   }
 
-  func updateProgress(for guid: MediaGUID, progress: Double) async {
-    // Helper for delegate when only MediaGUID is known
-    do {
-      let repo: any Databasing = Container.shared.repo()
-      if let episode = try await repo.episode(guid) {
-        progressByEpisode[episode.id] = progress
-      }
-    } catch {
-      // Ignore
-    }
-  }
-
   func removeDownloadTask(_ episodeID: Episode.ID) {
     activeBackgroundTaskIDs.removeValue(forKey: episodeID)
     progressByEpisode.removeValue(forKey: episodeID)

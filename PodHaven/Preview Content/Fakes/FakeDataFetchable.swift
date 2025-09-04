@@ -150,11 +150,9 @@ actor FakeDataFetchable: DataFetchable {
     await downloadTasks[id: taskID]?.assertCancelled(false)
 
     let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-    let taskMap = Container.shared.taskMapStore()
-    if let mg = await taskMap.key(for: taskID) {
-      let cs: CacheState = await Container.shared.cacheState()
-      await cs.updateProgress(for: mg, progress: progress)
-    }
+    let episode = try! await Container.shared.repo().episode(taskID)!
+    let cs: CacheState = await Container.shared.cacheState()
+    await cs.updateProgress(for: episode.id, progress: progress)
   }
 }
 #endif

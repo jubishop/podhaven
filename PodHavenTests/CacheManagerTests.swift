@@ -54,7 +54,7 @@ import Testing
 
     // First cache the episode
     try await queue.unshift(podcastEpisode.id)
-
+    
     // Simulate background completion
     let data = CacheHelpers.createRandomData()
     try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
@@ -219,9 +219,8 @@ import Testing
     try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
 
     // Simulate progress by calling CacheState directly using MediaGUID
-    let mg = podcastEpisode.episode.unsaved.id
     let cs: CacheState = Container.shared.cacheState()
-    await cs.updateProgress(for: mg, progress: 0.42)
+    cs.updateProgress(for: podcastEpisode.id, progress: 0.42)
 
     // Assert progress visible
     #expect(cs.progress(podcastEpisode.id) == 0.42)

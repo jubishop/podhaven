@@ -97,6 +97,23 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  func episode(_ downloadTaskID: DownloadTaskID) async throws -> Episode? {
+    try await appDB.db.read { db in
+      try Episode
+        .filter(Episode.Columns.downloadTaskID == downloadTaskID)
+        .fetchOne(db)
+    }
+  }
+
+  func episodes(_ downloadTaskIDs: [DownloadTaskID]) async throws -> [Episode] {
+    guard !downloadTaskIDs.isEmpty else { return [] }
+    return try await appDB.db.read { db in
+      try Episode
+        .filter(downloadTaskIDs.contains(Episode.Columns.downloadTaskID))
+        .fetchAll(db)
+    }
+  }
+
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
@@ -305,6 +322,19 @@ struct Repo: Databasing, Sendable {
       try Episode
         .withID(episodeID)
         .updateAll(db, Episode.Columns.cachedFilename.set(to: cachedFilename))
+    } > 0
+  }
+
+  @discardableResult
+  func updateDownloadTaskID(_ episodeID: Episode.ID, _ downloadTaskID: DownloadTaskID?) async throws
+    -> Bool
+  {
+    Self.log.trace("updateDownloadTaskID: \(episodeID) to \(String(describing: downloadTaskID))")
+
+    return try await appDB.db.write { db in
+      try Episode
+        .withID(episodeID)
+        .updateAll(db, Episode.Columns.downloadTaskID.set(to: downloadTaskID))
     } > 0
   }
 

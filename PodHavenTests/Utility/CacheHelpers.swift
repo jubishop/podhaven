@@ -109,28 +109,25 @@ enum CacheHelpers {
     try await Wait.forValue {
       let repo: any Databasing = Container.shared.repo()
       guard let episode = try await repo.episode(episodeID) else { return nil }
-      let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
-      let taskMap = Container.shared.taskMapStore()
-      return await taskMap.taskID(for: mg)
+      return episode.unsaved.downloadTaskID
     }
   }
 
   // MARK: - Background Download Simulation
 
   static func simulateBackgroundFinish(_ episodeID: Episode.ID, data: Data) async throws {
-    // Persist a mapping for a fake background task
-    let taskID = DownloadTaskID(Int.random(in: 1000...9_999_999))
+    // Use the real scheduled taskID if present; otherwise synthesize one and map it
     let repo: any Databasing = Container.shared.repo()
     guard let episode = try await repo.episode(episodeID) else {
       throw CacheError.episodeNotFound(episodeID)
     }
-    let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
-    let taskMap = Container.shared.taskMapStore()
-    await taskMap.set(taskID: taskID, for: mg)
 
-    // Also mark CacheState as downloading for more realistic simulation
-    let cacheState: CacheState = await Container.shared.cacheState()
-    await cacheState.setDownloadTaskID(episodeID, taskID: taskID)
+    var taskID = episode.unsaved.downloadTaskID
+    if taskID == nil {
+      let newID = DownloadTaskID(Int.random(in: 1_000_000...9_999_999))
+      try await repo.updateDownloadTaskID(episode.id, newID)
+      taskID = newID
+    }
 
     // Write data to a temp location simulating the downloaded file
     let tmpURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -138,25 +135,26 @@ enum CacheHelpers {
     try await pfm.writeData(data, to: tmpURL)
 
     // Ask the fake background fetchable to complete by invoking the delegate
-    await cacheManagerSession.finishDownload(taskID: taskID, tmpURL: tmpURL)
+    await cacheManagerSession.finishDownload(taskID: taskID!, tmpURL: tmpURL)
   }
 
   static func simulateBackgroundFailure(
     _ episodeID: Episode.ID,
     error: Error = NSError(domain: "Test", code: -1)
   ) async throws {
-    // Persist mapping and CacheState download indicator
-    let taskID = DownloadTaskID(Int.random(in: 10_000_000...99_999_999))
     let repo: any Databasing = Container.shared.repo()
     guard let episode = try await repo.episode(episodeID) else {
       throw CacheError.episodeNotFound(episodeID)
     }
-    let mg = MediaGUID(guid: episode.unsaved.guid, media: episode.unsaved.media)
-    let taskMap = Container.shared.taskMapStore()
-    await taskMap.set(taskID: taskID, for: mg)
-    let cacheState: CacheState = await Container.shared.cacheState()
-    await cacheState.setDownloadTaskID(episodeID, taskID: taskID)
 
-    await cacheManagerSession.failDownload(taskID: taskID, error: error)
+    var taskID = episode.unsaved.downloadTaskID
+    if taskID == nil {
+      let newID = DownloadTaskID(Int.random(in: 10_000_000...99_999_999))
+      try await repo.updateDownloadTaskID(episode.id, newID)
+      taskID = newID
+    }
+
+    // Invoke failure on the fake background session
+    await cacheManagerSession.failDownload(taskID: taskID!, error: error)
   }
 }

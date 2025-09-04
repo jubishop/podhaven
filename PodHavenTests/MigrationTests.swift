@@ -278,4 +278,105 @@ class MigrationTests {
       #expect(duplicateCount == 0, "Should still have no duplicate guid+media combinations")
     }
   }
+
+  @Test("v16 adds downloadTaskID column and unique index")
+  func testV16AddsColumnAndIndex() async throws {
+    // Up to v15: column and index should not exist
+    try migrator.migrate(appDB.db, upTo: "v15")
+
+    try await appDB.db.read { db in
+      // Verify column does not exist yet
+      let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
+      let colNames = Set(cols.compactMap { $0["name"] as? String })
+      #expect(!colNames.contains("downloadTaskID"))
+
+      // Verify unique index does not exist yet
+      let idxRows = try Row.fetchAll(
+        db,
+        sql:
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'episode_on_downloadTaskID'"
+      )
+      #expect(idxRows.isEmpty)
+    }
+
+    // Migrate to v16
+    try migrator.migrate(appDB.db, upTo: "v16")
+
+    try await appDB.db.read { db in
+      // Verify column exists
+      let cols = try Row.fetchAll(db, sql: "PRAGMA table_info('episode')")
+      let colNames = Set(cols.compactMap { $0["name"] as? String })
+      #expect(colNames.contains("downloadTaskID"))
+
+      // Verify unique index exists
+      let idxRows = try Row.fetchAll(
+        db,
+        sql:
+          "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'episode_on_downloadTaskID'"
+      )
+      #expect(idxRows.count == 1)
+    }
+  }
+
+  @Test("v16 enforces uniqueness of downloadTaskID and allows multiple NULLs")
+  func testV16UniqueConstraint() async throws {
+    try migrator.migrate(appDB.db, upTo: "v16")
+
+    // Create a podcast to satisfy FK
+    let podcastID: Int64 = try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO podcast (feedURL, title, image, description)
+          VALUES ('https://example.com/feed.xml', 'P', 'https://example.com/image.jpg', 'D')
+          """
+      )
+      return db.lastInsertedRowID
+    }
+
+    // Insert two with NULL downloadTaskID (allowed)
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO episode (
+            podcastId, guid, media, title, pubDate, duration, currentTime, downloadTaskID
+          ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 0, 0, NULL)
+          """,
+        arguments: [podcastID, "n1", "https://e.com/n1.mp3", "N1"]
+      )
+      try db.execute(
+        sql: """
+          INSERT INTO episode (
+            podcastId, guid, media, title, pubDate, duration, currentTime, downloadTaskID
+          ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 0, 0, NULL)
+          """,
+        arguments: [podcastID, "n2", "https://e.com/n2.mp3", "N2"]
+      )
+    }
+
+    // Insert one with a non-null downloadTaskID
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO episode (
+            podcastId, guid, media, title, pubDate, duration, currentTime, downloadTaskID
+          ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 0, 0, ?)
+          """,
+        arguments: [podcastID, "u1", "https://e.com/u1.mp3", "U1", 777]
+      )
+    }
+
+    // Attempt to insert another with same downloadTaskID should fail
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.db.write { db in
+        try db.execute(
+          sql: """
+            INSERT INTO episode (
+              podcastId, guid, media, title, pubDate, duration, currentTime, downloadTaskID
+            ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 0, 0, ?)
+            """,
+          arguments: [podcastID, "u2", "https://e.com/u2.mp3", "U2", 777]
+        )
+      }
+    }
+  }
 }
