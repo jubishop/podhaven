@@ -39,6 +39,7 @@ import Testing
     let data = CacheHelpers.createRandomData()
 
     try await queue.unshift(podcastEpisode.id)
+    _ = try await CacheHelpers.waitForScheduledTaskID(podcastEpisode.id)
     try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
 
     let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
@@ -54,7 +55,8 @@ import Testing
 
     // First cache the episode
     try await queue.unshift(podcastEpisode.id)
-    
+    _ = try await CacheHelpers.waitForScheduledTaskID(podcastEpisode.id)
+
     // Simulate background completion
     let data = CacheHelpers.createRandomData()
     try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
@@ -64,6 +66,10 @@ import Testing
 
     // Remove from queue and verify cache is cleared
     try await queue.dequeue(podcastEpisode.id)
+    try await Wait.until(
+      { try await self.repo.episode(podcastEpisode.id)?.queued == false },
+      { "Expected episode dequeued" }
+    )
     try await CacheHelpers.waitForCachedFileRemoved(fileName)
   }
 
@@ -71,15 +77,17 @@ import Testing
   func episodeDequeuedMidDownloadDoesNotGetCachedWhenDownloadCompletes() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
+    // Begin download scheduling
     try await queue.unshift(podcastEpisode.id)
     try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
 
+    // Dequeue to cancel scheduling and clear state
     try await queue.dequeue(podcastEpisode.id)
     try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
 
-    // Simulate finish should be ignored
-    let data = CacheHelpers.createRandomData()
-    try await CacheHelpers.simulateBackgroundFinish(podcastEpisode.id, data: data)
+    // Assert episode remains not cached and no download state remains
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+    try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
   }
 
   // MARK: - Artwork Prefetching
@@ -92,6 +100,7 @@ import Testing
 
     // Ensure the download was scheduled (triggers artwork prefetch)
     try await CacheHelpers.waitForCacheStateDownloading(podcastEpisode.id)
+    _ = try await CacheHelpers.waitForScheduledTaskID(podcastEpisode.id)
 
     // Simulate background completion
     let data = CacheHelpers.createRandomData()
@@ -256,7 +265,9 @@ import Testing
 
     // Queue then dequeue before simulating finish
     try await queue.unshift(podcastEpisode.id)
+    _ = try await CacheHelpers.waitForScheduledTaskID(podcastEpisode.id)
     try await queue.dequeue(podcastEpisode.id)
+    try await CacheHelpers.waitForCacheStateNotDownloading(podcastEpisode.id)
 
     // Simulate background completion
     let data = CacheHelpers.createRandomData(size: 1024)
@@ -400,7 +411,9 @@ import Testing
 
     // Queue both and simulate background completion for each
     try await queue.unshift(ep1.id)
+    _ = try await CacheHelpers.waitForScheduledTaskID(ep1.id)
     try await queue.unshift(ep2.id)
+    _ = try await CacheHelpers.waitForScheduledTaskID(ep2.id)
 
     let d1 = CacheHelpers.createRandomData()
     let d2 = CacheHelpers.createRandomData()
@@ -448,6 +461,7 @@ import Testing
     try await CacheHelpers.waitForCachedFileRemoved(f1)
 
     try await queue.unshift(pe.id)
+    _ = try await CacheHelpers.waitForScheduledTaskID(pe.id)
     let d2 = CacheHelpers.createRandomData()
     try await CacheHelpers.simulateBackgroundFinish(pe.id, data: d2)
     let f2 = try await CacheHelpers.waitForCached(pe.id)

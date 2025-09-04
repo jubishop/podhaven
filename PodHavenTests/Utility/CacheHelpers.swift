@@ -7,6 +7,21 @@ import Testing
 @testable import PodHaven
 
 enum CacheHelpers {
+  // MARK: - Scheduling Waits
+
+  static func waitForScheduledTaskID(_ episodeID: Episode.ID) async throws -> DownloadTaskID {
+    try await Wait.forValue {
+      let repo: any Databasing = Container.shared.repo()
+      guard let episode = try await repo.episode(episodeID),
+        let dbTaskID = episode.unsaved.downloadTaskID
+      else { return nil }
+      let cs: CacheState = await Container.shared.cacheState()
+      guard let stateTaskID = await cs.getBackgroundTaskIdentifier(episodeID),
+        stateTaskID == dbTaskID
+      else { return nil }
+      return dbTaskID
+    }
+  }
   // MARK: - Dependency Access
 
   private static var appDB: AppDB { Container.shared.appDB() }
@@ -48,7 +63,25 @@ enum CacheHelpers {
     )
   }
 
-  // MARK: - Download Status
+  @discardableResult
+  static func waitForDownloadTaskID(_ episodeID: Episode.ID) async throws -> DownloadTaskID {
+    try await Wait.forValue(
+      {
+        let episode: Episode? = try await repo.episode(episodeID)
+        return episode?.downloadTaskID
+      }
+    )
+  }
+
+  static func waitForNoDownloadTaskID(_ episodeID: Episode.ID) async throws {
+    try await Wait.until(
+      {
+        let episode: Episode? = try await repo.episode(episodeID)
+        return episode?.downloadTaskID == nil
+      },
+      { "Episode \(episodeID) downloadTaskID is not nil" }
+    )
+  }
 
   // MARK: - CacheState Status
 
@@ -116,18 +149,10 @@ enum CacheHelpers {
   // MARK: - Background Download Simulation
 
   static func simulateBackgroundFinish(_ episodeID: Episode.ID, data: Data) async throws {
-    // Use the real scheduled taskID if present; otherwise synthesize one and map it
-    let repo: any Databasing = Container.shared.repo()
-    guard let episode = try await repo.episode(episodeID) else {
-      throw CacheError.episodeNotFound(episodeID)
-    }
-
-    var taskID = episode.unsaved.downloadTaskID
-    if taskID == nil {
-      let newID = DownloadTaskID(Int.random(in: 1_000_000...9_999_999))
-      try await repo.updateDownloadTaskID(episode.id, newID)
-      taskID = newID
-    }
+    // Prefer the real scheduled task if present; otherwise finish with a synthetic taskID
+    let taskID: DownloadTaskID =
+      (try? await waitForScheduledTaskID(episodeID))
+      ?? DownloadTaskID(Int.random(in: 1_000_000...9_999_999))
 
     // Write data to a temp location simulating the downloaded file
     let tmpURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -135,26 +160,16 @@ enum CacheHelpers {
     try await pfm.writeData(data, to: tmpURL)
 
     // Ask the fake background fetchable to complete by invoking the delegate
-    await cacheManagerSession.finishDownload(taskID: taskID!, tmpURL: tmpURL)
+    await cacheManagerSession.finishDownload(taskID: taskID, tmpURL: tmpURL)
   }
 
   static func simulateBackgroundFailure(
     _ episodeID: Episode.ID,
     error: Error = NSError(domain: "Test", code: -1)
   ) async throws {
-    let repo: any Databasing = Container.shared.repo()
-    guard let episode = try await repo.episode(episodeID) else {
-      throw CacheError.episodeNotFound(episodeID)
-    }
-
-    var taskID = episode.unsaved.downloadTaskID
-    if taskID == nil {
-      let newID = DownloadTaskID(Int.random(in: 10_000_000...99_999_999))
-      try await repo.updateDownloadTaskID(episode.id, newID)
-      taskID = newID
-    }
+    let taskID = try await waitForScheduledTaskID(episodeID)
 
     // Invoke failure on the fake background session
-    await cacheManagerSession.failDownload(taskID: taskID!, error: error)
+    await cacheManagerSession.failDownload(taskID: taskID, error: error)
   }
 }
