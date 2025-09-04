@@ -64,7 +64,7 @@ actor CacheManager {
   // MARK: - Public Methods
 
   @discardableResult
-  func downloadToCache(_ episodeID: Episode.ID) async throws(CacheError) -> Bool {
+  func downloadToCache(for episodeID: Episode.ID) async throws(CacheError) -> Bool {
     Self.log.trace("downloadToCache: \(episodeID)")
 
     return try await CacheError.catch {
@@ -76,9 +76,15 @@ actor CacheManager {
     guard let podcastEpisode
     else { throw CacheError.episodeNotFound(episodeID) }
 
-    guard podcastEpisode.episode.cachedFilename == nil
+    guard !podcastEpisode.episode.cached
     else {
       Self.log.trace("downloadToCache: \(podcastEpisode.toString) already cached")
+      return false
+    }
+
+    guard !podcastEpisode.episode.caching
+    else {
+      Self.log.trace("downloadToCache: \(podcastEpisode.toString) already being downloaded")
       return false
     }
 
@@ -94,6 +100,27 @@ actor CacheManager {
     try await repo.updateDownloadTaskID(podcastEpisode.id, downloadTask.taskID)
 
     return true
+  }
+
+  @discardableResult
+  func cancelDownloadTask(for episodeID: Episode.ID) async throws(CacheError) -> Bool {
+    try await CacheError.catch {
+      try await performCancelDownloadTask(episodeID)
+    }
+  }
+  private func performCancelDownloadTask(_ episodeID: Episode.ID) async throws -> Bool {
+    let episode = try await repo.episode(episodeID)
+    guard let episode
+    else { throw CacheError.episodeNotFound(episodeID) }
+
+    if let taskID = episode.downloadTaskID {
+      await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
+      try await repo.updateDownloadTaskID(episode.id, nil)
+
+      return true
+    }
+
+    return false
   }
 
   @discardableResult
@@ -118,11 +145,6 @@ actor CacheManager {
     if let onDeck = await playState.onDeck, onDeck == episode {
       Self.log.trace("clearCache: currently playing, keeping cache for: \(episode.toString)")
       return false
-    }
-
-    if let taskID = episode.downloadTaskID {
-      await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
-      try await repo.updateDownloadTaskID(episode.id, nil)
     }
 
     guard let cachedFilename = episode.cachedFilename
@@ -181,7 +203,7 @@ actor CacheManager {
         group.addTask { [weak self] in
           guard let self else { return }
           do {
-            try await downloadToCache(episodeID)
+            try await downloadToCache(for: episodeID)
           } catch {
             Self.log.error(error)
           }

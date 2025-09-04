@@ -110,7 +110,7 @@ import SwiftUI
       Task { [weak self] in
         guard let self else { return }
         do {
-          try await cacheManager.downloadToCache(podcastEpisode.id)
+          try await cacheManager.downloadToCache(for: podcastEpisode.id)
         } catch {
           Self.log.error(error)
         }
@@ -190,7 +190,7 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        try await cacheManager.downloadToCache(podcastEpisode.id)
+        try await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
         Self.log.error(error)
       }

@@ -24,9 +24,9 @@ enum CacheHelpers {
 
   // MARK: - Queue Manipulation
 
-  static func unshiftToActive(podcastEpisode: PodcastEpisode) async throws {
-    try await queue.unshift(podcastEpisode.id)
-    try await waitForDownloadTaskID(podcastEpisode.id)
+  static func unshiftToQueue(_ episodeID: Episode.ID) async throws {
+    try await queue.unshift(episodeID)
+    try await waitForDownloadTaskID(episodeID)
   }
 
   // MARK: - Episode Status
@@ -95,31 +95,33 @@ enum CacheHelpers {
 
   // MARK: - Data Generation
 
-  static func cachedFileData(_ fileName: String) async throws -> Data {
+  static func cachedFileData(for fileName: String) async throws -> Data {
     let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
     return try await fileManager.readData(from: fileURL)
   }
 
   // MARK: - Background Download Simulation
 
-  static func simulateBackgroundFinish(_ episodeID: Episode.ID, data: Data) async throws {
-    let taskID: DownloadTaskID = try await repo.episode(episodeID)!.downloadTaskID!
-
-    // Write data to a temp location simulating the downloaded file
+  static func simulateBackgroundFinish(_ episodeID: Episode.ID, data: Data = Data.random())
+    async throws
+  {
+    // Write data to a temp location simulating the file being downloaded
     let tmpURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try await fileManager.writeData(data, to: tmpURL)
 
-    // Ask the fake background fetchable to complete by invoking the delegate
-    await session.finishDownload(taskID: taskID, tmpURL: tmpURL)
+    await session.finishDownload(
+      taskID: try await repo.episode(episodeID)!.downloadTaskID!,
+      tmpURL: tmpURL
+    )
   }
 
   static func simulateBackgroundFailure(
     _ episodeID: Episode.ID,
     error: Error = NSError(domain: "Test", code: -1)
   ) async throws {
-    let taskID: DownloadTaskID = try await repo.episode(episodeID)!.downloadTaskID!
-
-    // Invoke failure on the fake background session
-    await session.failDownload(taskID: taskID, error: error)
+    await session.failDownload(
+      taskID: try await repo.episode(episodeID)!.downloadTaskID!,
+      error: error
+    )
   }
 }

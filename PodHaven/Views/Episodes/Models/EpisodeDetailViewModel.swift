@@ -151,7 +151,7 @@ import Logging
       guard let self else { return }
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await cacheManager.downloadToCache(podcastEpisode.id)
+        try await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
         Self.log.error(error)
         alert(ErrorKit.message(for: error))
