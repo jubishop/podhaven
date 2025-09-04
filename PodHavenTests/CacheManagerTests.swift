@@ -103,9 +103,41 @@ import Testing
       totalBytesWritten: 50,
       totalBytesExpectedToWrite: 100
     )
-    #expect(cacheState.progress(podcastEpisode.id) == 0.5)
+    try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: 0.5)
 
     try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: nil)
+  }
+
+  @Test("progress clears on cancel by dequeue")
+  func progressClearsOnCancelByDequeue() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+
+    await session.progressDownload(
+      taskID: taskID,
+      totalBytesWritten: 50,
+      totalBytesExpectedToWrite: 100
+    )
+    try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: 0.5)
+
+    try await queue.dequeue(podcastEpisode.id)
+    try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: nil)
+  }
+
+  @Test("progress clears on completion error")
+  func progressClearsOnCompletionError() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+
+    await session.progressDownload(
+      taskID: taskID,
+      totalBytesWritten: 50,
+      totalBytesExpectedToWrite: 100
+    )
+    try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: 0.5)
+
+    try await CacheHelpers.simulateBackgroundFailure(taskID)
     try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: nil)
   }
 

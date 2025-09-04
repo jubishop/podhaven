@@ -174,11 +174,11 @@ enum CacheHelpers {
   }
 
   static func simulateBackgroundFailure(
-    _ episodeID: Episode.ID,
+    _ taskID: URLSessionDownloadTask.ID,
     error: Error = NSError(domain: "Test", code: -1)
   ) async throws {
     await session.failDownload(
-      taskID: try await repo.episode(episodeID)!.downloadTaskID!,
+      taskID: taskID,
       error: error
     )
   }
