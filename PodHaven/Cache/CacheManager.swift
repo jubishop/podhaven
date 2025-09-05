@@ -107,14 +107,14 @@ actor CacheManager {
   }
 
   @discardableResult
-  func clearCache(for episodeID: Episode.ID) async throws(CacheError) -> URL? {
+  func clearCache(for episodeID: Episode.ID) async throws(CacheError) -> String? {
     Self.log.debug("clearCache: \(episodeID)")
 
     return try await CacheError.catch {
       try await performClearCache(episodeID)
     }
   }
-  private func performClearCache(_ episodeID: Episode.ID) async throws -> URL? {
+  private func performClearCache(_ episodeID: Episode.ID) async throws -> String? {
     let episode = try await repo.episode(episodeID)
     guard let episode
     else { throw CacheError.episodeNotFound(episodeID) }
@@ -148,7 +148,7 @@ actor CacheManager {
 
     Self.log.debug("cache cleared for: \(episode.toString)")
 
-    return cacheURL
+    return cachedFilename
   }
 
   // MARK: - Private Helpers

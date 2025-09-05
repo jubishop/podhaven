@@ -243,6 +243,19 @@ import Testing
     try await CacheHelpers.waitForCached(podcastEpisode.id)
   }
 
+  @Test("clearCache does nothing if episode is onDeck")
+  func clearCacheDoesNothingIfEpisodeIsOnDeck() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+
+    try await PlayHelpers.load(podcastEpisode)
+
+    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+  }
+
   // MARK: - downloadToCache
 
   @Test("downloadToCache begins download")
@@ -267,73 +280,43 @@ import Testing
     let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
     try await CacheHelpers.simulateBackgroundFinish(taskID)
     try await CacheHelpers.waitForCached(podcastEpisode.id)
-    
+
     #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
   }
 
   // MARK: - clearCache
-  //
-  //  @Test("clearCache returns false if queued")
-  //  func clearCacheReturnsFalseIfQueued() async throws {
-  //    let pe = try await Create.podcastEpisode(
-  //      Create.unsavedEpisode(queueOrder: 0, cachedFilename: "cached.mp3")
-  //    )
-  //    let didClear = try await cacheManager.clearCache(for: pe.id)
-  //    #expect(didClear == false)
-  //    #expect(try await repo.episode(pe.id)?.cachedFilename != nil)
-  //  }
-  //
-  //  @Test("clearCache returns false if not cached")
-  //  func clearCacheReturnsFalseIfNotCached() async throws {
-  //    let pe = try await Create.podcastEpisode()
-  //    let didClear = try await cacheManager.clearCache(for: pe.id)
-  //    #expect(didClear == false)
-  //    #expect(try await repo.episode(pe.id)?.cachedFilename == nil)
-  //  }
-  //
-  //  @Test("clearCache nulls DB when file missing")
-  //  func clearCacheNullsDBWhenFileMissing() async throws {
-  //    let pe = try await Create.podcastEpisode(
-  //      Create.unsavedEpisode(cachedFilename: "missing.mp3")
-  //    )
-  //    let didClear = try await cacheManager.clearCache(for: pe.id)
-  //    #expect(didClear == true)
-  //    #expect(try await repo.episode(pe.id)?.cachedFilename == nil)
-  //  }
 
-  //
+  @Test("clearCache stops in progress download")
+  func clearCacheStopsInProgressDownload() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await CacheHelpers.downloadToCache(podcastEpisode.id)
 
-  //  @Test("replace clears removed caches and keeps remaining")
-  //  func replaceClearsRemovedKeepsRemaining() async throws {
-  //    let (ep1, ep2) = try await Create.twoPodcastEpisodes(
-  //      try Create.unsavedEpisode(cachedFilename: "one.mp3"),
-  //      try Create.unsavedEpisode(cachedFilename: "two.mp3")
-  //    )
-  //
-  //    // Queue both and simulate background completion for each
-  //    try await queue.unshift(ep1.id)
-  //    _ = try await CacheHelpers.waitForScheduledTaskID(ep1.id)
-  //    try await queue.unshift(ep2.id)
-  //    _ = try await CacheHelpers.waitForScheduledTaskID(ep2.id)
-  //
-  //    let d1 = CacheHelpers.createRandomData()
-  //    let d2 = CacheHelpers.createRandomData()
-  //    try await CacheHelpers.simulateBackgroundFinish(ep1.id, data: d1)
-  //    try await CacheHelpers.simulateBackgroundFinish(ep2.id, data: d2)
-  //
-  //    let f1 = try await CacheHelpers.waitForCached(ep1.id)
-  //    let f2 = try await CacheHelpers.waitForCached(ep2.id)
-  //    try await CacheHelpers.waitForCachedFile(f1)
-  //    try await CacheHelpers.waitForCachedFile(f2)
-  //
-  //    // Replace queue with only ep2, ep1 should be cleared
-  //    try await queue.replace([ep2.id])
-  //
-  //    try await CacheHelpers.waitForCachedFileRemoved(f1)
-  //    try await CacheHelpers.waitForCachedFile(f2)
-  //  }
-  //
-  //
+    try await cacheManager.clearCache(for: podcastEpisode.id)
+    try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
+  }
+
+  @Test("clearCache clears cached file")
+  func clearCacheClearsCachedFile() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(fileName)
+
+    try await cacheManager.clearCache(for: podcastEpisode.id)
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFileRemoved(fileName)
+  }
+
+  @Test("clearCache does nothing if episode is queued")
+  func clearCacheDoesNothingIfEpisodeIsQueued() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+
+    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+    try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
+  }
 
   // MARK: - Filenames
 
