@@ -6,12 +6,12 @@ import Synchronization
 final class ThreadSafe<Type: Sendable>: Sendable {
   private let mutex: Mutex<Type>
 
-  init(_ value: Type) {
-    mutex = Mutex<Type>(value)
+  init(_ initialValue: Type) {
+    mutex = Mutex<Type>(initialValue)
   }
 
   func callAsFunction() -> Type {
-    return mutex.withLock { $0 }
+    mutex.withLock { $0 }
   }
 
   func callAsFunction(_ newValue: Type) {
@@ -19,6 +19,6 @@ final class ThreadSafe<Type: Sendable>: Sendable {
   }
 
   func callAsFunction<Result>(_ operation: (inout Type) throws -> Result) rethrows -> Result {
-    return try mutex.withLock { try operation(&$0) }
+    try mutex.withLock { try operation(&$0) }
   }
 }
