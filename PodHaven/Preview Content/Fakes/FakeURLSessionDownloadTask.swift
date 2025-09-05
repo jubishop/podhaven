@@ -6,8 +6,8 @@ import Foundation
 actor FakeURLSessionDownloadTask: DownloadingTask {
   let taskID: URLSessionDownloadTask.ID
 
-  private var resumed = false
-  private var cancelled = false
+  var isResumed = false
+  var isCancelled = false
 
   init() {
     taskID = URLSessionDownloadTask.ID(Int.random(in: 1_000_000...9_999_999))
@@ -23,27 +23,24 @@ actor FakeURLSessionDownloadTask: DownloadingTask {
 
   func assertResumed(_ resumed: Bool = true) {
     Assert.precondition(
-      self.resumed == resumed,
-      "Expected resumed to be \(resumed) but was \(self.resumed)"
+      isResumed == resumed,
+      "Expected resumed to be \(resumed) but was \(isResumed)"
     )
   }
 
   func assertCancelled(_ cancelled: Bool = true) {
     Assert.precondition(
-      self.cancelled == cancelled,
-      "Expected cancelled to be \(cancelled) but was \(self.cancelled)"
+      isCancelled == cancelled,
+      "Expected cancelled to be \(cancelled) but was \(isCancelled)"
     )
   }
 
-  var isResumed: Bool { resumed }
-  var isCancelled: Bool { cancelled }
-
   private func markAsResumed() {
-    resumed = true
+    isResumed = true
   }
 
   private func markAsCancelled() {
-    cancelled = true
+    isCancelled = true
   }
 }
 #endif
