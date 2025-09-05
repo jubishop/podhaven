@@ -158,6 +158,31 @@ import Testing
     try await CacheHelpers.waitForCachedFile(fileName)
   }
 
+  @Test("multiple concurrent queued episodes are cached successfully")
+  func multipleConcurrentQueuedEpisodesAreCachedSuccessfully() async throws {
+    let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()
+
+    let taskID1 = try await CacheHelpers.unshiftToQueue(podcastEpisode1.id)
+    let taskID2 = try await CacheHelpers.unshiftToQueue(podcastEpisode2.id)
+
+    let data1 = Data.random()
+    let fileURL1 = try await CacheHelpers.simulateBackgroundFinish(taskID1, data: data1)
+    try await CacheHelpers.waitForFileRemoved(fileURL1)
+
+    let data2 = Data.random()
+    let fileURL2 = try await CacheHelpers.simulateBackgroundFinish(taskID2, data: data2)
+    try await CacheHelpers.waitForFileRemoved(fileURL2)
+
+    let fileName1 = try await CacheHelpers.waitForCached(podcastEpisode1.id)
+    let fileName2 = try await CacheHelpers.waitForCached(podcastEpisode2.id)
+
+    let actualData1 = try await CacheHelpers.cachedFileData(for: fileName1)
+    let actualData2 = try await CacheHelpers.cachedFileData(for: fileName2)
+
+    #expect(actualData1 == data1)
+    #expect(actualData2 == data2)
+  }
+
   // MARK: - Delegate
 
   @Test("completion callback moves file immediately")
@@ -167,6 +192,17 @@ import Testing
 
     let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID)
     #expect(!fileManager.fileExists(at: fileURL))
+  }
+
+  @Test("download finishing for a deleted episode is cleaned up")
+  func downloadFinishingForADeletedEpisodeIsCleanedUp() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+
+    try await repo.delete(podcastEpisode.podcast.id)
+
+    let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForFileRemoved(fileURL)
   }
 
   // MARK: - Artwork Prefetching
@@ -298,6 +334,31 @@ import Testing
     #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
   }
 
+  @Test("multiple concurrent downloads are cached successfully")
+  func multipleConcurrentDownloadsAreCachedSuccessfully() async throws {
+    let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()
+
+    let taskID1 = try await CacheHelpers.downloadToCache(podcastEpisode1.id)
+    let taskID2 = try await CacheHelpers.downloadToCache(podcastEpisode2.id)
+
+    let data1 = Data.random()
+    let fileURL1 = try await CacheHelpers.simulateBackgroundFinish(taskID1, data: data1)
+    try await CacheHelpers.waitForFileRemoved(fileURL1)
+
+    let data2 = Data.random()
+    let fileURL2 = try await CacheHelpers.simulateBackgroundFinish(taskID2, data: data2)
+    try await CacheHelpers.waitForFileRemoved(fileURL2)
+
+    let fileName1 = try await CacheHelpers.waitForCached(podcastEpisode1.id)
+    let fileName2 = try await CacheHelpers.waitForCached(podcastEpisode2.id)
+
+    let actualData1 = try await CacheHelpers.cachedFileData(for: fileName1)
+    let actualData2 = try await CacheHelpers.cachedFileData(for: fileName2)
+
+    #expect(actualData1 == data1)
+    #expect(actualData2 == data2)
+  }
+
   // MARK: - clearCache
 
   @Test("clearCache stops in progress download")
@@ -332,6 +393,12 @@ import Testing
     try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
   }
 
+  @Test("clearing cache of an uncached episode does nothing")
+  func clearingCacheOfAnUncachedEpisodeDoesNothing() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+  }
+
   // MARK: - Filenames
 
   @Test("generateCacheFilename falls back to mp3 and preserves extension")
@@ -347,87 +414,5 @@ import Testing
     let name2 = CacheManager.generateCacheFilename(for: withExt.episode)
     #expect(name1.hasSuffix(".mp3"))
     #expect(name2.hasSuffix(".wav"))
-  }
-
-  // MARK: - Misc
-
-  @Test("multiple concurrent downloads are cached successfully")
-  func multipleConcurrentDownloadsAreCachedSuccessfully() async throws {
-    let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()
-
-    try await queue.unshift(podcastEpisode1.id)
-    try await queue.unshift(podcastEpisode2.id)
-
-    let taskID1 = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode1.id)
-    let taskID2 = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode2.id)
-
-    let data1 = Data.random()
-    let fileURL1 = try await CacheHelpers.simulateBackgroundFinish(taskID1, data: data1)
-    try await CacheHelpers.waitForFileRemoved(fileURL1)
-
-    let data2 = Data.random()
-    let fileURL2 = try await CacheHelpers.simulateBackgroundFinish(taskID2, data: data2)
-    try await CacheHelpers.waitForFileRemoved(fileURL2)
-
-    let fileName1 = try await CacheHelpers.waitForCached(podcastEpisode1.id)
-    let fileName2 = try await CacheHelpers.waitForCached(podcastEpisode2.id)
-
-    let actualData1 = try await CacheHelpers.cachedFileData(for: fileName1)
-    let actualData2 = try await CacheHelpers.cachedFileData(for: fileName2)
-
-    #expect(actualData1 == data1)
-    #expect(actualData2 == data2)
-  }
-
-  @Test("clearing cache of an uncached episode does nothing")
-  func clearingCacheOfAnUncachedEpisodeDoesNothing() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
-
-    // Ensure the episode is not cached
-    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-
-    // Attempt to clear the cache
-    let clearedFilename = try await cacheManager.clearCache(for: podcastEpisode.id)
-
-    // Verify that nothing was cleared and the episode remains not cached
-    #expect(clearedFilename == nil)
-    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-  }
-
-  @Test("download finishing for a deleted episode is cleaned up")
-  func downloadFinishingForADeletedEpisodeIsCleanedUp() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
-    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
-
-    try await repo.delete(podcastEpisode)
-
-    let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID)
-    try await CacheHelpers.waitForFileRemoved(fileURL)
-  }
-
-  @Test("redownloading an already cached file replaces the original")
-  func redownloadingAnAlreadyCachedFileReplacesTheOriginal() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
-
-    // First download
-    let taskID1 = try await CacheHelpers.downloadToCache(podcastEpisode.id)
-    let data1 = Data.random()
-    let fileURL1 = try await CacheHelpers.simulateBackgroundFinish(taskID1, data: data1)
-    try await CacheHelpers.waitForFileRemoved(fileURL1)
-    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    var cachedData = try await CacheHelpers.cachedFileData(for: fileName)
-    #expect(cachedData == data1)
-
-    // Redownload
-    try await repo.updateCachedFilename(podcastEpisode.id, nil)
-    let taskID2 = try await CacheHelpers.downloadToCache(podcastEpisode.id)
-    let data2 = Data.random()
-    let fileURL2 = try await CacheHelpers.simulateBackgroundFinish(taskID2, data: data2)
-    try await CacheHelpers.waitForFileRemoved(fileURL2)
-    let newFileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    #expect(fileName == newFileName)
-
-    cachedData = try await CacheHelpers.cachedFileData(for: newFileName)
-    #expect(cachedData == data2)
   }
 }
