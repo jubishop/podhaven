@@ -8,9 +8,9 @@ enum Log {
   // MARK: - Initialization
 
   #if DEBUG
-  private static let _system = Mutex<String>("")
+  private static let _system = ThreadSafe<String>("")
   static func setSystem(_ system: String = #function) {
-    _system.withLock { $0 = system }
+    _system(system)
   }
   #endif
 
@@ -38,7 +38,7 @@ enum Log {
 
   private static func buildSubsystem(_ subsystem: String) -> String {
     #if DEBUG
-    let system = _system.withLock { string in string }
+    let system = _system()
     return system.isEmpty ? subsystem : "\(system)_\(subsystem)"
     #else
     return subsystem
