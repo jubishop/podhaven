@@ -18,6 +18,7 @@ final class ThreadSafe<Type: Sendable>: Sendable {
     mutex.withLock { $0 = newValue }
   }
 
+  @discardableResult
   func callAsFunction<Result>(_ operation: (inout Type) throws -> Result) rethrows -> Result {
     try mutex.withLock { try operation(&$0) }
   }

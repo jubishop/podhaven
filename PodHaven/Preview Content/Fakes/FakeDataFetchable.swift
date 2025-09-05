@@ -17,10 +17,9 @@ actor FakeDataFetchable: DataFetchable {
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
 
-  private(set) var downloadTasks: IdentifiedArray<URLSessionDownloadTask.ID, FakeURLSessionDownloadTask> =
-    IdentifiedArray(id: \.taskID)
+  let downloadTasks = ThreadSafe<IdentifiedArray<URLSessionDownloadTask.ID, FakeURLSessionDownloadTask>>(IdentifiedArray(id: \.taskID))
   private func addDownloadTask(_ downloadTask: FakeURLSessionDownloadTask) {
-    downloadTasks.append(downloadTask)
+    downloadTasks { $0.append(downloadTask) }
   }
 
   init(
@@ -70,7 +69,7 @@ actor FakeDataFetchable: DataFetchable {
   var allCreatedTasks: IdentifiedArray<URLSessionDownloadTask.ID, any DownloadingTask> {
     get async {
       IdentifiedArray(
-        uniqueElements: downloadTasks.map { $0 as any DownloadingTask },
+        uniqueElements: downloadTasks().map { $0 as any DownloadingTask },
         id: \.taskID
       )
     }
@@ -78,7 +77,7 @@ actor FakeDataFetchable: DataFetchable {
 
   nonisolated func createDownloadTask(with request: URLRequest) -> any DownloadingTask {
     let downloadTask = FakeURLSessionDownloadTask()
-    Task { await addDownloadTask(downloadTask) }
+    downloadTasks { $0.append(downloadTask) }
     return downloadTask
   }
 
@@ -127,19 +126,19 @@ actor FakeDataFetchable: DataFetchable {
   }
 
   func finishDownload(taskID: URLSessionDownloadTask.ID, didFinishDownloadingTo location: URL) async {
-    await downloadTasks[id: taskID]!.assertResumed()
+    await downloadTasks()[id: taskID]!.assertResumed()
     await cacheBackgroundDelegate.urlSession(
       self,
-      downloadTask: downloadTasks[id: taskID]!,
+      downloadTask: downloadTasks()[id: taskID]!,
       didFinishDownloadingTo: location
     )
   }
 
   func failDownload(taskID: URLSessionDownloadTask.ID, error: Error) async {
-    await downloadTasks[id: taskID]!.assertResumed()
+    await downloadTasks()[id: taskID]!.assertResumed()
     await cacheBackgroundDelegate.urlSession(
       self,
-      task: downloadTasks[id: taskID]!,
+      task: downloadTasks()[id: taskID]!,
       didCompleteWithError: error
     )
   }
@@ -150,10 +149,10 @@ actor FakeDataFetchable: DataFetchable {
     totalBytesExpectedToWrite: Int64
   ) async {
     guard totalBytesExpectedToWrite > 0 else { return }
-    await downloadTasks[id: taskID]!.assertResumed()
+    await downloadTasks()[id: taskID]!.assertResumed()
     await cacheBackgroundDelegate.urlSession(
       self,
-      downloadTask: downloadTasks[id: taskID]!,
+      downloadTask: downloadTasks()[id: taskID]!,
       didWriteData: totalBytesWritten,
       totalBytesWritten: totalBytesWritten,
       totalBytesExpectedToWrite: totalBytesExpectedToWrite

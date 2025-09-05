@@ -84,7 +84,7 @@ enum CacheHelpers {
   static func waitForResumed(_ taskID: URLSessionDownloadTask.ID) async throws {
     try await Wait.until(
       {
-        await session.downloadTasks[id: taskID]?.isResumed == true
+        await session.downloadTasks()[id: taskID]?.isResumed == true
       },
       { "Task \(taskID) is not resumed" }
     )
@@ -92,7 +92,7 @@ enum CacheHelpers {
 
   static func waitForCancelled(_ taskID: URLSessionDownloadTask.ID) async throws {
     try await Wait.until(
-      { await session.downloadTasks[id: taskID]?.isCancelled == true },
+      { await session.downloadTasks()[id: taskID]?.isCancelled == true },
       { "Task \(taskID) is not cancelled" }
     )
   }
