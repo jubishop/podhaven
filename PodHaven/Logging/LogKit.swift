@@ -20,7 +20,7 @@ enum LogKit {
   }
 
   static func destructureLabel(from label: String) -> (subsystem: String, category: String) {
-    let parts = label.split(separator: labelSeparator, maxSplits: 1).map(String.init)
+    let parts = label.split(separator: labelSeparator).map(String.init)
     Assert.precondition(parts.count == 2, "Invalid label format: \(label)")
 
     return (parts[0], parts[1])
