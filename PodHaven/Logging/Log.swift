@@ -8,9 +8,9 @@ enum Log {
   // MARK: - Initialization
 
   #if DEBUG
-  private static let _subsystem = Mutex<String>("")
-  static func setSubsystem(_ subsystem: String = #function) {
-    _subsystem.withLock { $0 = subsystem }
+  private static let _system = Mutex<String>("")
+  static func setSystem(_ system: String = #function) {
+    _system.withLock { $0 = system }
   }
   #endif
 
@@ -38,8 +38,8 @@ enum Log {
 
   private static func buildSubsystem(_ subsystem: String) -> String {
     #if DEBUG
-    let _subsystem = _subsystem.withLock { string in string }
-    return _subsystem.isEmpty ? subsystem : "\(_subsystem)_\(subsystem)"
+    let system = _system.withLock { string in string }
+    return system.isEmpty ? subsystem : "\(system)_\(subsystem)"
     #else
     return subsystem
     #endif
