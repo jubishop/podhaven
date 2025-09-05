@@ -328,7 +328,7 @@ struct Repo: Databasing, Sendable {
     async throws
     -> Bool
   {
-    Self.log.trace("updateDownloadTaskID: \(episodeID) to \(String(describing: downloadTaskID))")
+    Self.log.debug("updateDownloadTaskID: \(episodeID) to \(String(describing: downloadTaskID))")
 
     return try await appDB.db.write { db in
       try Episode

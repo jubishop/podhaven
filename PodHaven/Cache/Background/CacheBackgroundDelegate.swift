@@ -83,7 +83,17 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     downloadTask: URLSessionDownloadTask,
     didFinishDownloadingTo location: URL
   ) {
-    Task { await urlSession(session, downloadTask: downloadTask, didFinishDownloadingTo: location) }
+    let safeTempURL = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    do {
+      try podFileManager.moveItem(at: location, to: safeTempURL)
+    } catch {
+      Self.log.error(error)
+      return
+    }
+
+    Task {
+      await urlSession(session, downloadTask: downloadTask, didFinishDownloadingTo: safeTempURL)
+    }
   }
   func urlSession(
     _ session: any DataFetchable,
@@ -93,7 +103,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     do {
       guard let episode = try await repo.episode(downloadTask.taskID) else {
         Self.log.debug("No episode for task #\(downloadTask.taskID)?")
-        try await podFileManager.removeItem(at: location)
+        try podFileManager.removeItem(at: location)
         return
       }
 
@@ -102,14 +112,12 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
       let fileName = CacheManager.generateCacheFilename(for: episode)
       let destURL = CacheManager.resolveCachedFilepath(for: fileName)
-      if await podFileManager.fileExists(at: destURL) {
+      if podFileManager.fileExists(at: destURL) {
         Self.log.notice("File already cached for \(episode.id) at \(destURL), removing")
-        try await podFileManager.removeItem(at: destURL)
+        try podFileManager.removeItem(at: destURL)
       }
 
-      let data = try await podFileManager.readData(from: location)
-      try await podFileManager.writeData(data, to: destURL)
-      try await podFileManager.removeItem(at: location)
+      try podFileManager.moveItem(at: location, to: destURL)
       try await repo.updateCachedFilename(episode.id, fileName)
       Self.log.debug("Cached episode \(episode.id) to \(fileName)")
     } catch {

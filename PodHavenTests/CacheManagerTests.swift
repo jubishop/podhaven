@@ -17,6 +17,9 @@ import Testing
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
+  private var fileManager: FakeFileManager {
+    Container.shared.podFileManager() as! FakeFileManager
+  }
   private var imageFetcher: FakeImageFetcher {
     Container.shared.imageFetcher() as! FakeImageFetcher
   }
@@ -153,6 +156,17 @@ import Testing
 
     fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFile(fileName)
+  }
+
+  // MARK: - Delegate
+
+  @Test("completion callback moves file immediately")
+  func completionCallbackMovesFileImmediately() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+
+    let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID)
+    #expect(!fileManager.fileExists(at: fileURL))
   }
 
   // MARK: - Artwork Prefetching

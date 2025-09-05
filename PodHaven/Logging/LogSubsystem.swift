@@ -25,15 +25,6 @@ enum LogSubsystem {
     case feedManager
     case podcast
     case refreshManager
-
-    var level: Logger.Level {
-      switch self {
-      case .refreshManager:
-        return .trace
-      default:
-        return .debug
-      }
-    }
   }
 
   enum Play: String, LogCategorizable {

@@ -10,6 +10,8 @@ extension Container {
 }
 
 @Observable @MainActor class CacheState {
+  private static let log = Log.as("CacheState")
+
   // MARK: - State Management
 
   private var progressByEpisode: [Episode.ID: Double] = [:]
@@ -23,10 +25,12 @@ extension Container {
   // MARK: - State Setters
 
   func updateProgress(for episodeID: Episode.ID, progress: Double) {
+    Self.log.trace("updating progress for \(episodeID): \(progress)")
     progressByEpisode[episodeID] = progress
   }
 
   func clearProgress(for episodeID: Episode.ID) {
+    Self.log.debug("clearing progress for \(episodeID)")
     progressByEpisode.removeValue(forKey: episodeID)
   }
 

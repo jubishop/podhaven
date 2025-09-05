@@ -138,7 +138,7 @@ enum CacheHelpers {
     try await Wait.until(
       {
         let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
-        return await fileManager.fileExists(at: fileURL)
+        return fileManager.fileExists(at: fileURL)
       },
       { "Cached file: \(fileName) does not exist on disk" }
     )
@@ -148,7 +148,7 @@ enum CacheHelpers {
     try await Wait.until(
       {
         let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
-        return await !fileManager.fileExists(at: fileURL)
+        return !fileManager.fileExists(at: fileURL)
       },
       { "Cached file: \(fileName) still exists on disk" }
     )
@@ -156,7 +156,7 @@ enum CacheHelpers {
 
   static func waitForFileRemoved(_ fileURL: URL) async throws {
     try await Wait.until(
-      { await !fileManager.fileExists(at: fileURL) },
+      { !fileManager.fileExists(at: fileURL) },
       { "File: \(fileURL) still exists on disk" }
     )
   }

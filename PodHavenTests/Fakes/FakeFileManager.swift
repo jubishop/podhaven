@@ -4,11 +4,11 @@ import Foundation
 
 @testable import PodHaven
 
-actor FakeFileManager: FileManageable {
+final class FakeFileManager: FileManageable, @unchecked Sendable {
   // MARK: - State
 
-  private var inMemoryFiles: [URL: Data] = [:]
-  private var inMemoryDirectories: Set<URL> = []
+  private let inMemoryFiles = ThreadSafe<[URL: Data]>([:])
+  private let inMemoryDirectories = ThreadSafe<Set<URL>>([]) // TODO: why do i need this?
 
   // MARK: - Initialization
 
@@ -20,76 +20,98 @@ actor FakeFileManager: FileManageable {
     // Ensure parent directories exist
     let parentURL = url.deletingLastPathComponent()
     if parentURL != url {  // Prevent infinite recursion for root
-      inMemoryDirectories.insert(parentURL)
+      inMemoryDirectories { $0.insert(parentURL) }
     }
 
-    inMemoryFiles[url] = data
+    inMemoryFiles { $0[url] = data }
   }
 
   func readData(from url: URL) async throws -> Data {
-    guard let data = inMemoryFiles[url] else {
-      throw TestError.fileNotFound(url)
+    if let data = inMemoryFiles({ $0[url] }) {
+      return data
     }
-    return data
+    throw TestError.fileNotFound(url)
   }
 
   // MARK: - File Management Operations
 
-  func removeItem(at url: URL) async throws {
-    guard inMemoryFiles[url] != nil || inMemoryDirectories.contains(url) else {
-      throw TestError.fileNotFound(url)
-    }
+  func removeItem(at url: URL) throws {
+    // Check existence
+    let exists = inMemoryFiles({ $0[url] != nil }) || inMemoryDirectories({ $0.contains(url) })
+    guard exists else { throw TestError.fileNotFound(url) }
 
     // Remove file or directory
-    inMemoryFiles.removeValue(forKey: url)
-    inMemoryDirectories.remove(url)
+    inMemoryFiles { files in
+      files.removeValue(forKey: url)
+      let urlString = url.absoluteString
+      let keysToRemove = files.keys.filter { $0.absoluteString.hasPrefix(urlString) }
+      for key in keysToRemove {
+        files.removeValue(forKey: key)
+      }
+    }
+    inMemoryDirectories { dirs in
+      dirs.remove(url)
+      let urlString = url.absoluteString
+      let directoriesToRemove = dirs.filter { $0.absoluteString.hasPrefix(urlString) }
+      for directory in directoriesToRemove {
+        dirs.remove(directory)
+      }
+    }
+  }
 
-    // Remove all files/directories that are children of this URL
-    let urlString = url.absoluteString
-    let keysToRemove = inMemoryFiles.keys.filter { $0.absoluteString.hasPrefix(urlString) }
-    for key in keysToRemove {
-      inMemoryFiles.removeValue(forKey: key)
+  func moveItem(at sourceURL: URL, to destinationURL: URL) throws {
+    // Ensure destination parent directory exists
+    let parentURL = destinationURL.deletingLastPathComponent()
+    if parentURL != destinationURL {
+      inMemoryDirectories { $0.insert(parentURL) }
     }
 
-    let directoriesToRemove = inMemoryDirectories.filter {
-      $0.absoluteString.hasPrefix(urlString)
+    // Move: replace destination if it exists
+    guard let data = inMemoryFiles({ $0[sourceURL] }) else {
+      throw TestError.fileNotFound(sourceURL)
     }
-    for directory in directoriesToRemove {
-      inMemoryDirectories.remove(directory)
+
+    inMemoryFiles { files in
+      files[destinationURL] = data
+      files.removeValue(forKey: sourceURL)
     }
   }
 
   func createDirectory(
     at url: URL,
     withIntermediateDirectories createIntermediates: Bool = true
-  ) async throws {
+  ) throws {
     if createIntermediates {
       // Create all intermediate directories
       var currentURL = url
       var componentsToCreate: [URL] = []
 
-      while !inMemoryDirectories.contains(currentURL) && currentURL.pathComponents.count > 1 {
+      while !inMemoryDirectories({ $0.contains(currentURL) }) && currentURL.pathComponents.count > 1
+      {
         componentsToCreate.append(currentURL)
         currentURL = currentURL.deletingLastPathComponent()
       }
 
-      for directory in componentsToCreate.reversed() {
-        inMemoryDirectories.insert(directory)
+      inMemoryDirectories { dirs in
+        for directory in componentsToCreate.reversed() {
+          dirs.insert(directory)
+        }
       }
     } else {
       // Only create the final directory if parent exists
       let parentURL = url.deletingLastPathComponent()
-      if parentURL != url && !inMemoryDirectories.contains(parentURL) {
+      let parentExists = parentURL == url || inMemoryDirectories({ $0.contains(parentURL) })
+      if !parentExists {
         throw TestError.directoryNotFound(parentURL)
       }
 
-      inMemoryDirectories.insert(url)
+      inMemoryDirectories { $0.insert(url) }
     }
   }
 
   // MARK: - File Attribute Operations
 
-  func fileExists(at url: URL) async -> Bool {
-    inMemoryFiles[url] != nil || inMemoryDirectories.contains(url)
+  func fileExists(at url: URL) -> Bool {
+    inMemoryFiles({ $0[url] != nil }) || inMemoryDirectories({ $0.contains(url) })
   }
 }

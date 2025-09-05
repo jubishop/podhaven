@@ -54,7 +54,7 @@ actor CacheManager {
   func start() async throws {
     Self.log.debug("start: executing")
 
-    try await podFileManager.createDirectory(
+    try podFileManager.createDirectory(
       at: Self.cacheDirectory,
       withIntermediateDirectories: true
     )
@@ -67,7 +67,7 @@ actor CacheManager {
   func downloadToCache(for episodeID: Episode.ID) async throws(CacheError)
     -> URLSessionDownloadTask.ID?
   {
-    Self.log.trace("downloadToCache: \(episodeID)")
+    Self.log.debug("downloadToCache: \(episodeID)")
 
     return try await CacheError.catch {
       try await performDownloadToCache(episodeID)
@@ -82,13 +82,13 @@ actor CacheManager {
 
     guard !podcastEpisode.episode.cached
     else {
-      Self.log.trace("\(podcastEpisode.toString) already cached")
+      Self.log.debug("\(podcastEpisode.toString) already cached")
       return nil
     }
 
     guard !podcastEpisode.episode.caching
     else {
-      Self.log.trace("\(podcastEpisode.toString) already being downloaded")
+      Self.log.debug("\(podcastEpisode.toString) already being downloaded")
       return nil
     }
 
@@ -144,7 +144,7 @@ actor CacheManager {
 
     try await repo.updateCachedFilename(episode.id, nil)
     let cacheURL = Self.resolveCachedFilepath(for: cachedFilename)
-    try await podFileManager.removeItem(at: cacheURL)
+    try podFileManager.removeItem(at: cacheURL)
 
     Self.log.debug("cache cleared for: \(episode.toString)")
 

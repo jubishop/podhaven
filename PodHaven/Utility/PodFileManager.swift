@@ -40,41 +40,28 @@ struct PodFileManager: FileManageable {
 
   // MARK: - File Management Operations
 
-  func removeItem(at url: URL) async throws {
-    try await withCheckedThrowingContinuation { continuation in
-      do {
-        try FileManager.default.removeItem(at: url)
-        continuation.resume()
-      } catch {
-        continuation.resume(throwing: error)
-      }
-    }
+  func removeItem(at url: URL) throws {
+    try FileManager.default.removeItem(at: url)
+  }
+
+  func moveItem(at sourceURL: URL, to destinationURL: URL) throws {
+    try FileManager.default.moveItem(at: sourceURL, to: destinationURL)
   }
 
   func createDirectory(
     at url: URL,
     withIntermediateDirectories createIntermediates: Bool = true
-  ) async throws {
-    try await withCheckedThrowingContinuation { continuation in
-      do {
-        try FileManager.default.createDirectory(
-          at: url,
-          withIntermediateDirectories: createIntermediates,
-          attributes: nil
-        )
-        continuation.resume()
-      } catch {
-        continuation.resume(throwing: error)
-      }
-    }
+  ) throws {
+    try FileManager.default.createDirectory(
+      at: url,
+      withIntermediateDirectories: createIntermediates,
+      attributes: nil
+    )
   }
 
   // MARK: - File Attribute Operations
 
-  func fileExists(at url: URL) async -> Bool {
-    await withCheckedContinuation { continuation in
-      let exists = FileManager.default.fileExists(atPath: url.path)
-      continuation.resume(returning: exists)
-    }
+  func fileExists(at url: URL) -> Bool {
+    FileManager.default.fileExists(atPath: url.path)
   }
 }

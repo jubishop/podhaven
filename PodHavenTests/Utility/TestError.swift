@@ -17,6 +17,7 @@ enum TestError: ReadableError {
   case unexpectedParameters(String)
   case fileNotFound(URL)
   case directoryNotFound(URL)
+  case moveFailed(from: URL, to: URL, underlying: Error)
 
   var message: String {
     switch self {
@@ -44,6 +45,8 @@ enum TestError: ReadableError {
       return "File not found at URL: \(url)"
     case .directoryNotFound(let url):
       return "Directory not found at URL: \(url)"
+    case .moveFailed(let from, let to, let underlying):
+      return "Move failed from \(from) to \(to): \(underlying)"
     }
   }
 }

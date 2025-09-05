@@ -10,13 +10,14 @@ protocol FileManageable: Sendable {
 
   // MARK: - File Management Operations
 
-  func removeItem(at url: URL) async throws
+  func removeItem(at url: URL) throws
+  func moveItem(at sourceURL: URL, to destinationURL: URL) throws
   func createDirectory(
     at url: URL,
     withIntermediateDirectories createIntermediates: Bool
-  ) async throws
+  ) throws
 
   // MARK: - File Attribute Operations
 
-  func fileExists(at url: URL) async -> Bool
+  func fileExists(at url: URL) -> Bool
 }
