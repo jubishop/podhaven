@@ -13,6 +13,7 @@ import Testing
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
   @DynamicInjected(\.cacheState) private var cacheState
+  @DynamicInjected(\.playState) private var playState
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
@@ -192,51 +193,22 @@ import Testing
     try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: nil)
   }
 
-  //
-  //  // MARK: - Additional Edge Cases
-  //
-  //  @Test("dequeue while onDeck does not clear cache")
-  //  func dequeueWhileOnDeckDoesNotClearCache() async throws {
-  //    // Create episode already marked as cached in DB
-  //    let data = CacheHelpers.createRandomData()
-  //    let cachedName = "cached-episode.mp3"
-  //    let pe = try await Create.podcastEpisode(
-  //      Create.unsavedEpisode(cachedFilename: cachedName)
-  //    )
-  //
-  //    // Write the cached file to disk
-  //    let fileURL = CacheManager.resolveCachedFilepath(for: cachedName)
-  //    try await Container.shared.podFileManager().writeData(data, to: fileURL)
-  //
-  //    // Queue it so CacheManager observes it
-  //    try await queue.unshift(pe.id)
-  //
-  //    // Put the episode on-deck (simulating currently loaded/playing)
-  //    let ps: PlayState = Container.shared.playState()
-  //    let od = OnDeck(
-  //      episodeID: pe.id,
-  //      feedURL: pe.podcast.feedURL,
-  //      guid: pe.episode.unsaved.guid,
-  //      podcastTitle: pe.podcast.title,
-  //      podcastURL: pe.podcast.link,
-  //      episodeTitle: pe.episode.title,
-  //      duration: pe.episode.duration,
-  //      image: nil,
-  //      mediaURL: pe.episode.mediaURL,
-  //      pubDate: pe.episode.pubDate
-  //    )
-  //    ps.setOnDeck(od)
-  //
-  //    // Dequeue and verify the file was NOT removed because onDeck protects it
-  //    try await queue.dequeue(pe.id)
-  //    try await Wait.until(
-  //      { try await self.repo.episode(pe.id)?.queued == false },
-  //      { "Expected episode dequeued" }
-  //    )
-  //
-  //    try await CacheHelpers.waitForCachedFile(cachedName)
-  //    #expect(try await repo.episode(pe.id)?.cachedFilename == cachedName)
-  //  }
+  // MARK: - OnDeck
+
+  @Test("dequeue while onDeck does not clear cache")
+  func dequeueWhileOnDeckDoesNotClearCache() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+
+    try await PlayHelpers.load(podcastEpisode)
+    try await queue.dequeue(podcastEpisode.id)
+    try await PlayHelpers.waitForQueue([])
+
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+  }
+
   //
   //  @Test("clearCache returns false if queued")
   //  func clearCacheReturnsFalseIfQueued() async throws {

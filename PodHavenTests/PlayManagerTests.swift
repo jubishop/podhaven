@@ -38,6 +38,7 @@ import Testing
   }
 
   init() async throws {
+    try await cacheManager.start()
     await playManager.start()
   }
 
@@ -802,37 +803,33 @@ import Testing
 
   @Test("episode cache is not cleared when loading")
   func episodeCacheIsNotClearedWhenLoading() async throws {
-    try await cacheManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
 
-    let podcastEpisode = try await Create.podcastEpisode(
-      Create.unsavedEpisode(cachedFilename: "cached-episode.mp3")
-    )
-
-    try await queue.unshift(podcastEpisode.id)
-    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.load(podcastEpisode)
     try await PlayHelpers.waitForQueue([])
 
-    #expect(try await repo.episode(podcastEpisode.id)?.cachedFilename != nil)
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
   }
 
   @Test("episode cache is cleared when playing to end")
   func episodeCacheIsClearedWhenPlayingToEnd() async throws {
-    let podcastEpisode = try await Create.podcastEpisode(
-      Create.unsavedEpisode(
-        queueOrder: 0,
-        cachedFilename: "cached-episode.mp3"
-      )
-    )
+    let podcastEpisode = try await Create.podcastEpisode()
 
-    try await playManager.load(podcastEpisode)
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+
+    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(fileName)
+
+    try await PlayHelpers.load(podcastEpisode)
     try await PlayHelpers.play()
-
     avPlayer.finishEpisode()
-    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
 
-    // Verify cache was cleared (cachedFilename set to nil) after playing to end
-    let updatedEpisode: Episode? = try await repo.episode(podcastEpisode.id)
-    #expect(updatedEpisode?.cachedFilename == nil)
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFileRemoved(fileName)
   }
 
   // MARK: - Media Services Reset
