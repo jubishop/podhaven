@@ -40,6 +40,7 @@ import Testing
 
     let data = Data.random()
     let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID, data: data)
+    try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
     try await CacheHelpers.waitForFileRemoved(fileURL)
 
     let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
@@ -133,6 +134,27 @@ import Testing
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
   }
 
+  @Test("requeue immediately after dequeue re-caches")
+  func requeueAfterDequeueReCaches() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    var taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+
+    var fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(fileName)
+
+    try await queue.dequeue(podcastEpisode.id)
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFileRemoved(fileName)
+
+    taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+
+    fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(fileName)
+  }
+
   // MARK: - Artwork Prefetching
 
   @Test("episode artwork is prefetched when episode is cached")
@@ -141,6 +163,18 @@ import Testing
     try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 
     try await CacheHelpers.waitForImagePrefetched(podcastEpisode.image)
+  }
+
+  @Test("already cached episode added to queue does not prefetch artwork")
+  func alreadyCachedDoesNotPrefetchArtwork() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await cacheManager.downloadToCache(for: podcastEpisode.id)
+    try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
+
+    try await CacheHelpers.waitForImagePrefetched(podcastEpisode.image, fetchCount: 1)
+
+    #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
+    try await CacheHelpers.waitForImagePrefetched(podcastEpisode.image, fetchCount: 1)
   }
 
   // MARK: - Progress Tracking
@@ -209,6 +243,35 @@ import Testing
     try await CacheHelpers.waitForCached(podcastEpisode.id)
   }
 
+  // MARK: - downloadToCache
+
+  @Test("downloadToCache begins download")
+  func downloadToCacheBeginsDownload() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await cacheManager.downloadToCache(for: podcastEpisode.id)!
+    try await CacheHelpers.waitForResumed(taskID)
+    try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id, taskID: taskID)
+  }
+
+  @Test("downloadToCache does nothing if already caching")
+  func downloadToCacheDoesNothingIfAlreadyCaching() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await CacheHelpers.downloadToCache(podcastEpisode.id)
+
+    #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
+  }
+
+  @Test("downloadToCache does nothing if already cached")
+  func downloadToCacheDoesNothingIfAlreadyCached() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+    
+    #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
+  }
+
+  // MARK: - clearCache
   //
   //  @Test("clearCache returns false if queued")
   //  func clearCacheReturnsFalseIfQueued() async throws {
@@ -237,38 +300,9 @@ import Testing
   //    #expect(didClear == true)
   //    #expect(try await repo.episode(pe.id)?.cachedFilename == nil)
   //  }
+
   //
-  //  @Test("progress is cleared on dequeue mid-download (explicit)")
-  //  func progressClearedOnDequeue() async throws {
-  //    let pe = try await Create.podcastEpisode()
-  //
-  //    try await queue.unshift(pe.id)
-  //    try await CacheHelpers.waitForCacheStateDownloading(pe.id)
-  //
-  //    // Set progress and then dequeue, it should clear
-  //    cacheState.updateProgress(for: pe.id, progress: 0.42)
-  //    try await queue.dequeue(pe.id)
-  //    try await CacheHelpers.waitForCacheStateNotDownloading(pe.id)
-  //
-  //    #expect(cacheState.progress(pe.id) == nil)
-  //  }
-  //
-  //  @Test("already cached episode added to queue does not prefetch artwork")
-  //  func alreadyCachedDoesNotPrefetchArtwork() async throws {
-  //    let pe = try await Create.podcastEpisode(
-  //      Create.unsavedEpisode(image: URL.valid(), cachedFilename: "already-cached.mp3")
-  //    )
-  //
-  //    let img = pe.image
-  //    #expect(await imageFetcher.prefetchCounts[img] == nil)
-  //
-  //    try await queue.unshift(pe.id)
-  //
-  //    // Image prefetch should be skipped because cachedFilename exists
-  //    let count = await imageFetcher.prefetchCounts[img]
-  //    #expect(count == nil || count == 0)
-  //  }
-  //
+
   //  @Test("replace clears removed caches and keeps remaining")
   //  func replaceClearsRemovedKeepsRemaining() async throws {
   //    let (ep1, ep2) = try await Create.twoPodcastEpisodes(
@@ -299,39 +333,22 @@ import Testing
   //    try await CacheHelpers.waitForCachedFile(f2)
   //  }
   //
-  //  @Test("generateCacheFilename falls back to mp3 and preserves extension")
-  //  func generateCacheFilenameFallbackAndPreserve() async throws {
-  //    let noExt = try await Create.podcastEpisode(
-  //      Create.unsavedEpisode(media: MediaURL(URL(string: "https://a.b/c/d")!))
-  //    )
-  //    let withExt = try await Create.podcastEpisode(
-  //      Create.unsavedEpisode(media: MediaURL(URL(string: "https://a.b/c/d.wav")!))
-  //    )
   //
-  //    let name1 = CacheManager.generateCacheFilename(for: noExt.episode)
-  //    let name2 = CacheManager.generateCacheFilename(for: withExt.episode)
-  //    #expect(name1.hasSuffix(".mp3"))
-  //    #expect(name2.hasSuffix(".wav"))
-  //  }
-  //
-  //  @Test("requeue immediately after dequeue re-caches")
-  //  func requeueAfterDequeueReCaches() async throws {
-  //    let pe = try await Create.podcastEpisode()
-  //
-  //    try await queue.unshift(pe.id)
-  //    let d1 = CacheHelpers.createRandomData()
-  //    try await CacheHelpers.simulateBackgroundFinish(pe.id, data: d1)
-  //    let f1 = try await CacheHelpers.waitForCached(pe.id)
-  //    try await CacheHelpers.waitForCachedFile(f1)
-  //
-  //    try await queue.dequeue(pe.id)
-  //    try await CacheHelpers.waitForCachedFileRemoved(f1)
-  //
-  //    try await queue.unshift(pe.id)
-  //    _ = try await CacheHelpers.waitForScheduledTaskID(pe.id)
-  //    let d2 = CacheHelpers.createRandomData()
-  //    try await CacheHelpers.simulateBackgroundFinish(pe.id, data: d2)
-  //    let f2 = try await CacheHelpers.waitForCached(pe.id)
-  //    try await CacheHelpers.waitForCachedFile(f2)
-  //  }
+
+  // MARK: - Filenames
+
+  @Test("generateCacheFilename falls back to mp3 and preserves extension")
+  func generateCacheFilenameFallbackAndPreserve() async throws {
+    let noExt = try await Create.podcastEpisode(
+      Create.unsavedEpisode(media: MediaURL(URL(string: "https://a.b/c/d")!))
+    )
+    let withExt = try await Create.podcastEpisode(
+      Create.unsavedEpisode(media: MediaURL(URL(string: "https://a.b/c/d.wav")!))
+    )
+
+    let name1 = CacheManager.generateCacheFilename(for: noExt.episode)
+    let name2 = CacheManager.generateCacheFilename(for: withExt.episode)
+    #expect(name1.hasSuffix(".mp3"))
+    #expect(name2.hasSuffix(".wav"))
+  }
 }

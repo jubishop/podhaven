@@ -92,19 +92,13 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) async {
     do {
       guard let episode = try await repo.episode(downloadTask.taskID) else {
-        Self.log.warning("No episode for task #\(downloadTask.taskID)?")
+        Self.log.debug("No episode for task #\(downloadTask.taskID)?")
         try await podFileManager.removeItem(at: location)
         return
       }
 
       await cacheState.clearProgress(for: episode.id)
       try await repo.updateDownloadTaskID(episode.id, nil)
-
-      if !episode.queued {
-        Self.log.debug("Episode dequeued mid-download; skipping cache move for \(episode.id)")
-        try await podFileManager.removeItem(at: location)
-        return
-      }
 
       let fileName = CacheManager.generateCacheFilename(for: episode)
       let destURL = CacheManager.resolveCachedFilepath(for: fileName)
@@ -142,7 +136,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
     do {
       guard let episode = try await repo.episode(task.taskID) else {
-        Self.log.warning("No episode for task #\(task.taskID)?")
+        Self.log.debug("No episode for task #\(task.taskID)?")
         return
       }
 

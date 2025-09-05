@@ -64,14 +64,18 @@ actor CacheManager {
   // MARK: - Public Methods
 
   @discardableResult
-  func downloadToCache(for episodeID: Episode.ID) async throws(CacheError) -> Bool {
+  func downloadToCache(for episodeID: Episode.ID) async throws(CacheError)
+    -> URLSessionDownloadTask.ID?
+  {
     Self.log.trace("downloadToCache: \(episodeID)")
 
     return try await CacheError.catch {
       try await performDownloadToCache(episodeID)
     }
   }
-  private func performDownloadToCache(_ episodeID: Episode.ID) async throws -> Bool {
+  private func performDownloadToCache(_ episodeID: Episode.ID) async throws
+    -> URLSessionDownloadTask.ID?
+  {
     let podcastEpisode = try await repo.podcastEpisode(episodeID)
     guard let podcastEpisode
     else { throw CacheError.episodeNotFound(episodeID) }
@@ -79,13 +83,13 @@ actor CacheManager {
     guard !podcastEpisode.episode.cached
     else {
       Self.log.trace("\(podcastEpisode.toString) already cached")
-      return false
+      return nil
     }
 
     guard !podcastEpisode.episode.caching
     else {
       Self.log.trace("\(podcastEpisode.toString) already being downloaded")
-      return false
+      return nil
     }
 
     await imageFetcher.prefetch([podcastEpisode.image])
@@ -99,31 +103,31 @@ actor CacheManager {
 
     try await repo.updateDownloadTaskID(podcastEpisode.id, downloadTask.taskID)
 
-    return true
+    return downloadTask.taskID
   }
 
   @discardableResult
-  func clearCache(for episodeID: Episode.ID) async throws(CacheError) -> Bool {
+  func clearCache(for episodeID: Episode.ID) async throws(CacheError) -> URL? {
     Self.log.debug("clearCache: \(episodeID)")
 
     return try await CacheError.catch {
       try await performClearCache(episodeID)
     }
   }
-  private func performClearCache(_ episodeID: Episode.ID) async throws -> Bool {
+  private func performClearCache(_ episodeID: Episode.ID) async throws -> URL? {
     let episode = try await repo.episode(episodeID)
     guard let episode
     else { throw CacheError.episodeNotFound(episodeID) }
 
     guard !episode.queued
     else {
-      Self.log.trace("still queued, keeping cache for: \(episode.toString)")
-      return false
+      Self.log.debug("still queued, keeping cache for: \(episode.toString)")
+      return nil
     }
 
     if let onDeck = await playState.onDeck, onDeck == episode {
-      Self.log.trace("currently playing, keeping cache for: \(episode.toString)")
-      return false
+      Self.log.debug("currently playing, keeping cache for: \(episode.toString)")
+      return nil
     }
 
     if let taskID = episode.downloadTaskID {
@@ -134,8 +138,8 @@ actor CacheManager {
 
     guard let cachedFilename = episode.cachedFilename
     else {
-      Self.log.trace("episode: \(episode.toString) has no cached filename")
-      return false
+      Self.log.debug("episode: \(episode.toString) has no cached filename")
+      return nil
     }
 
     try await repo.updateCachedFilename(episode.id, nil)
@@ -144,7 +148,7 @@ actor CacheManager {
 
     Self.log.debug("cache cleared for: \(episode.toString)")
 
-    return true
+    return cacheURL
   }
 
   // MARK: - Private Helpers

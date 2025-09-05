@@ -35,6 +35,16 @@ enum CacheHelpers {
     return taskID
   }
 
+  // MARK: - CacheManager Functions
+
+  @discardableResult
+  static func downloadToCache(_ episodeID: Episode.ID) async throws -> URLSessionDownloadTask.ID {
+    let taskID = try await cacheManager.downloadToCache(for: episodeID)!
+    try await waitForResumed(taskID)
+    try await waitForDownloadTaskID(episodeID, taskID: taskID)
+    return taskID
+  }
+
   // MARK: - Episode Status
 
   @discardableResult
@@ -65,6 +75,22 @@ enum CacheHelpers {
       {
         let episode: Episode = try await repo.episode(episodeID)!
         return episode.downloadTaskID
+      }
+    )
+  }
+
+  static func waitForDownloadTaskID(_ episodeID: Episode.ID, taskID: URLSessionDownloadTask.ID)
+    async throws
+  {
+    try await Wait.until(
+      { try await repo.episode(episodeID)!.downloadTaskID == taskID },
+      {
+        let episode = try await repo.episode(episodeID)!
+        return
+          """
+          Expected episode \(episode.toString) downloadTaskID: \(taskID), 
+          but got \(String(describing: episode.downloadTaskID)))
+          """
       }
     )
   }
@@ -137,9 +163,9 @@ enum CacheHelpers {
 
   // MARK: - Image Prefetching
 
-  static func waitForImagePrefetched(_ imageURL: URL) async throws {
+  static func waitForImagePrefetched(_ imageURL: URL, fetchCount: Int = 1) async throws {
     try await Wait.until(
-      { await imageFetcher.prefetchCounts[imageURL] == 1 },
+      { await imageFetcher.prefetchCounts[imageURL] == fetchCount },
       { "ImageURL: \(imageURL) was not prefetched" }
     )
   }
@@ -149,6 +175,10 @@ enum CacheHelpers {
   static func cachedFileData(for fileName: String) async throws -> Data {
     let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
     return try await fileManager.readData(from: fileURL)
+  }
+
+  static func fileData(for fileURL: URL) async throws -> Data {
+    try await fileManager.readData(from: fileURL)
   }
 
   // MARK: - Background Download Simulation
