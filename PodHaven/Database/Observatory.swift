@@ -108,15 +108,15 @@ struct Observatory {
     )
   }
 
-  func queuedEpisodeIDs(limit: Int = Int.max) -> AsyncValueObservation<[Episode.ID]> {
+  func queuedEpisodeIDs(limit: Int = Int.max) -> AsyncValueObservation<Set<Episode.ID>> {
     _observe { db in
       try Episode
         .all()
         .filter(Episode.queued)
-        .select(Episode.Columns.id)
+        .selectID()
         .order(Episode.Columns.queueOrder.asc)
         .limit(limit)
-        .fetchAll(db)
+        .fetchSet(db)
     }
   }
 

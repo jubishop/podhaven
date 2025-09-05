@@ -168,23 +168,23 @@ actor CacheManager {
     }
   }
 
-  private func handleQueueChange(_ queuedEpisodeIDsList: [Episode.ID]) async {
-    let queuedEpisodeIDs = Set(queuedEpisodeIDsList)
+  private func handleQueueChange(_ queuedEpisodeIDs: Set<Episode.ID>) async {
+    let newEpisodeIDs = queuedEpisodeIDs.subtracting(currentQueuedEpisodeIDs)
     let removedEpisodeIDs = currentQueuedEpisodeIDs.subtracting(queuedEpisodeIDs)
     currentQueuedEpisodeIDs = queuedEpisodeIDs
 
     Self.log.debug(
       """
       handleQueueChange:
-        current queue IDs: 
-          \(queuedEpisodeIDsList)
+        new queue IDs: 
+          \(newEpisodeIDs)
         removed IDs: 
           \(removedEpisodeIDs)
       """
     )
 
     await withDiscardingTaskGroup { group in
-      for episodeID in queuedEpisodeIDsList {
+      for episodeID in newEpisodeIDs {
         group.addTask { [weak self] in
           guard let self else { return }
           do {

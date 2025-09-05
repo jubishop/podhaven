@@ -103,7 +103,7 @@ actor ObservatoryTests {
 
     let queuedEpisodeIDs = try await observatory.queuedEpisodeIDs().get()
     #expect(queuedEpisodes.count == 5)
-    #expect(queuedEpisodeIDs == queuedEpisodes.map(\.id))
+    #expect(queuedEpisodeIDs == Set(queuedEpisodes.map(\.id)))
   }
 
   @Test("podcastEpisodes(Episode.completed, Episode.Columns.completionDate.desc)")
