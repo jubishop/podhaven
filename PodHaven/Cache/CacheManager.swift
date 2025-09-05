@@ -158,8 +158,8 @@ actor CacheManager {
       guard let self else { return }
 
       do {
-        for try await queuedEpisodes in await observatory.queuedPodcastEpisodes() {
-          await handleQueueChange(queuedEpisodes.map(\.id))
+        for try await queuedEpisodeIDs in await observatory.queuedEpisodeIDs() {
+          await handleQueueChange(queuedEpisodeIDs)
         }
       } catch {
         Self.log.error(error)

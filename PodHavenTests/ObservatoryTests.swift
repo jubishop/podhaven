@@ -76,8 +76,8 @@ actor ObservatoryTests {
     #expect(fetchedPodcastAllPlayed.maxUnqueuedEpisodePubDate == nil)
   }
 
-  @Test("queuedPodcastEpisodes()")
-  func testQueuedPodcastEpisodes() async throws {
+  @Test("queuedPodcastEpisodes() and queuedEpisodeIDs")
+  func testQueuedPodcastEpisodesAndIDs() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     try await repo.insertSeries(
       unsavedPodcast,
@@ -100,6 +100,10 @@ actor ObservatoryTests {
         "top", "midtop", "middle", "midbottom", "bottom",
       ]
     )
+
+    let queuedEpisodeIDs = try await observatory.queuedEpisodeIDs().get()
+    #expect(queuedEpisodes.count == 5)
+    #expect(queuedEpisodeIDs == queuedEpisodes.map(\.id))
   }
 
   @Test("podcastEpisodes(Episode.completed, Episode.Columns.completionDate.desc)")
