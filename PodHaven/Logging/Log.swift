@@ -8,9 +8,9 @@ enum Log {
   // MARK: - Initialization
 
   #if DEBUG
-  private static let subsystemSuffix = Mutex<String>("")
-  static func setSubsystemSuffix(_ suffix: String = #function) {
-    subsystemSuffix.withLock { $0 = suffix }
+  private static let _subsystem = Mutex<String>("")
+  static func setSubsystem(_ subsystem: String = #function) {
+    _subsystem.withLock { $0 = subsystem }
   }
   #endif
 
@@ -38,8 +38,8 @@ enum Log {
 
   private static func buildSubsystem(_ subsystem: String) -> String {
     #if DEBUG
-    let subsystemSuffix = subsystemSuffix.withLock { string in string }
-    return subsystemSuffix.isEmpty ? subsystem : "\(subsystem)_\(subsystemSuffix)"
+    let _subsystem = _subsystem.withLock { string in string }
+    return _subsystem.isEmpty ? subsystem : "\(_subsystem)_\(subsystem)"
     #else
     return subsystem
     #endif
