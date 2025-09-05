@@ -20,18 +20,18 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
   private static let log = Log.as("CacheBackgroundDelegate")
 
-  private let completions = Mutex<[URLSessionConfiguration.ID: @MainActor () -> Void]>([:])
+  private let completions = ThreadSafe<[URLSessionConfiguration.ID: @MainActor () -> Void]>([:])
 
   // MARK: - Completion Management
 
   func store(id: URLSessionConfiguration.ID, completion: @escaping @MainActor () -> Void) {
-    completions.withLock { dict in
+    completions { dict in
       dict[id] = completion
     }
   }
 
   func complete(for id: URLSessionConfiguration.ID) {
-    let completion = completions.withLock { dict in
+    let completion = completions { dict in
       dict.removeValue(forKey: id)
     }
     if let completion {

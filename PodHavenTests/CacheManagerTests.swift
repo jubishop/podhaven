@@ -84,7 +84,7 @@ import Testing
   // TODO: Intermittently failing, why?
   @Test("download failure clears cache for episode")
   func downloadFailureClearsCacheForEpisode() async throws {
-    Log.setSubsystem()
+    Log.setSystem()
     let podcastEpisode = try await Create.podcastEpisode()
     let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 
