@@ -97,14 +97,6 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func episode(_ downloadTaskID: URLSessionDownloadTask.ID) async throws -> Episode? {
-    try await appDB.db.read { db in
-      try Episode
-        .filter(Episode.Columns.downloadTaskID == downloadTaskID)
-        .fetchOne(db)
-    }
-  }
-
   func episodes(_ downloadTaskIDs: [URLSessionDownloadTask.ID]) async throws -> [Episode] {
     guard !downloadTaskIDs.isEmpty else { return [] }
     return try await appDB.db.read { db in
@@ -112,6 +104,10 @@ struct Repo: Databasing, Sendable {
         .filter(downloadTaskIDs.contains(Episode.Columns.downloadTaskID))
         .fetchAll(db)
     }
+  }
+
+  func episode(_ downloadTaskID: URLSessionDownloadTask.ID) async throws -> Episode? {
+    try await episodes([downloadTaskID]).first
   }
 
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode? {
