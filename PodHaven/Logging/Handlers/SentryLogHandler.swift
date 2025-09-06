@@ -14,10 +14,11 @@ struct SentryLogHandler: LogHandler {
   }
   public var logLevel: Logging.Logger.Level = .trace
 
-  private let label: String
+  private let subsystem: String
+  private let category: String
 
   init(label: String) {
-    self.label = label
+    (self.subsystem, self.category) = LogKit.destructureLabel(from: label)
   }
 
   public func log(
@@ -30,19 +31,32 @@ struct SentryLogHandler: LogHandler {
     line: UInt
   ) {
     let logger = SentrySDK.logger
+    let message = String(describing: message)
+    let attributes =
+      [
+        "subsystem": subsystem,
+        "category": category,
+        "environment": AppInfo.environment,
+        "deviceIdentifier": AppInfo.deviceIdentifier,
+        "developerDevice": AppInfo.myDevice,
+        "version": AppInfo.version,
+        "buildNumber": AppInfo.buildNumber,
+        "buildDate": AppInfo.buildDate,
+      ] as [String: Any]
+
     switch level {
     case .trace:
-      logger.trace("\(label): \(message)")
+      logger.trace(message, attributes: attributes)
     case .debug:
-      logger.debug("\(label): \(message)")
+      logger.debug(message, attributes: attributes)
     case .info, .notice:
-      logger.info("\(label): \(message)")
+      logger.info(message, attributes: attributes)
     case .warning:
-      logger.warn("\(label): \(message)")
+      logger.warn(message, attributes: attributes)
     case .error:
-      logger.error("\(label): \(message)")
+      logger.error(message, attributes: attributes)
     case .critical:
-      logger.fatal("\(label): \(message)")
+      logger.fatal(message, attributes: attributes)
     }
   }
 }
