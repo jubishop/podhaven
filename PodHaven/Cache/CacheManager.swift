@@ -67,7 +67,7 @@ actor CacheManager {
   func downloadToCache(for episodeID: Episode.ID) async throws(CacheError)
     -> URLSessionDownloadTask.ID?
   {
-    Self.log.debug("downloadToCache: \(episodeID)")
+    Self.log.trace("downloadToCache: \(episodeID)")
 
     return try await CacheError.catch {
       try await performDownloadToCache(episodeID)
@@ -82,13 +82,13 @@ actor CacheManager {
 
     guard !podcastEpisode.episode.cached
     else {
-      Self.log.debug("\(podcastEpisode.toString) already cached")
+      Self.log.trace("\(podcastEpisode.toString) already cached")
       return nil
     }
 
     guard !podcastEpisode.episode.caching
     else {
-      Self.log.debug("\(podcastEpisode.toString) already being downloaded")
+      Self.log.trace("\(podcastEpisode.toString) already being downloaded")
       return nil
     }
 

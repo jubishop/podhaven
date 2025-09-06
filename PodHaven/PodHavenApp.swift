@@ -103,6 +103,7 @@ struct PodHavenApp: App {
         MultiplexLogHandler([
           OSLogHandler(label: label),
           FileLogHandler(label: label),
+          SentryLogHandler(label: label),
           CrashReportHandler(label: label),
         ])
       }
@@ -125,6 +126,7 @@ struct PodHavenApp: App {
         "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
       options.sendDefaultPii = true
       options.enableAppHangTracking = false
+      options.experimental.enableLogs = true
     }
   }
 }

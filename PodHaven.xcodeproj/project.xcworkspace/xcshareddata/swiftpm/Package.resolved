@@ -52,7 +52,7 @@
       "location" : "https://github.com/getsentry/sentry-cocoa/",
       "state" : {
         "branch" : "main",
-        "revision" : "d1c0538b609161ffeaba47e9c1c952c80a3c6297"
+        "revision" : "8203ac0fef3497107e914df171fea5bfaa966ea5"
       }
     },
     {
@@ -79,7 +79,7 @@
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
         "branch" : "main",
-        "revision" : "868884d743cafe055c151c75bd790b88928f1974"
+        "revision" : "b5fc030a8e0bbcdc014f563528289a0dba4a8f1f"
       }
     },
     {
@@ -133,7 +133,7 @@
       "location" : "https://github.com/pointfreeco/swift-navigation",
       "state" : {
         "branch" : "main",
-        "revision" : "819dea23847a7b6693801cf7e248ba766a72aee1"
+        "revision" : "6b7f44d218e776bb7a5246efb940440d57c8b2cf"
       }
     },
     {
@@ -151,7 +151,7 @@
       "location" : "https://github.com/pointfreeco/swift-sharing",
       "state" : {
         "branch" : "main",
-        "revision" : "530c98ac2c3e393615616bd6d8fc604600c99f6f"
+        "revision" : "aaf605733bd93126d1a3658b4021146d95c94cb6"
       }
     },
     {
@@ -160,7 +160,7 @@
       "location" : "https://github.com/swiftlang/swift-syntax",
       "state" : {
         "branch" : "main",
-        "revision" : "7f1b7681b512c5d1616116fec5b450d7cd6033c4"
+        "revision" : "6df106db45da4536a3c9f8cd2a21918999127924"
       }
     },
     {
