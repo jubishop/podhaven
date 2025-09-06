@@ -30,26 +30,6 @@ import UIKit
     return backgroundTask
   }
 
-  @discardableResult
-  static func start<R: Sendable>(
-    withName name: String = #function,
-    _ operation: @Sendable () async throws -> R
-  ) async rethrows -> R {
-    let backgroundTask = BackgroundTask.start(withName: name)
-    defer { backgroundTask.end() }
-    return try await operation()
-  }
-
-  @discardableResult
-  static func start<R: Sendable>(
-    withName name: String = #function,
-    _ operation: @Sendable () throws -> R
-  ) rethrows -> R {
-    let backgroundTask = BackgroundTask.start(withName: name)
-    defer { backgroundTask.end() }
-    return try operation()
-  }
-
   // MARK: - End
 
   func end() {

@@ -70,11 +70,11 @@ struct FileLogManager: Sendable {
     Task(priority: .background) {
       while true {
         do {
-          await BackgroundTask.start(withName: "FileLogManager.startPeriodicCleanup") {
-            Self.log.debug("Running periodic log truncation after \(periodicCleanupInterval)")
-            await truncateLogFile()
-          }
-
+          let backgroundTask = await BackgroundTask.start(
+            withName: "FileLogManager.startPeriodicCleanup"
+          )
+          await truncateLogFile()
+          await backgroundTask.end()
           try await sleeper.sleep(for: periodicCleanupInterval)
         } catch {
           Self.log.error(error)
@@ -90,6 +90,7 @@ struct FileLogManager: Sendable {
       return
     }
 
+    Self.log.debug("Running periodic log truncation after \(periodicCleanupInterval)")
     await withCheckedContinuation { continuation in
       logQueue.async {
         do {
