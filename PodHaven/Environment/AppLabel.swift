@@ -35,6 +35,7 @@ private enum SystemImageName: String, CaseIterable {
   case editComplete = "checkmark.circle"
   case episodeCached = "arrow.down.circle.fill"
   case episodeCompleted = "checkmark.circle.fill"
+  case episodeOnDeck = "play.circle"
   case selectionEmpty = "circle"
   case selectionFilled = "record.circle"
 
@@ -160,6 +161,7 @@ enum AppLabel: CaseIterable {
   case editComplete
   case episodeCached
   case episodeCompleted
+  case episodeOnDeck
   case episodeQueued
   case externalLink
   case expandDown
@@ -242,6 +244,7 @@ enum AppLabel: CaseIterable {
     case .editComplete: return LabelData(text: "Done", systemImageName: .editComplete)
     case .episodeCached: return LabelData(text: "Cached", systemImageName: .episodeCached)
     case .episodeCompleted: return LabelData(text: "Completed", systemImageName: .episodeCompleted)
+    case .episodeOnDeck: return LabelData(text: "On Deck", systemImageName: .episodeOnDeck)
     case .episodeQueued: return LabelData(text: "Queued", systemImageName: .episodeQueued)
     case .externalLink: return LabelData(text: "External Link", systemImageName: .externalLink)
     case .expandDown: return LabelData(text: "Collapse", systemImageName: .expandDown)
