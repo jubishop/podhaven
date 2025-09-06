@@ -40,10 +40,10 @@ final class RefreshManager {
     Self.log.debug("start: executing")
 
     if await UIApplication.shared.applicationState == .active {
-      Self.log.trace("start: app already active, activating refresh task")
+      Self.log.debug("start: app already active, activating refresh task")
       activated()
     } else {
-      Self.log.trace("start: app not active, waiting for activation")
+      Self.log.debug("start: app not active, waiting for activation")
     }
 
     startListeningToActivation()
@@ -88,7 +88,7 @@ final class RefreshManager {
       }
     }
 
-    Self.log.trace("performRefresh: completed")
+    Self.log.debug("performRefresh: completed")
   }
 
   @discardableResult
@@ -213,7 +213,7 @@ final class RefreshManager {
   // MARK: - Private Helpers
 
   private func activated() {
-    Self.log.trace("activated: starting background refresh task")
+    Self.log.debug("activated: starting background refresh task")
 
     if currentlyBackgroundRefreshing {
       Self.log.debug("activated: already refreshing")
