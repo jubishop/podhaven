@@ -1,176 +1,127 @@
-# PodHaven - Podcast App
+# PodHaven - Your Personal Podcast Hub
 
-PodHaven is a Swift-based podcast application that allows users to discover, subscribe to, and listen to podcasts.
+[![Swift Version](https://img.shields.io/badge/Swift-6.10-orange.svg)](https://swift.org)
+[![Xcode Version](https://img.shields.io/badge/Xcode-16.3-blue.svg)](https://developer.apple.com/xcode/)
 
-## Project Requirements
+PodHaven is a modern, open-source podcast application for iOS, built with Swift and SwiftUI. It provides a clean and intuitive interface for discovering, subscribing to, and listening to your favorite podcasts.
 
-- Xcode 16.3 or later
+## ✨ Features
+
+- **Discover & Search**: Find new podcasts with a powerful search powered by the [PodcastIndex API](https://podcastindex.org/). Search by title, term, or person.
+- **Trending Podcasts**: See what's currently popular and discover new shows.
+- **Subscribe & Manage**: Easily subscribe to your favorite podcasts and manage your library.
+- **Episode Playback**: A modern audio player to listen to episodes.
+- **Playback Queue**: Manage a queue of upcoming episodes.
+- **Download for Offline**: Save episodes to your device to listen without an internet connection.
+- **OPML Import/Export**: Import your existing podcast subscriptions from another app, or export your library from PodHaven.
+- **Share Extension**: Add new podcasts directly from Safari or other apps using the share sheet.
+- **Built with SwiftUI**: A modern, responsive interface built entirely with SwiftUI.
+
+## 📸 Screenshots
+
+*TBD: Placeholder for app screenshots.*
+
+## 🚀 Getting Started
+
+Follow these instructions to get the project up and running on your local machine for development and testing purposes.
+
+### Prerequisites
+
+- macOS with Xcode 16.3 or later
 - Swift 6.10 or later
 
-## Build & Test Commands
+### Installation
 
-### Setup & Build
-- Clone the repository: `git clone https://github.com/jubishop/podhaven.git`
-- Navigate to project: `cd podhaven`
-- Open in Xcode: `open PodHaven.xcodeproj`
-- Build with Xcode: Run the project using Xcode's Run button (⌘R)
-- Build from terminal: 
-  ```
-  xcodebuild -project PodHaven.xcodeproj -scheme PodHaven -configuration Debug build
-  ```
+1.  **Clone the repository:**
+    ```sh
+    git clone https://github.com/jubishop/podhaven.git
+    ```
+2.  **Navigate to the project directory:**
+    ```sh
+    cd podhaven
+    ```
+3.  **Open the project in Xcode:**
+    ```sh
+    open PodHaven.xcodeproj
+    ```
+4.  **Build the project:**
+    Press `Cmd+R` in Xcode to build and run the app in the simulator.
 
-### Testing
-- Run all tests in Xcode: Use ⌘U or Product > Test
-- Run all tests from terminal: 
-  ```
-  xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven
-  ```
-- Run specific test class:
-  ```
-  xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven -only-testing:PodHavenTests/[TestClassName]
-  ```
-- Run individual test method:
-  ```
-  xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven -only-testing:PodHavenTests/[TestClassName]/[testMethodName]
-  ```
-- In Xcode UI: Use ⌘6 to open Test Navigator, click diamond icon next to test to run it
+## 🛠️ Build & Test Commands
 
-## Project Architecture
+For more advanced users, here are the commands to build and test from the command line.
 
-PodHaven uses Swift and SwiftUI for the UI layer with the following dependencies:
-- [GRDB](https://github.com/groue/GRDB.swift): Database management
-- [XMLCoder](https://github.com/MaxDesiatov/XMLCoder): For parsing podcast RSS feeds
-- [Nuke/NukeUI](https://github.com/kean/Nuke): Image loading and caching
-- [Factory](https://github.com/hmlongco/Factory): Dependency injection
-- [Tagged](https://github.com/pointfreeco/swift-tagged): Type-safe identifiers
-- [Sentry](https://github.com/getsentry/sentry-cocoa): Error reporting (Production builds only)
-- [IdentifiedCollections](https://github.com/pointfreeco/swift-identified-collections): Collection utilities
-- [OrderedCollections](https://github.com/apple/swift-collections): Foundation collection extensions
-- [Semaphore](https://github.com/groue/Semaphore): Concurrency utilities
+<details>
+<summary>Click to expand Build & Test Commands</summary>
 
-## PodcastIndex Integration
+### Build from Terminal
+```sh
+xcodebuild -project PodHaven.xcodeproj -scheme PodHaven -configuration Debug build
+```
 
-PodHaven integrates with the [PodcastIndex API](https://podcastindex.org/) for podcast discovery and search functionality:
+### Run All Tests
+Use `Cmd+U` in Xcode, or run the following command in your terminal:
+```sh
+xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven
+```
 
-### API Integration
-- Uses RESTful API calls to PodcastIndex.org endpoints
-- Authenticated with API key and SHA-1 hashed authorization headers
-- Custom URLSession configuration for efficient network requests
+### Run a Specific Test Class
+```sh
+xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven -only-testing:PodHavenTests/[TestClassName]
+```
 
-### Search Features
-- **Term Search**: Find podcasts matching general query terms
-- **Title Search**: Search specifically for podcasts by title (with similar results option)
-- **Person Search**: Discover podcasts by host or guest name
-- **Trending**: Get currently trending podcasts with optional category filtering
+### Run an Individual Test Method
+```sh
+xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -testPlan PodHaven -only-testing:PodHavenTests/[TestClassName]/[testMethodName]
+```
+</details>
 
-### Search Result Models
-- Uses domain-specific models that conform to `FeedResultConvertible` and `PodcastResultConvertible` protocols
-- Converts API responses into app-specific data structures (`TermResult`, `TitleResult`, `PersonResult`, `TrendingResult`)
-- Handles parsing with proper error handling through `SearchError` types
+## 🏛️ Project Architecture
 
-## Dependency Injection
+PodHaven is built using modern Swift practices and a clean, modular architecture.
 
-PodHaven uses the FactoryKit package for dependency injection:
-- Use `@DynamicInjected` macro in ViewModels for cached dependencies (e.g., `@ObservationIgnored @DynamicInjected(\.repo) private var repo`)
-- Use `@InjectedObservable` for observable dependencies in Views (e.g., `@InjectedObservable(\.navigation) private var navigation`)
-- Use `@LazyInjected` only for dependencies with `.scope(.unique)` instead of `.scope(.cached)`
-- Only use `Container.shared` directly when necessary for actor-isolated properties or in protocols
-- Each ViewModel should have an `execute()` function in the Initialization section
+- **UI Layer:** Built with **SwiftUI** for a declarative and responsive user interface.
+- **Database:** Uses **GRDB.swift** for fast and safe access to the local SQLite database.
+- **Networking:** Leverages **URLSession** for network requests, with **XMLCoder** for parsing podcast RSS feeds.
+- **Image Handling:** **Nuke** is used for efficient image loading and caching.
+- **Dependency Injection:** **Factory** provides a clean way to manage dependencies throughout the app.
+- **Concurrency:** Built from the ground up with Swift's modern concurrency features (`async/await`).
 
-### Testing with FactoryKit
+### Dependencies
 
-Tests utilize the FactoryKit and FactoryTesting packages:
-- Mark test suites with `@Suite(..., .container)` to enable container-based dependency injection
-- The Container extension implements `AutoRegistering` to override dependencies for testing
-- Use `context(.test)` to register test mocks (e.g., `.context(.test) { DataFetchableMock() }.scope(.cached)`)
-- In test classes, use `@DynamicInjected` and `@LazyInjected` to access dependencies, following the same patterns as production code
+- [GRDB.swift](https://github.com/groue/GRDB.swift) - Database management
+- [XMLCoder](https://github.com/MaxDesiatov/XMLCoder) - RSS feed parsing
+- [Nuke](https://github.com/kean/Nuke) - Image loading and caching
+- [Factory](https://github.com/hmlongco/Factory) - Dependency injection
+- [Tagged](https://github.com/pointfreeco/swift-tagged) - Type-safe identifiers
+- [Sentry](https://github.com/getsentry/sentry-cocoa) - Error reporting
+- [IdentifiedCollections](https://github.com/pointfreeco/swift-identified-collections) - Collection utilities
+- [OrderedCollections](https://github.com/apple/swift-collections) - Foundation collection extensions
+- [Semaphore](https://github.com/groue/Semaphore) - Concurrency utilities
 
-## Error Handling
+## 👨‍💻 Development Practices
 
-PodHaven uses a structured approach to error handling:
+<details>
+<summary>Click to expand Development Practices</summary>
 
-### Error Protocols
-- `ReadableError`: Base protocol for all domain errors, providing readable error messages
-- `CatchingError`: Protocol for errors that can catch and transform other errors
+### Code Style
+- **File Organization**: Each top-level type in its own file.
+- **Naming Conventions**: `PascalCase` for types, `camelCase` for functions/variables.
+- **Section Markers**: Use `// MARK: - Section Name` for organization.
+- **Copyright**: All files must include a "Copyright Justin Bishop, 2025" header.
 
-### Error Implementation
-1. Define domain-specific error enums that conform to `ReadableError`:
-   ```swift
-   enum SearchError: ReadableError {
-     case noResults
-     case networkFailure(String)
-   }
-   ```
+### Error Handling
+- A structured approach using `ReadableError` and `CatchingError` protocols to ensure all errors are handled gracefully.
 
-2. For errors that need to wrap other errors, also conform to `CatchingError`:
-   ```swift
-   enum FeedError: ReadableError, CatchingError {
-     case invalidURL
-     case parsingFailure(String)
-     case wrapped(Error)
-     
-     static func caught(_ error: Error) -> Self {
-       .wrapped(error)
-     }
-   }
-   ```
+### Logging
+- A centralized logging system built on top of Apple's `OSLog` and integrated with `Sentry` for production builds.
 
-3. Use the `catch` method to automatically wrap errors:
-   ```swift
-   func fetchFeed() async throws(FeedError) -> Feed {
-     try await FeedError.catch {
-       // Code that may throw other error types
-     }
-   }
-   ```
+</details>
 
-4. Use `ErrorKit` utilities for logging and presenting errors
+## 🙌 Contributing
 
-## Logging
+Contributions are welcome! If you have a feature request, bug report, or want to contribute to the code, please feel free to open an issue or submit a pull request.
 
-PodHaven uses a structured logging system:
+## 📄 License
 
-### Components
-- Uses Apple's `OSLog` for system-level logging
-- Integrates with `Sentry` for error reporting in production builds
-- Custom `LogLevel` enum with debug, info, warning, critical levels
-
-### Usage
-
-1. Conform types to `LogCategorizable` to define subsystem, category and level:
-   ```swift
-   extension YourType: LogCategorizable {
-     static let subsystem = "com.jubishop.PodHaven"
-     static let category = "YourCategory"
-     static let level: LogLevel = .info
-   }
-   ```
-
-2. Initialize and use the Log structure:
-   ```swift
-   private let log = Log(as: Self.self)
-   
-   func someFunction() {
-     log.debug("Debug message")
-     log.info("Info message")
-     log.warning("Warning message")
-     log.critical("Critical message")
-   }
-   ```
-
-3. Critical errors are automatically reported to Sentry in production builds
-
-## Code Style Guidelines
-
-- File organization: Each top-level type should be in its own file with the same name
-- Imports: Import only what's needed, organize by framework then project imports
-- Copyright header: Include "Copyright Justin Bishop, 2025" at file start
-- Type names: PascalCase (e.g., `PodcastFeed`, `EpisodeViewModel`)
-- Variables/functions: camelCase (e.g., `feedURL`, `makeMigrator()`)
-- Section markers: Use `// MARK: - Section Name` for code organization (only for major sections)
-- Tagged types: Use for type-safe identifiers (e.g., `Podcast.ID`, `GUID`, `MediaURL`)
-- Protocol conformances: List in alphabetical order
-- Protocol attributes: Sort alphabetically, followed by a line of whitespace, then functions
-- Database operations: Use GRDB's query builder APIs rather than raw SQL
-- Concurrency: Use Swift concurrency (async/await) with proper error handling
-- Test naming: Descriptive (`testHTMLRegexes`), use #expect for assertions
+*TBD: This project is not yet licensed.*
