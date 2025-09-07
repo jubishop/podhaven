@@ -4,7 +4,7 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## GIT
 
-- **IMPORTANT: Unless explicitly asked don't git commit your changes.**
+- **IMPORTANT: Unless explicitly asked don't git commit or push any changes.**
 
 ## Essential Build & Test Commands
 
@@ -14,7 +14,9 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 ### Testing
 - **IMPORTANT: Don't try to run the tests unless explicitly asked.**
 
-**IMPORTANT: If you do try to build or test: use the MCP Tools build_macos and test_macos**
+### Note
+- If you are asked to build or test: use the MCP Tools build_macos and test_macos.
+- If test_macos is returning no results that's because it doesn't build so try build_macos first.
 
 ## Core Architecture
 

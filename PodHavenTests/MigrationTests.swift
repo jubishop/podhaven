@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
@@ -380,268 +381,270 @@ class MigrationTests {
     }
   }
 
-//  @Test("v17 migration renames media column to mediaURL")
-//  func testV17MediaToMediaURLMigration() async throws {
-//    // Apply migrations up to v16
-//    try migrator.migrate(appDB.db, upTo: "v16")
-//
-//    // Insert test data using the old schema
-//    let testPodcastID = try await appDB.db.write { db in
-//      try db.execute(
-//        sql: """
-//          INSERT INTO podcast (feedURL, title, image, description, lastUpdate, creationDate)
-//          VALUES (?, ?, ?, ?, ?, ?)
-//          """,
-//        arguments: [
-//          "https://example.com/feed.xml",
-//          "Test Podcast",
-//          "https://example.com/image.jpg",
-//          "Test Description",
-//          Date(),
-//          Date(),
-//        ]
-//      )
-//      return db.lastInsertedRowID
-//    }
-//
-//    let testMediaURL = "https://example.com/episode.mp3"
-//    let testGUID = "test-episode-guid"
-//    let testTitle = "Test Episode"
-//    let testPubDate = Date()
-//    let testDuration: Int64 = 1800  // 30 minutes in seconds
-//
-//    try await appDB.db.write { db in
-//      try db.execute(
-//        sql: """
-//          INSERT INTO episode (
-//            podcastId, guid, media, title, pubDate, duration, currentTime, creationDate
-//          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-//          """,
-//        arguments: [
-//          testPodcastID,
-//          testGUID,
-//          testMediaURL,
-//          testTitle,
-//          testPubDate,
-//          testDuration,
-//          0,
-//          Date(),
-//        ]
-//      )
-//    }
-//
-//    // Verify data exists with old column name
-//    let oldEpisodeData = try await appDB.db.read { db in
-//      try Row.fetchOne(
-//        db,
-//        sql: "SELECT podcastId, guid, media, title, pubDate, duration FROM episode WHERE guid = ?",
-//        arguments: [testGUID]
-//      )
-//    }
-//    #expect(oldEpisodeData != nil)
-//    #expect(oldEpisodeData!["media"] as String == testMediaURL)
-//
-//    // Apply v17 migration
-//    try migrator.migrate(appDB.db, upTo: "v17")
-//
-//    // Verify data exists with new column name
-//    let newEpisodeData = try await appDB.db.read { db in
-//      try Row.fetchOne(
-//        db,
-//        sql:
-//          "SELECT podcastId, guid, mediaURL, title, pubDate, duration FROM episode WHERE guid = ?",
-//        arguments: [testGUID]
-//      )
-//    }
-//    #expect(newEpisodeData != nil)
-//    #expect(newEpisodeData!["mediaURL"] as String == testMediaURL)
-//    #expect(newEpisodeData!["title"] as String == testTitle)
-//    #expect(newEpisodeData!["duration"] as Int64 == testDuration)
-//
-//    // Verify old column no longer exists
-//    await #expect(throws: DatabaseError.self) {
-//      try await self.appDB.db.read { db in
-//        try Row.fetchOne(
-//          db,
-//          sql: "SELECT media FROM episode WHERE guid = ?",
-//          arguments: [testGUID]
-//        )
-//      }
-//    }
-//  }
-//
-//  @Test("v17 migration preserves all data and constraints")
-//  func testV17MigrationPreservesDataAndConstraints() async throws {
-//    // Apply migrations up to v16
-//    try migrator.migrate(appDB.db, upTo: "v16")
-//
-//    // Insert multiple test records
-//    let testData = [
-//      (
-//        "podcast1", "https://example1.com/feed.xml", "guid1", "https://example1.com/ep1.mp3",
-//        "Episode 1"
-//      ),
-//      (
-//        "podcast2", "https://example2.com/feed.xml", "guid2", "https://example2.com/ep2.mp3",
-//        "Episode 2"
-//      ),
-//      (
-//        "podcast3", "https://example3.com/feed.xml", "guid3", "https://example3.com/ep3.mp3",
-//        "Episode 3"
-//      ),
-//    ]
-//
-//    var podcastEpisodePairs: [(Int64, String, String)] = []
-//
-//    for (podcastTitle, feedURL, guid, mediaURL, episodeTitle) in testData {
-//      let podcastID = try await appDB.db.write { db in
-//        try db.execute(
-//          sql: """
-//            INSERT INTO podcast (feedURL, title, image, description, lastUpdate, creationDate)
-//            VALUES (?, ?, ?, ?, ?, ?)
-//            """,
-//          arguments: [
-//            feedURL, podcastTitle, "https://example.com/image.jpg", "Description", Date(), Date(),
-//          ]
-//        )
-//        return db.lastInsertedRowID
-//      }
-//
-//      try await appDB.db.write { db in
-//        try db.execute(
-//          sql: """
-//            INSERT INTO episode (
-//              podcastId, guid, media, title, pubDate, currentTime, creationDate
-//            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-//            """,
-//          arguments: [podcastID, guid, mediaURL, episodeTitle, Date(), 0, Date()]
-//        )
-//      }
-//
-//      podcastEpisodePairs.append((podcastID, guid, mediaURL))
-//    }
-//
-//    // Apply v17 migration
-//    try migrator.migrate(appDB.db, upTo: "v17")
-//
-//    // Verify all data is preserved
-//    for (podcastID, guid, expectedMediaURL) in podcastEpisodePairs {
-//      let episodeData = try await appDB.db.read { db in
-//        try Row.fetchOne(
-//          db,
-//          sql: """
-//            SELECT e.podcastId, e.guid, e.mediaURL, e.title, p.title as podcastTitle
-//            FROM episode e
-//            JOIN podcast p ON e.podcastId = p.id
-//            WHERE e.guid = ?
-//            """,
-//          arguments: [guid]
-//        )
-//      }
-//
-//      #expect(episodeData != nil)
-//      #expect(episodeData!["podcastId"] as Int64 == podcastID)
-//      #expect(episodeData!["guid"] as String == guid)
-//      #expect(episodeData!["mediaURL"] as String == expectedMediaURL)
-//    }
-//
-//    // Verify unique constraint on podcastId + guid still works
-//    await #expect(throws: DatabaseError.self) {
-//      try await self.appDB.db.write { db in
-//        try db.execute(
-//          sql: """
-//            INSERT INTO episode (
-//              podcastId, guid, mediaURL, title, pubDate, currentTime, creationDate
-//            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-//            """,
-//          arguments: [
-//            podcastEpisodePairs[0].0, podcastEpisodePairs[0].1, "https://different.com/url.mp3",
-//            "Different Episode", Date(), 0, Date(),
-//          ]
-//        )
-//      }
-//    }
-//
-//    // Verify unique constraint on podcastId + mediaURL works
-//    await #expect(throws: DatabaseError.self) {
-//      try await self.appDB.db.write { db in
-//        try db.execute(
-//          sql: """
-//            INSERT INTO episode (
-//              podcastId, guid, mediaURL, title, pubDate, currentTime, creationDate
-//            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-//            """,
-//          arguments: [
-//            podcastEpisodePairs[0].0, "different-guid", podcastEpisodePairs[0].2,
-//            "Different Episode", Date(), 0, Date(),
-//          ]
-//        )
-//      }
-//    }
-//
-//    // Verify unique constraint on guid + mediaURL works
-//    await #expect(throws: DatabaseError.self) {
-//      try await self.appDB.db.write { db in
-//        try db.execute(
-//          sql: """
-//            INSERT INTO episode (
-//              podcastId, guid, mediaURL, title, pubDate, currentTime, creationDate
-//            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-//            """,
-//          arguments: [
-//            podcastEpisodePairs[1].0, podcastEpisodePairs[0].1, podcastEpisodePairs[0].2,
-//            "Different Episode", Date(), 0, Date(),
-//          ]
-//        )
-//      }
-//    }
-//  }
-//
-//  @Test("v17 migration works with Episode model after migration")
-//  func testV17MigrationWithEpisodeModel() async throws {
-//    // Apply full migration including v17
-//    try migrator.migrate(appDB.db)
-//
-//    // Create test data using Episode model (which should use mediaURL column)
-//    let testPodcast = try UnsavedPodcast(
-//      feedURL: FeedURL(URL(string: "https://example.com/feed.xml")!),
-//      title: "Test Podcast",
-//      image: URL(string: "https://example.com/image.jpg")!,
-//      description: "Test Description"
-//    )
-//
-//    let testEpisode = try UnsavedEpisode(
-//      guid: GUID("test-model-guid"),
-//      media: MediaURL(URL(string: "https://example.com/episode.mp3")!),
-//      title: "Test Model Episode",
-//      pubDate: Date(),
-//      duration: CMTime.seconds(1800)
-//    )
-//
-//    // Insert using GRDB model methods
-//    try await appDB.db.write { db in
-//      var podcast = testPodcast
-//      let insertedPodcast = try podcast.insertAndFetch(db, as: Podcast.self)
-//
-//      var episode = testEpisode
-//      episode.podcastId = insertedPodcast.id
-//      let insertedEpisode = try episode.insertAndFetch(db, as: Episode.self)
-//
-//      #expect(insertedEpisode.media == testEpisode.media)
-//      #expect(insertedEpisode.title == testEpisode.title)
-//    }
-//
-//    // Verify we can query using the new column
-//    let fetchedEpisode = try await appDB.db.read { db in
-//      try Episode.fetchOne(
-//        db,
-//        sql: "SELECT * FROM episode WHERE mediaURL = ?",
-//        arguments: [testEpisode.media.rawValue]
-//      )
-//    }
-//
-//    #expect(fetchedEpisode != nil)
-//    #expect(fetchedEpisode!.media == testEpisode.media)
-//    #expect(fetchedEpisode!.title == testEpisode.title)
-//  }
+  @Test("v17 migration renames media column to mediaURL")
+  func testV17MediaToMediaURLMigration() async throws {
+    // Apply migrations up to v16
+    try migrator.migrate(appDB.db, upTo: "v16")
+
+    // Insert test data using the old schema
+    let testPodcastID = try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO podcast (feedURL, title, image, description, lastUpdate, creationDate)
+          VALUES (?, ?, ?, ?, ?, ?)
+          """,
+        arguments: [
+          "https://example.com/feed.xml",
+          "Test Podcast",
+          "https://example.com/image.jpg",
+          "Test Description",
+          Date(),
+          Date(),
+        ]
+      )
+      return db.lastInsertedRowID
+    }
+
+    let testMediaURL = "https://example.com/episode.mp3"
+    let testGUID = "test-episode-guid"
+    let testTitle = "Test Episode"
+    let testPubDate = Date()
+    let testDuration: Int64 = 1800  // 30 minutes in seconds
+
+    try await appDB.db.write { db in
+      try db.execute(
+        sql: """
+          INSERT INTO episode (
+            podcastId, guid, media, title, pubDate, duration, currentTime, creationDate
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          """,
+        arguments: [
+          testPodcastID,
+          testGUID,
+          testMediaURL,
+          testTitle,
+          testPubDate,
+          testDuration,
+          0,
+          Date(),
+        ]
+      )
+    }
+
+    // Verify data exists with old column name
+    let oldEpisodeData = try appDB.db.read { db in
+      return try Row.fetchOne(
+        db,
+        sql: "SELECT podcastId, guid, media, title, pubDate, duration FROM episode WHERE guid = ?",
+        arguments: [testGUID]
+      )
+    }
+    #expect(oldEpisodeData != nil)
+    #expect(oldEpisodeData!["media"] as String == testMediaURL)
+
+    // Apply v17 migration
+    try migrator.migrate(appDB.db, upTo: "v17")
+
+    // Verify data exists with new column name
+    let newEpisodeData = try appDB.db.read { db in
+      return try Row.fetchOne(
+        db,
+        sql:
+          "SELECT podcastId, guid, mediaURL, title, pubDate, duration FROM episode WHERE guid = ?",
+        arguments: [testGUID]
+      )
+    }
+    #expect(newEpisodeData != nil)
+    #expect(newEpisodeData!["mediaURL"] as String == testMediaURL)
+    #expect(newEpisodeData!["title"] as String == testTitle)
+    #expect(newEpisodeData!["duration"] as Int64 == testDuration)
+
+    // Verify old column no longer exists
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.db.read { db in
+        _ = try Row.fetchOne(
+          db,
+          sql: "SELECT media FROM episode WHERE guid = ?",
+          arguments: [testGUID]
+        )
+      }
+    }
+  }
+
+  @Test("v17 migration preserves all data and constraints")
+  func testV17MigrationPreservesDataAndConstraints() async throws {
+    // Apply migrations up to v16
+    try migrator.migrate(appDB.db, upTo: "v16")
+
+    // Insert multiple test records
+    let testData = [
+      (
+        "podcast1", "https://example1.com/feed.xml", "guid1", "https://example1.com/ep1.mp3",
+        "Episode 1"
+      ),
+      (
+        "podcast2", "https://example2.com/feed.xml", "guid2", "https://example2.com/ep2.mp3",
+        "Episode 2"
+      ),
+      (
+        "podcast3", "https://example3.com/feed.xml", "guid3", "https://example3.com/ep3.mp3",
+        "Episode 3"
+      ),
+    ]
+
+    var podcastEpisodePairs: [(Int64, String, String)] = []
+
+    for (podcastTitle, feedURL, guid, mediaURL, episodeTitle) in testData {
+      let podcastID = try await appDB.db.write { db in
+        try db.execute(
+          sql: """
+            INSERT INTO podcast (feedURL, title, image, description, lastUpdate, creationDate)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+          arguments: [
+            feedURL, podcastTitle, "https://example.com/image.jpg", "Description", Date(), Date(),
+          ]
+        )
+        return db.lastInsertedRowID
+      }
+
+      try await appDB.db.write { db in
+        try db.execute(
+          sql: """
+            INSERT INTO episode (
+              podcastId, guid, media, title, pubDate, currentTime, creationDate
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+          arguments: [podcastID, guid, mediaURL, episodeTitle, Date(), 0, Date()]
+        )
+      }
+
+      podcastEpisodePairs.append((podcastID, guid, mediaURL))
+    }
+
+    // Apply v17 migration
+    try migrator.migrate(appDB.db, upTo: "v17")
+
+    // Verify all data is preserved
+    for (podcastID, guid, expectedMediaURL) in podcastEpisodePairs {
+      let episodeData = try appDB.db.read { db in
+        return try Row.fetchOne(
+          db,
+          sql: """
+            SELECT e.podcastId, e.guid, e.mediaURL, e.title, p.title as podcastTitle
+            FROM episode e
+            JOIN podcast p ON e.podcastId = p.id
+            WHERE e.guid = ?
+            """,
+          arguments: [guid]
+        )
+      }
+
+      #expect(episodeData != nil)
+      #expect(episodeData!["podcastId"] as Int64 == podcastID)
+      #expect(episodeData!["guid"] as String == guid)
+      #expect(episodeData!["mediaURL"] as String == expectedMediaURL)
+    }
+
+    // Verify unique constraint on podcastId + guid still works
+    let firstPair = podcastEpisodePairs[0]
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.db.write { db in
+        try db.execute(
+          sql: """
+            INSERT INTO episode (
+              podcastId, guid, mediaURL, title, pubDate, currentTime, creationDate
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+          arguments: [
+            firstPair.0, firstPair.1, "https://different.com/url.mp3",
+            "Different Episode", Date(), 0, Date(),
+          ]
+        )
+      }
+    }
+
+    // Verify unique constraint on podcastId + mediaURL works
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.db.write { db in
+        try db.execute(
+          sql: """
+            INSERT INTO episode (
+              podcastId, guid, mediaURL, title, pubDate, currentTime, creationDate
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+          arguments: [
+            firstPair.0, "different-guid", firstPair.2,
+            "Different Episode", Date(), 0, Date(),
+          ]
+        )
+      }
+    }
+
+    // Verify unique constraint on guid + mediaURL works
+    let secondPair = podcastEpisodePairs[1]
+    await #expect(throws: DatabaseError.self) {
+      try await self.appDB.db.write { db in
+        try db.execute(
+          sql: """
+            INSERT INTO episode (
+              podcastId, guid, mediaURL, title, pubDate, currentTime, creationDate
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+          arguments: [
+            secondPair.0, firstPair.1, firstPair.2,
+            "Different Episode", Date(), 0, Date(),
+          ]
+        )
+      }
+    }
+  }
+
+  @Test("v17 migration works with Episode model after migration")
+  func testV17MigrationWithEpisodeModel() async throws {
+    // Apply full migration including v17
+    try migrator.migrate(appDB.db)
+
+    // Create test data using Episode model (which should use mediaURL column)
+    let testPodcast = try UnsavedPodcast(
+      feedURL: FeedURL(URL(string: "https://example.com/feed.xml")!),
+      title: "Test Podcast",
+      image: URL(string: "https://example.com/image.jpg")!,
+      description: "Test Description"
+    )
+
+    let testEpisode = try UnsavedEpisode(
+      guid: GUID("test-model-guid"),
+      mediaURL: MediaURL(URL(string: "https://example.com/episode.mp3")!),
+      title: "Test Model Episode",
+      pubDate: Date(),
+      duration: CMTime.seconds(1800)
+    )
+
+    // Insert using GRDB model methods
+    try await appDB.db.write { db in
+      var podcast = testPodcast
+      let insertedPodcast = try podcast.insertAndFetch(db, as: Podcast.self)
+
+      var episode = testEpisode
+      episode.podcastId = insertedPodcast.id
+      let insertedEpisode = try episode.insertAndFetch(db, as: Episode.self)
+
+      #expect(insertedEpisode.mediaURL == testEpisode.mediaURL)
+      #expect(insertedEpisode.title == testEpisode.title)
+    }
+
+    // Verify we can query using the new column
+    let fetchedEpisode = try await appDB.db.read { db in
+      try Episode.fetchOne(
+        db,
+        sql: "SELECT * FROM episode WHERE mediaURL = ?",
+        arguments: [testEpisode.mediaURL.rawValue]
+      )
+    }
+
+    #expect(fetchedEpisode != nil)
+    #expect(fetchedEpisode!.mediaURL == testEpisode.mediaURL)
+    #expect(fetchedEpisode!.title == testEpisode.title)
+  }
 }
