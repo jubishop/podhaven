@@ -110,7 +110,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       await cacheState.clearProgress(for: episode.id)
       try await repo.updateDownloadTaskID(episode.id, nil)
 
-      let fileName = CacheManager.generateCacheFilename(for: episode)
+      let fileName = generateCacheFilename(for: episode)
       let destURL = CacheManager.resolveCachedFilepath(for: fileName)
       if podFileManager.fileExists(at: destURL.rawValue) {
         Self.log.notice("File already cached for \(episode.id) at \(destURL), removing")
@@ -159,5 +159,16 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
     guard let id = session.configuration.identifier else { return }
     complete(for: URLSessionConfiguration.ID(id))
+  }
+
+  // MARK: - Private Helpers
+
+  private func generateCacheFilename(for episode: Episode) -> String {
+    let mediaURL = episode.mediaURL.rawValue
+    let fileExtension =
+    mediaURL.pathExtension.isEmpty == false
+    ? mediaURL.pathExtension
+    : "mp3"
+    return "\(mediaURL.hash(to: 12)).\(fileExtension)"
   }
 }

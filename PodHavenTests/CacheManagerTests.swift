@@ -401,18 +401,24 @@ import Testing
 
   // MARK: - Filenames
 
-  @Test("generateCacheFilename falls back to mp3 and preserves extension")
-  func generateCacheFilenameFallbackAndPreserve() async throws {
+  @Test("cache filenames fall back to mp3 and preserves extension")
+  func cacheFilenameFallbackAndPreserve() async throws {
     let noExt = try await Create.podcastEpisode(
       Create.unsavedEpisode(mediaURL: MediaURL(URL(string: "https://a.b/c/d")!))
     )
     let withExt = try await Create.podcastEpisode(
       Create.unsavedEpisode(mediaURL: MediaURL(URL(string: "https://a.b/c/d.wav")!))
     )
+    let noExtTaskID = try await cacheManager.downloadToCache(for: noExt.id)!
+    let withExtTaskID = try await cacheManager.downloadToCache(for: withExt.id)!
 
-    let name1 = CacheManager.generateCacheFilename(for: noExt.episode)
-    let name2 = CacheManager.generateCacheFilename(for: withExt.episode)
-    #expect(name1.hasSuffix(".mp3"))
-    #expect(name2.hasSuffix(".wav"))
+    try await CacheHelpers.simulateBackgroundFinish(noExtTaskID)
+    try await CacheHelpers.simulateBackgroundFinish(withExtTaskID)
+
+    let noExtURL = try await CacheHelpers.waitForCached(noExt.id)
+    let withExtURL = try await CacheHelpers.waitForCached(withExt.id)
+
+    #expect(noExtURL.pathExtension == "mp3")
+    #expect(withExtURL.pathExtension == "wav")
   }
 }

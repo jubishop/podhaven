@@ -213,15 +213,6 @@ actor CacheManager {
 
   // MARK: - Static Helpers
 
-  static func generateCacheFilename(for episode: Episode) -> String {
-    let mediaURL = episode.mediaURL.rawValue
-    let fileExtension =
-      mediaURL.pathExtension.isEmpty == false
-      ? mediaURL.pathExtension
-      : "mp3"
-    return "\(mediaURL.hash(to: 12)).\(fileExtension)"
-  }
-
   static func resolveCachedFilepath(for fileName: String) -> CachedURL {
     Assert.precondition(!fileName.isEmpty, "Empty fileName in resolveCachedFilepath?")
 
