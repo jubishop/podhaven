@@ -50,7 +50,7 @@ import Testing
 
     let onDeck = try await PlayHelpers.load(podcastEpisode)
     #expect(onDeck == podcastEpisode)
-    try await PlayHelpers.waitForCurrentItem(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
 
     var expectedInfo: [String: Any] = [:]
     expectedInfo[MPMediaItemPropertyPodcastTitle] = onDeck.podcastTitle
@@ -60,7 +60,7 @@ import Testing
     if let pubDate = onDeck.pubDate {
       expectedInfo[MPMediaItemPropertyReleaseDate] = pubDate
     }
-    expectedInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.mediaURL
+    expectedInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.mediaURL.rawValue
     expectedInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
     expectedInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
     expectedInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] = onDeck.guid.rawValue
@@ -92,7 +92,7 @@ import Testing
         """
         Key \(key) - \
         Expected: \(expectedValue), \
-        Actual: \(String(describing: nowPlayingInfo![key]))
+        Actual: \(String(describing: nowPlayingInfo![key]!))
         """
       )
     }
@@ -114,7 +114,7 @@ import Testing
     try await playManager.load(podcastEpisode)
     await playManager.play()
 
-    try await PlayHelpers.waitForCurrentItem(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
     try await PlayHelpers.waitFor(.playing)
   }
 
@@ -147,7 +147,7 @@ import Testing
     await playManager.play()
     try await PlayHelpers.waitForAudioActive(true)
 
-    try await PlayHelpers.waitForCurrentItem(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
     let currentItem = avPlayer.current as! FakeAVPlayerItem
     currentItem.setStatus(.failed)
     try await PlayHelpers.waitForAudioActive(false)
@@ -162,8 +162,8 @@ import Testing
     try await PlayHelpers.waitForAudioActive(true)
 
     await episodeAssetLoader.respond(
-      to: failingEpisode.episode,
-      error: TestError.assetLoadFailure(failingEpisode.episode.mediaURL)
+      to: failingEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(failingEpisode)
     )
     _ = try? await playManager.load(failingEpisode)
     try await PlayHelpers.waitForAudioActive(false)
@@ -174,7 +174,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     let loadingSemaphore = await episodeAssetLoader.waitThenRespond(
-      to: podcastEpisode.episode,
+      to: podcastEpisode.episode.mediaURL,
       data: (true, .seconds(10))
     )
 
@@ -205,7 +205,10 @@ import Testing
     )
 
     let correctDuration = CMTime.seconds(20)
-    await episodeAssetLoader.respond(to: podcastEpisode.episode, data: (true, correctDuration))
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, correctDuration)
+    )
 
     let onDeck = try await PlayHelpers.load(podcastEpisode)
     #expect(onDeck.duration == correctDuration)
@@ -229,8 +232,8 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     await episodeAssetLoader.respond(
-      to: podcastEpisode.episode,
-      error: TestError.assetLoadFailure(podcastEpisode.episode.mediaURL)
+      to: podcastEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(podcastEpisode)
     )
     await #expect(throws: (any Error).self) {
       try await playManager.load(podcastEpisode)
@@ -247,8 +250,8 @@ import Testing
 
     try await playManager.load(playingEpisode)
     await episodeAssetLoader.respond(
-      to: episodeToLoad.episode,
-      error: TestError.assetLoadFailure(episodeToLoad.episode.mediaURL)
+      to: episodeToLoad.episode.mediaURL,
+      error: TestError.assetLoadFailure(episodeToLoad)
     )
     await #expect(throws: (any Error).self) {
       try await playManager.load(episodeToLoad)
@@ -263,17 +266,18 @@ import Testing
   func loadingCancelsAnyInProgressLoad() async throws {
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await PlayHelpers.executeMidLoad(for: originalEpisode) { @MainActor in
-      await episodeAssetLoader.clearCustomHandler(for: originalEpisode.episode)
-      try await playManager.load(incomingEpisode)
-    }
+    try await PlayHelpers
+      .executeMidLoad(for: originalEpisode.episode.mediaURL) { @MainActor in
+        await episodeAssetLoader.clearCustomHandler(for: originalEpisode.episode)
+        try await playManager.load(incomingEpisode)
+      }
 
     await #expect(throws: (any Error).self) {
       try await playManager.load(originalEpisode)
     }
 
     try await PlayHelpers.waitForQueue([originalEpisode])
-    try await PlayHelpers.waitForCurrentItem(incomingEpisode)
+    try await PlayHelpers.waitForCurrentItem(incomingEpisode.episode.mediaURL)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
   }
 
@@ -291,7 +295,7 @@ import Testing
     }
 
     try await PlayHelpers.waitForQueue([originalEpisode])
-    try await PlayHelpers.waitForCurrentItem(incomingEpisode)
+    try await PlayHelpers.waitForCurrentItem(incomingEpisode.episode.mediaURL)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
   }
 
@@ -299,7 +303,7 @@ import Testing
   func loadingAndPlayingDuringLoadDoesNotResultInStoppedPlayState() async throws {
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
-    try await PlayHelpers.executeMidLoad(for: originalEpisode) { @MainActor in
+    try await PlayHelpers.executeMidLoad(for: originalEpisode.episode.mediaURL) {
       await episodeAssetLoader.clearCustomHandler(for: originalEpisode.episode)
       try await playManager.load(incomingEpisode)
       try await PlayHelpers.play()
@@ -316,12 +320,12 @@ import Testing
   func playingWhileLoadingRetainsPlayingStatus() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.executeMidLoad(for: podcastEpisode) {
+    try await PlayHelpers.executeMidLoad(for: podcastEpisode.episode.mediaURL) {
       await playManager.play()
     }
     try await playManager.load(podcastEpisode)
 
-    try await PlayHelpers.waitForCurrentItem(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
     try await PlayHelpers.waitFor(.playing)
   }
@@ -341,11 +345,11 @@ import Testing
     print(incomingEpisode.episode.mediaURL)
 
     let originalSemaphore = await episodeAssetLoader.waitThenRespond(
-      to: originalEpisode.episode,
+      to: originalEpisode.episode.mediaURL,
       error: PlaybackError.mediaNotPlayable(originalEpisode)
     )
     let incomingSemaphore = await episodeAssetLoader.waitThenRespond(
-      to: incomingEpisode.episode,
+      to: incomingEpisode.episode.mediaURL,
       data: (true, CMTime.seconds(60))
     )
     async let _ = playManager.load(originalEpisode)
@@ -502,7 +506,10 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     let duration = CMTime.seconds(240)
-    await episodeAssetLoader.respond(to: podcastEpisode.episode, data: (true, duration))
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.mediaURL,
+      data: (true, duration)
+    )
     try await playManager.load(podcastEpisode)
 
     let originalTime = CMTime.seconds(120)
@@ -572,7 +579,7 @@ import Testing
     try await playManager.load(playingEpisode)
 
     try await PlayHelpers.waitForQueue([queuedEpisode])
-    try await PlayHelpers.waitForCurrentItem(playingEpisode)
+    try await PlayHelpers.waitForCurrentItem(playingEpisode.episode.mediaURL)
     try await PlayHelpers.waitForOnDeck(playingEpisode)
   }
 
@@ -584,7 +591,7 @@ import Testing
     try await playManager.load(incomingEpisode)
 
     try await PlayHelpers.waitForQueue([playingEpisode])
-    try await PlayHelpers.waitForCurrentItem(incomingEpisode)
+    try await PlayHelpers.waitForCurrentItem(incomingEpisode.episode.mediaURL)
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
   }
 
@@ -593,8 +600,8 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     await episodeAssetLoader.respond(
-      to: podcastEpisode.episode,
-      error: TestError.assetLoadFailure(podcastEpisode.episode.mediaURL)
+      to: podcastEpisode.episode.mediaURL,
+      error: TestError.assetLoadFailure(podcastEpisode)
     )
     await #expect(throws: (any Error).self) {
       try await playManager.load(podcastEpisode)
@@ -602,7 +609,7 @@ import Testing
 
     try await PlayHelpers.waitFor(.stopped)
     try await PlayHelpers.waitForQueue([podcastEpisode])
-    try await PlayHelpers.waitForCurrentItem(nil)
+    try await PlayHelpers.waitForNoCurrentItem()
   }
 
   @Test("loading failure with existing episode unshifts both onto queue")
@@ -611,8 +618,8 @@ import Testing
 
     try await playManager.load(playingEpisode)
     await episodeAssetLoader.respond(
-      to: episodeToLoad.episode,
-      error: TestError.assetLoadFailure(playingEpisode.episode.mediaURL)
+      to: episodeToLoad.episode.mediaURL,
+      error: TestError.assetLoadFailure(playingEpisode)
     )
     await #expect(throws: (any Error).self) {
       try await playManager.load(episodeToLoad)
@@ -620,14 +627,14 @@ import Testing
 
     try await PlayHelpers.waitFor(.stopped)
     try await PlayHelpers.waitForQueue([episodeToLoad, playingEpisode])
-    try await PlayHelpers.waitForCurrentItem(nil)
+    try await PlayHelpers.waitForNoCurrentItem()
   }
 
   @Test("loading same episode during load does not unshift onto queue")
   func loadingSameEpisodeDuringLoadDoesNotUnshiftOntoQueue() async throws {
     let originalEpisode = try await Create.podcastEpisode()
 
-    try await PlayHelpers.executeMidLoad(for: originalEpisode) { @MainActor in
+    try await PlayHelpers.executeMidLoad(for: originalEpisode.episode.mediaURL) {
       await episodeAssetLoader.clearCustomHandler(for: originalEpisode.episode)
       try await playManager.load(originalEpisode)
     }
@@ -636,7 +643,7 @@ import Testing
     }
 
     try await PlayHelpers.waitForQueue([])
-    try await PlayHelpers.waitForCurrentItem(originalEpisode)
+    try await PlayHelpers.waitForCurrentItem(originalEpisode.episode.mediaURL)
     try await PlayHelpers.waitForOnDeck(originalEpisode)
   }
 
@@ -653,7 +660,7 @@ import Testing
     }
 
     try await PlayHelpers.waitForQueue([])
-    try await PlayHelpers.waitForCurrentItem(originalEpisode)
+    try await PlayHelpers.waitForCurrentItem(originalEpisode.episode.mediaURL)
     try await PlayHelpers.waitForOnDeck(originalEpisode)
   }
 
@@ -662,7 +669,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await playManager.load(podcastEpisode)
-    try await PlayHelpers.waitForCurrentItem(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
 
     // Now simulate the podcastEpisode failing after it becomes currentItem
@@ -670,7 +677,7 @@ import Testing
     currentItem.setStatus(.failed)
 
     // The failed episode should be unshifted back to the front of the queue
-    try await PlayHelpers.waitForCurrentItem(nil)
+    try await PlayHelpers.waitForNoCurrentItem()
     try await PlayHelpers.waitForQueue([podcastEpisode])
     try await PlayHelpers.waitForOnDeck(nil)
     try await PlayHelpers.waitFor(.stopped)
@@ -688,7 +695,7 @@ import Testing
 
     try await PlayHelpers.waitFor(.stopped)
     try await PlayHelpers.waitForQueue([])
-    try await PlayHelpers.waitForCurrentItem(nil)
+    try await PlayHelpers.waitForNoCurrentItem()
     #expect(playState.onDeck == nil)
     #expect(nowPlayingInfo == nil)
   }
@@ -706,7 +713,7 @@ import Testing
     try await PlayHelpers.waitForOnDeck(queuedEpisode)
     try await PlayHelpers.waitFor(.playing)
     try await PlayHelpers.waitForQueue([])
-    try await PlayHelpers.waitForCurrentItem(queuedEpisode)
+    try await PlayHelpers.waitForCurrentItem(queuedEpisode.episode.mediaURL)
   }
 
   @Test("advancing to next episode updates state")
@@ -724,7 +731,7 @@ import Testing
     try await PlayHelpers.waitForOnDeck(incomingEpisode)
     try await PlayHelpers.waitFor(.playing)
     try await PlayHelpers.waitForQueue([queuedEpisode])
-    try await PlayHelpers.waitForCurrentItem(incomingEpisode)
+    try await PlayHelpers.waitForCurrentItem(incomingEpisode.episode.mediaURL)
   }
 
   @Test("advancing to mid-progress episode seeks to new time")
@@ -782,11 +789,11 @@ import Testing
     )
 
     try await playManager.load(podcastEpisode)
-    try await PlayHelpers.waitForCurrentItem(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.cachedURL!)
 
     // Verify the asset was loaded with the resolved cached URL
     let currentItem = avPlayer.current! as! FakeAVPlayerItem
-    #expect(currentItem.url == podcastEpisode.episode.mediaURL)
+    #expect(currentItem.url == podcastEpisode.episode.cachedURL!.rawValue)
   }
 
   @Test("loading episode without cached media uses original URL")
@@ -794,11 +801,11 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await playManager.load(podcastEpisode)
-    try await PlayHelpers.waitForCurrentItem(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
 
     // Verify the asset was loaded with the original media URL
     let currentItem = avPlayer.current! as! FakeAVPlayerItem
-    #expect(currentItem.url == podcastEpisode.episode.media.rawValue)
+    #expect(currentItem.url == podcastEpisode.episode.mediaURL.rawValue)
   }
 
   @Test("episode cache is not cleared when loading")
@@ -845,7 +852,9 @@ import Testing
     // Verify initial state
     let initialAVPlayer = avPlayer
     let initialCallCount = await audioSession.configureCallCount
-    let initialLoadCount = await episodeAssetLoader.responseCount(for: podcastEpisode)
+    let initialLoadCount = await episodeAssetLoader.responseCount(
+      for: podcastEpisode.episode.mediaURL
+    )
 
     // Trigger media services reset notification
     notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
@@ -861,7 +870,10 @@ import Testing
     )
 
     // Verify the episode was reloaded (asset loader called again)
-    try await PlayHelpers.waitForLoadResponse(for: podcastEpisode, count: initialLoadCount + 1)
+    try await PlayHelpers.waitForLoadResponse(
+      for: podcastEpisode.episode.mediaURL,
+      count: initialLoadCount + 1
+    )
 
     // Verify onDeck is restored properly
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
@@ -878,13 +890,18 @@ import Testing
     try await PlayHelpers.load(podcastEpisode)
     try await PlayHelpers.pause()
     let initialCallCount = await audioSession.configureCallCount
-    let initialLoadCount = await episodeAssetLoader.responseCount(for: podcastEpisode)
+    let initialLoadCount = await episodeAssetLoader.responseCount(
+      for: podcastEpisode.episode.mediaURL
+    )
 
     // Trigger media services reset notification
     notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
       .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
     try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
-    try await PlayHelpers.waitForLoadResponse(for: podcastEpisode, count: initialLoadCount + 1)
+    try await PlayHelpers.waitForLoadResponse(
+      for: podcastEpisode.episode.mediaURL,
+      count: initialLoadCount + 1
+    )
 
     // Verify onDeck is restored properly
     try await PlayHelpers.waitForOnDeck(podcastEpisode)
@@ -901,7 +918,9 @@ import Testing
     try await PlayHelpers.play()
     let initialAVPlayer = avPlayer
     let initialCallCount = await audioSession.configureCallCount
-    let initialLoadCount = await episodeAssetLoader.responseCount(for: podcastEpisode)
+    let initialLoadCount = await episodeAssetLoader.responseCount(
+      for: podcastEpisode.episode.mediaURL
+    )
 
     // Now simulate the podcastEpisode failing after it becomes currentItem
     let currentItem = avPlayer.current as! FakeAVPlayerItem
@@ -923,7 +942,10 @@ import Testing
     )
 
     // Verify the episode was reloaded (asset loader called again)
-    try await PlayHelpers.waitForLoadResponse(for: podcastEpisode, count: initialLoadCount + 1)
+    try await PlayHelpers.waitForLoadResponse(
+      for: podcastEpisode.episode.mediaURL,
+      count: initialLoadCount + 1
+    )
 
     // Verify onDeck is restored properly
     try await PlayHelpers.waitForOnDeck(podcastEpisode)

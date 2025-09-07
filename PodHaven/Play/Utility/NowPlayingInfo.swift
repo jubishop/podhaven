@@ -33,7 +33,7 @@ struct NowPlayingInfo {
     if let pubDate = onDeck.pubDate {
       nowPlayingInfo[MPMediaItemPropertyReleaseDate] = pubDate
     }
-    nowPlayingInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.mediaURL
+    nowPlayingInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.mediaURL.rawValue
     nowPlayingInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
     nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
     nowPlayingInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] = onDeck.guid.rawValue

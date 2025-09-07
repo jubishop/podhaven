@@ -46,10 +46,10 @@ import Testing
     try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
     try await CacheHelpers.waitForFileRemoved(fileURL)
 
-    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFile(fileName)
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(cachedURL)
 
-    let actualData = try await CacheHelpers.cachedFileData(for: fileName)
+    let actualData = try await CacheHelpers.cachedFileData(for: cachedURL)
     #expect(actualData == data)
   }
 
@@ -60,12 +60,12 @@ import Testing
 
     try await CacheHelpers.simulateBackgroundFinish(taskID)
 
-    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFile(fileName)
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(cachedURL)
 
     try await queue.dequeue(podcastEpisode.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFileRemoved(fileName)
+    try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
   }
 
   @Test("second episode added to queue gets cached")
@@ -81,10 +81,10 @@ import Testing
     let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID, data: data)
     try await CacheHelpers.waitForFileRemoved(fileURL)
 
-    let fileName = try await CacheHelpers.waitForCached(podcastEpisode2.id)
-    try await CacheHelpers.waitForCachedFile(fileName)
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode2.id)
+    try await CacheHelpers.waitForCachedFile(cachedURL)
 
-    let actualData = try await CacheHelpers.cachedFileData(for: fileName)
+    let actualData = try await CacheHelpers.cachedFileData(for: cachedURL)
     #expect(actualData == data)
   }
 
@@ -99,12 +99,12 @@ import Testing
 
     try await CacheHelpers.simulateBackgroundFinish(taskID)
 
-    let fileName = try await CacheHelpers.waitForCached(podcastEpisode2.id)
-    try await CacheHelpers.waitForCachedFile(fileName)
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode2.id)
+    try await CacheHelpers.waitForCachedFile(cachedURL)
 
     try await queue.dequeue(podcastEpisode2.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode2.id)
-    try await CacheHelpers.waitForCachedFileRemoved(fileName)
+    try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
   }
 
   @Test("episode dequeued mid-download does not get cached when download completes")
@@ -144,18 +144,18 @@ import Testing
 
     try await CacheHelpers.simulateBackgroundFinish(taskID)
 
-    var fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFile(fileName)
+    var cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(cachedURL)
 
     try await queue.dequeue(podcastEpisode.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFileRemoved(fileName)
+    try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
 
     taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
     try await CacheHelpers.simulateBackgroundFinish(taskID)
 
-    fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFile(fileName)
+    cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(cachedURL)
   }
 
   @Test("multiple concurrent queued episodes are cached successfully")
@@ -173,11 +173,11 @@ import Testing
     let fileURL2 = try await CacheHelpers.simulateBackgroundFinish(taskID2, data: data2)
     try await CacheHelpers.waitForFileRemoved(fileURL2)
 
-    let fileName1 = try await CacheHelpers.waitForCached(podcastEpisode1.id)
-    let fileName2 = try await CacheHelpers.waitForCached(podcastEpisode2.id)
+    let cachedURL1 = try await CacheHelpers.waitForCached(podcastEpisode1.id)
+    let cachedURL2 = try await CacheHelpers.waitForCached(podcastEpisode2.id)
 
-    let actualData1 = try await CacheHelpers.cachedFileData(for: fileName1)
-    let actualData2 = try await CacheHelpers.cachedFileData(for: fileName2)
+    let actualData1 = try await CacheHelpers.cachedFileData(for: cachedURL1)
+    let actualData2 = try await CacheHelpers.cachedFileData(for: cachedURL2)
 
     #expect(actualData1 == data1)
     #expect(actualData2 == data2)
@@ -349,11 +349,11 @@ import Testing
     let fileURL2 = try await CacheHelpers.simulateBackgroundFinish(taskID2, data: data2)
     try await CacheHelpers.waitForFileRemoved(fileURL2)
 
-    let fileName1 = try await CacheHelpers.waitForCached(podcastEpisode1.id)
-    let fileName2 = try await CacheHelpers.waitForCached(podcastEpisode2.id)
+    let cachedURL1 = try await CacheHelpers.waitForCached(podcastEpisode1.id)
+    let cachedURL2 = try await CacheHelpers.waitForCached(podcastEpisode2.id)
 
-    let actualData1 = try await CacheHelpers.cachedFileData(for: fileName1)
-    let actualData2 = try await CacheHelpers.cachedFileData(for: fileName2)
+    let actualData1 = try await CacheHelpers.cachedFileData(for: cachedURL1)
+    let actualData2 = try await CacheHelpers.cachedFileData(for: cachedURL2)
 
     #expect(actualData1 == data1)
     #expect(actualData2 == data2)
@@ -376,12 +376,12 @@ import Testing
     let taskID = try await CacheHelpers.downloadToCache(podcastEpisode.id)
 
     try await CacheHelpers.simulateBackgroundFinish(taskID)
-    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFile(fileName)
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(cachedURL)
 
     try await cacheManager.clearCache(for: podcastEpisode.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFileRemoved(fileName)
+    try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
   }
 
   @Test("clearCache does nothing if episode is queued")
@@ -404,10 +404,10 @@ import Testing
   @Test("generateCacheFilename falls back to mp3 and preserves extension")
   func generateCacheFilenameFallbackAndPreserve() async throws {
     let noExt = try await Create.podcastEpisode(
-      Create.unsavedEpisode(media: MediaURL(URL(string: "https://a.b/c/d")!))
+      Create.unsavedEpisode(mediaURL: MediaURL(URL(string: "https://a.b/c/d")!))
     )
     let withExt = try await Create.podcastEpisode(
-      Create.unsavedEpisode(media: MediaURL(URL(string: "https://a.b/c/d.wav")!))
+      Create.unsavedEpisode(mediaURL: MediaURL(URL(string: "https://a.b/c/d.wav")!))
     )
 
     let name1 = CacheManager.generateCacheFilename(for: noExt.episode)

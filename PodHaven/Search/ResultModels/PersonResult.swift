@@ -19,7 +19,7 @@ struct PersonResult: Sendable, Decodable {
     @OptionalURL var feedImage: URL?
     let feedTitle: String
 
-    var mediaGUID: MediaGUID { MediaGUID(guid: guid, media: enclosureUrl) }
+    var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: enclosureUrl) }
 
     func toUnsavedPodcastEpisode(merging podcastEpisode: PodcastEpisode? = nil) throws
       -> UnsavedPodcastEpisode
@@ -39,7 +39,7 @@ struct PersonResult: Sendable, Decodable {
         ),
         unsavedEpisode: try UnsavedEpisode(
           guid: guid,
-          media: enclosureUrl,
+          mediaURL: enclosureUrl,
           title: title,
           pubDate: datePublished,
           duration: duration,

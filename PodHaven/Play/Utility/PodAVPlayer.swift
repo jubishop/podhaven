@@ -34,10 +34,6 @@ extension Container {
 
   // MARK: - State Management
 
-  typealias LoadedPodcastEpisode = (
-    podcastEpisode: PodcastEpisode,
-    playableItem: any AVPlayableItem
-  )
   private var episodeID: Episode.ID?
 
   let currentTimeStream: AsyncStream<CMTime>
@@ -86,13 +82,25 @@ extension Container {
   }
 
   private func loadAsset(for podcastEpisode: PodcastEpisode) async throws(PlaybackError)
-    -> LoadedPodcastEpisode
+    -> (podcastEpisode: PodcastEpisode, playableItem: any AVPlayableItem)
   {
     Self.log.debug("loadAsset: \(podcastEpisode.toString)")
 
     let episodeAsset: EpisodeAsset
     do {
-      episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: podcastEpisode.episode.mediaURL))
+      if let cachedURL = podcastEpisode.episode.cachedURL {
+        do {
+          episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: cachedURL.rawValue))
+        } catch {
+          episodeAsset = try await loadEpisodeAsset(
+            AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
+          )
+        }
+      } else {
+        episodeAsset = try await loadEpisodeAsset(
+          AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
+        )
+      }
     } catch {
       throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
     }

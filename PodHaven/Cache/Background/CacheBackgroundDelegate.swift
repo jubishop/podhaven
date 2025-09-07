@@ -112,12 +112,12 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
       let fileName = CacheManager.generateCacheFilename(for: episode)
       let destURL = CacheManager.resolveCachedFilepath(for: fileName)
-      if podFileManager.fileExists(at: destURL) {
+      if podFileManager.fileExists(at: destURL.rawValue) {
         Self.log.notice("File already cached for \(episode.id) at \(destURL), removing")
-        try podFileManager.removeItem(at: destURL)
+        try podFileManager.removeItem(at: destURL.rawValue)
       }
 
-      try podFileManager.moveItem(at: location, to: destURL)
+      try podFileManager.moveItem(at: location, to: destURL.rawValue)
       try await repo.updateCachedFilename(episode.id, fileName)
       Self.log.debug("Cached episode \(episode.id) to \(fileName)")
     } catch {

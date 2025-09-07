@@ -165,7 +165,7 @@ struct ShareService {
     )
 
     if let mediaURL {
-      for episode in podcastSeries.episodes where episode.media == mediaURL {
+      for episode in podcastSeries.episodes where episode.mediaURL == mediaURL {
         Self.log.debug("findMatchingEpisode: Found MediaURL match")
         return episode
       }

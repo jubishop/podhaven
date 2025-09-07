@@ -13,9 +13,9 @@ extension Container {
 
 struct EpisodeFeed: Sendable, Equatable {
   let guid: GUID
-  let media: MediaURL
+  let mediaURL: MediaURL
 
-  var mediaGUID: MediaGUID { MediaGUID(guid: guid, media: media) }
+  var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
 
   private let rssEpisode: PodcastRSS.Episode
 
@@ -25,14 +25,14 @@ struct EpisodeFeed: Sendable, Equatable {
 
     let validatedMediaURL: MediaURL
     do {
-      validatedMediaURL = MediaURL(try mediaURL.rawValue.convertToValidURL())
+      validatedMediaURL = try mediaURL.convertToValidURL()
     } catch {
       throw ParseError.invalidMediaURL(mediaURL)
     }
 
     self.rssEpisode = rssEpisode
     self.guid = rssEpisode.guid ?? GUID(validatedMediaURL.absoluteString)
-    self.media = validatedMediaURL
+    self.mediaURL = validatedMediaURL
   }
 
   func toUnsavedEpisode(merging episode: Episode? = nil) throws(FeedError) -> UnsavedEpisode {
@@ -40,7 +40,7 @@ struct EpisodeFeed: Sendable, Equatable {
       try UnsavedEpisode(
         podcastId: episode?.podcastId,
         guid: guid,
-        media: media,
+        mediaURL: mediaURL,
         title: rssEpisode.title,
         pubDate: rssEpisode.pubDate ?? episode?.pubDate,
         duration: duration ?? episode?.duration,
@@ -112,7 +112,7 @@ struct PodcastFeed: Sendable, Stringable {
 
   private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL) throws {
     self.rssPodcast = rssPodcast
-    self.feedURL = FeedURL(try (rssPodcast.feedURL ?? from).rawValue.convertToValidURL())
+    self.feedURL = try (rssPodcast.feedURL ?? from).convertToValidURL()
     self.link = rssPodcast.link
     self.image = rssPodcast.iTunes.image.href
     self.episodes = rssPodcast.episodes.compactMap { rssEpisode in
@@ -169,12 +169,12 @@ struct PodcastFeed: Sendable, Stringable {
     return IdentifiedArrayOf<UnsavedEpisode>(
       uniqueElements:
         allEpisodes.compactMap { episode in
-          if seenGUIDs.contains(episode.guid) || seenMediaURLs.contains(episode.media) {
+          if seenGUIDs.contains(episode.guid) || seenMediaURLs.contains(episode.mediaURL) {
             return nil
           }
 
           seenGUIDs.insert(episode.guid)
-          seenMediaURLs.insert(episode.media)
+          seenMediaURLs.insert(episode.mediaURL)
           return episode
         }
     )

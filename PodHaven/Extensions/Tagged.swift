@@ -19,3 +19,9 @@ where RawValue: DatabaseValueConvertible {}
 extension Tagged: Stringable where Self: RawRepresentable, RawValue == URL {
   var toString: String { rawValue.hash() }
 }
+
+extension Tagged where RawValue == URL {
+  func convertToValidURL() throws -> Self {
+    Self(try rawValue.convertToValidURL())
+  }
+}

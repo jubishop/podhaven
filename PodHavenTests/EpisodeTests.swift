@@ -60,7 +60,7 @@ class EpisodeTests {
       subscriptionDate: nil
     )
     let unsavedEpisode = try Create.unsavedEpisode(
-      media: MediaURL(URL.valid()),
+      mediaURL: MediaURL(URL.valid()),
       title: "original episode title",
       pubDate: 100.minutesAgo,
       duration: CMTime.seconds(300),
@@ -120,7 +120,7 @@ class EpisodeTests {
       creationDate: originalEpisode.creationDate,
       from: Create.unsavedEpisode(
         guid: newEpisodeGUID,
-        media: newEpisodeMedia,
+        mediaURL: newEpisodeMedia,
         title: newEpisodeTitle,
         pubDate: newEpisodePubDate,
         duration: newEpisodeDuration,
@@ -163,7 +163,7 @@ class EpisodeTests {
     // Verify we're testing all Episode RSS columns (test will fail if rssUpdatableColumns changes)
     let episodeRSSColumnNames = Set(updatedEpisode.rssUpdatableColumns.map { $0.0.name })
     let expectedEpisodeColumns = Set([
-      "guid", "media", "title", "pubDate", "description", "link", "image",
+      "guid", "mediaURL", "title", "pubDate", "description", "link", "image",
     ])
     #expect(
       episodeRSSColumnNames == expectedEpisodeColumns,
@@ -172,7 +172,7 @@ class EpisodeTests {
 
     // RSS attributes should be updated for existing episode (excluding duration)
     #expect(updatedExistingEpisode.guid == newEpisodeGUID)
-    #expect(updatedExistingEpisode.media == newEpisodeMedia)
+    #expect(updatedExistingEpisode.mediaURL == newEpisodeMedia)
     #expect(updatedExistingEpisode.title == newEpisodeTitle)
     #expect(updatedExistingEpisode.pubDate.approximatelyEquals(newEpisodePubDate))
     #expect(updatedExistingEpisode.description == newEpisodeDescription)
@@ -282,7 +282,7 @@ class EpisodeTests {
     let episode = try await repo.db.read { db in
       try Episode.fetchOne(db, key: ["guid": guid, "podcastId": podcast.id])
     }!
-    #expect(episode.cachedFilename == initialCachedFilename)
+    #expect(episode.cachedURL == CacheManager.resolveCachedFilepath(for: initialCachedFilename))
 
     let newCachedFilename = "new-cache.mp3"
     try await repo.updateCachedFilename(episode.id, newCachedFilename)
@@ -290,7 +290,9 @@ class EpisodeTests {
     let updatedEpisode = try await repo.db.read { db in
       try Episode.fetchOne(db, id: episode.id)
     }!
-    #expect(updatedEpisode.cachedFilename == newCachedFilename)
+    #expect(
+      updatedEpisode.cachedURL == CacheManager.resolveCachedFilepath(for: newCachedFilename)
+    )
 
     // Test clearing the cached filename (setting to nil)
     try await repo.updateCachedFilename(episode.id, nil)
@@ -298,7 +300,7 @@ class EpisodeTests {
     let clearedEpisode = try await repo.db.read { db in
       try Episode.fetchOne(db, id: episode.id)
     }!
-    #expect(clearedEpisode.cachedFilename == nil)
+    #expect(clearedEpisode.cachedURL == nil)
   }
 
   @Test("that an episode can be marked complete")
@@ -331,7 +333,7 @@ class EpisodeTests {
       )
     )
     #expect(insertedPodcastEpisode.podcast.feedURL == unsavedPodcast.feedURL)
-    #expect(insertedPodcastEpisode.episode.media == unsavedEpisode.media)
+    #expect(insertedPodcastEpisode.episode.mediaURL == unsavedEpisode.mediaURL)
 
     let fetchedPodcastEpisode = try await repo.podcastEpisode(insertedPodcastEpisode.id)!
     #expect(fetchedPodcastEpisode.podcast.title == insertedPodcastEpisode.podcast.title)
@@ -365,7 +367,7 @@ class EpisodeTests {
       title: "New Podcast Title"
     )
     let matchingEpisode = try Create.unsavedEpisode(
-      media: unsavedEpisode.media,
+      mediaURL: unsavedEpisode.mediaURL,
       title: "New Episode Titlu"
     )
 
@@ -416,7 +418,7 @@ class EpisodeTests {
     )
     #expect(podcastEpisodes.count == 3)
     #expect(Set(podcastEpisodes.map(\.podcast.feedURL)) == Set(allPodcasts.map(\.feedURL)))
-    #expect(Set(podcastEpisodes.map(\.episode.media)) == Set(allEpisodes.map(\.media)))
+    #expect(Set(podcastEpisodes.map(\.episode.mediaURL)) == Set(allEpisodes.map(\.mediaURL)))
 
     var fetchedPodcastEpisodes: [PodcastEpisode] = []
     for podcastEpisode in podcastEpisodes {
@@ -486,7 +488,7 @@ class EpisodeTests {
 
     let creationDate = insertedPodcastEpisode.podcast.creationDate
     let matchingPodcast = try Create.unsavedPodcast(feedURL: unsavedPodcast.feedURL)
-    let matchingEpisode = try Create.unsavedEpisode(media: unsavedEpisode.media)
+    let matchingEpisode = try Create.unsavedEpisode(mediaURL: unsavedEpisode.mediaURL)
 
     let updatedPodcastEpisode = try await repo.upsertPodcastEpisode(
       UnsavedPodcastEpisode(
@@ -506,12 +508,12 @@ class EpisodeTests {
   func testEpisodeQueryByMediaGUID() async throws {
     let guid = GUID("test-guid")
     let mediaURL = MediaURL(URL.valid())
-    let mediaGUID = MediaGUID(guid: guid, media: mediaURL)
+    let mediaGUID = MediaGUID(guid: guid, mediaURL: mediaURL)
 
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsavedEpisode = try Create.unsavedEpisode(
       guid: guid,
-      media: mediaURL,
+      mediaURL: mediaURL,
       title: "Episode with MediaGUID"
     )
 
@@ -530,7 +532,7 @@ class EpisodeTests {
     #expect(episodeByID != nil)
     #expect(episodeByGUID?.id == episodeByID?.id)
     #expect(episodeByGUID?.guid == guid)
-    #expect(episodeByGUID?.media == mediaURL)
+    #expect(episodeByGUID?.mediaURL == mediaURL)
     #expect(episodeByGUID?.title == "Episode with MediaGUID")
   }
 
@@ -538,7 +540,7 @@ class EpisodeTests {
   func testEpisodeQueryByMediaGUIDNonExistent() async throws {
     let nonExistentMediaGUID = MediaGUID(
       guid: GUID("non-existent-guid"),
-      media: MediaURL(URL.valid())
+      mediaURL: MediaURL(URL.valid())
     )
 
     let episode = try await repo.episode(nonExistentMediaGUID)
@@ -549,12 +551,12 @@ class EpisodeTests {
   func testPodcastEpisodeQueryByMediaGUID() async throws {
     let guid = GUID("test-podcast-episode-guid")
     let mediaURL = MediaURL(URL.valid())
-    let mediaGUID = MediaGUID(guid: guid, media: mediaURL)
+    let mediaGUID = MediaGUID(guid: guid, mediaURL: mediaURL)
 
     let unsavedPodcast = try Create.unsavedPodcast(title: "Test Podcast")
     let unsavedEpisode = try Create.unsavedEpisode(
       guid: guid,
-      media: mediaURL,
+      mediaURL: mediaURL,
       title: "Test Episode"
     )
 
@@ -573,7 +575,7 @@ class EpisodeTests {
     #expect(podcastEpisodeByID != nil)
     #expect(podcastEpisodeByGUID?.id == podcastEpisodeByID?.id)
     #expect(podcastEpisodeByGUID?.episode.guid == guid)
-    #expect(podcastEpisodeByGUID?.episode.media == mediaURL)
+    #expect(podcastEpisodeByGUID?.episode.mediaURL == mediaURL)
     #expect(podcastEpisodeByGUID?.episode.title == "Test Episode")
     #expect(podcastEpisodeByGUID?.podcast.title == "Test Podcast")
   }
@@ -582,7 +584,7 @@ class EpisodeTests {
   func testPodcastEpisodeQueryByMediaGUIDNonExistent() async throws {
     let nonExistentMediaGUID = MediaGUID(
       guid: GUID("non-existent-podcast-episode-guid"),
-      media: MediaURL(URL.valid())
+      mediaURL: MediaURL(URL.valid())
     )
 
     let podcastEpisode = try await repo.podcastEpisode(nonExistentMediaGUID)
@@ -595,20 +597,20 @@ class EpisodeTests {
 
     let episode1GUID = GUID("episode-1")
     let episode1Media = MediaURL(URL.valid())
-    let episode1MediaGUID = MediaGUID(guid: episode1GUID, media: episode1Media)
+    let episode1MediaGUID = MediaGUID(guid: episode1GUID, mediaURL: episode1Media)
 
     let episode2GUID = GUID("episode-2")
     let episode2Media = MediaURL(URL.valid())
-    let episode2MediaGUID = MediaGUID(guid: episode2GUID, media: episode2Media)
+    let episode2MediaGUID = MediaGUID(guid: episode2GUID, mediaURL: episode2Media)
 
     let unsavedEpisode1 = try Create.unsavedEpisode(
       guid: episode1GUID,
-      media: episode1Media,
+      mediaURL: episode1Media,
       title: "Episode 1"
     )
     let unsavedEpisode2 = try Create.unsavedEpisode(
       guid: episode2GUID,
-      media: episode2Media,
+      mediaURL: episode2Media,
       title: "Episode 2"
     )
 
@@ -627,8 +629,8 @@ class EpisodeTests {
     #expect(foundEpisode2?.title == "Episode 2")
     #expect(foundEpisode1?.guid == episode1GUID)
     #expect(foundEpisode2?.guid == episode2GUID)
-    #expect(foundEpisode1?.media == episode1Media)
-    #expect(foundEpisode2?.media == episode2Media)
+    #expect(foundEpisode1?.mediaURL == episode1Media)
+    #expect(foundEpisode2?.mediaURL == episode2Media)
 
     // Test with podcastEpisode queries as well
     let foundPodcastEpisode1 = try await repo.podcastEpisode(episode1MediaGUID)

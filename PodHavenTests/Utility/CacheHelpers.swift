@@ -48,11 +48,11 @@ enum CacheHelpers {
   // MARK: - Episode Status
 
   @discardableResult
-  static func waitForCached(_ episodeID: Episode.ID) async throws -> String {
+  static func waitForCached(_ episodeID: Episode.ID) async throws -> CachedURL {
     try await Wait.forValue(
       {
         let episode: Episode = try await repo.episode(episodeID)!
-        return episode.cachedFilename
+        return episode.cachedURL
       }
     )
   }
@@ -61,9 +61,9 @@ enum CacheHelpers {
     try await Wait.until(
       {
         let episode: Episode = try await repo.episode(episodeID)!
-        return episode.cachedFilename == nil
+        return !episode.cached
       },
-      { "Episode \(episodeID) cachedFilename is not nil" }
+      { "Episode \(episodeID) is still cached" }
     )
   }
 
@@ -134,23 +134,17 @@ enum CacheHelpers {
 
   // MARK: - File Status
 
-  static func waitForCachedFile(_ fileName: String) async throws {
+  static func waitForCachedFile(_ cachedURL: CachedURL) async throws {
     try await Wait.until(
-      {
-        let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
-        return fileManager.fileExists(at: fileURL)
-      },
-      { "Cached file: \(fileName) does not exist on disk" }
+      { fileManager.fileExists(at: cachedURL.rawValue) },
+      { "Cached file: \(cachedURL) does not exist on disk" }
     )
   }
 
-  static func waitForCachedFileRemoved(_ fileName: String) async throws {
+  static func waitForCachedFileRemoved(_ cachedURL: CachedURL) async throws {
     try await Wait.until(
-      {
-        let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
-        return !fileManager.fileExists(at: fileURL)
-      },
-      { "Cached file: \(fileName) still exists on disk" }
+      { !fileManager.fileExists(at: cachedURL.rawValue) },
+      { "Cached file: \(cachedURL) still exists on disk" }
     )
   }
 
@@ -172,13 +166,8 @@ enum CacheHelpers {
 
   // MARK: - Data Generation
 
-  static func cachedFileData(for fileName: String) async throws -> Data {
-    let fileURL = CacheManager.resolveCachedFilepath(for: fileName)
-    return try await fileManager.readData(from: fileURL)
-  }
-
-  static func fileData(for fileURL: URL) async throws -> Data {
-    try await fileManager.readData(from: fileURL)
+  static func cachedFileData(for cachedURL: CachedURL) async throws -> Data {
+    try await fileManager.readData(from: cachedURL.rawValue)
   }
 
   // MARK: - Background Download Simulation

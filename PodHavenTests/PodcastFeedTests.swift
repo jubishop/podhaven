@@ -90,13 +90,13 @@ struct PodcastFeedTests {
 
     let episodes = feed.toEpisodeArray()
     let mediaURLs: [MediaURL: Int] = episodes.reduce(into: [:]) { counts, episode in
-      counts[episode.media, default: 0] += 1
+      counts[episode.mediaURL, default: 0] += 1
     }
     for (mediaURL, count) in mediaURLs where count > 1 {
       Issue.record("Duplicate media url found: \(mediaURL) with count: \(count)")
     }
 
-    let episodesByMediaURL = IdentifiedArray(uniqueElements: episodes, id: \.media)
+    let episodesByMediaURL = IdentifiedArray(uniqueElements: episodes, id: \.mediaURL)
     let duplicatedEpisode = episodesByMediaURL[
       id: MediaURL(
         URL(

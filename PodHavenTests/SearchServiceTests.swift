@@ -94,7 +94,7 @@ class SearchServiceTests {
           ),
           unsavedEpisode: try UnsavedEpisode(
             guid: "Buzzsprout-16162072",
-            media: MediaURL(
+            mediaURL: MediaURL(
               URL(
                 string:
                   "https://www.buzzsprout.com/1733776/episodes/16162072-bill-maher-clashes-with-neil-degrasse-tyson-for-refusing-to-admit-men-s-sports-advantage-over-women.mp3"

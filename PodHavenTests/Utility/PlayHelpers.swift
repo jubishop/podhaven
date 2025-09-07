@@ -82,8 +82,8 @@ enum PlayHelpers {
       { await playState.onDeck?.id == podcastEpisode?.id },
       {
         """
-        OnDeck MediaURL is: \(String(describing: await playState.onDeck?.mediaURL.hash())), \
-        Expected: \(String(describing: podcastEpisode?.episode.media.toString))
+        OnDeck is: \(String(describing: await playState.onDeck?.toString)), \
+        Expected: \(String(describing: podcastEpisode?.toString))
         """
       }
     )
@@ -101,17 +101,23 @@ enum PlayHelpers {
     )
   }
 
-  static func waitForCurrentItem(_ podcastEpisode: PodcastEpisode?) async throws {
+  static func waitForCurrentItem<T: RawRepresentable & Sendable>(_ assetURL: T) async throws
+  where T.RawValue == URL {
     try await Wait.until(
-      {
-        await currentAssetURL == podcastEpisode?.episode.mediaURL
-      },
+      { await currentAssetURL == assetURL.rawValue },
       {
         """
-        Current url is: \(await currentAssetURL?.absoluteString ?? "nil"), \
-        Expected: \(podcastEpisode?.episode.mediaURL.absoluteString ?? "nil")
+        Current url is: \(String(describing: await currentAssetURL?.absoluteString)), \
+        Expected: \(String(describing: assetURL.rawValue.absoluteString))
         """
       }
+    )
+  }
+
+  static func waitForNoCurrentItem() async throws {
+    try await Wait.until(
+      { await currentAssetURL == nil },
+      { "Expected current asset url to be nil" }
     )
   }
 
@@ -122,13 +128,15 @@ enum PlayHelpers {
     )
   }
 
-  static func waitForLoadResponse(for podcastEpisode: PodcastEpisode, count: Int = 1) async throws {
+  static func waitForLoadResponse<T: RawRepresentable & Sendable>(for assetURL: T, count: Int = 1)
+    async throws where T.RawValue == URL
+  {
     try await Wait.until(
-      { await fakeEpisodeAssetLoader.responseCount(for: podcastEpisode) == count },
+      { await fakeEpisodeAssetLoader.responseCount(for: assetURL) == count },
       {
         """
-        responseCount for \(podcastEpisode.episode.media.toString) is: \
-        \(await fakeEpisodeAssetLoader.responseCount(for: podcastEpisode)), \
+        responseCount for \(assetURL) is: \
+        \(await fakeEpisodeAssetLoader.responseCount(for: assetURL)), \
         expected: \(count)
         """
       }
@@ -184,14 +192,14 @@ enum PlayHelpers {
 
   // MARK: - Timing Helpers
 
-  static func executeMidLoad(
-    for podcastEpisode: PodcastEpisode,
+  static func executeMidLoad<T: RawRepresentable & Sendable>(
+    for taggedURL: T,
     asyncProperties: (Bool, CMTime) = (true, .seconds(Double(60))),
     _ block: @escaping @Sendable () async throws -> Void
-  ) async throws {
+  ) async throws where T.RawValue == URL {
     let loadSemaphoreBegun = AsyncSemaphore(value: 0)
     let finishLoadingSemaphore = AsyncSemaphore(value: 0)
-    await fakeEpisodeAssetLoader.respond(to: podcastEpisode.episode) { _ in
+    await fakeEpisodeAssetLoader.respond(to: taggedURL) { _ in
       loadSemaphoreBegun.signal()
       await finishLoadingSemaphore.wait()
       return asyncProperties

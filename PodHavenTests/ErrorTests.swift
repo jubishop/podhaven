@@ -202,7 +202,7 @@ class ErrorTests {
     let url = URL(string: "https://example.com/data")!
     let episodeTitle = "Test Episode"
     let unsavedPodcast = try Create.unsavedPodcast()
-    let unsavedEpisode = try Create.unsavedEpisode(media: MediaURL(url), title: episodeTitle)
+    let unsavedEpisode = try Create.unsavedEpisode(mediaURL: MediaURL(url), title: episodeTitle)
     let podcastSeries = try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [unsavedEpisode]

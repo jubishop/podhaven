@@ -9,12 +9,13 @@ import Tagged
 
 typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
-struct MediaGUID: Codable, Hashable, Equatable, CustomStringConvertible {
+typealias CachedURL = Tagged<UnsavedEpisode, URL>
+struct MediaGUID: Codable, CustomStringConvertible, Equatable, Hashable {
   let guid: GUID
-  let media: MediaURL
+  let mediaURL: MediaURL
 
   var description: String {
-    "GUID: \(guid), MediaURL: \(media)"
+    "GUID: \(guid), MediaURL: \(mediaURL.toString)"
   }
 }
 
@@ -23,7 +24,7 @@ struct UnsavedEpisode:
   Savable,
   Stringable
 {
-  var id: MediaGUID { MediaGUID(guid: guid, media: media) }
+  var id: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
 
   private static let log = Log.as(LogSubsystem.Database.episode)
 
@@ -33,7 +34,7 @@ struct UnsavedEpisode:
 
   // Feed
   var guid: GUID
-  var media: MediaURL
+  var mediaURL: MediaURL
   let title: String
   let pubDate: Date
   var duration: CMTime
@@ -46,13 +47,13 @@ struct UnsavedEpisode:
   let currentTime: CMTime
   let queueOrder: Int?
   let lastQueued: Date?
-  let cachedFilename: String?
+  private let cachedFilename: String?
   let downloadTaskID: URLSessionDownloadTask.ID?
 
   init(
     podcastId: Podcast.ID? = nil,
     guid: GUID,
-    media: MediaURL,
+    mediaURL: MediaURL,
     title: String,
     pubDate: Date? = nil,
     duration: CMTime? = nil,
@@ -68,7 +69,7 @@ struct UnsavedEpisode:
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
-    self.media = MediaURL(try media.rawValue.convertToValidURL())
+    self.mediaURL = try mediaURL.convertToValidURL()
     self.title = title
     self.pubDate = pubDate ?? Date()
     self.duration = duration ?? CMTime.zero
@@ -85,7 +86,7 @@ struct UnsavedEpisode:
 
   // MARK: - Savable
 
-  var toString: String { "(\(media.toString)) - \(self.title)" }
+  var toString: String { "(\(id)) - \(self.title)" }
   var searchableString: String { self.title }
 
   // MARK: - EpisodeDisplayable
@@ -101,9 +102,9 @@ struct UnsavedEpisode:
 
   // MARK: - Derived Data
 
-  var mediaURL: URL {
+  var cachedURL: CachedURL? {
     guard let cachedFilename = cachedFilename
-    else { return media.rawValue }
+    else { return nil }
 
     return CacheManager.resolveCachedFilepath(for: cachedFilename)
   }
@@ -137,7 +138,7 @@ struct Episode: Saved, RSSUpdatable {
     static let id = Column("id")
     static let podcastId = Column("podcastId")
     static let guid = Column("guid")
-    static let media = Column("media")
+    static let mediaURL = Column("mediaURL")
     static let title = Column("title")
     static let pubDate = Column("pubDate")
     static let duration = Column("duration")
@@ -158,7 +159,7 @@ struct Episode: Saved, RSSUpdatable {
   var rssUpdatableColumns: [(ColumnExpression, SQLExpressible)] {
     [
       (Columns.guid, unsaved.guid),
-      (Columns.media, unsaved.media),
+      (Columns.mediaURL, unsaved.mediaURL),
       (Columns.title, unsaved.title),
       (Columns.pubDate, unsaved.pubDate),
       (Columns.description, unsaved.description),
@@ -168,11 +169,18 @@ struct Episode: Saved, RSSUpdatable {
   }
 
   func rssEquals(_ other: Episode) -> Bool {
-    unsaved.media == other.unsaved.media && unsaved.title == other.unsaved.title
+    unsaved.guid == other.unsaved.guid
+      && unsaved.mediaURL == other.unsaved.mediaURL
+      && unsaved.title == other.unsaved.title
       && unsaved.pubDate == other.unsaved.pubDate
-      && unsaved.description == other.unsaved.description && unsaved.link == other.unsaved.link
+      && unsaved.description == other.unsaved.description
+      && unsaved.link == other.unsaved.link
       && unsaved.image == other.unsaved.image
   }
+
+  // MARK: - Derived Passthroughs
+
+  var cachedURL: CachedURL? { unsaved.cachedURL }
 }
 
 // MARK: - DerivableRequest

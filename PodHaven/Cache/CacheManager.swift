@@ -94,7 +94,7 @@ actor CacheManager {
 
     await imageFetcher.prefetch([podcastEpisode.image])
 
-    var request = URLRequest(url: podcastEpisode.episode.media.rawValue)
+    var request = URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
     request.allowsExpensiveNetworkAccess = true
     request.allowsConstrainedNetworkAccess = true
 
@@ -107,14 +107,14 @@ actor CacheManager {
   }
 
   @discardableResult
-  func clearCache(for episodeID: Episode.ID) async throws(CacheError) -> String? {
+  func clearCache(for episodeID: Episode.ID) async throws(CacheError) -> CachedURL? {
     Self.log.debug("clearCache: \(episodeID)")
 
     return try await CacheError.catch {
       try await performClearCache(episodeID)
     }
   }
-  private func performClearCache(_ episodeID: Episode.ID) async throws -> String? {
+  private func performClearCache(_ episodeID: Episode.ID) async throws -> CachedURL? {
     let episode = try await repo.episode(episodeID)
     guard let episode
     else { throw CacheError.episodeNotFound(episodeID) }
@@ -136,19 +136,18 @@ actor CacheManager {
       try await repo.updateDownloadTaskID(episode.id, nil)
     }
 
-    guard let cachedFilename = episode.cachedFilename
+    guard let cachedURL = episode.cachedURL
     else {
-      Self.log.debug("episode: \(episode.toString) has no cached filename")
+      Self.log.debug("episode: \(episode.toString) has no cached file")
       return nil
     }
 
     try await repo.updateCachedFilename(episode.id, nil)
-    let cacheURL = Self.resolveCachedFilepath(for: cachedFilename)
-    try podFileManager.removeItem(at: cacheURL)
+    try podFileManager.removeItem(at: cachedURL.rawValue)
 
     Self.log.debug("cache cleared for: \(episode.toString)")
 
-    return cachedFilename
+    return cachedURL
   }
 
   // MARK: - Private Helpers
@@ -215,7 +214,7 @@ actor CacheManager {
   // MARK: - Static Helpers
 
   static func generateCacheFilename(for episode: Episode) -> String {
-    let mediaURL = episode.media.rawValue
+    let mediaURL = episode.mediaURL.rawValue
     let fileExtension =
       mediaURL.pathExtension.isEmpty == false
       ? mediaURL.pathExtension
@@ -223,10 +222,10 @@ actor CacheManager {
     return "\(mediaURL.hash(to: 12)).\(fileExtension)"
   }
 
-  static func resolveCachedFilepath(for fileName: String) -> URL {
+  static func resolveCachedFilepath(for fileName: String) -> CachedURL {
     Assert.precondition(!fileName.isEmpty, "Empty fileName in resolveCachedFilepath?")
 
-    return cacheDirectory.appendingPathComponent(fileName)
+    return CachedURL(cacheDirectory.appendingPathComponent(fileName))
   }
 
   private static var cacheDirectory: URL {

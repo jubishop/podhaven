@@ -19,11 +19,8 @@ actor FakeEpisodeAssetLoader {
 
   private(set) var totalResponseCounts = 0
   private var responseCounts: [URL: Int] = [:]
-  func responseCount(for podcastEpisode: PodcastEpisode) -> Int {
-    responseCount(for: podcastEpisode.episode.mediaURL)
-  }
-  func responseCount(for url: URL) -> Int {
-    responseCounts[url, default: 0]
+  func responseCount<T: RawRepresentable>(for taggedURL: T) -> Int where T.RawValue == URL {
+    responseCounts[taggedURL.rawValue, default: 0]
   }
 
   private var defaultHandler: LoadHandler = { _ in
@@ -35,40 +32,37 @@ actor FakeEpisodeAssetLoader {
     defaultHandler = handler
   }
 
-  func respond(to episode: Episode, _ handler: @escaping LoadHandler) {
-    fakeHandlers[episode.mediaURL] = handler
+  func respond<T: RawRepresentable>(to taggedURL: T, _ handler: @escaping LoadHandler)
+  where T.RawValue == URL {
+    fakeHandlers[taggedURL.rawValue] = handler
   }
 
-  func respond(to episode: Episode, data: ResponseData) {
-    respond(to: episode) { episode in data }
+  func respond<T: RawRepresentable>(to taggedURL: T, data: ResponseData) where T.RawValue == URL {
+    respond(to: taggedURL) { episode in data }
   }
 
-  func respond(to episode: Episode, error: Error) {
-    respond(to: episode) { _ in throw error }
+  func respond<T: RawRepresentable>(to taggedURL: T, error: Error) where T.RawValue == URL {
+    respond(to: taggedURL) { _ in throw error }
   }
 
-  func waitThenRespond(
-    to episode: Episode,
+  func waitThenRespond<T: RawRepresentable>(
+    to taggedURL: T,
     data: ResponseData = (true, CMTime.seconds(Double.random(in: 1...999)))
-  ) async
-    -> AsyncSemaphore
-  {
+  ) async -> AsyncSemaphore where T.RawValue == URL {
     let asyncSemaphore = AsyncSemaphore(value: 0)
-    respond(to: episode) { episode in
+    respond(to: taggedURL) { episode in
       try await asyncSemaphore.waitUnlessCancelled()
       return data
     }
     return asyncSemaphore
   }
 
-  func waitThenRespond(
-    to episode: Episode,
+  func waitThenRespond<T: RawRepresentable>(
+    to taggedURL: T,
     error: Error
-  ) async
-    -> AsyncSemaphore
-  {
+  ) async -> AsyncSemaphore where T.RawValue == URL {
     let asyncSemaphore = AsyncSemaphore(value: 0)
-    respond(to: episode) { episode in
+    respond(to: taggedURL) { episode in
       try await asyncSemaphore.waitUnlessCancelled()
       throw error
     }
@@ -76,7 +70,7 @@ actor FakeEpisodeAssetLoader {
   }
 
   func clearCustomHandler(for episode: Episode) {
-    fakeHandlers.removeValue(forKey: episode.mediaURL)
+    fakeHandlers.removeValue(forKey: episode.mediaURL.rawValue)
   }
 
   func loadEpisodeAsset(_ asset: AVURLAsset) async throws -> EpisodeAsset {

@@ -135,9 +135,9 @@ final class RefreshManager {
       """
     )
 
-    let episodesByMedia = IdentifiedArray(
+    let episodesByMediaURL = IdentifiedArray(
       uniqueElements: podcastSeries.episodes,
-      id: \.media
+      id: \.mediaURL
     )
     let episodesByGUID = IdentifiedArray(
       uniqueElements: podcastSeries.episodes,
@@ -158,7 +158,7 @@ final class RefreshManager {
 
       for feedItem in podcastFeed.episodes {
         if let existingEpisode = podcastSeries.episodes[id: feedItem.mediaGUID]
-          ?? episodesByMedia[id: feedItem.media]
+          ?? episodesByMediaURL[id: feedItem.mediaURL]
           ?? episodesByGUID[id: feedItem.guid]
         {
           do {

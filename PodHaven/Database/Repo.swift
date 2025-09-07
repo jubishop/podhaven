@@ -92,7 +92,7 @@ struct Repo: Databasing, Sendable {
   func episode(_ mediaGUID: MediaGUID) async throws -> Episode? {
     try await appDB.db.read { db in
       try Episode
-        .filter { $0.guid == mediaGUID.guid && $0.media == mediaGUID.media }
+        .filter { $0.guid == mediaGUID.guid && $0.mediaURL == mediaGUID.mediaURL }
         .fetchOne(db)
     }
   }
@@ -123,7 +123,7 @@ struct Repo: Databasing, Sendable {
   func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
-        .filter { $0.guid == mediaGUID.guid && $0.media == mediaGUID.media }
+        .filter { $0.guid == mediaGUID.guid && $0.mediaURL == mediaGUID.mediaURL }
         .including(required: Episode.podcast)
         .asRequest(of: PodcastEpisode.self)
         .fetchOne(db)

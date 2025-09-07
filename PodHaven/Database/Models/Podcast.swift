@@ -41,7 +41,7 @@ struct UnsavedPodcast:
     cacheAllEpisodes: Bool = false
   ) throws(ModelError) {
     do {
-      self.feedURL = FeedURL(try feedURL.rawValue.convertToValidURL())
+      self.feedURL = try feedURL.convertToValidURL()
       self.title = title
       self.image = try image.convertToValidURL()
       self.description = description

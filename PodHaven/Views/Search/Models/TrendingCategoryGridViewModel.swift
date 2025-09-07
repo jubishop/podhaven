@@ -32,11 +32,7 @@ import SwiftUI
         categories: categories,
         language: AppInfo.languageCode
       )
-      state = .loaded(
-        result.convertibleFeeds.compactMap {
-          try? $0.toUnsavedPodcast()
-        }
-      )
+      state = .loaded(result.convertibleFeeds.compactMap { try? $0.toUnsavedPodcast() })
     } catch {
       Self.log.error(error)
       state = .error(ErrorKit.message(for: error))

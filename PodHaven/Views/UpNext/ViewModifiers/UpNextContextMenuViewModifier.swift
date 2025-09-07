@@ -41,7 +41,7 @@ struct UpNextContextMenuViewModifier: ViewModifier {
           }
         )
 
-        if podcastEpisode.episode.cachedFilename == nil {
+        if !podcastEpisode.episode.cached {
           Button(
             action: { viewModel.cacheItem(podcastEpisode) },
             label: {

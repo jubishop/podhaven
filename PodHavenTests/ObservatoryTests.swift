@@ -209,9 +209,9 @@ actor ObservatoryTests {
   func testpodcastEpisodesNonExisting() async throws {
     // Test with media GUIDs that don't exist in database
     let nonExistentMediaGUIDs = [
-      MediaGUID(guid: GUID(UUID().uuidString), media: MediaURL(URL.valid())),
-      MediaGUID(guid: GUID(UUID().uuidString), media: MediaURL(URL.valid())),
-      MediaGUID(guid: GUID(UUID().uuidString), media: MediaURL(URL.valid())),
+      MediaGUID(guid: GUID(UUID().uuidString), mediaURL: MediaURL(URL.valid())),
+      MediaGUID(guid: GUID(UUID().uuidString), mediaURL: MediaURL(URL.valid())),
+      MediaGUID(guid: GUID(UUID().uuidString), mediaURL: MediaURL(URL.valid())),
     ]
 
     let episodes = try await observatory.podcastEpisodes(nonExistentMediaGUIDs).get()
@@ -227,16 +227,16 @@ actor ObservatoryTests {
     let mediaURL1 = MediaURL(URL.valid())
     let mediaURL2 = MediaURL(URL.valid())
     let mediaURL3 = MediaURL(URL.valid())
-    let mediaGUID1 = MediaGUID(guid: guid1, media: mediaURL1)
-    let mediaGUID2 = MediaGUID(guid: guid2, media: mediaURL2)
+    let mediaGUID1 = MediaGUID(guid: guid1, mediaURL: mediaURL1)
+    let mediaGUID2 = MediaGUID(guid: guid2, mediaURL: mediaURL2)
 
     let unsavedPodcast = try Create.unsavedPodcast()
     try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
-        Create.unsavedEpisode(guid: guid1, media: mediaURL1, title: "Episode 1"),
-        Create.unsavedEpisode(guid: guid2, media: mediaURL2, title: "Episode 2"),
-        Create.unsavedEpisode(guid: guid3, media: mediaURL3, title: "Episode 3"),
+        Create.unsavedEpisode(guid: guid1, mediaURL: mediaURL1, title: "Episode 1"),
+        Create.unsavedEpisode(guid: guid2, mediaURL: mediaURL2, title: "Episode 2"),
+        Create.unsavedEpisode(guid: guid3, mediaURL: mediaURL3, title: "Episode 3"),
         Create.unsavedEpisode(guid: "episode4", title: "Episode 4"),  // Different media GUID
       ]
     )
@@ -264,19 +264,27 @@ actor ObservatoryTests {
     let existingGUID2 = GUID("existing2")
     let existingMediaURL1 = MediaURL(URL.valid())
     let existingMediaURL2 = MediaURL(URL.valid())
-    let existingMediaGUID1 = MediaGUID(guid: existingGUID1, media: existingMediaURL1)
-    let existingMediaGUID2 = MediaGUID(guid: existingGUID2, media: existingMediaURL2)
+    let existingMediaGUID1 = MediaGUID(guid: existingGUID1, mediaURL: existingMediaURL1)
+    let existingMediaGUID2 = MediaGUID(guid: existingGUID2, mediaURL: existingMediaURL2)
     let nonExistentMediaGUID = MediaGUID(
       guid: GUID(UUID().uuidString),
-      media: MediaURL(URL.valid())
+      mediaURL: MediaURL(URL.valid())
     )
 
     let unsavedPodcast = try Create.unsavedPodcast()
     try await repo.insertSeries(
       unsavedPodcast,
       unsavedEpisodes: [
-        Create.unsavedEpisode(guid: existingGUID1, media: existingMediaURL1, title: "Existing 1"),
-        Create.unsavedEpisode(guid: existingGUID2, media: existingMediaURL2, title: "Existing 2"),
+        Create.unsavedEpisode(
+          guid: existingGUID1,
+          mediaURL: existingMediaURL1,
+          title: "Existing 1"
+        ),
+        Create.unsavedEpisode(
+          guid: existingGUID2,
+          mediaURL: existingMediaURL2,
+          title: "Existing 2"
+        ),
       ]
     )
 
@@ -301,9 +309,9 @@ actor ObservatoryTests {
     let mediaURL1 = MediaURL(URL.valid())
     let mediaURL2 = MediaURL(URL.valid())
     let mediaURL3 = MediaURL(URL.valid())
-    let mediaGUID1 = MediaGUID(guid: guid1, media: mediaURL1)
-    let mediaGUID2 = MediaGUID(guid: guid2, media: mediaURL2)
-    let mediaGUID3 = MediaGUID(guid: guid3, media: mediaURL3)
+    let mediaGUID1 = MediaGUID(guid: guid1, mediaURL: mediaURL1)
+    let mediaGUID2 = MediaGUID(guid: guid2, mediaURL: mediaURL2)
+    let mediaGUID3 = MediaGUID(guid: guid3, mediaURL: mediaURL3)
 
     let unsavedPodcast = try Create.unsavedPodcast()
     try await repo.insertSeries(
@@ -311,19 +319,19 @@ actor ObservatoryTests {
       unsavedEpisodes: [
         Create.unsavedEpisode(
           guid: guid1,
-          media: mediaURL1,
+          mediaURL: mediaURL1,
           title: "Newest Episode",
           pubDate: 1.minutesAgo
         ),
         Create.unsavedEpisode(
           guid: guid2,
-          media: mediaURL2,
+          mediaURL: mediaURL2,
           title: "Oldest Episode",
           pubDate: 60.minutesAgo
         ),
         Create.unsavedEpisode(
           guid: guid3,
-          media: mediaURL3,
+          mediaURL: mediaURL3,
           title: "Middle Episode",
           pubDate: 30.minutesAgo
         ),
@@ -362,8 +370,8 @@ actor ObservatoryTests {
     let guid2 = GUID("episode2")
     let mediaURL1 = MediaURL(URL.valid())
     let mediaURL2 = MediaURL(URL.valid())
-    let mediaGUID1 = MediaGUID(guid: guid1, media: mediaURL1)
-    let mediaGUID2 = MediaGUID(guid: guid2, media: mediaURL2)
+    let mediaGUID1 = MediaGUID(guid: guid1, mediaURL: mediaURL1)
+    let mediaGUID2 = MediaGUID(guid: guid2, mediaURL: mediaURL2)
 
     let observedEpisodes = ActorContainer<[PodcastEpisode]>()
 
@@ -384,7 +392,7 @@ actor ObservatoryTests {
       unsavedEpisodes: [
         Create.unsavedEpisode(
           guid: guid1,
-          media: mediaURL1,
+          mediaURL: mediaURL1,
           title: "Episode 1",
           pubDate: 1.minutesAgo
         )
@@ -402,7 +410,7 @@ actor ObservatoryTests {
       unsavedEpisodes: [
         Create.unsavedEpisode(
           guid: guid2,
-          media: mediaURL2,
+          mediaURL: mediaURL2,
           title: "Episode 2",
           pubDate: 10.minutesAgo
         )

@@ -110,6 +110,67 @@ enum Schema {
       )
     }
 
+    // v17: Rename media column to mediaURL for clarity
+    migrator.registerMigration("v17") { db in
+      // SQLite doesn't support RENAME COLUMN directly, so we need to:
+      // 1. Create a new table with the correct column name
+      // 2. Copy data from old table to new table
+      // 3. Drop the old table
+      // 4. Rename the new table to the original name
+
+      // Create new episode table with mediaURL column
+      try db.create(table: "new_episode") { t in
+        t.autoIncrementedPrimaryKey("id")
+        t.uniqueKey(["podcastId", "guid"], onConflict: .fail)
+        t.uniqueKey(["podcastId", "mediaURL"], onConflict: .fail)
+        t.uniqueKey(["guid", "mediaURL"], onConflict: .fail)
+        t.belongsTo("podcast", onDelete: .cascade).notNull()
+
+        // Feed Info (Required)
+        t.column("guid", .text).notNull().indexed()
+        t.column("mediaURL", .text).notNull().indexed()
+        t.column("title", .text).notNull()
+        t.column("pubDate", .datetime).notNull()
+
+        // Feed Info (Optional)
+        t.column("duration", .integer)
+        t.column("description", .text)
+        t.column("link", .text)
+        t.column("image", .text)
+
+        // App Added Metadata
+        t.column("completionDate", .datetime)
+        t.column("currentTime", .integer).notNull().defaults(to: 0)
+        t.column("queueOrder", .integer).check { $0 >= 0 }
+        t.column("lastQueued", .datetime)
+        t.column("cachedFilename", .text)
+        t.column("downloadTaskID", .integer).unique(onConflict: .fail)
+        t.column("creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+      }
+
+      // Copy data from old table to new table
+      try db.execute(
+        sql: """
+          INSERT INTO new_episode (
+            id, podcastId, guid, mediaURL, title, pubDate, duration, description, 
+            link, image, completionDate, currentTime, queueOrder, lastQueued, 
+            cachedFilename, downloadTaskID, creationDate
+          )
+          SELECT 
+            id, podcastId, guid, media, title, pubDate, duration, description, 
+            link, image, completionDate, currentTime, queueOrder, lastQueued, 
+            cachedFilename, downloadTaskID, creationDate
+          FROM episode
+          """
+      )
+
+      // Drop the old table
+      try db.execute(sql: "DROP TABLE episode")
+
+      // Rename new table to episode
+      try db.execute(sql: "ALTER TABLE new_episode RENAME TO episode")
+    }
+
     return migrator
   }
 }

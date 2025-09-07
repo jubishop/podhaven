@@ -303,7 +303,7 @@ import Testing
       unsavedEpisodes: [
         Create.unsavedEpisode(
           guid: GUID("59a95f51-c6bf-4a80-b6d0-3f25c3440c1c"),
-          media: MediaURL(
+          mediaURL: MediaURL(
             URL(
               string:
                 "https://injector.simplecastaudio.com/56375c4c-88d5-4229-bf6a-129ec852fe48/episodes/dfc7bc01-7eeb-487a-a932-075a3d15ea93/audio/128/default.mp3?aid=rss_feed&awCollectionId=56375c4c-88d5-4229-bf6a-129ec852fe48&awEpisodeId=dfc7bc01-7eeb-487a-a932-075a3d15ea93&feed=7_9d7yco"

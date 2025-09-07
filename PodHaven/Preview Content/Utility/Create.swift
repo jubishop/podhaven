@@ -10,7 +10,7 @@ enum Create {
   static func unsavedEpisode(
     podcastId: Podcast.ID? = nil,
     guid: GUID = GUID(String.random()),
-    media: MediaURL = MediaURL(URL.valid()),
+    mediaURL: MediaURL = MediaURL(URL.valid()),
     title: String = String.random(),
     pubDate: Date? = Date(),
     duration: CMTime? = nil,
@@ -26,7 +26,7 @@ enum Create {
     try UnsavedEpisode(
       podcastId: podcastId,
       guid: guid,
-      media: media,
+      mediaURL: mediaURL,
       title: title,
       pubDate: pubDate,
       duration: duration,

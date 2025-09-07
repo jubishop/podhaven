@@ -175,7 +175,7 @@ actor RefreshManagerTests {
       $0.guid == GUID("45921 at https://www.thisamericanlife.org")
     })!
     #expect(
-      updatedEpisode.media
+      updatedEpisode.mediaURL
         == MediaURL(
           URL(
             string:

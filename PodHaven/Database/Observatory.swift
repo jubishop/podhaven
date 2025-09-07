@@ -85,7 +85,7 @@ struct Observatory {
     limit: Int = Int.max
   ) -> AsyncValueObservation<[PodcastEpisode]> {
     let mediaGUIDFilters = mediaGUIDs.map { mediaGUID in
-      Episode.Columns.guid == mediaGUID.guid && Episode.Columns.media == mediaGUID.media
+      Episode.Columns.guid == mediaGUID.guid && Episode.Columns.mediaURL == mediaGUID.mediaURL
     }
     let combinedFilter = mediaGUIDFilters.reduce(false.sqlExpression) { result, filter in
       result || filter

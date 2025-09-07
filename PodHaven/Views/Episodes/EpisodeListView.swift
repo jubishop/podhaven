@@ -1,11 +1,12 @@
 // Copyright Justin Bishop, 2025
 
-import Factory
+import FactoryKit
 import NukeUI
 import SwiftUI
 
 struct EpisodeListView: View {
-  @InjectedObject(\.playState) private var playState
+  @InjectedObservable(\.playState) private var playState
+
   private let viewModel: SelectableListItemModel<any EpisodeDisplayable>
 
   init(viewModel: SelectableListItemModel<any EpisodeDisplayable>) {
@@ -62,7 +63,17 @@ struct EpisodeListView: View {
 
   var statusIconColumn: some View {
     VStack(spacing: 8) {
-      onDeckOrQueuedIcon
+      if let onDeck = playState.onDeck, onDeck == viewModel.item {
+        AppLabel.episodeOnDeck.image
+          .font(.caption2)
+          .foregroundColor(.accentColor)
+      } else {
+        AppLabel.episodeQueued.image
+          .font(.caption2)
+          .foregroundColor(.orange)
+          .opacity(viewModel.item.queued ? 1 : 0)
+      }
+
       AppLabel.episodeCached.image
         .font(.caption2)
         .foregroundColor(.green)
@@ -72,20 +83,6 @@ struct EpisodeListView: View {
         .font(.caption2)
         .foregroundColor(.blue)
         .opacity(viewModel.item.completed ? 1 : 0)
-    }
-  }
-
-  @ViewBuilder
-  var onDeckOrQueuedIcon: some View {
-    if playState.onDeck?.id == viewModel.item.id {
-      AppLabel.episodeOnDeck.image
-        .font(.caption2)
-        .foregroundColor(.accentColor)
-    } else {
-      AppLabel.episodeQueued.image
-        .font(.caption2)
-        .foregroundColor(.orange)
-        .opacity(viewModel.item.queued ? 1 : 0)
     }
   }
 
