@@ -808,6 +808,26 @@ import Testing
     #expect(currentItem.url == podcastEpisode.episode.mediaURL.rawValue)
   }
 
+  @Test("loading episode falls back to original URL if cached media URL fails")
+  func loadingEpisodeFallsBackToOriginalURLIfCachedMediaURLFails() async throws {
+    let cachedFilename = "cached-episode.mp3"
+    let podcastEpisode = try await Create.podcastEpisode(
+      Create.unsavedEpisode(cachedFilename: cachedFilename)
+    )
+
+    await episodeAssetLoader.respond(
+      to: podcastEpisode.episode.cachedURL!,
+      error: TestError.assetLoadFailure(podcastEpisode)
+    )
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
+
+    // Verify the asset was loaded with the original media URL
+    let currentItem = avPlayer.current! as! FakeAVPlayerItem
+    #expect(currentItem.url == podcastEpisode.episode.mediaURL.rawValue)
+  }
+
   @Test("episode cache is not cleared when loading")
   func episodeCacheIsNotClearedWhenLoading() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
