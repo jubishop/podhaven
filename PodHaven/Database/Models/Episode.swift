@@ -190,6 +190,10 @@ extension DerivableRequest<Episode> {
     select(max(Episode.Columns.pubDate))
   }
 
+  func cached() -> Self {
+    filter(Episode.cached)
+  }
+
   func queued() -> Self {
     filter(Episode.queued)
   }

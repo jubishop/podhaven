@@ -12,7 +12,10 @@ struct SentryLogHandler: LogHandler {
     get { self.metadata[metadataKey] }
     set(newValue) { self.metadata[metadataKey] = newValue }
   }
-  public var logLevel: Logging.Logger.Level = .trace
+  public var logLevel: Logger.Level {
+    get { Logger.Level.notice }
+    set {}  // Ignore
+  }
 
   private let subsystem: String
   private let category: String

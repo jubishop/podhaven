@@ -17,6 +17,7 @@ extension Container {
 
 struct Repo: Databasing, Sendable {
   @DynamicInjected(\.queue) private var queue
+  @DynamicInjected(\.podFileManager) private var fileManager
 
   private static let log = Log.as(LogSubsystem.Database.repo)
 
@@ -220,7 +221,27 @@ struct Repo: Databasing, Sendable {
 
   @discardableResult
   func delete(_ podcastIDs: [Podcast.ID]) async throws -> Int {
-    try await appDB.db.write { db in
+    // Remove cached episode files
+    let episodesToDelete = try await appDB.db.read { db in
+      try Episode.all()
+        .cached()
+        .filter { podcastIDs.contains($0.podcastId) }
+        .fetchAll(db)
+    }
+    for episode in episodesToDelete {
+      do {
+        guard let url = episode.cachedURL
+        else { Assert.fatal("\(episode.toString) has no cached URL?") }
+
+        try fileManager.removeItem(at: url.rawValue)
+        Self.log.debug("Removed cached file at: \(url)")
+      } catch {
+        Self.log.error(error)
+      }
+    }
+
+    return try await appDB.db.write { db in
+      // Remove episodes from queue
       let queuedEpisodeIDs =
         try Episode.all()
         .queued()

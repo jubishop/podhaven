@@ -15,6 +15,10 @@ class EpisodeTests {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
+  private var fileManager: FakeFileManager {
+    Container.shared.podFileManager() as! FakeFileManager
+  }
+
   @Test("that episodes are created and fetched in the right order")
   func createSeveralEpisodes() async throws {
     let url = URL.valid()
@@ -589,6 +593,63 @@ class EpisodeTests {
 
     let podcastEpisode = try await repo.podcastEpisode(nonExistentMediaGUID)
     #expect(podcastEpisode == nil)
+  }
+
+  @Test("that deleting a podcast removes cached episode files")
+  func deletePodcastRemovesCachedFiles() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let episode1 = try Create.unsavedEpisode(cachedFilename: "episode-1.mp3")
+    let episode2 = try Create.unsavedEpisode(cachedFilename: "episode-2.mp3")
+    let episode3 = try Create.unsavedEpisode()
+    let series = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [episode1, episode2]
+    )
+    let podcast = series.podcast
+    let episodes = Array(series.episodes.filter { $0.cached })
+
+    // Write files to cached locations
+    let fileManager = Container.shared.podFileManager() as! FakeFileManager
+    for episode in episodes {
+      guard let cachedURL = episode.cachedURL else {
+        Assert.fatal("Episode should have cached URL")
+      }
+      try await fileManager.writeData(Data(UUID().uuidString.utf8), to: cachedURL.rawValue)
+      try await CacheHelpers.waitForCachedFile(cachedURL)
+    }
+
+    // Delete podcast
+    let count = try await repo.delete([podcast.id])
+    #expect(count == 1)
+    let afterDeletion = try await repo.podcastSeries(podcast.id)
+    #expect(afterDeletion == nil)
+
+    // Verify files are removed
+    for episode in episodes {
+      guard let cachedURL = episode.cachedURL
+      else { Assert.fatal("Episode should have cached URL") }
+      try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
+    }
+  }
+
+  @Test("that deletion succeeds when cached file is missing")
+  func deletePodcastSucceedsWhenCachedFileMissing() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let episode = try Create.unsavedEpisode(cachedFilename: "missing.mp3")
+    let series = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [episode]
+    )
+    let podcast = series.podcast
+
+    // No file written to the cached location
+
+    // Delete podcast - should succeed even though cached file doesn't exist
+    let deletionSucceeded = try await repo.delete(podcast.id)
+    #expect(deletionSucceeded == true)
+
+    let afterDeletion = try await repo.podcastSeries(podcast.id)
+    #expect(afterDeletion == nil)
   }
 
   @Test("that MediaGUID queries are consistent across multiple episodes")
