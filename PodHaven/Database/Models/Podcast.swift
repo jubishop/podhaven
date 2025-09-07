@@ -41,11 +41,11 @@ struct UnsavedPodcast:
     cacheAllEpisodes: Bool = false
   ) throws(ModelError) {
     do {
-      self.feedURL = try feedURL.convertToValidURL()
+      self.feedURL = try feedURL.convertToHTTPSURL()
       self.title = title
-      self.image = try image.convertToValidURL()
+      self.image = try image.convertToHTTPSURL()
       self.description = description
-      self.link = try? link?.convertToValidURL()
+      self.link = try? link?.convertToHTTPSURL()
       self.lastUpdate = lastUpdate ?? Date.epoch
       self.subscriptionDate = subscriptionDate
       self.cacheAllEpisodes = cacheAllEpisodes

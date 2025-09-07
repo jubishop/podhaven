@@ -5,7 +5,7 @@ import Foundation
 extension URL {
   static let placeholder = URL(string: "about:blank")!
 
-  func convertToValidURL() throws(URLError) -> URL {
+  func convertToHTTPSURL() throws(URLError) -> URL {
     guard var components = URLComponents(url: self, resolvingAgainstBaseURL: false)
     else { throw URLError(.badURL, userInfo: ["message": "URL: \(self) cannot be components."]) }
 

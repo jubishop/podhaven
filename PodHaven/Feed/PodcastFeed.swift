@@ -25,7 +25,7 @@ struct EpisodeFeed: Sendable, Equatable {
 
     let validatedMediaURL: MediaURL
     do {
-      validatedMediaURL = try mediaURL.convertToValidURL()
+      validatedMediaURL = try mediaURL.convertToHTTPSURL()
     } catch {
       throw ParseError.invalidMediaURL(mediaURL)
     }
@@ -112,7 +112,7 @@ struct PodcastFeed: Sendable, Stringable {
 
   private init(rssPodcast: PodcastRSS.Podcast, from: FeedURL) throws {
     self.rssPodcast = rssPodcast
-    self.feedURL = try (rssPodcast.feedURL ?? from).convertToValidURL()
+    self.feedURL = try (rssPodcast.feedURL ?? from).convertToHTTPSURL()
     self.link = rssPodcast.link
     self.image = rssPodcast.iTunes.image.href
     self.episodes = rssPodcast.episodes.compactMap { rssEpisode in

@@ -69,13 +69,13 @@ struct UnsavedEpisode:
   ) throws {
     self.podcastId = podcastId
     self.guid = guid
-    self.mediaURL = try mediaURL.convertToValidURL()
+    self.mediaURL = try mediaURL.convertToHTTPSURL()
     self.title = title
     self.pubDate = pubDate ?? Date()
     self.duration = duration ?? CMTime.zero
     self.description = description
-    self.link = try? link?.convertToValidURL()
-    self.image = try? image?.convertToValidURL()
+    self.link = try? link?.convertToHTTPSURL()
+    self.image = try? image?.convertToHTTPSURL()
     self.completionDate = completionDate
     self.currentTime = currentTime ?? CMTime.zero
     self.queueOrder = queueOrder

@@ -138,7 +138,7 @@ struct PodcastOPML: Codable, Sendable {
       .flatMap { $0.flattenedOutlines }
       .compactMap { outline in
         guard let xmlUrl = outline.xmlUrl,
-          let feedURL = try? xmlUrl.convertToValidURL()
+          let feedURL = try? xmlUrl.convertToHTTPSURL()
         else { return nil }
 
         return (feedURL: feedURL, title: outline.text)

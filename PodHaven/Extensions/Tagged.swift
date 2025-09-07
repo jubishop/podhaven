@@ -21,7 +21,7 @@ extension Tagged: Stringable where Self: RawRepresentable, RawValue == URL {
 }
 
 extension Tagged where RawValue == URL {
-  func convertToValidURL() throws -> Self {
-    Self(try rawValue.convertToValidURL())
+  func convertToHTTPSURL() throws -> Self {
+    Self(try rawValue.convertToHTTPSURL())
   }
 }
