@@ -311,13 +311,16 @@ class QueueTests {
     )
 
     try await repo.delete([podcastSeries.podcast.id, otherSeriesToDelete.podcast.id])
-    let fetchOrder = try await fetchOrder()
-    #expect(fetchOrder == [0])
+    let queueOrder = try await fetchOrder()
+    #expect(queueOrder == [0])
 
     let episode = try await fetchEpisode("other", from: otherSeries)
     #expect(episode.queueOrder == 0)
     let fetchGUIDs = try await fetchGUIDs()
     #expect(fetchGUIDs == ["other"])
+
+    try await repo.delete(otherSeries.id)
+    #expect(try await fetchOrder().isEmpty)
   }
 
   @Test("updateQueueOrders reorders existing queue")
