@@ -600,10 +600,9 @@ class EpisodeTests {
     let unsavedPodcast = try Create.unsavedPodcast()
     let episode1 = try Create.unsavedEpisode(cachedFilename: "episode-1.mp3")
     let episode2 = try Create.unsavedEpisode(cachedFilename: "episode-2.mp3")
-    let episode3 = try Create.unsavedEpisode()
     let series = try await repo.insertSeries(
       unsavedPodcast,
-      unsavedEpisodes: [episode1, episode2]
+      unsavedEpisodes: [episode1, episode2, Create.unsavedEpisode()]
     )
     let podcast = series.podcast
     let episodes = Array(series.episodes.filter { $0.cached })
