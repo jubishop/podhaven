@@ -17,6 +17,7 @@ protocol EpisodeDisplayable: Identifiable, Searchable, Sendable, Stringable {
   var started: Bool { get }
   var completed: Bool { get }
   var queued: Bool { get }
+  var queueOrder: Int? { get }
 }
 
 extension EpisodeDisplayable {

@@ -69,6 +69,9 @@ struct EpisodeListView: View {
       if let onDeck = playState.onDeck, onDeck == viewModel.item {
         AppLabel.episodeOnDeck.image
           .foregroundColor(.accentColor)
+      } else if viewModel.item.queueOrder == 0 {
+        AppLabel.queueAtTop.image
+          .foregroundColor(.orange)
       } else {
         AppLabel.episodeQueued.image
           .foregroundColor(.orange)

@@ -48,6 +48,7 @@ struct PodcastEpisode:
   var started: Bool { episode.started }
   var completed: Bool { episode.completed }
   var queued: Bool { episode.queued }
+  var queueOrder: Int? { episode.queueOrder }
   var description: String? { episode.description }
   var podcastTitle: String { podcast.title }
 }

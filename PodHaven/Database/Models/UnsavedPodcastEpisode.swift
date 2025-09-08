@@ -39,6 +39,7 @@ struct UnsavedPodcastEpisode:
   var started: Bool { unsavedEpisode.started }
   var completed: Bool { unsavedEpisode.completed }
   var queued: Bool { unsavedEpisode.queued }
+  var queueOrder: Int? { unsavedEpisode.queueOrder }
   var description: String? { unsavedEpisode.description }
   var podcastTitle: String { unsavedPodcast.title }
 }
