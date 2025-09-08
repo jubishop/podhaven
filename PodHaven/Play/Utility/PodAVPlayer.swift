@@ -86,24 +86,7 @@ extension Container {
   {
     Self.log.debug("loadAsset: \(podcastEpisode.toString)")
 
-    let episodeAsset: EpisodeAsset
-    do {
-      if let cachedURL = podcastEpisode.episode.cachedURL {
-        do {
-          episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: cachedURL.rawValue))
-        } catch {
-          episodeAsset = try await loadEpisodeAsset(
-            AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
-          )
-        }
-      } else {
-        episodeAsset = try await loadEpisodeAsset(
-          AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
-        )
-      }
-    } catch {
-      throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
-    }
+    let episodeAsset: EpisodeAsset = try await performLoadAsset(for: podcastEpisode)
 
     guard episodeAsset.isPlayable
     else { throw PlaybackError.mediaNotPlayable(podcastEpisode) }
@@ -124,6 +107,26 @@ extension Container {
       ),
       episodeAsset.playerItem
     )
+  }
+  private func performLoadAsset(for podcastEpisode: PodcastEpisode) async throws(PlaybackError)
+    -> EpisodeAsset
+  {
+    do {
+      guard let cachedURL = podcastEpisode.episode.cachedURL else {
+        return try await loadEpisodeAsset(
+          AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
+        )
+      }
+      do {
+        return try await loadEpisodeAsset(AVURLAsset(url: cachedURL.rawValue))
+      } catch {
+        return try await loadEpisodeAsset(
+          AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
+        )
+      }
+    } catch {
+      throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
+    }
   }
 
   func clear() {
