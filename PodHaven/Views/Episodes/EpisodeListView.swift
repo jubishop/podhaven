@@ -8,7 +8,7 @@ struct EpisodeListView: View {
   @InjectedObservable(\.playState) private var playState
   @InjectedObservable(\.cacheState) private var cacheState
 
-  private let statusIconFontSize: CGFloat = 12
+  private let statusIconSize: CGFloat = 12
 
   private let viewModel: SelectableListItemModel<any EpisodeDisplayable>
 
@@ -83,7 +83,7 @@ struct EpisodeListView: View {
             colorAmounts: [.green: progress],
             innerRadius: .ratio(0.25)
           )
-          .frame(width: statusIconFontSize, height: statusIconFontSize)
+          .frame(width: statusIconSize, height: statusIconSize)
         } else {
           AppLabel.waiting.image
             .foregroundColor(.green)
@@ -98,7 +98,7 @@ struct EpisodeListView: View {
         .foregroundColor(.blue)
         .opacity(viewModel.item.completed ? 1 : 0)
     }
-    .font(.system(size: statusIconFontSize))
+    .font(.system(size: statusIconSize))
   }
 
   var episodeInfoSection: some View {
