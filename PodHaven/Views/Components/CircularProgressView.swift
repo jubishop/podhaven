@@ -39,7 +39,6 @@ struct CircularProgressView: View {
           .foregroundStyle(.opacity(0))
       }
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .aspectRatio(1, contentMode: .fit)
   }
 }

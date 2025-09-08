@@ -107,8 +107,8 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         return
       }
 
-      await cacheState.clearProgress(for: episode.id)
       try await repo.updateDownloadTaskID(episode.id, nil)
+      await cacheState.clearProgress(for: episode.id)
 
       let fileName = generateCacheFilename(for: episode)
       let destURL = CacheManager.resolveCachedFilepath(for: fileName)
@@ -166,9 +166,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private func generateCacheFilename(for episode: Episode) -> String {
     let mediaURL = episode.mediaURL.rawValue
     let fileExtension =
-    mediaURL.pathExtension.isEmpty == false
-    ? mediaURL.pathExtension
-    : "mp3"
+      mediaURL.pathExtension.isEmpty == false
+      ? mediaURL.pathExtension
+      : "mp3"
     return "\(mediaURL.hash(to: 12)).\(fileExtension)"
   }
 }

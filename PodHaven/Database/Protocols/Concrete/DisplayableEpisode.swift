@@ -54,6 +54,7 @@ struct DisplayableEpisode:
 
   // MARK: - EpisodeDisplayable
 
+  var episodeID: Episode.ID? { episode.episodeID }
   var mediaGUID: MediaGUID { episode.mediaGUID }
   var title: String { episode.title }
   var pubDate: Date { episode.pubDate }

@@ -25,6 +25,11 @@ extension Container {
   // MARK: - State Setters
 
   func updateProgress(for episodeID: Episode.ID, progress: Double) {
+    Assert.precondition(
+      progress >= 0 && progress <= 1,
+      "progress must be between 0 and 1 but is \(progress)?"
+    )
+
     Self.log.trace("updating progress for \(episodeID): \(progress)")
     progressByEpisode[episodeID] = progress
   }

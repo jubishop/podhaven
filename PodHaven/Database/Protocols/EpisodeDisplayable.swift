@@ -4,6 +4,7 @@ import AVFoundation
 import Foundation
 
 protocol EpisodeDisplayable: Identifiable, Searchable, Sendable, Stringable {
+  var episodeID: Episode.ID? { get }
   var mediaGUID: MediaGUID { get }
   var title: String { get }
   var pubDate: Date { get }
@@ -16,4 +17,8 @@ protocol EpisodeDisplayable: Identifiable, Searchable, Sendable, Stringable {
   var started: Bool { get }
   var completed: Bool { get }
   var queued: Bool { get }
+}
+
+extension EpisodeDisplayable {
+  var episodeID: Episode.ID? { id as? Episode.ID }
 }

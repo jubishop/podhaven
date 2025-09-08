@@ -6,6 +6,9 @@ import SwiftUI
 
 struct EpisodeListView: View {
   @InjectedObservable(\.playState) private var playState
+  @InjectedObservable(\.cacheState) private var cacheState
+
+  private let statusIconFontSize: CGFloat = 12
 
   private let viewModel: SelectableListItemModel<any EpisodeDisplayable>
 
@@ -65,25 +68,37 @@ struct EpisodeListView: View {
     VStack(spacing: 8) {
       if let onDeck = playState.onDeck, onDeck == viewModel.item {
         AppLabel.episodeOnDeck.image
-          .font(.caption2)
           .foregroundColor(.accentColor)
       } else {
         AppLabel.episodeQueued.image
-          .font(.caption2)
           .foregroundColor(.orange)
           .opacity(viewModel.item.queued ? 1 : 0)
       }
 
-      AppLabel.episodeCached.image
-        .font(.caption2)
-        .foregroundColor(.green)
-        .opacity(viewModel.item.cached ? 1 : 0)
+      if viewModel.item.caching,
+        let episodeID = viewModel.item.episodeID
+      {
+        if let progress = cacheState.progress(episodeID) {
+          CircularProgressView(
+            colorAmounts: [.green: progress],
+            innerRadius: .ratio(0.25)
+          )
+          .frame(width: statusIconFontSize, height: statusIconFontSize)
+        } else {
+          AppLabel.waiting.image
+            .foregroundColor(.green)
+        }
+      } else {
+        AppLabel.episodeCached.image
+          .foregroundStyle(.green)
+          .opacity(viewModel.item.cached ? 1 : 0)
+      }
 
       AppLabel.episodeCompleted.image
-        .font(.caption2)
         .foregroundColor(.blue)
         .opacity(viewModel.item.completed ? 1 : 0)
     }
+    .font(.system(size: statusIconFontSize))
   }
 
   var episodeInfoSection: some View {
@@ -124,26 +139,38 @@ struct EpisodeListView: View {
 }
 
 #if DEBUG
-#Preview {
-  @Previewable @State var podcastEpisode: PodcastEpisode?
-  @Previewable @State var selectedPodcastEpisode: PodcastEpisode?
+#Preview("Episode List with Cache States") {
+  @Previewable @State var normalEpisode: PodcastEpisode?
+  @Previewable @State var cachingEpisode: PodcastEpisode?
+  @Previewable @State var cachedEpisode: PodcastEpisode?
   @Previewable @State var isSelected: Bool = false
 
   List {
-    if let podcastEpisode {
+    if let normalEpisode {
       EpisodeListView(
         viewModel: SelectableListItemModel(
           isSelected: .constant(false),
-          item: podcastEpisode,
+          item: normalEpisode,
           isSelecting: false
         )
       )
     }
-    if let selectedPodcastEpisode {
+
+    if let cachingEpisode {
+      EpisodeListView(
+        viewModel: SelectableListItemModel(
+          isSelected: .constant(false),
+          item: cachingEpisode,
+          isSelecting: false
+        )
+      )
+    }
+
+    if let cachedEpisode {
       EpisodeListView(
         viewModel: SelectableListItemModel(
           isSelected: $isSelected,
-          item: selectedPodcastEpisode,
+          item: cachedEpisode,
           isSelecting: true
         )
       )
@@ -151,8 +178,22 @@ struct EpisodeListView: View {
   }
   .preview()
   .task {
-    podcastEpisode = try? await PreviewHelpers.loadPodcastEpisode()
-    selectedPodcastEpisode = try? await PreviewHelpers.loadPodcastEpisode()
+    // Load episodes for different states
+    normalEpisode = try? await PreviewHelpers.loadPodcastEpisode()
+    cachingEpisode = try? await PreviewHelpers.loadPodcastEpisode()
+    cachedEpisode = try? await PreviewHelpers.loadPodcastEpisode()
+
+    // Simulate caching progress for the middle episode
+    if let episode = cachingEpisode {
+      let repo = Container.shared.repo()
+      _ = try? await repo.updateDownloadTaskID(episode.id, URLSessionDownloadTask.ID(1))
+      cachingEpisode = try? await repo.podcastEpisode(episode.id)
+      Container.shared.cacheState()
+        .updateProgress(
+          for: episode.id,
+          progress: 0.65
+        )
+    }
   }
 }
 #endif
