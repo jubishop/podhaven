@@ -7,13 +7,13 @@ struct SelectableEpisodesToolbarItems<
   ViewModel: SelectableEpisodeListModel,
   EpisodeList: SelectableList
 > {
-  let viewModel: Binding<ViewModel>
-  let episodeList: Binding<EpisodeList>
+  let viewModel: ViewModel
+  let episodeList: EpisodeList
   let selectText: String
 
   init(
-    viewModel: Binding<ViewModel>,
-    episodeList: Binding<EpisodeList>,
+    viewModel: ViewModel,
+    episodeList: EpisodeList,
     selectText: String = "Select"
   ) {
     self.viewModel = viewModel
@@ -23,28 +23,28 @@ struct SelectableEpisodesToolbarItems<
 
   @ToolbarContentBuilder
   var content: some ToolbarContent {
-    if viewModel.wrappedValue.isSelecting {
+    if viewModel.isSelecting {
       ToolbarItem(placement: .topBarTrailing) {
-        SelectableListMenu(list: episodeList.wrappedValue)
+        SelectableListMenu(list: episodeList)
       }
     }
 
-    if viewModel.wrappedValue.isSelecting, episodeList.wrappedValue.anySelected {
+    if viewModel.isSelecting, episodeList.anySelected {
       ToolbarItem(placement: .topBarTrailing) {
-        SelectableEpisodeListMenu(listModel: viewModel.wrappedValue)
+        SelectableEpisodeListMenu(listModel: viewModel)
       }
     }
 
-    if viewModel.wrappedValue.isSelecting {
+    if viewModel.isSelecting {
       ToolbarItem(placement: .topBarLeading) {
         Button("Done") {
-          viewModel.wrappedValue.isSelecting = false
+          viewModel.isSelecting = false
         }
       }
     } else {
       ToolbarItem(placement: .topBarTrailing) {
         Button(selectText) {
-          viewModel.wrappedValue.isSelecting = true
+          viewModel.isSelecting = true
         }
       }
     }
@@ -56,8 +56,8 @@ func selectableEpisodesToolbarItems<
   ViewModel: SelectableEpisodeListModel,
   EpisodeList: SelectableList
 >(
-  viewModel: Binding<ViewModel>,
-  episodeList: Binding<EpisodeList>,
+  viewModel: ViewModel,
+  episodeList: EpisodeList,
   selectText: String = "Select"
 ) -> some ToolbarContent {
   SelectableEpisodesToolbarItems(

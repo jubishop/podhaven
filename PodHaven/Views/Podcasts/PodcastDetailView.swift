@@ -38,8 +38,8 @@ struct PodcastDetailView: View {
     }
     .toolbar {
       selectableEpisodesToolbarItems(
-        viewModel: $viewModel,
-        episodeList: $viewModel.episodeList,
+        viewModel: viewModel,
+        episodeList: viewModel.episodeList,
         selectText: "Select Episodes"
       )
 
