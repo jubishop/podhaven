@@ -8,6 +8,7 @@ import SwiftUI
 struct EpisodeListView: View {
   @InjectedObservable(\.playState) private var playState
   @InjectedObservable(\.cacheState) private var cacheState
+  @DynamicInjected(\.imageFetcher) private var imageFetcher
 
   private let thumbnailSize: CGFloat = 64
   private let thumbnailRoundedCorner: CGFloat = 8
@@ -36,7 +37,7 @@ struct EpisodeListView: View {
 
   var episodeImage: some View {
     ZStack {
-      LazyImage(url: viewModel.item.image) { state in
+      imageFetcher.lazyImage(viewModel.item.image) { state in
         if let image = state.image {
           image
             .resizable()
@@ -200,45 +201,24 @@ struct EpisodeListView: View {
       let repo = Container.shared.repo()
       let cacheState = Container.shared.cacheState()
 
-      // Real podcast image URLs from RSS feeds in Preview Assets
-      let podcastImages = [
+      // Test assertion system - one remote URL should cause fatal
+      let podcastImages: [URL?] = [
         URL(
           string:
             "https://cdn.changelog.com/static/images/podcasts/podcast-original-f16d0363067166f241d080ee2e2d4a28.png"
-        )!,  // Changelog
-        URL(
-          string:
-            "https://image.simplecastcdn.com/images/9aa1e238-cbed-4305-9808-c9228fc6dd4f/eb7dddd4-ecb0-444c-b379-f75d7dc6c22b/3000x3000/uploads-2f1595947484360-nc4atf9w7ur-dbbaa7ee07a1ee325ec48d2e666ac261-2fpodsave100daysfinal1800.jpg?aid=rss_feed"
-        )!,  // Pod Save America
-        URL(
-          string:
-            "https://thisamericanlife.org/sites/all/themes/thislife/img/tal-logo-3000x3000.png"
-        )!,  // This American Life
-        URL(
-          string:
-            "https://image.simplecastcdn.com/images/80b44ce0-f268-4e5d-9196-103954a39efe/2bea5dae-c1e6-4ba3-80ff-746004a4dde6/3000x3000/psa-harrispodplatform-20-3.jpg?aid=rss_feed"
-        )!,  // Pod Save America Episode
-        URL(
-          string:
-            "https://cdn.changelog.com/uploads/covers/changelog-interviews-original.png?v=63848368174"
-        )!,  // Changelog Interviews
-        URL(
-          string:
-            "https://thisamericanlife.org/sites/default/files/styles/rss_image/public/images/rss/tal-863-championshipwindow-sq.jpg?itok=IqJSuqm3"
-        )!,  // This American Life Episode
-        URL(
-          string:
-            "https://image.simplecastcdn.com/images/d14412c9-cd76-47ce-9118-a44ce4ba0d56/dd038cc1-e9ed-4e21-b11c-91c004204de0/3000x3000/psaepart112224.jpg?aid=rss_feed"
-        )!,  // Pod Save America Episode 2
-        URL(
-          string:
-            "https://thisamericanlife.org/sites/default/files/styles/rss_image/public/images/rss/tal-289-sq.jpg?itok=5UhMgvic"
-        )!,  // This American Life Episode 2
+        ),  // Changelog - REMOTE (should assert)
+        nil,  // Pod Save America
+        nil,  // This American Life
+        nil,  // Pod Save America Episode
+        nil,  // Changelog Interviews
+        nil,  // This American Life Episode
+        nil,  // Pod Save America Episode 2
+        nil,  // This American Life Episode 2
       ]
 
       let basePodcast = try Create.unsavedPodcast(
         title: "PodHaven Complete Test",
-        image: podcastImages[0],  // Use Changelog image as base
+        image: podcastImages[0] ?? URL.valid(),  // Use Changelog image as base or fallback
         description: "Testing all episode status icon combinations"
       )
 
@@ -257,7 +237,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Pod Save America",
-            image: podcastImages[1]
+            image: podcastImages[1] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "2. Started Episode (progress in duration)",
@@ -269,7 +249,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "This American Life",
-            image: podcastImages[2]
+            image: podcastImages[2] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "3. Completed Episode (blue checkmark) - SELECTED",
@@ -295,7 +275,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Changelog Interviews",
-            image: podcastImages[4]
+            image: podcastImages[4]!
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "5. Queued at Top (orange arrow up)",
@@ -309,14 +289,14 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "6. Queued Middle (orange lines) - Grey Box",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 6),
-            image: URL(string: "https://invalid-url.com/nonexistent.png")!,  // Will show grey box
+            image: nil,  // Will show grey box
             queueOrder: 5
           )
         ),
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "This American Life",
-            image: podcastImages[2]
+            image: podcastImages[2]!
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "7. Queued + Started",
@@ -329,7 +309,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Pod Save America",
-            image: podcastImages[1]
+            image: podcastImages[1]!
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "8. Queued + Completed",
@@ -346,7 +326,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Changelog",
-            image: podcastImages[0]
+            image: podcastImages[0] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "9. Cached Episode (green download)",
@@ -358,7 +338,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Unknown Podcast",
-            image: URL(string: "https://invalid-url.com/missing.jpg")!  // Grey box
+            image: URL.valid()  // Grey box
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "10. Cached + Started - Grey Box",
@@ -371,7 +351,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "This American Life",
-            image: podcastImages[2]
+            image: podcastImages[2] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "11. Cached + Completed",
@@ -384,7 +364,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Pod Save America",
-            image: podcastImages[1]
+            image: podcastImages[1] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "12. Cached + Queued",
@@ -401,7 +381,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Changelog",
-            image: podcastImages[0]
+            image: podcastImages[0] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "13. Caching: 25% Progress (green circle)",
@@ -415,7 +395,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Pod Save America",
-            image: podcastImages[1]
+            image: podcastImages[1] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "14. Caching: 65% Progress (larger green circle)",
@@ -429,7 +409,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "This American Life",
-            image: podcastImages[2]
+            image: podcastImages[2] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "15. Caching: Waiting (green clock icon)",
@@ -461,7 +441,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Changelog",
-            image: podcastImages[0]
+            image: podcastImages[0] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "16. Everything: Queued + Cached + Started - SELECTED",
@@ -475,7 +455,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Pod Save America",
-            image: podcastImages[1]
+            image: podcastImages[1] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "17. Top Queue + Cached + Completed",
@@ -489,7 +469,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "This American Life",
-            image: podcastImages[2]
+            image: podcastImages[2] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "18. All States: Queue + Cache + Complete + Started",
@@ -504,7 +484,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Changelog Interviews",
-            image: podcastImages[4]
+            image: podcastImages[4] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "19. Long Title to Test Layout with Multiple States and Icons - SELECTED",

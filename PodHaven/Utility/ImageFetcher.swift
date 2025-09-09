@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import Nuke
+import NukeUI
 import SwiftUI
 
 extension Container {
@@ -27,5 +28,13 @@ struct ImageFetcher: ImageFetchable {
 
   func fetch(_ url: URL) async throws -> UIImage {
     try await pipeline.image(for: url)
+  }
+
+  @MainActor
+  func lazyImage<Content: View>(
+    _ url: URL?,
+    @ViewBuilder content: @escaping (LazyImageState) -> Content
+  ) -> LazyImage<Content> {
+    LazyImage(url: url, content: content)
   }
 }

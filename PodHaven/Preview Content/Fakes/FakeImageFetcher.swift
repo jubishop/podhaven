@@ -1,10 +1,10 @@
+#if DEBUG
 // Copyright Justin Bishop, 2025
 
 import Foundation
 import Nuke
+import NukeUI
 import SwiftUI
-
-@testable import PodHaven
 
 actor FakeImageFetcher: ImageFetchable {
   // MARK: - ImageFetchable
@@ -68,4 +68,24 @@ actor FakeImageFetcher: ImageFetchable {
         context.fill(CGRect(origin: .zero, size: size))
       }
   }
+
+  @MainActor
+  func lazyImage<Content: View>(
+    _ url: URL?,
+    @ViewBuilder content: @escaping (LazyImageState) -> Content
+  ) -> LazyImage<Content> {
+    // Check if URL is remote and assert fatal in preview/test contexts
+    if let url = url, !url.isFileURL {
+      Assert.fatal(
+        """
+        ❌ FATAL: Attempted remote image loading in preview/test context!
+        URL: \(url)
+        Use local file URLs from Preview Assets or nil for grey boxes instead.
+        """
+      )
+    }
+
+    return LazyImage(url: url, content: content)
+  }
 }
+#endif

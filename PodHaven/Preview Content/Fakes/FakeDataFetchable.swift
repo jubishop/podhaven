@@ -17,7 +17,9 @@ actor FakeDataFetchable: DataFetchable {
   private(set) var activeRequests = 0
   private(set) var maxActiveRequests = 0
 
-  let downloadTasks = ThreadSafe<IdentifiedArray<URLSessionDownloadTask.ID, FakeURLSessionDownloadTask>>(IdentifiedArray(id: \.taskID))
+  let downloadTasks = ThreadSafe<
+    IdentifiedArray<URLSessionDownloadTask.ID, FakeURLSessionDownloadTask>
+  >(IdentifiedArray(id: \.taskID))
   private func addDownloadTask(_ downloadTask: FakeURLSessionDownloadTask) {
     downloadTasks { $0.append(downloadTask) }
   }
@@ -125,7 +127,8 @@ actor FakeDataFetchable: DataFetchable {
     return asyncSemaphore
   }
 
-  func finishDownload(taskID: URLSessionDownloadTask.ID, didFinishDownloadingTo location: URL) async {
+  func finishDownload(taskID: URLSessionDownloadTask.ID, didFinishDownloadingTo location: URL) async
+  {
     await downloadTasks()[id: taskID]!.assertResumed()
     await cacheBackgroundDelegate.urlSession(
       self,
