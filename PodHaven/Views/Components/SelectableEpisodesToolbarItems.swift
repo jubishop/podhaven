@@ -31,7 +31,7 @@ struct SelectableEpisodesToolbarItems<
 
     if viewModel.wrappedValue.isSelecting, episodeList.wrappedValue.anySelected {
       ToolbarItem(placement: .topBarTrailing) {
-        SelectableEpisodeListMenu(list: viewModel.wrappedValue)
+        SelectableEpisodeListMenu(listModel: viewModel.wrappedValue)
       }
     }
 

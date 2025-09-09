@@ -3,29 +3,31 @@
 import SwiftUI
 
 struct SelectableEpisodeListMenu: View {
-  private let list: SelectableEpisodeList
+  private let listModel: any SelectableEpisodeListModel
 
-  init(list: SelectableEpisodeList) {
-    self.list = list
+  init(listModel: any SelectableEpisodeListModel) {
+    self.listModel = listModel
   }
 
   var body: some View {
     Menu(
       content: {
         Button("Add To Top Of Queue") {
-          list.addSelectedEpisodesToTopOfQueue()
+          listModel.addSelectedEpisodesToTopOfQueue()
         }
         Button("Add To Bottom Of Queue") {
-          list.addSelectedEpisodesToBottomOfQueue()
+          listModel.addSelectedEpisodesToBottomOfQueue()
         }
         Button("Replace Queue") {
-          list.replaceQueueWithSelected()
+          listModel.replaceQueueWithSelected()
         }
         Button("Replace Queue and Play") {
-          list.replaceQueueWithSelectedAndPlay()
+          listModel.replaceQueueWithSelectedAndPlay()
         }
-        Button("Cache Selected") {
-          list.cacheSelectedEpisodes()
+        if listModel.selectedEpisodes.contains(where: { !$0.cached }) {
+          Button("Cache Selected") {
+            listModel.cacheSelectedEpisodes()
+          }
         }
       },
       label: {
@@ -37,6 +39,6 @@ struct SelectableEpisodeListMenu: View {
 
 #if DEBUG
 #Preview {
-  SelectableEpisodeListMenu(list: StubSelectableEpisodeList())
+  SelectableEpisodeListMenu(listModel: StubSelectableEpisodeListModel())
 }
 #endif

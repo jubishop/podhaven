@@ -5,8 +5,8 @@ import Foundation
 import IdentifiedCollections
 import Logging
 
-@MainActor protocol SelectableEpisodeListModel: AnyObject, SelectableEpisodeList {
-  associatedtype EpisodeType: Searchable
+@MainActor protocol SelectableEpisodeListModel: AnyObject {
+  associatedtype EpisodeType: EpisodeDisplayable
   associatedtype EpisodeID: Hashable
 
   var isSelecting: Bool { get set }
@@ -16,6 +16,12 @@ import Logging
 
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
   var selectedPodcastEpisodeIDs: [Episode.ID] { get async throws }
+
+  func addSelectedEpisodesToTopOfQueue()
+  func addSelectedEpisodesToBottomOfQueue()
+  func replaceQueueWithSelected()
+  func replaceQueueWithSelectedAndPlay()
+  func cacheSelectedEpisodes()
 }
 
 extension SelectableEpisodeListModel {
