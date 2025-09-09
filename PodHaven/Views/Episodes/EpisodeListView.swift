@@ -9,6 +9,7 @@ struct EpisodeListView: View {
   @InjectedObservable(\.cacheState) private var cacheState
 
   private let statusIconSize: CGFloat = 12
+  @ScaledMetric(relativeTo: .caption) private var metadataIconSize: CGFloat = 12
 
   private let viewModel: SelectableListItemModel<any EpisodeDisplayable>
 
@@ -84,7 +85,7 @@ struct EpisodeListView: View {
         if let progress = cacheState.progress(episodeID) {
           CircularProgressView(
             colorAmounts: [.green: progress],
-            innerRadius: .ratio(0.25)
+            innerRadius: .ratio(0.4)
           )
           .frame(width: statusIconSize, height: statusIconSize)
         } else {
@@ -120,7 +121,7 @@ struct EpisodeListView: View {
     HStack {
       HStack(spacing: 4) {
         AppLabel.publishDate.image
-          .font(.caption2)
+          .font(.system(size: metadataIconSize))
           .foregroundColor(.secondary)
         Text(viewModel.item.pubDate.usShort)
           .font(.caption)
@@ -130,9 +131,22 @@ struct EpisodeListView: View {
       Spacer()
 
       HStack(spacing: 4) {
-        AppLabel.duration.image
-          .font(.caption2)
-          .foregroundColor(.secondary)
+        ZStack {
+          if viewModel.item.currentTime.seconds > 0 {
+            CircularProgressView(
+              colorAmounts: [
+                .green: viewModel.item.currentTime.seconds / viewModel.item.duration.seconds
+              ],
+              innerRadius: .ratio(0.4)
+            )
+            .opacity(0.8)
+            .frame(width: metadataIconSize - 2, height: metadataIconSize - 2)
+          }
+
+          AppLabel.duration.image
+            .font(.system(size: metadataIconSize))
+            .foregroundColor(.secondary)
+        }
         Text(viewModel.item.duration.shortDescription)
           .font(.caption)
           .foregroundColor(.secondary)

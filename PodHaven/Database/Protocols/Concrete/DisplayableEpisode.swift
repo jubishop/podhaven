@@ -59,6 +59,7 @@ struct DisplayableEpisode:
   var title: String { episode.title }
   var pubDate: Date { episode.pubDate }
   var duration: CMTime { episode.duration }
+  var currentTime: CMTime { episode.currentTime }
   var image: URL { episode.image }
   var cached: Bool { episode.cached }
   var caching: Bool { episode.caching }
