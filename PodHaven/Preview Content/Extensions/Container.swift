@@ -15,7 +15,6 @@ extension Container: @retroactive AutoRegistering {
     cacheManagerSession.context(.preview) { PreviewHelpers.dataFetcher }
     podcastFeedSession.context(.preview) { PreviewHelpers.dataFetcher }
     podcastOPMLSession.context(.preview) { PreviewHelpers.dataFetcher }
-    imageFetcher.context(.preview) { FakeImageFetcher() }.scope(.cached)
 
     ImagePipeline.shared = ImagePipeline(
       configuration: ImagePipeline.Configuration(dataLoader: self.dataLoader())

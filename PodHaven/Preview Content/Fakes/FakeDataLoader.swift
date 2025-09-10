@@ -6,7 +6,7 @@ import Foundation
 import Nuke
 
 extension Container {
-  var dataLoader: Factory<DataLoading> {
+  var dataLoader: Factory<FakeDataLoader> {
     Factory(self) { FakeDataLoader() }.scope(.cached)
   }
 }

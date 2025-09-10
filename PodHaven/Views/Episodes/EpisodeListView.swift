@@ -203,9 +203,8 @@ struct EpisodeListView: View {
   .task {
     do {
       let cacheState = Container.shared.cacheState()
+      let dataLoader = Container.shared.dataLoader()
       let repo = Container.shared.repo()
-
-      let dataLoader = Container.shared.dataLoader() as! FakeDataLoader
 
       let imageMapping = [
         "https://changelog.com/uploads/covers/changelog-podcast-art-2024.png": "changelog-podcast",

@@ -58,43 +58,6 @@ actor FakeImageFetcher: ImageFetchable {
     respond(to: url) { _ in throw error }
   }
 
-  // MARK: - LazyImage
-
-  @MainActor struct FakeLazyImageState: LazyImageState {
-    var result: Result<Nuke.ImageResponse, any Error>?
-    var imageContainer: Nuke.ImageContainer?
-    var isLoading: Bool
-    var progress: NukeUI.FetchImage.Progress
-  }
-
-  @MainActor private var imageMapping: [URL: UIImage] = [:]
-  @MainActor func setImageMapping(url: URL, uiImage: UIImage) {
-    imageMapping[url] = uiImage
-  }
-
-  @MainActor
-  func lazyImage<Content: View>(
-    _ url: URL?,
-    @ViewBuilder content: @escaping (LazyImageState) -> Content
-  ) -> LazyImage<Content> {
-    guard let url
-    else { Assert.fatal("LazyImage with nil URL not supported") }
-
-    let image = imageMapping[url] ?? Self.create(url)
-    let imageContainer = ImageContainer(image: image)
-    return LazyImage(url: url) { lazyImageState in
-      content(
-        FakeLazyImageState(
-          result:
-            .success(.init(container: imageContainer, request: .init(url: url))),
-          imageContainer: imageContainer,
-          isLoading: lazyImageState.isLoading,
-          progress: lazyImageState.progress
-        )
-      )
-    }
-  }
-
   // MARK: - Creation Helpers
 
   static func create(_ url: URL) -> UIImage {
