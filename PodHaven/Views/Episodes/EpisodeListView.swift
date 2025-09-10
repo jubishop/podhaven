@@ -202,9 +202,10 @@ struct EpisodeListView: View {
   .preview()
   .task {
     do {
-      let repo = Container.shared.repo()
-      let imageFetcher = Container.shared.imageFetcher() as! FakeImageFetcher
       let cacheState = Container.shared.cacheState()
+      let repo = Container.shared.repo()
+
+      let dataLoader = Container.shared.dataLoader() as! FakeDataLoader
 
       let imageMapping = [
         "https://changelog.com/uploads/covers/changelog-podcast-art-2024.png": "changelog-podcast",
@@ -221,9 +222,9 @@ struct EpisodeListView: View {
         "https://media.simplecast.com/podcast/image/episode2.jpg": "pod-save-america-episode2",
       ]
       for (url, assetName) in imageMapping {
-        imageFetcher.setImageMapping(
-          url: URL(string: url)!,
-          uiImage: PreviewBundle.loadImage(named: assetName, in: .EpisodeThumbnails)
+        dataLoader.setResponse(
+          for: URL(string: url)!,
+          to: PreviewBundle.loadImageData(named: assetName, in: .EpisodeThumbnails)
         )
       }
 

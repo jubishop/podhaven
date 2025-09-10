@@ -1,13 +1,21 @@
+#if DEBUG
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import Nuke
 
-final class FakeDataLoader: DataLoading {
-  private let mockResponses: [URL: Data]
+extension Container {
+  var dataLoader: Factory<DataLoading> {
+    Factory(self) { FakeDataLoader() }.scope(.cached)
+  }
+}
 
-  init(mockResponses: [URL: Data] = [:]) {
-    self.mockResponses = mockResponses
+struct FakeDataLoader: DataLoading {
+  private let mockResponses = ThreadSafe<[URL: Data]>([:])
+
+  func setResponse(for url: URL, to data: Data) {
+    mockResponses { dict in dict[url] = data }
   }
 
   func loadData(
@@ -17,22 +25,22 @@ final class FakeDataLoader: DataLoading {
   ) -> Cancellable {
     let url = request.url!
 
-    //if let mockData = mockResponses[url] {
-    let response = HTTPURLResponse(
-      url: url,
-      statusCode: 200,
-      httpVersion: nil,
-      headerFields: nil
-    )!
-    didReceiveData(
-      PreviewBundle.loadImageData(named: "this-american-life-episode1", in: .EpisodeThumbnails),
-      response
-    )
-    completion(nil)
-    //      } else {
-    //        // Return a default placeholder image or error
-    //        completion(URLError(.fileDoesNotExist))
-    //      }
+    if let mockData = mockResponses()[url] {
+      let response = HTTPURLResponse(
+        url: url,
+        statusCode: 200,
+        httpVersion: nil,
+        headerFields: nil
+      )!
+      didReceiveData(
+        mockData,
+        response
+      )
+      completion(nil)
+    } else {
+      // Return a default placeholder image or error
+      completion(URLError(.fileDoesNotExist))
+    }
 
     return FakeCancellable()
   }
@@ -42,3 +50,4 @@ private final class FakeCancellable: Cancellable {
   func cancel() {}
   init() {}
 }
+#endif
