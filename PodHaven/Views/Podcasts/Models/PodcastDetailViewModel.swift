@@ -238,6 +238,7 @@ class PodcastDetailViewModel:
         if !ErrorKit.isRemarkable(error) { return }
         alert(ErrorKit.coreMessage(for: error))
       }
+      clearObservationTask()
     }
   }
 
@@ -256,7 +257,12 @@ class PodcastDetailViewModel:
 
   func disappear() {
     Self.log.debug("disappear: executing")
+    clearObservationTask()
+  }
+
+  private func clearObservationTask() {
     observationTask?.cancel()
+    observationTask = nil
   }
 
   // MARK: - Private Helpers
