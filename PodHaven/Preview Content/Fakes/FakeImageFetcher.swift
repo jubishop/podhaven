@@ -6,13 +6,11 @@ import Nuke
 import NukeUI
 import SwiftUI
 
-// TODO: stop being an actor, just use Mutex
 actor FakeImageFetcher: ImageFetchable {
   // MARK: - ImageFetchable
 
   private var prefetchedImages: [URL: UIImage] = [:]
 
-  // TODO: Stop making this be async
   func prefetch(_ urls: [URL]) async {
     for url in urls {
       prefetchCounts[url, default: 0] += 1
