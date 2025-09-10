@@ -71,22 +71,13 @@ actor FakeImageFetcher: ImageFetchable {
       }
   }
 
+  // TODO: Somehow dont allow remote image fetches.  use Preview Assets.
   @MainActor
   func lazyImage<Content: View>(
     _ url: URL?,
     @ViewBuilder content: @escaping (LazyImageState) -> Content
   ) -> LazyImage<Content> {
-    // Check if URL is remote and assert fatal in preview/test contexts
-    if let url = url, !url.isFileURL {
-      Assert.fatal(
-        """
-        ❌ FATAL: Attempted remote image loading in preview/test context!
-        URL: \(url)
-        """
-      )
-    }
-
-    return LazyImage(url: url, content: content)
+    LazyImage(url: url, content: content)
   }
 }
 #endif

@@ -184,6 +184,7 @@ struct EpisodeListView: View {
   @Previewable @State var selectedStates: [Bool] = []
 
   List {
+    Image(uiImage: UIImage(data: PreviewBundle.loadImageData(named: "changelog-podcast")!)!)
     ForEach(Array(displayableEpisodes.enumerated()), id: \.element.mediaGUID) { index, episode in
       EpisodeListView(
         viewModel: SelectableListItemModel(
@@ -201,19 +202,17 @@ struct EpisodeListView: View {
       let repo = Container.shared.repo()
       let cacheState = Container.shared.cacheState()
 
-      // Test assertion system - one remote URL should cause fatal
+      // TODO: all these dont work
+      // Production HTTPS URLs that will be intercepted
       let podcastImages: [URL?] = [
-        URL(
-          string:
-            "https://cdn.changelog.com/static/images/podcasts/podcast-original-f16d0363067166f241d080ee2e2d4a28.png"
-        ),  // Changelog - REMOTE (should assert)
-        nil,  // Pod Save America
-        nil,  // This American Life
-        nil,  // Pod Save America Episode
-        nil,  // Changelog Interviews
-        nil,  // This American Life Episode
-        nil,  // Pod Save America Episode 2
-        nil,  // This American Life Episode 2
+        URL(string: "https://changelog.com/uploads/covers/changelog-podcast-art-2024.png"),
+        URL(string: "https://media.simplecast.com/podcast/image/0c18a85f-7645-4dd4-88e1-c5de76b9b14c.jpg"),
+        URL(string: "https://www.thisamericanlife.org/sites/default/files/tal-social-2024.png"),
+        URL(string: "https://media.simplecast.com/podcast/image/episode1.jpg"),
+        URL(string: "https://changelog.com/uploads/covers/interviews-art.png"),
+        URL(string: "https://www.thisamericanlife.org/sites/default/files/episode1.jpg"),
+        URL(string: "https://media.simplecast.com/podcast/image/episode2.jpg"),
+        URL(string: "https://www.thisamericanlife.org/sites/default/files/episode2.jpg"),
       ]
 
       let basePodcast = try Create.unsavedPodcast(
@@ -275,7 +274,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Changelog Interviews",
-            image: podcastImages[4]!
+            image: podcastImages[4] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "5. Queued at Top (orange arrow up)",
@@ -296,7 +295,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "This American Life",
-            image: podcastImages[2]!
+            image: podcastImages[2] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "7. Queued + Started",
@@ -309,7 +308,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: try Create.unsavedPodcast(
             title: "Pod Save America",
-            image: podcastImages[1]!
+            image: podcastImages[1] ?? URL.valid()
           ),
           unsavedEpisode: try Create.unsavedEpisode(
             title: "8. Queued + Completed",

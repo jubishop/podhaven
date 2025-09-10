@@ -9,6 +9,7 @@ enum AssetFolder: String {
   case iTunesResults
   case FeedRSS
   case SearchResults
+  case EpisodeThumbnails
 }
 
 enum PreviewBundle {
@@ -30,8 +31,11 @@ enum PreviewBundle {
       let data = loadAsset(named: name, in: folder)
       try! data.write(to: tempURL)
     }
-
     return tempURL
+  }
+
+  static func loadImageData(named name: String) -> Data? {
+    return loadAsset(named: name, in: .EpisodeThumbnails)
   }
 }
 #endif
