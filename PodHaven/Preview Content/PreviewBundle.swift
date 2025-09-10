@@ -9,6 +9,9 @@ enum AssetFolder: String {
   case iTunesResults
   case FeedRSS
   case SearchResults
+}
+
+enum ImageFolder: String {
   case EpisodeThumbnails
 }
 
@@ -22,20 +25,13 @@ enum PreviewBundle {
     return dataAsset.data
   }
 
-  static func createURL(forAsset name: String, from folder: AssetFolder) -> URL {
-    let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-      "\(name).\(folder.rawValue)"
-    )
+  static func loadImage(named name: String, in folder: ImageFolder) -> UIImage {
+    let namespacedName = "\(folder.rawValue)/\(name)"
 
-    if !FileManager.default.fileExists(atPath: tempURL.path) {
-      let data = loadAsset(named: name, in: folder)
-      try! data.write(to: tempURL)
-    }
-    return tempURL
-  }
+    guard let uiImage = UIImage(named: namespacedName, in: Bundle.main, compatibleWith: nil)
+    else { fatalError("Could not load image: \(namespacedName) from main bundle") }
 
-  static func loadImageData(named name: String) -> Data? {
-    return loadAsset(named: name, in: .EpisodeThumbnails)
+    return uiImage
   }
 }
 #endif

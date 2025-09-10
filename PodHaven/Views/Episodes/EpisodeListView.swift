@@ -184,7 +184,10 @@ struct EpisodeListView: View {
   @Previewable @State var selectedStates: [Bool] = []
 
   List {
-    Image(uiImage: UIImage(data: PreviewBundle.loadImageData(named: "changelog-podcast")!)!)
+    Image(uiImage: PreviewBundle.loadImage(named: "changelog-podcast", in: .EpisodeThumbnails))
+      .resizable()
+      .frame(width: 100, height: 100)
+      .clipped()
     ForEach(Array(displayableEpisodes.enumerated()), id: \.element.mediaGUID) { index, episode in
       EpisodeListView(
         viewModel: SelectableListItemModel(
@@ -206,7 +209,10 @@ struct EpisodeListView: View {
       // Production HTTPS URLs that will be intercepted
       let podcastImages: [URL?] = [
         URL(string: "https://changelog.com/uploads/covers/changelog-podcast-art-2024.png"),
-        URL(string: "https://media.simplecast.com/podcast/image/0c18a85f-7645-4dd4-88e1-c5de76b9b14c.jpg"),
+        URL(
+          string:
+            "https://media.simplecast.com/podcast/image/0c18a85f-7645-4dd4-88e1-c5de76b9b14c.jpg"
+        ),
         URL(string: "https://www.thisamericanlife.org/sites/default/files/tal-social-2024.png"),
         URL(string: "https://media.simplecast.com/podcast/image/episode1.jpg"),
         URL(string: "https://changelog.com/uploads/covers/interviews-art.png"),

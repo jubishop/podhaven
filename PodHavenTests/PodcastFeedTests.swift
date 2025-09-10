@@ -161,7 +161,7 @@ struct PodcastFeedTests {
 
   @Test("parsing with invalid feedURL throws error")
   func parseWithInvalidFeedURL() async throws {
-    let url = PreviewBundle.createURL(forAsset: "considerthis", from: .FeedRSS)
+    let url = URL(string: "file://invalid.url")!
 
     await #expect(throws: FeedError.self) {
       try await PodcastFeed.parse(FeedURL(url))
