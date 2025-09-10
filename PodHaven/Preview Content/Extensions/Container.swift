@@ -3,6 +3,7 @@
 
 import FactoryKit
 import Foundation
+import Nuke
 
 extension Container: @retroactive AutoRegistering {
   public func autoRegister() {
@@ -15,6 +16,11 @@ extension Container: @retroactive AutoRegistering {
     podcastFeedSession.context(.preview) { PreviewHelpers.dataFetcher }
     podcastOPMLSession.context(.preview) { PreviewHelpers.dataFetcher }
     imageFetcher.context(.preview) { FakeImageFetcher() }.scope(.cached)
+
+    let fakeImagePipeline = ImagePipeline(
+      configuration: ImagePipeline.Configuration(dataLoader: FakeDataLoader())
+    )
+    ImagePipeline.shared = fakeImagePipeline
   }
 }
 #endif

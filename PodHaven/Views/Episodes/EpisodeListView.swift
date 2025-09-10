@@ -37,7 +37,7 @@ struct EpisodeListView: View {
 
   var episodeImage: some View {
     ZStack {
-      imageFetcher.lazyImage(viewModel.item.image) { state in
+      LazyImage(url: viewModel.item.image) { state in
         if let image = state.image {
           image
             .resizable()

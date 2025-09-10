@@ -33,5 +33,14 @@ enum PreviewBundle {
 
     return uiImage
   }
+
+  static func loadImageData(named name: String, in folder: ImageFolder) -> Data {
+    let uiImage = loadImage(named: name, in: folder)
+
+    guard let data = uiImage.pngData()
+    else { fatalError("Could not convert image to PNG data: \(name)") }
+
+    return data
+  }
 }
 #endif
