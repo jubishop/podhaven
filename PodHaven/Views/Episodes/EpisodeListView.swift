@@ -221,7 +221,7 @@ struct EpisodeListView: View {
         "https://media.simplecast.com/podcast/image/episode2.jpg": "pod-save-america-episode2",
       ]
       for (url, assetName) in imageMapping {
-        await imageFetcher.setImageMapping(
+        imageFetcher.setImageMapping(
           url: URL(string: url)!,
           uiImage: PreviewBundle.loadImage(named: assetName, in: .EpisodeThumbnails)
         )
