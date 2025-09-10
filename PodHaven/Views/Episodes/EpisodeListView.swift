@@ -203,9 +203,30 @@ struct EpisodeListView: View {
   .task {
     do {
       let repo = Container.shared.repo()
+      let imageFetcher = Container.shared.imageFetcher() as! FakeImageFetcher
       let cacheState = Container.shared.cacheState()
 
-      // TODO: all these dont work
+      let imageMapping = [
+        "https://changelog.com/uploads/covers/changelog-podcast-art-2024.png": "changelog-podcast",
+        "https://changelog.com/uploads/covers/interviews-art.png": "changelog-interviews",
+        "https://www.thisamericanlife.org/sites/default/files/tal-social-2024.png":
+          "this-american-life-podcast",
+        "https://www.thisamericanlife.org/sites/default/files/episode1.jpg":
+          "this-american-life-episode1",
+        "https://www.thisamericanlife.org/sites/default/files/episode2.jpg":
+          "this-american-life-episode2",
+        "https://media.simplecast.com/podcast/image/0c18a85f-7645-4dd4-88e1-c5de76b9b14c.jpg":
+          "pod-save-america-podcast",
+        "https://media.simplecast.com/podcast/image/episode1.jpg": "pod-save-america-episode1",
+        "https://media.simplecast.com/podcast/image/episode2.jpg": "pod-save-america-episode2",
+      ]
+      for (url, assetName) in imageMapping {
+        await imageFetcher.setImageMapping(
+          url: URL(string: url)!,
+          uiImage: PreviewBundle.loadImage(named: assetName, in: .EpisodeThumbnails)
+        )
+      }
+
       // Production HTTPS URLs that will be intercepted
       let podcastImages: [URL?] = [
         URL(string: "https://changelog.com/uploads/covers/changelog-podcast-art-2024.png"),

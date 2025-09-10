@@ -98,15 +98,11 @@ actor FakeDataFetchable: DataFetchable {
   }
 
   func respond(to url: URL, data: Data) {
-    respond(to: url) { url in
-      (data, URL.response(url))
-    }
+    respond(to: url) { url in (data, URL.response(url)) }
   }
 
   func respond(to url: URL, error: Error) {
-    respond(to: url) { _ in
-      throw error
-    }
+    respond(to: url) { _ in throw error }
   }
 
   func waitThenRespond(to url: URL, data: Data? = nil) async -> AsyncSemaphore {

@@ -42,12 +42,57 @@ actor FakeImageFetcher: ImageFetchable {
     defaultHandler = handler
   }
 
+  func clearCustomHandler(for url: URL) {
+    fakeHandlers.removeValue(forKey: url)
+  }
+
   func respond(to url: URL, _ handler: @escaping FetchHandler) {
     fakeHandlers[url] = handler
   }
 
-  func clearCustomHandler(for url: URL) {
-    fakeHandlers.removeValue(forKey: url)
+  func respond(to url: URL, uiImage: UIImage) {
+    respond(to: url) { url in uiImage }
+  }
+
+  func respond(to url: URL, error: Error) {
+    respond(to: url) { _ in throw error }
+  }
+
+  // MARK: - LazyImage
+
+  @MainActor struct FakeLazyImageState: LazyImageState {
+    var result: Result<Nuke.ImageResponse, any Error>?
+    var imageContainer: Nuke.ImageContainer?
+    var isLoading: Bool
+    var progress: NukeUI.FetchImage.Progress
+  }
+
+  @MainActor private var imageMapping: [URL: UIImage] = [:]
+  @MainActor func setImageMapping(url: URL, uiImage: UIImage) {
+    imageMapping[url] = uiImage
+  }
+
+  @MainActor
+  func lazyImage<Content: View>(
+    _ url: URL?,
+    @ViewBuilder content: @escaping (LazyImageState) -> Content
+  ) -> LazyImage<Content> {
+    guard let url
+    else { Assert.fatal("LazyImage with nil URL not supported") }
+
+    let image = imageMapping[url] ?? Self.create(url)
+    let imageContainer = ImageContainer(image: image)
+    return LazyImage(url: url) { lazyImageState in
+      content(
+        FakeLazyImageState(
+          result:
+            .success(.init(container: imageContainer, request: .init(url: url))),
+          imageContainer: imageContainer,
+          isLoading: lazyImageState.isLoading,
+          progress: lazyImageState.progress
+        )
+      )
+    }
   }
 
   // MARK: - Creation Helpers
@@ -68,14 +113,6 @@ actor FakeImageFetcher: ImageFetchable {
         context.fill(CGRect(origin: .zero, size: size))
       }
   }
-
-  // TODO: Somehow dont allow remote image fetches.  use Preview Assets.
-  @MainActor
-  func lazyImage<Content: View>(
-    _ url: URL?,
-    @ViewBuilder content: @escaping (LazyImageState) -> Content
-  ) -> LazyImage<Content> {
-    LazyImage(url: url, content: content)
-  }
 }
+
 #endif
