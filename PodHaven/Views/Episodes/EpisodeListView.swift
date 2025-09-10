@@ -184,10 +184,6 @@ struct EpisodeListView: View {
   @Previewable @State var selectedStates: [Bool] = []
 
   List {
-    Image(uiImage: PreviewBundle.loadImage(named: "changelog-podcast", in: .EpisodeThumbnails))
-      .resizable()
-      .frame(width: 100, height: 100)
-      .clipped()
     ForEach(Array(displayableEpisodes.enumerated()), id: \.element.mediaGUID) { index, episode in
       EpisodeListView(
         viewModel: SelectableListItemModel(
