@@ -8,7 +8,6 @@ import SwiftUI
 struct EpisodeListView: View {
   @InjectedObservable(\.playState) private var playState
   @InjectedObservable(\.cacheState) private var cacheState
-  @DynamicInjected(\.imageFetcher) private var imageFetcher
 
   private let thumbnailSize: CGFloat = 64
   private let thumbnailRoundedCorner: CGFloat = 8

@@ -38,7 +38,6 @@ struct FakeDataLoader: DataLoading {
       didReceiveData(fakeData, response)
       completion(nil)
     } else {
-      // Return a default placeholder image or error
       completion(URLError(.fileDoesNotExist))
     }
 
