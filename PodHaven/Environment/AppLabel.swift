@@ -21,6 +21,7 @@ private enum SystemImageName: String, CaseIterable {
   case clearSearch = "xmark.circle.fill"
   case delete = "trash"
   case failed = "x.circle"
+  case removeFromQueue = "minus.circle.fill"
   case subscribe = "plus.circle"
   case unsubscribe = "minus.circle"
 
@@ -194,7 +195,8 @@ enum AppLabel: CaseIterable {
     case .playNow: return LabelData(text: "Play Now", systemImageName: .play)
     case .queueAtBottom: return LabelData(text: "Queue at Bottom", systemImageName: .queueBottom)
     case .queueAtTop: return LabelData(text: "Queue at Top", systemImageName: .queueTop)
-    case .removeFromQueue: return LabelData(text: "Remove from Queue", systemImageName: .delete)
+    case .removeFromQueue:
+      return LabelData(text: "Remove from Queue", systemImageName: .removeFromQueue)
 
     // Podcast Actions
     case .delete: return LabelData(text: "Delete", systemImageName: .delete)

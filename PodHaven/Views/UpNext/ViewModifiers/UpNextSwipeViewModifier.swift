@@ -12,18 +12,14 @@ struct UpNextSwipeViewModifier: ViewModifier {
       .swipeActions(edge: .leading) {
         Button(
           action: { viewModel.moveItemToTop(podcastEpisode) },
-          label: {
-            AppLabel.moveToTop.image
-          }
+          label: { AppLabel.moveToTop.image }
         )
         .tint(.blue)
 
         Button(
           role: .destructive,
           action: { viewModel.removeItemFromQueue(podcastEpisode) },
-          label: {
-            AppLabel.delete.image
-          }
+          label: { AppLabel.removeFromQueue.image }
         )
         .tint(.red)
       }
@@ -31,9 +27,7 @@ struct UpNextSwipeViewModifier: ViewModifier {
       .swipeActions(edge: .trailing) {
         Button(
           action: { viewModel.playItem(podcastEpisode) },
-          label: {
-            AppLabel.playEpisode.image
-          }
+          label: { AppLabel.playEpisode.image }
         )
         .tint(.green)
       }
