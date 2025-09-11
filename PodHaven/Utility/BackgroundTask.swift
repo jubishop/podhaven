@@ -34,7 +34,7 @@ import UIKit
 
   func end() {
     guard id != .invalid else {
-      Self.log.notice("end: \(name) id invalid in end")
+      Self.log.info("end: \(name) id invalid in end")
       return
     }
     Self.log.debug("end: \(name)")

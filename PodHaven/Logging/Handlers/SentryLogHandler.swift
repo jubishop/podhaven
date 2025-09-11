@@ -37,6 +37,7 @@ struct SentryLogHandler: LogHandler {
     let message = String(describing: message)
     let attributes =
       [
+        "severity": level,
         "subsystem": subsystem,
         "category": category,
         "environment": AppInfo.environment,
