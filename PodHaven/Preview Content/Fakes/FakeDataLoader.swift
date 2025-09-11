@@ -34,7 +34,7 @@ struct FakeDataLoader: DataLoading {
     completion: @escaping (Error?) -> Void
   ) -> Cancellable {
     let url = request.url!
-    let callbacks = SendableBox((didReceiveData: didReceiveData, completion: completion))
+    let callbacks = UnsafeSendable((didReceiveData: didReceiveData, completion: completion))
 
     let task = Task {
       if let fakeData = fakeResponses[url] {

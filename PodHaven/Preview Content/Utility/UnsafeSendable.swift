@@ -4,7 +4,7 @@
 import Foundation
 
 @dynamicMemberLookup
-struct SendableBox<T>: @unchecked Sendable {
+struct UnsafeSendable<T>: @unchecked Sendable {
   let value: T
 
   init(_ value: T) {
