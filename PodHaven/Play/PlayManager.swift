@@ -5,6 +5,7 @@ import FactoryKit
 import Foundation
 import GRDB
 import Logging
+import Nuke
 import Sharing
 import SwiftUI
 
@@ -43,13 +44,13 @@ actor PlayActor {
 final class PlayManager {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.commandCenter) private var commandCenter
+  @DynamicInjected(\.imagePipeline) private var imagePipeline
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sleeper) private var sleeper
 
   private var alert: Alert { get async { await Container.shared.alert() } }
-  nonisolated private var imageFetcher: any ImageFetchable { Container.shared.imageFetcher() }
   private var playState: PlayState { get async { await Container.shared.playState() } }
   private var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
 
@@ -326,7 +327,7 @@ final class PlayManager {
       duration: podcastEpisode.episode.duration,
       image: {
         do {
-          return try await imageFetcher.fetch(podcastEpisode.image)
+          return try await imagePipeline.image(for: podcastEpisode.image)
         } catch {
           Self.log.error(error)
           return nil

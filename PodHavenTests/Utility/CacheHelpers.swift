@@ -19,9 +19,6 @@ enum CacheHelpers {
   private static var fileManager: any FileManageable {
     Container.shared.podFileManager() as! FakeFileManager
   }
-  private static var imageFetcher: FakeImageFetcher {
-    Container.shared.imageFetcher() as! FakeImageFetcher
-  }
   private static var session: FakeDataFetchable {
     Container.shared.cacheManagerSession() as! FakeDataFetchable
   }

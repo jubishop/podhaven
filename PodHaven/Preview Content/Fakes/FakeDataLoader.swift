@@ -4,6 +4,7 @@
 import FactoryKit
 import Foundation
 import Nuke
+import SwiftUI
 
 extension Container {
   var dataLoader: Factory<FakeDataLoader> {
@@ -16,6 +17,7 @@ struct FakeDataLoader: DataLoading {
 
   let loadedURLs = ThreadSafe<Set<URL>>([])
 
+  private let defaultHandler = ThreadSafe<DataHandler?>(nil)
   private let fakeHandlers = ThreadSafe<[URL: DataHandler]>([:])
 
   // MARK: - DataLoading
@@ -42,7 +44,7 @@ struct FakeDataLoader: DataLoading {
 
     let callbacks = UnsafeSendable((didReceiveData: didReceiveData, completion: completion))
     let task = Task {
-      if let fakeHandler = fakeHandlers[url] {
+      if let fakeHandler = fakeHandlers[url] ?? defaultHandler() {
         let fakeData = try await fakeHandler(url)
         try Task.checkCancellation()
         callbacks.didReceiveData(
@@ -65,6 +67,14 @@ struct FakeDataLoader: DataLoading {
 
   // MARK: - Test Helpers
 
+  func setDefaultHandler(_ handler: @escaping DataHandler) {
+    defaultHandler(handler)
+  }
+
+  func clearCustomHandler(for url: URL) {
+    fakeHandlers { dict in dict.removeValue(forKey: url) }
+  }
+
   func respond(to url: URL, with handler: @escaping DataHandler) {
     fakeHandlers[url] = handler
   }
@@ -75,6 +85,23 @@ struct FakeDataLoader: DataLoading {
 
   func respond(to url: URL, error: Error) {
     respond(to: url) { _ in throw error }
+  }
+
+  static func create(_ url: URL) -> UIImage {
+    let hash = abs(url.absoluteString.hashValue)
+    let size = CGSize(width: 100, height: 100)
+    let color = UIColor(
+      red: CGFloat((hash >> 16) & 0xFF) / 255.0,
+      green: CGFloat((hash >> 8) & 0xFF) / 255.0,
+      blue: CGFloat(hash & 0xFF) / 255.0,
+      alpha: 1.0
+    )
+
+    return UIGraphicsImageRenderer(size: size)
+      .image { context in
+        color.setFill()
+        context.fill(CGRect(origin: .zero, size: size))
+      }
   }
 }
 #endif

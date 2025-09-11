@@ -5,6 +5,7 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import MediaPlayer
+import Nuke
 import Semaphore
 import Testing
 
@@ -14,7 +15,9 @@ import Testing
 @MainActor struct PlayManagerTests {
   @DynamicInjected(\.fakeAudioSession) private var audioSession
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.dataLoader) private var dataLoader
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
+  @DynamicInjected(\.imagePipeline) private var imagePipeline
   @DynamicInjected(\.notifier) private var notifier
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.playState) private var playState
@@ -26,9 +29,6 @@ import Testing
   }
   private var commandCenter: FakeCommandCenter {
     Container.shared.commandCenter() as! FakeCommandCenter
-  }
-  nonisolated private var imageFetcher: FakeImageFetcher {
-    Container.shared.imageFetcher() as! FakeImageFetcher
   }
   private var sleeper: FakeSleeper {
     Container.shared.sleeper() as! FakeSleeper
@@ -46,6 +46,9 @@ import Testing
 
   @Test("loading sets all data")
   func loadingSetsAllData() async throws {
+    dataLoader.setDefaultHandler { url in
+      FakeDataLoader.create(url).pngData()!
+    }
     let podcastEpisode = try await Create.podcastEpisode(Create.unsavedEpisode(image: URL.valid()))
 
     let onDeck = try await PlayHelpers.load(podcastEpisode)
@@ -99,7 +102,7 @@ import Testing
 
     // Check artwork separately
     if let actualArtwork = nowPlayingInfo![MPMediaItemPropertyArtwork] as? MPMediaItemArtwork {
-      let image = try await imageFetcher.fetch(podcastEpisode.image)
+      let image = try await imagePipeline.image(for: podcastEpisode.image)
       let actualImage = actualArtwork.image(at: image.size)!
       #expect(actualImage.isVisuallyEqual(to: image))
     } else {
@@ -219,11 +222,15 @@ import Testing
 
   @Test("loading fetches episode image if it exists")
   func loadingFetchesEpisodeImageIfItExists() async throws {
+    dataLoader.setDefaultHandler { url in
+      FakeDataLoader.create(url).pngData()!
+    }
     let podcastEpisode = try await Create.podcastEpisode(Create.unsavedEpisode(image: URL.valid()))
 
     let onDeck = try await PlayHelpers.load(podcastEpisode)
     #expect(
-      onDeck.image!.isVisuallyEqual(to: FakeImageFetcher.create(podcastEpisode.episode.image!))
+      onDeck.image!
+        .isVisuallyEqual(to: try await imagePipeline.image(for: podcastEpisode.image))
     )
   }
 
@@ -286,7 +293,7 @@ import Testing
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
 
     try await PlayHelpers.executeMidImageFetch(for: originalEpisode.image) {
-      await imageFetcher.clearCustomHandler(for: originalEpisode.image)
+      await dataLoader.clearCustomHandler(for: originalEpisode.image)
       try await playManager.load(incomingEpisode)
     }
 
@@ -652,7 +659,7 @@ import Testing
     let originalEpisode = try await Create.podcastEpisode()
 
     try await PlayHelpers.executeMidImageFetch(for: originalEpisode.image) {
-      await imageFetcher.clearCustomHandler(for: originalEpisode.image)
+      await dataLoader.clearCustomHandler(for: originalEpisode.image)
       try await playManager.load(originalEpisode)
     }
     await #expect(throws: (any Error).self) {

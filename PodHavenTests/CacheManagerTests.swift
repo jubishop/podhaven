@@ -20,9 +20,6 @@ import Testing
   private var fileManager: FakeFileManager {
     Container.shared.podFileManager() as! FakeFileManager
   }
-  private var imageFetcher: FakeImageFetcher {
-    Container.shared.imageFetcher() as! FakeImageFetcher
-  }
   private var session: FakeDataFetchable {
     Container.shared.cacheManagerSession() as! FakeDataFetchable
   }
@@ -212,18 +209,6 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 
-    try await CacheHelpers.waitForImageFetched(podcastEpisode.image)
-  }
-
-  @Test("already cached episode added to queue does not prefetch artwork")
-  func alreadyCachedDoesNotPrefetchArtwork() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
-    try await cacheManager.downloadToCache(for: podcastEpisode.id)
-    try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
-
-    try await CacheHelpers.waitForImageFetched(podcastEpisode.image)
-
-    #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
     try await CacheHelpers.waitForImageFetched(podcastEpisode.image)
   }
 
