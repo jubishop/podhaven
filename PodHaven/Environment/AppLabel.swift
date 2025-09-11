@@ -256,6 +256,10 @@ enum AppLabel: CaseIterable {
     Label(data.text, systemImage: data.systemImageName.rawValue)
   }
 
+  var image: Image {
+    Image(systemName: data.systemImageName.rawValue)
+  }
+
   var text: String {
     data.text
   }
@@ -264,7 +268,4 @@ enum AppLabel: CaseIterable {
     data.systemImageName.rawValue
   }
 
-  var image: Image {
-    Image(systemName: data.systemImageName.rawValue)
-  }
 }
