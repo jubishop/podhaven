@@ -15,15 +15,7 @@ extension Container {
 struct ImageFetcher: ImageFetchable {
   private static let log = Log.as("ImageFetcher")
 
-  private let prefetcher = ImagePrefetcher()
-
   fileprivate init() {}
-
-  func prefetch(_ urls: [URL]) async {
-    Self.log.debug("prefetching: \(urls)")
-
-    prefetcher.startPrefetching(with: urls)
-  }
 
   func fetch(_ url: URL) async throws -> UIImage {
     try await ImagePipeline.shared.image(for: url)

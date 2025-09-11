@@ -14,6 +14,8 @@ extension Container {
 struct FakeDataLoader: DataLoading {
   typealias DataHandler = @Sendable (URL) async throws -> Data
 
+  let loadedURLs = ThreadSafe<Set<URL>>([])
+
   private let fakeHandlers = ThreadSafe<[URL: DataHandler]>([:])
 
   // MARK: - DataLoading
@@ -36,8 +38,9 @@ struct FakeDataLoader: DataLoading {
     completion: @escaping (Error?) -> Void
   ) -> Cancellable {
     let url = request.url!
-    let callbacks = UnsafeSendable((didReceiveData: didReceiveData, completion: completion))
+    loadedURLs { set in set.insert(url) }
 
+    let callbacks = UnsafeSendable((didReceiveData: didReceiveData, completion: completion))
     let task = Task {
       if let fakeHandler = fakeHandlers[url] {
         let fakeData = try await fakeHandler(url)

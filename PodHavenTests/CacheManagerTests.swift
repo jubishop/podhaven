@@ -212,7 +212,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 
-    try await CacheHelpers.waitForImagePrefetched(podcastEpisode.image)
+    try await CacheHelpers.waitForImageFetched(podcastEpisode.image)
   }
 
   @Test("already cached episode added to queue does not prefetch artwork")
@@ -221,10 +221,10 @@ import Testing
     try await cacheManager.downloadToCache(for: podcastEpisode.id)
     try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
 
-    try await CacheHelpers.waitForImagePrefetched(podcastEpisode.image)
+    try await CacheHelpers.waitForImageFetched(podcastEpisode.image)
 
     #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
-    try await CacheHelpers.waitForImagePrefetched(podcastEpisode.image)
+    try await CacheHelpers.waitForImageFetched(podcastEpisode.image)
   }
 
   // MARK: - Progress Tracking

@@ -9,18 +9,7 @@ import SwiftUI
 actor FakeImageFetcher: ImageFetchable {
   // MARK: - ImageFetchable
 
-  private var prefetchedImages: [URL: UIImage] = [:]
-
-  func prefetch(_ urls: [URL]) async {
-    for url in urls {
-      prefetchCounts[url, default: 0] += 1
-      prefetchedImages[url] = try? await fetch(url)
-    }
-  }
-
   func fetch(_ url: URL) async throws -> UIImage {
-    if let prefetchedImage = prefetchedImages[url] { return prefetchedImage }
-
     let handler = fakeHandlers[url, default: defaultHandler]
     let uiImage = try await handler(url)
     try Task.checkCancellation()
@@ -28,8 +17,6 @@ actor FakeImageFetcher: ImageFetchable {
   }
 
   // MARK: - Response Controls
-
-  private(set) var prefetchCounts: [URL: Int] = [:]
 
   typealias FetchHandler = @Sendable (URL) async throws -> UIImage
   private var defaultHandler: FetchHandler = { url in return FakeImageFetcher.create(url) }

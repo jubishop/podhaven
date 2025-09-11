@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import GRDB
+import Nuke
 import UIKit
 
 extension Container {
@@ -45,6 +46,7 @@ actor CacheManager {
 
   // MARK: - State Management
 
+  private let prefetcher = ImagePrefetcher()
   private var currentQueuedEpisodeIDs: Set<Episode.ID> = []
 
   // MARK: - Initialization
@@ -92,7 +94,7 @@ actor CacheManager {
       return nil
     }
 
-    await imageFetcher.prefetch([podcastEpisode.image])
+    prefetcher.startPrefetching(with: [podcastEpisode.image])
 
     var request = URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
     request.allowsExpensiveNetworkAccess = true

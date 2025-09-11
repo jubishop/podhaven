@@ -12,6 +12,7 @@ enum CacheHelpers {
     Container.shared.cacheBackgroundDelegate()
   }
   private static var cacheState: CacheState { get async { await Container.shared.cacheState() } }
+  private static var dataLoader: FakeDataLoader { Container.shared.dataLoader() }
   private static var queue: any Queueing { Container.shared.queue() }
   private static var repo: any Databasing { Container.shared.repo() }
 
@@ -155,12 +156,12 @@ enum CacheHelpers {
     )
   }
 
-  // MARK: - Image Prefetching
+  // MARK: - Image Fetching
 
-  static func waitForImagePrefetched(_ imageURL: URL, fetchCount: Int = 1) async throws {
+  static func waitForImageFetched(_ imageURL: URL) async throws {
     try await Wait.until(
-      { await imageFetcher.prefetchCounts[imageURL] == fetchCount },
-      { "ImageURL: \(imageURL) was not prefetched" }
+      { dataLoader.loadedURLs { set in set.contains(imageURL) } },
+      { "ImageURL: \(imageURL) was not fetched" }
     )
   }
 
