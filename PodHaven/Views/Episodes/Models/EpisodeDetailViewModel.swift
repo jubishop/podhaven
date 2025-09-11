@@ -198,9 +198,7 @@ import Logging
     do {
       for try await updatedEpisode in self.observatory.podcastEpisode(podcastEpisode.id) {
         try Task.checkCancellation()
-        Self.log.debug(
-          "Updating observed episode: \(String(describing: updatedEpisode?.toString))"
-        )
+        Self.log.debug("Updating observed episode: \(String(describing: updatedEpisode?.toString))")
         guard let updatedEpisode, updatedEpisode != self.podcastEpisode else { continue }
         self.podcastEpisode = updatedEpisode
       }
