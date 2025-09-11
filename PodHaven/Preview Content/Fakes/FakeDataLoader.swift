@@ -16,9 +16,16 @@ struct FakeDataLoader: DataLoading {
 
   // MARK: - DataLoading
 
-  private final class FakeCancellable: Cancellable {
-    func cancel() {}
-    init() {}
+  private final class TaskCancellable<Success: Sendable, Failure: Error>: Cancellable {
+    private let task: Task<Success, Failure>
+
+    init(task: Task<Success, Failure>) {
+      self.task = task
+    }
+
+    func cancel() {
+      task.cancel()
+    }
   }
 
   func loadData(
@@ -27,21 +34,26 @@ struct FakeDataLoader: DataLoading {
     completion: @escaping (Error?) -> Void
   ) -> Cancellable {
     let url = request.url!
+    let callbacks = SendableBox((didReceiveData: didReceiveData, completion: completion))
 
-    if let fakeData = fakeResponses[url] {
-      let response = HTTPURLResponse(
-        url: url,
-        statusCode: 200,
-        httpVersion: nil,
-        headerFields: nil
-      )!
-      didReceiveData(fakeData, response)
-      completion(nil)
-    } else {
-      completion(URLError(.fileDoesNotExist))
+    let task = Task {
+      if let fakeData = fakeResponses[url] {
+        callbacks.didReceiveData(
+          fakeData,
+          HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+          )!
+        )
+        callbacks.completion(nil)
+      } else {
+        callbacks.completion(URLError(.fileDoesNotExist))
+      }
     }
 
-    return FakeCancellable()
+    return TaskCancellable(task: task)
   }
 
   // MARK: - Test Helpers
