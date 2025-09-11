@@ -12,7 +12,7 @@ enum CacheHelpers {
     Container.shared.cacheBackgroundDelegate()
   }
   private static var cacheState: CacheState { get async { await Container.shared.cacheState() } }
-  private static var dataLoader: FakeDataLoader { Container.shared.dataLoader() }
+  private static var dataLoader: FakeDataLoader { Container.shared.fakeDataLoader() }
   private static var queue: any Queueing { Container.shared.queue() }
   private static var repo: any Databasing { Container.shared.repo() }
 

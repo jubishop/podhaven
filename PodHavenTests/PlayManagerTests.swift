@@ -15,7 +15,7 @@ import Testing
 @MainActor struct PlayManagerTests {
   @DynamicInjected(\.fakeAudioSession) private var audioSession
   @DynamicInjected(\.cacheManager) private var cacheManager
-  @DynamicInjected(\.dataLoader) private var dataLoader
+  @DynamicInjected(\.fakeDataLoader) private var dataLoader
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.imagePipeline) private var imagePipeline
   @DynamicInjected(\.notifier) private var notifier

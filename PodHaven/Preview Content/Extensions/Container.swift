@@ -16,10 +16,10 @@ extension Container: @retroactive AutoRegistering {
     podcastFeedSession.context(.preview) { PreviewHelpers.dataFetcher }
     podcastOPMLSession.context(.preview) { PreviewHelpers.dataFetcher }
 
-    // TODO: Use Factory for this, need LazyImage wrapper.
-    ImagePipeline.shared = ImagePipeline(
-      configuration: ImagePipeline.Configuration(dataLoader: self.dataLoader())
-    )
+    imagePipeline.context(.preview) {
+      ImagePipeline(configuration: ImagePipeline.Configuration(dataLoader: self.fakeDataLoader()))
+    }
+    .scope(.cached)
   }
 }
 #endif

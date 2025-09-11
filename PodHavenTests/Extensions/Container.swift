@@ -40,10 +40,10 @@ extension Container: @retroactive AutoRegistering {
     sleeper.context(.test) { FakeSleeper() }.scope(.cached)
 
     podFileManager.context(.test) { FakeFileManager() }.scope(.cached)
+
     imagePipeline.context(.test) {
-      ImagePipeline(
-        configuration: ImagePipeline.Configuration(dataLoader: self.dataLoader())
-      )
+      ImagePipeline(configuration: ImagePipeline.Configuration(dataLoader: self.fakeDataLoader()))
     }
+    .scope(.cached)
   }
 }

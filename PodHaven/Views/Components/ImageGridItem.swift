@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
-import NukeUI
 import SwiftUI
 
 struct ImageGridItem: View {
@@ -16,7 +15,7 @@ struct ImageGridItem: View {
   }
 
   var body: some View {
-    LazyImage(url: image) { state in
+    PodLazyImage(url: image) { state in
       if let image = state.image {
         image
           .resizable()

@@ -7,7 +7,7 @@ import Nuke
 import SwiftUI
 
 extension Container {
-  var dataLoader: Factory<FakeDataLoader> {
+  var fakeDataLoader: Factory<FakeDataLoader> {
     Factory(self) { FakeDataLoader() }.scope(.cached)
   }
 }

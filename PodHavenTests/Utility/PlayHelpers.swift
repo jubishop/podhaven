@@ -13,11 +13,9 @@ import Testing
 enum PlayHelpers {
   // MARK: - Dependency Access
 
-  private static var dataLoader: FakeDataLoader { Container.shared.dataLoader() }
-  private static var fakeAudioSession: FakeAudioSession {
-    Container.shared.fakeAudioSession()
-  }
-  private static var fakeEpisodeAssetLoader: FakeEpisodeAssetLoader {
+  private static var audioSession: FakeAudioSession { Container.shared.fakeAudioSession() }
+  private static var dataLoader: FakeDataLoader { Container.shared.fakeDataLoader() }
+  private static var episodeAssetLoader: FakeEpisodeAssetLoader {
     Container.shared.fakeEpisodeAssetLoader()
   }
   private static var playManager: PlayManager { Container.shared.playManager() }
@@ -131,11 +129,11 @@ enum PlayHelpers {
     async throws where T.RawValue == URL
   {
     try await Wait.until(
-      { await fakeEpisodeAssetLoader.responseCount(for: assetURL) == count },
+      { await episodeAssetLoader.responseCount(for: assetURL) == count },
       {
         """
         responseCount for \(assetURL) is: \
-        \(await fakeEpisodeAssetLoader.responseCount(for: assetURL)), \
+        \(await episodeAssetLoader.responseCount(for: assetURL)), \
         expected: \(count)
         """
       }
@@ -144,20 +142,20 @@ enum PlayHelpers {
 
   static func waitForAudioActive(_ active: Bool) async throws {
     try await Wait.until(
-      { await fakeAudioSession.active == active },
+      { await audioSession.active == active },
       {
-        "Expected active to be \(active), got \(await fakeAudioSession.active)"
+        "Expected active to be \(active), got \(await audioSession.active)"
       }
     )
   }
 
   static func waitForConfigureCallCount(callCount: Int) async throws {
     try await Wait.until(
-      { await fakeAudioSession.configureCallCount == callCount },
+      { await audioSession.configureCallCount == callCount },
       {
         """
         Expected callCount to be \(callCount), \
-        but was \(await fakeAudioSession.configureCallCount)
+        but was \(await audioSession.configureCallCount)
         """
       }
     )
@@ -198,7 +196,7 @@ enum PlayHelpers {
   ) async throws where T.RawValue == URL {
     let loadSemaphoreBegun = AsyncSemaphore(value: 0)
     let finishLoadingSemaphore = AsyncSemaphore(value: 0)
-    await fakeEpisodeAssetLoader.respond(to: taggedURL) { _ in
+    await episodeAssetLoader.respond(to: taggedURL) { _ in
       loadSemaphoreBegun.signal()
       await finishLoadingSemaphore.wait()
       return asyncProperties
