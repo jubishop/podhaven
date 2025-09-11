@@ -25,9 +25,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   // MARK: - Completion Management
 
   func store(id: URLSessionConfiguration.ID, completion: @escaping @MainActor () -> Void) {
-    completions { dict in
-      dict[id] = completion
-    }
+    completions[id] = completion
   }
 
   func complete(for id: URLSessionConfiguration.ID) {

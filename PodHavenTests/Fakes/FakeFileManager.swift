@@ -16,11 +16,11 @@ final class FakeFileManager: FileManageable, Sendable {
   // MARK: - Data Operations
 
   func writeData(_ data: Data, to url: URL) async throws {
-    inMemoryFiles { $0[url] = data }
+    inMemoryFiles[url] = data
   }
 
   func readData(from url: URL) async throws -> Data {
-    guard let data = inMemoryFiles({ $0[url] })
+    guard let data = inMemoryFiles[url]
     else { throw TestError.fileNotFound(url) }
 
     return data
@@ -41,7 +41,7 @@ final class FakeFileManager: FileManageable, Sendable {
   }
 
   func moveItem(at sourceURL: URL, to destinationURL: URL) throws {
-    guard let data = inMemoryFiles({ $0[sourceURL] })
+    guard let data = inMemoryFiles[sourceURL]
     else { throw TestError.fileNotFound(sourceURL) }
 
     inMemoryFiles { files in
@@ -58,6 +58,6 @@ final class FakeFileManager: FileManageable, Sendable {
   // MARK: - File Attribute Operations
 
   func fileExists(at url: URL) -> Bool {
-    inMemoryFiles({ $0[url] != nil })
+    inMemoryFiles[url] != nil
   }
 }

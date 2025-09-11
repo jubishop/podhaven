@@ -28,7 +28,7 @@ struct FakeDataLoader: DataLoading {
   ) -> Cancellable {
     let url = request.url!
 
-    if let fakeData = fakeResponses()[url] {
+    if let fakeData = fakeResponses[url] {
       let response = HTTPURLResponse(
         url: url,
         statusCode: 200,
@@ -47,7 +47,7 @@ struct FakeDataLoader: DataLoading {
   // MARK: - Test Helpers
 
   func respond(to url: URL, data: Data) {
-    fakeResponses { dict in dict[url] = data }
+    fakeResponses[url] = data
   }
 }
 #endif

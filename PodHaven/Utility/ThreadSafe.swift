@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import IdentifiedCollections
 import Synchronization
 
 final class ThreadSafe<Type: ~Copyable>: Sendable {
@@ -76,6 +77,28 @@ extension ThreadSafe {
     }
     set {
       mutex.withLock { $0[key] = newValue }
+    }
+  }
+}
+
+// MARK: - Subscript Support for IdentifiedArray
+
+extension ThreadSafe {
+  // Read-only subscript for IdentifiedArray using [id:] syntax
+  subscript<ID, Element>(id id: ID) -> Element?
+  where Type == IdentifiedArray<ID, Element>, ID: Hashable & Sendable, Element: Copyable {
+    mutex.withLock { $0[id: id] }
+  }
+
+  // Read-write subscript for IdentifiedArray with Sendable elements
+  subscript<ID, Element>(id id: ID) -> Element?
+  where Type == IdentifiedArray<ID, Element>, ID: Hashable & Sendable, Element: Sendable & Copyable
+  {
+    get {
+      mutex.withLock { $0[id: id] }
+    }
+    set {
+      mutex.withLock { $0[id: id] = newValue }
     }
   }
 }
