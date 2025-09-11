@@ -12,7 +12,9 @@ extension Container {
 }
 
 struct FakeDataLoader: DataLoading {
-  private let fakeResponses = ThreadSafe<[URL: Data]>([:])
+  typealias DataHandler = @Sendable (URL) async throws -> Data
+
+  private let fakeHandlers = ThreadSafe<[URL: DataHandler]>([:])
 
   // MARK: - DataLoading
 
@@ -37,7 +39,9 @@ struct FakeDataLoader: DataLoading {
     let callbacks = UnsafeSendable((didReceiveData: didReceiveData, completion: completion))
 
     let task = Task {
-      if let fakeData = fakeResponses[url] {
+      if let fakeHandler = fakeHandlers[url] {
+        let fakeData = try await fakeHandler(url)
+        try Task.checkCancellation()
         callbacks.didReceiveData(
           fakeData,
           HTTPURLResponse(
@@ -58,8 +62,16 @@ struct FakeDataLoader: DataLoading {
 
   // MARK: - Test Helpers
 
+  func respond(to url: URL, with handler: @escaping DataHandler) {
+    fakeHandlers[url] = handler
+  }
+
   func respond(to url: URL, data: Data) {
-    fakeResponses[url] = data
+    respond(to: url) { url in data }
+  }
+
+  func respond(to url: URL, error: Error) {
+    respond(to: url) { _ in throw error }
   }
 }
 #endif
