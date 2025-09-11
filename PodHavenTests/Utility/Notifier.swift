@@ -13,7 +13,7 @@ extension Container {
 }
 
 final class Notifier: Sendable {
-  private let streamAndContinuations = Mutex<
+  private let streamAndContinuations = ThreadSafe<
     [Notification.Name: (AsyncStream<Notification>, AsyncStream<Notification>.Continuation)]
   >([:])
 
@@ -32,7 +32,7 @@ final class Notifier: Sendable {
   private func streamAndContinuation(for name: Notification.Name) -> (
     AsyncStream<Notification>, AsyncStream<Notification>.Continuation
   ) {
-    streamAndContinuations.withLock { dict in
+    streamAndContinuations { dict in
       if let (stream, continuation) = dict[name] {
         return (stream, continuation)
       }
