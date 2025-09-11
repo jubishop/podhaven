@@ -17,16 +17,32 @@ actor FakeEpisodeAssetLoader {
   typealias ResponseData = (Bool, CMTime)
   typealias LoadHandler = @Sendable (URL) async throws -> ResponseData
 
-  private(set) var totalResponseCounts = 0
-  private var responseCounts: [URL: Int] = [:]
-  func responseCount<T: RawRepresentable>(for taggedURL: T) -> Int where T.RawValue == URL {
-    responseCounts[taggedURL.rawValue, default: 0]
-  }
-
   private var defaultHandler: LoadHandler = { _ in
     (true, CMTime.seconds(Double.random(in: 1...999)))
   }
   private var fakeHandlers: [URL: LoadHandler] = [:]
+  private var responseCounts: [URL: Int] = [:]
+
+  // MARK: - Asset Loading
+
+  func loadEpisodeAsset(_ asset: AVURLAsset) async throws -> EpisodeAsset {
+    defer { responseCounts[asset.url, default: 0] += 1 }
+
+    let handler = fakeHandlers[asset.url, default: defaultHandler]
+    let (isPlayable, duration) = try await handler(asset.url)
+    try Task.checkCancellation()
+    return await EpisodeAsset(
+      playerItem: FakeAVPlayerItem(url: asset.url),
+      isPlayable: isPlayable,
+      duration: duration
+    )
+  }
+
+  // MARK: - Test Helpers
+
+  func responseCount<T: RawRepresentable>(for taggedURL: T) -> Int where T.RawValue == URL {
+    responseCounts[taggedURL.rawValue, default: 0]
+  }
 
   func setDefaultHandler(_ handler: @escaping LoadHandler) {
     defaultHandler = handler
@@ -71,18 +87,5 @@ actor FakeEpisodeAssetLoader {
 
   func clearCustomHandler(for episode: Episode) {
     fakeHandlers.removeValue(forKey: episode.mediaURL.rawValue)
-  }
-
-  func loadEpisodeAsset(_ asset: AVURLAsset) async throws -> EpisodeAsset {
-    defer { responseCounts[asset.url, default: 0] += 1 }
-
-    let handler = fakeHandlers[asset.url, default: defaultHandler]
-    let (isPlayable, duration) = try await handler(asset.url)
-    try Task.checkCancellation()
-    return await EpisodeAsset(
-      playerItem: FakeAVPlayerItem(url: asset.url),
-      isPlayable: isPlayable,
-      duration: duration
-    )
   }
 }

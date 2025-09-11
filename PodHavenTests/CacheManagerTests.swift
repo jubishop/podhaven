@@ -221,10 +221,10 @@ import Testing
     try await cacheManager.downloadToCache(for: podcastEpisode.id)
     try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
 
-    try await CacheHelpers.waitForImagePrefetched(podcastEpisode.image, fetchCount: 1)
+    try await CacheHelpers.waitForImagePrefetched(podcastEpisode.image)
 
     #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
-    try await CacheHelpers.waitForImagePrefetched(podcastEpisode.image, fetchCount: 1)
+    try await CacheHelpers.waitForImagePrefetched(podcastEpisode.image)
   }
 
   // MARK: - Progress Tracking

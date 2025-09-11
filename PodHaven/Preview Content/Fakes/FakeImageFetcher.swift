@@ -19,8 +19,6 @@ actor FakeImageFetcher: ImageFetchable {
   }
 
   func fetch(_ url: URL) async throws -> UIImage {
-    defer { responseCounts[url, default: 0] += 1 }
-
     if let prefetchedImage = prefetchedImages[url] { return prefetchedImage }
 
     let handler = fakeHandlers[url, default: defaultHandler]
@@ -32,7 +30,6 @@ actor FakeImageFetcher: ImageFetchable {
   // MARK: - Response Controls
 
   private(set) var prefetchCounts: [URL: Int] = [:]
-  private(set) var responseCounts: [URL: Int] = [:]
 
   typealias FetchHandler = @Sendable (URL) async throws -> UIImage
   private var defaultHandler: FetchHandler = { url in return FakeImageFetcher.create(url) }

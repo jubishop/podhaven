@@ -12,10 +12,13 @@ extension Container {
 }
 
 struct FakeDataLoader: DataLoading {
-  private let mockResponses = ThreadSafe<[URL: Data]>([:])
+  private let fakeResponses = ThreadSafe<[URL: Data]>([:])
 
-  func setResponse(for url: URL, to data: Data) {
-    mockResponses { dict in dict[url] = data }
+  // MARK: - DataLoading
+
+  private final class FakeCancellable: Cancellable {
+    func cancel() {}
+    init() {}
   }
 
   func loadData(
@@ -25,17 +28,14 @@ struct FakeDataLoader: DataLoading {
   ) -> Cancellable {
     let url = request.url!
 
-    if let mockData = mockResponses()[url] {
+    if let fakeData = fakeResponses()[url] {
       let response = HTTPURLResponse(
         url: url,
         statusCode: 200,
         httpVersion: nil,
         headerFields: nil
       )!
-      didReceiveData(
-        mockData,
-        response
-      )
+      didReceiveData(fakeData, response)
       completion(nil)
     } else {
       // Return a default placeholder image or error
@@ -44,10 +44,11 @@ struct FakeDataLoader: DataLoading {
 
     return FakeCancellable()
   }
-}
 
-private final class FakeCancellable: Cancellable {
-  func cancel() {}
-  init() {}
+  // MARK: - Test Helpers
+
+  func respond(to url: URL, data: Data) {
+    fakeResponses { dict in dict[url] = data }
+  }
 }
 #endif

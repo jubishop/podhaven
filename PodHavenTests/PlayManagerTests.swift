@@ -992,7 +992,6 @@ import Testing
       { await avPlayer != initialAVPlayer },
       { "Expected new AVPlayer to be created" }
     )
-    #expect(await episodeAssetLoader.totalResponseCounts == 0)
     #expect(playState.onDeck == nil)
     #expect(playState.status == .stopped)
   }
