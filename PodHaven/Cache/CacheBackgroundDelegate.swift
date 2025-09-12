@@ -144,7 +144,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
     do {
       guard let episode = try await repo.episode(task.taskID) else {
-        Self.log.debug("No episode for task #\(task.taskID)?")
+        Self.log.warning("No episode for task #\(task.taskID)?")
         return
       }
 
