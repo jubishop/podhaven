@@ -41,6 +41,9 @@ extension Container: @retroactive AutoRegistering {
 
     podFileManager.context(.test) { FakeFileManager() }.scope(.cached)
 
-    imageFetcher.context(.test) { FakeImageFetcher() }.scope(.cached)
+    imagePipeline.context(.test) {
+      ImagePipeline(configuration: ImagePipeline.Configuration(dataLoader: self.fakeDataLoader()))
+    }
+    .scope(.cached)
   }
 }

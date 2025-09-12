@@ -59,6 +59,12 @@ import SwiftUI
   func execute() async {
     do {
       for try await podcastEpisodes in observatory.queuedPodcastEpisodes() {
+        Self.log.debug(
+          """
+          Updating observed episodes:
+            \(podcastEpisodes.map(\.toString).joined(separator: "\n  "))
+          """
+        )
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }
     } catch {

@@ -2,7 +2,6 @@
 
 import AVFoundation
 import FactoryKit
-import NukeUI
 import SwiftUI
 
 struct EpisodeListView: View {
@@ -36,7 +35,7 @@ struct EpisodeListView: View {
 
   var episodeImage: some View {
     ZStack {
-      LazyImage(url: viewModel.item.image) { state in
+      PodLazyImage(url: viewModel.item.image) { state in
         if let image = state.image {
           image
             .resizable()
@@ -204,7 +203,7 @@ struct EpisodeListView: View {
   .task {
     do {
       let cacheState = Container.shared.cacheState()
-      let dataLoader = Container.shared.dataLoader()
+      let dataLoader = Container.shared.fakeDataLoader()
       let repo = Container.shared.repo()
 
       let imageMapping = [
@@ -215,7 +214,7 @@ struct EpisodeListView: View {
         "this-american-life-episode2": URL.valid(),
         "pod-save-america-podcast": URL.valid(),
         "pod-save-america-episode1": URL.valid(),
-        "pod-save-america-episode2": URL.valid()
+        "pod-save-america-episode2": URL.valid(),
       ]
       for (assetName, url) in imageMapping {
         dataLoader.respond(

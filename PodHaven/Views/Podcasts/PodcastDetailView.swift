@@ -2,7 +2,6 @@
 
 import FactoryKit
 import Logging
-import NukeUI
 import SwiftUI
 
 struct PodcastDetailView: View {
@@ -62,7 +61,7 @@ struct PodcastDetailView: View {
 
   private var headerView: some View {
     HStack(alignment: .top, spacing: 12) {
-      LazyImage(url: viewModel.podcast.image) { state in
+      PodLazyImage(url: viewModel.podcast.image) { state in
         if let image = state.image {
           image
             .resizable()

@@ -125,19 +125,19 @@ actor FakeDataFetchable: DataFetchable {
 
   func finishDownload(taskID: URLSessionDownloadTask.ID, didFinishDownloadingTo location: URL) async
   {
-    await downloadTasks()[id: taskID]!.assertResumed()
+    await downloadTasks[id: taskID]!.assertResumed()
     await cacheBackgroundDelegate.urlSession(
       self,
-      downloadTask: downloadTasks()[id: taskID]!,
+      downloadTask: downloadTasks[id: taskID]!,
       didFinishDownloadingTo: location
     )
   }
 
   func failDownload(taskID: URLSessionDownloadTask.ID, error: Error) async {
-    await downloadTasks()[id: taskID]!.assertResumed()
+    await downloadTasks[id: taskID]!.assertResumed()
     await cacheBackgroundDelegate.urlSession(
       self,
-      task: downloadTasks()[id: taskID]!,
+      task: downloadTasks[id: taskID]!,
       didCompleteWithError: error
     )
   }
@@ -148,10 +148,10 @@ actor FakeDataFetchable: DataFetchable {
     totalBytesExpectedToWrite: Int64
   ) async {
     guard totalBytesExpectedToWrite > 0 else { return }
-    await downloadTasks()[id: taskID]!.assertResumed()
+    await downloadTasks[id: taskID]!.assertResumed()
     await cacheBackgroundDelegate.urlSession(
       self,
-      downloadTask: downloadTasks()[id: taskID]!,
+      downloadTask: downloadTasks[id: taskID]!,
       didWriteData: totalBytesWritten,
       totalBytesWritten: totalBytesWritten,
       totalBytesExpectedToWrite: totalBytesExpectedToWrite

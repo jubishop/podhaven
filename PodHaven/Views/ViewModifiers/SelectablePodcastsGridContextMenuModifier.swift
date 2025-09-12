@@ -12,22 +12,12 @@ struct SelectablePodcastsGridContextMenuModifier: ViewModifier {
       .contextMenu {
         Button(
           action: { viewModel.queueLatestEpisodeToTop(podcast.id) },
-          label: {
-            Label(
-              "Queue Latest To Top",
-              systemImage: AppLabel.queueLatestToTop.systemImageName
-            )
-          }
+          label: { AppLabel.queueLatestToTop.label }
         )
 
         Button(
           action: { viewModel.queueLatestEpisodeToBottom(podcast.id) },
-          label: {
-            Label(
-              "Queue Latest To Bottom",
-              systemImage: AppLabel.queueLatestToBottom.systemImageName
-            )
-          }
+          label: { AppLabel.queueLatestToBottom.label }
         )
 
         Button(

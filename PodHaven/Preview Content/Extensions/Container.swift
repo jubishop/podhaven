@@ -16,9 +16,10 @@ extension Container: @retroactive AutoRegistering {
     podcastFeedSession.context(.preview) { PreviewHelpers.dataFetcher }
     podcastOPMLSession.context(.preview) { PreviewHelpers.dataFetcher }
 
-    ImagePipeline.shared = ImagePipeline(
-      configuration: ImagePipeline.Configuration(dataLoader: self.dataLoader())
-    )
+    imagePipeline.context(.preview) {
+      ImagePipeline(configuration: ImagePipeline.Configuration(dataLoader: self.fakeDataLoader()))
+    }
+    .scope(.cached)
   }
 }
 #endif

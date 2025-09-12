@@ -12,41 +12,31 @@ struct UpNextContextMenuViewModifier: ViewModifier {
       .contextMenu {
         Button(
           action: { viewModel.playItem(podcastEpisode) },
-          label: {
-            AppLabel.playEpisode.label
-          }
+          label: { AppLabel.playEpisode.label }
         )
 
         Button(
           action: { viewModel.showPodcast(podcastEpisode) },
-          label: {
-            AppLabel.showPodcast.label
-          }
+          label: { AppLabel.showPodcast.label }
         )
 
         if let queueOrder = podcastEpisode.episode.queueOrder, queueOrder > 0 {
           Button(
             action: { viewModel.moveItemToTop(podcastEpisode) },
-            label: {
-              AppLabel.moveToTop.label
-            }
+            label: { AppLabel.moveToTop.label }
           )
         }
 
         Button(
           role: .destructive,
           action: { viewModel.removeItemFromQueue(podcastEpisode) },
-          label: {
-            AppLabel.removeFromQueue.label
-          }
+          label: { AppLabel.removeFromQueue.label }
         )
 
         if !podcastEpisode.episode.cached {
           Button(
             action: { viewModel.cacheItem(podcastEpisode) },
-            label: {
-              AppLabel.cacheEpisode.label
-            }
+            label: { AppLabel.cacheEpisode.label }
           )
         }
       }

@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
-import NukeUI
 import SwiftUI
 
 struct EpisodeDetailView: View {
@@ -17,7 +16,7 @@ struct EpisodeDetailView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
         VStack(alignment: .center, spacing: 16) {
-          LazyImage(url: viewModel.episode.image) { state in
+          PodLazyImage(url: viewModel.episode.image) { state in
             if let image = state.image {
               image
                 .resizable()

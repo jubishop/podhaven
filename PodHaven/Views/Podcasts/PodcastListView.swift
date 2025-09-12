@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import NukeUI
 import SwiftUI
 
 struct PodcastListView: View {
@@ -8,7 +7,7 @@ struct PodcastListView: View {
 
   var body: some View {
     HStack(spacing: 12) {
-      LazyImage(url: podcast.image) { state in
+      PodLazyImage(url: podcast.image) { state in
         if let image = state.image {
           image
             .resizable()

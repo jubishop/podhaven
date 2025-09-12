@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import GRDB
+import Nuke
 import UIKit
 
 extension Container {
@@ -32,7 +33,6 @@ extension Container {
 
 actor CacheManager {
   @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
-  @DynamicInjected(\.imageFetcher) private var imageFetcher
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.podFileManager) private var podFileManager
   @DynamicInjected(\.repo) private var repo
@@ -45,6 +45,7 @@ actor CacheManager {
 
   // MARK: - State Management
 
+  private let prefetcher = ImagePrefetcher(pipeline: Container.shared.imagePipeline())
   private var currentQueuedEpisodeIDs: Set<Episode.ID> = []
 
   // MARK: - Initialization
@@ -92,7 +93,7 @@ actor CacheManager {
       return nil
     }
 
-    await imageFetcher.prefetch([podcastEpisode.image])
+    prefetcher.startPrefetching(with: [podcastEpisode.image])
 
     var request = URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
     request.allowsExpensiveNetworkAccess = true

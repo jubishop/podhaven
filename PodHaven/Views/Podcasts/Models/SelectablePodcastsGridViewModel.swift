@@ -111,6 +111,12 @@ import SwiftUI
       for try await podcastsWithLatestEpisodeDates in observatory.podcastsWithLatestEpisodeDates(
         filter
       ) {
+        Self.log.debug(
+          """
+          Updating observed episodes:
+            \(podcastsWithLatestEpisodeDates.map(\.toString).joined(separator: "\n  "))
+          """
+        )
         self.podcastList.allEntries = IdentifiedArray(
           uniqueElements: podcastsWithLatestEpisodeDates
         )

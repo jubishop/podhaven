@@ -63,6 +63,12 @@ class EpisodesListViewModel:
         order: order,
         limit: limit
       ) {
+        Self.log.debug(
+            """
+            Updating observed episodes:
+              \(podcastEpisodes.map(\.toString).joined(separator: "\n  "))
+            """
+        )
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }
     } catch {
