@@ -37,7 +37,7 @@ struct SelectableListMenu: View {
   VStack(spacing: 20) {
     SelectableListMenu(list: list)
     Divider()
-    Text("Selected: \(list.selected.rawValue)")
+    Text("Selected:: \(list.selected.rawValue)")
     Button("Select Some") {
       list.selectSomeEntries()
     }
