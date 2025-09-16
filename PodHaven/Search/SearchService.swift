@@ -69,7 +69,7 @@ struct SearchService {
 
   // MARK: - Parsing
 
-  static func parse<T: Decodable>(_ data: Data) async throws(SearchError) -> T {
+  static func parse<T: Decodable & Sendable>(_ data: Data) async throws(SearchError) -> T {
     do {
       return try await withCheckedThrowingContinuation { continuation in
         let decoder = JSONDecoder()

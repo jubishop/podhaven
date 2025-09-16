@@ -25,7 +25,7 @@
       "location" : "https://github.com/groue/GRDB.swift",
       "state" : {
         "branch" : "master",
-        "revision" : "3801ab9ac659d9eb57133629270e900444020e8e"
+        "revision" : "d90ba851feecf044b0e2753d46467cf6b5be0922"
       }
     },
     {
@@ -52,7 +52,7 @@
       "location" : "https://github.com/getsentry/sentry-cocoa/",
       "state" : {
         "branch" : "main",
-        "revision" : "8203ac0fef3497107e914df171fea5bfaa966ea5"
+        "revision" : "fccc4e5b5f10915b8a43d4ed756c02daef5e88dd"
       }
     },
     {
@@ -79,7 +79,7 @@
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
         "branch" : "main",
-        "revision" : "b5fc030a8e0bbcdc014f563528289a0dba4a8f1f"
+        "revision" : "1fd30364b5fa57fd9345500e736531a5515b8406"
       }
     },
     {
@@ -133,7 +133,7 @@
       "location" : "https://github.com/pointfreeco/swift-navigation",
       "state" : {
         "branch" : "main",
-        "revision" : "6b7f44d218e776bb7a5246efb940440d57c8b2cf"
+        "revision" : "923d5070b437cd01a85f4630a681144a3fef4126"
       }
     },
     {
@@ -141,8 +141,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-perception",
       "state" : {
-        "revision" : "59b00dfa5548b5b91ebbda6d94d6328d82ca00fe",
-        "version" : "2.0.6"
+        "revision" : "52bc59a5c7c3f0420c6c31d643d55d64b3f8c013",
+        "version" : "2.0.7"
       }
     },
     {
@@ -151,7 +151,7 @@
       "location" : "https://github.com/pointfreeco/swift-sharing",
       "state" : {
         "branch" : "main",
-        "revision" : "aaf605733bd93126d1a3658b4021146d95c94cb6"
+        "revision" : "3bfc408cc2d0bee2287c174da6b1c76768377818"
       }
     },
     {
@@ -160,7 +160,7 @@
       "location" : "https://github.com/swiftlang/swift-syntax",
       "state" : {
         "branch" : "main",
-        "revision" : "6df106db45da4536a3c9f8cd2a21918999127924"
+        "revision" : "6673b05995983461eef015c4768f1483c245db22"
       }
     },
     {
@@ -169,7 +169,7 @@
       "location" : "https://github.com/pointfreeco/swift-tagged",
       "state" : {
         "branch" : "main",
-        "revision" : "68d4daa3561af52b1da50d28f02917c27f271510"
+        "revision" : "eea4bc0ca90b8d72a963037bbaffd909755fe610"
       }
     },
     {

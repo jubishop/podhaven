@@ -7,7 +7,7 @@ import SwiftUI
 struct DebugSection: View {
   var body: some View {
     Section("Debugging") {
-      Text("Environment: \(AppInfo.environment)")
+      Text("Environment: \(AppInfo.environment.rawValue)")
 
       Text("Device ID: \(AppInfo.deviceIdentifier)")
 

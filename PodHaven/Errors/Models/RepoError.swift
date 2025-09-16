@@ -6,11 +6,16 @@ import ReadableErrorMacro
 
 @ReadableError
 enum RepoError: ReadableError {
-  case insertFailure(type: any Decodable.Type, description: String, caught: Error)
-  case readAllFailure(type: any Decodable.Type, filter: SQLExpression, caught: Error)
-  case readFailure(type: any Decodable.Type, id: Int64, caught: Error)
-  case updateFailure(type: any Decodable.Type, id: Int64, description: String, caught: Error)
-  case upsertFailure(type: any Decodable.Type, description: String, caught: Error)
+  case insertFailure(type: any (Decodable & Sendable).Type, description: String, caught: Error)
+  case readAllFailure(type: any (Decodable & Sendable).Type, filter: SQLExpression, caught: Error)
+  case readFailure(type: any (Decodable & Sendable).Type, id: Int64, caught: Error)
+  case updateFailure(
+    type: any (Decodable & Sendable).Type,
+    id: Int64,
+    description: String,
+    caught: Error
+  )
+  case upsertFailure(type: any (Decodable & Sendable).Type, description: String, caught: Error)
 
   var message: String {
     switch self {

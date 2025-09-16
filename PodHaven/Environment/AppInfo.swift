@@ -38,7 +38,11 @@ actor AppInfo {
 
   static var myDevice: Bool { myDeviceIDs.contains(deviceIdentifier) }
 
-  static var environment: EnvironmentType = .appStore
+  private static let _environment = ThreadSafe<EnvironmentType>(.appStore)
+  static var environment: EnvironmentType {
+    set { _environment(newValue) }
+    get { _environment() }
+  }
 
   static func initializeEnvironment() async {
     environment = await _getEnvironment()

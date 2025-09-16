@@ -4,7 +4,7 @@ import AVFoundation
 import GRDB
 
 extension CMTime:
-  Codable,
+  @retroactive Codable,
   @retroactive CustomStringConvertible,
   @retroactive DatabaseValueConvertible
 {
