@@ -9,8 +9,8 @@ import SwiftUI
 
 @Observable @MainActor
 class PodcastDetailViewModel:
-  ManagingEpisodesModel,
-  SelectableEpisodeListModel
+  ManagingEpisodes,
+  SelectableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -71,7 +71,7 @@ class PodcastDetailViewModel:
     }
   }
 
-  // MARK: - ManagingEpisodesModel
+  // MARK: - ManagingEpisodes
 
   func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
     let podcastEpisode = try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
@@ -79,7 +79,7 @@ class PodcastDetailViewModel:
     return podcastEpisode
   }
 
-  // MARK: - SelectableEpisodeListModel
+  // MARK: - SelectableEpisodeList
 
   var episodeList = SelectableListUseCase<DisplayableEpisode, MediaGUID>(idKeyPath: \.mediaGUID)
   private var _isSelecting = false

@@ -4,7 +4,7 @@ import FactoryKit
 import Foundation
 import Logging
 
-@MainActor protocol ManagingEpisodesModel: AnyObject {
+@MainActor protocol ManagingEpisodes: AnyObject {
   func playEpisode(_ episode: any EpisodeDisplayable)
   func queueEpisodeOnTop(_ episode: any EpisodeDisplayable)
   func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable)
@@ -13,7 +13,7 @@ import Logging
   func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode
 }
 
-extension ManagingEpisodesModel {
+extension ManagingEpisodes {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }

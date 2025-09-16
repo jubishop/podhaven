@@ -4,7 +4,7 @@ import SwiftUI
 
 @MainActor
 struct SelectableEpisodesToolbarItems<
-  ViewModel: SelectableEpisodeListModel,
+  ViewModel: SelectableEpisodeList,
   EpisodeList: SelectableList
 > {
   let viewModel: ViewModel
@@ -53,7 +53,7 @@ struct SelectableEpisodesToolbarItems<
 
 @MainActor
 func selectableEpisodesToolbarItems<
-  ViewModel: SelectableEpisodeListModel,
+  ViewModel: SelectableEpisodeList,
   EpisodeList: SelectableList
 >(
   viewModel: ViewModel,

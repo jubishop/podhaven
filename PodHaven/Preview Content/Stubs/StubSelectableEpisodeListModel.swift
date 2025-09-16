@@ -4,7 +4,7 @@
 import Foundation
 import SwiftUI
 
-@Observable @MainActor class StubSelectableEpisodeListModel: SelectableEpisodeListModel {
+@Observable @MainActor class StubSelectableEpisodeList: SelectableEpisodeList {
   var isSelecting: Bool = false
   var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
   var selectedEpisodes: [PodcastEpisode] = []

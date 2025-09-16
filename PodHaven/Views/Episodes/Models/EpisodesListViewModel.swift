@@ -8,8 +8,8 @@ import SwiftUI
 
 @Observable @MainActor
 class EpisodesListViewModel:
-  ManagingEpisodesModel,
-  SelectableEpisodeListModel
+  ManagingEpisodes,
+  SelectableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -27,7 +27,7 @@ class EpisodesListViewModel:
   let order: SQLOrdering
   let limit: Int
 
-  // MARK: - SelectableEpisodeListModel
+  // MARK: - SelectableEpisodeList
 
   var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
   private var _isSelecting = false
@@ -36,7 +36,7 @@ class EpisodesListViewModel:
     set { withAnimation { _isSelecting = newValue } }
   }
 
-  // MARK: - ManagingEpisodesModel
+  // MARK: - ManagingEpisodes
 
   func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
     try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
@@ -64,10 +64,10 @@ class EpisodesListViewModel:
         limit: limit
       ) {
         Self.log.debug(
-            """
-            Updating observed episodes:
-              \(podcastEpisodes.map(\.toString).joined(separator: "\n  "))
-            """
+          """
+          Updating observed episodes:
+            \(podcastEpisodes.map(\.toString).joined(separator: "\n  "))
+          """
         )
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }

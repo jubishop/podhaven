@@ -6,7 +6,7 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor
-final class EpisodeSearchViewModel: ManagingEpisodesModel {
+final class EpisodeSearchViewModel: ManagingEpisodes {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -41,7 +41,7 @@ final class EpisodeSearchViewModel: ManagingEpisodesModel {
     }
   }
 
-  // MARK: - ManagingEpisodesModel
+  // MARK: - ManagingEpisodes
 
   func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
     try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)

@@ -3,9 +3,9 @@
 import SwiftUI
 
 struct SelectableEpisodeListMenu: View {
-  private let listModel: any SelectableEpisodeListModel
+  private let listModel: any SelectableEpisodeList
 
-  init(listModel: any SelectableEpisodeListModel) {
+  init(listModel: any SelectableEpisodeList) {
     self.listModel = listModel
   }
 
@@ -39,6 +39,6 @@ struct SelectableEpisodeListMenu: View {
 
 #if DEBUG
 #Preview {
-  SelectableEpisodeListMenu(listModel: StubSelectableEpisodeListModel())
+  SelectableEpisodeListMenu(listModel: StubSelectableEpisodeList())
 }
 #endif

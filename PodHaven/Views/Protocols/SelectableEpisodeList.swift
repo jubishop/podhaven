@@ -5,7 +5,7 @@ import Foundation
 import IdentifiedCollections
 import Logging
 
-@MainActor protocol SelectableEpisodeListModel: AnyObject {
+@MainActor protocol SelectableEpisodeList: AnyObject {
   associatedtype EpisodeType: EpisodeDisplayable
   associatedtype EpisodeID: Hashable
 
@@ -24,7 +24,7 @@ import Logging
   func cacheSelectedEpisodes()
 }
 
-extension SelectableEpisodeListModel {
+extension SelectableEpisodeList {
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }
 
@@ -94,6 +94,6 @@ extension SelectableEpisodeListModel {
   }
 }
 
-extension SelectableEpisodeListModel where EpisodeType == PodcastEpisode {
+extension SelectableEpisodeList where EpisodeType == PodcastEpisode {
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws { selectedEpisodes } }
 }
