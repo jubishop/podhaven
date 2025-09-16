@@ -4,7 +4,7 @@ import Foundation
 import SwiftUI
 
 struct EpisodeContextMenuViewModifier<
-  ViewModel: ManagingEpisodes,
+  ViewModel: ManagingEpisodesModel,
   AdditionalContent: View
 >: ViewModifier {
   let viewModel: ViewModel
@@ -36,7 +36,7 @@ struct EpisodeContextMenuViewModifier<
 }
 
 extension View {
-  func episodeContextMenu<ViewModel: ManagingEpisodes, AdditionalContent: View>(
+  func episodeContextMenu<ViewModel: ManagingEpisodesModel, AdditionalContent: View>(
     viewModel: ViewModel,
     episode: any EpisodeDisplayable,
     @ViewBuilder additionalContent: @escaping () -> AdditionalContent = { EmptyView() }
