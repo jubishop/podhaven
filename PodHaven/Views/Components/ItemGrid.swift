@@ -7,6 +7,8 @@ import SwiftUI
 
 struct ItemGrid<P: RandomAccessCollection, T: Identifiable, Content: View>: View
 where P.Element == T {
+  let minimumGridSize = CGFloat(100)
+
   private let items: P
   private let content: (T) -> Content
 
@@ -16,7 +18,7 @@ where P.Element == T {
   }
 
   var body: some View {
-    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
+    LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumGridSize))]) {
       ForEach(items) { item in
         content(item)
       }
