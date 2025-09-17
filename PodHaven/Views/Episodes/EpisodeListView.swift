@@ -9,7 +9,6 @@ struct EpisodeListView: View {
   @InjectedObservable(\.cacheState) private var cacheState
 
   private let thumbnailSize: CGFloat = 64
-  private let thumbnailRoundedCorner: CGFloat = 8
   private let statusIconSize: CGFloat = 12
   @ScaledMetric(relativeTo: .caption) private var metadataIconSize: CGFloat = 12
 
@@ -34,56 +33,12 @@ struct EpisodeListView: View {
   }
 
   var episodeImage: some View {
-    ZStack {
-      PodLazyImage(url: viewModel.item.image) { state in
-        if let image = state.image {
-          image
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-        } else {
-          Rectangle()
-            .fill(Color.gray.opacity(0.4))
-        }
-      }
-      .frame(width: thumbnailSize, height: thumbnailSize)
-      .clipped()
-      .cornerRadius(thumbnailRoundedCorner)
-
-      if viewModel.isSelecting {
-        Rectangle()
-          .fill(Color.black.opacity(viewModel.isSelected.wrappedValue ? 0.0 : 0.6))
-          .frame(width: thumbnailSize, height: thumbnailSize)
-          .cornerRadius(thumbnailRoundedCorner)
-
-        VStack {
-          Spacer()
-          HStack {
-            Spacer()
-            Button(
-              action: {
-                viewModel.isSelected.wrappedValue.toggle()
-              },
-              label: {
-                (viewModel.isSelected.wrappedValue
-                  ? AppLabel.selectionFilled
-                  : AppLabel.selectionEmpty)
-                  .image
-                  .font(.system(size: thumbnailSize / 2.5))
-                  .foregroundColor(viewModel.isSelected.wrappedValue ? .blue : .white)
-                  .background(
-                    Circle()
-                      .fill(Color.black.opacity(0.8))
-                      .padding(-2)
-                  )
-              }
-            )
-            .buttonStyle(BorderlessButtonStyle())
-            .padding(4)
-          }
-        }
-        .frame(width: thumbnailSize, height: thumbnailSize)
-      }
-    }
+    SelectableSquareImage(
+      image: viewModel.item.image,
+      size: .constant(thumbnailSize),
+      isSelected: viewModel.isSelected,
+      isSelecting: viewModel.isSelecting
+    )
   }
 
   var statusIconColumn: some View {

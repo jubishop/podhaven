@@ -3,30 +3,36 @@
 import NukeUI
 import SwiftUI
 
-struct SelectableSquareImage<Item: Gridable>: View {
+struct SelectableSquareImage: View {
   @Binding var size: CGFloat
+  @Binding var isSelected: Bool
 
-  private let viewModel: SelectableListItemModel<Item>
+  let image: URL
+  let isSelecting: Bool
   let cornerRadius: CGFloat
 
   init(
-    viewModel: SelectableListItemModel<Item>,
+    image: URL,
     size: Binding<CGFloat>,
-    cornerRadius: CGFloat = 8
+    cornerRadius: CGFloat = 8,
+    isSelected: Binding<Bool>,
+    isSelecting: Bool
   ) {
-    self.viewModel = viewModel
+    self.image = image
     self._size = size
     self.cornerRadius = cornerRadius
+    self._isSelected = isSelected
+    self.isSelecting = isSelecting
   }
 
   var body: some View {
     VStack {
       ZStack {
-        SquareImage(image: viewModel.item.image, size: $size, cornerRadius: cornerRadius)
+        SquareImage(image: image, size: $size, cornerRadius: cornerRadius)
 
-        if viewModel.isSelecting {
+        if isSelecting {
           Rectangle()
-            .fill(Color.black.opacity(viewModel.isSelected.wrappedValue ? 0.0 : 0.5))
+            .fill(Color.black.opacity(isSelected ? 0.0 : 0.5))
             .cornerRadius(cornerRadius)
             .frame(height: size)
 
@@ -36,15 +42,15 @@ struct SelectableSquareImage<Item: Gridable>: View {
               Spacer()
               Button(
                 action: {
-                  viewModel.isSelected.wrappedValue.toggle()
+                  isSelected.toggle()
                 },
                 label: {
-                  (viewModel.isSelected.wrappedValue
+                  (isSelected
                     ? AppLabel.selectionFilled
                     : AppLabel.selectionEmpty)
                     .image
                     .font(.system(size: 24))
-                    .foregroundColor(viewModel.isSelected.wrappedValue ? .blue : .white)
+                    .foregroundColor(isSelected ? .blue : .white)
                     .background(
                       Circle()
                         .fill(Color.black.opacity(0.5))
