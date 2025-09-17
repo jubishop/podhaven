@@ -172,12 +172,14 @@ class PodcastDetailViewModel:
           )
 
           unsavedPodcast.subscriptionDate = Date()
-          self.podcastSeries = try await repo.insertSeries(
+          let podcastSeries = try await repo.insertSeries(
             unsavedPodcast,
             unsavedEpisodes: episodeList.allEntries.compactMap {
               $0.getUnsavedPodcastEpisode()?.unsavedEpisode
             }
           )
+          self.podcastSeries = podcastSeries
+          startObservation(podcastSeries.id)
         } else {
           Assert.fatal("Podcast type is not supported: \(String(describing: podcast))")
         }
