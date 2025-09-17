@@ -226,14 +226,4 @@ import SwiftUI
   func showPodcast(_ podcastEpisode: PodcastEpisode) {
     navigation.showPodcast(podcastEpisode.podcast)
   }
-
-  // MARK: - ManagingEpisodes
-
-  func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
-    if let podcastEpisode = episode as? PodcastEpisode {
-      return podcastEpisode
-    }
-
-    return try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
-  }
 }

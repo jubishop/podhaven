@@ -41,12 +41,6 @@ final class EpisodeSearchViewModel: ManagingEpisodes {
     }
   }
 
-  // MARK: - ManagingEpisodes
-
-  func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
-    try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
-  }
-
   // MARK: - Searching
 
   private var debounceMilliseconds: Int { 250 }

@@ -91,6 +91,10 @@ extension ManagingEpisodes {
     return onDeck == episode
   }
 
+  func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
+    try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
+  }
+
   // MARK: - Helpers
 
   private func getEpisodeID(_ episode: any EpisodeDisplayable) async throws -> Episode.ID {
