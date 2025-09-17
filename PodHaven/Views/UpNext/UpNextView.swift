@@ -24,10 +24,10 @@ struct UpNextView: View {
             }
           )
           .episodeListRow()
-          .upNextSwipeActions(viewModel: viewModel, podcastEpisode: podcastEpisode)
+          .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
           .upNextContextMenu(viewModel: viewModel, podcastEpisode: podcastEpisode)
         }
-        .onMove(perform: viewModel.moveItem)
+        .onMove(perform: viewModel.moveEpisode)
       }
       .refreshable { viewModel.refreshQueue() }
       .navigationTitle("Up Next")

@@ -9,6 +9,7 @@ import Logging
   func pauseEpisode(_ episode: any EpisodeDisplayable)
   func queueEpisodeOnTop(_ episode: any EpisodeDisplayable)
   func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable)
+  func removeEpisodeFromQueue(_ episode: any EpisodeDisplayable)
   func cacheEpisode(_ episode: any EpisodeDisplayable)
 
   func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool
@@ -61,12 +62,24 @@ extension ManagingEpisodes {
     }
   }
 
+  func removeEpisodeFromQueue(_ episode: any EpisodeDisplayable) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let episodeID = try await getEpisodeID(episode)
+        try await queue.dequeue(episodeID)
+      } catch {
+        log.error(error)
+      }
+    }
+  }
+
   func cacheEpisode(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
       do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
-        try await cacheManager.downloadToCache(for: podcastEpisode.id)
+        let episodeID = try await getEpisodeID(episode)
+        try await cacheManager.downloadToCache(for: episodeID)
       } catch {
         log.error(error)
       }

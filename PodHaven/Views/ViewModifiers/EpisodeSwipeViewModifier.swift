@@ -10,21 +10,40 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
   func body(content: Content) -> some View {
     content
       .swipeActions(edge: .leading) {
-        Button(
-          action: { viewModel.queueEpisodeOnTop(episode) },
-          label: {
-            AppLabel.queueAtTop.image
-          }
-        )
-        .tint(.blue)
+        if episode.queued {
+          Button(
+            action: { viewModel.queueEpisodeOnTop(episode) },
+            label: {
+              AppLabel.moveToTop.image
+            }
+          )
+          .tint(.blue)
 
-        Button(
-          action: { viewModel.queueEpisodeAtBottom(episode) },
-          label: {
-            AppLabel.queueAtBottom.image
-          }
-        )
-        .tint(.purple)
+          Button(
+            role: .destructive,
+            action: { viewModel.removeEpisodeFromQueue(episode) },
+            label: {
+              AppLabel.removeFromQueue.image
+            }
+          )
+          .tint(.red)
+        } else {
+          Button(
+            action: { viewModel.queueEpisodeOnTop(episode) },
+            label: {
+              AppLabel.queueAtTop.image
+            }
+          )
+          .tint(.blue)
+
+          Button(
+            action: { viewModel.queueEpisodeAtBottom(episode) },
+            label: {
+              AppLabel.queueAtBottom.image
+            }
+          )
+          .tint(.purple)
+        }
       }
 
       .swipeActions(edge: .trailing) {

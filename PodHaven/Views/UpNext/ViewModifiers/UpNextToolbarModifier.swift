@@ -22,7 +22,7 @@ struct UpNextToolbarModifier: ViewModifier {
               Menu(
                 content: {
                   Button("Delete Selected") {
-                    viewModel.deleteSelected()
+                    viewModel.removeSelectedFromQueue()
                   }
                 },
                 label: {

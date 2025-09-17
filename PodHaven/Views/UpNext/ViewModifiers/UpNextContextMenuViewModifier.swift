@@ -11,7 +11,7 @@ struct UpNextContextMenuViewModifier: ViewModifier {
     content
       .contextMenu {
         Button(
-          action: { viewModel.playItem(podcastEpisode) },
+          action: { viewModel.playEpisode(podcastEpisode) },
           label: { AppLabel.playEpisode.label }
         )
 
@@ -22,20 +22,20 @@ struct UpNextContextMenuViewModifier: ViewModifier {
 
         if let queueOrder = podcastEpisode.episode.queueOrder, queueOrder > 0 {
           Button(
-            action: { viewModel.moveItemToTop(podcastEpisode) },
+            action: { viewModel.queueEpisodeOnTop(podcastEpisode) },
             label: { AppLabel.moveToTop.label }
           )
         }
 
         Button(
           role: .destructive,
-          action: { viewModel.removeItemFromQueue(podcastEpisode) },
+          action: { viewModel.removeEpisodeFromQueue(podcastEpisode) },
           label: { AppLabel.removeFromQueue.label }
         )
 
         if !podcastEpisode.episode.cached {
           Button(
-            action: { viewModel.cacheItem(podcastEpisode) },
+            action: { viewModel.cacheEpisode(podcastEpisode) },
             label: { AppLabel.cacheEpisode.label }
           )
         }

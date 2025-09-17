@@ -8,7 +8,7 @@ import IdentifiedCollections
 import Logging
 import SwiftUI
 
-@Observable @MainActor class UpNextViewModel {
+@Observable @MainActor class UpNextViewModel: ManagingEpisodes {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -82,7 +82,7 @@ import SwiftUI
 
   // MARK: - SwiftUI List Functions
 
-  func moveItem(from: IndexSet, to: Int) {
+  func moveEpisode(from: IndexSet, to: Int) {
     guard from.count == 1, let from = from.first
     else { Assert.fatal("Somehow dragged none or several?") }
 
@@ -139,7 +139,7 @@ import SwiftUI
 
   // MARK: - Selected Item Actions
 
-  func deleteSelected() {
+  func removeSelectedFromQueue() {
     Task { [weak self] in
       guard let self else { return }
       do {
@@ -152,10 +152,11 @@ import SwiftUI
 
   // MARK: - Individual Item Actions
 
-  func playItem(_ podcastEpisode: PodcastEpisode) {
+  func playEpisode(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
       do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
         try await playManager.load(podcastEpisode)
         await playManager.play()
       } catch {
@@ -166,10 +167,43 @@ import SwiftUI
     }
   }
 
-  func removeItemFromQueue(_ podcastEpisode: PodcastEpisode) {
+  func pauseEpisode(_ episode: any EpisodeDisplayable) {
+    Task { [weak self] in
+      guard let self else { return }
+      guard isEpisodePlaying(episode) else { return }
+      await playManager.pause()
+    }
+  }
+
+  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
       do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
+        try await queue.unshift(podcastEpisode.episode.id)
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
+
+  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
+        try await queue.append(podcastEpisode.episode.id)
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
+
+  func removeEpisodeFromQueue(_ episode: any EpisodeDisplayable) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
         try await queue.dequeue(podcastEpisode.episode.id)
       } catch {
         Self.log.error(error)
@@ -177,11 +211,12 @@ import SwiftUI
     }
   }
 
-  func moveItemToTop(_ podcastEpisode: PodcastEpisode) {
+  func cacheEpisode(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
       do {
-        try await queue.unshift(podcastEpisode.episode.id)
+        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
+        try await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
         Self.log.error(error)
       }
@@ -192,14 +227,13 @@ import SwiftUI
     navigation.showPodcast(podcastEpisode.podcast)
   }
 
-  func cacheItem(_ podcastEpisode: PodcastEpisode) {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        try await cacheManager.downloadToCache(for: podcastEpisode.id)
-      } catch {
-        Self.log.error(error)
-      }
+  // MARK: - ManagingEpisodes
+
+  func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
+    if let podcastEpisode = episode as? PodcastEpisode {
+      return podcastEpisode
     }
+
+    return try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
   }
 }
