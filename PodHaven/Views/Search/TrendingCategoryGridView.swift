@@ -24,7 +24,7 @@ struct TrendingCategoryGridView: View {
           NavigationLink(
             value: Navigation.Destination.podcast(DisplayablePodcast(unsavedPodcast)),
             label: {
-              ImageGridItem(
+              SquareImage(
                 image: unsavedPodcast.image,
                 size: $gridItemSize
               )

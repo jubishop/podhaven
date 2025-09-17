@@ -7,6 +7,8 @@ import SwiftUI
 
 struct ItemGrid<P: RandomAccessCollection, T: Identifiable, Content: View>: View
 where P.Element == T {
+  let minimumGridSize = CGFloat(100)
+
   private let items: P
   private let content: (T) -> Content
 
@@ -16,49 +18,10 @@ where P.Element == T {
   }
 
   var body: some View {
-    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
+    LazyVGrid(columns: [GridItem(.adaptive(minimum: minimumGridSize))]) {
       ForEach(items) { item in
         content(item)
       }
     }
   }
 }
-
-#if DEBUG
-#Preview {
-  @Previewable @State var isSelecting: Bool = false
-  @Previewable @State var isSelected = BindableDictionary<Podcast.ID, Bool>(defaultValue: false)
-  @Previewable @State var podcasts: [Podcast] = []
-  @Previewable @State var gridItemSize: CGFloat = 100
-  let gridSize = 12
-
-  VStack {
-    Button(isSelecting ? "Stop Selecting" : "Start Selecting") {
-      isSelecting.toggle()
-    }
-    ItemGrid(items: podcasts) { podcast in
-      SelectableImageGridItem(
-        viewModel: SelectableListItemModel(
-          isSelected: $isSelected[podcast.id],
-          item: podcast,
-          isSelecting: isSelecting
-        ),
-        size: $gridItemSize
-      )
-    }
-  }
-  .preview()
-  .task {
-    do {
-      let repo = Container.shared.repo()
-      try await PreviewHelpers.importPodcasts(gridSize)
-      var allPodcasts = try await repo.allPodcasts().shuffled()
-      allPodcasts[Int.random(in: 0...(gridSize - 1))] = try await Create.podcast(
-        title: "Broken Image Podcast",
-        image: URL(string: "http://nope.com/0.jpg")!
-      )
-      podcasts = Array(allPodcasts.prefix(gridSize))
-    } catch { Assert.fatal("Couldn't preview podcast grid: \(ErrorKit.message(for: error))") }
-  }
-}
-#endif
