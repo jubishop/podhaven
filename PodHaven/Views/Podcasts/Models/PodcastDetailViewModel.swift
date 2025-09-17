@@ -97,11 +97,7 @@ class PodcastDetailViewModel:
       let podcastEpisodes = try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
 
       if observationTask == nil {
-        guard
-          let podcastID =
-            (podcastEpisodes.first?.podcast.id
-              ?? selectedEpisodes.first { $0.getPodcastEpisode() != nil }?.getPodcastEpisode()?
-              .podcast.id)
+        guard let podcastID = podcastEpisodes.first?.podcast.id
         else { Assert.fatal("No podcastID found in \(selectedEpisodes.count) selected episodes") }
         startObservation(podcastID)
       }
