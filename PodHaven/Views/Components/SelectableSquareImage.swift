@@ -58,6 +58,7 @@ struct SelectableSquareImage: View {
                     )
                 }
               )
+              .buttonStyle(BorderlessButtonStyle())
               .padding(8)
             }
           }
