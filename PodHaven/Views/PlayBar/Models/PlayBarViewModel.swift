@@ -69,7 +69,8 @@ extension Container {
       do {
         try await presentEpisodeDetail()
       } catch {
-        alert(ErrorKit.message(for: error))
+        if !ErrorKit.isRemarkable(error) { return }
+        alert(ErrorKit.coreMessage(for: error))
       }
     }
   }
