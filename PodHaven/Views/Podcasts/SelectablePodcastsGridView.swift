@@ -71,7 +71,7 @@ struct SelectablePodcastsGridView: View {
       } catch {
         Self.log.error(error)
         if !ErrorKit.isRemarkable(error) { return }
-        alert(ErrorKit.message(for: error))
+        alert(ErrorKit.coreMessage(for: error))
       }
     }
     .selectablePodcastsGridToolbar(viewModel: viewModel)

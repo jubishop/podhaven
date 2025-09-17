@@ -90,7 +90,8 @@ extension Container {
       url = try result.get()
     } catch {
       Self.log.error(error)
-      alert(ErrorKit.message(for: error))
+      if !ErrorKit.isRemarkable(error) { return }
+      await alert(ErrorKit.coreMessage(for: error))
       return
     }
 
@@ -111,7 +112,8 @@ extension Container {
       try await downloadOPMLFile(opml)
     } catch {
       Self.log.error(error)
-      alert(ErrorKit.message(for: error))
+      if !ErrorKit.isRemarkable(error) { return }
+      await alert(ErrorKit.coreMessage(for: error))
     }
   }
 
