@@ -3,10 +3,10 @@
 import Foundation
 import SwiftUI
 
-struct ImageGridItem: View {
-  let cornerRadius: CGFloat
+struct SquareImage: View {
   let image: URL
   @Binding var size: CGFloat
+  let cornerRadius: CGFloat
 
   init(image: URL, size: Binding<CGFloat>, cornerRadius: CGFloat = 8) {
     self.image = image
