@@ -106,7 +106,8 @@ import Logging
         podcastEpisode = try await getOrCreatePodcastEpisode()
       } catch {
         Self.log.error(error)
-        alert(ErrorKit.coreMessage(for: error))
+        if !ErrorKit.isRemarkable(error) { return }
+        await alert(ErrorKit.coreMessage(for: error))
         return
       }
 
@@ -115,7 +116,8 @@ import Logging
         await playManager.play()
       } catch {
         Self.log.error(error)
-        alert(ErrorKit.coreMessage(for: error))
+        if !ErrorKit.isRemarkable(error) { return }
+        await alert(ErrorKit.coreMessage(for: error))
       }
     }
   }
@@ -128,7 +130,8 @@ import Logging
         try await queue.unshift(podcastEpisode.episode.id)
       } catch {
         Self.log.error(error)
-        alert(ErrorKit.coreMessage(for: error))
+        if !ErrorKit.isRemarkable(error) { return }
+        await alert(ErrorKit.coreMessage(for: error))
       }
     }
   }
@@ -141,7 +144,8 @@ import Logging
         try await queue.append(podcastEpisode.episode.id)
       } catch {
         Self.log.error(error)
-        alert(ErrorKit.coreMessage(for: error))
+        if !ErrorKit.isRemarkable(error) { return }
+        await alert(ErrorKit.coreMessage(for: error))
       }
     }
   }
@@ -154,7 +158,8 @@ import Logging
         try await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
         Self.log.error(error)
-        alert(ErrorKit.message(for: error))
+        if !ErrorKit.isRemarkable(error) { return }
+        await alert(ErrorKit.coreMessage(for: error))
       }
     }
   }

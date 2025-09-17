@@ -50,6 +50,7 @@ struct PodHavenApp: App {
             try await cacheManager.start()
           } catch {
             Self.log.error(error)
+            if !ErrorKit.isRemarkable(error) { return }
             alert(ErrorKit.coreMessage(for: error))
           }
         }
@@ -71,7 +72,8 @@ struct PodHavenApp: App {
         try await shareService.handleIncomingURL(url)
       } catch {
         Self.log.error(error)
-        alert(ErrorKit.message(for: error))
+        if !ErrorKit.isRemarkable(error) { return }
+        alert(ErrorKit.coreMessage(for: error))
       }
     } else {
       Self.log.warning("Incoming URL: \(url) is not supported")

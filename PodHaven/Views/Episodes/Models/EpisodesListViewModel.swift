@@ -73,7 +73,8 @@ class EpisodesListViewModel:
       }
     } catch {
       Self.log.error(error)
-      alert(ErrorKit.message(for: error))
+      if !ErrorKit.isRemarkable(error) { return }
+      await alert(ErrorKit.coreMessage(for: error))
     }
   }
 

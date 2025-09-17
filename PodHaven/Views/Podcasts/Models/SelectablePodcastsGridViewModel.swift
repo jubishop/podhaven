@@ -124,7 +124,7 @@ import SwiftUI
     } catch {
       Self.log.error(error)
       if !ErrorKit.isRemarkable(error) { return }
-      alert(ErrorKit.message(for: error))
+      await alert(ErrorKit.coreMessage(for: error))
     }
   }
 
