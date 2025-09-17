@@ -6,9 +6,12 @@ import Logging
 
 @MainActor protocol ManagingEpisodes: AnyObject {
   func playEpisode(_ episode: any EpisodeDisplayable)
+  func pauseEpisode(_ episode: any EpisodeDisplayable)
   func queueEpisodeOnTop(_ episode: any EpisodeDisplayable)
   func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable)
   func cacheEpisode(_ episode: any EpisodeDisplayable)
+
+  func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool
 
   func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode
 }
@@ -16,6 +19,7 @@ import Logging
 extension ManagingEpisodes {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var playManager: PlayManager { Container.shared.playManager() }
+  private var playState: PlayState { Container.shared.playState() }
   private var queue: any Queueing { Container.shared.queue() }
 
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcast) }
@@ -30,6 +34,14 @@ extension ManagingEpisodes {
       } catch {
         log.error(error)
       }
+    }
+  }
+
+  func pauseEpisode(_ episode: any EpisodeDisplayable) {
+    Task { [weak self] in
+      guard let self else { return }
+      guard isEpisodePlaying(episode) else { return }
+      await playManager.pause()
     }
   }
 
@@ -59,6 +71,11 @@ extension ManagingEpisodes {
         log.error(error)
       }
     }
+  }
+
+  func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool {
+    guard playState.playing, let onDeck = playState.onDeck else { return false }
+    return onDeck == episode
   }
 
   // MARK: - Helpers

@@ -28,13 +28,23 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
       }
 
       .swipeActions(edge: .trailing) {
-        Button(
-          action: { viewModel.playEpisode(episode) },
-          label: {
-            AppLabel.playEpisode.image
-          }
-        )
-        .tint(.green)
+        if viewModel.isEpisodePlaying(episode) {
+          Button(
+            action: { viewModel.pauseEpisode(episode) },
+            label: {
+              AppLabel.pauseButton.image
+            }
+          )
+          .tint(.yellow)
+        } else {
+          Button(
+            action: { viewModel.playEpisode(episode) },
+            label: {
+              AppLabel.playEpisode.image
+            }
+          )
+          .tint(.green)
+        }
       }
   }
 }
