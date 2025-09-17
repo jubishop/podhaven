@@ -665,7 +665,8 @@ final class PlayManager {
           try await handleDidPlayToEnd(episodeID)
         } catch {
           Self.log.error(error)
-          await alert(ErrorKit.message(for: error))
+          if !ErrorKit.isRemarkable(error) { return }
+          await alert(ErrorKit.coreMessage(for: error))
         }
       }
     }
