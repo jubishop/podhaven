@@ -12,10 +12,18 @@ struct EpisodeListView: View {
   private let statusIconSize: CGFloat = 12
   @ScaledMetric(relativeTo: .caption) private var metadataIconSize: CGFloat = 12
 
-  private let viewModel: SelectableListItemModel<any EpisodeDisplayable>
+  private let episode: any EpisodeDisplayable
+  private let isSelecting: Bool
+  private let isSelected: Binding<Bool>
 
-  init(viewModel: SelectableListItemModel<any EpisodeDisplayable>) {
-    self.viewModel = viewModel
+  init(
+    episode: any EpisodeDisplayable,
+    isSelecting: Bool = false,
+    isSelected: Binding<Bool> = .constant(false)
+  ) {
+    self.episode = episode
+    self.isSelecting = isSelecting
+    self.isSelected = isSelected
   }
 
   var body: some View {
@@ -34,30 +42,30 @@ struct EpisodeListView: View {
 
   var episodeImage: some View {
     SelectableSquareImage(
-      image: viewModel.item.image,
+      image: episode.image,
       size: .constant(thumbnailSize),
-      isSelected: viewModel.isSelected,
-      isSelecting: viewModel.isSelecting
+      isSelected: isSelected,
+      isSelecting: isSelecting
     )
     .frame(width: thumbnailSize)
   }
 
   var statusIconColumn: some View {
     VStack(spacing: 8) {
-      if let onDeck = playState.onDeck, onDeck == viewModel.item {
+      if let onDeck = playState.onDeck, onDeck == episode {
         AppLabel.episodeOnDeck.image
           .foregroundColor(.accentColor)
-      } else if viewModel.item.queueOrder == 0 {
+      } else if episode.queueOrder == 0 {
         AppLabel.queueAtTop.image
           .foregroundColor(.orange)
       } else {
         AppLabel.episodeQueued.image
           .foregroundColor(.orange)
-          .opacity(viewModel.item.queued ? 1 : 0)
+          .opacity(episode.queued ? 1 : 0)
       }
 
-      if viewModel.item.caching,
-        let episodeID = viewModel.item.episodeID
+      if episode.caching,
+        let episodeID = episode.episodeID
       {
         if let progress = cacheState.progress(episodeID) {
           CircularProgressView(
@@ -72,19 +80,19 @@ struct EpisodeListView: View {
       } else {
         AppLabel.episodeCached.image
           .foregroundStyle(.green)
-          .opacity(viewModel.item.cached ? 1 : 0)
+          .opacity(episode.cached ? 1 : 0)
       }
 
       AppLabel.episodeCompleted.image
         .foregroundColor(.blue)
-        .opacity(viewModel.item.completed ? 1 : 0)
+        .opacity(episode.completed ? 1 : 0)
     }
     .font(.system(size: statusIconSize))
   }
 
   var episodeInfoSection: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(viewModel.item.title)
+      Text(episode.title)
         .lineLimit(2, reservesSpace: true)
         .font(.body)
         .multilineTextAlignment(.leading)
@@ -100,7 +108,7 @@ struct EpisodeListView: View {
         AppLabel.publishDate.image
           .font(.system(size: metadataIconSize))
           .foregroundColor(.secondary)
-        Text(viewModel.item.pubDate.usShort)
+        Text(episode.pubDate.usShort)
           .font(.caption)
           .foregroundColor(.secondary)
       }
@@ -109,10 +117,10 @@ struct EpisodeListView: View {
 
       HStack(spacing: 4) {
         ZStack {
-          if viewModel.item.currentTime.seconds > 0 {
+          if episode.currentTime.seconds > 0 {
             CircularProgressView(
               colorAmounts: [
-                .green: viewModel.item.currentTime.seconds / viewModel.item.duration.seconds
+                .green: episode.currentTime.seconds / episode.duration.seconds
               ],
               innerRadius: .ratio(0.4)
             )
@@ -124,7 +132,7 @@ struct EpisodeListView: View {
             .font(.system(size: metadataIconSize))
             .foregroundColor(.secondary)
         }
-        Text(viewModel.item.duration.shortDescription)
+        Text(episode.duration.shortDescription)
           .font(.caption)
           .foregroundColor(.secondary)
       }
@@ -144,11 +152,9 @@ struct EpisodeListView: View {
         NavigationLink {
         } label: {
           EpisodeListView(
-            viewModel: SelectableListItemModel(
-              isSelected: $isSelected,
-              item: episode,
-              isSelecting: selectedStates[safe: index] ?? false
-            )
+            episode: episode,
+            isSelecting: selectedStates[safe: index] ?? false,
+            isSelected: $isSelected
           )
           .episodeListRow()
         }

@@ -82,11 +82,7 @@ struct EpisodeSearchView: View {
         value: Navigation.Destination.episode(DisplayableEpisode(episode)),
         label: {
           EpisodeListView(
-            viewModel: SelectableListItemModel(
-              isSelected: .constant(false),
-              item: episode,
-              isSelecting: false
-            )
+            episode: episode
           )
         }
       )

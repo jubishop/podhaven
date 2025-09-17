@@ -174,11 +174,9 @@ struct PodcastDetailView: View {
         value: Navigation.Destination.episode(episode),
         label: {
           EpisodeListView(
-            viewModel: SelectableListItemModel(
-              isSelected: $viewModel.episodeList.isSelected[episode.id],
-              item: episode,
-              isSelecting: viewModel.isSelecting
-            )
+            episode: episode,
+            isSelecting: viewModel.isSelecting,
+            isSelected: $viewModel.episodeList.isSelected[episode.id]
           )
         }
       )
