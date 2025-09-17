@@ -2,6 +2,10 @@ import CryptoKit
 import Foundation
 import RegexBuilder
 
+extension String: Stringable {
+  public var toString: String { self.hash() }
+}
+
 extension String {
   // MARK: - Hashing
 
@@ -9,7 +13,7 @@ extension String {
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
   )
 
-  func hash(to length: Int = 8) -> String {
+  func hash(to length: Int = 4) -> String {
     guard length > 0 else { return "" }
 
     let data = self.data(using: .utf8)!

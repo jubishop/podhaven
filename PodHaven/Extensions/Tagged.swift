@@ -16,8 +16,8 @@ where RawValue: StatementColumnConvertible {}
 extension Tagged: @retroactive DatabaseValueConvertible
 where RawValue: DatabaseValueConvertible {}
 
-extension Tagged: Stringable where Self: RawRepresentable, RawValue == URL {
-  var toString: String { rawValue.hash() }
+extension Tagged: Stringable where RawValue: Stringable {
+  var toString: String { rawValue.toString }
 }
 
 extension Tagged where RawValue == URL {
