@@ -74,7 +74,7 @@ class EpisodesListViewModel:
     } catch {
       Self.log.error(error)
       if !ErrorKit.isRemarkable(error) { return }
-      await alert(ErrorKit.coreMessage(for: error))
+      alert(ErrorKit.coreMessage(for: error))
     }
   }
 
