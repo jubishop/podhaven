@@ -39,6 +39,7 @@ struct EpisodeListView: View {
       isSelected: viewModel.isSelected,
       isSelecting: viewModel.isSelecting
     )
+    .frame(width: thumbnailSize)
   }
 
   var statusIconColumn: some View {

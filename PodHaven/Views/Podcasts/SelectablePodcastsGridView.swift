@@ -44,12 +44,17 @@ struct SelectablePodcastsGridView: View {
         NavigationLink(
           value: Navigation.Destination.podcast(DisplayablePodcast(podcast)),
           label: {
-            SelectableSquareImage(
-              image: podcast.image,
-              size: $gridItemSize,
-              isSelected: $viewModel.podcastList.isSelected[podcastWithLatestEpisodeDates.id],
-              isSelecting: viewModel.isSelecting
-            )
+            VStack {
+              SelectableSquareImage(
+                image: podcast.image,
+                size: $gridItemSize,
+                isSelected: $viewModel.podcastList.isSelected[podcast.id],
+                isSelecting: viewModel.isSelecting
+              )
+              Text(podcast.title)
+                .font(.caption)
+                .lineLimit(1)
+            }
             .selectablePodcastsGridContextMenu(
               viewModel: viewModel,
               podcast: podcast
