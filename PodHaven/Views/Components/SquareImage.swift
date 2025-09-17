@@ -4,8 +4,9 @@ import Foundation
 import SwiftUI
 
 struct SquareImage: View {
-  let image: URL
   @Binding var size: CGFloat
+
+  let image: URL
   let cornerRadius: CGFloat
 
   init(image: URL, size: Binding<CGFloat>, cornerRadius: CGFloat = 8) {
