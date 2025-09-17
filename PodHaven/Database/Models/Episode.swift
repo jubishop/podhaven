@@ -15,7 +15,7 @@ struct MediaGUID: Codable, CustomStringConvertible, Equatable, Hashable {
   let mediaURL: MediaURL
 
   var description: String {
-    "GUID: \(guid), MediaURL: \(mediaURL.toString)"
+    "GUID: \(guid.toString), MediaURL: \(mediaURL.toString)"
   }
 }
 
