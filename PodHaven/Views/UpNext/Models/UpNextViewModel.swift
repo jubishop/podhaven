@@ -152,78 +152,9 @@ import SwiftUI
 
   // MARK: - Individual Item Actions
 
-  func playEpisode(_ episode: any EpisodeDisplayable) {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
-        try await playManager.load(podcastEpisode)
-        await playManager.play()
-      } catch {
-        Self.log.error(error)
-        if !ErrorKit.isRemarkable(error) { return }
-        alert(ErrorKit.coreMessage(for: error))
-      }
-    }
-  }
-
-  func pauseEpisode(_ episode: any EpisodeDisplayable) {
-    Task { [weak self] in
-      guard let self else { return }
-      guard isEpisodePlaying(episode) else { return }
-      await playManager.pause()
-    }
-  }
-
-  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable) {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
-        try await queue.unshift(podcastEpisode.episode.id)
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
-  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable) {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
-        try await queue.append(podcastEpisode.episode.id)
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
-  func removeEpisodeFromQueue(_ episode: any EpisodeDisplayable) {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
-        try await queue.dequeue(podcastEpisode.episode.id)
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
-  func cacheEpisode(_ episode: any EpisodeDisplayable) {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
-        try await cacheManager.downloadToCache(for: podcastEpisode.id)
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
+  // TODO: Merge this with other ManagingEpisodes models
   func showPodcast(_ podcastEpisode: PodcastEpisode) {
+    Self.log.debug("Showing podcast for episode: \(podcastEpisode.toString)")
     navigation.showPodcast(podcastEpisode.podcast)
   }
 }
