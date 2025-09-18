@@ -1,131 +1,90 @@
-## GIT
+## Repo Guardrails
+- Never create commits or push unless the humans explicitly ask.
+- Assume the working tree may hold user edits; respect them and avoid resets or reverts.
+- Stay sandbox-friendly: ask for elevated access only when instructions require files outside the workspace.
 
-- **IMPORTANT: Unless explicitly asked don't git commit or push any changes.**
+## Build & Test
+- Do not run builds or tests unless the request is explicit.
+- When asked, prefer the MCP helpers: `build_macos` before `test_macos` if tests depend on a fresh build.
+- Surface meaningful snippets instead of raw command dumps; keep output concise.
 
-## Essential Build & Test Commands
+## Project Map
+- `PodHaven/` – main SwiftUI app. Folders cover Database, Cache, Feed, Play, Search, Share, Logging, Environment (alerts, navigation, sleepers), Utility (asserts, background tasks), Protocols, PropertyWrappers, UseCases, and modularized Views.
+- `PodHavenTests/` – Swift Testing suites using `Testing` + `FactoryTesting`, in-memory GRDB, and rich fakes for playback, feeds, and downloads.
+- `PodHavenMacros/` – local package providing `@Saved` and `@ReadableError` macros plus associated plugins.
+- `PodhavenShare/` – share extension that reuses container factories to import feeds, episodes, and OPML files.
+- `Tools/` – helper scripts (e.g., RSS validation, targeted test runners).
 
-### Building
-- **IMPORTANT: Don't try to build the project unless explicitly asked.**
+## Architecture Guide
+### Database & Persistence
+- `AppDB` configures GRDB connections and migrations defined in `Database/Schema.swift` (incremental, versioned).
+- Models follow `UnsavedX` + `@Saved<UnsavedX>` patterns from `SavedMacro`; domain types expose GRDB associations and helper SQL expressions.
+- Identifiers use `Tagged` wrappers (`Podcast.ID`, `Episode.ID`, `FeedURL`, `MediaGUID`, etc.) for zero-ambiguity IDs.
+- `Repo` centralizes DB reads/writes with typed query builder APIs; `Observatory` exposes `AsyncValueObservation` streams for reactive state; `Queue` manages ordering logic with transactional helpers.
+- RSS updates rely on `RSSUpdatable` comparisons to retain user state while refreshing feed metadata.
 
-### Testing
-- **IMPORTANT: Don't try to run the tests unless explicitly asked.**
-
-### Note
-- If you are asked to build or test: use the MCP Tools build_macos and test_macos.
-- If test_macos is returning no results that's because it doesn't build so try build_macos first.
-
-## Core Architecture
-
-### Database Layer (GRDB)
-- **Schema Management**: Database migrations in `PodHaven/Database/Schema.swift` with versioned incremental changes
-- **Model Architecture**: Separation between `UnsavedX` (data) and `X` (domain) using `@Saved` macro from local `PodHavenMacros` package
-- **Repository Pattern**: Central `Repo` class handles all database operations with type-safe query building
-- **Type Safety**: Use `Tagged` types for identifiers (`Podcast.ID`, `Episode.ID`, `GUID`, `MediaURL`)
-- **Persistence Framework**: GRDB provides robust SQLite access with query builder APIs
-- **Transaction Safety**: Database operations use GRDB transactions for atomicity
+### Observability & View State
+- View models adopt `@Observable @MainActor` and stash long-lived tasks in `@ObservationIgnored` properties to avoid observation churn.
+- Views trigger async work through `task` modifiers that call `execute()` (or feature-specific entry points such as `scheduleSearch()`); cancellation paths clean up ongoing `Task`s.
+- Selection-heavy flows reuse `SelectableListUseCase` for filtering, sorting, and bulk actions.
 
 ### Dependency Injection (FactoryKit)
-- **ViewModels**: Use `@DynamicInjected(\.repo)` for cached dependencies
-- **Views**: Use `@InjectedObservable(\.navigation)` for observable dependencies
-- **Testing**: Mark test suites with `@Suite(..., .container)` and use `.context(.test)` for mocks
-- **Context-Aware Registration**: Use `context(.preview)` and `context(.test)` for environment-specific implementations
-- **Factory Scopes**: `.scope(.cached)` for singleton-like behavior
+- Factories live in `Container` extensions; `.scope(.cached)` is the default for singleton-like services.
+- Property wrappers: `@DynamicInjected` for lazily cached services, `@InjectedObservable` for observable env objects, `@WrappedShared` for Point-Free `Sharing` backed persistence.
+- Use `Container.shared` inside protocols/utilities that need cross-cutting services.
+- Override factories with `.context(.preview)` and `.context(.test)` in the Preview and Test extensions; tests leverage `FactoryTesting` to swap in fakes.
 
-### Concurrency Architecture
-- **Async Streams**: Reactive data flows using `AsyncStream` for real-time updates
-- **Task Management**: Proper task cancellation and lifecycle handling with structured concurrency
+### Concurrency Patterns
+- Domain-specific actors (`PlayActor`, `FeedActor`, `RefreshActor`) serialize playback, feed fetching, and refresh coordination.
+- Services like `CacheManager` are actors; they interact with Swift `AsyncStream`, `AsyncValueObservation`, and `withThrowingDiscardingTaskGroup` for fan-out.
+- `Sleeper` (via `Sleepable`) provides cancellable debouncing for search view models.
+- Always propagate cancellation (`Task.checkCancellation()` / guarding `Task.isCancelled`) before updating state.
 
-### Error Handling
-- **Domain Errors**: Create enums conforming to `ReadableError` protocol
-- **Error Wrapping**: Use `CatchingError` protocol for errors that wrap others
-- **Error Catching**: Use `ErrorType.catch { }` pattern for automatic wrapping
-- **Logging Integration**: Use `ErrorKit` utilities for error presentation and logging
-- **ReadableError Macro**: Custom Swift macro for streamlined error handling with readable messages
+### Networking & Feed Processing
+- Networking flows conform to `DataFetchable` / `DownloadingTask`; `URLSession` implements both with additional validation helpers.
+- `FeedManager` queues background feed downloads through `DownloadManager` and auto-cleans task state; `RefreshManager` fans out refresh jobs using feed + repo coordination.
+- `SearchService` calls Podcast Index endpoints with authenticated headers and async decoding; `ShareService` parses share URLs to import OPML, podcasts, or episodes.
 
-### Logging System
-- **Centralized Configuration**: Configured in `PodHavenApp.swift` using `LoggingSystem.bootstrap`
-- **Environment Handlers**: Different log handlers based on app environment:
-  - TestFlight/iPhone/Mac: `OSLogHandler`, `FileLogHandler`, `CrashReportHandler` via `MultiplexLogHandler`
-  - Preview: `PrintLogHandler` only
-  - Simulator/Testing: `OSLogHandler` only
-  - AppStore: Uses SwiftLogNoOpLogHandler for production builds
-- **Structured Logging**: NDJSON format file logs with level, timestamp, metadata
-- **Usage**: Use `LogCategorizable` protocol with subsystem/category/level definitions
+### Playback & Audio
+- `PlayManager` (under `PlayActor`) orchestrates AVAudioSession configuration, queue integration, command center wiring, and Point-Free `Sharing` storage of the current episode.
+- `PlayState` is an `@Observable @dynamicMemberLookup` mirror of playback status, updated via NotificationCenter streams.
+- `ManagingEpisodes` and `SelectableEpisodeList` protocols encapsulate queueing, caching, and playback actions for reuse across views.
 
-### State Management
-- **Observable Classes**: Use `@Observable` for reactive view state management
-- **Shared State**: Point-Free's `Sharing` library for persistent state (avoid `UserDefaults` directly)
-- **Navigation**: Centralized `Navigation` class with tab-based routing using SwiftNavigation
-- **Custom Alert & Sheet Systems**: Standardized alert and sheet presentation with type-safe models
-- **Observable Patterns**: `@InjectedObservable` for dependency-injected observable state
-- **Stateful View Models**: Separation of business logic from view rendering
+### Downloads & Cache
+- `CacheManager` actor manages background audio downloads, referencing `CacheBackgroundDelegate` for URLSession callbacks and `CacheState` for progress updates.
+- Cached files live under `CacheManager.cacheDirectory`; filenames derive from hashed media URLs, with guardrails preventing deletion for queued/playing episodes.
+- `AppDelegate` forwards background session completions to `CacheBackgroundDelegate` ensuring the system resumes suspended tasks correctly.
 
-## Development Guidelines
+### Search & Discovery
+- Search view models (`PodcastSearchViewModel`, `EpisodeSearchViewModel`, `TrendingCategoryGridViewModel`) debounce inputs, call `SearchService`, then subscribe to `Observatory` updates so downloaded data stays live.
+- Preview helpers stub factories for deterministic SwiftUI previews without network calls.
 
-### Code Architecture Patterns
-- **ViewModels**: Should have `execute()` function in Initialization section
-- **Views**: Only interact with their ViewModel - never put functions in View files
-- **File Organization**: Each top-level type in its own file with matching name
-- **Copyright**: Include "Copyright Justin Bishop, 2025" at file start
+### Navigation & UI Structure
+- `Navigation` centralizes all routing using SwiftNavigation's `@CasePathable` destinations and tab-specific path managers; switching tabs clears unrelated navigation state.
+- Views stay declarative, forwarding actions to their view models or shared protocols; never introduce business logic inside SwiftUI view structs.
+- Custom alert/sheet modifiers (`customAlert`, `customSheet`) consume the injected `Alert`/`Sheet` environment objects.
 
-### Dependencies
-- **GRDB**: Database management with query builder APIs (avoid raw SQL)
-- **XMLCoder**: RSS feed parsing with structured error handling
-- **Nuke/NukeUI**: Image loading and caching with async/await support
-- **FactoryKit**: Modern dependency injection with comprehensive testing support
-- **FactoryTesting**: Extensions for test-specific dependency injection
-- **Tagged**: Type-safe identifiers preventing ID confusion
-- **Sentry**: Error reporting in production builds only
-- **Point-Free Libraries**: SwiftNavigation, Sharing, IdentifiedCollections for reactive state
-- **Logging**: Swift-log integration for structured logging
-- **OrderedCollections**: Foundation collection extensions for specialized data structures
-- **Semaphore**: Concurrency utilities for coordination
+### Error Handling & Logging
+- Error enums conform to `ReadableError`; wrappers adopt `CatchingError` to attach underlying errors automatically.
+- `ErrorKit` formats user-facing messages, filters mundane errors, and produces nested logging strings.
+- Logging runs through `Log.as(...)` with categories declared in `LogSubsystem`; environment-specific bootstrap occurs in `PodHavenApp.configureLogging()` using `MultiplexLogHandler`, Sentry, OSLog, or Print handlers as appropriate.
 
-### Testing Patterns
-- **Swift Testing**: Use `#expect` for assertions in comprehensive test suites
-- **Fake Implementations**: Complete fake implementations for external dependencies
-- **Container Override**: Test-specific dependency injection with FactoryKit Container
-- **In-Memory Database**: Fast tests using GRDB in-memory instances
-- **Parallel Execution**: Separate test targets for parallel vs. performance tests
-- **Suite Annotation**: Use `@Suite("description", .container)` to enable DI in test suites
-- **Test Creation Helpers**: Utility functions like `Create.unsavedPodcast()` for test data
-- **Explicit Test Steps**: Clear, numbered test steps with meaningful assertions
-- **Avoid Sleep**: Prefer structured async testing over sleep-based tests.  Use `Sleeper`.
+### Shared Utilities & Helpers
+- `Assert` funnels invariants through structured fatal logging; avoid `fatalError`/`precondition` outside this helper.
+- `BackgroundTask`, `ThreadSafe`, `PodFileManager`, and `ImagePipeline` utilities support background refreshes, concurrency-safe storage, and image prefetching.
+- Property wrappers (e.g., `OptionalURL`, `WrappedShared`) and protocol extensions (`DataFetchable`, `Searchable`) keep cross-cutting behavior centralized.
 
-### Code Safety & Style
-- **Optionals**: Never use `!` to force unwrap optionals in production code
-- **Concurrency**: Use Swift concurrency (async/await) with proper cancellation
-- **String Formatting**: Use `"""` delimiters for long strings exceeding 100 columns
-- **Naming**: PascalCase types, camelCase variables/functions
-- **Protocol Conformances**: List alphabetically with attributes sorted
-- **MARK Comments**: Use `// MARK: - Section Name` for code organization
-- **Self Usage**: Explicit `self` only when required by the compiler
-- **Assert Usage**: Use `Assert.fatal()`, and `Assert.precondition()`.
-- **Error Handling**: Always use structured error handling with domain-specific types
+## Testing Practice
+- Tests use the Swift Testing DSL: `@Suite("…", .container)` with `#expect` assertions; async tests rely on structured concurrency (no sleeps—use `Sleeper`).
+- In-memory GRDB (`AppDB.inMemory()`) powers repo tests; helpers under `Create` build realistic unsaved models.
+- Override factories with `.context(.test)` to plug in mocks (fake AV players, fake URLSessions, etc.).
+- Performance suites live in `PodHavenTests/PerformanceTests` and isolate long-running tasks.
 
-### Specialized Files
-- **Schema.swift**: Contains all database migration logic with detailed change tracking
-- **Local Package**: `PodHavenMacros` provides `@Saved` and `@ReadableError` macros
-- **Share Extension**: `PodHavenShare` handles external podcast URL sharing
-
-### Code Formatting
-- **IMPORTANT: Run swift-format on any files you change**
-
-## External Project Structure
-
-### PodHavenTests/ (Test Suite)
-- Parallel execution test suite using Swift Testing framework
-- Test targets: `ParallelTests` and `PerformanceTests`
-- Mock implementations and test data creation helpers
-- Comprehensive coverage of managers, models, and business logic
-
-### PodHavenMacros/ (Swift Package)
-- Custom Swift macros for domain-specific functionality
-- `@Saved` macro for model wrapper pattern
-- `@ReadableError` macro for error handling
-- Uses SwiftSyntax for macro implementation
-
-### PodHavenShare/ (App Extension)
-- iOS share extension for handling external podcast URLs
-- Processes shared URLs and integrates with main app
-- Minimal UI for quick podcast subscription
+## Coding Standards
+- Keep each top-level type in a same-named file; add `// MARK:` separators to outline sections (Initialization, State, Actions, etc.).
+- Never force-unwrap (`!`) in production code; use `Assert` or guarded unwraps with readable error handling.
+- Prefer triple-quoted strings for multi-line or >100 character literals; use camelCase variables and PascalCase types.
+- Maintain alphabetical protocol conformance order and consistent attribute ordering.
+- `@ObservationIgnored` guards DI properties and transient state inside observable types.
+- Run `swift-format` on every Swift file you touch before handing work back.
+- Include `Copyright Justin Bishop, 2025` at the top of all new Swift files.

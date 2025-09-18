@@ -15,6 +15,7 @@ import Logging
   func showPodcast(_ episode: any EpisodeDisplayable)
 
   func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool
+  func canClearCache(_ episode: any EpisodeDisplayable) -> Bool
 
   func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode
 }
@@ -115,6 +116,10 @@ extension ManagingEpisodes {
   func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool {
     guard playState.playing, let onDeck = playState.onDeck else { return false }
     return onDeck == episode
+  }
+
+  func canClearCache(_ episode: any EpisodeDisplayable) -> Bool {
+    !episode.queued && !isEpisodePlaying(episode)
   }
 
   func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {

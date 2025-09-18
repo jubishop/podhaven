@@ -8,6 +8,9 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
   let episode: any EpisodeDisplayable
 
   func body(content: Content) -> some View {
+    let isEpisodePlaying = viewModel.isEpisodePlaying(episode)
+    let canClearCache = viewModel.canClearCache(episode)
+
     content
       .swipeActions(edge: .leading) {
         if episode.queued {
@@ -38,7 +41,7 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
       }
 
       .swipeActions(edge: .trailing) {
-        if viewModel.isEpisodePlaying(episode) {
+        if isEpisodePlaying {
           Button(
             action: { viewModel.pauseEpisode(episode) },
             label: { AppLabel.pauseButton.image }
@@ -53,17 +56,21 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
         }
 
         if episode.caching {
-          Button(
-            action: { viewModel.uncacheEpisode(episode) },
-            label: { AppLabel.cancelEpisodeDownload.image }
-          )
-          .tint(.orange)
+          if canClearCache {
+            Button(
+              action: { viewModel.uncacheEpisode(episode) },
+              label: { AppLabel.cancelEpisodeDownload.image }
+            )
+            .tint(.orange)
+          }
         } else if episode.cached {
-          Button(
-            action: { viewModel.uncacheEpisode(episode) },
-            label: { AppLabel.uncacheEpisode.image }
-          )
-          .tint(.red)
+          if canClearCache {
+            Button(
+              action: { viewModel.uncacheEpisode(episode) },
+              label: { AppLabel.uncacheEpisode.image }
+            )
+            .tint(.red)
+          }
         } else {
           Button(
             action: { viewModel.cacheEpisode(episode) },

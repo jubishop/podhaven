@@ -12,9 +12,12 @@ struct EpisodeContextMenuViewModifier<
   @ViewBuilder let additionalContent: () -> AdditionalContent
 
   func body(content: Content) -> some View {
+    let isEpisodePlaying = viewModel.isEpisodePlaying(episode)
+    let canClearCache = viewModel.canClearCache(episode)
+
     content
       .contextMenu {
-        if viewModel.isEpisodePlaying(episode) {
+        if isEpisodePlaying {
           Button(
             action: { viewModel.pauseEpisode(episode) },
             label: { AppLabel.pauseButton.label }
@@ -55,17 +58,21 @@ struct EpisodeContextMenuViewModifier<
         }
 
         if episode.caching {
-          Button(
-            action: { viewModel.uncacheEpisode(episode) },
-            label: { AppLabel.cancelEpisodeDownload.label }
-          )
-          .tint(.orange)
+          if canClearCache {
+            Button(
+              action: { viewModel.uncacheEpisode(episode) },
+              label: { AppLabel.cancelEpisodeDownload.label }
+            )
+            .tint(.orange)
+          }
         } else if episode.cached {
-          Button(
-            action: { viewModel.uncacheEpisode(episode) },
-            label: { AppLabel.uncacheEpisode.label }
-          )
-          .tint(.red)
+          if canClearCache {
+            Button(
+              action: { viewModel.uncacheEpisode(episode) },
+              label: { AppLabel.uncacheEpisode.label }
+            )
+            .tint(.red)
+          }
         } else {
           Button(
             action: { viewModel.cacheEpisode(episode) },
