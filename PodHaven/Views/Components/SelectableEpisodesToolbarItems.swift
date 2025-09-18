@@ -31,7 +31,30 @@ struct SelectableEpisodesToolbarItems<
 
     if viewModel.isSelecting, episodeList.anySelected {
       ToolbarItem(placement: .topBarTrailing) {
-        SelectableEpisodeListMenu(listModel: viewModel)
+        Menu(
+          content: {
+            Button("Add To Top Of Queue") {
+              viewModel.addSelectedEpisodesToTopOfQueue()
+            }
+            Button("Add To Bottom Of Queue") {
+              viewModel.addSelectedEpisodesToBottomOfQueue()
+            }
+            Button("Replace Queue") {
+              viewModel.replaceQueueWithSelected()
+            }
+            Button("Replace Queue and Play") {
+              viewModel.replaceQueueWithSelectedAndPlay()
+            }
+            if viewModel.selectedEpisodes.contains(where: { !$0.cached }) {
+              Button("Cache Selected") {
+                viewModel.cacheSelectedEpisodes()
+              }
+            }
+          },
+          label: {
+            AppLabel.queueActions.image
+          }
+        )
       }
     }
 
