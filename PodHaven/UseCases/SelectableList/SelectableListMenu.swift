@@ -29,18 +29,3 @@ struct SelectableListMenu: View {
     )
   }
 }
-
-#if DEBUG
-#Preview {
-  @Previewable @State var list = FakeSelectableList()
-
-  VStack(spacing: 20) {
-    SelectableListMenu(list: list)
-    Divider()
-    Text("Selected:: \(list.selected.rawValue)")
-    Button("Select Some") {
-      list.selectSomeEntries()
-    }
-  }
-}
-#endif

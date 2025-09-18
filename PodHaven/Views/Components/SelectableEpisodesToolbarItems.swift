@@ -50,6 +50,11 @@ struct SelectableEpisodesToolbarItems<
                 viewModel.markSelectedEpisodesCompleted()
               }
             }
+            if viewModel.anySelectedCaching {
+              Button("Cancel Downloads") {
+                viewModel.cancelSelectedEpisodeDownloads()
+              }
+            }
             if viewModel.anySelectedNotCached {
               Button("Cache Selected") {
                 viewModel.cacheSelectedEpisodes()

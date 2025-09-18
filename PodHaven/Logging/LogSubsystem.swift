@@ -5,7 +5,9 @@ import Logging
 
 enum LogSubsystem {
   enum Cache: String, LogCategorizable {
-    case cacheManager
+    case backgroundDelegate
+    case manager
+    case state
   }
 
   enum Database: String, LogCategorizable {

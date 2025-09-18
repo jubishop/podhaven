@@ -10,7 +10,7 @@ extension Container {
 }
 
 @Observable @MainActor class CacheState {
-  private static let log = Log.as("CacheState")
+  private static let log = Log.as(LogSubsystem.Cache.state)
 
   // MARK: - State Management
 

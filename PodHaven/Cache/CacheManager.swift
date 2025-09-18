@@ -41,7 +41,7 @@ actor CacheManager {
   private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
   private var playState: PlayState { get async { await Container.shared.playState() } }
 
-  private static let log = Log.as(LogSubsystem.Cache.cacheManager)
+  private static let log = Log.as(LogSubsystem.Cache.manager)
 
   // MARK: - State Management
 

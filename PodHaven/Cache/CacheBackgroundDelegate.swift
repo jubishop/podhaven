@@ -18,7 +18,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var podFileManager: any FileManageable { Container.shared.podFileManager() }
 
-  private static let log = Log.as("CacheBackgroundDelegate")
+  private static let log = Log.as(LogSubsystem.Cache.backgroundDelegate)
 
   private let completions = ThreadSafe<[URLSessionConfiguration.ID: @MainActor () -> Void]>([:])
 
