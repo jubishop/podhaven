@@ -25,7 +25,7 @@ struct UpNextView: View {
           )
           .episodeListRow()
           .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
-          .upNextContextMenu(viewModel: viewModel, podcastEpisode: podcastEpisode)
+          .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode)
         }
         .onMove(perform: viewModel.moveEpisode)
       }
