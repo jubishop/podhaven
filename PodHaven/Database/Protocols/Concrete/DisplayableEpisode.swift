@@ -37,11 +37,29 @@ struct DisplayableEpisode:
   // MARK: - Hashable / Equatable
 
   func hash(into hasher: inout Hasher) {
-    hasher.combine(mediaGUID)
+    if let podcastEpisode = getPodcastEpisode() {
+      hasher.combine(podcastEpisode)
+    } else if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
+      hasher.combine(unsavedPodcastEpisode)
+    } else {
+      Assert.fatal("Can't make hash from: \(type(of: episode))")
+    }
   }
 
   static func == (lhs: DisplayableEpisode, rhs: DisplayableEpisode) -> Bool {
-    lhs.mediaGUID == rhs.mediaGUID
+    if let leftPodcastEpisode = lhs.getPodcastEpisode(),
+      let rightPodcastEpisode = rhs.getPodcastEpisode()
+    {
+      return leftPodcastEpisode == rightPodcastEpisode
+    }
+
+    if let leftUnsavedPodcastEpisode = lhs.getUnsavedPodcastEpisode(),
+      let rightUnsavedPodcastEpisode = rhs.getUnsavedPodcastEpisode()
+    {
+      return leftUnsavedPodcastEpisode == rightUnsavedPodcastEpisode
+    }
+
+    return false  // Different concrete types are not equal
   }
 
   // MARK: - Stringable
@@ -84,7 +102,7 @@ struct DisplayableEpisode:
   func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = getPodcastEpisode() {
       return podcastEpisode
-    } else if let unsavedPodcastEpisode = episode as? UnsavedPodcastEpisode {
+    } else if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
     } else {
       Assert.fatal("Can't make PodcastEpisode from: \(type(of: episode))")
