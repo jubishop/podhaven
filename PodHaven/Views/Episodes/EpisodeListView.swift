@@ -15,7 +15,6 @@ struct EpisodeListView: View {
   private let episode: any EpisodeDisplayable
   private let isSelecting: Bool
   private let isSelected: Binding<Bool>
-
   init(
     episode: any EpisodeDisplayable,
     isSelecting: Bool = false,

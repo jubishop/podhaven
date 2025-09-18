@@ -13,34 +13,26 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
         if episode.queued {
           Button(
             action: { viewModel.queueEpisodeOnTop(episode) },
-            label: {
-              AppLabel.moveToTop.image
-            }
+            label: { AppLabel.moveToTop.image }
           )
           .tint(.blue)
 
           Button(
             role: .destructive,
             action: { viewModel.removeEpisodeFromQueue(episode) },
-            label: {
-              AppLabel.removeFromQueue.image
-            }
+            label: { AppLabel.removeFromQueue.image }
           )
           .tint(.red)
         } else {
           Button(
             action: { viewModel.queueEpisodeOnTop(episode) },
-            label: {
-              AppLabel.queueAtTop.image
-            }
+            label: { AppLabel.queueAtTop.image }
           )
           .tint(.blue)
 
           Button(
             action: { viewModel.queueEpisodeAtBottom(episode) },
-            label: {
-              AppLabel.queueAtBottom.image
-            }
+            label: { AppLabel.queueAtBottom.image }
           )
           .tint(.purple)
         }
@@ -50,19 +42,37 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
         if viewModel.isEpisodePlaying(episode) {
           Button(
             action: { viewModel.pauseEpisode(episode) },
-            label: {
-              AppLabel.pauseButton.image
-            }
+            label: { AppLabel.pauseButton.image }
           )
           .tint(.yellow)
         } else {
           Button(
             action: { viewModel.playEpisode(episode) },
-            label: {
-              AppLabel.playEpisode.image
-            }
+            label: { AppLabel.playEpisode.image }
           )
           .tint(.green)
+        }
+
+        if episode.caching {
+          Button(
+            role: .destructive,
+            action: { viewModel.uncacheEpisode(episode) },
+            label: { AppLabel.cancelEpisodeDownload.image }
+          )
+          .tint(.orange)
+        } else if episode.cached {
+          Button(
+            role: .destructive,
+            action: { viewModel.uncacheEpisode(episode) },
+            label: { AppLabel.uncacheEpisode.image }
+          )
+          .tint(.red)
+        } else {
+          Button(
+            action: { viewModel.cacheEpisode(episode) },
+            label: { AppLabel.cacheEpisode.image }
+          )
+          .tint(.blue)
         }
       }
   }

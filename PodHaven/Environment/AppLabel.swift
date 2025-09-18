@@ -33,6 +33,8 @@ private enum SystemImageName: String, CaseIterable {
   case downloadEpisode = "arrow.down.circle"
   case editComplete = "checkmark.circle"
   case episodeCached = "arrow.down.circle.fill"
+  case episodeDownloadCancel = "stop.circle"
+  case episodeUncached = "tray.and.arrow.up"
   case episodeCompleted = "checkmark.circle.fill"
   case episodeOnDeck = "play.circle"
   case selectionEmpty = "circle"
@@ -86,6 +88,8 @@ enum AppLabel: CaseIterable {
   case addToBottom
   case addToTop
   case cacheEpisode
+  case cancelEpisodeDownload
+  case uncacheEpisode
   case moveToTop
   case playEpisode
   case playNow
@@ -169,6 +173,10 @@ enum AppLabel: CaseIterable {
     case .addToBottom: return (text: "Add to Bottom", systemImageName: .queueBottom)
     case .addToTop: return (text: "Add to Top", systemImageName: .queueTop)
     case .cacheEpisode: return (text: "Cache Episode", systemImageName: .episodeCached)
+    case .cancelEpisodeDownload:
+      return (text: "Cancel Download", systemImageName: .episodeDownloadCancel)
+    case .uncacheEpisode:
+      return (text: "Remove Download", systemImageName: .episodeUncached)
     case .moveToTop: return (text: "Move to Top", systemImageName: .moveToTop)
     case .playEpisode: return (text: "Play Episode", systemImageName: .play)
     case .playNow: return (text: "Play Now", systemImageName: .play)
