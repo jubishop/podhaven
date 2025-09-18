@@ -91,6 +91,7 @@ enum AppLabel: CaseIterable {
   case cancelEpisodeDownload
   case uncacheEpisode
   case moveToTop
+  case markEpisodeCompleted
   case playEpisode
   case playNow
   case queueAtBottom
@@ -178,6 +179,8 @@ enum AppLabel: CaseIterable {
     case .uncacheEpisode:
       return (text: "Remove Download", systemImageName: .episodeUncached)
     case .moveToTop: return (text: "Move to Top", systemImageName: .moveToTop)
+    case .markEpisodeCompleted:
+      return (text: "Mark Completed", systemImageName: .episodeCompleted)
     case .playEpisode: return (text: "Play Episode", systemImageName: .play)
     case .playNow: return (text: "Play Now", systemImageName: .play)
     case .queueAtBottom: return (text: "Queue at Bottom", systemImageName: .queueBottom)

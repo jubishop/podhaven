@@ -57,6 +57,14 @@ struct EpisodeContextMenuViewModifier<
           .tint(.purple)
         }
 
+        if !episode.completed {
+          Button(
+            action: { viewModel.markEpisodeCompleted(episode) },
+            label: { AppLabel.markEpisodeCompleted.label }
+          )
+          .tint(.mint)
+        }
+
         if episode.caching {
           if canClearCache {
             Button(
