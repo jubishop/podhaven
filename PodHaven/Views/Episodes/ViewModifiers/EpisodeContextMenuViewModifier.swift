@@ -14,36 +14,37 @@ struct EpisodeContextMenuViewModifier<
   func body(content: Content) -> some View {
     content
       .contextMenu {
-        Button(action: { viewModel.playEpisode(episode) }) {
-          AppLabel.playEpisode.label
-        }
+        Button(
+          action: { viewModel.playEpisode(episode) },
+          label: { AppLabel.playEpisode.label }
+        )
 
-        Button(action: { viewModel.queueEpisodeOnTop(episode) }) {
-          AppLabel.queueAtTop.label
-        }
+        Button(
+          action: { viewModel.queueEpisodeOnTop(episode) },
+          label: { AppLabel.queueAtTop.label }
+        )
 
-        Button(action: { viewModel.queueEpisodeAtBottom(episode) }) {
-          AppLabel.queueAtBottom.label
-        }
+        Button(
+          action: { viewModel.queueEpisodeAtBottom(episode) },
+          label: { AppLabel.queueAtBottom.label }
+        )
 
         if episode.caching {
           Button(
-            role: .destructive,
-            action: { viewModel.uncacheEpisode(episode) }
-          ) {
-            AppLabel.cancelEpisodeDownload.label
-          }
+            action: { viewModel.uncacheEpisode(episode) },
+            label: { AppLabel.cancelEpisodeDownload.label }
+          )
         } else if episode.cached {
           Button(
-            role: .destructive,
-            action: { viewModel.uncacheEpisode(episode) }
-          ) {
-            AppLabel.uncacheEpisode.label
-          }
+            action: { viewModel.uncacheEpisode(episode) },
+            label: { AppLabel.uncacheEpisode.label }
+          )
+
         } else {
-          Button(action: { viewModel.cacheEpisode(episode) }) {
-            AppLabel.cacheEpisode.label
-          }
+          Button(
+            action: { viewModel.cacheEpisode(episode) },
+            label: { AppLabel.cacheEpisode.label }
+          )
         }
 
         additionalContent()

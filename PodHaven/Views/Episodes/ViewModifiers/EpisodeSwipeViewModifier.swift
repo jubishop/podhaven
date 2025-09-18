@@ -18,7 +18,6 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
           .tint(.blue)
 
           Button(
-            role: .destructive,
             action: { viewModel.removeEpisodeFromQueue(episode) },
             label: { AppLabel.removeFromQueue.image }
           )
@@ -55,14 +54,12 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
 
         if episode.caching {
           Button(
-            role: .destructive,
             action: { viewModel.uncacheEpisode(episode) },
             label: { AppLabel.cancelEpisodeDownload.image }
           )
           .tint(.orange)
         } else if episode.cached {
           Button(
-            role: .destructive,
             action: { viewModel.uncacheEpisode(episode) },
             label: { AppLabel.uncacheEpisode.image }
           )
