@@ -45,9 +45,19 @@ struct SelectableEpisodesToolbarItems<
             Button("Replace Queue and Play") {
               viewModel.replaceQueueWithSelectedAndPlay()
             }
-            if viewModel.selectedEpisodes.contains(where: { !$0.cached }) {
+            if viewModel.anySelectedUnCompleted {
+              Button("Mark Completed") {
+                viewModel.markSelectedEpisodesCompleted()
+              }
+            }
+            if viewModel.anySelectedNotCached {
               Button("Cache Selected") {
                 viewModel.cacheSelectedEpisodes()
+              }
+            }
+            if viewModel.anySelectedCached {
+              Button("Remove Downloads") {
+                viewModel.uncacheSelectedEpisodes()
               }
             }
           },

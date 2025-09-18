@@ -110,7 +110,7 @@ extension ManagingEpisodes {
       guard !episode.completed else { return }
       do {
         let episodeID = try await getEpisodeID(episode)
-        try await repo.markComplete(episodeID)
+        try await repo.markCompleted(episodeID)
       } catch {
         log.error(error)
       }

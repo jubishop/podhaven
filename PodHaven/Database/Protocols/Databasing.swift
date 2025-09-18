@@ -75,7 +75,10 @@ protocol Databasing: Sendable {
     -> Bool
 
   @discardableResult
-  func markComplete(_ episodeID: Episode.ID) async throws -> Bool
+  func markCompleted(_ episodeIDs: [Episode.ID]) async throws -> Int
+
+  @discardableResult
+  func markCompleted(_ episodeID: Episode.ID) async throws -> Bool
 
   @discardableResult
   func markSubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int

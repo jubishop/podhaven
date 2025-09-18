@@ -187,9 +187,15 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
-  func markComplete(_ episodeID: Episode.ID) async throws -> Bool {
+  func markCompleted(_ episodeIDs: [Episode.ID]) async throws -> Int {
+    recordCall(methodName: "markCompleted", parameters: episodeIDs)
+    return try await repo.markCompleted(episodeIDs)
+  }
+
+  @discardableResult
+  func markCompleted(_ episodeID: Episode.ID) async throws -> Bool {
     recordCall(methodName: "markComplete", parameters: episodeID)
-    return try await repo.markComplete(episodeID)
+    return try await markCompleted([episodeID]) > 0
   }
 
   @discardableResult

@@ -84,7 +84,7 @@ class EpisodeTests {
     let actualDuration = CMTime.seconds(1800)  // 30 minutes actual duration from media file
     let currentTime = CMTime.seconds(120)
     try await repo.markSubscribed(originalPodcast.id)
-    try await repo.markComplete(originalEpisode.id)
+    try await repo.markCompleted(originalEpisode.id)
     try await repo.updateCurrentTime(originalEpisode.id, currentTime)
     try await repo.updateDuration(originalEpisode.id, actualDuration)
     try await queue.unshift(originalEpisode.id)
@@ -308,7 +308,7 @@ class EpisodeTests {
   }
 
   @Test("that an episode can be marked complete")
-  func markEpisodeComplete() async throws {
+  func markEpisodeCompleted() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsavedEpisode = try Create.unsavedEpisode(currentTime: CMTime.seconds(60))
     let podcastSeries = try await repo.insertSeries(
@@ -319,11 +319,34 @@ class EpisodeTests {
     let episode = podcastSeries.episodes.first!
     #expect(episode.completed == false)
     #expect(episode.currentTime == CMTime.seconds(60))
-    try await repo.markComplete(episode.id)
+    try await repo.markCompleted(episode.id)
 
     let completedEpisode: Episode? = try await repo.episode(episode.id)!
     #expect(completedEpisode?.completed == true)
     #expect(completedEpisode?.currentTime == CMTime.zero)
+  }
+
+  @Test("that multiple episodes can be marked complete")
+  func markEpisodesCompleted() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode1 = try Create.unsavedEpisode(currentTime: CMTime.seconds(60))
+    let unsavedEpisode2 = try Create.unsavedEpisode(currentTime: CMTime.seconds(120))
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode1, unsavedEpisode2]
+    )
+
+    let episodes = podcastSeries.episodes
+    #expect(episodes.count == 2)
+    #expect(episodes.allSatisfy { $0.completed == false })
+    #expect(episodes.allSatisfy { $0.currentTime > CMTime.zero })
+    try await repo.markCompleted(episodes.map(\.id))
+
+    for episode in episodes {
+      let completedEpisode = try await repo.episode(episode.id)!
+      #expect(completedEpisode.completed == true)
+      #expect(completedEpisode.currentTime == CMTime.zero)
+    }
   }
 
   @Test("that upsertPodcastEpisode works")

@@ -184,7 +184,7 @@ enum PreviewHelpers {
     for episode in (try await loadAllSeries()).flatMap({ $0.episodes }) {
       if currentSize >= listSize { break }
       if !episode.completed {
-        try await repo.markComplete(episode.id)
+        try await repo.markCompleted(episode.id)
         currentSize += 1
       }
     }

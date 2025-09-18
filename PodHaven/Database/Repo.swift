@@ -359,18 +359,25 @@ struct Repo: Databasing, Sendable {
   }
 
   @discardableResult
-  func markComplete(_ episodeID: Episode.ID) async throws -> Bool {
-    Self.log.debug("markComplete: \(episodeID)")
+  func markCompleted(_ episodeIDs: [Episode.ID]) async throws -> Int {
+    Self.log.debug("markCompleted: \(episodeIDs)")
+
+    guard !episodeIDs.isEmpty else { return 0 }
 
     return try await appDB.db.write { db in
       try Episode
-        .withID(episodeID)
+        .withIDs(episodeIDs)
         .updateAll(
           db,
           Episode.Columns.completionDate.set(to: Date()),
           Episode.Columns.currentTime.set(to: 0)
         )
-    } > 0
+    }
+  }
+
+  @discardableResult
+  func markCompleted(_ episodeID: Episode.ID) async throws -> Bool {
+    try await markCompleted([episodeID]) > 0
   }
 
   @discardableResult

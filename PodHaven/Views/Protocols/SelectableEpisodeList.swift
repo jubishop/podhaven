@@ -22,11 +22,18 @@ import Logging
   func replaceQueueWithSelected()
   func replaceQueueWithSelectedAndPlay()
   func cacheSelectedEpisodes()
+  func uncacheSelectedEpisodes()
+  func markSelectedEpisodesCompleted()
+
+  var anySelectedNotCached: Bool { get }
+  var anySelectedCached: Bool { get }
+  var anySelectedUnCompleted: Bool { get }
 }
 
 extension SelectableEpisodeList {
   private var playManager: PlayManager { Container.shared.playManager() }
   private var queue: any Queueing { Container.shared.queue() }
+  private var repo: any Databasing { Container.shared.repo() }
 
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 
@@ -42,6 +49,7 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
       guard !selectedEpisodes.isEmpty else { return }
+
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.append(episodeIDs)
     }
@@ -51,6 +59,7 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
       guard !selectedEpisodes.isEmpty else { return }
+
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.unshift(episodeIDs)
     }
@@ -60,6 +69,7 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
       guard !selectedEpisodes.isEmpty else { return }
+
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.replace(episodeIDs)
     }
@@ -69,6 +79,7 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
       guard !selectedEpisodes.isEmpty else { return }
+
       let podcastEpisodes = try await selectedPodcastEpisodes
       if let firstPodcastEpisode = podcastEpisodes.first {
         try await playManager.load(firstPodcastEpisode)
@@ -82,15 +93,65 @@ extension SelectableEpisodeList {
   func cacheSelectedEpisodes() {
     Task { [weak self] in
       guard let self else { return }
-      guard !selectedEpisodes.isEmpty else { return }
-      try await withThrowingTaskGroup(of: Void.self) { group in
-        for podcastEpisode in try await selectedPodcastEpisodes {
-          group.addTask {
-            try await Container.shared.cacheManager().downloadToCache(for: podcastEpisode.id)
+      guard anySelectedNotCached else { return }
+
+      do {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+          for episodeID in try await selectedPodcastEpisodeIDs {
+            group.addTask {
+              try await Container.shared.cacheManager().downloadToCache(for: episodeID)
+            }
           }
         }
+      } catch {
+        log.error(error)
       }
     }
+  }
+
+  func uncacheSelectedEpisodes() {
+    Task { [weak self] in
+      guard let self else { return }
+      guard anySelectedCached else { return }
+
+      do {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+          for episodeID in try await selectedPodcastEpisodeIDs {
+            group.addTask {
+              try await Container.shared.cacheManager().clearCache(for: episodeID)
+            }
+          }
+        }
+      } catch {
+        log.error(error)
+      }
+    }
+  }
+
+  func markSelectedEpisodesCompleted() {
+    Task { [weak self] in
+      guard let self else { return }
+      guard anySelectedUnCompleted else { return }
+
+      do {
+        let episodeIDs = try await selectedPodcastEpisodeIDs
+        try await repo.markCompleted(episodeIDs)
+      } catch {
+        log.error(error)
+      }
+    }
+  }
+
+  var anySelectedNotCached: Bool {
+    selectedEpisodes.contains { !$0.cached }
+  }
+
+  var anySelectedCached: Bool {
+    selectedEpisodes.contains { $0.cached }
+  }
+
+  var anySelectedUnCompleted: Bool {
+    selectedEpisodes.contains { !$0.completed }
   }
 }
 

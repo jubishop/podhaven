@@ -431,7 +431,7 @@ final class PlayManager {
     await clearOnDeck()
 
     do {
-      try await repo.markComplete(episodeID)
+      try await repo.markCompleted(episodeID)
     } catch {
       Self.log.error(error)
     }
