@@ -38,36 +38,10 @@ struct DisplayableEpisode:
 
   func hash(into hasher: inout Hasher) {
     hasher.combine(mediaGUID)
-    hasher.combine(title)
-    hasher.combine(pubDate)
-    hasher.combine(duration)
-    hasher.combine(currentTime)
-    hasher.combine(image)
-    hasher.combine(cached)
-    hasher.combine(caching)
-    hasher.combine(description)
-    hasher.combine(podcastTitle)
-    hasher.combine(started)
-    hasher.combine(completed)
-    hasher.combine(queued)
-    hasher.combine(queueOrder)
   }
 
   static func == (lhs: DisplayableEpisode, rhs: DisplayableEpisode) -> Bool {
     lhs.mediaGUID == rhs.mediaGUID
-      && lhs.title == rhs.title
-      && lhs.pubDate == rhs.pubDate
-      && lhs.duration == rhs.duration
-      && lhs.currentTime == rhs.currentTime
-      && lhs.image == rhs.image
-      && lhs.cached == rhs.cached
-      && lhs.caching == rhs.caching
-      && lhs.description == rhs.description
-      && lhs.podcastTitle == rhs.podcastTitle
-      && lhs.started == rhs.started
-      && lhs.completed == rhs.completed
-      && lhs.queued == rhs.queued
-      && lhs.queueOrder == rhs.queueOrder
   }
 
   // MARK: - Stringable
