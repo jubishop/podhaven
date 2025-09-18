@@ -12,6 +12,7 @@ import Logging
   func removeEpisodeFromQueue(_ episode: any EpisodeDisplayable)
   func cacheEpisode(_ episode: any EpisodeDisplayable)
   func uncacheEpisode(_ episode: any EpisodeDisplayable)
+  func showPodcast(_ episode: any EpisodeDisplayable)
 
   func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool
 
@@ -20,6 +21,7 @@ import Logging
 
 extension ManagingEpisodes {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
+  private var navigation: Navigation { Container.shared.navigation() }
   private var playManager: PlayManager { Container.shared.playManager() }
   private var playState: PlayState { Container.shared.playState() }
   private var queue: any Queueing { Container.shared.queue() }
@@ -93,6 +95,17 @@ extension ManagingEpisodes {
       do {
         let episodeID = try await getEpisodeID(episode)
         try await cacheManager.clearCache(for: episodeID)
+      } catch {
+        log.error(error)
+      }
+    }
+  }
+
+  func showPodcast(_ episode: any EpisodeDisplayable) {
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await navigation.showPodcast(getOrCreatePodcastEpisode(episode).podcast)
       } catch {
         log.error(error)
       }

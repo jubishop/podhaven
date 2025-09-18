@@ -71,11 +71,4 @@ class EpisodesListViewModel:
       alert(ErrorKit.coreMessage(for: error))
     }
   }
-
-  // MARK: - Navigation Actions
-
-  func showPodcast(for episode: PodcastEpisode) {
-    Self.log.debug("Showing podcast for episode: \(episode.toString)")
-    navigation.showPodcast(episode.podcast)
-  }
 }

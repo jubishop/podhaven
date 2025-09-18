@@ -12,7 +12,7 @@ struct UpNextView: View {
   var body: some View {
     IdentifiableNavigationStack(manager: navigation.upNext) {
       List {
-        ForEach(viewModel.podcastEpisodes) { podcastEpisode in
+        ForEach(viewModel.episodeList.filteredEntries) { podcastEpisode in
           NavigationLink(
             value: Navigation.Destination.upNextEpisode(podcastEpisode),
             label: {
@@ -32,7 +32,7 @@ struct UpNextView: View {
       .refreshable { viewModel.refreshQueue() }
       .navigationTitle("Up Next")
       .environment(\.editMode, $viewModel.editMode)
-      .animation(.default, value: viewModel.podcastEpisodes)
+      .animation(.default, value: viewModel.episodeList.filteredEntries)
       .upNextToolbar(viewModel: viewModel)
     }
     .task(viewModel.execute)

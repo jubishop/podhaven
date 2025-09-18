@@ -25,7 +25,6 @@ import SwiftUI
   var isEditing: Bool { editMode == .active }
 
   var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
-  var podcastEpisodes: IdentifiedArray<Episode.ID, PodcastEpisode> { episodeList.allEntries }
 
   enum SortMethod: String, CaseIterable {
     case oldestFirst = "Oldest First"
@@ -62,7 +61,7 @@ import SwiftUI
         Self.log.debug(
           """
           Updating observed episodes:
-            \(podcastEpisodes.map(\.toString).joined(separator: "\n  "))
+            \(episodeList.filteredEntries.map(\.toString).joined(separator: "\n  "))
           """
         )
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
@@ -75,7 +74,7 @@ import SwiftUI
   // MARK: - Derived State
 
   var totalQueueDuration: CMTime {
-    podcastEpisodes.reduce(CMTime.zero) { total, podcastEpisode in
+    episodeList.filteredEntries.reduce(CMTime.zero) { total, podcastEpisode in
       total + podcastEpisode.episode.duration
     }
   }
@@ -89,7 +88,7 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        try await queue.insert(podcastEpisodes[from].episode.id, at: to)
+        try await queue.insert(episodeList.filteredEntries[from].episode.id, at: to)
       } catch {
         Self.log.error(error)
       }
@@ -99,7 +98,7 @@ import SwiftUI
   func refreshQueue() {
     Self.log.debug("refreshQueue: downloading and caching uncached episodes")
 
-    let uncachedEpisodes = podcastEpisodes.filter { podcastEpisode in
+    let uncachedEpisodes = episodeList.filteredEntries.filter { podcastEpisode in
       !podcastEpisode.episode.cached
     }
     guard !uncachedEpisodes.isEmpty else { return }
@@ -129,7 +128,7 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        let sortedEpisodes = podcastEpisodes.sorted(by: Self.sortMethod(for: method))
+        let sortedEpisodes = episodeList.filteredEntries.sorted(by: Self.sortMethod(for: method))
         try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
       } catch {
         Self.log.error(error)
@@ -148,13 +147,5 @@ import SwiftUI
         Self.log.error(error)
       }
     }
-  }
-
-  // MARK: - Individual Item Actions
-
-  // TODO: Merge this with other ManagingEpisodes models
-  func showPodcast(_ podcastEpisode: PodcastEpisode) {
-    Self.log.debug("Showing podcast for episode: \(podcastEpisode.toString)")
-    navigation.showPodcast(podcastEpisode.podcast)
   }
 }

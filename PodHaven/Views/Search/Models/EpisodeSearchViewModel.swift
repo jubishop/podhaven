@@ -130,13 +130,6 @@ final class EpisodeSearchViewModel: ManagingEpisodes {
     }
   }
 
-  // MARK: - Navigation Actions
-
-  func showPodcast(for episode: PodcastEpisode) {
-    Self.log.debug("Showing podcast for episode: \(episode.toString)")
-    navigation.showPodcast(episode.podcast)
-  }
-
   // MARK: - Cleanup
 
   func disappear() {

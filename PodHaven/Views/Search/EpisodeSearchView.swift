@@ -90,7 +90,7 @@ struct EpisodeSearchView: View {
       .episodeSwipeActions(viewModel: viewModel, episode: episode)
       .episodeContextMenu(viewModel: viewModel, episode: episode) {
         if let podcastEpisode = episode as? PodcastEpisode {
-          Button(action: { viewModel.showPodcast(for: podcastEpisode) }) {
+          Button(action: { viewModel.showPodcast(podcastEpisode) }) {
             AppLabel.showPodcast.label
           }
         }
