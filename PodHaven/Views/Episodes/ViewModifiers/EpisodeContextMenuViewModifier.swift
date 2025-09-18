@@ -26,8 +26,24 @@ struct EpisodeContextMenuViewModifier<
           AppLabel.queueAtBottom.label
         }
 
-        Button(action: { viewModel.cacheEpisode(episode) }) {
-          AppLabel.cacheEpisode.label
+        if episode.caching {
+          Button(
+            role: .destructive,
+            action: { viewModel.uncacheEpisode(episode) }
+          ) {
+            AppLabel.cancelEpisodeDownload.label
+          }
+        } else if episode.cached {
+          Button(
+            role: .destructive,
+            action: { viewModel.uncacheEpisode(episode) }
+          ) {
+            AppLabel.uncacheEpisode.label
+          }
+        } else {
+          Button(action: { viewModel.cacheEpisode(episode) }) {
+            AppLabel.cacheEpisode.label
+          }
         }
 
         additionalContent()
