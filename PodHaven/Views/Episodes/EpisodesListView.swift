@@ -35,9 +35,10 @@ struct EpisodesListView: View {
       .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
       .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode) {
-        Button(action: { viewModel.showPodcast(podcastEpisode) }) {
-          AppLabel.showPodcast.label
-        }
+        Button(
+          action: { viewModel.showPodcast(podcastEpisode) },
+          label: { AppLabel.showPodcast.label }
+        )
       }
     }
     .animation(.default, value: viewModel.episodeList.filteredEntries)
