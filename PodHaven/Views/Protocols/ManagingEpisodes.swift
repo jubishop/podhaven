@@ -12,7 +12,7 @@ import Logging
   func removeEpisodeFromQueue(_ episode: any EpisodeDisplayable)
   func cacheEpisode(_ episode: any EpisodeDisplayable)
   func uncacheEpisode(_ episode: any EpisodeDisplayable)
-  func markEpisodeCompleted(_ episode: any EpisodeDisplayable)
+  func markEpisodeFinished(_ episode: any EpisodeDisplayable)
   func showPodcast(_ episode: any EpisodeDisplayable)
 
   func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool
@@ -104,13 +104,13 @@ extension ManagingEpisodes {
     }
   }
 
-  func markEpisodeCompleted(_ episode: any EpisodeDisplayable) {
+  func markEpisodeFinished(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
-      guard !episode.completed else { return }
+      guard !episode.finished else { return }
       do {
         let episodeID = try await getEpisodeID(episode)
-        try await repo.markCompleted(episodeID)
+        try await repo.markFinished(episodeID)
       } catch {
         log.error(error)
       }

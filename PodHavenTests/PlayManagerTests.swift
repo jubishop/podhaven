@@ -77,13 +77,13 @@ import Testing
 
     let isEqual: (Any?, Any) -> Bool = { lhs, rhs in
       switch (lhs, rhs) {
-      case let (lhs as String, rhs as String): return lhs == rhs
-      case let (lhs as Double, rhs as Double): return lhs == rhs
-      case let (lhs as UInt, rhs as UInt): return lhs == rhs
-      case let (lhs as Int, rhs as Int): return lhs == rhs
-      case let (lhs as Bool, rhs as Bool): return lhs == rhs
-      case let (lhs as URL, rhs as URL): return lhs == rhs
-      case let (lhs as Date, rhs as Date): return lhs == rhs
+      case (let lhs as String, let rhs as String): return lhs == rhs
+      case (let lhs as Double, let rhs as Double): return lhs == rhs
+      case (let lhs as UInt, let rhs as UInt): return lhs == rhs
+      case (let lhs as Int, let rhs as Int): return lhs == rhs
+      case (let lhs as Bool, let rhs as Bool): return lhs == rhs
+      case (let lhs as URL, let rhs as URL): return lhs == rhs
+      case (let lhs as Date, let rhs as Date): return lhs == rhs
       default: return false
       }
     }
@@ -564,7 +564,7 @@ import Testing
     await playManager.seek(to: successfulSeekTime)
     #expect(!PlayHelpers.hasPeriodicTimeObservation())
 
-    // Our seek completes successfully so time advancement observation is back
+    // Our seek finishes successfully so time advancement observation is back
     seekSemaphore.signal()
     try await PlayHelpers.waitForPeriodicTimeObserver()
     let advancedTime = CMTimeAdd(successfulSeekTime, CMTime.seconds(10))
@@ -775,15 +775,15 @@ import Testing
     try await PlayHelpers.waitFor(.zero)
   }
 
-  @Test("episode is marked complete after playing to end")
-  func episodeIsMarkedCompleteAfterPlayingToEnd() async throws {
+  @Test("episode is marked finished after playing to end")
+  func episodeIsMarkedFinishedAfterPlayingToEnd() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await playManager.load(podcastEpisode)
     try await PlayHelpers.play()
 
     avPlayer.finishEpisode()
-    try await PlayHelpers.waitForCompleted(podcastEpisode)
+    try await PlayHelpers.waitForFinished(podcastEpisode)
   }
 
   // MARK: - Cache Functionality

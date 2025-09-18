@@ -31,11 +31,10 @@ private enum SystemImageName: String, CaseIterable {
 
   // Episode Status
   case downloadEpisode = "arrow.down.circle"
-  case editComplete = "checkmark.circle"
   case episodeCached = "arrow.down.circle.fill"
   case episodeDownloadCancel = "stop.circle"
   case episodeUncached = "tray.and.arrow.up"
-  case episodeCompleted = "checkmark.circle.fill"
+  case episodeFinished = "checkmark.circle.fill"
   case episodeOnDeck = "play.circle"
   case selectionEmpty = "circle"
   case selectionFilled = "record.circle"
@@ -72,6 +71,7 @@ private enum SystemImageName: String, CaseIterable {
   case seekForward = "goforward.30"
 
   // Queue Management
+  case editFinished = "checkmark.circle"
   case episodeQueued = "line.3.horizontal"
   case moveToTop = "arrow.up.to.line"
   case queueBottom = "text.line.last.and.arrowtriangle.forward"
@@ -91,7 +91,7 @@ enum AppLabel: CaseIterable {
   case cancelEpisodeDownload
   case uncacheEpisode
   case moveToTop
-  case markEpisodeCompleted
+  case markEpisodeFinished
   case playEpisode
   case playNow
   case queueAtBottom
@@ -144,9 +144,9 @@ enum AppLabel: CaseIterable {
   case clearSearch
   case downloadEpisode
   case edit
-  case editComplete
+  case editFinished
   case episodeCached
-  case episodeCompleted
+  case episodeFinished
   case episodeOnDeck
   case episodeQueued
   case externalLink
@@ -179,8 +179,8 @@ enum AppLabel: CaseIterable {
     case .uncacheEpisode:
       return (text: "Remove Download", systemImageName: .episodeUncached)
     case .moveToTop: return (text: "Move to Top", systemImageName: .moveToTop)
-    case .markEpisodeCompleted:
-      return (text: "Mark Completed", systemImageName: .episodeCompleted)
+    case .markEpisodeFinished:
+      return (text: "Mark Finished", systemImageName: .episodeFinished)
     case .playEpisode: return (text: "Play Episode", systemImageName: .play)
     case .playNow: return (text: "Play Now", systemImageName: .play)
     case .queueAtBottom: return (text: "Queue at Bottom", systemImageName: .queueBottom)
@@ -233,9 +233,9 @@ enum AppLabel: CaseIterable {
     case .clearSearch: return (text: "Clear Search", systemImageName: .clearSearch)
     case .downloadEpisode: return (text: "Download", systemImageName: .downloadEpisode)
     case .edit: return (text: "Edit", systemImageName: .edit)
-    case .editComplete: return (text: "Done", systemImageName: .editComplete)
+    case .editFinished: return (text: "Done", systemImageName: .editFinished)
     case .episodeCached: return (text: "Cached", systemImageName: .episodeCached)
-    case .episodeCompleted: return (text: "Completed", systemImageName: .episodeCompleted)
+    case .episodeFinished: return (text: "Finished", systemImageName: .episodeFinished)
     case .episodeOnDeck: return (text: "On Deck", systemImageName: .episodeOnDeck)
     case .episodeQueued: return (text: "Queued", systemImageName: .episodeQueued)
     case .externalLink: return (text: "External Link", systemImageName: .externalLink)

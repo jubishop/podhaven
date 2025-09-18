@@ -45,9 +45,9 @@ struct SelectableEpisodesToolbarItems<
             Button("Replace Queue and Play") {
               viewModel.replaceQueueWithSelectedAndPlay()
             }
-            if viewModel.anySelectedUnCompleted {
-              Button("Mark Completed") {
-                viewModel.markSelectedEpisodesCompleted()
+            if viewModel.anySelectedUnfinished {
+              Button("Mark Finished") {
+                viewModel.markSelectedEpisodesFinished()
               }
             }
             if viewModel.anySelectedCaching {

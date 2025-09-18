@@ -42,7 +42,7 @@ struct OPMLImportSheetSection: View {
               AppLabel.downloadEpisode.image
                 .foregroundColor(.blue)
             case .finished:
-              AppLabel.episodeCompleted.image
+              AppLabel.episodeFinished.image
                 .foregroundColor(.green)
             }
           }

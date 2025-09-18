@@ -15,10 +15,10 @@ import Testing
 
   @Test("that showEpisodes sets current tab and appends to episodes path")
   func showEpisodesNavigatesToCorrectTab() async throws {
-    navigation.showEpisodes(.completed)
+    navigation.showEpisodes(.finished)
 
     #expect(navigation.currentTab == .episodes, "Current tab should be episodes")
-    #expect(navigation.episodes.path == [.episodesViewType(.completed)])
+    #expect(navigation.episodes.path == [.episodesViewType(.finished)])
   }
 
   @Test("that showPodcast sets current tab and appends to podcasts path")
@@ -62,7 +62,7 @@ import Testing
 
     // Set up some navigation state
     navigation.showPodcast(podcastEpisode.podcast)
-    navigation.showEpisodes(.completed)
+    navigation.showEpisodes(.finished)
 
     // Verify initial state
     #expect(navigation.currentTab == .episodes, "Current tab should be episodes")

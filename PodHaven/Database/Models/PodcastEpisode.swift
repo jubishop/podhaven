@@ -19,12 +19,9 @@ struct PodcastEpisode:
 {
   var id: Episode.ID { episode.id }
 
-  // MARK: - Stringable
+  // MARK: - Stringable / Searchable
 
   var toString: String { episode.toString }
-
-  // MARK: - Searchable
-
   var searchableString: String { episode.searchableString }
 
   // MARK: - Data
@@ -40,16 +37,16 @@ struct PodcastEpisode:
 
   var mediaGUID: MediaGUID { episode.unsaved.id }
   var title: String { episode.title }
+  var podcastTitle: String { podcast.title }
   var pubDate: Date { episode.pubDate }
   var duration: CMTime { episode.duration }
-  var currentTime: CMTime { episode.currentTime }
   var image: URL { episode.image ?? podcast.image }
+  var description: String? { episode.description }
+  var currentTime: CMTime { episode.currentTime }
   var cached: Bool { episode.cached }
   var caching: Bool { episode.caching }
   var started: Bool { episode.started }
-  var completed: Bool { episode.completed }
+  var finished: Bool { episode.finished }
   var queued: Bool { episode.queued }
   var queueOrder: Int? { episode.queueOrder }
-  var description: String? { episode.description }
-  var podcastTitle: String { podcast.title }
 }

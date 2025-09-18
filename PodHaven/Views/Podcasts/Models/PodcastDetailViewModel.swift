@@ -37,7 +37,7 @@ class PodcastDetailViewModel:
       case .unstarted:
         return { !$0.started }
       case .unfinished:
-        return { !$0.completed }
+        return { !$0.finished }
       case .unqueued:
         return { !$0.queued }
       }

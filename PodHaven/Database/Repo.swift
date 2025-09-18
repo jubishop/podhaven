@@ -359,8 +359,8 @@ struct Repo: Databasing, Sendable {
   }
 
   @discardableResult
-  func markCompleted(_ episodeIDs: [Episode.ID]) async throws -> Int {
-    Self.log.debug("markCompleted: \(episodeIDs)")
+  func markFinished(_ episodeIDs: [Episode.ID]) async throws -> Int {
+    Self.log.debug("markFinished: \(episodeIDs)")
 
     guard !episodeIDs.isEmpty else { return 0 }
 
@@ -376,8 +376,8 @@ struct Repo: Databasing, Sendable {
   }
 
   @discardableResult
-  func markCompleted(_ episodeID: Episode.ID) async throws -> Bool {
-    try await markCompleted([episodeID]) > 0
+  func markFinished(_ episodeID: Episode.ID) async throws -> Bool {
+    try await markFinished([episodeID]) > 0
   }
 
   @discardableResult

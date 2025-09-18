@@ -106,8 +106,8 @@ actor ObservatoryTests {
     #expect(queuedEpisodeIDs == Set(queuedEpisodes.map(\.id)))
   }
 
-  @Test("podcastEpisodes(Episode.completed, Episode.Columns.completionDate.desc)")
-  func testCompletedPodcastEpisodes() async throws {
+  @Test("podcastEpisodes(Episode.finished, Episode.Columns.completionDate.desc)")
+  func testFinishedPodcastEpisodes() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     try await repo.insertSeries(
       unsavedPodcast,
@@ -117,30 +117,30 @@ actor ObservatoryTests {
           pubDate: 15.minutesAgo,
           completionDate: 5.minutesAgo
         ),
-        Create.unsavedEpisode(guid: "topUncompleted"),
+        Create.unsavedEpisode(guid: "topUnfinished"),
         Create.unsavedEpisode(
           guid: "bottom",
           pubDate: 1.minutesAgo,
           completionDate: 15.minutesAgo
         ),
-        Create.unsavedEpisode(guid: "bottomUncompleted"),
+        Create.unsavedEpisode(guid: "bottomUnfinished"),
         Create.unsavedEpisode(
           guid: "middle",
           pubDate: 25.minutesAgo,
           completionDate: 10.minutesAgo
         ),
-        Create.unsavedEpisode(guid: "middleUncompleted"),
+        Create.unsavedEpisode(guid: "middleUnfinished"),
       ]
     )
 
-    let completedEpisodes =
+    let finishedEpisodes =
       try await observatory.podcastEpisodes(
-        filter: Episode.completed,
+        filter: Episode.finished,
         order: Episode.Columns.completionDate.desc
       )
       .get()
-    #expect(completedEpisodes.count == 3)
-    #expect(completedEpisodes.map(\.episode.guid) == ["top", "middle", "bottom"])
+    #expect(finishedEpisodes.count == 3)
+    #expect(finishedEpisodes.map(\.episode.guid) == ["top", "middle", "bottom"])
   }
 
   @Test("queuedPodcastEpisodes AsyncSequence receives all updates")

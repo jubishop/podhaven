@@ -154,7 +154,7 @@ struct Queue: Queueing {
     guard episodeIDs.count > 1 else { return }
 
     try await appDB.db.write { db in
-      // Verify we're reordering the complete queue
+      // Verify we're reordering the entire queue
       let maxQueueOrder =
         try Episode
         .select(max(Episode.Columns.queueOrder), as: Int.self)
@@ -238,7 +238,7 @@ struct Queue: Queueing {
 
     let oldPosition = try _fetchOldPosition(db, for: episodeID) ?? Int.max
     let computedNewPosition = newPosition > oldPosition ? newPosition - 1 : newPosition
-    try _move (db, episodeID, from: oldPosition, to: computedNewPosition)
+    try _move(db, episodeID, from: oldPosition, to: computedNewPosition)
     try _setToPosition(db, episodeID: episodeID, position: computedNewPosition)
   }
 

@@ -7,18 +7,18 @@ protocol EpisodeDisplayable: Gridable, Identifiable, Searchable, Sendable, Strin
   var episodeID: Episode.ID? { get }
   var mediaGUID: MediaGUID { get }
   var title: String { get }
+  var podcastTitle: String { get }
   var pubDate: Date { get }
   var duration: CMTime { get }
-  var currentTime: CMTime { get }
   var image: URL { get }
-  var cached: Bool { get }
-  var caching: Bool { get }
   var description: String? { get }
-  var podcastTitle: String { get }
-  var started: Bool { get }
-  var completed: Bool { get }
   var queued: Bool { get }
   var queueOrder: Int? { get }
+  var caching: Bool { get }
+  var cached: Bool { get }
+  var started: Bool { get }
+  var currentTime: CMTime { get }
+  var finished: Bool { get }
 }
 
 extension EpisodeDisplayable {

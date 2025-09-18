@@ -24,23 +24,20 @@ struct UnsavedPodcastEpisode:
   let unsavedPodcast: UnsavedPodcast
   let unsavedEpisode: UnsavedEpisode
 
-  // MARK: - Convenience Getters
-
-  var image: URL { unsavedEpisode.image ?? unsavedPodcast.image }
-
   // MARK: - EpisodeDisplayable
 
   var mediaGUID: MediaGUID { unsavedEpisode.id }
   var title: String { unsavedEpisode.title }
+  var podcastTitle: String { unsavedPodcast.title }
   var pubDate: Date { unsavedEpisode.pubDate }
   var duration: CMTime { unsavedEpisode.duration }
-  var currentTime: CMTime { unsavedEpisode.currentTime }
-  var cached: Bool { unsavedEpisode.cached }
-  var caching: Bool { unsavedEpisode.caching }
-  var started: Bool { unsavedEpisode.started }
-  var completed: Bool { unsavedEpisode.completed }
+  var image: URL { unsavedEpisode.image ?? unsavedPodcast.image }
+  var description: String? { unsavedEpisode.description }
   var queued: Bool { unsavedEpisode.queued }
   var queueOrder: Int? { unsavedEpisode.queueOrder }
-  var description: String? { unsavedEpisode.description }
-  var podcastTitle: String { unsavedPodcast.title }
+  var caching: Bool { unsavedEpisode.caching }
+  var cached: Bool { unsavedEpisode.cached }
+  var started: Bool { unsavedEpisode.started }
+  var currentTime: CMTime { unsavedEpisode.currentTime }
+  var finished: Bool { unsavedEpisode.finished }
 }

@@ -29,7 +29,7 @@ import SwiftUI
   enum SortMethod: String, CaseIterable {
     case oldestFirst = "Oldest First"
     case newestFirst = "Newest First"
-    case mostCompleted = "Most Completed"
+    case mostFinished = "Most Finished"
   }
   let allSortMethods = SortMethod.allCases
 
@@ -41,9 +41,9 @@ import SwiftUI
       return { lhs, rhs in lhs.episode.pubDate < rhs.episode.pubDate }
     case .newestFirst:
       return { lhs, rhs in lhs.episode.pubDate > rhs.episode.pubDate }
-    case .mostCompleted:
+    case .mostFinished:
       return { lhs, rhs in
-        // Primary sort: most completed first (highest currentTime)
+        // Primary sort: most finished first (highest currentTime)
         if lhs.episode.currentTime.seconds != rhs.episode.currentTime.seconds {
           return lhs.episode.currentTime.seconds > rhs.episode.currentTime.seconds
         }

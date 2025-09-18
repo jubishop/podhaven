@@ -161,15 +161,15 @@ enum PlayHelpers {
     )
   }
 
-  static func waitForCompleted(_ podcastEpisode: PodcastEpisode) async throws {
+  static func waitForFinished(_ podcastEpisode: PodcastEpisode) async throws {
     try await Wait.until(
       {
         guard let fetchedEpisode: Episode = try await repo.episode(podcastEpisode.id)
         else { return false }
 
-        return fetchedEpisode.completed
+        return fetchedEpisode.finished
       },
-      { "Expected \(podcastEpisode.toString) to become completed" }
+      { "Expected \(podcastEpisode.toString) to become finished" }
     )
   }
 
@@ -229,7 +229,7 @@ enum PlayHelpers {
   }
 
   static func executeMidSeek(
-    completed: Bool = true,
+    finished: Bool = true,
     _ block: @escaping @Sendable () async throws -> Void
   ) async throws {
     let seekSemaphoreBegun = AsyncSemaphore(value: 0)
@@ -237,7 +237,7 @@ enum PlayHelpers {
     avPlayer.seekHandler = { _ in
       seekSemaphoreBegun.signal()
       await finishSeekingSemaphore.wait()
-      return completed
+      return finished
     }
     Task {
       await seekSemaphoreBegun.wait()

@@ -78,7 +78,7 @@ extension Container {
   }
 
   enum EpisodesViewType {
-    case recentEpisodes, completed, unqueued, cached, unfinished, previouslyQueued
+    case recentEpisodes, finished, unqueued, cached, unfinished, previouslyQueued
   }
 
   enum PodcastsViewType {
@@ -130,7 +130,7 @@ extension Container {
         EpisodesListView(
           viewModel: EpisodesListViewModel(
             title: "Unqueued",
-            filter: Episode.uncompleted && Episode.unqueued
+            filter: Episode.unfinished && Episode.unqueued
           )
         )
         .id("unqueued")
@@ -142,20 +142,20 @@ extension Container {
           )
         )
         .id("cached")
-      case .completed:
+      case .finished:
         EpisodesListView(
           viewModel: EpisodesListViewModel(
-            title: "Completed",
-            filter: Episode.completed,
+            title: "Finished",
+            filter: Episode.finished,
             order: Episode.Columns.completionDate.desc
           )
         )
-        .id("completed")
+        .id("finished")
       case .unfinished:
         EpisodesListView(
           viewModel: EpisodesListViewModel(
             title: "Unfinished",
-            filter: Episode.started && Episode.uncompleted
+            filter: Episode.started && Episode.unfinished
           )
         )
         .id("unfinished")
@@ -163,7 +163,7 @@ extension Container {
         EpisodesListView(
           viewModel: EpisodesListViewModel(
             title: "Previously Queued",
-            filter: Episode.previouslyQueued && Episode.unqueued && Episode.uncompleted,
+            filter: Episode.previouslyQueued && Episode.unqueued && Episode.unfinished,
             order: Episode.Columns.lastQueued.desc
           )
         )

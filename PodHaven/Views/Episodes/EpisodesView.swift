@@ -23,8 +23,8 @@ struct EpisodesView: View {
           label: { Text("Cached") }
         )
         NavigationLink(
-          value: Navigation.Destination.episodesViewType(.completed),
-          label: { Text("Completed") }
+          value: Navigation.Destination.episodesViewType(.finished),
+          label: { Text("Finished") }
         )
         NavigationLink(
           value: Navigation.Destination.episodesViewType(.unfinished),

@@ -431,7 +431,7 @@ final class PlayManager {
     await clearOnDeck()
 
     do {
-      try await repo.markCompleted(episodeID)
+      try await repo.markFinished(episodeID)
     } catch {
       Self.log.error(error)
     }
@@ -504,7 +504,7 @@ final class PlayManager {
           await play()
         }
 
-        Self.log.info("handleMediaServicesReset: recovery completed successfully")
+        Self.log.info("handleMediaServicesReset: recovery finished successfully")
 
       } catch {
         Self.log.error(error)

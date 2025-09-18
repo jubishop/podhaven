@@ -24,12 +24,12 @@ import Logging
   func cacheSelectedEpisodes()
   func uncacheSelectedEpisodes()
   func cancelSelectedEpisodeDownloads()
-  func markSelectedEpisodesCompleted()
+  func markSelectedEpisodesFinished()
 
   var anySelectedNotCached: Bool { get }
   var anySelectedCached: Bool { get }
   var anySelectedCaching: Bool { get }
-  var anySelectedUnCompleted: Bool { get }
+  var anySelectedUnfinished: Bool { get }
 }
 
 extension SelectableEpisodeList {
@@ -114,7 +114,7 @@ extension SelectableEpisodeList {
 
       let cachedEpisodeIDs =
         try await selectedPodcastEpisodes
-        .filter(\.episode.cached
+        .filter(\.episode.cached)
         .map(\.id)
 
       await withThrowingTaskGroup(of: Void.self) { group in
@@ -147,13 +147,13 @@ extension SelectableEpisodeList {
     }
   }
 
-  func markSelectedEpisodesCompleted() {
+  func markSelectedEpisodesFinished() {
     Task { [weak self] in
       guard let self else { return }
-      guard anySelectedUnCompleted else { return }
+      guard anySelectedUnfinished else { return }
 
       let episodeIDs = try await selectedPodcastEpisodeIDs
-      try await repo.markCompleted(episodeIDs)
+      try await repo.markFinished(episodeIDs)
     }
   }
 
@@ -169,8 +169,8 @@ extension SelectableEpisodeList {
     selectedEpisodes.contains { $0.caching }
   }
 
-  var anySelectedUnCompleted: Bool {
-    selectedEpisodes.contains { !$0.completed }
+  var anySelectedUnfinished: Bool {
+    selectedEpisodes.contains { !$0.finished }
   }
 }
 

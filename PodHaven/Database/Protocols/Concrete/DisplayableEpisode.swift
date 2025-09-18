@@ -62,12 +62,9 @@ struct DisplayableEpisode:
     return false  // Different concrete types are not equal
   }
 
-  // MARK: - Stringable
+  // MARK: - Stringable / Searchable
 
   var toString: String { episode.toString }
-
-  // MARK: - Searchable
-
   var searchableString: String { episode.searchableString }
 
   // MARK: - EpisodeDisplayable
@@ -75,18 +72,18 @@ struct DisplayableEpisode:
   var episodeID: Episode.ID? { episode.episodeID }
   var mediaGUID: MediaGUID { episode.mediaGUID }
   var title: String { episode.title }
+  var podcastTitle: String { episode.podcastTitle }
   var pubDate: Date { episode.pubDate }
   var duration: CMTime { episode.duration }
-  var currentTime: CMTime { episode.currentTime }
   var image: URL { episode.image }
-  var cached: Bool { episode.cached }
-  var caching: Bool { episode.caching }
   var description: String? { episode.description }
-  var podcastTitle: String { episode.podcastTitle }
-  var started: Bool { episode.started }
-  var completed: Bool { episode.completed }
   var queued: Bool { episode.queued }
   var queueOrder: Int? { episode.queueOrder }
+  var caching: Bool { episode.caching }
+  var cached: Bool { episode.cached }
+  var started: Bool { episode.started }
+  var currentTime: CMTime { episode.currentTime }
+  var finished: Bool { episode.finished }
 
   // MARK: - Helpers
 

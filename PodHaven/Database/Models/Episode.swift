@@ -91,14 +91,11 @@ struct UnsavedEpisode:
 
   // MARK: - EpisodeDisplayable
 
-  var cached: Bool { self.cachedFilename != nil }
-  var caching: Bool { self.downloadTaskID != nil }
-  var completed: Bool { self.completionDate != nil }
-
-  // MARK: - State Getters
-
   var queued: Bool { self.queueOrder != nil }
+  var caching: Bool { self.downloadTaskID != nil }
+  var cached: Bool { self.cachedFilename != nil }
   var started: Bool { self.currentTime.seconds > 0 }
+  var finished: Bool { self.completionDate != nil }
 
   // MARK: - Derived Data
 
@@ -126,8 +123,8 @@ struct Episode: Saved, RSSUpdatable {
   static let queued: SQLExpression = Episode.Columns.queueOrder != nil
   static let unqueued: SQLExpression = Episode.Columns.queueOrder == nil
   static let cached: SQLExpression = Episode.Columns.cachedFilename != nil
-  static let completed: SQLExpression = Episode.Columns.completionDate != nil
-  static let uncompleted: SQLExpression = Episode.Columns.completionDate == nil
+  static let finished: SQLExpression = Episode.Columns.completionDate != nil
+  static let unfinished: SQLExpression = Episode.Columns.completionDate == nil
   static let unstarted: SQLExpression = Episode.Columns.currentTime == 0
   static let started: SQLExpression = Episode.Columns.currentTime > 0
   static let previouslyQueued: SQLExpression = Episode.Columns.lastQueued != nil
@@ -202,12 +199,12 @@ extension DerivableRequest<Episode> {
     filter(Episode.unqueued)
   }
 
-  func completed() -> Self {
-    filter(Episode.completed)
+  func finished() -> Self {
+    filter(Episode.finished)
   }
 
-  func uncompleted() -> Self {
-    filter(Episode.uncompleted)
+  func unfinished() -> Self {
+    filter(Episode.unfinished)
   }
 
   func started() -> Self {

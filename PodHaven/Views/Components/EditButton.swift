@@ -75,7 +75,7 @@ struct EditButton<Label: View>: View {
       },
       label: { isEditing in
         HStack {
-          (isEditing ? AppLabel.editComplete : AppLabel.edit).image
+          (isEditing ? AppLabel.editFinished : AppLabel.edit).image
           Text(isEditing ? "Done Editing" : "Edit Mode")
         }
       }

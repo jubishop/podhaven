@@ -57,10 +57,10 @@ struct EpisodeContextMenuViewModifier<
           .tint(.purple)
         }
 
-        if !episode.completed {
+        if !episode.finished {
           Button(
-            action: { viewModel.markEpisodeCompleted(episode) },
-            label: { AppLabel.markEpisodeCompleted.label }
+            action: { viewModel.markEpisodeFinished(episode) },
+            label: { AppLabel.markEpisodeFinished.label }
           )
           .tint(.mint)
         }

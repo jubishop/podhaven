@@ -174,17 +174,17 @@ enum PreviewHelpers {
     }
   }
 
-  static func populateCompletedPodcastEpisodes(listSize: Int = 20) async throws {
+  static func populateFinishedPodcastEpisodes(listSize: Int = 20) async throws {
     let repo = Container.shared.repo()
     var currentSize = try await repo.db.read { db in
-      try Episode.all().completed().fetchCount(db)
+      try Episode.all().finished().fetchCount(db)
     }
     if currentSize >= listSize { return }
 
     for episode in (try await loadAllSeries()).flatMap({ $0.episodes }) {
       if currentSize >= listSize { break }
-      if !episode.completed {
-        try await repo.markCompleted(episode.id)
+      if !episode.finished {
+        try await repo.markFinished(episode.id)
         currentSize += 1
       }
     }

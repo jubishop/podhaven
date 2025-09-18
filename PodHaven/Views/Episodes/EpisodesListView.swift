@@ -58,10 +58,10 @@ struct EpisodesListView: View {
 #Preview {
   NavigationStack {
     EpisodesListView(
-      viewModel: EpisodesListViewModel(title: "Completed", filter: Episode.completed)
+      viewModel: EpisodesListViewModel(title: "Finished", filter: Episode.finished)
     )
   }
   .preview()
-  .task { try? await PreviewHelpers.populateCompletedPodcastEpisodes() }
+  .task { try? await PreviewHelpers.populateFinishedPodcastEpisodes() }
 }
 #endif

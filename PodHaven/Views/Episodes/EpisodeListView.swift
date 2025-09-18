@@ -82,9 +82,9 @@ struct EpisodeListView: View {
           .opacity(episode.cached ? 1 : 0)
       }
 
-      AppLabel.episodeCompleted.image
+      AppLabel.episodeFinished.image
         .foregroundColor(.blue)
-        .opacity(episode.completed ? 1 : 0)
+        .opacity(episode.finished ? 1 : 0)
     }
     .font(.system(size: statusIconSize))
   }
@@ -220,7 +220,7 @@ struct EpisodeListView: View {
             image: Array(imageMapping.values)[2]
           ),
           unsavedEpisode: try Create.unsavedEpisode(
-            title: "3. Completed Episode (blue checkmark) - SELECTED",
+            title: "3. Finished Episode (blue checkmark) - SELECTED",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 3),
             image: Array(imageMapping.values)[5],  // Episode-specific image
             completionDate: Date().addingTimeInterval(-3600 * 12)
@@ -229,7 +229,7 @@ struct EpisodeListView: View {
         UnsavedPodcastEpisode(
           unsavedPodcast: basePodcast,
           unsavedEpisode: try Create.unsavedEpisode(
-            title: "4. Started + Completed - SELECTED",
+            title: "4. Started + Finished - SELECTED",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 4),
             image: Array(imageMapping.values)[4],  // Changelog Interviews image
             completionDate: Date().addingTimeInterval(-3600 * 6),
@@ -280,7 +280,7 @@ struct EpisodeListView: View {
             image: Array(imageMapping.values)[1]
           ),
           unsavedEpisode: try Create.unsavedEpisode(
-            title: "8. Queued + Completed",
+            title: "8. Queued + Finished",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 8),
             image: Array(imageMapping.values)[3],  // Pod Save America episode image
             completionDate: Date().addingTimeInterval(-3600 * 3),
@@ -322,11 +322,11 @@ struct EpisodeListView: View {
             image: Array(imageMapping.values)[2]
           ),
           unsavedEpisode: try Create.unsavedEpisode(
-            title: "11. Cached + Completed",
+            title: "11. Cached + Finished",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 11),
             image: Array(imageMapping.values)[5],  // This American Life episode
             completionDate: Date().addingTimeInterval(-3600 * 8),
-            cachedFilename: "cached_completed.mp3"
+            cachedFilename: "cached_finished.mp3"
           )
         ),
         UnsavedPodcastEpisode(
@@ -426,12 +426,12 @@ struct EpisodeListView: View {
             image: Array(imageMapping.values)[1]
           ),
           unsavedEpisode: try Create.unsavedEpisode(
-            title: "17. Top Queue + Cached + Completed",
+            title: "17. Top Queue + Cached + Finished",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 17),
             image: Array(imageMapping.values)[3],  // Pod Save America episode
             completionDate: Date().addingTimeInterval(-3600 * 2),
             queueOrder: 0,
-            cachedFilename: "top_queue_complete.mp3"
+            cachedFilename: "top_queue_finished.mp3"
           )
         ),
         UnsavedPodcastEpisode(
@@ -469,8 +469,8 @@ struct EpisodeListView: View {
 
       selectedStates = Array(repeating: false, count: episodes.count)
       // Set some episodes as selected for demonstration
-      selectedStates[2] = true  // Completed episode
-      selectedStates[3] = true  // Started + completed
+      selectedStates[2] = true  // Finished episode
+      selectedStates[3] = true  // Started + finished
       selectedStates[15] = true  // Everything episode
       selectedStates[18] = true  // Long title episode
 
