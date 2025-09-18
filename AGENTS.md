@@ -1,7 +1,3 @@
-# WARP.md
-
-This file provides guidance to WARP (warp.dev) when working with code in this repository.
-
 ## GIT
 
 - **IMPORTANT: Unless explicitly asked don't git commit or push any changes.**
