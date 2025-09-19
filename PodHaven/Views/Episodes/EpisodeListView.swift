@@ -141,13 +141,13 @@ struct EpisodeListView: View {
 
 #if DEBUG
 #Preview("All Episode Status Icons & States") {
-  @Previewable @State var DisplayedEpisodes: [any EpisodeDisplayable] = []
+  @Previewable @State var displayedEpisodes: [any EpisodeDisplayable] = []
   @Previewable @State var selectedStates: [Bool] = []
   @Previewable @State var isSelected: Bool = false
 
   NavigationStack {
     List {
-      ForEach(Array(DisplayedEpisodes.enumerated()), id: \.element.mediaGUID) { index, episode in
+      ForEach(Array(displayedEpisodes.enumerated()), id: \.element.mediaGUID) { index, episode in
         NavigationLink {
         } label: {
           EpisodeListView(
@@ -465,7 +465,7 @@ struct EpisodeListView: View {
         ),
       ])
 
-      DisplayedEpisodes = episodes
+      displayedEpisodes = episodes
 
       selectedStates = Array(repeating: false, count: episodes.count)
       // Set some episodes as selected for demonstration
