@@ -23,7 +23,7 @@ struct PreviewModifier: ViewModifier {
       .customAlert($alert.config)
       .customSheet($sheet.config)
       .task {
-        guard Function.neverCalled("previewBody") else { return }
+        guard Function.neverCalled("previewTask") else { return }
 
         await playManager.start()
       }
