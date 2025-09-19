@@ -19,7 +19,3 @@ protocol EpisodeDisplayable: EpisodeInformable, Gridable, Identifiable, Searchab
   var currentTime: CMTime { get }
   var finished: Bool { get }
 }
-
-extension EpisodeDisplayable {
-  var episodeID: Episode.ID? { id as? Episode.ID }
-}

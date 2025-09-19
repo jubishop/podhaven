@@ -73,9 +73,9 @@ extension Container {
   func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> PodcastEpisode {
     Self.log.debug("load: \(podcastEpisode.toString)")
 
-    self.episodeID = nil
+    episodeID = nil
     let (podcastEpisode, playableItem) = try await loadAsset(for: podcastEpisode)
-    self.episodeID = podcastEpisode.id
+    episodeID = podcastEpisode.id
     avPlayer.replaceCurrent(with: playableItem)
 
     return podcastEpisode
