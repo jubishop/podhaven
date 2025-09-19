@@ -14,7 +14,7 @@ protocol EpisodeDisplayable: Gridable, Identifiable, Searchable, Sendable, Strin
   var description: String? { get }
   var queued: Bool { get }
   var queueOrder: Int? { get }
-  var cacheStatus: CacheStatus { get }
+  var cacheStatus: Episode.CacheStatus { get }
   var started: Bool { get }
   var currentTime: CMTime { get }
   var finished: Bool { get }

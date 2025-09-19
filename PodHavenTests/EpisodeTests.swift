@@ -628,7 +628,7 @@ class EpisodeTests {
       unsavedEpisodes: [episode1, episode2, Create.unsavedEpisode()]
     )
     let podcast = series.podcast
-    let episodes = Array(series.episodes.filter { $0.cached })
+    let episodes = Array(series.episodes.filter { $0.cacheStatus == .cached })
 
     // Write files to cached locations
     let fileManager = Container.shared.podFileManager() as! FakeFileManager

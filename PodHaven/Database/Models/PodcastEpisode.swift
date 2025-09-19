@@ -43,7 +43,7 @@ struct PodcastEpisode:
   var image: URL { episode.image ?? podcast.image }
   var description: String? { episode.description }
   var currentTime: CMTime { episode.currentTime }
-  var cacheStatus: CacheStatus { episode.cacheStatus }
+  var cacheStatus: Episode.CacheStatus { episode.cacheStatus }
   var started: Bool { episode.started }
   var finished: Bool { episode.finished }
   var queued: Bool { episode.queued }

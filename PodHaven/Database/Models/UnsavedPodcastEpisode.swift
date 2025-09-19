@@ -35,7 +35,7 @@ struct UnsavedPodcastEpisode:
   var description: String? { unsavedEpisode.description }
   var queued: Bool { unsavedEpisode.queued }
   var queueOrder: Int? { unsavedEpisode.queueOrder }
-  var cacheStatus: CacheStatus { unsavedEpisode.cacheStatus }
+  var cacheStatus: Episode.CacheStatus { unsavedEpisode.cacheStatus }
   var started: Bool { unsavedEpisode.started }
   var currentTime: CMTime { unsavedEpisode.currentTime }
   var finished: Bool { unsavedEpisode.finished }
