@@ -30,6 +30,11 @@ extension Container {
 
   var showPlayBar: Bool { !keyboardVisible }
 
+  func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool {
+    guard status.playing, let onDeck else { return false }
+    return onDeck == episode
+  }
+
   // MARK: - State Setters
 
   func setStatus(_ status: PlaybackStatus) {

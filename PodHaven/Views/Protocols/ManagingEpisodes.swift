@@ -129,8 +129,7 @@ extension ManagingEpisodes {
   }
 
   func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool {
-    guard playState.playing, let onDeck = playState.onDeck else { return false }
-    return onDeck == episode
+    playState.isEpisodePlaying(episode)
   }
 
   func canClearCache(_ episode: any EpisodeDisplayable) -> Bool {
