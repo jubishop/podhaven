@@ -33,33 +33,52 @@ struct SelectableEpisodesToolbarItems<
       ToolbarItem(placement: .topBarTrailing) {
         Menu(
           content: {
-            Button("Add To Top Of Queue") {
-              viewModel.addSelectedEpisodesToTopOfQueue()
+            if viewModel.anySelectedNotQueued {
+              Button("Add To Top Of Queue") {
+                viewModel.addSelectedEpisodesToTopOfQueue()
+              }
+              Button("Add To Bottom Of Queue") {
+                viewModel.addSelectedEpisodesToBottomOfQueue()
+              }
+              Button("Replace Queue") {
+                viewModel.replaceQueueWithSelected()
+              }
+              Button("Replace Queue and Play") {
+                viewModel.replaceQueueWithSelectedAndPlay()
+              }
+            } else {
+              Button("Move To Top Of Queue") {
+                viewModel.addSelectedEpisodesToTopOfQueue()
+              }
+              Button("Move To Bottom Of Queue") {
+                viewModel.addSelectedEpisodesToBottomOfQueue()
+              }
             }
-            Button("Add To Bottom Of Queue") {
-              viewModel.addSelectedEpisodesToBottomOfQueue()
+
+            if viewModel.anySelectedQueued {
+              Button("Remove From Queue") {
+                viewModel.dequeueSelectedEpisodes()
+              }
             }
-            Button("Replace Queue") {
-              viewModel.replaceQueueWithSelected()
-            }
-            Button("Replace Queue and Play") {
-              viewModel.replaceQueueWithSelectedAndPlay()
-            }
+
             if viewModel.anySelectedUnfinished {
               Button("Mark Finished") {
                 viewModel.markSelectedEpisodesFinished()
               }
             }
+
             if viewModel.anySelectedCanStopCaching {
               Button("Cancel Downloads") {
                 viewModel.cancelSelectedEpisodeDownloads()
               }
             }
+
             if viewModel.anySelectedNotCached {
               Button("Cache Selected") {
                 viewModel.cacheSelectedEpisodes()
               }
             }
+
             if viewModel.anySelectedCanClearCache {
               Button("Remove Downloads") {
                 viewModel.uncacheSelectedEpisodes()

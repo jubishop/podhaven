@@ -57,17 +57,14 @@ class EpisodesListViewModel:
         order: order,
         limit: limit
       ) {
-        Self.log.debug(
-          """
-          Updating observed episodes:
-            \(podcastEpisodes.map(\.toString).joined(separator: "\n  "))
-          """
-        )
+        try Task.checkCancellation()
+        Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
+
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }
     } catch {
       Self.log.error(error)
-      if !ErrorKit.isRemarkable(error) { return }
+      guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.coreMessage(for: error))
     }
   }

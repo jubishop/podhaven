@@ -111,19 +111,16 @@ import SwiftUI
       for try await podcastsWithLatestEpisodeDates in observatory.podcastsWithLatestEpisodeDates(
         filter
       ) {
-        Self.log.debug(
-          """
-          Updating observed episodes:
-            \(podcastsWithLatestEpisodeDates.map(\.toString).joined(separator: "\n  "))
-          """
-        )
+        try Task.checkCancellation()
+        Self.log.debug("Updating \(podcastsWithLatestEpisodeDates.count) observed episodes")
+
         self.podcastList.allEntries = IdentifiedArray(
           uniqueElements: podcastsWithLatestEpisodeDates
         )
       }
     } catch {
       Self.log.error(error)
-      if !ErrorKit.isRemarkable(error) { return }
+      guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.coreMessage(for: error))
     }
   }

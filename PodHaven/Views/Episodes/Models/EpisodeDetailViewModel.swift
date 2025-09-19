@@ -45,7 +45,7 @@ import Logging
       try await performExecute()
     } catch {
       Self.log.error(error)
-      if !ErrorKit.isRemarkable(error) { return }
+      guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.coreMessage(for: error))
     }
   }
@@ -106,7 +106,7 @@ import Logging
         podcastEpisode = try await getOrCreatePodcastEpisode()
       } catch {
         Self.log.error(error)
-        if !ErrorKit.isRemarkable(error) { return }
+        guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
         return
       }
@@ -116,7 +116,7 @@ import Logging
         await playManager.play()
       } catch {
         Self.log.error(error)
-        if !ErrorKit.isRemarkable(error) { return }
+        guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
       }
     }
@@ -130,7 +130,7 @@ import Logging
         try await queue.unshift(podcastEpisode.episode.id)
       } catch {
         Self.log.error(error)
-        if !ErrorKit.isRemarkable(error) { return }
+        guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
       }
     }
@@ -144,7 +144,7 @@ import Logging
         try await queue.append(podcastEpisode.episode.id)
       } catch {
         Self.log.error(error)
-        if !ErrorKit.isRemarkable(error) { return }
+        guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
       }
     }
@@ -158,7 +158,7 @@ import Logging
         try await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
         Self.log.error(error)
-        if !ErrorKit.isRemarkable(error) { return }
+        guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
       }
     }
@@ -188,7 +188,7 @@ import Logging
         try await observePodcastEpisode()
       } catch {
         Self.log.error(error)
-        if !ErrorKit.isRemarkable(error) { return }
+        guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
       }
     }

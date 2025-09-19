@@ -58,16 +58,15 @@ import SwiftUI
   func execute() async {
     do {
       for try await podcastEpisodes in observatory.queuedPodcastEpisodes() {
-        Self.log.debug(
-          """
-          Updating observed episodes:
-            \(episodeList.filteredEntries.map(\.toString).joined(separator: "\n  "))
-          """
-        )
+        try Task.checkCancellation()
+        Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
+
         self.episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
       }
     } catch {
-      alert("Couldn't execute UpNextViewModel")
+      Self.log.error(error)
+      guard ErrorKit.isRemarkable(error) else { return }
+      alert(ErrorKit.coreMessage(for: error))
     }
   }
 

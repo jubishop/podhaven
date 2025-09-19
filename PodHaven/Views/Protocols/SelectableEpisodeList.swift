@@ -21,11 +21,14 @@ import Logging
   func addSelectedEpisodesToBottomOfQueue()
   func replaceQueueWithSelected()
   func replaceQueueWithSelectedAndPlay()
+  func dequeueSelectedEpisodes()
   func cacheSelectedEpisodes()
   func uncacheSelectedEpisodes()
   func cancelSelectedEpisodeDownloads()
   func markSelectedEpisodesFinished()
 
+  var anySelectedQueued: Bool { get }
+  var anySelectedNotQueued: Bool { get }
   var anySelectedNotCached: Bool { get }
   var anySelectedCanClearCache: Bool { get }
   var anySelectedCanStopCaching: Bool { get }
@@ -94,6 +97,16 @@ extension SelectableEpisodeList {
     }
   }
 
+  func dequeueSelectedEpisodes() {
+    Task { [weak self] in
+      guard let self else { return }
+      guard !selectedEpisodes.isEmpty else { return }
+
+      let episodeIDs = try await selectedPodcastEpisodeIDs
+      try await queue.dequeue(episodeIDs)
+    }
+  }
+
   func cacheSelectedEpisodes() {
     Task { [weak self] in
       guard let self else { return }
@@ -157,6 +170,14 @@ extension SelectableEpisodeList {
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await repo.markFinished(episodeIDs)
     }
+  }
+
+  var anySelectedQueued: Bool {
+    selectedEpisodes.contains { $0.queued }
+  }
+
+  var anySelectedNotQueued: Bool {
+    selectedEpisodes.contains { !$0.queued }
   }
 
   var anySelectedNotCached: Bool {

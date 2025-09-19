@@ -114,12 +114,8 @@ final class EpisodeSearchViewModel: ManagingEpisodes {
       do {
         for try await podcastEpisodes in self.observatory.podcastEpisodes(mediaGUIDs) {
           try Task.checkCancellation()
-          Self.log.debug(
-            """
-            Updating observed episodes:
-              \(podcastEpisodes.map(\.toString).joined(separator: "\n  "))
-            """
-          )
+          Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
+
           for podcastEpisode in podcastEpisodes {
             episodes[id: podcastEpisode.mediaGUID] = podcastEpisode
           }

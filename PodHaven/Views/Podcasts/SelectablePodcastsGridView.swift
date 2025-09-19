@@ -70,7 +70,7 @@ struct SelectablePodcastsGridView: View {
         try await viewModel.refreshPodcasts()
       } catch {
         Self.log.error(error)
-        if !ErrorKit.isRemarkable(error) { return }
+        guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
       }
     }

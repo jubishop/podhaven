@@ -121,7 +121,7 @@ class PodcastDetailViewModel:
       try await performExecute()
     } catch {
       Self.log.error(error)
-      if !ErrorKit.isRemarkable(error) { return }
+      guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.coreMessage(for: error))
     }
   }
@@ -181,7 +181,7 @@ class PodcastDetailViewModel:
         }
       } catch {
         Self.log.error(error)
-        if !ErrorKit.isRemarkable(error) { return }
+        guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
       }
     }
@@ -197,7 +197,7 @@ class PodcastDetailViewModel:
         try await repo.markUnsubscribed(podcastSeries.id)
       } catch {
         Self.log.error(error)
-        if !ErrorKit.isRemarkable(error) { return }
+        guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
       }
     }
@@ -214,7 +214,7 @@ class PodcastDetailViewModel:
       }
     } catch {
       Self.log.error(error)
-      if !ErrorKit.isRemarkable(error) { return }
+      guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.coreMessage(for: error))
     }
   }
@@ -233,7 +233,7 @@ class PodcastDetailViewModel:
         try await observePodcastSeries(podcastID)
       } catch {
         Self.log.error(error)
-        if !ErrorKit.isRemarkable(error) { return }
+        guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
       }
       clearObservationTask()
