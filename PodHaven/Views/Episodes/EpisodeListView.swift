@@ -63,7 +63,7 @@ struct EpisodeListView: View {
           .opacity(episode.queued ? 1 : 0)
       }
 
-      if episode.caching,
+      if episode.cacheStatus == .caching,
         let episodeID = episode.episodeID
       {
         if let progress = cacheState.progress(episodeID) {
@@ -79,7 +79,7 @@ struct EpisodeListView: View {
       } else {
         AppLabel.episodeCached.image
           .foregroundStyle(.green)
-          .opacity(episode.cached ? 1 : 0)
+          .opacity(episode.cacheStatus == .cached ? 1 : 0)
       }
 
       AppLabel.episodeFinished.image

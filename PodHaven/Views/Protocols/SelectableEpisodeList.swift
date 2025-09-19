@@ -114,7 +114,7 @@ extension SelectableEpisodeList {
 
       let cachedEpisodeIDs =
         try await selectedPodcastEpisodes
-        .filter(\.episode.cached)
+        .filter { $0.episode.cacheStatus == .cached }
         .map(\.id)
 
       await withThrowingTaskGroup(of: Void.self) { group in
@@ -134,7 +134,7 @@ extension SelectableEpisodeList {
 
       let downloadingEpisodeIDs =
         try await selectedPodcastEpisodes
-        .filter(\.episode.caching)
+        .filter { $0.episode.cacheStatus == .caching }
         .map(\.id)
 
       await withThrowingTaskGroup(of: Void.self) { group in
@@ -158,15 +158,15 @@ extension SelectableEpisodeList {
   }
 
   var anySelectedNotCached: Bool {
-    selectedEpisodes.contains { !$0.cached }
+    selectedEpisodes.contains { $0.cacheStatus != .cached }
   }
 
   var anySelectedCached: Bool {
-    selectedEpisodes.contains { $0.cached }
+    selectedEpisodes.contains { $0.cacheStatus == .cached }
   }
 
   var anySelectedCaching: Bool {
-    selectedEpisodes.contains { $0.caching }
+    selectedEpisodes.contains { $0.cacheStatus == .caching }
   }
 
   var anySelectedUnfinished: Bool {
