@@ -29,9 +29,13 @@ extension Container {
   private var keyboardVisible = false
   var showPlayBar: Bool { !keyboardVisible }
 
-  func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool {
+  func isEpisodePlaying(_ episode: any EpisodeInformable) -> Bool {
+    guard let episodeID = episode.episodeID else { return false }
+    return isEpisodePlaying(episodeID)
+  }
+  func isEpisodePlaying(_ episodeID: Episode.ID) -> Bool {
     guard status.playing, let onDeck else { return false }
-    return onDeck == episode
+    return onDeck.episodeID == episodeID
   }
 
   // MARK: - State Setters

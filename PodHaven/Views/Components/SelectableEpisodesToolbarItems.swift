@@ -50,7 +50,7 @@ struct SelectableEpisodesToolbarItems<
                 viewModel.markSelectedEpisodesFinished()
               }
             }
-            if viewModel.anySelectedCaching {
+            if viewModel.anySelectedCanStopCaching {
               Button("Cancel Downloads") {
                 viewModel.cancelSelectedEpisodeDownloads()
               }
@@ -60,7 +60,7 @@ struct SelectableEpisodesToolbarItems<
                 viewModel.cacheSelectedEpisodes()
               }
             }
-            if viewModel.anySelectedCached {
+            if viewModel.anySelectedCanClearCache {
               Button("Remove Downloads") {
                 viewModel.uncacheSelectedEpisodes()
               }

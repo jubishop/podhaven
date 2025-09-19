@@ -27,13 +27,15 @@ import Logging
   func markSelectedEpisodesFinished()
 
   var anySelectedNotCached: Bool { get }
-  var anySelectedCached: Bool { get }
-  var anySelectedCaching: Bool { get }
+  var anySelectedCanClearCache: Bool { get }
+  var anySelectedCanStopCaching: Bool { get }
   var anySelectedUnfinished: Bool { get }
 }
 
 extension SelectableEpisodeList {
+  private var cacheManager: CacheManager { Container.shared.cacheManager() }
   private var playManager: PlayManager { Container.shared.playManager() }
+  private var playState: PlayState { Container.shared.playState() }
   private var queue: any Queueing { Container.shared.queue() }
   private var repo: any Databasing { Container.shared.repo() }
 
@@ -110,12 +112,12 @@ extension SelectableEpisodeList {
   func uncacheSelectedEpisodes() {
     Task { [weak self] in
       guard let self else { return }
-      guard anySelectedCached else { return }
 
       let cachedEpisodeIDs =
         try await selectedPodcastEpisodes
         .filter { $0.episode.cacheStatus == .cached }
         .map(\.id)
+      guard !cachedEpisodeIDs.isEmpty else { return }
 
       await withThrowingTaskGroup(of: Void.self) { group in
         for episodeID in cachedEpisodeIDs {
@@ -130,12 +132,12 @@ extension SelectableEpisodeList {
   func cancelSelectedEpisodeDownloads() {
     Task { [weak self] in
       guard let self else { return }
-      guard anySelectedCaching else { return }
 
       let downloadingEpisodeIDs =
         try await selectedPodcastEpisodes
         .filter { $0.episode.cacheStatus == .caching }
         .map(\.id)
+      guard !downloadingEpisodeIDs.isEmpty else { return }
 
       await withThrowingTaskGroup(of: Void.self) { group in
         for episodeID in downloadingEpisodeIDs {
@@ -161,12 +163,12 @@ extension SelectableEpisodeList {
     selectedEpisodes.contains { $0.cacheStatus != .cached }
   }
 
-  var anySelectedCached: Bool {
-    selectedEpisodes.contains { $0.cacheStatus == .cached }
+  var anySelectedCanClearCache: Bool {
+    selectedEpisodes.contains { $0.cacheStatus == .cached && CacheManager.canClearCache($0) }
   }
 
-  var anySelectedCaching: Bool {
-    selectedEpisodes.contains { $0.cacheStatus == .caching }
+  var anySelectedCanStopCaching: Bool {
+    selectedEpisodes.contains { $0.cacheStatus == .caching && CacheManager.canClearCache($0) }
   }
 
   var anySelectedUnfinished: Bool {

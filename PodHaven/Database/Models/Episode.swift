@@ -89,8 +89,9 @@ struct UnsavedEpisode:
   var toString: String { "(\(id)) - \(self.title)" }
   var searchableString: String { self.title }
 
-  // MARK: - EpisodeDisplayable
+  // MARK: - EpisodeDisplayable / EpisodeInformable
 
+  var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
   var queued: Bool { self.queueOrder != nil }
   var cacheStatus: Episode.CacheStatus {
     if cachedFilename != nil { return .cached }
@@ -111,7 +112,7 @@ struct UnsavedEpisode:
 }
 
 @Saved<UnsavedEpisode>
-struct Episode: Saved, RSSUpdatable {
+struct Episode: EpisodeInformable, Saved, RSSUpdatable {
   // MARK: - Equatable
 
   static func == (lhs: Episode, rhs: OnDeck) -> Bool { lhs.id == rhs.id }
@@ -177,6 +178,22 @@ struct Episode: Saved, RSSUpdatable {
       && unsaved.link == other.unsaved.link
       && unsaved.image == other.unsaved.image
   }
+
+  // MARK: - Episode Informable
+
+  var mediaGUID: MediaGUID { unsaved.mediaGUID }
+  var title: String { unsaved.title }
+  var pubDate: Date { unsaved.pubDate }
+  var duration: CMTime {
+    get { unsaved.duration }
+    set { unsaved.duration = newValue }
+  }
+  var description: String? { unsaved.description }
+  var queued: Bool { unsaved.queued }
+  var queueOrder: Int? { unsaved.queueOrder }
+  var started: Bool { unsaved.started }
+  var currentTime: CMTime { unsaved.currentTime }
+  var finished: Bool { unsaved.finished }
 
   // MARK: - Derived Passthroughs
 

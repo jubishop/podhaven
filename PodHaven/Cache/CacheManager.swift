@@ -120,14 +120,9 @@ actor CacheManager {
     guard let episode
     else { throw CacheError.episodeNotFound(episodeID) }
 
-    guard !episode.queued
+    guard await Self.canClearCache(episode)
     else {
-      Self.log.debug("still queued, keeping cache for: \(episode.toString)")
-      return nil
-    }
-
-    if let onDeck = await playState.onDeck, onDeck == episode {
-      Self.log.debug("currently playing, keeping cache for: \(episode.toString)")
+      Self.log.debug("Can't clear cache for: \(episode.toString)")
       return nil
     }
 
@@ -213,6 +208,13 @@ actor CacheManager {
   }
 
   // MARK: - Static Helpers
+
+  @MainActor
+  static func canClearCache(_ episode: any EpisodeInformable) -> Bool {
+    guard !episode.queued else { return false }
+    guard let onDeck = Container.shared.playState().onDeck else { return true }
+    return !(onDeck == episode)
+  }
 
   static func resolveCachedFilepath(for fileName: String) -> CachedURL {
     Assert.precondition(!fileName.isEmpty, "Empty fileName in resolveCachedFilepath?")

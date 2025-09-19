@@ -129,11 +129,12 @@ extension ManagingEpisodes {
   }
 
   func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool {
-    playState.isEpisodePlaying(episode)
+    guard let savedEpisode = episode as? PodcastEpisode else { return false }
+    return playState.isEpisodePlaying(savedEpisode.id)
   }
 
   func canClearCache(_ episode: any EpisodeDisplayable) -> Bool {
-    !episode.queued && !isEpisodePlaying(episode)
+    CacheManager.canClearCache(episode)
   }
 
   func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
