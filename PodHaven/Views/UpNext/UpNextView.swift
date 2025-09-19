@@ -18,7 +18,7 @@ struct UpNextView: View {
             label: {
               EpisodeListView(
                 episode: podcastEpisode,
-                isSelecting: viewModel.isEditing,
+                isSelecting: viewModel.isSelecting,
                 isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
               )
             }
@@ -33,7 +33,31 @@ struct UpNextView: View {
       .navigationTitle("Up Next")
       .environment(\.editMode, $viewModel.editMode)
       .animation(.default, value: viewModel.episodeList.filteredEntries)
-      .upNextToolbar(viewModel: viewModel)
+      .toolbar {
+        if !viewModel.isSelecting {
+          ToolbarItem(placement: .topBarLeading) {
+            Text(viewModel.totalQueueDuration.shortDescription)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+
+          ToolbarItem(placement: .topBarTrailing) {
+            Menu("Sort") {
+              ForEach(viewModel.allSortMethods, id: \.self) { method in
+                Button(method.rawValue) {
+                  viewModel.sort(by: method)
+                }
+              }
+            }
+          }
+        }
+
+        selectableEpisodesToolbarItems(
+          viewModel: viewModel,
+          episodeList: viewModel.episodeList,
+          selectText: "Edit"
+        )
+      }
     }
     .task(viewModel.execute)
   }

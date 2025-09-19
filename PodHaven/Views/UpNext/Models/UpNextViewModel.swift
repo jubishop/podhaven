@@ -8,7 +8,7 @@ import IdentifiedCollections
 import Logging
 import SwiftUI
 
-@Observable @MainActor class UpNextViewModel: ManagingEpisodes {
+@Observable @MainActor class UpNextViewModel: ManagingEpisodes, SelectableEpisodeList {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
@@ -22,7 +22,10 @@ import SwiftUI
   // MARK: - State Management
 
   var editMode: EditMode = .inactive
-  var isEditing: Bool { editMode == .active }
+  var isSelecting: Bool {
+    get { editMode.isEditing }
+    set { editMode = newValue ? .active : .inactive }
+  }
 
   var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
 

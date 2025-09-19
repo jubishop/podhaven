@@ -42,7 +42,8 @@ struct PodcastDetailView: View {
         selectText: "Select Episodes"
       )
 
-      if !viewModel.isSelecting && viewModel.subscribable
+      if !viewModel.isSelecting
+        && viewModel.subscribable
         && !viewModel.podcast.subscribed
       {
         ToolbarItem(placement: .topBarLeading) {
