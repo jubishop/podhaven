@@ -10,6 +10,12 @@ import Tagged
 typealias GUID = Tagged<UnsavedEpisode, String>
 typealias MediaURL = Tagged<UnsavedEpisode, URL>
 typealias CachedURL = Tagged<UnsavedEpisode, URL>
+
+enum CacheStatus: Equatable, Sendable {
+  case uncached
+  case caching
+  case cached
+}
 struct MediaGUID: Codable, CustomStringConvertible, Equatable, Hashable {
   let guid: GUID
   let mediaURL: MediaURL
@@ -92,8 +98,15 @@ struct UnsavedEpisode:
   // MARK: - EpisodeDisplayable
 
   var queued: Bool { self.queueOrder != nil }
-  var caching: Bool { self.downloadTaskID != nil }
-  var cached: Bool { self.cachedFilename != nil }
+  var cacheStatus: CacheStatus {
+    if self.cachedFilename != nil {
+      return .cached
+    }
+    if self.downloadTaskID != nil {
+      return .caching
+    }
+    return .uncached
+  }
   var started: Bool { self.currentTime.seconds > 0 }
   var finished: Bool { self.completionDate != nil }
 
@@ -177,6 +190,7 @@ struct Episode: Saved, RSSUpdatable {
 
   // MARK: - Derived Passthroughs
 
+  var cacheStatus: CacheStatus { unsaved.cacheStatus }
   var cachedURL: CachedURL? { unsaved.cachedURL }
 }
 
