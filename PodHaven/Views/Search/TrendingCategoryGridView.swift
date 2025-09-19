@@ -22,7 +22,7 @@ struct TrendingCategoryGridView: View {
       case .loaded(let unsavedPodcasts):
         ItemGrid(items: unsavedPodcasts) { unsavedPodcast in
           NavigationLink(
-            value: Navigation.Destination.podcast(DisplayablePodcast(unsavedPodcast)),
+            value: Navigation.Destination.podcast(DisplayedPodcast(unsavedPodcast)),
             label: {
               SquareImage(
                 image: unsavedPodcast.image,

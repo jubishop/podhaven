@@ -7,6 +7,7 @@ import ReadableErrorMacro
 @ReadableError
 enum PlaybackError: ReadableError, CatchingError {
   case loadFailure(podcastEpisode: PodcastEpisode, caught: Error)
+  case durationUpdateFailure(podcastEpisode: PodcastEpisode)
   case mediaNotPlayable(PodcastEpisode)
   case settingCurrentTimeOnNil(CMTime)
   case caught(Error)
@@ -20,6 +21,8 @@ enum PlaybackError: ReadableError, CatchingError {
           PodcastEpisode: \(podcastEpisode.toString)
           MediaGUID: \(podcastEpisode.episode.unsaved.id)
         """
+    case .durationUpdateFailure(let podcastEpisode):
+      return "Failed to update duration for PodcastEpisode: \(podcastEpisode.toString)"
     case .mediaNotPlayable(let podcastEpisode):
       return
         """

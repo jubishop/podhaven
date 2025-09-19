@@ -5,7 +5,7 @@ import FactoryKit
 import Foundation
 
 @dynamicMemberLookup
-struct DisplayableEpisode:
+struct DisplayedEpisode:
   EpisodeDisplayable,
   Identifiable,
   Searchable,
@@ -19,8 +19,8 @@ struct DisplayableEpisode:
 
   init(_ episode: any EpisodeDisplayable) {
     Assert.precondition(
-      !(episode is DisplayableEpisode),
-      "Cannot wrap an instance of itself as a DisplayableEpisode"
+      !(episode is DisplayedEpisode),
+      "Cannot wrap an instance of itself as a DisplayedEpisode"
     )
 
     self.episode = episode
@@ -46,7 +46,7 @@ struct DisplayableEpisode:
     }
   }
 
-  static func == (lhs: DisplayableEpisode, rhs: DisplayableEpisode) -> Bool {
+  static func == (lhs: DisplayedEpisode, rhs: DisplayedEpisode) -> Bool {
     if let leftPodcastEpisode = lhs.getPodcastEpisode(),
       let rightPodcastEpisode = rhs.getPodcastEpisode()
     {
@@ -89,10 +89,10 @@ struct DisplayableEpisode:
   static func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws
     -> PodcastEpisode
   {
-    guard let displayableEpisode = episode as? DisplayableEpisode
-    else { return try await DisplayableEpisode(episode).getOrCreatePodcastEpisode() }
+    guard let DisplayedEpisode = episode as? DisplayedEpisode
+    else { return try await DisplayedEpisode(episode).getOrCreatePodcastEpisode() }
 
-    return try await displayableEpisode.getOrCreatePodcastEpisode()
+    return try await DisplayedEpisode.getOrCreatePodcastEpisode()
   }
 
   func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {

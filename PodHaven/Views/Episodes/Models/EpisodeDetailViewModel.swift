@@ -224,7 +224,7 @@ import Logging
   private func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
-    let podcastEpisode = try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
+    let podcastEpisode = try await DisplayedEpisode.getOrCreatePodcastEpisode(episode)
     self.podcastEpisode = podcastEpisode
     startObservation()
     return podcastEpisode

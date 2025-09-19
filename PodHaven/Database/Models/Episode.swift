@@ -20,6 +20,7 @@ struct MediaGUID: Codable, CustomStringConvertible, Equatable, Hashable {
 }
 
 struct UnsavedEpisode:
+  EpisodeInformable,
   Identifiable,
   Savable,
   Stringable
@@ -184,10 +185,7 @@ struct Episode: EpisodeInformable, Saved, RSSUpdatable {
   var mediaGUID: MediaGUID { unsaved.mediaGUID }
   var title: String { unsaved.title }
   var pubDate: Date { unsaved.pubDate }
-  var duration: CMTime {
-    get { unsaved.duration }
-    set { unsaved.duration = newValue }
-  }
+  var duration: CMTime { unsaved.duration }
   var description: String? { unsaved.description }
   var queued: Bool { unsaved.queued }
   var queueOrder: Int? { unsaved.queueOrder }

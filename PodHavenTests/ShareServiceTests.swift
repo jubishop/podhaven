@@ -53,7 +53,7 @@ import Testing
     #expect(navigation.currentTab == .podcasts)
     #expect(
       navigation.podcasts.path == [
-        .podcastsViewType(.subscribed), .podcast(DisplayablePodcast(podcastSeries.podcast)),
+        .podcastsViewType(.subscribed), .podcast(DisplayedPodcast(podcastSeries.podcast)),
       ]
     )
   }
@@ -100,7 +100,7 @@ import Testing
     #expect(navigation.currentTab == .podcasts)
     #expect(
       navigation.podcasts.path == [
-        .podcastsViewType(.subscribed), .podcast(DisplayablePodcast(podcastSeries.podcast)),
+        .podcastsViewType(.subscribed), .podcast(DisplayedPodcast(podcastSeries.podcast)),
       ]
     )
   }
@@ -272,9 +272,9 @@ import Testing
     #expect(
       navigation.podcasts.path == [
         .podcastsViewType(.subscribed),
-        .podcast(DisplayablePodcast(podcastSeries.podcast)),
+        .podcast(DisplayedPodcast(podcastSeries.podcast)),
         .episode(
-          DisplayableEpisode(
+          DisplayedEpisode(
             PodcastEpisode(
               podcast: podcastSeries.podcast,
               episode: podcastSeries.episodes.first(where: {
@@ -342,9 +342,9 @@ import Testing
     #expect(
       navigation.podcasts.path == [
         .podcastsViewType(.subscribed),
-        .podcast(DisplayablePodcast(podcastSeries.podcast)),
+        .podcast(DisplayedPodcast(podcastSeries.podcast)),
         .episode(
-          DisplayableEpisode(
+          DisplayedEpisode(
             PodcastEpisode(
               podcast: podcastSeries.podcast,
               episode: podcastSeries.episodes.first(where: {
@@ -392,7 +392,7 @@ import Testing
     #expect(navigation.currentTab == .podcasts)
     #expect(
       navigation.podcasts.path == [
-        .podcastsViewType(.subscribed), .podcast(DisplayablePodcast(podcastSeries.podcast)),
+        .podcastsViewType(.subscribed), .podcast(DisplayedPodcast(podcastSeries.podcast)),
       ]
     )
   }
@@ -445,7 +445,7 @@ import Testing
     #expect(navigation.currentTab == .podcasts)
     #expect(
       navigation.podcasts.path == [
-        .podcastsViewType(.subscribed), .podcast(DisplayablePodcast(podcastSeries.podcast)),
+        .podcastsViewType(.subscribed), .podcast(DisplayedPodcast(podcastSeries.podcast)),
       ]
     )
   }

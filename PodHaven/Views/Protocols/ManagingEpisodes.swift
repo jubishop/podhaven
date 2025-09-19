@@ -138,7 +138,7 @@ extension ManagingEpisodes {
   }
 
   func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
-    try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
+    try await DisplayedEpisode.getOrCreatePodcastEpisode(episode)
   }
 
   // MARK: - Helpers

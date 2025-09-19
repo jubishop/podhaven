@@ -30,7 +30,7 @@ class PodcastDetailViewModel:
     case unfinished = "Unfinished"
     case unqueued = "Unqueued"
 
-    func filterMethod() -> ((DisplayableEpisode) -> Bool)? {
+    func filterMethod() -> ((DisplayedEpisode) -> Bool)? {
       switch self {
       case .all:
         return nil
@@ -63,7 +63,7 @@ class PodcastDetailViewModel:
       // Careful to only update allEntries once
       var allEntries = episodeList.allEntries
       for episode in podcastSeries.episodes {
-        allEntries[id: episode.unsaved.id] = DisplayableEpisode(
+        allEntries[id: episode.unsaved.id] = DisplayedEpisode(
           PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
         )
       }
@@ -74,14 +74,14 @@ class PodcastDetailViewModel:
   // MARK: - ManagingEpisodes
 
   func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
-    let podcastEpisode = try await DisplayableEpisode.getOrCreatePodcastEpisode(episode)
+    let podcastEpisode = try await DisplayedEpisode.getOrCreatePodcastEpisode(episode)
     startObservation(podcastEpisode.podcast.id)
     return podcastEpisode
   }
 
   // MARK: - SelectableEpisodeList
 
-  var episodeList = SelectableListUseCase<DisplayableEpisode, MediaGUID>(idKeyPath: \.mediaGUID)
+  var episodeList = SelectableListUseCase<DisplayedEpisode, MediaGUID>(idKeyPath: \.mediaGUID)
   private var _isSelecting = false
   var isSelecting: Bool {
     get { _isSelecting }
@@ -272,7 +272,7 @@ class PodcastDetailViewModel:
     episodeList.allEntries = IdentifiedArray(
       uniqueElements: podcastFeed.toEpisodeArray(merging: podcastSeries)
         .map {
-          DisplayableEpisode(
+          DisplayedEpisode(
             UnsavedPodcastEpisode(
               unsavedPodcast: unsavedPodcast,
               unsavedEpisode: $0

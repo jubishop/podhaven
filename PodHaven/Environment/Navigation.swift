@@ -62,8 +62,8 @@ extension Container {
     case upNextEpisode(PodcastEpisode)
 
     // Universal destinations
-    case podcast(DisplayablePodcast)
-    case episode(DisplayableEpisode)
+    case podcast(DisplayedPodcast)
+    case episode(DisplayedEpisode)
   }
 
   enum SettingsSection {
@@ -197,9 +197,9 @@ extension Container {
         .id(podcastEpisode.id)
 
     // Universal destinations
-    case .episode(let displayableEpisode):
-      EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: displayableEpisode.episode))
-        .id(displayableEpisode.mediaGUID)
+    case .episode(let DisplayedEpisode):
+      EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: DisplayedEpisode.episode))
+        .id(DisplayedEpisode.mediaGUID)
     case .podcast(let podcast):
       PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
         .id(podcast.id)
@@ -280,13 +280,13 @@ extension Container {
     Self.log.debug("Showing podcast: \(podcast.toString)")
 
     showPodcastList(podcast.subscribed ? .subscribed : .unsubscribed)
-    podcasts.path.append(.podcast(DisplayablePodcast(podcast)))
+    podcasts.path.append(.podcast(DisplayedPodcast(podcast)))
   }
 
   func showEpisode(_ podcastEpisode: PodcastEpisode) {
     Self.log.debug("Showing PodcastEpisode: \(podcastEpisode.toString)")
 
     showPodcast(podcastEpisode.podcast)
-    podcasts.path.append(.episode(DisplayableEpisode(podcastEpisode)))
+    podcasts.path.append(.episode(DisplayedEpisode(podcastEpisode)))
   }
 }

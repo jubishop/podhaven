@@ -91,22 +91,15 @@ extension Container {
     guard episodeAsset.isPlayable
     else { throw PlaybackError.mediaNotPlayable(podcastEpisode) }
 
-    var episode = podcastEpisode.episode
-    episode.duration = episodeAsset.duration
-
     do {
-      try await repo.updateDuration(podcastEpisode.id, episode.duration)
-    } catch {
-      Self.log.error(error)
-    }
+      try await repo.updateDuration(podcastEpisode.id, episodeAsset.duration)
+      guard let updatedPodcastEpisode = try await repo.podcastEpisode(podcastEpisode.id)
+      else { throw PlaybackError.durationUpdateFailure(podcastEpisode: podcastEpisode) }
 
-    return (
-      PodcastEpisode(
-        podcast: podcastEpisode.podcast,
-        episode: episode
-      ),
-      episodeAsset.playerItem
-    )
+      return (updatedPodcastEpisode, episodeAsset.playerItem)
+    } catch {
+      throw PlaybackError.caught(error)
+    }
   }
   private func performLoadAsset(for podcastEpisode: PodcastEpisode) async throws(PlaybackError)
     -> EpisodeAsset

@@ -58,9 +58,6 @@ struct OnDeck: Identifiable, Stringable {
 
   static func == (lhs: OnDeck, rhs: PodcastEpisode) -> Bool { lhs.id == rhs.id }
   static func == (lhs: OnDeck, rhs: Episode) -> Bool { lhs.id == rhs.id }
-  static func == (lhs: OnDeck, rhs: any EpisodeDisplayable) -> Bool {
-    lhs.mediaGUID == rhs.mediaGUID
-  }
   static func == (lhs: OnDeck, rhs: any EpisodeInformable) -> Bool {
     lhs.mediaGUID == rhs.mediaGUID
   }

@@ -5,7 +5,7 @@ import FactoryKit
 import Foundation
 
 @dynamicMemberLookup
-struct DisplayablePodcast:
+struct DisplayedPodcast:
   PodcastDisplayable,
   Identifiable,
   Stringable,
@@ -18,8 +18,8 @@ struct DisplayablePodcast:
 
   init(_ podcast: any PodcastDisplayable) {
     Assert.precondition(
-      !(podcast is DisplayablePodcast),
-      "Cannot wrap an instance of itself as a DisplayablePodcast"
+      !(podcast is DisplayedPodcast),
+      "Cannot wrap an instance of itself as a DisplayedPodcast"
     )
 
     self.podcast = podcast
@@ -39,7 +39,7 @@ struct DisplayablePodcast:
     hasher.combine(podcast.feedURL)
   }
 
-  static func == (lhs: DisplayablePodcast, rhs: DisplayablePodcast) -> Bool {
+  static func == (lhs: DisplayedPodcast, rhs: DisplayedPodcast) -> Bool {
     lhs.feedURL == rhs.feedURL
   }
 

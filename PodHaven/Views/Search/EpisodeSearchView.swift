@@ -79,7 +79,7 @@ struct EpisodeSearchView: View {
   var episodeResultsList: some View {
     List(viewModel.episodes, id: \.mediaGUID) { episode in
       NavigationLink(
-        value: Navigation.Destination.episode(DisplayableEpisode(episode)),
+        value: Navigation.Destination.episode(DisplayedEpisode(episode)),
         label: {
           EpisodeListView(
             episode: episode

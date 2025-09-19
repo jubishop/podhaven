@@ -112,7 +112,7 @@ struct PodcastSearchView: View {
   var podcastResultsList: some View {
     List(viewModel.podcasts, id: \.feedURL) { podcast in
       NavigationLink(
-        value: Navigation.Destination.podcast(DisplayablePodcast(podcast)),
+        value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
         label: {
           PodcastListView(podcast: podcast)
         }
