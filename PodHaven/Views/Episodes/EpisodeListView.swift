@@ -10,7 +10,7 @@ struct EpisodeListView: View {
 
   private let thumbnailSize: CGFloat = 64
   private let statusIconSize: CGFloat = 12
-  @ScaledMetric(relativeTo: .caption) private var metadataIconSize: CGFloat = 12
+  private let metadataIconSize: CGFloat = 12
 
   private let episode: any EpisodeDisplayable
   private let isSelecting: Bool
