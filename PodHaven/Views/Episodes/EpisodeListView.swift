@@ -155,8 +155,8 @@ struct EpisodeListView: View {
             isSelecting: selectedStates[safe: index] ?? false,
             isSelected: $isSelected
           )
-          .episodeListRow()
         }
+        .episodeListRow()
       }
     }
   }
