@@ -24,7 +24,11 @@ enum Function {
     function: String = #function,
     line: UInt = #line
   ) -> Bool {
+    neverCalled("\(file):\(function):\(line)")
+  }
+
+  static func neverCalled(_ id: String) -> Bool {
     let neverCalled = Container.shared.neverCalled()
-    return neverCalled("\(file):\(function):\(line)")
+    return neverCalled(id)
   }
 }
