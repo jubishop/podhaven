@@ -388,9 +388,18 @@ struct EpisodeListView: View {
       )
 
       // Set up caching states for progress episodes
-      try await repo.updateDownloadTaskID(cachingEpisode25.id, URLSessionDownloadTask.ID(1))
-      try await repo.updateDownloadTaskID(cachingEpisode65.id, URLSessionDownloadTask.ID(2))
-      try await repo.updateDownloadTaskID(waitingEpisode.id, URLSessionDownloadTask.ID(3))
+      try await repo.updateDownloadTaskID(
+        cachingEpisode25.id,
+        URLSessionDownloadTask.ID(exactly: cachingEpisode25.id.rawValue)
+      )
+      try await repo.updateDownloadTaskID(
+        cachingEpisode65.id,
+        URLSessionDownloadTask.ID(exactly: cachingEpisode65.id.rawValue)
+      )
+      try await repo.updateDownloadTaskID(
+        waitingEpisode.id,
+        URLSessionDownloadTask.ID(exactly: waitingEpisode.id.rawValue)
+      )
 
       // Simulate cache progress
       cacheState.updateProgress(for: cachingEpisode25.id, progress: 0.25)
