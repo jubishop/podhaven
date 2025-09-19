@@ -27,7 +27,6 @@ extension Container {
   private(set) var onDeck: OnDeck?
 
   private var keyboardVisible = false
-
   var showPlayBar: Bool { !keyboardVisible }
 
   func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool {
