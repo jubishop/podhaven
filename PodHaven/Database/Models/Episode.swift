@@ -92,8 +92,11 @@ struct UnsavedEpisode:
   // MARK: - EpisodeDisplayable
 
   var queued: Bool { self.queueOrder != nil }
-  var caching: Bool { self.downloadTaskID != nil }
-  var cached: Bool { self.cachedFilename != nil }
+  var cacheStatus: Episode.CacheStatus {
+    if cachedFilename != nil { return .cached }
+    if downloadTaskID != nil { return .caching }
+    return .uncached
+  }
   var started: Bool { self.currentTime.seconds > 0 }
   var finished: Bool { self.completionDate != nil }
 
@@ -177,7 +180,16 @@ struct Episode: Saved, RSSUpdatable {
 
   // MARK: - Derived Passthroughs
 
+  var cacheStatus: CacheStatus { unsaved.cacheStatus }
   var cachedURL: CachedURL? { unsaved.cachedURL }
+
+  // MARK: - Cache Status
+
+  enum CacheStatus: Equatable, Sendable {
+    case uncached
+    case caching
+    case cached
+  }
 }
 
 // MARK: - DerivableRequest

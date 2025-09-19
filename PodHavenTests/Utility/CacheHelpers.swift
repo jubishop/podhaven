@@ -59,7 +59,7 @@ enum CacheHelpers {
     try await Wait.until(
       {
         let episode: Episode = try await repo.episode(episodeID)!
-        return !episode.cached
+        return episode.cacheStatus != .cached
       },
       { "Episode \(episodeID) is still cached" }
     )

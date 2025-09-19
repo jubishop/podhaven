@@ -65,7 +65,8 @@ struct EpisodeContextMenuViewModifier<
           .tint(.mint)
         }
 
-        if episode.caching {
+        switch episode.cacheStatus {
+        case .caching:
           if canClearCache {
             Button(
               action: { viewModel.uncacheEpisode(episode) },
@@ -73,7 +74,7 @@ struct EpisodeContextMenuViewModifier<
             )
             .tint(.orange)
           }
-        } else if episode.cached {
+        case .cached:
           if canClearCache {
             Button(
               action: { viewModel.uncacheEpisode(episode) },
@@ -81,7 +82,7 @@ struct EpisodeContextMenuViewModifier<
             )
             .tint(.red)
           }
-        } else {
+        case .uncached:
           Button(
             action: { viewModel.cacheEpisode(episode) },
             label: { AppLabel.cacheEpisode.label }

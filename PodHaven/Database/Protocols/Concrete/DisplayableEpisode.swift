@@ -79,8 +79,7 @@ struct DisplayableEpisode:
   var description: String? { episode.description }
   var queued: Bool { episode.queued }
   var queueOrder: Int? { episode.queueOrder }
-  var caching: Bool { episode.caching }
-  var cached: Bool { episode.cached }
+  var cacheStatus: Episode.CacheStatus { episode.cacheStatus }
   var started: Bool { episode.started }
   var currentTime: CMTime { episode.currentTime }
   var finished: Bool { episode.finished }

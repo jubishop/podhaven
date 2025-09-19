@@ -99,7 +99,7 @@ import SwiftUI
     Self.log.debug("refreshQueue: downloading and caching uncached episodes")
 
     let uncachedEpisodes = episodeList.filteredEntries.filter { podcastEpisode in
-      !podcastEpisode.episode.cached
+      podcastEpisode.episode.cacheStatus != .cached
     }
     guard !uncachedEpisodes.isEmpty else { return }
 

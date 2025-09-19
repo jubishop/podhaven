@@ -55,7 +55,8 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
           .tint(.green)
         }
 
-        if episode.caching {
+        switch episode.cacheStatus {
+        case .caching:
           if canClearCache {
             Button(
               action: { viewModel.uncacheEpisode(episode) },
@@ -63,7 +64,7 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
             )
             .tint(.orange)
           }
-        } else if episode.cached {
+        case .cached:
           if canClearCache {
             Button(
               action: { viewModel.uncacheEpisode(episode) },
@@ -71,7 +72,7 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
             )
             .tint(.red)
           }
-        } else {
+        case .uncached:
           Button(
             action: { viewModel.cacheEpisode(episode) },
             label: { AppLabel.cacheEpisode.image }

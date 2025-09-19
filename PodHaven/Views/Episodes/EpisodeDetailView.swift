@@ -75,7 +75,7 @@ struct EpisodeDetailView: View {
 
             Spacer()
 
-            if viewModel.episode.cached {
+            if viewModel.episode.cacheStatus == .cached {
               VStack(spacing: 4) {
                 AppLabel.episodeCached.image
                   .foregroundColor(.green)
@@ -151,10 +151,11 @@ struct EpisodeDetailView: View {
                 .disabled(viewModel.atBottomOfQueue)
               }
 
-              if !viewModel.episode.cached {
+              let cacheStatus = viewModel.episode.cacheStatus
+              if cacheStatus != .cached {
                 Button(action: viewModel.cacheEpisode) {
                   HStack {
-                    if viewModel.episode.caching {
+                    if cacheStatus == .caching {
                       ProgressView()
                         .scaleEffect(0.8)
                       Text("Caching in Progress")
@@ -166,12 +167,12 @@ struct EpisodeDetailView: View {
                   .frame(maxWidth: .infinity)
                   .padding()
                   .background(
-                    viewModel.episode.caching ? Color.orange.opacity(0.1) : Color.green.opacity(0.1)
+                    cacheStatus == .caching ? Color.orange.opacity(0.1) : Color.green.opacity(0.1)
                   )
-                  .foregroundColor(viewModel.episode.caching ? .orange : .green)
+                  .foregroundColor(cacheStatus == .caching ? .orange : .green)
                   .cornerRadius(10)
                 }
-                .disabled(viewModel.episode.caching)
+                .disabled(cacheStatus == .caching)
               }
             }
             .padding(.horizontal)
@@ -186,21 +187,21 @@ struct EpisodeDetailView: View {
 }
 
 #if DEBUG
-#Preview {
-  @Previewable @State var podcastEpisode: PodcastEpisode?
+  #Preview {
+    @Previewable @State var podcastEpisode: PodcastEpisode?
 
-  NavigationStack {
-    Group {
-      if let podcastEpisode {
-        EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: podcastEpisode))
-      } else {
-        Text("No episodes in DB")
+    NavigationStack {
+      Group {
+        if let podcastEpisode {
+          EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: podcastEpisode))
+        } else {
+          Text("No episodes in DB")
+        }
       }
     }
+    .preview()
+    .task {
+      podcastEpisode = try? await PreviewHelpers.loadPodcastEpisode()
+    }
   }
-  .preview()
-  .task {
-    podcastEpisode = try? await PreviewHelpers.loadPodcastEpisode()
-  }
-}
 #endif

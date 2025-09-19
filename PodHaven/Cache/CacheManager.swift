@@ -81,13 +81,13 @@ actor CacheManager {
     guard let podcastEpisode
     else { throw CacheError.episodeNotFound(episodeID) }
 
-    guard !podcastEpisode.episode.cached
+    guard podcastEpisode.episode.cacheStatus != .cached
     else {
       Self.log.trace("\(podcastEpisode.toString) already cached")
       return nil
     }
 
-    guard !podcastEpisode.episode.caching
+    guard podcastEpisode.episode.cacheStatus != .caching
     else {
       Self.log.trace("\(podcastEpisode.toString) already being downloaded")
       return nil
