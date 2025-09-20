@@ -181,6 +181,7 @@ struct EpisodeDetailView: View {
       }
       .padding(.vertical)
     }
+    .navigationTitle(viewModel.episode.title)
     .task { await viewModel.execute() }
     .onDisappear { viewModel.disappear() }
   }
