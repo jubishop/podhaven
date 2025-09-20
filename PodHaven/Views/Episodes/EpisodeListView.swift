@@ -50,7 +50,7 @@ struct EpisodeListView: View {
   }
 
   var statusIconColumn: some View {
-    VStack(spacing: 8) {
+    VStack(spacing: 10) {
       if let onDeck = playState.onDeck, onDeck == episode {
         AppLabel.episodeOnDeck.image
           .foregroundColor(.accentColor)
