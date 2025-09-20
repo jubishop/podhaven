@@ -30,13 +30,7 @@ struct PlayBar: View {
     }
     .padding(.horizontal, horizontalPadding)
     .padding(.vertical, verticalPadding)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(glassBackground)
-    .clipShape(glassShape)
-    .overlay(glassStroke)
-    .overlay(glassSpecularHighlight)
-    .shadow(color: shadowColor, radius: 20, y: 14)
-    .padding(.horizontal, 16)
+    .glassEffect()
   }
 
   // MARK: - Loading PlayBar
