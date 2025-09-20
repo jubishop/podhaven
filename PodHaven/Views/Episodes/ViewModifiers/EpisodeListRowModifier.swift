@@ -14,6 +14,7 @@ struct EpisodeListRowModifier: ViewModifier {
         )
       )
       .listRowSeparator(.hidden)
+      .dynamicTypeSize(.large ... .xxLarge)
   }
 }
 
