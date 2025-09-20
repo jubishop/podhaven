@@ -16,6 +16,10 @@
 - `Tools/` – helper scripts (e.g., RSS validation, targeted test runners).
 
 ## Architecture Guide
+
+### Compatibility
+- Backward compatibility is not necessary.  Always use the latest features and libraries.
+
 ### Database & Persistence
 - `AppDB` configures GRDB connections and migrations defined in `Database/Schema.swift` (incremental, versioned).
 - Models follow `UnsavedX` + `@Saved<UnsavedX>` patterns from `SavedMacro`; domain types expose GRDB associations and helper SQL expressions.
