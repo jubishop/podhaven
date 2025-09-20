@@ -149,9 +149,9 @@ struct PlayBar: View {
             .resizable()
             .aspectRatio(contentMode: .fill)
             .frame(width: imageSize, height: imageSize)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else {
-          RoundedRectangle(cornerRadius: 14, style: .continuous)
+          RoundedRectangle(cornerRadius: 8, style: .continuous)
             .fill(.secondary.opacity(colorScheme == .dark ? 0.28 : 0.2))
             .frame(width: imageSize, height: imageSize)
             .overlay {
@@ -161,7 +161,7 @@ struct PlayBar: View {
             }
         }
       }
-      .shadow(color: shadowColor.opacity(0.3), radius: 14, y: 8)
+      .shadow(color: shadowColor.opacity(0.3), radius: 8, y: 8)
     }
   }
 
