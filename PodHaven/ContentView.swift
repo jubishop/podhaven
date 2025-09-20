@@ -27,8 +27,7 @@ struct ContentView: View {
       Tab(
         AppLabel.upNext.text,
         systemImage: AppLabel.upNext.systemImageName,
-        value: .upNext,
-        role: .search
+        value: .upNext
       ) {
         TabContentWithPlayBar { UpNextView() }
       }

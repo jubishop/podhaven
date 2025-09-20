@@ -24,7 +24,6 @@ extension Container {
   let progressDragScale: Double = 1.1
   let expansionAnimationDuration: Double = 0.25
   let commonSpacing: CGFloat = 12
-  let textFont: Font = .system(size: 16, weight: .medium)
 
   // MARK: - State Management
 
