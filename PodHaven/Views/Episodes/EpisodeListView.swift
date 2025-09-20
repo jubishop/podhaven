@@ -139,11 +139,13 @@ struct EpisodeListView: View {
   }
 }
 
+// MARK: - Preview
+
 #if DEBUG
 #Preview("All Episode Status Icons & States") {
   @Previewable @State var displayedEpisodes: [any EpisodeDisplayable] = []
   @Previewable @State var selectedStates: [Bool] = []
-  @Previewable @State var isSelected: Bool = false
+  @Previewable @State var isSelected = BindableDictionary<MediaGUID, Bool>(defaultValue: false)
 
   NavigationStack {
     List {
@@ -153,7 +155,7 @@ struct EpisodeListView: View {
           EpisodeListView(
             episode: episode,
             isSelecting: selectedStates[safe: index] ?? false,
-            isSelected: $isSelected
+            isSelected: $isSelected[episode.mediaGUID]
           )
         }
         .episodeListRow()
@@ -198,7 +200,8 @@ struct EpisodeListView: View {
           unsavedPodcast: basePodcast,
           unsavedEpisode: try Create.unsavedEpisode(
             title: "1. Default Episode (no icons) - Grey Box",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * 1)
+            pubDate: Date().addingTimeInterval(-3600 * 24 * 1),
+            duration: CMTime.seconds(2400)
             // No image specified = uses basePodcast image (Changelog)
           )
         ),
@@ -210,6 +213,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "2. Started Episode (progress in duration)",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 2),
+            duration: CMTime.seconds(1800),
             image: Array(imageMapping.values)[3],  // Episode-specific image
             currentTime: CMTime.seconds(300)
           )
@@ -222,6 +226,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "3. Finished Episode (blue checkmark) - SELECTED",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 3),
+            duration: CMTime.seconds(2700),
             image: Array(imageMapping.values)[5],  // Episode-specific image
             completionDate: Date().addingTimeInterval(-3600 * 12)
           )
@@ -231,6 +236,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "4. Started + Finished - SELECTED",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 4),
+            duration: CMTime.seconds(3600),
             image: Array(imageMapping.values)[4],  // Changelog Interviews image
             completionDate: Date().addingTimeInterval(-3600 * 6),
             currentTime: CMTime.seconds(1800)
@@ -248,6 +254,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "5. Queued at Top (orange arrow up)",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 5),
+            duration: CMTime.seconds(2100),
             image: Array(imageMapping.values)[6],  // Pod Save America episode image
             queueOrder: 0
           )
@@ -257,6 +264,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "6. Queued Middle (orange lines) - Grey Box",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 6),
+            duration: CMTime.seconds(900),
             image: nil,  // Will show grey box
             queueOrder: 5
           )
@@ -269,6 +277,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "7. Queued + Started",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 7),
+            duration: CMTime.seconds(2400),
             image: Array(imageMapping.values)[7],  // This American Life episode image
             currentTime: CMTime.seconds(600),
             queueOrder: 3
@@ -282,6 +291,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "8. Queued + Finished",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 8),
+            duration: CMTime.seconds(3000),
             image: Array(imageMapping.values)[3],  // Pod Save America episode image
             completionDate: Date().addingTimeInterval(-3600 * 3),
             queueOrder: 2
@@ -299,6 +309,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "9. Cached Episode (green download)",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 9),
+            duration: CMTime.seconds(3300),
             image: Array(imageMapping.values)[4],  // Changelog Interviews
             cachedFilename: "cached_episode.mp3"
           )
@@ -311,6 +322,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "10. Cached + Started - Grey Box",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 10),
+            duration: CMTime.seconds(1800),
             currentTime: CMTime.seconds(450),
             cachedFilename: "cached_started.mp3"
               // No episode image = falls back to podcast image (grey box)
@@ -324,6 +336,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "11. Cached + Finished",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 11),
+            duration: CMTime.seconds(2600),
             image: Array(imageMapping.values)[5],  // This American Life episode
             completionDate: Date().addingTimeInterval(-3600 * 8),
             cachedFilename: "cached_finished.mp3"
@@ -337,6 +350,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "12. Cached + Queued",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 12),
+            duration: CMTime.seconds(4000),
             image: Array(imageMapping.values)[6],  // Pod Save America episode 2
             queueOrder: 7,
             cachedFilename: "cached_queued.mp3"
@@ -354,6 +368,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "13. Caching: 25% Progress (green circle)",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 13),
+            duration: CMTime.seconds(3600),
             image: Array(imageMapping.values)[4]  // Changelog Interviews
           )
         )
@@ -368,6 +383,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "14. Caching: 65% Progress (larger green circle)",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 14),
+            duration: CMTime.seconds(3000),
             image: Array(imageMapping.values)[3]  // Pod Save America episode
           )
         )
@@ -382,6 +398,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "15. Caching: Waiting (green clock icon)",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 15),
+            duration: CMTime.seconds(1500),
             image: Array(imageMapping.values)[7]  // This American Life episode 2
           )
         )
@@ -423,6 +440,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "16. Everything: Queued + Cached + Started - SELECTED",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 16),
+            duration: CMTime.seconds(3600),
             image: Array(imageMapping.values)[4],  // Changelog Interviews
             currentTime: CMTime.seconds(900),
             queueOrder: 1,
@@ -437,6 +455,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "17. Top Queue + Cached + Finished",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 17),
+            duration: CMTime.seconds(2700),
             image: Array(imageMapping.values)[3],  // Pod Save America episode
             completionDate: Date().addingTimeInterval(-3600 * 2),
             queueOrder: 0,
@@ -451,6 +470,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "18. All States: Queue + Cache + Complete + Started",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 18),
+            duration: CMTime.seconds(4200),
             image: Array(imageMapping.values)[5],  // This American Life episode
             completionDate: Date().addingTimeInterval(-3600 * 1),
             currentTime: CMTime.seconds(1500),
@@ -466,6 +486,7 @@ struct EpisodeListView: View {
           unsavedEpisode: try Create.unsavedEpisode(
             title: "19. Long Title to Test Layout with Multiple States and Icons - SELECTED",
             pubDate: Date().addingTimeInterval(-3600 * 24 * 19),
+            duration: CMTime.seconds(5400),
             image: Array(imageMapping.values)[6],  // Pod Save America episode 2
             currentTime: CMTime.seconds(2700),
             queueOrder: 8,
