@@ -228,19 +228,20 @@ struct PlayBar: View {
   private var glassBackground: some View {
     glassShape
       .fill(.thinMaterial)
+      .opacity(colorScheme == .dark ? 0.75 : 0.6)
       .overlay {
         glassShape
           .fill(
             LinearGradient(
               colors: [
-                Color.accentColor.opacity(colorScheme == .dark ? 0.3 : 0.2),
-                Color.accentColor.opacity(0.04),
+                Color.accentColor.opacity(colorScheme == .dark ? 0.55 : 0.35),
+                Color.accentColor.opacity(colorScheme == .dark ? 0.25 : 0.16),
               ],
               startPoint: .topLeading,
               endPoint: .bottomTrailing
             )
           )
-          .opacity(0.5)
+          .opacity(colorScheme == .dark ? 0.45 : 0.3)
       }
   }
 

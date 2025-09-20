@@ -77,6 +77,7 @@ struct SearchView: View {
           }
         )
       }
+      .playBarSafeAreaInset()
       .navigationTitle("Search")
     }
   }

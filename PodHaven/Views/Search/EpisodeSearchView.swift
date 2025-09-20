@@ -97,6 +97,7 @@ struct EpisodeSearchView: View {
         }
       }
     }
+    .playBarSafeAreaInset()
   }
 
   func errorStateView(message: String) -> some View {

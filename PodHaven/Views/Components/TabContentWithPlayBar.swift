@@ -6,6 +6,8 @@ import SwiftUI
 struct TabContentWithPlayBar<Content: View>: View {
   @InjectedObservable(\.playState) private var playState
 
+  @State private var playBarHeight: CGFloat = 0
+
   private let content: Content
 
   init(@ViewBuilder content: () -> Content) {
@@ -13,14 +15,22 @@ struct TabContentWithPlayBar<Content: View>: View {
   }
 
   var body: some View {
-    VStack(spacing: 2) {
+    ZStack(alignment: .bottom) {
       content
+        .environment(\.playBarSafeAreaInset, playBarHeight)
 
       if playState.showPlayBar {
         PlayBar()
+          .onGeometryChange(for: CGFloat.self) { geometry in
+            geometry.size.height
+          } action: { newSize in
+            playBarHeight = newSize
+          }
           .padding(.bottom, 2)
       }
     }
-    .tab()
+    .onChange(of: playState.showPlayBar) {
+      if !playState.showPlayBar { playBarHeight = 0 }
+    }
   }
 }

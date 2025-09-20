@@ -35,6 +35,7 @@ struct EpisodesView: View {
           label: { Text("Previously Queued") }
         )
       }
+      .playBarSafeAreaInset()
       .navigationTitle("All Episode Lists")
     }
   }
