@@ -28,7 +28,6 @@ struct OPMLView: View {
         }
       }
     }
-    .playBarSafeAreaInset()
     .navigationTitle("OPML")
     .fileImporter(
       isPresented: $viewModel.opmlImporting,

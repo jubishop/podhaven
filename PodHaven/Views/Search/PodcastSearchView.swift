@@ -118,7 +118,6 @@ struct PodcastSearchView: View {
         }
       )
     }
-    .playBarSafeAreaInset()
   }
 
   func errorStateView(message: String) -> some View {

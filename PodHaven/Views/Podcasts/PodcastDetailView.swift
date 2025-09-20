@@ -187,7 +187,6 @@ struct PodcastDetailView: View {
     }
     .refreshable(action: viewModel.refreshSeries)
     .animation(.default, value: viewModel.episodeList.filteredEntries)
-    .playBarSafeAreaInset()
   }
 
   private var noEpisodesMessage: some View {
@@ -270,7 +269,6 @@ struct PodcastDetailView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .playBarSafeAreaInset()
     }
   }
 

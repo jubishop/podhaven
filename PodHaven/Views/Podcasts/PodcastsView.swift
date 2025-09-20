@@ -21,7 +21,6 @@ struct PodcastsView: View {
           )
         }
       }
-      .playBarSafeAreaInset()
       .navigationTitle("All Podcast Lists")
     }
   }

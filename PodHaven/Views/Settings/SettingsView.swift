@@ -22,7 +22,6 @@ struct SettingsView: View {
           DebugSection()
         }
       }
-      .playBarSafeAreaInset()
       .navigationTitle("Settings")
     }
   }

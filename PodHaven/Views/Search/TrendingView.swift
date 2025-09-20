@@ -17,7 +17,6 @@ struct TrendingView: View {
         )
       }
     }
-    .playBarSafeAreaInset()
     .navigationTitle("Categories")
   }
 }

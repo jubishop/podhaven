@@ -64,7 +64,6 @@ struct SelectablePodcastsGridView: View {
       }
       .padding()
     }
-    .playBarSafeAreaInset()
     .navigationTitle(viewModel.title)
     .refreshable {
       do {

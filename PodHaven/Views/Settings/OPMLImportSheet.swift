@@ -49,7 +49,6 @@ struct OPMLImportSheet: View {
       OPMLImportSheetSection(outlines: Array(opmlFile.failed))
       OPMLImportSheetSection(outlines: Array(opmlFile.finished))
     }
-    .playBarSafeAreaInset()
     .animation(.default, value: Array(opmlFile.downloading))
     .animation(.default, value: Array(opmlFile.waiting))
     .animation(.default, value: Array(opmlFile.failed))
@@ -86,7 +85,6 @@ func importOPMLFile(_ viewModel: OPMLViewModel, _ resource: String) {
       importOPMLFile(viewModel, "empty")
     }
   }
-  .playBarSafeAreaInset()
   .preview()
   .sheet(item: $viewModel.opmlFile) { opmlFile in
     OPMLImportSheet(viewModel: viewModel, opmlFile: opmlFile)
