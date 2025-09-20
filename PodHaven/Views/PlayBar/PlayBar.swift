@@ -275,13 +275,13 @@ struct PlayBar: View {
 
       LinearGradient(
         colors: [
-          Color.white.opacity(colorScheme == .dark ? 0.22 : 0.32),
+          Color.white.opacity(colorScheme == .dark ? 0.16 : 0.24),
           Color.clear,
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
       )
-      .frame(height: 14)
+      .frame(height: 6)
       .frame(maxWidth: .infinity, alignment: .topLeading)
     }
     .clipShape(glassShape)
