@@ -17,8 +17,6 @@ struct TabContentWithPlayBar<Content: View>: View {
   var body: some View {
     ZStack(alignment: .bottom) {
       content
-        .environment(\.playBarSafeAreaInset, playBarHeight)
-        .playBarSafeAreaInset()
 
       if playState.showPlayBar {
         PlayBar()
@@ -33,5 +31,6 @@ struct TabContentWithPlayBar<Content: View>: View {
     .onChange(of: playState.showPlayBar) {
       if !playState.showPlayBar { playBarHeight = 0 }
     }
+    .environment(\.playBarSafeAreaInset, playBarHeight)
   }
 }
