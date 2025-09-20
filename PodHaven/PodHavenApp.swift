@@ -43,10 +43,10 @@ struct PodHavenApp: App {
         isInitialized = true
 
         if AppInfo.environment != .testing {
-          startMemoryWarningMonitoring()
-          await playManager.start()
-          await refreshManager.start()
           do {
+            startMemoryWarningMonitoring()
+            await playManager.start()
+            await refreshManager.start()
             try await cacheManager.start()
           } catch {
             Self.log.error(error)
