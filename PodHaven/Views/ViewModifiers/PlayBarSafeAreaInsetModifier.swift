@@ -6,7 +6,7 @@ private struct PlayBarSafeAreaInsetModifier: ViewModifier {
   @Environment(\.playBarSafeAreaInset) private var playBarSafeAreaInset
 
   func body(content: Content) -> some View {
-    if playBarSafeAreahInset > 0 {
+    if playBarSafeAreaInset > 0 {
       content
         .safeAreaInset(edge: .bottom, spacing: 0) {
           Spacer()
