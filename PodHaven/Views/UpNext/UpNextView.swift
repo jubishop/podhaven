@@ -39,7 +39,9 @@ struct UpNextView: View {
             Text(viewModel.totalQueueDuration.shortDescription)
               .font(.caption)
               .foregroundStyle(.secondary)
+              .fixedSize()
           }
+          .sharedBackgroundVisibility(.hidden)
 
           ToolbarItem(placement: .topBarTrailing) {
             Menu("Sort") {
