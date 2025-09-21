@@ -185,34 +185,75 @@ struct PlayBar: View {
 // MARK: - Preview
 
 #if DEBUG
-#Preview {
-  @Previewable @State var imageURLs: [URL] = []
-  @Previewable @State var gridItemSize: CGFloat = 100
+struct PlayBarPreview: View {
+  @DynamicInjected(\.fakeDataLoader) private var dataLoader
 
-  ZStack {
-    List(imageURLs, id: \.self) { url in
-      SquareImage(image: url, size: $gridItemSize)
+  @State var imageURLs: [URL] = []
+  @State var gridItemSize: CGFloat = 100
+
+  var body: some View {
+    ZStack(alignment: .bottom) {
+      List(imageURLs, id: \.self) { url in
+        SquareImage(image: url, size: $gridItemSize)
+      }
+
+      PlayBar()
+        .padding(.bottom, 40)
+    }
+    .preview()
+    .task {
+      let allThumbnails = PreviewBundle.loadAllThumbnails()
+      for thumbnailInfo in allThumbnails.values {
+        imageURLs.append(thumbnailInfo.url)
+      }
+    }
+  }
+}
+
+#Preview("Loaded") {
+  VStack {
+    Button("Wait") {
+      let playState = Container.shared.playState()
+      if playState.waiting {
+        playState.setStatus(.paused)
+      } else {
+        playState.setStatus(.waiting)
+      }
     }
 
-    PlayBar()
-  }
-  .preview()
-  .task {
-    let dataLoader = Container.shared.fakeDataLoader()
+    PlayBarPreview()
+      .task {
+        let playState = Container.shared.playState()
+        if playState.status.loading || playState.status.stopped {
+          let dataLoader = Container.shared.fakeDataLoader()
 
-    let allThumbnails = PreviewBundle.loadAllThumbnails()
-    for thumbnailInfo in allThumbnails.values {
-      imageURLs.append(thumbnailInfo.url)
+          let podcastEpisode = try! await PreviewHelpers.loadPodcastEpisode()
+          dataLoader.respond(
+            to: podcastEpisode.image,
+            data:
+              PreviewBundle
+              .loadImageData(
+                named: PreviewBundle.allThumbnailNames.randomElement()!,
+                in: .EpisodeThumbnails
+              )
+          )
+          _ = try? await Container.shared.playManager().load(podcastEpisode)
+        }
+      }
+  }
+}
+
+#Preview("Loading") {
+  PlayBarPreview()
+    .task {
+      Container.shared.playState().setStatus(.loading("Episode Title Here"))
     }
+}
 
-    let podcastEpisode = try! await PreviewHelpers.loadPodcastEpisode()
-    dataLoader.respond(
-      to: podcastEpisode.image,
-      data:
-        PreviewBundle
-        .loadImageData(named: allThumbnails.randomElement()!.key, in: .EpisodeThumbnails)
-    )
-    try! await Container.shared.playManager().load(podcastEpisode)
-  }
+#Preview("Stopped") {
+  PlayBarPreview()
+    .task {
+      Container.shared.playState().setStatus(.stopped)
+    }
 }
 #endif

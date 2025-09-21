@@ -166,7 +166,6 @@ struct EpisodeListView: View {
   .task {
     do {
       let cacheState = Container.shared.cacheState()
-      let dataLoader = Container.shared.fakeDataLoader()
       let repo = Container.shared.repo()
 
       let allThumbnails = PreviewBundle.loadAllThumbnails()
