@@ -64,9 +64,9 @@ private enum SystemImageName: String, CaseIterable {
   // Playback Controls
   case loading = "hourglass.circle"
   case noEpisode = "waveform.slash"
-  case pauseButton = "pause.fill"
-  case play = "play"
-  case playButton = "play.fill"
+  case pauseButton = "pause.circle.fill"
+  case play = "play.fill"
+  case playButton = "play.circle.fill"
   case seekBackward = "gobackward.15"
   case seekForward = "goforward.30"
 
