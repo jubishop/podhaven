@@ -229,7 +229,7 @@ struct PlayBar: View {
             PreviewBundle
             .loadImageData(named: imageMapping.randomElement()!.key, in: .EpisodeThumbnails)
         )
-        _ = try? await Container.shared.playManager().load(podcastEpisode)
+        try! await Container.shared.playManager().load(podcastEpisode)
       }
   }
 }
