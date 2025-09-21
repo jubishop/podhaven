@@ -190,25 +190,35 @@ struct PlayBar: View {
   @Previewable @State var gridItemSize: CGFloat = 100
 
   VStack(spacing: 12) {
-    Menu {
-      Button("Waiting") {
-        Container.shared.playState().setStatus(.waiting)
-      }
-      Button("Playing") {
-        Container.shared.playState().setStatus(.playing)
-      }
-      Button("Paused") {
-        Container.shared.playState().setStatus(.paused)
-      }
-      Button("Loading") {
+    HStack(spacing: 24) {
+      Button {
         Container.shared.playState().setStatus(.loading("Episode Title Here"))
+      } label: {
+        ProgressView()
+          .progressViewStyle(.circular)
+          .tint(.primary)
+          .frame(width: 32, height: 32)
       }
-      Button("Stopped") {
+
+      Button {
+        Container.shared.playState().setStatus(.waiting)
+      } label: { AppLabel.loading.image }
+
+      Button {
+        Container.shared.playState().setStatus(.playing)
+      } label: { AppLabel.pauseButton.image }
+
+      Button {
+        Container.shared.playState().setStatus(.paused)
+      } label: { AppLabel.playButton.image }
+
+      Button {
         Container.shared.playState().setStatus(.stopped)
-      }
-    } label: {
-      Label("Set Play Status", systemImage: "slider.horizontal.3")
-    }.dynamicTypeSize(.large)
+      } label: { AppLabel.noEpisodeSelected.image }
+    }
+    .font(.title)
+    .buttonStyle(.plain)
+    .dynamicTypeSize(.large)
 
     ZStack(alignment: .bottom) {
       List(imageURLs, id: \.self) { url in
