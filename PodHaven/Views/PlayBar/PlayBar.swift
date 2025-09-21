@@ -70,11 +70,7 @@ struct PlayBar: View {
 
       Spacer()
 
-      Button(action: viewModel.toggleExpansion) {
-        AppLabel.expandUp.image
-          .foregroundColor(.white)
-      }
-      .frame(width: imageSize)
+      expansionButton
     }
   }
 
@@ -82,21 +78,7 @@ struct PlayBar: View {
 
   private var expandedPlayBar: some View {
     VStack(spacing: 16) {
-      HStack {
-        episodeImage
-
-        Spacer()
-
-        playbackControls
-
-        Spacer()
-
-        Button(action: viewModel.toggleExpansion) {
-          AppLabel.expandDown.image
-            .foregroundColor(.white)
-        }
-        .frame(width: imageSize)
-      }
+      collapsedPlayBar
 
       VStack(spacing: 4) {
         CustomProgressBar(
@@ -191,7 +173,16 @@ struct PlayBar: View {
       }
     }
   }
+
+  private var expansionButton: some View {
+    Button(action: viewModel.toggleExpansion) {
+      (viewModel.isExpanded ? AppLabel.expandDown.image : AppLabel.expandUp.image)
+        .foregroundColor(.white)
+    }
+  }
 }
+
+// MARK: - Preview
 
 #if DEBUG
 #Preview {
