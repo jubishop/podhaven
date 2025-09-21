@@ -48,7 +48,6 @@ struct PlayBar: View {
   private var stoppedPlayBar: some View {
     HStack(spacing: viewModel.commonSpacing) {
       AppLabel.noEpisodeSelected.image
-        .font(.system(size: 20, weight: .medium))
         .foregroundColor(.white)
 
       Text("No episode selected")
