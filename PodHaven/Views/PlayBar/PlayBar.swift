@@ -8,34 +8,38 @@ struct PlayBar: View {
   @InjectedObservable(\.playBarViewModel) private var viewModel
 
   private let imageSize: CGFloat = 48
-  private let horizontalPadding: CGFloat = 20
-  private let verticalPadding: CGFloat = 14
-  private let glassCornerRadius: CGFloat = 26
-  private let controlSize: CGFloat = 44
-  private let secondaryControlSize: CGFloat = 36
-  private let barSpacing: CGFloat = 12
-  private let transportSpacing: CGFloat = 24
+  private let horizontalPadding: CGFloat = 16
+  private let verticalPadding: CGFloat = 10
+  private let containerCornerRadius: CGFloat = 12
+  private let outerHorizontalInset: CGFloat = 16
+  private let barSpacing: CGFloat = 8
+  private let transportSpacing: CGFloat = 16
+  private let primaryControlSize: CGFloat = 24
+  private let secondaryControlSize: CGFloat = 30
 
   var body: some View {
-    Group {
-      if viewModel.isLoading {
-        loadingPlayBar
-      } else if viewModel.isStopped {
-        stoppedPlayBar
-      } else if viewModel.isExpanded {
-        expandedPlayBar
-      } else {
-        collapsedPlayBar
-      }
-    }
-    .padding(.horizontal, horizontalPadding)
-    .padding(.vertical, verticalPadding)
-    .glassEffect()
+    playBarContent
+      .padding(.horizontal, horizontalPadding)
+      .padding(.vertical, verticalPadding)
+      .glassEffect(containerGlass)
+      .frame(maxWidth: .infinity)
+      .padding(.horizontal, outerHorizontalInset)
   }
 
-  // MARK: - Loading PlayBar
+  @ViewBuilder
+  private var playBarContent: some View {
+    if viewModel.isLoading {
+      loadingContent
+    } else if viewModel.isStopped {
+      stoppedContent
+    } else if viewModel.isExpanded {
+      expandedContent
+    } else {
+      collapsedContent
+    }
+  }
 
-  private var loadingPlayBar: some View {
+  private var loadingContent: some View {
     HStack(spacing: viewModel.commonSpacing) {
       ProgressView()
         .controlSize(.small)
@@ -50,9 +54,7 @@ struct PlayBar: View {
     }
   }
 
-  // MARK: - Stopped PlayBar
-
-  private var stoppedPlayBar: some View {
+  private var stoppedContent: some View {
     HStack(spacing: viewModel.commonSpacing) {
       AppLabel.noEpisodeSelected.image
         .symbolRenderingMode(.hierarchical)
@@ -67,37 +69,23 @@ struct PlayBar: View {
     }
   }
 
-  // MARK: - Collapsed PlayBar
-
-  private var collapsedPlayBar: some View {
-    HStack(alignment: .center, spacing: barSpacing) {
+  private var collapsedContent: some View {
+    HStack(spacing: barSpacing) {
       episodeImage
 
       Spacer()
 
       transportControls
 
-      Spacer(minLength: barSpacing)
+      Spacer()
 
-      expandButton(direction: .up)
+      expandButton(direction: viewModel.isExpanded ? .down : .up)
     }
   }
 
-  // MARK: - Expanded PlayBar
-
-  private var expandedPlayBar: some View {
-    VStack(spacing: 18) {
-      HStack(alignment: .center, spacing: barSpacing) {
-        episodeImage
-
-        Spacer()
-
-        transportControls
-
-        Spacer(minLength: barSpacing)
-
-        expandButton(direction: .down)
-      }
+  private var expandedContent: some View {
+    VStack(spacing: 16) {
+      collapsedContent
 
       VStack(spacing: 10) {
         CustomProgressBar(
@@ -111,29 +99,16 @@ struct PlayBar: View {
           Text(viewModel.sliderValue.playbackTimeFormat)
             .font(.caption2.monospacedDigit())
             .foregroundStyle(.secondary)
-            .scaleEffect(viewModel.isDragging ? viewModel.progressDragScale : 1.0)
-            .animation(
-              .easeInOut(duration: viewModel.progressAnimationDuration),
-              value: viewModel.isDragging
-            )
 
           Spacer()
 
           Text(viewModel.duration.seconds.playbackTimeFormat)
             .font(.caption2.monospacedDigit())
             .foregroundStyle(.secondary)
-            .scaleEffect(viewModel.isDragging ? viewModel.progressDragScale : 1.0)
-            .animation(
-              .easeInOut(duration: viewModel.progressAnimationDuration),
-              value: viewModel.isDragging
-            )
         }
       }
-
     }
   }
-
-  // MARK: - Shared Components
 
   private var episodeImage: some View {
     Button(action: viewModel.showEpisodeDetail) {
@@ -146,17 +121,24 @@ struct PlayBar: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else {
           RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(.secondary.opacity(colorScheme == .dark ? 0.28 : 0.2))
+            .fill(.clear)
             .frame(width: imageSize, height: imageSize)
             .overlay {
               AppLabel.audioPlaceholder.image
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.secondary)
             }
+            .glassEffect(
+              Glass.regular
+                .tint(Color.secondary.opacity(colorScheme == .dark ? 0.45 : 0.28))
+                .interactive(),
+              in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
         }
       }
-      .shadow(color: shadowColor.opacity(0.3), radius: 8, y: 8)
+      .shadow(color: shadowColor.opacity(0.3), radius: 6, y: 6)
     }
+    .buttonStyle(.plain)
   }
 
   private var transportControls: some View {
@@ -173,26 +155,25 @@ struct PlayBar: View {
           if viewModel.isWaiting {
             AppLabel.loading.image
               .symbolRenderingMode(.hierarchical)
-              .foregroundStyle(.white.opacity(0.8))
-              .font(.system(size: 20, weight: .medium))
+              .foregroundStyle(.primary.opacity(0.8))
+              .font(.system(size: 18, weight: .medium))
           } else if viewModel.isPlaying {
             AppLabel.pauseButton.image
               .symbolRenderingMode(.hierarchical)
-              .foregroundStyle(.white)
-              .font(.system(size: 22, weight: .semibold))
+              .foregroundStyle(.primary)
+              .font(.system(size: 20, weight: .semibold))
           } else {
             AppLabel.playButton.image
               .symbolRenderingMode(.hierarchical)
-              .foregroundStyle(.white)
-              .font(.system(size: 24, weight: .semibold))
+              .foregroundStyle(.primary)
+              .font(.system(size: 22, weight: .semibold))
           }
         }
-        .frame(width: controlSize, height: controlSize)
-        .background(playButtonBackground)
-        .overlay(playButtonStroke)
-        .shadow(color: shadowColor.opacity(0.22), radius: 16, y: 8)
+        .frame(width: primaryControlSize, height: primaryControlSize)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.glassProminent)
+      .buttonBorderShape(.capsule)
+      .tint(Color.accentColor)
 
       glassControlButton(
         icon: viewModel.seekForwardImage,
@@ -210,132 +191,10 @@ struct PlayBar: View {
         .foregroundStyle(.secondary)
         .font(.system(size: 18, weight: .semibold))
         .frame(width: secondaryControlSize, height: secondaryControlSize)
-        .background(glassControlBackground.opacity(0.7), in: Capsule())
-        .overlay(
-          Capsule()
-            .strokeBorder(glassControlStroke, lineWidth: 1)
-        )
     }
-    .buttonStyle(.plain)
-  }
-
-  private var glassBackground: some View {
-    glassShape
-      .fill(.thinMaterial)
-      .opacity(colorScheme == .dark ? 0.75 : 0.6)
-      .overlay {
-        glassShape
-          .fill(
-            LinearGradient(
-              colors: [
-                Color.accentColor.opacity(colorScheme == .dark ? 0.55 : 0.35),
-                Color.accentColor.opacity(colorScheme == .dark ? 0.25 : 0.16),
-              ],
-              startPoint: .topLeading,
-              endPoint: .bottomTrailing
-            )
-          )
-          .opacity(colorScheme == .dark ? 0.45 : 0.3)
-      }
-  }
-
-  private var glassStroke: some View {
-    glassShape
-      .strokeBorder(
-        LinearGradient(
-          colors: [
-            Color.white.opacity(colorScheme == .dark ? 0.34 : 0.18),
-            Color.white.opacity(colorScheme == .dark ? 0.12 : 0.04),
-          ],
-          startPoint: .topLeading,
-          endPoint: .bottomTrailing
-        )
-      )
-  }
-
-  private var glassSpecularHighlight: some View {
-    ZStack(alignment: .topLeading) {
-      glassShape
-        .strokeBorder(
-          LinearGradient(
-            colors: [
-              Color.white.opacity(colorScheme == .dark ? 0.22 : 0.3),
-              Color.clear,
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-          ),
-          lineWidth: 1
-        )
-
-      LinearGradient(
-        colors: [
-          Color.white.opacity(colorScheme == .dark ? 0.16 : 0.24),
-          Color.clear,
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-      )
-      .frame(height: 6)
-      .frame(maxWidth: .infinity, alignment: .topLeading)
-    }
-    .clipShape(glassShape)
-    .allowsHitTesting(false)
-  }
-
-  private var glassShape: RoundedRectangle {
-    RoundedRectangle(cornerRadius: glassCornerRadius, style: .continuous)
-  }
-
-  private var playButtonBackground: some View {
-    Capsule(style: .continuous)
-      .fill(
-        LinearGradient(
-          colors: [
-            Color.accentColor.opacity(colorScheme == .dark ? 0.85 : 0.9),
-            Color.accentColor.opacity(colorScheme == .dark ? 0.65 : 0.6),
-          ],
-          startPoint: .topLeading,
-          endPoint: .bottomTrailing
-        )
-      )
-  }
-
-  private var playButtonStroke: some View {
-    Capsule(style: .continuous)
-      .strokeBorder(
-        LinearGradient(
-          colors: [
-            Color.white.opacity(colorScheme == .dark ? 0.3 : 0.45),
-            Color.white.opacity(colorScheme == .dark ? 0.08 : 0.16),
-          ],
-          startPoint: .topLeading,
-          endPoint: .bottomTrailing
-        ),
-        lineWidth: 1
-      )
-  }
-
-  private var glassControlBackground: some ShapeStyle {
-    LinearGradient(
-      colors: [
-        Color.white.opacity(colorScheme == .dark ? 0.15 : 0.18),
-        Color.white.opacity(colorScheme == .dark ? 0.05 : 0.08),
-      ],
-      startPoint: .topLeading,
-      endPoint: .bottomTrailing
-    )
-  }
-
-  private var glassControlStroke: LinearGradient {
-    LinearGradient(
-      colors: [
-        Color.white.opacity(colorScheme == .dark ? 0.28 : 0.24),
-        Color.white.opacity(colorScheme == .dark ? 0.06 : 0.08),
-      ],
-      startPoint: .topLeading,
-      endPoint: .bottomTrailing
-    )
+    .buttonStyle(.glass)
+    .buttonBorderShape(.capsule)
+    .tint(.secondary.opacity(0.8))
   }
 
   private func glassControlButton(
@@ -347,17 +206,12 @@ struct PlayBar: View {
     Button(action: action) {
       icon
         .symbolRenderingMode(.hierarchical)
-        .foregroundStyle(tint)
-        .font(.system(size: 18, weight: .semibold))
+        .font(.system(size: 16, weight: .semibold))
         .frame(width: size, height: size)
-        .background(glassControlBackground, in: Capsule(style: .continuous))
-        .overlay(
-          Capsule(style: .continuous)
-            .strokeBorder(glassControlStroke, lineWidth: 1)
-        )
     }
-    .buttonStyle(.plain)
-    .shadow(color: shadowColor.opacity(0.18), radius: 10, y: 4)
+    .buttonStyle(.glass)
+    .buttonBorderShape(.capsule)
+    .tint(tint)
   }
 
   private enum ExpansionDirection {
@@ -374,9 +228,21 @@ struct PlayBar: View {
     }
   }
 
+  private var containerGlass: Glass {
+    Glass.regular
+      .interactive()
+  }
+
+  private var containerTint: Color {
+    colorScheme == .dark
+      ? Color.accentColor.opacity(0.42)
+      : Color.accentColor.opacity(0.28)
+  }
+
   private var shadowColor: Color {
     colorScheme == .dark
-      ? Color.black.opacity(0.45) : Color(.sRGBLinear, red: 0, green: 0, blue: 0, opacity: 0.12)
+      ? Color.black.opacity(0.45)
+      : Color(.sRGBLinear, red: 0, green: 0, blue: 0, opacity: 0.12)
   }
 }
 
