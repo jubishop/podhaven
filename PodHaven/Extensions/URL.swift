@@ -4,9 +4,7 @@ import Foundation
 
 extension URL: Stringable {
   public var toString: String { self.hash() }
-}
 
-extension URL {
   static let placeholder = URL(string: "about:blank")!
 
   func convertToHTTPSURL() throws(URLError) -> URL {

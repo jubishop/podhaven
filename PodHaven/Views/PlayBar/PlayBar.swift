@@ -185,11 +185,52 @@ struct PlayBar: View {
 
 #if DEBUG
 #Preview {
-  PlayBar()
-    .preview()
-    .task {
-      let podcastEpisode = try! await PreviewHelpers.loadPodcastEpisode()
-      _ = try? await Container.shared.playManager().load(podcastEpisode)
+  @Previewable @State var imageURLs: [URL] = []
+  @Previewable @State var gridItemSize: CGFloat = 100
+
+  ZStack {
+    ScrollView {
+      ItemGrid(items: imageURLs, id: \.self) { url in
+        SquareImage(image: url, size: $gridItemSize)
+      }
     }
+
+    PlayBar()
+      .preview()
+      .task {
+        let dataLoader = Container.shared.fakeDataLoader()
+
+        let imageMapping = [
+          "changelog-podcast": URL.valid(),
+          "changelog-interviews": URL.valid(),
+          "this-american-life-podcast": URL.valid(),
+          "this-american-life-episode1": URL.valid(),
+          "this-american-life-episode2": URL.valid(),
+          "pod-save-america-podcast": URL.valid(),
+          "pod-save-america-episode1": URL.valid(),
+          "pod-save-america-episode2": URL.valid(),
+        ]
+        for (assetName, url) in imageMapping {
+          dataLoader.respond(
+            to: url,
+            data: PreviewBundle.loadImageData(named: assetName, in: .EpisodeThumbnails)
+          )
+        }
+
+        for _ in 0..<25 {
+          guard let randomURL = imageMapping.randomElement()?.value else { continue }
+          imageURLs.append(randomURL)
+        }
+
+        let podcastEpisode = try! await PreviewHelpers.loadPodcastEpisode()
+        dataLoader.respond(
+          to: podcastEpisode.image,
+          data:
+            PreviewBundle
+            .loadImageData(named: imageMapping.randomElement()!.key, in: .EpisodeThumbnails)
+        )
+        _ = try? await Container.shared.playManager().load(podcastEpisode)
+      }
+  }
 }
 #endif
