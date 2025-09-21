@@ -190,8 +190,8 @@ struct PlayBar: View {
 
   ZStack {
     ScrollView {
-      ItemGrid(items: imageURLs, id: \.self) { url in
-        SquareImage(image: url, size: $gridItemSize)
+      ItemGrid(items: Array(imageURLs.enumerated()), id: \.offset) { item in
+        SquareImage(image: item.element, size: $gridItemSize)
       }
     }
 
