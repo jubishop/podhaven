@@ -49,48 +49,60 @@ actor AppInfo {
   }
 
   private static func _getEnvironment() async -> EnvironmentType {
-    if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" { return .preview }
+    guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1"
+    else { return .preview }
 
-    if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return .testing }
+    guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
+    else { return .testing }
 
     #if targetEnvironment(simulator)
     return .simulator
     #else
+    #if DEBUG
+    return currentDevelopmentEnvironment()
+    #else
     do {
       let result = try await AppTransaction.shared
-      switch result {
-      case .verified(let appTransaction):
-        switch appTransaction.environment {
-        case .sandbox:
-          return .testFlight
-        case .production:
-          return .appStore
-        default:
-          Assert.fatal("AppTransaction environment is actually \(appTransaction.environment)")
-        }
-      case .unverified(_, _):
-        Assert.fatal("Could not verify appTransaction")
-      }
+      return try environment(for: result)
     } catch {
-      if ProcessInfo.processInfo.isMacCatalystApp || ProcessInfo.processInfo.isiOSAppOnMac {
-        return .macDev
-      }
+      log.error(error)
+      do {
+        guard myDevice else { return .testFlight }
 
-      if !hasEmbeddedProvisioningProfile() {
-        return .testFlight
+        let refreshed = try await AppTransaction.refresh()
+        return try environment(for: refreshed)
+      } catch {
+        log.error(error)
       }
-
-      return .iPhoneDev
     }
+    return currentDevelopmentEnvironment()
+    #endif
     #endif
   }
 
-  private static func hasEmbeddedProvisioningProfile() -> Bool {
-    guard
-      let provisioningPath = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision")
-    else { return false }
+  private static func environment(
+    for verificationResult: VerificationResult<AppTransaction>
+  ) throws -> EnvironmentType {
+    switch verificationResult {
+    case .verified(let appTransaction):
+      switch appTransaction.environment {
+      case .sandbox:
+        return .testFlight
+      case .production:
+        return .appStore
+      default:
+        throw AppInfoError.unknownAppTransactionEnvironment(
+          environment: String(describing: appTransaction.environment)
+        )
+      }
+    case .unverified(_, _):
+      throw AppInfoError.unverifiedAppTransaction
+    }
+  }
 
-    return FileManager.default.fileExists(atPath: provisioningPath)
+  private static func currentDevelopmentEnvironment() -> EnvironmentType {
+    (ProcessInfo.processInfo.isMacCatalystApp || ProcessInfo.processInfo.isiOSAppOnMac)
+      ? .macDev : .iPhoneDev
   }
 
   static var languageCode: String? {
