@@ -1,3 +1,6 @@
+## MCP Usage
+- If discussing Swift, SwiftUI, and iOS: Consult the apple-docs-mcp for up to date information.
+
 ## Repo Guardrails
 - Never create commits or push unless the humans explicitly ask.
 - Assume the working tree may hold user edits; respect them and avoid resets or reverts.
@@ -5,7 +8,6 @@
 
 ## Build & Test
 - Do not run builds or tests unless the request is explicit.
-- When asked, prefer the MCP helpers: `build_macos` before `test_macos` if tests depend on a fresh build.
 - Surface meaningful snippets instead of raw command dumps; keep output concise.
 
 ## Project Map

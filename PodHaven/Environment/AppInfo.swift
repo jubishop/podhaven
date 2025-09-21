@@ -72,11 +72,25 @@ actor AppInfo {
         Assert.fatal("Could not verify appTransaction")
       }
     } catch {
-      // AppTransaction.shared throws for Xcode-installed apps
-      return (ProcessInfo.processInfo.isMacCatalystApp || ProcessInfo.processInfo.isiOSAppOnMac)
-        ? .macDev : .iPhoneDev
+      if ProcessInfo.processInfo.isMacCatalystApp || ProcessInfo.processInfo.isiOSAppOnMac {
+        return .macDev
+      }
+
+      if !hasEmbeddedProvisioningProfile() {
+        return .testFlight
+      }
+
+      return .iPhoneDev
     }
     #endif
+  }
+
+  private static func hasEmbeddedProvisioningProfile() -> Bool {
+    guard
+      let provisioningPath = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision")
+    else { return false }
+
+    return FileManager.default.fileExists(atPath: provisioningPath)
   }
 
   static var languageCode: String? {
