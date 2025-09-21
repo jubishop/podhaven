@@ -25,6 +25,7 @@ struct PlayBar: View {
     .padding(.vertical, 12)
     .frame(maxWidth: .infinity)
     .background(Color.accentColor)
+    .padding(.horizontal, 16)
   }
 
   // MARK: - Loading PlayBar
