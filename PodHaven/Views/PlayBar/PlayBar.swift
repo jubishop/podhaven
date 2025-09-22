@@ -7,13 +7,15 @@ import SwiftUI
 struct PlayBar: View {
   @InjectedObservable(\.playBarViewModel) private var viewModel
 
-  private let imageSize: CGFloat = 40
+  @Namespace private var playbar
+
+  private let imageSize: CGFloat = 48
   private let progressAnimationDuration: Double = 0.15
   private let progressDragScale: Double = 1.1
   private let basicSpacing: CGFloat = 12
 
   var body: some View {
-    GlassEffectContainer(spacing: 24) {
+    Group {
       if viewModel.isLoading {
         loadingPlayBar
       } else if viewModel.isStopped {
@@ -24,12 +26,11 @@ struct PlayBar: View {
         collapsedPlayBar
       }
     }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 12)
-    .glassEffect(in: .rect(cornerRadius: 16))
     .frame(maxWidth: .infinity)
+    .padding(.vertical, 4)
     .padding(.horizontal, 16)
     .contentShape(Rectangle())
+    .dynamicTypeSize(.xxLarge)
   }
 
   // MARK: - Loading PlayBar
@@ -46,6 +47,8 @@ struct PlayBar: View {
 
       Spacer()
     }
+    .padding(12)
+    .glassEffect()
   }
 
   // MARK: - Stopped PlayBar
@@ -60,6 +63,8 @@ struct PlayBar: View {
 
       Spacer()
     }
+    .padding(12)
+    .glassEffect()
   }
 
   // MARK: - Collapsed PlayBar
@@ -76,45 +81,54 @@ struct PlayBar: View {
 
       expansionButton
     }
+    .padding(.horizontal, 12)
   }
 
   // MARK: - Expanded PlayBar
 
   private var expandedPlayBar: some View {
-    VStack(spacing: 16) {
+    VStack(spacing: 4) {
       collapsedPlayBar
 
-      VStack(spacing: 4) {
-        CustomProgressBar(
-          value: $viewModel.sliderValue,
-          isDragging: $viewModel.isDragging,
-          range: 0...Double(viewModel.duration.seconds),
-          animationDuration: progressAnimationDuration
-        )
+      progressBar
+    }
+  }
 
-        HStack {
-          Text(viewModel.sliderValue.playbackTimeFormat)
-            .font(.caption)
-            .foregroundColor(.white)
-            .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
-            .animation(
-              .easeInOut(duration: progressAnimationDuration),
-              value: viewModel.isDragging
-            )
+  private var progressBar: some View {
+    VStack(spacing: 4) {
+      CustomProgressBar(
+        value: $viewModel.sliderValue,
+        isDragging: $viewModel.isDragging,
+        range: 0...Double(viewModel.duration.seconds),
+        animationDuration: progressAnimationDuration
+      )
 
-          Spacer()
+      HStack {
+        Text(viewModel.sliderValue.playbackTimeFormat)
+          .font(.caption2)
+          .foregroundColor(.white)
+          .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
+          .animation(
+            .easeInOut(duration: progressAnimationDuration),
+            value: viewModel.isDragging
+          )
 
-          Text(viewModel.duration.seconds.playbackTimeFormat)
-            .font(.caption)
-            .foregroundColor(.white)
-            .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
-            .animation(
-              .easeInOut(duration: progressAnimationDuration),
-              value: viewModel.isDragging
-            )
-        }
+        Spacer()
+
+        Text(viewModel.duration.seconds.playbackTimeFormat)
+          .font(.caption2)
+          .foregroundColor(.white)
+          .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
+          .animation(
+            .easeInOut(duration: progressAnimationDuration),
+            value: viewModel.isDragging
+          )
       }
     }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    .glassEffect(.clear.interactive(), in: .rect(cornerRadius: 8))
+    .padding(.horizontal, 12)
   }
 
   // MARK: - Shared Components
@@ -142,45 +156,46 @@ struct PlayBar: View {
         }
       }
     )
+    .padding(4)
+    .glassEffect(.clear.interactive(), in: .rect(cornerRadius: 8))
   }
 
   private var playbackControls: some View {
-    HStack(spacing: 32) {
-      Button(action: viewModel.seekBackward) {
-        AppLabel.seekBackward.image
-          .font(.title2)
-          .foregroundColor(.white)
-      }
-      .padding(6)
-      .glassEffect(.regular.interactive())
-
-      Button(action: viewModel.playOrPause) {
-        Group {
-          if viewModel.isWaiting {
-            AppLabel.loading.image
-              .font(.title)
-              .foregroundColor(.white)
-          } else if viewModel.isPlaying {
-            AppLabel.pauseButton.image
-              .font(.title)
-              .foregroundColor(.white)
-          } else {
-            AppLabel.playButton.image
-              .font(.title)
-              .foregroundColor(.white)
-          }
+    GlassEffectContainer(spacing: 64) {
+      HStack(spacing: 12) {
+        Button(action: viewModel.seekBackward) {
+          AppLabel.seekBackward.image
+            .font(.title2)
+            .foregroundColor(.white)
         }
-        .padding(6)
-        .glassEffect(.regular.interactive())
-      }
+        .padding(8)
+        .glassEffect(.clear.interactive())
 
-      Button(action: viewModel.seekForward) {
-        AppLabel.seekForward.image
-          .font(.title2)
+        Button(action: viewModel.playOrPause) {
+          Group {
+            if viewModel.isWaiting {
+              AppLabel.loading.image
+            } else if viewModel.isPlaying {
+              AppLabel.pauseButton.image
+            } else {
+              AppLabel.playButton.image
+
+            }
+          }
+          .font(.title)
           .foregroundColor(.white)
+          .padding(8)
+          .glassEffect(.clear.interactive())
+        }
+
+        Button(action: viewModel.seekForward) {
+          AppLabel.seekForward.image
+            .font(.title2)
+            .foregroundColor(.white)
+        }
+        .padding(8)
+        .glassEffect(.clear.interactive())
       }
-      .padding(6)
-      .glassEffect(.regular.interactive())
     }
   }
 
@@ -189,8 +204,9 @@ struct PlayBar: View {
       (viewModel.isExpanded ? AppLabel.expandDown.image : AppLabel.expandUp.image)
         .foregroundColor(.white)
     }
-    .padding(6)
-    .glassEffect(.regular.interactive())
+    .padding(.horizontal, 8)
+    .padding(.vertical, 12)
+    .glassEffect(.clear.interactive())
   }
 }
 
