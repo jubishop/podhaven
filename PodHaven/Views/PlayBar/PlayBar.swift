@@ -197,6 +197,7 @@ struct PlayBar: View {
     Button(action: viewModel.toggleExpansion) {
       (viewModel.isExpanded ? AppLabel.expandDown.image : AppLabel.expandUp.image)
         .foregroundColor(.white)
+        .contentTransition(.symbolEffect(.replace))
     }
     .padding(.horizontal, 8)
     .padding(.vertical, 12)
