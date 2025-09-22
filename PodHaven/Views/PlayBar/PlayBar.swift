@@ -26,6 +26,7 @@ struct PlayBar: View {
             progressBar
           }
         }
+        .padding(.horizontal, 12)
       }
     }
     .frame(maxWidth: .infinity)
@@ -83,13 +84,12 @@ struct PlayBar: View {
 
       expansionButton
     }
-    .padding(.horizontal, 12)
   }
 
   // MARK: - Progress Bar
 
   private var progressBar: some View {
-    VStack(spacing: 4) {
+    VStack(spacing: 2) {
       CustomProgressBar(
         value: $viewModel.sliderValue,
         isDragging: $viewModel.isDragging,
@@ -122,7 +122,6 @@ struct PlayBar: View {
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
     .glassEffect(.clear.interactive(), in: .rect(cornerRadius: 8))
-    .padding(.horizontal, 12)
   }
 
   // MARK: - Shared Components
