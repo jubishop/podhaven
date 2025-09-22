@@ -34,6 +34,7 @@ extension ManagingEpisodes {
   func playEpisode(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
+
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode(episode)
         try await playManager.load(podcastEpisode)
@@ -45,9 +46,11 @@ extension ManagingEpisodes {
   }
 
   func pauseEpisode(_ episode: any EpisodeDisplayable) {
+    guard isEpisodePlaying(episode) else { return }
+
     Task { [weak self] in
       guard let self else { return }
-      guard isEpisodePlaying(episode) else { return }
+
       await playManager.pause()
     }
   }
@@ -55,6 +58,7 @@ extension ManagingEpisodes {
   func queueEpisodeOnTop(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
+
       let episodeID = try await getEpisodeID(episode)
       try await queue.unshift(episodeID)
     }
@@ -63,6 +67,7 @@ extension ManagingEpisodes {
   func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
+
       let episodeID = try await getEpisodeID(episode)
       try await queue.append(episodeID)
     }
@@ -71,6 +76,7 @@ extension ManagingEpisodes {
   func removeEpisodeFromQueue(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
+
       do {
         let episodeID = try await getEpisodeID(episode)
         try await queue.dequeue(episodeID)
@@ -83,6 +89,7 @@ extension ManagingEpisodes {
   func cacheEpisode(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
+
       do {
         let episodeID = try await getEpisodeID(episode)
         try await cacheManager.downloadToCache(for: episodeID)
@@ -95,6 +102,7 @@ extension ManagingEpisodes {
   func uncacheEpisode(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
+
       do {
         let episodeID = try await getEpisodeID(episode)
         try await cacheManager.clearCache(for: episodeID)
@@ -105,9 +113,11 @@ extension ManagingEpisodes {
   }
 
   func markEpisodeFinished(_ episode: any EpisodeDisplayable) {
+    guard !episode.finished else { return }
+
     Task { [weak self] in
       guard let self else { return }
-      guard !episode.finished else { return }
+
       do {
         let episodeID = try await getEpisodeID(episode)
         try await repo.markFinished(episodeID)
@@ -120,6 +130,7 @@ extension ManagingEpisodes {
   func showPodcast(_ episode: any EpisodeDisplayable) {
     Task { [weak self] in
       guard let self else { return }
+
       do {
         try await navigation.showPodcast(getOrCreatePodcastEpisode(episode).podcast)
       } catch {

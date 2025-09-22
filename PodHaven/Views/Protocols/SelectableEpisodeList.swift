@@ -53,9 +53,10 @@ extension SelectableEpisodeList {
   }
 
   func addSelectedEpisodesToBottomOfQueue() {
+    guard !selectedEpisodes.isEmpty else { return }
+
     Task { [weak self] in
       guard let self else { return }
-      guard !selectedEpisodes.isEmpty else { return }
 
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.append(episodeIDs)
@@ -63,9 +64,10 @@ extension SelectableEpisodeList {
   }
 
   func addSelectedEpisodesToTopOfQueue() {
+    guard !selectedEpisodes.isEmpty else { return }
+
     Task { [weak self] in
       guard let self else { return }
-      guard !selectedEpisodes.isEmpty else { return }
 
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.unshift(episodeIDs)
@@ -73,9 +75,10 @@ extension SelectableEpisodeList {
   }
 
   func replaceQueueWithSelected() {
+    guard !selectedEpisodes.isEmpty else { return }
+
     Task { [weak self] in
       guard let self else { return }
-      guard !selectedEpisodes.isEmpty else { return }
 
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.replace(episodeIDs)
@@ -83,9 +86,10 @@ extension SelectableEpisodeList {
   }
 
   func replaceQueueWithSelectedAndPlay() {
+    guard !selectedEpisodes.isEmpty else { return }
+
     Task { [weak self] in
       guard let self else { return }
-      guard !selectedEpisodes.isEmpty else { return }
 
       let podcastEpisodes = try await selectedPodcastEpisodes
       if let firstPodcastEpisode = podcastEpisodes.first {
@@ -98,9 +102,10 @@ extension SelectableEpisodeList {
   }
 
   func dequeueSelectedEpisodes() {
+    guard !selectedEpisodes.isEmpty else { return }
+
     Task { [weak self] in
       guard let self else { return }
-      guard !selectedEpisodes.isEmpty else { return }
 
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await queue.dequeue(episodeIDs)
@@ -108,9 +113,10 @@ extension SelectableEpisodeList {
   }
 
   func cacheSelectedEpisodes() {
+    guard anySelectedNotCached else { return }
+
     Task { [weak self] in
       guard let self else { return }
-      guard anySelectedNotCached else { return }
 
       try await withThrowingTaskGroup(of: Void.self) { group in
         for episodeID in try await selectedPodcastEpisodeIDs {
@@ -163,9 +169,10 @@ extension SelectableEpisodeList {
   }
 
   func markSelectedEpisodesFinished() {
+    guard anySelectedUnfinished else { return }
+
     Task { [weak self] in
       guard let self else { return }
-      guard anySelectedUnfinished else { return }
 
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await repo.markFinished(episodeIDs)
