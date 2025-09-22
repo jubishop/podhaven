@@ -39,7 +39,7 @@ struct PlayBar: View {
   // MARK: - Loading PlayBar
 
   private var loadingPlayBar: some View {
-    HStack(spacing: 12) {
+    HStack(spacing: basicSpacing) {
       ProgressView()
         .progressViewStyle(CircularProgressViewStyle(tint: .white))
         .scaleEffect(0.8)
@@ -73,7 +73,7 @@ struct PlayBar: View {
   // MARK: - Collapsed PlayBar
 
   private var collapsedPlayBar: some View {
-    HStack(spacing: basicSpacing) {
+    HStack {
       episodeImage
 
       Spacer()
@@ -121,7 +121,7 @@ struct PlayBar: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
-    .glassEffect(.clear.interactive(), in: .rect(cornerRadius: 8))
+    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 8))
   }
 
   // MARK: - Shared Components
@@ -154,15 +154,14 @@ struct PlayBar: View {
   }
 
   private var playbackControls: some View {
-    GlassEffectContainer(spacing: 64) {
-      HStack(spacing: 12) {
+    GlassEffectContainer(spacing: 48) {
+      HStack {
         Button(action: viewModel.seekBackward) {
           AppLabel.seekBackward.image
             .font(.title2)
             .foregroundColor(.white)
         }
-        .padding(8)
-        .glassEffect(.clear.interactive())
+        .buttonStyle(.glass)
 
         Button(action: viewModel.playOrPause) {
           Group {
@@ -177,17 +176,15 @@ struct PlayBar: View {
           }
           .font(.title)
           .foregroundColor(.white)
-          .padding(8)
-          .glassEffect(.clear.interactive())
         }
+        .buttonStyle(.glass)
 
         Button(action: viewModel.seekForward) {
           AppLabel.seekForward.image
             .font(.title2)
             .foregroundColor(.white)
         }
-        .padding(8)
-        .glassEffect(.clear.interactive())
+        .buttonStyle(.glass)
       }
     }
   }
@@ -198,9 +195,7 @@ struct PlayBar: View {
         .foregroundColor(.white)
         .contentTransition(.symbolEffect(.replace))
     }
-    .padding(.horizontal, 8)
-    .padding(.vertical, 12)
-    .glassEffect(.clear.interactive())
+    .buttonStyle(.glass)
   }
 }
 
