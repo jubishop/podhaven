@@ -50,7 +50,9 @@ extension Container {
 
   func toggleExpansion() {
     Self.log.debug("Toggling expansion")
-    isExpanded.toggle()
+    withAnimation {
+      isExpanded.toggle()
+    }
   }
 
   func showEpisodeDetail() {

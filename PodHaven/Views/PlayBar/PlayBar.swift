@@ -7,8 +7,6 @@ import SwiftUI
 struct PlayBar: View {
   @InjectedObservable(\.playBarViewModel) private var viewModel
 
-  @Namespace private var playbar
-
   private let imageSize: CGFloat = 48
   private let progressAnimationDuration: Double = 0.15
   private let progressDragScale: Double = 1.1
@@ -20,10 +18,14 @@ struct PlayBar: View {
         loadingPlayBar
       } else if viewModel.isStopped {
         stoppedPlayBar
-      } else if viewModel.isExpanded {
-        expandedPlayBar
       } else {
-        collapsedPlayBar
+        VStack(spacing: 4) {
+          collapsedPlayBar
+
+          if viewModel.isExpanded {
+            progressBar
+          }
+        }
       }
     }
     .frame(maxWidth: .infinity)
@@ -84,15 +86,7 @@ struct PlayBar: View {
     .padding(.horizontal, 12)
   }
 
-  // MARK: - Expanded PlayBar
-
-  private var expandedPlayBar: some View {
-    VStack(spacing: 4) {
-      collapsedPlayBar
-
-      progressBar
-    }
-  }
+  // MARK: - Progress Bar
 
   private var progressBar: some View {
     VStack(spacing: 4) {
