@@ -8,9 +8,12 @@ struct PlayBar: View {
   @InjectedObservable(\.playBarViewModel) private var viewModel
 
   private let imageSize: CGFloat = 40
+  private let progressAnimationDuration: Double = 0.15
+  private let progressDragScale: Double = 1.1
+  private let basicSpacing: CGFloat = 12
 
   var body: some View {
-    Group {
+    GlassEffectContainer(spacing: 24) {
       if viewModel.isLoading {
         loadingPlayBar
       } else if viewModel.isStopped {
@@ -23,15 +26,16 @@ struct PlayBar: View {
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
+    .glassEffect(in: .rect(cornerRadius: 16))
     .frame(maxWidth: .infinity)
-    .background(Color.accentColor)
     .padding(.horizontal, 16)
+    .contentShape(Rectangle())
   }
 
   // MARK: - Loading PlayBar
 
   private var loadingPlayBar: some View {
-    HStack(spacing: viewModel.commonSpacing) {
+    HStack(spacing: 12) {
       ProgressView()
         .progressViewStyle(CircularProgressViewStyle(tint: .white))
         .scaleEffect(0.8)
@@ -47,7 +51,7 @@ struct PlayBar: View {
   // MARK: - Stopped PlayBar
 
   private var stoppedPlayBar: some View {
-    HStack(spacing: viewModel.commonSpacing) {
+    HStack(spacing: basicSpacing) {
       AppLabel.noEpisodeSelected.image
         .foregroundColor(.white)
 
@@ -61,7 +65,7 @@ struct PlayBar: View {
   // MARK: - Collapsed PlayBar
 
   private var collapsedPlayBar: some View {
-    HStack(spacing: viewModel.commonSpacing) {
+    HStack(spacing: basicSpacing) {
       episodeImage
 
       Spacer()
@@ -85,16 +89,16 @@ struct PlayBar: View {
           value: $viewModel.sliderValue,
           isDragging: $viewModel.isDragging,
           range: 0...Double(viewModel.duration.seconds),
-          animationDuration: viewModel.progressAnimationDuration
+          animationDuration: progressAnimationDuration
         )
 
         HStack {
           Text(viewModel.sliderValue.playbackTimeFormat)
             .font(.caption)
             .foregroundColor(.white)
-            .scaleEffect(viewModel.isDragging ? viewModel.progressDragScale : 1.0)
+            .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
             .animation(
-              .easeInOut(duration: viewModel.progressAnimationDuration),
+              .easeInOut(duration: progressAnimationDuration),
               value: viewModel.isDragging
             )
 
@@ -103,9 +107,9 @@ struct PlayBar: View {
           Text(viewModel.duration.seconds.playbackTimeFormat)
             .font(.caption)
             .foregroundColor(.white)
-            .scaleEffect(viewModel.isDragging ? viewModel.progressDragScale : 1.0)
+            .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
             .animation(
-              .easeInOut(duration: viewModel.progressAnimationDuration),
+              .easeInOut(duration: progressAnimationDuration),
               value: viewModel.isDragging
             )
         }
@@ -143,10 +147,12 @@ struct PlayBar: View {
   private var playbackControls: some View {
     HStack(spacing: 32) {
       Button(action: viewModel.seekBackward) {
-        viewModel.seekBackwardImage
+        AppLabel.seekBackward.image
           .font(.title2)
           .foregroundColor(.white)
       }
+      .padding(6)
+      .glassEffect(.regular.interactive())
 
       Button(action: viewModel.playOrPause) {
         Group {
@@ -164,13 +170,17 @@ struct PlayBar: View {
               .foregroundColor(.white)
           }
         }
+        .padding(6)
+        .glassEffect(.regular.interactive())
       }
 
       Button(action: viewModel.seekForward) {
-        viewModel.seekForwardImage
+        AppLabel.seekForward.image
           .font(.title2)
           .foregroundColor(.white)
       }
+      .padding(6)
+      .glassEffect(.regular.interactive())
     }
   }
 
@@ -179,6 +189,8 @@ struct PlayBar: View {
       (viewModel.isExpanded ? AppLabel.expandDown.image : AppLabel.expandUp.image)
         .foregroundColor(.white)
     }
+    .padding(6)
+    .glassEffect(.regular.interactive())
   }
 }
 
@@ -191,30 +203,35 @@ struct PlayBar: View {
 
   VStack(spacing: 12) {
     HStack(spacing: 24) {
-      Button {
-        Container.shared.playState().setStatus(.loading("Episode Title Here"))
-      } label: {
-        ProgressView()
-          .progressViewStyle(.circular)
-          .tint(.primary)
-          .frame(width: 32, height: 32)
-      }
+      Button(
+        action: { Container.shared.playState().setStatus(.loading("Episode Title Here")) },
+        label: {
+          ProgressView()
+            .progressViewStyle(.circular)
+            .tint(.primary)
+            .frame(width: 32, height: 32)
+        }
+      )
 
-      Button {
-        Container.shared.playState().setStatus(.waiting)
-      } label: { AppLabel.loading.image }
+      Button(
+        action: { Container.shared.playState().setStatus(.waiting) },
+        label: { AppLabel.loading.image }
+      )
 
-      Button {
-        Container.shared.playState().setStatus(.playing)
-      } label: { AppLabel.pauseButton.image }
+      Button(
+        action: { Container.shared.playState().setStatus(.playing) },
+        label: { AppLabel.pauseButton.image }
+      )
 
-      Button {
-        Container.shared.playState().setStatus(.paused)
-      } label: { AppLabel.playButton.image }
+      Button(
+        action: { Container.shared.playState().setStatus(.paused) },
+        label: { AppLabel.playButton.image }
+      )
 
-      Button {
-        Container.shared.playState().setStatus(.stopped)
-      } label: { AppLabel.noEpisodeSelected.image }
+      Button(
+        action: { Container.shared.playState().setStatus(.stopped) },
+        label: { AppLabel.noEpisodeSelected.image }
+      )
     }
     .font(.title)
     .buttonStyle(.plain)

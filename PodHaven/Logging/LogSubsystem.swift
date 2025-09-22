@@ -37,6 +37,10 @@ enum LogSubsystem {
     case nowPlayingInfo
   }
 
+  enum PlayBar: String, LogCategorizable {
+    case main
+  }
+
   enum PodcastsView: String, LogCategorizable {
     case detail
     case podcastGrid

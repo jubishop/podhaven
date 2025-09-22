@@ -18,12 +18,7 @@ extension Container {
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sheet) private var sheet
 
-  // MARK: - Constants
-
-  let progressAnimationDuration: Double = 0.15
-  let progressDragScale: Double = 1.1
-  let expansionAnimationDuration: Double = 0.25
-  let commonSpacing: CGFloat = 12
+  private static let log = Log.as(LogSubsystem.PlayBar.main)
 
   // MARK: - State Management
 
@@ -51,13 +46,11 @@ extension Container {
     }
   }
 
-  var seekBackwardImage: Image { AppLabel.seekBackward.image }
-  var seekForwardImage: Image { AppLabel.seekForward.image }
-
   // MARK: - Actions
 
   func toggleExpansion() {
-    withAnimation(.easeInOut(duration: expansionAnimationDuration)) {
+    Self.log.debug("Toggling expansion")
+    withAnimation(.easeInOut(duration: 0.25)) {
       isExpanded.toggle()
     }
   }
@@ -66,6 +59,7 @@ extension Container {
     Task { [weak self] in
       guard let self else { return }
       do {
+        Self.log.debug("Showing episode detail")
         try await presentEpisodeDetail()
       } catch {
         guard ErrorKit.isRemarkable(error) else { return }
@@ -101,6 +95,7 @@ extension Container {
   func seekBackward() {
     Task { [weak self] in
       guard let self else { return }
+      Self.log.debug("Seeking backward")
       await playManager.seekBackward(CMTime.seconds(15))
     }
   }
@@ -108,6 +103,7 @@ extension Container {
   func seekForward() {
     Task { [weak self] in
       guard let self else { return }
+      Self.log.debug("Seeking forward")
       await playManager.seekForward(CMTime.seconds(30))
     }
   }
