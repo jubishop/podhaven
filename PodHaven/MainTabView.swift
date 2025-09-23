@@ -7,10 +7,10 @@ import SwiftUI
 struct MainTabView: View {
   @InjectedObservable(\.navigation) private var navigation
 
-  @Binding var tabBarInset: CGFloat
+  @Binding var tabContentSafeAreaInset: CGFloat
 
-  init(tabBarInset: Binding<CGFloat>) {
-    _tabBarInset = tabBarInset
+  init(tabContentSafeAreaInset: Binding<CGFloat>) {
+    _tabContentSafeAreaInset = tabContentSafeAreaInset
   }
 
   var body: some View {
@@ -60,7 +60,7 @@ struct MainTabView: View {
       .onGeometryChange(for: CGFloat.self) { geometry in
         geometry.safeAreaInsets.bottom
       } action: { newInset in
-        tabBarInset = newInset
+        tabContentSafeAreaInset = newInset
       }
   }
 }

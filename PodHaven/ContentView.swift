@@ -4,20 +4,20 @@ import FactoryKit
 import SwiftUI
 
 struct ContentView: View {
-  @InjectedObservable(\.navigation) private var navigation
   @InjectedObservable(\.playState) private var playState
 
   @State private var playBarHeight: CGFloat = 0
-  @State private var rootSafeAreaBottom: CGFloat = 0
-  @State private var tabContentBottomInset: CGFloat = 0
+
+  @State private var mainTabSafeAreaInset: CGFloat = 0
+  @State private var tabContentSafeAreaInset: CGFloat = 0
 
   var body: some View {
     ZStack(alignment: .bottom) {
-      MainTabView(tabBarInset: $tabContentBottomInset)
+      MainTabView(tabContentSafeAreaInset: $tabContentSafeAreaInset)
         .onGeometryChange(for: CGFloat.self) { geometry in
           geometry.safeAreaInsets.bottom
         } action: { newInset in
-          rootSafeAreaBottom = newInset
+          mainTabSafeAreaInset = newInset
         }
 
       if playState.showPlayBar {
@@ -27,7 +27,7 @@ struct ContentView: View {
           } action: { newHeight in
             playBarHeight = newHeight
           }
-          .padding(.bottom, tabContentBottomInset - rootSafeAreaBottom)
+          .padding(.bottom, tabContentSafeAreaInset - mainTabSafeAreaInset)
       }
     }
     .environment(\.playBarSafeAreaInset, playState.showPlayBar ? playBarHeight : 0)
