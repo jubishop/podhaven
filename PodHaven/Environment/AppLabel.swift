@@ -22,6 +22,7 @@ private enum SystemImageName: String, CaseIterable {
   case removeFromQueue = "minus.circle.fill"
   case subscribe = "plus.circle"
   case unsubscribe = "minus.circle"
+  case replaceQueue = "arrow.triangle.2.circlepath"
 
   // Documents & Data
   case document = "doc.text"
@@ -88,6 +89,8 @@ enum AppLabel: CaseIterable {
   // Episode Actions
   case addToBottom
   case addToTop
+  case addSelectionToBottom
+  case addSelectionToTop
   case cacheEpisode
   case cancelEpisodeDownload
   case uncacheEpisode
@@ -96,8 +99,10 @@ enum AppLabel: CaseIterable {
   case markEpisodeFinished
   case playEpisode
   case playNow
+  case playSelection
   case queueAtBottom
   case queueAtTop
+  case replaceQueue
   case removeFromQueue
 
   // Podcast Actions
@@ -175,6 +180,10 @@ enum AppLabel: CaseIterable {
     // Episode Actions
     case .addToBottom: return (text: "Add to Bottom", systemImageName: .queueBottom)
     case .addToTop: return (text: "Add to Top", systemImageName: .queueTop)
+    case .addSelectionToBottom:
+      return (text: "Add to Bottom of Queue", systemImageName: .queueBottom)
+    case .addSelectionToTop:
+      return (text: "Add to Top of Queue", systemImageName: .queueTop)
     case .cacheEpisode: return (text: "Cache Episode", systemImageName: .episodeCached)
     case .cancelEpisodeDownload:
       return (text: "Cancel Download", systemImageName: .episodeDownloadCancel)
@@ -186,8 +195,11 @@ enum AppLabel: CaseIterable {
       return (text: "Mark Finished", systemImageName: .episodeFinished)
     case .playEpisode: return (text: "Play Episode", systemImageName: .play)
     case .playNow: return (text: "Play Now", systemImageName: .play)
+    case .playSelection:
+      return (text: "Play Selected Episodes", systemImageName: .play)
     case .queueAtBottom: return (text: "Queue at Bottom", systemImageName: .queueBottom)
     case .queueAtTop: return (text: "Queue at Top", systemImageName: .queueTop)
+    case .replaceQueue: return (text: "Replace Queue", systemImageName: .replaceQueue)
     case .removeFromQueue:
       return (text: "Remove from Queue", systemImageName: .removeFromQueue)
 
