@@ -13,14 +13,12 @@ struct ContentView: View {
 
   var body: some View {
     ZStack(alignment: .bottom) {
-      MainTabView { newInset in
-        tabContentBottomInset = newInset
-      }
-      .onGeometryChange(for: CGFloat.self) { geometry in
-        geometry.safeAreaInsets.bottom
-      } action: { newInset in
-        rootSafeAreaBottom = newInset
-      }
+      MainTabView(tabBarInset: $tabContentBottomInset)
+        .onGeometryChange(for: CGFloat.self) { geometry in
+          geometry.safeAreaInsets.bottom
+        } action: { newInset in
+          rootSafeAreaBottom = newInset
+        }
 
       if playState.showPlayBar {
         PlayBar()
