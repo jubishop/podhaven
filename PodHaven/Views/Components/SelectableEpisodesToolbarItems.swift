@@ -108,8 +108,6 @@ struct SelectableEpisodesToolbarItems<
             }
 
             if viewModel.anySelectedUnfinished {
-              Divider()
-
               Button(
                 action: { viewModel.markSelectedEpisodesFinished() },
                 label: { AppLabel.markEpisodeFinished.label }
