@@ -31,10 +31,11 @@ enum LogSubsystem {
 
   enum Play: String, LogCategorizable {
     case audioSession
+    case avPlayer
     case commandCenter
     case manager
-    case avPlayer
     case nowPlayingInfo
+    case state
   }
 
   enum PlayBar: String, LogCategorizable {

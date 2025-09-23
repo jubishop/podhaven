@@ -13,6 +13,9 @@ extension Container {
 
 @dynamicMemberLookup @Observable @MainActor class PlayState {
   @ObservationIgnored @DynamicInjected(\.notifications) private var notifications
+  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
+
+  private static let log = Log.as(LogSubsystem.Play.state)
 
   // MARK: - Meta
 
@@ -20,13 +23,17 @@ extension Container {
     status[keyPath: keyPath]
   }
 
+  // MARK: - Private State
+
+  private var keyboardVisible = false
+
   // MARK: - State Getters
 
   private(set) var status: PlaybackStatus = .stopped
   private(set) var currentTime = CMTime.zero
   private(set) var onDeck: OnDeck?
+  private(set) var maxQueuePosition: Int? = nil
 
-  private var keyboardVisible = false
   var showPlayBar: Bool { !keyboardVisible }
 
   func isEpisodePlaying(_ episode: any EpisodeInformable) -> Bool {
@@ -57,6 +64,7 @@ extension Container {
   fileprivate init() {
     startListeningToKeyboardShow()
     startListeningToKeyboardHide()
+    startObservingMaxQueuePosition()
   }
 
   private func startListeningToKeyboardShow() {
@@ -77,6 +85,20 @@ extension Container {
       guard let self else { return }
       for await _ in notifications(UIResponder.keyboardDidHideNotification) {
         keyboardVisible = false
+      }
+    }
+  }
+
+  private func startObservingMaxQueuePosition() {
+    Assert.neverCalled()
+
+    Task { [weak self] in
+      guard let self else { return }
+      for try await maxQueuePosition in self.observatory.maxQueuePosition() {
+        Self.log.debug(
+          "Updating observed max queue position: \(String(describing: maxQueuePosition))"
+        )
+        self.maxQueuePosition = maxQueuePosition
       }
     }
   }

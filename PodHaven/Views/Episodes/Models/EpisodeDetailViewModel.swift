@@ -22,7 +22,6 @@ import Logging
   // MARK: - Data
 
   var episode: any EpisodeDisplayable
-  private var maxQueuePosition: Int? = nil
   private var podcastEpisode: PodcastEpisode? {
     didSet {
       guard let podcastEpisode = podcastEpisode
@@ -61,18 +60,6 @@ import Logging
     } else {
       Self.log.debug("Podcast episode: \(episode.toString) does not exist in db")
     }
-
-    do {
-      for try await maxPosition in self.observatory.maxQueuePosition() {
-        try Task.checkCancellation()
-        Self.log.debug("Updating observed max queue position: \(String(describing: maxPosition))")
-        self.maxQueuePosition = maxPosition
-      }
-    } catch {
-      Self.log.error(error)
-      guard ErrorKit.isRemarkable(error) else { return }
-      self.alert(ErrorKit.coreMessage(for: error))
-    }
   }
 
   // MARK: - Derived State
@@ -93,7 +80,7 @@ import Logging
     guard let podcastEpisode = podcastEpisode,
       let queueOrder = podcastEpisode.episode.queueOrder
     else { return false }
-    return queueOrder == maxQueuePosition
+    return queueOrder == playState.maxQueuePosition
   }
 
   // MARK: - Public Methods
