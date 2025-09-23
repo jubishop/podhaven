@@ -10,15 +10,18 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
   func body(content: Content) -> some View {
     let isEpisodePlaying = viewModel.isEpisodePlaying(episode)
     let canClearCache = viewModel.canClearCache(episode)
+    let isAtTopOfQueue = episode.queueOrder == 0
 
     content
       .swipeActions(edge: .leading) {
         if episode.queued {
-          Button(
-            action: { viewModel.queueEpisodeOnTop(episode) },
-            label: { AppLabel.moveToTop.image }
-          )
-          .tint(.blue)
+          if !isAtTopOfQueue {
+            Button(
+              action: { viewModel.queueEpisodeOnTop(episode) },
+              label: { AppLabel.moveToTop.image }
+            )
+            .tint(.blue)
+          }
 
           Button(
             action: { viewModel.removeEpisodeFromQueue(episode) },

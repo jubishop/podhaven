@@ -199,6 +199,14 @@ extension SelectableEpisodeList {
     selectedEpisodes.contains { $0.cacheStatus == .caching && CacheManager.canClearCache($0) }
   }
 
+  var anySelectedQueuedNotAtTopOfQueue: Bool {
+    selectedEpisodes.contains { episode in
+      guard episode.queued else { return false }
+      guard let queueOrder = episode.queueOrder else { return true }
+      return queueOrder > 0
+    }
+  }
+
   var anySelectedUnfinished: Bool {
     selectedEpisodes.contains { !$0.finished }
   }
