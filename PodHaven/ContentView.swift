@@ -7,45 +7,29 @@ struct ContentView: View {
   @InjectedObservable(\.navigation) private var navigation
   @InjectedObservable(\.playState) private var playState
 
+  @State private var playBarHeight: CGFloat = 0
+  @State private var tabBarInset: CGFloat = 0
+
   var body: some View {
-    TabView(selection: $navigation.currentTab) {
-      Tab(
-        AppLabel.settings.text,
-        systemImage: AppLabel.settings.systemImageName,
-        value: .settings
-      ) {
-        TabContentWithPlayBar { SettingsView() }
-      }
-      Tab(
-        AppLabel.search.text,
-        systemImage: AppLabel.search.systemImageName,
-        value: .search,
-        role: .search
-      ) {
-        TabContentWithPlayBar { SearchView() }
-      }
-      Tab(
-        AppLabel.upNext.text,
-        systemImage: AppLabel.upNext.systemImageName,
-        value: .upNext
-      ) {
-        TabContentWithPlayBar { UpNextView() }
-      }
-      Tab(
-        AppLabel.episodes.text,
-        systemImage: AppLabel.episodes.systemImageName,
-        value: .episodes
-      ) {
-        TabContentWithPlayBar { EpisodesView() }
-      }
-      Tab(
-        AppLabel.podcasts.text,
-        systemImage: AppLabel.podcasts.systemImageName,
-        value: .podcasts
-      ) {
-        TabContentWithPlayBar { PodcastsView() }
+    ZStack(alignment: .bottom) {
+      MainTabView()
+        .onGeometryChange(for: CGFloat.self) { geometry in
+          geometry.safeAreaInsets.bottom
+        } action: { newInset in
+          tabBarInset = newInset
+        }
+
+      if playState.showPlayBar {
+        PlayBar()
+          .onGeometryChange(for: CGFloat.self) { geometry in
+            geometry.size.height
+          } action: { newHeight in
+            playBarHeight = newHeight
+          }
+          .padding(.bottom, tabBarInset)
       }
     }
+    .environment(\.playBarSafeAreaInset, playState.showPlayBar ? playBarHeight : 0)
   }
 }
 
