@@ -49,3 +49,21 @@ struct PodcastEpisode:
   var queued: Bool { episode.queued }
   var queueOrder: Int? { episode.queueOrder }
 }
+
+// MARK: - Identity
+
+extension PodcastEpisode {
+  struct QueueIdentity: Hashable {
+    let episodeID: Episode.ID
+    let queueOrder: Int?
+    let queued: Bool
+  }
+
+  var queueIdentity: QueueIdentity {
+    QueueIdentity(
+      episodeID: id,
+      queueOrder: episode.queueOrder,
+      queued: episode.queued
+    )
+  }
+}

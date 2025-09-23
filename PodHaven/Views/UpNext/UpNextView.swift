@@ -12,7 +12,10 @@ struct UpNextView: View {
   var body: some View {
     IdentifiableNavigationStack(manager: navigation.upNext) {
       List {
-        ForEach(viewModel.episodeList.filteredEntries) { podcastEpisode in
+        ForEach(
+          Array(viewModel.episodeList.filteredEntries),
+          id: \.queueIdentity
+        ) { podcastEpisode in
           NavigationLink(
             value: Navigation.Destination.upNextEpisode(podcastEpisode),
             label: {
@@ -67,9 +70,9 @@ struct UpNextView: View {
 }
 
 #if DEBUG
-#Preview {
-  UpNextView()
-    .preview()
-    .task { try? await PreviewHelpers.populateQueue() }
-}
+  #Preview {
+    UpNextView()
+      .preview()
+      .task { try? await PreviewHelpers.populateQueue() }
+  }
 #endif

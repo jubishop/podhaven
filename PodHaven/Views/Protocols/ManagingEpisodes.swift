@@ -61,7 +61,11 @@ extension ManagingEpisodes {
       guard let self else { return }
 
       let episodeID = try await getEpisodeID(episode)
-      try await queue.unshift(episodeID)
+      if episode.queued {
+        try await queue.insert(episodeID, at: 0)
+      } else {
+        try await queue.unshift(episodeID)
+      }
     }
   }
 
