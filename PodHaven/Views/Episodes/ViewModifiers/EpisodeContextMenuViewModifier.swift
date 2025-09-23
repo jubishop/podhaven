@@ -14,7 +14,6 @@ struct EpisodeContextMenuViewModifier<
   func body(content: Content) -> some View {
     let isEpisodePlaying = viewModel.isEpisodePlaying(episode)
     let canClearCache = viewModel.canClearCache(episode)
-    let isAtTopOfQueue = episode.queueOrder == 0
 
     content
       .contextMenu {
@@ -33,7 +32,7 @@ struct EpisodeContextMenuViewModifier<
         }
 
         if episode.queued {
-          if !isAtTopOfQueue {
+          if !(episode.queueOrder == 0) {
             Button(
               action: { viewModel.queueEpisodeOnTop(episode) },
               label: { AppLabel.moveToTop.label }

@@ -28,6 +28,7 @@ import Logging
   func markSelectedEpisodesFinished()
 
   var anySelectedQueued: Bool { get }
+  var anySelectedNotAtTopOfQueue: Bool { get }
   var anySelectedNotQueued: Bool { get }
   var anySelectedNotCached: Bool { get }
   var anySelectedCanClearCache: Bool { get }
@@ -199,9 +200,8 @@ extension SelectableEpisodeList {
     selectedEpisodes.contains { $0.cacheStatus == .caching && CacheManager.canClearCache($0) }
   }
 
-  var anySelectedQueuedNotAtTopOfQueue: Bool {
+  var anySelectedNotAtTopOfQueue: Bool {
     selectedEpisodes.contains { episode in
-      guard episode.queued else { return false }
       guard let queueOrder = episode.queueOrder else { return true }
       return queueOrder > 0
     }
