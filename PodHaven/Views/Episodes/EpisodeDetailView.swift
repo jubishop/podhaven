@@ -181,6 +181,7 @@ struct EpisodeDetailView: View {
       }
       .padding(.vertical)
     }
+    .playBarSafeAreaInset()
     .task { await viewModel.execute() }
     .onDisappear { viewModel.disappear() }
   }
