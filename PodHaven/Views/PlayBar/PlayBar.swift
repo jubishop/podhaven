@@ -32,7 +32,6 @@ struct PlayBar: View {
     .frame(maxWidth: .infinity)
     .padding(.vertical, 2)
     .padding(.horizontal, 16)
-    .contentShape(Rectangle())
     .dynamicTypeSize(.xxLarge)
   }
 
