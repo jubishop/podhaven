@@ -31,6 +31,7 @@ struct PodcastSearchView: View {
         errorStateView(message: message)
       }
     }
+    .playBarSafeAreaInset()
     .navigationTitle("Search Podcasts")
     .searchable(
       text: $viewModel.searchText,
