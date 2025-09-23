@@ -37,32 +37,38 @@ struct SelectableEpisodesToolbarItems<
               action: { viewModel.playSelectedEpisodes() },
               label: { AppLabel.playSelection.label }
             )
+            .tint(.green)
 
             if viewModel.anySelectedNotQueued {
               Button(
                 action: { viewModel.addSelectedEpisodesToTopOfQueue() },
                 label: { AppLabel.addSelectionToTop.label }
               )
+              .tint(.blue)
               Button(
                 action: { viewModel.addSelectedEpisodesToBottomOfQueue() },
                 label: { AppLabel.addSelectionToBottom.label }
               )
+              .tint(.purple)
               Button(
                 action: { viewModel.replaceQueueWithSelected() },
                 label: { AppLabel.replaceQueue.label }
               )
+              .tint(.indigo)
             } else {
               if viewModel.anySelectedNotAtTopOfQueue {
                 Button(
                   action: { viewModel.addSelectedEpisodesToTopOfQueue() },
                   label: { AppLabel.moveToTop.label }
                 )
+                .tint(.blue)
               }
               if viewModel.anySelectedNotAtBottomOfQueue {
                 Button(
                   action: { viewModel.addSelectedEpisodesToBottomOfQueue() },
                   label: { AppLabel.moveToBottom.label }
                 )
+                .tint(.purple)
               }
             }
 
@@ -71,6 +77,7 @@ struct SelectableEpisodesToolbarItems<
                 action: { viewModel.dequeueSelectedEpisodes() },
                 label: { AppLabel.removeFromQueue.label }
               )
+              .tint(.red)
             }
 
             if viewModel.anySelectedUnfinished {
@@ -78,6 +85,7 @@ struct SelectableEpisodesToolbarItems<
                 action: { viewModel.markSelectedEpisodesFinished() },
                 label: { AppLabel.markEpisodeFinished.label }
               )
+              .tint(.mint)
             }
 
             if viewModel.anySelectedCanStopCaching {
@@ -85,6 +93,7 @@ struct SelectableEpisodesToolbarItems<
                 action: { viewModel.cancelSelectedEpisodeDownloads() },
                 label: { AppLabel.cancelEpisodeDownload.label }
               )
+              .tint(.orange)
             }
 
             if viewModel.anySelectedNotCached {
@@ -92,6 +101,7 @@ struct SelectableEpisodesToolbarItems<
                 action: { viewModel.cacheSelectedEpisodes() },
                 label: { AppLabel.cacheEpisode.label }
               )
+              .tint(.blue)
             }
 
             if viewModel.anySelectedCanClearCache {
@@ -99,6 +109,7 @@ struct SelectableEpisodesToolbarItems<
                 action: { viewModel.uncacheSelectedEpisodes() },
                 label: { AppLabel.uncacheEpisode.label }
               )
+              .tint(.red)
             }
           },
           label: {
