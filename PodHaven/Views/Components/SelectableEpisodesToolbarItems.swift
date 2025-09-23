@@ -33,6 +33,10 @@ struct SelectableEpisodesToolbarItems<
       ToolbarItem(placement: .topBarTrailing) {
         Menu(
           content: {
+            Button("Play Selected Episodes") {
+              viewModel.playSelectedEpisodes()
+            }
+
             if viewModel.anySelectedNotQueued {
               Button("Add To Top Of Queue") {
                 viewModel.addSelectedEpisodesToTopOfQueue()
@@ -43,17 +47,16 @@ struct SelectableEpisodesToolbarItems<
               Button("Replace Queue") {
                 viewModel.replaceQueueWithSelected()
               }
-              Button("Replace Queue and Play") {
-                viewModel.replaceQueueWithSelectedAndPlay()
-              }
             } else {
               if viewModel.anySelectedNotAtTopOfQueue {
                 Button("Move To Top Of Queue") {
                   viewModel.addSelectedEpisodesToTopOfQueue()
                 }
               }
-              Button("Move To Bottom Of Queue") {
-                viewModel.addSelectedEpisodesToBottomOfQueue()
+              if viewModel.anySelectedNotAtBottomOfQueue {
+                Button("Move To Bottom Of Queue") {
+                  viewModel.addSelectedEpisodesToBottomOfQueue()
+                }
               }
             }
 

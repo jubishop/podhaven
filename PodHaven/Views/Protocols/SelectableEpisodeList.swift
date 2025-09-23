@@ -17,10 +17,10 @@ import Logging
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
   var selectedPodcastEpisodeIDs: [Episode.ID] { get async throws }
 
+  func playSelectedEpisodes()
   func addSelectedEpisodesToTopOfQueue()
   func addSelectedEpisodesToBottomOfQueue()
   func replaceQueueWithSelected()
-  func replaceQueueWithSelectedAndPlay()
   func dequeueSelectedEpisodes()
   func cacheSelectedEpisodes()
   func uncacheSelectedEpisodes()
@@ -29,6 +29,7 @@ import Logging
 
   var anySelectedQueued: Bool { get }
   var anySelectedNotAtTopOfQueue: Bool { get }
+  var anySelectedNotAtBottomOfQueue: Bool { get }
   var anySelectedNotQueued: Bool { get }
   var anySelectedNotCached: Bool { get }
   var anySelectedCanClearCache: Bool { get }
@@ -86,7 +87,7 @@ extension SelectableEpisodeList {
     }
   }
 
-  func replaceQueueWithSelectedAndPlay() {
+  func playSelectedEpisodes() {
     guard !selectedEpisodes.isEmpty else { return }
 
     Task { [weak self] in
@@ -96,9 +97,9 @@ extension SelectableEpisodeList {
       if let firstPodcastEpisode = podcastEpisodes.first {
         try await playManager.load(firstPodcastEpisode)
         await playManager.play()
-        let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
-        try await queue.replace(allExceptFirstPodcastEpisode.map(\.id))
       }
+      let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
+      try await queue.unshift(allExceptFirstPodcastEpisode.map(\.id))
     }
   }
 
@@ -190,6 +191,10 @@ extension SelectableEpisodeList {
 
   var anySelectedNotAtTopOfQueue: Bool {
     selectedEpisodes.contains { !($0.queueOrder == 0) }
+  }
+
+  var anySelectedNotAtBottomOfQueue: Bool {
+    selectedEpisodes.contains { $0.queueOrder != playState.maxQueuePosition }
   }
 
   var anySelectedNotCached: Bool {
