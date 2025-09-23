@@ -9,6 +9,7 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
 
   func body(content: Content) -> some View {
     let isEpisodePlaying = viewModel.isEpisodePlaying(episode)
+    let isAtBottomOfQueue = viewModel.isEpisodeAtBottomOfQueue(episode)
     let canClearCache = viewModel.canClearCache(episode)
 
     content
@@ -26,6 +27,14 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
               label: { AppLabel.moveToTop.image }
             )
             .tint(.blue)
+          }
+
+          if !isAtBottomOfQueue {
+            Button(
+              action: { viewModel.queueEpisodeAtBottom(episode) },
+              label: { AppLabel.moveToBottom.image }
+            )
+            .tint(.purple)
           }
         } else {
           Button(
@@ -80,6 +89,14 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
             label: { AppLabel.cacheEpisode.image }
           )
           .tint(.blue)
+        }
+
+        if !episode.finished {
+          Button(
+            action: { viewModel.markEpisodeFinished(episode) },
+            label: { AppLabel.markEpisodeFinished.image }
+          )
+          .tint(.mint)
         }
       }
   }

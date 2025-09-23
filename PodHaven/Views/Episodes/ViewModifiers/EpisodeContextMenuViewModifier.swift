@@ -13,6 +13,7 @@ struct EpisodeContextMenuViewModifier<
 
   func body(content: Content) -> some View {
     let isEpisodePlaying = viewModel.isEpisodePlaying(episode)
+    let isAtBottomOfQueue = viewModel.isEpisodeAtBottomOfQueue(episode)
     let canClearCache = viewModel.canClearCache(episode)
 
     content
@@ -32,6 +33,12 @@ struct EpisodeContextMenuViewModifier<
         }
 
         if episode.queued {
+          Button(
+            action: { viewModel.removeEpisodeFromQueue(episode) },
+            label: { AppLabel.removeFromQueue.label }
+          )
+          .tint(.red)
+
           if !(episode.queueOrder == 0) {
             Button(
               action: { viewModel.queueEpisodeOnTop(episode) },
@@ -40,11 +47,13 @@ struct EpisodeContextMenuViewModifier<
             .tint(.blue)
           }
 
-          Button(
-            action: { viewModel.removeEpisodeFromQueue(episode) },
-            label: { AppLabel.removeFromQueue.label }
-          )
-          .tint(.red)
+          if !isAtBottomOfQueue {
+            Button(
+              action: { viewModel.queueEpisodeAtBottom(episode) },
+              label: { AppLabel.moveToBottom.label }
+            )
+            .tint(.purple)
+          }
         } else {
           Button(
             action: { viewModel.queueEpisodeOnTop(episode) },
@@ -57,14 +66,6 @@ struct EpisodeContextMenuViewModifier<
             label: { AppLabel.queueAtBottom.label }
           )
           .tint(.purple)
-        }
-
-        if !episode.finished {
-          Button(
-            action: { viewModel.markEpisodeFinished(episode) },
-            label: { AppLabel.markEpisodeFinished.label }
-          )
-          .tint(.mint)
         }
 
         switch episode.cacheStatus {
@@ -90,6 +91,14 @@ struct EpisodeContextMenuViewModifier<
             label: { AppLabel.cacheEpisode.label }
           )
           .tint(.blue)
+        }
+
+        if !episode.finished {
+          Button(
+            action: { viewModel.markEpisodeFinished(episode) },
+            label: { AppLabel.markEpisodeFinished.label }
+          )
+          .tint(.mint)
         }
 
         additionalContent()

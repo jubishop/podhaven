@@ -16,6 +16,7 @@ import Logging
   func showPodcast(_ episode: any EpisodeDisplayable)
 
   func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool
+  func isEpisodeAtBottomOfQueue(_ episode: any EpisodeDisplayable) -> Bool
   func canClearCache(_ episode: any EpisodeDisplayable) -> Bool
 
   func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode
@@ -141,6 +142,10 @@ extension ManagingEpisodes {
 
   func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool {
     playState.isEpisodePlaying(episode)
+  }
+
+  func isEpisodeAtBottomOfQueue(_ episode: any EpisodeDisplayable) -> Bool {
+    episode.queueOrder == playState.maxQueuePosition
   }
 
   func canClearCache(_ episode: any EpisodeDisplayable) -> Bool {
