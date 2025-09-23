@@ -27,7 +27,8 @@ private enum SystemImageName: String, CaseIterable {
   // Documents & Data
   case document = "doc.text"
   case edit = "pencil.circle"
-  case queueActions = "text.badge.plus"
+  case downloadActions = "tray.and.arrow.down"
+  case queueActions = "line.3.horizontal.circle"
   case selectAll = "checklist"
 
   // Episode Status
@@ -167,9 +168,11 @@ enum AppLabel: CaseIterable {
   case pauseButton
   case playButton
   case queueActions
+  case downloadActions
   case seekBackward
   case seekForward
   case selectAll
+  case unselectAll
   case selectionEmpty
   case selectionFilled
   case waiting
@@ -265,9 +268,11 @@ enum AppLabel: CaseIterable {
     case .pauseButton: return (text: "Pause", systemImageName: .pauseButton)
     case .playButton: return (text: "Play", systemImageName: .playButton)
     case .queueActions: return (text: "Queue Actions", systemImageName: .queueActions)
+    case .downloadActions: return (text: "Downloads", systemImageName: .downloadActions)
     case .seekBackward: return (text: "Seek Backward", systemImageName: .seekBackward)
     case .seekForward: return (text: "Seek Forward", systemImageName: .seekForward)
     case .selectAll: return (text: "Select All", systemImageName: .selectAll)
+    case .unselectAll: return (text: "Unselect All", systemImageName: .selectionEmpty)
     case .selectionEmpty: return (text: "Select", systemImageName: .selectionEmpty)
     case .selectionFilled: return (text: "Selected", systemImageName: .selectionFilled)
     case .waiting: return (text: "Waiting", systemImageName: .waiting)
