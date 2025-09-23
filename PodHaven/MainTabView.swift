@@ -6,6 +6,11 @@ import SwiftUI
 
 struct MainTabView: View {
   @InjectedObservable(\.navigation) private var navigation
+  private let onTabBarInsetChange: (CGFloat) -> Void
+
+  init(onTabBarInsetChange: @escaping (CGFloat) -> Void = { _ in }) {
+    self.onTabBarInsetChange = onTabBarInsetChange
+  }
 
   var body: some View {
     TabView(selection: $navigation.currentTab) {
@@ -14,7 +19,7 @@ struct MainTabView: View {
         systemImage: AppLabel.settings.systemImageName,
         value: .settings
       ) {
-        SettingsView()
+        tabContent { SettingsView() }
       }
       Tab(
         AppLabel.search.text,
@@ -22,29 +27,39 @@ struct MainTabView: View {
         value: .search,
         role: .search
       ) {
-        SearchView()
+        tabContent { SearchView() }
       }
       Tab(
         AppLabel.upNext.text,
         systemImage: AppLabel.upNext.systemImageName,
         value: .upNext
       ) {
-        UpNextView()
+        tabContent { UpNextView() }
       }
       Tab(
         AppLabel.episodes.text,
         systemImage: AppLabel.episodes.systemImageName,
         value: .episodes
       ) {
-        EpisodesView()
+        tabContent { EpisodesView() }
       }
       Tab(
         AppLabel.podcasts.text,
         systemImage: AppLabel.podcasts.systemImageName,
         value: .podcasts
       ) {
-        PodcastsView()
+        tabContent { PodcastsView() }
       }
     }
+  }
+
+  @ViewBuilder
+  private func tabContent<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    content()
+      .onGeometryChange(for: CGFloat.self) { geometry in
+        geometry.safeAreaInsets.bottom
+      } action: { newInset in
+        onTabBarInsetChange(newInset)
+      }
   }
 }

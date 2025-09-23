@@ -8,16 +8,19 @@ struct ContentView: View {
   @InjectedObservable(\.playState) private var playState
 
   @State private var playBarHeight: CGFloat = 0
-  @State private var tabBarInset: CGFloat = 0
+  @State private var rootSafeAreaBottom: CGFloat = 0
+  @State private var tabContentBottomInset: CGFloat = 0
 
   var body: some View {
     ZStack(alignment: .bottom) {
-      MainTabView()
-        .onGeometryChange(for: CGFloat.self) { geometry in
-          geometry.safeAreaInsets.bottom
-        } action: { newInset in
-          tabBarInset = newInset
-        }
+      MainTabView { newInset in
+        tabContentBottomInset = newInset
+      }
+      .onGeometryChange(for: CGFloat.self) { geometry in
+        geometry.safeAreaInsets.bottom
+      } action: { newInset in
+        rootSafeAreaBottom = newInset
+      }
 
       if playState.showPlayBar {
         PlayBar()
@@ -26,7 +29,7 @@ struct ContentView: View {
           } action: { newHeight in
             playBarHeight = newHeight
           }
-          .padding(.bottom, tabBarInset)
+          .padding(.bottom, tabContentBottomInset - rootSafeAreaBottom)
       }
     }
     .environment(\.playBarSafeAreaInset, playState.showPlayBar ? playBarHeight : 0)
