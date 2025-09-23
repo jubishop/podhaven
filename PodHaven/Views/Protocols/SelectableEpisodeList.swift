@@ -10,7 +10,7 @@ import Logging
   associatedtype EpisodeID: Hashable
 
   var isSelecting: Bool { get set }
-  var episodeList: SelectableListUseCase<EpisodeType, EpisodeID> { get set }
+  var episodeList: SelectableListUseCase<EpisodeType, EpisodeID> { get }
   var selectedEpisodes: [EpisodeType] { get }
   var selectedEpisodeIDs: [EpisodeID] { get }
 
