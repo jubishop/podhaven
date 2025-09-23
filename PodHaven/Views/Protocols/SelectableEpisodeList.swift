@@ -188,6 +188,10 @@ extension SelectableEpisodeList {
     selectedEpisodes.contains { !$0.queued }
   }
 
+  var anySelectedNotAtTopOfQueue: Bool {
+    selectedEpisodes.contains { !($0.queueOrder == 0) }
+  }
+
   var anySelectedNotCached: Bool {
     selectedEpisodes.contains { $0.cacheStatus != .cached }
   }
@@ -198,10 +202,6 @@ extension SelectableEpisodeList {
 
   var anySelectedCanStopCaching: Bool {
     selectedEpisodes.contains { $0.cacheStatus == .caching && CacheManager.canClearCache($0) }
-  }
-
-  var anySelectedNotAtTopOfQueue: Bool {
-    selectedEpisodes.contains { episode in !(episode.queueOrder == 0) }
   }
 
   var anySelectedUnfinished: Bool {
