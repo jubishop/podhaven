@@ -13,27 +13,26 @@ struct ContentView: View {
   private var playBarBottomPadding: CGFloat { tabContentSafeAreaInset - mainTabSafeAreaInset }
 
   var body: some View {
-    ZStack(alignment: .bottom) {
-      MainTabView(tabContentSafeAreaInset: $tabContentSafeAreaInset)
-        .onGeometryChange(for: CGFloat.self) { geometry in
-          geometry.safeAreaInsets.bottom
-        } action: { newInset in
-          guard newInset > 0 else { return }
-          mainTabSafeAreaInset = newInset
-        }
-
-      if playState.showPlayBar {
-        PlayBar()
-          .onGeometryChange(for: CGFloat.self) { geometry in
-            geometry.size.height
-          } action: { newHeight in
-            guard newHeight > 0 else { return }
-            playBarHeight = newHeight
-          }
-          .padding(.bottom, playBarBottomPadding)
+    MainTabView(tabContentSafeAreaInset: $tabContentSafeAreaInset)
+      .onGeometryChange(for: CGFloat.self) { geometry in
+        geometry.safeAreaInsets.bottom
+      } action: { newInset in
+        guard newInset > 0 else { return }
+        mainTabSafeAreaInset = newInset
       }
-    }
-    .environment(\.playBarSafeAreaInset, playState.showPlayBar ? playBarHeight : 0)
+      .overlay(alignment: .bottom) {
+        if playState.showPlayBar {
+          PlayBar()
+            .onGeometryChange(for: CGFloat.self) { geometry in
+              geometry.size.height
+            } action: { newHeight in
+              guard newHeight > 0 else { return }
+              playBarHeight = newHeight
+            }
+            .padding(.bottom, playBarBottomPadding)
+        }
+      }
+      .environment(\.playBarSafeAreaInset, playState.showPlayBar ? playBarHeight : 0)
   }
 }
 
