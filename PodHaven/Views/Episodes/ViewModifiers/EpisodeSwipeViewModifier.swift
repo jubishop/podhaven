@@ -14,6 +14,12 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
     content
       .swipeActions(edge: .leading) {
         if episode.queued {
+          Button(
+            action: { viewModel.removeEpisodeFromQueue(episode) },
+            label: { AppLabel.removeFromQueue.image }
+          )
+          .tint(.red)
+
           if !(episode.queueOrder == 0) {
             Button(
               action: { viewModel.queueEpisodeOnTop(episode) },
@@ -21,12 +27,6 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
             )
             .tint(.blue)
           }
-
-          Button(
-            action: { viewModel.removeEpisodeFromQueue(episode) },
-            label: { AppLabel.removeFromQueue.image }
-          )
-          .tint(.red)
         } else {
           Button(
             action: { viewModel.queueEpisodeOnTop(episode) },
