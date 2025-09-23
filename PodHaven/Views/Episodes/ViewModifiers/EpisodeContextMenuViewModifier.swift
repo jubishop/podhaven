@@ -32,11 +32,13 @@ struct EpisodeContextMenuViewModifier<
         }
 
         if episode.queued {
-          Button(
-            action: { viewModel.queueEpisodeOnTop(episode) },
-            label: { AppLabel.moveToTop.label }
-          )
-          .tint(.blue)
+          if !(episode.queueOrder == 0) {
+            Button(
+              action: { viewModel.queueEpisodeOnTop(episode) },
+              label: { AppLabel.moveToTop.label }
+            )
+            .tint(.blue)
+          }
 
           Button(
             action: { viewModel.removeEpisodeFromQueue(episode) },

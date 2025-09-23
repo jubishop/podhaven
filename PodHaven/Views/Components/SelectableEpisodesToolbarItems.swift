@@ -47,8 +47,10 @@ struct SelectableEpisodesToolbarItems<
                 viewModel.replaceQueueWithSelectedAndPlay()
               }
             } else {
-              Button("Move To Top Of Queue") {
-                viewModel.addSelectedEpisodesToTopOfQueue()
+              if viewModel.anySelectedNotAtTopOfQueue {
+                Button("Move To Top Of Queue") {
+                  viewModel.addSelectedEpisodesToTopOfQueue()
+                }
               }
               Button("Move To Bottom Of Queue") {
                 viewModel.addSelectedEpisodesToBottomOfQueue()

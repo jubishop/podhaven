@@ -14,11 +14,13 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
     content
       .swipeActions(edge: .leading) {
         if episode.queued {
-          Button(
-            action: { viewModel.queueEpisodeOnTop(episode) },
-            label: { AppLabel.moveToTop.image }
-          )
-          .tint(.blue)
+          if !(episode.queueOrder == 0) {
+            Button(
+              action: { viewModel.queueEpisodeOnTop(episode) },
+              label: { AppLabel.moveToTop.image }
+            )
+            .tint(.blue)
+          }
 
           Button(
             action: { viewModel.removeEpisodeFromQueue(episode) },
