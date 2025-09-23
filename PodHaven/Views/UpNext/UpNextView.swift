@@ -21,6 +21,12 @@ struct UpNextView: View {
                 isSelecting: viewModel.isSelecting,
                 isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
               )
+              .id(
+                UpNextRowIdentity(
+                  episodeID: podcastEpisode.id,
+                  queueOrder: podcastEpisode.queueOrder
+                )
+              )
             }
           )
           .episodeListRow()
@@ -67,9 +73,14 @@ struct UpNextView: View {
 }
 
 #if DEBUG
-#Preview {
-  UpNextView()
-    .preview()
-    .task { try? await PreviewHelpers.populateQueue() }
-}
+  #Preview {
+    UpNextView()
+      .preview()
+      .task { try? await PreviewHelpers.populateQueue() }
+  }
 #endif
+
+private struct UpNextRowIdentity: Hashable {
+  let episodeID: Episode.ID
+  let queueOrder: Int?
+}
