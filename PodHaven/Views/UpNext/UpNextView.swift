@@ -14,7 +14,7 @@ struct UpNextView: View {
       List {
         ForEach(
           Array(viewModel.episodeList.filteredEntries),
-          id: \.queueIdentity
+          id: \.id
         ) { podcastEpisode in
           NavigationLink(
             value: Navigation.Destination.upNextEpisode(podcastEpisode),
@@ -24,6 +24,7 @@ struct UpNextView: View {
                 isSelecting: viewModel.isSelecting,
                 isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
               )
+              .id(podcastEpisode.queueIdentity)
             }
           )
           .episodeListRow()
