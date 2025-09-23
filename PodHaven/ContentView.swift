@@ -10,6 +10,7 @@ struct ContentView: View {
 
   @State private var mainTabSafeAreaInset: CGFloat = 0
   @State private var tabContentSafeAreaInset: CGFloat = 0
+  private var playBarBottomPadding: CGFloat { tabContentSafeAreaInset - mainTabSafeAreaInset }
 
   var body: some View {
     ZStack(alignment: .bottom) {
@@ -27,7 +28,7 @@ struct ContentView: View {
           } action: { newHeight in
             playBarHeight = newHeight
           }
-          .padding(.bottom, tabContentSafeAreaInset - mainTabSafeAreaInset)
+          .padding(.bottom, playBarBottomPadding)
       }
     }
     .environment(\.playBarSafeAreaInset, playState.showPlayBar ? playBarHeight : 0)
