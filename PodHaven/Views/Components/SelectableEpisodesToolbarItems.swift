@@ -33,96 +33,78 @@ struct SelectableEpisodesToolbarItems<
       ToolbarItem(placement: .topBarTrailing) {
         Menu(
           content: {
-            let showQueueActions =
-              viewModel.anySelectedNotQueued
-              || viewModel.anySelectedQueued
-              || viewModel.anySelectedNotAtTopOfQueue
-              || viewModel.anySelectedNotAtBottomOfQueue
-            let showDownloadActions =
-              viewModel.anySelectedCanStopCaching
-              || viewModel.anySelectedNotCached
-              || viewModel.anySelectedCanClearCache
-
             Button(
               action: { viewModel.playSelectedEpisodes() },
               label: { AppLabel.playSelection.label }
             )
             .tint(.green)
 
-            if showQueueActions {
-              Divider()
+            if viewModel.anySelectedNotQueued {
+              Button(
+                action: { viewModel.addSelectedEpisodesToTopOfQueue() },
+                label: { AppLabel.addSelectionToTop.label }
+              )
+              .tint(.blue)
 
-              if viewModel.anySelectedNotQueued {
+              Button(
+                action: { viewModel.addSelectedEpisodesToBottomOfQueue() },
+                label: { AppLabel.addSelectionToBottom.label }
+              )
+              .tint(.purple)
+
+              Button(
+                action: { viewModel.replaceQueueWithSelected() },
+                label: { AppLabel.replaceQueue.label }
+              )
+              .tint(.indigo)
+            } else {
+              if viewModel.anySelectedNotAtTopOfQueue {
                 Button(
                   action: { viewModel.addSelectedEpisodesToTopOfQueue() },
-                  label: { AppLabel.addSelectionToTop.label }
+                  label: { AppLabel.moveToTop.label }
                 )
                 .tint(.blue)
-
-                Button(
-                  action: { viewModel.addSelectedEpisodesToBottomOfQueue() },
-                  label: { AppLabel.addSelectionToBottom.label }
-                )
-                .tint(.purple)
-
-                Button(
-                  action: { viewModel.replaceQueueWithSelected() },
-                  label: { AppLabel.replaceQueue.label }
-                )
-                .tint(.indigo)
-              } else {
-                if viewModel.anySelectedNotAtTopOfQueue {
-                  Button(
-                    action: { viewModel.addSelectedEpisodesToTopOfQueue() },
-                    label: { AppLabel.moveToTop.label }
-                  )
-                  .tint(.blue)
-                }
-
-                if viewModel.anySelectedNotAtBottomOfQueue {
-                  Button(
-                    action: { viewModel.addSelectedEpisodesToBottomOfQueue() },
-                    label: { AppLabel.moveToBottom.label }
-                  )
-                  .tint(.purple)
-                }
               }
 
-              if viewModel.anySelectedQueued {
+              if viewModel.anySelectedNotAtBottomOfQueue {
                 Button(
-                  action: { viewModel.dequeueSelectedEpisodes() },
-                  label: { AppLabel.removeFromQueue.label }
+                  action: { viewModel.addSelectedEpisodesToBottomOfQueue() },
+                  label: { AppLabel.moveToBottom.label }
                 )
-                .tint(.red)
+                .tint(.purple)
               }
             }
 
-            if showDownloadActions {
-              Divider()
+            if viewModel.anySelectedQueued {
+              Button(
+                action: { viewModel.dequeueSelectedEpisodes() },
+                label: { AppLabel.removeFromQueue.label }
+              )
+              .tint(.red)
+            }
 
-              if viewModel.anySelectedCanStopCaching {
-                Button(
-                  action: { viewModel.cancelSelectedEpisodeDownloads() },
-                  label: { AppLabel.cancelEpisodeDownload.label }
-                )
-                .tint(.orange)
-              }
+            if viewModel.anySelectedCanStopCaching {
+              Button(
+                action: { viewModel.cancelSelectedEpisodeDownloads() },
+                label: { AppLabel.cancelEpisodeDownload.label }
+              )
+              .tint(.orange)
+            }
 
-              if viewModel.anySelectedNotCached {
-                Button(
-                  action: { viewModel.cacheSelectedEpisodes() },
-                  label: { AppLabel.cacheEpisode.label }
-                )
-                .tint(.blue)
-              }
+            if viewModel.anySelectedNotCached {
+              Button(
+                action: { viewModel.cacheSelectedEpisodes() },
+                label: { AppLabel.cacheEpisode.label }
+              )
+              .tint(.blue)
+            }
 
-              if viewModel.anySelectedCanClearCache {
-                Button(
-                  action: { viewModel.uncacheSelectedEpisodes() },
-                  label: { AppLabel.uncacheEpisode.label }
-                )
-                .tint(.red)
-              }
+            if viewModel.anySelectedCanClearCache {
+              Button(
+                action: { viewModel.uncacheSelectedEpisodes() },
+                label: { AppLabel.uncacheEpisode.label }
+              )
+              .tint(.red)
             }
 
             if viewModel.anySelectedUnfinished {

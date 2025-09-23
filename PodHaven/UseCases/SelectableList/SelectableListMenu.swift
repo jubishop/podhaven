@@ -2,7 +2,7 @@
 
 import SwiftUI
 
-struct SelectableListMenu: View {
+struct ,[: View {
   private let list: SelectableList
 
   init(list: SelectableList) {
