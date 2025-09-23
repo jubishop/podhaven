@@ -60,6 +60,7 @@ struct MainTabView: View {
       .onGeometryChange(for: CGFloat.self) { geometry in
         geometry.safeAreaInsets.bottom
       } action: { newInset in
+        guard newInset > 0 else { return }
         tabContentSafeAreaInset = newInset
       }
   }

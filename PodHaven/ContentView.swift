@@ -18,6 +18,7 @@ struct ContentView: View {
         .onGeometryChange(for: CGFloat.self) { geometry in
           geometry.safeAreaInsets.bottom
         } action: { newInset in
+          guard newInset > 0 else { return }
           mainTabSafeAreaInset = newInset
         }
 
@@ -26,6 +27,7 @@ struct ContentView: View {
           .onGeometryChange(for: CGFloat.self) { geometry in
             geometry.size.height
           } action: { newHeight in
+            guard newHeight > 0 else { return }
             playBarHeight = newHeight
           }
           .padding(.bottom, playBarBottomPadding)
