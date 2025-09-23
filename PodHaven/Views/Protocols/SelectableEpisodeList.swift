@@ -201,10 +201,7 @@ extension SelectableEpisodeList {
   }
 
   var anySelectedNotAtTopOfQueue: Bool {
-    selectedEpisodes.contains { episode in
-      guard let queueOrder = episode.queueOrder else { return true }
-      return queueOrder > 0
-    }
+    selectedEpisodes.contains { episode in !(episode.queueOrder == 0) }
   }
 
   var anySelectedUnfinished: Bool {
