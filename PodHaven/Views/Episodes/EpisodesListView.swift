@@ -41,6 +41,7 @@ struct EpisodesListView: View {
         )
       }
     }
+    .playBarSafeAreaInset()
     .animation(.default, value: viewModel.episodeList.filteredEntries)
     .navigationTitle(viewModel.title)
     .toolbar {
