@@ -16,8 +16,7 @@ struct PodcastListView: View {
           Rectangle()
             .fill(Color.gray.opacity(0.3))
             .overlay(
-              AppLabel.noImage.image
-                .foregroundColor(.white.opacity(0.8))
+              AppLabel.noImage.coloredImage
                 .font(.caption)
             )
         }
@@ -47,21 +46,21 @@ struct PodcastListView: View {
 }
 
 #if DEBUG
-#Preview {
-  @Previewable @State var unsavedPodcast: UnsavedPodcast?
+  #Preview {
+    @Previewable @State var unsavedPodcast: UnsavedPodcast?
 
-  NavigationStack {
-    List {
-      if let unsavedPodcast {
-        NavigationLink(destination: Text("Detail View")) {
-          PodcastListView(podcast: unsavedPodcast)
+    NavigationStack {
+      List {
+        if let unsavedPodcast {
+          NavigationLink(destination: Text("Detail View")) {
+            PodcastListView(podcast: unsavedPodcast)
+          }
         }
       }
     }
+    .preview()
+    .task {
+      unsavedPodcast = try? await PreviewHelpers.loadUnsavedPodcast()
+    }
   }
-  .preview()
-  .task {
-    unsavedPodcast = try? await PreviewHelpers.loadUnsavedPodcast()
-  }
-}
 #endif

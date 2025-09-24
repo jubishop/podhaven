@@ -57,8 +57,7 @@ struct PlayBar: View {
 
   private var stoppedPlayBar: some View {
     HStack(spacing: basicSpacing) {
-      AppLabel.noEpisodeSelected.image
-        .foregroundColor(.white)
+      AppLabel.noEpisodeSelected.coloredImage
 
       Text("No episode selected")
         .foregroundColor(.white)
@@ -141,8 +140,7 @@ struct PlayBar: View {
               .fill(Color.white.opacity(0.2))
               .frame(width: imageSize, height: imageSize)
               .overlay(
-                AppLabel.audioPlaceholder.image
-                  .foregroundColor(.white.opacity(0.6))
+                AppLabel.audioPlaceholder.coloredImage
               )
           }
         }
@@ -198,74 +196,74 @@ struct PlayBar: View {
 // MARK: - Preview
 
 #if DEBUG
-#Preview {
-  @Previewable @State var imageURLs: [URL] = []
-  @Previewable @State var gridItemSize: CGFloat = 100
+  #Preview {
+    @Previewable @State var imageURLs: [URL] = []
+    @Previewable @State var gridItemSize: CGFloat = 100
 
-  VStack(spacing: 12) {
-    HStack(spacing: 24) {
-      Button(
-        action: { Container.shared.playState().setStatus(.loading("Episode Title Here")) },
-        label: {
-          ProgressView()
-            .progressViewStyle(.circular)
-            .frame(width: 32, height: 32)
+    VStack(spacing: 12) {
+      HStack(spacing: 24) {
+        Button(
+          action: { Container.shared.playState().setStatus(.loading("Episode Title Here")) },
+          label: {
+            ProgressView()
+              .progressViewStyle(.circular)
+              .frame(width: 32, height: 32)
+          }
+        )
+
+        AppLabel.loading.imageButton {
+          Container.shared.playState().setStatus(.waiting)
         }
-      )
 
-      AppLabel.loading.imageButton {
-        Container.shared.playState().setStatus(.waiting)
+        AppLabel.pauseButton.imageButton {
+          Container.shared.playState().setStatus(.playing)
+        }
+
+        AppLabel.playButton.imageButton {
+          Container.shared.playState().setStatus(.paused)
+        }
+
+        AppLabel.noEpisodeSelected.imageButton {
+          Container.shared.playState().setStatus(.stopped)
+        }
       }
+      .font(.title)
+      .buttonStyle(.plain)
+      .dynamicTypeSize(.large)
 
-      AppLabel.pauseButton.imageButton {
-        Container.shared.playState().setStatus(.playing)
-      }
+      ZStack(alignment: .bottom) {
+        List(imageURLs, id: \.self) { url in
+          SquareImage(image: url, size: $gridItemSize)
+        }
 
-      AppLabel.playButton.imageButton {
-        Container.shared.playState().setStatus(.paused)
-      }
-
-      AppLabel.noEpisodeSelected.imageButton {
-        Container.shared.playState().setStatus(.stopped)
+        PlayBar()
+          .padding(.bottom, 40)
       }
     }
-    .font(.title)
-    .buttonStyle(.plain)
-    .dynamicTypeSize(.large)
-
-    ZStack(alignment: .bottom) {
-      List(imageURLs, id: \.self) { url in
-        SquareImage(image: url, size: $gridItemSize)
+    .preview()
+    .task {
+      let allThumbnails = PreviewBundle.loadAllThumbnails()
+      for thumbnailInfo in allThumbnails.values {
+        imageURLs.append(thumbnailInfo.url)
       }
 
-      PlayBar()
-        .padding(.bottom, 40)
+      let playState = Container.shared.playState()
+      playState.setOnDeck(
+        OnDeck(
+          episodeID: Episode.ID(1),
+          feedURL: FeedURL(URL.valid()),
+          guid: GUID(String.random()),
+          podcastTitle: "Podcast Title",
+          podcastURL: URL.valid(),
+          episodeTitle: "Episode Title",
+          duration: CMTime.minutes(60),
+          image: allThumbnails.randomElement()!.value.image,
+          mediaURL: MediaURL(URL.valid()),
+          pubDate: 48.hoursAgo
+        )
+      )
+      playState.setStatus(.playing)
+      playState.setCurrentTime(CMTime.minutes(30))
     }
   }
-  .preview()
-  .task {
-    let allThumbnails = PreviewBundle.loadAllThumbnails()
-    for thumbnailInfo in allThumbnails.values {
-      imageURLs.append(thumbnailInfo.url)
-    }
-
-    let playState = Container.shared.playState()
-    playState.setOnDeck(
-      OnDeck(
-        episodeID: Episode.ID(1),
-        feedURL: FeedURL(URL.valid()),
-        guid: GUID(String.random()),
-        podcastTitle: "Podcast Title",
-        podcastURL: URL.valid(),
-        episodeTitle: "Episode Title",
-        duration: CMTime.minutes(60),
-        image: allThumbnails.randomElement()!.value.image,
-        mediaURL: MediaURL(URL.valid()),
-        pubDate: 48.hoursAgo
-      )
-    )
-    playState.setStatus(.playing)
-    playState.setCurrentTime(CMTime.minutes(30))
-  }
-}
 #endif

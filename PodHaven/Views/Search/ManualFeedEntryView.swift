@@ -55,8 +55,7 @@ struct ManualFeedEntryView: View {
       // Error Display
       if case .error(let message) = viewModel.state {
         HStack {
-          AppLabel.error.image
-            .foregroundColor(.red)
+          AppLabel.error.coloredImage
           Text(message)
             .font(.subheadline)
             .foregroundColor(.red)
@@ -74,10 +73,10 @@ struct ManualFeedEntryView: View {
 // MARK: - Previews
 
 #if DEBUG
-#Preview("Manual Feed Entry") {
-  NavigationStack {
-    ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
+  #Preview("Manual Feed Entry") {
+    NavigationStack {
+      ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
+    }
+    .preview()
   }
-  .preview()
-}
 #endif

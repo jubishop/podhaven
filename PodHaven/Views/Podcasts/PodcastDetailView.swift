@@ -73,8 +73,7 @@ struct PodcastDetailView: View {
             .fill(Color.gray.opacity(0.3))
             .overlay(
               VStack {
-                AppLabel.noImage.image
-                  .foregroundColor(.white.opacity(0.8))
+                AppLabel.noImage.coloredImage
                   .font(.title)
                 Text("No Image")
                   .font(.caption)
@@ -310,41 +309,41 @@ struct PodcastDetailView: View {
 // MARK: - Preview
 
 #if DEBUG
-#Preview("Changelog") {
-  @Previewable @State var podcast: Podcast?
+  #Preview("Changelog") {
+    @Previewable @State var podcast: Podcast?
 
-  NavigationStack {
-    if let podcast {
-      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
+    NavigationStack {
+      if let podcast {
+        PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
+      }
+    }
+    .preview()
+    .task {
+      await PreviewHelpers.dataFetcher
+        .respond(
+          to: URL(string: "https://changelog.com/podcast/feed")!,
+          data: PreviewBundle.loadAsset(named: "changelog", in: .FeedRSS)
+        )
+      podcast = try? await PreviewHelpers.loadSeries(fileName: "changelog").podcast
     }
   }
-  .preview()
-  .task {
-    await PreviewHelpers.dataFetcher
-      .respond(
-        to: URL(string: "https://changelog.com/podcast/feed")!,
-        data: PreviewBundle.loadAsset(named: "changelog", in: .FeedRSS)
-      )
-    podcast = try? await PreviewHelpers.loadSeries(fileName: "changelog").podcast
-  }
-}
 
-#Preview("Pod Save America") {
-  @Previewable @State var podcast: Podcast?
+  #Preview("Pod Save America") {
+    @Previewable @State var podcast: Podcast?
 
-  NavigationStack {
-    if let podcast {
-      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
+    NavigationStack {
+      if let podcast {
+        PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
+      }
+    }
+    .preview()
+    .task {
+      await PreviewHelpers.dataFetcher
+        .respond(
+          to: URL(string: "https://feeds.simplecast.com/dxZsm5kX")!,
+          data: PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
+        )
+      podcast = try? await PreviewHelpers.loadSeries(fileName: "pod_save_america").podcast
     }
   }
-  .preview()
-  .task {
-    await PreviewHelpers.dataFetcher
-      .respond(
-        to: URL(string: "https://feeds.simplecast.com/dxZsm5kX")!,
-        data: PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
-      )
-    podcast = try? await PreviewHelpers.loadSeries(fileName: "pod_save_america").podcast
-  }
-}
 #endif

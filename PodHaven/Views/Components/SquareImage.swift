@@ -26,11 +26,9 @@ struct SquareImage: View {
           Color.gray
             .cornerRadius(cornerRadius)
           VStack {
-            AppLabel.noImage.image
-              .resizable()
-              .scaledToFit()
+            AppLabel.noImage.coloredImage
+              .font(.system(size: size / 2))
               .frame(width: size / 2, height: size / 2)
-              .foregroundColor(.white.opacity(0.8))
             Text("No Image")
               .font(.caption)
               .foregroundColor(.white.opacity(0.8))
