@@ -26,8 +26,7 @@ struct EpisodeDetailView: View {
                 .fill(Color.gray.opacity(0.3))
                 .overlay(
                   VStack {
-                    AppLabel.noImage.image
-                      .foregroundColor(.white.opacity(0.8))
+                    AppLabel.noImage.coloredImage
                       .font(.title)
                     Text("No Image")
                       .font(.caption)
@@ -64,8 +63,7 @@ struct EpisodeDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
           HStack {
             HStack(spacing: 8) {
-              AppLabel.publishDate.image
-                .foregroundColor(.secondary)
+              AppLabel.publishDate.coloredImage
               Text("Published")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -77,8 +75,7 @@ struct EpisodeDetailView: View {
 
             if viewModel.episode.cacheStatus == .cached {
               VStack(spacing: 4) {
-                AppLabel.episodeCached.image
-                  .foregroundColor(.green)
+                AppLabel.episodeCached.coloredImage
                 Text("Cached")
                   .font(.caption2)
                   .foregroundColor(.secondary)
@@ -88,8 +85,7 @@ struct EpisodeDetailView: View {
             Spacer()
 
             HStack(spacing: 8) {
-              AppLabel.duration.image
-                .foregroundColor(.secondary)
+              AppLabel.duration.coloredImage
               Text("Duration")
                 .font(.caption)
                 .foregroundColor(.secondary)

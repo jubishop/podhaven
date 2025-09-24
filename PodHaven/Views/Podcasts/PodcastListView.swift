@@ -16,8 +16,7 @@ struct PodcastListView: View {
           Rectangle()
             .fill(Color.gray.opacity(0.3))
             .overlay(
-              AppLabel.noImage.image
-                .foregroundColor(.white.opacity(0.8))
+              AppLabel.noImage.coloredImage
                 .font(.caption)
             )
         }

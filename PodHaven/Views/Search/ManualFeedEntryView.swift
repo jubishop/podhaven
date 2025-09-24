@@ -55,8 +55,7 @@ struct ManualFeedEntryView: View {
       // Error Display
       if case .error(let message) = viewModel.state {
         HStack {
-          AppLabel.error.image
-            .foregroundColor(.red)
+          AppLabel.error.coloredImage
           Text(message)
             .font(.subheadline)
             .foregroundColor(.red)

@@ -38,9 +38,8 @@ struct EpisodeSearchView: View {
 
   var idleStateView: some View {
     VStack(spacing: 16) {
-      AppLabel.personSearch.image
+      AppLabel.personSearch.coloredImage
         .font(.system(size: 48))
-        .foregroundColor(.secondary)
       Text("Search for episodes")
         .font(.headline)
         .multilineTextAlignment(.center)
@@ -63,9 +62,8 @@ struct EpisodeSearchView: View {
 
   var emptyResultsView: some View {
     VStack(spacing: 16) {
-      AppLabel.noPersonFound.image
+      AppLabel.noPersonFound.coloredImage
         .font(.system(size: 48))
-        .foregroundColor(.secondary)
       Text("No episodes found")
         .font(.headline)
       Text("Try a different person's name or check your spelling.")
@@ -99,9 +97,8 @@ struct EpisodeSearchView: View {
 
   func errorStateView(message: String) -> some View {
     VStack(spacing: 16) {
-      AppLabel.error.image
+      AppLabel.error.coloredImage
         .font(.system(size: 48))
-        .foregroundColor(.red)
       Text("Search Error")
         .font(.headline)
       Text(message)

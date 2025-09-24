@@ -73,8 +73,7 @@ struct PodcastDetailView: View {
             .fill(Color.gray.opacity(0.3))
             .overlay(
               VStack {
-                AppLabel.noImage.image
-                  .foregroundColor(.white.opacity(0.8))
+                AppLabel.noImage.coloredImage
                   .font(.title)
                 Text("No Image")
                   .font(.caption)

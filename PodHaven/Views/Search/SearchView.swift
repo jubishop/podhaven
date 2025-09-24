@@ -13,8 +13,7 @@ struct SearchView: View {
           value: Navigation.Destination.searchType(.trending),
           label: {
             HStack {
-              AppLabel.trending.image
-                .foregroundColor(.orange)
+              AppLabel.trending.coloredImage
               VStack(alignment: .leading) {
                 Text(AppLabel.trending.text)
                   .font(.headline)
@@ -30,8 +29,7 @@ struct SearchView: View {
           value: Navigation.Destination.searchType(.podcasts),
           label: {
             HStack {
-              AppLabel.searchPodcasts.image
-                .foregroundColor(.blue)
+              AppLabel.searchPodcasts.coloredImage
               VStack(alignment: .leading) {
                 Text(AppLabel.searchPodcasts.text)
                   .font(.headline)
@@ -47,8 +45,7 @@ struct SearchView: View {
           value: Navigation.Destination.searchType(.episodes),
           label: {
             HStack {
-              AppLabel.searchEpisodes.image
-                .foregroundColor(.green)
+              AppLabel.searchEpisodes.coloredImage
               VStack(alignment: .leading) {
                 Text(AppLabel.searchEpisodes.text)
                   .font(.headline)
@@ -64,8 +61,7 @@ struct SearchView: View {
           value: Navigation.Destination.searchType(.manualEntry),
           label: {
             HStack {
-              AppLabel.manualEntry.image
-                .foregroundColor(.purple)
+              AppLabel.manualEntry.coloredImage
               VStack(alignment: .leading) {
                 Text(AppLabel.manualEntry.text)
                   .font(.headline)

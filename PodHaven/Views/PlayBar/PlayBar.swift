@@ -57,8 +57,7 @@ struct PlayBar: View {
 
   private var stoppedPlayBar: some View {
     HStack(spacing: basicSpacing) {
-      AppLabel.noEpisodeSelected.image
-        .foregroundColor(.white)
+      AppLabel.noEpisodeSelected.coloredImage
 
       Text("No episode selected")
         .foregroundColor(.white)
@@ -141,8 +140,7 @@ struct PlayBar: View {
               .fill(Color.white.opacity(0.2))
               .frame(width: imageSize, height: imageSize)
               .overlay(
-                AppLabel.audioPlaceholder.image
-                  .foregroundColor(.white.opacity(0.6))
+                AppLabel.audioPlaceholder.coloredImage
               )
           }
         }

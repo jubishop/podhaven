@@ -52,14 +52,11 @@ struct EpisodeListView: View {
   var statusIconColumn: some View {
     VStack(spacing: 10) {
       if let onDeck = playState.onDeck, onDeck == episode {
-        AppLabel.episodeOnDeck.image
-          .foregroundColor(.accentColor)
+        AppLabel.episodeOnDeck.coloredImage
       } else if episode.queueOrder == 0 {
-        AppLabel.queueAtTop.image
-          .foregroundColor(.orange)
+        AppLabel.queueAtTop.coloredImage
       } else {
-        AppLabel.episodeQueued.image
-          .foregroundColor(.orange)
+        AppLabel.episodeQueued.coloredImage
           .opacity(episode.queued ? 1 : 0)
       }
 
@@ -73,17 +70,14 @@ struct EpisodeListView: View {
           )
           .frame(width: statusIconSize, height: statusIconSize)
         } else {
-          AppLabel.waiting.image
-            .foregroundColor(.green)
+          AppLabel.waiting.coloredImage
         }
       } else {
-        AppLabel.episodeCached.image
-          .foregroundStyle(.green)
+        AppLabel.episodeCached.coloredImage
           .opacity(episode.cacheStatus == .cached ? 1 : 0)
       }
 
-      AppLabel.episodeFinished.image
-        .foregroundColor(.blue)
+      AppLabel.episodeFinished.coloredImage
         .opacity(episode.finished ? 1 : 0)
     }
     .font(.system(size: statusIconSize))
@@ -104,9 +98,8 @@ struct EpisodeListView: View {
   var episodeMetadataRow: some View {
     HStack {
       HStack(spacing: 4) {
-        AppLabel.publishDate.image
+        AppLabel.publishDate.coloredImage
           .font(.system(size: metadataIconSize))
-          .foregroundColor(.secondary)
         Text(episode.pubDate.usShort)
           .font(.caption)
           .foregroundColor(.secondary)
@@ -127,9 +120,8 @@ struct EpisodeListView: View {
             .frame(width: metadataIconSize - 2, height: metadataIconSize - 2)
           }
 
-          AppLabel.duration.image
+          AppLabel.duration.coloredImage
             .font(.system(size: metadataIconSize))
-            .foregroundColor(.secondary)
         }
         Text(episode.duration.shortDescription)
           .font(.caption)
