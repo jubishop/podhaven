@@ -21,28 +21,23 @@ struct SearchBar: View {
         .disableAutocorrection(true)
 
       if isFocused || !text.isEmpty {
-        Button(
-          action: {
-            text = ""
-            isFocused = false
-          },
-          label: {
-            AppLabel.clearSearch.image
-          }
-        )
+        AppLabel.clearSearch.imageButton {
+          text = ""
+          isFocused = false
+        }
       }
     }
   }
 }
 
 #if DEBUG
-#Preview {
-  @Previewable @State var text: String = ""
-  @Previewable @State var demo: String = ""
+  #Preview {
+    @Previewable @State var text: String = ""
+    @Previewable @State var demo: String = ""
 
-  VStack(spacing: 20) {
-    SearchBar(text: $text)
-    TextField("Random focus field", text: $demo)
+    VStack(spacing: 20) {
+      SearchBar(text: $text)
+      TextField("Random focus field", text: $demo)
+    }
   }
-}
 #endif

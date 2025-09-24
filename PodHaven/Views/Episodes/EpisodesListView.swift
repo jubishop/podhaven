@@ -35,10 +35,9 @@ struct EpisodesListView: View {
       .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
       .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode) {
-        Button(
-          action: { viewModel.showPodcast(podcastEpisode) },
-          label: { AppLabel.showPodcast.label }
-        )
+        AppLabel.showPodcast.labelButton {
+          viewModel.showPodcast(podcastEpisode)
+        }
       }
     }
     .playBarSafeAreaInset()
@@ -56,13 +55,13 @@ struct EpisodesListView: View {
 }
 
 #if DEBUG
-#Preview {
-  NavigationStack {
-    EpisodesListView(
-      viewModel: EpisodesListViewModel(title: "Finished", filter: Episode.finished)
-    )
+  #Preview {
+    NavigationStack {
+      EpisodesListView(
+        viewModel: EpisodesListViewModel(title: "Finished", filter: Episode.finished)
+      )
+    }
+    .preview()
+    .task { try? await PreviewHelpers.populateFinishedPodcastEpisodes() }
   }
-  .preview()
-  .task { try? await PreviewHelpers.populateFinishedPodcastEpisodes() }
-}
 #endif

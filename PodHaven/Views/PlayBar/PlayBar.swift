@@ -154,123 +154,134 @@ struct PlayBar: View {
 
   private var playbackControls: some View {
     HStack {
-      Button(action: viewModel.seekBackward) {
-        AppLabel.seekBackward.image
-          .font(.title2)
-          .foregroundColor(.white)
+      AppLabel.seekBackward.imageButton {
+        viewModel.seekBackward()
       }
+      .font(.title2)
+      .tint(.white)
       .buttonStyle(.glass)
 
-      Button(action: viewModel.playOrPause) {
-        Group {
-          if viewModel.isWaiting {
-            AppLabel.loading.image
-          } else if viewModel.isPlaying {
-            AppLabel.pauseButton.image
-          } else {
-            AppLabel.playButton.image
-          }
-        }
+      playPauseButton
         .font(.title)
-        .foregroundColor(.white)
-      }
-      .buttonStyle(.glass)
+        .tint(.white)
+        .buttonStyle(.glass)
 
-      Button(action: viewModel.seekForward) {
-        AppLabel.seekForward.image
-          .font(.title2)
-          .foregroundColor(.white)
+      AppLabel.seekForward.imageButton {
+        viewModel.seekForward()
       }
+      .font(.title2)
+      .tint(.white)
       .buttonStyle(.glass)
     }
   }
 
-  private var expansionButton: some View {
-    Button(action: viewModel.toggleExpansion) {
-      (viewModel.isExpanded ? AppLabel.expandDown.image : AppLabel.expandUp.image)
-        .foregroundColor(.white)
-        .contentTransition(.symbolEffect(.replace))
+  @ViewBuilder
+  private var playPauseButton: some View {
+    if viewModel.isWaiting {
+      AppLabel.loading.imageButton {
+        viewModel.playOrPause()
+      }
+    } else if viewModel.isPlaying {
+      AppLabel.pauseButton.imageButton {
+        viewModel.playOrPause()
+      }
+    } else {
+      AppLabel.playButton.imageButton {
+        viewModel.playOrPause()
+      }
     }
+  }
+
+  private var expansionButton: some View {
+    Group {
+      if viewModel.isExpanded {
+        AppLabel.expandDown.imageButton {
+          viewModel.toggleExpansion()
+        }
+      } else {
+        AppLabel.expandUp.imageButton {
+          viewModel.toggleExpansion()
+        }
+      }
+    }
+    .tint(.white)
     .buttonStyle(.glass)
+    .contentTransition(.symbolEffect(.replace))
   }
 }
 
 // MARK: - Preview
 
 #if DEBUG
-#Preview {
-  @Previewable @State var imageURLs: [URL] = []
-  @Previewable @State var gridItemSize: CGFloat = 100
+  #Preview {
+    @Previewable @State var imageURLs: [URL] = []
+    @Previewable @State var gridItemSize: CGFloat = 100
 
-  VStack(spacing: 12) {
-    HStack(spacing: 24) {
-      Button(
-        action: { Container.shared.playState().setStatus(.loading("Episode Title Here")) },
-        label: {
-          ProgressView()
-            .progressViewStyle(.circular)
-            .tint(.primary)
-            .frame(width: 32, height: 32)
+    VStack(spacing: 12) {
+      HStack(spacing: 24) {
+        Button(
+          action: { Container.shared.playState().setStatus(.loading("Episode Title Here")) },
+          label: {
+            ProgressView()
+              .progressViewStyle(.circular)
+              .tint(.primary)
+              .frame(width: 32, height: 32)
+          }
+        )
+
+        AppLabel.loading.imageButton {
+          Container.shared.playState().setStatus(.waiting)
         }
-      )
 
-      Button(
-        action: { Container.shared.playState().setStatus(.waiting) },
-        label: { AppLabel.loading.image }
-      )
+        AppLabel.pauseButton.imageButton {
+          Container.shared.playState().setStatus(.playing)
+        }
 
-      Button(
-        action: { Container.shared.playState().setStatus(.playing) },
-        label: { AppLabel.pauseButton.image }
-      )
+        AppLabel.playButton.imageButton {
+          Container.shared.playState().setStatus(.paused)
+        }
 
-      Button(
-        action: { Container.shared.playState().setStatus(.paused) },
-        label: { AppLabel.playButton.image }
-      )
+        AppLabel.noEpisodeSelected.imageButton {
+          Container.shared.playState().setStatus(.stopped)
+        }
+      }
+      .font(.title)
+      .buttonStyle(.plain)
+      .dynamicTypeSize(.large)
 
-      Button(
-        action: { Container.shared.playState().setStatus(.stopped) },
-        label: { AppLabel.noEpisodeSelected.image }
-      )
+      ZStack(alignment: .bottom) {
+        List(imageURLs, id: \.self) { url in
+          SquareImage(image: url, size: $gridItemSize)
+        }
+
+        PlayBar()
+          .padding(.bottom, 40)
+      }
     }
-    .font(.title)
-    .buttonStyle(.plain)
-    .dynamicTypeSize(.large)
-
-    ZStack(alignment: .bottom) {
-      List(imageURLs, id: \.self) { url in
-        SquareImage(image: url, size: $gridItemSize)
+    .preview()
+    .task {
+      let allThumbnails = PreviewBundle.loadAllThumbnails()
+      for thumbnailInfo in allThumbnails.values {
+        imageURLs.append(thumbnailInfo.url)
       }
 
-      PlayBar()
-        .padding(.bottom, 40)
-    }
-  }
-  .preview()
-  .task {
-    let allThumbnails = PreviewBundle.loadAllThumbnails()
-    for thumbnailInfo in allThumbnails.values {
-      imageURLs.append(thumbnailInfo.url)
-    }
-
-    let playState = Container.shared.playState()
-    playState.setOnDeck(
-      OnDeck(
-        episodeID: Episode.ID(1),
-        feedURL: FeedURL(URL.valid()),
-        guid: GUID(String.random()),
-        podcastTitle: "Podcast Title",
-        podcastURL: URL.valid(),
-        episodeTitle: "Episode Title",
-        duration: CMTime.minutes(60),
-        image: allThumbnails.randomElement()!.value.image,
-        mediaURL: MediaURL(URL.valid()),
-        pubDate: 48.hoursAgo
+      let playState = Container.shared.playState()
+      playState.setOnDeck(
+        OnDeck(
+          episodeID: Episode.ID(1),
+          feedURL: FeedURL(URL.valid()),
+          guid: GUID(String.random()),
+          podcastTitle: "Podcast Title",
+          podcastURL: URL.valid(),
+          episodeTitle: "Episode Title",
+          duration: CMTime.minutes(60),
+          image: allThumbnails.randomElement()!.value.image,
+          mediaURL: MediaURL(URL.valid()),
+          pubDate: 48.hoursAgo
+        )
       )
-    )
-    playState.setStatus(.playing)
-    playState.setCurrentTime(CMTime.minutes(30))
+      playState.setStatus(.playing)
+      playState.setCurrentTime(CMTime.minutes(30))
+    }
   }
-}
 #endif

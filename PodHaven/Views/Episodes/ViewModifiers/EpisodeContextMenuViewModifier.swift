@@ -19,86 +19,64 @@ struct EpisodeContextMenuViewModifier<
     content
       .contextMenu {
         if isEpisodePlaying {
-          Button(
-            action: { viewModel.pauseEpisode(episode) },
-            label: { AppLabel.pauseButton.label }
-          )
-          .tint(.yellow)
+          AppLabel.pauseButton.labelButton {
+            viewModel.pauseEpisode(episode)
+          }
         } else {
-          Button(
-            action: { viewModel.playEpisode(episode) },
-            label: { AppLabel.playEpisode.label }
-          )
-          .tint(.green)
+          AppLabel.playEpisode.labelButton {
+            viewModel.playEpisode(episode)
+          }
         }
 
         if episode.queued {
-          Button(
-            action: { viewModel.removeEpisodeFromQueue(episode) },
-            label: { AppLabel.removeFromQueue.label }
-          )
-          .tint(.red)
+          AppLabel.removeFromQueue.labelButton {
+            viewModel.removeEpisodeFromQueue(episode)
+          }
 
           if !(episode.queueOrder == 0) {
-            Button(
-              action: { viewModel.queueEpisodeOnTop(episode) },
-              label: { AppLabel.moveToTop.label }
-            )
-            .tint(.blue)
+            AppLabel.moveToTop.labelButton {
+              viewModel.queueEpisodeOnTop(episode)
+            }
           }
 
           if !isAtBottomOfQueue {
-            Button(
-              action: { viewModel.queueEpisodeAtBottom(episode) },
-              label: { AppLabel.moveToBottom.label }
-            )
-            .tint(.purple)
+            AppLabel.moveToBottom.labelButton {
+              viewModel.queueEpisodeAtBottom(episode)
+            }
           }
         } else {
-          Button(
-            action: { viewModel.queueEpisodeOnTop(episode) },
-            label: { AppLabel.queueAtTop.label }
-          )
-          .tint(.blue)
+          AppLabel.queueAtTop.labelButton {
+            viewModel.queueEpisodeOnTop(episode)
+          }
 
-          Button(
-            action: { viewModel.queueEpisodeAtBottom(episode) },
-            label: { AppLabel.queueAtBottom.label }
-          )
-          .tint(.purple)
+          AppLabel.queueAtBottom.labelButton {
+            viewModel.queueEpisodeAtBottom(episode)
+          }
         }
 
         switch episode.cacheStatus {
         case .caching:
           if canClearCache {
-            Button(
-              action: { viewModel.uncacheEpisode(episode) },
-              label: { AppLabel.cancelEpisodeDownload.label }
-            )
-            .tint(.orange)
+            AppLabel.cancelEpisodeDownload.labelButton {
+              viewModel.uncacheEpisode(episode)
+            }
           }
         case .cached:
           if canClearCache {
-            Button(
-              action: { viewModel.uncacheEpisode(episode) },
-              label: { AppLabel.uncacheEpisode.label }
-            )
-            .tint(.red)
+            AppLabel.uncacheEpisode.labelButton {
+              viewModel.uncacheEpisode(episode)
+            }
           }
         case .uncached:
-          Button(
-            action: { viewModel.cacheEpisode(episode) },
-            label: { AppLabel.cacheEpisode.label }
-          )
-          .tint(.blue)
+          AppLabel.cacheEpisode.labelButton {
+            viewModel.cacheEpisode(episode)
+          }
         }
 
         if !episode.finished {
-          Button(
-            action: { viewModel.markEpisodeFinished(episode) },
-            label: { AppLabel.markEpisodeFinished.label }
-          )
-          .tint(.mint)
+          AppLabel.markEpisodeFinished.labelButton {
+            viewModel.markEpisodeFinished(episode)
+          }
         }
 
         additionalContent()

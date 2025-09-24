@@ -13,18 +13,14 @@ struct SelectableListMenu: View {
     Menu(
       content: {
         if list.anyNotSelected {
-          Button(
-            action: { list.selectAllEntries() },
-            label: { AppLabel.selectAll.label }
-          )
-          .tint(.blue)
+          AppLabel.selectAll.labelButton {
+            list.selectAllEntries()
+          }
         }
         if list.anySelected {
-          Button(
-            action: { list.unselectAllEntries() },
-            label: { AppLabel.unselectAll.label }
-          )
-          .tint(.gray)
+          AppLabel.unselectAll.labelButton {
+            list.unselectAllEntries()
+          }
         }
       },
       label: {
