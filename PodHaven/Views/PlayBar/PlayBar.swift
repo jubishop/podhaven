@@ -155,19 +155,13 @@ struct PlayBar: View {
   private var playbackControls: some View {
     HStack {
       Group {
-        AppLabel.seekBackward
-          .imageButton {
-            viewModel.seekBackward()
-          }
+        AppLabel.seekBackward.imageButton(action: viewModel.seekBackward)
           .font(.title2)
 
         playPauseButton
           .font(.title)
 
-        AppLabel.seekForward
-          .imageButton {
-            viewModel.seekForward()
-          }
+        AppLabel.seekForward.imageButton(action: viewModel.seekForward)
           .font(.title2)
       }
       .buttonStyle(.glass)
@@ -176,26 +170,26 @@ struct PlayBar: View {
 
   @ViewBuilder
   private var playPauseButton: some View {
+    let action = viewModel.playOrPause
     if viewModel.isWaiting {
-      AppLabel.loading.imageButton {
-        viewModel.playOrPause()
-      }
+      AppLabel.loading.imageButton(action: action)
     } else if viewModel.isPlaying {
-      AppLabel.pauseButton.imageButton {
-        viewModel.playOrPause()
-      }
+      AppLabel.pauseButton.imageButton(action: action)
     } else {
-      AppLabel.playButton.imageButton {
-        viewModel.playOrPause()
-      }
+      AppLabel.playButton.imageButton(action: action)
     }
   }
 
+  @ViewBuilder
   private var expansionButton: some View {
-    Button(action: viewModel.toggleExpansion) {
-      (viewModel.isExpanded ? AppLabel.expandDown.image : AppLabel.expandUp.image)
-        .foregroundColor(.white)
-        .contentTransition(.symbolEffect(.replace))
+    let action = viewModel.toggleExpansion
+
+    Group {
+      if viewModel.isExpanded {
+        AppLabel.expandDown.imageButton(action: action)
+      } else {
+        AppLabel.expandUp.imageButton(action: action)
+      }
     }
     .buttonStyle(.glass)
   }
