@@ -93,9 +93,7 @@ struct SelectableEpisodesToolbarItems<
               }
             }
           },
-          label: {
-            AppLabel.moreActions.image
-          }
+          label: { AppLabel.moreActions.image }
         )
       }
     }

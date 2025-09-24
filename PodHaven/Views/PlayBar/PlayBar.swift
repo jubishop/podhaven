@@ -195,20 +195,12 @@ struct PlayBar: View {
   }
 
   private var expansionButton: some View {
-    Group {
-      if viewModel.isExpanded {
-        AppLabel.expandDown.imageButton {
-          viewModel.toggleExpansion()
-        }
-      } else {
-        AppLabel.expandUp.imageButton {
-          viewModel.toggleExpansion()
-        }
-      }
+    Button(action: viewModel.toggleExpansion) {
+      (viewModel.isExpanded ? AppLabel.expandDown.image : AppLabel.expandUp.image)
+        .foregroundColor(.white)
+        .contentTransition(.symbolEffect(.replace))
     }
-    .tint(.primary)
     .buttonStyle(.glass)
-    .contentTransition(.symbolEffect(.replace))
   }
 }
 
