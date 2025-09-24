@@ -73,8 +73,8 @@ class PodcastDetailViewModel:
 
   // MARK: - ManagingEpisodes
 
-  func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
-    let podcastEpisode = try await DisplayedEpisode.getOrCreatePodcastEpisode(episode)
+  func getOrCreatePodcastEpisode(_ episode: DisplayedEpisode) async throws -> PodcastEpisode {
+    let podcastEpisode = try await episode.getOrCreatePodcastEpisode()
     startObservation(podcastEpisode.podcast.id)
     return podcastEpisode
   }

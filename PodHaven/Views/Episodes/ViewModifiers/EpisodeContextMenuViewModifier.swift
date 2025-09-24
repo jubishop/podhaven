@@ -8,7 +8,7 @@ struct EpisodeContextMenuViewModifier<
   AdditionalContent: View
 >: ViewModifier {
   let viewModel: ViewModel
-  let episode: any EpisodeDisplayable
+  let episode: ViewModel.EpisodeType
   @ViewBuilder let additionalContent: () -> AdditionalContent
 
   func body(content: Content) -> some View {
@@ -109,7 +109,7 @@ struct EpisodeContextMenuViewModifier<
 extension View {
   func episodeContextMenu<ViewModel: ManagingEpisodes, AdditionalContent: View>(
     viewModel: ViewModel,
-    episode: any EpisodeDisplayable,
+    episode: ViewModel.EpisodeType,
     @ViewBuilder additionalContent: @escaping () -> AdditionalContent = { EmptyView() }
   ) -> some View {
     self.modifier(

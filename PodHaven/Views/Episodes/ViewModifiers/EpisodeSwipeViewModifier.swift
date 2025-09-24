@@ -5,7 +5,7 @@ import SwiftUI
 
 struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
   let viewModel: ViewModel
-  let episode: any EpisodeDisplayable
+  let episode: ViewModel.EpisodeType
 
   func body(content: Content) -> some View {
     let isEpisodePlaying = viewModel.isEpisodePlaying(episode)
@@ -105,7 +105,7 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
 extension View {
   func episodeSwipeActions<ViewModel: ManagingEpisodes>(
     viewModel: ViewModel,
-    episode: any EpisodeDisplayable
+    episode: ViewModel.EpisodeType
   ) -> some View {
     self.modifier(EpisodeSwipeViewModifier(viewModel: viewModel, episode: episode))
   }

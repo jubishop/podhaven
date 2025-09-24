@@ -84,35 +84,29 @@ import SwiftUI
 
   // MARK: - ManagingEpisodes
 
-  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable, swipeAction: Bool) {
-    guard let podcastEpisode = episode as? PodcastEpisode
-    else { Assert.fatal("type \(String(describing: type(of: episode))) in UpNext list?") }
-
+  func queueEpisodeOnTop(_ episode: PodcastEpisode, swipeAction: Bool) {
     Self.log.debug("Custom queueing of episode to top using UpNextViewModel")
 
     // We have to remove the item first to avoid janky move animation with swipe action
-    if swipeAction { episodeList.allEntries.remove(podcastEpisode) }
+    if swipeAction { episodeList.allEntries.remove(episode) }
 
     Task { [weak self] in
       guard let self else { return }
 
-      try await queue.unshift(podcastEpisode.id)
+      try await queue.unshift(episode.id)
     }
   }
 
-  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable, swipeAction: Bool) {
-    guard let podcastEpisode = episode as? PodcastEpisode
-    else { Assert.fatal("type \(String(describing: type(of: episode))) in UpNext list?") }
-
+  func queueEpisodeAtBottom(_ episode: PodcastEpisode, swipeAction: Bool) {
     Self.log.debug("Custom queueing of episode to bottom using UpNextViewModel")
 
     // We have to remove the item first to avoid janky move animation with swipe action
-    if swipeAction { episodeList.allEntries.remove(podcastEpisode) }
+    if swipeAction { episodeList.allEntries.remove(episode) }
 
     Task { [weak self] in
       guard let self else { return }
 
-      try await queue.append(podcastEpisode.id)
+      try await queue.append(episode.id)
     }
   }
 

@@ -7,6 +7,8 @@ import SwiftUI
 
 @Observable @MainActor
 final class EpisodeSearchViewModel: ManagingEpisodes {
+  typealias EpisodeType = DisplayedEpisode
+
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -21,9 +23,7 @@ final class EpisodeSearchViewModel: ManagingEpisodes {
   @ObservationIgnored private var searchTask: Task<Void, Never>?
   @ObservationIgnored private var observationTask: Task<Void, Never>?
 
-  var episodes: IdentifiedArray<MediaGUID, any EpisodeDisplayable> = IdentifiedArray(
-    id: \.mediaGUID
-  )
+  var episodes: IdentifiedArray<MediaGUID, EpisodeType> = IdentifiedArray(id: \.mediaGUID)
 
   enum EpisodeSearchState {
     case idle
@@ -77,7 +77,7 @@ final class EpisodeSearchViewModel: ManagingEpisodes {
       guard !Task.isCancelled else { return }
 
       episodes = IdentifiedArray(
-        uniqueElements: unsavedPodcastEpisodes.map { $0 as any EpisodeDisplayable },
+        uniqueElements: unsavedPodcastEpisodes.map { DisplayedEpisode($0) },
         id: \.mediaGUID
       )
       state = .loaded
@@ -117,7 +117,7 @@ final class EpisodeSearchViewModel: ManagingEpisodes {
           Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
 
           for podcastEpisode in podcastEpisodes {
-            episodes[id: podcastEpisode.mediaGUID] = podcastEpisode
+            episodes[id: podcastEpisode.mediaGUID] = DisplayedEpisode(podcastEpisode)
           }
         }
       } catch {
@@ -134,3 +134,4 @@ final class EpisodeSearchViewModel: ManagingEpisodes {
     observationTask?.cancel()
   }
 }
+

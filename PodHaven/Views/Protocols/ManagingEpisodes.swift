@@ -5,21 +5,23 @@ import Foundation
 import Logging
 
 @MainActor protocol ManagingEpisodes: AnyObject {
-  func playEpisode(_ episode: any EpisodeDisplayable)
-  func pauseEpisode(_ episode: any EpisodeDisplayable)
-  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable, swipeAction: Bool)
-  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable, swipeAction: Bool)
-  func removeEpisodeFromQueue(_ episode: any EpisodeDisplayable)
-  func cacheEpisode(_ episode: any EpisodeDisplayable)
-  func uncacheEpisode(_ episode: any EpisodeDisplayable)
-  func markEpisodeFinished(_ episode: any EpisodeDisplayable)
-  func showPodcast(_ episode: any EpisodeDisplayable)
+  associatedtype EpisodeType: EpisodeDisplayable
 
-  func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool
-  func isEpisodeAtBottomOfQueue(_ episode: any EpisodeDisplayable) -> Bool
-  func canClearCache(_ episode: any EpisodeDisplayable) -> Bool
+  func playEpisode(_ episode: EpisodeType)
+  func pauseEpisode(_ episode: EpisodeType)
+  func queueEpisodeOnTop(_ episode: EpisodeType, swipeAction: Bool)
+  func queueEpisodeAtBottom(_ episode: EpisodeType, swipeAction: Bool)
+  func removeEpisodeFromQueue(_ episode: EpisodeType)
+  func cacheEpisode(_ episode: EpisodeType)
+  func uncacheEpisode(_ episode: EpisodeType)
+  func markEpisodeFinished(_ episode: EpisodeType)
+  func showPodcast(_ episode: EpisodeType)
 
-  func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode
+  func isEpisodePlaying(_ episode: EpisodeType) -> Bool
+  func isEpisodeAtBottomOfQueue(_ episode: EpisodeType) -> Bool
+  func canClearCache(_ episode: EpisodeType) -> Bool
+
+  func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode
 }
 
 extension ManagingEpisodes {
@@ -32,7 +34,7 @@ extension ManagingEpisodes {
 
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcast) }
 
-  func playEpisode(_ episode: any EpisodeDisplayable) {
+  func playEpisode(_ episode: EpisodeType) {
     Task { [weak self] in
       guard let self else { return }
 
@@ -46,7 +48,7 @@ extension ManagingEpisodes {
     }
   }
 
-  func pauseEpisode(_ episode: any EpisodeDisplayable) {
+  func pauseEpisode(_ episode: EpisodeType) {
     guard isEpisodePlaying(episode) else { return }
 
     Task { [weak self] in
@@ -56,7 +58,7 @@ extension ManagingEpisodes {
     }
   }
 
-  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable, swipeAction: Bool = false) {
+  func queueEpisodeOnTop(_ episode: EpisodeType, swipeAction: Bool = false) {
     guard episode.queueOrder != 0 else { return }
 
     Task { [weak self] in
@@ -67,7 +69,7 @@ extension ManagingEpisodes {
     }
   }
 
-  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable, swipeAction: Bool = false) {
+  func queueEpisodeAtBottom(_ episode: EpisodeType, swipeAction: Bool = false) {
     guard !isEpisodeAtBottomOfQueue(episode) else { return }
 
     Task { [weak self] in
@@ -78,7 +80,7 @@ extension ManagingEpisodes {
     }
   }
 
-  func removeEpisodeFromQueue(_ episode: any EpisodeDisplayable) {
+  func removeEpisodeFromQueue(_ episode: EpisodeType) {
     Task { [weak self] in
       guard let self else { return }
 
@@ -91,7 +93,7 @@ extension ManagingEpisodes {
     }
   }
 
-  func cacheEpisode(_ episode: any EpisodeDisplayable) {
+  func cacheEpisode(_ episode: EpisodeType) {
     Task { [weak self] in
       guard let self else { return }
 
@@ -104,7 +106,7 @@ extension ManagingEpisodes {
     }
   }
 
-  func uncacheEpisode(_ episode: any EpisodeDisplayable) {
+  func uncacheEpisode(_ episode: EpisodeType) {
     Task { [weak self] in
       guard let self else { return }
 
@@ -117,7 +119,7 @@ extension ManagingEpisodes {
     }
   }
 
-  func markEpisodeFinished(_ episode: any EpisodeDisplayable) {
+  func markEpisodeFinished(_ episode: EpisodeType) {
     guard !episode.finished else { return }
 
     Task { [weak self] in
@@ -132,7 +134,7 @@ extension ManagingEpisodes {
     }
   }
 
-  func showPodcast(_ episode: any EpisodeDisplayable) {
+  func showPodcast(_ episode: EpisodeType) {
     Task { [weak self] in
       guard let self else { return }
 
@@ -144,25 +146,25 @@ extension ManagingEpisodes {
     }
   }
 
-  func isEpisodePlaying(_ episode: any EpisodeDisplayable) -> Bool {
+  func isEpisodePlaying(_ episode: EpisodeType) -> Bool {
     playState.isEpisodePlaying(episode)
   }
 
-  func isEpisodeAtBottomOfQueue(_ episode: any EpisodeDisplayable) -> Bool {
+  func isEpisodeAtBottomOfQueue(_ episode: EpisodeType) -> Bool {
     episode.queueOrder == playState.maxQueuePosition
   }
 
-  func canClearCache(_ episode: any EpisodeDisplayable) -> Bool {
+  func canClearCache(_ episode: EpisodeType) -> Bool {
     CacheManager.canClearCache(episode)
   }
 
-  func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws -> PodcastEpisode {
+  func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode {
     try await DisplayedEpisode.getOrCreatePodcastEpisode(episode)
   }
 
   // MARK: - Helpers
 
-  private func getEpisodeID(_ episode: any EpisodeDisplayable) async throws -> Episode.ID {
+  private func getEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID {
     try await getOrCreatePodcastEpisode(episode).id
   }
 }
