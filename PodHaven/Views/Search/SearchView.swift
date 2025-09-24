@@ -13,9 +13,9 @@ struct SearchView: View {
           value: Navigation.Destination.searchType(.trending),
           label: {
             HStack {
-              AppLabel.trending.coloredImage
+              AppIcon.trending.coloredImage
               VStack(alignment: .leading) {
-                Text(AppLabel.trending.text)
+                Text(AppIcon.trending.text)
                   .font(.headline)
                 Text("Browse trending podcasts")
                   .font(.caption)
@@ -29,9 +29,9 @@ struct SearchView: View {
           value: Navigation.Destination.searchType(.podcasts),
           label: {
             HStack {
-              AppLabel.searchPodcasts.coloredImage
+              AppIcon.searchPodcasts.coloredImage
               VStack(alignment: .leading) {
-                Text(AppLabel.searchPodcasts.text)
+                Text(AppIcon.searchPodcasts.text)
                   .font(.headline)
                 Text("Find podcasts by title or keywords")
                   .font(.caption)
@@ -45,9 +45,9 @@ struct SearchView: View {
           value: Navigation.Destination.searchType(.episodes),
           label: {
             HStack {
-              AppLabel.searchEpisodes.coloredImage
+              AppIcon.searchEpisodes.coloredImage
               VStack(alignment: .leading) {
-                Text(AppLabel.searchEpisodes.text)
+                Text(AppIcon.searchEpisodes.text)
                   .font(.headline)
                 Text("Find episodes with a specific person")
                   .font(.caption)
@@ -61,9 +61,9 @@ struct SearchView: View {
           value: Navigation.Destination.searchType(.manualEntry),
           label: {
             HStack {
-              AppLabel.manualEntry.coloredImage
+              AppIcon.manualEntry.coloredImage
               VStack(alignment: .leading) {
-                Text(AppLabel.manualEntry.text)
+                Text(AppIcon.manualEntry.text)
                   .font(.headline)
                 Text("Paste a podcast RSS feed URL directly")
                   .font(.caption)

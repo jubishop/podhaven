@@ -57,7 +57,7 @@ struct PlayBar: View {
 
   private var stoppedPlayBar: some View {
     HStack(spacing: basicSpacing) {
-      AppLabel.noEpisodeSelected.coloredImage
+      AppIcon.noEpisodeSelected.coloredImage
 
       Text("No episode selected")
         .foregroundColor(.white)
@@ -140,7 +140,7 @@ struct PlayBar: View {
               .fill(Color.white.opacity(0.2))
               .frame(width: imageSize, height: imageSize)
               .overlay(
-                AppLabel.audioPlaceholder.coloredImage
+                AppIcon.audioPlaceholder.coloredImage
               )
           }
         }
@@ -153,13 +153,13 @@ struct PlayBar: View {
   private var playbackControls: some View {
     HStack {
       Group {
-        AppLabel.seekBackward.imageButton(action: viewModel.seekBackward)
+        AppIcon.seekBackward.imageButton(action: viewModel.seekBackward)
           .font(.title2)
 
         playPauseButton
           .font(.title)
 
-        AppLabel.seekForward.imageButton(action: viewModel.seekForward)
+        AppIcon.seekForward.imageButton(action: viewModel.seekForward)
           .font(.title2)
       }
       .buttonStyle(.glass)
@@ -170,11 +170,11 @@ struct PlayBar: View {
   private var playPauseButton: some View {
     let action = viewModel.playOrPause
     if viewModel.isWaiting {
-      AppLabel.loading.imageButton(action: action)
+      AppIcon.loading.imageButton(action: action)
     } else if viewModel.isPlaying {
-      AppLabel.pauseButton.imageButton(action: action)
+      AppIcon.pauseButton.imageButton(action: action)
     } else {
-      AppLabel.playButton.imageButton(action: action)
+      AppIcon.playButton.imageButton(action: action)
     }
   }
 
@@ -184,9 +184,9 @@ struct PlayBar: View {
 
     Group {
       if viewModel.isExpanded {
-        AppLabel.expandDown.imageButton(action: action)
+        AppIcon.expandDown.imageButton(action: action)
       } else {
-        AppLabel.expandUp.imageButton(action: action)
+        AppIcon.expandUp.imageButton(action: action)
       }
     }
     .buttonStyle(.glass)
@@ -211,19 +211,19 @@ struct PlayBar: View {
         }
       )
 
-      AppLabel.loading.imageButton {
+      AppIcon.loading.imageButton {
         Container.shared.playState().setStatus(.waiting)
       }
 
-      AppLabel.pauseButton.imageButton {
+      AppIcon.pauseButton.imageButton {
         Container.shared.playState().setStatus(.playing)
       }
 
-      AppLabel.playButton.imageButton {
+      AppIcon.playButton.imageButton {
         Container.shared.playState().setStatus(.paused)
       }
 
-      AppLabel.noEpisodeSelected.imageButton {
+      AppIcon.noEpisodeSelected.imageButton {
         Container.shared.playState().setStatus(.stopped)
       }
     }

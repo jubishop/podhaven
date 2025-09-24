@@ -26,7 +26,7 @@ struct EpisodeDetailView: View {
                 .fill(Color.gray.opacity(0.3))
                 .overlay(
                   VStack {
-                    AppLabel.noImage.coloredImage
+                    AppIcon.noImage.coloredImage
                       .font(.title)
                     Text("No Image")
                       .font(.caption)
@@ -63,7 +63,7 @@ struct EpisodeDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
           HStack {
             HStack(spacing: 8) {
-              AppLabel.publishDate.coloredImage
+              AppIcon.publishDate.coloredImage
               Text("Published")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -75,7 +75,7 @@ struct EpisodeDetailView: View {
 
             if viewModel.episode.cacheStatus == .cached {
               VStack(spacing: 4) {
-                AppLabel.episodeCached.coloredImage
+                AppIcon.episodeCached.coloredImage
                 Text("Cached")
                   .font(.caption2)
                   .foregroundColor(.secondary)
@@ -85,7 +85,7 @@ struct EpisodeDetailView: View {
             Spacer()
 
             HStack(spacing: 8) {
-              AppLabel.duration.coloredImage
+              AppIcon.duration.coloredImage
               Text("Duration")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -111,8 +111,8 @@ struct EpisodeDetailView: View {
             VStack(spacing: 12) {
               Button(action: viewModel.playNow) {
                 HStack {
-                  AppLabel.playNow.image
-                  Text(AppLabel.playNow.text)
+                  AppIcon.playNow.image
+                  Text(AppIcon.playNow.text)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -124,8 +124,8 @@ struct EpisodeDetailView: View {
               HStack(spacing: 12) {
                 Button(action: viewModel.addToTopOfQueue) {
                   HStack {
-                    AppLabel.queueLatestToTop.image
-                    Text(viewModel.atTopOfQueue ? "Already at Top" : AppLabel.addToTop.text)
+                    AppIcon.queueLatestToTop.image
+                    Text(viewModel.atTopOfQueue ? "Already at Top" : AppIcon.addToTop.text)
                   }
                   .frame(maxWidth: .infinity)
                   .padding()
@@ -135,9 +135,9 @@ struct EpisodeDetailView: View {
 
                 Button(action: viewModel.appendToQueue) {
                   HStack {
-                    AppLabel.queueLatestToBottom.image
+                    AppIcon.queueLatestToBottom.image
                     Text(
-                      viewModel.atBottomOfQueue ? "Already at Bottom" : AppLabel.addToBottom.text
+                      viewModel.atBottomOfQueue ? "Already at Bottom" : AppIcon.addToBottom.text
                     )
                   }
                   .frame(maxWidth: .infinity)
@@ -156,8 +156,8 @@ struct EpisodeDetailView: View {
                         .scaleEffect(0.8)
                       Text("Caching in Progress")
                     } else {
-                      AppLabel.cacheEpisode.image
-                      Text(AppLabel.cacheEpisode.text)
+                      AppIcon.cacheEpisode.image
+                      Text(AppIcon.cacheEpisode.text)
                     }
                   }
                   .frame(maxWidth: .infinity)

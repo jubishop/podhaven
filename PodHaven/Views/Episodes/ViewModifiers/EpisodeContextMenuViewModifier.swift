@@ -19,37 +19,37 @@ struct EpisodeContextMenuViewModifier<
     content
       .contextMenu {
         if isEpisodePlaying {
-          AppLabel.pauseButton.labelButton {
+          AppIcon.pauseButton.labelButton {
             viewModel.pauseEpisode(episode)
           }
         } else {
-          AppLabel.playEpisode.labelButton {
+          AppIcon.playEpisode.labelButton {
             viewModel.playEpisode(episode)
           }
         }
 
         if episode.queued {
-          AppLabel.removeFromQueue.labelButton {
+          AppIcon.removeFromQueue.labelButton {
             viewModel.removeEpisodeFromQueue(episode)
           }
 
           if !(episode.queueOrder == 0) {
-            AppLabel.moveToTop.labelButton {
+            AppIcon.moveToTop.labelButton {
               viewModel.queueEpisodeOnTop(episode)
             }
           }
 
           if !isAtBottomOfQueue {
-            AppLabel.moveToBottom.labelButton {
+            AppIcon.moveToBottom.labelButton {
               viewModel.queueEpisodeAtBottom(episode)
             }
           }
         } else {
-          AppLabel.queueAtTop.labelButton {
+          AppIcon.queueAtTop.labelButton {
             viewModel.queueEpisodeOnTop(episode)
           }
 
-          AppLabel.queueAtBottom.labelButton {
+          AppIcon.queueAtBottom.labelButton {
             viewModel.queueEpisodeAtBottom(episode)
           }
         }
@@ -57,24 +57,24 @@ struct EpisodeContextMenuViewModifier<
         switch episode.cacheStatus {
         case .caching:
           if canClearCache {
-            AppLabel.cancelEpisodeDownload.labelButton {
+            AppIcon.cancelEpisodeDownload.labelButton {
               viewModel.uncacheEpisode(episode)
             }
           }
         case .cached:
           if canClearCache {
-            AppLabel.uncacheEpisode.labelButton {
+            AppIcon.uncacheEpisode.labelButton {
               viewModel.uncacheEpisode(episode)
             }
           }
         case .uncached:
-          AppLabel.cacheEpisode.labelButton {
+          AppIcon.cacheEpisode.labelButton {
             viewModel.cacheEpisode(episode)
           }
         }
 
         if !episode.finished {
-          AppLabel.markEpisodeFinished.labelButton {
+          AppIcon.markEpisodeFinished.labelButton {
             viewModel.markEpisodeFinished(episode)
           }
         }

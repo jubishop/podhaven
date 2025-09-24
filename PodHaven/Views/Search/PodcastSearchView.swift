@@ -71,7 +71,7 @@ struct PodcastSearchView: View {
 
   var idleStateView: some View {
     VStack(spacing: 16) {
-      AppLabel.search.coloredImage
+      AppIcon.search.coloredImage
         .font(.system(size: 48))
       Text("Search for podcasts")
         .font(.headline)
@@ -95,7 +95,7 @@ struct PodcastSearchView: View {
 
   var emptyResultsView: some View {
     VStack(spacing: 16) {
-      AppLabel.search.coloredImage
+      AppIcon.search.coloredImage
         .font(.system(size: 48))
       Text("No results found")
         .font(.headline)
@@ -121,7 +121,7 @@ struct PodcastSearchView: View {
 
   func errorStateView(message: String) -> some View {
     VStack(spacing: 16) {
-      AppLabel.error.coloredImage
+      AppIcon.error.coloredImage
         .font(.system(size: 48))
       Text("Search Error")
         .font(.headline)

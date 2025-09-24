@@ -22,7 +22,7 @@ struct SelectablePodcastsGridView: View {
       SearchBar(
         text: $viewModel.podcastList.entryFilter,
         placeholder: "Filter podcasts",
-        imageName: AppLabel.filter.systemImageName
+        imageName: AppIcon.filter.systemImageName
       )
 
       Menu("Sort by") {

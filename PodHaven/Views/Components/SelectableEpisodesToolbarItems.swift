@@ -33,67 +33,67 @@ struct SelectableEpisodesToolbarItems<
       ToolbarItem(placement: .topBarTrailing) {
         Menu(
           content: {
-            AppLabel.playSelection.labelButton {
+            AppIcon.playSelection.labelButton {
               viewModel.playSelectedEpisodes()
             }
 
             if viewModel.anySelectedNotQueued {
-              AppLabel.addSelectionToTop.labelButton {
+              AppIcon.addSelectionToTop.labelButton {
                 viewModel.addSelectedEpisodesToTopOfQueue()
               }
 
-              AppLabel.addSelectionToBottom.labelButton {
+              AppIcon.addSelectionToBottom.labelButton {
                 viewModel.addSelectedEpisodesToBottomOfQueue()
               }
 
-              AppLabel.replaceQueue.labelButton {
+              AppIcon.replaceQueue.labelButton {
                 viewModel.replaceQueueWithSelected()
               }
             } else {
               if viewModel.anySelectedNotAtTopOfQueue {
-                AppLabel.moveToTop.labelButton {
+                AppIcon.moveToTop.labelButton {
                   viewModel.addSelectedEpisodesToTopOfQueue()
                 }
               }
 
               if viewModel.anySelectedNotAtBottomOfQueue {
-                AppLabel.moveToBottom.labelButton {
+                AppIcon.moveToBottom.labelButton {
                   viewModel.addSelectedEpisodesToBottomOfQueue()
                 }
               }
             }
 
             if viewModel.anySelectedQueued {
-              AppLabel.removeFromQueue.labelButton {
+              AppIcon.removeFromQueue.labelButton {
                 viewModel.dequeueSelectedEpisodes()
               }
             }
 
             if viewModel.anySelectedCanStopCaching {
-              AppLabel.cancelEpisodeDownload.labelButton {
+              AppIcon.cancelEpisodeDownload.labelButton {
                 viewModel.cancelSelectedEpisodeDownloads()
               }
             }
 
             if viewModel.anySelectedNotCached {
-              AppLabel.cacheEpisode.labelButton {
+              AppIcon.cacheEpisode.labelButton {
                 viewModel.cacheSelectedEpisodes()
               }
             }
 
             if viewModel.anySelectedCanClearCache {
-              AppLabel.uncacheEpisode.labelButton {
+              AppIcon.uncacheEpisode.labelButton {
                 viewModel.uncacheSelectedEpisodes()
               }
             }
 
             if viewModel.anySelectedUnfinished {
-              AppLabel.markEpisodeFinished.labelButton {
+              AppIcon.markEpisodeFinished.labelButton {
                 viewModel.markSelectedEpisodesFinished()
               }
             }
           },
-          label: { AppLabel.moreActions.image }
+          label: { AppIcon.moreActions.image }
         )
       }
     }

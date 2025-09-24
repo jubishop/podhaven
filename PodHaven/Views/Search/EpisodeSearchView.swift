@@ -38,7 +38,7 @@ struct EpisodeSearchView: View {
 
   var idleStateView: some View {
     VStack(spacing: 16) {
-      AppLabel.personSearch.coloredImage
+      AppIcon.personSearch.coloredImage
         .font(.system(size: 48))
       Text("Search for episodes")
         .font(.headline)
@@ -62,7 +62,7 @@ struct EpisodeSearchView: View {
 
   var emptyResultsView: some View {
     VStack(spacing: 16) {
-      AppLabel.noPersonFound.coloredImage
+      AppIcon.noPersonFound.coloredImage
         .font(.system(size: 48))
       Text("No episodes found")
         .font(.headline)
@@ -88,7 +88,7 @@ struct EpisodeSearchView: View {
       .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: episode)
       .episodeContextMenu(viewModel: viewModel, episode: episode) {
-        AppLabel.showPodcast.labelButton {
+        AppIcon.showPodcast.labelButton {
           viewModel.showPodcast(episode)
         }
       }
@@ -97,7 +97,7 @@ struct EpisodeSearchView: View {
 
   func errorStateView(message: String) -> some View {
     VStack(spacing: 16) {
-      AppLabel.error.coloredImage
+      AppIcon.error.coloredImage
         .font(.system(size: 48))
       Text("Search Error")
         .font(.headline)

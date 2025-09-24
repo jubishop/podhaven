@@ -73,7 +73,7 @@ struct PodcastDetailView: View {
             .fill(Color.gray.opacity(0.3))
             .overlay(
               VStack {
-                AppLabel.noImage.coloredImage
+                AppIcon.noImage.coloredImage
                   .font(.title)
                 Text("No Image")
                   .font(.caption)
@@ -105,7 +105,7 @@ struct PodcastDetailView: View {
         }) {
           HStack(spacing: 6) {
             (viewModel.displayAboutSection
-              ? AppLabel.episodesList : AppLabel.aboutInfo)
+              ? AppIcon.episodesList : AppIcon.aboutInfo)
               .image
             Text(viewModel.displayAboutSection ? "Show Episodes" : "Show Details")
           }
@@ -146,7 +146,7 @@ struct PodcastDetailView: View {
         SearchBar(
           text: $viewModel.episodeList.entryFilter,
           placeholder: "Filter episodes",
-          imageName: AppLabel.filter.systemImageName
+          imageName: AppIcon.filter.systemImageName
         )
 
         Menu(
@@ -160,7 +160,7 @@ struct PodcastDetailView: View {
             }
           },
           label: {
-            AppLabel.filter.image
+            AppIcon.filter.image
           }
         )
       }
@@ -230,10 +230,10 @@ struct PodcastDetailView: View {
             if let link = viewModel.podcast.link {
               Link(destination: link) {
                 HStack(spacing: 8) {
-                  AppLabel.website.image
+                  AppIcon.website.image
                   Text("Visit Website")
                   Spacer()
-                  AppLabel.externalLink.image
+                  AppIcon.externalLink.image
                 }
                 .font(.subheadline)
                 .foregroundColor(.accentColor)
@@ -250,7 +250,7 @@ struct PodcastDetailView: View {
                 }
               }) {
                 HStack(spacing: 8) {
-                  (viewModel.podcast.subscribed ? AppLabel.unsubscribe : AppLabel.subscribe).image
+                  (viewModel.podcast.subscribed ? AppIcon.unsubscribe : AppIcon.subscribe).image
                   Text(viewModel.podcast.subscribed ? "Unsubscribe" : "Subscribe")
                   Spacer()
                 }
@@ -275,26 +275,26 @@ struct PodcastDetailView: View {
   var metadataView: some View {
     HStack {
       metadataItem(
-        appLabel: AppLabel.calendar,
+        appIcon: .calendar,
         value: viewModel.mostRecentEpisodeDate.usShortWithTime
       )
 
       Spacer()
 
       metadataItem(
-        appLabel: AppLabel.episodes,
+        appIcon: .episodes,
         value: "\(viewModel.episodeList.allEntries.count)"
       )
     }
   }
 
-  private func metadataItem(appLabel: AppLabel, value: String) -> some View {
+  private func metadataItem(appIcon: AppIcon, value: String) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       HStack(spacing: 4) {
-        Image(systemName: appLabel.systemImageName)
+        Image(systemName: appIcon.systemImageName)
           .foregroundColor(.secondary)
           .font(.caption)
-        Text(appLabel.text)
+        Text(appIcon.text)
           .font(.caption)
           .foregroundColor(.secondary)
       }

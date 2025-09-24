@@ -26,7 +26,7 @@ struct SquareImage: View {
           Color.gray
             .cornerRadius(cornerRadius)
           VStack {
-            AppLabel.noImage.coloredImage
+            AppIcon.noImage.coloredImage
               .font(.system(size: size / 2))
               .frame(width: size / 2, height: size / 2)
             Text("No Image")

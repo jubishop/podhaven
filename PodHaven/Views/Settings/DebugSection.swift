@@ -27,13 +27,13 @@ struct DebugSection: View {
       ShareLink(
         item: AppInfo.documentsDirectory.appendingPathComponent("log.ndjson")
       ) {
-        AppLabel.shareLogs.label
+        AppIcon.shareLogs.label
       }
 
       ShareLink(
         item: AppInfo.documentsDirectory.appendingPathComponent("db.sqlite")
       ) {
-        AppLabel.shareDatabase.label
+        AppIcon.shareDatabase.label
       }
     }
   }

@@ -82,9 +82,9 @@ private enum SystemImageName: String, CaseIterable {
   case waiting = "clock.arrow.circlepath"
 }
 
-// MARK: - AppLabel
+// MARK: - AppIcon
 
-enum AppLabel: CaseIterable {
+enum AppIcon: CaseIterable {
   // Episode Actions
   case addToBottom
   case addToTop

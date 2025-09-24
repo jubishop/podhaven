@@ -15,27 +15,27 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
     content
       .swipeActions(edge: .leading) {
         if episode.queued {
-          AppLabel.removeFromQueue.imageButton {
+          AppIcon.removeFromQueue.imageButton {
             viewModel.removeEpisodeFromQueue(episode)
           }
 
           if !(episode.queueOrder == 0) {
-            AppLabel.moveToTop.imageButton {
+            AppIcon.moveToTop.imageButton {
               viewModel.queueEpisodeOnTop(episode, swipeAction: true)
             }
           }
 
           if !isAtBottomOfQueue {
-            AppLabel.moveToBottom.imageButton {
+            AppIcon.moveToBottom.imageButton {
               viewModel.queueEpisodeAtBottom(episode, swipeAction: true)
             }
           }
         } else {
-          AppLabel.queueAtTop.imageButton {
+          AppIcon.queueAtTop.imageButton {
             viewModel.queueEpisodeOnTop(episode, swipeAction: true)
           }
 
-          AppLabel.queueAtBottom.imageButton {
+          AppIcon.queueAtBottom.imageButton {
             viewModel.queueEpisodeAtBottom(episode, swipeAction: true)
           }
         }
@@ -43,11 +43,11 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
 
       .swipeActions(edge: .trailing) {
         if isEpisodePlaying {
-          AppLabel.pauseButton.imageButton {
+          AppIcon.pauseButton.imageButton {
             viewModel.pauseEpisode(episode)
           }
         } else {
-          AppLabel.playEpisode.imageButton {
+          AppIcon.playEpisode.imageButton {
             viewModel.playEpisode(episode)
           }
         }
@@ -55,24 +55,24 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
         switch episode.cacheStatus {
         case .caching:
           if canClearCache {
-            AppLabel.cancelEpisodeDownload.imageButton {
+            AppIcon.cancelEpisodeDownload.imageButton {
               viewModel.uncacheEpisode(episode)
             }
           }
         case .cached:
           if canClearCache {
-            AppLabel.uncacheEpisode.imageButton {
+            AppIcon.uncacheEpisode.imageButton {
               viewModel.uncacheEpisode(episode)
             }
           }
         case .uncached:
-          AppLabel.cacheEpisode.imageButton {
+          AppIcon.cacheEpisode.imageButton {
             viewModel.cacheEpisode(episode)
           }
         }
 
         if !episode.finished {
-          AppLabel.markEpisodeFinished.imageButton {
+          AppIcon.markEpisodeFinished.imageButton {
             viewModel.markEpisodeFinished(episode)
           }
         }

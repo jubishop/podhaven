@@ -9,7 +9,7 @@ struct SearchBar: View {
 
   @Binding var text: String
   var placeholder: String = "Search..."
-  var imageName: String = AppLabel.search.systemImageName
+  var imageName: String = AppIcon.search.systemImageName
 
   var body: some View {
     HStack {
@@ -21,7 +21,7 @@ struct SearchBar: View {
         .disableAutocorrection(true)
 
       if isFocused || !text.isEmpty {
-        AppLabel.clearSearch.imageButton {
+        AppIcon.clearSearch.imageButton {
           text = ""
           isFocused = false
         }

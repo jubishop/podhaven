@@ -46,8 +46,8 @@ struct SelectableSquareImage: View {
                 },
                 label: {
                   (isSelected
-                    ? AppLabel.selectionFilled
-                    : AppLabel.selectionEmpty)
+                    ? AppIcon.selectionFilled
+                    : AppIcon.selectionEmpty)
                     .image
                     .font(.system(size: 24))
                     .foregroundColor(isSelected ? .blue : .white)

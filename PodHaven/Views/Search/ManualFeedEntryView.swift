@@ -43,7 +43,7 @@ struct ManualFeedEntryView: View {
             ProgressView()
               .scaleEffect(0.8)
           } else {
-            AppLabel.subscribe.image
+            AppIcon.subscribe.image
           }
           Text("Add Podcast")
         }
@@ -55,7 +55,7 @@ struct ManualFeedEntryView: View {
       // Error Display
       if case .error(let message) = viewModel.state {
         HStack {
-          AppLabel.error.coloredImage
+          AppIcon.error.coloredImage
           Text(message)
             .font(.subheadline)
             .foregroundColor(.red)

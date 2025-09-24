@@ -4,10 +4,10 @@ import SwiftUI
 
 struct OPMLImportSheetSection: View {
   private let headers: [OPMLOutline.Status: Text] = [
-    .failed: Text("Failed").foregroundStyle(AppLabel.failed.color).bold(),
-    .waiting: Text("Waiting").foregroundStyle(AppLabel.waiting.color).bold(),
-    .downloading: Text("Downloading").foregroundStyle(AppLabel.downloadEpisode.color).bold(),
-    .finished: Text("Finished").foregroundStyle(AppLabel.episodeFinished.color).bold(),
+    .failed: Text("Failed").foregroundStyle(AppIcon.failed.color).bold(),
+    .waiting: Text("Waiting").foregroundStyle(AppIcon.waiting.color).bold(),
+    .downloading: Text("Downloading").foregroundStyle(AppIcon.downloadEpisode.color).bold(),
+    .finished: Text("Finished").foregroundStyle(AppIcon.episodeFinished.color).bold(),
   ]
 
   private let outlines: [OPMLOutline]
@@ -33,13 +33,13 @@ struct OPMLImportSheetSection: View {
             Spacer()
             switch status {
             case .failed:
-              AppLabel.failed.coloredImage
+              AppIcon.failed.coloredImage
             case .waiting:
-              AppLabel.waiting.coloredImage
+              AppIcon.waiting.coloredImage
             case .downloading:
-              AppLabel.downloadEpisode.coloredImage
+              AppIcon.downloadEpisode.coloredImage
             case .finished:
-              AppLabel.episodeFinished.coloredImage
+              AppIcon.episodeFinished.coloredImage
             }
           }
         }

@@ -52,11 +52,11 @@ struct EpisodeListView: View {
   var statusIconColumn: some View {
     VStack(spacing: 10) {
       if let onDeck = playState.onDeck, onDeck == episode {
-        AppLabel.episodeOnDeck.coloredImage
+        AppIcon.episodeOnDeck.coloredImage
       } else if episode.queueOrder == 0 {
-        AppLabel.queueAtTop.coloredImage
+        AppIcon.queueAtTop.coloredImage
       } else {
-        AppLabel.episodeQueued.coloredImage
+        AppIcon.episodeQueued.coloredImage
           .opacity(episode.queued ? 1 : 0)
       }
 
@@ -70,14 +70,14 @@ struct EpisodeListView: View {
           )
           .frame(width: statusIconSize, height: statusIconSize)
         } else {
-          AppLabel.waiting.coloredImage
+          AppIcon.waiting.coloredImage
         }
       } else {
-        AppLabel.episodeCached.coloredImage
+        AppIcon.episodeCached.coloredImage
           .opacity(episode.cacheStatus == .cached ? 1 : 0)
       }
 
-      AppLabel.episodeFinished.coloredImage
+      AppIcon.episodeFinished.coloredImage
         .opacity(episode.finished ? 1 : 0)
     }
     .font(.system(size: statusIconSize))
@@ -98,7 +98,7 @@ struct EpisodeListView: View {
   var episodeMetadataRow: some View {
     HStack {
       HStack(spacing: 4) {
-        AppLabel.publishDate.coloredImage
+        AppIcon.publishDate.coloredImage
           .font(.system(size: metadataIconSize))
         Text(episode.pubDate.usShort)
           .font(.caption)
@@ -120,7 +120,7 @@ struct EpisodeListView: View {
             .frame(width: metadataIconSize - 2, height: metadataIconSize - 2)
           }
 
-          AppLabel.duration.coloredImage
+          AppIcon.duration.coloredImage
             .font(.system(size: metadataIconSize))
         }
         Text(episode.duration.shortDescription)

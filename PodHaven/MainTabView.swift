@@ -16,37 +16,37 @@ struct MainTabView: View {
   var body: some View {
     TabView(selection: $navigation.currentTab) {
       Tab(
-        AppLabel.settings.text,
-        systemImage: AppLabel.settings.systemImageName,
+        AppIcon.settings.text,
+        systemImage: AppIcon.settings.systemImageName,
         value: .settings
       ) {
         tabContent { SettingsView() }
       }
       Tab(
-        AppLabel.search.text,
-        systemImage: AppLabel.search.systemImageName,
+        AppIcon.search.text,
+        systemImage: AppIcon.search.systemImageName,
         value: .search,
         role: .search
       ) {
         tabContent { SearchView() }
       }
       Tab(
-        AppLabel.upNext.text,
-        systemImage: AppLabel.upNext.systemImageName,
+        AppIcon.upNext.text,
+        systemImage: AppIcon.upNext.systemImageName,
         value: .upNext
       ) {
         tabContent { UpNextView() }
       }
       Tab(
-        AppLabel.episodes.text,
-        systemImage: AppLabel.episodes.systemImageName,
+        AppIcon.episodes.text,
+        systemImage: AppIcon.episodes.systemImageName,
         value: .episodes
       ) {
         tabContent { EpisodesView() }
       }
       Tab(
-        AppLabel.podcasts.text,
-        systemImage: AppLabel.podcasts.systemImageName,
+        AppIcon.podcasts.text,
+        systemImage: AppIcon.podcasts.systemImageName,
         value: .podcasts
       ) {
         tabContent { PodcastsView() }

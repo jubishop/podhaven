@@ -17,7 +17,7 @@ struct EpisodesListView: View {
     SearchBar(
       text: $viewModel.episodeList.entryFilter,
       placeholder: "Filter episodes",
-      imageName: AppLabel.filter.systemImageName
+      imageName: AppIcon.filter.systemImageName
     )
     .padding(.horizontal)
 
@@ -35,7 +35,7 @@ struct EpisodesListView: View {
       .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
       .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode) {
-        AppLabel.showPodcast.labelButton {
+        AppIcon.showPodcast.labelButton {
           viewModel.showPodcast(podcastEpisode)
         }
       }

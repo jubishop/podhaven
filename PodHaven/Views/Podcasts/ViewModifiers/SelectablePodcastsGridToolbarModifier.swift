@@ -38,7 +38,7 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
                   }
                 },
                 label: {
-                  AppLabel.moreActions.image
+                  AppIcon.moreActions.image
                 }
               )
             }
