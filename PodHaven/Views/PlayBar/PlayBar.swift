@@ -154,26 +154,23 @@ struct PlayBar: View {
 
   private var playbackControls: some View {
     HStack {
-      AppLabel.seekBackward
-        .imageButton {
-          viewModel.seekBackward()
-        }
-        .font(.title2)
-        .tint(.primary)
-        .buttonStyle(.glass)
+      Group {
+        AppLabel.seekBackward
+          .imageButton {
+            viewModel.seekBackward()
+          }
+          .font(.title2)
 
-      playPauseButton
-        .font(.title)
-        .tint(.primary)
-        .buttonStyle(.glass)
+        playPauseButton
+          .font(.title)
 
-      AppLabel.seekForward
-        .imageButton {
-          viewModel.seekForward()
-        }
-        .font(.title2)
-        .tint(.primary)
-        .buttonStyle(.glass)
+        AppLabel.seekForward
+          .imageButton {
+            viewModel.seekForward()
+          }
+          .font(.title2)
+      }
+      .buttonStyle(.glass)
     }
   }
 
@@ -218,7 +215,6 @@ struct PlayBar: View {
         label: {
           ProgressView()
             .progressViewStyle(.circular)
-            .tint(.primary)
             .frame(width: 32, height: 32)
         }
       )
