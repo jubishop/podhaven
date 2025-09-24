@@ -153,38 +153,35 @@ struct PlayBar: View {
   }
 
   private var playbackControls: some View {
-    GlassEffectContainer(spacing: 48) {
-      HStack {
-        Button(action: viewModel.seekBackward) {
-          AppLabel.seekBackward.image
-            .font(.title2)
-            .foregroundColor(.white)
-        }
-        .buttonStyle(.glass)
-
-        Button(action: viewModel.playOrPause) {
-          Group {
-            if viewModel.isWaiting {
-              AppLabel.loading.image
-            } else if viewModel.isPlaying {
-              AppLabel.pauseButton.image
-            } else {
-              AppLabel.playButton.image
-
-            }
-          }
-          .font(.title)
+    HStack {
+      Button(action: viewModel.seekBackward) {
+        AppLabel.seekBackward.image
+          .font(.title2)
           .foregroundColor(.white)
-        }
-        .buttonStyle(.glass)
-
-        Button(action: viewModel.seekForward) {
-          AppLabel.seekForward.image
-            .font(.title2)
-            .foregroundColor(.white)
-        }
-        .buttonStyle(.glass)
       }
+      .buttonStyle(.glass)
+
+      Button(action: viewModel.playOrPause) {
+        Group {
+          if viewModel.isWaiting {
+            AppLabel.loading.image
+          } else if viewModel.isPlaying {
+            AppLabel.pauseButton.image
+          } else {
+            AppLabel.playButton.image
+          }
+        }
+        .font(.title)
+        .foregroundColor(.white)
+      }
+      .buttonStyle(.glass)
+
+      Button(action: viewModel.seekForward) {
+        AppLabel.seekForward.image
+          .font(.title2)
+          .foregroundColor(.white)
+      }
+      .buttonStyle(.glass)
     }
   }
 
