@@ -73,11 +73,7 @@ import SwiftUI
       }
     }
 
-    var comparator:
-      (
-        PodcastWithLatestEpisodeDates, PodcastWithLatestEpisodeDates
-      ) -> Bool
-    {
+    var sortMethod: (PodcastWithLatestEpisodeDates, PodcastWithLatestEpisodeDates) -> Bool {
       switch self {
       case .byTitle:
         return { lhs, rhs in lhs.title < rhs.title }
@@ -117,7 +113,7 @@ import SwiftUI
     set {
       _currentSortMethod = newValue
       $storedSortMethod.withLock { $0 = newValue }
-      podcastList.sortMethod = newValue.comparator
+      podcastList.sortMethod = newValue.sortMethod
     }
   }
 
@@ -134,7 +130,7 @@ import SwiftUI
     self.filter = filter
     self.podcastList = SelectableListUseCase<PodcastWithLatestEpisodeDates, Podcast.ID>(
       idKeyPath: \.id,
-      sortMethod: sortMethod.wrappedValue.comparator
+      sortMethod: sortMethod.wrappedValue.sortMethod
     )
   }
 

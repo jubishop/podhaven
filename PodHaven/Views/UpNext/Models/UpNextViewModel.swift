@@ -57,11 +57,7 @@ import SwiftUI
       }
     }
 
-    var comparator:
-      (
-        PodcastEpisode, PodcastEpisode
-      ) -> Bool
-    {
+    var sortMethod: (PodcastEpisode, PodcastEpisode) -> Bool {
       switch self {
       case .oldestFirst:
         return { lhs, rhs in lhs.episode.pubDate < rhs.episode.pubDate }
@@ -183,7 +179,7 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        let sortedEpisodes = episodeList.filteredEntries.sorted(by: method.comparator)
+        let sortedEpisodes = episodeList.filteredEntries.sorted(by: method.sortMethod)
         try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
       } catch {
         Self.log.error(error)

@@ -89,15 +89,15 @@ struct SelectablePodcastsGridView: View {
 }
 
 #if DEBUG
-  #Preview {
-    NavigationStack {
-      SelectablePodcastsGridView(
-        viewModel: SelectablePodcastsGridViewModel(title: "Preview Podcasts")
-      )
-    }
-    .preview()
-    .task {
-      try! await PreviewHelpers.importPodcasts()
-    }
+#Preview {
+  NavigationStack {
+    SelectablePodcastsGridView(
+      viewModel: SelectablePodcastsGridViewModel(title: "Preview Podcasts")
+    )
   }
+  .preview()
+  .task {
+    try! await PreviewHelpers.importPodcasts()
+  }
+}
 #endif

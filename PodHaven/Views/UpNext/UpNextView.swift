@@ -75,9 +75,9 @@ struct UpNextView: View {
 }
 
 #if DEBUG
-  #Preview {
-    UpNextView()
-      .preview()
-      .task { try? await PreviewHelpers.populateQueue() }
-  }
+#Preview {
+  UpNextView()
+    .preview()
+    .task { try? await PreviewHelpers.populateQueue() }
+}
 #endif
