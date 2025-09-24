@@ -35,7 +35,7 @@ import SwiftUI
     case newestFirst = "Newest First"
     case mostFinished = "Most Finished"
 
-    var menuSymbolName: String {
+    var systemImageName: String {
       switch self {
       case .oldestFirst:
         return "calendar"

@@ -48,19 +48,10 @@ struct UpNextView: View {
             Menu("Sort") {
               ForEach(viewModel.allSortMethods, id: \.self) { method in
                 Button(
-                  action: {
-                    viewModel.sort(by: method)
-                  },
-                  label: {
-                    Label {
-                      Text(method.rawValue)
-                    } icon: {
-                      Image(systemName: method.menuSymbolName)
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(method.menuIconColor)
-                    }
-                  }
+                  action: { viewModel.sort(by: method) },
+                  label: { Label(method.rawValue, systemImage: method.systemImageName) }
                 )
+                .tint(method.menuIconColor)
               }
             }
           }

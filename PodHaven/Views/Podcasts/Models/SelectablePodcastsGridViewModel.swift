@@ -43,7 +43,7 @@ import SwiftUI
     case byMostRecentUnqueued = "Most Recent Unqueued"
     case byMostRecentlySubscribed = "Most Recently Subscribed"
 
-    var menuSymbolName: String {
+    var systemImageName: String {
       switch self {
       case .byTitle:
         return "textformat"

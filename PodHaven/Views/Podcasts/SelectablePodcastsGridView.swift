@@ -28,19 +28,10 @@ struct SelectablePodcastsGridView: View {
       Menu("Sort by") {
         ForEach(viewModel.allSortMethods, id: \.self) { method in
           Button(
-            action: {
-              viewModel.currentSortMethod = method
-            },
-            label: {
-              Label {
-                Text(method.rawValue)
-              } icon: {
-                Image(systemName: method.menuSymbolName)
-                  .symbolRenderingMode(.hierarchical)
-                  .foregroundStyle(method.menuIconColor)
-              }
-            }
+            action: { viewModel.currentSortMethod = method },
+            label: { Label(method.rawValue, systemImage: method.systemImageName) }
           )
+          .tint(method.menuIconColor)
           .disabled(viewModel.currentSortMethod == method)
         }
       }
