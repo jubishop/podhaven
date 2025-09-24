@@ -196,74 +196,74 @@ struct PlayBar: View {
 // MARK: - Preview
 
 #if DEBUG
-  #Preview {
-    @Previewable @State var imageURLs: [URL] = []
-    @Previewable @State var gridItemSize: CGFloat = 100
+#Preview {
+  @Previewable @State var imageURLs: [URL] = []
+  @Previewable @State var gridItemSize: CGFloat = 100
 
-    VStack(spacing: 12) {
-      HStack(spacing: 24) {
-        Button(
-          action: { Container.shared.playState().setStatus(.loading("Episode Title Here")) },
-          label: {
-            ProgressView()
-              .progressViewStyle(.circular)
-              .frame(width: 32, height: 32)
-          }
-        )
-
-        AppLabel.loading.imageButton {
-          Container.shared.playState().setStatus(.waiting)
+  VStack(spacing: 12) {
+    HStack(spacing: 24) {
+      Button(
+        action: { Container.shared.playState().setStatus(.loading("Episode Title Here")) },
+        label: {
+          ProgressView()
+            .progressViewStyle(.circular)
+            .frame(width: 32, height: 32)
         }
+      )
 
-        AppLabel.pauseButton.imageButton {
-          Container.shared.playState().setStatus(.playing)
-        }
-
-        AppLabel.playButton.imageButton {
-          Container.shared.playState().setStatus(.paused)
-        }
-
-        AppLabel.noEpisodeSelected.imageButton {
-          Container.shared.playState().setStatus(.stopped)
-        }
+      AppLabel.loading.imageButton {
+        Container.shared.playState().setStatus(.waiting)
       }
-      .font(.title)
-      .buttonStyle(.plain)
-      .dynamicTypeSize(.large)
 
-      ZStack(alignment: .bottom) {
-        List(imageURLs, id: \.self) { url in
-          SquareImage(image: url, size: $gridItemSize)
-        }
+      AppLabel.pauseButton.imageButton {
+        Container.shared.playState().setStatus(.playing)
+      }
 
-        PlayBar()
-          .padding(.bottom, 40)
+      AppLabel.playButton.imageButton {
+        Container.shared.playState().setStatus(.paused)
+      }
+
+      AppLabel.noEpisodeSelected.imageButton {
+        Container.shared.playState().setStatus(.stopped)
       }
     }
-    .preview()
-    .task {
-      let allThumbnails = PreviewBundle.loadAllThumbnails()
-      for thumbnailInfo in allThumbnails.values {
-        imageURLs.append(thumbnailInfo.url)
+    .font(.title)
+    .buttonStyle(.plain)
+    .dynamicTypeSize(.large)
+
+    ZStack(alignment: .bottom) {
+      List(imageURLs, id: \.self) { url in
+        SquareImage(image: url, size: $gridItemSize)
       }
 
-      let playState = Container.shared.playState()
-      playState.setOnDeck(
-        OnDeck(
-          episodeID: Episode.ID(1),
-          feedURL: FeedURL(URL.valid()),
-          guid: GUID(String.random()),
-          podcastTitle: "Podcast Title",
-          podcastURL: URL.valid(),
-          episodeTitle: "Episode Title",
-          duration: CMTime.minutes(60),
-          image: allThumbnails.randomElement()!.value.image,
-          mediaURL: MediaURL(URL.valid()),
-          pubDate: 48.hoursAgo
-        )
-      )
-      playState.setStatus(.playing)
-      playState.setCurrentTime(CMTime.minutes(30))
+      PlayBar()
+        .padding(.bottom, 40)
     }
   }
+  .preview()
+  .task {
+    let allThumbnails = PreviewBundle.loadAllThumbnails()
+    for thumbnailInfo in allThumbnails.values {
+      imageURLs.append(thumbnailInfo.url)
+    }
+
+    let playState = Container.shared.playState()
+    playState.setOnDeck(
+      OnDeck(
+        episodeID: Episode.ID(1),
+        feedURL: FeedURL(URL.valid()),
+        guid: GUID(String.random()),
+        podcastTitle: "Podcast Title",
+        podcastURL: URL.valid(),
+        episodeTitle: "Episode Title",
+        duration: CMTime.minutes(60),
+        image: allThumbnails.randomElement()!.value.image,
+        mediaURL: MediaURL(URL.valid()),
+        pubDate: 48.hoursAgo
+      )
+    )
+    playState.setStatus(.playing)
+    playState.setCurrentTime(CMTime.minutes(30))
+  }
+}
 #endif

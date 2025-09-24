@@ -73,10 +73,10 @@ struct ManualFeedEntryView: View {
 // MARK: - Previews
 
 #if DEBUG
-  #Preview("Manual Feed Entry") {
-    NavigationStack {
-      ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
-    }
-    .preview()
+#Preview("Manual Feed Entry") {
+  NavigationStack {
+    ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
   }
+  .preview()
+}
 #endif

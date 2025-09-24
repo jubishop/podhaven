@@ -114,10 +114,10 @@ struct EpisodeSearchView: View {
 // MARK: - Previews
 
 #if DEBUG
-  #Preview("Episode Search") {
-    NavigationStack {
-      EpisodeSearchView(viewModel: EpisodeSearchViewModel())
-    }
-    .preview()
+#Preview("Episode Search") {
+  NavigationStack {
+    EpisodeSearchView(viewModel: EpisodeSearchViewModel())
   }
+  .preview()
+}
 #endif

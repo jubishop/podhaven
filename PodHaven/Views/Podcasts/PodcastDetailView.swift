@@ -309,41 +309,41 @@ struct PodcastDetailView: View {
 // MARK: - Preview
 
 #if DEBUG
-  #Preview("Changelog") {
-    @Previewable @State var podcast: Podcast?
+#Preview("Changelog") {
+  @Previewable @State var podcast: Podcast?
 
-    NavigationStack {
-      if let podcast {
-        PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
-      }
-    }
-    .preview()
-    .task {
-      await PreviewHelpers.dataFetcher
-        .respond(
-          to: URL(string: "https://changelog.com/podcast/feed")!,
-          data: PreviewBundle.loadAsset(named: "changelog", in: .FeedRSS)
-        )
-      podcast = try? await PreviewHelpers.loadSeries(fileName: "changelog").podcast
+  NavigationStack {
+    if let podcast {
+      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
     }
   }
+  .preview()
+  .task {
+    await PreviewHelpers.dataFetcher
+      .respond(
+        to: URL(string: "https://changelog.com/podcast/feed")!,
+        data: PreviewBundle.loadAsset(named: "changelog", in: .FeedRSS)
+      )
+    podcast = try? await PreviewHelpers.loadSeries(fileName: "changelog").podcast
+  }
+}
 
-  #Preview("Pod Save America") {
-    @Previewable @State var podcast: Podcast?
+#Preview("Pod Save America") {
+  @Previewable @State var podcast: Podcast?
 
-    NavigationStack {
-      if let podcast {
-        PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
-      }
-    }
-    .preview()
-    .task {
-      await PreviewHelpers.dataFetcher
-        .respond(
-          to: URL(string: "https://feeds.simplecast.com/dxZsm5kX")!,
-          data: PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
-        )
-      podcast = try? await PreviewHelpers.loadSeries(fileName: "pod_save_america").podcast
+  NavigationStack {
+    if let podcast {
+      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
     }
   }
+  .preview()
+  .task {
+    await PreviewHelpers.dataFetcher
+      .respond(
+        to: URL(string: "https://feeds.simplecast.com/dxZsm5kX")!,
+        data: PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
+      )
+    podcast = try? await PreviewHelpers.loadSeries(fileName: "pod_save_america").podcast
+  }
+}
 #endif
