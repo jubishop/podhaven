@@ -174,173 +174,215 @@ enum AppLabel: CaseIterable {
   case waiting
   case website
 
-  private var data: (text: String, systemImageName: SystemImageName, iconColor: Color) {
-    switch self {
-    // Episode Actions
-    case .addToBottom:
-      return (text: "Add to Bottom", systemImageName: .queueBottom, iconColor: defaultIconColor)
-    case .addToTop:
-      return (text: "Add to Top", systemImageName: .queueTop, iconColor: defaultIconColor)
-    case .addSelectionToBottom:
-      return (
-        text: "Add to Bottom of Queue", systemImageName: .queueBottom, iconColor: .purple
-      )
-    case .addSelectionToTop:
-      return (text: "Add to Top of Queue", systemImageName: .queueTop, iconColor: .blue)
-    case .cacheEpisode:
-      return (text: "Cache Episode", systemImageName: .episodeCached, iconColor: .blue)
-    case .cancelEpisodeDownload:
-      return (
-        text: "Cancel Download", systemImageName: .episodeDownloadCancel,
-        iconColor: .orange
-      )
-    case .uncacheEpisode:
-      return (
-        text: "Remove Download", systemImageName: .episodeUncached, iconColor: .red
-      )
-    case .moveToTop:
-      return (text: "Move to Top", systemImageName: .moveToTop, iconColor: .blue)
-    case .moveToBottom:
-      return (text: "Move to Bottom", systemImageName: .moveToBottom, iconColor: .purple)
-    case .markEpisodeFinished:
-      return (text: "Mark Finished", systemImageName: .episodeFinished, iconColor: .mint)
-    case .playEpisode:
-      return (text: "Play Episode", systemImageName: .play, iconColor: .green)
-    case .playNow: return (text: "Play Now", systemImageName: .play, iconColor: defaultIconColor)
-    case .playSelection:
-      return (text: "Play Selected Episodes", systemImageName: .play, iconColor: .green)
-    case .queueAtBottom:
-      return (text: "Queue at Bottom", systemImageName: .queueBottom, iconColor: .purple)
-    case .queueAtTop:
-      return (text: "Queue at Top", systemImageName: .queueTop, iconColor: .blue)
-    case .replaceQueue:
-      return (text: "Replace Queue", systemImageName: .replaceQueue, iconColor: .indigo)
-    case .removeFromQueue:
-      return (
-        text: "Remove from Queue", systemImageName: .removeFromQueue, iconColor: .red
-      )
+  private struct Data {
+    let text: String
+    let systemImageName: SystemImageName
+    let iconColor: Color
 
-    // Podcast Actions
-    case .delete: return (text: "Delete", systemImageName: .delete, iconColor: defaultIconColor)
-    case .showPodcast:
-      return (text: "Show Podcast", systemImageName: .showPodcast, iconColor: defaultIconColor)
-    case .subscribe:
-      return (text: "Subscribe", systemImageName: .subscribe, iconColor: defaultIconColor)
-    case .unsubscribe:
-      return (text: "Unsubscribe", systemImageName: .unsubscribe, iconColor: defaultIconColor)
-
-    // Navigation
-    case .episodes:
-      return (text: "Episodes", systemImageName: .episodesList, iconColor: defaultIconColor)
-    case .episodesList:
-      return (text: "Episodes List", systemImageName: .episodesList, iconColor: defaultIconColor)
-    case .podcasts:
-      return (text: "Podcasts", systemImageName: .podcastsList, iconColor: defaultIconColor)
-    case .search: return (text: "Search", systemImageName: .search, iconColor: defaultIconColor)
-    case .searchEpisodes:
-      return (text: "Search Episodes", systemImageName: .personSearch, iconColor: defaultIconColor)
-    case .searchPodcasts:
-      return (text: "Search Podcasts", systemImageName: .search, iconColor: defaultIconColor)
-    case .settings:
-      return (text: "Settings", systemImageName: .settings, iconColor: defaultIconColor)
-    case .trending:
-      return (text: "Trending", systemImageName: .trending, iconColor: defaultIconColor)
-    case .upNext: return (text: "Up Next", systemImageName: .queueTop, iconColor: defaultIconColor)
-
-    // General Actions
-    case .document:
-      return (text: "Document", systemImageName: .document, iconColor: defaultIconColor)
-    case .exportOPML:
-      return (text: "Export OPML", systemImageName: .share, iconColor: defaultIconColor)
-    case .importOPML:
-      return (text: "Import OPML", systemImageName: .downloadEpisode, iconColor: defaultIconColor)
-    case .queueLatestToBottom:
-      return (
-        text: "Queue Latest To Bottom", systemImageName: .queueBottom, iconColor: defaultIconColor
-      )
-    case .queueLatestToTop:
-      return (text: "Queue Latest To Top", systemImageName: .queueTop, iconColor: defaultIconColor)
-    case .share: return (text: "Share", systemImageName: .share, iconColor: defaultIconColor)
-    case .shareDatabase:
-      return (text: "Share Database", systemImageName: .share, iconColor: defaultIconColor)
-    case .shareLogs:
-      return (text: "Share Logs", systemImageName: .share, iconColor: defaultIconColor)
-
-    // Information Display
-    case .aboutInfo:
-      return (text: "About", systemImageName: .aboutInfo, iconColor: defaultIconColor)
-    case .audioPlaceholder:
-      return (text: "Audio", systemImageName: .audioPlaceholder, iconColor: defaultIconColor)
-    case .calendar:
-      return (text: "Updated", systemImageName: .calendar, iconColor: defaultIconColor)
-    case .duration:
-      return (text: "Duration", systemImageName: .duration, iconColor: defaultIconColor)
-    case .error: return (text: "Error", systemImageName: .error, iconColor: defaultIconColor)
-    case .noImage: return (text: "No Image", systemImageName: .noImage, iconColor: defaultIconColor)
-    case .noPersonFound:
-      return (text: "No Person Found", systemImageName: .noPersonFound, iconColor: defaultIconColor)
-    case .personSearch:
-      return (text: "Person Search", systemImageName: .personSearch, iconColor: defaultIconColor)
-    case .publishDate:
-      return (text: "Published", systemImageName: .publishDate, iconColor: defaultIconColor)
-    case .showInfo:
-      return (text: "Show Info", systemImageName: .showInfo, iconColor: defaultIconColor)
-
-    // UI Controls & Status
-    case .clearSearch:
-      return (text: "Clear Search", systemImageName: .clearSearch, iconColor: defaultIconColor)
-    case .downloadEpisode:
-      return (text: "Download", systemImageName: .downloadEpisode, iconColor: defaultIconColor)
-    case .edit: return (text: "Edit", systemImageName: .edit, iconColor: defaultIconColor)
-    case .editFinished:
-      return (text: "Done", systemImageName: .editFinished, iconColor: defaultIconColor)
-    case .episodeCached:
-      return (text: "Cached", systemImageName: .episodeCached, iconColor: defaultIconColor)
-    case .episodeFinished:
-      return (text: "Finished", systemImageName: .episodeFinished, iconColor: defaultIconColor)
-    case .episodeOnDeck:
-      return (text: "On Deck", systemImageName: .episodeOnDeck, iconColor: defaultIconColor)
-    case .episodeQueued:
-      return (text: "Queued", systemImageName: .episodeQueued, iconColor: defaultIconColor)
-    case .externalLink:
-      return (text: "External Link", systemImageName: .externalLink, iconColor: defaultIconColor)
-    case .expandDown:
-      return (text: "Collapse", systemImageName: .expandDown, iconColor: .white)
-    case .expandUp: return (text: "Expand", systemImageName: .expandUp, iconColor: .white)
-    case .failed: return (text: "Failed", systemImageName: .failed, iconColor: defaultIconColor)
-    case .filter: return (text: "Filter", systemImageName: .filter, iconColor: defaultIconColor)
-    case .loading: return (text: "Loading", systemImageName: .loading, iconColor: .white)
-    case .moreActions:
-      return (text: "More Actions", systemImageName: .moreActions, iconColor: defaultIconColor)
-    case .noEpisodeSelected:
-      return (text: "No episode selected", systemImageName: .noEpisode, iconColor: .white)
-    case .pauseButton:
-      return (text: "Pause", systemImageName: .pauseButton, iconColor: .yellow)
-    case .playButton:
-      return (text: "Play", systemImageName: .playButton, iconColor: .white)
-    case .seekBackward:
-      return (text: "Seek Backward", systemImageName: .seekBackward, iconColor: .white)
-    case .seekForward:
-      return (text: "Seek Forward", systemImageName: .seekForward, iconColor: .white)
-    case .selectAll:
-      return (text: "Select All", systemImageName: .selectAll, iconColor: .blue)
-    case .unselectAll:
-      return (text: "Unselect All", systemImageName: .selectionEmpty, iconColor: .gray)
-    case .selectionEmpty:
-      return (text: "Select", systemImageName: .selectionEmpty, iconColor: defaultIconColor)
-    case .selectionFilled:
-      return (text: "Selected", systemImageName: .selectionFilled, iconColor: defaultIconColor)
-    case .waiting: return (text: "Waiting", systemImageName: .waiting, iconColor: defaultIconColor)
-    case .website: return (text: "Website", systemImageName: .website, iconColor: defaultIconColor)
-
-    // Manual Entry
-    case .manualEntry:
-      return (text: "Add Feed URL", systemImageName: .manualEntry, iconColor: defaultIconColor)
+    init(text: String, systemImageName: SystemImageName, iconColor: Color = .accentColor) {
+      self.text = text
+      self.systemImageName = systemImageName
+      self.iconColor = iconColor
     }
   }
 
-  private var defaultIconColor: Color {
-    .accentColor
+  private var data: Data {
+    switch self {
+    // Episode Actions
+    case .addToBottom:
+      return Data(text: "Add to Bottom", systemImageName: .queueBottom)
+    case .addToTop:
+      return Data(text: "Add to Top", systemImageName: .queueTop)
+    case .addSelectionToBottom:
+      return Data(
+        text: "Add to Bottom of Queue",
+        systemImageName: .queueBottom,
+        iconColor: .purple
+      )
+    case .addSelectionToTop:
+      return Data(text: "Add to Top of Queue", systemImageName: .queueTop, iconColor: .blue)
+    case .cacheEpisode:
+      return Data(text: "Cache Episode", systemImageName: .episodeCached, iconColor: .blue)
+    case .cancelEpisodeDownload:
+      return Data(
+        text: "Cancel Download",
+        systemImageName: .episodeDownloadCancel,
+        iconColor: .orange
+      )
+    case .uncacheEpisode:
+      return Data(
+        text: "Remove Download",
+        systemImageName: .episodeUncached,
+        iconColor: .red
+      )
+    case .moveToTop:
+      return Data(text: "Move to Top", systemImageName: .moveToTop, iconColor: .blue)
+    case .moveToBottom:
+      return Data(text: "Move to Bottom", systemImageName: .moveToBottom, iconColor: .purple)
+    case .markEpisodeFinished:
+      return Data(text: "Mark Finished", systemImageName: .episodeFinished, iconColor: .mint)
+    case .playEpisode:
+      return Data(text: "Play Episode", systemImageName: .play, iconColor: .green)
+    case .playNow:
+      return Data(text: "Play Now", systemImageName: .play)
+    case .playSelection:
+      return Data(text: "Play Selected Episodes", systemImageName: .play, iconColor: .green)
+    case .queueAtBottom:
+      return Data(text: "Queue at Bottom", systemImageName: .queueBottom, iconColor: .purple)
+    case .queueAtTop:
+      return Data(text: "Queue at Top", systemImageName: .queueTop, iconColor: .blue)
+    case .replaceQueue:
+      return Data(text: "Replace Queue", systemImageName: .replaceQueue, iconColor: .indigo)
+    case .removeFromQueue:
+      return Data(
+        text: "Remove from Queue",
+        systemImageName: .removeFromQueue,
+        iconColor: .red
+      )
+
+    // Podcast Actions
+    case .delete: return Data(text: "Delete", systemImageName: .delete)
+    case .showPodcast:
+      return Data(text: "Show Podcast", systemImageName: .showPodcast)
+    case .subscribe:
+      return Data(text: "Subscribe", systemImageName: .subscribe)
+    case .unsubscribe:
+      return Data(text: "Unsubscribe", systemImageName: .unsubscribe)
+
+    // Navigation
+    case .episodes:
+      return Data(text: "Episodes", systemImageName: .episodesList)
+    case .episodesList:
+      return Data(
+        text: "Episodes List",
+        systemImageName: .episodesList
+      )
+    case .podcasts:
+      return Data(text: "Podcasts", systemImageName: .podcastsList)
+    case .search: return Data(text: "Search", systemImageName: .search)
+    case .searchEpisodes:
+      return Data(
+        text: "Search Episodes",
+        systemImageName: .personSearch
+      )
+    case .searchPodcasts:
+      return Data(text: "Search Podcasts", systemImageName: .search)
+    case .settings:
+      return Data(text: "Settings", systemImageName: .settings)
+    case .trending:
+      return Data(text: "Trending", systemImageName: .trending)
+    case .upNext:
+      return Data(text: "Up Next", systemImageName: .queueTop)
+
+    // General Actions
+    case .document:
+      return Data(text: "Document", systemImageName: .document)
+    case .exportOPML:
+      return Data(text: "Export OPML", systemImageName: .share)
+    case .importOPML:
+      return Data(
+        text: "Import OPML",
+        systemImageName: .downloadEpisode
+      )
+    case .queueLatestToBottom:
+      return Data(
+        text: "Queue Latest To Bottom",
+        systemImageName: .queueBottom
+      )
+    case .queueLatestToTop:
+      return Data(
+        text: "Queue Latest To Top",
+        systemImageName: .queueTop
+      )
+    case .share: return Data(text: "Share", systemImageName: .share)
+    case .shareDatabase:
+      return Data(text: "Share Database", systemImageName: .share)
+    case .shareLogs:
+      return Data(text: "Share Logs", systemImageName: .share)
+
+    // Information Display
+    case .aboutInfo:
+      return Data(text: "About", systemImageName: .aboutInfo)
+    case .audioPlaceholder:
+      return Data(text: "Audio", systemImageName: .audioPlaceholder)
+    case .calendar:
+      return Data(text: "Updated", systemImageName: .calendar)
+    case .duration:
+      return Data(text: "Duration", systemImageName: .duration)
+    case .error: return Data(text: "Error", systemImageName: .error)
+    case .noImage:
+      return Data(text: "No Image", systemImageName: .noImage)
+    case .noPersonFound:
+      return Data(
+        text: "No Person Found",
+        systemImageName: .noPersonFound
+      )
+    case .personSearch:
+      return Data(
+        text: "Person Search",
+        systemImageName: .personSearch
+      )
+    case .publishDate:
+      return Data(text: "Published", systemImageName: .publishDate)
+    case .showInfo:
+      return Data(text: "Show Info", systemImageName: .showInfo)
+
+    // UI Controls & Status
+    case .clearSearch:
+      return Data(text: "Clear Search", systemImageName: .clearSearch)
+    case .downloadEpisode:
+      return Data(text: "Download", systemImageName: .downloadEpisode)
+    case .edit: return Data(text: "Edit", systemImageName: .edit)
+    case .editFinished:
+      return Data(text: "Done", systemImageName: .editFinished)
+    case .episodeCached:
+      return Data(text: "Cached", systemImageName: .episodeCached)
+    case .episodeFinished:
+      return Data(text: "Finished", systemImageName: .episodeFinished)
+    case .episodeOnDeck:
+      return Data(text: "On Deck", systemImageName: .episodeOnDeck)
+    case .episodeQueued:
+      return Data(text: "Queued", systemImageName: .episodeQueued)
+    case .externalLink:
+      return Data(
+        text: "External Link",
+        systemImageName: .externalLink
+      )
+    case .expandDown:
+      return Data(text: "Collapse", systemImageName: .expandDown, iconColor: .white)
+    case .expandUp: return Data(text: "Expand", systemImageName: .expandUp, iconColor: .white)
+    case .failed: return Data(text: "Failed", systemImageName: .failed)
+    case .filter: return Data(text: "Filter", systemImageName: .filter)
+    case .loading: return Data(text: "Loading", systemImageName: .loading, iconColor: .white)
+    case .moreActions:
+      return Data(text: "More Actions", systemImageName: .moreActions)
+    case .noEpisodeSelected:
+      return Data(text: "No episode selected", systemImageName: .noEpisode, iconColor: .white)
+    case .pauseButton:
+      return Data(text: "Pause", systemImageName: .pauseButton, iconColor: .yellow)
+    case .playButton:
+      return Data(text: "Play", systemImageName: .playButton, iconColor: .white)
+    case .seekBackward:
+      return Data(text: "Seek Backward", systemImageName: .seekBackward, iconColor: .white)
+    case .seekForward:
+      return Data(text: "Seek Forward", systemImageName: .seekForward, iconColor: .white)
+    case .selectAll:
+      return Data(text: "Select All", systemImageName: .selectAll, iconColor: .blue)
+    case .unselectAll:
+      return Data(text: "Unselect All", systemImageName: .selectionEmpty, iconColor: .gray)
+    case .selectionEmpty:
+      return Data(text: "Select", systemImageName: .selectionEmpty)
+    case .selectionFilled:
+      return Data(text: "Selected", systemImageName: .selectionFilled)
+    case .waiting:
+      return Data(text: "Waiting", systemImageName: .waiting)
+    case .website:
+      return Data(text: "Website", systemImageName: .website)
+
+    // Manual Entry
+    case .manualEntry:
+      return Data(text: "Add Feed URL", systemImageName: .manualEntry)
+    }
   }
 
   var label: Label<Text, Image> {

@@ -159,12 +159,12 @@ struct PlayBar: View {
           viewModel.seekBackward()
         }
         .font(.title2)
-        .tint(.white)
+        .tint(.primary)
         .buttonStyle(.glass)
 
       playPauseButton
         .font(.title)
-        .tint(.white)
+        .tint(.primary)
         .buttonStyle(.glass)
 
       AppLabel.seekForward
@@ -172,7 +172,7 @@ struct PlayBar: View {
           viewModel.seekForward()
         }
         .font(.title2)
-        .tint(.white)
+        .tint(.primary)
         .buttonStyle(.glass)
     }
   }
@@ -206,7 +206,7 @@ struct PlayBar: View {
         }
       }
     }
-    .tint(.white)
+    .tint(.primary)
     .buttonStyle(.glass)
     .contentTransition(.symbolEffect(.replace))
   }
