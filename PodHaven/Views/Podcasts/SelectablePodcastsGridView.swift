@@ -27,8 +27,16 @@ struct SelectablePodcastsGridView: View {
 
       Menu("Sort by") {
         ForEach(viewModel.allSortMethods, id: \.self) { method in
-          Button(method.rawValue) {
+          Button {
             viewModel.currentSortMethod = method
+          } label: {
+            Label {
+              Text(method.rawValue)
+            } icon: {
+              Image(systemName: method.menuSymbolName)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(method.menuIconColor)
+            }
           }
           .disabled(viewModel.currentSortMethod == method)
         }
@@ -81,15 +89,15 @@ struct SelectablePodcastsGridView: View {
 }
 
 #if DEBUG
-#Preview {
-  NavigationStack {
-    SelectablePodcastsGridView(
-      viewModel: SelectablePodcastsGridViewModel(title: "Preview Podcasts")
-    )
+  #Preview {
+    NavigationStack {
+      SelectablePodcastsGridView(
+        viewModel: SelectablePodcastsGridViewModel(title: "Preview Podcasts")
+      )
+    }
+    .preview()
+    .task {
+      try! await PreviewHelpers.importPodcasts()
+    }
   }
-  .preview()
-  .task {
-    try! await PreviewHelpers.importPodcasts()
-  }
-}
 #endif
