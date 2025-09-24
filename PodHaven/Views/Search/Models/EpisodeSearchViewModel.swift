@@ -134,4 +134,3 @@ final class EpisodeSearchViewModel: ManagingEpisodes {
     observationTask?.cancel()
   }
 }
-

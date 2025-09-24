@@ -3,7 +3,9 @@
 import AVFoundation
 import Foundation
 
-protocol EpisodeDisplayable: EpisodeInformable, Gridable, Identifiable, Searchable, Sendable, Stringable {
+protocol EpisodeDisplayable: EpisodeInformable, Gridable, Identifiable, Searchable, Sendable,
+  Stringable
+{
   var episodeID: Episode.ID? { get }
   var mediaGUID: MediaGUID { get }
   var title: String { get }
