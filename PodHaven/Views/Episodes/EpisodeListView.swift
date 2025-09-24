@@ -65,7 +65,7 @@ struct EpisodeListView: View {
       {
         if let progress = cacheState.progress(episodeID) {
           CircularProgressView(
-            colorAmounts: [.green: progress],
+            colorAmounts: [AppIcon.episodeCached.color: progress],
             innerRadius: .ratio(0.4)
           )
           .frame(width: statusIconSize, height: statusIconSize)
@@ -77,8 +77,17 @@ struct EpisodeListView: View {
           .opacity(episode.cacheStatus == .cached ? 1 : 0)
       }
 
-      AppIcon.episodeFinished.coloredImage
-        .opacity(episode.finished ? 1 : 0)
+      if episode.currentTime.seconds > 0 {
+        let progress = episode.currentTime.seconds / episode.duration.seconds
+        CircularProgressView(
+          colorAmounts: [AppIcon.episodeFinished.color: progress],
+          innerRadius: .ratio(0.4)
+        )
+        .frame(width: statusIconSize, height: statusIconSize)
+      } else {
+        AppIcon.episodeFinished.coloredImage
+          .opacity(episode.finished ? 1 : 0)
+      }
     }
     .font(.system(size: statusIconSize))
   }
@@ -108,21 +117,8 @@ struct EpisodeListView: View {
       Spacer()
 
       HStack(spacing: 4) {
-        ZStack {
-          if episode.currentTime.seconds > 0 {
-            CircularProgressView(
-              colorAmounts: [
-                .green: episode.currentTime.seconds / episode.duration.seconds
-              ],
-              innerRadius: .ratio(0.4)
-            )
-            .opacity(0.8)
-            .frame(width: metadataIconSize - 2, height: metadataIconSize - 2)
-          }
-
-          AppIcon.duration.coloredImage
-            .font(.system(size: metadataIconSize))
-        }
+        AppIcon.duration.coloredImage
+          .font(.system(size: metadataIconSize))
         Text(episode.duration.shortDescription)
           .font(.caption)
           .foregroundColor(.secondary)
