@@ -14,6 +14,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
+  @ObservationIgnored @DynamicInjected(\.playState) private var playState
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
@@ -78,6 +79,40 @@ import SwiftUI
   var totalQueueDuration: CMTime {
     episodeList.filteredEntries.reduce(CMTime.zero) { total, podcastEpisode in
       total + podcastEpisode.episode.duration
+    }
+  }
+
+  // MARK: - ManagingEpisodes
+
+  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable, swipeAction: Bool) {
+    guard let podcastEpisode = episode as? PodcastEpisode
+    else { Assert.fatal("type \(String(describing: type(of: episode))) in UpNext list?") }
+
+    Self.log.debug("Custom queueing of episode to top using UpNextViewModel")
+
+    // We have to remove the item first to avoid janky move animation with swipe action
+    if swipeAction { episodeList.allEntries.remove(podcastEpisode) }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      try await queue.unshift(podcastEpisode.id)
+    }
+  }
+
+  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable, swipeAction: Bool) {
+    guard let podcastEpisode = episode as? PodcastEpisode
+    else { Assert.fatal("type \(String(describing: type(of: episode))) in UpNext list?") }
+
+    Self.log.debug("Custom queueing of episode to bottom using UpNextViewModel")
+
+    // We have to remove the item first to avoid janky move animation with swipe action
+    if swipeAction { episodeList.allEntries.remove(podcastEpisode) }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      try await queue.append(podcastEpisode.id)
     }
   }
 

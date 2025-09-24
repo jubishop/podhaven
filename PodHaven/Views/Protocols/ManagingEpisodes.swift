@@ -7,8 +7,8 @@ import Logging
 @MainActor protocol ManagingEpisodes: AnyObject {
   func playEpisode(_ episode: any EpisodeDisplayable)
   func pauseEpisode(_ episode: any EpisodeDisplayable)
-  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable)
-  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable)
+  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable, swipeAction: Bool)
+  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable, swipeAction: Bool)
   func removeEpisodeFromQueue(_ episode: any EpisodeDisplayable)
   func cacheEpisode(_ episode: any EpisodeDisplayable)
   func uncacheEpisode(_ episode: any EpisodeDisplayable)
@@ -56,7 +56,9 @@ extension ManagingEpisodes {
     }
   }
 
-  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable) {
+  func queueEpisodeOnTop(_ episode: any EpisodeDisplayable, swipeAction: Bool = false) {
+    guard episode.queueOrder != 0 else { return }
+
     Task { [weak self] in
       guard let self else { return }
 
@@ -65,7 +67,9 @@ extension ManagingEpisodes {
     }
   }
 
-  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable) {
+  func queueEpisodeAtBottom(_ episode: any EpisodeDisplayable, swipeAction: Bool = false) {
+    guard !isEpisodeAtBottomOfQueue(episode) else { return }
+
     Task { [weak self] in
       guard let self else { return }
 

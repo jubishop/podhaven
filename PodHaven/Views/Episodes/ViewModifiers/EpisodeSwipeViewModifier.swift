@@ -23,7 +23,7 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
 
           if !(episode.queueOrder == 0) {
             Button(
-              action: { viewModel.queueEpisodeOnTop(episode) },
+              action: { viewModel.queueEpisodeOnTop(episode, swipeAction: true) },
               label: { AppLabel.moveToTop.image }
             )
             .tint(.blue)
@@ -31,20 +31,20 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
 
           if !isAtBottomOfQueue {
             Button(
-              action: { viewModel.queueEpisodeAtBottom(episode) },
+              action: { viewModel.queueEpisodeAtBottom(episode, swipeAction: true) },
               label: { AppLabel.moveToBottom.image }
             )
             .tint(.purple)
           }
         } else {
           Button(
-            action: { viewModel.queueEpisodeOnTop(episode) },
+            action: { viewModel.queueEpisodeOnTop(episode, swipeAction: true) },
             label: { AppLabel.queueAtTop.image }
           )
           .tint(.blue)
 
           Button(
-            action: { viewModel.queueEpisodeAtBottom(episode) },
+            action: { viewModel.queueEpisodeAtBottom(episode, swipeAction: true) },
             label: { AppLabel.queueAtBottom.image }
           )
           .tint(.purple)
