@@ -55,13 +55,13 @@ struct EpisodesListView: View {
 }
 
 #if DEBUG
-  #Preview {
-    NavigationStack {
-      EpisodesListView(
-        viewModel: EpisodesListViewModel(title: "Finished", filter: Episode.finished)
-      )
-    }
-    .preview()
-    .task { try? await PreviewHelpers.populateFinishedPodcastEpisodes() }
+#Preview {
+  NavigationStack {
+    EpisodesListView(
+      viewModel: EpisodesListViewModel(title: "Finished", filter: Episode.finished)
+    )
   }
+  .preview()
+  .task { try? await PreviewHelpers.populateFinishedPodcastEpisodes() }
+}
 #endif

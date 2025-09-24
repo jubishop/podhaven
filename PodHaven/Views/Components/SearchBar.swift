@@ -31,13 +31,13 @@ struct SearchBar: View {
 }
 
 #if DEBUG
-  #Preview {
-    @Previewable @State var text: String = ""
-    @Previewable @State var demo: String = ""
+#Preview {
+  @Previewable @State var text: String = ""
+  @Previewable @State var demo: String = ""
 
-    VStack(spacing: 20) {
-      SearchBar(text: $text)
-      TextField("Random focus field", text: $demo)
-    }
+  VStack(spacing: 20) {
+    SearchBar(text: $text)
+    TextField("Random focus field", text: $demo)
   }
+}
 #endif
