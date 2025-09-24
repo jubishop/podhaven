@@ -276,28 +276,26 @@ struct PodcastDetailView: View {
   var metadataView: some View {
     HStack {
       metadataItem(
-        icon: AppLabel.calendar.systemImageName,
-        label: AppLabel.calendar.text,
+        appLabel: AppLabel.calendar,
         value: viewModel.mostRecentEpisodeDate.usShortWithTime
       )
 
       Spacer()
 
       metadataItem(
-        icon: AppLabel.episodes.systemImageName,
-        label: AppLabel.episodes.text,
+        appLabel: AppLabel.episodes,
         value: "\(viewModel.episodeList.allEntries.count)"
       )
     }
   }
 
-  private func metadataItem(icon: String, label: String, value: String) -> some View {
+  private func metadataItem(appLabel: AppLabel, value: String) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       HStack(spacing: 4) {
-        Image(systemName: icon)
+        Image(systemName: appLabel.systemImageName)
           .foregroundColor(.secondary)
           .font(.caption)
-        Text(label)
+        Text(appLabel.text)
           .font(.caption)
           .foregroundColor(.secondary)
       }
