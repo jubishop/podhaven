@@ -34,28 +34,48 @@ import SwiftUI
     case oldestFirst = "Oldest First"
     case newestFirst = "Newest First"
     case mostFinished = "Most Finished"
-  }
-  let allSortMethods = SortMethod.allCases
 
-  private static func sortMethod(for sortMethod: SortMethod) -> (
-    PodcastEpisode, PodcastEpisode
-  ) -> Bool {
-    switch sortMethod {
-    case .oldestFirst:
-      return { lhs, rhs in lhs.episode.pubDate < rhs.episode.pubDate }
-    case .newestFirst:
-      return { lhs, rhs in lhs.episode.pubDate > rhs.episode.pubDate }
-    case .mostFinished:
-      return { lhs, rhs in
-        // Primary sort: most finished first (highest currentTime)
-        if lhs.episode.currentTime.seconds != rhs.episode.currentTime.seconds {
-          return lhs.episode.currentTime.seconds > rhs.episode.currentTime.seconds
+    var systemImageName: String {
+      switch self {
+      case .oldestFirst:
+        return "calendar"
+      case .newestFirst:
+        return "calendar.badge.clock"
+      case .mostFinished:
+        return "checkmark.circle"
+      }
+    }
+
+    var menuIconColor: Color {
+      switch self {
+      case .oldestFirst:
+        return .teal
+      case .newestFirst:
+        return .indigo
+      case .mostFinished:
+        return .green
+      }
+    }
+
+    var sortMethod: (PodcastEpisode, PodcastEpisode) -> Bool {
+      switch self {
+      case .oldestFirst:
+        return { lhs, rhs in lhs.episode.pubDate < rhs.episode.pubDate }
+      case .newestFirst:
+        return { lhs, rhs in lhs.episode.pubDate > rhs.episode.pubDate }
+      case .mostFinished:
+        return { lhs, rhs in
+          // Primary sort: most finished first (highest currentTime)
+          if lhs.episode.currentTime.seconds != rhs.episode.currentTime.seconds {
+            return lhs.episode.currentTime.seconds > rhs.episode.currentTime.seconds
+          }
+          // Secondary sort: oldest publication date first
+          return lhs.episode.pubDate < rhs.episode.pubDate
         }
-        // Secondary sort: oldest publication date first
-        return lhs.episode.pubDate < rhs.episode.pubDate
       }
     }
   }
+  let allSortMethods = SortMethod.allCases
 
   // MARK: - Initialization
 
@@ -159,7 +179,7 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        let sortedEpisodes = episodeList.filteredEntries.sorted(by: Self.sortMethod(for: method))
+        let sortedEpisodes = episodeList.filteredEntries.sorted(by: method.sortMethod)
         try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
       } catch {
         Self.log.error(error)

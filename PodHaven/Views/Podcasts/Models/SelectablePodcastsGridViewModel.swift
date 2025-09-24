@@ -42,41 +42,69 @@ import SwiftUI
     case byMostRecentUnstarted = "Most Recent Unstarted"
     case byMostRecentUnqueued = "Most Recent Unqueued"
     case byMostRecentlySubscribed = "Most Recently Subscribed"
-  }
-  let allSortMethods = SortMethod.allCases
 
-  private static func sortMethod(for sortMethod: SortMethod) -> (
-    PodcastWithLatestEpisodeDates, PodcastWithLatestEpisodeDates
-  ) -> Bool {
-    switch sortMethod {
-    case .byTitle:
-      return { lhs, rhs in lhs.title < rhs.title }
-    case .byMostRecentUnfinished:
-      return { lhs, rhs in
-        let lhsDate = lhs.maxUnfinishedEpisodePubDate ?? Date.distantPast
-        let rhsDate = rhs.maxUnfinishedEpisodePubDate ?? Date.distantPast
-        return lhsDate > rhsDate
+    var systemImageName: String {
+      switch self {
+      case .byTitle:
+        return "textformat"
+      case .byMostRecentUnfinished:
+        return "clock.badge.exclamationmark"
+      case .byMostRecentUnstarted:
+        return "clock.badge.questionmark"
+      case .byMostRecentUnqueued:
+        return "clock.badge.xmark"
+      case .byMostRecentlySubscribed:
+        return "person.crop.circle.badge.plus"
       }
-    case .byMostRecentUnstarted:
-      return { lhs, rhs in
-        let lhsDate = lhs.maxUnstartedEpisodePubDate ?? Date.distantPast
-        let rhsDate = rhs.maxUnstartedEpisodePubDate ?? Date.distantPast
-        return lhsDate > rhsDate
+    }
+
+    var menuIconColor: Color {
+      switch self {
+      case .byTitle:
+        return .indigo
+      case .byMostRecentUnfinished:
+        return .orange
+      case .byMostRecentUnstarted:
+        return .teal
+      case .byMostRecentUnqueued:
+        return .pink
+      case .byMostRecentlySubscribed:
+        return .green
       }
-    case .byMostRecentUnqueued:
-      return { lhs, rhs in
-        let lhsDate = lhs.maxUnqueuedEpisodePubDate ?? Date.distantPast
-        let rhsDate = rhs.maxUnqueuedEpisodePubDate ?? Date.distantPast
-        return lhsDate > rhsDate
-      }
-    case .byMostRecentlySubscribed:
-      return { lhs, rhs in
-        let lhsDate = lhs.subscriptionDate ?? Date.distantPast
-        let rhsDate = rhs.subscriptionDate ?? Date.distantPast
-        return lhsDate > rhsDate
+    }
+
+    var sortMethod: (PodcastWithLatestEpisodeDates, PodcastWithLatestEpisodeDates) -> Bool {
+      switch self {
+      case .byTitle:
+        return { lhs, rhs in lhs.title < rhs.title }
+      case .byMostRecentUnfinished:
+        return { lhs, rhs in
+          let lhsDate = lhs.maxUnfinishedEpisodePubDate ?? Date.distantPast
+          let rhsDate = rhs.maxUnfinishedEpisodePubDate ?? Date.distantPast
+          return lhsDate > rhsDate
+        }
+      case .byMostRecentUnstarted:
+        return { lhs, rhs in
+          let lhsDate = lhs.maxUnstartedEpisodePubDate ?? Date.distantPast
+          let rhsDate = rhs.maxUnstartedEpisodePubDate ?? Date.distantPast
+          return lhsDate > rhsDate
+        }
+      case .byMostRecentUnqueued:
+        return { lhs, rhs in
+          let lhsDate = lhs.maxUnqueuedEpisodePubDate ?? Date.distantPast
+          let rhsDate = rhs.maxUnqueuedEpisodePubDate ?? Date.distantPast
+          return lhsDate > rhsDate
+        }
+      case .byMostRecentlySubscribed:
+        return { lhs, rhs in
+          let lhsDate = lhs.subscriptionDate ?? Date.distantPast
+          let rhsDate = rhs.subscriptionDate ?? Date.distantPast
+          return lhsDate > rhsDate
+        }
       }
     }
   }
+  let allSortMethods = SortMethod.allCases
 
   @ObservationIgnored @Shared private var storedSortMethod: SortMethod
   private var _currentSortMethod: SortMethod
@@ -85,7 +113,7 @@ import SwiftUI
     set {
       _currentSortMethod = newValue
       $storedSortMethod.withLock { $0 = newValue }
-      podcastList.sortMethod = Self.sortMethod(for: newValue)
+      podcastList.sortMethod = newValue.sortMethod
     }
   }
 
@@ -102,7 +130,7 @@ import SwiftUI
     self.filter = filter
     self.podcastList = SelectableListUseCase<PodcastWithLatestEpisodeDates, Podcast.ID>(
       idKeyPath: \.id,
-      sortMethod: Self.sortMethod(for: sortMethod.wrappedValue)
+      sortMethod: sortMethod.wrappedValue.sortMethod
     )
   }
 
