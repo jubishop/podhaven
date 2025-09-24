@@ -277,7 +277,7 @@ struct PodcastDetailView: View {
     HStack {
       metadataItem(
         icon: AppLabel.calendar.systemImageName,
-        label: "Updated",
+        label: AppLabel.calendar.text,
         value: viewModel.mostRecentEpisodeDate.usShortWithTime
       )
 
@@ -285,7 +285,7 @@ struct PodcastDetailView: View {
 
       metadataItem(
         icon: AppLabel.episodes.systemImageName,
-        label: "Episodes",
+        label: AppLabel.episodes.text,
         value: "\(viewModel.episodeList.allEntries.count)"
       )
     }

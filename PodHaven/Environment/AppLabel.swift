@@ -234,7 +234,7 @@ enum AppLabel: CaseIterable {
     // Information Display
     case .aboutInfo: return (text: "About", systemImageName: .aboutInfo)
     case .audioPlaceholder: return (text: "Audio", systemImageName: .audioPlaceholder)
-    case .calendar: return (text: "Calendar", systemImageName: .calendar)
+    case .calendar: return (text: "Updated", systemImageName: .calendar)
     case .duration: return (text: "Duration", systemImageName: .duration)
     case .error: return (text: "Error", systemImageName: .error)
     case .noImage: return (text: "No Image", systemImageName: .noImage)
@@ -292,5 +292,4 @@ enum AppLabel: CaseIterable {
   var systemImageName: String {
     data.systemImageName.rawValue
   }
-
 }
