@@ -13,19 +13,10 @@ struct UpNextView: View {
     IdentifiableNavigationStack(manager: navigation.upNext) {
       List {
         ForEach(viewModel.episodeList.filteredEntries) { podcastEpisode in
-          NavigationLink(
-            value: Navigation.Destination.upNextEpisode(podcastEpisode),
-            label: {
-              EpisodeListView(
-                episode: podcastEpisode,
-                isSelecting: viewModel.isSelecting,
-                isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
-              )
-            }
-          )
-          .episodeListRow()
-          .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
-          .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode)
+          upNextListView(podcastEpisode)
+            .episodeListRow()
+            .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
+            .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode)
         }
         .onMove(perform: viewModel.moveEpisode)
       }
@@ -65,6 +56,24 @@ struct UpNextView: View {
       }
     }
     .task(viewModel.execute)
+  }
+
+  @ViewBuilder
+  func upNextListView(_ podcastEpisode: PodcastEpisode) -> some View {
+    let episodeListView = EpisodeListView(
+      episode: podcastEpisode,
+      isSelecting: viewModel.isSelecting,
+      isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
+    )
+
+    if viewModel.isSelecting {
+      episodeListView
+    } else {
+      NavigationLink(
+        value: Navigation.Destination.upNextEpisode(podcastEpisode),
+        label: { episodeListView }
+      )
+    }
   }
 }
 
