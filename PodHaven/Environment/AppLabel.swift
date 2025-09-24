@@ -406,16 +406,12 @@ enum AppLabel: CaseIterable {
   }
 
   func labelButton(action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      label
-    }
-    .tint(iconColor)
+    Button(action: action) { label }
+      .tint(iconColor)
   }
 
   func imageButton(action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      image
-    }
-    .tint(iconColor)
+    Button(action: action) { image }
+      .tint(iconColor)
   }
 }
