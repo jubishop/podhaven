@@ -47,17 +47,20 @@ struct UpNextView: View {
           ToolbarItem(placement: .topBarTrailing) {
             Menu("Sort") {
               ForEach(viewModel.allSortMethods, id: \.self) { method in
-                Button {
-                  viewModel.sort(by: method)
-                } label: {
-                  Label {
-                    Text(method.rawValue)
-                  } icon: {
-                    Image(systemName: method.menuSymbolName)
-                      .symbolRenderingMode(.hierarchical)
-                      .foregroundStyle(method.menuIconColor)
+                Button(
+                  action: {
+                    viewModel.sort(by: method)
+                  },
+                  label: {
+                    Label {
+                      Text(method.rawValue)
+                    } icon: {
+                      Image(systemName: method.menuSymbolName)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(method.menuIconColor)
+                    }
                   }
-                }
+                )
               }
             }
           }
