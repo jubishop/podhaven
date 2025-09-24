@@ -32,9 +32,7 @@ struct PodcastListView: View {
           .multilineTextAlignment(.leading)
 
         if !podcast.description.isEmpty {
-          Text(podcast.description)
-            .font(.caption)
-            .foregroundColor(.secondary)
+          HTMLText(podcast.description, color: .secondary, font: .caption)
             .lineLimit(2)
             .multilineTextAlignment(.leading)
         }

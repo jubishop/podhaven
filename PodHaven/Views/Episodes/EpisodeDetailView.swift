@@ -102,7 +102,6 @@ struct EpisodeDetailView: View {
                 .padding(.horizontal)
 
               HTMLText(description)
-                .font(.body)
                 .padding(.horizontal)
             }
           }
