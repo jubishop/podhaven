@@ -4,10 +4,10 @@ import SwiftUI
 
 struct OPMLImportSheetSection: View {
   private let headers: [OPMLOutline.Status: Text] = [
-    .failed: Text("Failed").foregroundStyle(AppLabel.failed.iconColor).bold(),
-    .waiting: Text("Waiting").foregroundStyle(AppLabel.waiting.iconColor).bold(),
-    .downloading: Text("Downloading").foregroundStyle(AppLabel.downloadEpisode.iconColor).bold(),
-    .finished: Text("Finished").foregroundStyle(AppLabel.episodeFinished.iconColor).bold(),
+    .failed: Text("Failed").foregroundStyle(AppLabel.failed.color).bold(),
+    .waiting: Text("Waiting").foregroundStyle(AppLabel.waiting.color).bold(),
+    .downloading: Text("Downloading").foregroundStyle(AppLabel.downloadEpisode.color).bold(),
+    .finished: Text("Finished").foregroundStyle(AppLabel.episodeFinished.color).bold(),
   ]
 
   private let outlines: [OPMLOutline]
