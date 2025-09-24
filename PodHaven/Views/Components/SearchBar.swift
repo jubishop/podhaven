@@ -21,15 +21,10 @@ struct SearchBar: View {
         .disableAutocorrection(true)
 
       if isFocused || !text.isEmpty {
-        Button(
-          action: {
-            text = ""
-            isFocused = false
-          },
-          label: {
-            AppLabel.clearSearch.image
-          }
-        )
+        AppLabel.clearSearch.imageButton {
+          text = ""
+          isFocused = false
+        }
       }
     }
   }

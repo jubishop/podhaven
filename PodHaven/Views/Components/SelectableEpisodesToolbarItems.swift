@@ -33,91 +33,67 @@ struct SelectableEpisodesToolbarItems<
       ToolbarItem(placement: .topBarTrailing) {
         Menu(
           content: {
-            Button(
-              action: { viewModel.playSelectedEpisodes() },
-              label: { AppLabel.playSelection.label }
-            )
-            .tint(.green)
+            AppLabel.playSelection.labelButton {
+              viewModel.playSelectedEpisodes()
+            }
 
             if viewModel.anySelectedNotQueued {
-              Button(
-                action: { viewModel.addSelectedEpisodesToTopOfQueue() },
-                label: { AppLabel.addSelectionToTop.label }
-              )
-              .tint(.blue)
+              AppLabel.addSelectionToTop.labelButton {
+                viewModel.addSelectedEpisodesToTopOfQueue()
+              }
 
-              Button(
-                action: { viewModel.addSelectedEpisodesToBottomOfQueue() },
-                label: { AppLabel.addSelectionToBottom.label }
-              )
-              .tint(.purple)
+              AppLabel.addSelectionToBottom.labelButton {
+                viewModel.addSelectedEpisodesToBottomOfQueue()
+              }
 
-              Button(
-                action: { viewModel.replaceQueueWithSelected() },
-                label: { AppLabel.replaceQueue.label }
-              )
-              .tint(.indigo)
+              AppLabel.replaceQueue.labelButton {
+                viewModel.replaceQueueWithSelected()
+              }
             } else {
               if viewModel.anySelectedNotAtTopOfQueue {
-                Button(
-                  action: { viewModel.addSelectedEpisodesToTopOfQueue() },
-                  label: { AppLabel.moveToTop.label }
-                )
-                .tint(.blue)
+                AppLabel.moveToTop.labelButton {
+                  viewModel.addSelectedEpisodesToTopOfQueue()
+                }
               }
 
               if viewModel.anySelectedNotAtBottomOfQueue {
-                Button(
-                  action: { viewModel.addSelectedEpisodesToBottomOfQueue() },
-                  label: { AppLabel.moveToBottom.label }
-                )
-                .tint(.purple)
+                AppLabel.moveToBottom.labelButton {
+                  viewModel.addSelectedEpisodesToBottomOfQueue()
+                }
               }
             }
 
             if viewModel.anySelectedQueued {
-              Button(
-                action: { viewModel.dequeueSelectedEpisodes() },
-                label: { AppLabel.removeFromQueue.label }
-              )
-              .tint(.red)
+              AppLabel.removeFromQueue.labelButton {
+                viewModel.dequeueSelectedEpisodes()
+              }
             }
 
             if viewModel.anySelectedCanStopCaching {
-              Button(
-                action: { viewModel.cancelSelectedEpisodeDownloads() },
-                label: { AppLabel.cancelEpisodeDownload.label }
-              )
-              .tint(.orange)
+              AppLabel.cancelEpisodeDownload.labelButton {
+                viewModel.cancelSelectedEpisodeDownloads()
+              }
             }
 
             if viewModel.anySelectedNotCached {
-              Button(
-                action: { viewModel.cacheSelectedEpisodes() },
-                label: { AppLabel.cacheEpisode.label }
-              )
-              .tint(.blue)
+              AppLabel.cacheEpisode.labelButton {
+                viewModel.cacheSelectedEpisodes()
+              }
             }
 
             if viewModel.anySelectedCanClearCache {
-              Button(
-                action: { viewModel.uncacheSelectedEpisodes() },
-                label: { AppLabel.uncacheEpisode.label }
-              )
-              .tint(.red)
+              AppLabel.uncacheEpisode.labelButton {
+                viewModel.uncacheSelectedEpisodes()
+              }
             }
 
             if viewModel.anySelectedUnfinished {
-              Button(
-                action: { viewModel.markSelectedEpisodesFinished() },
-                label: { AppLabel.markEpisodeFinished.label }
-              )
-              .tint(.mint)
+              AppLabel.markEpisodeFinished.labelButton {
+                viewModel.markSelectedEpisodesFinished()
+              }
             }
           },
-          label: {
-            AppLabel.moreActions.image
-          }
+          label: { AppLabel.moreActions.image }
         )
       }
     }

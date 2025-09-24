@@ -15,88 +15,66 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
     content
       .swipeActions(edge: .leading) {
         if episode.queued {
-          Button(
-            action: { viewModel.removeEpisodeFromQueue(episode) },
-            label: { AppLabel.removeFromQueue.image }
-          )
-          .tint(.red)
+          AppLabel.removeFromQueue.imageButton {
+            viewModel.removeEpisodeFromQueue(episode)
+          }
 
           if !(episode.queueOrder == 0) {
-            Button(
-              action: { viewModel.queueEpisodeOnTop(episode, swipeAction: true) },
-              label: { AppLabel.moveToTop.image }
-            )
-            .tint(.blue)
+            AppLabel.moveToTop.imageButton {
+              viewModel.queueEpisodeOnTop(episode, swipeAction: true)
+            }
           }
 
           if !isAtBottomOfQueue {
-            Button(
-              action: { viewModel.queueEpisodeAtBottom(episode, swipeAction: true) },
-              label: { AppLabel.moveToBottom.image }
-            )
-            .tint(.purple)
+            AppLabel.moveToBottom.imageButton {
+              viewModel.queueEpisodeAtBottom(episode, swipeAction: true)
+            }
           }
         } else {
-          Button(
-            action: { viewModel.queueEpisodeOnTop(episode, swipeAction: true) },
-            label: { AppLabel.queueAtTop.image }
-          )
-          .tint(.blue)
+          AppLabel.queueAtTop.imageButton {
+            viewModel.queueEpisodeOnTop(episode, swipeAction: true)
+          }
 
-          Button(
-            action: { viewModel.queueEpisodeAtBottom(episode, swipeAction: true) },
-            label: { AppLabel.queueAtBottom.image }
-          )
-          .tint(.purple)
+          AppLabel.queueAtBottom.imageButton {
+            viewModel.queueEpisodeAtBottom(episode, swipeAction: true)
+          }
         }
       }
 
       .swipeActions(edge: .trailing) {
         if isEpisodePlaying {
-          Button(
-            action: { viewModel.pauseEpisode(episode) },
-            label: { AppLabel.pauseButton.image }
-          )
-          .tint(.yellow)
+          AppLabel.pauseButton.imageButton {
+            viewModel.pauseEpisode(episode)
+          }
         } else {
-          Button(
-            action: { viewModel.playEpisode(episode) },
-            label: { AppLabel.playEpisode.image }
-          )
-          .tint(.green)
+          AppLabel.playEpisode.imageButton {
+            viewModel.playEpisode(episode)
+          }
         }
 
         switch episode.cacheStatus {
         case .caching:
           if canClearCache {
-            Button(
-              action: { viewModel.uncacheEpisode(episode) },
-              label: { AppLabel.cancelEpisodeDownload.image }
-            )
-            .tint(.orange)
+            AppLabel.cancelEpisodeDownload.imageButton {
+              viewModel.uncacheEpisode(episode)
+            }
           }
         case .cached:
           if canClearCache {
-            Button(
-              action: { viewModel.uncacheEpisode(episode) },
-              label: { AppLabel.uncacheEpisode.image }
-            )
-            .tint(.red)
+            AppLabel.uncacheEpisode.imageButton {
+              viewModel.uncacheEpisode(episode)
+            }
           }
         case .uncached:
-          Button(
-            action: { viewModel.cacheEpisode(episode) },
-            label: { AppLabel.cacheEpisode.image }
-          )
-          .tint(.blue)
+          AppLabel.cacheEpisode.imageButton {
+            viewModel.cacheEpisode(episode)
+          }
         }
 
         if !episode.finished {
-          Button(
-            action: { viewModel.markEpisodeFinished(episode) },
-            label: { AppLabel.markEpisodeFinished.image }
-          )
-          .tint(.mint)
+          AppLabel.markEpisodeFinished.imageButton {
+            viewModel.markEpisodeFinished(episode)
+          }
         }
       }
   }

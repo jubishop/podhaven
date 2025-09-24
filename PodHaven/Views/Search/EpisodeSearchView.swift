@@ -90,10 +90,9 @@ struct EpisodeSearchView: View {
       .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: episode)
       .episodeContextMenu(viewModel: viewModel, episode: episode) {
-        Button(
-          action: { viewModel.showPodcast(episode) },
-          label: { AppLabel.showPodcast.label }
-        )
+        AppLabel.showPodcast.labelButton {
+          viewModel.showPodcast(episode)
+        }
       }
     }
   }

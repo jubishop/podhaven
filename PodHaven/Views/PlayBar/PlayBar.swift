@@ -154,42 +154,42 @@ struct PlayBar: View {
 
   private var playbackControls: some View {
     HStack {
-      Button(action: viewModel.seekBackward) {
-        AppLabel.seekBackward.image
+      Group {
+        AppLabel.seekBackward.imageButton(action: viewModel.seekBackward)
           .font(.title2)
-          .foregroundColor(.white)
-      }
-      .buttonStyle(.glass)
 
-      Button(action: viewModel.playOrPause) {
-        Group {
-          if viewModel.isWaiting {
-            AppLabel.loading.image
-          } else if viewModel.isPlaying {
-            AppLabel.pauseButton.image
-          } else {
-            AppLabel.playButton.image
-          }
-        }
-        .font(.title)
-        .foregroundColor(.white)
-      }
-      .buttonStyle(.glass)
+        playPauseButton
+          .font(.title)
 
-      Button(action: viewModel.seekForward) {
-        AppLabel.seekForward.image
+        AppLabel.seekForward.imageButton(action: viewModel.seekForward)
           .font(.title2)
-          .foregroundColor(.white)
       }
       .buttonStyle(.glass)
     }
   }
 
+  @ViewBuilder
+  private var playPauseButton: some View {
+    let action = viewModel.playOrPause
+    if viewModel.isWaiting {
+      AppLabel.loading.imageButton(action: action)
+    } else if viewModel.isPlaying {
+      AppLabel.pauseButton.imageButton(action: action)
+    } else {
+      AppLabel.playButton.imageButton(action: action)
+    }
+  }
+
+  @ViewBuilder
   private var expansionButton: some View {
-    Button(action: viewModel.toggleExpansion) {
-      (viewModel.isExpanded ? AppLabel.expandDown.image : AppLabel.expandUp.image)
-        .foregroundColor(.white)
-        .contentTransition(.symbolEffect(.replace))
+    let action = viewModel.toggleExpansion
+
+    Group {
+      if viewModel.isExpanded {
+        AppLabel.expandDown.imageButton(action: action)
+      } else {
+        AppLabel.expandUp.imageButton(action: action)
+      }
     }
     .buttonStyle(.glass)
   }
@@ -209,30 +209,25 @@ struct PlayBar: View {
         label: {
           ProgressView()
             .progressViewStyle(.circular)
-            .tint(.primary)
             .frame(width: 32, height: 32)
         }
       )
 
-      Button(
-        action: { Container.shared.playState().setStatus(.waiting) },
-        label: { AppLabel.loading.image }
-      )
+      AppLabel.loading.imageButton {
+        Container.shared.playState().setStatus(.waiting)
+      }
 
-      Button(
-        action: { Container.shared.playState().setStatus(.playing) },
-        label: { AppLabel.pauseButton.image }
-      )
+      AppLabel.pauseButton.imageButton {
+        Container.shared.playState().setStatus(.playing)
+      }
 
-      Button(
-        action: { Container.shared.playState().setStatus(.paused) },
-        label: { AppLabel.playButton.image }
-      )
+      AppLabel.playButton.imageButton {
+        Container.shared.playState().setStatus(.paused)
+      }
 
-      Button(
-        action: { Container.shared.playState().setStatus(.stopped) },
-        label: { AppLabel.noEpisodeSelected.image }
-      )
+      AppLabel.noEpisodeSelected.imageButton {
+        Container.shared.playState().setStatus(.stopped)
+      }
     }
     .font(.title)
     .buttonStyle(.plain)

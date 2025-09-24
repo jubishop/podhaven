@@ -10,31 +10,26 @@ struct SelectablePodcastsGridContextMenuModifier: ViewModifier {
   func body(content: Content) -> some View {
     content
       .contextMenu {
-        Button(
-          action: { viewModel.queueLatestEpisodeToTop(podcast.id) },
-          label: { AppLabel.queueLatestToTop.label }
-        )
+        AppLabel.queueLatestToTop.labelButton {
+          viewModel.queueLatestEpisodeToTop(podcast.id)
+        }
 
-        Button(
-          action: { viewModel.queueLatestEpisodeToBottom(podcast.id) },
-          label: { AppLabel.queueLatestToBottom.label }
-        )
+        AppLabel.queueLatestToBottom.labelButton {
+          viewModel.queueLatestEpisodeToBottom(podcast.id)
+        }
 
-        Button(
-          action: { viewModel.deletePodcast(podcast.id) },
-          label: { AppLabel.delete.label }
-        )
+        AppLabel.delete.labelButton {
+          viewModel.deletePodcast(podcast.id)
+        }
 
         if podcast.subscribed {
-          Button(
-            action: { viewModel.unsubscribePodcast(podcast.id) },
-            label: { AppLabel.unsubscribe.label }
-          )
+          AppLabel.unsubscribe.labelButton {
+            viewModel.unsubscribePodcast(podcast.id)
+          }
         } else {
-          Button(
-            action: { viewModel.subscribePodcast(podcast.id) },
-            label: { AppLabel.subscribe.label }
-          )
+          AppLabel.subscribe.labelButton {
+            viewModel.subscribePodcast(podcast.id)
+          }
         }
       }
   }

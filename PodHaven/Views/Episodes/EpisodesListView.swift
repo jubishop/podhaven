@@ -35,10 +35,9 @@ struct EpisodesListView: View {
       .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
       .episodeContextMenu(viewModel: viewModel, episode: podcastEpisode) {
-        Button(
-          action: { viewModel.showPodcast(podcastEpisode) },
-          label: { AppLabel.showPodcast.label }
-        )
+        AppLabel.showPodcast.labelButton {
+          viewModel.showPodcast(podcastEpisode)
+        }
       }
     }
     .playBarSafeAreaInset()
