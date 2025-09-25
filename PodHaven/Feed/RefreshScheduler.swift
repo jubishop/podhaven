@@ -68,7 +68,6 @@ final class RefreshScheduler: Sendable {
         guard let self else { return }
 
         Self.log.debug("handle: expiration triggered, cancelling running task")
-
         if let backgroundTask = bgTask() {
           backgroundTask.cancel()
           bgTask(nil)
