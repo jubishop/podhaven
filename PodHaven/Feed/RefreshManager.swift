@@ -54,7 +54,7 @@ struct RefreshManager {
         )
 
         for podcastSeries in staleSeries {
-          group.addTask {
+          group.addTask { [podcastSeries] in
             do {
               try await refreshSeries(podcastSeries: podcastSeries)
             } catch {

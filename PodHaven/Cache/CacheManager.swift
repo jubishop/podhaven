@@ -189,7 +189,7 @@ actor CacheManager {
 
     await withDiscardingTaskGroup { group in
       for episodeID in newEpisodeIDs {
-        group.addTask { [weak self] in
+        group.addTask { [weak self, episodeID] in
           guard let self else { return }
           do {
             try await downloadToCache(for: episodeID)
@@ -200,7 +200,7 @@ actor CacheManager {
       }
 
       for episodeID in removedEpisodeIDs {
-        group.addTask { [weak self] in
+        group.addTask { [weak self, episodeID] in
           guard let self else { return }
           do {
             try await clearCache(for: episodeID)

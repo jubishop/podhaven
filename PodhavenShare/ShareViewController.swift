@@ -26,7 +26,7 @@ class ShareViewController: UIViewController {
       return
     }
 
-    Task { [weak self] in
+    Task { [weak self, application, extensionContext] in
       guard let self else { return }
       do {
         try await ShareLauncher.execute(from: application, with: extensionContext)

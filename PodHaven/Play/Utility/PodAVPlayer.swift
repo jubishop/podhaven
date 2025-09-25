@@ -231,7 +231,7 @@ extension Container {
       queue: .global(qos: .utility)
     ) { [weak self] currentTime in
       guard let self else { return }
-      Task { [weak self] in
+      Task { [weak self, currentTime] in
         guard let self else { return }
         do {
           try await self.handleCurrentTimeChange(currentTime)

@@ -95,7 +95,7 @@ extension Container {
       return
     }
 
-    Task { [weak self] in
+    Task { [weak self, url] in
       guard let self else { return }
       await importOPMLFromURL(url: url)
     }
@@ -140,7 +140,7 @@ extension Container {
       for rssFeed in opml.rssFeeds {
         if let podcast = allPodcasts[id: rssFeed.feedURL] {
           if !podcast.subscribed {
-            group.addTask { [weak self] in
+            group.addTask { [weak self, podcast] in
               guard let self else { return }
               do {
                 try await repo.markSubscribed(podcast.id)
@@ -166,8 +166,9 @@ extension Container {
 
       self.opmlFile = opmlFile
       for outline in opmlFile.waiting {
-        group.addTask { [weak self] in
+        group.addTask { [weak self, opmlFile, outline] in
           guard let self = self else { return }
+
           let feedTask = await self.feedManager.addURL(outline.feedURL)
           await feedTask.downloadBegan()
           await self.updateOutlineStatus(outline, in: opmlFile, to: .downloading)
@@ -179,7 +180,7 @@ extension Container {
               lastUpdate: Date()
             )
 
-            await Task { @MainActor in
+            await Task { @MainActor [outline, unsavedPodcast] in
               outline.feedURL = unsavedPodcast.feedURL
               outline.text = unsavedPodcast.title
             }
@@ -205,7 +206,7 @@ extension Container {
     in opmlFile: OPMLFile,
     to newStatus: OPMLOutline.Status
   ) async {
-    await Task {
+    await Task { [outline, opmlFile, newStatus] in
       outline.status = newStatus
       switch newStatus {
       case .finished:

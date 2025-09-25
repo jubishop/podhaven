@@ -108,7 +108,9 @@ final class PlayManager {
     asyncStreams()
 
     if let currentEpisodeID {
-      Task {
+      Task { [weak self, currentEpisodeID] in
+        guard let self else { return }
+
         let podcastEpisode: PodcastEpisode?
         do {
           podcastEpisode = try await repo.podcastEpisode(currentEpisodeID)
@@ -180,7 +182,7 @@ final class PlayManager {
         try Container.shared.setAudioSessionActive()(true)
         try await setOnDeck(try await podAVPlayer.load(incoming))
       } catch {
-        await Task { [weak self] in  // Task to execute even inside cancellation
+        await Task { [weak self, outgoing, incoming] in  // Task to execute even inside cancellation
           guard let self else { return }
 
           await cleanUpAfterLoadFailure(outgoing, incoming)
@@ -389,7 +391,9 @@ final class PlayManager {
   private func temporarilyHaltSeekCommands() {
     restartSeekCommandsTask?.cancel()
     ignoreSeekCommands = true
-    restartSeekCommandsTask = Task {
+    restartSeekCommandsTask = Task { [weak self] in
+      guard let self else { return }
+
       try await sleeper.sleep(for: seekIgnoreTime)
       try Task.checkCancellation()
       ignoreSeekCommands = false

@@ -89,8 +89,9 @@ final class FeedManager {
     let feedTask = FeedTask(await downloadManager.addURL(url.rawValue))
     feedTasks[url] = feedTask
 
-    Task { [weak self] in
+    Task { [weak self, feedTask, url] in
       guard let self else { return }
+
       _ = try? await feedTask.feedParsed()
       feedTasks.removeValue(forKey: url)
     }
