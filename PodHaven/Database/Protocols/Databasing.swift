@@ -116,8 +116,7 @@ extension Databasing {
   )
     async throws(RepoError) -> [PodcastSeries]
   {
-    print("allPodcastSeries: \(filter), \(order), \(limit)")
-    return try await allPodcastSeries(filter, order: order, limit: limit)
+    try await allPodcastSeries(filter, order: order, limit: limit)
   }
 
   @discardableResult

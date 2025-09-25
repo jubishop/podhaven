@@ -64,9 +64,6 @@ final class RefreshManager {
       """
     )
 
-    let backgroundTask = await BackgroundTask.start(withName: "RefreshManager.performRefresh")
-    defer { Task { await backgroundTask.end() } }
-
     guard limit > 0 else {
       Self.log.debug("performRefresh: limit non-positive, skipping")
       return
@@ -232,6 +229,9 @@ final class RefreshManager {
       guard let self else { return }
 
       while !Task.isCancelled {
+        let backgroundTask = await BackgroundTask.start(
+          withName: "RefreshManager.backgroundRefreshTask"
+        )
         currentlyBackgroundRefreshing = true
         do {
           Self.log.debug("backgroundRefreshTask: performing refresh")
@@ -245,6 +245,7 @@ final class RefreshManager {
           Self.log.error(error)
         }
         currentlyBackgroundRefreshing = false
+        Task { await backgroundTask.end() }
 
         Self.log.debug("backgroundRefreshTask: now sleeping")
         try? await self.sleeper.sleep(for: .minutes(15))

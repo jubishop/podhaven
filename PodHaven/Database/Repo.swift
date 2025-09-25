@@ -45,7 +45,6 @@ struct Repo: Databasing, Sendable {
   ) async throws(RepoError)
     -> [PodcastSeries]
   {
-    Self.log.debug("allPodcastSeries: \(filter), \(order), \(limit)")
     do {
       return try await appDB.db.read { db in
         try Podcast
