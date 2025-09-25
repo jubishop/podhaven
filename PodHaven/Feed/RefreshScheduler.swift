@@ -159,7 +159,9 @@ final class RefreshScheduler: Sendable {
           do {
             Self.log.debug("refreshTask: performing refresh")
 
-            let performRefreshTask: () async throws -> Void = { [connectionState, refreshManager] in
+            let performRefreshTask: () async throws -> Void = { [weak self] in
+              guard let self else { return }
+
               let currentPath = connectionState.currentPath
 
               if currentPath.status != .satisfied {
@@ -181,11 +183,10 @@ final class RefreshScheduler: Sendable {
 
             Self.log.debug("refreshTask: refresh completed gracefully")
           } catch {
-            guard ErrorKit.isRemarkable(error) else { return }
             Self.log.error(error)
           }
           currentlyRefreshing(false)
-          Task { await backgroundTask.end() }
+          await backgroundTask.end()
 
           Self.log.debug("refreshTask: now sleeping")
           try? await self.sleeper.sleep(for: .minutes(15))

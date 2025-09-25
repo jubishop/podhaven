@@ -15,7 +15,7 @@ extension Logger {
   func error(
     _ error: any Error,
     remarkable: Logger.Level = .error,
-    mundane: Logger.Level = .notice,
+    mundane: Logger.Level = .info,
     file: String = #fileID,
     function: String = #function,
     line: UInt = #line
