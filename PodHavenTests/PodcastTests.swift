@@ -156,6 +156,9 @@ class PodcastTests {
 
     let allPodcastSeries = try await repo.allPodcastSeries()
     #expect(allPodcastSeries.count == 3)
+
+    let limitedPodcastSeries = try await repo.allPodcastSeries(limit: 2)
+    #expect(limitedPodcastSeries.count == 2)
   }
 
   @Test("markSubscribed() successfully marks multiple podcasts as subscribed")

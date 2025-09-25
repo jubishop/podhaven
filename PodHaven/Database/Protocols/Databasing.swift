@@ -104,16 +104,14 @@ protocol Databasing: Sendable {
 extension Databasing {
   // MARK: - Default Parameter Extensions
 
-  func allPodcasts() async throws -> [Podcast] {
-    try await allPodcasts(AppDB.NoOp)
+  func allPodcasts(_ filter: SQLExpression = AppDB.NoOp) async throws -> [Podcast] {
+    try await allPodcasts(filter)
   }
 
-  func allPodcastSeries() async throws(RepoError) -> [PodcastSeries] {
-    try await allPodcastSeries(AppDB.NoOp, limit: Int.max)
-  }
-
-  func allPodcastSeries(_ filter: SQLExpression) async throws(RepoError) -> [PodcastSeries] {
-    try await allPodcastSeries(filter, limit: Int.max)
+  func allPodcastSeries(_ filter: SQLExpression = AppDB.NoOp, limit: Int = Int.max)
+    async throws(RepoError) -> [PodcastSeries]
+  {
+    try await allPodcastSeries(filter, limit: limit)
   }
 
   @discardableResult

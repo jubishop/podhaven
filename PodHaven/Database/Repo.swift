@@ -38,7 +38,7 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func allPodcastSeries(_ filter: SQLExpression, limit: Int = Int.max) async throws(RepoError)
+  func allPodcastSeries(_ filter: SQLExpression, limit: Int) async throws(RepoError)
     -> [PodcastSeries]
   {
     do {
