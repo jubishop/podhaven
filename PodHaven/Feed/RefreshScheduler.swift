@@ -85,13 +85,15 @@ final class RefreshScheduler: Sendable {
   private func handle() async -> Bool {
     Self.log.debug("handling background refresh callback")
 
-    if connectionState.currentPath.status != .satisfied {
-      Self.log.debug("connectivity unavailable")
+    let currentPath = connectionState.currentPath
+
+    if currentPath.status != .satisfied {
+      Self.log.debug("connection is unsatisfied")
       return true
     }
 
-    if connectionState.currentPath.isConstrained {
-      Self.log.debug("connectivity constrained (low data mode)")
+    if currentPath.isConstrained || currentPath.isUltraConstrained {
+      Self.log.debug("connection is constrained (low data mode)")
       return true
     }
 
@@ -101,7 +103,7 @@ final class RefreshScheduler: Sendable {
       do {
         try await self.refreshManager.performRefresh(
           filter: Podcast.subscribed,
-          limit: 16
+          limit: currentPath.isExpensive ? 4 : 16
         )
         Self.log.debug("handle: refresh completed")
         return true
@@ -110,6 +112,7 @@ final class RefreshScheduler: Sendable {
         return false
       }
     }
+
     bgTask(task)
     return (await task.value)
   }

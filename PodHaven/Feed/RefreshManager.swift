@@ -46,7 +46,8 @@ struct RefreshManager {
       try await withThrowingDiscardingTaskGroup { group in
         let staleSeries = try await repo.allPodcastSeries(
           Podcast.Columns.lastUpdate < stalenessThreshold && filter,
-          limit: limit
+          order: Podcast.Columns.lastUpdate.asc,
+          limit: limit,
         )
         Self.log.debug(
           "performRefresh: fetched \(staleSeries.count) stale series (limit: \(limit))"
