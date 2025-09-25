@@ -7,15 +7,14 @@ import UIKit
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
   @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
-  @DynamicInjected(\.refreshBackgroundScheduler) private var refreshBackgroundScheduler
+  @DynamicInjected(\.refreshScheduler) private var refreshScheduler
 
   func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-    
-    refreshBackgroundScheduler.register()
-    refreshBackgroundScheduler.schedule()
+    refreshScheduler.register()
+    refreshScheduler.schedule(in: 30.minutes)
 
     return true
   }
@@ -32,6 +31,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
   }
 
   func applicationDidEnterBackground(_ application: UIApplication) {
-    refreshBackgroundScheduler.schedule()
+    refreshScheduler.schedule(in: 15.minutes)
   }
 }

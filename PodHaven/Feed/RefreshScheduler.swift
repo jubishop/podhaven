@@ -6,58 +6,54 @@ import Foundation
 import Logging
 
 extension Container {
-  var refreshBackgroundScheduler: Factory<RefreshBackgroundScheduler> {
-    Factory(self) { RefreshBackgroundScheduler() }.scope(.cached)
+  var refreshScheduler: Factory<RefreshScheduler> {
+    Factory(self) { RefreshScheduler() }.scope(.cached)
   }
 }
 
-final class RefreshBackgroundScheduler {
+final class RefreshScheduler {
   @DynamicInjected(\.connectionState) private var connectionState
   @DynamicInjected(\.refreshManager) private var refreshManager
 
   private static let backgroundTaskIdentifier = "com.justinbishop.podhaven.refresh"
 
-  private static let log = Log.as(LogSubsystem.Feed.refreshManager)
+  private static let log = Log.as(LogSubsystem.Feed.refreshScheduler)
 
   //  private var runningTask: Task<RefreshIterationResult, Never>?
 
+  // MARK: - Schedule Management
+
   func register() {
-    //    BGTaskScheduler.shared.register(
-    //      forTaskWithIdentifier: Self.backgroundTaskIdentifier,
-    //      using: nil
-    //    ) { task in
-    //      guard let appRefreshTask = task as? BGAppRefreshTask else {
-    //        task.setTaskCompleted(success: false)
-    //        return
-    //      }
-    //
-    //      Task { [weak self] in
-    //        guard let self else { return }
-    //        await self.handle(task: appRefreshTask)
-    //      }
-    //    }
+    BGTaskScheduler.shared.register(
+      forTaskWithIdentifier: Self.backgroundTaskIdentifier,
+      using: nil
+    ) { task in
+      guard let appRefreshTask = task as? BGAppRefreshTask
+      else {
+        task.setTaskCompleted(success: false)
+        return
+      }
+
+      self.handle(task: appRefreshTask)
+    }
   }
 
-  func schedule() {
-    //    let request = BGAppRefreshTaskRequest(identifier: Self.backgroundTaskIdentifier)
-    //    request.earliestBeginDate = earliestBeginDate(for: reason)
-    //
-    //    do {
-    //      try BGTaskScheduler.shared.submit(request)
-    //      Self.log.debug(
-    //        "schedule: scheduled next background refresh for reason: \(reason.logDescription)"
-    //      )
-    //    } catch {
-    //      Self.log.error(
-    //        "schedule: failed to submit BGAppRefreshTaskRequest: \(error.localizedDescription)"
-    //      )
-    //    }
-    //  }
-    //
-    //  // MARK: - Private
-    //
-    //  private func handle(task: BGAppRefreshTask) async {
-    //    Self.log.debug("handle: received BGAppRefreshTask")
+  func schedule(in timeInterval: TimeInterval) {
+    let request = BGAppRefreshTaskRequest(identifier: Self.backgroundTaskIdentifier)
+    request.earliestBeginDate = Date(timeIntervalSinceNow: timeInterval)
+
+    do {
+      try BGTaskScheduler.shared.submit(request)
+      Self.log.debug("scheduled next background refresh in: \(timeInterval)")
+    } catch {
+      Self.log.error(error)
+    }
+  }
+
+  // MARK: - Private
+
+  private func handle(task: BGAppRefreshTask) {
+    Self.log.debug("beginning BGAppRefreshTask: \(task)")
     //
     //    let policy = RefreshPolicy.policy(for: connectivityMonitor.currentStatus)
     //
