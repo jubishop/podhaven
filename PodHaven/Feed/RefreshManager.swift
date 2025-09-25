@@ -53,7 +53,8 @@ final class RefreshManager {
 
   func performRefresh(
     stalenessThreshold: Date,
-    filter: SQLExpression = AppDB.NoOp
+    filter: SQLExpression = AppDB.NoOp,
+    limit: Int = Int.max
   ) async throws(RefreshError) {
     Self.log.debug(
       """
@@ -66,16 +67,22 @@ final class RefreshManager {
     let backgroundTask = await BackgroundTask.start(withName: "RefreshManager.performRefresh")
     defer { Task { await backgroundTask.end() } }
 
+    guard limit > 0 else {
+      Self.log.debug("performRefresh: limit non-positive, skipping")
+      return
+    }
+
     try await RefreshError.catch {
       try await withThrowingDiscardingTaskGroup { group in
-        let allStaleSubscribedPodcastSeries = try await repo.allPodcastSeries(
-          Podcast.Columns.lastUpdate < stalenessThreshold && filter
+        let staleSeries = try await repo.allPodcastSeries(
+          Podcast.Columns.lastUpdate < stalenessThreshold && filter,
+          limit: limit
         )
         await Self.log.debug(
-          "performRefresh: found \(allStaleSubscribedPodcastSeries.count) stale series"
+          "performRefresh: fetched \(staleSeries.count) stale series (limit: \(limit))"
         )
 
-        for podcastSeries in allStaleSubscribedPodcastSeries {
+        for podcastSeries in staleSeries {
           group.addTask { [weak self] in
             guard let self else { return }
             do {

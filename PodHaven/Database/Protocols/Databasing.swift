@@ -12,7 +12,8 @@ protocol Databasing: Sendable {
   // MARK: - Global Readers
 
   func allPodcasts(_ filter: SQLExpression) async throws -> [Podcast]
-  func allPodcastSeries(_ filter: SQLExpression) async throws(RepoError) -> [PodcastSeries]
+  func allPodcastSeries(_ filter: SQLExpression, limit: Int) async throws(RepoError)
+    -> [PodcastSeries]
 
   // MARK: - Series Readers
 
@@ -108,7 +109,11 @@ extension Databasing {
   }
 
   func allPodcastSeries() async throws(RepoError) -> [PodcastSeries] {
-    try await allPodcastSeries(AppDB.NoOp)
+    try await allPodcastSeries(AppDB.NoOp, limit: Int.max)
+  }
+
+  func allPodcastSeries(_ filter: SQLExpression) async throws(RepoError) -> [PodcastSeries] {
+    try await allPodcastSeries(filter, limit: Int.max)
   }
 
   @discardableResult

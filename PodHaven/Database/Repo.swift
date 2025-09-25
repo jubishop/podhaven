@@ -38,13 +38,15 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func allPodcastSeries(_ filter: SQLExpression) async throws(RepoError)
+  func allPodcastSeries(_ filter: SQLExpression, limit: Int = Int.max) async throws(RepoError)
     -> [PodcastSeries]
   {
     do {
-      let request = Podcast.all().filter(filter)
       return try await appDB.db.read { db in
-        try request
+        try Podcast
+          .all()
+          .filter(filter)
+          .limit(limit)
           .including(all: Podcast.episodes)
           .asRequest(of: PodcastSeries.self)
           .fetchAll(db)
