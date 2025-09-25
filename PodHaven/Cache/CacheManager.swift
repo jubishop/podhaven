@@ -52,13 +52,18 @@ actor CacheManager {
 
   fileprivate init() {}
 
-  func start() async throws {
+  func start() {
     Self.log.debug("start: executing")
 
-    try podFileManager.createDirectory(
-      at: Self.cacheDirectory,
-      withIntermediateDirectories: true
-    )
+    do {
+      try podFileManager.createDirectory(
+        at: Self.cacheDirectory,
+        withIntermediateDirectories: true
+      )
+    } catch {
+      Assert.fatal("Couldn't create cache directory?")
+    }
+
     startMonitoringQueue()
   }
 

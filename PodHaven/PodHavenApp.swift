@@ -15,7 +15,7 @@ struct PodHavenApp: App {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
-  @DynamicInjected(\.refreshManager) private var refreshManager
+  @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.shareService) private var shareService
 
@@ -43,16 +43,10 @@ struct PodHavenApp: App {
         isInitialized = true
 
         if AppInfo.environment != .testing {
-          do {
-            startMemoryWarningMonitoring()
-            await playManager.start()
-            await refreshManager.start()
-            try await cacheManager.start()
-          } catch {
-            Self.log.error(error)
-            guard ErrorKit.isRemarkable(error) else { return }
-            alert(ErrorKit.coreMessage(for: error))
-          }
+          startMemoryWarningMonitoring()
+          await playManager.start()
+          await cacheManager.start()
+          refreshScheduler.start()
         }
       }
       .onOpenURL { url in

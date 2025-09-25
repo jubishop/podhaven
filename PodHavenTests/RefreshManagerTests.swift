@@ -14,6 +14,7 @@ import Testing
 actor RefreshManagerTests {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.observatory) private var observatory
+  @DynamicInjected(\.feedManager) private var feedManager
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
   @DynamicInjected(\.refreshManager) private var refreshManager
 
@@ -208,7 +209,7 @@ actor RefreshManagerTests {
 
     Task { try await refreshManager.refreshSeries(podcastSeries: podcastSeries) }
     try await Wait.until(
-      { await self.refreshManager.feedManager.hasURL(podcastSeries.podcast.feedURL) },
+      { await self.feedManager.hasURL(podcastSeries.podcast.feedURL) },
       { "Expected feedManager to get URL: \(podcastSeries.podcast.feedURL)" }
     )
 

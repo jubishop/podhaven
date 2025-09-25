@@ -28,7 +28,7 @@ import Testing
   }
 
   init() async throws {
-    try await cacheManager.start()
+    await cacheManager.start()
   }
 
   // MARK: - Queue Observation Tests

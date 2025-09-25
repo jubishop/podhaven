@@ -38,7 +38,7 @@ import Testing
   }
 
   init() async throws {
-    try await cacheManager.start()
+    await cacheManager.start()
     await playManager.start()
   }
 

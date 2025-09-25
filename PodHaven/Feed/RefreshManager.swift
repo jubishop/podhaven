@@ -5,49 +5,22 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
-import UIKit
 
 extension Container {
   var refreshManager: Factory<RefreshManager> {
-    Factory(self) { @RefreshActor in RefreshManager() }.scope(.cached)
+    Factory(self) { RefreshManager() }.scope(.cached)
   }
 }
 
-@globalActor
-actor RefreshActor {
-  static let shared = PlayActor()
-}
-
-@RefreshActor
-final class RefreshManager {
-  @DynamicInjected(\.feedManager) var feedManager
-  @DynamicInjected(\.notifications) private var notifications
+struct RefreshManager {
+  @DynamicInjected(\.feedManager) private var feedManager
   @DynamicInjected(\.repo) private var repo
-  @DynamicInjected(\.sleeper) private var sleeper
 
   private static let log = Log.as(LogSubsystem.Feed.refreshManager)
-
-  // MARK: - State Management
-
-  private var backgroundRefreshTask: Task<Void, Never>?
-  private var currentlyBackgroundRefreshing = false
 
   // MARK: - Initialization
 
   fileprivate init() {}
-
-  func start() async {
-    Self.log.debug("start: executing")
-
-    if await UIApplication.shared.applicationState == .active {
-      Self.log.debug("start: app already active, activating refresh task")
-      activated()
-    } else {
-      Self.log.debug("start: app not active, waiting for activation")
-    }
-
-    startListeningToActivation()
-  }
 
   // MARK: - Refresh Management
 
@@ -75,17 +48,16 @@ final class RefreshManager {
           Podcast.Columns.lastUpdate < stalenessThreshold && filter,
           limit: limit
         )
-        await Self.log.debug(
+        Self.log.debug(
           "performRefresh: fetched \(staleSeries.count) stale series (limit: \(limit))"
         )
 
         for podcastSeries in staleSeries {
-          group.addTask { [weak self] in
-            guard let self else { return }
+          group.addTask {
             do {
               try await refreshSeries(podcastSeries: podcastSeries)
             } catch {
-              await Self.log.error(error, mundane: .trace)
+              Self.log.error(error, mundane: .trace)
             }
           }
         }
@@ -176,18 +148,18 @@ final class RefreshManager {
               updatedEpisodes.append(updatedEpisode)
             }
           } catch {
-            await Self.log.error(error)
+            Self.log.error(error)
           }
         } else {
           do {
             unsavedEpisodes.append(try feedItem.toUnsavedEpisode())
           } catch {
-            await Self.log.error(error)
+            Self.log.error(error)
           }
         }
       }
 
-      await Self.log.log(
+      Self.log.log(
         level: unsavedEpisodes.isEmpty ? .trace : .debug,
         """
         updateSeriesFromFeed: \(podcastSeries.toString)
@@ -210,56 +182,6 @@ final class RefreshManager {
         )
       } else {
         try await repo.updateLastUpdate(podcastSeries.id)
-      }
-    }
-  }
-
-  // MARK: - Private Helpers
-
-  private func activated() {
-    Self.log.debug("activated: starting background refresh task")
-
-    if currentlyBackgroundRefreshing {
-      Self.log.debug("activated: already refreshing")
-      return
-    }
-
-    backgroundRefreshTask?.cancel()
-    backgroundRefreshTask = Task(priority: .background) { [weak self] in
-      guard let self else { return }
-
-      while !Task.isCancelled {
-        let backgroundTask = await BackgroundTask.start(
-          withName: "RefreshManager.backgroundRefreshTask"
-        )
-        currentlyBackgroundRefreshing = true
-        do {
-          Self.log.debug("backgroundRefreshTask: performing refresh")
-          try await self.performRefresh(
-            stalenessThreshold: 1.hoursAgo,
-            filter: Podcast.subscribed,
-            limit: 64
-          )
-          Self.log.debug("backgroundRefreshTask: refresh completed gracefully")
-        } catch {
-          Self.log.error(error)
-        }
-        currentlyBackgroundRefreshing = false
-        Task { await backgroundTask.end() }
-
-        Self.log.debug("backgroundRefreshTask: now sleeping")
-        try? await self.sleeper.sleep(for: .minutes(15))
-      }
-    }
-  }
-
-  private func startListeningToActivation() {
-    Assert.neverCalled()
-
-    Task { [weak self] in
-      guard let self else { return }
-      for await _ in notifications(UIApplication.didBecomeActiveNotification) {
-        activated()
       }
     }
   }

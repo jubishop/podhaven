@@ -4,6 +4,7 @@ import BackgroundTasks
 import FactoryKit
 import Foundation
 import Logging
+import UIKit
 
 extension Container {
   var refreshScheduler: Factory<RefreshScheduler> {
@@ -11,17 +12,36 @@ extension Container {
   }
 }
 
-final class RefreshScheduler {
-  @DynamicInjected(\.connectionState) private var connectionState
-  @DynamicInjected(\.refreshManager) private var refreshManager
+final class RefreshScheduler: Sendable {
+  private var connectionState: ConnectionState { Container.shared.connectionState() }
+  private var notifications: (Notification.Name) -> any AsyncSequence<Notification, Never> {
+    Container.shared.notifications()
+  }
+  private var refreshManager: RefreshManager { Container.shared.refreshManager() }
+  private var sleeper: any Sleepable { Container.shared.sleeper() }
 
   private static let backgroundTaskIdentifier = "com.justinbishop.podhaven.refresh"
 
   private static let log = Log.as(LogSubsystem.Feed.refreshScheduler)
 
-  private var runningTask: Task<Void, Never>?
+  // MARK: - State Management
 
-  // MARK: - Schedule Management
+  private let currentlyRefreshing = ThreadSafe(false)
+  private let refreshTask = ThreadSafe<Task<Void, Never>?>(nil)
+  private let bgTask = ThreadSafe<Task<Void, Never>?>(nil)
+
+  // MARK: - Initialization
+
+  fileprivate init() {}
+
+  func start() {
+    Self.log.debug("start: executing")
+
+    schedule(in: 15.minutes)
+    startListeningToActivation()
+  }
+
+  // MARK: - Background Task Scheduling
 
   func register() {
     BGTaskScheduler.shared.register(
@@ -32,7 +52,7 @@ final class RefreshScheduler {
         guard let self else { return }
 
         Self.log.debug("handle: expiration triggered, cancelling running task")
-        runningTask?.cancel()
+        bgTask()?.cancel()
         task.setTaskCompleted(success: false)
       }
 
@@ -53,7 +73,7 @@ final class RefreshScheduler {
     }
   }
 
-  // MARK: - Private
+  // MARK: - Background Task Handling
 
   private func handle() -> Bool {
     Self.log.debug("handling background refresh callback")
@@ -108,5 +128,68 @@ final class RefreshScheduler {
     //    }
     //
     //    return Date(timeIntervalSinceNow: interval)
+
+  }
+
+  // MARK: - Foreground Loop Refreshing
+
+  private func activated() {
+    Self.log.debug("activated: starting background refresh task")
+
+    if currentlyRefreshing() {
+      Self.log.debug("activated: already refreshing")
+      return
+    }
+
+    refreshTask()?.cancel()
+    refreshTask(
+      Task(priority: .background) { [weak self] in
+        guard let self else { return }
+
+        while !Task.isCancelled {
+          let backgroundTask = await BackgroundTask.start(
+            withName: "RefreshManager.refreshTask"
+          )
+          currentlyRefreshing(true)
+          do {
+            Self.log.debug("refreshTask: performing refresh")
+            try await refreshManager.performRefresh(
+              stalenessThreshold: 1.hoursAgo,
+              filter: Podcast.subscribed,
+              limit: 64
+            )
+            Self.log.debug("refreshTask: refresh completed gracefully")
+          } catch {
+            Self.log.error(error)
+          }
+          currentlyRefreshing(false)
+          Task { await backgroundTask.end() }
+
+          Self.log.debug("refreshTask: now sleeping")
+          try? await self.sleeper.sleep(for: .minutes(15))
+        }
+      }
+    )
+  }
+
+  private func startListeningToActivation() {
+    Assert.neverCalled()
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      try? await sleeper.sleep(for: .seconds(15))
+
+      if await UIApplication.shared.applicationState == .active {
+        Self.log.debug("app already active, activating refresh task")
+        activated()
+      } else {
+        Self.log.debug("app not active, waiting for activation")
+      }
+
+      for await _ in notifications(UIApplication.didBecomeActiveNotification) {
+        activated()
+      }
+    }
   }
 }

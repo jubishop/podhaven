@@ -99,36 +99,38 @@ final class PlayManager {
 
   fileprivate init() {}
 
-  func start() async {
+  func start() {
     Assert.neverCalled()
 
-    guard await configureAudioSession() else { return }
+    guard configureAudioSession() else { return }
 
     notificationTracking()
     asyncStreams()
 
     if let currentEpisodeID {
-      let podcastEpisode: PodcastEpisode?
-      do {
-        podcastEpisode = try await repo.podcastEpisode(currentEpisodeID)
-      } catch {
-        await alert("Podcast episode with id: \"\(currentEpisodeID)\" not found")
-        Self.log.error(error)
-        return
-      }
-
-      if let podcastEpisode {
+      Task {
+        let podcastEpisode: PodcastEpisode?
         do {
-          try await load(podcastEpisode)
+          podcastEpisode = try await repo.podcastEpisode(currentEpisodeID)
         } catch {
-          await alert("Failed to load podcast episode \(podcastEpisode.episode.title)")
+          await alert("Podcast episode with id: \"\(currentEpisodeID)\" not found")
           Self.log.error(error)
+          return
+        }
+
+        if let podcastEpisode {
+          do {
+            try await load(podcastEpisode)
+          } catch {
+            await alert("Failed to load podcast episode \(podcastEpisode.episode.title)")
+            Self.log.error(error)
+          }
         }
       }
     }
   }
 
-  func configureAudioSession() async -> Bool {
+  func configureAudioSession() -> Bool {
     Self.log.info("configureAudioSession: executing")
     do {
       try Container.shared.configureAudioSession()()
@@ -468,7 +470,7 @@ final class PlayManager {
   private func handleMediaServicesReset() async {
     Self.log.info("handleMediaServicesReset: beginning recovery process")
 
-    guard await configureAudioSession() else { return }
+    guard configureAudioSession() else { return }
 
     let currentOnDeck = await playState.onDeck ?? recentFailureInfo.onDeck
     let wasPlaying = await playState.status.playing || recentFailureInfo.playing

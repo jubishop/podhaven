@@ -14,7 +14,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
     refreshScheduler.register()
-    refreshScheduler.schedule(in: 30.minutes)
 
     return true
   }
