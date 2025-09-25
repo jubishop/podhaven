@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import BackgroundTasks
+import ConcurrencyExtras
 import FactoryKit
 import Foundation
 import Logging
@@ -28,7 +29,7 @@ final class RefreshScheduler: Sendable {
 
   private let currentlyRefreshing = ThreadSafe(false)
   private let refreshTask = ThreadSafe<Task<Void, Never>?>(nil)
-  private let bgTask = ThreadSafe<Task<Void, Never>?>(nil)
+  private let bgTask = ThreadSafe<Task<Bool, Never>?>(nil)
 
   // MARK: - Initialization
 
@@ -57,7 +58,13 @@ final class RefreshScheduler: Sendable {
       }
 
       self.schedule(in: 15.minutes)
-      task.setTaskCompleted(success: self.handle())
+
+      Task { [weak self, taskWrapper = UncheckedSendable(task)] in
+        guard let self else { return }
+
+        let success = await self.handle()
+        taskWrapper.value.setTaskCompleted(success: success)
+      }
     }
   }
 
@@ -75,7 +82,7 @@ final class RefreshScheduler: Sendable {
 
   // MARK: - Background Task Handling
 
-  private func handle() -> Bool {
+  private func handle() async -> Bool {
     Self.log.debug("handling background refresh callback")
 
     if connectionState.currentPath.status != .satisfied {
@@ -88,53 +95,29 @@ final class RefreshScheduler: Sendable {
       return true
     }
 
-    return true
-    //
-    //    runningTask = Task(priority: .background) { [weak self] in
-    //      guard let self else {
-    //        return RefreshIterationResult(succeeded: false, policy: policy)
-    //      }
-    //
-    //      do {
-    //        let limit = policy.limit ?? Int.max
-    //        try await self.refreshManager.performRefresh(
-    //          stalenessThreshold: policy.stalenessThreshold,
-    //          filter: Podcast.subscribed,
-    //          limit: limit
-    //        )
-    //        Self.log.debug("handle: refresh completed")
-    //        return RefreshIterationResult(succeeded: true, policy: policy)
-    //      } catch {
-    //        Self.log.error(error)
-    //        return RefreshIterationResult(succeeded: false, policy: policy)
-    //      }
-    //    }
-    //
-    //    let result = await runningTask?.value ?? .init(succeeded: false, policy: policy)
-    //    runningTask = nil
-    //    task.setTaskCompleted(success: result.succeeded)
-    //    schedule(reason: .afterCompletion(result: result))
-    //  }
-    //
-    //  private func earliestBeginDate(for reason: ScheduleReason) -> Date? {
-    //    let interval: TimeInterval
-    //    switch reason {
-    //    case .initial:
-    //      interval = 30.minutes
-    //    case .appDidEnterBackground:
-    //      interval = 15.minutes
-    //    case .afterCompletion(let iteration):
-    //      interval = iteration.succeeded ? 30.minutes : 5.minutes
-    //    }
-    //
-    //    return Date(timeIntervalSinceNow: interval)
+    let task: Task<Bool, Never> = Task(priority: .background) { [weak self] in
+      guard let self else { return false }
 
+      do {
+        try await self.refreshManager.performRefresh(
+          filter: Podcast.subscribed,
+          limit: 16
+        )
+        Self.log.debug("handle: refresh completed")
+        return true
+      } catch {
+        Self.log.error(error)
+        return false
+      }
+    }
+    bgTask(task)
+    return (await task.value)
   }
 
   // MARK: - Foreground Loop Refreshing
 
   private func activated() {
-    Self.log.debug("activated: starting background refresh task")
+    Self.log.debug("activated: starting refresh task")
 
     if currentlyRefreshing() {
       Self.log.debug("activated: already refreshing")
@@ -154,7 +137,6 @@ final class RefreshScheduler: Sendable {
           do {
             Self.log.debug("refreshTask: performing refresh")
             try await refreshManager.performRefresh(
-              stalenessThreshold: 1.hoursAgo,
               filter: Podcast.subscribed,
               limit: 64
             )

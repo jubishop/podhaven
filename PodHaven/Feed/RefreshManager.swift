@@ -25,7 +25,7 @@ struct RefreshManager {
   // MARK: - Refresh Management
 
   func performRefresh(
-    stalenessThreshold: Date,
+    stalenessThreshold: Date = 1.hoursAgo,
     filter: SQLExpression = AppDB.NoOp,
     limit: Int = Int.max
   ) async throws(RefreshError) {
