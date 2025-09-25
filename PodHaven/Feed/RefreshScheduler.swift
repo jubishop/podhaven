@@ -40,6 +40,7 @@ final class RefreshScheduler: Sendable {
 
     schedule(in: 15.minutes)
     startListeningToActivation()
+    startListeningToBackgrounding()
   }
 
   // MARK: - Background Task Scheduling
@@ -157,6 +158,12 @@ final class RefreshScheduler: Sendable {
     )
   }
 
+  private func backgrounded() {
+    Self.log.debug("backgrounded: scheduling BGAppRefreshTask")
+
+    schedule(in: 15.minutes)
+  }
+
   private func startListeningToActivation() {
     Assert.neverCalled()
 
@@ -166,7 +173,7 @@ final class RefreshScheduler: Sendable {
       try? await sleeper.sleep(for: .seconds(15))
 
       if await UIApplication.shared.applicationState == .active {
-        Self.log.debug("app already active, activating refresh task")
+        Self.log.debug("app already active")
         activated()
       } else {
         Self.log.debug("app not active, waiting for activation")
@@ -174,6 +181,25 @@ final class RefreshScheduler: Sendable {
 
       for await _ in notifications(UIApplication.didBecomeActiveNotification) {
         activated()
+      }
+    }
+  }
+
+  private func startListeningToBackgrounding() {
+    Assert.neverCalled()
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      if await UIApplication.shared.applicationState == .background {
+        Self.log.debug("app already backgrounded")
+        backgrounded()
+      } else {
+        Self.log.debug("app is active, waiting for backgrounding")
+      }
+
+      for await _ in notifications(UIApplication.didEnterBackgroundNotification) {
+        backgrounded()
       }
     }
   }

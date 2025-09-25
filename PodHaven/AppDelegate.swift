@@ -28,8 +28,4 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
       completion: { @MainActor in completionHandler() }
     )
   }
-
-  func applicationDidEnterBackground(_ application: UIApplication) {
-    refreshScheduler.schedule(in: 15.minutes)
-  }
 }
