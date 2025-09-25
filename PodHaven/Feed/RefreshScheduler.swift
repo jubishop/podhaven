@@ -19,7 +19,7 @@ final class RefreshScheduler {
 
   private static let log = Log.as(LogSubsystem.Feed.refreshScheduler)
 
-  //  private var runningTask: Task<RefreshIterationResult, Never>?
+  private var runningTask: Task<Void, Never>?
 
   // MARK: - Schedule Management
 
@@ -28,13 +28,14 @@ final class RefreshScheduler {
       forTaskWithIdentifier: Self.backgroundTaskIdentifier,
       using: nil
     ) { task in
-      guard let appRefreshTask = task as? BGAppRefreshTask
-      else {
-        task.setTaskCompleted(success: false)
-        return
-      }
+      task.expirationHandler = { [weak self] in
+        guard let self else { return }
 
-      self.handle(task: appRefreshTask)
+        runningTask?.cancel()
+        task.setTaskCompleted(success: false)
+      }
+      self.schedule(in: 15.minutes)
+      task.setTaskCompleted(success: self.handle())
     }
   }
 
@@ -52,17 +53,20 @@ final class RefreshScheduler {
 
   // MARK: - Private
 
-  private func handle(task: BGAppRefreshTask) {
-    Self.log.debug("beginning BGAppRefreshTask: \(task)")
-    //
-    //    let policy = RefreshPolicy.policy(for: connectivityMonitor.currentStatus)
-    //
-    //    guard policy.status.allowsRefresh else {
-    //      Self.log.debug("handle: connectivity unavailable, completing without refresh")
-    //      schedule(reason: .afterCompletion(result: .init(succeeded: true, policy: policy)))
-    //      task.setTaskCompleted(success: true)
-    //      return
-    //    }
+  private func handle() -> Bool {
+    Self.log.debug("handling background refresh callback")
+
+    if connectionState.currentPath.status != .satisfied {
+      Self.log.debug("connectivity unavailable")
+      return true
+    }
+
+    if connectionState.currentPath.isConstrained {
+      Self.log.debug("connectivity constrained (low data mode)")
+      return true
+    }
+
+    return true
     //
     //    schedule(reason: .initial)
     //
