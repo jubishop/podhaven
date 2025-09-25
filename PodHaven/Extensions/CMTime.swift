@@ -10,13 +10,8 @@ extension CMTime:
 {
   // MARK: - Conversions
 
-  func asDuration() -> Duration {
-    Duration.seconds(CMTimeGetSeconds(self))
-  }
-
-  func asTimeInterval() -> TimeInterval {
-    TimeInterval.seconds(CMTimeGetSeconds(self))
-  }
+  var asDuration: Duration { Duration.seconds(CMTimeGetSeconds(self)) }
+  var asTimeInterval: TimeInterval { TimeInterval.seconds(CMTimeGetSeconds(self)) }
 
   // MARK: - Creation Helpers
 

@@ -6,13 +6,8 @@ import Foundation
 extension Duration {
   // MARK: - Conversions
 
-  func asCMTime() -> CMTime {
-    CMTime.seconds(self / .seconds(1))
-  }
-
-  func asTimeInterval() -> TimeInterval {
-    TimeInterval.seconds(self / .seconds(1))
-  }
+  var asCMTime: CMTime { CMTime.seconds(self / .seconds(1)) }
+  var asTimeInterval: TimeInterval { TimeInterval.seconds(self / .seconds(1)) }
 
   // MARK: - Creation Helpers
 

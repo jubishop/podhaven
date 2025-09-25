@@ -23,6 +23,10 @@ final class RefreshScheduler: Sendable {
 
   private static let backgroundTaskIdentifier = "com.justinbishop.podhaven.refresh"
 
+  typealias RefreshPolicy = (cadence: Duration, cellLimit: Int, wifiLimit: Int)
+  private let backgroundPolicy: RefreshPolicy = (cadence: .minutes(15), cellLimit: 4, wifiLimit: 16)
+  private let foregroundPolicy: RefreshPolicy = (cadence: .minutes(5), cellLimit: 8, wifiLimit: 32)
+
   private static let log = Log.as(LogSubsystem.Feed.refreshScheduler)
 
   // MARK: - State Management
@@ -38,7 +42,7 @@ final class RefreshScheduler: Sendable {
   func start() {
     Self.log.debug("start: executing")
 
-    schedule(in: 15.minutes)
+    schedule(in: backgroundPolicy.cadence)
     startListeningToActivation()
     startListeningToBackgrounding()
   }
@@ -49,7 +53,9 @@ final class RefreshScheduler: Sendable {
     BGTaskScheduler.shared.register(
       forTaskWithIdentifier: Self.backgroundTaskIdentifier,
       using: nil
-    ) { task in
+    ) { [weak self] task in
+      guard let self else { return }
+
       let taskWrapper = UncheckedSendable(task)
       let didComplete = ThreadSafe(false)
       let complete: @Sendable (Bool) -> Void = { [didComplete, taskWrapper] success in
@@ -70,7 +76,7 @@ final class RefreshScheduler: Sendable {
         complete(false)
       }
 
-      self.schedule(in: 15.minutes)
+      schedule(in: backgroundPolicy.cadence)
 
       Task { [weak self, complete] in
         guard let self
@@ -85,13 +91,13 @@ final class RefreshScheduler: Sendable {
     }
   }
 
-  func schedule(in timeInterval: TimeInterval) {
+  func schedule(in duration: Duration) {
     let request = BGAppRefreshTaskRequest(identifier: Self.backgroundTaskIdentifier)
-    request.earliestBeginDate = Date(timeIntervalSinceNow: timeInterval)
+    request.earliestBeginDate = Date.now.advanced(by: duration.asTimeInterval)
 
     do {
       try BGTaskScheduler.shared.submit(request)
-      Self.log.debug("scheduled next background refresh in: \(timeInterval)")
+      Self.log.debug("scheduled next background refresh in: \(duration)")
     } catch {
       Self.log.error(error)
     }
@@ -102,14 +108,7 @@ final class RefreshScheduler: Sendable {
   private func handle() async -> Bool {
     Self.log.debug("bgTask handling background refresh callback")
 
-    let currentPath = connectionState.currentPath
-
-    if currentPath.status != .satisfied {
-      Self.log.debug("bgTask: connection is unsatisfied")
-      return true
-    }
-
-    if currentPath.isConstrained || currentPath.isUltraConstrained {
+    if connectionState.isConstrained {
       Self.log.debug("bgTask: connection is constrained (low data mode)")
       return true
     }
@@ -120,7 +119,9 @@ final class RefreshScheduler: Sendable {
       do {
         try await self.refreshManager.performRefresh(
           filter: Podcast.subscribed,
-          limit: currentPath.isExpensive ? 4 : 16
+          limit: connectionState.isExpensive
+            ? backgroundPolicy.cellLimit
+            : backgroundPolicy.wifiLimit
         )
         Self.log.debug("bgTask handle: refresh completed")
         return true
@@ -162,21 +163,16 @@ final class RefreshScheduler: Sendable {
             let performRefreshTask: () async throws -> Void = { [weak self] in
               guard let self else { return }
 
-              let currentPath = connectionState.currentPath
-
-              if currentPath.status != .satisfied {
-                Self.log.debug("refreshTask: connection is unsatisfied")
-                return
-              }
-
-              if currentPath.isConstrained || currentPath.isUltraConstrained {
+              if connectionState.isConstrained {
                 Self.log.debug("refreshTask: connection is constrained (low data mode)")
                 return
               }
 
               try await refreshManager.performRefresh(
                 filter: Podcast.subscribed,
-                limit: currentPath.isExpensive ? 16 : 64
+                limit: connectionState.isExpensive
+                  ? foregroundPolicy.cellLimit
+                  : foregroundPolicy.wifiLimit
               )
             }
             try await performRefreshTask()
@@ -189,7 +185,7 @@ final class RefreshScheduler: Sendable {
           await backgroundTask.end()
 
           Self.log.debug("refreshTask: now sleeping")
-          try? await self.sleeper.sleep(for: .minutes(15))
+          try? await self.sleeper.sleep(for: foregroundPolicy.cadence)
         }
       }
     )
@@ -198,7 +194,7 @@ final class RefreshScheduler: Sendable {
   private func backgrounded() {
     Self.log.debug("backgrounded: scheduling BGAppRefreshTask")
 
-    schedule(in: 15.minutes)
+    schedule(in: backgroundPolicy.cadence)
   }
 
   private func startListeningToActivation() {

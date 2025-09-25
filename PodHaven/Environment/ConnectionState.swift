@@ -27,4 +27,12 @@ final class ConnectionState: Sendable {
 
     monitor.start(queue: DispatchQueue(label: "podhaven.connection.state"))
   }
+
+  var isConstrained: Bool {
+    currentPath.isConstrained || currentPath.isUltraConstrained
+  }
+
+  var isExpensive: Bool {
+    currentPath.isExpensive
+  }
 }
