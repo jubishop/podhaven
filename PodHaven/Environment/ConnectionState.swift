@@ -10,24 +10,21 @@ extension Container {
   }
 }
 
-actor ConnectionState {
-  private let monitor = NWPathMonitor()
-  private let queue = DispatchQueue(label: "podhaven.connectivity.monitor")
+final class ConnectionState: Sendable {
+  var currentPath: NWPath { _currentPath() }
 
-  let currentPath: ThreadSafe<NWPath>
+  private let _currentPath: ThreadSafe<NWPath>
 
   fileprivate init() {
-    currentPath = ThreadSafe<NWPath>(monitor.currentPath)
-  }
+    let monitor = NWPathMonitor()
 
-  func start() async {
-    Assert.neverCalled()
+    _currentPath = ThreadSafe<NWPath>(monitor.currentPath)
 
     monitor.pathUpdateHandler = { [weak self] path in
       guard let self else { return }
-      currentPath(path)
+      _currentPath(path)
     }
 
-    monitor.start(queue: queue)
+    monitor.start(queue: DispatchQueue(label: "podhaven.connection.state"))
   }
 }
