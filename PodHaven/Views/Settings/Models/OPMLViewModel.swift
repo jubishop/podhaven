@@ -171,7 +171,7 @@ extension Container {
 
           let feedTask = await self.feedManager.addURL(outline.feedURL)
           await feedTask.downloadBegan()
-          await self.updateOutlineStatus(outline, in: opmlFile, to: .downloading)
+          await updateOutlineStatus(outline, in: opmlFile, to: .downloading)
 
           do {
             let podcastFeed = try await feedTask.feedParsed()
@@ -190,11 +190,11 @@ extension Container {
               unsavedPodcast,
               unsavedEpisodes: podcastFeed.episodes.compactMap { try? $0.toUnsavedEpisode() }
             )
-            await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
+            await updateOutlineStatus(outline, in: opmlFile, to: .finished)
           } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
-            await self.updateOutlineStatus(outline, in: opmlFile, to: .finished)
+            await updateOutlineStatus(outline, in: opmlFile, to: .finished)
           } catch {
-            await self.updateOutlineStatus(outline, in: opmlFile, to: .failed)
+            await updateOutlineStatus(outline, in: opmlFile, to: .failed)
           }
         }
       }
@@ -205,23 +205,20 @@ extension Container {
     _ outline: OPMLOutline,
     in opmlFile: OPMLFile,
     to newStatus: OPMLOutline.Status
-  ) async {
-    await Task { [outline, opmlFile, newStatus] in
-      outline.status = newStatus
-      switch newStatus {
-      case .finished:
-        opmlFile.downloading.remove(outline)
-        opmlFile.finished.insert(outline)
-      case .failed:
-        opmlFile.downloading.remove(outline)
-        opmlFile.failed.insert(outline)
-      case .downloading:
-        opmlFile.waiting.remove(outline)
-        opmlFile.downloading.insert(outline)
-      case .waiting:
-        Assert.fatal("Updated status back to waiting?!")
-      }
+  ) {
+    outline.status = newStatus
+    switch newStatus {
+    case .finished:
+      opmlFile.downloading.remove(outline)
+      opmlFile.finished.insert(outline)
+    case .failed:
+      opmlFile.downloading.remove(outline)
+      opmlFile.failed.insert(outline)
+    case .downloading:
+      opmlFile.waiting.remove(outline)
+      opmlFile.downloading.insert(outline)
+    case .waiting:
+      Assert.fatal("Updated status back to waiting?!")
     }
-    .value
   }
 }

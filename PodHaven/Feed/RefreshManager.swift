@@ -37,11 +37,6 @@ struct RefreshManager {
       """
     )
 
-    guard limit > 0 else {
-      Self.log.debug("performRefresh: limit non-positive, skipping")
-      return
-    }
-
     try await RefreshError.catch {
       try await withThrowingDiscardingTaskGroup { group in
         let staleSeries = try await repo.allPodcastSeries(
