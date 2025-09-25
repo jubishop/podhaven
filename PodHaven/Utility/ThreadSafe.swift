@@ -23,8 +23,12 @@ extension ThreadSafe where Type: Copyable {
 
 extension ThreadSafe where Type: Sendable & Copyable {
   // Setter for types that are both Sendable and Copyable
-  borrowing func callAsFunction(_ newValue: Type) {
-    mutex.withLock { $0 = newValue }
+  @discardableResult
+  borrowing func callAsFunction(_ newValue: Type) -> Type {
+    mutex.withLock {
+      $0 = newValue
+      return newValue
+    }
   }
 }
 

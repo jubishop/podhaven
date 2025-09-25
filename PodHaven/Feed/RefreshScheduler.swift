@@ -106,61 +106,43 @@ final class RefreshScheduler: Sendable {
     }
   }
 
-  func claimRefreshing() -> Bool {
-    currentlyRefreshing {
-      if $0 { return false }
-      $0 = true
-      return true
-    }
+  private func backgrounded() {
+    Self.log.debug("backgrounded: scheduling BGAppRefreshTask")
+
+    schedule(in: backgroundPolicy.cadence)
   }
 
-  // MARK: - Background Task Handling
+  // MARK: - Background Task
 
   private func handle() async -> Bool {
-    Self.log.debug("bgTask handling background refresh callback")
-
-    if connectionState.isConstrained {
-      Self.log.debug("bgTask handle: connection is constrained (low data mode)")
-      return true
-    }
-
-    if !claimRefreshing() {
-      Self.log.debug("bgTask handle: already refreshing")
-      return true
-    }
+    Self.log.debug("bgTask: performing refresh")
 
     let task: Task<Bool, Never> = Task(priority: .background) { [weak self] in
       guard let self else { return false }
 
       do {
-        try await refreshManager.performRefresh(
-          filter: Podcast.subscribed,
-          limit: connectionState.isExpensive
-            ? backgroundPolicy.cellLimit
-            : backgroundPolicy.wifiLimit
-        )
-        Self.log.debug("bgTask handle: refresh completed")
+        try await executeRefresh(backgroundPolicy)
         return true
       } catch {
         Self.log.error(error)
         return false
       }
     }
-
     bgTask(task)
     let success = await task.value
     bgTask(nil)
-    currentlyRefreshing(false)
+
+    Self.log.debug("bgTask: refresh completed gracefully")
 
     return success
   }
 
-  // MARK: - Foreground Loop Refreshing
+  // MARK: - Foreground Task
 
   private func activated() {
     Self.log.debug("activated: starting refresh task")
 
-    if !claimRefreshing() {
+    if currentlyRefreshing() {
       Self.log.debug("activated: already refreshing")
       return
     }
@@ -170,28 +152,19 @@ final class RefreshScheduler: Sendable {
       Task(priority: .background) { [weak self] in
         guard let self else { return }
 
-        while !Task.isCancelled {
+        try? await sleeper.sleep(for: .seconds(15))
+
+        while await UIApplication.shared.applicationState == .active && !Task.isCancelled {
           let backgroundTask = await BackgroundTask.start(
             withName: "RefreshManager.refreshTask"
           )
-          currentlyRefreshing(true)
           do {
             Self.log.debug("refreshTask: performing refresh")
 
             let performRefreshTask: () async throws -> Void = { [weak self] in
               guard let self else { return }
 
-              if connectionState.isConstrained {
-                Self.log.debug("refreshTask: connection is constrained (low data mode)")
-                return
-              }
-
-              try await refreshManager.performRefresh(
-                filter: Podcast.subscribed,
-                limit: connectionState.isExpensive
-                  ? foregroundPolicy.cellLimit
-                  : foregroundPolicy.wifiLimit
-              )
+              try await executeRefresh(foregroundPolicy)
             }
             try await performRefreshTask()
 
@@ -199,7 +172,6 @@ final class RefreshScheduler: Sendable {
           } catch {
             Self.log.error(error)
           }
-          currentlyRefreshing(false)
           await backgroundTask.end()
 
           Self.log.debug("refreshTask: now sleeping")
@@ -209,19 +181,45 @@ final class RefreshScheduler: Sendable {
     )
   }
 
-  private func backgrounded() {
-    Self.log.debug("backgrounded: scheduling BGAppRefreshTask")
+  // MARK: - Refresh Helpers
 
-    schedule(in: backgroundPolicy.cadence)
+  func claimRefreshing() -> Bool {
+    currentlyRefreshing {
+      if $0 { return false }
+      $0 = true
+      return true
+    }
   }
+
+  func executeRefresh(_ refreshPolicy: RefreshPolicy) async throws {
+    if connectionState.isConstrained {
+      Self.log.debug("connection is constrained (low data mode)")
+      return
+    }
+
+    if !claimRefreshing() {
+      Self.log.debug("already refreshing")
+      return
+    }
+    defer { currentlyRefreshing(false) }
+
+    try await refreshManager.performRefresh(
+      filter: Podcast.subscribed,
+      limit: connectionState.isExpensive
+        ? refreshPolicy.cellLimit
+        : refreshPolicy.wifiLimit
+    )
+
+    Self.log.debug("refresh completed")
+  }
+
+  // MARK: - Notifications
 
   private func startListeningToActivation() {
     Assert.neverCalled()
 
     Task { [weak self] in
       guard let self else { return }
-
-      try? await sleeper.sleep(for: .seconds(15))
 
       if await UIApplication.shared.applicationState == .active {
         Self.log.debug("app already active")
