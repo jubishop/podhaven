@@ -27,11 +27,18 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     try await repo.allPodcasts(filter)
   }
 
-  func allPodcastSeries(_ filter: SQLExpression, limit: Int = Int.max) async throws(RepoError)
+  func allPodcastSeries(
+    _ filter: SQLExpression,
+    order: SQLOrdering = Podcast.Columns.id.desc,
+    limit: Int = Int.max
+  ) async throws(RepoError)
     -> [PodcastSeries]
   {
-    recordCall(methodName: "allPodcastSeries", parameters: (filter: filter, limit: limit))
-    return try await repo.allPodcastSeries(filter, limit: limit)
+    recordCall(
+      methodName: "allPodcastSeries",
+      parameters: (filter: filter, order: order, limit: limit)
+    )
+    return try await repo.allPodcastSeries(filter, order: order, limit: limit)
   }
 
   // MARK: - Series Readers

@@ -236,8 +236,9 @@ final class RefreshManager {
         do {
           Self.log.debug("backgroundRefreshTask: performing refresh")
           try await self.performRefresh(
-            stalenessThreshold: 10.minutesAgo,
-            filter: Podcast.subscribed
+            stalenessThreshold: 1.hoursAgo,
+            filter: Podcast.subscribed,
+            limit: 64
           )
           Self.log.debug("backgroundRefreshTask: refresh completed gracefully")
         } catch {

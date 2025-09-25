@@ -31,9 +31,11 @@ final class RefreshScheduler {
       task.expirationHandler = { [weak self] in
         guard let self else { return }
 
+        Self.log.debug("handle: expiration triggered, cancelling running task")
         runningTask?.cancel()
         task.setTaskCompleted(success: false)
       }
+
       self.schedule(in: 15.minutes)
       task.setTaskCompleted(success: self.handle())
     }
@@ -67,15 +69,6 @@ final class RefreshScheduler {
     }
 
     return true
-    //
-    //    schedule(reason: .initial)
-    //
-    //    task.expirationHandler = { [weak self] in
-    //      Self.log.debug("handle: expiration triggered, cancelling running task")
-    //      Task { @MainActor [weak self] in
-    //        self?.runningTask?.cancel()
-    //      }
-    //    }
     //
     //    runningTask = Task(priority: .background) { [weak self] in
     //      guard let self else {

@@ -147,18 +147,28 @@ class PodcastTests {
 
   @Test("allPodcastSeries()")
   func testAllPodcastSeries() async throws {
-    let freshPodcast = try Create.unsavedPodcast(lastUpdate: Date())
-    let stalePodcast = try Create.unsavedPodcast(lastUpdate: 10.minutesAgo)
-    let unsubscribedPodcast = try Create.unsavedPodcast(subscriptionDate: nil)
-    try await repo.insertSeries(freshPodcast)
-    try await repo.insertSeries(stalePodcast)
-    try await repo.insertSeries(unsubscribedPodcast)
+    let freshPodcast = try Create.unsavedPodcast(
+      lastUpdate: Date(),
+      subscriptionDate: 10.minutesAgo
+    )
+    let stalePodcast = try Create.unsavedPodcast(
+      lastUpdate: 10.minutesAgo,
+      subscriptionDate: 20.minutesAgo
+    )
+    let unsubscribedPodcast = try Create.unsavedPodcast()
+    let freshSeries = try await repo.insertSeries(freshPodcast)
+    let staleSeries = try await repo.insertSeries(stalePodcast)
+    let neverUpdatedSeries = try await repo.insertSeries(unsubscribedPodcast)
 
-    let allPodcastSeries = try await repo.allPodcastSeries()
+    let allPodcastSeries = try await repo.allPodcastSeries(order: Podcast.Columns.lastUpdate.asc)
     #expect(allPodcastSeries.count == 3)
+    #expect(allPodcastSeries == [neverUpdatedSeries, staleSeries, freshSeries])
 
     let limitedPodcastSeries = try await repo.allPodcastSeries(limit: 2)
     #expect(limitedPodcastSeries.count == 2)
+
+    let subscribedPodcastSeries = try await repo.allPodcastSeries(Podcast.subscribed)
+    #expect(Set(subscribedPodcastSeries) == Set([staleSeries, freshSeries]))
   }
 
   @Test("markSubscribed() successfully marks multiple podcasts as subscribed")
