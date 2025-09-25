@@ -100,17 +100,17 @@ final class RefreshScheduler: Sendable {
   // MARK: - Background Task Handling
 
   private func handle() async -> Bool {
-    Self.log.debug("handling background refresh callback")
+    Self.log.debug("bgTask handling background refresh callback")
 
     let currentPath = connectionState.currentPath
 
     if currentPath.status != .satisfied {
-      Self.log.debug("connection is unsatisfied")
+      Self.log.debug("bgTask: connection is unsatisfied")
       return true
     }
 
     if currentPath.isConstrained || currentPath.isUltraConstrained {
-      Self.log.debug("connection is constrained (low data mode)")
+      Self.log.debug("bgTask: connection is constrained (low data mode)")
       return true
     }
 
@@ -122,7 +122,7 @@ final class RefreshScheduler: Sendable {
           filter: Podcast.subscribed,
           limit: currentPath.isExpensive ? 4 : 16
         )
-        Self.log.debug("handle: refresh completed")
+        Self.log.debug("bgTask handle: refresh completed")
         return true
       } catch {
         Self.log.error(error)
@@ -158,12 +158,30 @@ final class RefreshScheduler: Sendable {
           currentlyRefreshing(true)
           do {
             Self.log.debug("refreshTask: performing refresh")
-            try await refreshManager.performRefresh(
-              filter: Podcast.subscribed,
-              limit: 64
-            )
+
+            let performRefreshTask: () async throws -> Void = { [connectionState, refreshManager] in
+              let currentPath = connectionState.currentPath
+
+              if currentPath.status != .satisfied {
+                Self.log.debug("refreshTask: connection is unsatisfied")
+                return
+              }
+
+              if currentPath.isConstrained || currentPath.isUltraConstrained {
+                Self.log.debug("refreshTask: connection is constrained (low data mode)")
+                return
+              }
+
+              try await refreshManager.performRefresh(
+                filter: Podcast.subscribed,
+                limit: currentPath.isExpensive ? 16 : 64
+              )
+            }
+            try await performRefreshTask()
+
             Self.log.debug("refreshTask: refresh completed gracefully")
           } catch {
+            guard ErrorKit.isRemarkable(error) else { return }
             Self.log.error(error)
           }
           currentlyRefreshing(false)
