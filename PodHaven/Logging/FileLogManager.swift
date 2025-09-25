@@ -67,6 +67,8 @@ struct FileLogManager: Sendable {
   private func startPeriodicCleanup() {
     Assert.neverCalled()
 
+    try? await sleeper.sleep(for: .seconds(30))
+
     Task(priority: .background) {
       while true {
         do {
