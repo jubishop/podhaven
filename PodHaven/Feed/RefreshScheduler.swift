@@ -68,10 +68,8 @@ final class RefreshScheduler: Sendable {
         guard let self else { return }
 
         Self.log.debug("handle: expiration triggered, cancelling running task")
-        if let backgroundTask = bgTask() {
-          backgroundTask.cancel()
-          bgTask(nil)
-        }
+        bgTask()?.cancel()
+        bgTask(nil)
         complete(false)
       }
 
@@ -128,6 +126,7 @@ final class RefreshScheduler: Sendable {
         return false
       }
     }
+
     bgTask(task)
     let success = await task.value
     bgTask(nil)
@@ -140,7 +139,7 @@ final class RefreshScheduler: Sendable {
   // MARK: - Foreground Task
 
   private func activated() {
-    Self.log.debug("activated: starting refresh task")
+    Self.log.debug("activated: starting foreground refresh task loop")
 
     if currentlyRefreshing() {
       Self.log.debug("activated: already refreshing")
@@ -161,12 +160,7 @@ final class RefreshScheduler: Sendable {
           do {
             Self.log.debug("refreshTask: performing refresh")
 
-            let performRefreshTask: () async throws -> Void = { [weak self] in
-              guard let self else { return }
-
-              try await executeRefresh(foregroundPolicy)
-            }
-            try await performRefreshTask()
+            try await executeRefresh(foregroundPolicy)
 
             Self.log.debug("refreshTask: refresh completed gracefully")
           } catch {
@@ -198,7 +192,7 @@ final class RefreshScheduler: Sendable {
     }
 
     if !claimRefreshing() {
-      Self.log.debug("already refreshing")
+      Self.log.debug("failed to claim refreshing: already refreshing")
       return
     }
     defer { currentlyRefreshing(false) }
@@ -209,8 +203,6 @@ final class RefreshScheduler: Sendable {
         ? refreshPolicy.cellLimit
         : refreshPolicy.wifiLimit
     )
-
-    Self.log.debug("refresh completed")
   }
 
   // MARK: - Notifications

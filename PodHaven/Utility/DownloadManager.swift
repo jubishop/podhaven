@@ -101,7 +101,7 @@ actor DownloadManager {
 
   var remainingDownloads: Int { pendingDownloads.count + activeDownloads.count }
 
-  init(session: DataFetchable, maxConcurrentDownloads: Int = 16) {
+  init(session: DataFetchable, maxConcurrentDownloads: Int = 32) {
     self.session = session
     self.maxConcurrentDownloads = maxConcurrentDownloads
   }
