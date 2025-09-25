@@ -50,21 +50,37 @@ final class RefreshScheduler: Sendable {
       forTaskWithIdentifier: Self.backgroundTaskIdentifier,
       using: nil
     ) { task in
-      task.expirationHandler = { [weak self] in
+      let taskWrapper = UncheckedSendable(task)
+      let didComplete = ThreadSafe(false)
+      let complete: @Sendable (Bool) -> Void = { [didComplete, taskWrapper] success in
+        guard !didComplete() else { return }
+        didComplete(true)
+        taskWrapper.value.setTaskCompleted(success: success)
+      }
+
+      task.expirationHandler = { [weak self, complete] in
         guard let self else { return }
 
         Self.log.debug("handle: expiration triggered, cancelling running task")
-        bgTask()?.cancel()
-        task.setTaskCompleted(success: false)
+
+        if let backgroundTask = bgTask() {
+          backgroundTask.cancel()
+          bgTask(nil)
+        }
+        complete(false)
       }
 
       self.schedule(in: 15.minutes)
 
-      Task { [weak self, taskWrapper = UncheckedSendable(task)] in
-        guard let self else { return }
+      Task { [weak self, complete] in
+        guard let self
+        else {
+          complete(false)
+          return
+        }
 
         let success = await self.handle()
-        taskWrapper.value.setTaskCompleted(success: success)
+        complete(success)
       }
     }
   }
@@ -115,7 +131,9 @@ final class RefreshScheduler: Sendable {
     }
 
     bgTask(task)
-    return (await task.value)
+    let success = await task.value
+    bgTask(nil)
+    return success
   }
 
   // MARK: - Foreground Loop Refreshing
