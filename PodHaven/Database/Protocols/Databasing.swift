@@ -121,38 +121,14 @@ extension Databasing {
 
   func updateSeriesFromFeed(
     podcastID: Podcast.ID,
-    podcast: Podcast?
-  ) async throws(RepoError) {
-    try await updateSeriesFromFeed(
-      podcastID: podcastID,
-      podcast: podcast,
-      unsavedEpisodes: [],
-      existingEpisodes: []
-    )
-  }
-
-  func updateSeriesFromFeed(
-    podcastID: Podcast.ID,
-    podcast: Podcast?,
-    unsavedEpisodes: [UnsavedEpisode]
+    podcast: Podcast? = nil,
+    unsavedEpisodes: [UnsavedEpisode] = [],
+    existingEpisodes: [Episode] = []
   ) async throws(RepoError) {
     try await updateSeriesFromFeed(
       podcastID: podcastID,
       podcast: podcast,
       unsavedEpisodes: unsavedEpisodes,
-      existingEpisodes: []
-    )
-  }
-
-  func updateSeriesFromFeed(
-    podcastID: Podcast.ID,
-    podcast: Podcast?,
-    existingEpisodes: [Episode]
-  ) async throws(RepoError) {
-    try await updateSeriesFromFeed(
-      podcastID: podcastID,
-      podcast: podcast,
-      unsavedEpisodes: [],
       existingEpisodes: existingEpisodes
     )
   }
