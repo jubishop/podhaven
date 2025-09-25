@@ -84,8 +84,12 @@ final class RefreshScheduler: Sendable {
           return
         }
 
-        let success = await self.handle()
+        let success = await handle()
         complete(success)
+
+        if await UIApplication.shared.applicationState == .active {
+          activated()
+        }
       }
     }
   }
@@ -102,13 +106,26 @@ final class RefreshScheduler: Sendable {
     }
   }
 
+  func claimRefreshing() -> Bool {
+    currentlyRefreshing {
+      if $0 { return false }
+      $0 = true
+      return true
+    }
+  }
+
   // MARK: - Background Task Handling
 
   private func handle() async -> Bool {
     Self.log.debug("bgTask handling background refresh callback")
 
     if connectionState.isConstrained {
-      Self.log.debug("bgTask: connection is constrained (low data mode)")
+      Self.log.debug("bgTask handle: connection is constrained (low data mode)")
+      return true
+    }
+
+    if !claimRefreshing() {
+      Self.log.debug("bgTask handle: already refreshing")
       return true
     }
 
@@ -133,6 +150,8 @@ final class RefreshScheduler: Sendable {
     bgTask(task)
     let success = await task.value
     bgTask(nil)
+    currentlyRefreshing(false)
+
     return success
   }
 
@@ -141,7 +160,7 @@ final class RefreshScheduler: Sendable {
   private func activated() {
     Self.log.debug("activated: starting refresh task")
 
-    if currentlyRefreshing() {
+    if !claimRefreshing() {
       Self.log.debug("activated: already refreshing")
       return
     }
