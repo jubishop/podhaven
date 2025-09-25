@@ -133,7 +133,7 @@ final class RefreshScheduler: Sendable {
       guard let self else { return false }
 
       do {
-        try await self.refreshManager.performRefresh(
+        try await refreshManager.performRefresh(
           filter: Podcast.subscribed,
           limit: connectionState.isExpensive
             ? backgroundPolicy.cellLimit
@@ -203,7 +203,7 @@ final class RefreshScheduler: Sendable {
           await backgroundTask.end()
 
           Self.log.debug("refreshTask: now sleeping")
-          try? await self.sleeper.sleep(for: foregroundPolicy.cadence)
+          try? await sleeper.sleep(for: foregroundPolicy.cadence)
         }
       }
     )
@@ -231,7 +231,7 @@ final class RefreshScheduler: Sendable {
       }
 
       for await _ in notifications(UIApplication.didBecomeActiveNotification)
-      where UIApplication.shared.applicationState == .active {
+      where await UIApplication.shared.applicationState == .active {
         activated()
       }
     }
