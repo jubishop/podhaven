@@ -23,6 +23,8 @@ final class RefreshScheduler: Sendable {
 
   private static let backgroundTaskIdentifier = "com.justinbishop.podhaven.refresh"
 
+  private let initialDelay = Duration.seconds(5)
+
   typealias RefreshPolicy = (cadence: Duration, cellLimit: Int, wifiLimit: Int)
   private let backgroundPolicy: RefreshPolicy = (cadence: .minutes(15), cellLimit: 4, wifiLimit: 16)
   private let foregroundPolicy: RefreshPolicy = (cadence: .minutes(5), cellLimit: 8, wifiLimit: 32)
@@ -153,7 +155,7 @@ final class RefreshScheduler: Sendable {
       Task(priority: .background) { [weak self] in
         guard let self else { return }
 
-        try? await sleeper.sleep(for: .seconds(15))
+        try? await sleeper.sleep(for: initialDelay)
 
         Self.log.debug("refreshTask: done initial sleeping")
 

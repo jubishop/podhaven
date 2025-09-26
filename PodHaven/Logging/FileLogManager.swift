@@ -14,7 +14,8 @@ extension Container {
 struct FileLogManager: Sendable {
   @DynamicInjected(\.sleeper) private var sleeper
 
-  private let maxLogEntries = 2500
+  private let initialDelay = Duration.seconds(10)
+  private let maxLogEntries = 5000
   private let periodicCleanupInterval = Duration.minutes(15)
 
   private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
@@ -70,7 +71,7 @@ struct FileLogManager: Sendable {
     Assert.neverCalled()
 
     Task(priority: .background) {
-      try? await sleeper.sleep(for: .seconds(30))
+      try? await sleeper.sleep(for: initialDelay)
 
       while true {
         do {
