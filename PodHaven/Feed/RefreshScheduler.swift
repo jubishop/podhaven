@@ -25,9 +25,24 @@ final class RefreshScheduler: Sendable {
 
   private let initialDelay = Duration.seconds(5)
 
-  typealias RefreshPolicy = (cadence: Duration, cellLimit: Int, wifiLimit: Int)
-  private let backgroundPolicy: RefreshPolicy = (cadence: .minutes(15), cellLimit: 4, wifiLimit: 16)
-  private let foregroundPolicy: RefreshPolicy = (cadence: .minutes(5), cellLimit: 8, wifiLimit: 32)
+  typealias RefreshPolicy = (
+    stalenessThreshold: Duration,
+    cadence: Duration,
+    cellLimit: Int,
+    wifiLimit: Int
+  )
+  private let backgroundPolicy: RefreshPolicy = (
+    stalenessThreshold: .hours(2),
+    cadence: .minutes(15),
+    cellLimit: 4,
+    wifiLimit: 16
+  )
+  private let foregroundPolicy: RefreshPolicy = (
+    stalenessThreshold: .hours(1),
+    cadence: .minutes(5),
+    cellLimit: 8,
+    wifiLimit: 32
+  )
 
   private static let log = Log.as(LogSubsystem.Feed.refreshScheduler)
 
@@ -204,6 +219,7 @@ final class RefreshScheduler: Sendable {
     defer { currentlyRefreshing(false) }
 
     try await refreshManager.performRefresh(
+      stalenessThreshold: refreshPolicy.stalenessThreshold,
       filter: Podcast.subscribed,
       limit: connectionState.isExpensive
         ? refreshPolicy.cellLimit

@@ -157,7 +157,7 @@ import SwiftUI
 
   func refreshPodcasts() async throws(RefreshError) {
     try await refreshManager.performRefresh(
-      stalenessThreshold: 1.minutesAgo,
+      stalenessThreshold: .minutes(1),
       filter: podcastList.filteredEntryIDs.contains(Podcast.Columns.id)
     )
   }

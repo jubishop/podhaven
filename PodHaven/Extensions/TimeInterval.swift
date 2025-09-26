@@ -23,6 +23,10 @@ extension TimeInterval {
     TimeInterval(minutes * 60)
   }
 
+  static func hours(_ hours: Double) -> TimeInterval {
+    TimeInterval(hours * 3600)
+  }
+
   // MARK: - Formatting
 
   var compactReadableFormat: String {

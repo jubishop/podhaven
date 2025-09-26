@@ -25,7 +25,7 @@ struct RefreshManager {
   // MARK: - Refresh Management
 
   func performRefresh(
-    stalenessThreshold: Date = 1.hoursAgo,
+    stalenessThreshold: Duration,
     filter: SQLExpression = AppDB.NoOp,
     limit: Int = Int.max
   ) async throws(RefreshError) {
@@ -40,7 +40,8 @@ struct RefreshManager {
     try await RefreshError.catch {
       try await withThrowingDiscardingTaskGroup { group in
         let staleSeries = try await repo.allPodcastSeries(
-          Podcast.Columns.lastUpdate < stalenessThreshold && filter,
+          Podcast.Columns.lastUpdate < Date.now.advanced(by: -stalenessThreshold.asTimeInterval)
+            && filter,
           order: Podcast.Columns.lastUpdate.asc,
           limit: limit,
         )

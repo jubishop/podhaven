@@ -3,19 +3,23 @@
 import Foundation
 
 extension Int {
-  var minutes: TimeInterval {
-    TimeInterval.seconds(Double(self * 60))
+  var seconds: Duration {
+    .seconds(Double(self))
   }
 
-  var hours: TimeInterval {
-    TimeInterval.seconds(Double(self * 60 * 60))
+  var minutes: Duration {
+    .seconds(Double(self * 60))
+  }
+
+  var hours: Duration {
+    .minutes(Double(self * 60))
   }
 
   var minutesAgo: Date {
-    Date().addingTimeInterval(-minutes)
+    Date().addingTimeInterval(-minutes.asTimeInterval)
   }
 
   var hoursAgo: Date {
-    Date().addingTimeInterval(-hours)
+    Date().addingTimeInterval(-hours.asTimeInterval)
   }
 }
