@@ -53,8 +53,8 @@ actor CacheManager {
   fileprivate init() {}
 
   func start() {
-    Assert.neverCalled()
-    
+    guard Function.neverCalled() else { return }
+
     Self.log.debug("start: executing")
 
     do {

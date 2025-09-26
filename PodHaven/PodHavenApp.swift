@@ -20,15 +20,17 @@ struct PodHavenApp: App {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.shareService) private var shareService
 
-  @State private var isInitialized = false
-  @State private var isInitializing = false
+  @State private var configuringEnvironment = false
+  @State private var environmentConfigured = false
+  @State private var isStartingServices = false
+  @State private var didStartServices = false
 
   private static let log = Log.as("Main")
 
   var body: some Scene {
     WindowGroup {
       Group {
-        if isInitialized {
+        if environmentConfigured {
           ContentView()
             .customAlert($alert.config)
             .customSheet($sheet.config)
@@ -36,12 +38,16 @@ struct PodHavenApp: App {
           ProgressView("Loading...")
         }
       }
-      .onAppear {
-        Task { await initializeIfNeeded() }
-      }
-      .onChange(of: scenePhase) {
-        guard scenePhase == .active else { return }
-        Task { await initializeIfNeeded() }
+      .onChange(of: scenePhase, initial: true) { _, newPhase in
+        Task {
+          if newPhase == .active {
+            await initialize()
+          }
+
+          if didStartServices {
+            refreshScheduler.handleScenePhaseChange(to: newPhase)
+          }
+        }
       }
       .onOpenURL { url in
         Self.log.info("Received incoming URL: \(url)")
@@ -122,16 +128,19 @@ struct PodHavenApp: App {
 
   // MARK: - Launch Handling
 
-  @MainActor
-  private func initializeIfNeeded() async {
-    guard !isInitialized, !isInitializing else { return }
+  private func initialize() async {
+    guard !environmentConfigured else { return }
+    guard !configuringEnvironment else {
+      Self.log.debug("environment configuration already running")
+      return
+    }
     guard UIApplication.shared.applicationState == .active else {
-      Self.log.debug("Initialization deferred; app not active")
+      Self.log.debug("environment configuration deferred: app not active")
       return
     }
 
-    isInitializing = true
-    defer { isInitializing = false }
+    configuringEnvironment = true
+    defer { configuringEnvironment = false }
 
     await AppInfo.initializeEnvironment()
     guard !Task.isCancelled else { return }
@@ -139,16 +148,34 @@ struct PodHavenApp: App {
     Self.configureLogging()
     Self.log.debug("Environment is: \(AppInfo.environment)")
     Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
-
-    isInitialized = true
-
     guard !Task.isCancelled else { return }
 
+    environmentConfigured = true
+
     if AppInfo.environment != .testing {
-      startMemoryWarningMonitoring()
-      await playManager.start()
-      await cacheManager.start()
-      refreshScheduler.start()
+      await startServices()
     }
+  }
+
+  private func startServices() async {
+    guard !didStartServices else { return }
+    guard !isStartingServices else {
+      Self.log.debug("Service startup already running")
+      return
+    }
+
+    isStartingServices = true
+    defer { isStartingServices = false }
+
+    await playManager.start()
+    guard !Task.isCancelled else { return }
+
+    await cacheManager.start()
+    guard !Task.isCancelled else { return }
+
+    refreshScheduler.start()
+    didStartServices = true
+
+    startMemoryWarningMonitoring()
   }
 }

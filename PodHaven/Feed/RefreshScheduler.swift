@@ -5,6 +5,7 @@ import ConcurrencyExtras
 import FactoryKit
 import Foundation
 import Logging
+import SwiftUI
 import UIKit
 
 extension Container {
@@ -15,9 +16,6 @@ extension Container {
 
 final class RefreshScheduler: Sendable {
   private var connectionState: ConnectionState { Container.shared.connectionState() }
-  private var notifications: (Notification.Name) -> any AsyncSequence<Notification, Never> {
-    Container.shared.notifications()
-  }
   private var refreshManager: RefreshManager { Container.shared.refreshManager() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
 
@@ -57,13 +55,11 @@ final class RefreshScheduler: Sendable {
   fileprivate init() {}
 
   func start() {
-    Assert.neverCalled()
+    guard Function.neverCalled() else { return }
 
     Self.log.debug("start: executing")
 
     schedule(in: backgroundPolicy.cadence)
-    startListeningToActivation()
-    startListeningToBackgrounding()
   }
 
   // MARK: - Background Task Scheduling
@@ -101,7 +97,7 @@ final class RefreshScheduler: Sendable {
           return
         }
 
-        let success = await handle()
+        let success = await executeBGTask()
         complete(success)
 
         if await UIApplication.shared.applicationState == .active {
@@ -123,15 +119,9 @@ final class RefreshScheduler: Sendable {
     }
   }
 
-  private func backgrounded() {
-    Self.log.debug("backgrounded: scheduling BGAppRefreshTask")
-
-    schedule(in: backgroundPolicy.cadence)
-  }
-
   // MARK: - Background Task
 
-  private func handle() async -> Bool {
+  private func executeBGTask() async -> Bool {
     Self.log.debug("bgTask: performing refresh")
 
     let task: Task<Bool, Never> = Task(priority: .background) { [weak self] in
@@ -157,11 +147,11 @@ final class RefreshScheduler: Sendable {
 
   // MARK: - Foreground Task
 
-  private func activated() {
-    Self.log.debug("activated: starting foreground refresh task loop")
+  private func beginForegroundRefreshing() {
+    Self.log.debug("starting foreground refresh task loop")
 
     if currentlyRefreshing() {
-      Self.log.debug("activated: already refreshing")
+      Self.log.debug("foreground refresh: already refreshing")
       return
     }
 
@@ -174,7 +164,7 @@ final class RefreshScheduler: Sendable {
 
         Self.log.debug("refreshTask: done initial sleeping")
 
-        while await UIApplication.shared.applicationState == .active && !Task.isCancelled {
+        while await UIApplication.shared.applicationState == .active {
           let backgroundTask = await BackgroundTask.start(
             withName: "RefreshScheduler.refreshTask"
           )
@@ -227,44 +217,28 @@ final class RefreshScheduler: Sendable {
     )
   }
 
-  // MARK: - Notifications
+  // MARK: - Phase Changes
 
-  private func startListeningToActivation() {
-    Assert.neverCalled()
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      if await UIApplication.shared.applicationState == .active {
-        Self.log.debug("app already active")
-        activated()
-      } else {
-        Self.log.debug("app not active, waiting for activation")
-      }
-
-      for await _ in notifications(UIApplication.didBecomeActiveNotification)
-      where await UIApplication.shared.applicationState == .active {
-        activated()
-      }
+  func handleScenePhaseChange(to scenePhase: ScenePhase) {
+    switch scenePhase {
+    case .active:
+      activated()
+    case .background:
+      backgrounded()
+    default:
+      break
     }
   }
 
-  private func startListeningToBackgrounding() {
-    Assert.neverCalled()
+  private func activated() {
+    Self.log.debug("activated: beginning foreground refreshing")
 
-    Task { [weak self] in
-      guard let self else { return }
+    beginForegroundRefreshing()
+  }
 
-      if await UIApplication.shared.applicationState == .background {
-        Self.log.debug("app already backgrounded")
-        backgrounded()
-      } else {
-        Self.log.debug("app is active, waiting for backgrounding")
-      }
+  private func backgrounded() {
+    Self.log.debug("backgrounded: scheduling BGAppRefreshTask")
 
-      for await _ in notifications(UIApplication.didEnterBackgroundNotification) {
-        backgrounded()
-      }
-    }
+    schedule(in: backgroundPolicy.cadence)
   }
 }
