@@ -83,6 +83,7 @@ final class RefreshScheduler: Sendable {
         guard let self else { return }
 
         Self.log.debug("handle: expiration triggered, cancelling running task")
+
         bgTask()?.cancel()
         bgTask(nil)
         complete(false)
@@ -101,7 +102,9 @@ final class RefreshScheduler: Sendable {
         complete(success)
 
         if await UIApplication.shared.applicationState == .active {
-          activated()
+          Self.log.debug("App foregrounded during BGTask: beginning foreground refreshing")
+
+          beginForegroundRefreshing()
         }
       }
     }
@@ -222,23 +225,15 @@ final class RefreshScheduler: Sendable {
   func handleScenePhaseChange(to scenePhase: ScenePhase) {
     switch scenePhase {
     case .active:
-      activated()
+      Self.log.debug("activated")
+
+      beginForegroundRefreshing()
     case .background:
-      backgrounded()
+      Self.log.debug("backgrounded")
+
+      schedule(in: backgroundPolicy.cadence)
     default:
       break
     }
-  }
-
-  private func activated() {
-    Self.log.debug("activated: beginning foreground refreshing")
-
-    beginForegroundRefreshing()
-  }
-
-  private func backgrounded() {
-    Self.log.debug("backgrounded: scheduling BGAppRefreshTask")
-
-    schedule(in: backgroundPolicy.cadence)
   }
 }
