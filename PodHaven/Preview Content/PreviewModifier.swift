@@ -12,7 +12,7 @@ struct PreviewModifier: ViewModifier {
   @DynamicInjected(\.playManager) private var playManager
 
   init() {
-    guard Function.neverCalled("previewInit") else { return }
+    guard Function.neverCalled() else { return }
 
     AppInfo.environment = .preview
     LoggingSystem.bootstrap(PrintLogHandler.init)
@@ -23,7 +23,7 @@ struct PreviewModifier: ViewModifier {
       .customAlert($alert.config)
       .customSheet($sheet.config)
       .task {
-        guard Function.neverCalled("previewTask") else { return }
+        guard Function.neverCalled("PreviewModifier.task") else { return }
 
         await playManager.start()
       }

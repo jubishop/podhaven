@@ -62,6 +62,8 @@ extension Container {
   // MARK: - Initialization
 
   fileprivate init() {
+    Assert.neverCalled()
+
     startListeningToKeyboardShow()
     startListeningToKeyboardHide()
     startObservingMaxQueuePosition()

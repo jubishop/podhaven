@@ -35,8 +35,13 @@ struct PodHavenApp: App {
         }
       }
       .task {
+        guard Function.neverCalled("PodHavenApp.task") else {
+          isInitialized = true
+          return
+        }
+
         await AppInfo.initializeEnvironment()
-        configureLogging()
+        Self.configureLogging()
         Self.log.debug("Environment is: \(AppInfo.environment)")
         Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
 
@@ -90,7 +95,7 @@ struct PodHavenApp: App {
 
   // MARK: - Logging
 
-  private func configureLogging() {
+  private static func configureLogging() {
     switch AppInfo.environment {
     case .testFlight, .iPhoneDev, .macDev:
       configureSentry()
@@ -116,7 +121,7 @@ struct PodHavenApp: App {
     }
   }
 
-  private func configureSentry() {
+  private static func configureSentry() {
     SentrySDK.start { options in
       options.dsn =
         "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"

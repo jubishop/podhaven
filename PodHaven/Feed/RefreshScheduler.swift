@@ -224,7 +224,7 @@ final class RefreshScheduler: Sendable {
         Self.log.debug("app not active, waiting for activation")
       }
 
-      for await notification in notifications(UIApplication.didBecomeActiveNotification)
+      for await _ in notifications(UIApplication.didBecomeActiveNotification)
       where await UIApplication.shared.applicationState == .active {
         activated()
       }

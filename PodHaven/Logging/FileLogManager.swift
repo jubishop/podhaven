@@ -27,6 +27,8 @@ struct FileLogManager: Sendable {
   // MARK: - Initialization
 
   fileprivate init() {
+    Assert.neverCalled()
+
     startPeriodicCleanup()
   }
 
