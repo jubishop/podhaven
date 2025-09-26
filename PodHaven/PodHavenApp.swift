@@ -9,8 +9,8 @@ import SwiftUI
 @main
 struct PodHavenApp: App {
   @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-
   @Environment(\.scenePhase) private var scenePhase
+
   @InjectedObservable(\.alert) private var alert
   @InjectedObservable(\.sheet) private var sheet
   @DynamicInjected(\.cacheManager) private var cacheManager
@@ -39,8 +39,8 @@ struct PodHavenApp: App {
       .onAppear {
         Task { await initializeIfNeeded() }
       }
-      .onChange(of: scenePhase) { newPhase in
-        guard newPhase == .active else { return }
+      .onChange(of: scenePhase) {
+        guard scenePhase == .active else { return }
         Task { await initializeIfNeeded() }
       }
       .onOpenURL { url in
