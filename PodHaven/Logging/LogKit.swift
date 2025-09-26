@@ -23,7 +23,7 @@ enum LogKit {
     let parts = label.split(separator: labelSeparator).map(String.init)
     Assert.precondition(parts.count == 2, "Invalid label format: \(label)")
 
-    return (parts[0], parts[1])
+    return (parts[safe: 0] ?? "", parts[safe: 1] ?? "")
   }
 
   // MARK: - Formatting Helpers
