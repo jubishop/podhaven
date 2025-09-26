@@ -102,6 +102,8 @@ final class PlayManager {
   func start() {
     Assert.neverCalled()
 
+    Self.log.debug("start: executing")
+
     guard configureAudioSession() else { return }
 
     notificationTracking()

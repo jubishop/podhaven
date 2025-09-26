@@ -40,6 +40,8 @@ final class RefreshScheduler: Sendable {
   fileprivate init() {}
 
   func start() {
+    Assert.neverCalled()
+
     Self.log.debug("start: executing")
 
     schedule(in: backgroundPolicy.cadence)
@@ -153,9 +155,11 @@ final class RefreshScheduler: Sendable {
 
         try? await sleeper.sleep(for: .seconds(15))
 
+        Self.log.debug("refreshTask: done initial sleeping")
+
         while await UIApplication.shared.applicationState == .active && !Task.isCancelled {
           let backgroundTask = await BackgroundTask.start(
-            withName: "RefreshManager.refreshTask"
+            withName: "RefreshScheduler.refreshTask"
           )
           do {
             Self.log.debug("refreshTask: performing refresh")
@@ -220,12 +224,8 @@ final class RefreshScheduler: Sendable {
         Self.log.debug("app not active, waiting for activation")
       }
 
-      for await notification in notifications(UIScene.didActivateNotification) {
-        guard
-          let scene = notification.object as? UIScene,
-          await scene.activationState == .foregroundActive
-        else { continue }
-
+      for await notification in notifications(UIApplication.didBecomeActiveNotification)
+      where await UIApplication.shared.applicationState == .active {
         activated()
       }
     }
