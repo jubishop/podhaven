@@ -10,6 +10,7 @@ import SwiftUI
 struct PodHavenApp: App {
   @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
+  @Environment(\.scenePhase) private var scenePhase
   @InjectedObservable(\.alert) private var alert
   @InjectedObservable(\.sheet) private var sheet
   @DynamicInjected(\.cacheManager) private var cacheManager
@@ -20,6 +21,7 @@ struct PodHavenApp: App {
   @DynamicInjected(\.shareService) private var shareService
 
   @State private var isInitialized = false
+  @State private var isInitializing = false
 
   private static let log = Log.as("Main")
 
@@ -34,25 +36,12 @@ struct PodHavenApp: App {
           ProgressView("Loading...")
         }
       }
-      .task {
-        guard Function.neverCalled("PodHavenApp.task") else {
-          isInitialized = true
-          return
-        }
-
-        await AppInfo.initializeEnvironment()
-        Self.configureLogging()
-        Self.log.debug("Environment is: \(AppInfo.environment)")
-        Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
-
-        isInitialized = true
-
-        if AppInfo.environment != .testing {
-          startMemoryWarningMonitoring()
-          await playManager.start()
-          await cacheManager.start()
-          refreshScheduler.start()
-        }
+      .onAppear {
+        Task { await initializeIfNeeded() }
+      }
+      .onChange(of: scenePhase) { newPhase in
+        guard newPhase == .active else { return }
+        Task { await initializeIfNeeded() }
       }
       .onOpenURL { url in
         Self.log.info("Received incoming URL: \(url)")
@@ -128,6 +117,38 @@ struct PodHavenApp: App {
       options.sendDefaultPii = true
       options.enableAppHangTracking = false
       options.experimental.enableLogs = true
+    }
+  }
+
+  // MARK: - Launch Handling
+
+  @MainActor
+  private func initializeIfNeeded() async {
+    guard !isInitialized, !isInitializing else { return }
+    guard UIApplication.shared.applicationState == .active else {
+      Self.log.debug("Initialization deferred; app not active")
+      return
+    }
+
+    isInitializing = true
+    defer { isInitializing = false }
+
+    await AppInfo.initializeEnvironment()
+    guard !Task.isCancelled else { return }
+
+    Self.configureLogging()
+    Self.log.debug("Environment is: \(AppInfo.environment)")
+    Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
+
+    isInitialized = true
+
+    guard !Task.isCancelled else { return }
+
+    if AppInfo.environment != .testing {
+      startMemoryWarningMonitoring()
+      await playManager.start()
+      await cacheManager.start()
+      refreshScheduler.start()
     }
   }
 }
