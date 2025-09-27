@@ -134,11 +134,11 @@ struct PodHavenApp: App {
   private func initialize() async {
     guard !environmentConfigured else { return }
     guard UIApplication.shared.applicationState == .active else {
-      Self.log.debug("environment configuration deferred: app not active")
+      Self.log.debug("Environment configuration deferred: app not active")
       return
     }
     guard !configuringEnvironment else {
-      Self.log.debug("environment configuration already running")
+      Self.log.debug("Environment configuration already running")
       return
     }
 
@@ -151,7 +151,6 @@ struct PodHavenApp: App {
     Self.configureLogging()
     Self.log.debug("Environment is: \(AppInfo.environment)")
     Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
-    guard !Task.isCancelled else { return }
 
     environmentConfigured = true
   }
@@ -159,7 +158,12 @@ struct PodHavenApp: App {
   private func startServices() async {
     guard environmentConfigured else { return }
     guard AppInfo.environment != .testing else { return }
+
     guard !didStartServices else { return }
+    guard UIApplication.shared.applicationState == .active else {
+      Self.log.debug("Service startup deferred: app not active")
+      return
+    }
     guard !isStartingServices else {
       Self.log.debug("Service startup already running")
       return
