@@ -42,6 +42,7 @@ struct PodHavenApp: App {
         Task {
           if newPhase == .active {
             await initialize()
+            await startServices()
           }
 
           if didStartServices {
@@ -78,6 +79,8 @@ struct PodHavenApp: App {
   // MARK: - Memory Monitoring
 
   private func startMemoryWarningMonitoring() {
+    guard Function.neverCalled() else { return }
+
     Task {
       for await _ in notifications(UIApplication.didReceiveMemoryWarningNotification) {
         Self.log.warning("System memory warning received")
@@ -130,12 +133,12 @@ struct PodHavenApp: App {
 
   private func initialize() async {
     guard !environmentConfigured else { return }
-    guard !configuringEnvironment else {
-      Self.log.debug("environment configuration already running")
-      return
-    }
     guard UIApplication.shared.applicationState == .active else {
       Self.log.debug("environment configuration deferred: app not active")
+      return
+    }
+    guard !configuringEnvironment else {
+      Self.log.debug("environment configuration already running")
       return
     }
 
@@ -151,13 +154,11 @@ struct PodHavenApp: App {
     guard !Task.isCancelled else { return }
 
     environmentConfigured = true
-
-    if AppInfo.environment != .testing {
-      await startServices()
-    }
   }
 
   private func startServices() async {
+    guard environmentConfigured else { return }
+    guard AppInfo.environment != .testing else { return }
     guard !didStartServices else { return }
     guard !isStartingServices else {
       Self.log.debug("Service startup already running")
@@ -174,8 +175,8 @@ struct PodHavenApp: App {
     guard !Task.isCancelled else { return }
 
     refreshScheduler.start()
-    didStartServices = true
-
     startMemoryWarningMonitoring()
+
+    didStartServices = true
   }
 }
