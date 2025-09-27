@@ -46,7 +46,7 @@ final class RefreshScheduler: Sendable {
 
   // MARK: - State Management
 
-  private let currentlyRefreshing = ThreadSafe(false)
+  private let refreshLock = ThreadLock()
   private let refreshTask = ThreadSafe<Task<Void, Never>?>(nil)
   private let bgTask = ThreadSafe<Task<Bool, Never>?>(nil)
 
@@ -153,7 +153,7 @@ final class RefreshScheduler: Sendable {
   private func beginForegroundRefreshing() {
     Self.log.debug("starting foreground refresh task loop")
 
-    if currentlyRefreshing() {
+    if refreshLock.claimed {
       Self.log.debug("foreground refresh: already refreshing")
       return
     }
@@ -191,25 +191,17 @@ final class RefreshScheduler: Sendable {
 
   // MARK: - Refresh Helpers
 
-  func claimRefreshing() -> Bool {
-    currentlyRefreshing {
-      if $0 { return false }
-      $0 = true
-      return true
-    }
-  }
-
   func executeRefresh(_ refreshPolicy: RefreshPolicy) async throws {
     if connectionState.isConstrained {
       Self.log.debug("connection is constrained (low data mode)")
       return
     }
 
-    if !claimRefreshing() {
+    if !refreshLock.claim() {
       Self.log.debug("failed to claim refreshing: already refreshing")
       return
     }
-    defer { currentlyRefreshing(false) }
+    defer { refreshLock.release() }
 
     try await refreshManager.performRefresh(
       stalenessThreshold: refreshPolicy.stalenessThreshold,
