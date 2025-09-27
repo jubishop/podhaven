@@ -17,14 +17,6 @@ struct ContentView: View {
         SettingsView()
       }
       Tab(
-        AppIcon.search.text,
-        systemImage: AppIcon.search.systemImageName,
-        value: .search,
-        role: .search
-      ) {
-        SearchView()
-      }
-      Tab(
         AppIcon.upNext.text,
         systemImage: AppIcon.upNext.systemImageName,
         value: .upNext
@@ -45,7 +37,16 @@ struct ContentView: View {
       ) {
         PodcastsView()
       }
+      Tab(
+        AppIcon.search.text,
+        systemImage: AppIcon.search.systemImageName,
+        value: .search,
+        role: .search
+      ) {
+        SearchView()
+      }
     }
+    .tabBarMinimizeBehavior(.onScrollDown)
     .tabViewBottomAccessory {
       PlayBar()
     }
