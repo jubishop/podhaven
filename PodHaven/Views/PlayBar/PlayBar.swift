@@ -17,21 +17,18 @@ struct PlayBar: View {
         loadingPlayBar
       } else if viewModel.isStopped {
         stoppedPlayBar
+      } else if let placement = placement {
+        switch placement {
+        case .inline:
+          inlinePlayBar
+        case .expanded:
+          expandedPlayBar
+        @unknown default:
+          Assert.fatal("Unknown tab view bottom accessory placement: \(placement)")
+        }
       } else {
-        stoppedPlayBar
+        Assert.fatal("Tab view placement enum is nil?")
       }
-//      else if let placement = placement {
-//        switch placement {
-//        case .inline:
-//          inlinePlayBar
-//        case .expanded:
-//          expandedPlayBar
-//        @unknown default:
-//          Assert.fatal("Unknown tab view bottom accessory placement: \(placement)")
-//        }
-//      } else {
-//        Assert.fatal("Tab view placement enum is nil?")
-//      }
     }
   }
 
@@ -91,24 +88,23 @@ struct PlayBar: View {
   // MARK: - Shared Components
 
   private var episodeImage: some View {
-//    Button(
-//      action: viewModel.showEpisodeDetail,
-//      label: {
-//        if let image = viewModel.episodeImage {
-//          Image(uiImage: image)
-//            .resizable()
-//            .aspectRatio(contentMode: .fill)
-//            .clipShape(RoundedRectangle(cornerRadius: 8))
-//        } else {
-//          RoundedRectangle(cornerRadius: 8)
-//            .fill(Color.white.opacity(0.2))
-//            .overlay(
-//              AppIcon.audioPlaceholder.coloredImage
-//            )
-//        }
-//      }
-//    )
-    Text("X")
+    Button(
+      action: viewModel.showEpisodeDetail,
+      label: {
+        if let image = viewModel.episodeImage {
+          Image(uiImage: image)
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+          RoundedRectangle(cornerRadius: 8)
+            .fill(Color.white.opacity(0.2))
+            .overlay(
+              AppIcon.audioPlaceholder.coloredImage
+            )
+        }
+      }
+    )
   }
 
   private var playbackControls: some View {
