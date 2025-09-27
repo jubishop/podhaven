@@ -35,7 +35,6 @@ struct PodcastDetailView: View {
         episodeListView
       }
     }
-    .playBarSafeAreaInset()
     .toolbar {
       selectableEpisodesToolbarItems(
         viewModel: viewModel,

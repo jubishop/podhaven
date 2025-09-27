@@ -20,7 +20,6 @@ struct UpNextView: View {
         }
         .onMove(perform: viewModel.moveEpisode)
       }
-      .playBarSafeAreaInset()
       .refreshable { viewModel.refreshQueue() }
       .navigationTitle("Up Next")
       .environment(\.editMode, $viewModel.editMode)

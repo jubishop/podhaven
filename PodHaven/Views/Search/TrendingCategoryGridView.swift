@@ -43,7 +43,6 @@ struct TrendingCategoryGridView: View {
         .padding()
       }
     }
-    .playBarSafeAreaInset()
     .navigationTitle(viewModel.category)
     .task(viewModel.execute)
   }

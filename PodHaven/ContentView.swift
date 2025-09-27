@@ -4,35 +4,51 @@ import FactoryKit
 import SwiftUI
 
 struct ContentView: View {
+  @InjectedObservable(\.navigation) private var navigation
   @InjectedObservable(\.playState) private var playState
 
-  @State private var playBarHeight: CGFloat = 0
-
-  @State private var mainTabSafeAreaInset: CGFloat = 0
-  @State private var tabContentSafeAreaInset: CGFloat = 0
-  private var playBarBottomPadding: CGFloat { tabContentSafeAreaInset - mainTabSafeAreaInset }
-
   var body: some View {
-    MainTabView(tabContentSafeAreaInset: $tabContentSafeAreaInset)
-      .onGeometryChange(for: CGFloat.self) { geometry in
-        geometry.safeAreaInsets.bottom
-      } action: { newInset in
-        guard newInset > 0 else { return }
-        mainTabSafeAreaInset = newInset
+    TabView(selection: $navigation.currentTab) {
+      Tab(
+        AppIcon.settings.text,
+        systemImage: AppIcon.settings.systemImageName,
+        value: .settings
+      ) {
+        SettingsView()
       }
-      .overlay(alignment: .bottom) {
-        if playState.showPlayBar {
-          PlayBar()
-            .onGeometryChange(for: CGFloat.self) { geometry in
-              geometry.size.height
-            } action: { newHeight in
-              guard newHeight > 0 else { return }
-              playBarHeight = newHeight
-            }
-            .padding(.bottom, playBarBottomPadding)
-        }
+      Tab(
+        AppIcon.search.text,
+        systemImage: AppIcon.search.systemImageName,
+        value: .search,
+        role: .search
+      ) {
+        SearchView()
       }
-      .environment(\.playBarSafeAreaInset, playState.showPlayBar ? playBarHeight : 0)
+      Tab(
+        AppIcon.upNext.text,
+        systemImage: AppIcon.upNext.systemImageName,
+        value: .upNext
+      ) {
+        UpNextView()
+      }
+      Tab(
+        AppIcon.episodes.text,
+        systemImage: AppIcon.episodes.systemImageName,
+        value: .episodes
+      ) {
+        EpisodesView()
+      }
+      Tab(
+        AppIcon.podcasts.text,
+        systemImage: AppIcon.podcasts.systemImageName,
+        value: .podcasts
+      ) {
+        PodcastsView()
+      }
+    }
+    .tabViewBottomAccessory {
+      PlayBar()
+    }
   }
 }
 
