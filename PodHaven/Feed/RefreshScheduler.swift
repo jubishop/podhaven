@@ -153,7 +153,7 @@ final class RefreshScheduler: Sendable {
   private func beginForegroundRefreshing() {
     Self.log.debug("starting foreground refresh task loop")
 
-    if refreshLock.claimed {
+    if refreshLock.isClaimed {
       Self.log.debug("foreground refresh: already refreshing")
       return
     }

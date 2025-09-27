@@ -10,7 +10,7 @@ struct ThreadLock {
 
   private let state = ThreadSafe(State())
 
-  var claimed: Bool {
+  var isClaimed: Bool {
     state { $0.isClaimed }
   }
 
