@@ -103,6 +103,7 @@ struct FileLogManager: Sendable {
           guard lines.count > maxLogEntries
           else {
             Self.log.debug("Log file has \(lines.count) entries, no truncation needed")
+            continuation.resume()
             return
           }
 
