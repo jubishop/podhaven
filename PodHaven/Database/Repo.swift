@@ -210,11 +210,15 @@ struct Repo: Databasing, Sendable {
         }
       }
     } catch {
-      let description =
-        podcast?.toString
-        ?? (!existingEpisodes.isEmpty
-          ? "Episodes:\n    \(existingEpisodes.map(\.toString).joined(separator: "\n    "))"
-          : "UnsavedEpisodes:\n    \(unsavedEpisodes.map(\.toString).joined(separator: "\n    "))")
+      var description = podcast?.toString ?? "podcastID: \(podcastID)"
+      if !existingEpisodes.isEmpty {
+        description +=
+          "\nEpisodes:\n    \(existingEpisodes.map(\.toString).joined(separator: "\n    "))"
+      }
+      if !unsavedEpisodes.isEmpty {
+        description +=
+          "\nUnsavedEpisodes:\n    \(unsavedEpisodes.map(\.toString).joined(separator: "\n    "))"
+      }
       throw RepoError.updateFailure(
         type: PodcastSeries.self,
         id: podcastID.rawValue,

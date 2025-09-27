@@ -119,6 +119,57 @@ actor RefreshManagerTests {
     #expect(call.parameters.existingEpisodes.count == 2)
   }
 
+  @Test("that new episodes with duplicate MediaURLs are deduped")
+  func testDedupingNewMediaURLs() async throws {
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+    )
+
+    let updatedData = PreviewBundle.loadAsset(
+      named: "hardfork_short_updated_dupe_mediaURL",
+      in: .FeedRSS
+    )
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+
+    // One test is that this doesn't throw a UNIQUE constraint error on MediaURLs
+    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+
+    let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
+    #expect(
+      Set(updatedSeries.episodes.map({ $0.mediaURL }))
+        .contains(MediaURL(URL(string: "https://dts.podtrac.com/redirect_dupe.mp3/")!))
+    )
+  }
+
+  @Test("that new episodes with duplicate GUIDs are deduped")
+  func testDedupingNewGUIDs() async throws {
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: podcastFeed.episodes.map { try $0.toUnsavedEpisode() }
+    )
+
+    let updatedData = PreviewBundle.loadAsset(
+      named: "hardfork_short_updated_dupe_guid",
+      in: .FeedRSS
+    )
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+
+    // One test is that this doesn't throw a UNIQUE constraint error on GUIDs
+    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+
+    let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
+    #expect(Set(updatedSeries.episodes.map({ $0.guid })).contains(GUID("dupe_guid")))
+  }
+
   @Test("that no repo calls occur when content is unchanged")
   func testNoRepoCallsWhenContentUnchanged() async throws {
     let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)

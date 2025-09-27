@@ -126,12 +126,13 @@ struct RefreshManager {
         creationDate: podcastSeries.podcast.creationDate,
         from: newUnsavedPodcast
       )
+      var unsavedEpisodeMediaURLs = Set<MediaURL>()
+      var unsavedEpisodeGUIDs = Set<GUID>()
       var unsavedEpisodes: [UnsavedEpisode] = []
       var updatedEpisodes: [Episode] = []
 
       for feedItem in podcastFeed.episodes {
-        if let existingEpisode = podcastSeries.episodes[id: feedItem.mediaGUID]
-          ?? episodesByMediaURL[id: feedItem.mediaURL]
+        if let existingEpisode = episodesByMediaURL[id: feedItem.mediaURL]
           ?? episodesByGUID[id: feedItem.guid]
         {
           do {
@@ -147,8 +148,12 @@ struct RefreshManager {
           } catch {
             Self.log.error(error)
           }
-        } else {
+        } else if !unsavedEpisodeMediaURLs.contains(feedItem.mediaURL)
+          && !unsavedEpisodeGUIDs.contains(feedItem.guid)
+        {
           do {
+            unsavedEpisodeMediaURLs.insert(feedItem.mediaURL)
+            unsavedEpisodeGUIDs.insert(feedItem.guid)
             unsavedEpisodes.append(try feedItem.toUnsavedEpisode())
           } catch {
             Self.log.error(error)
