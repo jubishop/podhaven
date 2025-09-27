@@ -5,12 +5,6 @@ import FactoryKit
 import Foundation
 import SwiftUI
 
-extension Container {
-  @MainActor var playBarViewModel: Factory<PlayBarViewModel> {
-    Factory(self) { @MainActor in PlayBarViewModel() }.scope(.cached)
-  }
-}
-
 @Observable @MainActor class PlayBarViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager

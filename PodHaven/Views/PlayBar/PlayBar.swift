@@ -5,12 +5,12 @@ import FactoryKit
 import SwiftUI
 
 struct PlayBar: View {
-  @InjectedObservable(\.playBarViewModel) private var viewModel
-
   private let imageSize: CGFloat = 48
   private let progressAnimationDuration: Double = 0.15
   private let progressDragScale: Double = 1.1
   private let basicSpacing: CGFloat = 12
+
+  @State private var viewModel = PlayBarViewModel()
 
   var body: some View {
     Group {
