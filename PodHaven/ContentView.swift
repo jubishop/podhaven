@@ -7,6 +7,8 @@ struct ContentView: View {
   @InjectedObservable(\.navigation) private var navigation
   @InjectedObservable(\.playState) private var playState
 
+  @State private var tabMaxY: CGFloat = 0
+
   var body: some View {
     TabView(selection: $navigation.currentTab) {
       Tab(
@@ -46,9 +48,15 @@ struct ContentView: View {
         SearchView()
       }
     }
+    .coordinateSpace(name: PlayBarAccessory.CoordinateName)
+    .onGeometryChange(for: CGFloat.self) { proxy in
+      proxy.frame(in: .named(PlayBarAccessory.CoordinateName)).maxY
+    } action: { newMaxY in
+      tabMaxY = newMaxY
+    }
     .tabBarMinimizeBehavior(.onScrollDown)
     .tabViewBottomAccessory {
-      PlayBar()
+      PlayBarAccessory(tabMaxY: tabMaxY)
     }
   }
 }

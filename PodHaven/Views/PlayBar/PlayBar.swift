@@ -4,31 +4,49 @@ import AVFoundation
 import FactoryKit
 import SwiftUI
 
-struct PlayBar: View {
-  @Environment(\.tabViewBottomAccessoryPlacement) var placement
+// Eventually we should replace this with TabViewBottomAccessoryPlacement
+struct PlayBarAccessory: View {
+  nonisolated static let CoordinateName = "TabRoot"
 
+  @State private var accessoryMaxY: CGFloat = 0
+  @State private var tabMaxY: CGFloat
+  @State private var isExpanded = true
+
+  init(tabMaxY: CGFloat) {
+    self.tabMaxY = tabMaxY
+  }
+
+  var body: some View {
+    PlayBar(isExpanded: isExpanded)
+      .onGeometryChange(for: CGFloat.self) { proxy in
+        proxy.frame(in: .named(Self.CoordinateName)).maxY
+      } action: { newMaxY in
+        accessoryMaxY = newMaxY
+        isExpanded = (tabMaxY - newMaxY) > 40
+      }
+  }
+}
+
+struct PlayBar: View {
   private let basicSpacing: CGFloat = 12
 
   private let viewModel = PlayBarViewModel()
 
+  private let isExpanded: Bool
+
+  init(isExpanded: Bool) {
+    self.isExpanded = isExpanded
+  }
+
   var body: some View {
-    Group {
-      if viewModel.isLoading {
-        loadingPlayBar
-      } else if viewModel.isStopped {
-        stoppedPlayBar
-      } else if let placement = placement {
-        switch placement {
-        case .inline:
-          inlinePlayBar
-        case .expanded:
-          expandedPlayBar
-        @unknown default:
-          Assert.fatal("Unknown tab view bottom accessory placement: \(placement)")
-        }
-      } else {
-        Assert.fatal("Tab view placement enum is nil?")
-      }
+    if viewModel.isLoading {
+      loadingPlayBar
+    } else if viewModel.isStopped {
+      stoppedPlayBar
+    } else if isExpanded {
+      expandedPlayBar
+    } else {
+      inlinePlayBar
     }
   }
 
@@ -181,7 +199,8 @@ struct PlayBar: View {
         SquareImage(image: url, size: $gridItemSize)
       }
 
-      PlayBar()
+      // TODO: Give button to flip isExpanded
+      PlayBar(isExpanded: true)
         .padding(.bottom, 40)
     }
   }
