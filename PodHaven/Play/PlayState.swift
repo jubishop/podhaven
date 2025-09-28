@@ -23,18 +23,12 @@ extension Container {
     status[keyPath: keyPath]
   }
 
-  // MARK: - Private State
-
-  private var keyboardVisible = false
-
   // MARK: - State Getters
 
   private(set) var status: PlaybackStatus = .stopped
   private(set) var currentTime = CMTime.zero
   private(set) var onDeck: OnDeck?
   private(set) var maxQueuePosition: Int? = nil
-
-  var showPlayBar: Bool { !keyboardVisible }
 
   func isEpisodePlaying(_ episode: any EpisodeInformable) -> Bool {
     guard let episodeID = episode.episodeID else { return false }
@@ -62,31 +56,7 @@ extension Container {
   // MARK: - Initialization
 
   fileprivate init() {
-    startListeningToKeyboardShow()
-    startListeningToKeyboardHide()
     startObservingMaxQueuePosition()
-  }
-
-  private func startListeningToKeyboardShow() {
-    Assert.neverCalled()
-
-    Task { [weak self] in
-      guard let self else { return }
-      for await _ in notifications(UIResponder.keyboardWillShowNotification) {
-        keyboardVisible = true
-      }
-    }
-  }
-
-  private func startListeningToKeyboardHide() {
-    Assert.neverCalled()
-
-    Task { [weak self] in
-      guard let self else { return }
-      for await _ in notifications(UIResponder.keyboardDidHideNotification) {
-        keyboardVisible = false
-      }
-    }
   }
 
   private func startObservingMaxQueuePosition() {
