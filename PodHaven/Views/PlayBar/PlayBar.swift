@@ -9,8 +9,9 @@ struct PlayBarAccessory: View {
   nonisolated static let CoordinateName = "TabRoot"
 
   @State private var accessoryMaxY: CGFloat = 0
-  @State private var tabMaxY: CGFloat
   @State private var isExpanded = true
+
+  private let tabMaxY: CGFloat
 
   init(tabMaxY: CGFloat) {
     self.tabMaxY = tabMaxY
@@ -22,7 +23,7 @@ struct PlayBarAccessory: View {
         proxy.frame(in: .named(Self.CoordinateName)).maxY
       } action: { newMaxY in
         accessoryMaxY = newMaxY
-        isExpanded = (tabMaxY - newMaxY) > 40
+        isExpanded = (tabMaxY - accessoryMaxY) > 40
       }
   }
 }
@@ -159,75 +160,62 @@ struct PlayBar: View {
 // MARK: - Preview
 
 #if DEBUG
-#Preview {
-  @Previewable @State var imageURLs: [URL] = []
-  @Previewable @State var gridItemSize: CGFloat = 100
+struct PlayBarPreview: View {
+  var playState: PlayState { Container.shared.playState() }
 
-  VStack(spacing: 12) {
-    HStack(spacing: 24) {
-      Button(
-        action: { Container.shared.playState().setStatus(.loading("Episode Title Here")) },
-        label: {
-          ProgressView()
-            .progressViewStyle(.circular)
-            .frame(width: 32, height: 32)
-        }
-      )
-
-      AppIcon.loading.imageButton {
-        Container.shared.playState().setStatus(.waiting)
-      }
-
-      AppIcon.pauseButton.imageButton {
-        Container.shared.playState().setStatus(.playing)
-      }
-
-      AppIcon.playButton.imageButton {
-        Container.shared.playState().setStatus(.paused)
-      }
-
-      AppIcon.noEpisodeSelected.imageButton {
-        Container.shared.playState().setStatus(.stopped)
-      }
-    }
-    .font(.title)
-    .buttonStyle(.plain)
-    .dynamicTypeSize(.large)
-
-    ZStack(alignment: .bottom) {
-      List(imageURLs, id: \.self) { url in
-        SquareImage(image: url, size: $gridItemSize)
-      }
-
-      // TODO: Give button to flip isExpanded
-      PlayBar(isExpanded: true)
-        .padding(.bottom, 40)
-    }
+  init(_ status: PlaybackStatus) {
+    playState.setStatus(status)
   }
-  .preview()
-  .task {
-    let allThumbnails = PreviewBundle.loadAllThumbnails()
-    for thumbnailInfo in allThumbnails.values {
-      imageURLs.append(thumbnailInfo.url)
-    }
 
-    let playState = Container.shared.playState()
-    playState.setOnDeck(
-      OnDeck(
-        episodeID: Episode.ID(1),
-        feedURL: FeedURL(URL.valid()),
-        guid: GUID(String.random()),
-        podcastTitle: "Podcast Title",
-        podcastURL: URL.valid(),
-        episodeTitle: "Episode Title",
-        duration: CMTime.minutes(60),
-        image: allThumbnails.randomElement()!.value.image,
-        mediaURL: MediaURL(URL.valid()),
-        pubDate: 48.hoursAgo
-      )
-    )
-    playState.setStatus(.playing)
-    playState.setCurrentTime(CMTime.minutes(30))
+  var body: some View {
+    ContentView()
+      .preview()
+      .task {
+        playState.setOnDeck(
+          OnDeck(
+            episodeID: Episode.ID(1),
+            feedURL: FeedURL(URL.valid()),
+            guid: GUID(String.random()),
+            podcastTitle: "Podcast Title",
+            podcastURL: URL.valid(),
+            episodeTitle: "Episode Title",
+            duration: CMTime.minutes(60),
+            image: PreviewBundle.loadImage(
+              named: "pod-save-america-podcast",
+              in: .EpisodeThumbnails
+            ),
+            mediaURL: MediaURL(URL.valid()),
+            pubDate: 48.hoursAgo
+          )
+        )
+        playState.setCurrentTime(CMTime.minutes(30))
+
+        for _ in 1...10 {
+          _ = try! await Create.podcastEpisode()
+        }
+        Container.shared.navigation().showPodcastList(.unsubscribed)
+      }
   }
 }
+
+#Preview("waiting") {
+  PlayBarPreview(.waiting)
+}
+
+#Preview("playing") {
+  PlayBarPreview(.playing)
+}
+
+#Preview("paused") {
+  PlayBarPreview(.paused)
+}
+
+#Preview("stopped") {
+  PlayBarPreview(.stopped)
+}
+
+#Preview("loading") {
+  PlayBarPreview(.loading("Episode Title Here"))
+}
+
 #endif

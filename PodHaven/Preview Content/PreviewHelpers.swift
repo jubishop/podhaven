@@ -10,14 +10,7 @@ import UIKit
 enum PreviewHelpers {
   // MARK: - Data Fetching
 
-  static let dataFetcher = FakeDataFetchable { url in
-    Assert.fatal(
-      """
-      ❌ FATAL: Attempted network request in SwiftUI Preview!
-      URL: \(url)
-      """
-    )
-  }
+  static let dataFetcher = FakeDataFetchable()
 
   // MARK: - Global Data Sets
 
