@@ -348,8 +348,6 @@ import Testing
   @Test("loading race condition with success after failure does not result in stopped playState")
   func loadingRaceConditionWithSuccessAfterFailureDoesNotResultInStoppedPlayState() async throws {
     let (originalEpisode, incomingEpisode) = try await Create.twoPodcastEpisodes()
-    print(originalEpisode.episode.mediaURL)
-    print(incomingEpisode.episode.mediaURL)
 
     let originalSemaphore = await episodeAssetLoader.waitThenRespond(
       to: originalEpisode.episode.mediaURL,
