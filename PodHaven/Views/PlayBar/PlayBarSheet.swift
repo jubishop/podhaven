@@ -44,6 +44,17 @@ struct PlayBarSheet: View {
               .resizable()
               .scaledToFill()
           }
+          .overlay {
+            LinearGradient(
+              colors: [
+                .black.opacity(0),
+                .black.opacity(0.25),
+                .black.opacity(0.75),
+              ],
+              startPoint: .top,
+              endPoint: .bottom
+            )
+          }
       } else {
         Color.black
           .overlay(alignment: .top) {
