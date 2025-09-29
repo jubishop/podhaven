@@ -24,11 +24,21 @@ import SwiftUI
   var episodeImage: UIImage? { playState.onDeck?.image }
   var loadingEpisodeTitle: String { playState.loadingTitle ?? "Unknown" }
 
-  // MARK: - Actions
-
-  func showControlSheet() {
-    // TODO
+  var duration: CMTime { playState.onDeck?.duration ?? CMTime.zero }
+  var isDragging = false
+  private var _sliderValue: Double = 0
+  var sliderValue: Double {
+    get { isDragging ? _sliderValue : playState.currentTime.seconds }
+    set {
+      self._sliderValue = newValue
+      Task { [weak self] in
+        guard let self else { return }
+        await playManager.seek(to: CMTime.seconds(_sliderValue))
+      }
+    }
   }
+
+  // MARK: - Actions
 
   func showEpisodeDetail() {
     Task { [weak self] in

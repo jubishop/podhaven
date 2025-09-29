@@ -49,8 +49,8 @@ struct ContentView: View {
       }
     }
     .coordinateSpace(name: PlayBarAccessory.CoordinateName)
-    .onGeometryChange(for: CGFloat.self) { proxy in
-      proxy.frame(in: .named(PlayBarAccessory.CoordinateName)).maxY
+    .onGeometryChange(for: CGFloat.self) { geometry in
+      geometry.frame(in: .named(PlayBarAccessory.CoordinateName)).maxY
     } action: { newMaxY in
       tabMaxY = newMaxY
     }

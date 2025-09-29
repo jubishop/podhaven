@@ -27,9 +27,11 @@ struct PlayBarAccessory: View {
 }
 
 struct PlayBar: View {
+  @ObservationIgnored @DynamicInjected(\.sheet) private var sheet
+
   private let basicSpacing: CGFloat = 12
 
-  private let viewModel = PlayBarViewModel()
+  @State private var viewModel = PlayBarViewModel()
 
   private let isExpanded: Bool
 
@@ -89,11 +91,14 @@ struct PlayBar: View {
     .padding(.horizontal, basicSpacing)
   }
 
-  // MARK: - Progress Bar
+  // MARK: - Expanded PlayBar
 
   private var expandedPlayBar: some View {
     HStack {
-      episodeImage
+      Button(
+        action: viewModel.showEpisodeDetail,
+        label: { episodeImage }
+      )
 
       Spacer()
 
@@ -101,29 +106,102 @@ struct PlayBar: View {
 
       Spacer()
 
-      sheetControlsButton
+      AppIcon.expandUp.imageButton {
+        sheet {
+          playBarSheet
+            .presentationDetents([.medium])
+        }
+      }
     }
     .padding(.horizontal, basicSpacing * 2)
   }
 
+  // MARK: - PlayBar Sheet
+
+  private var playBarSheet: some View {
+    VStack(spacing: basicSpacing) {
+      episodeImage.frame(width: 60, height: 60)
+
+      HStack {
+
+        Spacer()
+        Spacer()
+
+        AppIcon.seekBackward.imageButton(action: viewModel.seekBackward)
+          .font(.title2)
+
+        Spacer()
+
+        playPauseButton
+          .font(.title)
+
+        Spacer()
+
+        AppIcon.seekForward.imageButton(action: viewModel.seekForward)
+          .font(.title2)
+
+        Spacer()
+        Spacer()
+      }
+
+      progressBar
+    }
+    .padding(.horizontal, basicSpacing)
+  }
+
+  @ViewBuilder
+  private var progressBar: some View {
+    let progressAnimationDuration: Double = 0.15
+    let progressDragScale: Double = 1.1
+
+    VStack(spacing: 2) {
+      CustomProgressBar(
+        value: $viewModel.sliderValue,
+        isDragging: $viewModel.isDragging,
+        range: 0...Double(viewModel.duration.seconds),
+        animationDuration: progressAnimationDuration
+      )
+
+      HStack {
+        Text(viewModel.sliderValue.playbackTimeFormat)
+          .font(.caption2)
+          .foregroundColor(.white)
+          .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
+          .animation(
+            .easeInOut(duration: progressAnimationDuration),
+            value: viewModel.isDragging
+          )
+
+        Spacer()
+
+        Text(viewModel.duration.seconds.playbackTimeFormat)
+          .font(.caption2)
+          .foregroundColor(.white)
+          .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
+          .animation(
+            .easeInOut(duration: progressAnimationDuration),
+            value: viewModel.isDragging
+          )
+      }
+    }
+    .padding(12)
+    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 8))
+  }
+
   // MARK: - Shared Components
 
+  @ViewBuilder
   private var episodeImage: some View {
-    Button(
-      action: viewModel.showEpisodeDetail,
-      label: {
-        if let image = viewModel.episodeImage {
-          Image(uiImage: image)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-        } else {
-          RoundedRectangle(cornerRadius: 8)
-            .aspectRatio(contentMode: .fill)
-            .overlay(AppIcon.audioPlaceholder.coloredImage)
-        }
-      }
-    )
+    if let image = viewModel.episodeImage {
+      Image(uiImage: image)
+        .resizable()
+        .aspectRatio(contentMode: .fill)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    } else {
+      RoundedRectangle(cornerRadius: 8)
+        .aspectRatio(contentMode: .fill)
+        .overlay(AppIcon.audioPlaceholder.coloredImage)
+    }
   }
 
   @ViewBuilder
@@ -131,17 +209,14 @@ struct PlayBar: View {
     Spacer()
 
     AppIcon.seekBackward.imageButton(action: viewModel.seekBackward)
-      .font(.title3)
 
     Spacer()
 
     playPauseButton
-      .font(.title)
 
     Spacer()
 
     AppIcon.seekForward.imageButton(action: viewModel.seekForward)
-      .font(.title3)
 
     Spacer()
   }
@@ -156,10 +231,6 @@ struct PlayBar: View {
     } else {
       AppIcon.playButton.imageButton(action: action)
     }
-  }
-
-  private var sheetControlsButton: some View {
-    AppIcon.expandUp.imageButton(action: viewModel.showControlSheet)
   }
 }
 
