@@ -1,14 +1,8 @@
 {
   "mcpServers": {
-    "XcodeBuildMCP": {
-      "type": "stdio",
+    "apple-docs-mcp": {
       "command": "npx",
-      "args": ["-y", "xcodebuildmcp@latest"],
-      "env": {}
-    },
-    "swiftlens": {
-      "command": "uvx",
-      "args": ["swiftlens"]
+      "args": ["-y", "@kimsungwhee/apple-docs-mcp@latest"]
     }
   }
 }

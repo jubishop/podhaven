@@ -101,7 +101,18 @@ struct PlayBar: View {
     HStack {
       Button(
         action: viewModel.showEpisodeDetail,
-        label: { episodeImage }
+        label: {
+          if let image = viewModel.episodeImage {
+            Image(uiImage: image)
+              .resizable()
+              .aspectRatio(contentMode: .fill)
+              .clipShape(RoundedRectangle(cornerRadius: 8))
+          } else {
+            RoundedRectangle(cornerRadius: 8)
+              .aspectRatio(contentMode: .fill)
+              .overlay(AppIcon.audioPlaceholder.coloredImage)
+          }
+        }
       )
 
       Spacer()
@@ -121,8 +132,26 @@ struct PlayBar: View {
 
   private var playBarSheet: some View {
     ZStack {
-      episodeImage
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      Group {
+        if let image = viewModel.episodeImage {
+          Color.black
+            .overlay(alignment: .center) {
+              Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+            }
+        } else {
+          Color.black
+            .overlay(alignment: .top) {
+              AppIcon.audioPlaceholder.coloredImage
+                .font(.system(size: basicSpacing * 12))
+                .padding(.top, basicSpacing * 4)
+            }
+        }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .clipped()
+      .ignoresSafeArea()
 
       VStack(spacing: basicSpacing) {
         Spacer()
@@ -199,20 +228,6 @@ struct PlayBar: View {
   }
 
   // MARK: - Shared Components
-
-  @ViewBuilder
-  private var episodeImage: some View {
-    if let image = viewModel.episodeImage {
-      Image(uiImage: image)
-        .resizable()
-        .aspectRatio(contentMode: .fill)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    } else {
-      RoundedRectangle(cornerRadius: 8)
-        .aspectRatio(contentMode: .fill)
-        .overlay(AppIcon.audioPlaceholder.coloredImage)
-    }
-  }
 
   @ViewBuilder
   private var playbackControls: some View {
