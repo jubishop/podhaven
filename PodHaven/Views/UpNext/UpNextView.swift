@@ -11,6 +11,19 @@ struct UpNextView: View {
 
   var body: some View {
     IdentifiableNavigationStack(manager: navigation.upNext) {
+      // Some fixed top item is necessary for TabViewBottomAccessory to detect scrolling
+      HStack {
+        Text(viewModel.totalQueueDuration.shortDescription)
+
+        Spacer()
+
+        let count = viewModel.episodeList.filteredEntries.count
+        Text("\(count) \(count != 1 ? "entries" : "entry")")
+      }
+      .padding(.horizontal, 24)
+
+      Divider()
+
       List {
         ForEach(viewModel.episodeList.filteredEntries) { podcastEpisode in
           upNextListView(podcastEpisode)
@@ -22,19 +35,12 @@ struct UpNextView: View {
       }
       .refreshable { viewModel.refreshQueue() }
       .navigationTitle("Up Next")
+      .navigationBarTitleDisplayMode(.inline)
       .environment(\.editMode, $viewModel.editMode)
       .animation(.default, value: viewModel.episodeList.filteredEntries)
       .toolbar {
         if !viewModel.isSelecting {
           ToolbarItem(placement: .topBarLeading) {
-            Text(viewModel.totalQueueDuration.shortDescription)
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .fixedSize()
-          }
-          .sharedBackgroundVisibility(.hidden)
-
-          ToolbarItem(placement: .topBarTrailing) {
             Menu("Sort") {
               ForEach(viewModel.allSortMethods, id: \.self) { method in
                 Button(
