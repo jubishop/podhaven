@@ -33,6 +33,7 @@ struct PlayBar: View {
 
   @State private var viewModel = PlayBarViewModel()
 
+  @State private var playBarSheetIsPresented = false
   private let isExpanded: Bool
 
   init(isExpanded: Bool) {
@@ -40,15 +41,18 @@ struct PlayBar: View {
   }
 
   var body: some View {
-    if viewModel.isLoading {
-      loadingPlayBar
-    } else if viewModel.isStopped {
-      stoppedPlayBar
-    } else if isExpanded {
-      expandedPlayBar
-    } else {
-      inlinePlayBar
+    Group {
+      if viewModel.isLoading {
+        loadingPlayBar
+      } else if viewModel.isStopped {
+        stoppedPlayBar
+      } else if isExpanded {
+        expandedPlayBar
+      } else {
+        inlinePlayBar
+      }
     }
+    .sheet(isPresented: $playBarSheetIsPresented, content: { playBarSheet })
   }
 
   // MARK: - Loading PlayBar
@@ -107,10 +111,7 @@ struct PlayBar: View {
       Spacer()
 
       AppIcon.expandUp.imageButton {
-        sheet {
-          playBarSheet
-            .presentationDetents([.medium])
-        }
+        playBarSheetIsPresented = true
       }
     }
     .padding(.horizontal, basicSpacing * 2)
@@ -119,34 +120,40 @@ struct PlayBar: View {
   // MARK: - PlayBar Sheet
 
   private var playBarSheet: some View {
-    VStack(spacing: basicSpacing) {
-      episodeImage.frame(width: 60, height: 60)
+    ZStack {
+      episodeImage
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-      HStack {
+      VStack(spacing: basicSpacing) {
+        HStack {
+          Spacer()
+          Spacer()
 
-        Spacer()
-        Spacer()
+          AppIcon.seekBackward.imageButton(action: viewModel.seekBackward)
+            .font(.title2)
+            .buttonStyle(.glass)
 
-        AppIcon.seekBackward.imageButton(action: viewModel.seekBackward)
-          .font(.title2)
+          Spacer()
 
-        Spacer()
+          playPauseButton
+            .font(.title)
+            .buttonStyle(.glass)
 
-        playPauseButton
-          .font(.title)
+          Spacer()
 
-        Spacer()
+          AppIcon.seekForward.imageButton(action: viewModel.seekForward)
+            .font(.title2)
+            .buttonStyle(.glass)
 
-        AppIcon.seekForward.imageButton(action: viewModel.seekForward)
-          .font(.title2)
+          Spacer()
+          Spacer()
+        }
 
-        Spacer()
-        Spacer()
+        progressBar
+          .padding(.horizontal, basicSpacing)
       }
-
-      progressBar
     }
-    .padding(.horizontal, basicSpacing)
+    .presentationDetents([.medium])
   }
 
   @ViewBuilder
