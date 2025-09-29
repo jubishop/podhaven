@@ -131,7 +131,7 @@ struct PlayBar: View {
     Spacer()
 
     AppIcon.seekBackward.imageButton(action: viewModel.seekBackward)
-      .font(.title2)
+      .font(.title3)
 
     Spacer()
 
@@ -141,7 +141,7 @@ struct PlayBar: View {
     Spacer()
 
     AppIcon.seekForward.imageButton(action: viewModel.seekForward)
-      .font(.title2)
+      .font(.title3)
 
     Spacer()
   }
