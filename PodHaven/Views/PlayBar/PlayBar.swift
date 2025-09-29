@@ -38,18 +38,15 @@ struct PlayBar: View {
   }
 
   var body: some View {
-    Group {
-      if viewModel.isLoading {
-        loadingPlayBar
-      } else if viewModel.isStopped {
-        stoppedPlayBar
-      } else if isExpanded {
-        expandedPlayBar
-      } else {
-        inlinePlayBar
-      }
+    if viewModel.isLoading {
+      loadingPlayBar
+    } else if viewModel.isStopped {
+      stoppedPlayBar
+    } else if isExpanded {
+      expandedPlayBar
+    } else {
+      inlinePlayBar
     }
-    .padding(.horizontal, basicSpacing)
   }
 
   // MARK: - Loading PlayBar
@@ -66,7 +63,7 @@ struct PlayBar: View {
 
       Spacer()
     }
-
+    .padding(.horizontal, basicSpacing)
   }
 
   // MARK: - Stopped PlayBar
@@ -80,12 +77,16 @@ struct PlayBar: View {
 
       Spacer()
     }
+    .padding(.horizontal, basicSpacing * 2)
   }
 
   // MARK: - Inline PlayBar
 
   private var inlinePlayBar: some View {
-    playbackControls
+    HStack {
+      playbackControls
+    }
+    .padding(.horizontal, basicSpacing)
   }
 
   // MARK: - Progress Bar
@@ -102,6 +103,7 @@ struct PlayBar: View {
 
       sheetControlsButton
     }
+    .padding(.horizontal, basicSpacing * 2)
   }
 
   // MARK: - Shared Components
@@ -124,17 +126,24 @@ struct PlayBar: View {
     )
   }
 
+  @ViewBuilder
   private var playbackControls: some View {
-    HStack(spacing: 12) {
-      AppIcon.seekBackward.imageButton(action: viewModel.seekBackward)
-        .font(.title2)
+    Spacer()
 
-      playPauseButton
-        .font(.title)
+    AppIcon.seekBackward.imageButton(action: viewModel.seekBackward)
+      .font(.title2)
 
-      AppIcon.seekForward.imageButton(action: viewModel.seekForward)
-        .font(.title2)
-    }
+    Spacer()
+
+    playPauseButton
+      .font(.title)
+
+    Spacer()
+
+    AppIcon.seekForward.imageButton(action: viewModel.seekForward)
+      .font(.title2)
+
+    Spacer()
   }
 
   @ViewBuilder
@@ -149,7 +158,6 @@ struct PlayBar: View {
     }
   }
 
-  @ViewBuilder
   private var sheetControlsButton: some View {
     AppIcon.expandUp.imageButton(action: viewModel.showControlSheet)
   }
