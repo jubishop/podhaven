@@ -38,15 +38,18 @@ struct PlayBar: View {
   }
 
   var body: some View {
-    if viewModel.isLoading {
-      loadingPlayBar
-    } else if viewModel.isStopped {
-      stoppedPlayBar
-    } else if isExpanded {
-      expandedPlayBar
-    } else {
-      inlinePlayBar
+    Group {
+      if viewModel.isLoading {
+        loadingPlayBar
+      } else if viewModel.isStopped {
+        stoppedPlayBar
+      } else if isExpanded {
+        expandedPlayBar
+      } else {
+        inlinePlayBar
+      }
     }
+    .padding(.horizontal, basicSpacing)
   }
 
   // MARK: - Loading PlayBar
@@ -63,7 +66,7 @@ struct PlayBar: View {
 
       Spacer()
     }
-    .padding(basicSpacing)
+
   }
 
   // MARK: - Stopped PlayBar
@@ -77,7 +80,6 @@ struct PlayBar: View {
 
       Spacer()
     }
-    .padding(basicSpacing)
   }
 
   // MARK: - Inline PlayBar
@@ -115,10 +117,8 @@ struct PlayBar: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
         } else {
           RoundedRectangle(cornerRadius: 8)
-            .fill(Color.white.opacity(0.2))
-            .overlay(
-              AppIcon.audioPlaceholder.coloredImage
-            )
+            .aspectRatio(contentMode: .fill)
+            .overlay(AppIcon.audioPlaceholder.coloredImage)
         }
       }
     )
@@ -161,7 +161,16 @@ struct PlayBar: View {
 struct PlayBarPreview: View {
   var playState: PlayState { Container.shared.playState() }
 
-  init(_ status: PlaybackStatus) {
+  let image: UIImage?
+
+  init(
+    _ status: PlaybackStatus,
+    image: UIImage? = PreviewBundle.loadImage(
+      named: "pod-save-america-podcast",
+      in: .EpisodeThumbnails
+    )
+  ) {
+    self.image = image
     playState.setStatus(status)
   }
 
@@ -178,10 +187,7 @@ struct PlayBarPreview: View {
             podcastURL: URL.valid(),
             episodeTitle: "Episode Title",
             duration: CMTime.minutes(60),
-            image: PreviewBundle.loadImage(
-              named: "pod-save-america-podcast",
-              in: .EpisodeThumbnails
-            ),
+            image: image,
             mediaURL: MediaURL(URL.valid()),
             pubDate: 48.hoursAgo
           )
@@ -202,6 +208,10 @@ struct PlayBarPreview: View {
 
 #Preview("playing") {
   PlayBarPreview(.playing)
+}
+
+#Preview("no image") {
+  PlayBarPreview(.playing, image: nil)
 }
 
 #Preview("paused") {
