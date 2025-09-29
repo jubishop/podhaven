@@ -125,6 +125,8 @@ struct PlayBar: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
       VStack(spacing: basicSpacing) {
+        Spacer()
+
         HStack {
           Spacer()
           Spacer()
@@ -152,6 +154,7 @@ struct PlayBar: View {
         progressBar
           .padding(.horizontal, basicSpacing)
       }
+      .padding(.horizontal, basicSpacing)
     }
     .presentationDetents([.medium])
   }
@@ -220,6 +223,7 @@ struct PlayBar: View {
     Spacer()
 
     playPauseButton
+      .font(.title3)
 
     Spacer()
 
