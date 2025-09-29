@@ -8,7 +8,6 @@ import SwiftUI
 struct PlayBarAccessory: View {
   nonisolated static let CoordinateName = "TabRoot"
 
-  @State private var accessoryMaxY: CGFloat = 0
   @State private var isExpanded = true
 
   private let tabMaxY: CGFloat
@@ -22,8 +21,7 @@ struct PlayBarAccessory: View {
       .onGeometryChange(for: CGFloat.self) { proxy in
         proxy.frame(in: .named(Self.CoordinateName)).maxY
       } action: { newMaxY in
-        accessoryMaxY = newMaxY
-        isExpanded = (tabMaxY - accessoryMaxY) > 40
+        isExpanded = (tabMaxY - newMaxY) > 40
       }
   }
 }
@@ -65,7 +63,7 @@ struct PlayBar: View {
 
       Spacer()
     }
-    .padding(12)
+    .padding(basicSpacing)
   }
 
   // MARK: - Stopped PlayBar
@@ -79,7 +77,7 @@ struct PlayBar: View {
 
       Spacer()
     }
-    .padding(12)
+    .padding(basicSpacing)
   }
 
   // MARK: - Inline PlayBar
