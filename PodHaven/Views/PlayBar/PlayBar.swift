@@ -27,9 +27,7 @@ struct PlayBarAccessory: View {
 }
 
 struct PlayBar: View {
-  @ObservationIgnored @DynamicInjected(\.sheet) private var sheet
-
-  private let basicSpacing: CGFloat = 12
+  private let spacing: CGFloat = 12
 
   @State private var viewModel = PlayBarViewModel()
 
@@ -52,13 +50,15 @@ struct PlayBar: View {
         inlinePlayBar
       }
     }
-    .sheet(isPresented: $playBarSheetIsPresented, content: { playBarSheet })
+    .sheet(isPresented: $playBarSheetIsPresented) {
+      PlayBarSheet(viewModel: viewModel)
+    }
   }
 
   // MARK: - Loading PlayBar
 
   private var loadingPlayBar: some View {
-    HStack(spacing: basicSpacing) {
+    HStack(spacing: spacing) {
       ProgressView()
         .progressViewStyle(CircularProgressViewStyle(tint: .white))
         .scaleEffect(0.8)
@@ -69,13 +69,13 @@ struct PlayBar: View {
 
       Spacer()
     }
-    .padding(.horizontal, basicSpacing)
+    .padding(.horizontal, spacing)
   }
 
   // MARK: - Stopped PlayBar
 
   private var stoppedPlayBar: some View {
-    HStack(spacing: basicSpacing) {
+    HStack(spacing: spacing) {
       AppIcon.noEpisodeSelected.coloredImage
 
       Text("No episode selected")
@@ -83,7 +83,7 @@ struct PlayBar: View {
 
       Spacer()
     }
-    .padding(.horizontal, basicSpacing * 2)
+    .padding(.horizontal, spacing * 2)
   }
 
   // MARK: - Inline PlayBar
@@ -92,7 +92,7 @@ struct PlayBar: View {
     HStack {
       playbackControls
     }
-    .padding(.horizontal, basicSpacing)
+    .padding(.horizontal, spacing)
   }
 
   // MARK: - Expanded PlayBar
@@ -101,18 +101,7 @@ struct PlayBar: View {
     HStack {
       Button(
         action: viewModel.showEpisodeDetail,
-        label: {
-          if let image = viewModel.episodeImage {
-            Image(uiImage: image)
-              .resizable()
-              .aspectRatio(contentMode: .fill)
-              .clipShape(RoundedRectangle(cornerRadius: 8))
-          } else {
-            RoundedRectangle(cornerRadius: 8)
-              .aspectRatio(contentMode: .fill)
-              .overlay(AppIcon.audioPlaceholder.coloredImage)
-          }
-        }
+        label: { episodeThumbnail }
       )
 
       Spacer()
@@ -125,106 +114,7 @@ struct PlayBar: View {
         playBarSheetIsPresented = true
       }
     }
-    .padding(.horizontal, basicSpacing * 2)
-  }
-
-  // MARK: - PlayBar Sheet
-
-  private var playBarSheet: some View {
-    ZStack {
-      Group {
-        if let image = viewModel.episodeImage {
-          Color.black
-            .overlay(alignment: .center) {
-              Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-            }
-        } else {
-          Color.black
-            .overlay(alignment: .top) {
-              AppIcon.audioPlaceholder.coloredImage
-                .font(.system(size: basicSpacing * 12))
-                .padding(.top, basicSpacing * 4)
-            }
-        }
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .clipped()
-      .ignoresSafeArea()
-
-      VStack(spacing: basicSpacing) {
-        Spacer()
-
-        HStack {
-          Spacer()
-          Spacer()
-
-          AppIcon.seekBackward.imageButton(action: viewModel.seekBackward)
-            .font(.title2)
-            .buttonStyle(.glass)
-
-          Spacer()
-
-          playPauseButton
-            .font(.title)
-            .buttonStyle(.glass)
-
-          Spacer()
-
-          AppIcon.seekForward.imageButton(action: viewModel.seekForward)
-            .font(.title2)
-            .buttonStyle(.glass)
-
-          Spacer()
-          Spacer()
-        }
-
-        progressBar
-          .padding(.horizontal, basicSpacing)
-      }
-      .padding(.horizontal, basicSpacing)
-    }
-    .presentationDetents([.medium])
-  }
-
-  @ViewBuilder
-  private var progressBar: some View {
-    let progressAnimationDuration: Double = 0.15
-    let progressDragScale: Double = 1.1
-
-    VStack(spacing: 2) {
-      CustomProgressBar(
-        value: $viewModel.sliderValue,
-        isDragging: $viewModel.isDragging,
-        range: 0...Double(viewModel.duration.seconds),
-        animationDuration: progressAnimationDuration
-      )
-
-      HStack {
-        Text(viewModel.sliderValue.playbackTimeFormat)
-          .font(.caption2)
-          .foregroundColor(.white)
-          .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
-          .animation(
-            .easeInOut(duration: progressAnimationDuration),
-            value: viewModel.isDragging
-          )
-
-        Spacer()
-
-        Text(viewModel.duration.seconds.playbackTimeFormat)
-          .font(.caption2)
-          .foregroundColor(.white)
-          .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
-          .animation(
-            .easeInOut(duration: progressAnimationDuration),
-            value: viewModel.isDragging
-          )
-      }
-    }
-    .padding(12)
-    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 8))
+    .padding(.horizontal, spacing * 2)
   }
 
   // MARK: - Shared Components
@@ -237,7 +127,7 @@ struct PlayBar: View {
 
     Spacer()
 
-    playPauseButton
+    PlayPauseButton(action: viewModel.playOrPause)
       .font(.title3)
 
     Spacer()
@@ -248,14 +138,16 @@ struct PlayBar: View {
   }
 
   @ViewBuilder
-  private var playPauseButton: some View {
-    let action = viewModel.playOrPause
-    if viewModel.isWaiting {
-      AppIcon.loading.imageButton(action: action)
-    } else if viewModel.isPlaying {
-      AppIcon.pauseButton.imageButton(action: action)
+  private var episodeThumbnail: some View {
+    if let image = viewModel.episodeImage {
+      Image(uiImage: image)
+        .resizable()
+        .aspectRatio(contentMode: .fill)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     } else {
-      AppIcon.playButton.imageButton(action: action)
+      RoundedRectangle(cornerRadius: 8)
+        .aspectRatio(contentMode: .fill)
+        .overlay(AppIcon.audioPlaceholder.coloredImage)
     }
   }
 }
