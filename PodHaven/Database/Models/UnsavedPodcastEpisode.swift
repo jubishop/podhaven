@@ -17,7 +17,7 @@ struct UnsavedPodcastEpisode:
   // MARK: - Stringable / Searchable
 
   var toString: String { unsavedEpisode.toString }
-  var searchableString: String { unsavedEpisode.searchableString }
+  var searchableString: String { "\(unsavedPodcast.searchableString) - \(unsavedEpisode.searchableString)" }
 
   // MARK: - Data
 

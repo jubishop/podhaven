@@ -87,8 +87,8 @@ struct UnsavedEpisode:
 
   // MARK: - Savable
 
-  var toString: String { "(\(id)) - \(self.title)" }
-  var searchableString: String { self.title }
+  var toString: String { "(\(id)) - \(title)" }
+  var searchableString: String { "\(title) - \(description ?? "")" }
 
   // MARK: - EpisodeDisplayable / EpisodeInformable
 

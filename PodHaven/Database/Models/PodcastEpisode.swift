@@ -22,7 +22,7 @@ struct PodcastEpisode:
   // MARK: - Stringable / Searchable
 
   var toString: String { episode.toString }
-  var searchableString: String { episode.searchableString }
+  var searchableString: String { "\(podcast.searchableString) - \(episode.searchableString)" }
 
   // MARK: - Data
 

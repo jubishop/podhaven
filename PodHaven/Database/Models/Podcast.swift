@@ -56,8 +56,8 @@ struct UnsavedPodcast:
 
   // MARK: - Savable
 
-  var toString: String { "(\(feedURL.toString)) - \(self.title)" }
-  var searchableString: String { self.title }
+  var toString: String { "(\(feedURL.toString)) - \(title)" }
+  var searchableString: String { "\(title) - \(description)" }
 
   // MARK: - State Getters
 
