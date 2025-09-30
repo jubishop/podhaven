@@ -64,4 +64,17 @@ struct PodFileManager: FileManageable {
   func fileExists(at url: URL) -> Bool {
     FileManager.default.fileExists(atPath: url.path)
   }
+
+  func contentsOfDirectory(at url: URL) throws -> [URL] {
+    try FileManager.default.contentsOfDirectory(
+      at: url,
+      includingPropertiesForKeys: [.fileSizeKey],
+      options: .skipsHiddenFiles
+    )
+  }
+
+  func fileSize(for url: URL) throws -> Int64 {
+    let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
+    return Int64(resourceValues.fileSize ?? 0)
+  }
 }

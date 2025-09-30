@@ -60,4 +60,26 @@ final class FakeFileManager: FileManageable, Sendable {
   func fileExists(at url: URL) -> Bool {
     inMemoryFiles[url] != nil
   }
+
+  func contentsOfDirectory(at url: URL) throws -> [URL] {
+    // Return all files that have this url as a parent directory
+    let urlString = url.absoluteString
+    return inMemoryFiles().keys
+      .filter { fileURL in
+        let fileURLString = fileURL.absoluteString
+        // Check if file is in this directory (not in subdirectories)
+        guard fileURLString.hasPrefix(urlString) else { return false }
+        let remainingPath = fileURLString.dropFirst(urlString.count)
+        // Ensure it's a direct child (no more slashes after directory)
+        return !remainingPath.isEmpty && !remainingPath.dropFirst().contains("/")
+      }
+      .sorted { $0.absoluteString < $1.absoluteString }
+  }
+
+  func fileSize(for url: URL) throws -> Int64 {
+    guard let data = inMemoryFiles[url]
+    else { throw TestError.fileNotFound(url) }
+
+    return Int64(data.count)
+  }
 }

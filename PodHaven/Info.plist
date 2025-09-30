@@ -12,6 +12,7 @@
   <key>BGTaskSchedulerPermittedIdentifiers</key>
   <array>
     <string>com.justinbishop.podhaven.refresh</string>
+    <string>com.justinbishop.podhaven.cachePurge</string>
   </array>
   <key>CFBundleURLTypes</key>
   <array>

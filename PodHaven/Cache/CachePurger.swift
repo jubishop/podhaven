@@ -14,6 +14,7 @@ extension Container {
 
 final class CachePurger: Sendable {
   private var cacheManager: CacheManager { Container.shared.cacheManager() }
+  private var podFileManager: any FileManageable { Container.shared.podFileManager() }
   private var repo: any Databasing { Container.shared.repo() }
 
   private static let backgroundTaskIdentifier = "com.justinbishop.podhaven.cachePurge"
@@ -132,10 +133,8 @@ final class CachePurger: Sendable {
     }
     defer { purgeLock.release() }
 
-    let cacheDirectory = CacheManager.cacheDirectory
-
     // Calculate total cache size
-    let totalSize = try calculateCacheSize(at: cacheDirectory)
+    let totalSize = try calculateCacheSize()
     Self.log.debug(
       "current cache size: \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))"
     )
@@ -160,22 +159,21 @@ final class CachePurger: Sendable {
       guard freedBytes < bytesToFree else { break }
 
       if let cachedURL = episode.cachedURL {
-        let fileSize = try getFileSize(at: cachedURL.rawValue)
-
         do {
+          let fileSize = try podFileManager.fileSize(for: cachedURL.rawValue)
           if let clearedURL = try await cacheManager.clearCache(for: episode.id) {
             freedBytes += fileSize
             deletedCount += 1
             Self.log.debug(
               """
                 deleted: \(episode.toString)
-                cached file: \(clearedURL).
+                cached file: \(clearedURL.lastPathComponent)
                 bytes: \(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))
               """
             )
           }
         } catch {
-          Self.log.error("failed to delete \(episode.toString): \(error)")
+          Self.log.error(error)
         }
       }
     }
@@ -191,27 +189,21 @@ final class CachePurger: Sendable {
 
   // MARK: - Cache Size Calculation
 
-  private func calculateCacheSize(at directory: URL) throws -> Int64 {
-    let fileManager = FileManager.default
-    guard fileManager.fileExists(atPath: directory.path) else { return 0 }
-
-    let contents = try fileManager.contentsOfDirectory(
-      at: directory,
-      includingPropertiesForKeys: [.fileSizeKey],
-      options: .skipsHiddenFiles
+  private func calculateCacheSize() throws -> Int64 {
+    let contents = try podFileManager.contentsOfDirectory(at: CacheManager.cacheDirectory)
+    Self.log.trace(
+      """
+      Contents of cache directory are: 
+        \(contents.map(\.lastPathComponent).joined(separator: "\n  "))
+      """
     )
 
     var totalSize: Int64 = 0
     for url in contents {
-      totalSize += try getFileSize(at: url)
+      totalSize += try podFileManager.fileSize(for: url)
     }
 
     return totalSize
-  }
-
-  private func getFileSize(at url: URL) throws -> Int64 {
-    let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
-    return Int64(resourceValues.fileSize ?? 0)
   }
 
   // MARK: - Episode Deletion Heuristic
