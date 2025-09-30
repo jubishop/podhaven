@@ -47,7 +47,7 @@ final class RefreshScheduler: Sendable {
   // MARK: - State Management
 
   private let refreshLock = ThreadLock()
-  private let refreshTask = ThreadSafe<Task<Void, Never>?>(nil)
+  private let refreshTask = ThreadSafe<Task<Void, Error>?>(nil)
   private let bgTask = ThreadSafe<Task<Bool, Never>?>(nil)
 
   // MARK: - Initialization
@@ -163,11 +163,13 @@ final class RefreshScheduler: Sendable {
       Task(priority: .background) { [weak self] in
         guard let self else { return }
 
-        try? await sleeper.sleep(for: initialDelay)
+        try await sleeper.sleep(for: initialDelay)
 
         Self.log.debug("refreshTask: done initial sleeping")
 
         while await UIApplication.shared.applicationState == .active {
+          try Task.checkCancellation()
+
           let backgroundTask = await BackgroundTask.start(
             withName: "RefreshScheduler.refreshTask"
           )
@@ -183,7 +185,7 @@ final class RefreshScheduler: Sendable {
           await backgroundTask.end()
 
           Self.log.debug("refreshTask: now sleeping")
-          try? await sleeper.sleep(for: foregroundPolicy.cadence)
+          try await sleeper.sleep(for: foregroundPolicy.cadence)
         }
       }
     )

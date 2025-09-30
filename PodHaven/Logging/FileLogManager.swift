@@ -3,7 +3,6 @@
 import FactoryKit
 import Foundation
 import Logging
-import UIKit
 
 extension Container {
   var fileLogManager: Factory<FileLogManager> {
@@ -12,11 +11,8 @@ extension Container {
 }
 
 struct FileLogManager: Sendable {
-  @DynamicInjected(\.sleeper) private var sleeper
-
-  private let initialDelay = Duration.seconds(10)
-  private let maxLogEntries = 5000
-  private let periodicCleanupInterval = Duration.minutes(15)
+  private let maxFileSizeBytes: UInt64 = 1_000_000  // 1MB trigger
+  private let targetFileSizeBytes: UInt64 = 750_000  // 750KB after truncation
 
   private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
   private let logFileURL: URL = {
@@ -27,9 +23,7 @@ struct FileLogManager: Sendable {
 
   // MARK: - Initialization
 
-  fileprivate init() {
-    startPeriodicCleanup()
-  }
+  fileprivate init() {}
 
   // MARK: - Logging
 
@@ -47,16 +41,27 @@ struct FileLogManager: Sendable {
 
   private func performWriteToFile(_ fileLogEntry: FileLogEntry) {
     do {
-      guard let jsonString = String(data: try JSONEncoder().encode(fileLogEntry), encoding: .utf8)
-      else { throw LoggingError.jsonStringCreationFailure(fileLogEntry) }
+      let jsonData = try JSONEncoder().encode(fileLogEntry)
+      guard let newlineData = "\n".data(using: .utf8)
+      else { throw LoggingError.dataEncodingFailure("\n") }
 
-      if FileManager.default.fileExists(atPath: logFileURL.path) {
+      var writeData = jsonData
+      writeData.append(newlineData)
+
+      do {
         let fileHandle = try FileHandle(forWritingTo: logFileURL)
+        defer { fileHandle.closeFile() }
+
         fileHandle.seekToEndOfFile()
-        fileHandle.write("\(jsonString)\n".data(using: .utf8)!)
-        fileHandle.closeFile()
-      } else {
-        try jsonString.write(to: logFileURL, atomically: true, encoding: .utf8)
+        fileHandle.write(writeData)
+
+        let currentSize = fileHandle.offsetInFile
+        if currentSize > maxFileSizeBytes {
+          try truncateLogFile()
+        }
+      } catch CocoaError.fileNoSuchFile {
+        // File doesn't exist, create it
+        try writeData.write(to: logFileURL)
       }
     } catch {
       Self.log.error(error)
@@ -65,58 +70,21 @@ struct FileLogManager: Sendable {
 
   // MARK: - Cleanup
 
-  private func startPeriodicCleanup() {
-    Assert.neverCalled()
+  private func truncateLogFile() throws {
+    let fileData = try Data(contentsOf: logFileURL)
 
-    Task(priority: .background) {
-      try? await sleeper.sleep(for: initialDelay)
+    let bytesToRemove = fileData.count - Int(targetFileSizeBytes)
+    guard bytesToRemove > 0
+    else { throw LoggingError.truncationNegativeBytes(bytesToRemove) }
 
-      while true {
-        do {
-          let backgroundTask = await BackgroundTask.start(
-            withName: "FileLogManager.startPeriodicCleanup"
-          )
-          await truncateLogFile()
-          await backgroundTask.end()
-          try await sleeper.sleep(for: periodicCleanupInterval)
-        } catch {
-          Self.log.error(error)
-        }
-      }
-    }
-  }
+    // Find the first newline after the cutoff to keep valid JSON lines
+    let searchRange = bytesToRemove..<fileData.count
+    guard let newlineIndex = fileData[searchRange].firstIndex(of: UInt8(ascii: "\n"))
+    else { throw LoggingError.truncationNoNewlineFound(bytesToRemove) }
 
-  private func truncateLogFile() async {
-    guard FileManager.default.fileExists(atPath: logFileURL.path)
-    else {
-      Self.log.error("Log file does not exist?")
-      return
-    }
-
-    Self.log.debug("Running periodic log truncation after \(periodicCleanupInterval)")
-    await withCheckedContinuation { continuation in
-      logQueue.async {
-        do {
-          let logContent = try String(contentsOf: logFileURL, encoding: .utf8)
-          let lines = logContent.components(separatedBy: .newlines).filter { !$0.isEmpty }
-
-          guard lines.count > maxLogEntries
-          else {
-            Self.log.debug("Log file has \(lines.count) entries, no truncation needed")
-            continuation.resume()
-            return
-          }
-
-          let keepLines = Array(lines.suffix(maxLogEntries))
-          let truncatedContent = keepLines.joined(separator: "\n")
-          try (truncatedContent + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
-          Self.log.info("Truncated log file from \(lines.count) to \(keepLines.count) entries")
-        } catch {
-          Self.log.error(error)
-        }
-
-        continuation.resume()
-      }
-    }
+    // Keep everything after the newline
+    let truncatedData = fileData[(newlineIndex + 1)...]
+    try truncatedData.write(to: logFileURL, options: .atomic)
+    Self.log.info("Truncated log file from \(fileData.count) bytes to \(truncatedData.count) bytes")
   }
 }
