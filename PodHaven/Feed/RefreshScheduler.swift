@@ -47,9 +47,7 @@ final class RefreshScheduler: Sendable {
   // MARK: - State Management
 
   private let refreshLock = ThreadLock()
-  private let refreshTask = ThreadSafe<Task<Void, Error>?>(nil)
-  private let bgTask = ThreadSafe<Task<Bool, Never>?>(nil)
-
+  private let foregroundRefreshTask = ThreadSafe<Task<Void, Error>?>(nil)
   private let backgroundTaskScheduler: BackgroundTaskScheduler
 
   // MARK: - Initialization
@@ -57,8 +55,7 @@ final class RefreshScheduler: Sendable {
   fileprivate init() {
     self.backgroundTaskScheduler = BackgroundTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
-      cadence: backgroundPolicy.cadence,
-      bgTask: bgTask
+      cadence: backgroundPolicy.cadence
     )
   }
 
@@ -70,7 +67,7 @@ final class RefreshScheduler: Sendable {
     backgroundTaskScheduler.scheduleNext(in: backgroundPolicy.cadence)
   }
 
-  // MARK: - Background Task Scheduling
+  // MARK: - Background Task
 
   func register() {
     backgroundTaskScheduler.register { [weak self] complete in
@@ -80,8 +77,14 @@ final class RefreshScheduler: Sendable {
         return
       }
 
-      let success = await executeBGTask()
-      complete(success)
+      do {
+        try await executeRefresh(backgroundPolicy)
+        try Task.checkCancellation()
+        complete(true)
+      } catch {
+        Self.log.error(error)
+        complete(false)
+      }
 
       if await UIApplication.shared.applicationState == .active {
         Self.log.debug("App foregrounded during BGTask: beginning foreground refreshing")
@@ -89,33 +92,6 @@ final class RefreshScheduler: Sendable {
         beginForegroundRefreshing()
       }
     }
-  }
-
-  // MARK: - Background Task
-
-  private func executeBGTask() async -> Bool {
-    Self.log.debug("bgTask: performing refresh")
-
-    let task: Task<Bool, Never> = Task(priority: .background) { [weak self] in
-      guard let self else { return false }
-
-      do {
-        try await executeRefresh(backgroundPolicy)
-        try Task.checkCancellation()
-        return true
-      } catch {
-        Self.log.error(error)
-        return false
-      }
-    }
-
-    bgTask(task)
-    let success = await task.value
-    bgTask(nil)
-
-    Self.log.debug("bgTask: refresh completed gracefully")
-
-    return success
   }
 
   // MARK: - Foreground Task
@@ -128,33 +104,33 @@ final class RefreshScheduler: Sendable {
       return
     }
 
-    refreshTask()?.cancel()
-    refreshTask(
+    foregroundRefreshTask()?.cancel()
+    foregroundRefreshTask(
       Task(priority: .background) { [weak self] in
         guard let self else { return }
 
         try await sleeper.sleep(for: initialDelay)
 
-        Self.log.debug("refreshTask: done initial sleeping")
+        Self.log.debug("foregroundRefreshTask: done initial sleeping")
 
         while await UIApplication.shared.applicationState == .active {
           try Task.checkCancellation()
 
           let backgroundTask = await BackgroundTask.start(
-            withName: "RefreshScheduler.refreshTask"
+            withName: "RefreshScheduler.foregroundRefreshTask"
           )
           do {
-            Self.log.debug("refreshTask: performing refresh")
+            Self.log.debug("foregroundRefreshTask: performing refresh")
 
             try await executeRefresh(foregroundPolicy)
 
-            Self.log.debug("refreshTask: refresh completed gracefully")
+            Self.log.debug("foregroundRefreshTask: refresh completed gracefully")
           } catch {
             Self.log.error(error)
           }
           await backgroundTask.end()
 
-          Self.log.debug("refreshTask: now sleeping")
+          Self.log.debug("foregroundRefreshTask: now sleeping")
           try await sleeper.sleep(for: foregroundPolicy.cadence)
         }
       }

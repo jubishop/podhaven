@@ -30,7 +30,6 @@ final class CachePurger: Sendable {
   // MARK: - State Management
 
   private let purgeLock = ThreadLock()
-  private let bgTask = ThreadSafe<Task<Bool, Never>?>(nil)
   private let backgroundTaskScheduler: BackgroundTaskScheduler
 
   // MARK: - Initialization
@@ -38,8 +37,7 @@ final class CachePurger: Sendable {
   fileprivate init() {
     self.backgroundTaskScheduler = BackgroundTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
-      cadence: cadence,
-      bgTask: bgTask
+      cadence: cadence
     )
   }
 
@@ -51,7 +49,7 @@ final class CachePurger: Sendable {
     backgroundTaskScheduler.scheduleNext(in: cadence)
   }
 
-  // MARK: - Background Task Scheduling
+  // MARK: - Background Task
 
   func register() {
     backgroundTaskScheduler.register { [weak self] complete in
@@ -61,36 +59,15 @@ final class CachePurger: Sendable {
         return
       }
 
-      let success = await executeBGTask()
-      complete(success)
-    }
-  }
-
-  // MARK: - Background Task
-
-  private func executeBGTask() async -> Bool {
-    Self.log.debug("bgTask: performing cache purge")
-
-    let task: Task<Bool, Never> = Task(priority: .background) { [weak self] in
-      guard let self else { return false }
-
       do {
         try await executePurge()
         try Task.checkCancellation()
-        return true
+        complete(true)
       } catch {
         Self.log.error(error)
-        return false
+        complete(false)
       }
     }
-
-    bgTask(task)
-    let success = await task.value
-    bgTask(nil)
-
-    Self.log.debug("bgTask: cache purge completed gracefully")
-
-    return success
   }
 
   // MARK: - Purge Logic
