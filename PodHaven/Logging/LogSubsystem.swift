@@ -9,10 +9,6 @@ enum LogSubsystem {
     case manager
     case purger
     case state
-
-    var level: Logger.Level {
-      return .trace
-    }
   }
 
   enum Database: String, LogCategorizable {

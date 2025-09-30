@@ -173,7 +173,6 @@ actor CacheManager {
 
   private func handleQueueChange(_ queuedEpisodeIDs: Set<Episode.ID>) async {
     let newEpisodeIDs = queuedEpisodeIDs.subtracting(currentQueuedEpisodeIDs)
-    let removedEpisodeIDs = currentQueuedEpisodeIDs.subtracting(queuedEpisodeIDs)
     currentQueuedEpisodeIDs = queuedEpisodeIDs
 
     Self.log.debug(
@@ -181,8 +180,6 @@ actor CacheManager {
       handleQueueChange:
         new queue IDs: 
           \(newEpisodeIDs)
-        removed IDs: 
-          \(removedEpisodeIDs)
       """
     )
 

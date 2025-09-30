@@ -67,10 +67,12 @@ final class FakeFileManager: FileManageable, Sendable {
     return inMemoryFiles().keys
       .filter { fileURL in
         let fileURLString = fileURL.absoluteString
+
         // Check if file is in this directory (not in subdirectories)
         guard fileURLString.hasPrefix(urlString) else { return false }
-        let remainingPath = fileURLString.dropFirst(urlString.count)
+
         // Ensure it's a direct child (no more slashes after directory)
+        let remainingPath = fileURLString.dropFirst(urlString.count)
         return !remainingPath.isEmpty && !remainingPath.dropFirst().contains("/")
       }
       .sorted { $0.absoluteString < $1.absoluteString }
