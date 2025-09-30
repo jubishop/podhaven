@@ -139,6 +139,9 @@ final class CachePurger: Sendable {
     // First, purge any dangling files (files with no associated episode)
     try await purgeDanglingFiles(cachedEpisodes: cachedEpisodes)
 
+    // Validate that cached episodes still have their files on disk
+    try await validateCachedEpisodes(cachedEpisodes: cachedEpisodes)
+
     // Calculate total cache size
     let totalSize = try calculateCacheSize()
     Self.log.debug(
@@ -234,6 +237,34 @@ final class CachePurger: Sendable {
     Self.log.debug(
       "dangling file purge completed: freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))"
     )
+  }
+
+  // MARK: - Cached Episode Validation
+
+  private func validateCachedEpisodes(cachedEpisodes: [Episode]) async throws {
+    var clearedCount = 0
+
+    for episode in cachedEpisodes {
+      guard let cachedURL = episode.cachedURL else { continue }
+
+      if !podFileManager.fileExists(at: cachedURL.rawValue) {
+        try await repo.updateCachedFilename(episode.id, nil)
+        clearedCount += 1
+        Self.log.notice(
+          """
+          cleared cached filename for episode with missing file:
+            episode: \(episode.toString)
+            missing file: \(cachedURL.lastPathComponent)
+          """
+        )
+      }
+    }
+
+    if clearedCount > 0 {
+      Self.log.debug("validated cached episodes: cleared \(clearedCount) missing file(s)")
+    } else {
+      Self.log.debug("validated cached episodes: all files present")
+    }
   }
 
   // MARK: - Cache Size Calculation

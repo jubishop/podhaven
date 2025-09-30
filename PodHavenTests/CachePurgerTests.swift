@@ -342,4 +342,33 @@ import Testing
     #expect(!fileManager.fileExists(at: danglingFile2URL))
     #expect(!fileManager.fileExists(at: danglingFile3URL))
   }
+
+  @Test("executePurge clears cached filename when file is missing")
+  func executePurgeClearsCachedFilenameWhenFileIsMissing() async throws {
+    // Create an episode with a cached file
+    let episode = try await createCachedEpisode(
+      title: "Episode with missing file",
+      cachedFilename: "missing-file.mp3",
+      dataSize: 10 * 1024 * 1024  // 10 MB
+    )
+
+    // Verify episode is cached
+    let cachedEpisode = try await repo.episode(episode.id)
+    #expect(cachedEpisode?.cacheStatus == .cached)
+
+    // Remove the file manually to simulate it going missing
+    if let cachedURL = episode.cachedURL {
+      try fileManager.removeItem(at: cachedURL.rawValue)
+    }
+
+    // Verify file no longer exists
+    #expect(!fileManager.fileExists(at: episode.cachedURL!.rawValue))
+
+    try await cachePurger.executePurge()
+
+    // Episode's cached filename should be cleared
+    let updatedEpisode = try await repo.episode(episode.id)
+    #expect(updatedEpisode?.cacheStatus == .uncached)
+    #expect(updatedEpisode?.cachedURL == nil)
+  }
 }
