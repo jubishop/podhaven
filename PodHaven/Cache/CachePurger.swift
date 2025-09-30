@@ -104,15 +104,10 @@ final class CachePurger: Sendable {
       "freeing: \(ByteCountFormatter.string(fromByteCount: bytesToFree, countStyle: .file))"
     )
 
-    // Get cached episodes in deletion priority order
-    let episodesToDelete = try await getCachedEpisodesInDeletionOrder(
-      cachedEpisodes: cachedEpisodes
-    )
-
     var freedBytes: Int64 = 0
     var deletedCount = 0
 
-    for episode in episodesToDelete {
+    for episode in try await getCachedEpisodesInDeletionOrder(cachedEpisodes: cachedEpisodes) {
       guard freedBytes < bytesToFree else { break }
 
       if let cachedURL = episode.cachedURL {
@@ -148,71 +143,34 @@ final class CachePurger: Sendable {
 
   private func purgeDanglingFiles(cachedEpisodes: [Episode]) async throws {
     let cachedFiles = try podFileManager.contentsOfDirectory(at: CacheManager.cacheDirectory)
+    let episodeCachedFilenames = Set(cachedEpisodes.compactMap { $0.cachedURL?.lastPathComponent })
 
-    let episodeCachedFilenames = Set(
-      cachedEpisodes.compactMap { $0.cachedURL?.lastPathComponent }
-    )
-
-    // Find files that don't have a corresponding episode
-    let danglingFiles = cachedFiles.filter { fileURL in
-      !episodeCachedFilenames.contains(fileURL.lastPathComponent)
-    }
-
-    guard !danglingFiles.isEmpty else {
-      Self.log.debug("no dangling files found")
-      return
-    }
-
-    var freedBytes: Int64 = 0
-    for fileURL in danglingFiles {
+    for cachedFile in cachedFiles
+    where !episodeCachedFilenames.contains(cachedFile.lastPathComponent) {
       do {
-        let fileSize = try podFileManager.fileSize(for: fileURL)
-        try podFileManager.removeItem(at: fileURL)
-        freedBytes += fileSize
-        Self.log.notice(
-          """
-          found and deleted dangling file: \(fileURL.lastPathComponent)
-          freed: \(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))
-          """
-        )
+        try podFileManager.removeItem(at: cachedFile)
+        Self.log.notice("found and deleted dangling file: \(cachedFile.lastPathComponent)")
       } catch {
         Self.log.error(error)
       }
     }
-
-    Self.log.debug(
-      """
-      dangling file purge completed: 
-      freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
-      """
-    )
   }
 
   // MARK: - Cached Episode Validation
 
   private func validateCachedEpisodes(cachedEpisodes: [Episode]) async throws {
-    var clearedCount = 0
-
     for episode in cachedEpisodes {
       guard let cachedURL = episode.cachedURL else { continue }
+      guard !podFileManager.fileExists(at: cachedURL.rawValue) else { continue }
 
-      if !podFileManager.fileExists(at: cachedURL.rawValue) {
-        try await repo.updateCachedFilename(episode.id, nil)
-        clearedCount += 1
-        Self.log.notice(
-          """
-          cleared cached filename for episode with missing file:
-            episode: \(episode.toString)
-            missing file: \(cachedURL.lastPathComponent)
-          """
-        )
-      }
-    }
-
-    if clearedCount > 0 {
-      Self.log.debug("validated cached episodes: cleared \(clearedCount) missing file(s)")
-    } else {
-      Self.log.debug("validated cached episodes: all files present")
+      try await repo.updateCachedFilename(episode.id, nil)
+      Self.log.notice(
+        """
+        cleared cached filename for episode with missing file:
+          episode: \(episode.toString)
+          missing file: \(cachedURL.lastPathComponent)
+        """
+      )
     }
   }
 
