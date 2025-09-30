@@ -179,7 +179,6 @@ final class CachePurger: Sendable {
 
   private func calculateCacheSize() throws -> Int64 {
     let cachedFiles = try podFileManager.contentsOfDirectory(at: CacheManager.cacheDirectory)
-
     Self.log.trace(
       """
       Contents of cache directory are:
@@ -187,12 +186,7 @@ final class CachePurger: Sendable {
       """
     )
 
-    var totalSize: Int64 = 0
-    for url in cachedFiles {
-      totalSize += try podFileManager.fileSize(for: url)
-    }
-
-    return totalSize
+    return try cachedFiles.reduce(into: 0) { $0 += try podFileManager.fileSize(for: $1) }
   }
 
   // MARK: - Episode Deletion Heuristic
