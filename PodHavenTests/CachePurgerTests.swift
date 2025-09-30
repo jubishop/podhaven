@@ -36,8 +36,8 @@ import Testing
     #expect(updatedEpisode?.cacheStatus == .cached)
   }
 
-  @Test("executePurge removes oldest played episodes first")
-  func executePurgeRemovesOldestPlayedEpisodesFirst() async throws {
+  @Test("executePurge removes completed episodes by earliest completionDate")
+  func executePurgeRemovesCompletedEpisodesByEarliestCompletionDate() async throws {
     let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
     let threeDaysAgo = Date.now.addingTimeInterval(-3 * 24 * 60 * 60)
 
@@ -64,17 +64,17 @@ import Testing
 
     try await cachePurger.executePurge()
 
-    // Oldest played should be deleted first
+    // Earliest completion date should be deleted first
     let updatedOldPlayed1 = try await repo.episode(oldPlayed1.id)
     #expect(updatedOldPlayed1?.cacheStatus == .uncached)
 
-    // Recent unplayed should still be cached
+    // Uncompleted episode should still be cached
     let updatedRecentUnplayed = try await repo.episode(recentUnplayed.id)
     #expect(updatedRecentUnplayed?.cacheStatus == .cached)
   }
 
-  @Test("executePurge removes oldest unplayed episodes after old played")
-  func executePurgeRemovesOldestUnplayedEpisodesAfterOldPlayed() async throws {
+  @Test("executePurge removes uncompleted episodes after completed ones")
+  func executePurgeRemovesUncompletedEpisodesAfterCompletedOnes() async throws {
     let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
     let fiveDaysAgo = Date.now.addingTimeInterval(-5 * 24 * 60 * 60)
 
@@ -102,11 +102,11 @@ import Testing
 
     try await cachePurger.executePurge()
 
-    // Old played should be deleted first
+    // Completed episode should be deleted first
     let updatedOldPlayed = try await repo.episode(oldPlayed.id)
     #expect(updatedOldPlayed?.cacheStatus == .uncached)
 
-    // Old unplayed should be deleted second
+    // Next deletion should be the earliest uncompleted episode by pubDate
     let updatedOldUnplayed = try await repo.episode(oldUnplayed.id)
     #expect(updatedOldUnplayed?.cacheStatus == .uncached)
 
@@ -115,8 +115,8 @@ import Testing
     #expect(updatedRecentUnplayed?.cacheStatus == .cached)
   }
 
-  @Test("executePurge removes recent episodes by oldest pubDate when needed")
-  func executePurgeRemovesRecentEpisodesByOldestPubDateWhenNeeded() async throws {
+  @Test("executePurge orders uncompleted deletions by pubDate")
+  func executePurgeOrdersUncompletedDeletionsByPubDate() async throws {
     let yesterday = Date.now.addingTimeInterval(-1 * 24 * 60 * 60)
     let today = Date.now
 
@@ -143,11 +143,11 @@ import Testing
 
     try await cachePurger.executePurge()
 
-    // Oldest by pubDate should be deleted
+    // Earliest pubDate should be deleted first among uncompleted episodes
     let updatedRecentOlder = try await repo.episode(recentOlder.id)
     #expect(updatedRecentOlder?.cacheStatus == .uncached)
 
-    // Newer episodes should still be cached
+    // Newer pubDate should still be cached
     let updatedRecentNewer = try await repo.episode(recentNewer.id)
     #expect(updatedRecentNewer?.cacheStatus == .cached)
   }

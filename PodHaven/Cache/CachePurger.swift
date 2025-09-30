@@ -24,8 +24,7 @@ final class CachePurger: Sendable {
   // MARK: - Configuration
 
   let cacheSizeLimit: Int64 = 1024 * 1024 * 1024  // 1GB
-  private let cadence: Duration = .hours(2)
-  private let oldEpisodeThreshold: Duration = .days(2)
+  private let cadence: Duration = .hours(12)
 
   // MARK: - State Management
 
@@ -242,34 +241,26 @@ final class CachePurger: Sendable {
   private func getCachedEpisodesInDeletionOrder(cachedEpisodes: [Episode]) async throws
     -> [Episode]
   {
-    let twoDaysAgo = Date.now.addingTimeInterval(-oldEpisodeThreshold.asTimeInterval)
-
     // Filter out queued episodes
     let unqueuedEpisodes = cachedEpisodes.filter { !$0.queued }
 
-    // Separate into categories
-    let oldPlayedEpisodes =
-      unqueuedEpisodes.filter {
-        $0.finished && ($0.completionDate ?? Date.distantPast) < twoDaysAgo
-      }
-      .sorted { ($0.completionDate ?? Date.distantPast) < ($1.completionDate ?? Date.distantPast) }
+    // Completed episodes get purged first
+    let completedEpisodes =
+      unqueuedEpisodes
+      .filter(\.finished)
+      .sorted { lhs, rhs in
+        let lhsDate = lhs.completionDate ?? .distantPast
+        let rhsDate = rhs.completionDate ?? .distantPast
 
-    let oldUnplayedEpisodes =
-      unqueuedEpisodes.filter {
-        !$0.finished && $0.pubDate < twoDaysAgo
+        return lhsDate < rhsDate
       }
-      .sorted { $0.pubDate < $1.pubDate }
 
-    let recentEpisodes =
-      unqueuedEpisodes.filter {
-        guard $0.finished else {
-          return $0.pubDate >= twoDaysAgo
-        }
-        return ($0.completionDate ?? Date.distantPast) >= twoDaysAgo
-      }
-      .sorted { $0.pubDate < $1.pubDate }
+    // Uncompleted episodes last as necessary
+    let uncompletedEpisodes =
+      unqueuedEpisodes
+      .filter { !$0.finished }
+      .sorted { lhs, rhs in lhs.pubDate < rhs.pubDate }
 
-    // Combine in priority order
-    return oldPlayedEpisodes + oldUnplayedEpisodes + recentEpisodes
+    return completedEpisodes + uncompletedEpisodes
   }
 }
