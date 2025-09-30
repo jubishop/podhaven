@@ -14,6 +14,7 @@ struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
   @InjectedObservable(\.sheet) private var sheet
   @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
@@ -179,6 +180,7 @@ struct PodHavenApp: App {
     guard !Task.isCancelled else { return }
 
     refreshScheduler.start()
+    cachePurger.start()
     startMemoryWarningMonitoring()
 
     didStartServices = true
