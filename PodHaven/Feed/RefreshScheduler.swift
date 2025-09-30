@@ -101,6 +101,7 @@ final class RefreshScheduler: Sendable {
 
       do {
         try await executeRefresh(backgroundPolicy)
+        try Task.checkCancellation()
         return true
       } catch {
         Self.log.error(error)

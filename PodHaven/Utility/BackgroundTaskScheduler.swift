@@ -12,12 +12,12 @@ struct BackgroundTaskScheduler: Sendable {
 
   private let identifier: String
   private let cadence: Duration
-  private let bgTask: ThreadSafe<Task<Bool, Never>?>
+  private let bgTask: ThreadSafe<Task<Bool, Never>?>?
 
   init(
     identifier: String,
     cadence: Duration,
-    bgTask: ThreadSafe<Task<Bool, Never>?>
+    bgTask: ThreadSafe<Task<Bool, Never>?>? = nil
   ) {
     self.identifier = identifier
     self.cadence = cadence
@@ -40,8 +40,8 @@ struct BackgroundTaskScheduler: Sendable {
       task.expirationHandler = {
         Self.log.debug("handle: expiration triggered, cancelling running task for: \(identifier)")
 
-        bgTask()?.cancel()
-        bgTask(nil)
+        bgTask?()?.cancel()
+        bgTask?(nil)
         complete(false)
       }
 

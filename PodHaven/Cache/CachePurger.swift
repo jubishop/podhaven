@@ -76,6 +76,7 @@ final class CachePurger: Sendable {
 
       do {
         try await executePurge()
+        try Task.checkCancellation()
         return true
       } catch {
         Self.log.error(error)
