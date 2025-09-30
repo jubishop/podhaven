@@ -23,7 +23,7 @@ final class CachePurger: Sendable {
 
   // MARK: - Configuration
 
-  private let cacheSizeLimit: Int64 = 500 * 1024 * 1024  // 500 MB
+  let cacheSizeLimit: Int64 = 1024 * 1024 * 1024  // 1GB
   private let cadence: Duration = .hours(2)
   private let oldEpisodeThreshold: Duration = .days(2)
 

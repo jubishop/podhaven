@@ -18,45 +18,12 @@ import Testing
     Container.shared.podFileManager() as! FakeFileManager
   }
 
-  // MARK: - Helper Methods
-
-  private func createCachedEpisode(
-    title: String,
-    cachedFilename: String,
-    dataSize: Int = 1024 * 1024,  // 1 MB default
-    completionDate: Date? = nil,
-    pubDate: Date? = nil
-  ) async throws -> Episode {
-    let unsavedPodcast = try Create.unsavedPodcast()
-    let unsavedEpisode = try Create.unsavedEpisode(
-      title: title,
-      pubDate: pubDate,
-      completionDate: completionDate,
-      cachedFilename: cachedFilename
-    )
-
-    let podcastSeries = try await repo.insertSeries(
-      unsavedPodcast,
-      unsavedEpisodes: [unsavedEpisode]
-    )
-
-    let episode = podcastSeries.episodes.first!
-
-    // Write fake file to simulate cached episode
-    if let cachedURL = episode.cachedURL {
-      let data = Data(count: dataSize)
-      try await fileManager.writeData(data, to: cachedURL.rawValue)
-    }
-
-    return episode
-  }
-
   // MARK: - Cache Size Calculation Tests
 
   @Test("executePurge does nothing when cache is below limit")
   func executePurgeDoesNothingWhenCacheBelowLimit() async throws {
     // Create a small cached episode (under 500 MB limit)
-    let episode = try await createCachedEpisode(
+    let episode = try await CacheHelpers.createCachedEpisode(
       title: "Small Episode",
       cachedFilename: "small.mp3",
       dataSize: 10 * 1024 * 1024  // 10 MB
@@ -74,25 +41,25 @@ import Testing
     let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
     let threeDaysAgo = Date.now.addingTimeInterval(-3 * 24 * 60 * 60)
 
-    // Create episodes that exceed cache limit (500 MB)
-    let oldPlayed1 = try await createCachedEpisode(
+    // Create episodes that exceed cache limit
+    let oldPlayed1 = try await CacheHelpers.createCachedEpisode(
       title: "Old Played 1",
       cachedFilename: "old-played-1.mp3",
-      dataSize: 200 * 1024 * 1024,  // 200 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4),
       completionDate: fourDaysAgo
     )
 
-    let _ = try await createCachedEpisode(
+    let _ = try await CacheHelpers.createCachedEpisode(
       title: "Old Played 2",
       cachedFilename: "old-played-2.mp3",
-      dataSize: 200 * 1024 * 1024,  // 200 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4),
       completionDate: threeDaysAgo
     )
 
-    let recentUnplayed = try await createCachedEpisode(
+    let recentUnplayed = try await CacheHelpers.createCachedEpisode(
       title: "Recent Unplayed",
       cachedFilename: "recent-unplayed.mp3",
-      dataSize: 200 * 1024 * 1024  // 200 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4),
     )
 
     try await cachePurger.executePurge()
@@ -111,26 +78,26 @@ import Testing
     let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
     let fiveDaysAgo = Date.now.addingTimeInterval(-5 * 24 * 60 * 60)
 
-    // Create episodes that exceed cache limit (500 MB)
-    let oldUnplayed = try await createCachedEpisode(
+    // Create episodes that exceed cache limit
+    let oldUnplayed = try await CacheHelpers.createCachedEpisode(
       title: "Old Unplayed",
       cachedFilename: "old-unplayed.mp3",
-      dataSize: 300 * 1024 * 1024,  // 300 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
       pubDate: fiveDaysAgo
     )
 
-    let oldPlayed = try await createCachedEpisode(
+    let oldPlayed = try await CacheHelpers.createCachedEpisode(
       title: "Old Played",
       cachedFilename: "old-played.mp3",
-      dataSize: 300 * 1024 * 1024,  // 300 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
       completionDate: fourDaysAgo,
       pubDate: fiveDaysAgo
     )
 
-    let recentUnplayed = try await createCachedEpisode(
+    let recentUnplayed = try await CacheHelpers.createCachedEpisode(
       title: "Recent Unplayed",
       cachedFilename: "recent-unplayed.mp3",
-      dataSize: 300 * 1024 * 1024  // 300 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6)
     )
 
     try await cachePurger.executePurge()
@@ -153,25 +120,25 @@ import Testing
     let yesterday = Date.now.addingTimeInterval(-1 * 24 * 60 * 60)
     let today = Date.now
 
-    // Create episodes that exceed cache limit (500 MB), all recent
-    let recentOlder = try await createCachedEpisode(
+    // Create episodes that exceed cache limit, all recent
+    let recentOlder = try await CacheHelpers.createCachedEpisode(
       title: "Recent Older",
       cachedFilename: "recent-older.mp3",
-      dataSize: 200 * 1024 * 1024,  // 200 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4),
       pubDate: yesterday
     )
 
-    let recentNewer = try await createCachedEpisode(
+    let recentNewer = try await CacheHelpers.createCachedEpisode(
       title: "Recent Newer",
       cachedFilename: "recent-newer.mp3",
-      dataSize: 200 * 1024 * 1024,  // 200 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4),
       pubDate: today
     )
 
-    let _ = try await createCachedEpisode(
+    let _ = try await CacheHelpers.createCachedEpisode(
       title: "Recent Newest",
       cachedFilename: "recent-newest.mp3",
-      dataSize: 200 * 1024 * 1024  // 200 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.4)
     )
 
     try await cachePurger.executePurge()
@@ -189,18 +156,18 @@ import Testing
   func executePurgeDoesNotRemoveQueuedEpisodes() async throws {
     let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
 
-    // Create episodes that exceed cache limit (500 MB)
-    let queuedOldPlayed = try await createCachedEpisode(
+    // Create episodes that exceed cache limit
+    let queuedOldPlayed = try await CacheHelpers.createCachedEpisode(
       title: "Queued Old Played",
       cachedFilename: "queued-old-played.mp3",
-      dataSize: 300 * 1024 * 1024,  // 300 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
       completionDate: fourDaysAgo
     )
 
-    let unqueuedOldPlayed = try await createCachedEpisode(
+    let unqueuedOldPlayed = try await CacheHelpers.createCachedEpisode(
       title: "Unqueued Old Played",
       cachedFilename: "unqueued-old-played.mp3",
-      dataSize: 300 * 1024 * 1024,  // 300 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
       completionDate: fourDaysAgo
     )
 
@@ -223,25 +190,25 @@ import Testing
     let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
     let threeDaysAgo = Date.now.addingTimeInterval(-3 * 24 * 60 * 60)
 
-    // Create episodes that slightly exceed cache limit (500 MB)
-    let oldPlayed1 = try await createCachedEpisode(
+    // Create episodes that slightly exceed cache limit
+    let oldPlayed1 = try await CacheHelpers.createCachedEpisode(
       title: "Old Played 1",
       cachedFilename: "old-played-1.mp3",
-      dataSize: 300 * 1024 * 1024,  // 300 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
       completionDate: fourDaysAgo
     )
 
-    let oldPlayed2 = try await createCachedEpisode(
+    let oldPlayed2 = try await CacheHelpers.createCachedEpisode(
       title: "Old Played 2",
       cachedFilename: "old-played-2.mp3",
-      dataSize: 250 * 1024 * 1024,  // 250 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 0.6),
       completionDate: threeDaysAgo
     )
 
     try await cachePurger.executePurge()
 
     // Should only delete enough to get below limit
-    // First episode (300 MB) should be deleted, bringing us to 250 MB
+    // First episode should be deleted
     let updatedOldPlayed1 = try await repo.episode(oldPlayed1.id)
     #expect(updatedOldPlayed1?.cacheStatus == .uncached)
 
@@ -263,18 +230,18 @@ import Testing
 
     let fourDaysAgo = Date.now.addingTimeInterval(-4 * 24 * 60 * 60)
 
-    // Create episodes that exceed cache limit (500 MB)
-    let episode1 = try await createCachedEpisode(
+    // Create episodes that exceed cache limit
+    let episode1 = try await CacheHelpers.createCachedEpisode(
       title: "Episode 1",
       cachedFilename: "episode-1.mp3",
-      dataSize: 600 * 1024 * 1024,  // 600 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 1.2),
       completionDate: fourDaysAgo
     )
 
-    let episode2 = try await createCachedEpisode(
+    let episode2 = try await CacheHelpers.createCachedEpisode(
       title: "Episode 2",
       cachedFilename: "episode-2.mp3",
-      dataSize: 600 * 1024 * 1024,  // 600 MB
+      dataSize: Int(Double(cachePurger.cacheSizeLimit) * 1.2),
       completionDate: fourDaysAgo
     )
 
@@ -294,7 +261,7 @@ import Testing
   @Test("executePurge removes dangling files before purging episodes")
   func executePurgeRemovesDanglingFilesBeforePurgingEpisodes() async throws {
     // Create an episode with a cached file
-    let episode = try await createCachedEpisode(
+    let episode = try await CacheHelpers.createCachedEpisode(
       title: "Valid Episode",
       cachedFilename: "valid-episode.mp3",
       dataSize: 10 * 1024 * 1024  // 10 MB
@@ -346,7 +313,7 @@ import Testing
   @Test("executePurge clears cached filename when file is missing")
   func executePurgeClearsCachedFilenameWhenFileIsMissing() async throws {
     // Create an episode with a cached file
-    let episode = try await createCachedEpisode(
+    let episode = try await CacheHelpers.createCachedEpisode(
       title: "Episode with missing file",
       cachedFilename: "missing-file.mp3",
       dataSize: 10 * 1024 * 1024  // 10 MB
