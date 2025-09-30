@@ -31,70 +31,38 @@ final class CachePurger: Sendable {
 
   private let purgeLock = ThreadLock()
   private let bgTask = ThreadSafe<Task<Bool, Never>?>(nil)
+  private let backgroundTaskScheduler: BackgroundTaskScheduler
 
   // MARK: - Initialization
 
-  fileprivate init() {}
+  fileprivate init() {
+    self.backgroundTaskScheduler = BackgroundTaskScheduler(
+      identifier: Self.backgroundTaskIdentifier,
+      cadence: cadence,
+      bgTask: bgTask
+    )
+  }
 
   func start() {
     guard Function.neverCalled() else { return }
 
     Self.log.debug("start: executing")
 
-    schedule(in: cadence)
+    backgroundTaskScheduler.scheduleNext(in: cadence)
   }
 
   // MARK: - Background Task Scheduling
 
   func register() {
-    BGTaskScheduler.shared.register(
-      forTaskWithIdentifier: Self.backgroundTaskIdentifier,
-      using: nil
-    ) { [weak self] task in
-      guard let self else { return }
-
-      let taskWrapper = UncheckedSendable(task)
-      let didComplete = ThreadSafe(false)
-      let complete: @Sendable (Bool) -> Void = { [didComplete, taskWrapper] success in
-        guard !didComplete() else { return }
-        didComplete(true)
-        taskWrapper.value.setTaskCompleted(success: success)
-      }
-
-      task.expirationHandler = { [weak self, complete] in
-        guard let self else { return }
-
-        Self.log.debug("handle: expiration triggered, cancelling running task")
-
-        bgTask()?.cancel()
-        bgTask(nil)
+    backgroundTaskScheduler.register { [weak self] complete in
+      guard let self
+      else {
         complete(false)
+        return
       }
 
-      schedule(in: cadence)
-
-      Task { [weak self, complete] in
-        guard let self
-        else {
-          complete(false)
-          return
-        }
-
-        let success = await executeBGTask()
-        complete(success)
-      }
-    }
-  }
-
-  func schedule(in duration: Duration) {
-    let request = BGAppRefreshTaskRequest(identifier: Self.backgroundTaskIdentifier)
-    request.earliestBeginDate = Date.now.advanced(by: duration.asTimeInterval)
-
-    do {
-      try BGTaskScheduler.shared.submit(request)
-      Self.log.debug("scheduled next cache purge in: \(duration)")
-    } catch {
-      Self.log.error(error)
+      let success = await executeBGTask()
+      complete(success)
     }
   }
 
