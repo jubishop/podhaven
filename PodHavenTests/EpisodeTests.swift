@@ -774,4 +774,55 @@ class EpisodeTests {
     let results = try await repo.episodes([])
     #expect(results.isEmpty)
   }
+
+  @Test("cachedEpisodes returns only episodes with cached files")
+  func cachedEpisodesReturnsOnlyCachedEpisodes() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+
+    // Create episodes with cached files
+    let cachedEpisode1 = try Create.unsavedEpisode(
+      title: "Cached Episode 1",
+      cachedFilename: "episode-1.mp3"
+    )
+    let cachedEpisode2 = try Create.unsavedEpisode(
+      title: "Cached Episode 2",
+      cachedFilename: "episode-2.mp3"
+    )
+
+    // Create episodes without cached files
+    let uncachedEpisode1 = try Create.unsavedEpisode(title: "Uncached Episode 1")
+    let uncachedEpisode2 = try Create.unsavedEpisode(title: "Uncached Episode 2")
+
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [cachedEpisode1, uncachedEpisode1, cachedEpisode2, uncachedEpisode2]
+    )
+
+    // Fetch cached episodes
+    let cachedEpisodes = try await repo.cachedEpisodes()
+
+    // Verify only cached episodes are returned
+    #expect(cachedEpisodes.count == 2)
+    let cachedTitles = Set(cachedEpisodes.map(\.title))
+    #expect(cachedTitles == Set(["Cached Episode 1", "Cached Episode 2"]))
+
+    // Verify all returned episodes have cached status
+    #expect(cachedEpisodes.allSatisfy { $0.cacheStatus == .cached })
+  }
+
+  @Test("cachedEpisodes returns empty array when no episodes are cached")
+  func cachedEpisodesReturnsEmptyWhenNoCachedEpisodes() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let uncachedEpisode1 = try Create.unsavedEpisode()
+    let uncachedEpisode2 = try Create.unsavedEpisode()
+
+    try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [uncachedEpisode1, uncachedEpisode2]
+    )
+
+    let cachedEpisodes = try await repo.cachedEpisodes()
+
+    #expect(cachedEpisodes.isEmpty)
+  }
 }

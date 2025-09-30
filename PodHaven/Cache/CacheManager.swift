@@ -229,7 +229,7 @@ actor CacheManager {
     return CachedURL(cacheDirectory.appendingPathComponent(fileName))
   }
 
-  private static var cacheDirectory: URL {
+  static var cacheDirectory: URL {
     AppInfo.applicationSupportDirectory.appendingPathComponent("episodes")
   }
 }
