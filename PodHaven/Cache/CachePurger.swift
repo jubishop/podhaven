@@ -219,8 +219,8 @@ final class CachePurger: Sendable {
   private func getCachedEpisodesInDeletionOrder() async throws -> [Episode] {
     let twoDaysAgo = Date.now.addingTimeInterval(-oldEpisodeThreshold.asTimeInterval)
 
-    // Get all cached episodes
-    let cachedEpisodes = try await repo.cachedEpisodes()
+    // Get all cached episodes that are not queued
+    let cachedEpisodes = try await repo.unqueuedCachedEpisodes()
 
     // Separate into categories
     let oldPlayedEpisodes =

@@ -50,21 +50,6 @@ import Testing
     #expect(actualData == data)
   }
 
-  @Test("episode removed from queue gets cache cleared")
-  func episodeRemovedFromQueueGetsCacheCleared() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
-    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
-
-    try await CacheHelpers.simulateBackgroundFinish(taskID)
-
-    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFile(cachedURL)
-
-    try await queue.dequeue(podcastEpisode.id)
-    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
-  }
-
   @Test("second episode added to queue gets cached")
   func secondEpisodeAddedToQueueGetsCached() async throws {
     let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()
@@ -85,43 +70,6 @@ import Testing
     #expect(actualData == data)
   }
 
-  @Test("second episode removed from queue gets cache cleared")
-  func secondEpisodeRemovedFromQueueGetsCacheCleared() async throws {
-    let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()
-
-    let initialTaskID = try await CacheHelpers.unshiftToQueue(podcastEpisode1.id)
-    try await CacheHelpers.simulateBackgroundFinish(initialTaskID)
-
-    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode2.id)
-
-    try await CacheHelpers.simulateBackgroundFinish(taskID)
-
-    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode2.id)
-    try await CacheHelpers.waitForCachedFile(cachedURL)
-
-    try await queue.dequeue(podcastEpisode2.id)
-    try await CacheHelpers.waitForNotCached(podcastEpisode2.id)
-    try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
-  }
-
-  @Test("episode dequeued mid-download does not get cached when download completes")
-  func episodeDequeuedMidDownloadDoesNotGetCachedWhenDownloadCompletes() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
-    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
-
-    try await queue.dequeue(podcastEpisode.id)
-    try await CacheHelpers.waitForCancelled(taskID)
-    try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
-    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-
-    let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID)
-    try await CacheHelpers.waitForFileRemoved(fileURL)
-
-    try await CacheHelpers.waitForCancelled(taskID)
-    try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
-    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-  }
-
   @Test("download failure clears cache for episode")
   func downloadFailureClearsCacheForEpisode() async throws {
     Log.setSystem()
@@ -132,27 +80,6 @@ import Testing
 
     try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-  }
-
-  @Test("requeue immediately after dequeue re-caches")
-  func requeueAfterDequeueReCaches() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
-    var taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
-
-    try await CacheHelpers.simulateBackgroundFinish(taskID)
-
-    var cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFile(cachedURL)
-
-    try await queue.dequeue(podcastEpisode.id)
-    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
-
-    taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
-    try await CacheHelpers.simulateBackgroundFinish(taskID)
-
-    cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFile(cachedURL)
   }
 
   @Test("multiple concurrent queued episodes are cached successfully")
@@ -227,22 +154,6 @@ import Testing
     try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: 0.5)
 
     try await CacheHelpers.simulateBackgroundFinish(taskID)
-    try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: nil)
-  }
-
-  @Test("progress clears on cancel by dequeue")
-  func progressClearsOnCancelByDequeue() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
-    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
-
-    await session.progressDownload(
-      taskID: taskID,
-      totalBytesWritten: 50,
-      totalBytesExpectedToWrite: 100
-    )
-    try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: 0.5)
-
-    try await queue.dequeue(podcastEpisode.id)
     try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: nil)
   }
 

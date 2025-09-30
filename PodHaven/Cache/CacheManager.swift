@@ -200,17 +200,6 @@ actor CacheManager {
           }
         }
       }
-
-      for episodeID in removedEpisodeIDs {
-        group.addTask { [weak self, episodeID] in
-          guard let self else { return }
-          do {
-            try await clearCache(for: episodeID)
-          } catch {
-            Self.log.error(error)
-          }
-        }
-      }
     }
   }
 
