@@ -145,17 +145,18 @@ final class CachePurger: Sendable {
     // Calculate total cache size
     let totalSize = try calculateCacheSize()
     Self.log.debug(
-      "current cache size: \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))"
+      "cache size: \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))"
     )
 
-    guard totalSize > cacheSizeLimit else {
+    guard totalSize > cacheSizeLimit
+    else {
       Self.log.debug("cache size within limit, no purge needed")
       return
     }
 
     let bytesToFree = totalSize - cacheSizeLimit
     Self.log.debug(
-      "need to free: \(ByteCountFormatter.string(fromByteCount: bytesToFree, countStyle: .file))"
+      "freeing: \(ByteCountFormatter.string(fromByteCount: bytesToFree, countStyle: .file))"
     )
 
     // Get cached episodes in deletion priority order
@@ -235,7 +236,10 @@ final class CachePurger: Sendable {
     }
 
     Self.log.debug(
-      "dangling file purge completed: freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))"
+      """
+      dangling file purge completed: 
+      freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
+      """
     )
   }
 
