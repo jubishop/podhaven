@@ -10,24 +10,22 @@ struct BackgroundTaskScheduler: Sendable {
 
   private static let log = Log.as("BackgroundTaskScheduler")
 
+  private let registered = ThreadLock()
   private let identifier: String
   private let cadence: Duration
 
-  init(
-    identifier: String,
-    cadence: Duration,
-    bgTask: ThreadSafe<Task<Bool, Never>?>? = nil
-  ) {
+  init(identifier: String, cadence: Duration) {
     self.identifier = identifier
     self.cadence = cadence
   }
 
   func register(executionTask: @escaping @Sendable (Completion) async -> Void) {
+    guard registered.claim() else { return }
+
     BGTaskScheduler.shared.register(
       forTaskWithIdentifier: identifier,
       using: nil
     ) { task in
-      var bgTask: Task<Void, Never>? = nil
       let taskWrapper = UncheckedSendable(task)
       let didComplete = ThreadSafe(false)
       let complete: Completion = { [didComplete, taskWrapper] success in
@@ -36,7 +34,8 @@ struct BackgroundTaskScheduler: Sendable {
         taskWrapper.value.setTaskCompleted(success: success)
       }
 
-      task.expirationHandler = {
+      var bgTask: Task<Void, Never>? = nil
+      task.expirationHandler = { [complete] in
         Self.log.debug("handle: expiration triggered, cancelling running task for: \(identifier)")
 
         bgTask?.cancel()
