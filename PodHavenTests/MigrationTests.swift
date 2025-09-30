@@ -18,6 +18,8 @@ class MigrationTests {
     self.migrator = try Schema.makeMigrator()
   }
 
+  // NOTE: Next migration should be v18
+
   @Test("v1 migration creates schema with all expected tables and constraints")
   func testV1Migration() async throws {
     // Apply v1 migration
