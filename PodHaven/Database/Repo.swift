@@ -147,6 +147,15 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  func cachedEpisodes() async throws -> [Episode] {
+    try await appDB.db.read { db in
+      try Episode
+        .all()
+        .filter(Episode.cached)
+        .fetchAll(db)
+    }
+  }
+
   // MARK: - Series Writers
 
   @discardableResult

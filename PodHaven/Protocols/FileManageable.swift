@@ -20,4 +20,6 @@ protocol FileManageable: Sendable {
   // MARK: - File Attribute Operations
 
   func fileExists(at url: URL) -> Bool
+  func contentsOfDirectory(at url: URL) throws -> [URL]
+  func fileSize(for url: URL) throws -> Int64
 }

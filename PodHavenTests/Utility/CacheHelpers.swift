@@ -168,6 +168,37 @@ enum CacheHelpers {
     try await fileManager.readData(from: cachedURL.rawValue)
   }
 
+  static func createCachedEpisode(
+    title: String,
+    cachedFilename: String,
+    dataSize: Int = 1024 * 1024,  // 1 MB default
+    completionDate: Date? = nil,
+    pubDate: Date? = nil
+  ) async throws -> Episode {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let unsavedEpisode = try Create.unsavedEpisode(
+      title: title,
+      pubDate: pubDate,
+      completionDate: completionDate,
+      cachedFilename: cachedFilename
+    )
+
+    let podcastSeries = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [unsavedEpisode]
+    )
+
+    let episode = podcastSeries.episodes.first!
+
+    // Write fake file to simulate cached episode
+    if let cachedURL = episode.cachedURL {
+      let data = Data(count: dataSize)
+      try await fileManager.writeData(data, to: cachedURL.rawValue)
+    }
+
+    return episode
+  }
+
   // MARK: - Background Download Simulation
 
   @discardableResult

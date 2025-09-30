@@ -7,6 +7,7 @@ import UIKit
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
   @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
+  @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
 
   func application(
@@ -14,6 +15,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
     refreshScheduler.register()
+    cachePurger.register()
 
     return true
   }

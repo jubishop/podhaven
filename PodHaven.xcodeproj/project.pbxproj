@@ -25,6 +25,7 @@
 		8BAE003C2DDE79A4008E40B2 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 8BAE003B2DDE79A4008E40B2 /* Logging */; };
 		8BBD96982E2701F500BE32DD /* PodHavenShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8BBD968E2E2701F400BE32DD /* PodHavenShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */; };
+		8BD2B1D02E8C8D0E007FD606 /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD2B1CF2E8C8D0E007FD606 /* Algorithms */; };
 		8BD728BE2DDBAE9B00763D7F /* ReadableErrorMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD728BD2DDBAE9B00763D7F /* ReadableErrorMacro */; };
 		8BD728C02DDBAEA500763D7F /* ReadableErrorMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD728BF2DDBAEA500763D7F /* ReadableErrorMacro */; };
 		8BE319E92D0E22D8009F48C9 /* Semaphore in Frameworks */ = {isa = PBXBuildFile; productRef = 8BE319E82D0E22D8009F48C9 /* Semaphore */; };
@@ -88,6 +89,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				CacheManagerTests.swift,
+				CachePurgerTests.swift,
 				DownloadManagerTests.swift,
 				EpisodeTests.swift,
 				ErrorTests.swift,
@@ -178,6 +180,7 @@
 				8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */,
 				8BAE003C2DDE79A4008E40B2 /* Logging in Frameworks */,
 				8B2AC03D2D25D2F700DB7FE5 /* XMLCoder in Frameworks */,
+				8BD2B1D02E8C8D0E007FD606 /* Algorithms in Frameworks */,
 				8B4C20062DD5A3770027FCDA /* SavedMacro in Frameworks */,
 				8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */,
 				8B9E8DF12D01722E00742C6C /* NukeUI in Frameworks */,
@@ -320,6 +323,7 @@
 				8BD728BD2DDBAE9B00763D7F /* ReadableErrorMacro */,
 				8BAE003B2DDE79A4008E40B2 /* Logging */,
 				8B80C7C52E2186EB007A7D1B /* SwiftNavigation */,
+				8BD2B1CF2E8C8D0E007FD606 /* Algorithms */,
 			);
 			productName = PodHaven;
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
@@ -396,6 +400,7 @@
 				8B4866C32DD57215004D78DC /* XCLocalSwiftPackageReference "PodHavenMacros" */,
 				8BAE003A2DDE79A4008E40B2 /* XCRemoteSwiftPackageReference "swift-log" */,
 				8B80C7C42E2186EB007A7D1B /* XCRemoteSwiftPackageReference "swift-navigation" */,
+				8BD2B1CE2E8C8D0E007FD606 /* XCRemoteSwiftPackageReference "swift-algorithms" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8BD7F9212CF2A49000CEDAA7 /* Products */;
@@ -1187,6 +1192,14 @@
 				kind = branch;
 			};
 		};
+		8BD2B1CE2E8C8D0E007FD606 /* XCRemoteSwiftPackageReference "swift-algorithms" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-algorithms.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		8BE319E72D0E22D8009F48C9 /* XCRemoteSwiftPackageReference "Semaphore" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/groue/Semaphore";
@@ -1281,6 +1294,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8B2C9E5F2CF59FA800637544 /* XCRemoteSwiftPackageReference "swift-collections" */;
 			productName = OrderedCollections;
+		};
+		8BD2B1CF2E8C8D0E007FD606 /* Algorithms */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8BD2B1CE2E8C8D0E007FD606 /* XCRemoteSwiftPackageReference "swift-algorithms" */;
+			productName = Algorithms;
 		};
 		8BD728BD2DDBAE9B00763D7F /* ReadableErrorMacro */ = {
 			isa = XCSwiftPackageProductDependency;

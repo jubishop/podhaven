@@ -90,6 +90,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.latestEpisode(for: podcastID)
   }
 
+  func cachedEpisodes() async throws -> [Episode] {
+    recordCall(methodName: "cachedEpisodes")
+    return try await repo.cachedEpisodes()
+  }
+
   // MARK: - Series Writers
 
   @discardableResult

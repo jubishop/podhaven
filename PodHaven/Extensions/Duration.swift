@@ -22,4 +22,8 @@ extension Duration {
   static func hours(_ hours: Double) -> Duration {
     seconds(hours * 3600)
   }
+
+  static func days(_ days: Double) -> Duration {
+    seconds(days * 86_400)
+  }
 }

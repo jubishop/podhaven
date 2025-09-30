@@ -444,12 +444,6 @@ final class PlayManager {
       Self.log.error(error)
     }
 
-    do {
-      try await cacheManager.clearCache(for: episodeID)
-    } catch {
-      Self.log.error(error)
-    }
-
     // Automatically load and play the next episode if one exists
     if let nextEpisode = try await queue.nextEpisode {
       Self.log.debug(

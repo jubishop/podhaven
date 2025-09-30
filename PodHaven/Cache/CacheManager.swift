@@ -45,7 +45,6 @@ actor CacheManager {
 
   // MARK: - State Management
 
-  private let prefetcher = ImagePrefetcher(pipeline: Container.shared.imagePipeline())
   private var currentQueuedEpisodeIDs: Set<Episode.ID> = []
 
   // MARK: - Initialization
@@ -99,8 +98,6 @@ actor CacheManager {
       Self.log.trace("\(podcastEpisode.toString) already being downloaded")
       return nil
     }
-
-    prefetcher.startPrefetching(with: [podcastEpisode.image])
 
     var request = URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
     request.allowsExpensiveNetworkAccess = true
@@ -176,7 +173,6 @@ actor CacheManager {
 
   private func handleQueueChange(_ queuedEpisodeIDs: Set<Episode.ID>) async {
     let newEpisodeIDs = queuedEpisodeIDs.subtracting(currentQueuedEpisodeIDs)
-    let removedEpisodeIDs = currentQueuedEpisodeIDs.subtracting(queuedEpisodeIDs)
     currentQueuedEpisodeIDs = queuedEpisodeIDs
 
     Self.log.debug(
@@ -184,8 +180,6 @@ actor CacheManager {
       handleQueueChange:
         new queue IDs: 
           \(newEpisodeIDs)
-        removed IDs: 
-          \(removedEpisodeIDs)
       """
     )
 
@@ -195,17 +189,6 @@ actor CacheManager {
           guard let self else { return }
           do {
             try await downloadToCache(for: episodeID)
-          } catch {
-            Self.log.error(error)
-          }
-        }
-      }
-
-      for episodeID in removedEpisodeIDs {
-        group.addTask { [weak self, episodeID] in
-          guard let self else { return }
-          do {
-            try await clearCache(for: episodeID)
           } catch {
             Self.log.error(error)
           }
@@ -229,7 +212,7 @@ actor CacheManager {
     return CachedURL(cacheDirectory.appendingPathComponent(fileName))
   }
 
-  private static var cacheDirectory: URL {
+  static var cacheDirectory: URL {
     AppInfo.applicationSupportDirectory.appendingPathComponent("episodes")
   }
 }

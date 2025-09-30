@@ -846,24 +846,6 @@ import Testing
     try await CacheHelpers.waitForCached(podcastEpisode.id)
   }
 
-  @Test("episode cache is cleared when playing to end")
-  func episodeCacheIsClearedWhenPlayingToEnd() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
-
-    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
-    try await CacheHelpers.simulateBackgroundFinish(taskID)
-
-    let fileName = try await CacheHelpers.waitForCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFile(fileName)
-
-    try await PlayHelpers.load(podcastEpisode)
-    try await PlayHelpers.play()
-    avPlayer.finishEpisode()
-
-    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
-    try await CacheHelpers.waitForCachedFileRemoved(fileName)
-  }
-
   // MARK: - Media Services Reset
 
   @Test("media services reset notification restores to playing")

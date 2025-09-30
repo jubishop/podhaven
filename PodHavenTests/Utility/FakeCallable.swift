@@ -29,7 +29,7 @@ extension FakeCallable {
 
   func recordCall<Parameters: Sendable>(
     methodName: String,
-    parameters: Parameters
+    parameters: Parameters = ()
   ) {
     callOrder += 1
     let call = MethodCall(

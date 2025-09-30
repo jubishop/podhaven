@@ -7,6 +7,7 @@ enum LogSubsystem {
   enum Cache: String, LogCategorizable {
     case backgroundDelegate
     case manager
+    case purger
     case state
   }
 
