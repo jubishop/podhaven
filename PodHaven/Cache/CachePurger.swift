@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import Algorithms
 import BackgroundTasks
 import ConcurrencyExtras
 import FactoryKit
@@ -199,26 +200,15 @@ final class CachePurger: Sendable {
   private func getCachedEpisodesInDeletionOrder(cachedEpisodes: [Episode]) async throws
     -> [Episode]
   {
-    // Filter out queued episodes
     let unqueuedEpisodes = cachedEpisodes.filter { !$0.queued }
+    var (uncompletedEpisodes, completedEpisodes) = unqueuedEpisodes.partitioned(by: \.finished)
+    completedEpisodes.sort { lhs, rhs in
+      let lhsDate = lhs.completionDate ?? .distantPast
+      let rhsDate = rhs.completionDate ?? .distantPast
 
-    // Completed episodes get purged first
-    let completedEpisodes =
-      unqueuedEpisodes
-      .filter(\.finished)
-      .sorted { lhs, rhs in
-        let lhsDate = lhs.completionDate ?? .distantPast
-        let rhsDate = rhs.completionDate ?? .distantPast
-
-        return lhsDate < rhsDate
-      }
-
-    // Uncompleted episodes last as necessary
-    let uncompletedEpisodes =
-      unqueuedEpisodes
-      .filter { !$0.finished }
-      .sorted { lhs, rhs in lhs.pubDate < rhs.pubDate }
-
+      return lhsDate < rhsDate
+    }
+    uncompletedEpisodes.sort { lhs, rhs in lhs.pubDate < rhs.pubDate }
     return completedEpisodes + uncompletedEpisodes
   }
 }
