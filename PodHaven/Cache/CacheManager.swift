@@ -45,7 +45,6 @@ actor CacheManager {
 
   // MARK: - State Management
 
-  private let prefetcher = ImagePrefetcher(pipeline: Container.shared.imagePipeline())
   private var currentQueuedEpisodeIDs: Set<Episode.ID> = []
 
   // MARK: - Initialization
@@ -99,8 +98,6 @@ actor CacheManager {
       Self.log.trace("\(podcastEpisode.toString) already being downloaded")
       return nil
     }
-
-    prefetcher.startPrefetching(with: [podcastEpisode.image])
 
     var request = URLRequest(url: podcastEpisode.episode.mediaURL.rawValue)
     request.allowsExpensiveNetworkAccess = true

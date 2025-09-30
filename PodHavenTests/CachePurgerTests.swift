@@ -82,7 +82,7 @@ import Testing
       completionDate: fourDaysAgo
     )
 
-    let oldPlayed2 = try await createCachedEpisode(
+    let _ = try await createCachedEpisode(
       title: "Old Played 2",
       cachedFilename: "old-played-2.mp3",
       dataSize: 200 * 1024 * 1024,  // 200 MB
@@ -150,7 +150,6 @@ import Testing
 
   @Test("executePurge removes recent episodes by oldest pubDate when needed")
   func executePurgeRemovesRecentEpisodesByOldestPubDateWhenNeeded() async throws {
-    let oneDayAgo = Date.now.addingTimeInterval(-1 * 24 * 60 * 60)
     let yesterday = Date.now.addingTimeInterval(-1 * 24 * 60 * 60)
     let today = Date.now
 
@@ -169,7 +168,7 @@ import Testing
       pubDate: today
     )
 
-    let recentNewest = try await createCachedEpisode(
+    let _ = try await createCachedEpisode(
       title: "Recent Newest",
       cachedFilename: "recent-newest.mp3",
       dataSize: 200 * 1024 * 1024  // 200 MB
@@ -290,5 +289,57 @@ import Testing
     // Episode 2 should be deleted even though episode 1 failed
     let updatedEpisode2 = try await repo.episode(episode2.id)
     #expect(updatedEpisode2?.cacheStatus == .uncached)
+  }
+
+  @Test("executePurge removes dangling files before purging episodes")
+  func executePurgeRemovesDanglingFilesBeforePurgingEpisodes() async throws {
+    // Create an episode with a cached file
+    let episode = try await createCachedEpisode(
+      title: "Valid Episode",
+      cachedFilename: "valid-episode.mp3",
+      dataSize: 10 * 1024 * 1024  // 10 MB
+    )
+
+    // Create a dangling file (file with no associated episode)
+    let danglingFileURL = CacheManager.cacheDirectory.appendingPathComponent("dangling-file.mp3")
+    let danglingData = Data(count: 5 * 1024 * 1024)  // 5 MB
+    try await fileManager.writeData(danglingData, to: danglingFileURL)
+
+    // Verify file exists
+    #expect(fileManager.fileExists(at: danglingFileURL))
+
+    try await cachePurger.executePurge()
+
+    // Dangling file should be deleted
+    #expect(!fileManager.fileExists(at: danglingFileURL))
+
+    // Valid episode should still be cached (under limit)
+    let updatedEpisode = try await repo.episode(episode.id)
+    #expect(updatedEpisode?.cacheStatus == .cached)
+  }
+
+  @Test("executePurge handles multiple dangling files")
+  func executePurgeHandlesMultipleDanglingFiles() async throws {
+    // Create dangling files
+    let danglingFile1URL = CacheManager.cacheDirectory.appendingPathComponent("dangling-1.mp3")
+    let danglingFile2URL = CacheManager.cacheDirectory.appendingPathComponent("dangling-2.mp3")
+    let danglingFile3URL = CacheManager.cacheDirectory.appendingPathComponent("dangling-3.mp3")
+
+    let data = Data(count: 1024 * 1024)  // 1 MB each
+    try await fileManager.writeData(data, to: danglingFile1URL)
+    try await fileManager.writeData(data, to: danglingFile2URL)
+    try await fileManager.writeData(data, to: danglingFile3URL)
+
+    // Verify files exist
+    #expect(fileManager.fileExists(at: danglingFile1URL))
+    #expect(fileManager.fileExists(at: danglingFile2URL))
+    #expect(fileManager.fileExists(at: danglingFile3URL))
+
+    try await cachePurger.executePurge()
+
+    // All dangling files should be deleted
+    #expect(!fileManager.fileExists(at: danglingFile1URL))
+    #expect(!fileManager.fileExists(at: danglingFile2URL))
+    #expect(!fileManager.fileExists(at: danglingFile3URL))
   }
 }

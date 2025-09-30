@@ -129,16 +129,6 @@ import Testing
     try await CacheHelpers.waitForFileRemoved(fileURL)
   }
 
-  // MARK: - Artwork Prefetching
-
-  @Test("episode artwork is prefetched when episode is cached")
-  func episodeArtworkIsPrefetchedWhenEpisodeIsCached() async throws {
-    let podcastEpisode = try await Create.podcastEpisode()
-    try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
-
-    try await CacheHelpers.waitForImageFetched(podcastEpisode.image)
-  }
-
   // MARK: - Progress Tracking
 
   @Test("progress updates cache state and clears on finish")

@@ -775,8 +775,8 @@ class EpisodeTests {
     #expect(results.isEmpty)
   }
 
-  @Test("unqueuedCachedEpisodes returns only unqueued episodes with cached files")
-  func unqueuedCachedEpisodesReturnsOnlyUnqueuedCachedEpisodes() async throws {
+  @Test("cachedEpisodes returns only episodes with cached files")
+  func cachedEpisodesReturnsOnlyCachedEpisodes() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
 
     // Create episodes with cached files
@@ -798,21 +798,20 @@ class EpisodeTests {
       unsavedEpisodes: [cachedEpisode1, uncachedEpisode1, cachedEpisode2, uncachedEpisode2]
     )
 
-    // Fetch unqueued cached episodes
-    let unqueuedCachedEpisodes = try await repo.unqueuedCachedEpisodes()
+    // Fetch cached episodes
+    let cachedEpisodes = try await repo.cachedEpisodes()
 
     // Verify only cached episodes are returned
-    #expect(unqueuedCachedEpisodes.count == 2)
-    let cachedTitles = Set(unqueuedCachedEpisodes.map(\.title))
+    #expect(cachedEpisodes.count == 2)
+    let cachedTitles = Set(cachedEpisodes.map(\.title))
     #expect(cachedTitles == Set(["Cached Episode 1", "Cached Episode 2"]))
 
-    // Verify all returned episodes have cached status and are not queued
-    #expect(unqueuedCachedEpisodes.allSatisfy { $0.cacheStatus == .cached })
-    #expect(unqueuedCachedEpisodes.allSatisfy { !$0.queued })
+    // Verify all returned episodes have cached status
+    #expect(cachedEpisodes.allSatisfy { $0.cacheStatus == .cached })
   }
 
-  @Test("unqueuedCachedEpisodes filters out queued cached episodes")
-  func unqueuedCachedEpisodesFiltersOutQueuedEpisodes() async throws {
+  @Test("cachedEpisodes includes queued cached episodes")
+  func cachedEpisodesIncludesQueuedEpisodes() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
 
     // Create cached episodes
@@ -833,17 +832,17 @@ class EpisodeTests {
     // Queue one of the cached episodes
     try await queue.unshift(podcastSeries.episodes[1].id)
 
-    // Fetch unqueued cached episodes
-    let unqueuedCachedEpisodes = try await repo.unqueuedCachedEpisodes()
+    // Fetch cached episodes
+    let cachedEpisodes = try await repo.cachedEpisodes()
 
-    // Verify only the unqueued cached episode is returned
-    #expect(unqueuedCachedEpisodes.count == 1)
-    #expect(unqueuedCachedEpisodes.first?.title == "Cached Unqueued")
-    #expect(unqueuedCachedEpisodes.allSatisfy { !$0.queued })
+    // Verify both cached episodes are returned (queued and unqueued)
+    #expect(cachedEpisodes.count == 2)
+    let cachedTitles = Set(cachedEpisodes.map(\.title))
+    #expect(cachedTitles == Set(["Cached Unqueued", "Cached Queued"]))
   }
 
-  @Test("unqueuedCachedEpisodes returns empty array when no episodes are cached")
-  func unqueuedCachedEpisodesReturnsEmptyWhenNoCachedEpisodes() async throws {
+  @Test("cachedEpisodes returns empty array when no episodes are cached")
+  func cachedEpisodesReturnsEmptyWhenNoCachedEpisodes() async throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let uncachedEpisode1 = try Create.unsavedEpisode()
     let uncachedEpisode2 = try Create.unsavedEpisode()
@@ -853,34 +852,8 @@ class EpisodeTests {
       unsavedEpisodes: [uncachedEpisode1, uncachedEpisode2]
     )
 
-    let unqueuedCachedEpisodes = try await repo.unqueuedCachedEpisodes()
+    let cachedEpisodes = try await repo.cachedEpisodes()
 
-    #expect(unqueuedCachedEpisodes.isEmpty)
-  }
-
-  @Test("unqueuedCachedEpisodes returns empty array when all cached episodes are queued")
-  func unqueuedCachedEpisodesReturnsEmptyWhenAllCachedEpisodesAreQueued() async throws {
-    let unsavedPodcast = try Create.unsavedPodcast()
-    let cachedEpisode1 = try Create.unsavedEpisode(
-      title: "Cached Queued 1",
-      cachedFilename: "episode-1.mp3"
-    )
-    let cachedEpisode2 = try Create.unsavedEpisode(
-      title: "Cached Queued 2",
-      cachedFilename: "episode-2.mp3"
-    )
-
-    let podcastSeries = try await repo.insertSeries(
-      unsavedPodcast,
-      unsavedEpisodes: [cachedEpisode1, cachedEpisode2]
-    )
-
-    // Queue both cached episodes
-    try await queue.unshift(podcastSeries.episodes[0].id)
-    try await queue.unshift(podcastSeries.episodes[1].id)
-
-    let unqueuedCachedEpisodes = try await repo.unqueuedCachedEpisodes()
-
-    #expect(unqueuedCachedEpisodes.isEmpty)
+    #expect(cachedEpisodes.isEmpty)
   }
 }

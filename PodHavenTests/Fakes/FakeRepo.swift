@@ -90,9 +90,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.latestEpisode(for: podcastID)
   }
 
-  func unqueuedCachedEpisodes() async throws -> [Episode] {
-    recordCall(methodName: "unqueuedCachedEpisodes")
-    return try await repo.unqueuedCachedEpisodes()
+  func cachedEpisodes() async throws -> [Episode] {
+    recordCall(methodName: "cachedEpisodes")
+    return try await repo.cachedEpisodes()
   }
 
   // MARK: - Series Writers

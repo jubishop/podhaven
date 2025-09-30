@@ -115,8 +115,14 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         try podFileManager.removeItem(at: destURL.rawValue)
       }
 
-      try podFileManager.moveItem(at: location, to: destURL.rawValue)
       try await repo.updateCachedFilename(episode.id, fileName)
+      do {
+        try podFileManager.moveItem(at: location, to: destURL.rawValue)
+      } catch {
+        try await repo.updateCachedFilename(episode.id, nil)
+        throw error
+      }
+
       Self.log.debug("Cached episode \(episode.id) to \(fileName)")
     } catch {
       Self.log.error(error)

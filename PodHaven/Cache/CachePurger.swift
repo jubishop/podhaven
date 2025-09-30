@@ -133,6 +133,12 @@ final class CachePurger: Sendable {
     }
     defer { purgeLock.release() }
 
+    // Get cached episodes once
+    let cachedEpisodes = try await repo.cachedEpisodes()
+
+    // First, purge any dangling files (files with no associated episode)
+    try await purgeDanglingFiles(cachedEpisodes: cachedEpisodes)
+
     // Calculate total cache size
     let totalSize = try calculateCacheSize()
     Self.log.debug(
@@ -150,7 +156,9 @@ final class CachePurger: Sendable {
     )
 
     // Get cached episodes in deletion priority order
-    let episodesToDelete = try await getCachedEpisodesInDeletionOrder()
+    let episodesToDelete = try await getCachedEpisodesInDeletionOrder(
+      cachedEpisodes: cachedEpisodes
+    )
 
     var freedBytes: Int64 = 0
     var deletedCount = 0
@@ -187,19 +195,61 @@ final class CachePurger: Sendable {
     )
   }
 
+  // MARK: - Dangling File Purge
+
+  private func purgeDanglingFiles(cachedEpisodes: [Episode]) async throws {
+    let cachedFiles = try podFileManager.contentsOfDirectory(at: CacheManager.cacheDirectory)
+
+    let episodeCachedFilenames = Set(
+      cachedEpisodes.compactMap { $0.cachedURL?.lastPathComponent }
+    )
+
+    // Find files that don't have a corresponding episode
+    let danglingFiles = cachedFiles.filter { fileURL in
+      !episodeCachedFilenames.contains(fileURL.lastPathComponent)
+    }
+
+    guard !danglingFiles.isEmpty else {
+      Self.log.debug("no dangling files found")
+      return
+    }
+
+    var freedBytes: Int64 = 0
+    for fileURL in danglingFiles {
+      do {
+        let fileSize = try podFileManager.fileSize(for: fileURL)
+        try podFileManager.removeItem(at: fileURL)
+        freedBytes += fileSize
+        Self.log.notice(
+          """
+          found and deleted dangling file: \(fileURL.lastPathComponent)
+          freed: \(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))
+          """
+        )
+      } catch {
+        Self.log.error(error)
+      }
+    }
+
+    Self.log.debug(
+      "dangling file purge completed: freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))"
+    )
+  }
+
   // MARK: - Cache Size Calculation
 
   private func calculateCacheSize() throws -> Int64 {
-    let contents = try podFileManager.contentsOfDirectory(at: CacheManager.cacheDirectory)
+    let cachedFiles = try podFileManager.contentsOfDirectory(at: CacheManager.cacheDirectory)
+
     Self.log.trace(
       """
-      Contents of cache directory are: 
-        \(contents.map(\.lastPathComponent).joined(separator: "\n  "))
+      Contents of cache directory are:
+        \(cachedFiles.map(\.lastPathComponent).joined(separator: "\n  "))
       """
     )
 
     var totalSize: Int64 = 0
-    for url in contents {
+    for url in cachedFiles {
       totalSize += try podFileManager.fileSize(for: url)
     }
 
@@ -208,27 +258,29 @@ final class CachePurger: Sendable {
 
   // MARK: - Episode Deletion Heuristic
 
-  private func getCachedEpisodesInDeletionOrder() async throws -> [Episode] {
+  private func getCachedEpisodesInDeletionOrder(cachedEpisodes: [Episode]) async throws
+    -> [Episode]
+  {
     let twoDaysAgo = Date.now.addingTimeInterval(-oldEpisodeThreshold.asTimeInterval)
 
-    // Get all cached episodes that are not queued
-    let cachedEpisodes = try await repo.unqueuedCachedEpisodes()
+    // Filter out queued episodes
+    let unqueuedEpisodes = cachedEpisodes.filter { !$0.queued }
 
     // Separate into categories
     let oldPlayedEpisodes =
-      cachedEpisodes.filter {
+      unqueuedEpisodes.filter {
         $0.finished && ($0.completionDate ?? Date.distantPast) < twoDaysAgo
       }
       .sorted { ($0.completionDate ?? Date.distantPast) < ($1.completionDate ?? Date.distantPast) }
 
     let oldUnplayedEpisodes =
-      cachedEpisodes.filter {
+      unqueuedEpisodes.filter {
         !$0.finished && $0.pubDate < twoDaysAgo
       }
       .sorted { $0.pubDate < $1.pubDate }
 
     let recentEpisodes =
-      cachedEpisodes.filter {
+      unqueuedEpisodes.filter {
         guard $0.finished else {
           return $0.pubDate >= twoDaysAgo
         }

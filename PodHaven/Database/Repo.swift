@@ -147,12 +147,11 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func unqueuedCachedEpisodes() async throws -> [Episode] {
+  func cachedEpisodes() async throws -> [Episode] {
     try await appDB.db.read { db in
       try Episode
         .all()
         .filter(Episode.cached)
-        .filter(Episode.unqueued)
         .fetchAll(db)
     }
   }
