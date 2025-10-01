@@ -24,7 +24,7 @@ extension Container {
     case settings, search, upNext, episodes, podcasts
   }
 
-  var currentTab: Tab = .settings {
+  var currentTab: Tab = .upNext {
     willSet {
       sheet.dismiss()
       managerFor(tab: newValue).clearPath()
