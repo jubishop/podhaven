@@ -25,7 +25,7 @@
       "location" : "https://github.com/groue/GRDB.swift",
       "state" : {
         "branch" : "master",
-        "revision" : "d90ba851feecf044b0e2753d46467cf6b5be0922"
+        "revision" : "db695cf7dc2632c263bcf0b26f118074feb2697a"
       }
     },
     {
@@ -52,7 +52,7 @@
       "location" : "https://github.com/getsentry/sentry-cocoa/",
       "state" : {
         "branch" : "main",
-        "revision" : "fccc4e5b5f10915b8a43d4ed756c02daef5e88dd"
+        "revision" : "c8420eba4a8574c600b66767d8622e06457f1b0a"
       }
     },
     {
@@ -69,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-case-paths",
       "state" : {
-        "revision" : "9810c8d6c2914de251e072312f01d3bf80071852",
-        "version" : "1.7.1"
+        "revision" : "6989976265be3f8d2b5802c722f9ba168e227c71",
+        "version" : "1.7.2"
       }
     },
     {
@@ -88,7 +88,7 @@
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
         "branch" : "main",
-        "revision" : "1fd30364b5fa57fd9345500e736531a5515b8406"
+        "revision" : "f9669dc4186220345d8a856550386492aae74e5c"
       }
     },
     {
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-dependencies",
       "state" : {
-        "revision" : "a501eebe552fd23691c560adf474fca2169ad8aa",
-        "version" : "1.9.4"
+        "revision" : "a10f9feeb214bc72b5337b6ef6d5a029360db4cc",
+        "version" : "1.10.0"
       }
     },
     {
@@ -142,7 +142,7 @@
       "location" : "https://github.com/pointfreeco/swift-navigation",
       "state" : {
         "branch" : "main",
-        "revision" : "923d5070b437cd01a85f4630a681144a3fef4126"
+        "revision" : "e25d6fc43338f936542c6ac82731f5e50e6e87c1"
       }
     },
     {
@@ -159,8 +159,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-perception",
       "state" : {
-        "revision" : "52bc59a5c7c3f0420c6c31d643d55d64b3f8c013",
-        "version" : "2.0.7"
+        "revision" : "30721accd0370d7c9cb5bd0f7cdf5a1a767b383d",
+        "version" : "2.0.8"
       }
     },
     {
@@ -178,7 +178,7 @@
       "location" : "https://github.com/swiftlang/swift-syntax",
       "state" : {
         "branch" : "main",
-        "revision" : "6673b05995983461eef015c4768f1483c245db22"
+        "revision" : "974c292380c1b7961f901ce43dfc794e8d7ffa57"
       }
     },
     {
