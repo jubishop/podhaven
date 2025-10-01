@@ -218,6 +218,8 @@ enum AppIcon: CaseIterable {
     }
   }
 
+  // MARK: - Data
+
   private var data: Data {
     switch self {
     // Episode Actions
