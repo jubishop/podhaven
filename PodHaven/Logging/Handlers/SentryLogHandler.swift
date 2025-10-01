@@ -12,10 +12,7 @@ struct SentryLogHandler: LogHandler {
     get { self.metadata[metadataKey] }
     set(newValue) { self.metadata[metadataKey] = newValue }
   }
-  public var logLevel: Logger.Level {
-    get { Logger.Level.notice }
-    set {}  // Ignore
-  }
+  public var logLevel: Logging.Logger.Level = .trace
 
   private let subsystem: String
   private let category: String
@@ -33,6 +30,8 @@ struct SentryLogHandler: LogHandler {
     function: String,
     line: UInt
   ) {
+    guard AppInfo.myDevice || level > .notice else { return }
+
     let logger = SentrySDK.logger
     let message = String(describing: message)
     let attributes =
