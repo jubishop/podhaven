@@ -108,7 +108,7 @@ struct PlayBarSheet: View {
       HStack {
         Text(viewModel.sliderValue.playbackTimeFormat)
           .font(.caption2)
-          .foregroundColor(.white)
+          .foregroundColor(.primary)
           .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
           .animation(
             .easeInOut(duration: progressAnimationDuration),
@@ -119,7 +119,7 @@ struct PlayBarSheet: View {
 
         Text(viewModel.duration.seconds.playbackTimeFormat)
           .font(.caption2)
-          .foregroundColor(.white)
+          .foregroundColor(.primary)
           .scaleEffect(viewModel.isDragging ? progressDragScale : 1.0)
           .animation(
             .easeInOut(duration: progressAnimationDuration),

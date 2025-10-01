@@ -38,11 +38,11 @@ struct PlayBar: View {
   private var loadingPlayBar: some View {
     HStack(spacing: spacing) {
       ProgressView()
-        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+        .progressViewStyle(CircularProgressViewStyle(tint: .primary))
         .scaleEffect(0.8)
 
       Text("Loading \(viewModel.loadingEpisodeTitle)")
-        .foregroundColor(.white)
+        .foregroundColor(.primary)
         .lineLimit(1)
 
       Spacer()
@@ -57,7 +57,7 @@ struct PlayBar: View {
       AppIcon.noEpisodeSelected.coloredImage
 
       Text("No episode selected")
-        .foregroundColor(.white)
+        .foregroundColor(.primary)
 
       Spacer()
     }

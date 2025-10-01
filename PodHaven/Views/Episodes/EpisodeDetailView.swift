@@ -30,7 +30,7 @@ struct EpisodeDetailView: View {
                       .font(.title)
                     Text("No Image")
                       .font(.caption)
-                      .foregroundColor(.white.opacity(0.8))
+                      .foregroundColor(.primary.opacity(0.8))
                   }
                 )
             }
@@ -116,7 +116,7 @@ struct EpisodeDetailView: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.accentColor)
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
                 .cornerRadius(10)
               }
 

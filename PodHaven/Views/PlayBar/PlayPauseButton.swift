@@ -6,7 +6,7 @@ import SwiftUI
 struct PlayPauseButton: View {
   @InjectedObservable(\.playState) private var playState
 
-  let action: () -> Void
+  let action: @MainActor () -> Void
 
   var body: some View {
     if playState.waiting {

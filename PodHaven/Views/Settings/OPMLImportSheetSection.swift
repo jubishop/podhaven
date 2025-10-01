@@ -3,12 +3,18 @@
 import SwiftUI
 
 struct OPMLImportSheetSection: View {
-  private let headers: [OPMLOutline.Status: Text] = [
-    .failed: Text("Failed").foregroundStyle(AppIcon.failed.color).bold(),
-    .waiting: Text("Waiting").foregroundStyle(AppIcon.waiting.color).bold(),
-    .downloading: Text("Downloading").foregroundStyle(AppIcon.downloadEpisode.color).bold(),
-    .finished: Text("Finished").foregroundStyle(AppIcon.episodeFinished.color).bold(),
-  ]
+  @Environment(\.colorScheme) private var colorScheme
+
+  private var headers: [OPMLOutline.Status: Text] {
+    [
+      .failed: Text("Failed").foregroundStyle(AppIcon.failed.color(for: colorScheme)).bold(),
+      .waiting: Text("Waiting").foregroundStyle(AppIcon.waiting.color(for: colorScheme)).bold(),
+      .downloading: Text("Downloading")
+        .foregroundStyle(AppIcon.downloadEpisode.color(for: colorScheme)).bold(),
+      .finished: Text("Finished").foregroundStyle(AppIcon.episodeFinished.color(for: colorScheme))
+        .bold(),
+    ]
+  }
 
   private let outlines: [OPMLOutline]
   private let status: OPMLOutline.Status
