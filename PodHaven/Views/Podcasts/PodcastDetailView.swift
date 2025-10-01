@@ -27,6 +27,7 @@ struct PodcastDetailView: View {
       headerView
         .padding(.horizontal)
         .padding(.bottom, 8)
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
 
       if viewModel.displayAboutSection {
         expandedAboutInfoView
@@ -72,7 +73,7 @@ struct PodcastDetailView: View {
   // MARK: - Header
 
   private var headerView: some View {
-    HStack(alignment: .top, spacing: 12) {
+    HStack(alignment: .top, spacing: 16) {
       PodLazyImage(url: viewModel.podcast.image) { state in
         if let image = state.image {
           image
@@ -92,12 +93,11 @@ struct PodcastDetailView: View {
             )
         }
       }
-      .frame(width: 120, height: 120)
+      .frame(width: 128, height: 128)
       .clipped()
       .cornerRadius(12)
-      .shadow(radius: 4)
 
-      VStack(alignment: .leading, spacing: 0) {
+      VStack(alignment: .leading, spacing: 4) {
         Text(viewModel.podcast.title)
           .font(.title3)
           .fontWeight(.bold)
@@ -108,24 +108,25 @@ struct PodcastDetailView: View {
 
         Spacer()
 
-        Button(action: {
-          withAnimation(.easeInOut(duration: 0.3)) {
+        Button(
+          action: {
             viewModel.displayAboutSection.toggle()
+          },
+          label: {
+            HStack(spacing: 6) {
+              (viewModel.displayAboutSection
+                ? AppIcon.episodesList : AppIcon.aboutInfo)
+                .image
+              Text(viewModel.displayAboutSection ? "Show Episodes" : "Show Details")
+            }
+            .font(.subheadline)
+            .foregroundColor(.accentColor)
           }
-        }) {
-          HStack(spacing: 6) {
-            (viewModel.displayAboutSection
-              ? AppIcon.episodesList : AppIcon.aboutInfo)
-              .image
-            Text(viewModel.displayAboutSection ? "Show Episodes" : "Show Details")
-          }
-          .font(.subheadline)
-          .foregroundColor(.accentColor)
-          .padding(.vertical, 8)
-          .padding(.horizontal, 4)
-        }
+        )
       }
-      .frame(maxWidth: .infinity, maxHeight: 120, alignment: .leading)
+      .frame(maxWidth: .infinity, idealHeight: 112, maxHeight: 112)
+      .fixedSize(horizontal: false, vertical: true)
+      .padding(.vertical, 8)
     }
   }
 
