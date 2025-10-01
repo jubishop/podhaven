@@ -5,6 +5,8 @@ import FactoryKit
 import SwiftUI
 
 struct EpisodeListView: View {
+  @Environment(\.colorScheme) private var colorScheme
+
   @InjectedObservable(\.playState) private var playState
   @InjectedObservable(\.cacheState) private var cacheState
 
@@ -65,7 +67,7 @@ struct EpisodeListView: View {
       {
         if let progress = cacheState.progress(episodeID) {
           CircularProgressView(
-            colorAmounts: [AppIcon.episodeCached.color: progress],
+            colorAmounts: [AppIcon.episodeCached.color(for: colorScheme): progress],
             innerRadius: .ratio(0.4)
           )
           .frame(width: statusIconSize, height: statusIconSize)
@@ -80,7 +82,7 @@ struct EpisodeListView: View {
       if episode.currentTime.seconds > 0 {
         let progress = episode.currentTime.seconds / episode.duration.seconds
         CircularProgressView(
-          colorAmounts: [AppIcon.episodeFinished.color: progress],
+          colorAmounts: [AppIcon.episodeFinished.color(for: colorScheme): progress],
           innerRadius: .ratio(0.4)
         )
         .frame(width: statusIconSize, height: statusIconSize)

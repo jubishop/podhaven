@@ -177,12 +177,30 @@ enum AppIcon: CaseIterable {
   private struct Data {
     let text: String
     let systemImageName: SystemImageName
-    let color: Color
+    let darkColor: Color
+    let lightColor: Color
 
-    init(text: String, systemImageName: SystemImageName, color: Color = .accentColor) {
+    init(
+      text: String,
+      systemImageName: SystemImageName,
+      darkColor: Color = .accentColor,
+      lightColor: Color = .accentColor
+    ) {
       self.text = text
       self.systemImageName = systemImageName
-      self.color = color
+      self.darkColor = darkColor
+      self.lightColor = lightColor
+    }
+
+    init(
+      text: String,
+      systemImageName: SystemImageName,
+      color: Color
+    ) {
+      self.text = text
+      self.systemImageName = systemImageName
+      self.darkColor = color
+      self.lightColor = color
     }
   }
 
@@ -200,7 +218,11 @@ enum AppIcon: CaseIterable {
     case .cacheEpisode:
       return Data(text: "Cache Episode", systemImageName: .episodeCached, color: .blue)
     case .cancelEpisodeDownload:
-      return Data(text: "Cancel Download", systemImageName: .episodeDownloadCancel, color: .orange)
+      return Data(
+        text: "Cancel Download",
+        systemImageName: .episodeDownloadCancel,
+        color: .orange
+      )
     case .uncacheEpisode:
       return Data(text: "Remove Download", systemImageName: .episodeUncached, color: .red)
     case .moveToTop:
@@ -276,7 +298,12 @@ enum AppIcon: CaseIterable {
     case .aboutInfo:
       return Data(text: "About", systemImageName: .aboutInfo)
     case .audioPlaceholder:
-      return Data(text: "Audio", systemImageName: .audioPlaceholder, color: .white.opacity(0.6))
+      return Data(
+        text: "Audio",
+        systemImageName: .audioPlaceholder,
+        darkColor: .white.opacity(0.6),
+        lightColor: .primary.opacity(0.6)
+      )
     case .calendar:
       return Data(text: "Updated", systemImageName: .calendar)
     case .duration:
@@ -284,7 +311,12 @@ enum AppIcon: CaseIterable {
     case .error:
       return Data(text: "Error", systemImageName: .error, color: .red)
     case .noImage:
-      return Data(text: "No Image", systemImageName: .noImage, color: .white.opacity(0.8))
+      return Data(
+        text: "No Image",
+        systemImageName: .noImage,
+        darkColor: .white.opacity(0.8),
+        lightColor: .primary.opacity(0.8)
+      )
     case .noPersonFound:
       return Data(text: "No Person Found", systemImageName: .noPersonFound, color: .secondary)
     case .personSearch:
@@ -314,27 +346,62 @@ enum AppIcon: CaseIterable {
     case .externalLink:
       return Data(text: "External Link", systemImageName: .externalLink)
     case .expandDown:
-      return Data(text: "Collapse", systemImageName: .expandDown, color: .white)
+      return Data(
+        text: "Collapse",
+        systemImageName: .expandDown,
+        darkColor: .white,
+        lightColor: .primary
+      )
     case .expandUp:
-      return Data(text: "Expand", systemImageName: .expandUp, color: .white)
+      return Data(
+        text: "Expand",
+        systemImageName: .expandUp,
+        darkColor: .white,
+        lightColor: .primary
+      )
     case .failed:
       return Data(text: "Failed", systemImageName: .failed, color: .red)
     case .filter:
       return Data(text: "Filter", systemImageName: .filter)
     case .loading:
-      return Data(text: "Loading", systemImageName: .loading, color: .white)
+      return Data(
+        text: "Loading",
+        systemImageName: .loading,
+        darkColor: .white,
+        lightColor: .primary
+      )
     case .moreActions:
       return Data(text: "More Actions", systemImageName: .moreActions)
     case .noEpisodeSelected:
-      return Data(text: "No episode selected", systemImageName: .noEpisode, color: .white)
+      return Data(
+        text: "No episode selected",
+        systemImageName: .noEpisode,
+        darkColor: .white,
+        lightColor: .primary
+      )
     case .pauseButton:
       return Data(text: "Pause", systemImageName: .pauseButton, color: .yellow)
     case .playButton:
-      return Data(text: "Play", systemImageName: .playButton, color: .white)
+      return Data(
+        text: "Play",
+        systemImageName: .playButton,
+        darkColor: .white,
+        lightColor: .primary
+      )
     case .seekBackward:
-      return Data(text: "Seek Backward", systemImageName: .seekBackward, color: .white)
+      return Data(
+        text: "Seek Backward",
+        systemImageName: .seekBackward,
+        darkColor: .white,
+        lightColor: .primary
+      )
     case .seekForward:
-      return Data(text: "Seek Forward", systemImageName: .seekForward, color: .white)
+      return Data(
+        text: "Seek Forward",
+        systemImageName: .seekForward,
+        darkColor: .white,
+        lightColor: .primary
+      )
     case .selectAll:
       return Data(text: "Select All", systemImageName: .selectAll, color: .blue)
     case .unselectAll:
@@ -363,8 +430,7 @@ enum AppIcon: CaseIterable {
   }
 
   var coloredImage: some View {
-    image
-      .foregroundColor(color)
+    AdaptiveColoredImage(icon: self)
   }
 
   var text: String {
@@ -375,17 +441,54 @@ enum AppIcon: CaseIterable {
     data.systemImageName.rawValue
   }
 
-  var color: Color {
-    data.color
+  func color(for colorScheme: ColorScheme) -> Color {
+    colorScheme == .dark ? data.darkColor : data.lightColor
   }
 
-  func labelButton(action: @escaping () -> Void) -> some View {
-    Button(action: action) { label }
-      .tint(color)
+  @MainActor
+  func labelButton(action: @MainActor @escaping () -> Void) -> some View {
+    AdaptiveLabelButton(icon: self, action: action)
   }
 
-  func imageButton(action: @escaping () -> Void) -> some View {
-    Button(action: action) { image }
-      .tint(color)
+  @MainActor
+  func imageButton(action: @MainActor @escaping () -> Void) -> some View {
+    AdaptiveImageButton(icon: self, action: action)
+  }
+}
+
+// MARK: - Adaptive Views
+
+private struct AdaptiveColoredImage: View {
+  @Environment(\.colorScheme) private var colorScheme
+
+  let icon: AppIcon
+
+  var body: some View {
+    icon.image
+      .foregroundColor(icon.color(for: colorScheme))
+  }
+}
+
+private struct AdaptiveLabelButton: View {
+  @Environment(\.colorScheme) private var colorScheme
+
+  let icon: AppIcon
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) { icon.label }
+      .tint(icon.color(for: colorScheme))
+  }
+}
+
+private struct AdaptiveImageButton: View {
+  @Environment(\.colorScheme) private var colorScheme
+
+  let icon: AppIcon
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) { icon.image }
+      .tint(icon.color(for: colorScheme))
   }
 }
