@@ -12,6 +12,7 @@ import Testing
 @Suite("of Episode model tests", .container)
 class EpisodeTests {
   @DynamicInjected(\.appDB) private var appDB
+  @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
@@ -652,6 +653,28 @@ class EpisodeTests {
       else { Assert.fatal("Episode should have cached URL") }
       try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
     }
+  }
+
+  @Test("that deleting a podcast with a playing episode stops playback")
+  func deletePodcastWithPlayingEpisode() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    let episode1 = try Create.unsavedEpisode(cachedFilename: "episode-1.mp3")
+    let episode2 = try Create.unsavedEpisode(cachedFilename: "episode-2.mp3")
+    let series = try await repo.insertSeries(
+      unsavedPodcast,
+      unsavedEpisodes: [episode1, episode2, Create.unsavedEpisode()]
+    )
+
+    // Load episode
+    let podcast = series.podcast
+    let podcastEpisode = PodcastEpisode(podcast: podcast, episode: series.episodes.randomElement()!)
+    let onDeck = try await PlayHelpers.load(podcastEpisode)
+    #expect(onDeck == podcastEpisode)
+
+    // Delete podcast
+    try await repo.delete(podcast.id)
+    try await PlayHelpers.waitFor(.stopped)
+    try await PlayHelpers.waitForOnDeck(nil)
   }
 
   @Test("that deletion succeeds when cached file is missing")

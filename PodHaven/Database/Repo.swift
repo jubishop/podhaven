@@ -17,7 +17,9 @@ extension Container {
 
 struct Repo: Databasing, Sendable {
   @DynamicInjected(\.queue) private var queue
+  @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.podFileManager) private var fileManager
+  private var playState: PlayState { get async { await Container.shared.playState() } }
 
   private static let log = Log.as(LogSubsystem.Database.repo)
 
@@ -258,6 +260,11 @@ struct Repo: Databasing, Sendable {
       } catch {
         Self.log.error(error)
       }
+
+      // Stop playback if needed
+      if let onDeck = await playState.onDeck, onDeck == episode {
+        await playManager.stop()
+      }
     }
 
     return try await appDB.db.write { db in
@@ -270,6 +277,7 @@ struct Repo: Databasing, Sendable {
         .fetchAll(db)
       try queue.dequeue(db, queuedEpisodeIDs)
 
+      // Finally delete the podcast (cascades to episodes)
       return try Podcast.withIDs(podcastIDs).deleteAll(db)
     }
   }

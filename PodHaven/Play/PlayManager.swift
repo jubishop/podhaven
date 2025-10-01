@@ -285,8 +285,7 @@ final class PlayManager {
         )
       }
     } else {
-      await clearOnDeck()
-      await setStatus(.stopped)
+      await stop()
     }
   }
 
@@ -298,6 +297,11 @@ final class PlayManager {
 
   func pause() async {
     await podAVPlayer.pause()
+  }
+
+  func stop() async {
+    await clearOnDeck()
+    await setStatus(.stopped)
   }
 
   func toggle() async {
@@ -420,8 +424,7 @@ final class PlayManager {
         "handleItemStatusChange: failed for \(episodeID), clearing on deck and unshifting"
       )
       recentFailureInfo = (onDeck: await playState.onDeck, playing: await playState.status.playing)
-      await clearOnDeck()
-      await setStatus(.stopped)
+      await stop()
       do {
         try await queue.unshift(episodeID)
       } catch {
