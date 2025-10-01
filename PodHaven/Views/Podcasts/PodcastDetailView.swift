@@ -321,9 +321,15 @@ struct PodcastDetailView: View {
 #if DEBUG
 #Preview("Changelog") {
   @Previewable @State var podcast: Podcast?
+  @Previewable @State var path: [Podcast] = []
 
-  NavigationStack {
-    if let podcast {
+  NavigationStack(path: $path) {
+    Button("Go to Podcast") {
+      if let podcast {
+        path = [podcast]
+      }
+    }
+    .navigationDestination(for: Podcast.self) { podcast in
       PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
     }
   }
@@ -348,14 +354,23 @@ struct PodcastDetailView: View {
         data: PreviewBundle.loadAsset(named: "changelog", in: .FeedRSS)
       )
     podcast = try? await PreviewHelpers.loadSeries(fileName: "changelog").podcast
+    if let podcast {
+      path = [podcast]
+    }
   }
 }
 
 #Preview("Pod Save America") {
   @Previewable @State var podcast: Podcast?
+  @Previewable @State var path: [Podcast] = []
 
-  NavigationStack {
-    if let podcast {
+  NavigationStack(path: $path) {
+    Button("Go to Podcast") {
+      if let podcast {
+        path = [podcast]
+      }
+    }
+    .navigationDestination(for: Podcast.self) { podcast in
       PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
     }
   }
@@ -380,6 +395,9 @@ struct PodcastDetailView: View {
         data: PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
       )
     podcast = try? await PreviewHelpers.loadSeries(fileName: "pod_save_america").podcast
+    if let podcast {
+      path = [podcast]
+    }
   }
 }
 #endif
