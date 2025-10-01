@@ -329,6 +329,19 @@ struct PodcastDetailView: View {
   }
   .preview()
   .task {
+    guard podcast == nil else { return }
+
+    Container.shared.fakeDataLoader()
+      .respond(
+        to: URL(
+          string:
+            "https://cdn.changelog.com/static/images/podcasts/podcast-original-f16d0363067166f241d080ee2e2d4a28.png"
+        )!,
+        data: PreviewBundle.loadImageData(
+          named: "changelog-podcast",
+          in: .EpisodeThumbnails
+        )
+      )
     await PreviewHelpers.dataFetcher
       .respond(
         to: URL(string: "https://changelog.com/podcast/feed")!,
@@ -348,6 +361,19 @@ struct PodcastDetailView: View {
   }
   .preview()
   .task {
+    guard podcast == nil else { return }
+
+    Container.shared.fakeDataLoader()
+      .respond(
+        to: URL(
+          string:
+            "https://image.simplecastcdn.com/images/9aa1e238-cbed-4305-9808-c9228fc6dd4f/eb7dddd4-ecb0-444c-b379-f75d7dc6c22b/3000x3000/uploads-2f1595947484360-nc4atf9w7ur-dbbaa7ee07a1ee325ec48d2e666ac261-2fpodsave100daysfinal1800.jpg?aid=rss_feed"
+        )!,
+        data: PreviewBundle.loadImageData(
+          named: "pod-save-america-podcast",
+          in: .EpisodeThumbnails
+        )
+      )
     await PreviewHelpers.dataFetcher
       .respond(
         to: URL(string: "https://feeds.simplecast.com/dxZsm5kX")!,
