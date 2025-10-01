@@ -42,13 +42,24 @@ struct PodcastDetailView: View {
         selectText: "Select Episodes"
       )
 
-      if !viewModel.isSelecting
-        && viewModel.subscribable
-        && !viewModel.podcast.subscribed
-      {
-        ToolbarItem(placement: .topBarLeading) {
-          Button("Subscribe") {
-            viewModel.subscribe()
+      if !viewModel.isSelecting && viewModel.subscribable {
+        if viewModel.podcast.subscribed {
+          ToolbarItem(placement: .topBarLeading) {
+            HStack(spacing: 4) {
+              AppIcon.subscribed.coloredImage
+                .font(.system(size: 12))
+              Text("Subscribed")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize()
+            }
+          }
+          .sharedBackgroundVisibility(.hidden)
+        } else {
+          ToolbarItem(placement: .topBarLeading) {
+            Button("Subscribe") {
+              viewModel.subscribe()
+            }
           }
         }
       }

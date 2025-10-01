@@ -4,82 +4,95 @@ import SwiftUI
 
 // MARK: - SystemImageName
 
-private enum SystemImageName: String, CaseIterable {
+private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable {
+  let rawValue: String
+
+  fileprivate init(rawValue: String) {
+    self.rawValue = rawValue
+  }
+
+  private init(_ rawValue: String) {
+    self.rawValue = rawValue
+  }
+
   // App Navigation
-  case episodesList = "list.bullet"
-  case expandDown = "chevron.down"
-  case expandUp = "chevron.up"
-  case moreActions = "ellipsis.circle"
-  case podcastsList = "dot.radiowaves.left.and.right"
-  case search = "magnifyingglass"
-  case settings = "gear"
-  case showPodcast = "antenna.radiowaves.left.and.right"
+  static let episodesList = SystemImageName("list.bullet")
+  static let expandDown = SystemImageName("chevron.down")
+  static let expandUp = SystemImageName("chevron.up")
+  static let moreActions = SystemImageName("ellipsis.circle")
+  static let podcastsList = SystemImageName("dot.radiowaves.left.and.right")
+  static let search = SystemImageName("magnifyingglass")
+  static let settings = SystemImageName("gear")
+  static let showPodcast = SystemImageName("antenna.radiowaves.left.and.right")
 
   // Actions
-  case clearSearch = "xmark.circle.fill"
-  case delete = "trash"
-  case failed = "x.circle"
-  case removeFromQueue = "minus.circle.fill"
-  case subscribe = "plus.circle"
-  case unsubscribe = "minus.circle"
-  case replaceQueue = "arrow.triangle.2.circlepath"
+  static let clearSearch = SystemImageName("xmark.circle.fill")
+  static let delete = SystemImageName("trash")
+  static let failed = SystemImageName("x.circle")
+  static let removeFromQueue = SystemImageName("minus.circle.fill")
+  static let subscribe = SystemImageName("plus.circle")
+  static let unsubscribe = SystemImageName("minus.circle")
+  static let replaceQueue = SystemImageName("arrow.triangle.2.circlepath")
 
   // Documents & Data
-  case document = "doc.text"
-  case edit = "pencil.circle"
-  case selectAll = "checklist"
+  static let document = SystemImageName("doc.text")
+  static let edit = SystemImageName("pencil.circle")
+  static let selectAll = SystemImageName("checklist")
 
   // Episode Status
-  case downloadEpisode = "arrow.down.circle"
-  case episodeCached = "arrow.down.circle.fill"
-  case episodeDownloadCancel = "stop.circle"
-  case episodeUncached = "tray.and.arrow.up"
-  case episodeFinished = "checkmark.circle.fill"
-  case episodeOnDeck = "play.circle"
-  case selectionEmpty = "circle"
-  case selectionFilled = "record.circle"
+  static let downloadEpisode = SystemImageName("arrow.down.circle")
+  static let episodeCached = SystemImageName("arrow.down.circle.fill")
+  static let episodeDownloadCancel = SystemImageName("stop.circle")
+  static let episodeUncached = SystemImageName("tray.and.arrow.up")
+  static let episodeFinished = SystemImageName("checkmark.circle.fill")
+  static let episodeOnDeck = SystemImageName("play.circle")
+  static let selectionEmpty = SystemImageName("circle")
+  static let selectionFilled = SystemImageName("record.circle")
 
   // External Links
-  case externalLink = "arrow.up.right"
-  case share = "square.and.arrow.up"
-  case website = "link"
-  case manualEntry = "link.badge.plus"
+  static let externalLink = SystemImageName("arrow.up.right")
+  static let share = SystemImageName("square.and.arrow.up")
+  static let website = SystemImageName("link")
+  static let manualEntry = SystemImageName("link.badge.plus")
 
   // Filtering
-  case filter = "line.horizontal.3.decrease.circle"
+  static let filter = SystemImageName("line.horizontal.3.decrease.circle")
 
   // Information Display
-  case aboutInfo = "questionmark.circle"
-  case audioPlaceholder = "music.note"
-  case calendar = "calendar"
-  case duration = "clock"
-  case error = "exclamationmark.triangle"
-  case noImage = "photo"
-  case noPersonFound = "person.circle.fill.badge.questionmark"
-  case personSearch = "person.circle"
-  case publishDate = "calendar.badge.clock"
-  case showInfo = "info.circle"
-  case trending = "chart.line.uptrend.xyaxis"
+  static let aboutInfo = SystemImageName("questionmark.circle")
+  static let audioPlaceholder = SystemImageName("music.note")
+  static let calendar = SystemImageName("calendar")
+  static let duration = SystemImageName("clock")
+  static let error = SystemImageName("exclamationmark.triangle")
+  static let noImage = SystemImageName("photo")
+  static let noPersonFound = SystemImageName("person.circle.fill.badge.questionmark")
+  static let personSearch = SystemImageName("person.circle")
+  static let publishDate = SystemImageName("calendar.badge.clock")
+  static let showInfo = SystemImageName("info.circle")
+  static let trending = SystemImageName("chart.line.uptrend.xyaxis")
 
   // Playback Controls
-  case loading = "hourglass.circle"
-  case noEpisode = "waveform.slash"
-  case pauseButton = "pause.circle.fill"
-  case play = "play.fill"
-  case playButton = "play.circle.fill"
-  case seekBackward = "gobackward.15"
-  case seekForward = "goforward.30"
+  static let loading = SystemImageName("hourglass.circle")
+  static let noEpisode = SystemImageName("waveform.slash")
+  static let pauseButton = SystemImageName("pause.circle.fill")
+  static let play = SystemImageName("play.fill")
+  static let playButton = SystemImageName("play.circle.fill")
+  static let seekBackward = SystemImageName("gobackward.15")
+  static let seekForward = SystemImageName("goforward.30")
+
+  // Podcast Status
+  static let subscribed = SystemImageName("checkmark.circle.fill")
 
   // Queue Management
-  case editFinished = "checkmark.circle"
-  case episodeQueued = "line.3.horizontal"
-  case moveToTop = "arrow.up.to.line"
-  case moveToBottom = "arrow.down.to.line"
-  case queueBottom = "text.line.last.and.arrowtriangle.forward"
-  case queueTop = "text.line.first.and.arrowtriangle.forward"
+  static let editFinished = SystemImageName("checkmark.circle")
+  static let episodeQueued = SystemImageName("line.3.horizontal")
+  static let moveToTop = SystemImageName("arrow.up.to.line")
+  static let moveToBottom = SystemImageName("arrow.down.to.line")
+  static let queueBottom = SystemImageName("text.line.last.and.arrowtriangle.forward")
+  static let queueTop = SystemImageName("text.line.first.and.arrowtriangle.forward")
 
   // Status Indicators
-  case waiting = "clock.arrow.circlepath"
+  static let waiting = SystemImageName("clock.arrow.circlepath")
 }
 
 // MARK: - AppIcon
@@ -108,6 +121,7 @@ enum AppIcon: CaseIterable {
   case delete
   case showPodcast
   case subscribe
+  case subscribed
   case unsubscribe
 
   // Navigation
@@ -253,6 +267,8 @@ enum AppIcon: CaseIterable {
       return Data(text: "Show Podcast", systemImageName: .showPodcast)
     case .subscribe:
       return Data(text: "Subscribe", systemImageName: .subscribe)
+    case .subscribed:
+      return Data(text: "Subscribed", systemImageName: .subscribed, color: .green)
     case .unsubscribe:
       return Data(text: "Unsubscribe", systemImageName: .unsubscribe)
 

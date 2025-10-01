@@ -27,10 +27,14 @@ struct UpNextView: View {
       .toolbar {
         if !viewModel.isSelecting {
           ToolbarItem(placement: .topBarLeading) {
-            Text(viewModel.totalQueueDuration.shortDescription)
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .fixedSize()
+            HStack(spacing: 4) {
+              AppIcon.duration.coloredImage
+                .font(.system(size: 12))
+              Text(viewModel.totalQueueDuration.shortDescription)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize()
+            }
           }
           .sharedBackgroundVisibility(.hidden)
 
