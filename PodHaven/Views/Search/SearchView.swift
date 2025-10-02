@@ -55,13 +55,11 @@ struct SearchView: View {
           message: "Try different search terms or check your spelling."
         )
       } else {
-        List(viewModel.searchResults, id: \.feedURL) { podcast in
-          NavigationLink(
-            value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
-            label: { PodcastListView(podcast: podcast) }
-          )
+        ScrollView {
+          searchGrid
+            .padding(.horizontal)
+            .padding(.top)
         }
-        .listStyle(.plain)
       }
     }
   }
@@ -93,6 +91,25 @@ struct SearchView: View {
   }
 
   // MARK: - Section Rendering
+
+  @ViewBuilder
+  private var searchGrid: some View {
+    ItemGrid(items: viewModel.searchResults, id: \.feedURL, minimumGridSize: gridItemSize) {
+      podcast in
+      NavigationLink(
+        value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
+        label: {
+          VStack {
+            SquareImage(image: podcast.image, size: $gridItemSize)
+            Text(podcast.title)
+              .font(.caption)
+              .lineLimit(1)
+          }
+        }
+      )
+      .buttonStyle(.plain)
+    }
+  }
 
   @ViewBuilder
   private func trendingSelectionMenu(selected section: SearchTabViewModel.TrendingSection)
