@@ -20,6 +20,10 @@ class EpisodeTests {
     Container.shared.podFileManager() as! FakeFileManager
   }
 
+  init() async throws {
+    await playManager.start()
+  }
+
   @Test("that episodes are created and fetched in the right order")
   func createSeveralEpisodes() async throws {
     let url = URL.valid()
@@ -665,11 +669,12 @@ class EpisodeTests {
       unsavedEpisodes: [episode1, episode2, Create.unsavedEpisode()]
     )
 
-    // Load episode
+    // Load and play episode
     let podcast = series.podcast
     let podcastEpisode = PodcastEpisode(podcast: podcast, episode: series.episodes.randomElement()!)
     let onDeck = try await PlayHelpers.load(podcastEpisode)
     #expect(onDeck == podcastEpisode)
+    try await PlayHelpers.play()
 
     // Delete podcast
     try await repo.delete(podcast.id)
