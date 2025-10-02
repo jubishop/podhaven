@@ -72,14 +72,21 @@ struct SearchView: View {
       errorView(title: "Unable to Load", message: message)
 
     case .loaded:
-      ScrollView {
-        LazyVStack(alignment: .leading, spacing: 24) {
-          ForEach(viewModel.trendingSections) { section in
-            trendingSection(section)
+      if let section = viewModel.selectedTrendingSection {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 24) {
+            trendingSelectionMenu(selected: section)
+            trendingGrid(for: section)
           }
+          .padding(.horizontal)
+          .padding(.top)
         }
-        .padding(.horizontal)
-        .padding(.top)
+      } else {
+        placeholderView(
+          icon: AppIcon.trending,
+          title: "No trending podcasts",
+          message: "Unable to load curated charts right now."
+        )
       }
     }
   }
@@ -87,24 +94,40 @@ struct SearchView: View {
   // MARK: - Section Rendering
 
   @ViewBuilder
-  private func trendingSection(_ section: SearchTabViewModel.TrendingSection) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text(section.title)
-        .font(.title2.weight(.semibold))
-
-      ItemGrid(items: section.podcasts, minimumGridSize: gridItemSize) { podcast in
-        NavigationLink(
-          value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
-          label: {
-            VStack {
-              SquareImage(image: podcast.image, size: $gridItemSize)
-              Text(podcast.title)
-                .font(.caption)
-                .lineLimit(1)
-            }
+  private func trendingSelectionMenu(selected section: SearchTabViewModel.TrendingSection)
+    -> some View
+  {
+    HStack {
+      Menu {
+        ForEach(viewModel.trendingSections) { option in
+          Button(option.title) {
+            viewModel.selectTrendingSection(option.id)
           }
-        )
+        }
+      } label: {
+        Label(section.title, systemImage: "chevron.down")
+          .font(.title2.weight(.semibold))
       }
+
+      Spacer()
+    }
+  }
+
+  @ViewBuilder
+  private func trendingGrid(for section: SearchTabViewModel.TrendingSection) -> some View {
+    ItemGrid(items: section.podcasts, minimumGridSize: gridItemSize) { podcast in
+      NavigationLink(
+        value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
+        label: {
+          VStack {
+            SquareImage(image: podcast.image, size: $gridItemSize)
+            Text(podcast.title)
+              .font(.caption)
+              .lineLimit(1)
+          }
+        }
+      )
+      .buttonStyle(.plain)
     }
   }
 

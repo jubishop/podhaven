@@ -63,9 +63,19 @@ final class SearchTabViewModel {
   }
   var trendingState: TrendingState = .idle
   var trendingSections: [TrendingSection] = []
+  var selectedTrendingID: String? = trendingConfigurations.first?.id
 
   var isShowingSearchResults: Bool {
     !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  var selectedTrendingSection: TrendingSection? {
+    if let selectedTrendingID,
+      let matched = trendingSections.first(where: { $0.id == selectedTrendingID })
+    {
+      return matched
+    }
+    return trendingSections.first
   }
 
   // MARK: - Internal State
@@ -94,6 +104,12 @@ final class SearchTabViewModel {
         let sections = try await self.fetchTrendingSections()
         try Task.checkCancellation()
         self.trendingSections = sections
+        if let first = sections.first,
+          self.selectedTrendingID == nil
+            || !sections.contains(where: { $0.id == self.selectedTrendingID })
+        {
+          self.selectedTrendingID = first.id
+        }
         self.trendingState = .loaded
       } catch {
         guard !Task.isCancelled else { return }
@@ -140,6 +156,11 @@ final class SearchTabViewModel {
     }
 
     return configurations.compactMap { sectionMap[$0.id] }
+  }
+
+  func selectTrendingSection(_ id: String) {
+    guard selectedTrendingID != id else { return }
+    selectedTrendingID = id
   }
 
   // MARK: - Searching
