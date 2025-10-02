@@ -93,7 +93,9 @@ final class SearchTabViewModel {
   @ObservationIgnored private var observationTask: Task<Void, Never>?
   @ObservationIgnored private var trendingTask: Task<Void, Never>?
 
-  deinit {
+  func disappear() {
+    Self.log.debug("disappear: executing")
+    
     searchTask?.cancel()
     observationTask?.cancel()
     trendingTask?.cancel()

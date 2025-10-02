@@ -26,6 +26,7 @@ struct SearchView: View {
       }
     }
     .task(viewModel.loadTrendingIfNeeded)
+    .onDisappear { viewModel.disappear() }
   }
 
   // MARK: - Content Builders
