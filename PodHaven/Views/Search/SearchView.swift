@@ -93,24 +93,20 @@ struct SearchView: View {
   private func trendingSection(_ section: SearchTabViewModel.TrendingSection) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       Text(section.title)
-        .font(.title3.weight(.semibold))
+        .font(.title2.weight(.semibold))
 
       ItemGrid(items: section.podcasts, minimumGridSize: gridItemSize) { podcast in
         NavigationLink(
           value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
           label: {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack {
               SquareImage(image: podcast.image, size: $gridItemSize)
               Text(podcast.title)
-                .font(.footnote.weight(.medium))
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .foregroundColor(.primary)
+                .font(.caption)
+                .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
           }
         )
-        .buttonStyle(.plain)
       }
     }
   }
