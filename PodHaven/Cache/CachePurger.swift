@@ -60,8 +60,13 @@ final class CachePurger: Sendable {
       }
 
       do {
+        Self.log.debug("background cache purge: performing purge")
+
         try await executePurge()
         try Task.checkCancellation()
+
+        Self.log.debug("background cache purge: completed gracefully")
+
         complete(true)
       } catch {
         Self.log.error(error)
