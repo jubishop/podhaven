@@ -12,23 +12,20 @@ struct SearchView: View {
 
   var body: some View {
     IdentifiableNavigationStack(manager: navigation.search) {
-      content
-        .navigationTitle("Search")
-        .toolbar { manualEntryToolbarItem }
+      Group {
+        if viewModel.isShowingSearchResults {
+          searchResultsView
+        } else {
+          trendingView
+        }
+      }
+      .navigationTitle("Search")
+      .toolbar { manualEntryToolbarItem }
     }
     .task(viewModel.loadTrendingIfNeeded)
   }
 
   // MARK: - Content Builders
-
-  @ViewBuilder
-  private var content: some View {
-    if viewModel.isShowingSearchResults {
-      searchResultsView
-    } else {
-      trendingView
-    }
-  }
 
   @ViewBuilder
   private var searchResultsView: some View {
