@@ -61,7 +61,7 @@ final class SearchServiceTests {
   func testSearchPodcasts() async throws {
     let term = "technology"
     let data = PreviewBundle.loadAsset(named: "search_results", in: .iTunesResults)
-    session.respond(to: searchURL(term: term), data: data)
+    await session.respond(to: searchURL(term: term), data: data)
 
     let results = try await searchService.searchPodcasts(matching: term)
     #expect(results.count == 2)
@@ -81,10 +81,10 @@ final class SearchServiceTests {
     let lookupData = PreviewBundle.loadAsset(named: "top_lookup", in: .iTunesResults)
 
     let feedURL = topFeedURL(limit: 5)
-    session.respond(to: feedURL, data: feedData)
+    await session.respond(to: feedURL, data: feedData)
 
     let lookupURL = lookupURL(ids: ["1627920305", "1439393088", "1234567890"])
-    session.respond(to: lookupURL, data: lookupData)
+    await session.respond(to: lookupURL, data: lookupData)
 
     let results = try await searchService.topPodcasts(limit: 5)
     #expect(results.count == 3)
@@ -98,7 +98,7 @@ final class SearchServiceTests {
   @Test("top podcasts propagates failures")
   func testTopPodcastsFailure() async throws {
     let feedURL = topFeedURL(limit: 5)
-    session.respond(to: feedURL, error: URLError(.badServerResponse))
+    await session.respond(to: feedURL, error: URLError(.badServerResponse))
 
     await #expect(throws: SearchError.self) {
       _ = try await self.searchService.topPodcasts(limit: 5)
@@ -109,7 +109,7 @@ final class SearchServiceTests {
   func testSearchTrimming() async throws {
     let term = " growth "
     let data = PreviewBundle.loadAsset(named: "search_results", in: .iTunesResults)
-    session.respond(
+    await session.respond(
       to: searchURL(term: term.trimmingCharacters(in: .whitespacesAndNewlines)),
       data: data
     )
