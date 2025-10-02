@@ -61,7 +61,7 @@ struct SearchService {
     let data = try await perform(request)
     let response: ITunesSearchResponse = try decode(data)
 
-    let podcasts = response.podcasts.compactMap(convertToUnsavedPodcast)
+    let podcasts = response.podcasts.compactMap { $0.toUnsavedPodcast() }
     return deduplicate(podcasts)
   }
 
@@ -87,7 +87,7 @@ struct SearchService {
       }
     }
 
-    let orderedPodcasts = ids.compactMap { lookupMap[$0].flatMap(convertToUnsavedPodcast) }
+    let orderedPodcasts = ids.compactMap { lookupMap[$0]?.toUnsavedPodcast() }
     return deduplicate(orderedPodcasts)
   }
 
@@ -180,42 +180,6 @@ struct SearchService {
       return try decoder.decode(T.self, from: data)
     } catch {
       throw SearchError.parseFailure(data)
-    }
-  }
-
-  private func convertToUnsavedPodcast(_ result: ITunesSearchResponse.Podcast) -> UnsavedPodcast? {
-    guard let feedURLString = result.feedUrl, let feedURL = URL(string: feedURLString) else {
-      return nil
-    }
-
-    let artworkURLString =
-      result.artworkUrl600 ?? result.artworkUrl100 ?? result.artworkUrl60
-      ?? result.artworkUrl30
-    guard let imageURLString = artworkURLString, let imageURL = URL(string: imageURLString) else {
-      return nil
-    }
-
-    let title =
-      result.collectionName ?? result.trackName ?? result.collectionCensoredName
-      ?? result.trackCensoredName ?? "Podcast"
-
-    let description =
-      result.collectionDescription ?? result.longDescription ?? result.description
-      ?? result.shortDescription ?? ""
-
-    let linkString = result.collectionViewUrl ?? result.trackViewUrl
-    let link = linkString.flatMap(URL.init)
-
-    do {
-      return try UnsavedPodcast(
-        feedURL: FeedURL(feedURL),
-        title: title,
-        image: imageURL,
-        description: description,
-        link: link
-      )
-    } catch {
-      return nil
     }
   }
 

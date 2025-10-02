@@ -39,5 +39,35 @@ struct ITunesSearchResponse: Decodable, Sendable {
     let wrapperType: String?
     let genreIds: [String]?
     let genres: [String]?
+
+    func toUnsavedPodcast() -> UnsavedPodcast? {
+      guard let feedUrl, let feedURL = URL(string: feedUrl) else { return nil }
+
+      let artworkURLString = artworkUrl600 ?? artworkUrl100 ?? artworkUrl60 ?? artworkUrl30
+      guard let imageURLString = artworkURLString, let imageURL = URL(string: imageURLString) else {
+        return nil
+      }
+
+      let title =
+        collectionName ?? trackName ?? collectionCensoredName ?? trackCensoredName
+        ?? "Podcast"
+      let description =
+        collectionDescription ?? longDescription ?? description
+        ?? shortDescription ?? ""
+      let linkString = collectionViewUrl ?? trackViewUrl
+      let link = linkString.flatMap(URL.init)
+
+      do {
+        return try UnsavedPodcast(
+          feedURL: FeedURL(feedURL),
+          title: title,
+          image: imageURL,
+          description: description,
+          link: link
+        )
+      } catch {
+        return nil
+      }
+    }
   }
 }
