@@ -19,8 +19,11 @@ struct SearchView: View {
           trendingView
         }
       }
-      .navigationTitle("Search")
-      .toolbar { manualEntryToolbarItem }
+      .navigationTitle(navigationTitle)
+      .toolbar {
+        manualEntryToolbarItem
+        trendingMenuToolbarItem
+      }
     }
     .task(viewModel.loadTrendingIfNeeded)
   }
@@ -74,12 +77,9 @@ struct SearchView: View {
     case .loaded:
       if let section = viewModel.selectedTrendingSection {
         ScrollView {
-          VStack(alignment: .leading, spacing: 24) {
-            trendingSelectionMenu(selected: section)
-            trendingGrid(for: section)
-          }
-          .padding(.horizontal)
-          .padding(.top)
+          trendingGrid(for: section)
+            .padding(.horizontal)
+            .padding(.top)
         }
       } else {
         placeholderView(
@@ -97,19 +97,17 @@ struct SearchView: View {
   private func trendingSelectionMenu(selected section: SearchTabViewModel.TrendingSection)
     -> some View
   {
-    HStack {
-      Menu {
-        ForEach(viewModel.trendingSections) { option in
-          Button(option.title) {
-            viewModel.selectTrendingSection(option.id)
-          }
+    Menu {
+      ForEach(viewModel.trendingSections) { option in
+        Button {
+          viewModel.selectTrendingSection(option.id)
+        } label: {
+          Label(option.title, systemImage: option.icon.systemImageName)
         }
-      } label: {
-        Label(section.title, systemImage: "chevron.down")
-          .font(.title2.weight(.semibold))
       }
-
-      Spacer()
+    } label: {
+      Label(section.title, systemImage: section.icon.systemImageName)
+        .font(.title2.weight(.semibold))
     }
   }
 
@@ -135,11 +133,23 @@ struct SearchView: View {
 
   @ToolbarContentBuilder
   private var manualEntryToolbarItem: some ToolbarContent {
-    ToolbarItem(placement: .primaryAction) {
+    ToolbarItem(placement: .navigationBarLeading) {
       Button(action: openManualEntry) {
         Label("Add Feed", systemImage: AppIcon.manualEntry.systemImageName)
       }
       .accessibilityLabel("Add feed URL manually")
+    }
+  }
+
+  @ToolbarContentBuilder
+  private var trendingMenuToolbarItem: some ToolbarContent {
+    if !viewModel.isShowingSearchResults,
+      viewModel.trendingState == .loaded,
+      let section = viewModel.selectedTrendingSection
+    {
+      ToolbarItem(placement: .primaryAction) {
+        trendingSelectionMenu(selected: section)
+      }
     }
   }
 
@@ -190,5 +200,20 @@ struct SearchView: View {
         .padding(.horizontal)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+}
+
+extension SearchView {
+  fileprivate var navigationTitle: String {
+    let trimmedQuery = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    if viewModel.isShowingSearchResults, !trimmedQuery.isEmpty {
+      return trimmedQuery
+    }
+
+    if let section = viewModel.selectedTrendingSection {
+      return section.title
+    }
+
+    return "Search"
   }
 }

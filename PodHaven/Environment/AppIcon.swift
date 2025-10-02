@@ -70,6 +70,17 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
   static let publishDate = SystemImageName("calendar.badge.clock")
   static let showInfo = SystemImageName("info.circle")
   static let trending = SystemImageName("chart.line.uptrend.xyaxis")
+  static let trendingTop = SystemImageName("chart.bar.xaxis")
+  static let trendingNews = SystemImageName("newspaper")
+  static let trendingTrueCrime = SystemImageName("magnifyingglass.circle")
+  static let trendingComedy = SystemImageName("theatermasks")
+  static let trendingBusiness = SystemImageName("briefcase.fill")
+  static let trendingTechnology = SystemImageName("cpu")
+  static let trendingSports = SystemImageName("sportscourt")
+  static let trendingHealth = SystemImageName("heart.text.square")
+  static let trendingScience = SystemImageName("atom")
+  static let trendingEducation = SystemImageName("graduationcap.fill")
+  static let trendingKids = SystemImageName("figure.2.and.child.holdinghands")
 
   // Playback Controls
   static let loading = SystemImageName("hourglass.circle")
@@ -133,6 +144,17 @@ enum AppIcon: CaseIterable {
   case searchPodcasts
   case settings
   case trending
+  case trendingTop
+  case trendingNews
+  case trendingTrueCrime
+  case trendingComedy
+  case trendingBusiness
+  case trendingTechnology
+  case trendingSports
+  case trendingHealth
+  case trendingScience
+  case trendingEducation
+  case trendingKids
   case upNext
 
   // Manual Entry
@@ -291,6 +313,28 @@ enum AppIcon: CaseIterable {
       return Data(text: "Settings", systemImageName: .settings)
     case .trending:
       return Data(text: "Trending", systemImageName: .trending, color: .orange)
+    case .trendingTop:
+      return Data(text: "Top Podcasts", systemImageName: .trendingTop, color: .orange)
+    case .trendingNews:
+      return Data(text: "News", systemImageName: .trendingNews, color: .blue)
+    case .trendingTrueCrime:
+      return Data(text: "True Crime", systemImageName: .trendingTrueCrime, color: .purple)
+    case .trendingComedy:
+      return Data(text: "Comedy", systemImageName: .trendingComedy, color: .yellow)
+    case .trendingBusiness:
+      return Data(text: "Business", systemImageName: .trendingBusiness, color: .teal)
+    case .trendingTechnology:
+      return Data(text: "Technology", systemImageName: .trendingTechnology, color: .indigo)
+    case .trendingSports:
+      return Data(text: "Sports", systemImageName: .trendingSports, color: .green)
+    case .trendingHealth:
+      return Data(text: "Health", systemImageName: .trendingHealth, color: .pink)
+    case .trendingScience:
+      return Data(text: "Science", systemImageName: .trendingScience, color: .mint)
+    case .trendingEducation:
+      return Data(text: "Education", systemImageName: .trendingEducation, color: .cyan)
+    case .trendingKids:
+      return Data(text: "Kids & Family", systemImageName: .trendingKids, color: .orange)
     case .upNext:
       return Data(text: "Up Next", systemImageName: .queueTop)
 

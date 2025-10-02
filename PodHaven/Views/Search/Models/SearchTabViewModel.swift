@@ -24,12 +24,83 @@ final class SearchTabViewModel {
   private static let debounceDuration: Duration = .milliseconds(350)
 
   private static let trendingConfigurations: [TrendingConfiguration] = [
-    .init(id: "top", title: "Top Podcasts", genreID: nil, fetchLimit: 50, displayLimit: 12),
-    .init(id: "news", title: "News", genreID: 1489, fetchLimit: 50, displayLimit: 12),
-    .init(id: "trueCrime", title: "True Crime", genreID: 1488, fetchLimit: 50, displayLimit: 12),
-    .init(id: "comedy", title: "Comedy", genreID: 1303, fetchLimit: 50, displayLimit: 12),
-    .init(id: "business", title: "Business", genreID: 1321, fetchLimit: 50, displayLimit: 12),
-    .init(id: "technology", title: "Technology", genreID: 1318, fetchLimit: 50, displayLimit: 12),
+    .init(
+      id: "top",
+      title: "Top Podcasts",
+      genreID: nil,
+      icon: .trendingTop,
+      fetchLimit: 50
+    ),
+    .init(
+      id: "news",
+      title: "News",
+      genreID: 1489,
+      icon: .trendingNews,
+      fetchLimit: 50
+    ),
+    .init(
+      id: "trueCrime",
+      title: "True Crime",
+      genreID: 1488,
+      icon: .trendingTrueCrime,
+      fetchLimit: 50
+    ),
+    .init(
+      id: "comedy",
+      title: "Comedy",
+      genreID: 1303,
+      icon: .trendingComedy,
+      fetchLimit: 50
+    ),
+    .init(
+      id: "business",
+      title: "Business",
+      genreID: 1321,
+      icon: .trendingBusiness,
+      fetchLimit: 50
+    ),
+    .init(
+      id: "technology",
+      title: "Technology",
+      genreID: 1318,
+      icon: .trendingTechnology,
+      fetchLimit: 50
+    ),
+    .init(
+      id: "sports",
+      title: "Sports",
+      genreID: 1545,
+      icon: .trendingSports,
+      fetchLimit: 50
+    ),
+    .init(
+      id: "health",
+      title: "Health",
+      genreID: 1512,
+      icon: .trendingHealth,
+      fetchLimit: 50
+    ),
+    .init(
+      id: "science",
+      title: "Science",
+      genreID: 1533,
+      icon: .trendingScience,
+      fetchLimit: 50
+    ),
+    .init(
+      id: "education",
+      title: "Education",
+      genreID: 1304,
+      icon: .trendingEducation,
+      fetchLimit: 50
+    ),
+    .init(
+      id: "kids",
+      title: "Kids & Family",
+      genreID: 1305,
+      icon: .trendingKids,
+      fetchLimit: 50
+    ),
   ]
 
   // MARK: - Published State
@@ -134,11 +205,12 @@ final class SearchTabViewModel {
               limit: configuration.fetchLimit
             )
             try Task.checkCancellation()
-            let podcasts = Array(results.prefix(configuration.displayLimit))
+            let podcasts = Array(results)
             guard !podcasts.isEmpty else { return nil }
             return TrendingSection(
               id: configuration.id,
               title: configuration.title,
+              icon: configuration.icon,
               podcasts: podcasts
             )
           } catch {
@@ -236,6 +308,7 @@ final class SearchTabViewModel {
   struct TrendingSection: Identifiable, Equatable {
     let id: String
     let title: String
+    let icon: AppIcon
     let podcasts: [UnsavedPodcast]
   }
 
@@ -243,7 +316,7 @@ final class SearchTabViewModel {
     let id: String
     let title: String
     let genreID: Int?
+    let icon: AppIcon
     let fetchLimit: Int
-    let displayLimit: Int
   }
 }
