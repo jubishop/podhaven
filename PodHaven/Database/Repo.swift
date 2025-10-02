@@ -243,27 +243,27 @@ struct Repo: Databasing, Sendable {
 
   @discardableResult
   func delete(_ podcastIDs: [Podcast.ID]) async throws -> Int {
-    // Remove cached episode files
     let episodesToDelete = try await appDB.db.read { db in
       try Episode.all()
-        .cached()
         .filter { podcastIDs.contains($0.podcastId) }
         .fetchAll(db)
     }
-    for episode in episodesToDelete {
-      do {
-        guard let url = episode.cachedURL
-        else { Assert.fatal("\(episode.toString) has no cached URL?") }
 
-        try fileManager.removeItem(at: url.rawValue)
-        Self.log.debug("Removed cached file at: \(url)")
-      } catch {
-        Self.log.error(error)
+    for episode in episodesToDelete {
+      // Remove cached episode files
+      if let url = episode.cachedURL {
+        do {
+          try fileManager.removeItem(at: url.rawValue)
+          Self.log.debug("Removed cached file at: \(url)")
+        } catch {
+          Self.log.error(error)
+        }
       }
 
       // Stop playback if needed
       if let onDeck = await playState.onDeck, onDeck == episode {
         await playManager.stop()
+        Self.log.debug("Stopped playback for \(episode.toString) because its being deleted")
       }
     }
 
