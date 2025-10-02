@@ -7,13 +7,12 @@ import SwiftUI
 struct PlayBar: View {
   private let spacing: CGFloat = 12
 
-  @State private var viewModel = PlayBarViewModel()
-
   @State private var playBarSheetIsPresented = false
-  private let isExpanded: Bool
 
-  init(isExpanded: Bool) {
-    self.isExpanded = isExpanded
+  private let viewModel: PlayBarViewModel
+
+  init(viewModel: PlayBarViewModel) {
+    self.viewModel = viewModel
   }
 
   var body: some View {
@@ -22,7 +21,7 @@ struct PlayBar: View {
         loadingPlayBar
       } else if viewModel.isStopped {
         stoppedPlayBar
-      } else if isExpanded {
+      } else if viewModel.isExpanded {
         expandedPlayBar
       } else {
         inlinePlayBar

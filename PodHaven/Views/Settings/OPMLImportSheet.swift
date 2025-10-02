@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import SwiftUI
 
 struct OPMLImportSheet: View {
@@ -69,7 +70,7 @@ func importOPMLFile(_ viewModel: OPMLViewModel, _ resource: String) {
 }
 
 #Preview {
-  @Previewable @State var viewModel = OPMLViewModel()
+  @Previewable @State var viewModel = Container.shared.opmlViewModel()
 
   Form {
     Button("Import Large") {

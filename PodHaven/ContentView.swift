@@ -23,7 +23,7 @@ struct ContentView: View {
         systemImage: AppIcon.upNext.systemImageName,
         value: .upNext
       ) {
-        UpNextView()
+        UpNextView(viewModel: UpNextViewModel())
       }
       Tab(
         AppIcon.episodes.text,

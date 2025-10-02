@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 
 struct OPMLView: View {
   @DynamicInjected(\.alert) private var alert
+
   @InjectedObservable(\.opmlViewModel) private var viewModel
 
   var body: some View {

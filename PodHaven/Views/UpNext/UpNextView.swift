@@ -7,7 +7,11 @@ struct UpNextView: View {
   @DynamicInjected(\.alert) private var alert
   @InjectedObservable(\.navigation) private var navigation
 
-  @State private var viewModel = UpNextViewModel()
+  @State private var viewModel: UpNextViewModel
+
+  init(viewModel: UpNextViewModel) {
+    self.viewModel = viewModel
+  }
 
   var body: some View {
     IdentifiableNavigationStack(manager: navigation.upNext) {
@@ -82,7 +86,7 @@ struct UpNextView: View {
 
 #if DEBUG
 #Preview {
-  UpNextView()
+  UpNextView(viewModel: UpNextViewModel())
     .preview()
     .task { try? await PreviewHelpers.populateQueue() }
 }
