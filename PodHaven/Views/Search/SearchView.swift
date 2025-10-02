@@ -5,75 +5,167 @@ import SwiftUI
 
 struct SearchView: View {
   @InjectedObservable(\.navigation) private var navigation
+  @InjectedObservable(\.searchTabViewModel) private var viewModel
+
+  @State private var gridItemSize: CGFloat = 140
 
   var body: some View {
     IdentifiableNavigationStack(manager: navigation.search) {
-      Form {
-        NavigationLink(
-          value: Navigation.Destination.searchType(.trending),
-          label: {
-            HStack {
-              AppIcon.trending.coloredImage
-              VStack(alignment: .leading) {
-                Text(AppIcon.trending.text)
-                  .font(.headline)
-                Text("Browse trending podcasts")
-                  .font(.caption)
-                  .foregroundColor(.secondary)
-              }
-            }
-          }
-        )
-
-        NavigationLink(
-          value: Navigation.Destination.searchType(.podcasts),
-          label: {
-            HStack {
-              AppIcon.searchPodcasts.coloredImage
-              VStack(alignment: .leading) {
-                Text(AppIcon.searchPodcasts.text)
-                  .font(.headline)
-                Text("Find podcasts by title or keywords")
-                  .font(.caption)
-                  .foregroundColor(.secondary)
-              }
-            }
-          }
-        )
-
-        NavigationLink(
-          value: Navigation.Destination.searchType(.episodes),
-          label: {
-            HStack {
-              AppIcon.searchEpisodes.coloredImage
-              VStack(alignment: .leading) {
-                Text(AppIcon.searchEpisodes.text)
-                  .font(.headline)
-                Text("Find episodes with a specific person")
-                  .font(.caption)
-                  .foregroundColor(.secondary)
-              }
-            }
-          }
-        )
-
-        NavigationLink(
-          value: Navigation.Destination.searchType(.manualEntry),
-          label: {
-            HStack {
-              AppIcon.manualEntry.coloredImage
-              VStack(alignment: .leading) {
-                Text(AppIcon.manualEntry.text)
-                  .font(.headline)
-                Text("Paste a podcast RSS feed URL directly")
-                  .font(.caption)
-                  .foregroundColor(.secondary)
-              }
-            }
-          }
-        )
-      }
-      .navigationTitle("Search")
+      content
+        .navigationTitle("Search")
+        .toolbar { manualEntryToolbarItem }
     }
+    .task(viewModel.loadTrendingIfNeeded)
+  }
+
+  // MARK: - Content Builders
+
+  @ViewBuilder
+  private var content: some View {
+    if viewModel.isShowingSearchResults {
+      searchResultsView
+    } else {
+      trendingView
+    }
+  }
+
+  @ViewBuilder
+  private var searchResultsView: some View {
+    switch viewModel.searchState {
+    case .idle:
+      placeholderView(
+        icon: AppIcon.search,
+        title: "Search for podcasts",
+        message: "Enter a podcast name or keyword to get started."
+      )
+
+    case .loading:
+      loadingView(text: "Searching…")
+
+    case .error(let message):
+      errorView(title: "Search Error", message: message)
+
+    case .loaded:
+      if viewModel.searchResults.isEmpty {
+        placeholderView(
+          icon: AppIcon.search,
+          title: "No results found",
+          message: "Try different search terms or check your spelling."
+        )
+      } else {
+        List(viewModel.searchResults, id: \.feedURL) { podcast in
+          NavigationLink(
+            value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
+            label: { PodcastListView(podcast: podcast) }
+          )
+        }
+        .listStyle(.plain)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var trendingView: some View {
+    switch viewModel.trendingState {
+    case .idle, .loading:
+      loadingView(text: "Fetching top podcasts…")
+
+    case .error(let message):
+      errorView(title: "Unable to Load", message: message)
+
+    case .loaded:
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 24) {
+          ForEach(viewModel.trendingSections) { section in
+            trendingSection(section)
+          }
+        }
+        .padding(.horizontal)
+        .padding(.top)
+      }
+    }
+  }
+
+  // MARK: - Section Rendering
+
+  @ViewBuilder
+  private func trendingSection(_ section: SearchTabViewModel.TrendingSection) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(section.title)
+        .font(.title3.weight(.semibold))
+
+      ItemGrid(items: section.podcasts, minimumGridSize: gridItemSize) { podcast in
+        NavigationLink(
+          value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
+          label: {
+            VStack(alignment: .leading, spacing: 8) {
+              SquareImage(image: podcast.image, size: $gridItemSize)
+              Text(podcast.title)
+                .font(.footnote.weight(.medium))
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .foregroundColor(.primary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+          }
+        )
+        .buttonStyle(.plain)
+      }
+    }
+  }
+
+  // MARK: - Toolbar
+
+  @ToolbarContentBuilder
+  private var manualEntryToolbarItem: some ToolbarContent {
+    ToolbarItem(placement: .primaryAction) {
+      Button(action: openManualEntry) {
+        Label("Add Feed", systemImage: AppIcon.manualEntry.systemImageName)
+      }
+      .accessibilityLabel("Add feed URL manually")
+    }
+  }
+
+  private func openManualEntry() {
+    navigation.showManualFeedEntry()
+  }
+
+  // MARK: - Reusable Views
+
+  private func loadingView(text: String) -> some View {
+    VStack(spacing: 16) {
+      ProgressView(text)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+  }
+
+  private func placeholderView(icon: AppIcon, title: String, message: String) -> some View {
+    VStack(spacing: 16) {
+      icon.coloredImage
+        .font(.system(size: 48))
+      Text(title)
+        .font(.headline)
+      Text(message)
+        .font(.subheadline)
+        .foregroundColor(.secondary)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private func errorView(title: String, message: String) -> some View {
+    VStack(spacing: 16) {
+      AppIcon.error.coloredImage
+        .font(.system(size: 48))
+      Text(title)
+        .font(.headline)
+      Text(message)
+        .font(.subheadline)
+        .foregroundColor(.secondary)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }

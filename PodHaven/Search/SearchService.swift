@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import IdentifiedCollections
 
 extension Container {
   var searchServiceSession: Factory<DataFetchable> {
@@ -23,80 +24,76 @@ extension Container {
 }
 
 struct SearchService {
+  // MARK: - Configuration
+
+  private static let baseHost = "itunes.apple.com"
+  private static let searchLimit = 100
+  private static let trendingLimit = 100
+  private static let lookupChunkSize = 50
+
+  private static var defaultCountryCode: String {
+    Locale.current.region?.identifier.lowercased() ?? "us"
+  }
+
   // MARK: - Initialization
 
   private let session: DataFetchable
+  private let decoder: JSONDecoder
 
   fileprivate init(session: DataFetchable) {
     self.session = session
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .useDefaultKeys
+    self.decoder = decoder
   }
 
-  // MARK: - Search Methods
+  // MARK: - Public API
 
-  func searchByTerm(_ term: String) async throws(SearchError) -> TermResult {
-    try await Self.parse(
-      try await performRequest("/search/byterm", [URLQueryItem(name: "q", value: term)])
-    )
-  }
-
-  func searchByTitle(_ title: String) async throws(SearchError) -> TitleResult {
-    try await Self.parse(
-      try await performRequest(
-        "/search/bytitle",
-        [URLQueryItem(name: "q", value: title), URLQueryItem(name: "similar", value: "true")]
-      )
-    )
-  }
-
-  func searchByPerson(_ person: String) async throws(SearchError) -> PersonResult {
-    try await Self.parse(
-      try await performRequest("/search/byperson", [URLQueryItem(name: "q", value: person)])
-    )
-  }
-
-  func searchTrending(categories: [String] = [], language: String? = nil) async throws(SearchError)
-    -> TrendingResult
-  {
-    var queryItems: [URLQueryItem] = []
-    if !categories.isEmpty {
-      queryItems.append(URLQueryItem(name: "cat", value: categories.joined(separator: ",")))
+  func searchPodcasts(matching term: String) async throws(SearchError) -> IdentifiedArray<
+    FeedURL, UnsavedPodcast
+  > {
+    let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      return IdentifiedArray(uniqueElements: [], id: \.feedURL)
     }
-    if let language {
-      queryItems.append(URLQueryItem(name: "lang", value: language))
-    }
-    return try await Self.parse(try await performRequest("/podcasts/trending", queryItems))
+
+    let request = buildSearchRequest(for: trimmed, limit: Self.searchLimit)
+    let data = try await perform(request)
+    let response: ITunesSearchResponse = try decode(data)
+
+    let podcasts = response.podcasts.compactMap(convertToUnsavedPodcast)
+    return deduplicate(podcasts)
   }
 
-  // MARK: - Parsing
+  func topPodcasts(
+    countryCode overrideCountryCode: String? = nil,
+    genreID: Int? = nil,
+    limit: Int = Self.trendingLimit
+  ) async throws(SearchError) -> IdentifiedArray<FeedURL, UnsavedPodcast> {
+    let countryCode = (overrideCountryCode ?? Self.defaultCountryCode).lowercased()
+    let request = buildTopPodcastsRequest(countryCode: countryCode, genreID: genreID, limit: limit)
+    let data = try await perform(request)
+    let response: ITunesTopPodcastsResponse = try decode(data)
+    let ids = response.feed.entries.map(\.id.attributes.imId)
+    guard !ids.isEmpty else {
+      return IdentifiedArray(uniqueElements: [], id: \.feedURL)
+    }
 
-  static func parse<T: Decodable & Sendable>(_ data: Data) async throws(SearchError) -> T {
-    do {
-      return try await withCheckedThrowingContinuation { continuation in
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .secondsSince1970
-        do {
-          let searchResult = try decoder.decode(T.self, from: data)
-          continuation.resume(returning: searchResult)
-        } catch {
-          continuation.resume(throwing: error)
-        }
+    let lookupResults = try await lookup(ids: ids, countryCode: countryCode)
+    var lookupMap: [String: ITunesSearchResponse.Podcast] = [:]
+    for result in lookupResults {
+      if let identifier = result.collectionId ?? result.trackId {
+        lookupMap[String(identifier)] = result
       }
-    } catch {
-      throw SearchError.parseFailure(data)
     }
+
+    let orderedPodcasts = ids.compactMap { lookupMap[$0].flatMap(convertToUnsavedPodcast) }
+    return deduplicate(orderedPodcasts)
   }
 
-  // MARK: - Private Helpers
+  // MARK: - Networking
 
-  static private let apiKey = "G3SPKHRKRLCU7Z2PJXEW"
-  static private let apiSecret = "tQcZQATRC5Yg#zG^s7jyaVsMU8fQx5rpuGU6nqC7"
-  static private let baseHost = "api.podcastindex.org"
-  static private let basePath = "/api/1.0"
-
-  private func performRequest(_ path: String, _ query: [URLQueryItem] = [])
-    async throws(SearchError) -> Data
-  {
-    let request = buildRequest(path, query)
+  private func perform(_ request: URLRequest) async throws(SearchError) -> Data {
     do {
       return try await session.validatedData(for: request)
     } catch {
@@ -104,29 +101,141 @@ struct SearchService {
     }
   }
 
-  private func buildRequest(_ path: String, _ queryItems: [URLQueryItem] = []) -> URLRequest {
+  private func lookup(ids: [String], countryCode: String) async throws(SearchError)
+    -> [ITunesSearchResponse.Podcast]
+  {
+    guard !ids.isEmpty else { return [] }
+
+    var aggregated: [ITunesSearchResponse.Podcast] = []
+    for chunk in chunked(ids, size: Self.lookupChunkSize) {
+      let request = ApplePodcastsURL.lookupRequest(
+        ids: chunk,
+        entity: "podcast",
+        countryCode: countryCode
+      )
+      let data = try await perform(request)
+      let response: ITunesSearchResponse
+      do {
+        response = try ApplePodcastsURL.decodeLookupResponse(
+          data,
+          as: ITunesSearchResponse.self
+        )
+      } catch {
+        throw SearchError.parseFailure(data)
+      }
+      aggregated.append(contentsOf: response.podcasts)
+    }
+    return aggregated
+  }
+
+  // MARK: - Request Building
+
+  private func buildSearchRequest(for term: String, limit: Int) -> URLRequest {
     var components = URLComponents()
     components.scheme = "https"
     components.host = Self.baseHost
-    components.path = Self.basePath + path
-    if !queryItems.isEmpty {
-      components.queryItems = queryItems
+    components.path = "/search"
+    components.queryItems = [
+      URLQueryItem(name: "term", value: term),
+      URLQueryItem(name: "media", value: "podcast"),
+      URLQueryItem(name: "entity", value: "podcast"),
+      URLQueryItem(name: "limit", value: String(limit)),
+    ]
+
+    return buildRequest(from: components)
+  }
+
+  private func buildTopPodcastsRequest(countryCode: String, genreID: Int?, limit: Int)
+    -> URLRequest
+  {
+    var pathComponents = ["", countryCode, "rss", "toppodcasts", "limit=\(limit)"]
+    if let genreID {
+      pathComponents.append("genre=\(genreID)")
     }
-    guard let url = components.url
-    else { Assert.fatal("Can't make url from: \(components)?") }
+    pathComponents.append("json")
+
+    var components = URLComponents()
+    components.scheme = "https"
+    components.host = Self.baseHost
+    components.path = pathComponents.joined(separator: "/")
+
+    return buildRequest(from: components)
+  }
+
+  private func buildRequest(from components: URLComponents) -> URLRequest {
+    guard let url = components.url else {
+      Assert.fatal("Unable to build request from components: \(components)")
+    }
 
     var request = URLRequest(url: url)
     request.httpMethod = "GET"
-
     request.addValue("PodHaven", forHTTPHeaderField: "User-Agent")
-    request.addValue(Self.apiKey, forHTTPHeaderField: "X-Auth-Key")
-
-    let apiHeaderTime = String(Int(Date().timeIntervalSince1970))
-    request.addValue(apiHeaderTime, forHTTPHeaderField: "X-Auth-Date")
-
-    let hash = (Self.apiKey + Self.apiSecret + apiHeaderTime).sha1()
-    request.addValue(hash, forHTTPHeaderField: "Authorization")
-
     return request
+  }
+
+  // MARK: - Helpers
+
+  private func decode<T: Decodable>(_ data: Data) throws(SearchError) -> T {
+    do {
+      return try decoder.decode(T.self, from: data)
+    } catch {
+      throw SearchError.parseFailure(data)
+    }
+  }
+
+  private func convertToUnsavedPodcast(_ result: ITunesSearchResponse.Podcast) -> UnsavedPodcast? {
+    guard let feedURLString = result.feedUrl, let feedURL = URL(string: feedURLString) else {
+      return nil
+    }
+
+    let artworkURLString =
+      result.artworkUrl600 ?? result.artworkUrl100 ?? result.artworkUrl60
+      ?? result.artworkUrl30
+    guard let imageURLString = artworkURLString, let imageURL = URL(string: imageURLString) else {
+      return nil
+    }
+
+    let title =
+      result.collectionName ?? result.trackName ?? result.collectionCensoredName
+      ?? result.trackCensoredName ?? "Podcast"
+
+    let description =
+      result.collectionDescription ?? result.longDescription ?? result.description
+      ?? result.shortDescription ?? ""
+
+    let linkString = result.collectionViewUrl ?? result.trackViewUrl
+    let link = linkString.flatMap(URL.init)
+
+    do {
+      return try UnsavedPodcast(
+        feedURL: FeedURL(feedURL),
+        title: title,
+        image: imageURL,
+        description: description,
+        link: link
+      )
+    } catch {
+      return nil
+    }
+  }
+
+  private func deduplicate(_ podcasts: [UnsavedPodcast]) -> IdentifiedArray<FeedURL, UnsavedPodcast>
+  {
+    var unique: [UnsavedPodcast] = []
+    var seen = Set<FeedURL>()
+
+    for podcast in podcasts where seen.insert(podcast.feedURL).inserted {
+      unique.append(podcast)
+    }
+
+    return IdentifiedArray(uniqueElements: unique, id: \.feedURL)
+  }
+
+  private func chunked<T>(_ values: [T], size: Int) -> [[T]] {
+    guard size > 0 else { return [] }
+    return stride(from: 0, to: values.count, by: size)
+      .map { index in
+        Array(values[index..<min(index + size, values.count)])
+      }
   }
 }

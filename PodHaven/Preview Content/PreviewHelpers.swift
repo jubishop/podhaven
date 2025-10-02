@@ -183,30 +183,5 @@ enum PreviewHelpers {
     }
   }
 
-  // MARK: - Searching
-
-  static func loadTrendingResult() async throws -> TrendingResult {
-    try await SearchService.parse(
-      PreviewBundle.loadAsset(named: "trending_in_news", in: .SearchResults)
-    )
-  }
-
-  static func loadTitleResult() async throws -> TitleResult {
-    try await SearchService.parse(
-      PreviewBundle.loadAsset(named: "hello_bytitle", in: .SearchResults)
-    )
-  }
-
-  static func loadTermResult() async throws -> TermResult {
-    try await SearchService.parse(
-      PreviewBundle.loadAsset(named: "hardfork_byterm", in: .SearchResults)
-    )
-  }
-
-  static func loadPersonResult() async throws -> PersonResult {
-    try await SearchService.parse(
-      PreviewBundle.loadAsset(named: "ndg_byperson", in: .SearchResults)
-    )
-  }
 }
 #endif

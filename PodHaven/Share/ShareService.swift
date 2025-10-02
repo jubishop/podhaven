@@ -197,16 +197,16 @@ struct ShareService {
   private func extractEpisodeInfo(from url: URL) async throws(ShareError)
     -> (FeedURL, (MediaURL?, GUID?))?
   {
-    if ApplePodcasts.isEpisodeURL(url) {
-      return try await ApplePodcasts(session: session, url: url).extractEpisodeInfo()
+    if ApplePodcastsURL.isEpisodeURL(url) {
+      return try await ApplePodcastsURL(session: session, url: url).extractEpisodeInfo()
     }
 
     return nil
   }
 
   private func extractFeedURL(from url: URL) async throws(ShareError) -> FeedURL? {
-    if ApplePodcasts.isPodcastURL(url) {
-      return try await ApplePodcasts(session: session, url: url).extractFeedURL()
+    if ApplePodcastsURL.isPodcastURL(url) {
+      return try await ApplePodcastsURL(session: session, url: url).extractFeedURL()
     }
 
     return nil

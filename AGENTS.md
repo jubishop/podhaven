@@ -62,7 +62,7 @@
 - `AppDelegate` forwards background session completions to `CacheBackgroundDelegate` ensuring the system resumes suspended tasks correctly.
 
 ### Search & Discovery
-- Search view models (`PodcastSearchViewModel`, `EpisodeSearchViewModel`, `TrendingCategoryGridViewModel`) debounce inputs, call `SearchService`, then subscribe to `Observatory` updates so downloaded data stays live.
+- `SearchTabViewModel` drives the search tab by loading iTunes top charts for curated grids and debouncing TabView search text before querying iTunes search; it keeps displayed podcasts live by observing the repo.
 - Preview helpers stub factories for deterministic SwiftUI previews without network calls.
 
 ### Navigation & UI Structure

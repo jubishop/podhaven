@@ -6,6 +6,7 @@ import SwiftUI
 struct ContentView: View {
   @InjectedObservable(\.navigation) private var navigation
   @InjectedObservable(\.playState) private var playState
+  @InjectedObservable(\.searchTabViewModel) private var searchTabViewModel
 
   @State private var tabMaxY: CGFloat = 0
 
@@ -48,6 +49,11 @@ struct ContentView: View {
         SearchView()
       }
     }
+    .searchable(
+      text: $searchTabViewModel.searchText,
+      placement: .automatic,
+      prompt: Text("Search podcasts")
+    )
     .coordinateSpace(name: PlayBarAccessory.CoordinateName)
     .onGeometryChange(for: CGFloat.self) { geometry in
       geometry.frame(in: .named(PlayBarAccessory.CoordinateName)).maxY

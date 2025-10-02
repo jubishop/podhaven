@@ -48,9 +48,7 @@ extension Container {
     // Settings destinations
     case settingsSection(SettingsSection)
 
-    // Search destinations
-    case searchType(SearchType)
-    case category(String)
+    case manualFeedEntry
 
     // Episodes destinations
     case episodesViewType(EpisodesViewType)
@@ -68,13 +66,6 @@ extension Container {
 
   enum SettingsSection {
     case opml
-  }
-
-  enum SearchType {
-    case trending
-    case podcasts
-    case episodes
-    case manualEntry
   }
 
   enum EpisodesViewType {
@@ -96,24 +87,8 @@ extension Container {
         OPMLView().id("opml")
       }
 
-    // Search destinations
-    case .searchType(let searchType):
-      switch searchType {
-      case .trending:
-        TrendingView().id("trendingType")
-      case .podcasts:
-        PodcastSearchView(viewModel: PodcastSearchViewModel())
-          .id("podcastSearchType")
-      case .episodes:
-        EpisodeSearchView(viewModel: EpisodeSearchViewModel())
-          .id("episodeSearchType")
-      case .manualEntry:
-        ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
-          .id("manualEntryType")
-      }
-    case .category(let category):
-      TrendingCategoryGridView(viewModel: TrendingCategoryGridViewModel(category: category))
-        .id("trending_\(category)")
+    case .manualFeedEntry:
+      ManualFeedEntryView(viewModel: ManualFeedEntryViewModel()).id("manualEntryType")
 
     // Episodes destinations
     case .episodesViewType(let viewType):
@@ -232,6 +207,11 @@ extension Container {
     var resetId = UUID()
   }
   var search = Search()
+
+  func showManualFeedEntry() {
+    currentTab = .search
+    search.path.append(.manualFeedEntry)
+  }
 
   // MARK: - UpNext
 

@@ -2,7 +2,7 @@
 
 import Foundation
 
-struct ApplePodcasts {
+struct ApplePodcastsURL {
   // MARK: - URL Analysis
 
   static func isPodcastURL(_ url: URL) -> Bool {
@@ -27,9 +27,9 @@ struct ApplePodcasts {
   // MARK: - Public Data Extraction
 
   func extractFeedURL() async throws(ShareError) -> FeedURL {
-    let (url, request) = buildPodcastRequest(itunesID: try extractPodcastID())
+    let request = buildPodcastRequest(itunesID: try extractPodcastID())
     let lookupResult = try await parseItunesResponse(
-      try await performRequest(url: url, request: request)
+      try await performRequest(request)
     )
 
     guard let feedURL = lookupResult.feedURL
@@ -39,9 +39,9 @@ struct ApplePodcasts {
   }
 
   func extractEpisodeInfo() async throws(ShareError) -> (FeedURL, (MediaURL?, GUID?)) {
-    let (url, request) = buildEpisodesRequest(podcastID: try extractPodcastID(), limit: 200)
+    let request = buildEpisodesRequest(podcastID: try extractPodcastID(), limit: 200)
     let lookupResult = try await parseItunesResponse(
-      try await performRequest(url: url, request: request)
+      try await performRequest(request)
     )
 
     guard let feedURL = lookupResult.feedURL
@@ -119,15 +119,7 @@ struct ApplePodcasts {
 
   private func parseItunesResponse(_ data: Data) async throws(ShareError) -> ItunesLookupResult {
     do {
-      return try await withCheckedThrowingContinuation { continuation in
-        let decoder = JSONDecoder()
-        do {
-          let result = try decoder.decode(ItunesLookupResult.self, from: data)
-          continuation.resume(returning: result)
-        } catch {
-          continuation.resume(throwing: error)
-        }
-      }
+      return try Self.decodeLookupResponse(data, as: ItunesLookupResult.self)
     } catch {
       throw ShareError.parseFailure(data)
     }
@@ -135,7 +127,7 @@ struct ApplePodcasts {
 
   // MARK: - Private Requesting
 
-  private func performRequest(url: URL, request: URLRequest) async throws(ShareError) -> Data {
+  private func performRequest(_ request: URLRequest) async throws(ShareError) -> Data {
     do {
       return try await session.validatedData(for: request)
     } catch {
@@ -143,22 +135,46 @@ struct ApplePodcasts {
     }
   }
 
-  private func buildPodcastRequest(itunesID: String) -> (URL, URLRequest) {
-    buildItunesRequest(queryItems: [
-      URLQueryItem(name: "id", value: itunesID),
-      URLQueryItem(name: "entity", value: "podcast"),
-    ])
+  private func buildPodcastRequest(itunesID: String) -> URLRequest {
+    Self.lookupRequest(
+      ids: [itunesID],
+      entity: "podcast"
+    )
   }
 
-  private func buildEpisodesRequest(podcastID: String, limit: Int = 200) -> (URL, URLRequest) {
-    buildItunesRequest(queryItems: [
-      URLQueryItem(name: "id", value: podcastID),
-      URLQueryItem(name: "entity", value: "podcastEpisode"),
-      URLQueryItem(name: "limit", value: String(limit)),
-    ])
+  private func buildEpisodesRequest(podcastID: String, limit: Int = 200) -> URLRequest {
+    Self.lookupRequest(
+      ids: [podcastID],
+      entity: "podcastEpisode",
+      limit: limit
+    )
   }
 
-  private func buildItunesRequest(queryItems: [URLQueryItem]) -> (URL, URLRequest) {
+  // MARK: - Shared Helpers
+
+  static func lookupRequest(
+    ids: [String],
+    entity: String,
+    limit: Int? = nil,
+    countryCode: String? = nil
+  ) -> URLRequest {
+    var queryItems: [URLQueryItem] = [
+      URLQueryItem(name: "id", value: ids.joined(separator: ",")),
+      URLQueryItem(name: "entity", value: entity),
+    ]
+
+    if let limit {
+      queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
+    }
+
+    if let countryCode {
+      queryItems.append(URLQueryItem(name: "country", value: countryCode))
+    }
+
+    return lookupRequest(queryItems: queryItems)
+  }
+
+  static func lookupRequest(queryItems: [URLQueryItem]) -> URLRequest {
     var components = URLComponents()
     components.scheme = "https"
     components.host = "itunes.apple.com"
@@ -171,7 +187,19 @@ struct ApplePodcasts {
     var request = URLRequest(url: url)
     request.httpMethod = "GET"
     request.addValue("PodHaven", forHTTPHeaderField: "User-Agent")
-
-    return (url, request)
+    return request
   }
+
+  static func decodeLookupResponse<Response: Decodable>(
+    _ data: Data,
+    as type: Response.Type
+  ) throws -> Response {
+    try decoder.decode(type, from: data)
+  }
+
+  private static let decoder: JSONDecoder = {
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .useDefaultKeys
+    return decoder
+  }()
 }

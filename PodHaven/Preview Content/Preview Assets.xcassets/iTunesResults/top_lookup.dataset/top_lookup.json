@@ -1,0 +1,53 @@
+{
+  "resultCount": 3,
+  "results": [
+    {
+      "wrapperType": "track",
+      "kind": "podcast",
+      "collectionId": 1627920305,
+      "trackId": 1627920305,
+      "artistName": "Lenny Rachitsky",
+      "collectionName": "Lenny's Podcast: Product | Growth | Career",
+      "collectionViewUrl": "https://podcasts.apple.com/us/podcast/id1627920305",
+      "feedUrl": "https://api.substack.com/feed/podcast/10845.rss",
+      "artworkUrl30": "https://example.com/lenny30.jpg",
+      "artworkUrl60": "https://example.com/lenny60.jpg",
+      "artworkUrl100": "https://example.com/lenny100.jpg",
+      "artworkUrl600": "https://example.com/lenny600.jpg",
+      "description": "Conversations with product and growth leaders.",
+      "primaryGenreName": "Technology"
+    },
+    {
+      "wrapperType": "track",
+      "kind": "podcast",
+      "collectionId": 1439393088,
+      "trackId": 1439393088,
+      "artistName": "The Times",
+      "collectionName": "The Daily",
+      "collectionViewUrl": "https://podcasts.apple.com/us/podcast/id1439393088",
+      "feedUrl": "https://feeds.simplecast.com/54nAGcIl",
+      "artworkUrl30": "https://example.com/daily30.jpg",
+      "artworkUrl60": "https://example.com/daily60.jpg",
+      "artworkUrl100": "https://example.com/daily100.jpg",
+      "artworkUrl600": "https://example.com/daily600.jpg",
+      "collectionDescription": "This is what the news should sound like.",
+      "primaryGenreName": "News"
+    },
+    {
+      "wrapperType": "track",
+      "kind": "podcast",
+      "collectionId": 1234567890,
+      "trackId": 1234567890,
+      "artistName": "Science Friday",
+      "collectionName": "Science Friday",
+      "collectionViewUrl": "https://podcasts.apple.com/us/podcast/id1234567890",
+      "feedUrl": "https://api.sciencefriday.com/podcast/feed.rss",
+      "artworkUrl30": "https://example.com/scifri30.jpg",
+      "artworkUrl60": "https://example.com/scifri60.jpg",
+      "artworkUrl100": "https://example.com/scifri100.jpg",
+      "artworkUrl600": "https://example.com/scifri600.jpg",
+      "longDescription": "Covering the outer reaches of science, technology, and medicine.",
+      "primaryGenreName": "Science"
+    }
+  ]
+}

@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
@@ -8,154 +7,117 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of SearchService tests", .container)
-class SearchServiceTests {
-  static private let baseURLString = "https://api.podcastindex.org/api/1.0"
-
+@Suite("SearchService", .container)
+final class SearchServiceTests {
   @DynamicInjected(\.searchServiceSession) private var searchServiceSession
   @DynamicInjected(\.searchService) private var searchService
 
-  var session: FakeDataFetchable { searchServiceSession as! FakeDataFetchable }
+  private var session: FakeDataFetchable { searchServiceSession as! FakeDataFetchable }
 
-  @Test("basic search query")
-  func testBasicSearchQuery() async throws {
-    let searchTerm = "hard fork"
-    let data = PreviewBundle.loadAsset(named: "hardfork_byterm", in: .SearchResults)
-    await session.respond(
-      to: URL(string: Self.baseURLString + "/search/byterm?q=\(searchTerm)")!,
-      data: data
-    )
-    let result = try await searchService.searchByTerm(searchTerm)
-    let feed = result.feeds.first!
-    #expect(result.feeds.count == 5)
-    #expect(feed.title == "Hard Fork")
-    #expect(feed.url == FeedURL(URL(string: "https://feeds.simplecast.com/l2i9YnTd")!))
-    #expect(feed.lastUpdateTime == Date(timeIntervalSince1970: TimeInterval(1736023489)))
-    #expect(feed.categories!["102"] == "Technology")
+  // MARK: - Helpers
+
+  private func searchURL(term: String) -> URL {
+    var components = URLComponents()
+    components.scheme = "https"
+    components.host = "itunes.apple.com"
+    components.path = "/search"
+    components.queryItems = [
+      URLQueryItem(name: "term", value: term),
+      URLQueryItem(name: "media", value: "podcast"),
+      URLQueryItem(name: "entity", value: "podcast"),
+      URLQueryItem(name: "limit", value: "100"),
+    ]
+    return components.url!
   }
 
-  @Test("search by title")
-  func testSearchByTitle() async throws {
-    let searchTerm = "this is important"
-    let data = PreviewBundle.loadAsset(named: "thisisimportant_bytitle", in: .SearchResults)
-    await session.respond(
-      to: URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
-      data: data
-    )
-    let result = try await searchService.searchByTitle(searchTerm)
-    let feed = result.feeds.first!
+  private func topFeedURL(country: String = "us", limit: Int, genreID: Int? = nil) -> URL {
+    var pathComponents = ["", country, "rss", "toppodcasts", "limit=\(limit)"]
+    if let genreID { pathComponents.append("genre=\(genreID)") }
+    pathComponents.append("json")
+
+    var components = URLComponents()
+    components.scheme = "https"
+    components.host = "itunes.apple.com"
+    components.path = pathComponents.joined(separator: "/")
+    return components.url!
+  }
+
+  private func lookupURL(ids: [String], country: String = "us") -> URL {
+    var components = URLComponents()
+    components.scheme = "https"
+    components.host = "itunes.apple.com"
+    components.path = "/lookup"
+    components.queryItems = [
+      URLQueryItem(name: "id", value: ids.joined(separator: ",")),
+      URLQueryItem(name: "entity", value: "podcast"),
+      URLQueryItem(name: "country", value: country),
+    ]
+    return components.url!
+  }
+
+  // MARK: - Tests
+
+  @Test("search podcasts returns filtered results")
+  func testSearchPodcasts() async throws {
+    let term = "technology"
+    let data = PreviewBundle.loadAsset(named: "search_results", in: .iTunesResults)
+    session.respond(to: searchURL(term: term), data: data)
+
+    let results = try await searchService.searchPodcasts(matching: term)
+    #expect(results.count == 2)
+
+    let podcasts = Array(results)
+    #expect(podcasts.first?.title == "Lenny's Podcast: Product | Growth | Career")
     #expect(
-      feed.description
-        == "Adam Devine, Anders Holm, Blake Anderson, and Kyle Newacheck seriously discuss some very important topics."
+      podcasts.first?.feedURL
+        == FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!)
     )
-    #expect(result.feeds.count == 3)
-    #expect(Set(feed.categories!.values) == ["Comedy", "Society", "Culture"])
+    #expect(podcasts.last?.title == "The Daily")
   }
 
-  @Test("search by title missing categories")
-  func testSearchByTitleMissingData() async throws {
-    let searchTerm = "Hello"
-    let data = PreviewBundle.loadAsset(named: "hello_bytitle", in: .SearchResults)
-    await session.respond(
-      to: URL(string: Self.baseURLString + "/search/bytitle?q=\(searchTerm)&similar=true")!,
-      data: data
-    )
-    let result = try await searchService.searchByTitle(searchTerm)
-    let feed = result.feeds[3]
-    #expect(feed.description == "Xxx")
-    #expect(result.feeds.count == 60)
-    #expect(feed.categories == ["61": "Christianity", "65": "Religion", "66": "Spirituality"])
+  @Test("top podcasts uses lookup to produce ordered results")
+  func testTopPodcastsLookup() async throws {
+    let feedData = PreviewBundle.loadAsset(named: "top_feed", in: .iTunesResults)
+    let lookupData = PreviewBundle.loadAsset(named: "top_lookup", in: .iTunesResults)
+
+    let feedURL = topFeedURL(limit: 5)
+    session.respond(to: feedURL, data: feedData)
+
+    let lookupURL = lookupURL(ids: ["1627920305", "1439393088", "1234567890"])
+    session.respond(to: lookupURL, data: lookupData)
+
+    let results = try await searchService.topPodcasts(limit: 5)
+    #expect(results.count == 3)
+
+    let podcasts = Array(results)
+    #expect(podcasts[0].title == "Lenny's Podcast: Product | Growth | Career")
+    #expect(podcasts[1].title == "The Daily")
+    #expect(podcasts[2].title == "Science Friday")
   }
 
-  @Test("search by person")
-  func testSearchByPerson() async throws {
-    let searchTerm = "Neil DeGrasse Tyson"
-    let data = PreviewBundle.loadAsset(named: "ndg_byperson", in: .SearchResults)
-    await session.respond(
-      to: URL(string: Self.baseURLString + "/search/byperson?q=\(searchTerm)")!,
-      data: data
-    )
-    let result = try await searchService.searchByPerson(searchTerm)
+  @Test("top podcasts propagates failures")
+  func testTopPodcastsFailure() async throws {
+    let feedURL = topFeedURL(limit: 5)
+    session.respond(to: feedURL, error: URLError(.badServerResponse))
 
-    // Three less in our PodcastEpisode array because there are dupes
-    let podcastEpisodes = result.toPodcastEpisodeArray()
-    #expect(result.items.count == 62)
-    #expect(podcastEpisodes.count == 59)
-
-    // The first three are all dupes but Date(timeIntervalSince1970: 1732406400) is the newest.
-    #expect(
-      podcastEpisodes.first!
-        == UnsavedPodcastEpisode(
-          unsavedPodcast: try UnsavedPodcast(
-            feedURL: FeedURL(URL(string: "https://feeds.buzzsprout.com/1733776.rss")!),
-            title: "Homo Erectus Walks Amongst Us Podcast #HomoErectus",
-            image: URL(string: "https://storage.buzzsprout.com/x5q2k148xhspu9dkzhvx6m7pb1ji?.jpg")!,
-            description: ""
-          ),
-          unsavedEpisode: try UnsavedEpisode(
-            guid: "Buzzsprout-16162072",
-            mediaURL: MediaURL(
-              URL(
-                string:
-                  "https://www.buzzsprout.com/1733776/episodes/16162072-bill-maher-clashes-with-neil-degrasse-tyson-for-refusing-to-admit-men-s-sports-advantage-over-women.mp3"
-              )!
-            ),
-            title:
-              "Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women",
-            pubDate: Date(timeIntervalSince1970: 1732406400),
-            duration: CMTime.seconds(887),
-            description:
-              "<h1>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women</h1><h1>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women</h1><h1>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women</h1><p>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women<br/>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit men's sports advantage over women<br/>Bill Maher clashes with Neil deGrasse Tyson for refusing to admit..."
-          )
-        )
-    )
-
-    #expect(
-      throws: ParseError.missingImage("A Tribute to Neil Armstrong – StarTalk Radio Cosmic Queries")
-    ) {
-      try result.items.last!.toUnsavedPodcastEpisode()
-    }
-  }
-
-  @Test("search trending")
-  func testSearchTrending() async throws {
-    let data = PreviewBundle.loadAsset(named: "trending", in: .SearchResults)
-    await session.respond(
-      to: URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
-      data: data
-    )
-    let result = try await searchService.searchTrending(language: "en")
-    let feed = result.feeds.first!
-    #expect(result.feeds.count == 40)
-    #expect(result.since == Date(timeIntervalSince1970: TimeInterval(1736102643)))
-    #expect(feed.title == "La Venganza Será Terrible (oficial)")
-
-    let unsavedPodcast = try feed.toUnsavedPodcast()
-    #expect(unsavedPodcast.lastUpdate == Date.epoch)
-  }
-
-  @Test("search trending in News category")
-  func testSearchTrendingInNews() async throws {
-    let data = PreviewBundle.loadAsset(named: "trending_in_news", in: .SearchResults)
-    await session.respond(
-      to: URL(string: Self.baseURLString + "/podcasts/trending?cat=News")!,
-      data: data
-    )
-    let result = try await searchService.searchTrending(categories: ["News"])
-    let feed = result.feeds.first!
-    #expect(result.feeds.count == 40)
-    #expect(result.since == Date(timeIntervalSince1970: TimeInterval(1736208810)))
-    #expect(feed.title == "Thinking Crypto News & Interviews")
-  }
-
-  @Test("search with failed request")
-  func testSearchWithFailedRequest() async throws {
-    await session.respond(
-      to: URL(string: Self.baseURLString + "/podcasts/trending?lang=en")!,
-      error: URLError(.badServerResponse)
-    )
     await #expect(throws: SearchError.self) {
-      _ = try await self.searchService.searchTrending(language: "en")
+      _ = try await self.searchService.topPodcasts(limit: 5)
     }
+  }
+
+  @Test("search trims whitespace before querying")
+  func testSearchTrimming() async throws {
+    let term = " growth "
+    let data = PreviewBundle.loadAsset(named: "search_results", in: .iTunesResults)
+    session.respond(
+      to: searchURL(term: term.trimmingCharacters(in: .whitespacesAndNewlines)),
+      data: data
+    )
+
+    let results = try await searchService.searchPodcasts(matching: term)
+    #expect(results.count == 2)
+    #expect(
+      results.ids.contains(FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!))
+    )
   }
 }

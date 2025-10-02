@@ -52,9 +52,6 @@ enum LogSubsystem {
 
   enum SearchView: String, LogCategorizable {
     case main
-    case trending
-    case podcast
-    case episode
     case manual
   }
 
