@@ -100,7 +100,7 @@ struct SearchView: View {
     Menu {
       ForEach(viewModel.trendingSections) { option in
         option.icon.labelButton {
-          viewModel.selectTrendingSection(option.genreID)
+          viewModel.selectTrendingSection(option.id)
         }
       }
     } label: {
