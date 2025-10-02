@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Logging
+import SwiftUI
 
 extension Container {
   @MainActor var searchTabViewModel: Factory<SearchTabViewModel> {
@@ -24,83 +25,17 @@ final class SearchTabViewModel {
   private static let debounceDuration: Duration = .milliseconds(350)
 
   private static let trendingConfigurations: [TrendingConfiguration] = [
-    .init(
-      id: "top",
-      title: "Top Podcasts",
-      genreID: nil,
-      icon: .trendingTop,
-      fetchLimit: 50
-    ),
-    .init(
-      id: "news",
-      title: "News",
-      genreID: 1489,
-      icon: .trendingNews,
-      fetchLimit: 50
-    ),
-    .init(
-      id: "trueCrime",
-      title: "True Crime",
-      genreID: 1488,
-      icon: .trendingTrueCrime,
-      fetchLimit: 50
-    ),
-    .init(
-      id: "comedy",
-      title: "Comedy",
-      genreID: 1303,
-      icon: .trendingComedy,
-      fetchLimit: 50
-    ),
-    .init(
-      id: "business",
-      title: "Business",
-      genreID: 1321,
-      icon: .trendingBusiness,
-      fetchLimit: 50
-    ),
-    .init(
-      id: "technology",
-      title: "Technology",
-      genreID: 1318,
-      icon: .trendingTechnology,
-      fetchLimit: 50
-    ),
-    .init(
-      id: "sports",
-      title: "Sports",
-      genreID: 1545,
-      icon: .trendingSports,
-      fetchLimit: 50
-    ),
-    .init(
-      id: "health",
-      title: "Health",
-      genreID: 1512,
-      icon: .trendingHealth,
-      fetchLimit: 50
-    ),
-    .init(
-      id: "science",
-      title: "Science",
-      genreID: 1533,
-      icon: .trendingScience,
-      fetchLimit: 50
-    ),
-    .init(
-      id: "education",
-      title: "Education",
-      genreID: 1304,
-      icon: .trendingEducation,
-      fetchLimit: 50
-    ),
-    .init(
-      id: "kids",
-      title: "Kids & Family",
-      genreID: 1305,
-      icon: .trendingKids,
-      fetchLimit: 50
-    ),
+    .init(genreID: nil, icon: .trendingTop, fetchLimit: 50),
+    .init(genreID: 1489, icon: .trendingNews, fetchLimit: 50),
+    .init(genreID: 1488, icon: .trendingTrueCrime, fetchLimit: 50),
+    .init(genreID: 1303, icon: .trendingComedy, fetchLimit: 50),
+    .init(genreID: 1321, icon: .trendingBusiness, fetchLimit: 50),
+    .init(genreID: 1318, icon: .trendingTechnology, fetchLimit: 50),
+    .init(genreID: 1545, icon: .trendingSports, fetchLimit: 50),
+    .init(genreID: 1512, icon: .trendingHealth, fetchLimit: 50),
+    .init(genreID: 1533, icon: .trendingScience, fetchLimit: 50),
+    .init(genreID: 1304, icon: .trendingEducation, fetchLimit: 50),
+    .init(genreID: 1305, icon: .trendingKids, fetchLimit: 50),
   ]
 
   // MARK: - Published State
@@ -134,15 +69,15 @@ final class SearchTabViewModel {
   }
   var trendingState: TrendingState = .idle
   var trendingSections: [TrendingSection] = []
-  var selectedTrendingID: String? = trendingConfigurations.first?.id
+  var selectedTrendingGenreID: Int? = trendingConfigurations.first?.genreID
 
   var isShowingSearchResults: Bool {
     !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var selectedTrendingSection: TrendingSection? {
-    if let selectedTrendingID,
-      let matched = trendingSections.first(where: { $0.id == selectedTrendingID })
+    if let selectedTrendingGenreID,
+      let matched = trendingSections.first(where: { $0.genreID == selectedTrendingGenreID })
     {
       return matched
     }
@@ -176,10 +111,10 @@ final class SearchTabViewModel {
         try Task.checkCancellation()
         self.trendingSections = sections
         if let first = sections.first,
-          self.selectedTrendingID == nil
-            || !sections.contains(where: { $0.id == self.selectedTrendingID })
+          self.selectedTrendingGenreID == nil
+            || !sections.contains(where: { $0.genreID == self.selectedTrendingGenreID })
         {
-          self.selectedTrendingID = first.id
+          self.selectedTrendingGenreID = first.genreID
         }
         self.trendingState = .loaded
       } catch {
@@ -208,8 +143,7 @@ final class SearchTabViewModel {
             let podcasts = Array(results)
             guard !podcasts.isEmpty else { return nil }
             return TrendingSection(
-              id: configuration.id,
-              title: configuration.title,
+              genreID: configuration.genreID,
               icon: configuration.icon,
               podcasts: podcasts
             )
@@ -222,17 +156,17 @@ final class SearchTabViewModel {
 
       for try await section in group {
         if let section {
-          sectionMap[section.id] = section
+          sectionMap[section.icon.text] = section
         }
       }
     }
 
-    return configurations.compactMap { sectionMap[$0.id] }
+    return configurations.compactMap { sectionMap[$0.icon.text] }
   }
 
-  func selectTrendingSection(_ id: String) {
-    guard selectedTrendingID != id else { return }
-    selectedTrendingID = id
+  func selectTrendingSection(_ genreID: Int?) {
+    guard selectedTrendingGenreID != genreID else { return }
+    selectedTrendingGenreID = genreID
   }
 
   // MARK: - Searching
@@ -306,15 +240,15 @@ final class SearchTabViewModel {
   // MARK: - Types
 
   struct TrendingSection: Identifiable, Equatable {
-    let id: String
-    let title: String
+    let genreID: Int?
     let icon: AppIcon
     let podcasts: [UnsavedPodcast]
+
+    var id: String { genreID.map(String.init) ?? "top" }
+    var title: String { icon.text }
   }
 
   private struct TrendingConfiguration: Equatable {
-    let id: String
-    let title: String
     let genreID: Int?
     let icon: AppIcon
     let fetchLimit: Int

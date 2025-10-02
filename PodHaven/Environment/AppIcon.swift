@@ -484,7 +484,11 @@ enum AppIcon: CaseIterable {
   }
 
   var label: Label<Text, Image> {
-    Label(data.text, systemImage: data.systemImageName.rawValue)
+    Label(LocalizedStringKey(data.text), systemImage: data.systemImageName.rawValue)
+  }
+
+  var coloredLabel: some View {
+    AdaptiveColoredLabel(icon: self)
   }
 
   var image: Image {
@@ -495,9 +499,8 @@ enum AppIcon: CaseIterable {
     AdaptiveColoredImage(icon: self)
   }
 
-  var text: String {
-    data.text
-  }
+  var textKey: LocalizedStringKey { LocalizedStringKey(data.text) }
+  var text: String { data.text }
 
   var systemImageName: String {
     data.systemImageName.rawValue
@@ -528,6 +531,17 @@ private struct AdaptiveColoredImage: View {
   var body: some View {
     icon.image
       .foregroundColor(icon.color(for: colorScheme))
+  }
+}
+
+private struct AdaptiveColoredLabel: View {
+  @Environment(\.colorScheme) private var colorScheme
+
+  let icon: AppIcon
+
+  var body: some View {
+    icon.label
+      .tint(icon.color(for: colorScheme))
   }
 }
 

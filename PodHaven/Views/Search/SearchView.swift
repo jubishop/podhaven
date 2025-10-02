@@ -99,14 +99,12 @@ struct SearchView: View {
   {
     Menu {
       ForEach(viewModel.trendingSections) { option in
-        Button {
-          viewModel.selectTrendingSection(option.id)
-        } label: {
-          Label(option.title, systemImage: option.icon.systemImageName)
+        option.icon.labelButton {
+          viewModel.selectTrendingSection(option.genreID)
         }
       }
     } label: {
-      Label(section.title, systemImage: section.icon.systemImageName)
+      section.icon.coloredLabel
         .font(.title2.weight(.semibold))
     }
   }
