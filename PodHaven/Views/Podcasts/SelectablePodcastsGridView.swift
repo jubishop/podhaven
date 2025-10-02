@@ -39,7 +39,7 @@ struct SelectablePodcastsGridView: View {
     .padding(.horizontal)
 
     ScrollView {
-      ItemGrid(items: viewModel.podcastList.filteredEntries) {
+      ItemGrid(items: viewModel.podcastList.filteredEntries, minimumGridSize: gridItemSize) {
         podcastWithLatestEpisodeDates in
         let podcast = podcastWithLatestEpisodeDates.podcast
 

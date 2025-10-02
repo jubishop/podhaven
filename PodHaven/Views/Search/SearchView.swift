@@ -5,9 +5,10 @@ import SwiftUI
 
 struct SearchView: View {
   @InjectedObservable(\.navigation) private var navigation
+  @InjectedObservable(\.sheet) private var sheet
   @InjectedObservable(\.searchTabViewModel) private var viewModel
 
-  @State private var gridItemSize: CGFloat = 140
+  @State private var gridItemSize: CGFloat = 100
 
   var body: some View {
     IdentifiableNavigationStack(manager: navigation.search) {
@@ -127,7 +128,13 @@ struct SearchView: View {
   }
 
   private func openManualEntry() {
-    navigation.showManualFeedEntry()
+    sheet {
+      NavigationStack {
+        ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
+      }
+      .presentationDetents([.medium, .large])
+      .presentationDragIndicator(.visible)
+    }
   }
 
   // MARK: - Reusable Views

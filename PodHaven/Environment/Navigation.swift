@@ -48,8 +48,6 @@ extension Container {
     // Settings destinations
     case settingsSection(SettingsSection)
 
-    case manualFeedEntry
-
     // Episodes destinations
     case episodesViewType(EpisodesViewType)
 
@@ -86,9 +84,6 @@ extension Container {
       case .opml:
         OPMLView().id("opml")
       }
-
-    case .manualFeedEntry:
-      ManualFeedEntryView(viewModel: ManualFeedEntryViewModel()).id("manualEntryType")
 
     // Episodes destinations
     case .episodesViewType(let viewType):
@@ -207,11 +202,6 @@ extension Container {
     var resetId = UUID()
   }
   var search = Search()
-
-  func showManualFeedEntry() {
-    currentTab = .search
-    search.path.append(.manualFeedEntry)
-  }
 
   // MARK: - UpNext
 

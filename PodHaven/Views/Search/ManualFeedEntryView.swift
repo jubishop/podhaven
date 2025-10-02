@@ -3,6 +3,7 @@
 import SwiftUI
 
 struct ManualFeedEntryView: View {
+  @Environment(\.dismiss) private var dismiss
   @FocusState private var isTextFieldFocused: Bool
   @State var viewModel: ManualFeedEntryViewModel
 
@@ -36,7 +37,11 @@ struct ManualFeedEntryView: View {
       // Submit Button
       Button(action: {
         isTextFieldFocused = false
-        Task { await viewModel.submitURL() }
+        Task {
+          if await viewModel.submitURL() {
+            dismiss()
+          }
+        }
       }) {
         HStack {
           if case .loading = viewModel.state {
@@ -67,6 +72,13 @@ struct ManualFeedEntryView: View {
     }
     .padding()
     .navigationTitle("Add Feed URL")
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) {
+        Button("Cancel") {
+          dismiss()
+        }
+      }
+    }
   }
 }
 

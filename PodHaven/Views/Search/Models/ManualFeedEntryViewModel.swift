@@ -29,25 +29,30 @@ import Foundation
 
   // MARK: - Actions
 
-  func submitURL() async {
+  @discardableResult
+  func submitURL() async -> Bool {
     let trimmedURL = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
 
     guard !trimmedURL.isEmpty else {
       state = .error("Please enter a feed URL")
-      return
+      return false
     }
 
     guard let url = URL(string: trimmedURL) else {
       state = .error("Please enter a valid URL")
-      return
+      return false
     }
 
     state = .loading
     do {
       try await shareService.handlePodcastURL(FeedURL(url))
+      state = .idle
+      urlText = ""
+      return true
     } catch {
       Self.log.error(error)
       state = .error(ErrorKit.coreMessage(for: error))
+      return false
     }
   }
 }
