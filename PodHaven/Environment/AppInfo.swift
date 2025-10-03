@@ -105,6 +105,10 @@ actor AppInfo {
       ? .macDev : .iPhoneDev
   }
 
+  static var countryCode: String {
+    Locale.current.region?.identifier.lowercased() ?? "us"
+  }
+
   static var languageCode: String? {
     Locale.current.language.languageCode?.identifier
   }

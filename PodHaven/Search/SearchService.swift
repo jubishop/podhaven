@@ -31,10 +31,6 @@ struct SearchService {
   private static let trendingLimit = 100
   private static let lookupChunkSize = 50
 
-  private static var defaultCountryCode: String {
-    Locale.current.region?.identifier.lowercased() ?? "us"
-  }
-
   // MARK: - Initialization
 
   private let session: DataFetchable
@@ -66,12 +62,10 @@ struct SearchService {
   }
 
   func topPodcasts(
-    countryCode overrideCountryCode: String? = nil,
     genreID: Int? = nil,
     limit: Int = Self.trendingLimit
   ) async throws(SearchError) -> IdentifiedArray<FeedURL, UnsavedPodcast> {
-    let countryCode = (overrideCountryCode ?? Self.defaultCountryCode).lowercased()
-    let request = buildTopPodcastsRequest(countryCode: countryCode, genreID: genreID, limit: limit)
+    let request = buildTopPodcastsRequest(genreID: genreID, limit: limit)
     let data = try await perform(request)
     let response: ITunesTopPodcastsResponse = try decode(data)
     let ids = response.feed.entries.map(\.id.attributes.imId)
@@ -79,7 +73,7 @@ struct SearchService {
       return IdentifiedArray(uniqueElements: [], id: \.feedURL)
     }
 
-    let lookupResults = try await lookup(ids: ids, countryCode: countryCode)
+    let lookupResults = try await lookup(ids: ids)
     var lookupMap: [String: ITunesSearchResponse.Podcast] = [:]
     for result in lookupResults {
       if let identifier = result.collectionId ?? result.trackId {
@@ -101,7 +95,7 @@ struct SearchService {
     }
   }
 
-  private func lookup(ids: [String], countryCode: String) async throws(SearchError)
+  private func lookup(ids: [String]) async throws(SearchError)
     -> [ITunesSearchResponse.Podcast]
   {
     guard !ids.isEmpty else { return [] }
@@ -110,8 +104,7 @@ struct SearchService {
     for chunk in chunked(ids, size: Self.lookupChunkSize) {
       let request = ApplePodcastsURL.lookupRequest(
         ids: chunk,
-        entity: "podcast",
-        countryCode: countryCode
+        entity: "podcast"
       )
       let data = try await perform(request)
       let response: ITunesSearchResponse
@@ -145,10 +138,10 @@ struct SearchService {
     return buildRequest(from: components)
   }
 
-  private func buildTopPodcastsRequest(countryCode: String, genreID: Int?, limit: Int)
+  private func buildTopPodcastsRequest(genreID: Int?, limit: Int)
     -> URLRequest
   {
-    var pathComponents = ["", countryCode, "rss", "toppodcasts", "limit=\(limit)"]
+    var pathComponents = ["", AppInfo.countryCode, "rss", "toppodcasts", "limit=\(limit)"]
     if let genreID {
       pathComponents.append("genre=\(genreID)")
     }

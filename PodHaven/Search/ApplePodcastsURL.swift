@@ -39,7 +39,7 @@ struct ApplePodcastsURL {
   }
 
   func extractEpisodeInfo() async throws(ShareError) -> (FeedURL, (MediaURL?, GUID?)) {
-    let request = buildEpisodesRequest(podcastID: try extractPodcastID(), limit: 200)
+    let request = buildEpisodesRequest(podcastID: try extractPodcastID())
     let lookupResult = try await parseItunesResponse(
       try await performRequest(request)
     )
@@ -155,20 +155,16 @@ struct ApplePodcastsURL {
   static func lookupRequest(
     ids: [String],
     entity: String,
-    limit: Int? = nil,
-    countryCode: String? = nil
+    limit: Int? = nil
   ) -> URLRequest {
     var queryItems: [URLQueryItem] = [
       URLQueryItem(name: "id", value: ids.joined(separator: ",")),
       URLQueryItem(name: "entity", value: entity),
+      URLQueryItem(name: "country", value: AppInfo.countryCode),
     ]
 
     if let limit {
       queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
-    }
-
-    if let countryCode {
-      queryItems.append(URLQueryItem(name: "country", value: countryCode))
     }
 
     return lookupRequest(queryItems: queryItems)
