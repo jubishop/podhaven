@@ -27,16 +27,17 @@ final class SearchTabViewModel {
 
   private static let trendingConfigurations: [TrendingConfiguration] = [
     .init(genreID: nil, icon: .trendingTop),
-    .init(genreID: 1489, icon: .trendingNews),
-    .init(genreID: 1488, icon: .trendingTrueCrime),
-    .init(genreID: 1303, icon: .trendingComedy),
     .init(genreID: 1321, icon: .trendingBusiness),
-    .init(genreID: 1318, icon: .trendingTechnology),
-    .init(genreID: 1545, icon: .trendingSports),
-    .init(genreID: 1512, icon: .trendingHealth),
-    .init(genreID: 1533, icon: .trendingScience),
+    .init(genreID: 1303, icon: .trendingComedy),
     .init(genreID: 1304, icon: .trendingEducation),
+    .init(genreID: 1512, icon: .trendingHealth),
+    .init(genreID: 1462, icon: .trendingHistory),
     .init(genreID: 1305, icon: .trendingKids),
+    .init(genreID: 1489, icon: .trendingNews),
+    .init(genreID: 1533, icon: .trendingScience),
+    .init(genreID: 1545, icon: .trendingSports),
+    .init(genreID: 1318, icon: .trendingTechnology),
+    .init(genreID: 1488, icon: .trendingTrueCrime),
   ]
 
   // MARK: - Published State

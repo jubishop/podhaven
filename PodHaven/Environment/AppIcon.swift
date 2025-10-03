@@ -81,6 +81,7 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
   static let trendingScience = SystemImageName("atom")
   static let trendingEducation = SystemImageName("graduationcap.fill")
   static let trendingKids = SystemImageName("figure.2.and.child.holdinghands")
+  static let trendingHistory = SystemImageName("building.columns")
 
   // Playback Controls
   static let loading = SystemImageName("hourglass.circle")
@@ -155,6 +156,7 @@ enum AppIcon: CaseIterable {
   case trendingScience
   case trendingEducation
   case trendingKids
+  case trendingHistory
   case upNext
 
   // Manual Entry
@@ -335,6 +337,8 @@ enum AppIcon: CaseIterable {
       return Data(text: "Education", systemImageName: .trendingEducation, color: .cyan)
     case .trendingKids:
       return Data(text: "Kids & Family", systemImageName: .trendingKids, color: .orange)
+    case .trendingHistory:
+      return Data(text: "History", systemImageName: .trendingHistory, color: .brown)
     case .upNext:
       return Data(text: "Up Next", systemImageName: .queueTop)
 
