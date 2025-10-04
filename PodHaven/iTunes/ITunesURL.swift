@@ -83,6 +83,7 @@ struct ITunesURL {
     var request = URLRequest(url: url)
     request.httpMethod = "GET"
     request.addValue("PodHaven", forHTTPHeaderField: "User-Agent")
+
     return request
   }
 }

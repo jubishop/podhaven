@@ -15,28 +15,22 @@ struct ITunesEntityResults: Decodable, Sendable {
     static let podcastKind = "podcast"
 
     private let collectionId: Int?
-    private let trackId: Int?
-    private let episodeGuid: String?
 
     private let collectionName: String?
-    private let trackName: String?
     private let collectionCensoredName: String?
-    private let trackCensoredName: String?
 
     private let collectionViewUrl: String?
-    private let trackViewUrl: String?
     private let feedUrl: String?
-    private let episodeUrl: String?
 
     private let artworkUrl30: String?
     private let artworkUrl60: String?
     private let artworkUrl100: String?
     private let artworkUrl600: String?
 
-    private let shortDescription: String?
-    private let longDescription: String?
     private let collectionDescription: String?
+    private let longDescription: String?
     private let description: String?
+    private let shortDescription: String?
 
     private let kind: String?
     private let wrapperType: String?
@@ -52,10 +46,15 @@ struct ITunesEntityResults: Decodable, Sendable {
     }
 
     var feedURL: FeedURL? {
-      guard let feedUrlString = feedUrl,
-        let url = URL(string: feedUrlString)
+      guard let feedUrl, let url = URL(string: feedUrl)
       else { return nil }
       return FeedURL(url)
+    }
+
+    var link: URL? {
+      guard let collectionViewUrl, let url = URL(string: collectionViewUrl)
+      else { return nil }
+      return url
     }
 
     func toUnsavedPodcast() throws -> UnsavedPodcast? {
@@ -65,12 +64,9 @@ struct ITunesEntityResults: Decodable, Sendable {
       guard let imageURLString = artworkURLString, let imageURL = URL(string: imageURLString)
       else { return nil }
 
-      let title =
-        collectionName ?? trackName ?? collectionCensoredName ?? trackCensoredName ?? ""
+      let title = collectionName ?? collectionCensoredName ?? ""
       let description =
         collectionDescription ?? longDescription ?? description ?? shortDescription ?? ""
-      let linkString = collectionViewUrl ?? trackViewUrl
-      let link = linkString.flatMap(URL.init)
 
       return try UnsavedPodcast(
         feedURL: feedURL,
