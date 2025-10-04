@@ -88,7 +88,7 @@ struct ShareService {
     }
   }
 
-  // MARK: - Database Querying
+  // MARK: - Private Database Work
 
   private func findOrCreatePodcastSeries(feedURL: FeedURL) async throws(ShareError) -> PodcastSeries
   {
@@ -108,7 +108,12 @@ struct ShareService {
         return updatedPodcastSeries
       }
 
-      Self.log.debug("findOrCreatePodcastSeries: Adding new podcast from feed URL: \(feedURL)")
+      Self.log.debug(
+        """
+        findOrCreatePodcastSeries: Adding new podcast series
+          FeedURL: \(feedURL)
+        """
+      )
       let podcastFeed: PodcastFeed = try await feedManager.addURL(feedURL).feedParsed()
       return try await repo.insertSeries(
         try podcastFeed.toUnsavedPodcast(subscriptionDate: Date(), lastUpdate: Date()),
@@ -117,7 +122,7 @@ struct ShareService {
     }
   }
 
-  // MARK: - URL Analysis
+  // MARK: - Private URL Analysis
 
   private func extractURLParameter(from url: URL) throws(ShareError) -> URL {
     guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
@@ -129,9 +134,9 @@ struct ShareService {
     return extractedURL
   }
 
-  // MARK: - Online Data Fetching
+  // MARK: - Private Data Fetching
 
-  func fetchFeedURL(from url: URL) async throws(ShareError) -> FeedURL? {
+  private func fetchFeedURL(from url: URL) async throws(ShareError) -> FeedURL? {
     guard ITunesURL.isPodcastURL(url) else { return nil }
 
     Self.log.debug("trying to extract FeedURL from: \(url)")

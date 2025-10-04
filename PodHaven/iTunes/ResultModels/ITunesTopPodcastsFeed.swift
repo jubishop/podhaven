@@ -32,19 +32,6 @@ struct ITunesTopPodcastsFeed: Decodable, Sendable {
     }
 
     private let entries: [Entry]
-
-    init(from decoder: Decoder) throws {
-      let container = try decoder.container(keyedBy: CodingKeys.self)
-
-      if let multiple = try? container.decode([Entry].self, forKey: .entries) {
-        entries = multiple
-      } else if let single = try? container.decode(Entry.self, forKey: .entries) {
-        entries = [single]
-      } else {
-        entries = []
-      }
-    }
-
     private enum CodingKeys: String, CodingKey {
       case entries = "entry"
     }

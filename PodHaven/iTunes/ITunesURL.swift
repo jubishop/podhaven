@@ -43,6 +43,8 @@ struct ITunesURL {
   }
 
   static func topPodcastsRequest(genreID: Int? = nil, limit: Int) -> URLRequest {
+    Assert.precondition(limit > 1, "Limit must be greater than 1")
+
     var pathComponents = [AppInfo.countryCode, "rss", "toppodcasts", "limit=\(limit)"]
 
     if let genreID {
