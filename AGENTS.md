@@ -62,8 +62,7 @@
 - `AppDelegate` forwards background session completions to `CacheBackgroundDelegate` ensuring the system resumes suspended tasks correctly.
 
 ### Search & Discovery
-- `SearchTabViewModel` drives the search tab by loading iTunes top charts for curated grids and debouncing TabView search text before querying iTunes search; it keeps displayed podcasts live by observing the repo.
-- Preview helpers stub factories for deterministic SwiftUI previews without network calls.
+- `SearchViewModel` drives the search tab by loading iTunes top charts for curated grids and debouncing TabView search text before querying iTunes search.
 
 ### Navigation & UI Structure
 - `Navigation` centralizes all routing using SwiftNavigation's `@CasePathable` destinations and tab-specific path managers; switching tabs clears unrelated navigation state.
@@ -85,6 +84,7 @@
 - In-memory GRDB (`AppDB.inMemory()`) powers repo tests; helpers under `Create` build realistic unsaved models.
 - Override factories with `.context(.test)` to plug in mocks (fake AV players, fake URLSessions, etc.).
 - Performance suites live in `PodHavenTests/PerformanceTests` and isolate long-running tasks.
+- Preview helpers stub factories for deterministic SwiftUI previews without network calls.
 
 ## Coding Standards
 - Keep each top-level type in a same-named file; add `// MARK:` separators to outline sections (Initialization, State, Actions, etc.).

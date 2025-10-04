@@ -25,7 +25,7 @@ struct SearchView: View {
         trendingMenuToolbarItem
       }
     }
-    .task(viewModel.loadTrendingIfNeeded)
+    .task(viewModel.execute)
     .onDisappear { viewModel.disappear() }
   }
 

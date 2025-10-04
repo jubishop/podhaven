@@ -253,6 +253,8 @@ class PodcastDetailViewModel:
     }
   }
 
+  // MARK: - Disappear
+
   func disappear() {
     Self.log.debug("disappear: executing")
     clearObservationTask()

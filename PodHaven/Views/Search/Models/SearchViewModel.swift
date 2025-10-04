@@ -2,7 +2,6 @@
 
 import FactoryKit
 import Foundation
-import IdentifiedCollections
 import Logging
 import SwiftUI
 import Tagged
@@ -15,7 +14,6 @@ extension Container {
 
 @Observable @MainActor
 final class SearchViewModel {
-  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
 
@@ -25,6 +23,11 @@ final class SearchViewModel {
 
   private static let debounceDuration: Duration = .milliseconds(350)
 
+  fileprivate struct TrendingConfiguration: Identifiable, Equatable {
+    var id: TrendingSectionID { TrendingSectionID(icon.text) }
+    let genreID: Int?
+    let icon: AppIcon
+  }
   private static let trendingConfigurations: [TrendingConfiguration] = [
     .init(genreID: nil, icon: .trendingTop),
     .init(genreID: 1321, icon: .trendingBusiness),
@@ -58,10 +61,7 @@ final class SearchViewModel {
   }
   var searchState: SearchState = .idle
 
-  var searchResults: IdentifiedArray<FeedURL, any PodcastDisplayable> = IdentifiedArray(
-    uniqueElements: [],
-    id: \.feedURL
-  )
+  var searchResults: [UnsavedPodcast] = []
 
   enum TrendingState: Equatable {
     case idle
@@ -70,6 +70,21 @@ final class SearchViewModel {
     case error(String)
   }
   var trendingState: TrendingState = .idle
+
+  struct TrendingSection: Identifiable, Equatable {
+    private let configuration: TrendingConfiguration
+
+    let podcasts: [UnsavedPodcast]
+
+    fileprivate init(configuration: TrendingConfiguration, podcasts: [UnsavedPodcast]) {
+      self.configuration = configuration
+      self.podcasts = podcasts
+    }
+
+    var id: TrendingSectionID { configuration.id }
+    var icon: AppIcon { configuration.icon }
+    var title: String { configuration.icon.text }
+  }
   var trendingSections: [TrendingSection] = []
 
   typealias TrendingSectionID = Tagged<SearchViewModel, String>
@@ -91,15 +106,12 @@ final class SearchViewModel {
   // MARK: - Internal State
 
   @ObservationIgnored private var searchTask: Task<Void, Never>?
-  @ObservationIgnored private var observationTask: Task<Void, Never>?
   @ObservationIgnored private var trendingTask: Task<Void, Never>?
 
-  func disappear() {
-    Self.log.debug("disappear: executing")
-    
-    searchTask?.cancel()
-    observationTask?.cancel()
-    trendingTask?.cancel()
+  // MARK: - Initialization
+
+  func execute() {
+    loadTrendingIfNeeded()
   }
 
   // MARK: - Trending
@@ -178,7 +190,6 @@ final class SearchViewModel {
 
   private func scheduleSearch() {
     searchTask?.cancel()
-    observationTask?.cancel()
 
     let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
@@ -206,14 +217,8 @@ final class SearchViewModel {
       let unsavedResults = try await searchService.searchedPodcasts(matching: term, limit: 48)
       try Task.checkCancellation()
 
-      let displayable = IdentifiedArray<FeedURL, any PodcastDisplayable>(
-        uniqueElements: Array(unsavedResults).map { $0 as any PodcastDisplayable },
-        id: \.feedURL
-      )
-
-      searchResults = displayable
+      searchResults = Array(unsavedResults)
       searchState = .loaded
-      startObservingPodcasts()
     } catch {
       guard !Task.isCancelled else { return }
       Self.log.error(error)
@@ -222,46 +227,12 @@ final class SearchViewModel {
     }
   }
 
-  private func startObservingPodcasts() {
-    observationTask?.cancel()
-    let feedURLs = Array(searchResults.ids)
-    guard !feedURLs.isEmpty else { return }
+  // MARK: - Disappear
 
-    observationTask = Task { @MainActor [weak self] in
-      guard let self else { return }
-      do {
-        for try await podcasts in self.observatory.podcasts(feedURLs) {
-          try Task.checkCancellation()
-          for podcast in podcasts {
-            self.searchResults[id: podcast.feedURL] = podcast
-          }
-        }
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
+  func disappear() {
+    Self.log.debug("disappear: executing")
 
-  // MARK: - Types
-
-  struct TrendingSection: Identifiable, Equatable {
-    private let configuration: TrendingConfiguration
-
-    let podcasts: [UnsavedPodcast]
-
-    fileprivate init(configuration: TrendingConfiguration, podcasts: [UnsavedPodcast]) {
-      self.configuration = configuration
-      self.podcasts = podcasts
-    }
-
-    var id: TrendingSectionID { configuration.id }
-    var icon: AppIcon { configuration.icon }
-    var title: String { configuration.icon.text }
-  }
-
-  fileprivate struct TrendingConfiguration: Identifiable, Equatable {
-    var id: TrendingSectionID { TrendingSectionID(icon.text) }
-    let genreID: Int?
-    let icon: AppIcon
+    searchTask?.cancel()
+    trendingTask?.cancel()
   }
 }

@@ -201,6 +201,8 @@ import Logging
     }
   }
 
+  // MARK: - Disappear
+
   func disappear() {
     Self.log.debug("disappear: executing")
     observationTask?.cancel()
