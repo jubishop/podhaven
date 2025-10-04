@@ -172,8 +172,13 @@ import Testing
 
     await shareSession.respond(to: lookupURL, data: invalidJSON)
 
-    await #expect(throws: ShareError.parseFailure(invalidJSON)) {
+    do {
       try await self.shareService.handleIncomingURL(shareURL)
+      Issue.record("Expected ShareError.parseFailure to be thrown")
+    } catch let ShareError.parseFailure(data, _) {
+      #expect(data == invalidJSON)
+    } catch {
+      Issue.record("Expected ShareError.parseFailure, got: \(error)")
     }
   }
 
@@ -450,3 +455,4 @@ import Testing
     )
   }
 }
+

@@ -10,7 +10,7 @@ enum ShareError: ReadableError, CatchingError {
   case noFeedURLFound
   case noIdentifierFound(URL)
   case noEpisodeFound
-  case parseFailure(Data)
+  case parseFailure(data: Data, caught: Error)
   case unsupportedURL(URL)
   case caught(Error)
 
@@ -26,8 +26,8 @@ enum ShareError: ReadableError, CatchingError {
       return "Could not extract podcast information from URL: \(url)"
     case .noEpisodeFound:
       return "Could not find episode information"
-    case .parseFailure:
-      return "Failed to parse response"
+    case .parseFailure(let data, _):
+      return "Failed to parse data: \(String(decoding: data, as: UTF8.self))"
     case .unsupportedURL(let url):
       return "The URL: \(url) is not supported for importing podcasts"
     case .caught: return ""

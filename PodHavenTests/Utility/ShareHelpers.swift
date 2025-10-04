@@ -8,11 +8,11 @@ enum ShareHelpers {
   }
 
   static func itunesPodcastLookupURL(for itunesID: String) -> URL {
-    URL(string: "https://itunes.apple.com/lookup?id=\(itunesID)&entity=podcast")!
+    URL(string: "https://itunes.apple.com/lookup?id=\(itunesID)&entity=podcast&country=us")!
   }
 
   static func itunesEpisodeLookupURL(for podcastID: String) -> URL {
-    URL(string: "https://itunes.apple.com/lookup?id=\(podcastID)&entity=podcastEpisode&limit=200")!
+    URL(string: "https://itunes.apple.com/lookup?id=\(podcastID)&entity=podcastEpisode&country=us")!
   }
 
   static func itunesPodcastURL(for itunesID: String, withTitle title: String) -> URL {
