@@ -199,12 +199,13 @@ struct ShareService {
 
     Self.log.debug("trying to extract FeedURL from: \(url)")
 
-    let request = ITunesURL.lookupPodcastRequest(podcastIDs: [try extractPodcastID(from: url)])
+    let podcastID = try extractPodcastID(from: url)
+    let request = ITunesURL.lookupPodcastRequest(podcastIDs: [podcastID])
     let lookupResult = try await decode(
       try await performRequest(request)
     )
 
-    guard let feedURL = lookupResult.feedURL
+    guard let feedURL = lookupResult.findPodcast(podcastID: podcastID)?.feedURL
     else { throw ShareError.noFeedURLFound }
 
     return feedURL
@@ -216,12 +217,13 @@ struct ShareService {
 
     Self.log.debug("trying to extract episodeInfo from: \(url)")
 
-    let request = ITunesURL.lookupEpisodeRequest(episodeIDs: [try extractPodcastID(from: url)])
+    let podcastID = try extractPodcastID(from: url)
+    let request = ITunesURL.lookupEpisodeRequest(episodeIDs: [podcastID])
     let lookupResult = try await decode(
       try await performRequest(request)
     )
 
-    guard let feedURL = lookupResult.feedURL
+    guard let feedURL = lookupResult.findPodcast(podcastID: podcastID)?.feedURL
     else { throw ShareError.noFeedURLFound }
 
     // Find the specific episode with matching ID
@@ -266,7 +268,7 @@ struct ShareService {
     }
   }
 
-  private func decode(_ data: Data) async throws(ShareError) -> ITunesLookupResult {
+  private func decode(_ data: Data) async throws(ShareError) -> ITunesEntityResults {
     do {
       return try JSONDecoder().decode(data)
     } catch {

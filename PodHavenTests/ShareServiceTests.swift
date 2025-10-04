@@ -221,7 +221,7 @@ import Testing
         "resultCount": 1,
         "results": [
           {
-            "trackId": \(itunesID),
+            "collectionId": \(itunesID),
             "kind": "podcast",
             "feedUrl": "https://api.substack.com/feed/podcast/10845.rss"
           }
