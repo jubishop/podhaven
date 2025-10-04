@@ -6,7 +6,7 @@ import SwiftUI
 struct SearchView: View {
   @InjectedObservable(\.navigation) private var navigation
   @InjectedObservable(\.sheet) private var sheet
-  @InjectedObservable(\.searchTabViewModel) private var viewModel
+  @InjectedObservable(\.searchViewModel) private var viewModel
 
   @State private var gridItemSize: CGFloat = 100
 
@@ -112,7 +112,7 @@ struct SearchView: View {
   }
 
   @ViewBuilder
-  private func trendingSelectionMenu(selected section: SearchTabViewModel.TrendingSection)
+  private func trendingSelectionMenu(selected section: SearchViewModel.TrendingSection)
     -> some View
   {
     Menu {
@@ -128,7 +128,7 @@ struct SearchView: View {
   }
 
   @ViewBuilder
-  private func trendingGrid(for section: SearchTabViewModel.TrendingSection) -> some View {
+  private func trendingGrid(for section: SearchViewModel.TrendingSection) -> some View {
     ItemGrid(items: section.podcasts, minimumGridSize: gridItemSize) { podcast in
       NavigationLink(
         value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),

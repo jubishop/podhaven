@@ -8,13 +8,13 @@ import SwiftUI
 import Tagged
 
 extension Container {
-  @MainActor var searchTabViewModel: Factory<SearchTabViewModel> {
-    Factory(self) { @MainActor in SearchTabViewModel() }.scope(.cached)
+  @MainActor var searchViewModel: Factory<SearchViewModel> {
+    Factory(self) { @MainActor in SearchViewModel() }.scope(.cached)
   }
 }
 
 @Observable @MainActor
-final class SearchTabViewModel {
+final class SearchViewModel {
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
@@ -72,7 +72,7 @@ final class SearchTabViewModel {
   var trendingState: TrendingState = .idle
   var trendingSections: [TrendingSection] = []
 
-  typealias TrendingSectionID = Tagged<SearchTabViewModel, String>
+  typealias TrendingSectionID = Tagged<SearchViewModel, String>
   var currentTrendingSectionID: TrendingSectionID?
 
   var isShowingSearchResults: Bool {

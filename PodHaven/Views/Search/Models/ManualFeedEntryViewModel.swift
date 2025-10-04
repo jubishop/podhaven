@@ -22,6 +22,7 @@ import Foundation
   var canSubmit: Bool {
     !urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading
   }
+
   private var isLoading: Bool {
     if case .loading = state { return true }
     return false

@@ -6,7 +6,7 @@ import SwiftUI
 struct ContentView: View {
   @InjectedObservable(\.navigation) private var navigation
   @InjectedObservable(\.playState) private var playState
-  @InjectedObservable(\.searchTabViewModel) private var searchTabViewModel
+  @InjectedObservable(\.searchViewModel) private var searchViewModel
 
   @State private var tabMaxY: CGFloat = 0
 
@@ -50,7 +50,7 @@ struct ContentView: View {
       }
     }
     .searchable(
-      text: $searchTabViewModel.searchText,
+      text: $searchViewModel.searchText,
       placement: .automatic,
       prompt: Text("Search podcasts")
     )

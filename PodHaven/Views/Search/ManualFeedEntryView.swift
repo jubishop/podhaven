@@ -34,38 +34,42 @@ struct ManualFeedEntryView: View {
           .focused($isTextFieldFocused)
       }
 
-      // Submit Button
-      Button(action: {
-        isTextFieldFocused = false
-        Task {
-          if await viewModel.submitURL() {
-            dismiss()
+      // Submit Button & Error
+      VStack(alignment: .leading, spacing: 16) {
+        Button(
+          action: {
+            isTextFieldFocused = false
+            Task {
+              if await viewModel.submitURL() {
+                dismiss()
+              }
+            }
+          },
+          label: {
+            HStack {
+              if case .loading = viewModel.state {
+                ProgressView()
+                  .scaleEffect(0.8)
+              } else {
+                AppIcon.subscribe.image
+              }
+              Text("Add Podcast")
+            }
+            .frame(maxWidth: .infinity)
           }
-        }
-      }) {
-        HStack {
-          if case .loading = viewModel.state {
-            ProgressView()
-              .scaleEffect(0.8)
-          } else {
-            AppIcon.subscribe.image
-          }
-          Text("Add Podcast")
-        }
-        .frame(maxWidth: .infinity)
-      }
-      .buttonStyle(.borderedProminent)
-      .disabled(!viewModel.canSubmit)
+        )
+        .buttonStyle(.borderedProminent)
+        .disabled(!viewModel.canSubmit)
 
-      // Error Display
-      if case .error(let message) = viewModel.state {
-        HStack {
-          AppIcon.error.coloredImage
-          Text(message)
-            .font(.subheadline)
-            .foregroundColor(.red)
+        // Error Display
+        if case .error(let message) = viewModel.state {
+          HStack {
+            AppIcon.error.coloredImage
+            Text(message)
+              .font(.subheadline)
+              .foregroundColor(.red)
+          }
         }
-        .padding(.top, -8)
       }
 
       Spacer()
