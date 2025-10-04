@@ -54,8 +54,6 @@ struct ShareService {
 
     if extractedURL.pathExtension.lowercased() == "opml" {
       try await handleOPMLURL(extractedURL)
-    } else if let (feedURL, (mediaURL, guid)) = try await extractEpisodeInfo(from: extractedURL) {
-      try await handleEpisodeURL(feedURL: feedURL, mediaURL: mediaURL, guid: guid)
     } else if let feedURL = try await extractFeedURL(from: extractedURL) {
       try await handlePodcastURL(feedURL)
     } else {  // Fallback to maybe this is just a pure FeedURL?
@@ -90,37 +88,6 @@ struct ShareService {
     }
   }
 
-  private func handleEpisodeURL(feedURL: FeedURL, mediaURL: MediaURL?, guid: GUID?)
-    async throws(ShareError)
-  {
-    Self.log.debug(
-      """
-      handleEpisodeURL:
-          FeedURL: \(feedURL) 
-          MediaURL: \(String(describing: mediaURL))
-          GUID: \(String(describing: guid))
-      """
-    )
-
-    try await ShareError.catch {
-      let podcastSeries = try await findOrCreatePodcastSeries(feedURL: feedURL)
-
-      if let matchingEpisode = await findMatchingEpisode(
-        mediaURL: mediaURL,
-        guid: guid,
-        in: podcastSeries
-      ) {
-        Self.log.debug("handleEpisodeURL: Found matching episode: \(matchingEpisode.toString)")
-        await navigation.showEpisode(
-          PodcastEpisode(podcast: podcastSeries.podcast, episode: matchingEpisode)
-        )
-      } else {
-        Self.log.debug("handleEpisodeURL: Episode not found, showing podcast instead")
-        await navigation.showPodcast(podcastSeries.podcast)
-      }
-    }
-  }
-
   // MARK: - Database Querying
 
   private func findOrCreatePodcastSeries(feedURL: FeedURL) async throws(ShareError) -> PodcastSeries
@@ -150,38 +117,6 @@ struct ShareService {
     }
   }
 
-  private func findMatchingEpisode(
-    mediaURL: MediaURL?,
-    guid: GUID?,
-    in podcastSeries: PodcastSeries
-  ) async -> Episode? {
-    Self.log.debug(
-      """
-      findMatchingEpisode:
-        MediaURL: \(String(describing: mediaURL))
-        GUID: \(String(describing: guid))
-        PodcastSeries: \(podcastSeries.toString)
-      """
-    )
-
-    if let mediaURL {
-      for episode in podcastSeries.episodes where episode.mediaURL == mediaURL {
-        Self.log.debug("findMatchingEpisode: Found MediaURL match")
-        return episode
-      }
-    }
-
-    if let guid {
-      for episode in podcastSeries.episodes where episode.guid == guid {
-        Self.log.debug("findMatchingEpisode: Found GUID match")
-        return episode
-      }
-    }
-
-    Self.log.debug("findMatchingEpisode: No matching episode found")
-    return nil
-  }
-
   // MARK: - Online Data Fetching
 
   private func extractURLParameter(from url: URL) throws(ShareError) -> URL {
@@ -199,8 +134,8 @@ struct ShareService {
 
     Self.log.debug("trying to extract FeedURL from: \(url)")
 
-    let podcastID = try extractPodcastID(from: url)
-    let request = ITunesURL.lookupPodcastRequest(podcastIDs: [podcastID])
+    let podcastID = try ITunesURL.extractPodcastID(from: url)
+    let request = ITunesURL.lookupRequest(podcastIDs: [podcastID])
     let lookupResult = try await decode(
       try await performRequest(request)
     )
@@ -209,53 +144,6 @@ struct ShareService {
     else { throw ShareError.noFeedURLFound }
 
     return feedURL
-  }
-
-  func extractEpisodeInfo(from url: URL) async throws(ShareError) -> (FeedURL, (MediaURL?, GUID?))?
-  {
-    guard ITunesURL.isEpisodeURL(url) else { return nil }
-
-    Self.log.debug("trying to extract episodeInfo from: \(url)")
-
-    let podcastID = try extractPodcastID(from: url)
-    let request = ITunesURL.lookupEpisodeRequest(episodeIDs: [podcastID])
-    let lookupResult = try await decode(
-      try await performRequest(request)
-    )
-
-    guard let feedURL = lookupResult.findPodcast(podcastID: podcastID)?.feedURL
-    else { throw ShareError.noFeedURLFound }
-
-    // Find the specific episode with matching ID
-    let episodeID = try extractEpisodeID(from: url)
-    guard let episodeInfo = lookupResult.findEpisode(episodeID: episodeID)
-    else { return (feedURL, (nil, nil)) }
-
-    return (feedURL, (episodeInfo.mediaURL, episodeInfo.guid))
-  }
-
-  // MARK: - Private URL Analysis
-
-  private func extractPodcastID(from url: URL) throws(ShareError) -> ITunesPodcastID {
-    let pathComponents = url.path.components(separatedBy: "/")
-    for component in pathComponents {
-      if component.hasPrefix("id"), component.count > 2 {
-        let idString = String(component.dropFirst(2))
-        if let iTunesID = Int(idString) { return ITunesPodcastID(rawValue: iTunesID) }
-      }
-    }
-
-    throw ShareError.noIdentifierFound(url)
-  }
-
-  private func extractEpisodeID(from url: URL) throws(ShareError) -> ITunesEpisodeID {
-    guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-      let queryItems = components.queryItems,
-      let episodeIDParam = queryItems.first(where: { $0.name == "i" })?.value,
-      let iTunesID = ITunesEpisodeID(episodeIDParam)
-    else { throw ShareError.noIdentifierFound(url) }
-
-    return iTunesID
   }
 
   // MARK: - Private Helpers

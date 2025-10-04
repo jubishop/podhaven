@@ -3,12 +3,10 @@
 import Foundation
 import Tagged
 
-typealias ITunesEpisodeID = Tagged<ITunesURL, Int>
 typealias ITunesPodcastID = Tagged<ITunesURL, Int>
 
 struct ITunesURL {
   private static let podcastEntity = "podcast"
-  private static let episodeEntity = "podcastEpisode"
 
   // MARK: - URL Analysis
 
@@ -17,8 +15,16 @@ struct ITunesURL {
     url.scheme == "https" && url.host?.contains("podcasts.apple.com") == true
   }
 
-  static func isEpisodeURL(_ url: URL) -> Bool {
-    isPodcastURL(url) && url.query?.contains("i=") == true
+  static func extractPodcastID(from url: URL) throws(ShareError) -> ITunesPodcastID {
+    let pathComponents = url.path.components(separatedBy: "/")
+    for component in pathComponents {
+      if component.hasPrefix("id"), component.count > 2 {
+        let idString = String(component.dropFirst(2))
+        if let iTunesID = Int(idString) { return ITunesPodcastID(rawValue: iTunesID) }
+      }
+    }
+
+    throw ShareError.noIdentifierFound(url)
   }
 
   // MARK: - Static Searches
@@ -31,12 +37,13 @@ struct ITunesURL {
         URLQueryItem(name: "media", value: podcastEntity),
         URLQueryItem(name: "entity", value: podcastEntity),
         URLQueryItem(name: "limit", value: String(limit)),
+        URLQueryItem(name: "country", value: AppInfo.countryCode),
       ]
     )
   }
 
-  static func topPodcastsRequest(genreID: Int?, limit: Int) -> URLRequest {
-    var pathComponents = ["", AppInfo.countryCode, "rss", "toppodcasts", "limit=\(limit)"]
+  static func topPodcastsRequest(genreID: Int? = nil, limit: Int) -> URLRequest {
+    var pathComponents = [AppInfo.countryCode, "rss", "toppodcasts", "limit=\(limit)"]
 
     if let genreID {
       pathComponents.append("genre=\(genreID)")
@@ -44,42 +51,24 @@ struct ITunesURL {
 
     pathComponents.append("json")
 
-    return buildRequest(path: pathComponents.joined(separator: "/"))
+    return buildRequest(path: "/" + pathComponents.joined(separator: "/"))
   }
 
   // MARK: - Static Lookups
 
-  static func lookupEpisodeRequest(
-    episodeIDs: [ITunesEpisodeID],
-    limit: Int? = nil
-  ) -> URLRequest {
-    lookupRequest(iTunesIDs: episodeIDs.map(String.init), entity: episodeEntity, limit: limit)
+  static func lookupRequest(podcastIDs: [ITunesPodcastID]) -> URLRequest {
+    buildRequest(
+      path: "/lookup",
+      queryItems: [
+        URLQueryItem(name: "id", value: podcastIDs.map(String.init).joined(separator: ",")),
+        URLQueryItem(name: "media", value: podcastEntity),
+        URLQueryItem(name: "entity", value: podcastEntity),
+        URLQueryItem(name: "country", value: AppInfo.countryCode),
+      ]
+    )
   }
 
-  static func lookupPodcastRequest(
-    podcastIDs: [ITunesPodcastID],
-    limit: Int? = nil
-  ) -> URLRequest {
-    lookupRequest(iTunesIDs: podcastIDs.map(String.init), entity: podcastEntity, limit: limit)
-  }
-
-  private static func lookupRequest(
-    iTunesIDs: [String],
-    entity: String,
-    limit: Int? = nil
-  ) -> URLRequest {
-    var queryItems: [URLQueryItem] = [
-      URLQueryItem(name: "id", value: iTunesIDs.joined(separator: ",")),
-      URLQueryItem(name: "entity", value: entity),
-      URLQueryItem(name: "country", value: AppInfo.countryCode),
-    ]
-
-    if let limit {
-      queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
-    }
-
-    return buildRequest(path: "/lookup", queryItems: queryItems)
-  }
+  // MARK: - Private Helpers
 
   private static func buildRequest(path: String, queryItems: [URLQueryItem] = []) -> URLRequest {
     var components = URLComponents()

@@ -2,16 +2,16 @@
 
 import Foundation
 
-struct ITunesTopPodcastsResponse: Decodable, Sendable {
-  var iTunesIDs: [ITunesPodcastID] { feed.iTunesIDs }
+struct ITunesTopPodcastsFeed: Decodable, Sendable {
+  var podcastIDs: [ITunesPodcastID] { feed.podcastIDs }
 
   private struct Feed: Decodable, Sendable {
-    var iTunesIDs: [ITunesPodcastID] {
-      entries.compactMap(\.iTunesID)
+    var podcastIDs: [ITunesPodcastID] {
+      entries.compactMap(\.podcastID)
     }
 
     private struct Entry: Decodable, Sendable {
-      var iTunesID: ITunesPodcastID? {
+      var podcastID: ITunesPodcastID? {
         guard let id = Int(id.attributes.imId)
         else { return nil }
 

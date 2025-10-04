@@ -3,35 +3,15 @@
 import Foundation
 
 struct ITunesEntityResults: Decodable, Sendable {
-  var unsavedPodcasts: [ITunesPodcastID: UnsavedPodcast] {
-    Dictionary(
-      uniqueKeysWithValues: podcasts.compactMap { result -> (ITunesPodcastID, UnsavedPodcast)? in
-        guard let id = result.podcastID,
-          let podcast = try? result.toUnsavedPodcast()
-        else { return nil }
-        return (id, podcast)
-      }
-    )
-  }
-
-  var podcasts: [ITunesEntity] {
-    results.filter(\.isPodcast)
-  }
-
-  var episodes: [ITunesEntity] {
-    results.filter(\.isEpisode)
+  var unsavedPodcasts: [UnsavedPodcast] {
+    results.compactMap { try? $0.toUnsavedPodcast() }
   }
 
   func findPodcast(podcastID: ITunesPodcastID) -> ITunesEntity? {
     results.first(where: { $0.isPodcast && $0.podcastID == podcastID })
   }
 
-  func findEpisode(episodeID: ITunesEpisodeID) -> ITunesEntity? {
-    results.first(where: { $0.isEpisode && $0.episodeID == episodeID })
-  }
-
   struct ITunesEntity: Decodable, Sendable {
-    static let episodeKind = "podcast-episode"
     static let podcastKind = "podcast"
 
     private let collectionId: Int?
@@ -65,20 +45,10 @@ struct ITunesEntityResults: Decodable, Sendable {
       kind == Self.podcastKind
     }
 
-    var isEpisode: Bool {
-      kind == Self.episodeKind
-    }
-
-    var episodeID: ITunesEpisodeID? {
-      guard let trackId
-      else { return nil }
-      return ITunesEpisodeID(trackId)
-    }
-
     var podcastID: ITunesPodcastID? {
       guard let collectionId
       else { return nil }
-      return ITunesEpisodeID(collectionId)
+      return ITunesPodcastID(collectionId)
     }
 
     var feedURL: FeedURL? {
@@ -86,19 +56,6 @@ struct ITunesEntityResults: Decodable, Sendable {
         let url = URL(string: feedUrlString)
       else { return nil }
       return FeedURL(url)
-    }
-
-    var mediaURL: MediaURL? {
-      guard let urlString = episodeUrl,
-        let url = URL(string: urlString)
-      else { return nil }
-      return MediaURL(url)
-    }
-
-    var guid: GUID? {
-      guard let guidString = episodeGuid
-      else { return nil }
-      return GUID(guidString)
     }
 
     func toUnsavedPodcast() throws -> UnsavedPodcast? {

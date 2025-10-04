@@ -7,14 +7,6 @@ enum ShareHelpers {
     URL(string: "podhaven://share?url=\(url.absoluteString)")!
   }
 
-  static func itunesPodcastLookupURL(for itunesID: String) -> URL {
-    URL(string: "https://itunes.apple.com/lookup?id=\(itunesID)&entity=podcast&country=us")!
-  }
-
-  static func itunesEpisodeLookupURL(for podcastID: String) -> URL {
-    URL(string: "https://itunes.apple.com/lookup?id=\(podcastID)&entity=podcastEpisode&country=us")!
-  }
-
   static func itunesPodcastURL(for itunesID: String, withTitle title: String) -> URL {
     URL(string: "https://podcasts.apple.com/us/podcast/\(title)/id\(itunesID)")!
   }

@@ -43,51 +43,44 @@ struct SearchService {
   // MARK: - Public API
 
   func searchPodcasts(matching term: String, limit: Int) async throws(SearchError)
-    -> IdentifiedArray<
-      FeedURL, UnsavedPodcast
-    >
+    -> IdentifiedArray<FeedURL, UnsavedPodcast>
   {
     let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else {
-      return IdentifiedArray(uniqueElements: [], id: \.feedURL)
-    }
+    guard !trimmed.isEmpty
+    else { return IdentifiedArray(uniqueElements: [], id: \.feedURL) }
 
-//    let request = buildSearchRequest(for: trimmed, limit: limit)
-//    let data = try await perform(request)
-//    let response: ITunesSearchResponse = try decode(data)
+    let searchResult: ITunesEntityResults =
+      (try decode(try await performRequest(ITunesURL.searchRequest(for: trimmed, limit: limit))))
 
-//    let podcasts = response.unsavedPodcasts
-    return IdentifiedArray()
+    return IdentifiedArray(
+      uniqueElements: searchResult.unsavedPodcasts,
+      id: \.feedURL
+    )
   }
 
   func topPodcasts(genreID: Int? = nil, limit: Int) async throws(SearchError)
     -> IdentifiedArray<FeedURL, UnsavedPodcast>
   {
-    let response: ITunesTopPodcastsResponse =
+    let topPodcastResult: ITunesTopPodcastsFeed =
       (try decode(
-        try await perform(ITunesURL.topPodcastsRequest(genreID: genreID, limit: limit))
+        try await performRequest(ITunesURL.topPodcastsRequest(genreID: genreID, limit: limit))
       ))
 
+    let lookupResult: ITunesEntityResults = try decode(
+      try await performRequest(
+        ITunesURL.lookupRequest(podcastIDs: topPodcastResult.podcastIDs)
+      )
+    )
+
     return IdentifiedArray(
-      uniqueElements: try await lookup(iTunesIDs: response.iTunesIDs),
+      uniqueElements: lookupResult.unsavedPodcasts,
       id: \.feedURL
     )
   }
 
-  // MARK: - Networking
+  // MARK: - Private Helpers
 
-  private func lookup(iTunesIDs: [ITunesPodcastID]) async throws(SearchError) -> [UnsavedPodcast] {
-//    let data = try await perform(
-//      ApplePodcastsURL.lookupRequest(
-//        iTunesIDs: iTunesIDs,
-//        entity: "podcast"
-//      )
-//    )
-    return []
-//    let iTunesSearchResponse = return try decode(data)
-  }
-
-  private func perform(_ request: URLRequest) async throws(SearchError) -> Data {
+  private func performRequest(_ request: URLRequest) async throws(SearchError) -> Data {
     do {
       return try await session.validatedData(for: request)
     } catch {
@@ -95,13 +88,11 @@ struct SearchService {
     }
   }
 
-  // MARK: - Private Helpers
-
   private func decode<T: Decodable>(_ data: Data) throws(SearchError) -> T {
     do {
       return try JSONDecoder().decode(data)
     } catch {
-      throw SearchError.parseFailure(data)
+      throw SearchError.parseFailure(data: data, caught: error)
     }
   }
 }
