@@ -6,9 +6,7 @@ struct ITunesTopPodcastsFeed: Decodable, Sendable {
   var podcastIDs: [ITunesPodcastID] { feed.podcastIDs }
 
   private struct Feed: Decodable, Sendable {
-    var podcastIDs: [ITunesPodcastID] {
-      entries.compactMap(\.podcastID)
-    }
+    var podcastIDs: [ITunesPodcastID] { entries.compactMap(\.podcastID) }
 
     private struct Entry: Decodable, Sendable {
       var podcastID: ITunesPodcastID? {
