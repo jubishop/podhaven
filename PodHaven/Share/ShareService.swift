@@ -54,7 +54,7 @@ struct ShareService {
 
     if extractedURL.pathExtension.lowercased() == "opml" {
       try await handleOPMLURL(extractedURL)
-    } else if let feedURL = try await extractFeedURL(from: extractedURL) {
+    } else if let feedURL = try await fetchFeedURL(from: extractedURL) {
       try await handlePodcastURL(feedURL)
     } else {  // Fallback to maybe this is just a pure FeedURL?
       do {
@@ -117,7 +117,7 @@ struct ShareService {
     }
   }
 
-  // MARK: - Online Data Fetching
+  // MARK: - URL Analysis
 
   private func extractURLParameter(from url: URL) throws(ShareError) -> URL {
     guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
@@ -129,7 +129,9 @@ struct ShareService {
     return extractedURL
   }
 
-  func extractFeedURL(from url: URL) async throws(ShareError) -> FeedURL? {
+  // MARK: - Online Data Fetching
+
+  func fetchFeedURL(from url: URL) async throws(ShareError) -> FeedURL? {
     guard ITunesURL.isPodcastURL(url) else { return nil }
 
     Self.log.debug("trying to extract FeedURL from: \(url)")
