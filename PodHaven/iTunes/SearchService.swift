@@ -42,7 +42,7 @@ struct SearchService {
 
   // MARK: - Public API
 
-  func searchPodcasts(matching term: String, limit: Int) async throws(SearchError)
+  func searchedPodcasts(matching term: String, limit: Int) async throws(SearchError)
     -> IdentifiedArray<FeedURL, UnsavedPodcast>
   {
     let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -22,7 +22,7 @@ final class SearchServiceTests {
     let data = PreviewBundle.loadAsset(named: "search_results", in: .iTunesResults)
     await session.respond(to: ITunesURL.searchRequest(for: term, limit: 50).url!, data: data)
 
-    let results = try await searchService.searchPodcasts(matching: term, limit: 50)
+    let results = try await searchService.searchedPodcasts(matching: term, limit: 50)
     #expect(results.count == 2)
 
     let podcasts = Array(results)
@@ -82,7 +82,7 @@ final class SearchServiceTests {
       data: data
     )
 
-    let results = try await searchService.searchPodcasts(matching: term, limit: 50)
+    let results = try await searchService.searchedPodcasts(matching: term, limit: 50)
     #expect(results.count == 2)
     #expect(
       results.ids.contains(FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!))

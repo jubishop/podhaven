@@ -203,7 +203,7 @@ final class SearchTabViewModel {
     searchState = .loading
 
     do {
-      let unsavedResults = try await searchService.searchPodcasts(matching: term, limit: 48)
+      let unsavedResults = try await searchService.searchedPodcasts(matching: term, limit: 48)
       try Task.checkCancellation()
 
       let displayable = IdentifiedArray<FeedURL, any PodcastDisplayable>(
