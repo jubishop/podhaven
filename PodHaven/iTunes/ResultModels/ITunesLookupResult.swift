@@ -15,12 +15,32 @@ struct ITunesLookupResult: Decodable, Sendable {
     static let episodeKind = "podcast-episode"
     static let podcastKind = "podcast"
 
-    private let kind: String?
     private let collectionId: Int?
     private let trackId: Int?
-    private let episodeUrl: String?
     private let episodeGuid: String?
+
+    private let collectionName: String?
+    private let trackName: String?
+    private let collectionCensoredName: String?
+    private let trackCensoredName: String?
+
+    private let collectionViewUrl: String?
+    private let trackViewUrl: String?
     private let feedUrl: String?
+    private let episodeUrl: String?
+
+    private let artworkUrl30: String?
+    private let artworkUrl60: String?
+    private let artworkUrl100: String?
+    private let artworkUrl600: String?
+
+    private let shortDescription: String?
+    private let longDescription: String?
+    private let collectionDescription: String?
+    private let description: String?
+
+    private let kind: String?
+    private let wrapperType: String?
 
     var episodeID: ITunesEpisodeID? {
       guard kind == Self.episodeKind,
