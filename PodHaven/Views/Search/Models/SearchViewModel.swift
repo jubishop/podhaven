@@ -22,6 +22,8 @@ extension Container {
   // MARK: - Configuration
 
   private static let debounceDuration: Duration = .milliseconds(300)
+  private static let trendingLimit = 48
+  private static let searchLimit = 48
 
   // MARK: - Internal State
 
@@ -137,27 +139,9 @@ extension Container {
     executeTrendingSectionFetch(trendingSection)
   }
 
-  private func completeTrendingSectionLoad(
-    trendingSection: TrendingSection,
-    podcasts: [UnsavedPodcast],
-    errorMessage: String?
-  ) {
-    var mutableSection = trendingSection
-    if let errorMessage {
-      mutableSection.podcasts = []
-      mutableSection.state = .error(errorMessage)
-    } else {
-      mutableSection.podcasts = podcasts
-      mutableSection.state = .loaded
-    }
-
-    mutableSection.task = nil
-  }
-
   @discardableResult
-  private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) -> Task<
-    Void, Never
-  > {
+  private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) -> Task<Void, Never>
+  {
     var mutableSection = trendingSection
     mutableSection.state = .loading
 
@@ -165,35 +149,28 @@ extension Container {
       guard let self else { return }
 
       do {
-        let results = try await self.searchService.topPodcasts(
+        let podcasts = try await self.searchService.topPodcasts(
           genreID: trendingSection.genreID,
-          limit: 48
+          limit: Self.trendingLimit
         )
         try Task.checkCancellation()
 
-        let podcasts = Array(results)
         if podcasts.isEmpty {
-          completeTrendingSectionLoad(
-            trendingSection: trendingSection,
-            podcasts: [],
-            errorMessage: "No podcasts available in this category right now."
-          )
+          mutableSection.podcasts = []
+          mutableSection.state = .error("No podcasts available in this category right now.")
         } else {
-          completeTrendingSectionLoad(
-            trendingSection: trendingSection,
-            podcasts: podcasts,
-            errorMessage: nil
-          )
+          mutableSection.podcasts = podcasts
+          mutableSection.state = .loaded
         }
       } catch {
         guard !Task.isCancelled else { return }
+
         Self.log.error(error)
-        completeTrendingSectionLoad(
-          trendingSection: trendingSection,
-          podcasts: [],
-          errorMessage: ErrorKit.coreMessage(for: error)
-        )
+        mutableSection.podcasts = []
+        mutableSection.state = .error(ErrorKit.coreMessage(for: error))
       }
+
+      mutableSection.task = nil
     }
 
     mutableSection.task = task
@@ -226,7 +203,10 @@ extension Container {
     searchState = .loading
 
     do {
-      let unsavedResults = try await searchService.searchedPodcasts(matching: term, limit: 48)
+      let unsavedResults = try await searchService.searchedPodcasts(
+        matching: term,
+        limit: Self.searchLimit
+      )
       try Task.checkCancellation()
 
       searchResults = Array(unsavedResults)
