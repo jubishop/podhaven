@@ -36,7 +36,7 @@ extension Container {
 
   // MARK: - Trending State
 
-  struct TrendingSection {
+  class TrendingSection {
     let genreID: Int?
     let icon: AppIcon
 
@@ -141,8 +141,7 @@ extension Container {
   @discardableResult
   private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) -> Task<Void, Never>
   {
-    var mutableSection = trendingSection
-    mutableSection.state = .loading
+    trendingSection.state = .loading
 
     let task = Task { [weak self, trendingSection] in
       guard let self else { return }
@@ -155,24 +154,24 @@ extension Container {
         try Task.checkCancellation()
 
         if podcasts.isEmpty {
-          mutableSection.podcasts = []
-          mutableSection.state = .error("No podcasts available in this category right now.")
+          trendingSection.podcasts = []
+          trendingSection.state = .error("No podcasts available in this category right now.")
         } else {
-          mutableSection.podcasts = podcasts
-          mutableSection.state = .loaded
+          trendingSection.podcasts = podcasts
+          trendingSection.state = .loaded
         }
       } catch {
         Self.log.error(error, mundane: .trace)
         guard !Task.isCancelled else { return }
 
-        mutableSection.podcasts = []
-        mutableSection.state = .error(ErrorKit.coreMessage(for: error))
+        trendingSection.podcasts = []
+        trendingSection.state = .error(ErrorKit.coreMessage(for: error))
       }
 
-      mutableSection.task = nil
+      trendingSection.task = nil
     }
 
-    mutableSection.task = task
+    trendingSection.task = task
     return task
   }
 
@@ -225,7 +224,7 @@ extension Container {
     Self.log.debug("disappear: executing")
 
     searchTask?.cancel()
-    for var trendingSection in trendingSections {
+    for trendingSection in trendingSections {
       trendingSection.task?.cancel()
       trendingSection.task = nil
     }
