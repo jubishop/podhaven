@@ -113,7 +113,9 @@ extension Container {
   // MARK: - Trending
 
   func selectTrendingSection(_ trendingSectionID: TrendingSectionID) {
-    guard let trendingSection = trendingSections[id: trendingSectionID] else { return }
+    guard let trendingSection = trendingSections[id: trendingSectionID]
+    else { Assert.fatal("Selecting trending section that doesn't exist?") }
+
     currentTrendingSection = trendingSection
     loadTrendingSectionIfNeeded()
   }
