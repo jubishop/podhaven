@@ -31,8 +31,8 @@
 
 ### Observability & View State
 - View models adopt `@Observable @MainActor` and stash long-lived tasks in `@ObservationIgnored` properties to avoid observation churn.
-- Views trigger async work through `task` modifiers that call `execute()` (or feature-specific entry points such as `scheduleSearch()`); cancellation paths clean up ongoing `Task`s.
-- Selection-heavy flows reuse `SelectableListUseCase` for filtering, sorting, and bulk actions.
+- Views trigger async work through `task` modifiers that call `execute()` or feature-specific entry points; cancellation paths clean up ongoing `Task`s via `disappear()` or similar lifecycle methods.
+- Selection-heavy flows reuse the `SelectableList` protocol surface with `SelectableListUseCase` as the concrete implementation (see `SelectableEpisodeList`, `SelectablePodcastsGridViewModel`) for filtering, sorting, and bulk actions.
 
 ### Dependency Injection (FactoryKit)
 - Factories live in `Container` extensions; `.scope(.cached)` is the default for singleton-like services.
@@ -49,7 +49,7 @@
 ### Networking & Feed Processing
 - Networking flows conform to `DataFetchable` / `DownloadingTask`; `URLSession` implements both with additional validation helpers.
 - `FeedManager` queues background feed downloads through `DownloadManager` and auto-cleans task state; `RefreshManager` fans out refresh jobs using feed + repo coordination.
-- `SearchService` calls Podcast Index endpoints with authenticated headers and async decoding; `ShareService` parses share URLs to import OPML, podcasts, or episodes.
+- `SearchService` calls ITunes endpoints with async decoding; `ShareService` parses share URLs to import OPML, podcasts, or episodes.
 
 ### Playback & Audio
 - `PlayManager` (under `PlayActor`) orchestrates AVAudioSession configuration, queue integration, command center wiring, and Point-Free `Sharing` storage of the current episode.
@@ -62,10 +62,14 @@
 - `AppDelegate` forwards background session completions to `CacheBackgroundDelegate` ensuring the system resumes suspended tasks correctly.
 
 ### Search & Discovery
-- `SearchViewModel` drives the search tab by loading iTunes top charts for curated grids and debouncing TabView search text before querying iTunes search.
+- `SearchViewModel` drives the search tab by loading iTunes top charts (trending sections) for curated category grids and debouncing search text via `Sleeper` before querying iTunes search with `SearchService.searchedPodcasts(matching:limit:)`.
+- Trending sections are loaded on-demand per genre with individual task management via `loadTrendingSectionIfNeeded`; each section tracks its own `ContentState` and cached podcasts, reusing cached data unless the section is reselected (force reload on reselection).
+- The aggregate `trendingState` mirrors the currently selected section's load/error status for view presentation.
+- Search results update on debounced text changes via `scheduleSearch()`; `disappear()` cancels outstanding search and trending tasks.
 
 ### Navigation & UI Structure
-- `Navigation` centralizes all routing using SwiftNavigation's `@CasePathable` destinations and tab-specific path managers; switching tabs clears unrelated navigation state.
+- `Navigation` centralizes all routing using SwiftNavigation's `@CasePathable` destinations and tab-specific path managers conforming to `ManagingNavigationPaths`; switching tabs clears unrelated navigation state via `clearPath()`.
+- Tab-specific nested classes (`Navigation.Settings`, `Navigation.Search`, etc.) manage their own `path: [Destination]` arrays; the `Navigation.navigationDestination(for:)` builder renders all possible routes.
 - Views stay declarative, forwarding actions to their view models or shared protocols; never introduce business logic inside SwiftUI view structs.
 - Custom alert/sheet modifiers (`customAlert`, `customSheet`) consume the injected `Alert`/`Sheet` environment objects.
 

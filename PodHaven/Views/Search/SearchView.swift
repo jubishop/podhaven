@@ -71,21 +71,22 @@ struct SearchView: View {
       loadingView(text: "Fetching top podcasts…")
 
     case .error(let message):
-      errorView(title: "Unable to Load", message: message)
+      ScrollView {
+        errorView(title: "Unable to Load", message: message)
+          .padding(.top)
+      }
+      .refreshable {
+        await viewModel.refreshCurrentTrendingSection()
+      }
 
     case .loaded:
-      if let section = viewModel.selectedTrendingSection {
-        ScrollView {
-          trendingGrid(for: section)
-            .padding(.horizontal)
-            .padding(.top)
-        }
-      } else {
-        placeholderView(
-          icon: AppIcon.trending,
-          title: "No trending podcasts",
-          message: "Unable to load curated charts right now."
-        )
+      ScrollView {
+        trendingGrid(for: viewModel.currentTrendingSection)
+          .padding(.horizontal)
+          .padding(.top)
+      }
+      .refreshable {
+        await viewModel.refreshCurrentTrendingSection()
       }
     }
   }
@@ -160,11 +161,10 @@ struct SearchView: View {
   @ToolbarContentBuilder
   private var trendingMenuToolbarItem: some ToolbarContent {
     if !viewModel.isShowingSearchResults,
-      viewModel.trendingState == .loaded,
-      let section = viewModel.selectedTrendingSection
+      viewModel.trendingState == .loaded
     {
       ToolbarItem(placement: .primaryAction) {
-        trendingSelectionMenu(selected: section)
+        trendingSelectionMenu(selected: viewModel.currentTrendingSection)
       }
     }
   }
@@ -226,10 +226,6 @@ extension SearchView {
       return trimmedQuery
     }
 
-    if let section = viewModel.selectedTrendingSection {
-      return section.title
-    }
-
-    return "Search"
+    return viewModel.currentTrendingSection.title
   }
 }
