@@ -66,7 +66,7 @@ struct SearchView: View {
 
   @ViewBuilder
   private var trendingView: some View {
-    switch viewModel.trendingState {
+    switch viewModel.currentTrendingSection.state {
     case .idle, .loading:
       loadingView(text: "Fetching top podcasts…")
 
@@ -81,7 +81,7 @@ struct SearchView: View {
 
     case .loaded:
       ScrollView {
-        trendingGrid(for: viewModel.currentTrendingSection)
+        trendingGrid
           .padding(.horizontal)
           .padding(.top)
       }
@@ -113,9 +113,7 @@ struct SearchView: View {
   }
 
   @ViewBuilder
-  private func trendingSelectionMenu(selected section: SearchViewModel.TrendingSection)
-    -> some View
-  {
+  private var trendingSelectionMenu: some View {
     Menu {
       ForEach(viewModel.trendingSections) { option in
         option.icon.labelButton {
@@ -123,14 +121,15 @@ struct SearchView: View {
         }
       }
     } label: {
-      section.icon.coloredLabel
+      viewModel.currentTrendingSection.icon.coloredLabel
         .font(.title2.weight(.semibold))
     }
   }
 
   @ViewBuilder
-  private func trendingGrid(for section: SearchViewModel.TrendingSection) -> some View {
-    ItemGrid(items: section.podcasts, minimumGridSize: gridItemSize) { podcast in
+  private var trendingGrid: some View {
+    ItemGrid(items: viewModel.currentTrendingSection.podcasts, minimumGridSize: gridItemSize) {
+      podcast in
       NavigationLink(
         value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
         label: {
@@ -161,10 +160,10 @@ struct SearchView: View {
   @ToolbarContentBuilder
   private var trendingMenuToolbarItem: some ToolbarContent {
     if !viewModel.isShowingSearchResults,
-      viewModel.trendingState == .loaded
+      viewModel.currentTrendingSection.state == .loaded
     {
       ToolbarItem(placement: .primaryAction) {
-        trendingSelectionMenu(selected: viewModel.currentTrendingSection)
+        trendingSelectionMenu
       }
     }
   }

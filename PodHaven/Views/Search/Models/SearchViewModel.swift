@@ -35,14 +35,14 @@ final class SearchViewModel {
 
   // MARK: - Trending State
 
-  var trendingState: LoadingState = .idle
-
   typealias TrendingSectionID = Tagged<SearchViewModel, String>
   struct TrendingSection: Identifiable, Equatable {
     let genreID: Int?
     let icon: AppIcon
-    fileprivate var state: LoadingState
-    fileprivate var cachedPodcasts: [UnsavedPodcast]
+
+    fileprivate(set) var state: LoadingState
+    fileprivate(set) var podcasts: [UnsavedPodcast]
+
     fileprivate var task: Task<Void, Never>? = nil
 
     fileprivate init(
@@ -54,16 +54,15 @@ final class SearchViewModel {
       self.genreID = genreID
       self.icon = icon
       self.state = state
-      self.cachedPodcasts = podcasts
+      self.podcasts = podcasts
     }
 
     var id: TrendingSectionID { TrendingSectionID(icon.text) }
     var title: String { icon.text }
-    var podcasts: [UnsavedPodcast] { cachedPodcasts }
   }
 
-  var trendingSections: IdentifiedArrayOf<TrendingSection>
-  var currentTrendingSection: TrendingSection
+  let trendingSections: IdentifiedArrayOf<TrendingSection>
+  private(set) var currentTrendingSection: TrendingSection
 
   // MARK: - Search State
 
@@ -124,12 +123,8 @@ final class SearchViewModel {
     currentTrendingSection.task?.cancel()
     currentTrendingSection.task = nil
 
-    currentTrendingSection.cachedPodcasts = []
+    currentTrendingSection.podcasts = []
     currentTrendingSection.state = .idle
-
-    if case .error = trendingState {
-      trendingState = .idle
-    }
 
     let task = startTrendingFetch(for: currentTrendingSection)
     await task.value
@@ -137,11 +132,7 @@ final class SearchViewModel {
 
   private func loadTrendingSectionIfNeeded() {
     switch currentTrendingSection.state {
-    case .loaded:
-      trendingState = .loaded
-      return
-    case .loading:
-      trendingState = .loading
+    case .loaded, .loading:
       return
     default:
       break
@@ -157,13 +148,11 @@ final class SearchViewModel {
   ) {
     var mutableSection = trendingSection
     if let errorMessage {
-      mutableSection.cachedPodcasts = []
+      mutableSection.podcasts = []
       mutableSection.state = .error(errorMessage)
-      trendingState = .error(errorMessage)
     } else {
-      mutableSection.cachedPodcasts = podcasts
+      mutableSection.podcasts = podcasts
       mutableSection.state = .loaded
-      trendingState = .loaded
     }
 
     mutableSection.task = nil
@@ -173,10 +162,6 @@ final class SearchViewModel {
   private func startTrendingFetch(for trendingSection: TrendingSection) -> Task<Void, Never> {
     var mutableSection = trendingSection
     mutableSection.state = .loading
-
-    if trendingSection == currentTrendingSection {
-      trendingState = .loading
-    }
 
     let task = Task { [weak self] in
       guard let self else { return }
