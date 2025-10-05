@@ -73,11 +73,10 @@ extension Container {
       }
     }
   }
+  var trimmedSearchText: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
 
   var searchResults: [UnsavedPodcast] = []
-  var isShowingSearchResults: Bool {
-    !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-  }
+  var isShowingSearchResults: Bool { !trimmedSearchText.isEmpty }
 
   // MARK: - Internal State
 
@@ -145,11 +144,11 @@ extension Container {
     var mutableSection = trendingSection
     mutableSection.state = .loading
 
-    let task = Task { [weak self] in
+    let task = Task { [weak self, trendingSection] in
       guard let self else { return }
 
       do {
-        let podcasts = try await self.searchService.topPodcasts(
+        let podcasts = try await searchService.topPodcasts(
           genreID: trendingSection.genreID,
           limit: Self.trendingLimit
         )
@@ -163,9 +162,9 @@ extension Container {
           mutableSection.state = .loaded
         }
       } catch {
+        Self.log.error(error, mundane: .trace)
         guard !Task.isCancelled else { return }
 
-        Self.log.error(error)
         mutableSection.podcasts = []
         mutableSection.state = .error(ErrorKit.coreMessage(for: error))
       }
@@ -182,20 +181,20 @@ extension Container {
   private func scheduleSearch() {
     searchTask?.cancel()
 
-    let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else {
+    let trimmedSearchText = trimmedSearchText
+    guard !trimmedSearchText.isEmpty else {
       searchState = .idle
-      searchResults.removeAll()
+      searchResults = []
       return
     }
 
-    searchTask = Task { [weak self] in
+    searchTask = Task { [weak self, trimmedSearchText] in
       guard let self else { return }
 
-      try await self.sleeper.sleep(for: Self.debounceDuration)
+      try await sleeper.sleep(for: Self.debounceDuration)
       try Task.checkCancellation()
 
-      await executeSearch(for: trimmed)
+      await executeSearch(for: trimmedSearchText)
     }
   }
 
@@ -209,14 +208,14 @@ extension Container {
       )
       try Task.checkCancellation()
 
-      searchResults = Array(unsavedResults)
+      searchResults = unsavedResults
       searchState = .loaded
     } catch {
+      Self.log.error(error, mundane: .trace)
       guard !Task.isCancelled else { return }
 
-      Self.log.error(error)
+      searchResults = []
       searchState = .error(ErrorKit.coreMessage(for: error))
-      searchResults.removeAll()
     }
   }
 

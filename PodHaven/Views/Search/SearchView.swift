@@ -159,9 +159,7 @@ struct SearchView: View {
 
   @ToolbarContentBuilder
   private var trendingMenuToolbarItem: some ToolbarContent {
-    if !viewModel.isShowingSearchResults,
-      viewModel.currentTrendingSection.state == .loaded
-    {
+    if !viewModel.isShowingSearchResults {
       ToolbarItem(placement: .primaryAction) {
         trendingSelectionMenu
       }
@@ -216,13 +214,10 @@ struct SearchView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
-}
 
-extension SearchView {
   fileprivate var navigationTitle: String {
-    let trimmedQuery = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    if viewModel.isShowingSearchResults, !trimmedQuery.isEmpty {
-      return trimmedQuery
+    if viewModel.isShowingSearchResults {
+      return viewModel.trimmedSearchText
     }
 
     return viewModel.currentTrendingSection.title
