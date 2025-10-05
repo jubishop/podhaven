@@ -36,7 +36,7 @@ extension Container {
 
   // MARK: - Trending State
 
-  class TrendingSection {
+  @Observable @MainActor final class TrendingSection {
     let genreID: Int?
     let icon: AppIcon
 
