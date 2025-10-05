@@ -43,6 +43,7 @@ final class SearchViewModel {
     let icon: AppIcon
     fileprivate var state: LoadingState
     fileprivate var cachedPodcasts: [UnsavedPodcast]
+    fileprivate var task: Task<Void, Never>? = nil
 
     fileprivate init(
       genreID: Int?,
@@ -61,12 +62,8 @@ final class SearchViewModel {
     var podcasts: [UnsavedPodcast] { cachedPodcasts }
   }
 
-  let defaultTrendingSection = TrendingSection(genreID: nil, icon: .trendingTop)
   var trendingSections: IdentifiedArrayOf<TrendingSection>
-  var currentTrendingSectionID: TrendingSectionID = TrendingSectionID(AppIcon.trendingTop.text)
-  var currentTrendingSection: TrendingSection {
-    trendingSections[id: currentTrendingSectionID] ?? defaultTrendingSection
-  }
+  var currentTrendingSection: TrendingSection
 
   // MARK: - Search State
 
@@ -80,22 +77,22 @@ final class SearchViewModel {
   }
 
   var searchResults: [UnsavedPodcast] = []
-
   var isShowingSearchResults: Bool {
     !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   // MARK: - Internal State
 
-  @ObservationIgnored private var searchTask: Task<Void, Never>?
-  @ObservationIgnored private var trendingSectionTasks: [TrendingSectionID: Task<Void, Never>] = [:]
+  @ObservationIgnored private var searchTask: Task<Void, Error>?
 
   // MARK: - Initialization
 
   init() {
+    let topTrendingSection = TrendingSection(genreID: nil, icon: .trendingTop)
+    currentTrendingSection = topTrendingSection
     trendingSections = IdentifiedArray(
       uniqueElements: [
-        defaultTrendingSection,
+        topTrendingSection,
         TrendingSection(genreID: 1321, icon: .trendingBusiness),
         TrendingSection(genreID: 1303, icon: .trendingComedy),
         TrendingSection(genreID: 1304, icon: .trendingEducation),
@@ -112,138 +109,111 @@ final class SearchViewModel {
   }
 
   func execute() {
-    loadTrendingSectionIfNeeded(id: currentTrendingSectionID)
+    loadTrendingSectionIfNeeded()
   }
 
   // MARK: - Trending
 
   func selectTrendingSection(_ trendingSectionID: TrendingSectionID) {
-    guard trendingSections[id: trendingSectionID] != nil else { return }
-    currentTrendingSectionID = trendingSectionID
-    loadTrendingSectionIfNeeded(id: trendingSectionID)
+    guard let trendingSection = trendingSections[id: trendingSectionID] else { return }
+    currentTrendingSection = trendingSection
+    loadTrendingSectionIfNeeded()
   }
 
   func refreshCurrentTrendingSection() async {
-    trendingSectionTasks[currentTrendingSectionID]?.cancel()
-    trendingSectionTasks[currentTrendingSectionID] = nil
+    currentTrendingSection.task?.cancel()
+    currentTrendingSection.task = nil
 
-    updateTrendingSection(with: currentTrendingSectionID) { mutableSection in
-      mutableSection.cachedPodcasts = []
-      mutableSection.state = .idle
-    }
+    currentTrendingSection.cachedPodcasts = []
+    currentTrendingSection.state = .idle
 
     if case .error = trendingState {
       trendingState = .idle
     }
 
-    let task = startTrendingFetch(
-      for: currentTrendingSectionID,
-      genreID: currentTrendingSection.genreID
-    )
+    let task = startTrendingFetch(for: currentTrendingSection)
     await task.value
   }
 
-  private func loadTrendingSectionIfNeeded(id: TrendingSectionID) {
-    guard let section = trendingSections[id: id] else { return }
-
-    switch section.state {
+  private func loadTrendingSectionIfNeeded() {
+    switch currentTrendingSection.state {
     case .loaded:
-      if currentTrendingSectionID == id {
-        trendingState = .loaded
-      }
+      trendingState = .loaded
       return
     case .loading:
-      if currentTrendingSectionID == id {
-        trendingState = .loading
-      }
+      trendingState = .loading
       return
     default:
       break
     }
 
-    startTrendingFetch(for: id, genreID: section.genreID)
+    startTrendingFetch(for: currentTrendingSection)
   }
 
   private func completeTrendingSectionLoad(
-    id: TrendingSectionID,
+    trendingSection: TrendingSection,
     podcasts: [UnsavedPodcast],
     errorMessage: String?
   ) {
-    updateTrendingSection(with: id) { mutableSection in
-      if let errorMessage {
-        mutableSection.cachedPodcasts = []
-        mutableSection.state = .error(errorMessage)
-      } else {
-        mutableSection.cachedPodcasts = podcasts
-        mutableSection.state = .loaded
-      }
-    }
-
-    trendingSectionTasks[id] = nil
-
-    guard currentTrendingSectionID == id else { return }
-
+    var mutableSection = trendingSection
     if let errorMessage {
+      mutableSection.cachedPodcasts = []
+      mutableSection.state = .error(errorMessage)
       trendingState = .error(errorMessage)
     } else {
+      mutableSection.cachedPodcasts = podcasts
+      mutableSection.state = .loaded
       trendingState = .loaded
     }
-  }
 
-  private func updateTrendingSection(
-    with id: TrendingSectionID,
-    transform: (inout TrendingSection) -> Void
-  ) {
-    guard var section = trendingSections[id: id] else { return }
-    transform(&section)
-    trendingSections[id: id] = section
+    mutableSection.task = nil
   }
 
   @discardableResult
-  private func startTrendingFetch(
-    for id: TrendingSectionID,
-    genreID: Int?
-  ) -> Task<Void, Never> {
-    updateTrendingSection(with: id) { mutableSection in
-      mutableSection.state = .loading
-    }
+  private func startTrendingFetch(for trendingSection: TrendingSection) -> Task<Void, Never> {
+    var mutableSection = trendingSection
+    mutableSection.state = .loading
 
-    if currentTrendingSectionID == id {
+    if trendingSection == currentTrendingSection {
       trendingState = .loading
     }
 
-    let task = Task { @MainActor [weak self] in
+    let task = Task { [weak self] in
       guard let self else { return }
 
       do {
         let results = try await self.searchService.topPodcasts(
-          genreID: genreID,
+          genreID: trendingSection.genreID,
           limit: 48
         )
         try Task.checkCancellation()
 
         let podcasts = Array(results)
         if podcasts.isEmpty {
-          self.completeTrendingSectionLoad(
-            id: id,
+          completeTrendingSectionLoad(
+            trendingSection: trendingSection,
             podcasts: [],
             errorMessage: "No podcasts available in this category right now."
           )
         } else {
-          self.completeTrendingSectionLoad(id: id, podcasts: podcasts, errorMessage: nil)
+          completeTrendingSectionLoad(
+            trendingSection: trendingSection,
+            podcasts: podcasts,
+            errorMessage: nil
+          )
         }
       } catch {
         guard !Task.isCancelled else { return }
         Self.log.error(error)
-        self.completeTrendingSectionLoad(
-          id: id,
+        completeTrendingSectionLoad(
+          trendingSection: trendingSection,
           podcasts: [],
-          errorMessage: ErrorKit.message(for: error)
+          errorMessage: ErrorKit.coreMessage(for: error)
         )
       }
     }
 
-    trendingSectionTasks[id] = task
+    mutableSection.task = task
     return task
   }
 
@@ -259,15 +229,13 @@ final class SearchViewModel {
       return
     }
 
-    searchTask = Task { @MainActor [weak self] in
+    searchTask = Task { [weak self] in
       guard let self else { return }
-      do {
-        try await self.sleeper.sleep(for: Self.debounceDuration)
-      } catch {
-        return
-      }
-      guard !Task.isCancelled else { return }
-      await self.executeSearch(for: trimmed)
+
+      try await self.sleeper.sleep(for: Self.debounceDuration)
+      try Task.checkCancellation()
+
+      await executeSearch(for: trimmed)
     }
   }
 
@@ -282,6 +250,7 @@ final class SearchViewModel {
       searchState = .loaded
     } catch {
       guard !Task.isCancelled else { return }
+
       Self.log.error(error)
       searchState = .error(ErrorKit.coreMessage(for: error))
       searchResults.removeAll()
@@ -294,7 +263,9 @@ final class SearchViewModel {
     Self.log.debug("disappear: executing")
 
     searchTask?.cancel()
-    trendingSectionTasks.values.forEach { $0.cancel() }
-    trendingSectionTasks.removeAll()
+    for var trendingSection in trendingSections {
+      trendingSection.task?.cancel()
+      trendingSection.task = nil
+    }
   }
 }
