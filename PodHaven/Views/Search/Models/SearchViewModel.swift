@@ -58,6 +58,13 @@ extension Container {
     }
 
     var title: String { icon.text }
+
+    func disappear() {
+      task?.cancel()
+      task = nil
+      podcasts = []
+      state = .idle
+    }
   }
 
   let trendingSections: IdentifiedArray<String, TrendingSection>
@@ -179,6 +186,7 @@ extension Container {
 
   private func scheduleSearch() {
     searchTask?.cancel()
+    searchTask = nil
 
     let trimmedSearchText = trimmedSearchText
     guard !trimmedSearchText.isEmpty else {
@@ -206,6 +214,7 @@ extension Container {
         limit: Self.searchLimit
       )
       try Task.checkCancellation()
+      guard term == trimmedSearchText else { return }
 
       searchResults = unsavedResults
       searchState = .loaded
@@ -223,10 +232,9 @@ extension Container {
   func disappear() {
     Self.log.debug("disappear: executing")
 
-    searchTask?.cancel()
+    searchText = ""
     for trendingSection in trendingSections {
-      trendingSection.task?.cancel()
-      trendingSection.task = nil
+      trendingSection.disappear()
     }
   }
 }
