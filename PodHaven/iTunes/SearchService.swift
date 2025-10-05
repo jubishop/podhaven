@@ -43,24 +43,19 @@ struct SearchService {
   // MARK: - Public API
 
   func searchedPodcasts(matching term: String, limit: Int) async throws(SearchError)
-    -> IdentifiedArray<FeedURL, UnsavedPodcast>
+    -> [UnsavedPodcast]
   {
     let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty
-    else { return IdentifiedArray(uniqueElements: [], id: \.feedURL) }
+    else { return [] }
 
     let searchResult: ITunesEntityResults =
       (try decode(try await performRequest(ITunesURL.searchRequest(for: trimmed, limit: limit))))
 
-    return IdentifiedArray(
-      uniqueElements: searchResult.unsavedPodcasts,
-      id: \.feedURL
-    )
+    return searchResult.unsavedPodcasts
   }
 
-  func topPodcasts(genreID: Int? = nil, limit: Int) async throws(SearchError)
-    -> IdentifiedArray<FeedURL, UnsavedPodcast>
-  {
+  func topPodcasts(genreID: Int? = nil, limit: Int) async throws(SearchError) -> [UnsavedPodcast] {
     let topPodcastResult: ITunesTopPodcastsFeed =
       (try decode(
         try await performRequest(ITunesURL.topPodcastsRequest(genreID: genreID, limit: limit))
@@ -72,10 +67,7 @@ struct SearchService {
       )
     )
 
-    return IdentifiedArray(
-      uniqueElements: lookupResult.unsavedPodcasts,
-      id: \.feedURL
-    )
+    return lookupResult.unsavedPodcasts
   }
 
   // MARK: - Private Helpers

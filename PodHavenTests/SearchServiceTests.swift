@@ -85,7 +85,8 @@ final class SearchServiceTests {
     let results = try await searchService.searchedPodcasts(matching: term, limit: 50)
     #expect(results.count == 2)
     #expect(
-      results.ids.contains(FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!))
+      results.map(\.feedURL)
+        .contains(FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!))
     )
   }
 }
