@@ -34,8 +34,7 @@ extension Container {
 
   // MARK: - Trending State
 
-  typealias TrendingSectionID = Tagged<SearchViewModel, String>
-  struct TrendingSection: Identifiable, Equatable {
+  struct TrendingSection {
     let genreID: Int?
     let icon: AppIcon
 
@@ -56,11 +55,10 @@ extension Container {
       self.podcasts = podcasts
     }
 
-    var id: TrendingSectionID { TrendingSectionID(icon.text) }
     var title: String { icon.text }
   }
 
-  let trendingSections: IdentifiedArrayOf<TrendingSection>
+  let trendingSections: IdentifiedArray<String, TrendingSection>
   private(set) var currentTrendingSection: TrendingSection
 
   // MARK: - Search State
@@ -102,22 +100,20 @@ extension Container {
         TrendingSection(genreID: 1545, icon: .trendingSports),
         TrendingSection(genreID: 1318, icon: .trendingTechnology),
         TrendingSection(genreID: 1488, icon: .trendingTrueCrime),
-      ]
+      ],
+      id: \.title
     )
   }
 
   func execute() {
-    loadTrendingSectionIfNeeded()
+    loadCurrentSection()
   }
 
   // MARK: - Trending
 
-  func selectTrendingSection(_ trendingSectionID: TrendingSectionID) {
-    guard let trendingSection = trendingSections[id: trendingSectionID]
-    else { Assert.fatal("Selecting trending section that doesn't exist?") }
-
+  func selectTrendingSection(_ trendingSection: TrendingSection) {
     currentTrendingSection = trendingSection
-    loadTrendingSectionIfNeeded()
+    loadCurrentSection()
   }
 
   func refreshCurrentTrendingSection() async {
@@ -131,7 +127,7 @@ extension Container {
     await task.value
   }
 
-  private func loadTrendingSectionIfNeeded() {
+  private func loadCurrentSection() {
     switch currentTrendingSection.state {
     case .loaded, .loading:
       return

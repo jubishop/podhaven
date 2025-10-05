@@ -115,9 +115,9 @@ struct SearchView: View {
   @ViewBuilder
   private var trendingSelectionMenu: some View {
     Menu {
-      ForEach(viewModel.trendingSections) { option in
-        option.icon.labelButton {
-          viewModel.selectTrendingSection(option.id)
+      ForEach(viewModel.trendingSections, id: \.title) { trendingSection in
+        trendingSection.icon.labelButton {
+          viewModel.selectTrendingSection(trendingSection)
         }
       }
     } label: {
