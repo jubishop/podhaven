@@ -106,14 +106,14 @@ extension Container {
   }
 
   func execute() {
-    loadCurrentSection()
+    loadTrendingSection(currentTrendingSection)
   }
 
   // MARK: - Trending
 
   func selectTrendingSection(_ trendingSection: TrendingSection) {
     currentTrendingSection = trendingSection
-    loadCurrentSection()
+    loadTrendingSection(trendingSection)
   }
 
   func refreshCurrentTrendingSection() async {
@@ -123,19 +123,18 @@ extension Container {
     currentTrendingSection.podcasts = []
     currentTrendingSection.state = .idle
 
-    let task = startTrendingFetch(for: currentTrendingSection)
-    await task.value
+    await executeTrendingSectionFetch(currentTrendingSection).value
   }
 
-  private func loadCurrentSection() {
-    switch currentTrendingSection.state {
+  private func loadTrendingSection(_ trendingSection: TrendingSection) {
+    switch trendingSection.state {
     case .loaded, .loading:
       return
     default:
       break
     }
 
-    startTrendingFetch(for: currentTrendingSection)
+    executeTrendingSectionFetch(trendingSection)
   }
 
   private func completeTrendingSectionLoad(
@@ -156,7 +155,9 @@ extension Container {
   }
 
   @discardableResult
-  private func startTrendingFetch(for trendingSection: TrendingSection) -> Task<Void, Never> {
+  private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) -> Task<
+    Void, Never
+  > {
     var mutableSection = trendingSection
     mutableSection.state = .loading
 
