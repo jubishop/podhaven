@@ -13,8 +13,7 @@ extension Container {
   }
 }
 
-@Observable @MainActor
-final class SearchViewModel {
+@Observable @MainActor final class SearchViewModel {
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
 
@@ -22,7 +21,7 @@ final class SearchViewModel {
 
   // MARK: - Configuration
 
-  private static let debounceDuration: Duration = .milliseconds(350)
+  private static let debounceDuration: Duration = .milliseconds(300)
 
   // MARK: - Internal State
 
