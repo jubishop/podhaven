@@ -71,24 +71,31 @@ struct SearchView: View {
 
   @ViewBuilder
   private var trendingView: some View {
-    switch viewModel.currentTrendingSection.state {
-    case .idle, .loading:
-      loadingView(text: "Fetching top podcasts…")
+    let section = viewModel.currentTrendingSection
 
-    case .error(let message):
-      ScrollView {
-        errorView(title: "Unable to Load", message: message)
-          .padding(.top)
-      }
-      .refreshable {
-        await viewModel.refreshCurrentTrendingSection()
-      }
-
-    case .loaded:
-      resultsGrid(unsavedPodcasts: viewModel.currentTrendingSection.podcasts)
-        .refreshable {
-          await viewModel.refreshCurrentTrendingSection()
+    Group {
+      switch section.state {
+      case .loaded, .loading, .idle:
+        if section.podcasts.isEmpty {
+          loadingView(text: "Fetching top \(section.title) podcasts…")
+        } else {
+          resultsGrid(unsavedPodcasts: section.podcasts)
+            .overlay(alignment: .top) {
+              if section.state == .loading {
+                loadingView(text: "Fetching top \(section.title) podcasts…")
+              }
+            }
         }
+
+      case .error(let message):
+        ScrollView {
+          errorView(title: "Unable to Load", message: message)
+            .padding(.top)
+        }
+      }
+    }
+    .refreshable {
+      await viewModel.refreshCurrentTrendingSection()
     }
   }
 

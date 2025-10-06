@@ -125,9 +125,6 @@ extension Container {
     currentTrendingSection.task?.cancel()
     currentTrendingSection.task = nil
 
-    currentTrendingSection.podcasts = []
-    currentTrendingSection.state = .idle
-
     await performTrendingSectionFetch(currentTrendingSection).value
   }
 
