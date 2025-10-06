@@ -50,6 +50,7 @@ struct SearchView: View {
             .overlay(alignment: .top) {
               if state == .loading {
                 loadingView(text: "Searching…")
+                  .allowsHitTesting(false)
               }
             }
         } else if state == .loading {
@@ -84,6 +85,7 @@ struct SearchView: View {
             .overlay(alignment: .top) {
               if state == .loading {
                 loadingView(text: "Fetching top \(section.title) podcasts…")
+                  .allowsHitTesting(false)
               }
             }
         } else {
@@ -167,8 +169,8 @@ struct SearchView: View {
 
   private func loadingView(text: String) -> some View {
     ProgressView(text)
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-      .allowsHitTesting(false)
+      .padding(.vertical, 24)
+      .frame(maxWidth: .infinity, alignment: .center)
   }
 
   private func placeholderView(icon: AppIcon, title: String, message: String) -> some View {
