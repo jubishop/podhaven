@@ -5,8 +5,14 @@ import Foundation
 
 @Observable @MainActor class ManualFeedEntryViewModel {
   @ObservationIgnored @DynamicInjected(\.shareService) private var shareService
+  @ObservationIgnored @DynamicInjected(\.feedManager) private var feedManager
+  @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
 
   private static let log = Log.as(LogSubsystem.SearchView.manual)
+
+  // MARK: - Configuration
+
+  private static let previewDebounceDuration: Duration = .milliseconds(500)
 
   // MARK: - State
 
@@ -16,8 +22,31 @@ import Foundation
     case error(String)
   }
 
+  struct PodcastPreview {
+    let image: URL
+    let title: String
+    let mostRecentPostDate: Date?
+    let episodeCount: Int
+  }
+
+  enum PreviewState {
+    case idle
+    case loading
+    case loaded(PodcastPreview)
+    case error(String)
+  }
+
   var state: LoadingState = .idle
-  var urlText: String = ""
+  var previewState: PreviewState = .idle
+  var urlText: String = "" {
+    didSet {
+      if urlText != oldValue {
+        schedulePreview()
+      }
+    }
+  }
+
+  @ObservationIgnored private var previewTask: Task<Void, Never>?
 
   var canSubmit: Bool {
     !urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading
@@ -29,6 +58,55 @@ import Foundation
   }
 
   // MARK: - Actions
+
+  private func schedulePreview() {
+    previewTask?.cancel()
+    previewTask = nil
+
+    let trimmedURL = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard !trimmedURL.isEmpty, let url = URL(string: trimmedURL) else {
+      previewState = .idle
+      return
+    }
+
+    let task = Task { [weak self] in
+      guard let self else { return }
+
+      try? await sleeper.sleep(for: Self.previewDebounceDuration)
+      guard !Task.isCancelled else { return }
+
+      await fetchPreview(for: FeedURL(url))
+    }
+
+    previewTask = task
+  }
+
+  private func fetchPreview(for feedURL: FeedURL) async {
+    previewState = .loading
+
+    do {
+      let feedTask = await feedManager.addURL(feedURL)
+      let feed = try await feedTask.feedParsed()
+      try Task.checkCancellation()
+
+      let unsavedPodcast = try feed.toUnsavedPodcast()
+      let mostRecentEpisodeDate = try feed.episodes.first?.toUnsavedEpisode().pubDate
+
+      let preview = PodcastPreview(
+        image: unsavedPodcast.image,
+        title: unsavedPodcast.title,
+        mostRecentPostDate: mostRecentEpisodeDate,
+        episodeCount: feed.episodes.count
+      )
+
+      previewState = .loaded(preview)
+    } catch {
+      Self.log.error(error, mundane: .trace)
+      guard !Task.isCancelled else { return }
+      previewState = .error("Failed to load preview")
+    }
+  }
 
   @discardableResult
   func submitURL() async -> Bool {

@@ -72,6 +72,65 @@ struct ManualFeedEntryView: View {
         }
       }
 
+      // Preview Section
+      switch viewModel.previewState {
+      case .idle:
+        EmptyView()
+
+      case .loading:
+        HStack {
+          ProgressView()
+          Text("Loading preview...")
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 8)
+
+      case .loaded(let preview):
+        VStack(alignment: .leading, spacing: 12) {
+          HStack(spacing: 12) {
+            AsyncImage(url: preview.image) { image in
+              image
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+            } placeholder: {
+              Color.gray.opacity(0.2)
+            }
+            .frame(width: 60, height: 60)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 4) {
+              Text(preview.title)
+                .font(.headline)
+                .lineLimit(2)
+
+              if let mostRecentDate = preview.mostRecentPostDate {
+                Text("Latest: \(mostRecentDate.formatted(date: .abbreviated, time: .omitted))")
+                  .font(.caption)
+                  .foregroundColor(.secondary)
+              }
+
+              Text("\(preview.episodeCount) episode\(preview.episodeCount == 1 ? "" : "s")")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            }
+
+            Spacer()
+          }
+          .padding()
+          .background(Color.gray.opacity(0.1))
+          .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+
+      case .error(let message):
+        HStack {
+          AppIcon.error.coloredImage
+          Text(message)
+            .font(.subheadline)
+            .foregroundColor(.red)
+        }
+      }
+
       Spacer()
     }
     .padding()
