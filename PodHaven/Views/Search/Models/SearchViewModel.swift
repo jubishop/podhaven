@@ -178,8 +178,12 @@ extension Container {
 
   // MARK: - Searching
 
+  func refreshSearch() async {
+    await performSearch(debounce: false).value
+  }
+
   @discardableResult
-  func performSearch(debounce: Bool) -> Task<Void, Never> {
+  private func performSearch(debounce: Bool) -> Task<Void, Never> {
     searchTask?.cancel()
     searchTask = nil
 

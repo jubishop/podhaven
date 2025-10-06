@@ -33,65 +33,65 @@ struct SearchView: View {
 
   @ViewBuilder
   private var searchResultsView: some View {
-    switch viewModel.searchState {
-    case .idle:
-      placeholderView(
-        icon: AppIcon.search,
-        title: "Search for podcasts",
-        message: "Enter a podcast name or keyword to get started."
-      )
+    let state = viewModel.searchState
 
-    case .loading:
-      loadingView(text: "Searching…")
-
-    case .error(let message):
-      ScrollView {
-        errorView(title: "Search Error", message: message)
-          .padding(.top)
-      }
-      .refreshable {
-        await viewModel.performSearch(debounce: false).value
-      }
-
-    case .loaded:
-      if viewModel.searchResults.isEmpty {
+    ScrollView {
+      switch state {
+      case .idle:
         placeholderView(
           icon: AppIcon.search,
-          title: "No results found",
-          message: "Try different search terms or check your spelling."
+          title: "Search for podcasts",
+          message: "Enter a podcast name or keyword to get started."
         )
-      } else {
-        resultsGrid(unsavedPodcasts: viewModel.searchResults)
-          .refreshable {
-            await viewModel.performSearch(debounce: false).value
-          }
+
+      case .loading, .loaded:
+        if !viewModel.searchResults.isEmpty {
+          resultsGrid(unsavedPodcasts: viewModel.searchResults)
+            .overlay(alignment: .top) {
+              if state == .loading {
+                loadingView(text: "Searching…")
+              }
+            }
+        } else if state == .loading {
+          loadingView(text: "Searching…")
+        } else {
+          placeholderView(
+            icon: AppIcon.search,
+            title: "No results found",
+            message: "Try different search terms or check your spelling."
+          )
+        }
+
+      case .error(let message):
+        errorView(title: "Search Error", message: message)
       }
+    }
+    .refreshable {
+      await viewModel.refreshSearch()
     }
   }
 
   @ViewBuilder
   private var trendingView: some View {
     let section = viewModel.currentTrendingSection
+    let state = section.state
 
-    Group {
-      switch section.state {
+    ScrollView {
+      switch state {
       case .loaded, .loading, .idle:
-        if section.podcasts.isEmpty {
-          loadingView(text: "Fetching top \(section.title) podcasts…")
-        } else {
+        if !section.podcasts.isEmpty {
           resultsGrid(unsavedPodcasts: section.podcasts)
             .overlay(alignment: .top) {
-              if section.state == .loading {
+              if state == .loading {
                 loadingView(text: "Fetching top \(section.title) podcasts…")
               }
             }
+        } else {
+          loadingView(text: "Fetching top \(section.title) podcasts…")
         }
 
       case .error(let message):
-        ScrollView {
-          errorView(title: "Unable to Load", message: message)
-            .padding(.top)
-        }
+        errorView(title: "Unable to Load", message: message)
       }
     }
     .refreshable {
@@ -103,25 +103,22 @@ struct SearchView: View {
 
   @ViewBuilder
   private func resultsGrid(unsavedPodcasts: [UnsavedPodcast]) -> some View {
-    ScrollView {
-      ItemGrid(items: unsavedPodcasts, minimumGridSize: gridItemSize) {
-        podcast in
-        NavigationLink(
-          value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
-          label: {
-            VStack {
-              SquareImage(image: podcast.image, size: $gridItemSize)
-              Text(podcast.title)
-                .font(.caption)
-                .lineLimit(1)
-            }
+    ItemGrid(items: unsavedPodcasts, minimumGridSize: gridItemSize) { podcast in
+      NavigationLink(
+        value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
+        label: {
+          VStack {
+            SquareImage(image: podcast.image, size: $gridItemSize)
+            Text(podcast.title)
+              .font(.caption)
+              .lineLimit(1)
           }
-        )
-        .buttonStyle(.plain)
-      }
-      .padding(.horizontal)
-      .padding(.top)
+        }
+      )
+      .buttonStyle(.plain)
     }
+    .padding(.horizontal)
+    .padding(.top)
   }
 
   // MARK: - Toolbar
@@ -171,6 +168,7 @@ struct SearchView: View {
   private func loadingView(text: String) -> some View {
     ProgressView(text)
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+      .allowsHitTesting(false)
   }
 
   private func placeholderView(icon: AppIcon, title: String, message: String) -> some View {
