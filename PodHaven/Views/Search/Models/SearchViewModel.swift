@@ -66,8 +66,8 @@ extension Container {
       state = .idle
     }
   }
-
   let trendingSections: IdentifiedArray<String, TrendingSection>
+
   private(set) var currentTrendingSection: TrendingSection
 
   // MARK: - Search State
@@ -76,18 +76,15 @@ extension Container {
   var searchText: String = "" {
     didSet {
       if searchText != oldValue {
-        Task { await performSearch(debounce: true) }
+        performSearch(debounce: true)
       }
     }
   }
   var trimmedSearchText: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
-
   var searchResults: [UnsavedPodcast] = []
   var isShowingSearchResults: Bool { !trimmedSearchText.isEmpty }
 
-  // MARK: - Internal State
-
-  @ObservationIgnored private var searchTask: Task<Void, Error>?
+  @ObservationIgnored private var searchTask: Task<Void, Never>?
 
   // MARK: - Initialization
 
@@ -131,7 +128,7 @@ extension Container {
     currentTrendingSection.podcasts = []
     currentTrendingSection.state = .idle
 
-    await executeTrendingSectionFetch(currentTrendingSection).value
+    await performTrendingSectionFetch(currentTrendingSection).value
   }
 
   private func loadTrendingSection(_ trendingSection: TrendingSection) {
@@ -142,11 +139,11 @@ extension Container {
       break
     }
 
-    executeTrendingSectionFetch(trendingSection)
+    performTrendingSectionFetch(trendingSection)
   }
 
   @discardableResult
-  private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) -> Task<Void, Never>
+  private func performTrendingSectionFetch(_ trendingSection: TrendingSection) -> Task<Void, Never>
   {
     trendingSection.state = .loading
 
@@ -184,30 +181,30 @@ extension Container {
 
   // MARK: - Searching
 
-  func performSearch(debounce: Bool) async {
+  @discardableResult
+  func performSearch(debounce: Bool) -> Task<Void, Never> {
     searchTask?.cancel()
     searchTask = nil
-
-    let trimmedSearchText = trimmedSearchText
-    guard !trimmedSearchText.isEmpty else {
-      searchState = .idle
-      searchResults = []
-      return
-    }
 
     let task = Task { [weak self, trimmedSearchText] in
       guard let self else { return }
 
+      guard !trimmedSearchText.isEmpty else {
+        searchState = .idle
+        searchResults = []
+        return
+      }
+
       if debounce {
-        try await sleeper.sleep(for: Self.debounceDuration)
-        try Task.checkCancellation()
+        try? await sleeper.sleep(for: Self.debounceDuration)
+        guard !Task.isCancelled else { return }
       }
 
       await executeSearch(for: trimmedSearchText)
     }
 
     searchTask = task
-    try? await task.value
+    return task
   }
 
   private func executeSearch(for term: String) async {

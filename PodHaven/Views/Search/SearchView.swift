@@ -50,7 +50,7 @@ struct SearchView: View {
           .padding(.top)
       }
       .refreshable {
-        await viewModel.performSearch(debounce: false)
+        await viewModel.performSearch(debounce: false).value
       }
 
     case .loaded:
@@ -63,7 +63,7 @@ struct SearchView: View {
       } else {
         resultsGrid(unsavedPodcasts: viewModel.searchResults)
           .refreshable {
-            await viewModel.performSearch(debounce: false)
+            await viewModel.performSearch(debounce: false).value
           }
       }
     }
