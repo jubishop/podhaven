@@ -45,8 +45,13 @@ struct SearchView: View {
       loadingView(text: "Searching…")
 
     case .error(let message):
-      // TODO: Make this refreshable
-      errorView(title: "Search Error", message: message)
+      ScrollView {
+        errorView(title: "Search Error", message: message)
+          .padding(.top)
+      }
+      .refreshable {
+        await viewModel.performSearch(debounce: false)
+      }
 
     case .loaded:
       if viewModel.searchResults.isEmpty {
@@ -57,6 +62,9 @@ struct SearchView: View {
         )
       } else {
         resultsGrid(unsavedPodcasts: viewModel.searchResults)
+          .refreshable {
+            await viewModel.performSearch(debounce: false)
+          }
       }
     }
   }

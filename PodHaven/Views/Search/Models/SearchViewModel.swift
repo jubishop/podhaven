@@ -76,7 +76,7 @@ extension Container {
   var searchText: String = "" {
     didSet {
       if searchText != oldValue {
-        scheduleSearch()
+        Task { await performSearch(debounce: true) }
       }
     }
   }
@@ -184,7 +184,7 @@ extension Container {
 
   // MARK: - Searching
 
-  private func scheduleSearch() {
+  func performSearch(debounce: Bool) async {
     searchTask?.cancel()
     searchTask = nil
 
@@ -195,14 +195,19 @@ extension Container {
       return
     }
 
-    searchTask = Task { [weak self, trimmedSearchText] in
+    let task = Task { [weak self, trimmedSearchText] in
       guard let self else { return }
 
-      try await sleeper.sleep(for: Self.debounceDuration)
-      try Task.checkCancellation()
+      if debounce {
+        try await sleeper.sleep(for: Self.debounceDuration)
+        try Task.checkCancellation()
+      }
 
       await executeSearch(for: trimmedSearchText)
     }
+
+    searchTask = task
+    try? await task.value
   }
 
   private func executeSearch(for term: String) async {
