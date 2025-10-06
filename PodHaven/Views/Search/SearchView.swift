@@ -45,6 +45,7 @@ struct SearchView: View {
       loadingView(text: "Searching…")
 
     case .error(let message):
+      // TODO: Make this refreshable
       errorView(title: "Search Error", message: message)
 
     case .loaded:
@@ -55,11 +56,7 @@ struct SearchView: View {
           message: "Try different search terms or check your spelling."
         )
       } else {
-        ScrollView {
-          searchGrid
-            .padding(.horizontal)
-            .padding(.top)
-        }
+        resultsGrid(unsavedPodcasts: viewModel.searchResults)
       }
     }
   }
@@ -80,68 +77,35 @@ struct SearchView: View {
       }
 
     case .loaded:
-      ScrollView {
-        trendingGrid
-          .padding(.horizontal)
-          .padding(.top)
-      }
-      .refreshable {
-        await viewModel.refreshCurrentTrendingSection()
-      }
+      resultsGrid(unsavedPodcasts: viewModel.currentTrendingSection.podcasts)
+        .refreshable {
+          await viewModel.refreshCurrentTrendingSection()
+        }
     }
   }
 
-  // MARK: - Section Rendering
+  // MARK: - Section Grids
 
   @ViewBuilder
-  private var searchGrid: some View {
-    ItemGrid(items: viewModel.searchResults, id: \.feedURL, minimumGridSize: gridItemSize) {
-      podcast in
-      NavigationLink(
-        value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
-        label: {
-          VStack {
-            SquareImage(image: podcast.image, size: $gridItemSize)
-            Text(podcast.title)
-              .font(.caption)
-              .lineLimit(1)
+  private func resultsGrid(unsavedPodcasts: [UnsavedPodcast]) -> some View {
+    ScrollView {
+      ItemGrid(items: unsavedPodcasts, minimumGridSize: gridItemSize) {
+        podcast in
+        NavigationLink(
+          value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
+          label: {
+            VStack {
+              SquareImage(image: podcast.image, size: $gridItemSize)
+              Text(podcast.title)
+                .font(.caption)
+                .lineLimit(1)
+            }
           }
-        }
-      )
-      .buttonStyle(.plain)
-    }
-  }
-
-  @ViewBuilder
-  private var trendingSelectionMenu: some View {
-    Menu {
-      ForEach(viewModel.trendingSections, id: \.title) { trendingSection in
-        trendingSection.icon.labelButton {
-          viewModel.selectTrendingSection(trendingSection)
-        }
+        )
+        .buttonStyle(.plain)
       }
-    } label: {
-      viewModel.currentTrendingSection.icon.coloredLabel
-        .font(.title2.weight(.semibold))
-    }
-  }
-
-  @ViewBuilder
-  private var trendingGrid: some View {
-    ItemGrid(items: viewModel.currentTrendingSection.podcasts, minimumGridSize: gridItemSize) {
-      podcast in
-      NavigationLink(
-        value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
-        label: {
-          VStack {
-            SquareImage(image: podcast.image, size: $gridItemSize)
-            Text(podcast.title)
-              .font(.caption)
-              .lineLimit(1)
-          }
-        }
-      )
-      .buttonStyle(.plain)
+      .padding(.horizontal)
+      .padding(.top)
     }
   }
 
@@ -149,11 +113,18 @@ struct SearchView: View {
 
   @ToolbarContentBuilder
   private var manualEntryToolbarItem: some ToolbarContent {
-    ToolbarItem(placement: .navigationBarLeading) {
-      Button(action: openManualEntry) {
-        Label("Add Feed", systemImage: AppIcon.manualEntry.systemImageName)
-      }
-      .accessibilityLabel("Add feed URL manually")
+    ToolbarItem(placement: .secondaryAction) {
+      Button(
+        action: {
+          sheet {
+            ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
+          }
+        },
+        label: {
+          Label("Add Feed", systemImage: AppIcon.manualEntry.systemImageName)
+        }
+      )
+      .accessibilityLabel("Add Feed URL manually")
     }
   }
 
@@ -161,28 +132,30 @@ struct SearchView: View {
   private var trendingMenuToolbarItem: some ToolbarContent {
     if !viewModel.isShowingSearchResults {
       ToolbarItem(placement: .primaryAction) {
-        trendingSelectionMenu
+        Menu(
+          content: {
+            ForEach(viewModel.trendingSections, id: \.title) { trendingSection in
+              trendingSection.icon
+                .labelButton {
+                  viewModel.selectTrendingSection(trendingSection)
+                }
+                .accessibilityLabel(Text("Select trending section: \(trendingSection.title)"))
+            }
+          },
+          label: {
+            viewModel.currentTrendingSection.icon.coloredLabel
+              .font(.title2.weight(.semibold))
+          }
+        )
       }
     }
   }
 
-  private func openManualEntry() {
-    sheet {
-      NavigationStack {
-        ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
-      }
-      .presentationDetents([.medium, .large])
-      .presentationDragIndicator(.visible)
-    }
-  }
-
-  // MARK: - Reusable Views
+  // MARK: - Reusable Views / Data
 
   private func loadingView(text: String) -> some View {
-    VStack(spacing: 16) {
-      ProgressView(text)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    ProgressView(text)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
   }
 
   private func placeholderView(icon: AppIcon, title: String, message: String) -> some View {
@@ -201,18 +174,7 @@ struct SearchView: View {
   }
 
   private func errorView(title: String, message: String) -> some View {
-    VStack(spacing: 16) {
-      AppIcon.error.coloredImage
-        .font(.system(size: 48))
-      Text(title)
-        .font(.headline)
-      Text(message)
-        .font(.subheadline)
-        .foregroundColor(.secondary)
-        .multilineTextAlignment(.center)
-        .padding(.horizontal)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    placeholderView(icon: AppIcon.error, title: title, message: message)
   }
 
   fileprivate var navigationTitle: String {

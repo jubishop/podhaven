@@ -75,7 +75,6 @@ struct ManualFeedEntryView: View {
       Spacer()
     }
     .padding()
-    .navigationTitle("Add Feed URL")
     .toolbar {
       ToolbarItem(placement: .cancellationAction) {
         Button("Cancel") {
