@@ -10,13 +10,13 @@ import Foundation
 
   // MARK: - State
 
-  enum State {
+  enum LoadingState {
     case idle
     case loading
     case error(String)
   }
 
-  var state: State = .idle
+  var state: LoadingState = .idle
   var urlText: String = ""
 
   var canSubmit: Bool {
