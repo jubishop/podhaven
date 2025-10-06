@@ -13,13 +13,6 @@ struct ContentView: View {
   var body: some View {
     TabView(selection: $navigation.currentTab) {
       Tab(
-        AppIcon.settings.text,
-        systemImage: AppIcon.settings.systemImageName,
-        value: .settings
-      ) {
-        SettingsView()
-      }
-      Tab(
         AppIcon.upNext.text,
         systemImage: AppIcon.upNext.systemImageName,
         value: .upNext
@@ -39,6 +32,13 @@ struct ContentView: View {
         value: .podcasts
       ) {
         PodcastsView()
+      }
+      Tab(
+        AppIcon.settings.text,
+        systemImage: AppIcon.settings.systemImageName,
+        value: .settings
+      ) {
+        SettingsView()
       }
       Tab(
         AppIcon.search.text,

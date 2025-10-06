@@ -134,13 +134,6 @@ struct ManualFeedEntryView: View {
       Spacer()
     }
     .padding()
-    .toolbar {
-      ToolbarItem(placement: .cancellationAction) {
-        Button("Cancel") {
-          dismiss()
-        }
-      }
-    }
   }
 }
 
@@ -148,9 +141,7 @@ struct ManualFeedEntryView: View {
 
 #if DEBUG
 #Preview("Manual Feed Entry") {
-  NavigationStack {
-    ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
-  }
-  .preview()
+  ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
+    .preview()
 }
 #endif
