@@ -2,16 +2,9 @@
 
 import FactoryKit
 import Foundation
-import IdentifiedCollections
 import Logging
 import SwiftUI
 import Tagged
-
-extension Container {
-  @MainActor var searchViewModel: Factory<SearchViewModel> {
-    Factory(self) { @MainActor in SearchViewModel() }.scope(.cached)
-  }
-}
 
 @Observable @MainActor final class SearchViewModel {
   @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
@@ -45,7 +38,7 @@ extension Container {
 
     fileprivate var task: Task<Void, Never>? = nil
 
-    fileprivate init(
+    init(
       genreID: Int?,
       icon: AppIcon,
       state: LoadingState = .idle,
@@ -66,7 +59,7 @@ extension Container {
       state = .idle
     }
   }
-  let trendingSections: IdentifiedArray<String, TrendingSection>
+  let trendingSections: [TrendingSection]
 
   private(set) var currentTrendingSection: TrendingSection
 
@@ -91,23 +84,20 @@ extension Container {
   init() {
     let topTrendingSection = TrendingSection(genreID: nil, icon: .trendingTop)
     currentTrendingSection = topTrendingSection
-    trendingSections = IdentifiedArray(
-      uniqueElements: [
-        topTrendingSection,
-        TrendingSection(genreID: 1321, icon: .trendingBusiness),
-        TrendingSection(genreID: 1303, icon: .trendingComedy),
-        TrendingSection(genreID: 1304, icon: .trendingEducation),
-        TrendingSection(genreID: 1512, icon: .trendingHealth),
-        TrendingSection(genreID: 1462, icon: .trendingHistory),
-        TrendingSection(genreID: 1305, icon: .trendingKids),
-        TrendingSection(genreID: 1489, icon: .trendingNews),
-        TrendingSection(genreID: 1533, icon: .trendingScience),
-        TrendingSection(genreID: 1545, icon: .trendingSports),
-        TrendingSection(genreID: 1318, icon: .trendingTechnology),
-        TrendingSection(genreID: 1488, icon: .trendingTrueCrime),
-      ],
-      id: \.title
-    )
+    trendingSections = [
+      topTrendingSection,
+      TrendingSection(genreID: 1321, icon: .trendingBusiness),
+      TrendingSection(genreID: 1303, icon: .trendingComedy),
+      TrendingSection(genreID: 1304, icon: .trendingEducation),
+      TrendingSection(genreID: 1512, icon: .trendingHealth),
+      TrendingSection(genreID: 1462, icon: .trendingHistory),
+      TrendingSection(genreID: 1305, icon: .trendingKids),
+      TrendingSection(genreID: 1489, icon: .trendingNews),
+      TrendingSection(genreID: 1533, icon: .trendingScience),
+      TrendingSection(genreID: 1545, icon: .trendingSports),
+      TrendingSection(genreID: 1318, icon: .trendingTechnology),
+      TrendingSection(genreID: 1488, icon: .trendingTrueCrime),
+    ]
   }
 
   func execute() {

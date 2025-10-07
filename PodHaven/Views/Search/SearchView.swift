@@ -6,9 +6,13 @@ import SwiftUI
 struct SearchView: View {
   @InjectedObservable(\.navigation) private var navigation
   @InjectedObservable(\.sheet) private var sheet
-  @InjectedObservable(\.searchViewModel) private var viewModel
 
   @State private var gridItemSize: CGFloat = 100
+  @State private var viewModel: SearchViewModel
+
+  init(viewModel: SearchViewModel) {
+    self.viewModel = viewModel
+  }
 
   var body: some View {
     IdentifiableNavigationStack(manager: navigation.search) {
@@ -25,6 +29,11 @@ struct SearchView: View {
         trendingMenuToolbarItem
       }
     }
+    .searchable(
+      text: $viewModel.searchText,
+      placement: .automatic,
+      prompt: Text("Search podcasts")
+    )
     .task(viewModel.execute)
     .onDisappear { viewModel.disappear() }
   }
