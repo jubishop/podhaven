@@ -13,12 +13,12 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
     content
       .toolbar {
         if viewModel.isSelecting {
-          ToolbarItem(placement: .topBarTrailing) {
+          ToolbarItem(placement: .primaryAction) {
             SelectableListMenu(list: viewModel.podcastList)
           }
 
           if viewModel.podcastList.anySelected {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .primaryAction) {
               Menu(
                 content: {
                   Button("Delete") {
@@ -46,13 +46,13 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
         }
 
         if viewModel.isSelecting {
-          ToolbarItem(placement: .topBarLeading) {
+          ToolbarItem(placement: .cancellationAction) {
             Button("Done") {
               viewModel.isSelecting = false
             }
           }
         } else {
-          ToolbarItem(placement: .topBarTrailing) {
+          ToolbarItem(placement: .primaryAction) {
             Button("Select Podcasts") {
               viewModel.isSelecting = true
             }

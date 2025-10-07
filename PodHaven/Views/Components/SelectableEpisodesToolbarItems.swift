@@ -24,13 +24,13 @@ struct SelectableEpisodesToolbarItems<
   @ToolbarContentBuilder
   var content: some ToolbarContent {
     if viewModel.isSelecting {
-      ToolbarItem(placement: .topBarTrailing) {
+      ToolbarItem(placement: .primaryAction) {
         SelectableListMenu(list: episodeList)
       }
     }
 
     if viewModel.isSelecting, episodeList.anySelected {
-      ToolbarItem(placement: .topBarTrailing) {
+      ToolbarItem(placement: .primaryAction) {
         Menu(
           content: {
             AppIcon.playSelection.labelButton {
@@ -99,13 +99,13 @@ struct SelectableEpisodesToolbarItems<
     }
 
     if viewModel.isSelecting {
-      ToolbarItem(placement: .topBarLeading) {
+      ToolbarItem(placement: .cancellationAction) {
         Button("Done") {
           viewModel.isSelecting = false
         }
       }
     } else {
-      ToolbarItem(placement: .topBarTrailing) {
+      ToolbarItem(placement: .primaryAction) {
         Button(selectText) {
           viewModel.isSelecting = true
         }
