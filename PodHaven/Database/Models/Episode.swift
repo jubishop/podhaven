@@ -8,8 +8,10 @@ import SavedMacro
 import Tagged
 
 typealias GUID = Tagged<UnsavedEpisode, String>
-typealias MediaURL = Tagged<UnsavedEpisode, URL>
-typealias CachedURL = Tagged<UnsavedEpisode, URL>
+enum MediaURLTag {}
+typealias MediaURL = Tagged<MediaURLTag, URL>
+enum CachedURLTag {}
+typealias CachedURL = Tagged<CachedURLTag, URL>
 struct MediaGUID: Codable, CustomStringConvertible, Equatable, Hashable {
   let guid: GUID
   let mediaURL: MediaURL
