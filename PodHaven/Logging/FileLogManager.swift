@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import Logging
+import SwiftUI
 
 extension Container {
   var fileLogManager: Factory<FileLogManager> {
@@ -15,6 +16,7 @@ struct FileLogManager: Sendable {
   private let targetFileSizeBytes: UInt64 = 750_000  // 750KB after truncation
 
   private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
+  private let isActive = ThreadSafe(true)
   private let logFileURL: URL = {
     AppInfo.documentsDirectory.appendingPathComponent("log.ndjson")
   }()
@@ -28,14 +30,26 @@ struct FileLogManager: Sendable {
   // MARK: - Logging
 
   func writeToFile(level: Logger.Level, fileLogEntry: FileLogEntry) {
-    if level == .critical {
-      logQueue.sync(flags: .barrier) {
-        performWriteToFile(fileLogEntry)
-      }
+    let runSynchronously = level == .critical || !isActive()
+
+    if runSynchronously {
+      logQueue.sync { performWriteToFile(fileLogEntry) }
     } else {
-      logQueue.async {
-        performWriteToFile(fileLogEntry)
-      }
+      logQueue.async { performWriteToFile(fileLogEntry) }
+    }
+  }
+
+  // MARK: - Scene Phase
+
+  func handleScenePhaseChange(to scenePhase: ScenePhase) {
+    switch scenePhase {
+    case .active:
+      isActive(true)
+    case .background:
+      isActive(false)
+      logQueue.sync {}
+    default:
+      break
     }
   }
 

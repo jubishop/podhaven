@@ -18,6 +18,7 @@ struct PodHavenApp: App {
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
+  @DynamicInjected(\.fileLogManager) private var fileLogManager
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.shareService) private var shareService
 
@@ -47,6 +48,7 @@ struct PodHavenApp: App {
           }
 
           if didStartServices {
+            fileLogManager.handleScenePhaseChange(to: newPhase)
             refreshScheduler.handleScenePhaseChange(to: newPhase)
           }
         }

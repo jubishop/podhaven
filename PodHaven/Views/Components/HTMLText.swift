@@ -179,7 +179,7 @@ struct HTMLText: View {
   private static func parseTextParts(_ text: String) -> [TextPart] {
     var parts: [TextPart] = []
     var currentText = ""
-    var formatStack = FormatStack()
+    let formatStack = FormatStack()
 
     var index = text.startIndex
 
@@ -282,7 +282,7 @@ struct HTMLText: View {
     static let plain = TextFormat(isBold: false, isItalic: false, isUnderlined: false)
   }
 
-  private struct FormatStack {
+  private class FormatStack {
     private var boldCount = 0
     private var italicCount = 0
     private var underlineCount = 0
@@ -295,7 +295,7 @@ struct HTMLText: View {
       )
     }
 
-    mutating func processTag(_ tag: HTMLTag) {
+    func processTag(_ tag: HTMLTag) {
       switch tag {
       case .boldOpen, .strongOpen:
         boldCount += 1
