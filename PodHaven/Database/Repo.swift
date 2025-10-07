@@ -342,7 +342,9 @@ struct Repo: Databasing, Sendable {
 
   @discardableResult
   func updateDuration(_ episodeID: Episode.ID, _ duration: CMTime) async throws -> Bool {
-    try await appDB.db.write { db in
+    Self.log.debug("updateDuration: \(episodeID) to \(duration)")
+
+    return try await appDB.db.write { db in
       try Episode
         .withID(episodeID)
         .updateAll(db, Episode.Columns.duration.set(to: duration))

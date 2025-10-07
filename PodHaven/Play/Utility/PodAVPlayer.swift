@@ -15,9 +15,9 @@ extension Container {
       { asset in
         let (isPlayable, duration) = try await asset.load(.isPlayable, .duration)
         return await EpisodeAsset(
-          playerItem: AVPlayerItem(asset: asset),
           isPlayable: isPlayable,
-          duration: duration
+          duration: duration,
+          playerItemFactory: { AVPlayerItem(asset: asset) }
         )
       }
     }
@@ -96,7 +96,7 @@ extension Container {
       guard let updatedPodcastEpisode = try await repo.podcastEpisode(podcastEpisode.id)
       else { throw PlaybackError.durationUpdateFailure(podcastEpisode: podcastEpisode) }
 
-      return (updatedPodcastEpisode, episodeAsset.playerItem)
+      return (updatedPodcastEpisode, episodeAsset.playerItem())
     } catch {
       throw PlaybackError.caught(error)
     }

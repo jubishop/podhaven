@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
@@ -13,6 +14,7 @@ import Testing
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
   @DynamicInjected(\.cacheState) private var cacheState
+  @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.playState) private var playState
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
@@ -105,6 +107,48 @@ import Testing
 
     #expect(actualData1 == data1)
     #expect(actualData2 == data2)
+  }
+
+  @Test("caching updates duration from asset loader")
+  func cachingUpdatesDurationFromAssetLoader() async throws {
+    let expectedDuration = CMTime(seconds: 123, preferredTimescale: 1)
+    await episodeAssetLoader.setDefaultHandler { _ in (true, expectedDuration) }
+
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+
+    let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForFileRemoved(fileURL)
+
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(cachedURL)
+
+    let updatedEpisode: Episode = try await repo.episode(podcastEpisode.id)!
+    #expect(updatedEpisode.duration == expectedDuration)
+
+    await episodeAssetLoader.setDefaultHandler { _ in
+      (true, CMTime.seconds(Double.random(in: 1...999)))
+    }
+  }
+
+  @Test("asset loader failure skips caching")
+  func assetLoaderFailureSkipsCaching() async throws {
+    enum LoaderFailure: Error { case failure }
+    await episodeAssetLoader.setDefaultHandler { _ in throw LoaderFailure.failure }
+
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+
+    _ = try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForNotCached(podcastEpisode.id)
+
+    let episode: Episode = try await repo.episode(podcastEpisode.id)!
+    #expect(episode.cachedURL == nil)
+    #expect(episode.duration == .zero)
+
+    await episodeAssetLoader.setDefaultHandler { _ in
+      (true, CMTime.seconds(Double.random(in: 1...999)))
+    }
   }
 
   // MARK: - Delegate

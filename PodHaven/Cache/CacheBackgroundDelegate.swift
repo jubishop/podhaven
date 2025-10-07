@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import FactoryKit
 import Foundation
 import Logging
@@ -17,6 +18,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var podFileManager: any FileManageable { Container.shared.podFileManager() }
+  private var loadEpisodeAsset: (_ asset: AVURLAsset) async throws -> EpisodeAsset {
+    Container.shared.loadEpisodeAsset()
+  }
 
   private static let log = Log.as(LogSubsystem.Cache.backgroundDelegate)
 
@@ -118,6 +122,12 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       try await repo.updateCachedFilename(episode.id, fileName)
       do {
         try podFileManager.moveItem(at: location, to: destURL.rawValue)
+        let episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: destURL.rawValue))
+
+        guard episodeAsset.isPlayable
+        else { throw CacheError.mediaNotPlayable(episode) }
+
+        try await repo.updateDuration(episode.id, episodeAsset.duration)
       } catch {
         try await repo.updateCachedFilename(episode.id, nil)
         throw error

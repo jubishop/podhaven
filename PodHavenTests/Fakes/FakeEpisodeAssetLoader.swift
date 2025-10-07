@@ -32,9 +32,9 @@ actor FakeEpisodeAssetLoader {
     let (isPlayable, duration) = try await handler(asset.url)
     try Task.checkCancellation()
     return await EpisodeAsset(
-      playerItem: FakeAVPlayerItem(url: asset.url),
       isPlayable: isPlayable,
-      duration: duration
+      duration: duration,
+      playerItemFactory: { FakeAVPlayerItem(url: asset.url) }
     )
   }
 
