@@ -21,7 +21,7 @@ struct FileLogManager: Sendable {
     AppInfo.documentsDirectory.appendingPathComponent("log.ndjson")
   }()
 
-  private static let log = Log.as("FileLogManager", level: .debug)
+  private static let log = Log.as("FileLogManager")
 
   // MARK: - Initialization
 
@@ -33,9 +33,15 @@ struct FileLogManager: Sendable {
     let runSynchronously = level == .critical || !isActive()
 
     if runSynchronously {
-      logQueue.sync { performWriteToFile(fileLogEntry) }
+      let result = logQueue.sync { performWriteToFile(fileLogEntry) }
+      Self.log.logResult(result)
     } else {
-      logQueue.async { performWriteToFile(fileLogEntry) }
+      logQueue.async {
+        let result = performWriteToFile(fileLogEntry)
+        Task.detached(priority: .background) {
+          Self.log.logResult(result)
+        }
+      }
     }
   }
 
@@ -53,7 +59,9 @@ struct FileLogManager: Sendable {
     }
   }
 
-  private func performWriteToFile(_ fileLogEntry: FileLogEntry) {
+  // MARK: - File Operations
+
+  private func performWriteToFile(_ fileLogEntry: FileLogEntry) -> LogResult {
     do {
       let jsonData = try JSONEncoder().encode(fileLogEntry)
       guard let newlineData = "\n".data(using: .utf8)
@@ -61,6 +69,8 @@ struct FileLogManager: Sendable {
 
       var writeData = jsonData
       writeData.append(newlineData)
+
+      var followUp: LogResult?
 
       do {
         let fileHandle = try FileHandle(forWritingTo: logFileURL)
@@ -71,20 +81,23 @@ struct FileLogManager: Sendable {
 
         let currentSize = fileHandle.offsetInFile
         if currentSize > maxFileSizeBytes {
-          try truncateLogFile()
+          followUp = try truncateLogFile()
         }
       } catch CocoaError.fileNoSuchFile {
         // File doesn't exist, create it
         try writeData.write(to: logFileURL)
       }
+
+      guard let followUp else { return .success }
+      return followUp
     } catch {
-      Self.log.error(error)
+      return .failure(error)
     }
   }
 
   // MARK: - Cleanup
 
-  private func truncateLogFile() throws {
+  private func truncateLogFile() throws -> LogResult {
     let fileData = try Data(contentsOf: logFileURL)
 
     let bytesToRemove = fileData.count - Int(targetFileSizeBytes)
@@ -99,6 +112,10 @@ struct FileLogManager: Sendable {
     // Keep everything after the newline
     let truncatedData = fileData[(newlineIndex + 1)...]
     try truncatedData.write(to: logFileURL, options: .atomic)
-    Self.log.info("Truncated log file from \(fileData.count) bytes to \(truncatedData.count) bytes")
+
+    return .log(
+      .info,
+      "File log truncated from \(fileData.count) bytes to \(truncatedData.count) bytes"
+    )
   }
 }

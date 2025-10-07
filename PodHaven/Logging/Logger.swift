@@ -27,18 +27,15 @@ extension Logger {
       self.log(level: mundane, message, file: file, function: function, line: line)
     }
   }
-}
 
-extension Logger.Level {
-  var intValue: Int {
-    switch self {
-    case .trace: return 0
-    case .debug: return 1
-    case .info: return 2
-    case .notice: return 3
-    case .warning: return 4
-    case .error: return 5
-    case .critical: return 6
+  func logResult(_ result: LogResult) {
+    switch result {
+    case .success:
+      break
+    case .log(let level, let message):
+      log(level: level, message())
+    case .failure(let error):
+      self.error(error)
     }
   }
 }
