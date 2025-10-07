@@ -9,6 +9,8 @@ struct ContentView: View {
 
   private static let log = Log.as("ContentView")
 
+  @State private var tabMaxY: CGFloat = 0
+
   var body: some View {
     TabView(selection: $navigation.currentTab) {
       Tab(
@@ -48,9 +50,16 @@ struct ContentView: View {
         SearchView(viewModel: SearchViewModel())
       }
     }
-    .tabBarMinimizeBehavior(.never)
+    .coordinateSpace(name: PlayBarAccessory.CoordinateName)
+    .onGeometryChange(for: CGFloat.self) { geometry in
+      geometry.frame(in: .named(PlayBarAccessory.CoordinateName)).maxY
+    } action: { newMaxY in
+      Self.log.trace("New maxY: \(newMaxY)")
+      tabMaxY = newMaxY
+    }
+    .tabBarMinimizeBehavior(.onScrollDown)
     .tabViewBottomAccessory {
-      PlayBar(viewModel: PlayBarViewModel())
+      PlayBarAccessory(tabMaxY: tabMaxY)
     }
   }
 }
