@@ -21,10 +21,8 @@ struct PlayBar: View {
         loadingPlayBar
       } else if viewModel.isStopped {
         stoppedPlayBar
-      } else if viewModel.isExpanded {
-        expandedPlayBar
       } else {
-        inlinePlayBar
+        expandedPlayBar
       }
     }
     .sheet(isPresented: $playBarSheetIsPresented) {
@@ -61,15 +59,6 @@ struct PlayBar: View {
       Spacer()
     }
     .padding(.horizontal, spacing * 2)
-  }
-
-  // MARK: - Inline PlayBar
-
-  private var inlinePlayBar: some View {
-    HStack {
-      playbackControls
-    }
-    .padding(.horizontal, spacing)
   }
 
   // MARK: - Expanded PlayBar

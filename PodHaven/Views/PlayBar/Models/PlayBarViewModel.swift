@@ -24,8 +24,6 @@ import SwiftUI
   var episodeImage: UIImage? { playState.onDeck?.image }
   var loadingEpisodeTitle: String { playState.loadingTitle ?? "Unknown" }
 
-  var isExpanded = true
-
   var duration: CMTime { playState.onDeck?.duration ?? CMTime.zero }
   var isDragging = false
   private var _sliderValue: Double = 0
