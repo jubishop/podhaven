@@ -7,6 +7,8 @@ struct ContentView: View {
   @InjectedObservable(\.navigation) private var navigation
   @InjectedObservable(\.playState) private var playState
 
+  private static let log = Log.as("ContentView")
+
   @State private var tabMaxY: CGFloat = 0
 
   var body: some View {
@@ -52,6 +54,7 @@ struct ContentView: View {
     .onGeometryChange(for: CGFloat.self) { geometry in
       geometry.frame(in: .named(PlayBarAccessory.CoordinateName)).maxY
     } action: { newMaxY in
+      Self.log.trace("New maxY: \(newMaxY)")
       tabMaxY = newMaxY
     }
     .tabBarMinimizeBehavior(.onScrollDown)

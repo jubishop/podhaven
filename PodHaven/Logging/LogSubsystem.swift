@@ -41,6 +41,7 @@ enum LogSubsystem {
   }
 
   enum PlayBar: String, LogCategorizable {
+    case accessory
     case main
   }
 

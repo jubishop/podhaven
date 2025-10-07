@@ -7,6 +7,8 @@ import SwiftUI
 struct PlayBarAccessory: View {
   nonisolated static let CoordinateName = "TabRoot"
 
+  private static let log = Log.as(LogSubsystem.PlayBar.accessory)
+
   @State private var viewModel = PlayBarViewModel()
 
   private let tabMaxY: CGFloat
@@ -20,6 +22,7 @@ struct PlayBarAccessory: View {
       .onGeometryChange(for: CGFloat.self) { proxy in
         proxy.frame(in: .named(Self.CoordinateName)).maxY
       } action: { newMaxY in
+        Self.log.trace("New maxY: \(newMaxY)")
         viewModel.isExpanded = ((tabMaxY - newMaxY) > 40)
       }
   }
