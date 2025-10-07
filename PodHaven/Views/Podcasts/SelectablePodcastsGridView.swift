@@ -63,6 +63,7 @@ struct SelectablePodcastsGridView: View {
             )
           }
         )
+        .buttonStyle(.plain)
       }
       .padding()
     }

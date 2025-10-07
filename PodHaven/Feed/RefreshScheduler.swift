@@ -128,6 +128,7 @@ final class RefreshScheduler: Sendable {
             Self.log.debug("foregroundRefreshTask: performing refresh")
 
             try await executeRefresh(foregroundPolicy)
+            try Task.checkCancellation()
 
             Self.log.debug("foregroundRefreshTask: refresh completed gracefully")
           } catch {
