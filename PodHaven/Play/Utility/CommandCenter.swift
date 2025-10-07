@@ -25,16 +25,29 @@ struct CommandCenter: CommandableCenter {
   let stream: AsyncStream<Command>
   private let continuation: AsyncStream<Command>.Continuation
 
-  // MARK: - Convenience Getters
-
-  var commandCenter: MPRemoteCommandCenter { MPRemoteCommandCenter.shared() }
-
   // MARK: - Initialization
 
   init() {
-    let (stream, continuation) = AsyncStream.makeStream(of: Command.self)
-    self.stream = stream
-    self.continuation = continuation
+    (self.stream, self.continuation) = AsyncStream.makeStream(of: Command.self)
+    registerRemoteCommandHandlers()
+  }
+
+  func registerRemoteCommandHandlers() {
+    let commandCenter = MPRemoteCommandCenter.shared()
+
+    commandCenter.playCommand.removeTarget(nil)
+    commandCenter.pauseCommand.removeTarget(nil)
+    commandCenter.togglePlayPauseCommand.removeTarget(nil)
+    commandCenter.skipForwardCommand.removeTarget(nil)
+    commandCenter.skipBackwardCommand.removeTarget(nil)
+    commandCenter.changePlaybackPositionCommand.removeTarget(nil)
+
+    commandCenter.playCommand.isEnabled = true
+    commandCenter.pauseCommand.isEnabled = true
+    commandCenter.togglePlayPauseCommand.isEnabled = true
+    commandCenter.skipForwardCommand.isEnabled = true
+    commandCenter.skipBackwardCommand.isEnabled = true
+    commandCenter.changePlaybackPositionCommand.isEnabled = true
 
     commandCenter.playCommand.addTarget { event in
       continuation.yield(.play)

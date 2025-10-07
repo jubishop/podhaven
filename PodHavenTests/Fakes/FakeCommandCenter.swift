@@ -4,15 +4,20 @@ import Foundation
 
 @testable import PodHaven
 
-class FakeCommandCenter: CommandableCenter {
+final class FakeCommandCenter: CommandableCenter, Sendable {
   // MARK: - State Management
 
   let stream: AsyncStream<CommandCenter.Command>
   private let continuation: AsyncStream<CommandCenter.Command>.Continuation
-  var seekCommandsEnabled = false
+  let registrationCalls = ThreadSafe(0)
 
   init() {
     (self.stream, self.continuation) = AsyncStream.makeStream(of: CommandCenter.Command.self)
+    registerRemoteCommandHandlers()
+  }
+
+  func registerRemoteCommandHandlers() {
+    registrationCalls { $0 += 1 }
   }
 
   // MARK: - Testing Manipulators

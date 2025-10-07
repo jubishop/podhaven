@@ -4,4 +4,5 @@ import Foundation
 
 protocol CommandableCenter {
   var stream: AsyncStream<CommandCenter.Command> { get }
+  func registerRemoteCommandHandlers()
 }

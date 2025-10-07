@@ -391,6 +391,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
 
     try await playManager.load(podcastEpisode)
+    #expect(commandCenter.registrationCalls() == 1)
 
     commandCenter.play()
     try await PlayHelpers.waitFor(.playing)
@@ -862,6 +863,7 @@ import Testing
     let initialLoadCount = await episodeAssetLoader.responseCount(
       for: podcastEpisode.episode.mediaURL
     )
+    let initialRegistrationCount = commandCenter.registrationCalls()
 
     // Trigger media services reset notification
     notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
@@ -869,6 +871,12 @@ import Testing
 
     // Verify audio session was reconfigured
     try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
+
+    // Verify CommandCenter is reregistered
+    try await Wait.until(
+      { await commandCenter.registrationCalls() == initialRegistrationCount + 1 },
+      { "Expected CommandCenter to be reregistered" }
+    )
 
     // Verify new AVPlayer is created
     try await Wait.until(

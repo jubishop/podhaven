@@ -474,6 +474,7 @@ final class PlayManager {
     Self.log.info("handleMediaServicesReset: beginning recovery process")
 
     guard configureAudioSession() else { return }
+    commandCenter.registerRemoteCommandHandlers()
 
     let currentOnDeck = await playState.onDeck ?? recentFailureInfo.onDeck
     let wasPlaying = await playState.status.playing || recentFailureInfo.playing
