@@ -4,23 +4,31 @@ import NukeUI
 import SwiftUI
 
 struct SelectableSquareImage: View {
-  @Binding var size: CGFloat
-  @Binding var isSelected: Bool
+  @State private var internalSize: CGFloat = 100
+  @Binding private var isSelected: Bool
 
-  let image: URL
-  let isSelecting: Bool
-  let cornerRadius: CGFloat
+  private let externalSize: Binding<CGFloat>?
+  private let image: URL
+  private let isSelecting: Bool
+  private let cornerRadius: CGFloat
+  private let sizeConstraint: SquareImage.SizeConstraint
+
+  var size: Binding<CGFloat> {
+    externalSize ?? $internalSize
+  }
 
   init(
     image: URL,
-    size: Binding<CGFloat>,
+    size: Binding<CGFloat>? = nil,
     cornerRadius: CGFloat = 8,
+    sizeConstraint: SquareImage.SizeConstraint = .both,
     isSelected: Binding<Bool>,
     isSelecting: Bool
   ) {
     self.image = image
-    self._size = size
+    self.externalSize = size
     self.cornerRadius = cornerRadius
+    self.sizeConstraint = sizeConstraint
     self._isSelected = isSelected
     self.isSelecting = isSelecting
   }
@@ -28,41 +36,50 @@ struct SelectableSquareImage: View {
   var body: some View {
     VStack {
       ZStack {
-        SquareImage(image: image, size: $size, cornerRadius: cornerRadius)
+        SquareImage(
+          image: image,
+          size: size,
+          cornerRadius: cornerRadius,
+          sizeConstraint: sizeConstraint
+        )
 
         if isSelecting {
-          Rectangle()
-            .fill(Color.black.opacity(isSelected ? 0.0 : 0.5))
-            .cornerRadius(cornerRadius)
-            .frame(height: size)
+          Group {
+            Rectangle()
+              .fill(Color.black.opacity(isSelected ? 0.0 : 0.5))
+              .cornerRadius(cornerRadius)
 
-          VStack {
-            Spacer()
-            HStack {
+            VStack {
               Spacer()
-              Button(
-                action: {
-                  isSelected.toggle()
-                },
-                label: {
-                  (isSelected
-                    ? AppIcon.selectionFilled
-                    : AppIcon.selectionEmpty)
-                    .image
-                    .font(.system(size: 24))
-                    .foregroundColor(isSelected ? .blue : .white)
-                    .background(
-                      Circle()
-                        .fill(Color.black.opacity(0.5))
-                        .padding(-3)
-                    )
-                }
-              )
-              .buttonStyle(BorderlessButtonStyle())
-              .padding(8)
+              HStack {
+                Spacer()
+                Button(
+                  action: {
+                    isSelected.toggle()
+                  },
+                  label: {
+                    (isSelected
+                      ? AppIcon.selectionFilled
+                      : AppIcon.selectionEmpty)
+                      .image
+                      .font(.system(size: 24))
+                      .foregroundColor(isSelected ? .blue : .white)
+                      .background(
+                        Circle()
+                          .fill(Color.black.opacity(0.5))
+                          .padding(-3)
+                      )
+                  }
+                )
+                .buttonStyle(BorderlessButtonStyle())
+                .padding(8)
+              }
             }
           }
-          .frame(height: size)
+          .frame(
+            width: sizeConstraint == .width ? nil : size.wrappedValue,
+            height: sizeConstraint == .height ? nil : size.wrappedValue
+          )
         }
       }
     }

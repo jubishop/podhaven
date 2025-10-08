@@ -4,20 +4,33 @@ import Foundation
 import SwiftUI
 
 struct SquareImage: View {
+  enum SizeConstraint {
+    case both
+    case width
+    case height
+  }
+
   @State private var internalSize: CGFloat = 100
 
-  let externalSize: Binding<CGFloat>?
-  let image: URL
-  let cornerRadius: CGFloat
+  private let externalSize: Binding<CGFloat>?
+  private let image: URL
+  private let cornerRadius: CGFloat
+  private let sizeConstraint: SizeConstraint
 
   var size: Binding<CGFloat> {
     externalSize ?? $internalSize
   }
 
-  init(image: URL, size: Binding<CGFloat>? = nil, cornerRadius: CGFloat = 8) {
+  init(
+    image: URL,
+    size: Binding<CGFloat>? = nil,
+    cornerRadius: CGFloat = 8,
+    sizeConstraint: SizeConstraint = .both
+  ) {
     self.image = image
     self.externalSize = size
     self.cornerRadius = cornerRadius
+    self.sizeConstraint = sizeConstraint
   }
 
   var body: some View {
@@ -44,8 +57,16 @@ struct SquareImage: View {
     .onGeometryChange(for: CGSize.self) { geometry in
       geometry.size
     } action: { newSize in
-      size.wrappedValue = min(newSize.width, newSize.height)
+      size.wrappedValue =
+        switch sizeConstraint {
+        case .both: min(newSize.width, newSize.height)
+        case .width: newSize.width
+        case .height: newSize.height
+        }
     }
-    .frame(width: size.wrappedValue, height: size.wrappedValue)
+    .frame(
+      width: sizeConstraint == .width ? nil : size.wrappedValue,
+      height: sizeConstraint == .height ? nil : size.wrappedValue
+    )
   }
 }

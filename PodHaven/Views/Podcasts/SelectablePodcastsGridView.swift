@@ -9,7 +9,6 @@ struct SelectablePodcastsGridView: View {
   @DynamicInjected(\.navigation) private var navigation
 
   @State private var viewModel: SelectablePodcastsGridViewModel
-  @State private var gridItemSize: CGFloat = 100
 
   private static let log = Log.as(LogSubsystem.PodcastsView.standard)
 
@@ -39,7 +38,7 @@ struct SelectablePodcastsGridView: View {
     .padding(.horizontal)
 
     ScrollView {
-      ItemGrid(items: viewModel.podcastList.filteredEntries, minimumGridSize: gridItemSize) {
+      ItemGrid(items: viewModel.podcastList.filteredEntries) {
         podcastWithLatestEpisodeDates in
         let podcast = podcastWithLatestEpisodeDates.podcast
 
@@ -49,7 +48,7 @@ struct SelectablePodcastsGridView: View {
             VStack {
               SelectableSquareImage(
                 image: podcast.image,
-                size: $gridItemSize,
+                sizeConstraint: .width,
                 isSelected: $viewModel.podcastList.isSelected[podcast.id],
                 isSelecting: viewModel.isSelecting
               )

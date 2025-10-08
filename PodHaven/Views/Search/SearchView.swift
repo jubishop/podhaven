@@ -156,7 +156,10 @@ struct SearchView: View {
         value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
         label: {
           VStack {
-            SquareImage(image: podcast.image)
+            SquareImage(
+              image: podcast.image,
+              sizeConstraint: .width
+            )
             Text(podcast.title)
               .font(.caption)
               .lineLimit(1)
