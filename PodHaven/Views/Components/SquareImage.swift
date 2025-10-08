@@ -117,6 +117,45 @@ struct SquareImage: View {
     )
   }
 
+  func selectable(
+    isSelected: Binding<Bool>,
+    isSelecting: Bool
+  ) -> some View {
+    self
+      .overlay {
+        if isSelecting {
+          Rectangle()
+            .fill(Color.black.opacity(isSelected.wrappedValue ? 0.0 : 0.5))
+            .cornerRadius(cornerRadius)
+            .allowsHitTesting(false)
+        }
+      }
+      .overlay(alignment: .bottomTrailing) {
+        if isSelecting {
+          let buttonSize = max(24, size.wrappedValue * 0.2)
+          let buttonPadding = max(8, size.wrappedValue * 0.08)
+          Button(
+            action: {
+              isSelected.wrappedValue.toggle()
+            },
+            label: {
+              (isSelected.wrappedValue ? AppIcon.selectionFilled : AppIcon.selectionEmpty)
+                .image
+                .font(.system(size: buttonSize))
+                .foregroundColor(isSelected.wrappedValue ? .blue : .white)
+                .background(
+                  Circle()
+                    .fill(Color.black.opacity(0.5))
+                    .padding(-3)
+                )
+            }
+          )
+          .buttonStyle(BorderlessButtonStyle())
+          .padding(buttonPadding)
+        }
+      }
+  }
+
   private var placeholderView: some View {
     ZStack {
       Color.gray
@@ -159,63 +198,5 @@ private struct SquareImageSizing: ViewModifier {
           ? size.wrappedValue : nil
       )
       .clipped()
-  }
-}
-
-// MARK: - Selectable Modifier
-
-extension View {
-  func selectable(
-    isSelected: Binding<Bool>,
-    isSelecting: Bool,
-    cornerRadius: CGFloat = 8
-  ) -> some View {
-    modifier(
-      SelectableModifier(
-        isSelected: isSelected,
-        isSelecting: isSelecting,
-        cornerRadius: cornerRadius
-      )
-    )
-  }
-}
-
-private struct SelectableModifier: ViewModifier {
-  @Binding var isSelected: Bool
-  let isSelecting: Bool
-  let cornerRadius: CGFloat
-
-  func body(content: Content) -> some View {
-    content
-      .overlay {
-        if isSelecting {
-          Rectangle()
-            .fill(Color.black.opacity(isSelected ? 0.0 : 0.5))
-            .cornerRadius(cornerRadius)
-            .allowsHitTesting(false)
-        }
-      }
-      .overlay(alignment: .bottomTrailing) {
-        if isSelecting {
-          Button(
-            action: {
-              isSelected.toggle()
-            },
-            label: {
-              (isSelected ? AppIcon.selectionFilled : AppIcon.selectionEmpty)
-                .image
-                .font(.system(size: 24))
-                .foregroundColor(isSelected ? .blue : .white)
-                .background(
-                  Circle()
-                    .fill(Color.black.opacity(0.5))
-                    .padding(-3)
-                )
-            }
-          )
-          .buttonStyle(BorderlessButtonStyle())
-          .padding(8)
-        }
-      }
   }
 }
