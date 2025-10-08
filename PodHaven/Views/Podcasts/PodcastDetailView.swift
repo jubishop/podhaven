@@ -319,6 +319,7 @@ struct PodcastDetailView: View {
 
 // MARK: - Preview
 
+#if DEBUG
 struct PodcastDetailViewPreview: View {
   @State var unsavedPodcast: UnsavedPodcast?
   @State var path: [UnsavedPodcast] = []
@@ -389,7 +390,7 @@ struct PodcastDetailViewPreview: View {
     }
   }
 }
-#if DEBUG
+
 #Preview("Changelog") {
   PodcastDetailViewPreview(
     imageURLString:
