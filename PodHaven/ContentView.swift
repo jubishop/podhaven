@@ -6,6 +6,7 @@ import SwiftUI
 struct ContentView: View {
   @InjectedObservable(\.navigation) private var navigation
   @InjectedObservable(\.playState) private var playState
+  @InjectedObservable(\.userSettings) private var userSettings
 
   private static let log = Log.as("ContentView")
 
@@ -57,7 +58,7 @@ struct ContentView: View {
       Self.log.trace("New maxY: \(newMaxY)")
       tabMaxY = newMaxY
     }
-    .tabBarMinimizeBehavior(.onScrollDown)
+    .tabBarMinimizeBehavior(userSettings.hideTabBarOnScroll ? .onScrollDown : .never)
     .tabViewBottomAccessory {
       PlayBarAccessory(tabMaxY: tabMaxY)
     }
