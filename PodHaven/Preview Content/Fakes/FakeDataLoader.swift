@@ -5,6 +5,7 @@ import FactoryKit
 import Foundation
 import Nuke
 import SwiftUI
+import ConcurrencyExtras
 
 extension Container {
   var fakeDataLoader: Factory<FakeDataLoader> {
@@ -42,7 +43,7 @@ struct FakeDataLoader: DataLoading {
     let url = request.url!
     loadedURLs { set in set.insert(url) }
 
-    let callbacks = UnsafeSendable((didReceiveData: didReceiveData, completion: completion))
+    let callbacks = UncheckedSendable((didReceiveData: didReceiveData, completion: completion))
     let task = Task {
       if let fakeHandler = fakeHandlers[url] ?? defaultHandler() {
         let fakeData = try await fakeHandler(url)

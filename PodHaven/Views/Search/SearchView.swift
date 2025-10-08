@@ -16,17 +16,17 @@ struct SearchView: View {
 
   var body: some View {
     IdentifiableNavigationStack(manager: navigation.search) {
-      Group {
+      VStack {
         if viewModel.isShowingSearchResults {
           searchResultsView
         } else {
+          categoryChipsView
           trendingView
         }
       }
       .navigationTitle(navigationTitle)
       .toolbar {
         manualEntryToolbarItem
-        trendingMenuToolbarItem
       }
     }
     .searchable(
@@ -39,6 +39,47 @@ struct SearchView: View {
   }
 
   // MARK: - Content Builders
+
+  @ViewBuilder
+  private var categoryChipsView: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 12) {
+        ForEach(viewModel.trendingSections) { section in
+          categoryChip(for: section)
+        }
+      }
+      .padding(.horizontal)
+    }
+    .background(Color(uiColor: .systemBackground))
+  }
+
+  @ViewBuilder
+  private func categoryChip(for section: SearchViewModel.TrendingSection) -> some View {
+    let isSelected = (section == viewModel.currentTrendingSection)
+
+    Button(
+      action: {
+        viewModel.selectTrendingSection(section)
+      },
+      label: {
+        HStack(spacing: 6) {
+          section.icon.coloredImage
+            .font(.callout)
+          Text(section.title)
+            .font(.subheadline.weight(isSelected ? .semibold : .regular))
+        }
+        .padding(12)
+        .background(
+          isSelected
+            ? Color.accentColor.opacity(0.15)
+            : Color(uiColor: .secondarySystemBackground)
+        )
+        .foregroundColor(isSelected ? .accentColor : .primary)
+        .clipShape(Capsule())
+      }
+    )
+    .accessibilityLabel("Select trending section: \(section.title)")
+  }
 
   @ViewBuilder
   private var searchResultsView: some View {
@@ -151,29 +192,6 @@ struct SearchView: View {
     }
   }
 
-  @ToolbarContentBuilder
-  private var trendingMenuToolbarItem: some ToolbarContent {
-    if !viewModel.isShowingSearchResults {
-      ToolbarItem(placement: .primaryAction) {
-        Menu(
-          content: {
-            ForEach(viewModel.trendingSections, id: \.title) { trendingSection in
-              trendingSection.icon
-                .labelButton {
-                  viewModel.selectTrendingSection(trendingSection)
-                }
-                .accessibilityLabel(Text("Select trending section: \(trendingSection.title)"))
-            }
-          },
-          label: {
-            viewModel.currentTrendingSection.icon.coloredLabel
-              .font(.title2.weight(.semibold))
-          }
-        )
-      }
-    }
-  }
-
   // MARK: - Reusable Views / Data
 
   private func loadingView(text: String) -> some View {
@@ -209,3 +227,46 @@ struct SearchView: View {
     return viewModel.currentTrendingSection.title
   }
 }
+
+// MARK: - Preview
+
+#if DEBUG
+#Preview {
+  SearchView(viewModel: SearchViewModel())
+    .preview()
+    .task {
+      // Load sample data
+      let topTechnologyFeed = PreviewBundle.loadAsset(
+        named: "top_technology_feed",
+        in: .iTunesResults
+      )
+      let topLookup = PreviewBundle.loadAsset(named: "top_technology_lookup", in: .iTunesResults)
+      let searchTechnology = PreviewBundle.loadAsset(named: "search_technology", in: .iTunesResults)
+
+      // Configure default handler for all iTunes requests
+      await PreviewHelpers.dataFetcher.setDefaultHandler { url in
+        // Determine request type by URL path and return appropriate data
+        if url.path.contains("/rss/toppodcasts") {
+          // Any top podcasts request (any genre or no genre)
+          return (topTechnologyFeed, URL.response(url))
+        } else if url.path.contains("/lookup") {
+          // Any lookup request
+          return (topLookup, URL.response(url))
+        } else if url.path.contains("/search") {
+          // Any search request
+          return (searchTechnology, URL.response(url))
+        } else {
+          // Fallback for unknown requests
+          return (url.dataRepresentation, URL.response(url))
+        }
+      }
+
+      // Configure image loader to return random image
+      let allThumbnails = PreviewBundle.loadAllThumbnails()
+      Container.shared.fakeDataLoader()
+        .setDefaultHandler { url in
+          allThumbnails.values.randomElement()!.data
+        }
+    }
+}
+#endif

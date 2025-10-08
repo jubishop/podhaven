@@ -29,7 +29,7 @@ import Tagged
 
   // MARK: - Trending State
 
-  @Observable @MainActor final class TrendingSection {
+  @Observable @MainActor final class TrendingSection: Hashable, Identifiable {
     let genreID: Int?
     let icon: AppIcon
 
@@ -57,6 +57,19 @@ import Tagged
       task = nil
       podcasts = []
       state = .idle
+    }
+
+    // MARK: - Hashable / Identifiable
+
+    nonisolated var id: AppIcon { icon }
+
+    nonisolated static func == (lhs: TrendingSection, rhs: TrendingSection) -> Bool {
+      lhs.genreID == rhs.genreID && lhs.icon == rhs.icon
+    }
+
+    nonisolated func hash(into hasher: inout Hasher) {
+      hasher.combine(genreID)
+      hasher.combine(icon)
     }
   }
   let trendingSections: [TrendingSection]
