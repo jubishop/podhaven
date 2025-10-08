@@ -319,86 +319,94 @@ struct PodcastDetailView: View {
 
 // MARK: - Preview
 
-#if DEBUG
-#Preview("Changelog") {
-  @Previewable @State var podcast: Podcast?
-  @Previewable @State var path: [Podcast] = []
+struct PodcastDetailViewPreview: View {
+  @State var unsavedPodcast: UnsavedPodcast?
+  @State var path: [UnsavedPodcast] = []
 
-  NavigationStack(path: $path) {
-    Button("Go to Podcast") {
-      if let podcast {
-        path = [podcast]
+  private let imageURLString: String
+  private let imageAssetName: String
+  private let assetName: String
+  private let feedURLString: String
+
+  init(
+    imageURLString: String,
+    imageAssetName: String,
+    assetName: String,
+    feedURLString: String
+  ) {
+    self.imageURLString = imageURLString
+    self.imageAssetName = imageAssetName
+    self.assetName = assetName
+    self.feedURLString = feedURLString
+  }
+
+  var body: some View {
+    NavigationStack(path: $path) {
+      Button("Go to Podcast") {
+        if let unsavedPodcast {
+          path = [unsavedPodcast]
+        }
+      }
+      .navigationDestination(for: UnsavedPodcast.self) { unsavedPodcast in
+        PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: unsavedPodcast))
       }
     }
-    .navigationDestination(for: Podcast.self) { podcast in
-      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
-    }
-  }
-  .preview()
-  .task {
-    guard podcast == nil else { return }
+    .preview()
+    .task {
+      guard unsavedPodcast == nil else { return }
 
-    Container.shared.fakeDataLoader()
-      .respond(
-        to: URL(
-          string:
-            "https://cdn.changelog.com/static/images/podcasts/podcast-original-f16d0363067166f241d080ee2e2d4a28.png"
-        )!,
-        data: PreviewBundle.loadImageData(
-          named: "changelog-podcast",
-          in: .EpisodeThumbnails
+      Container.shared.fakeDataLoader()
+        .respond(
+          to: URL(string: imageURLString)!,
+          data: PreviewBundle.loadImageData(
+            named: imageAssetName,
+            in: .EpisodeThumbnails
+          )
         )
+
+      // Configure image loader to return random image
+      let allThumbnails = PreviewBundle.loadAllThumbnails()
+      Container.shared.fakeDataLoader()
+        .setDefaultHandler { url in
+          allThumbnails.values.randomElement()!.data
+        }
+
+      let data = PreviewBundle.loadAsset(named: assetName, in: .FeedRSS)
+      await PreviewHelpers.dataFetcher
+        .respond(
+          to: URL(string: feedURLString)!,
+          data: data
+        )
+
+      let podcastFeed = try! await PodcastFeed.parse(
+        data,
+        from: FeedURL(URL(string: feedURLString)!)
       )
-    await PreviewHelpers.dataFetcher
-      .respond(
-        to: URL(string: "https://changelog.com/podcast/feed")!,
-        data: PreviewBundle.loadAsset(named: "changelog", in: .FeedRSS)
-      )
-    podcast = try? await PreviewHelpers.loadSeries(fileName: "changelog").podcast
-    if let podcast {
-      path = [podcast]
+      unsavedPodcast = try! podcastFeed.toUnsavedPodcast()
+      if let unsavedPodcast {
+        path = [unsavedPodcast]
+      }
     }
   }
 }
+#if DEBUG
+#Preview("Changelog") {
+  PodcastDetailViewPreview(
+    imageURLString:
+      "https://cdn.changelog.com/static/images/podcasts/podcast-original-f16d0363067166f241d080ee2e2d4a28.png",
+    imageAssetName: "changelog-podcast",
+    assetName: "changelog",
+    feedURLString: "https://changelog.com/podcast/feed"
+  )
+}
 
 #Preview("Pod Save America") {
-  @Previewable @State var podcast: Podcast?
-  @Previewable @State var path: [Podcast] = []
-
-  NavigationStack(path: $path) {
-    Button("Go to Podcast") {
-      if let podcast {
-        path = [podcast]
-      }
-    }
-    .navigationDestination(for: Podcast.self) { podcast in
-      PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
-    }
-  }
-  .preview()
-  .task {
-    guard podcast == nil else { return }
-
-    Container.shared.fakeDataLoader()
-      .respond(
-        to: URL(
-          string:
-            "https://image.simplecastcdn.com/images/9aa1e238-cbed-4305-9808-c9228fc6dd4f/eb7dddd4-ecb0-444c-b379-f75d7dc6c22b/3000x3000/uploads-2f1595947484360-nc4atf9w7ur-dbbaa7ee07a1ee325ec48d2e666ac261-2fpodsave100daysfinal1800.jpg?aid=rss_feed"
-        )!,
-        data: PreviewBundle.loadImageData(
-          named: "pod-save-america-podcast",
-          in: .EpisodeThumbnails
-        )
-      )
-    await PreviewHelpers.dataFetcher
-      .respond(
-        to: URL(string: "https://feeds.simplecast.com/dxZsm5kX")!,
-        data: PreviewBundle.loadAsset(named: "pod_save_america", in: .FeedRSS)
-      )
-    podcast = try? await PreviewHelpers.loadSeries(fileName: "pod_save_america").podcast
-    if let podcast {
-      path = [podcast]
-    }
-  }
+  PodcastDetailViewPreview(
+    imageURLString:
+      "https://image.simplecastcdn.com/images/9aa1e238-cbed-4305-9808-c9228fc6dd4f/eb7dddd4-ecb0-444c-b379-f75d7dc6c22b/3000x3000/uploads-2f1595947484360-nc4atf9w7ur-dbbaa7ee07a1ee325ec48d2e666ac261-2fpodsave100daysfinal1800.jpg?aid=rss_feed",
+    imageAssetName: "pod-save-america-podcast",
+    assetName: "pod_save_america",
+    feedURLString: "https://feeds.simplecast.com/dxZsm5kX"
+  )
 }
 #endif

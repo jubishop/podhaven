@@ -180,23 +180,3 @@ struct EpisodeDetailView: View {
     .onDisappear { viewModel.disappear() }
   }
 }
-
-#if DEBUG
-#Preview {
-  @Previewable @State var podcastEpisode: PodcastEpisode?
-
-  NavigationStack {
-    Group {
-      if let podcastEpisode {
-        EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: podcastEpisode))
-      } else {
-        Text("No episodes in DB")
-      }
-    }
-  }
-  .preview()
-  .task {
-    podcastEpisode = try? await PreviewHelpers.loadPodcastEpisode()
-  }
-}
-#endif

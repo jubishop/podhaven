@@ -52,15 +52,3 @@ struct EpisodesListView: View {
     .task(viewModel.execute)
   }
 }
-
-#if DEBUG
-#Preview {
-  NavigationStack {
-    EpisodesListView(
-      viewModel: EpisodesListViewModel(title: "Finished", filter: Episode.finished)
-    )
-  }
-  .preview()
-  .task { try? await PreviewHelpers.populateFinishedPodcastEpisodes() }
-}
-#endif
