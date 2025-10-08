@@ -44,6 +44,7 @@ struct SquareImage: View {
   private let imageSource: ImageSource
   private let cornerRadius: CGFloat
   private let sizingMode: SizingMode
+  private let placeholderIcon: AppIcon
 
   private var size: Binding<CGFloat> {
     if case .selfSizing(let externalSize, _) = sizingMode, let externalSize {
@@ -52,37 +53,43 @@ struct SquareImage: View {
     return $internalSize
   }
 
-  init(
+  private init(
     imageSource: ImageSource,
     cornerRadius: CGFloat = 8,
-    sizing: SizingMode = .selfSizing()
+    sizing: SizingMode = .selfSizing(),
+    placeholderIcon: AppIcon = .noImage
   ) {
     self.imageSource = imageSource
     self.cornerRadius = cornerRadius
     self.sizingMode = sizing
+    self.placeholderIcon = placeholderIcon
   }
 
   init(
     image: URL,
     cornerRadius: CGFloat = 8,
-    sizing: SizingMode = .selfSizing()
+    sizing: SizingMode = .selfSizing(),
+    placeholderIcon: AppIcon = .noImage
   ) {
     self.init(
       imageSource: .url(image),
       cornerRadius: cornerRadius,
-      sizing: sizing
+      sizing: sizing,
+      placeholderIcon: placeholderIcon
     )
   }
 
   init(
     image: UIImage?,
     cornerRadius: CGFloat = 8,
-    sizing: SizingMode = .selfSizing()
+    sizing: SizingMode = .selfSizing(),
+    placeholderIcon: AppIcon = .noImage
   ) {
     self.init(
       imageSource: .uiImage(image),
       cornerRadius: cornerRadius,
-      sizing: sizing
+      sizing: sizing,
+      placeholderIcon: placeholderIcon
     )
   }
 
@@ -160,14 +167,9 @@ struct SquareImage: View {
     ZStack {
       Color.gray
         .cornerRadius(cornerRadius)
-      VStack {
-        AppIcon.noImage.coloredImage
-          .font(.system(size: size.wrappedValue / 2))
-          .frame(width: size.wrappedValue / 2, height: size.wrappedValue / 2)
-        Text("No Image")
-          .font(.caption)
-          .foregroundColor(.white.opacity(0.8))
-      }
+      placeholderIcon.coloredImage
+        .font(.system(size: size.wrappedValue / 2))
+        .frame(width: size.wrappedValue / 2, height: size.wrappedValue / 2)
     }
   }
 }
@@ -184,12 +186,13 @@ private struct SquareImageSizing: ViewModifier {
       .onGeometryChange(for: CGSize.self) { geometry in
         geometry.size
       } action: { newSize in
-        size.wrappedValue =
+        let newValue =
           switch sizingMode.sizeConstraint {
           case .both: min(newSize.width, newSize.height)
           case .width: newSize.width
           case .height: newSize.height
           }
+        if newValue > 0 { size.wrappedValue = newValue }
       }
       .frame(
         width: sizingMode.isSelfSizing && sizingMode.sizeConstraint != .width
