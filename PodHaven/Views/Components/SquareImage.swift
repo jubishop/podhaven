@@ -4,14 +4,19 @@ import Foundation
 import SwiftUI
 
 struct SquareImage: View {
-  @Binding var size: CGFloat
+  @State private var internalSize: CGFloat = 100
 
+  let externalSize: Binding<CGFloat>?
   let image: URL
   let cornerRadius: CGFloat
 
-  init(image: URL, size: Binding<CGFloat>, cornerRadius: CGFloat = 8) {
+  var size: Binding<CGFloat> {
+    externalSize ?? $internalSize
+  }
+
+  init(image: URL, size: Binding<CGFloat>? = nil, cornerRadius: CGFloat = 8) {
     self.image = image
-    _size = size
+    self.externalSize = size
     self.cornerRadius = cornerRadius
   }
 
@@ -27,8 +32,8 @@ struct SquareImage: View {
             .cornerRadius(cornerRadius)
           VStack {
             AppIcon.noImage.coloredImage
-              .font(.system(size: size / 2))
-              .frame(width: size / 2, height: size / 2)
+              .font(.system(size: size.wrappedValue / 2))
+              .frame(width: size.wrappedValue / 2, height: size.wrappedValue / 2)
             Text("No Image")
               .font(.caption)
               .foregroundColor(.white.opacity(0.8))
@@ -36,11 +41,11 @@ struct SquareImage: View {
         }
       }
     }
-    .onGeometryChange(for: CGFloat.self) { geometry in
-      geometry.size.width
+    .onGeometryChange(for: CGSize.self) { geometry in
+      geometry.size
     } action: { newSize in
-      size = newSize
+      size.wrappedValue = min(newSize.width, newSize.height)
     }
-    .frame(height: size)
+    .frame(width: size.wrappedValue, height: size.wrappedValue)
   }
 }

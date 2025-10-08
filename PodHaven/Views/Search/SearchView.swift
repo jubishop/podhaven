@@ -7,7 +7,6 @@ struct SearchView: View {
   @InjectedObservable(\.navigation) private var navigation
   @InjectedObservable(\.sheet) private var sheet
 
-  @State private var gridItemSize: CGFloat = 100
   @State private var viewModel: SearchViewModel
 
   init(viewModel: SearchViewModel) {
@@ -152,12 +151,12 @@ struct SearchView: View {
 
   @ViewBuilder
   private func resultsGrid(unsavedPodcasts: [UnsavedPodcast]) -> some View {
-    ItemGrid(items: unsavedPodcasts, minimumGridSize: gridItemSize) { podcast in
+    ItemGrid(items: unsavedPodcasts) { podcast in
       NavigationLink(
         value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
         label: {
           VStack {
-            SquareImage(image: podcast.image, size: $gridItemSize)
+            SquareImage(image: podcast.image)
             Text(podcast.title)
               .font(.caption)
               .lineLimit(1)
