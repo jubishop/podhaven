@@ -81,17 +81,3 @@ struct SelectablePodcastsGridView: View {
     .task(viewModel.execute)
   }
 }
-
-#if DEBUG
-#Preview {
-  NavigationStack {
-    SelectablePodcastsGridView(
-      viewModel: SelectablePodcastsGridViewModel(title: "Preview Podcasts")
-    )
-  }
-  .preview()
-  .task {
-    try! await PreviewHelpers.importPodcasts()
-  }
-}
-#endif

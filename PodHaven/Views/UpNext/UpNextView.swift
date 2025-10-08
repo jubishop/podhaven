@@ -83,11 +83,3 @@ struct UpNextView: View {
     }
   }
 }
-
-#if DEBUG
-#Preview {
-  UpNextView(viewModel: UpNextViewModel())
-    .preview()
-    .task { try? await PreviewHelpers.populateQueue() }
-}
-#endif
