@@ -16,15 +16,17 @@ struct SearchView: View {
 
   var body: some View {
     IdentifiableNavigationStack(manager: navigation.search) {
-      VStack {
+      Group {
         if viewModel.isShowingSearchResults {
           searchResultsView
         } else {
-          categoryChipsView
           trendingView
+            .safeAreaInset(edge: .top, spacing: 0) {
+              categoryChipsView
+            }
+            .navigationTitle(viewModel.currentTrendingSection.title)
         }
       }
-      .navigationTitle(navigationTitle)
       .toolbar {
         manualEntryToolbarItem
       }
@@ -50,7 +52,6 @@ struct SearchView: View {
       }
       .padding(.horizontal)
     }
-    .background(Color(uiColor: .systemBackground))
   }
 
   @ViewBuilder
@@ -66,18 +67,14 @@ struct SearchView: View {
           section.icon.coloredImage
             .font(.callout)
           Text(section.title)
-            .font(.subheadline.weight(isSelected ? .semibold : .regular))
+            .font(.subheadline.weight(isSelected ? .bold : .regular))
         }
-        .padding(12)
-        .background(
-          isSelected
-            ? Color.accentColor.opacity(0.15)
-            : Color(uiColor: .secondarySystemBackground)
-        )
+        .padding(6)
         .foregroundColor(isSelected ? .accentColor : .primary)
-        .clipShape(Capsule())
       }
     )
+    .buttonStyle(.glass)
+    .disabled(isSelected)
     .accessibilityLabel("Select trending section: \(section.title)")
   }
 
@@ -217,14 +214,6 @@ struct SearchView: View {
 
   private func errorView(title: String, message: String) -> some View {
     placeholderView(icon: AppIcon.error, title: title, message: message)
-  }
-
-  fileprivate var navigationTitle: String {
-    if viewModel.isShowingSearchResults {
-      return viewModel.trimmedSearchText
-    }
-
-    return viewModel.currentTrendingSection.title
   }
 }
 
