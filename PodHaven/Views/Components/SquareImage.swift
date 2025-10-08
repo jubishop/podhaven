@@ -116,12 +116,25 @@ struct SquareImage: View {
         }
       }
     }
-    .modifier(
-      SquareImageSizing(
-        size: size,
-        sizingMode: sizingMode
-      )
+    .aspectRatio(1, contentMode: .fill)
+    .onGeometryChange(for: CGSize.self) { geometry in
+      geometry.size
+    } action: { newSize in
+      let newValue =
+        switch sizingMode.sizeConstraint {
+        case .both: min(newSize.width, newSize.height)
+        case .width: newSize.width
+        case .height: newSize.height
+        }
+      if newValue > 0 { size.wrappedValue = newValue }
+    }
+    .frame(
+      width: sizingMode.isSelfSizing && sizingMode.sizeConstraint != .width
+        ? size.wrappedValue : nil,
+      height: sizingMode.isSelfSizing && sizingMode.sizeConstraint != .height
+        ? size.wrappedValue : nil
     )
+    .clipped()
   }
 
   func selectable(
@@ -171,35 +184,5 @@ struct SquareImage: View {
         .font(.system(size: size.wrappedValue / 2))
         .frame(width: size.wrappedValue / 2, height: size.wrappedValue / 2)
     }
-  }
-}
-
-// MARK: - SquareImageSizing
-
-private struct SquareImageSizing: ViewModifier {
-  let size: Binding<CGFloat>
-  let sizingMode: SquareImage.SizingMode
-
-  func body(content: Content) -> some View {
-    content
-      .aspectRatio(1, contentMode: .fill)
-      .onGeometryChange(for: CGSize.self) { geometry in
-        geometry.size
-      } action: { newSize in
-        let newValue =
-          switch sizingMode.sizeConstraint {
-          case .both: min(newSize.width, newSize.height)
-          case .width: newSize.width
-          case .height: newSize.height
-          }
-        if newValue > 0 { size.wrappedValue = newValue }
-      }
-      .frame(
-        width: sizingMode.isSelfSizing && sizingMode.sizeConstraint != .width
-          ? size.wrappedValue : nil,
-        height: sizingMode.isSelfSizing && sizingMode.sizeConstraint != .height
-          ? size.wrappedValue : nil
-      )
-      .clipped()
   }
 }
