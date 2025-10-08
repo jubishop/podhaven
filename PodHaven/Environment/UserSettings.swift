@@ -11,7 +11,7 @@ extension Container {
 }
 
 @Observable class UserSettings {
-  @ObservationIgnored @Shared(.appStorage("hideTabBarOnScroll")) var hideTabBarOnScroll = true
+  @ObservationIgnored @Shared(.appStorage("shrinkPlayBarOnScroll")) var shrinkPlayBarOnScroll = true
 
   fileprivate init() {}
 }

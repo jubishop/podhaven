@@ -58,7 +58,7 @@ struct ContentView: View {
       Self.log.trace("New maxY: \(newMaxY)")
       tabMaxY = newMaxY
     }
-    .tabBarMinimizeBehavior(userSettings.hideTabBarOnScroll ? .onScrollDown : .never)
+    .tabBarMinimizeBehavior(userSettings.shrinkPlayBarOnScroll ? .onScrollDown : .never)
     .tabViewBottomAccessory {
       PlayBarAccessory(tabMaxY: tabMaxY)
     }
