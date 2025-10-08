@@ -12,7 +12,7 @@ extension Container: @retroactive AutoRegistering {
     repo.context(.test) { FakeRepo(self.makeRepo()) }.scope(.cached)
     queue.context(.test) { FakeQueue(self.makeQueue()) }.scope(.cached)
 
-    searchServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
+    iTunesServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     feedManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     shareServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     cacheManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)

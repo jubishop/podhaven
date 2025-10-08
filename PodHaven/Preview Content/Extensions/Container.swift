@@ -10,7 +10,7 @@ extension Container: @retroactive AutoRegistering {
     appDB.context(.preview) { AppDB.inMemory() }.scope(.cached)
 
     feedManagerSession.context(.preview) { PreviewHelpers.dataFetcher }
-    searchServiceSession.context(.preview) { PreviewHelpers.dataFetcher }
+    iTunesServiceSession.context(.preview) { PreviewHelpers.dataFetcher }
     shareServiceSession.context(.preview) { PreviewHelpers.dataFetcher }
     cacheManagerSession.context(.preview) { PreviewHelpers.dataFetcher }
     podcastFeedSession.context(.preview) { PreviewHelpers.dataFetcher }

@@ -5,7 +5,7 @@ import Foundation
 import IdentifiedCollections
 
 extension Container {
-  var searchServiceSession: Factory<DataFetchable> {
+  var iTunesServiceSession: Factory<DataFetchable> {
     Factory(self) {
       let configuration = URLSessionConfiguration.ephemeral
       configuration.allowsCellularAccess = true
@@ -18,26 +18,18 @@ extension Container {
     .scope(.cached)
   }
 
-  var searchService: Factory<SearchService> {
-    Factory(self) { SearchService(session: self.searchServiceSession()) }.scope(.cached)
+  var iTunesService: Factory<ITunesService> {
+    Factory(self) { ITunesService(session: self.iTunesServiceSession()) }.scope(.cached)
   }
 }
 
-struct SearchService {
-  // MARK: - Configuration
-
-  private static let baseHost = "itunes.apple.com"
-
+struct ITunesService {
   // MARK: - Initialization
 
   private let session: DataFetchable
-  private let decoder: JSONDecoder
 
   fileprivate init(session: DataFetchable) {
     self.session = session
-    let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .useDefaultKeys
-    self.decoder = decoder
   }
 
   // MARK: - Public API

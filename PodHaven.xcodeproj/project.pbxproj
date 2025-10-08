@@ -95,6 +95,7 @@
 				ErrorTests.swift,
 				FeedManagerTests.swift,
 				HTMLTests.swift,
+				ITunesServiceTests.swift,
 				LogTests.swift,
 				MigrationTests.swift,
 				NavigationTests.swift,
@@ -106,7 +107,6 @@
 				PodcastTests.swift,
 				QueueTests.swift,
 				RefreshManagerTests.swift,
-				SearchServiceTests.swift,
 				ShareServiceTests.swift,
 			);
 			target = 8B9B8B252DCBB25500E574E6 /* PerformanceTests */;

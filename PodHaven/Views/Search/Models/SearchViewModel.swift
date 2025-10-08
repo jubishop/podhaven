@@ -7,7 +7,7 @@ import SwiftUI
 import Tagged
 
 @Observable @MainActor final class SearchViewModel {
-  @ObservationIgnored @DynamicInjected(\.searchService) private var searchService
+  @ObservationIgnored @DynamicInjected(\.iTunesService) private var iTunesService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
 
   private static let log = Log.as(LogSubsystem.SearchView.main)
@@ -151,7 +151,7 @@ import Tagged
       guard let self else { return }
 
       do {
-        let podcasts = try await searchService.topPodcasts(
+        let podcasts = try await iTunesService.topPodcasts(
           genreID: trendingSection.genreID,
           limit: Self.trendingLimit
         )
@@ -215,7 +215,7 @@ import Tagged
     searchState = .loading
 
     do {
-      let unsavedResults = try await searchService.searchedPodcasts(
+      let unsavedResults = try await iTunesService.searchedPodcasts(
         matching: term,
         limit: Self.searchLimit
       )
