@@ -42,9 +42,11 @@ struct EpisodeListView: View {
   }
 
   var episodeImage: some View {
-    SelectableSquareImage(
+    SquareImage(
       image: episode.image,
-      size: .constant(thumbnailSize),
+      sizing: .selfSizing(size: .constant(thumbnailSize))
+    )
+    .selectable(
       isSelected: isSelected,
       isSelecting: isSelecting
     )

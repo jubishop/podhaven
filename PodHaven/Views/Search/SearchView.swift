@@ -158,7 +158,7 @@ struct SearchView: View {
           VStack {
             SquareImage(
               image: podcast.image,
-              sizeConstraint: .width
+              sizing: .selfSizing(constraint: .width)
             )
             Text(podcast.title)
               .font(.caption)

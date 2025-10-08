@@ -114,18 +114,11 @@ struct PlayBar: View {
     Spacer()
   }
 
-  @ViewBuilder
   private var episodeThumbnail: some View {
-    if let image = viewModel.episodeImage {
-      Image(uiImage: image)
-        .resizable()
-        .aspectRatio(contentMode: .fill)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    } else {
-      RoundedRectangle(cornerRadius: 8)
-        .aspectRatio(contentMode: .fill)
-        .overlay(AppIcon.audioPlaceholder.coloredImage)
-    }
+    SquareImage(
+      image: viewModel.episodeImage,
+      sizing: .fillParent
+    )
   }
 }
 
