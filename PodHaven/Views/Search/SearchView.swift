@@ -178,9 +178,8 @@ struct SearchView: View {
   }
 
   private var subscribedBadge: some View {
-    Image(systemName: "checkmark.circle.fill")
-      .font(.system(size: 14, weight: .semibold))
-      .foregroundStyle(.green, .white)
+    AppIcon.subscribed.coloredImage
+      .font(.system(size: 16, weight: .semibold))
       .padding(4)
       .background(.ultraThinMaterial, in: Circle())
       .shadow(radius: 1)
