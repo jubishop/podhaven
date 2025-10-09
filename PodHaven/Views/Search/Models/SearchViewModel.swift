@@ -240,7 +240,7 @@ import Tagged
 
   // MARK: - Observations
 
-  func observeCurrentDisplay() {
+  private func observeCurrentDisplay() {
     if isShowingSearchResults {
       restartObservationForSearchResults()
     } else {
@@ -319,8 +319,8 @@ import Tagged
 
   // MARK: - Disappear
 
-  func stopTasks() {
-    Self.log.debug("stopping all search tasks")
+  func disappear() {
+    Self.log.debug("disappear: executing")
 
     searchTask?.cancel()
     searchTask = nil
@@ -330,12 +330,7 @@ import Tagged
       trendingSection.task?.cancel()
       trendingSection.task = nil
     }
-  }
 
-  func disappear() {
-    Self.log.debug("disappear: executing")
-
-    stopTasks()
     searchText = ""
   }
 }

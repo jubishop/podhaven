@@ -37,13 +37,10 @@ struct SearchView: View {
       prompt: Text("Search podcasts")
     )
     .task(viewModel.execute)
-    .onChange(of: navigation.search.path) { _, path in
-      if path.isEmpty { viewModel.observeCurrentDisplay() } else { viewModel.stopTasks() }
-    }
     .onDisappear { viewModel.disappear() }
   }
 
-  // MARK: - Content Builders
+  // MARK: - Trending Chips
 
   @ViewBuilder
   private var categoryChipsView: some View {
@@ -80,6 +77,8 @@ struct SearchView: View {
     .disabled(isSelected)
     .accessibilityLabel("Select trending section: \(section.title)")
   }
+
+  // MARK: - Grid Views
 
   @ViewBuilder
   private var searchResultsView: some View {
@@ -151,7 +150,7 @@ struct SearchView: View {
     }
   }
 
-  // MARK: - Section Grids
+  // MARK: - Grid Items
 
   @ViewBuilder
   private func resultsGrid(podcasts: IdentifiedArrayOf<DisplayedPodcast>) -> some View {
