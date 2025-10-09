@@ -160,7 +160,7 @@ struct SearchView: View {
         label: {
           VStack {
             SquareImage(image: podcast.image)
-              .overlay(alignment: .topTrailing) {
+              .overlay(alignment: .bottomTrailing) {
                 if podcast.subscribed {
                   subscribedBadge
                 }
