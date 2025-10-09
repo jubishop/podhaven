@@ -264,7 +264,7 @@ import Tagged
         if searchResults[id: podcast.feedURL] != nil {
           searchResults[id: podcast.feedURL] = DisplayedPodcast(podcast)
         } else {
-          Self.log.notice("Podcast \(podcast.toString) not showing in search?")
+          Self.log.notice("Observed podcast: \(podcast.toString) not showing in search?")
         }
       }
     }
@@ -284,7 +284,7 @@ import Tagged
         if trendingSection.podcasts[id: podcast.feedURL] != nil {
           trendingSection.podcasts[id: podcast.feedURL] = DisplayedPodcast(podcast)
         } else {
-          Self.log.notice("Podcast \(podcast.toString) not showing in trending?")
+          Self.log.notice("Observed podcast: \(podcast.toString) not showing in trending?")
         }
       }
     }
