@@ -17,6 +17,7 @@ struct SquareImage: View {
 
   enum SizingMode {
     case selfSizing(Binding<CGFloat>?, SizeConstraint)
+    case fixed(CGFloat)
     case fillParent
 
     static func selfSizing(
@@ -26,16 +27,31 @@ struct SquareImage: View {
       .selfSizing(size, constraint)
     }
 
-    var isSelfSizing: Bool {
-      if case .selfSizing = self { return true }
-      return false
+    var needsExplicitFrame: Bool {
+      switch self {
+      case .selfSizing, .fixed:
+        return true
+      case .fillParent:
+        return false
+      }
     }
 
     var sizeConstraint: SizeConstraint {
-      if case .selfSizing(_, let constraint) = self {
+      switch self {
+      case .selfSizing(_, let constraint):
         return constraint
+      case .fixed, .fillParent:
+        return .both
       }
-      return .both
+    }
+
+    var updatesFromGeometry: Bool {
+      switch self {
+      case .selfSizing, .fillParent:
+        return true
+      case .fixed:
+        return false
+      }
     }
   }
 
@@ -47,10 +63,23 @@ struct SquareImage: View {
   private let placeholderIcon: AppIcon
 
   private var size: Binding<CGFloat> {
-    if case .selfSizing(let externalSize, _) = sizingMode, let externalSize {
-      return externalSize
+    switch sizingMode {
+    case .selfSizing(let externalSize, _):
+      return externalSize ?? $internalSize
+    case .fillParent:
+      return $internalSize
+    case .fixed(let value):
+      return .constant(value)
     }
-    return $internalSize
+  }
+
+  private var currentSize: CGFloat {
+    switch sizingMode {
+    case .fixed(let value):
+      return value
+    default:
+      return size.wrappedValue
+    }
   }
 
   private init(
@@ -120,19 +149,22 @@ struct SquareImage: View {
     .onGeometryChange(for: CGSize.self) { geometry in
       geometry.size
     } action: { newSize in
+      guard sizingMode.updatesFromGeometry else { return }
       let newValue =
         switch sizingMode.sizeConstraint {
         case .both: min(newSize.width, newSize.height)
         case .width: newSize.width
         case .height: newSize.height
         }
-      if newValue > 0 { size.wrappedValue = newValue }
+      if newValue > 0, currentSize != newValue {
+        size.wrappedValue = newValue
+      }
     }
     .frame(
-      width: sizingMode.isSelfSizing && sizingMode.sizeConstraint != .width
-        ? size.wrappedValue : nil,
-      height: sizingMode.isSelfSizing && sizingMode.sizeConstraint != .height
-        ? size.wrappedValue : nil
+      width: sizingMode.needsExplicitFrame && sizingMode.sizeConstraint != .width
+        ? currentSize : nil,
+      height: sizingMode.needsExplicitFrame && sizingMode.sizeConstraint != .height
+        ? currentSize : nil
     )
     .clipped()
   }
@@ -152,8 +184,8 @@ struct SquareImage: View {
       }
       .overlay(alignment: .bottomTrailing) {
         if isSelecting {
-          let buttonSize = max(24, size.wrappedValue * 0.2)
-          let buttonPadding = max(8, size.wrappedValue * 0.08)
+          let buttonSize = max(24, currentSize * 0.2)
+          let buttonPadding = max(8, currentSize * 0.08)
           Button(
             action: {
               isSelected.wrappedValue.toggle()
@@ -170,7 +202,7 @@ struct SquareImage: View {
                 )
             }
           )
-          .buttonStyle(BorderlessButtonStyle())
+          .buttonStyle(.borderless)
           .padding(buttonPadding)
         }
       }
@@ -178,11 +210,11 @@ struct SquareImage: View {
 
   private var placeholderView: some View {
     ZStack {
-      Color.gray
+      Color(.secondarySystemFill)
         .cornerRadius(cornerRadius)
       placeholderIcon.coloredImage
-        .font(.system(size: size.wrappedValue / 2))
-        .frame(width: size.wrappedValue / 2, height: size.wrappedValue / 2)
+        .font(.system(size: currentSize / 2))
+        .frame(width: currentSize / 2, height: currentSize / 2)
     }
   }
 }
