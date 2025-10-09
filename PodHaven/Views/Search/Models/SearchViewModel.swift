@@ -260,8 +260,12 @@ import Tagged
       guard let self else { return }
 
       Self.log.debug("Now updating \(podcasts.count) podcasts for \(searchText)")
-      for podcast in podcasts where searchResults[id: podcast.feedURL] != nil {
-        searchResults[id: podcast.feedURL] = DisplayedPodcast(podcast)
+      for podcast in podcasts {
+        if searchResults[id: podcast.feedURL] != nil {
+          searchResults[id: podcast.feedURL] = DisplayedPodcast(podcast)
+        } else {
+          Self.log.notice("Podcast \(podcast.toString) not showing in search?")
+        }
       }
     }
   }
@@ -276,8 +280,12 @@ import Tagged
 
     restartObservation(feedURLs: trendingSection.podcasts.map(\.feedURL)) { podcasts in
       Self.log.debug("Now updating \(podcasts.count) podcasts for \(trendingSection.title)")
-      for podcast in podcasts where trendingSection.podcasts[id: podcast.feedURL] != nil {
-        trendingSection.podcasts[id: podcast.feedURL] = DisplayedPodcast(podcast)
+      for podcast in podcasts {
+        if trendingSection.podcasts[id: podcast.feedURL] != nil {
+          trendingSection.podcasts[id: podcast.feedURL] = DisplayedPodcast(podcast)
+        } else {
+          Self.log.notice("Podcast \(podcast.toString) not showing in trending?")
+        }
       }
     }
   }
