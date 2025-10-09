@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import IdentifiedCollections
 import Logging
 import SwiftUI
 import Tagged
@@ -9,6 +10,7 @@ import Tagged
 @Observable @MainActor final class SearchViewModel {
   @ObservationIgnored @DynamicInjected(\.iTunesService) private var iTunesService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
+  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
 
   private static let log = Log.as(LogSubsystem.SearchView.main)
 
@@ -33,31 +35,17 @@ import Tagged
     let genreID: Int?
     let icon: AppIcon
 
-    fileprivate(set) var state: LoadingState
-    fileprivate(set) var podcasts: [UnsavedPodcast]
+    fileprivate(set) var state: LoadingState = .idle
+    fileprivate(set) var podcasts: IdentifiedArrayOf<DisplayedPodcast> = []
 
     fileprivate var task: Task<Void, Never>? = nil
 
-    init(
-      genreID: Int?,
-      icon: AppIcon,
-      state: LoadingState = .idle,
-      podcasts: [UnsavedPodcast] = []
-    ) {
+    init(genreID: Int?, icon: AppIcon) {
       self.genreID = genreID
       self.icon = icon
-      self.state = state
-      self.podcasts = podcasts
     }
 
     var title: String { icon.text }
-
-    func disappear() {
-      task?.cancel()
-      task = nil
-      podcasts = []
-      state = .idle
-    }
 
     // MARK: - Hashable / Identifiable
 
@@ -87,10 +75,11 @@ import Tagged
     }
   }
   var trimmedSearchText: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
-  var searchResults: [UnsavedPodcast] = []
+  var searchResults: IdentifiedArrayOf<DisplayedPodcast> = []
   var isShowingSearchResults: Bool { !trimmedSearchText.isEmpty }
 
   @ObservationIgnored private var searchTask: Task<Void, Never>?
+  @ObservationIgnored private var podcastObservationTask: Task<Void, Never>?
 
   // MARK: - Initialization
 
@@ -114,13 +103,15 @@ import Tagged
   }
 
   func execute() {
-    loadTrendingSection(currentTrendingSection)
+    Self.log.debug("execute: executing")
+    selectTrendingSection(currentTrendingSection)
   }
 
   // MARK: - Trending
 
   func selectTrendingSection(_ trendingSection: TrendingSection) {
     currentTrendingSection = trendingSection
+    observeCurrentDisplay()
     loadTrendingSection(trendingSection)
   }
 
@@ -150,33 +141,41 @@ import Tagged
     let task = Task { [weak self, trendingSection] in
       guard let self else { return }
 
-      do {
-        let podcasts = try await iTunesService.topPodcasts(
-          genreID: trendingSection.genreID,
-          limit: Self.trendingLimit
-        )
-        try Task.checkCancellation()
-
-        if podcasts.isEmpty {
-          trendingSection.podcasts = []
-          trendingSection.state = .error("No podcasts available in this category right now.")
-        } else {
-          trendingSection.podcasts = podcasts
-          trendingSection.state = .loaded
-        }
-      } catch {
-        Self.log.error(error, mundane: .trace)
-        guard !Task.isCancelled else { return }
-
-        trendingSection.podcasts = []
-        trendingSection.state = .error(ErrorKit.coreMessage(for: error))
-      }
+      await executeTrendingSectionFetch(trendingSection)
 
       trendingSection.task = nil
+      observeCurrentDisplay()
     }
 
     trendingSection.task = task
     return task
+  }
+
+  private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) async {
+    do {
+      let podcasts = try await iTunesService.topPodcasts(
+        genreID: trendingSection.genreID,
+        limit: Self.trendingLimit
+      )
+      try Task.checkCancellation()
+
+      if podcasts.isEmpty {
+        trendingSection.podcasts = []
+        trendingSection.state = .error("No podcasts available in this category right now.")
+      } else {
+        trendingSection.podcasts = IdentifiedArray(
+          podcasts.map(DisplayedPodcast.init),
+          uniquingIDsWith: { _, new in new }
+        )
+        trendingSection.state = .loaded
+      }
+    } catch {
+      Self.log.error(error, mundane: .trace)
+      guard !Task.isCancelled else { return }
+
+      trendingSection.podcasts = []
+      trendingSection.state = .error(ErrorKit.coreMessage(for: error))
+    }
   }
 
   // MARK: - Searching
@@ -193,9 +192,10 @@ import Tagged
     let task = Task { [weak self, trimmedSearchText] in
       guard let self else { return }
 
-      guard !trimmedSearchText.isEmpty else {
+      guard isShowingSearchResults else {
         searchState = .idle
         searchResults = []
+        observeCurrentDisplay()
         return
       }
 
@@ -205,6 +205,8 @@ import Tagged
       }
 
       await executeSearch(for: trimmedSearchText)
+
+      observeCurrentDisplay()
     }
 
     searchTask = task
@@ -222,7 +224,10 @@ import Tagged
       try Task.checkCancellation()
       guard term == trimmedSearchText else { return }
 
-      searchResults = unsavedResults
+      searchResults = IdentifiedArray(
+        unsavedResults.map(DisplayedPodcast.init),
+        uniquingIDsWith: { _, new in new }
+      )
       searchState = .loaded
     } catch {
       Self.log.error(error, mundane: .trace)
@@ -233,14 +238,90 @@ import Tagged
     }
   }
 
+  // MARK: - Observations
+
+  private func observeCurrentDisplay() {
+    if isShowingSearchResults {
+      restartObservationForSearchResults()
+    } else {
+      restartObservationForTrendingSection(currentTrendingSection)
+    }
+  }
+
+  private func restartObservationForSearchResults() {
+    Self.log.debug(
+      """
+      restartObservationForSearchResults: \(searchText)
+        \(searchResults.count) search results.
+      """
+    )
+
+    restartObservation(feedURLs: searchResults.map(\.feedURL)) { [weak self] podcasts in
+      guard let self else { return }
+
+      Self.log.debug("Now updating \(podcasts.count) podcasts for \(searchText)")
+      for podcast in podcasts where searchResults[id: podcast.feedURL] != nil {
+        searchResults[id: podcast.feedURL] = DisplayedPodcast(podcast)
+      }
+    }
+  }
+
+  private func restartObservationForTrendingSection(_ trendingSection: TrendingSection) {
+    Self.log.debug(
+      """
+      restartObservationForTrendingSection: \(trendingSection.title)
+        \(trendingSection.podcasts.count) trending podcasts.
+      """
+    )
+
+    restartObservation(feedURLs: trendingSection.podcasts.map(\.feedURL)) { podcasts in
+      Self.log.debug("Now updating \(podcasts.count) podcasts for \(trendingSection.title)")
+      for podcast in podcasts where trendingSection.podcasts[id: podcast.feedURL] != nil {
+        trendingSection.podcasts[id: podcast.feedURL] = DisplayedPodcast(podcast)
+      }
+    }
+  }
+
+  private func restartObservation(
+    feedURLs: [FeedURL],
+    update: @escaping ([Podcast]) -> Void
+  ) {
+    podcastObservationTask?.cancel()
+
+    guard !feedURLs.isEmpty else {
+      podcastObservationTask = nil
+      return
+    }
+
+    podcastObservationTask = Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        for try await podcasts in observatory.podcasts(feedURLs) {
+          try Task.checkCancellation()
+          Self.log.debug("Observed \(podcasts.count) new podcasts")
+          update(podcasts)
+        }
+      } catch {
+        guard ErrorKit.isRemarkable(error) else { return }
+        Self.log.error(error, mundane: .trace)
+      }
+    }
+  }
+
   // MARK: - Disappear
 
   func disappear() {
     Self.log.debug("disappear: executing")
 
-    searchText = ""
+    searchTask?.cancel()
+    searchTask = nil
+    podcastObservationTask?.cancel()
+    podcastObservationTask = nil
     for trendingSection in trendingSections {
-      trendingSection.disappear()
+      trendingSection.task?.cancel()
+      trendingSection.task = nil
     }
+    searchText = ""
   }
 }

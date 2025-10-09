@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
+import IdentifiedCollections
 import SwiftUI
 
 struct SearchView: View {
@@ -92,7 +93,7 @@ struct SearchView: View {
 
       case .loading, .loaded:
         if !viewModel.searchResults.isEmpty {
-          resultsGrid(unsavedPodcasts: viewModel.searchResults)
+          resultsGrid(podcasts: viewModel.searchResults)
             .overlay(alignment: .top) {
               if state == .loading {
                 loadingView(text: "Searching…")
@@ -127,7 +128,7 @@ struct SearchView: View {
       switch state {
       case .loaded, .loading, .idle:
         if !section.podcasts.isEmpty {
-          resultsGrid(unsavedPodcasts: section.podcasts)
+          resultsGrid(podcasts: section.podcasts)
             .overlay(alignment: .top) {
               if state == .loading {
                 loadingView(text: "Fetching top \(section.title) podcasts…")
@@ -150,13 +151,18 @@ struct SearchView: View {
   // MARK: - Section Grids
 
   @ViewBuilder
-  private func resultsGrid(unsavedPodcasts: [UnsavedPodcast]) -> some View {
-    ItemGrid(items: unsavedPodcasts) { podcast in
+  private func resultsGrid(podcasts: IdentifiedArrayOf<DisplayedPodcast>) -> some View {
+    ItemGrid(items: podcasts) { podcast in
       NavigationLink(
-        value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
+        value: Navigation.Destination.podcast(podcast),
         label: {
           VStack {
             SquareImage(image: podcast.image)
+              .overlay(alignment: .topTrailing) {
+                if podcast.subscribed {
+                  subscribedBadge
+                }
+              }
             Text(podcast.title)
               .font(.caption)
               .lineLimit(1)
@@ -167,6 +173,15 @@ struct SearchView: View {
     }
     .padding(.horizontal)
     .padding(.top)
+  }
+
+  private var subscribedBadge: some View {
+    Image(systemName: "checkmark.circle.fill")
+      .font(.system(size: 14, weight: .semibold))
+      .foregroundStyle(.green, .white)
+      .padding(4)
+      .background(.ultraThinMaterial, in: Circle())
+      .shadow(radius: 1)
   }
 
   // MARK: - Toolbar
