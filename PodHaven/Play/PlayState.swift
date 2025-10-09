@@ -64,7 +64,7 @@ extension Container {
 
     Task { [weak self] in
       guard let self else { return }
-      for try await maxQueuePosition in self.observatory.maxQueuePosition() {
+      for try await maxQueuePosition in observatory.maxQueuePosition() {
         Self.log.debug(
           "Updating observed max queue position: \(String(describing: maxQueuePosition))"
         )
