@@ -74,28 +74,11 @@ struct PodcastDetailView: View {
 
   private var headerView: some View {
     HStack(alignment: .top, spacing: 16) {
-      PodLazyImage(url: viewModel.podcast.image) { state in
-        if let image = state.image {
-          image
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-        } else {
-          Rectangle()
-            .fill(Color.gray.opacity(0.3))
-            .overlay(
-              VStack {
-                AppIcon.noImage.coloredImage
-                  .font(.title)
-                Text("No Image")
-                  .font(.caption)
-                  .foregroundColor(.white.opacity(0.8))
-              }
-            )
-        }
-      }
-      .frame(width: 128, height: 128)
-      .clipped()
-      .cornerRadius(12)
+      SquareImage(
+        image: viewModel.podcast.image,
+        cornerRadius: 12,
+        sizing: .fixed(128)
+      )
 
       VStack(alignment: .leading, spacing: 4) {
         Text(viewModel.podcast.title)

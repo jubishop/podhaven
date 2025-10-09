@@ -16,28 +16,11 @@ struct EpisodeDetailView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
         VStack(alignment: .center, spacing: 16) {
-          PodLazyImage(url: viewModel.episode.image) { state in
-            if let image = state.image {
-              image
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-            } else {
-              Rectangle()
-                .fill(Color.gray.opacity(0.3))
-                .overlay(
-                  VStack {
-                    AppIcon.noImage.coloredImage
-                      .font(.title)
-                    Text("No Image")
-                      .font(.caption)
-                      .foregroundColor(.primary.opacity(0.8))
-                  }
-                )
-            }
-          }
-          .frame(width: 200, height: 200)
-          .clipped()
-          .cornerRadius(12)
+          SquareImage(
+            image: viewModel.episode.image,
+            cornerRadius: 12,
+            sizing: .fixed(200)
+          )
           .shadow(radius: 4)
 
           VStack(spacing: 8) {
