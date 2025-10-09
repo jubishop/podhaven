@@ -10,7 +10,6 @@ struct EpisodeListView: View {
   @InjectedObservable(\.playState) private var playState
   @InjectedObservable(\.cacheState) private var cacheState
 
-  private let thumbnailSize: CGFloat = 64
   private let statusIconSize: CGFloat = 12
   private let metadataIconSize: CGFloat = 12
 
@@ -44,13 +43,12 @@ struct EpisodeListView: View {
   var episodeImage: some View {
     SquareImage(
       image: episode.image,
-      sizing: .fixed(thumbnailSize)
+      sizing: .fixed(64)
     )
     .selectable(
       isSelected: isSelected,
       isSelecting: isSelecting
     )
-    .frame(width: thumbnailSize)
   }
 
   var statusIconColumn: some View {

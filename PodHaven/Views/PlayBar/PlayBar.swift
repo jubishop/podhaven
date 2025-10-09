@@ -117,7 +117,6 @@ struct PlayBar: View {
   private var episodeThumbnail: some View {
     SquareImage(
       image: viewModel.episodeImage,
-      sizing: .fillParent,
       placeholderIcon: .audioPlaceholder
     )
   }

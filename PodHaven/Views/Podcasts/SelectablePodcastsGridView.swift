@@ -46,14 +46,11 @@ struct SelectablePodcastsGridView: View {
           value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
           label: {
             VStack {
-              SquareImage(
-                image: podcast.image,
-                sizing: .selfSizing(constraint: .width)
-              )
-              .selectable(
-                isSelected: $viewModel.podcastList.isSelected[podcast.id],
-                isSelecting: viewModel.isSelecting
-              )
+              SquareImage(image: podcast.image)
+                .selectable(
+                  isSelected: $viewModel.podcastList.isSelected[podcast.id],
+                  isSelecting: viewModel.isSelecting
+                )
               Text(podcast.title)
                 .font(.caption)
                 .lineLimit(1)
