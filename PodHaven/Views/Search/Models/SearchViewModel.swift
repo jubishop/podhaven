@@ -78,6 +78,7 @@ import Tagged
   var searchResults: IdentifiedArrayOf<DisplayedPodcast> = []
   var isShowingSearchResults: Bool { !trimmedSearchText.isEmpty }
 
+  private(set) var redrawID = UUID()
   @ObservationIgnored private var searchTask: Task<Void, Never>?
   @ObservationIgnored private var podcastObservationTask: Task<Void, Never>?
 
@@ -105,6 +106,10 @@ import Tagged
   func execute() {
     Self.log.debug("execute: executing")
     selectTrendingSection(currentTrendingSection)
+  }
+
+  func redraw() {
+    redrawID = UUID()
   }
 
   // MARK: - Trending
