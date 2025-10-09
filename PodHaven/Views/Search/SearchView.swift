@@ -27,7 +27,6 @@ struct SearchView: View {
             .navigationTitle(viewModel.currentTrendingSection.title)
         }
       }
-      .id(viewModel.redrawID)
       .toolbar {
         manualEntryToolbarItem
       }
@@ -39,7 +38,7 @@ struct SearchView: View {
     )
     .task(viewModel.execute)
     .onChange(of: navigation.search.path) { _, path in
-      if path.isEmpty { viewModel.redraw() }
+      if path.isEmpty { viewModel.observeCurrentDisplay() } else { viewModel.stopTasks() }
     }
     .onDisappear { viewModel.disappear() }
   }

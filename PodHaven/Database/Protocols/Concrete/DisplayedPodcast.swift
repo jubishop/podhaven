@@ -36,11 +36,21 @@ struct DisplayedPodcast:
   // MARK: - Hashable / Equatable
 
   func hash(into hasher: inout Hasher) {
-    hasher.combine(podcast.feedURL)
+    hasher.combine(feedURL)
+    hasher.combine(image)
+    hasher.combine(title)
+    hasher.combine(description)
+    hasher.combine(link)
+    hasher.combine(subscribed)
   }
 
   static func == (lhs: DisplayedPodcast, rhs: DisplayedPodcast) -> Bool {
     lhs.feedURL == rhs.feedURL
+      && lhs.image == rhs.image
+      && lhs.title == rhs.title
+      && lhs.description == rhs.description
+      && lhs.link == rhs.link
+      && lhs.subscribed == rhs.subscribed
   }
 
   // MARK: - Stringable
