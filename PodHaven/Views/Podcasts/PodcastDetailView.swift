@@ -77,7 +77,7 @@ struct PodcastDetailView: View {
       SquareImage(
         image: viewModel.podcast.image,
         cornerRadius: 12,
-        sizing: .fixed(128)
+        size: 128
       )
 
       VStack(alignment: .leading, spacing: 4) {

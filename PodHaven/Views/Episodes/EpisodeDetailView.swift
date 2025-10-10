@@ -19,7 +19,7 @@ struct EpisodeDetailView: View {
           SquareImage(
             image: viewModel.episode.image,
             cornerRadius: 12,
-            sizing: .fixed(200)
+            size: 200
           )
           .shadow(radius: 4)
 

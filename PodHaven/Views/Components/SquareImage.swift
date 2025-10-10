@@ -9,69 +9,39 @@ struct SquareImage: View {
     case uiImage(UIImage?)
   }
 
-  enum SizingMode {
-    case fixed(CGFloat)
-    case fillParent
-
-    var fixedDimension: CGFloat? {
-      if case .fixed(let value) = self { value } else { nil }
-    }
-  }
-
-  @State private var internalSize: CGFloat = 100
+  private let size: CGFloat?
+  @State private var internalSize: CGFloat = 0
 
   private let imageSource: ImageSource
   private let cornerRadius: CGFloat
-  private let sizingMode: SizingMode
   private let placeholderIcon: AppIcon
 
   private var currentSize: CGFloat {
-    switch sizingMode {
-    case .fixed(let value):
-      return value
-    case .fillParent:
-      return internalSize
-    }
-  }
-
-  private init(
-    imageSource: ImageSource,
-    cornerRadius: CGFloat = 8,
-    sizing: SizingMode = .fillParent,
-    placeholderIcon: AppIcon = .noImage
-  ) {
-    self.imageSource = imageSource
-    self.cornerRadius = cornerRadius
-    self.sizingMode = sizing
-    self.placeholderIcon = placeholderIcon
+    size ?? internalSize
   }
 
   init(
     image: URL,
     cornerRadius: CGFloat = 8,
-    sizing: SizingMode = .fillParent,
+    size: CGFloat? = nil,
     placeholderIcon: AppIcon = .noImage
   ) {
-    self.init(
-      imageSource: .url(image),
-      cornerRadius: cornerRadius,
-      sizing: sizing,
-      placeholderIcon: placeholderIcon
-    )
+    self.imageSource = .url(image)
+    self.cornerRadius = cornerRadius
+    self.size = size
+    self.placeholderIcon = placeholderIcon
   }
 
   init(
     image: UIImage?,
     cornerRadius: CGFloat = 8,
-    sizing: SizingMode = .fillParent,
+    size: CGFloat? = nil,
     placeholderIcon: AppIcon = .noImage
   ) {
-    self.init(
-      imageSource: .uiImage(image),
-      cornerRadius: cornerRadius,
-      sizing: sizing,
-      placeholderIcon: placeholderIcon
-    )
+    self.imageSource = .uiImage(image)
+    self.cornerRadius = cornerRadius
+    self.size = size
+    self.placeholderIcon = placeholderIcon
   }
 
   var body: some View {
@@ -101,14 +71,13 @@ struct SquareImage: View {
     .onGeometryChange(for: CGSize.self) { geometry in
       geometry.size
     } action: { newSize in
-      if case .fillParent = sizingMode {
-        let newValue = min(newSize.width, newSize.height)
-        if newValue > 0, internalSize != newValue {
-          internalSize = newValue
-        }
+      if size != nil { return }
+      let newValue = min(newSize.width, newSize.height)
+      if newValue > 0, internalSize != newValue {
+        internalSize = newValue
       }
     }
-    .frame(width: sizingMode.fixedDimension, height: sizingMode.fixedDimension)
+    .frame(width: size, height: size)
     .clipped()
   }
 
