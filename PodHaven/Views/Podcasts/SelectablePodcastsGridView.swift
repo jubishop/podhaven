@@ -18,13 +18,6 @@ struct SelectablePodcastsGridView: View {
   }
 
   var body: some View {
-    SearchBar(
-      text: $viewModel.podcastList.entryFilter,
-      placeholder: "Filter podcasts",
-      searchIcon: .filter
-    )
-    .padding(.horizontal)
-
     ScrollView {
       ItemGrid(items: viewModel.podcastList.filteredEntries) {
         podcastWithLatestEpisodeDates in
@@ -53,6 +46,19 @@ struct SelectablePodcastsGridView: View {
       }
       .padding()
     }
+    //    .safeAreaInset(edge: .top, spacing: 0) {
+    //      SearchBar(
+    //        text: $viewModel.podcastList.entryFilter,
+    //        prompt: "Filter podcasts",
+    //        searchIcon: .search
+    //      )
+    //      .padding(.horizontal)
+    //    }
+    .searchable(
+      text: $viewModel.podcastList.entryFilter,
+      placement: .navigationBarDrawer(displayMode: .always),
+      prompt: "Filter podcasts"
+    )
     .navigationTitle(viewModel.title)
     .refreshable {
       do {
@@ -109,11 +115,12 @@ struct SelectablePodcastsGridView: View {
             pubDate: Date().addingTimeInterval(-3600 * 24 * Double(i * 7 + j)),
             duration: CMTime.seconds(Double.random(in: 1800...4500)),
             currentTime: j % 2 == 0 ? CMTime.seconds(Double.random(in: 60...300)) : nil,
-            queueOrder: j % 2 == 0 ? {
-              let current = queueOrder
-              queueOrder += 1
-              return current
-            }() : nil,
+            queueOrder: j % 2 == 0
+              ? {
+                let current = queueOrder
+                queueOrder += 1
+                return current
+              }() : nil,
             cachedFilename: j % 2 == 0 ? "cached_\(i)_\(j).mp3" : nil
           )
           episodes.append(episode)

@@ -8,7 +8,7 @@ struct SearchBar: View {
   private let fontSize = UIFont.preferredFont(forTextStyle: .body).pointSize
 
   @Binding var text: String
-  var placeholder: String = "Search..."
+  var prompt: String
   var searchIcon: AppIcon
 
   var body: some View {
@@ -16,7 +16,7 @@ struct SearchBar: View {
       HStack {
         searchIcon.image
 
-        TextField(placeholder, text: $text)
+        TextField(prompt, text: $text)
           .focused($isFocused)
           .textInputAutocapitalization(.never)
           .disableAutocorrection(true)
@@ -44,7 +44,7 @@ struct SearchBar: View {
   @Previewable @State var demo: String = ""
 
   VStack(spacing: 24) {
-    SearchBar(text: $text, searchIcon: AppIcon.search)
+    SearchBar(text: $text, prompt: "Search", searchIcon: AppIcon.search)
     TextField("Random focus field", text: $demo)
   }
 }

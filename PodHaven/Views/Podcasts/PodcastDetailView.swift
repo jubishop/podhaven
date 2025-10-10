@@ -164,7 +164,7 @@ struct PodcastDetailView: View {
     .safeAreaInset(edge: .top, spacing: 0) {
       SearchBar(
         text: $viewModel.episodeList.entryFilter,
-        placeholder: "Filter episodes",
+        prompt: "Filter episodes",
         searchIcon: .search
       )
       .padding(.top, 4)
