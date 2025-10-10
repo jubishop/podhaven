@@ -9,22 +9,28 @@ struct SearchBar: View {
 
   @Binding var text: String
   var placeholder: String = "Search..."
-  var imageName: String = AppIcon.search.systemImageName
+  var searchIcon: AppIcon
 
   var body: some View {
     HStack {
-      Image(systemName: imageName)
+      HStack {
+        searchIcon.image
 
-      TextField(placeholder, text: $text)
-        .focused($isFocused)
-        .textInputAutocapitalization(.never)
-        .disableAutocorrection(true)
+        TextField(placeholder, text: $text)
+          .focused($isFocused)
+          .textInputAutocapitalization(.never)
+          .disableAutocorrection(true)
+      }
+      .padding()
+      .glassEffect(.regular)
 
       if isFocused || !text.isEmpty {
-        AppIcon.clearSearch.imageButton {
-          text = ""
-          isFocused = false
-        }
+        AppIcon.clearSearch
+          .imageButton {
+            text = ""
+            isFocused = false
+          }
+          .buttonStyle(.glass)
       }
     }
   }
@@ -36,7 +42,7 @@ struct SearchBar: View {
   @Previewable @State var demo: String = ""
 
   VStack(spacing: 20) {
-    SearchBar(text: $text)
+    SearchBar(text: $text, searchIcon: AppIcon.search)
     TextField("Random focus field", text: $demo)
   }
 }

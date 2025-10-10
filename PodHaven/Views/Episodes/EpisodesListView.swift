@@ -38,7 +38,7 @@ struct EpisodesListView: View {
       SearchBar(
         text: $viewModel.episodeList.entryFilter,
         placeholder: "Filter episodes",
-        imageName: AppIcon.filter.systemImageName
+        searchIcon: .filter
       )
       .padding(.horizontal)
     }
