@@ -99,7 +99,7 @@ struct EpisodeDetailView: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.accentColor)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .cornerRadius(10)
               }
 

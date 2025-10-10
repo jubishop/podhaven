@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import FactoryKit
 import SwiftUI
 
@@ -43,7 +44,7 @@ struct UpNextView: View {
           .sharedBackgroundVisibility(.hidden)
 
           ToolbarItem(placement: .topBarTrailing) {
-            Menu("Sort") {
+            Menu {
               ForEach(viewModel.allSortMethods, id: \.self) { method in
                 Button(
                   action: { viewModel.sort(by: method) },
@@ -51,6 +52,8 @@ struct UpNextView: View {
                 )
                 .tint(method.menuIconColor)
               }
+            } label: {
+              AppIcon.sort.coloredImage
             }
           }
         }
@@ -82,3 +85,40 @@ struct UpNextView: View {
     }
   }
 }
+
+// MARK: - Preview
+
+#if DEBUG
+#Preview("Up Next") {
+  UpNextView(viewModel: UpNextViewModel())
+    .preview()
+    .task {
+      do {
+        let repo = Container.shared.repo()
+        let allThumbnails = PreviewBundle.loadAllThumbnails()
+
+        // Create multiple episodes for this podcast - all queued
+        var queueOrder = 0
+        var episodes: [UnsavedEpisode] = []
+        for j in 0..<24 {
+          let duration = CMTime.seconds(Double.random(in: 1200...3600))
+          let episode = try Create.unsavedEpisode(
+            title: "Episode \(j + 1) - \(String.random())",
+            pubDate: j.daysAgo,
+            duration: duration,
+            image: allThumbnails.randomElement()!.value.url,
+            currentTime: CMTime.seconds(Double.random(in: 0..<duration.seconds)),
+            queueOrder: queueOrder,
+            cachedFilename: j % 3 == 0 ? "cached_\(j).mp3" : nil
+          )
+          episodes.append(episode)
+          queueOrder += 1
+        }
+
+        _ = try await repo.insertSeries(try Create.unsavedPodcast(), unsavedEpisodes: episodes)
+      } catch {
+        print("Preview error: \(error)")
+      }
+    }
+}
+#endif

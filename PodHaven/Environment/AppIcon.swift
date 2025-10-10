@@ -248,8 +248,8 @@ enum AppIcon: CaseIterable {
     init(
       text: String,
       systemImageName: SystemImageName,
-      darkColor: Color = .accentColor,
-      lightColor: Color = .accentColor
+      darkColor: Color,
+      lightColor: Color
     ) {
       self.text = text
       self.systemImageName = systemImageName
@@ -260,7 +260,7 @@ enum AppIcon: CaseIterable {
     init(
       text: String,
       systemImageName: SystemImageName,
-      color: Color
+      color: Color = .accentColor
     ) {
       self.text = text
       self.systemImageName = systemImageName
@@ -317,12 +317,7 @@ enum AppIcon: CaseIterable {
     case .delete:
       return Data(text: "Delete", systemImageName: .delete)
     case .selectItems:
-      return Data(
-        text: "Select",
-        systemImageName: .edit,
-        darkColor: .white,
-        lightColor: .primary
-      )
+      return Data(text: "Select", systemImageName: .edit, color: .primary)
     case .showPodcast:
       return Data(text: "Show Podcast", systemImageName: .showPodcast)
     case .subscribe:
@@ -398,12 +393,7 @@ enum AppIcon: CaseIterable {
     case .aboutInfo:
       return Data(text: "About", systemImageName: .aboutInfo)
     case .audioPlaceholder:
-      return Data(
-        text: "Audio",
-        systemImageName: .audioPlaceholder,
-        darkColor: .white.opacity(0.6),
-        lightColor: .primary.opacity(0.6)
-      )
+      return Data(text: "Audio", systemImageName: .audioPlaceholder, color: .primary.opacity(0.6))
     case .calendar:
       return Data(text: "Updated", systemImageName: .calendar)
     case .duration:
@@ -411,12 +401,7 @@ enum AppIcon: CaseIterable {
     case .error:
       return Data(text: "Error", systemImageName: .error, color: .red)
     case .noImage:
-      return Data(
-        text: "No Image",
-        systemImageName: .noImage,
-        darkColor: .white.opacity(0.8),
-        lightColor: .primary.opacity(0.8)
-      )
+      return Data(text: "No Image", systemImageName: .noImage, color: .primary.opacity(0.8))
     case .noPersonFound:
       return Data(text: "No Person Found", systemImageName: .noPersonFound, color: .secondary)
     case .personSearch:
@@ -446,19 +431,9 @@ enum AppIcon: CaseIterable {
     case .externalLink:
       return Data(text: "External Link", systemImageName: .externalLink)
     case .expandDown:
-      return Data(
-        text: "Collapse",
-        systemImageName: .expandDown,
-        darkColor: .white,
-        lightColor: .primary
-      )
+      return Data(text: "Collapse", systemImageName: .expandDown, color: .primary)
     case .expandUp:
-      return Data(
-        text: "Expand",
-        systemImageName: .expandUp,
-        darkColor: .white,
-        lightColor: .primary
-      )
+      return Data(text: "Expand", systemImageName: .expandUp, color: .primary)
     case .failed:
       return Data(text: "Failed", systemImageName: .failed, color: .red)
     case .filter:
@@ -474,7 +449,7 @@ enum AppIcon: CaseIterable {
 
     // Sorting
     case .sort:
-      return Data(text: "Sort", systemImageName: .sort)
+      return Data(text: "Sort", systemImageName: .sort, color: .primary)
     case .sortByTitle:
       return Data(text: "Title", systemImageName: .sortByTitle, color: .indigo)
     case .sortByMostRecentUnfinished:
@@ -503,44 +478,19 @@ enum AppIcon: CaseIterable {
       )
 
     case .loading:
-      return Data(
-        text: "Loading",
-        systemImageName: .loading,
-        darkColor: .white,
-        lightColor: .primary
-      )
+      return Data(text: "Loading", systemImageName: .loading, color: .primary)
     case .moreActions:
       return Data(text: "More Actions", systemImageName: .moreActions)
     case .noEpisodeSelected:
-      return Data(
-        text: "No episode selected",
-        systemImageName: .noEpisode,
-        darkColor: .white,
-        lightColor: .primary
-      )
+      return Data(text: "No episode selected", systemImageName: .noEpisode, color: .primary)
     case .pauseButton:
       return Data(text: "Pause", systemImageName: .pauseButton, color: .yellow)
     case .playButton:
-      return Data(
-        text: "Play",
-        systemImageName: .playButton,
-        darkColor: .white,
-        lightColor: .primary
-      )
+      return Data(text: "Play", systemImageName: .playButton, color: .primary)
     case .seekBackward:
-      return Data(
-        text: "Seek Backward",
-        systemImageName: .seekBackward,
-        darkColor: .white,
-        lightColor: .primary
-      )
+      return Data(text: "Seek Backward", systemImageName: .seekBackward, color: .primary)
     case .seekForward:
-      return Data(
-        text: "Seek Forward",
-        systemImageName: .seekForward,
-        darkColor: .white,
-        lightColor: .primary
-      )
+      return Data(text: "Seek Forward", systemImageName: .seekForward, color: .primary)
     case .selectAll:
       return Data(text: "Select All", systemImageName: .selectAll, color: .blue)
     case .unselectAll:
