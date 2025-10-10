@@ -24,11 +24,24 @@ class PodcastDetailViewModel:
 
   // MARK: - Filtering
 
-  enum EpisodeFilterMethod: String, CaseIterable {
-    case all = "All Episodes"
-    case unstarted = "Unstarted"
-    case unfinished = "Unfinished"
-    case unqueued = "Unqueued"
+  enum EpisodeFilterMethod: CaseIterable {
+    case all
+    case unstarted
+    case unfinished
+    case unqueued
+
+    var appIcon: AppIcon {
+      switch self {
+      case .all:
+        return .filterAllEpisodes
+      case .unstarted:
+        return .filterUnstarted
+      case .unfinished:
+        return .filterUnfinished
+      case .unqueued:
+        return .filterUnqueued
+      }
+    }
 
     func filterMethod() -> ((DisplayedEpisode) -> Bool)? {
       switch self {

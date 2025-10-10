@@ -57,6 +57,10 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
 
   // Filtering
   static let filter = SystemImageName("line.horizontal.3.decrease.circle")
+  static let filterAllEpisodes = SystemImageName("list.bullet")
+  static let filterUnstarted = SystemImageName("play.circle")
+  static let filterUnfinished = SystemImageName("circle.lefthalf.filled")
+  static let filterUnqueued = SystemImageName("text.badge.minus")
 
   // Information Display
   static let aboutInfo = SystemImageName("questionmark.circle")
@@ -184,6 +188,13 @@ enum AppIcon: CaseIterable {
   case publishDate
   case showInfo
 
+  // Filtering
+  case filter
+  case filterAllEpisodes
+  case filterUnstarted
+  case filterUnfinished
+  case filterUnqueued
+
   // UI Controls & Status
   case clearSearch
   case downloadEpisode
@@ -197,7 +208,6 @@ enum AppIcon: CaseIterable {
   case expandDown
   case expandUp
   case failed
-  case filter
   case loading
   case moreActions
   case noEpisodeSelected
@@ -429,6 +439,14 @@ enum AppIcon: CaseIterable {
       return Data(text: "Failed", systemImageName: .failed, color: .red)
     case .filter:
       return Data(text: "Filter", systemImageName: .filter)
+    case .filterAllEpisodes:
+      return Data(text: "All Episodes", systemImageName: .filterAllEpisodes)
+    case .filterUnstarted:
+      return Data(text: "Unstarted", systemImageName: .filterUnstarted, color: .green)
+    case .filterUnfinished:
+      return Data(text: "Unfinished", systemImageName: .filterUnfinished, color: .orange)
+    case .filterUnqueued:
+      return Data(text: "Unqueued", systemImageName: .filterUnqueued, color: .purple)
     case .loading:
       return Data(
         text: "Loading",

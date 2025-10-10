@@ -64,6 +64,23 @@ struct PodcastDetailView: View {
           }
         }
       }
+
+      if !viewModel.isSelecting && !viewModel.displayAboutSection {
+        ToolbarItem(placement: .primaryAction) {
+          Menu(
+            content: {
+              ForEach(viewModel.allFilterMethods, id: \.self) { filterMethod in
+                Button(
+                  action: { viewModel.currentFilterMethod = filterMethod },
+                  label: { filterMethod.appIcon.coloredLabel }
+                )
+                .disabled(viewModel.currentFilterMethod == filterMethod)
+              }
+            },
+            label: { viewModel.currentFilterMethod.appIcon.coloredLabel }
+          )
+        }
+      }
     }
     .toolbarRole(.editor)
     .task { await viewModel.execute() }
@@ -136,28 +153,11 @@ struct PodcastDetailView: View {
     VStack(spacing: 12) {
       Divider()
 
-      HStack {
-        SearchBar(
-          text: $viewModel.episodeList.entryFilter,
-          placeholder: "Filter episodes",
-          searchIcon: .filter
-        )
-
-        Menu(
-          content: {
-            ForEach(viewModel.allFilterMethods, id: \.self) {
-              filterMethod in
-              Button(filterMethod.rawValue) {
-                viewModel.currentFilterMethod = filterMethod
-              }
-              .disabled(viewModel.currentFilterMethod == filterMethod)
-            }
-          },
-          label: {
-            AppIcon.filter.image
-          }
-        )
-      }
+      SearchBar(
+        text: $viewModel.episodeList.entryFilter,
+        placeholder: "Filter episodes",
+        searchIcon: .filter
+      )
 
       Divider()
     }
