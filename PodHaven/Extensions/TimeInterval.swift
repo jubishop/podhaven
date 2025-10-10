@@ -27,6 +27,10 @@ extension TimeInterval {
     TimeInterval(hours * 3600)
   }
 
+  static func days(_ days: Double) -> TimeInterval {
+    TimeInterval(days * 86400)
+  }
+
   // MARK: - Formatting
 
   var compactReadableFormat: String {
