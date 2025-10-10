@@ -46,14 +46,6 @@ struct SelectablePodcastsGridView: View {
       }
       .padding()
     }
-    //    .safeAreaInset(edge: .top, spacing: 0) {
-    //      SearchBar(
-    //        text: $viewModel.podcastList.entryFilter,
-    //        prompt: "Filter podcasts",
-    //        searchIcon: .search
-    //      )
-    //      .padding(.horizontal)
-    //    }
     .searchable(
       text: $viewModel.podcastList.entryFilter,
       placement: .navigationBarDrawer(displayMode: .always),
