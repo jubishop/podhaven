@@ -79,33 +79,29 @@ struct EpisodesListView: View {
       let repo = Container.shared.repo()
       let allThumbnails = PreviewBundle.loadAllThumbnails()
 
-      // Create sample podcasts and episodes
-      for i in 0..<5 {
-        let podcast = try Create.unsavedPodcast(
-          title: "Podcast \(i + 1)",
+      // Create multiple episodes for this podcast
+      var queueOrder = 0
+      var episodes: [UnsavedEpisode] = []
+      for j in 0..<24 {
+        let duration = CMTime.seconds(Double.random(in: 1200...3600))
+        let episode = try Create.unsavedEpisode(
+          title: "Episode \(j + 1) - \(String.random())",
+          pubDate: j.daysAgo,
+          duration: duration,
           image: allThumbnails.randomElement()!.value.url,
-          description: "Sample podcast description \(i + 1)",
-          subscriptionDate: Date()
+          currentTime: j % 2 == 0 ? CMTime.seconds(Double.random(in: 0..<duration.seconds)) : nil,
+          queueOrder: j % 2 == 0
+            ? {
+              let current = queueOrder
+              queueOrder += 1
+              return current
+            }() : nil,
+          cachedFilename: j % 2 == 0 ? "cached_\(j).mp3" : nil
         )
-
-        // Create multiple episodes for this podcast
-        var episodes: [UnsavedEpisode] = []
-        for j in 0..<4 {
-          let episode = try Create.unsavedEpisode(
-            title: "Episode \(j + 1) - \(podcast.title)",
-            pubDate: Date().addingTimeInterval(-3600 * 24 * Double(i * 4 + j)),
-            duration: CMTime.seconds(Double.random(in: 1200...3600)),
-            description: "Sample episode description",
-            image: allThumbnails.randomElement()!.value.url,
-            currentTime: j % 3 == 0 ? CMTime.seconds(300) : nil,
-            queueOrder: j % 4 == 0 ? j : nil,
-            cachedFilename: j % 2 == 0 ? "cached_\(i)_\(j).mp3" : nil
-          )
-          episodes.append(episode)
-        }
-
-        _ = try await repo.insertSeries(podcast, unsavedEpisodes: episodes)
+        episodes.append(episode)
       }
+
+      _ = try await repo.insertSeries(try Create.unsavedPodcast(), unsavedEpisodes: episodes)
 
       path = ["episodes"]
     } catch {

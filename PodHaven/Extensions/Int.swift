@@ -15,11 +15,19 @@ extension Int {
     .minutes(Double(self * 60))
   }
 
+  var days: Duration {
+    .hours(Double(self * 24))
+  }
+
   var minutesAgo: Date {
     Date().addingTimeInterval(-minutes.asTimeInterval)
   }
 
   var hoursAgo: Date {
     Date().addingTimeInterval(-hours.asTimeInterval)
+  }
+
+  var daysAgo: Date {
+    Date().addingTimeInterval(-days.asTimeInterval)
   }
 }
