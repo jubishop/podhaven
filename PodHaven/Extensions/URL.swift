@@ -3,7 +3,7 @@
 import Foundation
 
 extension URL: Stringable {
-  public var toString: String { self.hash() }
+  public var toString: String { self.absoluteString }
 
   static let placeholder = URL(string: "about:blank")!
 

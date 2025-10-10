@@ -58,7 +58,7 @@ class PodcastDetailViewModel:
 
       Self.log.debug("podcastSeries: \(podcastSeries.toString)")
 
-      self.podcast = podcastSeries.podcast
+      podcast = podcastSeries.podcast
 
       // Careful to only update allEntries once
       var allEntries = episodeList.allEntries
@@ -118,27 +118,17 @@ class PodcastDetailViewModel:
     defer { subscribable = true }
 
     do {
-      try await performExecute()
+      if try await attemptObservation() { return }
+
+      Self.log.debug("\(podcast.toString) does not exist in db")
+      try await parsePodcastFeed()
+
+      // Try again in case FeedURL got updated by parsing the feed
+      try await attemptObservation()
     } catch {
       Self.log.error(error)
       guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.coreMessage(for: error))
-    }
-  }
-
-  func performExecute() async throws {
-    let podcastSeries = try await repo.podcastSeries(podcast.feedURL)
-
-    if let podcastSeries {
-      Self.log.debug("performExecute: \(podcastSeries.toString) exists in db")
-
-      try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
-      self.podcastSeries = podcastSeries
-      startObservation(podcastSeries.id)
-    } else {
-      Self.log.debug("performExecute: \(podcast.toString) does not exist in db")
-
-      try await parsePodcastFeed()
     }
   }
 
@@ -248,7 +238,7 @@ class PodcastDetailViewModel:
       Self.log.debug(
         "Updating observed series: \(String(describing: updatedSeries?.toString))"
       )
-      guard let updatedSeries, updatedSeries != self.podcastSeries else { continue }
+      guard let updatedSeries, updatedSeries != podcastSeries else { continue }
       self.podcastSeries = updatedSeries
     }
   }
@@ -267,10 +257,23 @@ class PodcastDetailViewModel:
 
   // MARK: - Private Helpers
 
+  @discardableResult
+  private func attemptObservation() async throws -> Bool {
+    guard let podcastSeries = try await repo.podcastSeries(podcast.feedURL)
+    else { return false }
+
+    Self.log.debug("\(podcastSeries.toString) exists in db")
+
+    try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    self.podcastSeries = podcastSeries
+    startObservation(podcastSeries.id)
+    return true
+  }
+
   private func parsePodcastFeed() async throws {
     let podcastFeed = try await PodcastFeed.parse(podcast.feedURL)
     let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
-    self.podcast = unsavedPodcast
+    podcast = unsavedPodcast
     episodeList.allEntries = IdentifiedArray(
       uniqueElements: podcastFeed.toEpisodeArray(merging: podcastSeries)
         .map {
