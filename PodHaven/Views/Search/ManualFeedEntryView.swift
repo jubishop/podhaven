@@ -89,12 +89,14 @@ struct ManualFeedEntryView: View {
       case .loaded(let preview):
         VStack(alignment: .leading, spacing: 12) {
           HStack(spacing: 12) {
-            AsyncImage(url: preview.image) { image in
-              image
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-            } placeholder: {
-              Color.gray.opacity(0.2)
+            PodLazyImage(url: preview.image) { state in
+              if let image = state.image {
+                image
+                  .resizable()
+                  .aspectRatio(contentMode: .fill)
+              } else {
+                Color.gray.opacity(0.2)
+              }
             }
             .frame(width: 60, height: 60)
             .clipShape(RoundedRectangle(cornerRadius: 8))
