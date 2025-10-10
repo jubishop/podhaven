@@ -43,7 +43,7 @@ struct SearchBar: View {
   @Previewable @State var text: String = ""
   @Previewable @State var demo: String = ""
 
-  VStack(spacing: 20) {
+  VStack(spacing: 24) {
     SearchBar(text: $text, searchIcon: AppIcon.search)
     TextField("Random focus field", text: $demo)
   }
