@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import AVFoundation
 import FactoryKit
 import SwiftUI
 
@@ -14,13 +15,6 @@ struct EpisodesListView: View {
   }
 
   var body: some View {
-    SearchBar(
-      text: $viewModel.episodeList.entryFilter,
-      placeholder: "Filter episodes",
-      imageName: AppIcon.filter.systemImageName
-    )
-    .padding(.horizontal)
-
     List(viewModel.episodeList.filteredEntries) { podcastEpisode in
       NavigationLink(
         value: Navigation.Destination.episode(DisplayedEpisode(podcastEpisode)),
@@ -40,6 +34,14 @@ struct EpisodesListView: View {
         }
       }
     }
+    .safeAreaInset(edge: .top, spacing: 0) {
+      SearchBar(
+        text: $viewModel.episodeList.entryFilter,
+        placeholder: "Filter episodes",
+        imageName: AppIcon.filter.systemImageName
+      )
+      .padding(.horizontal)
+    }
     .animation(.default, value: viewModel.episodeList.filteredEntries)
     .navigationTitle(viewModel.title)
     .toolbar {
@@ -52,3 +54,66 @@ struct EpisodesListView: View {
     .task(viewModel.execute)
   }
 }
+
+// MARK: - Preview
+
+#if DEBUG
+#Preview("Recent Episodes") {
+  @Previewable @State var path: [String] = []
+
+  NavigationStack(path: $path) {
+    Button("Go to Recent Episodes") {
+      path = ["episodes"]
+    }
+    .navigationDestination(for: String.self) { _ in
+      EpisodesListView(
+        viewModel: EpisodesListViewModel(
+          title: "Recent Episodes",
+          filter: AppDB.NoOp,
+          order: Episode.Columns.pubDate.desc,
+          limit: 20
+        )
+      )
+    }
+  }
+  .preview()
+  .task {
+    do {
+      let repo = Container.shared.repo()
+      let allThumbnails = PreviewBundle.loadAllThumbnails()
+
+      // Create sample podcasts and episodes
+      for i in 0..<5 {
+        let podcast = try Create.unsavedPodcast(
+          title: "Podcast \(i + 1)",
+          image: allThumbnails.randomElement()!.value.url,
+          description: "Sample podcast description \(i + 1)",
+          subscriptionDate: Date()
+        )
+
+        // Create multiple episodes for this podcast
+        var episodes: [UnsavedEpisode] = []
+        for j in 0..<4 {
+          let episode = try Create.unsavedEpisode(
+            title: "Episode \(j + 1) - \(podcast.title)",
+            pubDate: Date().addingTimeInterval(-3600 * 24 * Double(i * 4 + j)),
+            duration: CMTime.seconds(Double.random(in: 1200...3600)),
+            description: "Sample episode description",
+            image: allThumbnails.randomElement()!.value.url,
+            currentTime: j % 3 == 0 ? CMTime.seconds(300) : nil,
+            queueOrder: j % 4 == 0 ? j : nil,
+            cachedFilename: j % 2 == 0 ? "cached_\(i)_\(j).mp3" : nil
+          )
+          episodes.append(episode)
+        }
+
+        _ = try await repo.insertSeries(podcast, unsavedEpisodes: episodes)
+      }
+
+      path = ["episodes"]
+    } catch {
+      print("Preview error: \(error)")
+    }
+  }
+}
+#endif
