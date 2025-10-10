@@ -132,34 +132,16 @@ struct PodcastDetailView: View {
 
   // MARK: - Episode List
 
+  @ViewBuilder
   private var episodeListView: some View {
-    VStack {
-      episodeFilterView
-        .padding(.horizontal)
-
-      if viewModel.subscribable {
-        if !viewModel.episodeList.filteredEntries.isEmpty {
-          episodeList
-        } else {
-          noEpisodesMessage
-        }
+    if viewModel.subscribable {
+      if !viewModel.episodeList.filteredEntries.isEmpty {
+        episodeList
       } else {
-        loadingEpisodesMessage
+        noEpisodesMessage
       }
-    }
-  }
-
-  private var episodeFilterView: some View {
-    VStack(spacing: 12) {
-      Divider()
-
-      SearchBar(
-        text: $viewModel.episodeList.entryFilter,
-        placeholder: "Filter episodes",
-        searchIcon: .filter
-      )
-
-      Divider()
+    } else {
+      loadingEpisodesMessage
     }
   }
 
@@ -178,6 +160,14 @@ struct PodcastDetailView: View {
       .episodeListRow()
       .episodeSwipeActions(viewModel: viewModel, episode: episode)
       .episodeContextMenu(viewModel: viewModel, episode: episode)
+    }
+    .safeAreaInset(edge: .top, spacing: 0) {
+      SearchBar(
+        text: $viewModel.episodeList.entryFilter,
+        placeholder: "Filter episodes",
+        searchIcon: .search
+      )
+      .padding(.horizontal)
     }
     .refreshable(action: viewModel.refreshSeries)
     .animation(.default, value: viewModel.episodeList.filteredEntries)
