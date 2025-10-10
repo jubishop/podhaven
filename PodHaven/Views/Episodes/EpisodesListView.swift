@@ -34,15 +34,11 @@ struct EpisodesListView: View {
         }
       }
     }
-    .searchable(text: $viewModel.episodeList.entryFilter, prompt: "Filter episodes")
-    .safeAreaInset(edge: .top, spacing: 0) {
-      SearchBar(
-        text: $viewModel.episodeList.entryFilter,
-        placeholder: "Filter episodes",
-        searchIcon: .filter
-      )
-      .padding(.horizontal)
-    }
+    .searchable(
+      text: $viewModel.episodeList.entryFilter,
+      placement: .navigationBarDrawer(displayMode: .always),
+      prompt: "Filter episodes"
+    )
     .animation(.default, value: viewModel.episodeList.filteredEntries)
     .navigationTitle(viewModel.title)
     .toolbar {
