@@ -43,15 +43,28 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
               )
             }
           }
-        }
 
-        if viewModel.isSelecting {
           ToolbarItem(placement: .cancellationAction) {
             Button("Done") {
               viewModel.isSelecting = false
             }
           }
         } else {
+          ToolbarItem(placement: .primaryAction) {
+            Menu(
+              content: {
+                ForEach(viewModel.allSortMethods, id: \.self) { sortMethod in
+                  Button(
+                    action: { viewModel.currentSortMethod = sortMethod },
+                    label: { sortMethod.appIcon.coloredLabel }
+                  )
+                  .disabled(viewModel.currentSortMethod == sortMethod)
+                }
+              },
+              label: { viewModel.currentSortMethod.appIcon.coloredLabel }
+            )
+          }
+
           ToolbarItem(placement: .primaryAction) {
             Button("Select Podcasts") {
               viewModel.isSelecting = true

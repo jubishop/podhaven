@@ -107,6 +107,14 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
   static let queueBottom = SystemImageName("text.line.last.and.arrowtriangle.forward")
   static let queueTop = SystemImageName("text.line.first.and.arrowtriangle.forward")
 
+  // Sorting
+  static let sort = SystemImageName("arrow.up.arrow.down.circle")
+  static let sortByTitle = SystemImageName("textformat")
+  static let sortByMostRecentUnfinished = SystemImageName("clock.badge.exclamationmark")
+  static let sortByMostRecentUnstarted = SystemImageName("clock.badge.questionmark")
+  static let sortByMostRecentUnqueued = SystemImageName("clock.badge.xmark")
+  static let sortByMostRecentlySubscribed = SystemImageName("person.crop.circle.badge.plus")
+
   // Status Indicators
   static let waiting = SystemImageName("clock.arrow.circlepath")
 }
@@ -194,6 +202,14 @@ enum AppIcon: CaseIterable {
   case filterUnstarted
   case filterUnfinished
   case filterUnqueued
+
+  // Sorting
+  case sort
+  case sortByTitle
+  case sortByMostRecentUnfinished
+  case sortByMostRecentUnstarted
+  case sortByMostRecentUnqueued
+  case sortByMostRecentlySubscribed
 
   // UI Controls & Status
   case clearSearch
@@ -447,6 +463,37 @@ enum AppIcon: CaseIterable {
       return Data(text: "Unfinished", systemImageName: .filterUnfinished, color: .orange)
     case .filterUnqueued:
       return Data(text: "Unqueued", systemImageName: .filterUnqueued, color: .purple)
+
+    // Sorting
+    case .sort:
+      return Data(text: "Sort", systemImageName: .sort)
+    case .sortByTitle:
+      return Data(text: "Title", systemImageName: .sortByTitle, color: .indigo)
+    case .sortByMostRecentUnfinished:
+      return Data(
+        text: "Most Recent Unfinished",
+        systemImageName: .sortByMostRecentUnfinished,
+        color: .orange
+      )
+    case .sortByMostRecentUnstarted:
+      return Data(
+        text: "Most Recent Unstarted",
+        systemImageName: .sortByMostRecentUnstarted,
+        color: .teal
+      )
+    case .sortByMostRecentUnqueued:
+      return Data(
+        text: "Most Recent Unqueued",
+        systemImageName: .sortByMostRecentUnqueued,
+        color: .pink
+      )
+    case .sortByMostRecentlySubscribed:
+      return Data(
+        text: "Most Recently Subscribed",
+        systemImageName: .sortByMostRecentlySubscribed,
+        color: .green
+      )
+
     case .loading:
       return Data(
         text: "Loading",

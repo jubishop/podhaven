@@ -37,39 +37,24 @@ import SwiftUI
   }
 
   enum SortMethod: String, CaseIterable {
-    case byTitle = "Title"
-    case byMostRecentUnfinished = "Most Recent Unfinished"
-    case byMostRecentUnstarted = "Most Recent Unstarted"
-    case byMostRecentUnqueued = "Most Recent Unqueued"
-    case byMostRecentlySubscribed = "Most Recently Subscribed"
+    case byTitle
+    case byMostRecentUnfinished
+    case byMostRecentUnstarted
+    case byMostRecentUnqueued
+    case byMostRecentlySubscribed
 
-    var systemImageName: String {
+    var appIcon: AppIcon {
       switch self {
       case .byTitle:
-        return "textformat"
+        return .sortByTitle
       case .byMostRecentUnfinished:
-        return "clock.badge.exclamationmark"
+        return .sortByMostRecentUnfinished
       case .byMostRecentUnstarted:
-        return "clock.badge.questionmark"
+        return .sortByMostRecentUnstarted
       case .byMostRecentUnqueued:
-        return "clock.badge.xmark"
+        return .sortByMostRecentUnqueued
       case .byMostRecentlySubscribed:
-        return "person.crop.circle.badge.plus"
-      }
-    }
-
-    var menuIconColor: Color {
-      switch self {
-      case .byTitle:
-        return .indigo
-      case .byMostRecentUnfinished:
-        return .orange
-      case .byMostRecentUnstarted:
-        return .teal
-      case .byMostRecentUnqueued:
-        return .pink
-      case .byMostRecentlySubscribed:
-        return .green
+        return .sortByMostRecentlySubscribed
       }
     }
 

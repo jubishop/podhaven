@@ -17,24 +17,11 @@ struct SelectablePodcastsGridView: View {
   }
 
   var body: some View {
-    HStack {
-      SearchBar(
-        text: $viewModel.podcastList.entryFilter,
-        placeholder: "Filter podcasts",
-        searchIcon: .filter
-      )
-
-      Menu("Sort by") {
-        ForEach(viewModel.allSortMethods, id: \.self) { method in
-          Button(
-            action: { viewModel.currentSortMethod = method },
-            label: { Label(method.rawValue, systemImage: method.systemImageName) }
-          )
-          .tint(method.menuIconColor)
-          .disabled(viewModel.currentSortMethod == method)
-        }
-      }
-    }
+    SearchBar(
+      text: $viewModel.podcastList.entryFilter,
+      placeholder: "Filter podcasts",
+      searchIcon: .filter
+    )
     .padding(.horizontal)
 
     ScrollView {
