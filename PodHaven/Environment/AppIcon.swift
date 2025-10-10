@@ -26,7 +26,7 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
   static let showPodcast = SystemImageName("antenna.radiowaves.left.and.right")
 
   // Actions
-  static let clearSearch = SystemImageName("xmark.circle.fill")
+  static let clearSearch = SystemImageName("xmark")
   static let delete = SystemImageName("trash")
   static let failed = SystemImageName("x.circle")
   static let removeFromQueue = SystemImageName("minus.circle.fill")

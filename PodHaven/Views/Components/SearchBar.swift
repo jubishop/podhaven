@@ -21,7 +21,7 @@ struct SearchBar: View {
           .textInputAutocapitalization(.never)
           .disableAutocorrection(true)
       }
-      .padding()
+      .padding(10)
       .glassEffect(.regular)
 
       if isFocused || !text.isEmpty {
@@ -30,7 +30,9 @@ struct SearchBar: View {
             text = ""
             isFocused = false
           }
-          .buttonStyle(.glass)
+          .buttonStyle(.plain)
+          .padding(12)
+          .glassEffect(.regular.interactive(), in: .circle)
       }
     }
   }

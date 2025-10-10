@@ -167,6 +167,7 @@ struct PodcastDetailView: View {
         placeholder: "Filter episodes",
         searchIcon: .search
       )
+      .padding(.top, 4)
       .padding(.horizontal)
     }
     .refreshable(action: viewModel.refreshSeries)
