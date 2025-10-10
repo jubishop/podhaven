@@ -34,6 +34,7 @@ struct EpisodesListView: View {
         }
       }
     }
+    .searchable(text: $viewModel.episodeList.entryFilter, prompt: "Filter episodes")
     .safeAreaInset(edge: .top, spacing: 0) {
       SearchBar(
         text: $viewModel.episodeList.entryFilter,
