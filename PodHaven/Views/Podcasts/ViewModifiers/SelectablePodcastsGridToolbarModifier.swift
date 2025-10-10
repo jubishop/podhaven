@@ -61,7 +61,7 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
                   .disabled(viewModel.currentSortMethod == sortMethod)
                 }
               },
-              label: { viewModel.currentSortMethod.appIcon.coloredLabel }
+              label: { viewModel.currentSortMethod.appIcon.image }
             )
           }
 

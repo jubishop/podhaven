@@ -53,7 +53,7 @@ struct UpNextView: View {
                 .tint(method.menuIconColor)
               }
             } label: {
-              AppIcon.sort.coloredImage
+              AppIcon.sort.image
             }
           }
         }
