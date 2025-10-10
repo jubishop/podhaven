@@ -57,8 +57,7 @@ struct UpNextView: View {
 
         selectableEpisodesToolbarItems(
           viewModel: viewModel,
-          episodeList: viewModel.episodeList,
-          selectText: "Edit"
+          episodeList: viewModel.episodeList
         )
       }
     }

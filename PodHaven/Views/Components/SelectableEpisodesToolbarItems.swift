@@ -9,16 +9,13 @@ struct SelectableEpisodesToolbarItems<
 > {
   let viewModel: ViewModel
   let episodeList: EpisodeList
-  let selectText: String
 
   init(
     viewModel: ViewModel,
-    episodeList: EpisodeList,
-    selectText: String = "Select"
+    episodeList: EpisodeList
   ) {
     self.viewModel = viewModel
     self.episodeList = episodeList
-    self.selectText = selectText
   }
 
   @ToolbarContentBuilder
@@ -106,7 +103,7 @@ struct SelectableEpisodesToolbarItems<
       }
     } else {
       ToolbarItem(placement: .primaryAction) {
-        Button(selectText) {
+        AppIcon.selectItems.imageButton {
           viewModel.isSelecting = true
         }
       }
@@ -120,13 +117,11 @@ func selectableEpisodesToolbarItems<
   EpisodeList: SelectableList
 >(
   viewModel: ViewModel,
-  episodeList: EpisodeList,
-  selectText: String = "Select"
+  episodeList: EpisodeList
 ) -> some ToolbarContent {
   SelectableEpisodesToolbarItems(
     viewModel: viewModel,
-    episodeList: episodeList,
-    selectText: selectText
+    episodeList: episodeList
   )
   .content
 }

@@ -66,7 +66,7 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
           }
 
           ToolbarItem(placement: .primaryAction) {
-            Button("Select Podcasts") {
+            AppIcon.selectItems.imageButton {
               viewModel.isSelecting = true
             }
           }

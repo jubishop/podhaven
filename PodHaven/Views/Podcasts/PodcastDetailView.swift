@@ -37,12 +37,6 @@ struct PodcastDetailView: View {
       }
     }
     .toolbar {
-      selectableEpisodesToolbarItems(
-        viewModel: viewModel,
-        episodeList: viewModel.episodeList,
-        selectText: "Select Episodes"
-      )
-
       if !viewModel.isSelecting && viewModel.subscribable {
         if viewModel.podcast.subscribed {
           ToolbarItem(placement: .topBarLeading) {
@@ -81,6 +75,11 @@ struct PodcastDetailView: View {
           )
         }
       }
+
+      selectableEpisodesToolbarItems(
+        viewModel: viewModel,
+        episodeList: viewModel.episodeList
+      )
     }
     .toolbarRole(.editor)
     .task { await viewModel.execute() }
