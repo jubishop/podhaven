@@ -42,6 +42,7 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
   // Episode Status
   static let downloadEpisode = SystemImageName("arrow.down.circle")
   static let episodeCached = SystemImageName("arrow.down.circle.fill")
+  static let episodeDownloadCancel = SystemImageName("stop.circle")
   static let episodeUncached = SystemImageName("tray.and.arrow.up")
   static let episodeFinished = SystemImageName("checkmark.circle.fill")
   static let episodeOnDeck = SystemImageName("play.circle")
@@ -283,6 +284,12 @@ enum AppIcon: CaseIterable {
       return Data(text: "Add to Top of Queue", systemImageName: .queueTop, color: .blue)
     case .cacheEpisode:
       return Data(text: "Cache Episode", systemImageName: .episodeCached, color: .blue)
+    case .cancelEpisodeDownload:
+      return Data(
+        text: "Cancel Download",
+        systemImageName: .episodeDownloadCancel,
+        color: .orange
+      )
     case .uncacheEpisode:
       return Data(text: "Remove Download", systemImageName: .episodeUncached, color: .red)
     case .moveToTop:
