@@ -423,7 +423,7 @@ enum AppIcon: CaseIterable {
     case .edit:
       return Data(text: "Edit", systemImageName: .edit, color: .accentColor)
     case .editFinished:
-      return Data(text: "Done", systemImageName: .editFinished, color: .accentColor)
+      return Data(text: "Done", systemImageName: .editFinished)
     case .episodeCached:
       return Data(text: "Cached", systemImageName: .episodeCached, color: .green)
     case .episodeFinished:

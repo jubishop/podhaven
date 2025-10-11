@@ -45,7 +45,7 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
           }
 
           ToolbarItem(placement: .cancellationAction) {
-            Button("Done") {
+            Button(AppIcon.editFinished.text) {
               viewModel.isSelecting = false
             }
           }
@@ -66,7 +66,7 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
           }
 
           ToolbarItem(placement: .primaryAction) {
-            AppIcon.selectItems.imageButton {
+            Button(AppIcon.selectItems.text) {
               viewModel.isSelecting = true
             }
           }

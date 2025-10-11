@@ -97,13 +97,13 @@ struct SelectableEpisodesToolbarItems<
 
     if viewModel.isSelecting {
       ToolbarItem(placement: .cancellationAction) {
-        Button("Done") {
+        Button(AppIcon.editFinished.text) {
           viewModel.isSelecting = false
         }
       }
     } else {
       ToolbarItem(placement: .primaryAction) {
-        AppIcon.selectItems.imageButton {
+        Button(AppIcon.selectItems.text) {
           viewModel.isSelecting = true
         }
       }
