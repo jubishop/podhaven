@@ -91,17 +91,10 @@ struct EpisodeDetailView: View {
 
           if !viewModel.onDeck {
             VStack(spacing: 12) {
-              Button(action: viewModel.playNow) {
-                HStack {
-                  AppIcon.playNow.image
-                  Text(AppIcon.playNow.text)
-                }
+              AppIcon.playNow.labelButton(action: viewModel.playNow)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.accentColor)
-                .foregroundStyle(.primary)
                 .cornerRadius(10)
-              }
 
               HStack(spacing: 12) {
                 Button(action: viewModel.addToTopOfQueue) {
