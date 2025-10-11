@@ -42,7 +42,6 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
   // Episode Status
   static let downloadEpisode = SystemImageName("arrow.down.circle")
   static let episodeCached = SystemImageName("arrow.down.circle.fill")
-  static let episodeDownloadCancel = SystemImageName("stop.circle")
   static let episodeUncached = SystemImageName("tray.and.arrow.up")
   static let episodeFinished = SystemImageName("checkmark.circle.fill")
   static let episodeOnDeck = SystemImageName("play.circle")
@@ -260,7 +259,7 @@ enum AppIcon: CaseIterable {
     init(
       text: String,
       systemImageName: SystemImageName,
-      color: Color = .primary
+      color: Color = .accentColor
     ) {
       self.text = text
       self.systemImageName = systemImageName
@@ -275,21 +274,15 @@ enum AppIcon: CaseIterable {
     switch self {
     // Episode Actions
     case .addToBottom:
-      return Data(text: "Add to Bottom", systemImageName: .queueBottom, color: .accentColor)
+      return Data(text: "Add to Bottom", systemImageName: .queueBottom)
     case .addToTop:
-      return Data(text: "Add to Top", systemImageName: .queueTop, color: .accentColor)
+      return Data(text: "Add to Top", systemImageName: .queueTop)
     case .addSelectionToBottom:
       return Data(text: "Add to Bottom of Queue", systemImageName: .queueBottom, color: .purple)
     case .addSelectionToTop:
       return Data(text: "Add to Top of Queue", systemImageName: .queueTop, color: .blue)
     case .cacheEpisode:
       return Data(text: "Cache Episode", systemImageName: .episodeCached, color: .blue)
-    case .cancelEpisodeDownload:
-      return Data(
-        text: "Cancel Download",
-        systemImageName: .episodeDownloadCancel,
-        color: .orange
-      )
     case .uncacheEpisode:
       return Data(text: "Remove Download", systemImageName: .episodeUncached, color: .red)
     case .moveToTop:
@@ -301,7 +294,7 @@ enum AppIcon: CaseIterable {
     case .playEpisode:
       return Data(text: "Play Episode", systemImageName: .play, color: .green)
     case .playNow:
-      return Data(text: "Play Now", systemImageName: .play, color: .accentColor)
+      return Data(text: "Play Now", systemImageName: .play)
     case .playSelection:
       return Data(text: "Play Selected Episodes", systemImageName: .play, color: .green)
     case .queueAtBottom:
@@ -315,25 +308,25 @@ enum AppIcon: CaseIterable {
 
     // Podcast Actions
     case .delete:
-      return Data(text: "Delete", systemImageName: .delete, color: .accentColor)
+      return Data(text: "Delete", systemImageName: .delete)
     case .selectItems:
       return Data(text: "Select", systemImageName: .edit)
     case .showPodcast:
-      return Data(text: "Show Podcast", systemImageName: .showPodcast, color: .accentColor)
+      return Data(text: "Show Podcast", systemImageName: .showPodcast)
     case .subscribe:
-      return Data(text: "Subscribe", systemImageName: .subscribe, color: .accentColor)
+      return Data(text: "Subscribe", systemImageName: .subscribe)
     case .subscribed:
       return Data(text: "Subscribed", systemImageName: .subscribed, color: .green)
     case .unsubscribe:
-      return Data(text: "Unsubscribe", systemImageName: .unsubscribe, color: .accentColor)
+      return Data(text: "Unsubscribe", systemImageName: .unsubscribe)
 
     // Navigation
     case .episodes:
-      return Data(text: "Episodes", systemImageName: .episodesList, color: .accentColor)
+      return Data(text: "Episodes", systemImageName: .episodesList)
     case .episodesList:
-      return Data(text: "Episodes List", systemImageName: .episodesList, color: .accentColor)
+      return Data(text: "Episodes List", systemImageName: .episodesList)
     case .podcasts:
-      return Data(text: "Podcasts", systemImageName: .podcastsList, color: .accentColor)
+      return Data(text: "Podcasts", systemImageName: .podcastsList)
     case .search:
       return Data(text: "Search", systemImageName: .search, color: .secondary)
     case .searchEpisodes:
@@ -341,7 +334,7 @@ enum AppIcon: CaseIterable {
     case .searchPodcasts:
       return Data(text: "Search Podcasts", systemImageName: .search, color: .blue)
     case .settings:
-      return Data(text: "Settings", systemImageName: .settings, color: .accentColor)
+      return Data(text: "Settings", systemImageName: .settings)
     case .trending:
       return Data(text: "Trending", systemImageName: .trending, color: .orange)
     case .trendingTop:
@@ -369,37 +362,33 @@ enum AppIcon: CaseIterable {
     case .trendingHistory:
       return Data(text: "History", systemImageName: .trendingHistory, color: .brown)
     case .upNext:
-      return Data(text: "Up Next", systemImageName: .queueTop, color: .accentColor)
+      return Data(text: "Up Next", systemImageName: .queueTop)
 
     // General Actions
     case .document:
-      return Data(text: "Document", systemImageName: .document, color: .accentColor)
+      return Data(text: "Document", systemImageName: .document)
     case .exportOPML:
-      return Data(text: "Export OPML", systemImageName: .share, color: .accentColor)
+      return Data(text: "Export OPML", systemImageName: .share)
     case .importOPML:
-      return Data(text: "Import OPML", systemImageName: .downloadEpisode, color: .accentColor)
+      return Data(text: "Import OPML", systemImageName: .downloadEpisode)
     case .queueLatestToBottom:
-      return Data(
-        text: "Queue Latest To Bottom",
-        systemImageName: .queueBottom,
-        color: .accentColor
-      )
+      return Data(text: "Queue Latest To Bottom", systemImageName: .queueBottom)
     case .queueLatestToTop:
-      return Data(text: "Queue Latest To Top", systemImageName: .queueTop, color: .accentColor)
+      return Data(text: "Queue Latest To Top", systemImageName: .queueTop)
     case .share:
-      return Data(text: "Share", systemImageName: .share, color: .accentColor)
+      return Data(text: "Share", systemImageName: .share)
     case .shareDatabase:
-      return Data(text: "Share Database", systemImageName: .share, color: .accentColor)
+      return Data(text: "Share Database", systemImageName: .share)
     case .shareLogs:
-      return Data(text: "Share Logs", systemImageName: .share, color: .accentColor)
+      return Data(text: "Share Logs", systemImageName: .share)
 
     // Information Display
     case .aboutInfo:
-      return Data(text: "About", systemImageName: .aboutInfo, color: .accentColor)
+      return Data(text: "About", systemImageName: .aboutInfo)
     case .audioPlaceholder:
       return Data(text: "Audio", systemImageName: .audioPlaceholder, color: .primary.opacity(0.6))
     case .calendar:
-      return Data(text: "Updated", systemImageName: .calendar, color: .accentColor)
+      return Data(text: "Updated", systemImageName: .calendar)
     case .duration:
       return Data(text: "Duration", systemImageName: .duration, color: .secondary)
     case .error:
@@ -413,15 +402,15 @@ enum AppIcon: CaseIterable {
     case .publishDate:
       return Data(text: "Published", systemImageName: .publishDate, color: .secondary)
     case .showInfo:
-      return Data(text: "Show Info", systemImageName: .showInfo, color: .accentColor)
+      return Data(text: "Show Info", systemImageName: .showInfo)
 
     // UI Controls & Status
     case .clearSearch:
-      return Data(text: "Clear Search", systemImageName: .clearSearch, color: .accentColor)
+      return Data(text: "Clear Search", systemImageName: .clearSearch)
     case .downloadEpisode:
       return Data(text: "Download", systemImageName: .downloadEpisode, color: .blue)
     case .edit:
-      return Data(text: "Edit", systemImageName: .edit, color: .accentColor)
+      return Data(text: "Edit", systemImageName: .edit)
     case .editFinished:
       return Data(text: "Done", systemImageName: .editFinished)
     case .episodeCached:
@@ -429,11 +418,11 @@ enum AppIcon: CaseIterable {
     case .episodeFinished:
       return Data(text: "Finished", systemImageName: .episodeFinished, color: .blue)
     case .episodeOnDeck:
-      return Data(text: "On Deck", systemImageName: .episodeOnDeck, color: .accentColor)
+      return Data(text: "On Deck", systemImageName: .episodeOnDeck)
     case .episodeQueued:
       return Data(text: "Queued", systemImageName: .episodeQueued, color: .orange)
     case .externalLink:
-      return Data(text: "External Link", systemImageName: .externalLink, color: .accentColor)
+      return Data(text: "External Link", systemImageName: .externalLink)
     case .expandDown:
       return Data(text: "Collapse", systemImageName: .expandDown)
     case .expandUp:
@@ -441,9 +430,9 @@ enum AppIcon: CaseIterable {
     case .failed:
       return Data(text: "Failed", systemImageName: .failed, color: .red)
     case .filter:
-      return Data(text: "Filter", systemImageName: .filter, color: .accentColor)
+      return Data(text: "Filter", systemImageName: .filter)
     case .filterAllEpisodes:
-      return Data(text: "All Episodes", systemImageName: .filterAllEpisodes, color: .accentColor)
+      return Data(text: "All Episodes", systemImageName: .filterAllEpisodes)
     case .filterUnstarted:
       return Data(text: "Unstarted", systemImageName: .filterUnstarted, color: .green)
     case .filterUnfinished:
@@ -453,7 +442,7 @@ enum AppIcon: CaseIterable {
 
     // Sorting
     case .sort:
-      return Data(text: "Sort", systemImageName: .sort, color: .accentColor)
+      return Data(text: "Sort", systemImageName: .sort)
     case .sortByTitle:
       return Data(text: "Title", systemImageName: .sortByTitle, color: .indigo)
     case .sortByMostRecentUnfinished:
@@ -484,7 +473,7 @@ enum AppIcon: CaseIterable {
     case .loading:
       return Data(text: "Loading", systemImageName: .loading)
     case .moreActions:
-      return Data(text: "More Actions", systemImageName: .moreActions, color: .accentColor)
+      return Data(text: "More Actions", systemImageName: .moreActions)
     case .noEpisodeSelected:
       return Data(text: "No episode selected", systemImageName: .noEpisode)
     case .pauseButton:
@@ -500,13 +489,13 @@ enum AppIcon: CaseIterable {
     case .unselectAll:
       return Data(text: "Unselect All", systemImageName: .selectionEmpty, color: .gray)
     case .selectionEmpty:
-      return Data(text: "Select", systemImageName: .selectionEmpty, color: .accentColor)
+      return Data(text: "Select", systemImageName: .selectionEmpty)
     case .selectionFilled:
-      return Data(text: "Selected", systemImageName: .selectionFilled, color: .accentColor)
+      return Data(text: "Selected", systemImageName: .selectionFilled)
     case .waiting:
       return Data(text: "Waiting", systemImageName: .waiting, color: .green)
     case .website:
-      return Data(text: "Website", systemImageName: .website, color: .accentColor)
+      return Data(text: "Website", systemImageName: .website)
 
     // Manual Entry
     case .manualEntry:
