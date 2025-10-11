@@ -114,7 +114,7 @@ struct PodcastDetailView: View {
           label: {
             HStack(spacing: 6) {
               (viewModel.displayAboutSection
-                ? AppIcon.episodesList : AppIcon.aboutInfo)
+                ? AppIcon.episodes : AppIcon.aboutInfo)
                 .image
               Text(viewModel.displayAboutSection ? "Show Episodes" : "Show Details")
             }

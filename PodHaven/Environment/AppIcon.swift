@@ -119,8 +119,6 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
 
 enum AppIcon: CaseIterable {
   // Episode Actions
-  case addToBottom
-  case addToTop
   case addSelectionToBottom
   case addSelectionToTop
   case cacheEpisode
@@ -129,7 +127,6 @@ enum AppIcon: CaseIterable {
   case moveToTop
   case moveToBottom
   case markEpisodeFinished
-  case playEpisode
   case playNow
   case playSelection
   case queueAtBottom
@@ -147,7 +144,6 @@ enum AppIcon: CaseIterable {
 
   // Navigation
   case episodes
-  case episodesList
   case podcasts
   case search
   case settings
@@ -173,9 +169,6 @@ enum AppIcon: CaseIterable {
   case document
   case exportOPML
   case importOPML
-  case queueLatestToBottom
-  case queueLatestToTop
-  case share
   case shareDatabase
   case shareLogs
 
@@ -264,10 +257,6 @@ enum AppIcon: CaseIterable {
   private var data: Data {
     switch self {
     // Episode Actions
-    case .addToBottom:
-      return Data(text: "Add to Bottom", systemImageName: .queueBottom)
-    case .addToTop:
-      return Data(text: "Add to Top", systemImageName: .queueTop)
     case .addSelectionToBottom:
       return Data(text: "Add to Bottom of Queue", systemImageName: .queueBottom, color: .purple)
     case .addSelectionToTop:
@@ -288,10 +277,8 @@ enum AppIcon: CaseIterable {
       return Data(text: "Move to Bottom", systemImageName: .moveToBottom, color: .purple)
     case .markEpisodeFinished:
       return Data(text: "Mark Finished", systemImageName: .episodeFinished, color: .mint)
-    case .playEpisode:
-      return Data(text: "Play Episode", systemImageName: .play, color: .green)
     case .playNow:
-      return Data(text: "Play Now", systemImageName: .play)
+      return Data(text: "Play Now", systemImageName: .play, color: .green)
     case .playSelection:
       return Data(text: "Play Selected Episodes", systemImageName: .play, color: .green)
     case .queueAtBottom:
@@ -320,8 +307,6 @@ enum AppIcon: CaseIterable {
     // Navigation
     case .episodes:
       return Data(text: "Episodes", systemImageName: .episodesList)
-    case .episodesList:
-      return Data(text: "Episodes List", systemImageName: .episodesList)
     case .podcasts:
       return Data(text: "Podcasts", systemImageName: .podcastsList)
     case .search:
@@ -364,12 +349,6 @@ enum AppIcon: CaseIterable {
       return Data(text: "Export OPML", systemImageName: .share)
     case .importOPML:
       return Data(text: "Import OPML", systemImageName: .downloadEpisode)
-    case .queueLatestToBottom:
-      return Data(text: "Queue Latest To Bottom", systemImageName: .queueBottom)
-    case .queueLatestToTop:
-      return Data(text: "Queue Latest To Top", systemImageName: .queueTop)
-    case .share:
-      return Data(text: "Share", systemImageName: .share)
     case .shareDatabase:
       return Data(text: "Share Database", systemImageName: .share)
     case .shareLogs:

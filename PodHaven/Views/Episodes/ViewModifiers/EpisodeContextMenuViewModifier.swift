@@ -23,7 +23,7 @@ struct EpisodeContextMenuViewModifier<
             viewModel.pauseEpisode(episode)
           }
         } else {
-          AppIcon.playEpisode.labelButton {
+          AppIcon.playNow.labelButton {
             viewModel.playEpisode(episode)
           }
         }

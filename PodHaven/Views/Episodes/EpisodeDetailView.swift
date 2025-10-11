@@ -106,8 +106,8 @@ struct EpisodeDetailView: View {
               HStack(spacing: 12) {
                 Button(action: viewModel.addToTopOfQueue) {
                   HStack {
-                    AppIcon.queueLatestToTop.image
-                    Text(viewModel.atTopOfQueue ? "Already at Top" : AppIcon.addToTop.text)
+                    AppIcon.queueAtTop.image
+                    Text(viewModel.atTopOfQueue ? "Already at Top" : AppIcon.queueAtTop.text)
                   }
                   .frame(maxWidth: .infinity)
                   .padding()
@@ -117,9 +117,9 @@ struct EpisodeDetailView: View {
 
                 Button(action: viewModel.appendToQueue) {
                   HStack {
-                    AppIcon.queueLatestToBottom.image
+                    AppIcon.queueAtBottom.image
                     Text(
-                      viewModel.atBottomOfQueue ? "Already at Bottom" : AppIcon.addToBottom.text
+                      viewModel.atBottomOfQueue ? "Already at Bottom" : AppIcon.queueAtBottom.text
                     )
                   }
                   .frame(maxWidth: .infinity)

@@ -10,11 +10,11 @@ struct SelectablePodcastsGridContextMenuModifier: ViewModifier {
   func body(content: Content) -> some View {
     content
       .contextMenu {
-        AppIcon.queueLatestToTop.labelButton {
+        AppIcon.queueAtTop.labelButton {
           viewModel.queueLatestEpisodeToTop(podcast.id)
         }
 
-        AppIcon.queueLatestToBottom.labelButton {
+        AppIcon.queueAtBottom.labelButton {
           viewModel.queueLatestEpisodeToBottom(podcast.id)
         }
 

@@ -47,7 +47,7 @@ struct EpisodeSwipeViewModifier<ViewModel: ManagingEpisodes>: ViewModifier {
             viewModel.pauseEpisode(episode)
           }
         } else {
-          AppIcon.playEpisode.imageButton {
+          AppIcon.playNow.imageButton {
             viewModel.playEpisode(episode)
           }
         }
