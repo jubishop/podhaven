@@ -91,7 +91,7 @@ struct EpisodeDetailView: View {
 
           if !viewModel.onDeck {
             VStack(spacing: 12) {
-              AppIcon.playNow.labelButton(action: viewModel.playNow)
+              AppIcon.playNow.rawLabelButton(action: viewModel.playNow)
                 .frame(maxWidth: .infinity)
                 .padding()
                 .cornerRadius(10)

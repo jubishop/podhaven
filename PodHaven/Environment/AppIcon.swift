@@ -496,12 +496,22 @@ enum AppIcon: CaseIterable {
 
   @MainActor
   func labelButton(action: @MainActor @escaping () -> Void) -> some View {
-    AdaptiveLabelButton(icon: self, action: action)
+    AdaptiveLabelButton(icon: self, action: action) { label }
+  }
+
+  @MainActor
+  func rawLabelButton(action: @MainActor @escaping () -> Void) -> some View {
+    AdaptiveLabelButton(icon: self, action: action) { rawLabel }
   }
 
   @MainActor
   func imageButton(action: @MainActor @escaping () -> Void) -> some View {
-    AdaptiveImageButton(icon: self, action: action)
+    AdaptiveImageButton(icon: self, action: action) { image }
+  }
+
+  @MainActor
+  func rawImageButton(action: @MainActor @escaping () -> Void) -> some View {
+    AdaptiveImageButton(icon: self, action: action) { rawImage }
   }
 }
 
@@ -514,7 +524,7 @@ private struct AdaptiveImage: View {
 
   var body: some View {
     icon.rawImage
-      .foregroundColor(icon.color(for: colorScheme))
+      .tint(icon.color(for: colorScheme))
   }
 }
 
@@ -529,26 +539,28 @@ private struct AdaptiveLabel: View {
   }
 }
 
-private struct AdaptiveLabelButton: View {
+private struct AdaptiveLabelButton<Label: View>: View {
   @Environment(\.colorScheme) private var colorScheme
 
   let icon: AppIcon
   let action: () -> Void
+  let label: () -> Label
 
   var body: some View {
-    Button(action: action) { icon.label }
+    Button(action: action, label: label)
       .tint(icon.color(for: colorScheme))
   }
 }
 
-private struct AdaptiveImageButton: View {
+private struct AdaptiveImageButton<Image: View>: View {
   @Environment(\.colorScheme) private var colorScheme
 
   let icon: AppIcon
   let action: () -> Void
+  let image: () -> Image
 
   var body: some View {
-    Button(action: action) { icon.image }
+    Button(action: action, label: image)
       .tint(icon.color(for: colorScheme))
   }
 }
