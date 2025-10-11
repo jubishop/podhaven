@@ -443,7 +443,7 @@ enum AppIcon: CaseIterable {
     case .pauseButton:
       return Data(text: "Pause", systemImageName: .pauseButton, color: .yellow)
     case .playButton:
-      return Data(text: "Play", systemImageName: .playButton)
+      return Data(text: "Play", systemImageName: .playButton, color: .green)
     case .seekBackward:
       return Data(text: "Seek Backward", systemImageName: .seekBackward)
     case .seekForward:
