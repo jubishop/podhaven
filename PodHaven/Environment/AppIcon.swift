@@ -139,7 +139,7 @@ enum AppIcon: CaseIterable {
 
   // Podcast Actions
   case delete
-  case selectItems
+  case editItems
   case showPodcast
   case subscribe
   case subscribed
@@ -306,8 +306,8 @@ enum AppIcon: CaseIterable {
     // Podcast Actions
     case .delete:
       return Data(text: "Delete", systemImageName: .delete)
-    case .selectItems:
-      return Data(text: "Select", systemImageName: .edit)
+    case .editItems:
+      return Data(text: "Edit", systemImageName: .edit)
     case .showPodcast:
       return Data(text: "Show Podcast", systemImageName: .showPodcast)
     case .subscribe:

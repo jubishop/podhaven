@@ -103,7 +103,7 @@ struct SelectableEpisodesToolbarItems<
       }
     } else {
       ToolbarItem(placement: .primaryAction) {
-        Button(AppIcon.selectItems.text) {
+        Button(AppIcon.editItems.text) {
           viewModel.isSelecting = true
         }
       }
