@@ -471,16 +471,16 @@ enum AppIcon: CaseIterable {
     Label(LocalizedStringKey(data.text), systemImage: data.systemImageName.rawValue)
   }
 
-  var label: some View {
-    AdaptiveLabel(icon: self)
-  }
-
   var rawImage: Image {
     Image(systemName: data.systemImageName.rawValue)
   }
 
   var image: some View {
-    AdaptiveImage(icon: self)
+    AppIconImage(icon: self)
+  }
+
+  var label: some View {
+    AppIconLabel(icon: self)
   }
 
   var textKey: LocalizedStringKey { LocalizedStringKey(data.text) }
@@ -496,71 +496,73 @@ enum AppIcon: CaseIterable {
 
   @MainActor
   func labelButton(action: @MainActor @escaping () -> Void) -> some View {
-    AdaptiveLabelButton(icon: self, action: action) { label }
+    AppIconLabelButton(icon: self, action: action)
   }
 
   @MainActor
   func rawLabelButton(action: @MainActor @escaping () -> Void) -> some View {
-    AdaptiveLabelButton(icon: self, action: action) { rawLabel }
+    Button(action: action) { rawLabel }
   }
 
   @MainActor
   func imageButton(action: @MainActor @escaping () -> Void) -> some View {
-    AdaptiveImageButton(icon: self, action: action) { image }
+    AppIconImageButton(icon: self, action: action)
   }
 
   @MainActor
   func rawImageButton(action: @MainActor @escaping () -> Void) -> some View {
-    AdaptiveImageButton(icon: self, action: action) { rawImage }
+    Button(action: action) { rawImage }
   }
 }
 
-// MARK: - Adaptive Views
+// MARK: - Icon Views
 
-private struct AdaptiveImage: View {
+private struct AppIconImage: View {
   @Environment(\.colorScheme) private var colorScheme
 
   let icon: AppIcon
 
   var body: some View {
     icon.rawImage
-      .tint(icon.color(for: colorScheme))
+      .renderingMode(.template)
+      .foregroundStyle(icon.color(for: colorScheme))
   }
 }
 
-private struct AdaptiveLabel: View {
+private struct AppIconLabel: View {
   @Environment(\.colorScheme) private var colorScheme
 
   let icon: AppIcon
 
   var body: some View {
-    icon.rawLabel
-      .tint(icon.color(for: colorScheme))
+    Label {
+      Text(icon.textKey)
+    } icon: {
+      icon.rawImage
+        .renderingMode(.template)
+        .foregroundStyle(icon.color(for: colorScheme))
+    }
   }
 }
 
-private struct AdaptiveLabelButton<Label: View>: View {
-  @Environment(\.colorScheme) private var colorScheme
-
-  let icon: AppIcon
-  let action: () -> Void
-  let label: () -> Label
-
-  var body: some View {
-    Button(action: action, label: label)
-      .tint(icon.color(for: colorScheme))
-  }
-}
-
-private struct AdaptiveImageButton<Image: View>: View {
-  @Environment(\.colorScheme) private var colorScheme
-
+private struct AppIconLabelButton: View {
   let icon: AppIcon
   let action: () -> Void
-  let image: () -> Image
 
   var body: some View {
-    Button(action: action, label: image)
-      .tint(icon.color(for: colorScheme))
+    Button(action: action) {
+      AppIconLabel(icon: icon)
+    }
+  }
+}
+
+private struct AppIconImageButton: View {
+  let icon: AppIcon
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      AppIconImage(icon: icon)
+    }
   }
 }
