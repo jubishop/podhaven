@@ -17,7 +17,6 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
 
   // App Navigation
   static let episodesList = SystemImageName("list.bullet")
-  static let expandDown = SystemImageName("chevron.down")
   static let expandUp = SystemImageName("chevron.up")
   static let moreActions = SystemImageName("ellipsis.circle")
   static let podcastsList = SystemImageName("dot.radiowaves.left.and.right")
@@ -69,10 +68,7 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
   static let duration = SystemImageName("clock")
   static let error = SystemImageName("exclamationmark.triangle")
   static let noImage = SystemImageName("photo")
-  static let noPersonFound = SystemImageName("person.circle.fill.badge.questionmark")
-  static let personSearch = SystemImageName("person.circle")
   static let publishDate = SystemImageName("calendar.badge.clock")
-  static let showInfo = SystemImageName("info.circle")
   static let trending = SystemImageName("chart.line.uptrend.xyaxis")
   static let trendingTop = SystemImageName("chart.bar.xaxis")
   static let trendingNews = SystemImageName("newspaper")
@@ -154,8 +150,6 @@ enum AppIcon: CaseIterable {
   case episodesList
   case podcasts
   case search
-  case searchEpisodes
-  case searchPodcasts
   case settings
   case trending
   case trendingTop
@@ -192,10 +186,7 @@ enum AppIcon: CaseIterable {
   case duration
   case error
   case noImage
-  case noPersonFound
-  case personSearch
   case publishDate
-  case showInfo
 
   // Filtering
   case filter
@@ -222,7 +213,6 @@ enum AppIcon: CaseIterable {
   case episodeOnDeck
   case episodeQueued
   case externalLink
-  case expandDown
   case expandUp
   case failed
   case loading
@@ -336,10 +326,6 @@ enum AppIcon: CaseIterable {
       return Data(text: "Podcasts", systemImageName: .podcastsList)
     case .search:
       return Data(text: "Search", systemImageName: .search, color: .secondary)
-    case .searchEpisodes:
-      return Data(text: "Search Episodes", systemImageName: .personSearch, color: .green)
-    case .searchPodcasts:
-      return Data(text: "Search Podcasts", systemImageName: .search, color: .blue)
     case .settings:
       return Data(text: "Settings", systemImageName: .settings)
     case .trending:
@@ -402,14 +388,8 @@ enum AppIcon: CaseIterable {
       return Data(text: "Error", systemImageName: .error, color: .red)
     case .noImage:
       return Data(text: "No Image", systemImageName: .noImage, color: .primary.opacity(0.8))
-    case .noPersonFound:
-      return Data(text: "No Person Found", systemImageName: .noPersonFound, color: .secondary)
-    case .personSearch:
-      return Data(text: "Person Search", systemImageName: .personSearch, color: .secondary)
     case .publishDate:
       return Data(text: "Published", systemImageName: .publishDate, color: .secondary)
-    case .showInfo:
-      return Data(text: "Show Info", systemImageName: .showInfo)
 
     // UI Controls & Status
     case .clearSearch:
@@ -430,8 +410,6 @@ enum AppIcon: CaseIterable {
       return Data(text: "Queued", systemImageName: .episodeQueued, color: .orange)
     case .externalLink:
       return Data(text: "External Link", systemImageName: .externalLink)
-    case .expandDown:
-      return Data(text: "Collapse", systemImageName: .expandDown)
     case .expandUp:
       return Data(text: "Expand", systemImageName: .expandUp)
     case .failed:
