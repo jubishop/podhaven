@@ -453,7 +453,7 @@ enum AppIcon: CaseIterable {
 
     // Sorting
     case .sort:
-      return Data(text: "Sort", systemImageName: .sort)
+      return Data(text: "Sort", systemImageName: .sort, color: .accentColor)
     case .sortByTitle:
       return Data(text: "Title", systemImageName: .sortByTitle, color: .indigo)
     case .sortByMostRecentUnfinished:
@@ -514,19 +514,19 @@ enum AppIcon: CaseIterable {
     }
   }
 
-  var label: Label<Text, Image> {
+  var rawLabel: Label<Text, Image> {
     Label(LocalizedStringKey(data.text), systemImage: data.systemImageName.rawValue)
   }
 
-  var coloredLabel: some View {
+  var label: some View {
     AdaptiveLabel(icon: self)
   }
 
-  var image: Image {
+  var rawImage: Image {
     Image(systemName: data.systemImageName.rawValue)
   }
 
-  var coloredImage: some View {
+  var image: some View {
     AdaptiveImage(icon: self)
   }
 
@@ -560,7 +560,7 @@ private struct AdaptiveImage: View {
   let icon: AppIcon
 
   var body: some View {
-    icon.image
+    icon.rawImage
       .foregroundColor(icon.color(for: colorScheme))
   }
 }
@@ -571,7 +571,7 @@ private struct AdaptiveLabel: View {
   let icon: AppIcon
 
   var body: some View {
-    icon.label
+    icon.rawLabel
       .tint(icon.color(for: colorScheme))
   }
 }

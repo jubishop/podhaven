@@ -58,7 +58,7 @@ struct PlayBarSheet: View {
       } else {
         Color.black
           .overlay(alignment: .top) {
-            AppIcon.audioPlaceholder.coloredImage
+            AppIcon.audioPlaceholder.image
               .font(.system(size: spacing * 12))
               .padding(.top, spacing * 4)
           }

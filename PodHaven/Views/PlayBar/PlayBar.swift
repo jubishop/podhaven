@@ -53,7 +53,7 @@ struct PlayBar: View {
 
   private var stoppedPlayBar: some View {
     HStack(spacing: spacing) {
-      AppIcon.noEpisodeSelected.coloredImage
+      AppIcon.noEpisodeSelected.image
 
       Text("No episode selected")
         .foregroundColor(.primary)

@@ -124,7 +124,7 @@ struct SquareImage: View {
     ZStack {
       Color(.secondarySystemFill)
         .cornerRadius(cornerRadius)
-      placeholderIcon.coloredImage
+      placeholderIcon.image
         .font(.system(size: currentSize / 2))
         .frame(width: currentSize / 2, height: currentSize / 2)
     }

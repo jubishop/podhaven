@@ -41,7 +41,7 @@ struct PodcastDetailView: View {
         if viewModel.podcast.subscribed {
           ToolbarItem(placement: .topBarLeading) {
             HStack(spacing: 4) {
-              AppIcon.subscribed.coloredImage
+              AppIcon.subscribed.image
                 .font(.system(size: 12))
               Text("Subscribed")
                 .font(.caption)
@@ -66,12 +66,12 @@ struct PodcastDetailView: View {
               ForEach(viewModel.allFilterMethods, id: \.self) { filterMethod in
                 Button(
                   action: { viewModel.currentFilterMethod = filterMethod },
-                  label: { filterMethod.appIcon.coloredLabel }
+                  label: { filterMethod.appIcon.label }
                 )
                 .disabled(viewModel.currentFilterMethod == filterMethod)
               }
             },
-            label: { viewModel.currentFilterMethod.appIcon.coloredLabel }
+            label: { viewModel.currentFilterMethod.appIcon.image }
           )
         }
       }

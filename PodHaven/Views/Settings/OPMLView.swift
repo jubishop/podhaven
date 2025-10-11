@@ -22,7 +22,7 @@ struct OPMLView: View {
           item: PodcastOPML.ExportItem(),
           preview: SharePreview(
             "PodHaven Subscriptions",
-            image: AppIcon.document.image
+            image: AppIcon.document.rawImage
           ),
           label: { AppIcon.exportOPML.label }
         )

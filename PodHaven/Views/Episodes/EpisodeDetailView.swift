@@ -46,7 +46,7 @@ struct EpisodeDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
           HStack {
             HStack(spacing: 8) {
-              AppIcon.publishDate.coloredImage
+              AppIcon.publishDate.image
               Text("Published")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -58,7 +58,7 @@ struct EpisodeDetailView: View {
 
             if viewModel.episode.cacheStatus == .cached {
               VStack(spacing: 4) {
-                AppIcon.episodeCached.coloredImage
+                AppIcon.episodeCached.image
                 Text("Cached")
                   .font(.caption2)
                   .foregroundColor(.secondary)
@@ -68,7 +68,7 @@ struct EpisodeDetailView: View {
             Spacer()
 
             HStack(spacing: 8) {
-              AppIcon.duration.coloredImage
+              AppIcon.duration.image
               Text("Duration")
                 .font(.caption)
                 .foregroundColor(.secondary)

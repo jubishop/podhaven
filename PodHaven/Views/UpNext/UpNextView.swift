@@ -33,7 +33,7 @@ struct UpNextView: View {
         if !viewModel.isSelecting {
           ToolbarItem(placement: .topBarLeading) {
             HStack(spacing: 4) {
-              AppIcon.duration.coloredImage
+              AppIcon.duration.image
                 .font(.system(size: 12))
               Text(viewModel.totalQueueDuration.shortDescription)
                 .font(.caption)

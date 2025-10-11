@@ -64,7 +64,7 @@ struct SearchView: View {
       },
       label: {
         HStack(spacing: 6) {
-          section.icon.coloredImage
+          section.icon.image
             .font(.callout)
           Text(section.title)
             .font(.subheadline.weight(isSelected ? .bold : .regular))
@@ -178,7 +178,7 @@ struct SearchView: View {
   }
 
   private var subscribedBadge: some View {
-    AppIcon.subscribed.coloredImage
+    AppIcon.subscribed.image
       .font(.system(size: 16, weight: .semibold))
       .padding(4)
       .background(.ultraThinMaterial, in: Circle())
@@ -214,7 +214,7 @@ struct SearchView: View {
 
   private func placeholderView(icon: AppIcon, title: String, message: String) -> some View {
     VStack(spacing: 16) {
-      icon.coloredImage
+      icon.image
         .font(.system(size: 48))
       Text(title)
         .font(.headline)
