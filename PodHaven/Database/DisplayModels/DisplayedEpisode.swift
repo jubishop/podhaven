@@ -105,11 +105,6 @@ struct DisplayedEpisode:
     }
   }
 
-  func getPodcastEpisode() -> PodcastEpisode? {
-    episode as? PodcastEpisode
-  }
-
-  func getUnsavedPodcastEpisode() -> UnsavedPodcastEpisode? {
-    episode as? UnsavedPodcastEpisode
-  }
+  func getPodcastEpisode() -> PodcastEpisode? { episode as? PodcastEpisode }
+  func getUnsavedPodcastEpisode() -> UnsavedPodcastEpisode? { episode as? UnsavedPodcastEpisode }
 }
