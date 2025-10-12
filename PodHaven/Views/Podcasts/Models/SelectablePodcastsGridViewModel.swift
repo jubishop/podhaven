@@ -152,8 +152,38 @@ import SwiftUI
   func subscribeSelectedPodcasts() {
     Task { [weak self] in
       guard let self else { return }
-      let podcastIDs = podcastList.selectedEntries.compactMap(\.podcastID)
-      try await repo.markSubscribed(podcastIDs)
+      do {
+        // Mark already saved podcasts as subscribed
+        try await repo.markSubscribed(podcastList.selectedEntries.compactMap(\.podcastID))
+
+        // For unsaved podcasts, parse feed and insert with subscription in parallel
+        let unsavedPodcasts = podcastList.selectedEntries.compactMap {
+          $0.podcast.getUnsavedPodcast()
+        }
+        guard !unsavedPodcasts.isEmpty else { return }
+
+        await withThrowingTaskGroup(of: Void.self) { group in
+          for unsavedPodcast in unsavedPodcasts {
+            group.addTask {
+              do {
+                let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
+                var updatedPodcast = try podcastFeed.toUnsavedPodcast()
+                updatedPodcast.subscriptionDate = Date()
+                try await self.repo.insertSeries(
+                  updatedPodcast,
+                  unsavedEpisodes: Array(podcastFeed.toEpisodeArray())
+                )
+              } catch {
+                Log.as(LogSubsystem.PodcastsView.standard).error(error)
+              }
+            }
+          }
+        }
+      } catch {
+        Self.log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.coreMessage(for: error))
+      }
     }
   }
 
@@ -208,8 +238,27 @@ import SwiftUI
   func subscribePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata) {
     Task { [weak self] in
       guard let self else { return }
-      guard let podcastID = podcastWithMetadata.podcastID else { return }
-      try await repo.markSubscribed(podcastID)
+      do {
+        if let podcastID = podcastWithMetadata.podcastID {
+          // Already saved, just mark as subscribed
+          try await repo.markSubscribed(podcastID)
+        } else if var unsavedPodcast = podcastWithMetadata.podcast.getUnsavedPodcast() {
+          // Not saved yet, parse feed and insert
+          let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
+          unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+          unsavedPodcast.subscriptionDate = Date()
+          try await repo.insertSeries(
+            unsavedPodcast,
+            unsavedEpisodes: Array(podcastFeed.toEpisodeArray())
+          )
+        } else {
+          Assert.fatal("Podcast somehow neither saved no unsaved?")
+        }
+      } catch {
+        Self.log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.coreMessage(for: error))
+      }
     }
   }
 

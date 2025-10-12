@@ -457,7 +457,9 @@ struct Repo: Databasing, Sendable {
   private func _setSubscribedColumn(_ podcastIDs: [Podcast.ID], to subscribed: Bool) async throws
     -> Int
   {
-    try await appDB.db.write { db in
+    guard !podcastIDs.isEmpty else { return 0 }
+
+    return try await appDB.db.write { db in
       try Podcast
         .withIDs(podcastIDs)
         .updateAll(db, Podcast.Columns.subscriptionDate.set(to: subscribed ? Date() : nil))
