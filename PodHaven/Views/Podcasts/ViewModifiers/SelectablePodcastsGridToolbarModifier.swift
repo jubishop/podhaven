@@ -33,7 +33,7 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
                     }
                   }
 
-                  if viewModel.anySelectedSaved && viewModel.anySelectedSubscribed {
+                  if viewModel.anySelectedSubscribed {
                     Button("Unsubscribe") {
                       viewModel.unsubscribeSelectedPodcasts()
                     }
@@ -56,10 +56,11 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
             Menu(
               content: {
                 ForEach(viewModel.allSortMethods, id: \.self) { sortMethod in
-                  sortMethod.appIcon.labelButton {
-                    viewModel.currentSortMethod = sortMethod
-                  }
-                  .disabled(viewModel.currentSortMethod == sortMethod)
+                  sortMethod.appIcon
+                    .labelButton {
+                      viewModel.currentSortMethod = sortMethod
+                    }
+                    .disabled(viewModel.currentSortMethod == sortMethod)
                 }
               },
               label: { viewModel.currentSortMethod.appIcon.image }
