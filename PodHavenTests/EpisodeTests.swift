@@ -514,7 +514,17 @@ class EpisodeTests {
       )
     )
 
-    let creationDate = insertedPodcastEpisode.podcast.creationDate
+    // Pin creation dates to a deterministic value so any regression is immediately visible.
+    let creationDate = Date(timeIntervalSince1970: 1_234_567)
+    try await appDB.db.write { db in
+      try Podcast
+        .withID(insertedPodcastEpisode.podcast.id)
+        .updateAll(db, Podcast.Columns.creationDate.set(to: creationDate))
+      try Episode
+        .withID(insertedPodcastEpisode.episode.id)
+        .updateAll(db, Episode.Columns.creationDate.set(to: creationDate))
+    }
+
     let matchingPodcast = try Create.unsavedPodcast(feedURL: unsavedPodcast.feedURL)
     let matchingEpisode = try Create.unsavedEpisode(mediaURL: unsavedEpisode.mediaURL)
 
@@ -524,12 +534,12 @@ class EpisodeTests {
         unsavedEpisode: matchingEpisode
       )
     )
-    #expect(updatedPodcastEpisode.podcast.creationDate.approximatelyEquals(creationDate))
-    #expect(updatedPodcastEpisode.episode.creationDate.approximatelyEquals(creationDate))
+    #expect(updatedPodcastEpisode.podcast.creationDate == creationDate)
+    #expect(updatedPodcastEpisode.episode.creationDate == creationDate)
 
     let fetchedPodcastEpisode = try await repo.podcastEpisode(updatedPodcastEpisode.id)!
-    #expect(fetchedPodcastEpisode.podcast.creationDate.approximatelyEquals(creationDate))
-    #expect(fetchedPodcastEpisode.episode.creationDate.approximatelyEquals(creationDate))
+    #expect(fetchedPodcastEpisode.podcast.creationDate == creationDate)
+    #expect(fetchedPodcastEpisode.episode.creationDate == creationDate)
   }
 
   @Test("that episode can be queried by MediaGUID")
