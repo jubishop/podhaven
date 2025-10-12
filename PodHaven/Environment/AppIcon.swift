@@ -538,6 +538,8 @@ private struct AppIconLabel: View {
 }
 
 private struct AppIconLabelButton: View {
+  @Environment(\.colorScheme) private var colorScheme
+
   let icon: AppIcon
   let action: () -> Void
 
@@ -545,10 +547,13 @@ private struct AppIconLabelButton: View {
     Button(action: action) {
       AppIconLabel(icon: icon)
     }
+    .tint(icon.color(for: colorScheme))
   }
 }
 
 private struct AppIconImageButton: View {
+  @Environment(\.colorScheme) private var colorScheme
+
   let icon: AppIcon
   let action: () -> Void
 
@@ -556,5 +561,6 @@ private struct AppIconImageButton: View {
     Button(action: action) {
       AppIconImage(icon: icon)
     }
+    .tint(icon.color(for: colorScheme))
   }
 }
