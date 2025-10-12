@@ -256,7 +256,7 @@ import Tagged
       """
     )
 
-    restartObservation(feedURLs: searchResults.map(\.feedURL)) { [weak self] podcasts in
+    restartObservation(feedURLs: Array(searchResults.ids)) { [weak self] podcasts in
       guard let self else { return }
 
       Self.log.debug("Now updating \(podcasts.count) podcasts for \(searchText)")
@@ -278,7 +278,7 @@ import Tagged
       """
     )
 
-    restartObservation(feedURLs: trendingSection.podcasts.map(\.feedURL)) { podcasts in
+    restartObservation(feedURLs: Array(trendingSection.podcasts.ids)) { podcasts in
       Self.log.debug("Now updating \(podcasts.count) podcasts for \(trendingSection.title)")
       for podcast in podcasts {
         if trendingSection.podcasts[id: podcast.feedURL] != nil {
