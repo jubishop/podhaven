@@ -21,8 +21,10 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
             ToolbarItem(placement: .primaryAction) {
               Menu(
                 content: {
-                  Button("Delete") {
-                    viewModel.deleteSelectedPodcasts()
+                  if viewModel.anySelectedSaved {
+                    Button("Delete") {
+                      viewModel.deleteSelectedPodcasts()
+                    }
                   }
 
                   if viewModel.anySelectedUnsubscribed {
@@ -31,7 +33,7 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
                     }
                   }
 
-                  if viewModel.anySelectedSubscribed {
+                  if viewModel.anySelectedSaved && viewModel.anySelectedSubscribed {
                     Button("Unsubscribe") {
                       viewModel.unsubscribeSelectedPodcasts()
                     }

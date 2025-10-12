@@ -35,6 +35,13 @@ import SwiftUI
   var anySelectedUnsubscribed: Bool {
     podcastList.selectedEntries.contains { $0.subscribed == false }
   }
+  var anySelectedSaved: Bool {
+    podcastList.selectedEntries.contains { $0.podcastID != nil }
+  }
+
+  func isSaved(_ podcastWithMetadata: PodcastWithEpisodeMetadata) -> Bool {
+    podcastWithMetadata.podcastID != nil
+  }
 
   enum SortMethod: String, CaseIterable {
     case byTitle
