@@ -23,14 +23,6 @@ extension FetchRequest where RowDecoder: FetchableRecord & Identifiable {
 }
 
 extension TableRecord where Self: Identifiable {
-  static func hasManySubquery<Destination: TableRecord>(
-    _ destination: Destination.Type,
-    using foreignKeyColumn: Column = Column("\(Self.databaseTableName)Id")
-  ) -> QueryInterfaceRequest<Destination> {
-    let tableAlias = TableAlias<Self>(name: Self.databaseTableName)
-    return Destination.filter(foreignKeyColumn == tableAlias[Schema.id])
-  }
-
   static func withID(_ id: ID) -> QueryInterfaceRequest<Self>
   where Self.ID: DatabaseValueConvertible {
     filter(id: id)

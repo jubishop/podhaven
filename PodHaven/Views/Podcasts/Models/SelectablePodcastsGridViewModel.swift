@@ -28,7 +28,7 @@ import SwiftUI
   let title: String
   let filter: SQLExpression
 
-  var podcastList: SelectableListUseCase<PodcastWithLatestEpisodeDates, Podcast.ID>
+  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata, Podcast.ID>
   var anySelectedSubscribed: Bool {
     podcastList.selectedEntries.contains { $0.subscribed == true }
   }
@@ -38,48 +38,35 @@ import SwiftUI
 
   enum SortMethod: String, CaseIterable {
     case byTitle
-    case byMostRecentUnfinished
-    case byMostRecentUnstarted
-    case byMostRecentUnqueued
+    case byMostRecentEpisode
+    case byEpisodeCount
     case byMostRecentlySubscribed
 
     var appIcon: AppIcon {
       switch self {
       case .byTitle:
         return .sortByTitle
-      case .byMostRecentUnfinished:
-        return .sortByMostRecentUnfinished
-      case .byMostRecentUnstarted:
-        return .sortByMostRecentUnstarted
-      case .byMostRecentUnqueued:
-        return .sortByMostRecentUnqueued
+      case .byMostRecentEpisode:
+        return .sortByMostRecentEpisode
+      case .byEpisodeCount:
+        return .sortByEpisodeCount
       case .byMostRecentlySubscribed:
         return .sortByMostRecentlySubscribed
       }
     }
 
-    var sortMethod: (PodcastWithLatestEpisodeDates, PodcastWithLatestEpisodeDates) -> Bool {
+    var sortMethod: (PodcastWithEpisodeMetadata, PodcastWithEpisodeMetadata) -> Bool {
       switch self {
       case .byTitle:
         return { lhs, rhs in lhs.title < rhs.title }
-      case .byMostRecentUnfinished:
+      case .byMostRecentEpisode:
         return { lhs, rhs in
-          let lhsDate = lhs.maxUnfinishedEpisodePubDate ?? Date.distantPast
-          let rhsDate = rhs.maxUnfinishedEpisodePubDate ?? Date.distantPast
+          let lhsDate = lhs.mostRecentEpisodeDate ?? Date.distantPast
+          let rhsDate = rhs.mostRecentEpisodeDate ?? Date.distantPast
           return lhsDate > rhsDate
         }
-      case .byMostRecentUnstarted:
-        return { lhs, rhs in
-          let lhsDate = lhs.maxUnstartedEpisodePubDate ?? Date.distantPast
-          let rhsDate = rhs.maxUnstartedEpisodePubDate ?? Date.distantPast
-          return lhsDate > rhsDate
-        }
-      case .byMostRecentUnqueued:
-        return { lhs, rhs in
-          let lhsDate = lhs.maxUnqueuedEpisodePubDate ?? Date.distantPast
-          let rhsDate = rhs.maxUnqueuedEpisodePubDate ?? Date.distantPast
-          return lhsDate > rhsDate
-        }
+      case .byEpisodeCount:
+        return { lhs, rhs in lhs.episodeCount > rhs.episodeCount }
       case .byMostRecentlySubscribed:
         return { lhs, rhs in
           let lhsDate = lhs.subscriptionDate ?? Date.distantPast
@@ -113,7 +100,7 @@ import SwiftUI
     self._currentSortMethod = sortMethod.wrappedValue
     self.title = title
     self.filter = filter
-    self.podcastList = SelectableListUseCase<PodcastWithLatestEpisodeDates, Podcast.ID>(
+    self.podcastList = SelectableListUseCase<PodcastWithEpisodeMetadata, Podcast.ID>(
       idKeyPath: \.id,
       sortMethod: sortMethod.wrappedValue.sortMethod
     )
@@ -121,14 +108,14 @@ import SwiftUI
 
   func execute() async {
     do {
-      for try await podcastsWithLatestEpisodeDates in observatory.podcastsWithLatestEpisodeDates(
+      for try await podcastsWithEpisodeMetadata in observatory.podcastsWithEpisodeMetadata(
         filter
       ) {
         try Task.checkCancellation()
-        Self.log.debug("Updating \(podcastsWithLatestEpisodeDates.count) observed episodes")
+        Self.log.debug("Updating \(podcastsWithEpisodeMetadata.count) observed episodes")
 
         self.podcastList.allEntries = IdentifiedArray(
-          uniqueElements: podcastsWithLatestEpisodeDates
+          uniqueElements: podcastsWithEpisodeMetadata
         )
       }
     } catch {

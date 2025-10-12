@@ -106,9 +106,8 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
   // Sorting
   static let sort = SystemImageName("arrow.up.arrow.down.circle")
   static let sortByTitle = SystemImageName("textformat")
-  static let sortByMostRecentUnfinished = SystemImageName("clock.badge.exclamationmark")
-  static let sortByMostRecentUnstarted = SystemImageName("clock.badge.questionmark")
-  static let sortByMostRecentUnqueued = SystemImageName("clock.badge.xmark")
+  static let sortByMostRecentEpisode = SystemImageName("calendar.badge.clock")
+  static let sortByEpisodeCount = SystemImageName("number")
   static let sortByMostRecentlySubscribed = SystemImageName("person.crop.circle.badge.plus")
 
   // Status Indicators
@@ -191,9 +190,8 @@ enum AppIcon: CaseIterable {
   // Sorting
   case sort
   case sortByTitle
-  case sortByMostRecentUnfinished
-  case sortByMostRecentUnstarted
-  case sortByMostRecentUnqueued
+  case sortByMostRecentEpisode
+  case sortByEpisodeCount
   case sortByMostRecentlySubscribed
 
   // UI Controls & Status
@@ -409,23 +407,17 @@ enum AppIcon: CaseIterable {
       return Data(text: "Sort", systemImageName: .sort)
     case .sortByTitle:
       return Data(text: "Title", systemImageName: .sortByTitle, color: .indigo)
-    case .sortByMostRecentUnfinished:
+    case .sortByMostRecentEpisode:
       return Data(
-        text: "Most Recent Unfinished",
-        systemImageName: .sortByMostRecentUnfinished,
+        text: "Most Recent Episode",
+        systemImageName: .sortByMostRecentEpisode,
         color: .orange
       )
-    case .sortByMostRecentUnstarted:
+    case .sortByEpisodeCount:
       return Data(
-        text: "Most Recent Unstarted",
-        systemImageName: .sortByMostRecentUnstarted,
+        text: "Episode Count",
+        systemImageName: .sortByEpisodeCount,
         color: .teal
-      )
-    case .sortByMostRecentUnqueued:
-      return Data(
-        text: "Most Recent Unqueued",
-        systemImageName: .sortByMostRecentUnqueued,
-        color: .pink
       )
     case .sortByMostRecentlySubscribed:
       return Data(

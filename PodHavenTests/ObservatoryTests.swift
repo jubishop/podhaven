@@ -16,8 +16,22 @@ actor ObservatoryTests {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
-  @Test("allPodcastsWithLatestEpisodeDates()")
-  func testAllPodcastsWithLatestEpisodeDates() async throws {
+  @Test("podcastsWithEpisodeMetadata() with zero episodes")
+  func testPodcastsWithEpisodeMetadataZeroEpisodes() async throws {
+    let podcastWithNoEpisodes = try Create.unsavedPodcast()
+    try await repo.insertSeries(podcastWithNoEpisodes, unsavedEpisodes: [])
+
+    let allPodcastsWithEpisodeMetadata =
+      try await observatory.podcastsWithEpisodeMetadata(AppDB.NoOp).get()
+
+    #expect(allPodcastsWithEpisodeMetadata.count == 1)
+    let metadata = allPodcastsWithEpisodeMetadata[0]
+    #expect(metadata.episodeCount == 0)
+    #expect(metadata.mostRecentEpisodeDate == nil)
+  }
+
+  @Test("allPodcastsWithEpisodeMetadata()")
+  func testAllPodcastsWithEpisodeMetadata() async throws {
     let podcast = try Create.unsavedPodcast()
     let newestUnfinishedEpisode = try Create.unsavedEpisode(
       pubDate: 10.minutesAgo,
@@ -46,34 +60,32 @@ actor ObservatoryTests {
     )
 
     let podcastAllPlayed = try Create.unsavedPodcast()
-    let playedEpisode = try Create.unsavedEpisode(completionDate: 1.minutesAgo)
+    let playedEpisode = try Create.unsavedEpisode(
+      pubDate: 50.minutesAgo,
+      completionDate: 1.minutesAgo
+    )
     try await repo.insertSeries(podcastAllPlayed, unsavedEpisodes: [playedEpisode])
 
-    let allPodcastsWithLatestEpisodeDates =
+    let allPodcastsWithEpisodeMetadata =
       IdentifiedArray(
-        uniqueElements: try await observatory.podcastsWithLatestEpisodeDates(AppDB.NoOp).get(),
+        uniqueElements: try await observatory.podcastsWithEpisodeMetadata(AppDB.NoOp).get(),
         id: \.podcast.feedURL
       )
-    #expect(allPodcastsWithLatestEpisodeDates.count == 2)
+    #expect(allPodcastsWithEpisodeMetadata.count == 2)
 
-    let podcastWithLatestEpisodes = allPodcastsWithLatestEpisodeDates[id: podcast.feedURL]!
+    let podcastWithMetadata = allPodcastsWithEpisodeMetadata[id: podcast.feedURL]!
+    #expect(podcastWithMetadata.episodeCount == 5)
     #expect(
-      podcastWithLatestEpisodes.maxUnfinishedEpisodePubDate!
-        .approximatelyEquals(newestUnfinishedEpisode.pubDate)
-    )
-    #expect(
-      podcastWithLatestEpisodes.maxUnstartedEpisodePubDate!
-        .approximatelyEquals(newestUnstartedEpisode.pubDate)
-    )
-    #expect(
-      podcastWithLatestEpisodes.maxUnqueuedEpisodePubDate!
-        .approximatelyEquals(newestUnqueuedEpisode.pubDate)
+      podcastWithMetadata.mostRecentEpisodeDate!
+        .approximatelyEquals(newerPlayedEpisode.pubDate)
     )
 
-    let fetchedPodcastAllPlayed = allPodcastsWithLatestEpisodeDates[id: podcastAllPlayed.feedURL]!
-    #expect(fetchedPodcastAllPlayed.maxUnfinishedEpisodePubDate == nil)
-    #expect(fetchedPodcastAllPlayed.maxUnstartedEpisodePubDate == nil)
-    #expect(fetchedPodcastAllPlayed.maxUnqueuedEpisodePubDate == nil)
+    let fetchedPodcastAllPlayed = allPodcastsWithEpisodeMetadata[id: podcastAllPlayed.feedURL]!
+    #expect(fetchedPodcastAllPlayed.episodeCount == 1)
+    #expect(
+      fetchedPodcastAllPlayed.mostRecentEpisodeDate!
+        .approximatelyEquals(playedEpisode.pubDate)
+    )
   }
 
   @Test("queuedPodcastEpisodes() and queuedEpisodeIDs")

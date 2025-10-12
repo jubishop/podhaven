@@ -69,7 +69,6 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   // MARK: - Associations
 
   static let episodes = hasMany(Episode.self).order(\.pubDate.desc)
-  static let episodesSubquery = hasManySubquery(Episode.self)
 
   // MARK: - SQL Expressions
 

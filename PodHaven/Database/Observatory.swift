@@ -45,14 +45,14 @@ struct Observatory {
     )
   }
 
-  func podcastsWithLatestEpisodeDates(
+  func podcastsWithEpisodeMetadata(
     _ filter: SQLExpression,
     limit: Int = Int.max
   )
-    -> AsyncValueObservation<[PodcastWithLatestEpisodeDates]>
+    -> AsyncValueObservation<[PodcastWithEpisodeMetadata]>
   {
     _observe { db in
-      try PodcastWithLatestEpisodeDates
+      try PodcastWithEpisodeMetadata
         .all()
         .filter(filter)
         .limit(limit)
