@@ -83,11 +83,7 @@ struct DisplayedPodcast:
 
   // MARK: - Helpers
 
-  func getPodcast() -> Podcast? {
-    podcast as? Podcast
-  }
-
-  func getUnsavedPodcast() -> UnsavedPodcast? {
-    podcast as? UnsavedPodcast
-  }
+  // TODO: Make these simple getters
+  func getPodcast() -> Podcast? { podcast as? Podcast }
+  func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
 }

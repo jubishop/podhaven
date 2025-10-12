@@ -153,32 +153,30 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        // Mark already saved podcasts as subscribed
-        try await repo.markSubscribed(podcastList.selectedEntries.compactMap(\.podcastID))
-
-        // For unsaved podcasts, parse feed and insert with subscription in parallel
-        let unsavedPodcasts = podcastList.selectedEntries.compactMap {
-          $0.displayedPodcast.getUnsavedPodcast()
-        }
-        guard !unsavedPodcasts.isEmpty else { return }
-
-        await withThrowingTaskGroup(of: Void.self) { group in
-          for unsavedPodcast in unsavedPodcasts {
+        // Get or create all podcasts in parallel
+        let podcastIDs = await withTaskGroup(of: Podcast.ID?.self) { group in
+          for entry in podcastList.selectedEntries {
             group.addTask {
               do {
-                let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
-                var updatedPodcast = try podcastFeed.toUnsavedPodcast()
-                updatedPodcast.subscriptionDate = Date()
-                try await self.repo.insertSeries(
-                  updatedPodcast,
-                  unsavedEpisodes: Array(podcastFeed.toEpisodeArray())
-                )
+                let podcast = try await self.getOrCreatePodcast(entry)
+                return podcast.id
               } catch {
                 Log.as(LogSubsystem.PodcastsView.standard).error(error)
+                return nil
               }
             }
           }
+
+          var podcastIDs: [Podcast.ID] = []
+          for await id in group {
+            if let id {
+              podcastIDs.append(id)
+            }
+          }
+          return podcastIDs
         }
+
+        try await repo.markSubscribed(podcastIDs)
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -193,6 +191,24 @@ import SwiftUI
       let podcastIDs = podcastList.selectedEntries.compactMap(\.podcastID)
       try await repo.markUnsubscribed(podcastIDs)
     }
+  }
+
+  // MARK: - Private Helpers
+
+  private func getOrCreatePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata)
+    async throws -> Podcast
+  {
+    if let podcast = podcastWithMetadata.podcast { return podcast }
+
+    guard let unsavedPodcast = podcastWithMetadata.displayedPodcast.getUnsavedPodcast()
+    else { Assert.fatal("Podcast somehow neither saved nor unsaved?") }
+
+    let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
+    let podcastSeries = try await repo.insertSeries(
+      try podcastFeed.toUnsavedPodcast(),
+      unsavedEpisodes: Array(podcastFeed.toEpisodeArray())
+    )
+    return podcastSeries.podcast
   }
 
   // MARK: - Single Item Functions
@@ -239,21 +255,8 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        if let podcastID = podcastWithMetadata.podcastID {
-          // Already saved, just mark as subscribed
-          try await repo.markSubscribed(podcastID)
-        } else if var unsavedPodcast = podcastWithMetadata.displayedPodcast.getUnsavedPodcast() {
-          // Not saved yet, parse feed and insert
-          let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
-          unsavedPodcast = try podcastFeed.toUnsavedPodcast()
-          unsavedPodcast.subscriptionDate = Date()
-          try await repo.insertSeries(
-            unsavedPodcast,
-            unsavedEpisodes: Array(podcastFeed.toEpisodeArray())
-          )
-        } else {
-          Assert.fatal("Podcast somehow neither saved no unsaved?")
-        }
+        let podcast = try await getOrCreatePodcast(podcastWithMetadata)
+        try await repo.markSubscribed(podcast.id)
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }

@@ -69,7 +69,7 @@ actor ObservatoryTests {
     let allPodcastsWithEpisodeMetadata =
       IdentifiedArray(
         uniqueElements: try await observatory.podcastsWithEpisodeMetadata(AppDB.NoOp).get(),
-        id: \.podcast.feedURL
+        id: \.displayedPodcast.feedURL
       )
     #expect(allPodcastsWithEpisodeMetadata.count == 2)
 
