@@ -198,17 +198,7 @@ import SwiftUI
   private func getOrCreatePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata)
     async throws -> Podcast
   {
-    if let podcast = podcastWithMetadata.podcast { return podcast }
-
-    guard let unsavedPodcast = podcastWithMetadata.displayedPodcast.getUnsavedPodcast()
-    else { Assert.fatal("Podcast somehow neither saved nor unsaved?") }
-
-    let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
-    let podcastSeries = try await repo.insertSeries(
-      try podcastFeed.toUnsavedPodcast(),
-      unsavedEpisodes: Array(podcastFeed.toEpisodeArray())
-    )
-    return podcastSeries.podcast
+    try await podcastWithMetadata.displayedPodcast.getOrCreatePodcast()
   }
 
   // MARK: - Single Item Functions

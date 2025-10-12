@@ -83,7 +83,33 @@ struct DisplayedPodcast:
 
   // MARK: - Helpers
 
-  // TODO: Make these simple getters
+  static func getOrCreatePodcast(_ podcast: any PodcastDisplayable) async throws -> Podcast {
+    guard let displayedPodcast = podcast as? DisplayedPodcast
+    else { return try await DisplayedPodcast(podcast).getOrCreatePodcast() }
+
+    return try await displayedPodcast.getOrCreatePodcast()
+  }
+
+  func getOrCreatePodcast() async throws -> Podcast {
+    if let podcast = getPodcast() {
+      return podcast
+    } else if let unsavedPodcast = getUnsavedPodcast() {
+      if let existingSeries = try await repo.podcastSeries(unsavedPodcast.feedURL) {
+        return existingSeries.podcast
+      }
+
+      // Podcast doesn't exist, parse feed and insert
+      let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
+      let podcastSeries = try await repo.insertSeries(
+        try podcastFeed.toUnsavedPodcast(),
+        unsavedEpisodes: Array(podcastFeed.toEpisodeArray())
+      )
+      return podcastSeries.podcast
+    } else {
+      Assert.fatal("Can't make Podcast from: \(type(of: podcast))")
+    }
+  }
+
   func getPodcast() -> Podcast? { podcast as? Podcast }
   func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
 }
