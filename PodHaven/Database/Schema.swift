@@ -66,4 +66,6 @@ enum Schema {
 
     return migrator
   }
+
+  // Note: Next migration should be v18
 }
