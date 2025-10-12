@@ -5,30 +5,30 @@ import SwiftUI
 
 struct SelectablePodcastsGridContextMenuModifier: ViewModifier {
   let viewModel: SelectablePodcastsGridViewModel
-  let podcast: Podcast
+  let podcastWithEpisodeMetadata: PodcastWithEpisodeMetadata
 
   func body(content: Content) -> some View {
     content
       .contextMenu {
         AppIcon.queueAtTop.labelButton {
-          viewModel.queueLatestEpisodeToTop(podcast.id)
+          viewModel.queueLatestEpisodeToTop(podcastWithEpisodeMetadata.id)
         }
 
         AppIcon.queueAtBottom.labelButton {
-          viewModel.queueLatestEpisodeToBottom(podcast.id)
+          viewModel.queueLatestEpisodeToBottom(podcastWithEpisodeMetadata.id)
         }
 
         AppIcon.delete.labelButton {
-          viewModel.deletePodcast(podcast.id)
+          viewModel.deletePodcast(podcastWithEpisodeMetadata.id)
         }
 
-        if podcast.subscribed {
+        if podcastWithEpisodeMetadata.subscribed {
           AppIcon.unsubscribe.labelButton {
-            viewModel.unsubscribePodcast(podcast.id)
+            viewModel.unsubscribePodcast(podcastWithEpisodeMetadata.id)
           }
         } else {
           AppIcon.subscribe.labelButton {
-            viewModel.subscribePodcast(podcast.id)
+            viewModel.subscribePodcast(podcastWithEpisodeMetadata.id)
           }
         }
       }
@@ -38,10 +38,13 @@ struct SelectablePodcastsGridContextMenuModifier: ViewModifier {
 extension View {
   func selectablePodcastsGridContextMenu(
     viewModel: SelectablePodcastsGridViewModel,
-    podcast: Podcast
+    podcastWithEpisodeMetadata: PodcastWithEpisodeMetadata
   ) -> some View {
     self.modifier(
-      SelectablePodcastsGridContextMenuModifier(viewModel: viewModel, podcast: podcast)
+      SelectablePodcastsGridContextMenuModifier(
+        viewModel: viewModel,
+        podcastWithEpisodeMetadata: podcastWithEpisodeMetadata
+      )
     )
   }
 }

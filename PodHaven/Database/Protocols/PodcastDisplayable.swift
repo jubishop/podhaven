@@ -2,11 +2,12 @@
 
 import Foundation
 
-protocol PodcastDisplayable: Gridable, Hashable, Sendable, Stringable {
+protocol PodcastDisplayable: Gridable, Hashable, Sendable, Searchable, Stringable {
   var feedURL: FeedURL { get }
   var image: URL { get }
   var title: String { get }
   var description: String { get }
   var link: URL? { get }
+  var subscriptionDate: Date? { get }
   var subscribed: Bool { get }
 }

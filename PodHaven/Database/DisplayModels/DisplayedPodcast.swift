@@ -8,6 +8,7 @@ import Foundation
 struct DisplayedPodcast:
   PodcastDisplayable,
   Identifiable,
+  Searchable,
   Stringable,
   Hashable,
   Sendable
@@ -59,9 +60,10 @@ struct DisplayedPodcast:
     return false  // Different concrete types are not equal
   }
 
-  // MARK: - Stringable
+  // MARK: - Stringable / Searchable
 
   var toString: String { podcast.toString }
+  var searchableString: String { podcast.searchableString }
 
   // MARK: - PodcastDisplayable
 
@@ -70,6 +72,7 @@ struct DisplayedPodcast:
   var title: String { podcast.title }
   var description: String { podcast.description }
   var link: URL? { podcast.link }
+  var subscriptionDate: Date? { podcast.subscriptionDate }
   var subscribed: Bool { podcast.subscribed }
 
   // MARK: - Helpers

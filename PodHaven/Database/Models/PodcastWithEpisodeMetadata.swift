@@ -5,14 +5,12 @@ import GRDB
 
 @dynamicMemberLookup
 struct PodcastWithEpisodeMetadata:
-  Decodable,
   Equatable,
   FetchableRecord,
   Identifiable,
   Searchable,
   Stringable
 {
-
   // MARK: - QueryInterfaceRequest
 
   static func all() -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
@@ -31,13 +29,26 @@ struct PodcastWithEpisodeMetadata:
 
   // MARK: - Data
 
-  var id: Podcast.ID { podcast.id }
+  var id: FeedURL { podcast.feedURL }
 
-  subscript<T>(dynamicMember keyPath: KeyPath<Podcast, T>) -> T {
+  subscript<T>(dynamicMember keyPath: KeyPath<DisplayedPodcast, T>) -> T {
     podcast[keyPath: keyPath]
   }
 
-  let podcast: Podcast
+  let podcast: DisplayedPodcast
   let episodeCount: Int
   let mostRecentEpisodeDate: Date?
+
+  // MARK: - Custom Decoding
+
+  enum CodingKeys: String, CodingKey, ColumnExpression {
+    case episodeCount
+    case mostRecentEpisodeDate
+  }
+
+  init(row: Row) throws {
+    self.podcast = DisplayedPodcast(try Podcast(row: row))
+    self.episodeCount = row[CodingKeys.episodeCount]
+    self.mostRecentEpisodeDate = row[CodingKeys.mostRecentEpisodeDate]
+  }
 }

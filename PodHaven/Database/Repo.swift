@@ -149,6 +149,15 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  func latestEpisode(for feedURL: FeedURL) async throws -> Episode? {
+    try await appDB.db.read { db in
+      try Episode
+        .joining(required: Episode.podcast.filter { $0.feedURL == feedURL })
+        .order(Episode.Columns.pubDate.desc)
+        .fetchOne(db)
+    }
+  }
+
   func cachedEpisodes() async throws -> [Episode] {
     try await appDB.db.read { db in
       try Episode
@@ -285,6 +294,23 @@ struct Repo: Databasing, Sendable {
   @discardableResult
   func delete(_ podcastID: Podcast.ID) async throws -> Bool {
     try await delete([podcastID]) > 0
+  }
+
+  @discardableResult
+  func delete(_ feedURLs: [FeedURL]) async throws -> Int {
+    guard !feedURLs.isEmpty else { return 0 }
+    let podcastIDs = try await appDB.db.read { db in
+      try Podcast
+        .filter(feedURLs.contains(Podcast.Columns.feedURL))
+        .selectID()
+        .fetchAll(db)
+    }
+    return try await delete(podcastIDs)
+  }
+
+  @discardableResult
+  func delete(_ feedURL: FeedURL) async throws -> Bool {
+    try await delete([feedURL]) > 0
   }
 
   // MARK: - Episode Upserting
@@ -428,6 +454,40 @@ struct Repo: Databasing, Sendable {
   @discardableResult
   func markUnsubscribed(_ podcastID: Podcast.ID) async throws -> Bool {
     try await markUnsubscribed([podcastID]) > 0
+  }
+
+  @discardableResult
+  func markSubscribed(_ feedURLs: [FeedURL]) async throws -> Int {
+    guard !feedURLs.isEmpty else { return 0 }
+    let podcastIDs = try await appDB.db.read { db in
+      try Podcast
+        .filter(feedURLs.contains(Podcast.Columns.feedURL))
+        .selectID()
+        .fetchAll(db)
+    }
+    return try await markSubscribed(podcastIDs)
+  }
+
+  @discardableResult
+  func markSubscribed(_ feedURL: FeedURL) async throws -> Bool {
+    try await markSubscribed([feedURL]) > 0
+  }
+
+  @discardableResult
+  func markUnsubscribed(_ feedURLs: [FeedURL]) async throws -> Int {
+    guard !feedURLs.isEmpty else { return 0 }
+    let podcastIDs = try await appDB.db.read { db in
+      try Podcast
+        .filter(feedURLs.contains(Podcast.Columns.feedURL))
+        .selectID()
+        .fetchAll(db)
+    }
+    return try await markUnsubscribed(podcastIDs)
+  }
+
+  @discardableResult
+  func markUnsubscribed(_ feedURL: FeedURL) async throws -> Bool {
+    try await markUnsubscribed([feedURL]) > 0
   }
 
   @discardableResult

@@ -28,7 +28,7 @@ import SwiftUI
   let title: String
   let filter: SQLExpression
 
-  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata, Podcast.ID>
+  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata, FeedURL>
   var anySelectedSubscribed: Bool {
     podcastList.selectedEntries.contains { $0.subscribed == true }
   }
@@ -100,7 +100,7 @@ import SwiftUI
     self._currentSortMethod = sortMethod.wrappedValue
     self.title = title
     self.filter = filter
-    self.podcastList = SelectableListUseCase<PodcastWithEpisodeMetadata, Podcast.ID>(
+    self.podcastList = SelectableListUseCase<PodcastWithEpisodeMetadata, FeedURL>(
       idKeyPath: \.id,
       sortMethod: sortMethod.wrappedValue.sortMethod
     )
@@ -130,7 +130,7 @@ import SwiftUI
   func refreshPodcasts() async throws(RefreshError) {
     try await refreshManager.performRefresh(
       stalenessThreshold: .minutes(1),
-      filter: podcastList.filteredEntryIDs.contains(Podcast.Columns.id)
+      filter: podcastList.filteredEntryIDs.contains(Podcast.Columns.feedURL)
     )
   }
 
@@ -157,11 +157,11 @@ import SwiftUI
 
   // MARK: - Single Item Functions
 
-  func queueLatestEpisodeToTop(_ podcastID: Podcast.ID) {
+  func queueLatestEpisodeToTop(_ feedURL: FeedURL) {
     Task { [weak self] in
       guard let self else { return }
       do {
-        let latestEpisode = try await repo.latestEpisode(for: podcastID)
+        let latestEpisode = try await repo.latestEpisode(for: feedURL)
         if let latestEpisode = latestEpisode {
           try await queue.unshift(latestEpisode.id)
         }
@@ -171,11 +171,11 @@ import SwiftUI
     }
   }
 
-  func queueLatestEpisodeToBottom(_ podcastID: Podcast.ID) {
+  func queueLatestEpisodeToBottom(_ feedURL: FeedURL) {
     Task { [weak self] in
       guard let self else { return }
       do {
-        let latestEpisode = try await repo.latestEpisode(for: podcastID)
+        let latestEpisode = try await repo.latestEpisode(for: feedURL)
         if let latestEpisode = latestEpisode {
           try await queue.append(latestEpisode.id)
         }
@@ -185,24 +185,24 @@ import SwiftUI
     }
   }
 
-  func deletePodcast(_ podcastID: Podcast.ID) {
+  func deletePodcast(_ feedURL: FeedURL) {
     Task { [weak self] in
       guard let self else { return }
-      try await repo.delete(podcastID)
+      try await repo.delete(feedURL)
     }
   }
 
-  func subscribePodcast(_ podcastID: Podcast.ID) {
+  func subscribePodcast(_ feedURL: FeedURL) {
     Task { [weak self] in
       guard let self else { return }
-      try await repo.markSubscribed(podcastID)
+      try await repo.markSubscribed(feedURL)
     }
   }
 
-  func unsubscribePodcast(_ podcastID: Podcast.ID) {
+  func unsubscribePodcast(_ feedURL: FeedURL) {
     Task { [weak self] in
       guard let self else { return }
-      try await repo.markUnsubscribed(podcastID)
+      try await repo.markUnsubscribed(feedURL)
     }
   }
 }

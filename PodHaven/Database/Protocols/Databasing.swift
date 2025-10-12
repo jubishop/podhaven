@@ -30,6 +30,7 @@ protocol Databasing: Sendable {
   func podcastEpisode(_ episodeID: Episode.ID) async throws -> PodcastEpisode?
   func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode?
   func latestEpisode(for podcastID: Podcast.ID) async throws -> Episode?
+  func latestEpisode(for feedURL: FeedURL) async throws -> Episode?
   func cachedEpisodes() async throws -> [Episode]
 
   // MARK: - Series Writers
@@ -52,6 +53,12 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func delete(_ podcastID: Podcast.ID) async throws -> Bool
+
+  @discardableResult
+  func delete(_ feedURLs: [FeedURL]) async throws -> Int
+
+  @discardableResult
+  func delete(_ feedURL: FeedURL) async throws -> Bool
 
   // MARK: - Episode Writers
 
@@ -90,10 +97,22 @@ protocol Databasing: Sendable {
   func markSubscribed(_ podcastID: Podcast.ID) async throws -> Bool
 
   @discardableResult
+  func markSubscribed(_ feedURLs: [FeedURL]) async throws -> Int
+
+  @discardableResult
+  func markSubscribed(_ feedURL: FeedURL) async throws -> Bool
+
+  @discardableResult
   func markUnsubscribed(_ podcastIDs: [Podcast.ID]) async throws -> Int
 
   @discardableResult
   func markUnsubscribed(_ podcastID: Podcast.ID) async throws -> Bool
+
+  @discardableResult
+  func markUnsubscribed(_ feedURLs: [FeedURL]) async throws -> Int
+
+  @discardableResult
+  func markUnsubscribed(_ feedURL: FeedURL) async throws -> Bool
 
   @discardableResult
   func updateLastUpdate(_ podcastID: Podcast.ID) async throws -> Bool

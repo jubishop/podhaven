@@ -118,6 +118,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   var title: String { unsaved.title }
   var description: String { unsaved.description }
   var link: URL? { unsaved.link }
+  var subscriptionDate: Date? { unsaved.subscriptionDate }
   var subscribed: Bool { unsaved.subscribed }
 }
 

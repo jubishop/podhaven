@@ -20,25 +20,24 @@ struct SelectablePodcastsGridView: View {
   var body: some View {
     ScrollView {
       ItemGrid(items: viewModel.podcastList.filteredEntries) {
-        podcastWithLatestEpisodeDates in
-        let podcast = podcastWithLatestEpisodeDates.podcast
+        podcastWithEpisodeMetadata in
 
         NavigationLink(
-          value: Navigation.Destination.podcast(DisplayedPodcast(podcast)),
+          value: Navigation.Destination.podcast(podcastWithEpisodeMetadata.podcast),
           label: {
             VStack {
-              SquareImage(image: podcast.image)
+              SquareImage(image: podcastWithEpisodeMetadata.image)
                 .selectable(
-                  isSelected: $viewModel.podcastList.isSelected[podcast.id],
+                  isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id],
                   isSelecting: viewModel.isSelecting
                 )
-              Text(podcast.title)
+              Text(podcastWithEpisodeMetadata.title)
                 .font(.caption)
                 .lineLimit(1)
             }
             .selectablePodcastsGridContextMenu(
               viewModel: viewModel,
-              podcast: podcast
+              podcastWithEpisodeMetadata: podcastWithEpisodeMetadata
             )
           }
         )
