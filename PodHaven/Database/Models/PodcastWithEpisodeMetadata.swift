@@ -32,6 +32,7 @@ struct PodcastWithEpisodeMetadata:
   var id: FeedURL { displayedPodcast.feedURL }
   var podcast: Podcast? { displayedPodcast.getPodcast() }
   var podcastID: Podcast.ID? { displayedPodcast.podcastID }
+  var isSaved: Bool { podcastID != nil }
 
   subscript<T>(dynamicMember keyPath: KeyPath<DisplayedPodcast, T>) -> T {
     displayedPodcast[keyPath: keyPath]

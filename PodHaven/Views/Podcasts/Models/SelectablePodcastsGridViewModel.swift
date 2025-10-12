@@ -8,7 +8,7 @@ import Logging
 import Sharing
 import SwiftUI
 
-@Observable @MainActor class SelectablePodcastsGridViewModel {
+@Observable @MainActor class SelectablePodcastsGridViewModel: ManagingPodcasts {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
@@ -30,17 +30,13 @@ import SwiftUI
 
   var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata, FeedURL>
   var anySelectedSubscribed: Bool {
-    podcastList.selectedEntries.contains { $0.subscribed == true }
+    podcastList.selectedEntries.contains(where: \.subscribed)
   }
   var anySelectedUnsubscribed: Bool {
     podcastList.selectedEntries.contains { $0.subscribed == false }
   }
   var anySelectedSaved: Bool {
-    podcastList.selectedEntries.contains { $0.podcastID != nil }
-  }
-
-  func isSaved(_ podcastWithMetadata: PodcastWithEpisodeMetadata) -> Bool {
-    podcastWithMetadata.podcastID != nil
+    podcastList.selectedEntries.contains(where: \.isSaved)
   }
 
   enum SortMethod: String, CaseIterable {
@@ -193,73 +189,4 @@ import SwiftUI
     }
   }
 
-  // MARK: - Private Helpers
-
-  private func getOrCreatePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata)
-    async throws -> Podcast
-  {
-    try await podcastWithMetadata.displayedPodcast.getOrCreatePodcast()
-  }
-
-  // MARK: - Single Item Functions
-
-  func queueLatestEpisodeToTop(_ podcastWithMetadata: PodcastWithEpisodeMetadata) {
-    Task { [weak self] in
-      guard let self else { return }
-      guard let podcastID = podcastWithMetadata.podcastID else { return }
-      do {
-        let latestEpisode = try await repo.latestEpisode(for: podcastID)
-        if let latestEpisode = latestEpisode {
-          try await queue.unshift(latestEpisode.id)
-        }
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
-  func queueLatestEpisodeToBottom(_ podcastWithMetadata: PodcastWithEpisodeMetadata) {
-    Task { [weak self] in
-      guard let self else { return }
-      guard let podcastID = podcastWithMetadata.podcastID else { return }
-      do {
-        let latestEpisode = try await repo.latestEpisode(for: podcastID)
-        if let latestEpisode = latestEpisode {
-          try await queue.append(latestEpisode.id)
-        }
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
-
-  func deletePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata) {
-    Task { [weak self] in
-      guard let self else { return }
-      guard let podcastID = podcastWithMetadata.podcastID else { return }
-      try await repo.delete(podcastID)
-    }
-  }
-
-  func subscribePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata) {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        let podcast = try await getOrCreatePodcast(podcastWithMetadata)
-        try await repo.markSubscribed(podcast.id)
-      } catch {
-        Self.log.error(error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
-      }
-    }
-  }
-
-  func unsubscribePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata) {
-    Task { [weak self] in
-      guard let self else { return }
-      guard let podcastID = podcastWithMetadata.podcastID else { return }
-      try await repo.markUnsubscribed(podcastID)
-    }
-  }
 }

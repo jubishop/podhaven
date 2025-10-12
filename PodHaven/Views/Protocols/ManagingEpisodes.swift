@@ -32,7 +32,7 @@ extension ManagingEpisodes {
   private var playState: PlayState { Container.shared.playState() }
   private var queue: any Queueing { Container.shared.queue() }
 
-  private var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcast) }
+  private var log: Logger { Log.as(LogSubsystem.ViewProtocols.managingEpisode) }
 
   func playEpisode(_ episode: EpisodeType) {
     Task { [weak self] in

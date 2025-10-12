@@ -69,7 +69,8 @@ enum LogSubsystem {
   }
 
   enum ViewProtocols: String, LogCategorizable {
-    case podcast
     case episodeList
+    case managingEpisode
+    case managingPodcast
   }
 }

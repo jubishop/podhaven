@@ -4,13 +4,13 @@ import Foundation
 import SwiftUI
 
 struct SelectablePodcastsGridContextMenuModifier: ViewModifier {
-  let viewModel: SelectablePodcastsGridViewModel
+  let viewModel: any ManagingPodcasts
   let podcastWithEpisodeMetadata: PodcastWithEpisodeMetadata
 
   func body(content: Content) -> some View {
     content
       .contextMenu {
-        if viewModel.isSaved(podcastWithEpisodeMetadata) {
+        if podcastWithEpisodeMetadata.isSaved {
           AppIcon.queueAtTop.labelButton {
             viewModel.queueLatestEpisodeToTop(podcastWithEpisodeMetadata)
           }
@@ -39,7 +39,7 @@ struct SelectablePodcastsGridContextMenuModifier: ViewModifier {
 
 extension View {
   func selectablePodcastsGridContextMenu(
-    viewModel: SelectablePodcastsGridViewModel,
+    viewModel: any ManagingPodcasts,
     podcastWithEpisodeMetadata: PodcastWithEpisodeMetadata
   ) -> some View {
     self.modifier(
