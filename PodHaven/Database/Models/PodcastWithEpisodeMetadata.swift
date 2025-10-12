@@ -24,19 +24,19 @@ struct PodcastWithEpisodeMetadata:
 
   // MARK: - Stringable / Searchable
 
-  var toString: String { podcast.toString }
-  var searchableString: String { podcast.searchableString }
+  var toString: String { displayedPodcast.toString }
+  var searchableString: String { displayedPodcast.searchableString }
 
   // MARK: - Data
 
-  var id: FeedURL { podcast.feedURL }
-  var podcastID: Podcast.ID? { podcast.podcastID }
+  var id: FeedURL { displayedPodcast.feedURL }
+  var podcastID: Podcast.ID? { displayedPodcast.podcastID }
 
   subscript<T>(dynamicMember keyPath: KeyPath<DisplayedPodcast, T>) -> T {
-    podcast[keyPath: keyPath]
+    displayedPodcast[keyPath: keyPath]
   }
 
-  let podcast: DisplayedPodcast
+  let displayedPodcast: DisplayedPodcast
   let episodeCount: Int
   let mostRecentEpisodeDate: Date?
 
@@ -48,7 +48,7 @@ struct PodcastWithEpisodeMetadata:
   }
 
   init(row: Row) throws {
-    self.podcast = DisplayedPodcast(try Podcast(row: row))
+    self.displayedPodcast = DisplayedPodcast(try Podcast(row: row))
     self.episodeCount = row[CodingKeys.episodeCount]
     self.mostRecentEpisodeDate = row[CodingKeys.mostRecentEpisodeDate]
   }

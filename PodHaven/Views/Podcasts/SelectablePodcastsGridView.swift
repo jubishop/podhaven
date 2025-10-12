@@ -23,7 +23,7 @@ struct SelectablePodcastsGridView: View {
         podcastWithEpisodeMetadata in
 
         NavigationLink(
-          value: Navigation.Destination.podcast(podcastWithEpisodeMetadata.podcast),
+          value: Navigation.Destination.podcast(podcastWithEpisodeMetadata.displayedPodcast),
           label: {
             VStack {
               SquareImage(image: podcastWithEpisodeMetadata.image)

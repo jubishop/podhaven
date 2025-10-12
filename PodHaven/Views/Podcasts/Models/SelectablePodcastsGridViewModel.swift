@@ -158,7 +158,7 @@ import SwiftUI
 
         // For unsaved podcasts, parse feed and insert with subscription in parallel
         let unsavedPodcasts = podcastList.selectedEntries.compactMap {
-          $0.podcast.getUnsavedPodcast()
+          $0.displayedPodcast.getUnsavedPodcast()
         }
         guard !unsavedPodcasts.isEmpty else { return }
 
@@ -242,7 +242,7 @@ import SwiftUI
         if let podcastID = podcastWithMetadata.podcastID {
           // Already saved, just mark as subscribed
           try await repo.markSubscribed(podcastID)
-        } else if var unsavedPodcast = podcastWithMetadata.podcast.getUnsavedPodcast() {
+        } else if var unsavedPodcast = podcastWithMetadata.displayedPodcast.getUnsavedPodcast() {
           // Not saved yet, parse feed and insert
           let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
           unsavedPodcast = try podcastFeed.toUnsavedPodcast()
