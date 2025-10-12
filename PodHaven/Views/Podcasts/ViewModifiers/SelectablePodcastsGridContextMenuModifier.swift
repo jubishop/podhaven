@@ -11,24 +11,24 @@ struct SelectablePodcastsGridContextMenuModifier: ViewModifier {
     content
       .contextMenu {
         AppIcon.queueAtTop.labelButton {
-          viewModel.queueLatestEpisodeToTop(podcastWithEpisodeMetadata.id)
+          viewModel.queueLatestEpisodeToTop(podcastWithEpisodeMetadata)
         }
 
         AppIcon.queueAtBottom.labelButton {
-          viewModel.queueLatestEpisodeToBottom(podcastWithEpisodeMetadata.id)
+          viewModel.queueLatestEpisodeToBottom(podcastWithEpisodeMetadata)
         }
 
         AppIcon.delete.labelButton {
-          viewModel.deletePodcast(podcastWithEpisodeMetadata.id)
+          viewModel.deletePodcast(podcastWithEpisodeMetadata)
         }
 
         if podcastWithEpisodeMetadata.subscribed {
           AppIcon.unsubscribe.labelButton {
-            viewModel.unsubscribePodcast(podcastWithEpisodeMetadata.id)
+            viewModel.unsubscribePodcast(podcastWithEpisodeMetadata)
           }
         } else {
           AppIcon.subscribe.labelButton {
-            viewModel.subscribePodcast(podcastWithEpisodeMetadata.id)
+            viewModel.subscribePodcast(podcastWithEpisodeMetadata)
           }
         }
       }

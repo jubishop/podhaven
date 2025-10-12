@@ -90,11 +90,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.latestEpisode(for: podcastID)
   }
 
-  func latestEpisode(for feedURL: FeedURL) async throws -> Episode? {
-    recordCall(methodName: "latestEpisode", parameters: feedURL)
-    return try await repo.latestEpisode(for: feedURL)
-  }
-
   func cachedEpisodes() async throws -> [Episode] {
     recordCall(methodName: "cachedEpisodes")
     return try await repo.cachedEpisodes()
@@ -148,18 +143,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func delete(_ podcastID: Podcast.ID) async throws -> Bool {
     recordCall(methodName: "delete", parameters: podcastID)
     return try await repo.delete(podcastID)
-  }
-
-  @discardableResult
-  func delete(_ feedURLs: [FeedURL]) async throws -> Int {
-    recordCall(methodName: "delete", parameters: feedURLs)
-    return try await repo.delete(feedURLs)
-  }
-
-  @discardableResult
-  func delete(_ feedURL: FeedURL) async throws -> Bool {
-    recordCall(methodName: "delete", parameters: feedURL)
-    return try await repo.delete(feedURL)
   }
 
   // MARK: - Episode Writers
@@ -251,30 +234,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func markUnsubscribed(_ podcastID: Podcast.ID) async throws -> Bool {
     recordCall(methodName: "markUnsubscribed", parameters: podcastID)
     return try await repo.markUnsubscribed(podcastID)
-  }
-
-  @discardableResult
-  func markSubscribed(_ feedURLs: [FeedURL]) async throws -> Int {
-    recordCall(methodName: "markSubscribed", parameters: feedURLs)
-    return try await repo.markSubscribed(feedURLs)
-  }
-
-  @discardableResult
-  func markSubscribed(_ feedURL: FeedURL) async throws -> Bool {
-    recordCall(methodName: "markSubscribed", parameters: feedURL)
-    return try await repo.markSubscribed(feedURL)
-  }
-
-  @discardableResult
-  func markUnsubscribed(_ feedURLs: [FeedURL]) async throws -> Int {
-    recordCall(methodName: "markUnsubscribed", parameters: feedURLs)
-    return try await repo.markUnsubscribed(feedURLs)
-  }
-
-  @discardableResult
-  func markUnsubscribed(_ feedURL: FeedURL) async throws -> Bool {
-    recordCall(methodName: "markUnsubscribed", parameters: feedURL)
-    return try await repo.markUnsubscribed(feedURL)
   }
 
   @discardableResult
