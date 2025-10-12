@@ -54,10 +54,9 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
             Menu(
               content: {
                 ForEach(viewModel.allSortMethods, id: \.self) { sortMethod in
-                  Button(
-                    action: { viewModel.currentSortMethod = sortMethod },
-                    label: { sortMethod.appIcon.label }
-                  )
+                  sortMethod.appIcon.labelButton {
+                    viewModel.currentSortMethod = sortMethod
+                  }
                   .disabled(viewModel.currentSortMethod == sortMethod)
                 }
               },
