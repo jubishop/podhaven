@@ -25,6 +25,7 @@ extension ManagingPodcasts {
     Task { [weak self] in
       guard let self else { return }
       guard let podcastID = podcastWithMetadata.podcastID else { return }
+
       do {
         let latestEpisode = try await repo.latestEpisode(for: podcastID)
         if let latestEpisode = latestEpisode {
@@ -32,6 +33,8 @@ extension ManagingPodcasts {
         }
       } catch {
         log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.coreMessage(for: error))
       }
     }
   }
@@ -40,6 +43,7 @@ extension ManagingPodcasts {
     Task { [weak self] in
       guard let self else { return }
       guard let podcastID = podcastWithMetadata.podcastID else { return }
+
       do {
         let latestEpisode = try await repo.latestEpisode(for: podcastID)
         if let latestEpisode = latestEpisode {
@@ -47,6 +51,8 @@ extension ManagingPodcasts {
         }
       } catch {
         log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.coreMessage(for: error))
       }
     }
   }
@@ -55,13 +61,21 @@ extension ManagingPodcasts {
     Task { [weak self] in
       guard let self else { return }
       guard let podcastID = podcastWithMetadata.podcastID else { return }
-      try await repo.delete(podcastID)
+
+      do {
+        try await repo.delete(podcastID)
+      } catch {
+        log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.coreMessage(for: error))
+      }
     }
   }
 
   func subscribePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata) {
     Task { [weak self] in
       guard let self else { return }
+
       do {
         let podcast = try await getOrCreatePodcast(podcastWithMetadata)
         try await repo.markSubscribed(podcast.id)
@@ -77,7 +91,14 @@ extension ManagingPodcasts {
     Task { [weak self] in
       guard let self else { return }
       guard let podcastID = podcastWithMetadata.podcastID else { return }
-      try await repo.markUnsubscribed(podcastID)
+
+      do {
+        try await repo.markUnsubscribed(podcastID)
+      } catch {
+        log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.coreMessage(for: error))
+      }
     }
   }
 
