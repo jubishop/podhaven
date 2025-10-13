@@ -76,7 +76,7 @@ extension ManagingPodcasts {
   func unsubscribePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata) {
     Task { [weak self] in
       guard let self else { return }
-      guard let podcastID = podcastWithMetadata.displayedPodcast.getPodcast()?.id else { return }
+      guard let podcastID = podcastWithMetadata.podcastID else { return }
       try await repo.markUnsubscribed(podcastID)
     }
   }

@@ -30,7 +30,7 @@ struct PodcastWithEpisodeMetadata:
 
   // MARK: - Getters
 
-  var isSaved: Bool { displayedPodcast.getPodcast() != nil }
+  var isSaved: Bool { self.podcastID != nil }
   subscript<T>(dynamicMember keyPath: KeyPath<DisplayedPodcast, T>) -> T {
     displayedPodcast[keyPath: keyPath]
   }

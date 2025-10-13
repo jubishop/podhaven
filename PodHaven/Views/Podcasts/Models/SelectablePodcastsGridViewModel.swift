@@ -44,7 +44,7 @@ import SwiftUI
           }
         }
 
-        var podcasts: [Podcast] = []
+        var podcasts: [Podcast] = Array.init(capacity: selectedPodcastsWithMetadata.count)
         for await podcast in group {
           if let podcast {
             podcasts.append(podcast)
