@@ -17,6 +17,15 @@ import Logging
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
   var selectedPodcastEpisodeIDs: [Episode.ID] { get async throws }
 
+  var anySelectedQueued: Bool { get }
+  var anySelectedNotAtTopOfQueue: Bool { get }
+  var anySelectedNotAtBottomOfQueue: Bool { get }
+  var anySelectedNotQueued: Bool { get }
+  var anySelectedNotCached: Bool { get }
+  var anySelectedCanClearCache: Bool { get }
+  var anySelectedCanStopCaching: Bool { get }
+  var anySelectedUnfinished: Bool { get }
+
   func playSelectedEpisodes()
   func addSelectedEpisodesToTopOfQueue()
   func addSelectedEpisodesToBottomOfQueue()
@@ -26,15 +35,6 @@ import Logging
   func uncacheSelectedEpisodes()
   func cancelSelectedEpisodeDownloads()
   func markSelectedEpisodesFinished()
-
-  var anySelectedQueued: Bool { get }
-  var anySelectedNotAtTopOfQueue: Bool { get }
-  var anySelectedNotAtBottomOfQueue: Bool { get }
-  var anySelectedNotQueued: Bool { get }
-  var anySelectedNotCached: Bool { get }
-  var anySelectedCanClearCache: Bool { get }
-  var anySelectedCanStopCaching: Bool { get }
-  var anySelectedUnfinished: Bool { get }
 }
 
 extension SelectableEpisodeList {
@@ -52,6 +52,38 @@ extension SelectableEpisodeList {
     get async throws {
       try await selectedPodcastEpisodes.map(\.id)
     }
+  }
+
+  var anySelectedQueued: Bool {
+    selectedEpisodes.contains { $0.queued }
+  }
+
+  var anySelectedNotQueued: Bool {
+    selectedEpisodes.contains { !$0.queued }
+  }
+
+  var anySelectedNotAtTopOfQueue: Bool {
+    selectedEpisodes.contains { !($0.queueOrder == 0) }
+  }
+
+  var anySelectedNotAtBottomOfQueue: Bool {
+    selectedEpisodes.contains { $0.queueOrder != playState.maxQueuePosition }
+  }
+
+  var anySelectedNotCached: Bool {
+    selectedEpisodes.contains { $0.cacheStatus != .cached }
+  }
+
+  var anySelectedCanClearCache: Bool {
+    selectedEpisodes.contains { $0.cacheStatus == .cached && CacheManager.canClearCache($0) }
+  }
+
+  var anySelectedCanStopCaching: Bool {
+    selectedEpisodes.contains { $0.cacheStatus == .caching && CacheManager.canClearCache($0) }
+  }
+
+  var anySelectedUnfinished: Bool {
+    selectedEpisodes.contains { !$0.finished }
   }
 
   func addSelectedEpisodesToBottomOfQueue() {
@@ -179,38 +211,6 @@ extension SelectableEpisodeList {
       let episodeIDs = try await selectedPodcastEpisodeIDs
       try await repo.markFinished(episodeIDs)
     }
-  }
-
-  var anySelectedQueued: Bool {
-    selectedEpisodes.contains { $0.queued }
-  }
-
-  var anySelectedNotQueued: Bool {
-    selectedEpisodes.contains { !$0.queued }
-  }
-
-  var anySelectedNotAtTopOfQueue: Bool {
-    selectedEpisodes.contains { !($0.queueOrder == 0) }
-  }
-
-  var anySelectedNotAtBottomOfQueue: Bool {
-    selectedEpisodes.contains { $0.queueOrder != playState.maxQueuePosition }
-  }
-
-  var anySelectedNotCached: Bool {
-    selectedEpisodes.contains { $0.cacheStatus != .cached }
-  }
-
-  var anySelectedCanClearCache: Bool {
-    selectedEpisodes.contains { $0.cacheStatus == .cached && CacheManager.canClearCache($0) }
-  }
-
-  var anySelectedCanStopCaching: Bool {
-    selectedEpisodes.contains { $0.cacheStatus == .caching && CacheManager.canClearCache($0) }
-  }
-
-  var anySelectedUnfinished: Bool {
-    selectedEpisodes.contains { !$0.finished }
   }
 }
 

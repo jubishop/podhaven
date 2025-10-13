@@ -2,10 +2,10 @@
 
 import SwiftUI
 
-struct SelectablePodcastsGridToolbarModifier: ViewModifier {
-  @State private var viewModel: SelectablePodcastsGridViewModel
+struct SelectablePodcastsGridToolbarModifier<ViewModel: SelectablePodcastList>: ViewModifier {
+  @State private var viewModel: ViewModel
 
-  init(viewModel: SelectablePodcastsGridViewModel) {
+  init(viewModel: ViewModel) {
     self.viewModel = viewModel
   }
 
@@ -79,8 +79,8 @@ struct SelectablePodcastsGridToolbarModifier: ViewModifier {
 }
 
 extension View {
-  func selectablePodcastsGridToolbar(
-    viewModel: SelectablePodcastsGridViewModel
+  func selectablePodcastsGridToolbar<ViewModel: SelectablePodcastList>(
+    viewModel: ViewModel
   ) -> some View {
     self.modifier(SelectablePodcastsGridToolbarModifier(viewModel: viewModel))
   }

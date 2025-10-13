@@ -8,7 +8,7 @@ import Logging
 import Sharing
 import SwiftUI
 
-@Observable @MainActor class SelectablePodcastsGridViewModel: ManagingPodcasts {
+@Observable @MainActor class SelectablePodcastsGridViewModel: ManagingPodcasts, SelectablePodcastList {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
@@ -29,17 +29,33 @@ import SwiftUI
   let filter: SQLExpression
 
   var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata, FeedURL>
-  var anySelectedSubscribed: Bool {
-    podcastList.selectedEntries.contains(where: \.subscribed)
-  }
-  var anySelectedUnsubscribed: Bool {
-    podcastList.selectedEntries.contains { $0.subscribed == false }
-  }
-  var anySelectedSaved: Bool {
-    podcastList.selectedEntries.contains(where: \.isSaved)
+
+  var selectedPodcasts: [Podcast] {
+    get async throws {
+      await withTaskGroup(of: Podcast?.self) { group in
+        for entry in selectedPodcastsWithMetadata {
+          group.addTask {
+            do {
+              return try await self.getOrCreatePodcast(entry)
+            } catch {
+              Log.as(LogSubsystem.PodcastsView.standard).error(error)
+              return nil
+            }
+          }
+        }
+
+        var podcasts: [Podcast] = []
+        for await podcast in group {
+          if let podcast {
+            podcasts.append(podcast)
+          }
+        }
+        return podcasts
+      }
+    }
   }
 
-  enum SortMethod: String, CaseIterable {
+  enum SortMethod: String, CaseIterable, PodcastSortMethod {
     case byTitle
     case byMostRecentEpisode
     case byEpisodeCount
@@ -136,57 +152,4 @@ import SwiftUI
       filter: podcastList.filteredEntryIDs.contains(Podcast.Columns.feedURL)
     )
   }
-
-  func deleteSelectedPodcasts() {
-    Task { [weak self] in
-      guard let self else { return }
-      let podcastIDs = podcastList.selectedEntries.compactMap(\.podcastID)
-      try await repo.delete(podcastIDs)
-    }
-  }
-
-  func subscribeSelectedPodcasts() {
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        // Get or create all podcasts in parallel
-        let podcastIDs = await withTaskGroup(of: Podcast.ID?.self) { group in
-          for entry in podcastList.selectedEntries {
-            group.addTask {
-              do {
-                let podcast = try await self.getOrCreatePodcast(entry)
-                return podcast.id
-              } catch {
-                Log.as(LogSubsystem.PodcastsView.standard).error(error)
-                return nil
-              }
-            }
-          }
-
-          var podcastIDs: [Podcast.ID] = []
-          for await id in group {
-            if let id {
-              podcastIDs.append(id)
-            }
-          }
-          return podcastIDs
-        }
-
-        try await repo.markSubscribed(podcastIDs)
-      } catch {
-        Self.log.error(error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
-      }
-    }
-  }
-
-  func unsubscribeSelectedPodcasts() {
-    Task { [weak self] in
-      guard let self else { return }
-      let podcastIDs = podcastList.selectedEntries.compactMap(\.podcastID)
-      try await repo.markUnsubscribed(podcastIDs)
-    }
-  }
-
 }
