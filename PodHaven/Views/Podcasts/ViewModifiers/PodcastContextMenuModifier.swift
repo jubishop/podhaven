@@ -5,32 +5,32 @@ import SwiftUI
 
 struct PodcastContextMenuModifier: ViewModifier {
   let viewModel: any ManagingPodcasts
-  let podcastWithEpisodeMetadata: PodcastWithEpisodeMetadata
+  let podcast: any PodcastDisplayable
 
   func body(content: Content) -> some View {
     content
       .contextMenu {
-        if podcastWithEpisodeMetadata.isSaved {
+        if podcast.podcastID != nil {
           AppIcon.queueAtTop.labelButton {
-            viewModel.queueLatestEpisodeToTop(podcastWithEpisodeMetadata)
+            viewModel.queueLatestEpisodeToTop(podcast)
           }
 
           AppIcon.queueAtBottom.labelButton {
-            viewModel.queueLatestEpisodeToBottom(podcastWithEpisodeMetadata)
+            viewModel.queueLatestEpisodeToBottom(podcast)
           }
 
           AppIcon.delete.labelButton {
-            viewModel.deletePodcast(podcastWithEpisodeMetadata)
+            viewModel.deletePodcast(podcast)
           }
         }
 
-        if podcastWithEpisodeMetadata.subscribed {
+        if podcast.subscribed {
           AppIcon.unsubscribe.labelButton {
-            viewModel.unsubscribePodcast(podcastWithEpisodeMetadata)
+            viewModel.unsubscribePodcast(podcast)
           }
         } else {
           AppIcon.subscribe.labelButton {
-            viewModel.subscribePodcast(podcastWithEpisodeMetadata)
+            viewModel.subscribePodcast(podcast)
           }
         }
       }
@@ -40,12 +40,12 @@ struct PodcastContextMenuModifier: ViewModifier {
 extension View {
   func podcastContextMenu(
     viewModel: any ManagingPodcasts,
-    podcastWithEpisodeMetadata: PodcastWithEpisodeMetadata
+    podcast: any PodcastDisplayable
   ) -> some View {
     self.modifier(
       PodcastContextMenuModifier(
         viewModel: viewModel,
-        podcastWithEpisodeMetadata: podcastWithEpisodeMetadata
+        podcast: podcast
       )
     )
   }

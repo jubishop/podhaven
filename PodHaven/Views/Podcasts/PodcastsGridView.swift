@@ -32,7 +32,7 @@ struct PodcastsGridView: View {
             )
             .podcastContextMenu(
               viewModel: viewModel,
-              podcastWithEpisodeMetadata: podcastWithEpisodeMetadata
+              podcast: podcastWithEpisodeMetadata.displayedPodcast
             )
           }
         )
