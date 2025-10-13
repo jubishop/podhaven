@@ -23,16 +23,18 @@ struct PodcastsGridView: View {
         podcastWithEpisodeMetadata in
 
         NavigationLink(
-          value: Navigation.Destination.podcast(podcastWithEpisodeMetadata.displayedPodcast),
+          value: Navigation.Destination.podcast(
+            DisplayedPodcast(podcastWithEpisodeMetadata.podcast)
+          ),
           label: {
             PodcastGridView(
-              podcast: podcastWithEpisodeMetadata.displayedPodcast,
+              podcast: podcastWithEpisodeMetadata.podcast,
               isSelecting: viewModel.isSelecting,
               isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id]
             )
             .podcastContextMenu(
               viewModel: viewModel,
-              podcast: podcastWithEpisodeMetadata.displayedPodcast
+              podcast: podcastWithEpisodeMetadata.podcast
             )
           }
         )

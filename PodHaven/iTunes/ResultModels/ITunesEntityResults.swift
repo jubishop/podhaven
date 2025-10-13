@@ -3,7 +3,7 @@
 import Foundation
 
 struct ITunesEntityResults: Decodable, Sendable {
-  var podcastsWithMetadata: [PodcastWithEpisodeMetadata] {
+  var podcastsWithMetadata: [PodcastWithEpisodeMetadata<UnsavedPodcast>] {
     results.compactMap { try? $0.toPodcastWithEpisodeMetadata() }
   }
 
@@ -59,11 +59,11 @@ struct ITunesEntityResults: Decodable, Sendable {
     var episodeCount: Int { trackCount ?? 0 }
     var mostRecentEpisodeDate: Date? { releaseDate }
 
-    func toPodcastWithEpisodeMetadata() throws -> PodcastWithEpisodeMetadata? {
+    func toPodcastWithEpisodeMetadata() throws -> PodcastWithEpisodeMetadata<UnsavedPodcast>? {
       guard let unsavedPodcast = try toUnsavedPodcast() else { return nil }
 
       return PodcastWithEpisodeMetadata(
-        displayedPodcast: DisplayedPodcast(unsavedPodcast),
+        podcast: unsavedPodcast,
         episodeCount: episodeCount,
         mostRecentEpisodeDate: mostRecentEpisodeDate
       )

@@ -164,7 +164,7 @@ import Tagged
         trendingSection.state = .error("No podcasts available in this category right now.")
       } else {
         trendingSection.podcasts = IdentifiedArray(
-          podcasts.map(\.displayedPodcast),
+          podcasts.map { DisplayedPodcast($0.podcast) },
           uniquingIDsWith: { _, new in new }
         )
         trendingSection.state = .loaded
@@ -225,7 +225,7 @@ import Tagged
       guard term == trimmedSearchText else { return }
 
       searchResults = IdentifiedArray(
-        results.map(\.displayedPodcast),
+        results.map { DisplayedPodcast($0.podcast) },
         uniquingIDsWith: { _, new in new }
       )
       searchState = .loaded

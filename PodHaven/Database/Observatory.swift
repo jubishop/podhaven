@@ -49,7 +49,7 @@ struct Observatory {
     _ filter: SQLExpression,
     limit: Int = Int.max
   )
-    -> AsyncValueObservation<[PodcastWithEpisodeMetadata]>
+    -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]>
   {
     _observe { db in
       try PodcastWithEpisodeMetadata

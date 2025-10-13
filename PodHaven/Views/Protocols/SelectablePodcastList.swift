@@ -7,10 +7,11 @@ import Logging
 
 @MainActor protocol SelectablePodcastList: AnyObject {
   associatedtype SortMethodType: PodcastSortMethod
+  associatedtype PodcastType: PodcastDisplayable
 
   var isSelecting: Bool { get set }
-  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata, FeedURL> { get }
-  var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata] { get }
+  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<PodcastType>, FeedURL> { get }
+  var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] { get }
   var selectedFeedURLs: [FeedURL] { get }
 
   var currentSortMethod: SortMethodType { get set }
@@ -34,7 +35,7 @@ extension SelectablePodcastList {
 
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcastList) }
 
-  var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata] {
+  var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] {
     podcastList.selectedEntries.elements
   }
   var selectedFeedURLs: [FeedURL] { Array(podcastList.selectedEntries.ids) }

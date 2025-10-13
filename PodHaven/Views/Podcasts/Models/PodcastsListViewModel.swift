@@ -28,7 +28,7 @@ import SwiftUI
   let title: String
   let filter: SQLExpression
 
-  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata, FeedURL>
+  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<Podcast>, FeedURL>
 
   enum SortMethod: String, CaseIterable, PodcastSortMethod {
     case byTitle
@@ -49,7 +49,9 @@ import SwiftUI
       }
     }
 
-    var sortMethod: (PodcastWithEpisodeMetadata, PodcastWithEpisodeMetadata) -> Bool {
+    var sortMethod:
+      (PodcastWithEpisodeMetadata<Podcast>, PodcastWithEpisodeMetadata<Podcast>) -> Bool
+    {
       switch self {
       case .byTitle:
         return { lhs, rhs in lhs.title < rhs.title }
@@ -119,34 +121,13 @@ import SwiftUI
 
   // MARK: - ManagingPodcasts
 
-  func getOrCreatePodcast(_ podcast: DisplayedPodcast) async throws -> Podcast {
-    try await podcast.getOrCreatePodcast()
-  }
+  func getOrCreatePodcast(_ podcast: Podcast) async throws -> Podcast { podcast }
 
   // MARK: - SelectablePodcastList
 
   var selectedPodcasts: [Podcast] {
     get async throws {
-      await withTaskGroup(of: Podcast?.self) { group in
-        for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
-          group.addTask {
-            do {
-              return try await selectedPodcastWithMetadata.displayedPodcast.getOrCreatePodcast()
-            } catch {
-              Log.as(LogSubsystem.PodcastsView.standard).error(error)
-              return nil
-            }
-          }
-        }
-
-        var podcasts: [Podcast] = Array.init(capacity: selectedPodcastsWithMetadata.count)
-        for await podcast in group {
-          if let podcast {
-            podcasts.append(podcast)
-          }
-        }
-        return podcasts
-      }
+      selectedPodcastsWithMetadata.map(\.podcast)
     }
   }
 

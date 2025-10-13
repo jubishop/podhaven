@@ -4,13 +4,43 @@ import Foundation
 import GRDB
 
 @dynamicMemberLookup
-struct PodcastWithEpisodeMetadata:
-  Equatable,
-  FetchableRecord,
+struct PodcastWithEpisodeMetadata<PodcastType: PodcastDisplayable>:
   Identifiable,
   Searchable,
   Stringable
 {
+  // MARK: - Getters
+
+  var isSaved: Bool { self.podcastID != nil }
+  subscript<T>(dynamicMember keyPath: KeyPath<PodcastType, T>) -> T {
+    podcast[keyPath: keyPath]
+  }
+
+  // MARK: - Identifiable
+
+  var id: FeedURL { podcast.feedURL }
+
+  // MARK: - Stringable / Searchable
+
+  var toString: String { podcast.toString }
+  var searchableString: String { podcast.searchableString }
+
+  // MARK: - Data
+
+  let podcast: PodcastType
+  let episodeCount: Int
+  let mostRecentEpisodeDate: Date?
+
+  // MARK: - Initialization
+
+  init(podcast: PodcastType, episodeCount: Int, mostRecentEpisodeDate: Date?) {
+    self.podcast = podcast
+    self.episodeCount = episodeCount
+    self.mostRecentEpisodeDate = mostRecentEpisodeDate
+  }
+}
+
+extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType == Podcast {
   // MARK: - QueryInterfaceRequest
 
   static func all() -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
@@ -22,36 +52,6 @@ struct PodcastWithEpisodeMetadata:
       .asRequest(of: PodcastWithEpisodeMetadata.self)
   }
 
-  // MARK: - Getters
-
-  var isSaved: Bool { self.podcastID != nil }
-  subscript<T>(dynamicMember keyPath: KeyPath<DisplayedPodcast, T>) -> T {
-    displayedPodcast[keyPath: keyPath]
-  }
-
-  // MARK: - Identifiable
-
-  var id: FeedURL { displayedPodcast.feedURL }
-
-  // MARK: - Stringable / Searchable
-
-  var toString: String { displayedPodcast.toString }
-  var searchableString: String { displayedPodcast.searchableString }
-
-  // MARK: - Data
-
-  let displayedPodcast: DisplayedPodcast
-  let episodeCount: Int
-  let mostRecentEpisodeDate: Date?
-
-  // MARK: - Initialization
-
-  init(displayedPodcast: DisplayedPodcast, episodeCount: Int, mostRecentEpisodeDate: Date?) {
-    self.displayedPodcast = displayedPodcast
-    self.episodeCount = episodeCount
-    self.mostRecentEpisodeDate = mostRecentEpisodeDate
-  }
-
   // MARK: - Custom Decoding
 
   enum CodingKeys: String, CodingKey, ColumnExpression {
@@ -60,7 +60,7 @@ struct PodcastWithEpisodeMetadata:
   }
 
   init(row: Row) throws {
-    self.displayedPodcast = DisplayedPodcast(try Podcast(row: row))
+    self.podcast = try Podcast(row: row)
     self.episodeCount = row[CodingKeys.episodeCount]
     self.mostRecentEpisodeDate = row[CodingKeys.mostRecentEpisodeDate]
   }
