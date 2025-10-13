@@ -22,25 +22,27 @@ struct PodcastWithEpisodeMetadata:
       .asRequest(of: PodcastWithEpisodeMetadata.self)
   }
 
-  // MARK: - Stringable / Searchable
-
-  var toString: String { displayedPodcast.toString }
-  var searchableString: String { displayedPodcast.searchableString }
-
   // MARK: - Data
-
-  var id: FeedURL { displayedPodcast.feedURL }
-  var podcast: Podcast? { displayedPodcast.getPodcast() }
-  var podcastID: Podcast.ID? { displayedPodcast.podcastID }
-  var isSaved: Bool { podcastID != nil }
-
-  subscript<T>(dynamicMember keyPath: KeyPath<DisplayedPodcast, T>) -> T {
-    displayedPodcast[keyPath: keyPath]
-  }
 
   let displayedPodcast: DisplayedPodcast
   let episodeCount: Int
   let mostRecentEpisodeDate: Date?
+
+  // MARK: - Getters
+
+  var isSaved: Bool { displayedPodcast.getPodcast() != nil }
+  subscript<T>(dynamicMember keyPath: KeyPath<DisplayedPodcast, T>) -> T {
+    displayedPodcast[keyPath: keyPath]
+  }
+
+  // MARK: - Identifiable
+
+  var id: FeedURL { displayedPodcast.feedURL }
+
+  // MARK: - Stringable / Searchable
+
+  var toString: String { displayedPodcast.toString }
+  var searchableString: String { displayedPodcast.searchableString }
 
   // MARK: - Custom Decoding
 

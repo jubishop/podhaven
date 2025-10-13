@@ -11,8 +11,7 @@ import Logging
   func subscribePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata)
   func unsubscribePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata)
 
-  func getOrCreatePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata) async throws
-    -> Podcast
+  func getOrCreatePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata) async throws -> Podcast
 }
 
 extension ManagingPodcasts {
@@ -77,13 +76,12 @@ extension ManagingPodcasts {
   func unsubscribePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata) {
     Task { [weak self] in
       guard let self else { return }
-      guard let podcastID = podcastWithMetadata.podcastID else { return }
+      guard let podcastID = podcastWithMetadata.displayedPodcast.getPodcast()?.id else { return }
       try await repo.markUnsubscribed(podcastID)
     }
   }
 
-  func getOrCreatePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata) async throws
-    -> Podcast
+  func getOrCreatePodcast(_ podcastWithMetadata: PodcastWithEpisodeMetadata) async throws -> Podcast
   {
     try await podcastWithMetadata.displayedPodcast.getOrCreatePodcast()
   }
