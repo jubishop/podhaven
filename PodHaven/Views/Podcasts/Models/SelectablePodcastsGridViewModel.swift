@@ -33,10 +33,10 @@ import SwiftUI
   var selectedPodcasts: [Podcast] {
     get async throws {
       await withTaskGroup(of: Podcast?.self) { group in
-        for entry in selectedPodcastsWithMetadata {
+        for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
           group.addTask {
             do {
-              return try await self.getOrCreatePodcast(entry)
+              return try await selectedPodcastWithMetadata.displayedPodcast.getOrCreatePodcast()
             } catch {
               Log.as(LogSubsystem.PodcastsView.standard).error(error)
               return nil
@@ -133,9 +133,7 @@ import SwiftUI
         try Task.checkCancellation()
         Self.log.debug("Updating \(podcastsWithEpisodeMetadata.count) observed episodes")
 
-        self.podcastList.allEntries = IdentifiedArray(
-          uniqueElements: podcastsWithEpisodeMetadata
-        )
+        podcastList.allEntries = IdentifiedArray(uniqueElements: podcastsWithEpisodeMetadata)
       }
     } catch {
       Self.log.error(error)
