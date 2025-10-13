@@ -10,14 +10,14 @@ import Testing
 @Suite("of ShareService tests", .container)
 @MainActor class ShareServiceTests {
   @DynamicInjected(\.feedManagerSession) private var feedManagerSession
+  @DynamicInjected(\.iTunesServiceSession) private var iTunesServiceSession
   @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.opmlViewModel) private var opmlViewModel
   @DynamicInjected(\.podcastOPMLSession) private var podcastOPMLSession
   @DynamicInjected(\.repo) private var repo
-  @DynamicInjected(\.shareServiceSession) private var shareServiceSession
   @DynamicInjected(\.shareService) private var shareService
 
-  var shareSession: FakeDataFetchable { shareServiceSession as! FakeDataFetchable }
+  var itunesSession: FakeDataFetchable { iTunesServiceSession as! FakeDataFetchable }
   var feedSession: FakeDataFetchable { feedManagerSession as! FakeDataFetchable }
   var opmlSession: FakeDataFetchable { podcastOPMLSession as! FakeDataFetchable }
 
@@ -27,7 +27,7 @@ import Testing
 
     let itunesData = PreviewBundle.loadAsset(named: "lenny", in: .iTunesResults)
     let itunesID: String = "1627920305"
-    await shareSession.respond(
+    await itunesSession.respond(
       to: ITunesURL.lookupRequest(podcastIDs: [ITunesPodcastID(Int(itunesID)!)]).url!,
       data: itunesData
     )
@@ -74,7 +74,7 @@ import Testing
 
     let itunesData = PreviewBundle.loadAsset(named: "lenny", in: .iTunesResults)
     let itunesID: String = "1627920305"
-    await shareSession.respond(
+    await itunesSession.respond(
       to: ITunesURL.lookupRequest(podcastIDs: [ITunesPodcastID(Int(itunesID)!)]).url!,
       data: itunesData
     )
@@ -143,26 +143,32 @@ import Testing
     }
   }
 
-  @Test("that ShareError.fetchFailure is thrown when iTunes lookup request fails")
+  @Test("that ShareError.caught wraps SearchError.fetchFailure when iTunes lookup fails")
   func fetchFailureForITunesLookupRequest() async throws {
     let itunesID = "1234567890"
     let applePodcastsURL = ShareHelpers.itunesPodcastURL(for: itunesID, withTitle: "Test Podcast")
     let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
     let lookupURL = ITunesURL.lookupRequest(podcastIDs: [ITunesPodcastID(Int(itunesID)!)]).url!
 
-    await shareSession.respond(to: lookupURL, error: URLError(.networkConnectionLost))
+    await itunesSession.respond(to: lookupURL, error: URLError(.networkConnectionLost))
 
-    await #expect(
-      throws: ShareError.fetchFailure(
-        request: URLRequest(url: lookupURL),
-        caught: URLError(.networkConnectionLost)
-      )
-    ) {
-      try await self.shareService.handleIncomingURL(shareURL)
+    do {
+      try await shareService.handleIncomingURL(shareURL)
+      Issue.record("Expected ShareError.caught to be thrown")
+    } catch let ShareError.caught(error) {
+      guard let searchError = error as? SearchError,
+        case .fetchFailure(let request, _) = searchError
+      else {
+        Issue.record("Expected SearchError.fetchFailure inside ShareError.caught, got: \(error)")
+        return
+      }
+      #expect(request.url == lookupURL)
+    } catch {
+      Issue.record("Expected ShareError.caught, got: \(error)")
     }
   }
 
-  @Test("that ShareError.parseFailure is thrown for invalid iTunes response JSON")
+  @Test("that ShareError.caught wraps SearchError.parseFailure for invalid iTunes response")
   func parseFailureForInvalidITunesResponse() async throws {
     let itunesID = "1234567890"
     let applePodcastsURL = ShareHelpers.itunesPodcastURL(for: itunesID, withTitle: "Test Podcast")
@@ -170,15 +176,21 @@ import Testing
     let lookupURL = ITunesURL.lookupRequest(podcastIDs: [ITunesPodcastID(Int(itunesID)!)]).url!
     let invalidJSON = "invalid json".data(using: .utf8)!
 
-    await shareSession.respond(to: lookupURL, data: invalidJSON)
+    await itunesSession.respond(to: lookupURL, data: invalidJSON)
 
     do {
-      try await self.shareService.handleIncomingURL(shareURL)
-      Issue.record("Expected ShareError.parseFailure to be thrown")
-    } catch let ShareError.parseFailure(data, _) {
+      try await shareService.handleIncomingURL(shareURL)
+      Issue.record("Expected ShareError.caught to be thrown")
+    } catch let ShareError.caught(error) {
+      guard let searchError = error as? SearchError,
+        case .parseFailure(let data, _) = searchError
+      else {
+        Issue.record("Expected SearchError.parseFailure inside ShareError.caught, got: \(error)")
+        return
+      }
       #expect(data == invalidJSON)
     } catch {
-      Issue.record("Expected ShareError.parseFailure, got: \(error)")
+      Issue.record("Expected ShareError.caught, got: \(error)")
     }
   }
 
@@ -194,7 +206,7 @@ import Testing
         "resultCount": 1,
         "results": [
           {
-            "trackId": \(itunesID),
+            "collectionId": \(itunesID),
             "kind": "podcast"
           }
         ]
@@ -202,7 +214,7 @@ import Testing
       """
       .data(using: .utf8)!
 
-    await shareSession.respond(to: lookupURL, data: responseWithoutFeedURL)
+    await itunesSession.respond(to: lookupURL, data: responseWithoutFeedURL)
 
     await #expect(throws: ShareError.noFeedURLFound) {
       try await self.shareService.handleIncomingURL(shareURL)
@@ -223,14 +235,15 @@ import Testing
           {
             "collectionId": \(itunesID),
             "kind": "podcast",
-            "feedUrl": "https://api.substack.com/feed/podcast/10845.rss"
+            "feedUrl": "https://api.substack.com/feed/podcast/10845.rss",
+            "artworkUrl600": "https://example.com/artwork.jpg"
           }
         ]
       }
       """
       .data(using: .utf8)!
 
-    await shareSession.respond(to: lookupURL, data: itunesData)
+    await itunesSession.respond(to: lookupURL, data: itunesData)
 
     let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
     await feedSession.respond(to: feedURL, error: URLError(.cannotConnectToHost))
@@ -253,7 +266,7 @@ import Testing
     let podcastID = "1802645201"
     let episodeID = "69420"
     let itunesData = PreviewBundle.loadAsset(named: "dell", in: .iTunesResults)
-    await shareSession.respond(
+    await itunesSession.respond(
       to: ITunesURL.lookupRequest(podcastIDs: [ITunesPodcastID(Int(podcastID)!)]).url!,
       data: itunesData
     )

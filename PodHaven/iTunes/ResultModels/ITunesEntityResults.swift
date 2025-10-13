@@ -32,6 +32,9 @@ struct ITunesEntityResults: Decodable, Sendable {
     private let description: String?
     private let shortDescription: String?
 
+    private let trackCount: Int?
+    private let releaseDate: Date?
+
     private let kind: String?
     private let wrapperType: String?
 
@@ -56,6 +59,9 @@ struct ITunesEntityResults: Decodable, Sendable {
       else { return nil }
       return url
     }
+
+    var episodeCount: Int { trackCount ?? 0 }
+    var lastReleaseDate: Date { releaseDate ?? Date.distantPast }
 
     func toUnsavedPodcast() throws -> UnsavedPodcast? {
       guard isPodcast, let feedURL else { return nil }

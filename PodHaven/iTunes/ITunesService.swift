@@ -53,9 +53,15 @@ struct ITunesService {
         try await performRequest(ITunesURL.topPodcastsRequest(genreID: genreID, limit: limit))
       ))
 
+    return try await lookupPodcasts(podcastIDs: topPodcastResult.podcastIDs)
+  }
+
+  func lookupPodcasts(podcastIDs: [ITunesPodcastID]) async throws(SearchError)
+    -> [UnsavedPodcast]
+  {
     let lookupResult: ITunesEntityResults = try decode(
       try await performRequest(
-        ITunesURL.lookupRequest(podcastIDs: topPodcastResult.podcastIDs)
+        ITunesURL.lookupRequest(podcastIDs: podcastIDs)
       )
     )
 
@@ -74,7 +80,9 @@ struct ITunesService {
 
   private func decode<T: Decodable>(_ data: Data) throws(SearchError) -> T {
     do {
-      return try JSONDecoder().decode(data)
+      let decoder = JSONDecoder()
+      decoder.dateDecodingStrategy = .iso8601
+      return try decoder.decode(T.self, from: data)
     } catch {
       throw SearchError.parseFailure(data: data, caught: error)
     }

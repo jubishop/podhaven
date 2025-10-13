@@ -4,40 +4,20 @@ import FactoryKit
 import Foundation
 
 extension Container {
-  var shareServiceSession: Factory<DataFetchable> {
-    Factory(self) {
-      let configuration = URLSessionConfiguration.ephemeral
-      configuration.allowsCellularAccess = true
-      configuration.waitsForConnectivity = true
-      let timeout = Double(10)
-      configuration.timeoutIntervalForRequest = timeout
-      configuration.timeoutIntervalForResource = timeout
-      return URLSession(configuration: configuration)
-    }
-    .scope(.cached)
-  }
-
   var shareService: Factory<ShareService> {
-    Factory(self) { ShareService(session: self.shareServiceSession()) }.scope(.cached)
+    Factory(self) { ShareService() }.scope(.cached)
   }
 }
 
 struct ShareService {
   @DynamicInjected(\.feedManager) private var feedManager
+  @DynamicInjected(\.iTunesService) private var iTunesService
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.refreshManager) private var refreshManager
 
   private var navigation: Navigation { get async { await Container.shared.navigation() } }
 
   private static let log = Log.as(LogSubsystem.ShareService.main)
-
-  // MARK: - Initialization
-
-  private let session: DataFetchable
-
-  fileprivate init(session: DataFetchable) {
-    self.session = session
-  }
 
   // MARK: - URL Analysis
 
@@ -142,32 +122,13 @@ struct ShareService {
     Self.log.debug("trying to extract FeedURL from: \(url)")
 
     let podcastID = try ITunesURL.extractPodcastID(from: url)
-    let request = ITunesURL.lookupRequest(podcastIDs: [podcastID])
-    let lookupResult = try await decode(
-      try await performRequest(request)
-    )
+    let unsavedPodcasts = try await ShareError.catch {
+      try await iTunesService.lookupPodcasts(podcastIDs: [podcastID])
+    }
 
-    guard let feedURL = lookupResult.findPodcast(podcastID: podcastID)?.feedURL
+    guard let feedURL = unsavedPodcasts.first?.feedURL
     else { throw ShareError.noFeedURLFound }
 
     return feedURL
-  }
-
-  // MARK: - Private Helpers
-
-  private func performRequest(_ request: URLRequest) async throws(ShareError) -> Data {
-    do {
-      return try await session.validatedData(for: request)
-    } catch {
-      throw ShareError.fetchFailure(request: request, caught: error)
-    }
-  }
-
-  private func decode(_ data: Data) async throws(ShareError) -> ITunesEntityResults {
-    do {
-      return try JSONDecoder().decode(data)
-    } catch {
-      throw ShareError.parseFailure(data: data, caught: error)
-    }
   }
 }

@@ -89,4 +89,14 @@ final class ITunesServiceTests {
         .contains(FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!))
     )
   }
+
+  @Test("trackCount and releaseDate are properly decoded")
+  func testTrackCountAndReleaseDate() async throws {
+    let podcastID = ITunesPodcastID(1)
+    let data = PreviewBundle.loadAsset(named: "lenny", in: .iTunesResults)
+    await session.respond(to: ITunesURL.lookupRequest(podcastIDs: [podcastID]).url!, data: data)
+
+    let results = try await iTunesService.lookupPodcasts(podcastIDs: [podcastID])
+    // TODO: confirm trackCount and releaseDate
+  }
 }

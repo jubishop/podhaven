@@ -14,7 +14,6 @@ extension Container: @retroactive AutoRegistering {
 
     iTunesServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     feedManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
-    shareServiceSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     cacheManagerSession.context(.test) { FakeDataFetchable() }.scope(.cached)
     podcastOPMLSession.context(.test) { FakeDataFetchable() }.scope(.cached)
 
