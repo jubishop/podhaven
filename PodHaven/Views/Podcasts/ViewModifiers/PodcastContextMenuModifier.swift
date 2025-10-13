@@ -3,7 +3,7 @@
 import Foundation
 import SwiftUI
 
-struct SelectablePodcastsGridContextMenuModifier: ViewModifier {
+struct PodcastContextMenuModifier: ViewModifier {
   let viewModel: any ManagingPodcasts
   let podcastWithEpisodeMetadata: PodcastWithEpisodeMetadata
 
@@ -38,12 +38,12 @@ struct SelectablePodcastsGridContextMenuModifier: ViewModifier {
 }
 
 extension View {
-  func selectablePodcastsGridContextMenu(
+  func podcastContextMenu(
     viewModel: any ManagingPodcasts,
     podcastWithEpisodeMetadata: PodcastWithEpisodeMetadata
   ) -> some View {
     self.modifier(
-      SelectablePodcastsGridContextMenuModifier(
+      PodcastContextMenuModifier(
         viewModel: viewModel,
         podcastWithEpisodeMetadata: podcastWithEpisodeMetadata
       )

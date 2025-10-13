@@ -5,15 +5,15 @@ import FactoryKit
 import Logging
 import SwiftUI
 
-struct SelectablePodcastsGridView: View {
+struct PodcastsGridView: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation
 
-  @State private var viewModel: SelectablePodcastsGridViewModel
+  @State private var viewModel: PodcastsListViewModel
 
   private static let log = Log.as(LogSubsystem.PodcastsView.standard)
 
-  init(viewModel: SelectablePodcastsGridViewModel) {
+  init(viewModel: PodcastsListViewModel) {
     self.viewModel = viewModel
   }
 
@@ -35,7 +35,7 @@ struct SelectablePodcastsGridView: View {
                 .font(.caption)
                 .lineLimit(1)
             }
-            .selectablePodcastsGridContextMenu(
+            .podcastContextMenu(
               viewModel: viewModel,
               podcastWithEpisodeMetadata: podcastWithEpisodeMetadata
             )
@@ -60,7 +60,7 @@ struct SelectablePodcastsGridView: View {
         alert(ErrorKit.coreMessage(for: error))
       }
     }
-    .selectablePodcastsGridToolbar(viewModel: viewModel)
+    .selectablePodcastsToolbar(viewModel: viewModel)
     .task(viewModel.execute)
   }
 }
@@ -76,8 +76,8 @@ struct SelectablePodcastsGridView: View {
       path = ["podcasts"]
     }
     .navigationDestination(for: String.self) { _ in
-      SelectablePodcastsGridView(
-        viewModel: SelectablePodcastsGridViewModel(
+      PodcastsGridView(
+        viewModel: PodcastsListViewModel(
           title: "My Podcasts",
           filter: AppDB.NoOp
         )

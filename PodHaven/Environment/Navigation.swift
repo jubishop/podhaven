@@ -144,16 +144,16 @@ extension Container {
     case .podcastsViewType(let viewType):
       switch viewType {
       case .subscribed:
-        SelectablePodcastsGridView(
-          viewModel: SelectablePodcastsGridViewModel(
+        PodcastsGridView(
+          viewModel: PodcastsListViewModel(
             title: "Subscribed",
             filter: Podcast.subscribed
           )
         )
         .id("subscribed")
       case .unsubscribed:
-        SelectablePodcastsGridView(
-          viewModel: SelectablePodcastsGridViewModel(
+        PodcastsGridView(
+          viewModel: PodcastsListViewModel(
             title: "Unsubscribed",
             filter: Podcast.unsubscribed
           )

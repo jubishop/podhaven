@@ -8,7 +8,7 @@ import Logging
 import Sharing
 import SwiftUI
 
-@Observable @MainActor class SelectablePodcastsGridViewModel: ManagingPodcasts, SelectablePodcastList {
+@Observable @MainActor class PodcastsListViewModel: ManagingPodcasts, SelectablePodcastList {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
