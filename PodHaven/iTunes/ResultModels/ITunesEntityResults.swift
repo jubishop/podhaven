@@ -3,15 +3,11 @@
 import Foundation
 
 struct ITunesEntityResults: Decodable, Sendable {
-  var unsavedPodcasts: [UnsavedPodcast] {
-    results.compactMap { try? $0.toUnsavedPodcast() }
+  var podcastsWithMetadata: [PodcastWithEpisodeMetadata] {
+    results.compactMap { try? $0.toPodcastWithEpisodeMetadata() }
   }
 
-  func findPodcast(podcastID: ITunesPodcastID) -> ITunesEntity? {
-    results.first(where: { $0.isPodcast && $0.podcastID == podcastID })
-  }
-
-  struct ITunesEntity: Decodable, Sendable {
+  private struct ITunesEntity: Decodable, Sendable {
     static let podcastKind = "podcast"
 
     private let collectionId: Int?
@@ -61,9 +57,19 @@ struct ITunesEntityResults: Decodable, Sendable {
     }
 
     var episodeCount: Int { trackCount ?? 0 }
-    var lastReleaseDate: Date { releaseDate ?? Date.distantPast }
+    var mostRecentEpisodeDate: Date? { releaseDate }
 
-    func toUnsavedPodcast() throws -> UnsavedPodcast? {
+    func toPodcastWithEpisodeMetadata() throws -> PodcastWithEpisodeMetadata? {
+      guard let unsavedPodcast = try toUnsavedPodcast() else { return nil }
+
+      return PodcastWithEpisodeMetadata(
+        displayedPodcast: DisplayedPodcast(unsavedPodcast),
+        episodeCount: episodeCount,
+        mostRecentEpisodeDate: mostRecentEpisodeDate
+      )
+    }
+
+    private func toUnsavedPodcast() throws -> UnsavedPodcast? {
       guard isPodcast, let feedURL else { return nil }
 
       let artworkURLString = artworkUrl600 ?? artworkUrl100 ?? artworkUrl60 ?? artworkUrl30

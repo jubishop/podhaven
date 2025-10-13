@@ -164,7 +164,7 @@ import Tagged
         trendingSection.state = .error("No podcasts available in this category right now.")
       } else {
         trendingSection.podcasts = IdentifiedArray(
-          podcasts.map(DisplayedPodcast.init),
+          podcasts.map(\.displayedPodcast),
           uniquingIDsWith: { _, new in new }
         )
         trendingSection.state = .loaded
@@ -217,7 +217,7 @@ import Tagged
     searchState = .loading
 
     do {
-      let unsavedResults = try await iTunesService.searchedPodcasts(
+      let results = try await iTunesService.searchedPodcasts(
         matching: term,
         limit: Self.searchLimit
       )
@@ -225,7 +225,7 @@ import Tagged
       guard term == trimmedSearchText else { return }
 
       searchResults = IdentifiedArray(
-        unsavedResults.map(DisplayedPodcast.init),
+        results.map(\.displayedPodcast),
         uniquingIDsWith: { _, new in new }
       )
       searchState = .loaded

@@ -122,11 +122,11 @@ struct ShareService {
     Self.log.debug("trying to extract FeedURL from: \(url)")
 
     let podcastID = try ITunesURL.extractPodcastID(from: url)
-    let unsavedPodcasts = try await ShareError.catch {
+    let podcastsWithMetadata = try await ShareError.catch {
       try await iTunesService.lookupPodcasts(podcastIDs: [podcastID])
     }
 
-    guard let feedURL = unsavedPodcasts.first?.feedURL
+    guard let feedURL = podcastsWithMetadata.first?.feedURL
     else { throw ShareError.noFeedURLFound }
 
     return feedURL

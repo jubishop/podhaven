@@ -35,7 +35,7 @@ struct ITunesService {
   // MARK: - Public API
 
   func searchedPodcasts(matching term: String, limit: Int) async throws(SearchError)
-    -> [UnsavedPodcast]
+    -> [PodcastWithEpisodeMetadata]
   {
     let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty
@@ -44,10 +44,12 @@ struct ITunesService {
     let searchResult: ITunesEntityResults =
       (try decode(try await performRequest(ITunesURL.searchRequest(for: trimmed, limit: limit))))
 
-    return searchResult.unsavedPodcasts
+    return searchResult.podcastsWithMetadata
   }
 
-  func topPodcasts(genreID: Int? = nil, limit: Int) async throws(SearchError) -> [UnsavedPodcast] {
+  func topPodcasts(genreID: Int? = nil, limit: Int) async throws(SearchError)
+    -> [PodcastWithEpisodeMetadata]
+  {
     let topPodcastResult: ITunesTopPodcastsFeed =
       (try decode(
         try await performRequest(ITunesURL.topPodcastsRequest(genreID: genreID, limit: limit))
@@ -57,7 +59,7 @@ struct ITunesService {
   }
 
   func lookupPodcasts(podcastIDs: [ITunesPodcastID]) async throws(SearchError)
-    -> [UnsavedPodcast]
+    -> [PodcastWithEpisodeMetadata]
   {
     let lookupResult: ITunesEntityResults = try decode(
       try await performRequest(
@@ -65,7 +67,7 @@ struct ITunesService {
       )
     )
 
-    return lookupResult.unsavedPodcasts
+    return lookupResult.podcastsWithMetadata
   }
 
   // MARK: - Private Helpers

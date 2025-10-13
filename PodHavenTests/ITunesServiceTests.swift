@@ -97,6 +97,12 @@ final class ITunesServiceTests {
     await session.respond(to: ITunesURL.lookupRequest(podcastIDs: [podcastID]).url!, data: data)
 
     let results = try await iTunesService.lookupPodcasts(podcastIDs: [podcastID])
-    // TODO: confirm trackCount and releaseDate
+    #expect(results.count == 1)
+
+    let podcast = results.first!
+    #expect(podcast.episodeCount == 278)
+
+    let expectedDate = ISO8601DateFormatter().date(from: "2025-07-17T11:02:00Z")!
+    #expect(podcast.mostRecentEpisodeDate == expectedDate)
   }
 }

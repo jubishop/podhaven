@@ -22,12 +22,6 @@ struct PodcastWithEpisodeMetadata:
       .asRequest(of: PodcastWithEpisodeMetadata.self)
   }
 
-  // MARK: - Data
-
-  let displayedPodcast: DisplayedPodcast
-  let episodeCount: Int
-  let mostRecentEpisodeDate: Date?
-
   // MARK: - Getters
 
   var isSaved: Bool { self.podcastID != nil }
@@ -43,6 +37,20 @@ struct PodcastWithEpisodeMetadata:
 
   var toString: String { displayedPodcast.toString }
   var searchableString: String { displayedPodcast.searchableString }
+
+  // MARK: - Data
+
+  let displayedPodcast: DisplayedPodcast
+  let episodeCount: Int
+  let mostRecentEpisodeDate: Date?
+
+  // MARK: - Initialization
+
+  init(displayedPodcast: DisplayedPodcast, episodeCount: Int, mostRecentEpisodeDate: Date?) {
+    self.displayedPodcast = displayedPodcast
+    self.episodeCount = episodeCount
+    self.mostRecentEpisodeDate = mostRecentEpisodeDate
+  }
 
   // MARK: - Custom Decoding
 
