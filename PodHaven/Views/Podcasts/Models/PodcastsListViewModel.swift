@@ -75,11 +75,9 @@ import SwiftUI
   let allSortMethods = SortMethod.allCases
 
   @ObservationIgnored @Shared private var storedSortMethod: SortMethod
-  private var _currentSortMethod: SortMethod
   var currentSortMethod: SortMethod {
-    get { _currentSortMethod }
+    get { storedSortMethod }
     set {
-      _currentSortMethod = newValue
       $storedSortMethod.withLock { $0 = newValue }
       podcastList.sortMethod = newValue.sortMethod
     }
@@ -93,10 +91,9 @@ import SwiftUI
       .appStorage("SelectablePodcastsGridViewModel-sortMethod-\(title)")
     )
     self._storedSortMethod = sortMethod
-    self._currentSortMethod = sortMethod.wrappedValue
     self.title = title
     self.filter = filter
-    self.podcastList = SelectableListUseCase<PodcastWithEpisodeMetadata, FeedURL>(
+    self.podcastList = SelectableListUseCase(
       idKeyPath: \.id,
       sortMethod: sortMethod.wrappedValue.sortMethod
     )
