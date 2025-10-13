@@ -2,7 +2,8 @@
 
 import Foundation
 
-protocol PodcastDisplayable: Gridable, Hashable, Sendable, Searchable, Stringable {
+protocol PodcastDisplayable: Gridable, Hashable, Identifiable, Sendable, Searchable, Stringable {
+  var podcastID: Podcast.ID? { get }
   var feedURL: FeedURL { get }
   var image: URL { get }
   var title: String { get }
@@ -10,4 +11,8 @@ protocol PodcastDisplayable: Gridable, Hashable, Sendable, Searchable, Stringabl
   var link: URL? { get }
   var subscriptionDate: Date? { get }
   var subscribed: Bool { get }
+}
+
+extension PodcastDisplayable {
+  var podcastID: Podcast.ID? { id as? Podcast.ID }
 }

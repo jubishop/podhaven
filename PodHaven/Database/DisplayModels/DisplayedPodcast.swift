@@ -33,12 +33,6 @@ struct DisplayedPodcast:
   // MARK: - Identifiable
 
   var id: FeedURL { feedURL }
-  var podcastID: Podcast.ID? {
-    guard let podcast = getPodcast()
-    else { return nil }
-
-    return podcast.id
-  }
 
   // MARK: - Hashable / Equatable
 
@@ -73,6 +67,7 @@ struct DisplayedPodcast:
 
   // MARK: - PodcastDisplayable
 
+  var podcastID: Podcast.ID? { podcast.podcastID }
   var feedURL: FeedURL { podcast.feedURL }
   var image: URL { podcast.image }
   var title: String { podcast.title }
