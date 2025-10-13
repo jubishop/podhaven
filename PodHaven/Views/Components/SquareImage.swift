@@ -82,8 +82,8 @@ struct SquareImage: View {
   }
 
   func selectable(
-    isSelected: Binding<Bool>,
-    isSelecting: Bool
+    isSelecting: Bool,
+    isSelected: Binding<Bool>
   ) -> some View {
     self
       .overlay {

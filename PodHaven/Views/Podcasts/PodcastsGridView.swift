@@ -25,21 +25,11 @@ struct PodcastsGridView: View {
         NavigationLink(
           value: Navigation.Destination.podcast(podcastWithEpisodeMetadata.displayedPodcast),
           label: {
-            VStack {
-              SquareImage(image: podcastWithEpisodeMetadata.image)
-                .selectable(
-                  isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id],
-                  isSelecting: viewModel.isSelecting
-                )
-                .overlay(alignment: .bottomLeading) {
-                  if podcastWithEpisodeMetadata.subscribed {
-                    subscribedBadge
-                  }
-                }
-              Text(podcastWithEpisodeMetadata.title)
-                .font(.caption)
-                .lineLimit(1)
-            }
+            PodcastGridView(
+              podcast: podcastWithEpisodeMetadata.displayedPodcast,
+              isSelecting: viewModel.isSelecting,
+              isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id]
+            )
             .podcastContextMenu(
               viewModel: viewModel,
               podcastWithEpisodeMetadata: podcastWithEpisodeMetadata
@@ -67,14 +57,6 @@ struct PodcastsGridView: View {
     }
     .selectablePodcastsToolbar(viewModel: viewModel)
     .task(viewModel.execute)
-  }
-
-  private var subscribedBadge: some View {
-    AppIcon.subscribed.image
-      .font(.system(size: 16, weight: .semibold))
-      .padding(4)
-      .background(.ultraThinMaterial, in: Circle())
-      .shadow(radius: 1)
   }
 }
 

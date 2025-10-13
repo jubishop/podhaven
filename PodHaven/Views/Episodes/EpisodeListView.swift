@@ -46,8 +46,8 @@ struct EpisodeListView: View {
       size: 64
     )
     .selectable(
-      isSelected: isSelected,
-      isSelecting: isSelecting
+      isSelecting: isSelecting,
+      isSelected: isSelected
     )
   }
 
