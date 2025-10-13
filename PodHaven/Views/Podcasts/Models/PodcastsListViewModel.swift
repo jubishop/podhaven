@@ -30,31 +30,6 @@ import SwiftUI
 
   var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata, FeedURL>
 
-  var selectedPodcasts: [Podcast] {
-    get async throws {
-      await withTaskGroup(of: Podcast?.self) { group in
-        for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
-          group.addTask {
-            do {
-              return try await selectedPodcastWithMetadata.displayedPodcast.getOrCreatePodcast()
-            } catch {
-              Log.as(LogSubsystem.PodcastsView.standard).error(error)
-              return nil
-            }
-          }
-        }
-
-        var podcasts: [Podcast] = Array.init(capacity: selectedPodcastsWithMetadata.count)
-        for await podcast in group {
-          if let podcast {
-            podcasts.append(podcast)
-          }
-        }
-        return podcasts
-      }
-    }
-  }
-
   enum SortMethod: String, CaseIterable, PodcastSortMethod {
     case byTitle
     case byMostRecentEpisode
@@ -146,6 +121,33 @@ import SwiftUI
 
   func getOrCreatePodcast(_ podcast: DisplayedPodcast) async throws -> Podcast {
     try await podcast.getOrCreatePodcast()
+  }
+
+  // MARK: - SelectablePodcastList
+
+  var selectedPodcasts: [Podcast] {
+    get async throws {
+      await withTaskGroup(of: Podcast?.self) { group in
+        for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
+          group.addTask {
+            do {
+              return try await selectedPodcastWithMetadata.displayedPodcast.getOrCreatePodcast()
+            } catch {
+              Log.as(LogSubsystem.PodcastsView.standard).error(error)
+              return nil
+            }
+          }
+        }
+
+        var podcasts: [Podcast] = Array.init(capacity: selectedPodcastsWithMetadata.count)
+        for await podcast in group {
+          if let podcast {
+            podcasts.append(podcast)
+          }
+        }
+        return podcasts
+      }
+    }
   }
 
   // MARK: - Full Grid Functions
