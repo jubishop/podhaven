@@ -57,7 +57,13 @@ struct PodcastsGridView: View {
         alert(ErrorKit.coreMessage(for: error))
       }
     }
-    .selectablePodcastsToolbar(viewModel: viewModel)
+    .toolbar {
+      selectablePodcastsToolbarItems(
+        viewModel: viewModel,
+        podcastList: viewModel.podcastList
+      )
+    }
+    .toolbarRole(.editor)
     .task(viewModel.execute)
   }
 }
