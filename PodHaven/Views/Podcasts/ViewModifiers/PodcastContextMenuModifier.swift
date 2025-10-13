@@ -3,9 +3,9 @@
 import Foundation
 import SwiftUI
 
-struct PodcastContextMenuModifier: ViewModifier {
-  let viewModel: any ManagingPodcasts
-  let podcast: any PodcastDisplayable
+struct PodcastContextMenuModifier<ViewModel: ManagingPodcasts>: ViewModifier {
+  let viewModel: ViewModel
+  let podcast: ViewModel.PodcastType
 
   func body(content: Content) -> some View {
     content
@@ -38,9 +38,9 @@ struct PodcastContextMenuModifier: ViewModifier {
 }
 
 extension View {
-  func podcastContextMenu(
-    viewModel: any ManagingPodcasts,
-    podcast: any PodcastDisplayable
+  func podcastContextMenu<ViewModel: ManagingPodcasts>(
+    viewModel: ViewModel,
+    podcast: ViewModel.PodcastType
   ) -> some View {
     self.modifier(
       PodcastContextMenuModifier(

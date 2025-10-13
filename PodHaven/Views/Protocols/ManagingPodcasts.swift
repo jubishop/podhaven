@@ -5,13 +5,15 @@ import Foundation
 import Logging
 
 @MainActor protocol ManagingPodcasts: AnyObject {
-  func queueLatestEpisodeToTop(_ podcast: any PodcastDisplayable)
-  func queueLatestEpisodeToBottom(_ podcast: any PodcastDisplayable)
-  func deletePodcast(_ podcast: any PodcastDisplayable)
-  func subscribePodcast(_ podcast: any PodcastDisplayable)
-  func unsubscribePodcast(_ podcast: any PodcastDisplayable)
+  associatedtype PodcastType: PodcastDisplayable
 
-  func getOrCreatePodcast(_ podcast: any PodcastDisplayable) async throws -> Podcast
+  func queueLatestEpisodeToTop(_ podcast: PodcastType)
+  func queueLatestEpisodeToBottom(_ podcast: PodcastType)
+  func deletePodcast(_ podcast: PodcastType)
+  func subscribePodcast(_ podcast: PodcastType)
+  func unsubscribePodcast(_ podcast: PodcastType)
+
+  func getOrCreatePodcast(_ podcast: PodcastType) async throws -> Podcast
 }
 
 extension ManagingPodcasts {
@@ -21,12 +23,12 @@ extension ManagingPodcasts {
 
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.managingPodcast) }
 
-  func queueLatestEpisodeToTop(_ podcast: any PodcastDisplayable) {
+  func queueLatestEpisodeToTop(_ podcast: PodcastType) {
     Task { [weak self] in
       guard let self else { return }
-      guard let podcastID = podcast.podcastID else { return }
 
       do {
+        let podcastID = try await getPodcastID(podcast)
         let latestEpisode = try await repo.latestEpisode(for: podcastID)
         if let latestEpisode = latestEpisode {
           try await queue.unshift(latestEpisode.id)
@@ -39,12 +41,12 @@ extension ManagingPodcasts {
     }
   }
 
-  func queueLatestEpisodeToBottom(_ podcast: any PodcastDisplayable) {
+  func queueLatestEpisodeToBottom(_ podcast: PodcastType) {
     Task { [weak self] in
       guard let self else { return }
-      guard let podcastID = podcast.podcastID else { return }
 
       do {
+        let podcastID = try await getPodcastID(podcast)
         let latestEpisode = try await repo.latestEpisode(for: podcastID)
         if let latestEpisode = latestEpisode {
           try await queue.append(latestEpisode.id)
@@ -57,12 +59,12 @@ extension ManagingPodcasts {
     }
   }
 
-  func deletePodcast(_ podcast: any PodcastDisplayable) {
+  func deletePodcast(_ podcast: PodcastType) {
     Task { [weak self] in
       guard let self else { return }
-      guard let podcastID = podcast.podcastID else { return }
 
       do {
+        let podcastID = try await getPodcastID(podcast)
         try await repo.delete(podcastID)
       } catch {
         log.error(error)
@@ -72,7 +74,7 @@ extension ManagingPodcasts {
     }
   }
 
-  func subscribePodcast(_ podcast: any PodcastDisplayable) {
+  func subscribePodcast(_ podcast: PodcastType) {
     Task { [weak self] in
       guard let self else { return }
 
@@ -87,12 +89,12 @@ extension ManagingPodcasts {
     }
   }
 
-  func unsubscribePodcast(_ podcast: any PodcastDisplayable) {
+  func unsubscribePodcast(_ podcast: PodcastType) {
     Task { [weak self] in
       guard let self else { return }
-      guard let podcastID = podcast.podcastID else { return }
 
       do {
+        let podcastID = try await getPodcastID(podcast)
         try await repo.markUnsubscribed(podcastID)
       } catch {
         log.error(error)
@@ -102,7 +104,9 @@ extension ManagingPodcasts {
     }
   }
 
-  func getOrCreatePodcast(_ podcast: any PodcastDisplayable) async throws -> Podcast {
-    try await DisplayedPodcast.getOrCreatePodcast(podcast)
+  // MARK: - Helpers
+
+  private func getPodcastID(_ podcast: PodcastType) async throws -> Podcast.ID {
+    try await getOrCreatePodcast(podcast).id
   }
 }

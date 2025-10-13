@@ -142,6 +142,12 @@ import SwiftUI
     }
   }
 
+  // MARK: - ManagingPodcasts
+
+  func getOrCreatePodcast(_ podcast: DisplayedPodcast) async throws -> Podcast {
+    try await podcast.getOrCreatePodcast()
+  }
+
   // MARK: - Full Grid Functions
 
   func refreshPodcasts() async throws(RefreshError) {
