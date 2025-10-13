@@ -31,6 +31,11 @@ struct PodcastsGridView: View {
                   isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id],
                   isSelecting: viewModel.isSelecting
                 )
+                .overlay(alignment: .bottomLeading) {
+                  if podcastWithEpisodeMetadata.subscribed {
+                    subscribedBadge
+                  }
+                }
               Text(podcastWithEpisodeMetadata.title)
                 .font(.caption)
                 .lineLimit(1)
@@ -62,6 +67,14 @@ struct PodcastsGridView: View {
     }
     .selectablePodcastsToolbar(viewModel: viewModel)
     .task(viewModel.execute)
+  }
+
+  private var subscribedBadge: some View {
+    AppIcon.subscribed.image
+      .font(.system(size: 16, weight: .semibold))
+      .padding(4)
+      .background(.ultraThinMaterial, in: Circle())
+      .shadow(radius: 1)
   }
 }
 
