@@ -119,18 +119,6 @@ import SwiftUI
     }
   }
 
-  // MARK: - ManagingPodcasts
-
-  func getOrCreatePodcast(_ podcast: Podcast) async throws -> Podcast { podcast }
-
-  // MARK: - SelectablePodcastList
-
-  var selectedPodcasts: [Podcast] {
-    get async throws {
-      selectedPodcastsWithMetadata.map(\.podcast)
-    }
-  }
-
   // MARK: - Full Grid Functions
 
   func refreshPodcasts() async throws(RefreshError) {

@@ -110,3 +110,7 @@ extension ManagingPodcasts {
     try await getOrCreatePodcast(podcast).id
   }
 }
+
+extension ManagingPodcasts where PodcastType == Podcast {
+  func getOrCreatePodcast(_ podcast: Podcast) async throws -> Podcast { podcast }
+}

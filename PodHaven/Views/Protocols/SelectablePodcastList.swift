@@ -84,3 +84,9 @@ extension SelectablePodcastList {
     }
   }
 }
+
+extension SelectablePodcastList where PodcastType == Podcast {
+  var selectedPodcasts: [Podcast] {
+    get async throws { selectedPodcastsWithMetadata.map(\.podcast) }
+  }
+}

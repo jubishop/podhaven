@@ -158,13 +158,15 @@ extension ManagingEpisodes {
     CacheManager.canClearCache(episode)
   }
 
-  func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode {
-    try await DisplayedEpisode.getOrCreatePodcastEpisode(episode)
-  }
-
   // MARK: - Helpers
 
   private func getEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID {
     try await getOrCreatePodcastEpisode(episode).id
+  }
+}
+
+extension ManagingEpisodes where EpisodeType == PodcastEpisode {
+  func getOrCreatePodcastEpisode(_ episode: PodcastEpisode) async throws -> PodcastEpisode {
+    episode
   }
 }
