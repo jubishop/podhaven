@@ -11,9 +11,8 @@ import Logging
 
   var isSelecting: Bool { get set }
   var episodeList: SelectableListUseCase<EpisodeType, EpisodeID> { get }
-  var selectedEpisodes: [EpisodeType] { get }
-  var selectedEpisodeIDs: [EpisodeID] { get }
 
+  var selectedEpisodes: [EpisodeType] { get }
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
   var selectedPodcastEpisodeIDs: [Episode.ID] { get async throws }
 
@@ -47,7 +46,6 @@ extension SelectableEpisodeList {
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 
   var selectedEpisodes: [EpisodeType] { episodeList.selectedEntries.elements }
-  var selectedEpisodeIDs: [EpisodeID] { Array(episodeList.selectedEntries.ids) }
   var selectedPodcastEpisodeIDs: [Episode.ID] {
     get async throws {
       try await selectedPodcastEpisodes.map(\.id)

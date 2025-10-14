@@ -6,19 +6,21 @@ import IdentifiedCollections
 import Logging
 
 @MainActor protocol SelectablePodcastList: AnyObject {
-  associatedtype SortMethodType: PodcastSortMethod
   associatedtype PodcastType: PodcastDisplayable
+  associatedtype SortMethodType: PodcastSortMethod
 
   var isSelecting: Bool { get set }
-  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<PodcastType>, FeedURL> { get }
+  var podcastList:
+    SelectableListUseCase<
+      PodcastWithEpisodeMetadata<PodcastType>, PodcastType.ID
+    >
+  { get }
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] { get }
-  var selectedFeedURLs: [FeedURL] { get }
+  var selectedPodcasts: [Podcast] { get async throws }
+  var selectedPodcastIDs: [Podcast.ID] { get async throws }
 
   var currentSortMethod: SortMethodType { get set }
   var allSortMethods: [SortMethodType] { get }
-
-  var selectedPodcasts: [Podcast] { get async throws }
-  var selectedPodcastIDs: [Podcast.ID] { get async throws }
 
   var anySelectedSubscribed: Bool { get }
   var anySelectedUnsubscribed: Bool { get }
@@ -38,7 +40,6 @@ extension SelectablePodcastList {
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] {
     podcastList.selectedEntries.elements
   }
-  var selectedFeedURLs: [FeedURL] { Array(podcastList.selectedEntries.ids) }
   var selectedPodcastIDs: [Podcast.ID] {
     get async throws {
       try await selectedPodcasts.map(\.id)

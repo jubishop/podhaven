@@ -28,7 +28,7 @@ import SwiftUI
   let title: String
   let filter: SQLExpression
 
-  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<Podcast>, FeedURL>
+  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<Podcast>, Podcast.ID>
 
   enum SortMethod: String, CaseIterable, PodcastSortMethod {
     case byTitle

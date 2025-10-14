@@ -18,7 +18,7 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastDisplayable>:
 
   // MARK: - Identifiable
 
-  var id: FeedURL { podcast.feedURL }
+  var id: PodcastType.ID { podcast.id }
 
   // MARK: - Stringable / Searchable
 
