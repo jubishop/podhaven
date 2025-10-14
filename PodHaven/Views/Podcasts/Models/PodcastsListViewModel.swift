@@ -28,7 +28,7 @@ import SwiftUI
   let title: String
   let filter: SQLExpression
 
-  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<Podcast>, Podcast.ID>
+  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<Podcast>>
 
   enum SortMethod: String, CaseIterable, PodcastSortMethod {
     case byTitle
@@ -93,10 +93,7 @@ import SwiftUI
     self._storedSortMethod = sortMethod
     self.title = title
     self.filter = filter
-    self.podcastList = SelectableListUseCase(
-      idKeyPath: \.id,
-      sortMethod: sortMethod.wrappedValue.sortMethod
-    )
+    self.podcastList = SelectableListUseCase(sortMethod: sortMethod.wrappedValue.sortMethod)
   }
 
   func execute() async {

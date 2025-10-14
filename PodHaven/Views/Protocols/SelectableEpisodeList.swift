@@ -9,7 +9,7 @@ import Logging
   associatedtype EpisodeType: EpisodeDisplayable
 
   var isSelecting: Bool { get set }
-  var episodeList: SelectableListUseCase<EpisodeType, EpisodeType.ID> { get }
+  var episodeList: SelectableListUseCase<EpisodeType> { get }
 
   var selectedEpisodes: [EpisodeType] { get }
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }

@@ -28,8 +28,11 @@ import Tagged
     set { withAnimation { _isSelecting = newValue } }
   }
 
-  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<DisplayedPodcast>, FeedURL>
+  var podcastList = SelectableListUseCase<PodcastWithEpisodeMetadata<DisplayedPodcast>>(
+    sortMethod: SortMethod.byTitle.sortMethod
+  )
 
+  // TODO: Make a do-nothing bySearchResult SortMethod
   enum SortMethod: String, CaseIterable, PodcastSortMethod {
     case byTitle
     case byMostRecentEpisode
@@ -144,11 +147,6 @@ import Tagged
       TrendingSection(genreID: 1318, icon: .trendingTechnology),
       TrendingSection(genreID: 1488, icon: .trendingTrueCrime),
     ]
-    // TODO: Make a do-nothing bySearchResult SortMethod
-    self.podcastList = SelectableListUseCase(
-      idKeyPath: \.id,
-      sortMethod: SortMethod.byTitle.sortMethod
-    )
   }
 
   func execute() {

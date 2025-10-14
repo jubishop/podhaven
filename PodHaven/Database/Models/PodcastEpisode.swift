@@ -13,7 +13,6 @@ struct PodcastEpisode:
   Equatable,
   FetchableRecord,
   Hashable,
-  Identifiable,
   Searchable,
   Stringable
 {

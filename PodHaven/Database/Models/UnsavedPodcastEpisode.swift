@@ -8,7 +8,6 @@ struct UnsavedPodcastEpisode:
   EpisodeDisplayable,
   Equatable,
   Hashable,
-  Identifiable,
   Searchable,
   Stringable
 {
