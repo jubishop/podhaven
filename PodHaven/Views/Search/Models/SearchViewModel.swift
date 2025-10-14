@@ -40,7 +40,7 @@ import Tagged
 
   var selectedPodcasts: [Podcast] {
     get async throws {
-      var podcasts: [Podcast] = Array.init(capacity: selectedPodcastsWithMetadata.count)
+      var podcasts: [Podcast] = Array(capacity: selectedPodcastsWithMetadata.count)
       for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
         podcasts.append(try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast())
       }
@@ -116,7 +116,8 @@ import Tagged
     let icon: AppIcon
 
     fileprivate(set) var state: LoadingState = .idle
-    fileprivate(set) var podcasts: IdentifiedArrayOf<DisplayedPodcast> = []
+    fileprivate(set)
+      var results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> = []
 
     fileprivate var task: Task<Void, Never>? = nil
 
@@ -155,7 +156,7 @@ import Tagged
     }
   }
   var trimmedSearchText: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
-  var searchResults: IdentifiedArrayOf<DisplayedPodcast> = []
+  var searchResults: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> = []
   var isShowingSearchResults: Bool { !trimmedSearchText.isEmpty }
 
   @ObservationIgnored private var searchTask: Task<Void, Never>?
@@ -233,18 +234,24 @@ import Tagged
 
   private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) async {
     do {
-      let podcasts = try await iTunesService.topPodcasts(
+      let results = try await iTunesService.topPodcasts(
         genreID: trendingSection.genreID,
         limit: Self.trendingLimit
       )
       try Task.checkCancellation()
 
-      if podcasts.isEmpty {
-        trendingSection.podcasts = []
+      if results.isEmpty {
+        trendingSection.results = []
         trendingSection.state = .error("No podcasts available in this category right now.")
       } else {
-        trendingSection.podcasts = IdentifiedArray(
-          podcasts.map { DisplayedPodcast($0.podcast) },
+        trendingSection.results = IdentifiedArray(
+          results.map {
+            PodcastWithEpisodeMetadata(
+              podcast: DisplayedPodcast($0.podcast),
+              episodeCount: $0.episodeCount,
+              mostRecentEpisodeDate: $0.mostRecentEpisodeDate
+            )
+          },
           uniquingIDsWith: { _, new in new }
         )
         trendingSection.state = .loaded
@@ -253,7 +260,7 @@ import Tagged
       Self.log.error(error, mundane: .trace)
       guard !Task.isCancelled else { return }
 
-      trendingSection.podcasts = []
+      trendingSection.results = []
       trendingSection.state = .error(ErrorKit.coreMessage(for: error))
     }
   }
@@ -305,7 +312,13 @@ import Tagged
       guard term == trimmedSearchText else { return }
 
       searchResults = IdentifiedArray(
-        results.map { DisplayedPodcast($0.podcast) },
+        results.map {
+          PodcastWithEpisodeMetadata(
+            podcast: DisplayedPodcast($0.podcast),
+            episodeCount: $0.episodeCount,
+            mostRecentEpisodeDate: $0.mostRecentEpisodeDate
+          )
+        },
         uniquingIDsWith: { _, new in new }
       )
       searchState = .loaded
@@ -342,7 +355,12 @@ import Tagged
       Self.log.debug("Now updating \(podcasts.count) podcasts for \(searchText)")
       for podcast in podcasts {
         if searchResults[id: podcast.feedURL] != nil {
-          searchResults[id: podcast.feedURL] = DisplayedPodcast(podcast)
+          searchResults[id: podcast.feedURL] =
+            PodcastWithEpisodeMetadata(
+              podcast: DisplayedPodcast(podcast.podcast),
+              episodeCount: podcast.episodeCount,
+              mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
+            )
         } else {
           Self.log.notice("Observed podcast: \(podcast.toString) not showing in search?")
         }
@@ -354,15 +372,20 @@ import Tagged
     Self.log.debug(
       """
       restartObservationForTrendingSection: \(trendingSection.title)
-        \(trendingSection.podcasts.count) trending podcasts.
+        \(trendingSection.results.count) trending podcasts.
       """
     )
 
-    restartObservation(feedURLs: Array(trendingSection.podcasts.ids)) { podcasts in
+    restartObservation(feedURLs: Array(trendingSection.results.ids)) { podcasts in
       Self.log.debug("Now updating \(podcasts.count) podcasts for \(trendingSection.title)")
       for podcast in podcasts {
-        if trendingSection.podcasts[id: podcast.feedURL] != nil {
-          trendingSection.podcasts[id: podcast.feedURL] = DisplayedPodcast(podcast)
+        if trendingSection.results[id: podcast.feedURL] != nil {
+          trendingSection.results[id: podcast.feedURL] =
+            PodcastWithEpisodeMetadata(
+              podcast: DisplayedPodcast(podcast.podcast),
+              episodeCount: podcast.episodeCount,
+              mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
+            )
         } else {
           Self.log.notice("Observed podcast: \(podcast.toString) not showing in trending?")
         }
@@ -372,7 +395,7 @@ import Tagged
 
   private func restartObservation(
     feedURLs: [FeedURL],
-    update: @escaping ([Podcast]) -> Void
+    update: @escaping ([PodcastWithEpisodeMetadata<Podcast>]) -> Void
   ) {
     podcastObservationTask?.cancel()
 
@@ -385,7 +408,7 @@ import Tagged
       guard let self else { return }
 
       do {
-        for try await podcasts in observatory.podcasts(feedURLs) {
+        for try await podcasts in observatory.podcastsWithEpisodeMetadata(feedURLs) {
           try Task.checkCancellation()
           Self.log.debug("Observed \(podcasts.count) new podcasts")
           update(podcasts)

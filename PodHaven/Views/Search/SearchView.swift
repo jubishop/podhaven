@@ -95,7 +95,7 @@ struct SearchView: View {
 
       case .loading, .loaded:
         if !viewModel.searchResults.isEmpty {
-          resultsGrid(podcasts: viewModel.searchResults)
+          resultsGrid(viewModel.searchResults)
             .overlay(alignment: .top) {
               if state == .loading {
                 loadingView(text: "Searching…")
@@ -129,8 +129,8 @@ struct SearchView: View {
     ScrollView {
       switch state {
       case .loaded, .loading, .idle:
-        if !section.podcasts.isEmpty {
-          resultsGrid(podcasts: section.podcasts)
+        if !section.results.isEmpty {
+          resultsGrid(section.results)
             .overlay(alignment: .top) {
               if state == .loading {
                 loadingView(text: "Fetching top \(section.title) podcasts…")
@@ -153,19 +153,21 @@ struct SearchView: View {
   // MARK: - Grid Items
 
   @ViewBuilder
-  private func resultsGrid(podcasts: IdentifiedArrayOf<DisplayedPodcast>) -> some View {
-    ItemGrid(items: podcasts) { podcast in
+  private func resultsGrid(
+    _ podcastsWithEpisodeMetadata: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>>
+  ) -> some View {
+    ItemGrid(items: podcastsWithEpisodeMetadata) { podcastWithEpisodeMetadata in
       NavigationLink(
-        value: Navigation.Destination.podcast(podcast),
+        value: Navigation.Destination.podcast(podcastWithEpisodeMetadata.podcast),
         label: {
           VStack {
-            SquareImage(image: podcast.image)
+            SquareImage(image: podcastWithEpisodeMetadata.image)
               .overlay(alignment: .bottomTrailing) {
-                if podcast.subscribed {
+                if podcastWithEpisodeMetadata.subscribed {
                   subscribedBadge
                 }
               }
-            Text(podcast.title)
+            Text(podcastWithEpisodeMetadata.title)
               .font(.caption)
               .lineLimit(1)
           }

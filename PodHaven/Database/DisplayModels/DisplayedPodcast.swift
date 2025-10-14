@@ -110,7 +110,7 @@ struct DisplayedPodcast:
   }
   func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
 
-  private static func getDisplayedPodcast(_ podcast: any PodcastDisplayable) -> DisplayedPodcast {
+  static func getDisplayedPodcast(_ podcast: any PodcastDisplayable) -> DisplayedPodcast {
     guard let displayedPodcast = podcast as? DisplayedPodcast
     else { return DisplayedPodcast(podcast) }
 
