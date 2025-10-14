@@ -64,7 +64,7 @@ extension ManagingEpisodes {
     Task { [weak self] in
       guard let self else { return }
 
-      let episodeID = try await getEpisodeID(episode)
+      let episodeID = try await getOrCreateEpisodeID(episode)
       try await queue.unshift(episodeID)
     }
   }
@@ -75,7 +75,7 @@ extension ManagingEpisodes {
     Task { [weak self] in
       guard let self else { return }
 
-      let episodeID = try await getEpisodeID(episode)
+      let episodeID = try await getOrCreateEpisodeID(episode)
       try await queue.append(episodeID)
     }
   }
@@ -83,9 +83,10 @@ extension ManagingEpisodes {
   func removeEpisodeFromQueue(_ episode: EpisodeType) {
     Task { [weak self] in
       guard let self else { return }
+      guard episode.queued else { return }
 
       do {
-        let episodeID = try await getEpisodeID(episode)
+        let episodeID = try await getOrCreateEpisodeID(episode)
         try await queue.dequeue(episodeID)
       } catch {
         log.error(error)
@@ -98,7 +99,7 @@ extension ManagingEpisodes {
       guard let self else { return }
 
       do {
-        let episodeID = try await getEpisodeID(episode)
+        let episodeID = try await getOrCreateEpisodeID(episode)
         try await cacheManager.downloadToCache(for: episodeID)
       } catch {
         log.error(error)
@@ -109,9 +110,10 @@ extension ManagingEpisodes {
   func uncacheEpisode(_ episode: EpisodeType) {
     Task { [weak self] in
       guard let self else { return }
+      guard canClearCache(episode) else { return }
 
       do {
-        let episodeID = try await getEpisodeID(episode)
+        let episodeID = try await getOrCreateEpisodeID(episode)
         try await cacheManager.clearCache(for: episodeID)
       } catch {
         log.error(error)
@@ -126,7 +128,7 @@ extension ManagingEpisodes {
       guard let self else { return }
 
       do {
-        let episodeID = try await getEpisodeID(episode)
+        let episodeID = try await getOrCreateEpisodeID(episode)
         try await repo.markFinished(episodeID)
       } catch {
         log.error(error)
@@ -160,7 +162,7 @@ extension ManagingEpisodes {
 
   // MARK: - Helpers
 
-  private func getEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID {
+  private func getOrCreateEpisodeID(_ episode: EpisodeType) async throws -> Episode.ID {
     try await getOrCreatePodcastEpisode(episode).id
   }
 }

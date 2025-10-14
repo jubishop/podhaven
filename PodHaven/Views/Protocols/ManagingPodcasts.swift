@@ -28,7 +28,7 @@ extension ManagingPodcasts {
       guard let self else { return }
 
       do {
-        let podcastID = try await getPodcastID(podcast)
+        let podcastID = try await getOrCreatePodcastID(podcast)
         let latestEpisode = try await repo.latestEpisode(for: podcastID)
         if let latestEpisode = latestEpisode {
           try await queue.unshift(latestEpisode.id)
@@ -46,7 +46,7 @@ extension ManagingPodcasts {
       guard let self else { return }
 
       do {
-        let podcastID = try await getPodcastID(podcast)
+        let podcastID = try await getOrCreatePodcastID(podcast)
         let latestEpisode = try await repo.latestEpisode(for: podcastID)
         if let latestEpisode = latestEpisode {
           try await queue.append(latestEpisode.id)
@@ -62,9 +62,9 @@ extension ManagingPodcasts {
   func deletePodcast(_ podcast: PodcastType) {
     Task { [weak self] in
       guard let self else { return }
+      guard let podcastID = podcast.podcastID else { return }
 
       do {
-        let podcastID = try await getPodcastID(podcast)
         try await repo.delete(podcastID)
       } catch {
         log.error(error)
@@ -92,9 +92,9 @@ extension ManagingPodcasts {
   func unsubscribePodcast(_ podcast: PodcastType) {
     Task { [weak self] in
       guard let self else { return }
+      guard let podcastID = podcast.podcastID else { return }
 
       do {
-        let podcastID = try await getPodcastID(podcast)
         try await repo.markUnsubscribed(podcastID)
       } catch {
         log.error(error)
@@ -106,7 +106,7 @@ extension ManagingPodcasts {
 
   // MARK: - Helpers
 
-  private func getPodcastID(_ podcast: PodcastType) async throws -> Podcast.ID {
+  private func getOrCreatePodcastID(_ podcast: PodcastType) async throws -> Podcast.ID {
     try await getOrCreatePodcast(podcast).id
   }
 }
