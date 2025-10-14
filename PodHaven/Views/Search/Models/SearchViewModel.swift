@@ -100,7 +100,7 @@ import Tagged
     }
   }
 
-  // MARK: - Generic State Management
+  // MARK: - State Management
 
   enum LoadingState: Equatable {
     case idle
