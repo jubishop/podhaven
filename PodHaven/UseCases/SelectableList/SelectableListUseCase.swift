@@ -15,19 +15,19 @@ import SwiftUI
   }
   var selectedEntryIDs: [Item.ID] { selectedEntries.ids.elements }
 
+  // MARK: - Private State Caching
+
+  private var searchTerms: [String] = []
+  private var baselineEntries = IdentifiedArrayOf<Item>()
+
   // MARK: - Entry List Getters / Setters
 
-  private var baselineEntries = IdentifiedArrayOf<Item>()
   private var _allEntries = IdentifiedArrayOf<Item>()
   var allEntries: IdentifiedArrayOf<Item> {
     get { _allEntries }
     set {
       baselineEntries = newValue
-      if let sortMethod {
-        _allEntries = newValue.sorted(by: sortMethod)
-      } else {
-        _allEntries = newValue
-      }
+      _allEntries = applySort()
 
       for entry in isSelected.keys where !allEntries.ids.contains(entry) {
         isSelected.removeValue(forKey: entry)
@@ -41,14 +41,6 @@ import SwiftUI
     } else {
       filteredEntries = allEntries
     }
-
-    if entryFilter.isEmpty { return filteredEntries }
-
-    let searchTerms =
-      entryFilter
-      .lowercased()
-      .components(separatedBy: CharacterSet.whitespacesAndNewlines)
-      .filter { !$0.isEmpty }
 
     guard !searchTerms.isEmpty else { return filteredEntries }
 
@@ -66,14 +58,18 @@ import SwiftUI
   var filterMethod: ((Item) -> Bool)?
   var sortMethod: ((Item, Item) -> Bool)? {
     didSet {
-      if let sortMethod {
-        _allEntries = baselineEntries.sorted(by: sortMethod)
-      } else {
-        _allEntries = baselineEntries
-      }
+      _allEntries = applySort()
     }
   }
-  var entryFilter: String = ""
+  var entryFilter: String = "" {
+    didSet {
+      searchTerms =
+        entryFilter
+        .lowercased()
+        .components(separatedBy: CharacterSet.whitespacesAndNewlines)
+        .filter { !$0.isEmpty }
+    }
+  }
 
   // MARK: - Initialization
 
@@ -97,5 +93,12 @@ import SwiftUI
     for entry in filteredEntries {
       isSelected[entry.id] = false
     }
+  }
+
+  // MARK: - Helpers
+
+  private func applySort() -> IdentifiedArrayOf<Item> {
+    guard let sortMethod else { return baselineEntries }
+    return baselineEntries.sorted(by: sortMethod)
   }
 }
