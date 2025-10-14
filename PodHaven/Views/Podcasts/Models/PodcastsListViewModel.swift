@@ -17,16 +17,13 @@ import SwiftUI
 
   private static let log = Log.as(LogSubsystem.PodcastsView.standard)
 
-  // MARK: - State Management
+  // MARK: - SelectablePodcastList
 
   private var _isSelecting = false
   var isSelecting: Bool {
     get { _isSelecting }
     set { withAnimation { _isSelecting = newValue } }
   }
-
-  let title: String
-  let filter: SQLExpression
 
   var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<Podcast>>
 
@@ -82,6 +79,11 @@ import SwiftUI
       podcastList.sortMethod = newValue.sortMethod
     }
   }
+
+  // MARK: - State Management
+
+  let title: String
+  let filter: SQLExpression
 
   // MARK: - Initialization
 

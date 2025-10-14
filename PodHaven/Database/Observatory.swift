@@ -22,10 +22,7 @@ struct Observatory {
 
   // MARK: - Podcasts
 
-  func podcasts(
-    _ filter: SQLExpression,
-    limit: Int = Int.max
-  ) -> AsyncValueObservation<[Podcast]> {
+  func podcasts(_ filter: SQLExpression, limit: Int = Int.max) -> AsyncValueObservation<[Podcast]> {
     _observe { db in
       try Podcast
         .all()
@@ -35,20 +32,14 @@ struct Observatory {
     }
   }
 
-  func podcasts(
-    _ feedURLs: [FeedURL],
-    limit: Int = Int.max
-  ) -> AsyncValueObservation<[Podcast]> {
+  func podcasts(_ feedURLs: [FeedURL], limit: Int = Int.max) -> AsyncValueObservation<[Podcast]> {
     podcasts(
       feedURLs.contains(Podcast.Columns.feedURL),
       limit: limit
     )
   }
 
-  func podcastsWithEpisodeMetadata(
-    _ filter: SQLExpression,
-    limit: Int = Int.max
-  )
+  func podcastsWithEpisodeMetadata(_ filter: SQLExpression, limit: Int = Int.max)
     -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]>
   {
     _observe { db in
@@ -58,6 +49,15 @@ struct Observatory {
         .limit(limit)
         .fetchAll(db)
     }
+  }
+
+  func podcastsWithEpisodeMetadata(_ feedURLs: [FeedURL], limit: Int = Int.max)
+    -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]>
+  {
+    podcastsWithEpisodeMetadata(
+      feedURLs.contains(Podcast.Columns.feedURL),
+      limit: limit
+    )
   }
 
   // MARK: - PodcastEpisodes
