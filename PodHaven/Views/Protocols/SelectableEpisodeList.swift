@@ -7,10 +7,9 @@ import Logging
 
 @MainActor protocol SelectableEpisodeList: AnyObject {
   associatedtype EpisodeType: EpisodeDisplayable
-  associatedtype EpisodeID: Hashable
 
   var isSelecting: Bool { get set }
-  var episodeList: SelectableListUseCase<EpisodeType, EpisodeID> { get }
+  var episodeList: SelectableListUseCase<EpisodeType, EpisodeType.ID> { get }
 
   var selectedEpisodes: [EpisodeType] { get }
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
