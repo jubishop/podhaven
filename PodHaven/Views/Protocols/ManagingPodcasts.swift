@@ -23,6 +23,8 @@ extension ManagingPodcasts {
 
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.managingPodcast) }
 
+  // MARK: - Actions
+
   func queueLatestEpisodeToTop(_ podcast: PodcastType) {
     Task { [weak self] in
       guard let self else { return }

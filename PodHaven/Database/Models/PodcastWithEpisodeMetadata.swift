@@ -34,6 +34,11 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastDisplayable>: Searchable, 
     self.episodeCount = episodeCount
     self.mostRecentEpisodeDate = mostRecentEpisodeDate
   }
+
+  // MARK: - Getters
+
+  func getPodcast() -> Podcast? { DisplayedPodcast.getPodcast(podcast) }
+  func getUnsavedPodcast() -> UnsavedPodcast? { DisplayedPodcast.getUnsavedPodcast(podcast) }
 }
 
 extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType == Podcast {

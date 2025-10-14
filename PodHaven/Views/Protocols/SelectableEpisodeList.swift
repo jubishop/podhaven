@@ -53,7 +53,6 @@ extension SelectableEpisodeList {
     selectedEpisodes.compactMap { DisplayedEpisode.getPodcastEpisode($0) }
   }
   var selectedSavedEpisodeIDs: [PodcastEpisode.ID] { selectedSavedEpisodes.map(\.id) }
-
   var selectedPodcastEpisodeIDs: [Episode.ID] {
     get async throws {
       try await selectedPodcastEpisodes.map(\.id)

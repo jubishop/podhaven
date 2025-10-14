@@ -78,12 +78,8 @@ struct DisplayedPodcast:
   // MARK: - Helpers
 
   static func getOrCreatePodcast(_ podcast: any PodcastDisplayable) async throws -> Podcast {
-    guard let displayedPodcast = podcast as? DisplayedPodcast
-    else { return try await DisplayedPodcast(podcast).getOrCreatePodcast() }
-
-    return try await displayedPodcast.getOrCreatePodcast()
+    return try await getDisplayedPodcast(podcast).getOrCreatePodcast()
   }
-
   func getOrCreatePodcast() async throws -> Podcast {
     if let podcast = getPodcast() {
       return podcast
@@ -104,6 +100,20 @@ struct DisplayedPodcast:
     }
   }
 
+  static func getPodcast(_ podcast: any PodcastDisplayable) -> Podcast? {
+    getDisplayedPodcast(podcast).getPodcast()
+  }
   func getPodcast() -> Podcast? { podcast as? Podcast }
+
+  static func getUnsavedPodcast(_ podcast: any PodcastDisplayable) -> UnsavedPodcast? {
+    getDisplayedPodcast(podcast).getUnsavedPodcast()
+  }
   func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
+
+  private static func getDisplayedPodcast(_ podcast: any PodcastDisplayable) -> DisplayedPodcast {
+    guard let displayedPodcast = podcast as? DisplayedPodcast
+    else { return DisplayedPodcast(podcast) }
+
+    return displayedPodcast
+  }
 }
