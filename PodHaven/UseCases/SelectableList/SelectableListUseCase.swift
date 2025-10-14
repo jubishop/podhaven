@@ -17,10 +17,12 @@ import SwiftUI
 
   // MARK: - Entry List Getters / Setters
 
-  private var _allEntries: IdentifiedArrayOf<Item>
+  private var baselineEntries = IdentifiedArrayOf<Item>()
+  private var _allEntries = IdentifiedArrayOf<Item>()
   var allEntries: IdentifiedArrayOf<Item> {
     get { _allEntries }
     set {
+      baselineEntries = newValue
       if let sortMethod {
         _allEntries = newValue.sorted(by: sortMethod)
       } else {
@@ -65,7 +67,9 @@ import SwiftUI
   var sortMethod: ((Item, Item) -> Bool)? {
     didSet {
       if let sortMethod {
-        _allEntries.sort(by: sortMethod)
+        _allEntries = baselineEntries.sorted(by: sortMethod)
+      } else {
+        _allEntries = baselineEntries
       }
     }
   }
@@ -79,7 +83,6 @@ import SwiftUI
   ) {
     self.filterMethod = filterMethod
     self.sortMethod = sortMethod
-    self._allEntries = IdentifiedArray(id: \.id)
   }
 
   // MARK: - Public Functions
