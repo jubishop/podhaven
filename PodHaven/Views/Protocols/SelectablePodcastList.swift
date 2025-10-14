@@ -11,8 +11,11 @@ import Logging
 
   var isSelecting: Bool { get set }
   var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<PodcastType>> { get }
+
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] { get }
-  var selectedPodcasts: [Podcast] { get async throws }
+  var selectedSavedPodcasts: [Podcast] { get }
+  var selectedSavedPodcastIDs: [Podcast.ID] { get }
+  var selectedPodcasts: [Podcast] { get async throws }  // Must Implement
   var selectedPodcastIDs: [Podcast.ID] { get async throws }
 
   var currentSortMethod: SortMethodType { get set }
@@ -33,14 +36,22 @@ extension SelectablePodcastList {
 
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcastList) }
 
+  // MARK: - Selection Getters
+
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] {
     podcastList.selectedEntries.elements
   }
+  var selectedSavedPodcasts: [Podcast] {
+    selectedPodcastsWithMetadata.compactMap { $0.getPodcast() }
+  }
+  var selectedSavedPodcastIDs: [Podcast.ID] { selectedSavedPodcasts.map(\.id) }
   var selectedPodcastIDs: [Podcast.ID] {
     get async throws {
       try await selectedPodcasts.map(\.id)
     }
   }
+
+  // MARK: - "Any"? Getters
 
   var anySelectedSubscribed: Bool {
     selectedPodcastsWithMetadata.contains(where: \.subscribed)
@@ -54,12 +65,14 @@ extension SelectablePodcastList {
     selectedPodcastsWithMetadata.contains(where: \.isSaved)
   }
 
-  func deleteSelectedPodcasts() {
-    Task { [weak self] in
-      guard let self else { return }
+  // MARK: - Actions
 
-      let podcastIDs = try await selectedPodcastIDs
-      try await repo.delete(podcastIDs)
+  func deleteSelectedPodcasts() {
+    let savedPodcastIDs = selectedSavedPodcastIDs
+    guard !savedPodcastIDs.isEmpty else { return }
+
+    Task {
+      try await repo.delete(savedPodcastIDs)
     }
   }
 
@@ -73,11 +86,11 @@ extension SelectablePodcastList {
   }
 
   func unsubscribeSelectedPodcasts() {
-    Task { [weak self] in
-      guard let self else { return }
+    let savedPodcastIDs = selectedSavedPodcastIDs
+    guard !savedPodcastIDs.isEmpty else { return }
 
-      let podcastIDs = try await selectedPodcastIDs
-      try await repo.markUnsubscribed(podcastIDs)
+    Task {
+      try await repo.markUnsubscribed(savedPodcastIDs)
     }
   }
 }

@@ -53,7 +53,6 @@ extension SelectableEpisodeList {
     selectedEpisodes.compactMap { DisplayedEpisode.getPodcastEpisode($0) }
   }
   var selectedSavedEpisodeIDs: [PodcastEpisode.ID] { selectedSavedEpisodes.map(\.id) }
-
   var selectedPodcastEpisodeIDs: [Episode.ID] {
     get async throws {
       try await selectedPodcastEpisodes.map(\.id)
@@ -136,22 +135,22 @@ extension SelectableEpisodeList {
       guard let self else { return }
 
       let podcastEpisodes = try await selectedPodcastEpisodes
-      if let firstPodcastEpisode = podcastEpisodes.first {
+      let firstPodcastEpisode = podcastEpisodes.first
+      let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
+      try await queue.unshift(allExceptFirstPodcastEpisode.map(\.id))
+      if let firstPodcastEpisode {
         try await playManager.load(firstPodcastEpisode)
         await playManager.play()
       }
-      let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
-      try await queue.unshift(allExceptFirstPodcastEpisode.map(\.id))
     }
   }
 
   func dequeueSelectedEpisodes() {
-    guard !selectedSavedEpisodes.isEmpty else { return }
+    let savedEpisodeIDs = selectedSavedEpisodeIDs
+    guard !savedEpisodeIDs.isEmpty else { return }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      try await queue.dequeue(selectedSavedEpisodeIDs)
+    Task {
+      try await queue.dequeue(savedEpisodeIDs)
     }
   }
 
