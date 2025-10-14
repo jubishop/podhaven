@@ -109,11 +109,9 @@ class PodcastDetailViewModel:
       let unsavedPodcastEpisodes = selectedEpisodes.compactMap { $0.getUnsavedPodcastEpisode() }
       let podcastEpisodes = try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
 
-      if observationTask == nil {
-        guard let podcastID = podcastEpisodes.first?.podcast.id
-        else { Assert.fatal("No podcastID found in \(selectedEpisodes.count) selected episodes") }
-        startObservation(podcastID)
-      }
+      guard let podcastID = podcastEpisodes.first?.podcast.id
+      else { Assert.fatal("No podcastID in just-upserted PodcastEpisodes?") }
+      startObservation(podcastID)
 
       return selectedEpisodes.compactMap { $0.getPodcastEpisode() }
     }

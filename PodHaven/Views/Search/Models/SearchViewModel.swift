@@ -7,7 +7,7 @@ import Logging
 import SwiftUI
 import Tagged
 
-@Observable @MainActor class SearchViewModel: ManagingPodcasts {
+@Observable @MainActor class SearchViewModel: ManagingPodcasts, SelectablePodcastList {
   @ObservationIgnored @DynamicInjected(\.iTunesService) private var iTunesService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -20,7 +20,13 @@ import Tagged
   private static let trendingLimit = 48
   private static let searchLimit = 48
 
-  // MARK: - Generic State Management
+  // MARK: - ManagingPodcasts
+
+  func getOrCreatePodcast(_ displayedPodcast: DisplayedPodcast) async throws -> Podcast {
+    try await displayedPodcast.getOrCreatePodcast()
+  }
+
+  // MARK: - SelectablePodcastList
 
   private var _isSelecting = false
   var isSelecting: Bool {
@@ -31,6 +37,16 @@ import Tagged
   var podcastList = SelectableListUseCase<PodcastWithEpisodeMetadata<DisplayedPodcast>>(
     sortMethod: SortMethod.byServerOrder.sortMethod
   )
+
+  var selectedPodcasts: [Podcast] {
+    get async throws {
+      var podcasts: [Podcast] = Array.init(capacity: selectedPodcastsWithMetadata.count)
+      for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
+        podcasts.append(try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast())
+      }
+      return podcasts
+    }
+  }
 
   enum SortMethod: String, CaseIterable, PodcastSortMethod {
     case byServerOrder
@@ -52,8 +68,10 @@ import Tagged
     }
 
     var sortMethod:
-      ((PodcastWithEpisodeMetadata<DisplayedPodcast>, PodcastWithEpisodeMetadata<DisplayedPodcast>)
-        -> Bool)?
+      (
+        (PodcastWithEpisodeMetadata<DisplayedPodcast>, PodcastWithEpisodeMetadata<DisplayedPodcast>)
+          -> Bool
+      )?
     {
       switch self {
       case .byServerOrder:
@@ -72,6 +90,17 @@ import Tagged
     }
   }
   let allSortMethods = SortMethod.allCases
+
+  private var _currentSortMethod: SortMethod = .byServerOrder
+  var currentSortMethod: SortMethod {
+    get { _currentSortMethod }
+    set {
+      _currentSortMethod = newValue
+      podcastList.sortMethod = newValue.sortMethod
+    }
+  }
+
+  // MARK: - Generic State Management
 
   enum LoadingState: Equatable {
     case idle
@@ -156,12 +185,6 @@ import Tagged
   func execute() {
     Self.log.debug("execute: executing")
     selectTrendingSection(currentTrendingSection)
-  }
-
-  // MARK: - ManagingPodcasts
-
-  func getOrCreatePodcast(_ displayedPodcast: DisplayedPodcast) async throws -> Podcast {
-    try await displayedPodcast.getOrCreatePodcast()
   }
 
   // MARK: - Trending
