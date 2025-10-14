@@ -4,21 +4,21 @@ import Foundation
 import IdentifiedCollections
 import SwiftUI
 
-@Observable @MainActor class SelectableListUseCase<Item: Searchable, ID: Hashable>: SelectableList {
+@Observable @MainActor class SelectableListUseCase<Item: Searchable>: SelectableList {
   // MARK: - Selection State Management
 
-  var isSelected = BindableDictionary<ID, Bool>(defaultValue: false)
+  var isSelected = BindableDictionary<Item.ID, Bool>(defaultValue: false)
   var anySelected: Bool { filteredEntries.ids.contains { isSelected[$0] } }
   var anyNotSelected: Bool { filteredEntries.ids.contains { !isSelected[$0] } }
-  var selectedEntries: IdentifiedArray<ID, Item> {
-    filteredEntries.filter({ isSelected[$0[keyPath: idKeyPath]] })
+  var selectedEntries: IdentifiedArrayOf<Item> {
+    filteredEntries.filter({ isSelected[$0.id] })
   }
-  var selectedEntryIDs: [ID] { selectedEntries.ids.elements }
+  var selectedEntryIDs: [Item.ID] { selectedEntries.ids.elements }
 
   // MARK: - Entry List Getters / Setters
 
-  private var _allEntries: IdentifiedArray<ID, Item>
-  var allEntries: IdentifiedArray<ID, Item> {
+  private var _allEntries: IdentifiedArrayOf<Item>
+  var allEntries: IdentifiedArrayOf<Item> {
     get { _allEntries }
     set {
       if let sortMethod {
@@ -32,8 +32,8 @@ import SwiftUI
       }
     }
   }
-  var filteredEntries: IdentifiedArray<ID, Item> {
-    let filteredEntries: IdentifiedArray<ID, Item>
+  var filteredEntries: IdentifiedArrayOf<Item> {
+    let filteredEntries: IdentifiedArrayOf<Item>
     if let filterMethod {
       filteredEntries = allEntries.filter { filterMethod($0) }
     } else {
@@ -56,7 +56,7 @@ import SwiftUI
       }
     )
   }
-  var filteredEntryIDs: [ID] { filteredEntries.ids.elements }
+  var filteredEntryIDs: [Item.ID] { filteredEntries.ids.elements }
 
   // MARK: - Customization Parameters
 
@@ -70,32 +70,28 @@ import SwiftUI
   }
   var entryFilter: String = ""
 
-  private let idKeyPath: KeyPath<Item, ID>
-
   // MARK: - Initialization
 
   init(
-    idKeyPath: KeyPath<Item, ID>,
     filterMethod: ((Item) -> Bool)? = nil,
     sortMethod: ((Item, Item) -> Bool)? = nil
   ) {
-    self.idKeyPath = idKeyPath
     self.filterMethod = filterMethod
     self.sortMethod = sortMethod
-    self._allEntries = IdentifiedArray(id: idKeyPath)
+    self._allEntries = IdentifiedArray(id: \.id)
   }
 
   // MARK: - Public Functions
 
   func selectAllEntries() {
     for entry in filteredEntries {
-      isSelected[entry[keyPath: idKeyPath]] = true
+      isSelected[entry.id] = true
     }
   }
 
   func unselectAllEntries() {
     for entry in filteredEntries {
-      isSelected[entry[keyPath: idKeyPath]] = false
+      isSelected[entry.id] = false
     }
   }
 }

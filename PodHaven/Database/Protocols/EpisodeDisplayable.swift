@@ -6,7 +6,6 @@ import Foundation
 protocol EpisodeDisplayable:
   EpisodeInformable,
   Gridable,
-  Identifiable,
   Searchable,
   Sendable,
   Stringable

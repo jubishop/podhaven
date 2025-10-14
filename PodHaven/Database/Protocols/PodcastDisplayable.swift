@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol PodcastDisplayable: Gridable, Hashable, Identifiable, Sendable, Searchable, Stringable {
+protocol PodcastDisplayable: Gridable, Hashable, Sendable, Searchable, Stringable {
   var podcastID: Podcast.ID? { get }
   var feedURL: FeedURL { get }
   var image: URL { get }

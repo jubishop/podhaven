@@ -29,7 +29,7 @@ class EpisodesListViewModel:
 
   // MARK: - SelectableEpisodeList
 
-  var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
+  var episodeList = SelectableListUseCase<PodcastEpisode>()
   private var _isSelecting = false
   var isSelecting: Bool {
     get { _isSelecting }

@@ -4,11 +4,7 @@ import Foundation
 import GRDB
 
 @dynamicMemberLookup
-struct PodcastWithEpisodeMetadata<PodcastType: PodcastDisplayable>:
-  Identifiable,
-  Searchable,
-  Stringable
-{
+struct PodcastWithEpisodeMetadata<PodcastType: PodcastDisplayable>: Searchable, Stringable {
   // MARK: - Getters
 
   var isSaved: Bool { self.podcastID != nil }

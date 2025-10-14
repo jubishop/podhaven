@@ -28,7 +28,7 @@ import SwiftUI
     set { editMode = newValue ? .active : .inactive }
   }
 
-  var episodeList = SelectableListUseCase<PodcastEpisode, Episode.ID>(idKeyPath: \.id)
+  var episodeList = SelectableListUseCase<PodcastEpisode>()
 
   enum SortMethod: String, CaseIterable {
     case oldestFirst = "Oldest First"

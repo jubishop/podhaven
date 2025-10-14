@@ -7,7 +7,6 @@ import Foundation
 @dynamicMemberLookup
 struct DisplayedPodcast:
   PodcastDisplayable,
-  Identifiable,
   Searchable,
   Stringable,
   Hashable,

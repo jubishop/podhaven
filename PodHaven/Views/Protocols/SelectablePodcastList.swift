@@ -10,11 +10,7 @@ import Logging
   associatedtype SortMethodType: PodcastSortMethod
 
   var isSelecting: Bool { get set }
-  var podcastList:
-    SelectableListUseCase<
-      PodcastWithEpisodeMetadata<PodcastType>, PodcastType.ID
-    >
-  { get }
+  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<PodcastType>> { get }
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] { get }
   var selectedPodcasts: [Podcast] { get async throws }
   var selectedPodcastIDs: [Podcast.ID] { get async throws }
