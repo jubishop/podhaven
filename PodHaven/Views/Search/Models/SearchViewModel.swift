@@ -7,7 +7,7 @@ import Logging
 import SwiftUI
 import Tagged
 
-@Observable @MainActor final class SearchViewModel {
+@Observable @MainActor class SearchViewModel: ManagingPodcasts, SelectablePodcastList {
   @ObservationIgnored @DynamicInjected(\.iTunesService) private var iTunesService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -20,7 +20,87 @@ import Tagged
   private static let trendingLimit = 48
   private static let searchLimit = 48
 
-  // MARK: - Internal State
+  // MARK: - ManagingPodcasts
+
+  func getOrCreatePodcast(_ displayedPodcast: DisplayedPodcast) async throws -> Podcast {
+    try await displayedPodcast.getOrCreatePodcast()
+  }
+
+  // MARK: - SelectablePodcastList
+
+  private var _isSelecting = false
+  var isSelecting: Bool {
+    get { _isSelecting }
+    set { withAnimation { _isSelecting = newValue } }
+  }
+
+  var podcastList = SelectableListUseCase<PodcastWithEpisodeMetadata<DisplayedPodcast>>(
+    sortMethod: SortMethod.byServerOrder.sortMethod
+  )
+
+  var selectedPodcasts: [Podcast] {
+    get async throws {
+      var podcasts: [Podcast] = Array(capacity: selectedPodcastsWithMetadata.count)
+      for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
+        podcasts.append(try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast())
+      }
+      return podcasts
+    }
+  }
+
+  enum SortMethod: String, CaseIterable, PodcastSortMethod {
+    case byServerOrder
+    case byTitle
+    case byMostRecentEpisode
+    case byEpisodeCount
+
+    var appIcon: AppIcon {
+      switch self {
+      case .byServerOrder:
+        return .sortByServerOrder
+      case .byTitle:
+        return .sortByTitle
+      case .byMostRecentEpisode:
+        return .sortByMostRecentEpisode
+      case .byEpisodeCount:
+        return .sortByEpisodeCount
+      }
+    }
+
+    var sortMethod:
+      (
+        (PodcastWithEpisodeMetadata<DisplayedPodcast>, PodcastWithEpisodeMetadata<DisplayedPodcast>)
+          -> Bool
+      )?
+    {
+      switch self {
+      case .byServerOrder:
+        return nil
+      case .byTitle:
+        return { lhs, rhs in lhs.title < rhs.title }
+      case .byMostRecentEpisode:
+        return { lhs, rhs in
+          let lhsDate = lhs.mostRecentEpisodeDate ?? Date.distantPast
+          let rhsDate = rhs.mostRecentEpisodeDate ?? Date.distantPast
+          return lhsDate > rhsDate
+        }
+      case .byEpisodeCount:
+        return { lhs, rhs in lhs.episodeCount > rhs.episodeCount }
+      }
+    }
+  }
+  let allSortMethods = SortMethod.allCases
+
+  private var _currentSortMethod: SortMethod = .byServerOrder
+  var currentSortMethod: SortMethod {
+    get { _currentSortMethod }
+    set {
+      _currentSortMethod = newValue
+      podcastList.sortMethod = newValue.sortMethod
+    }
+  }
+
+  // MARK: - State Management
 
   enum LoadingState: Equatable {
     case idle
@@ -36,7 +116,8 @@ import Tagged
     let icon: AppIcon
 
     fileprivate(set) var state: LoadingState = .idle
-    fileprivate(set) var podcasts: IdentifiedArrayOf<DisplayedPodcast> = []
+    fileprivate(set)
+      var results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> = []
 
     fileprivate var task: Task<Void, Never>? = nil
 
@@ -75,7 +156,7 @@ import Tagged
     }
   }
   var trimmedSearchText: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
-  var searchResults: IdentifiedArrayOf<DisplayedPodcast> = []
+  var searchResults: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> = []
   var isShowingSearchResults: Bool { !trimmedSearchText.isEmpty }
 
   @ObservationIgnored private var searchTask: Task<Void, Never>?
@@ -111,7 +192,7 @@ import Tagged
 
   func selectTrendingSection(_ trendingSection: TrendingSection) {
     currentTrendingSection = trendingSection
-    observeCurrentDisplay()
+    restartObservationForTrendingSection(trendingSection)
     loadTrendingSection(trendingSection)
   }
 
@@ -141,41 +222,49 @@ import Tagged
     let task = Task { [weak self, trendingSection] in
       guard let self else { return }
 
-      await executeTrendingSectionFetch(trendingSection)
+      if await executeTrendingSectionFetch(trendingSection) {
+        restartObservationForTrendingSection(trendingSection)
+      }
 
       trendingSection.task = nil
-      observeCurrentDisplay()
     }
 
     trendingSection.task = task
     return task
   }
 
-  private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) async {
+  private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) async -> Bool {
     do {
-      let podcasts = try await iTunesService.topPodcasts(
+      let results = try await iTunesService.topPodcasts(
         genreID: trendingSection.genreID,
         limit: Self.trendingLimit
       )
       try Task.checkCancellation()
 
-      if podcasts.isEmpty {
-        trendingSection.podcasts = []
+      if results.isEmpty {
+        trendingSection.results = []
         trendingSection.state = .error("No podcasts available in this category right now.")
       } else {
-        trendingSection.podcasts = IdentifiedArray(
-          podcasts.map { DisplayedPodcast($0.podcast) },
+        trendingSection.results = IdentifiedArray(
+          results.map {
+            PodcastWithEpisodeMetadata(
+              podcast: DisplayedPodcast($0.podcast),
+              episodeCount: $0.episodeCount,
+              mostRecentEpisodeDate: $0.mostRecentEpisodeDate
+            )
+          },
           uniquingIDsWith: { _, new in new }
         )
         trendingSection.state = .loaded
       }
     } catch {
       Self.log.error(error, mundane: .trace)
-      guard !Task.isCancelled else { return }
+      guard !Task.isCancelled else { return false }
 
-      trendingSection.podcasts = []
+      trendingSection.results = []
       trendingSection.state = .error(ErrorKit.coreMessage(for: error))
     }
+    return true
   }
 
   // MARK: - Searching
@@ -195,7 +284,6 @@ import Tagged
       guard isShowingSearchResults else {
         searchState = .idle
         searchResults = []
-        observeCurrentDisplay()
         return
       }
 
@@ -204,16 +292,16 @@ import Tagged
         guard !Task.isCancelled else { return }
       }
 
-      await executeSearch(for: trimmedSearchText)
-
-      observeCurrentDisplay()
+      if await executeSearch(for: trimmedSearchText) {
+        restartObservationForSearchResults()
+      }
     }
 
     searchTask = task
     return task
   }
 
-  private func executeSearch(for term: String) async {
+  private func executeSearch(for term: String) async -> Bool {
     searchState = .loading
 
     do {
@@ -222,33 +310,34 @@ import Tagged
         limit: Self.searchLimit
       )
       try Task.checkCancellation()
-      guard term == trimmedSearchText else { return }
+      guard term == trimmedSearchText else { return false }
 
       searchResults = IdentifiedArray(
-        results.map { DisplayedPodcast($0.podcast) },
+        results.map {
+          PodcastWithEpisodeMetadata(
+            podcast: DisplayedPodcast($0.podcast),
+            episodeCount: $0.episodeCount,
+            mostRecentEpisodeDate: $0.mostRecentEpisodeDate
+          )
+        },
         uniquingIDsWith: { _, new in new }
       )
       searchState = .loaded
     } catch {
       Self.log.error(error, mundane: .trace)
-      guard !Task.isCancelled else { return }
+      guard !Task.isCancelled else { return false }
 
       searchResults = []
       searchState = .error(ErrorKit.coreMessage(for: error))
     }
+    return true
   }
 
-  // MARK: - Observations
-
-  private func observeCurrentDisplay() {
-    if isShowingSearchResults {
-      restartObservationForSearchResults()
-    } else {
-      restartObservationForTrendingSection(currentTrendingSection)
-    }
-  }
+  // MARK: - Observation
 
   private func restartObservationForSearchResults() {
+    guard isShowingSearchResults else { return }
+
     Self.log.debug(
       """
       restartObservationForSearchResults: \(searchText)
@@ -262,37 +351,56 @@ import Tagged
       Self.log.debug("Now updating \(podcasts.count) podcasts for \(searchText)")
       for podcast in podcasts {
         if searchResults[id: podcast.feedURL] != nil {
-          searchResults[id: podcast.feedURL] = DisplayedPodcast(podcast)
+          searchResults[id: podcast.feedURL] =
+            PodcastWithEpisodeMetadata(
+              podcast: DisplayedPodcast(podcast.podcast),
+              episodeCount: podcast.episodeCount,
+              mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
+            )
         } else {
           Self.log.notice("Observed podcast: \(podcast.toString) not showing in search?")
         }
       }
+
+      syncPodcastListToSearchResults()
     }
   }
 
   private func restartObservationForTrendingSection(_ trendingSection: TrendingSection) {
+    guard !isShowingSearchResults, trendingSection == currentTrendingSection else { return }
+
     Self.log.debug(
       """
       restartObservationForTrendingSection: \(trendingSection.title)
-        \(trendingSection.podcasts.count) trending podcasts.
+        \(trendingSection.results.count) trending podcasts.
       """
     )
 
-    restartObservation(feedURLs: Array(trendingSection.podcasts.ids)) { podcasts in
+    restartObservation(feedURLs: Array(trendingSection.results.ids)) {
+      [weak self, trendingSection] podcasts in
+      guard let self else { return }
+
       Self.log.debug("Now updating \(podcasts.count) podcasts for \(trendingSection.title)")
       for podcast in podcasts {
-        if trendingSection.podcasts[id: podcast.feedURL] != nil {
-          trendingSection.podcasts[id: podcast.feedURL] = DisplayedPodcast(podcast)
+        if trendingSection.results[id: podcast.feedURL] != nil {
+          trendingSection.results[id: podcast.feedURL] =
+            PodcastWithEpisodeMetadata(
+              podcast: DisplayedPodcast(podcast.podcast),
+              episodeCount: podcast.episodeCount,
+              mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
+            )
         } else {
           Self.log.notice("Observed podcast: \(podcast.toString) not showing in trending?")
         }
       }
+
+      syncPodcastListToTrendingResults(trendingSection)
     }
   }
 
   private func restartObservation(
     feedURLs: [FeedURL],
-    update: @escaping ([Podcast]) -> Void
+    update: @escaping ([PodcastWithEpisodeMetadata<Podcast>]) -> Void
   ) {
     podcastObservationTask?.cancel()
 
@@ -305,7 +413,7 @@ import Tagged
       guard let self else { return }
 
       do {
-        for try await podcasts in observatory.podcasts(feedURLs) {
+        for try await podcasts in observatory.podcastsWithEpisodeMetadata(feedURLs) {
           try Task.checkCancellation()
           Self.log.debug("Observed \(podcasts.count) new podcasts")
           update(podcasts)
@@ -315,6 +423,18 @@ import Tagged
         Self.log.error(error, mundane: .trace)
       }
     }
+  }
+
+  // MARK: - Podcast List Syncing
+
+  private func syncPodcastListToSearchResults() {
+    guard isShowingSearchResults else { return }
+    podcastList.allEntries = searchResults
+  }
+
+  private func syncPodcastListToTrendingResults(_ trendingSection: TrendingSection) {
+    guard !isShowingSearchResults, trendingSection == currentTrendingSection else { return }
+    podcastList.allEntries = trendingSection.results
   }
 
   // MARK: - Disappear

@@ -28,8 +28,10 @@ struct SearchView: View {
         }
       }
       .toolbar {
+        selectablePodcastsToolbarItems(viewModel: viewModel)
         manualEntryToolbarItem
       }
+      .toolbarRole(.editor)
     }
     .searchable(
       text: $viewModel.searchText,
@@ -94,8 +96,8 @@ struct SearchView: View {
         )
 
       case .loading, .loaded:
-        if !viewModel.searchResults.isEmpty {
-          resultsGrid(podcasts: viewModel.searchResults)
+        if !viewModel.podcastList.filteredEntries.isEmpty {
+          resultsGrid()
             .overlay(alignment: .top) {
               if state == .loading {
                 loadingView(text: "Searching…")
@@ -129,8 +131,8 @@ struct SearchView: View {
     ScrollView {
       switch state {
       case .loaded, .loading, .idle:
-        if !section.podcasts.isEmpty {
-          resultsGrid(podcasts: section.podcasts)
+        if !section.results.isEmpty {
+          resultsGrid()
             .overlay(alignment: .top) {
               if state == .loading {
                 loadingView(text: "Fetching top \(section.title) podcasts…")
@@ -153,36 +155,28 @@ struct SearchView: View {
   // MARK: - Grid Items
 
   @ViewBuilder
-  private func resultsGrid(podcasts: IdentifiedArrayOf<DisplayedPodcast>) -> some View {
-    ItemGrid(items: podcasts) { podcast in
+  private func resultsGrid() -> some View {
+    let podcastsWithEpisodeMetadata = viewModel.podcastList.filteredEntries
+
+    ItemGrid(items: podcastsWithEpisodeMetadata) { podcastWithEpisodeMetadata in
       NavigationLink(
-        value: Navigation.Destination.podcast(podcast),
+        value: Navigation.Destination.podcast(podcastWithEpisodeMetadata.podcast),
         label: {
-          VStack {
-            SquareImage(image: podcast.image)
-              .overlay(alignment: .bottomTrailing) {
-                if podcast.subscribed {
-                  subscribedBadge
-                }
-              }
-            Text(podcast.title)
-              .font(.caption)
-              .lineLimit(1)
-          }
+          PodcastGridView(
+            podcast: podcastWithEpisodeMetadata.podcast,
+            isSelecting: viewModel.isSelecting,
+            isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id]
+          )
+          .podcastContextMenu(
+            viewModel: viewModel,
+            podcast: podcastWithEpisodeMetadata.podcast
+          )
         }
       )
       .buttonStyle(.plain)
     }
     .padding(.horizontal)
     .padding(.top)
-  }
-
-  private var subscribedBadge: some View {
-    AppIcon.subscribed.image
-      .font(.system(size: 16, weight: .semibold))
-      .padding(4)
-      .background(.ultraThinMaterial, in: Circle())
-      .shadow(radius: 1)
   }
 
   // MARK: - Toolbar

@@ -3,30 +3,22 @@
 import SwiftUI
 
 @MainActor
-struct SelectablePodcastsToolbarItems<
-  ViewModel: SelectablePodcastList,
-  PodcastList: SelectableList
-> {
+struct SelectablePodcastsToolbarItems<ViewModel: SelectablePodcastList> {
   let viewModel: ViewModel
-  let podcastList: PodcastList
 
-  init(
-    viewModel: ViewModel,
-    podcastList: PodcastList
-  ) {
+  init(viewModel: ViewModel) {
     self.viewModel = viewModel
-    self.podcastList = podcastList
   }
 
   @ToolbarContentBuilder
   var content: some ToolbarContent {
     if viewModel.isSelecting {
       ToolbarItem(placement: .primaryAction) {
-        SelectableListMenu(list: podcastList)
+        SelectableListMenu(list: viewModel.podcastList)
       }
     }
 
-    if viewModel.isSelecting, podcastList.anySelected {
+    if viewModel.isSelecting, viewModel.podcastList.anySelected {
       ToolbarItem(placement: .primaryAction) {
         Menu(
           content: {
@@ -85,16 +77,8 @@ struct SelectablePodcastsToolbarItems<
 }
 
 @MainActor
-func selectablePodcastsToolbarItems<
-  ViewModel: SelectablePodcastList,
-  PodcastList: SelectableList
->(
-  viewModel: ViewModel,
-  podcastList: PodcastList
-) -> some ToolbarContent {
-  SelectablePodcastsToolbarItems(
-    viewModel: viewModel,
-    podcastList: podcastList
-  )
-  .content
+func selectablePodcastsToolbarItems<ViewModel: SelectablePodcastList>(viewModel: ViewModel)
+  -> some ToolbarContent
+{
+  SelectablePodcastsToolbarItems(viewModel: viewModel).content
 }
