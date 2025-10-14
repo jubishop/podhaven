@@ -12,7 +12,9 @@ import Logging
   var episodeList: SelectableListUseCase<EpisodeType> { get }
 
   var selectedEpisodes: [EpisodeType] { get }
-  var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }
+  var selectedSavedEpisodes: [PodcastEpisode] { get }
+  var selectedSavedEpisodeIDs: [PodcastEpisode.ID] { get }
+  var selectedPodcastEpisodes: [PodcastEpisode] { get async throws }  // Must Implement
   var selectedPodcastEpisodeIDs: [Episode.ID] { get async throws }
 
   var anySelectedQueued: Bool { get }
@@ -44,12 +46,21 @@ extension SelectableEpisodeList {
 
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 
+  // MARK: - Selection Getters
+
   var selectedEpisodes: [EpisodeType] { episodeList.selectedEntries.elements }
+  var selectedSavedEpisodes: [PodcastEpisode] {
+    selectedEpisodes.compactMap { DisplayedEpisode.getPodcastEpisode($0) }
+  }
+  var selectedSavedEpisodeIDs: [PodcastEpisode.ID] { selectedSavedEpisodes.map(\.id) }
+
   var selectedPodcastEpisodeIDs: [Episode.ID] {
     get async throws {
       try await selectedPodcastEpisodes.map(\.id)
     }
   }
+
+  // MARK: - "Any"? Getters
 
   var anySelectedQueued: Bool {
     selectedEpisodes.contains { $0.queued }
@@ -82,6 +93,8 @@ extension SelectableEpisodeList {
   var anySelectedUnfinished: Bool {
     selectedEpisodes.contains { !$0.finished }
   }
+
+  // MARK: - Actions
 
   func addSelectedEpisodesToBottomOfQueue() {
     guard !selectedEpisodes.isEmpty else { return }
@@ -133,13 +146,12 @@ extension SelectableEpisodeList {
   }
 
   func dequeueSelectedEpisodes() {
-    guard !selectedEpisodes.isEmpty else { return }
+    guard !selectedSavedEpisodes.isEmpty else { return }
 
     Task { [weak self] in
       guard let self else { return }
 
-      let episodeIDs = try await selectedPodcastEpisodeIDs
-      try await queue.dequeue(episodeIDs)
+      try await queue.dequeue(selectedSavedEpisodeIDs)
     }
   }
 
@@ -160,15 +172,13 @@ extension SelectableEpisodeList {
   }
 
   func uncacheSelectedEpisodes() {
-    Task { [weak self] in
-      guard let self else { return }
+    let cachedEpisodeIDs =
+      selectedSavedEpisodes
+      .filter { $0.episode.cacheStatus == .cached }
+      .map(\.id)
+    guard !cachedEpisodeIDs.isEmpty else { return }
 
-      let cachedEpisodeIDs =
-        try await selectedPodcastEpisodes
-        .filter { $0.episode.cacheStatus == .cached }
-        .map(\.id)
-      guard !cachedEpisodeIDs.isEmpty else { return }
-
+    Task {
       await withThrowingTaskGroup(of: Void.self) { group in
         for episodeID in cachedEpisodeIDs {
           group.addTask {
@@ -180,15 +190,13 @@ extension SelectableEpisodeList {
   }
 
   func cancelSelectedEpisodeDownloads() {
-    Task { [weak self] in
-      guard let self else { return }
+    let downloadingEpisodeIDs =
+      selectedSavedEpisodes
+      .filter { $0.episode.cacheStatus == .caching }
+      .map(\.id)
+    guard !downloadingEpisodeIDs.isEmpty else { return }
 
-      let downloadingEpisodeIDs =
-        try await selectedPodcastEpisodes
-        .filter { $0.episode.cacheStatus == .caching }
-        .map(\.id)
-      guard !downloadingEpisodeIDs.isEmpty else { return }
-
+    Task {
       await withThrowingTaskGroup(of: Void.self) { group in
         for episodeID in downloadingEpisodeIDs {
           group.addTask {

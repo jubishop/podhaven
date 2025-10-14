@@ -7,6 +7,10 @@ import Logging
 @MainActor protocol ManagingEpisodes: AnyObject {
   associatedtype EpisodeType: EpisodeDisplayable
 
+  func isEpisodePlaying(_ episode: EpisodeType) -> Bool
+  func isEpisodeAtBottomOfQueue(_ episode: EpisodeType) -> Bool
+  func canClearCache(_ episode: EpisodeType) -> Bool
+
   func playEpisode(_ episode: EpisodeType)
   func pauseEpisode(_ episode: EpisodeType)
   func queueEpisodeOnTop(_ episode: EpisodeType, swipeAction: Bool)
@@ -16,10 +20,6 @@ import Logging
   func uncacheEpisode(_ episode: EpisodeType)
   func markEpisodeFinished(_ episode: EpisodeType)
   func showPodcast(_ episode: EpisodeType)
-
-  func isEpisodePlaying(_ episode: EpisodeType) -> Bool
-  func isEpisodeAtBottomOfQueue(_ episode: EpisodeType) -> Bool
-  func canClearCache(_ episode: EpisodeType) -> Bool
 
   func getOrCreatePodcastEpisode(_ episode: EpisodeType) async throws -> PodcastEpisode
 }
@@ -33,6 +33,22 @@ extension ManagingEpisodes {
   private var queue: any Queueing { Container.shared.queue() }
 
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.managingEpisode) }
+
+  // MARK: - Getters
+
+  func isEpisodePlaying(_ episode: EpisodeType) -> Bool {
+    playState.isEpisodePlaying(episode)
+  }
+
+  func isEpisodeAtBottomOfQueue(_ episode: EpisodeType) -> Bool {
+    episode.queueOrder == playState.maxQueuePosition
+  }
+
+  func canClearCache(_ episode: EpisodeType) -> Bool {
+    episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
+  }
+
+  // MARK: - Actions
 
   func playEpisode(_ episode: EpisodeType) {
     Task { [weak self] in
@@ -146,18 +162,6 @@ extension ManagingEpisodes {
         log.error(error)
       }
     }
-  }
-
-  func isEpisodePlaying(_ episode: EpisodeType) -> Bool {
-    playState.isEpisodePlaying(episode)
-  }
-
-  func isEpisodeAtBottomOfQueue(_ episode: EpisodeType) -> Bool {
-    episode.queueOrder == playState.maxQueuePosition
-  }
-
-  func canClearCache(_ episode: EpisodeType) -> Bool {
-    episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
   }
 
   // MARK: - Helpers

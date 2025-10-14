@@ -88,12 +88,8 @@ struct DisplayedEpisode:
   static func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws
     -> PodcastEpisode
   {
-    guard let DisplayedEpisode = episode as? DisplayedEpisode
-    else { return try await DisplayedEpisode(episode).getOrCreatePodcastEpisode() }
-
-    return try await DisplayedEpisode.getOrCreatePodcastEpisode()
+    try await getDisplayedEpisode(episode).getOrCreatePodcastEpisode()
   }
-
   func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = getPodcastEpisode() {
       return podcastEpisode
@@ -104,6 +100,21 @@ struct DisplayedEpisode:
     }
   }
 
+  static func getPodcastEpisode(_ episode: any EpisodeDisplayable) -> PodcastEpisode? {
+    getDisplayedEpisode(episode).getPodcastEpisode()
+  }
   func getPodcastEpisode() -> PodcastEpisode? { episode as? PodcastEpisode }
+
+  static func getUnsavedPodcastEpisode(_ episode: any EpisodeDisplayable) -> UnsavedPodcastEpisode?
+  {
+    getDisplayedEpisode(episode).getUnsavedPodcastEpisode()
+  }
   func getUnsavedPodcastEpisode() -> UnsavedPodcastEpisode? { episode as? UnsavedPodcastEpisode }
+
+  private static func getDisplayedEpisode(_ episode: any EpisodeDisplayable) -> DisplayedEpisode {
+    guard let displayedEpisode = episode as? DisplayedEpisode
+    else { return DisplayedEpisode(episode) }
+
+    return displayedEpisode
+  }
 }
