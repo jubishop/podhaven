@@ -68,11 +68,10 @@ extension SelectablePodcastList {
   // MARK: - Actions
 
   func deleteSelectedPodcasts() {
-    Task { [weak self] in
-      guard let self else { return }
+    guard let savedPodcastIDs = selectedSavedPodcastIDs, !savedPodcastIDs.empty else { return }
 
-      let podcastIDs = try await selectedPodcastIDs
-      try await repo.delete(podcastIDs)
+    Task {
+      try await repo.delete(savedPodcastIDs)
     }
   }
 
@@ -86,11 +85,10 @@ extension SelectablePodcastList {
   }
 
   func unsubscribeSelectedPodcasts() {
-    Task { [weak self] in
-      guard let self else { return }
+    guard let savedPodcastIDs = selectedSavedPodcastIDs, !savedPodcastIDs.empty else { return }
 
-      let podcastIDs = try await selectedPodcastIDs
-      try await repo.markUnsubscribed(podcastIDs)
+    Task {
+      try await repo.markUnsubscribed(savedPodcastIDs)
     }
   }
 }
