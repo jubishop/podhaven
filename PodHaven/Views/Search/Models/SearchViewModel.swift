@@ -112,12 +112,18 @@ import Tagged
   // MARK: - Trending State
 
   @Observable @MainActor final class TrendingSection: Hashable, Identifiable {
+    weak var owner: SearchViewModel?
     let genreID: Int?
     let icon: AppIcon
 
     fileprivate(set) var state: LoadingState = .idle
     fileprivate(set)
       var results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> = []
+    {
+      didSet {
+        owner?.syncPodcastListToTrendingResults(self)
+      }
+    }
 
     fileprivate var task: Task<Void, Never>? = nil
 
@@ -156,7 +162,11 @@ import Tagged
     }
   }
   var trimmedSearchText: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
-  var searchResults: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> = []
+  var searchResults: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> = [] {
+    didSet {
+      syncPodcastListToSearchResults()
+    }
+  }
   var isShowingSearchResults: Bool { !trimmedSearchText.isEmpty }
 
   @ObservationIgnored private var searchTask: Task<Void, Never>?
@@ -185,6 +195,9 @@ import Tagged
 
   func execute() {
     Self.log.debug("execute: executing")
+    for section in trendingSections {
+      section.owner = self
+    }
     selectTrendingSection(currentTrendingSection)
   }
 
@@ -192,8 +205,9 @@ import Tagged
 
   func selectTrendingSection(_ trendingSection: TrendingSection) {
     currentTrendingSection = trendingSection
-    restartObservationForTrendingSection(trendingSection)
-    loadTrendingSection(trendingSection)
+    if !loadTrendingSection(trendingSection) {
+      restartObservationForTrendingSection(trendingSection)
+    }
   }
 
   func refreshCurrentTrendingSection() async {
@@ -203,15 +217,16 @@ import Tagged
     await performTrendingSectionFetch(currentTrendingSection).value
   }
 
-  private func loadTrendingSection(_ trendingSection: TrendingSection) {
+  private func loadTrendingSection(_ trendingSection: TrendingSection) -> Bool {
     switch trendingSection.state {
     case .loaded, .loading:
-      return
+      return false
     default:
       break
     }
 
     performTrendingSectionFetch(trendingSection)
+    return true
   }
 
   @discardableResult
@@ -280,12 +295,6 @@ import Tagged
 
     let task = Task { [weak self, trimmedSearchText] in
       guard let self else { return }
-
-      guard isShowingSearchResults else {
-        searchState = .idle
-        searchResults = []
-        return
-      }
 
       if debounce {
         try? await sleeper.sleep(for: Self.debounceDuration)
@@ -432,7 +441,7 @@ import Tagged
     podcastList.allEntries = searchResults
   }
 
-  private func syncPodcastListToTrendingResults(_ trendingSection: TrendingSection) {
+  fileprivate func syncPodcastListToTrendingResults(_ trendingSection: TrendingSection) {
     guard !isShowingSearchResults, trendingSection == currentTrendingSection else { return }
     podcastList.allEntries = trendingSection.results
   }

@@ -19,6 +19,7 @@ struct SearchView: View {
       Group {
         if viewModel.isShowingSearchResults {
           searchResultsView
+            .navigationTitle(viewModel.searchText)
         } else {
           trendingView
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -38,6 +39,7 @@ struct SearchView: View {
       placement: .automatic,
       prompt: Text("Search podcasts")
     )
+    .searchPresentationToolbarBehavior(.avoidHidingContent)
     .task(viewModel.execute)
     .onDisappear { viewModel.disappear() }
   }
