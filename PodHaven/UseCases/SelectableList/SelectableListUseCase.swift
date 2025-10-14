@@ -52,7 +52,8 @@ import SwiftUI
 
     return IdentifiedArray(
       filteredEntries.filter { entry in
-        searchTerms.allSatisfy { entry.searchableString.lowercased().contains($0) }
+        let searchable = entry.searchableString.lowercased()
+        return searchTerms.allSatisfy { searchable.contains($0) }
       }
     )
   }
