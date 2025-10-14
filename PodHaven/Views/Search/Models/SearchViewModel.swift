@@ -156,7 +156,9 @@ import Tagged
   var searchState: LoadingState = .idle
   var searchText: String = "" {
     didSet {
-      if searchText != oldValue {
+      if searchText == "" {
+        syncPodcastListToTrendingResults(currentTrendingSection)
+      } else if searchText != oldValue {
         performSearch(debounce: true)
       }
     }
