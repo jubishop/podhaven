@@ -192,7 +192,7 @@ import Tagged
 
   func selectTrendingSection(_ trendingSection: TrendingSection) {
     currentTrendingSection = trendingSection
-    observeCurrentDisplay()
+    restartObservationForTrendingSection(trendingSection)
     loadTrendingSection(trendingSection)
   }
 
@@ -223,7 +223,7 @@ import Tagged
       guard let self else { return }
 
       if await executeTrendingSectionFetch(trendingSection) {
-        observeCurrentDisplay()
+        restartObservationForTrendingSection(trendingSection)
       }
 
       trendingSection.task = nil
@@ -284,7 +284,6 @@ import Tagged
       guard isShowingSearchResults else {
         searchState = .idle
         searchResults = []
-        observeCurrentDisplay()
         return
       }
 
@@ -294,7 +293,7 @@ import Tagged
       }
 
       if await executeSearch(for: trimmedSearchText) {
-        observeCurrentDisplay()
+        restartObservationForSearchResults()
       }
     }
 
@@ -334,27 +333,11 @@ import Tagged
     return true
   }
 
-  // MARK: - Observations
-
-  private func observeCurrentDisplay() {
-    syncPodcastListEntries()
-
-    if isShowingSearchResults {
-      restartObservationForSearchResults()
-    } else {
-      restartObservationForTrendingSection(currentTrendingSection)
-    }
-  }
-
-  private func syncPodcastListEntries() {
-    if isShowingSearchResults {
-      podcastList.allEntries = searchResults
-    } else {
-      podcastList.allEntries = currentTrendingSection.results
-    }
-  }
+  // MARK: - Observation
 
   private func restartObservationForSearchResults() {
+    guard isShowingSearchResults else { return }
+
     Self.log.debug(
       """
       restartObservationForSearchResults: \(searchText)
@@ -379,13 +362,13 @@ import Tagged
         }
       }
 
-      if isShowingSearchResults {
-        syncPodcastListEntries()
-      }
+      syncPodcastListToSearchResults()
     }
   }
 
   private func restartObservationForTrendingSection(_ trendingSection: TrendingSection) {
+    guard !isShowingSearchResults, trendingSection == currentTrendingSection else { return }
+
     Self.log.debug(
       """
       restartObservationForTrendingSection: \(trendingSection.title)
@@ -411,9 +394,7 @@ import Tagged
         }
       }
 
-      if !isShowingSearchResults, trendingSection == currentTrendingSection {
-        syncPodcastListEntries()
-      }
+      syncPodcastListToTrendingResults(trendingSection)
     }
   }
 
@@ -442,6 +423,18 @@ import Tagged
         Self.log.error(error, mundane: .trace)
       }
     }
+  }
+
+  // MARK: - Podcast List Syncing
+
+  private func syncPodcastListToSearchResults() {
+    guard isShowingSearchResults else { return }
+    podcastList.allEntries = searchResults
+  }
+
+  private func syncPodcastListToTrendingResults(_ trendingSection: TrendingSection) {
+    guard !isShowingSearchResults, trendingSection == currentTrendingSection else { return }
+    podcastList.allEntries = trendingSection.results
   }
 
   // MARK: - Disappear
