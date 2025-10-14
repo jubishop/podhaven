@@ -157,7 +157,7 @@ extension ManagingEpisodes {
   }
 
   func canClearCache(_ episode: EpisodeType) -> Bool {
-    CacheManager.canClearCache(episode)
+    episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
   }
 
   // MARK: - Helpers
