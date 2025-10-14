@@ -28,8 +28,10 @@ struct SearchView: View {
         }
       }
       .toolbar {
+        selectablePodcastsToolbarItems(viewModel: viewModel)
         manualEntryToolbarItem
       }
+      .toolbarRole(.editor)
     }
     .searchable(
       text: $viewModel.searchText,
@@ -160,31 +162,21 @@ struct SearchView: View {
       NavigationLink(
         value: Navigation.Destination.podcast(podcastWithEpisodeMetadata.podcast),
         label: {
-          VStack {
-            SquareImage(image: podcastWithEpisodeMetadata.image)
-              .overlay(alignment: .bottomTrailing) {
-                if podcastWithEpisodeMetadata.subscribed {
-                  subscribedBadge
-                }
-              }
-            Text(podcastWithEpisodeMetadata.title)
-              .font(.caption)
-              .lineLimit(1)
-          }
+          PodcastGridView(
+            podcast: podcastWithEpisodeMetadata.podcast,
+            isSelecting: viewModel.isSelecting,
+            isSelected: $viewModel.podcastList.isSelected[podcastWithEpisodeMetadata.id]
+          )
+          .podcastContextMenu(
+            viewModel: viewModel,
+            podcast: podcastWithEpisodeMetadata.podcast
+          )
         }
       )
       .buttonStyle(.plain)
     }
     .padding(.horizontal)
     .padding(.top)
-  }
-
-  private var subscribedBadge: some View {
-    AppIcon.subscribed.image
-      .font(.system(size: 16, weight: .semibold))
-      .padding(4)
-      .background(.ultraThinMaterial, in: Circle())
-      .shadow(radius: 1)
   }
 
   // MARK: - Toolbar

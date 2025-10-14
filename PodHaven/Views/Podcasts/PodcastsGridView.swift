@@ -58,10 +58,7 @@ struct PodcastsGridView: View {
       }
     }
     .toolbar {
-      selectablePodcastsToolbarItems(
-        viewModel: viewModel,
-        podcastList: viewModel.podcastList
-      )
+      selectablePodcastsToolbarItems(viewModel: viewModel)
     }
     .toolbarRole(.editor)
     .task(viewModel.execute)
