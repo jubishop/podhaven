@@ -135,12 +135,13 @@ extension SelectableEpisodeList {
       guard let self else { return }
 
       let podcastEpisodes = try await selectedPodcastEpisodes
-      if let firstPodcastEpisode = podcastEpisodes.first {
+      let firstPodcastEpisode = podcastEpisodes.first
+      let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
+      try await queue.unshift(allExceptFirstPodcastEpisode.map(\.id))
+      if let firstPodcastEpisode {
         try await playManager.load(firstPodcastEpisode)
         await playManager.play()
       }
-      let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
-      try await queue.unshift(allExceptFirstPodcastEpisode.map(\.id))
     }
   }
 
