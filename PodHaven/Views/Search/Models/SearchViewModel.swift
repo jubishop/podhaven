@@ -7,7 +7,7 @@ import Logging
 import SwiftUI
 import Tagged
 
-@Observable @MainActor final class SearchViewModel {
+@Observable @MainActor class SearchViewModel: ManagingPodcasts {
   @ObservationIgnored @DynamicInjected(\.iTunesService) private var iTunesService
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
@@ -20,7 +20,51 @@ import Tagged
   private static let trendingLimit = 48
   private static let searchLimit = 48
 
-  // MARK: - Internal State
+  // MARK: - Generic State Management
+
+  private var _isSelecting = false
+  var isSelecting: Bool {
+    get { _isSelecting }
+    set { withAnimation { _isSelecting = newValue } }
+  }
+
+  var podcastList: SelectableListUseCase<PodcastWithEpisodeMetadata<DisplayedPodcast>, FeedURL>
+
+  enum SortMethod: String, CaseIterable, PodcastSortMethod {
+    case byTitle
+    case byMostRecentEpisode
+    case byEpisodeCount
+
+    var appIcon: AppIcon {
+      switch self {
+      case .byTitle:
+        return .sortByTitle
+      case .byMostRecentEpisode:
+        return .sortByMostRecentEpisode
+      case .byEpisodeCount:
+        return .sortByEpisodeCount
+      }
+    }
+
+    var sortMethod:
+      (PodcastWithEpisodeMetadata<DisplayedPodcast>, PodcastWithEpisodeMetadata<DisplayedPodcast>)
+        -> Bool
+    {
+      switch self {
+      case .byTitle:
+        return { lhs, rhs in lhs.title < rhs.title }
+      case .byMostRecentEpisode:
+        return { lhs, rhs in
+          let lhsDate = lhs.mostRecentEpisodeDate ?? Date.distantPast
+          let rhsDate = rhs.mostRecentEpisodeDate ?? Date.distantPast
+          return lhsDate > rhsDate
+        }
+      case .byEpisodeCount:
+        return { lhs, rhs in lhs.episodeCount > rhs.episodeCount }
+      }
+    }
+  }
+  let allSortMethods = SortMethod.allCases
 
   enum LoadingState: Equatable {
     case idle
@@ -100,11 +144,22 @@ import Tagged
       TrendingSection(genreID: 1318, icon: .trendingTechnology),
       TrendingSection(genreID: 1488, icon: .trendingTrueCrime),
     ]
+    // TODO: Make a do-nothing bySearchResult SortMethod
+    self.podcastList = SelectableListUseCase(
+      idKeyPath: \.id,
+      sortMethod: SortMethod.byTitle.sortMethod
+    )
   }
 
   func execute() {
     Self.log.debug("execute: executing")
     selectTrendingSection(currentTrendingSection)
+  }
+
+  // MARK: - ManagingPodcasts
+
+  func getOrCreatePodcast(_ displayedPodcast: DisplayedPodcast) async throws -> Podcast {
+    try await displayedPodcast.getOrCreatePodcast()
   }
 
   // MARK: - Trending
