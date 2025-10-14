@@ -105,6 +105,7 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
 
   // Sorting
   static let sort = SystemImageName("arrow.up.arrow.down.circle")
+  static let sortByServerOrder = SystemImageName("list.number")
   static let sortByTitle = SystemImageName("textformat")
   static let sortByMostRecentEpisode = SystemImageName("calendar.badge.clock")
   static let sortByEpisodeCount = SystemImageName("number")
@@ -189,6 +190,7 @@ enum AppIcon: CaseIterable {
 
   // Sorting
   case sort
+  case sortByServerOrder
   case sortByTitle
   case sortByMostRecentEpisode
   case sortByEpisodeCount
@@ -405,6 +407,8 @@ enum AppIcon: CaseIterable {
     // Sorting
     case .sort:
       return Data(text: "Sort", systemImageName: .sort)
+    case .sortByServerOrder:
+      return Data(text: "Server Order", systemImageName: .sortByServerOrder, color: .gray)
     case .sortByTitle:
       return Data(text: "Title", systemImageName: .sortByTitle, color: .indigo)
     case .sortByMostRecentEpisode:

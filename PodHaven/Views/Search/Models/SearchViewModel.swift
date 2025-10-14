@@ -29,17 +29,19 @@ import Tagged
   }
 
   var podcastList = SelectableListUseCase<PodcastWithEpisodeMetadata<DisplayedPodcast>>(
-    sortMethod: SortMethod.byTitle.sortMethod
+    sortMethod: SortMethod.byServerOrder.sortMethod
   )
 
-  // TODO: Make a do-nothing bySearchResult SortMethod
   enum SortMethod: String, CaseIterable, PodcastSortMethod {
+    case byServerOrder
     case byTitle
     case byMostRecentEpisode
     case byEpisodeCount
 
     var appIcon: AppIcon {
       switch self {
+      case .byServerOrder:
+        return .sortByServerOrder
       case .byTitle:
         return .sortByTitle
       case .byMostRecentEpisode:
@@ -50,10 +52,12 @@ import Tagged
     }
 
     var sortMethod:
-      (PodcastWithEpisodeMetadata<DisplayedPodcast>, PodcastWithEpisodeMetadata<DisplayedPodcast>)
-        -> Bool
+      ((PodcastWithEpisodeMetadata<DisplayedPodcast>, PodcastWithEpisodeMetadata<DisplayedPodcast>)
+        -> Bool)?
     {
       switch self {
+      case .byServerOrder:
+        return nil
       case .byTitle:
         return { lhs, rhs in lhs.title < rhs.title }
       case .byMostRecentEpisode:
