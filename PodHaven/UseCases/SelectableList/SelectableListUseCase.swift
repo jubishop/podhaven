@@ -15,17 +15,19 @@ import SwiftUI
   }
   var selectedEntryIDs: [Item.ID] { selectedEntries.ids.elements }
 
+  // MARK: - Private State Caching
+
+  private var searchTerms: [String] = []
+  private var baselineEntries = IdentifiedArrayOf<Item>()
+
   // MARK: - Entry List Getters / Setters
 
-  private var _allEntries: IdentifiedArrayOf<Item>
+  private var _allEntries = IdentifiedArrayOf<Item>()
   var allEntries: IdentifiedArrayOf<Item> {
     get { _allEntries }
     set {
-      if let sortMethod {
-        _allEntries = newValue.sorted(by: sortMethod)
-      } else {
-        _allEntries = newValue
-      }
+      baselineEntries = newValue
+      _allEntries = applySort()
 
       for entry in isSelected.keys where !allEntries.ids.contains(entry) {
         isSelected.removeValue(forKey: entry)
@@ -40,19 +42,12 @@ import SwiftUI
       filteredEntries = allEntries
     }
 
-    if entryFilter.isEmpty { return filteredEntries }
-
-    let searchTerms =
-      entryFilter
-      .lowercased()
-      .components(separatedBy: CharacterSet.whitespacesAndNewlines)
-      .filter { !$0.isEmpty }
-
     guard !searchTerms.isEmpty else { return filteredEntries }
 
     return IdentifiedArray(
       filteredEntries.filter { entry in
-        searchTerms.allSatisfy { entry.searchableString.lowercased().contains($0) }
+        let searchable = entry.searchableString.lowercased()
+        return searchTerms.allSatisfy { searchable.contains($0) }
       }
     )
   }
@@ -63,12 +58,18 @@ import SwiftUI
   var filterMethod: ((Item) -> Bool)?
   var sortMethod: ((Item, Item) -> Bool)? {
     didSet {
-      if let sortMethod {
-        _allEntries.sort(by: sortMethod)
-      }
+      _allEntries = applySort()
     }
   }
-  var entryFilter: String = ""
+  var entryFilter: String = "" {
+    didSet {
+      searchTerms =
+        entryFilter
+        .lowercased()
+        .components(separatedBy: CharacterSet.whitespacesAndNewlines)
+        .filter { !$0.isEmpty }
+    }
+  }
 
   // MARK: - Initialization
 
@@ -78,7 +79,6 @@ import SwiftUI
   ) {
     self.filterMethod = filterMethod
     self.sortMethod = sortMethod
-    self._allEntries = IdentifiedArray(id: \.id)
   }
 
   // MARK: - Public Functions
@@ -93,5 +93,12 @@ import SwiftUI
     for entry in filteredEntries {
       isSelected[entry.id] = false
     }
+  }
+
+  // MARK: - Helpers
+
+  private func applySort() -> IdentifiedArrayOf<Item> {
+    guard let sortMethod else { return baselineEntries }
+    return baselineEntries.sorted(by: sortMethod)
   }
 }
