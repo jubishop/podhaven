@@ -145,12 +145,11 @@ extension SelectableEpisodeList {
   }
 
   func dequeueSelectedEpisodes() {
-    guard !selectedSavedEpisodes.isEmpty else { return }
+    let savedEpisodes = selectedSavedEpisodes
+    guard !savedEpisodes.isEmpty else { return }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      try await queue.dequeue(selectedSavedEpisodeIDs)
+    Task {
+      try await queue.dequeue(savedEpisodes)
     }
   }
 
