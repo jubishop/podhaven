@@ -94,8 +94,8 @@ struct SearchView: View {
         )
 
       case .loading, .loaded:
-        if !viewModel.searchResults.isEmpty {
-          resultsGrid(viewModel.searchResults)
+        if !viewModel.podcastList.filteredEntries.isEmpty {
+          resultsGrid()
             .overlay(alignment: .top) {
               if state == .loading {
                 loadingView(text: "Searching…")
@@ -130,7 +130,7 @@ struct SearchView: View {
       switch state {
       case .loaded, .loading, .idle:
         if !section.results.isEmpty {
-          resultsGrid(section.results)
+          resultsGrid()
             .overlay(alignment: .top) {
               if state == .loading {
                 loadingView(text: "Fetching top \(section.title) podcasts…")
@@ -153,9 +153,9 @@ struct SearchView: View {
   // MARK: - Grid Items
 
   @ViewBuilder
-  private func resultsGrid(
-    _ podcastsWithEpisodeMetadata: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>>
-  ) -> some View {
+  private func resultsGrid() -> some View {
+    let podcastsWithEpisodeMetadata = viewModel.podcastList.filteredEntries
+
     ItemGrid(items: podcastsWithEpisodeMetadata) { podcastWithEpisodeMetadata in
       NavigationLink(
         value: Navigation.Destination.podcast(podcastWithEpisodeMetadata.podcast),

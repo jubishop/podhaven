@@ -222,17 +222,18 @@ import Tagged
     let task = Task { [weak self, trendingSection] in
       guard let self else { return }
 
-      await executeTrendingSectionFetch(trendingSection)
+      if await executeTrendingSectionFetch(trendingSection) {
+        observeCurrentDisplay()
+      }
 
       trendingSection.task = nil
-      observeCurrentDisplay()
     }
 
     trendingSection.task = task
     return task
   }
 
-  private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) async {
+  private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) async -> Bool {
     do {
       let results = try await iTunesService.topPodcasts(
         genreID: trendingSection.genreID,
@@ -258,11 +259,12 @@ import Tagged
       }
     } catch {
       Self.log.error(error, mundane: .trace)
-      guard !Task.isCancelled else { return }
+      guard !Task.isCancelled else { return false }
 
       trendingSection.results = []
       trendingSection.state = .error(ErrorKit.coreMessage(for: error))
     }
+    return true
   }
 
   // MARK: - Searching
@@ -291,16 +293,16 @@ import Tagged
         guard !Task.isCancelled else { return }
       }
 
-      await executeSearch(for: trimmedSearchText)
-
-      observeCurrentDisplay()
+      if await executeSearch(for: trimmedSearchText) {
+        observeCurrentDisplay()
+      }
     }
 
     searchTask = task
     return task
   }
 
-  private func executeSearch(for term: String) async {
+  private func executeSearch(for term: String) async -> Bool {
     searchState = .loading
 
     do {
@@ -309,7 +311,7 @@ import Tagged
         limit: Self.searchLimit
       )
       try Task.checkCancellation()
-      guard term == trimmedSearchText else { return }
+      guard term == trimmedSearchText else { return false }
 
       searchResults = IdentifiedArray(
         results.map {
@@ -324,20 +326,31 @@ import Tagged
       searchState = .loaded
     } catch {
       Self.log.error(error, mundane: .trace)
-      guard !Task.isCancelled else { return }
+      guard !Task.isCancelled else { return false }
 
       searchResults = []
       searchState = .error(ErrorKit.coreMessage(for: error))
     }
+    return true
   }
 
   // MARK: - Observations
 
   private func observeCurrentDisplay() {
+    syncPodcastListEntries()
+
     if isShowingSearchResults {
       restartObservationForSearchResults()
     } else {
       restartObservationForTrendingSection(currentTrendingSection)
+    }
+  }
+
+  private func syncPodcastListEntries() {
+    if isShowingSearchResults {
+      podcastList.allEntries = searchResults
+    } else {
+      podcastList.allEntries = currentTrendingSection.results
     }
   }
 
@@ -365,6 +378,10 @@ import Tagged
           Self.log.notice("Observed podcast: \(podcast.toString) not showing in search?")
         }
       }
+
+      if isShowingSearchResults {
+        syncPodcastListEntries()
+      }
     }
   }
 
@@ -376,7 +393,10 @@ import Tagged
       """
     )
 
-    restartObservation(feedURLs: Array(trendingSection.results.ids)) { podcasts in
+    restartObservation(feedURLs: Array(trendingSection.results.ids)) {
+      [weak self, trendingSection] podcasts in
+      guard let self else { return }
+
       Self.log.debug("Now updating \(podcasts.count) podcasts for \(trendingSection.title)")
       for podcast in podcasts {
         if trendingSection.results[id: podcast.feedURL] != nil {
@@ -389,6 +409,10 @@ import Tagged
         } else {
           Self.log.notice("Observed podcast: \(podcast.toString) not showing in trending?")
         }
+      }
+
+      if !isShowingSearchResults, trendingSection == currentTrendingSection {
+        syncPodcastListEntries()
       }
     }
   }
