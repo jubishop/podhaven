@@ -149,7 +149,9 @@ extension SelectableEpisodeList {
     let savedEpisodeIDs = selectedSavedEpisodeIDs
     guard !savedEpisodeIDs.isEmpty else { return }
 
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
+
       try await queue.dequeue(savedEpisodeIDs)
     }
   }

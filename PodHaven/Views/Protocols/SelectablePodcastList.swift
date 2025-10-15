@@ -15,8 +15,11 @@ import Logging
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] { get }
   var selectedSavedPodcasts: [Podcast] { get }
   var selectedSavedPodcastIDs: [Podcast.ID] { get }
-  var selectedPodcasts: [Podcast] { get async }  // Must Implement
-  var selectedPodcastIDs: [Podcast.ID] { get async throws }
+
+  // Must Implement: Iterates over selected podcasts in parallel, calling the closure for each one
+  func forEachSelectedPodcast(
+    perform action: @escaping @Sendable (Podcast) async throws -> Void
+  ) async
 
   var currentSortMethod: SortMethodType { get set }
   var allSortMethods: [SortMethodType] { get }
@@ -45,7 +48,6 @@ extension SelectablePodcastList {
     selectedPodcastsWithMetadata.compactMap { $0.getPodcast() }
   }
   var selectedSavedPodcastIDs: [Podcast.ID] { selectedSavedPodcasts.map(\.id) }
-  var selectedPodcastIDs: [Podcast.ID] { get async { await selectedPodcasts.map(\.id) } }
 
   // MARK: - "Any"? Getters
 
@@ -67,7 +69,9 @@ extension SelectablePodcastList {
     let savedPodcastIDs = selectedSavedPodcastIDs
     guard !savedPodcastIDs.isEmpty else { return }
 
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
+
       try await repo.delete(savedPodcastIDs)
     }
   }
@@ -76,8 +80,9 @@ extension SelectablePodcastList {
     Task { [weak self] in
       guard let self else { return }
 
-      let podcastIDs = try await selectedPodcastIDs
-      try await repo.markSubscribed(podcastIDs)
+      await forEachSelectedPodcast { podcast in
+        try await Container.shared.repo().markSubscribed(podcast.id)
+      }
     }
   }
 
@@ -85,14 +90,24 @@ extension SelectablePodcastList {
     let savedPodcastIDs = selectedSavedPodcastIDs
     guard !savedPodcastIDs.isEmpty else { return }
 
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
+
       try await repo.markUnsubscribed(savedPodcastIDs)
     }
   }
 }
 
 extension SelectablePodcastList where PodcastType == Podcast {
-  var selectedPodcasts: [Podcast] {
-    get async { selectedPodcastsWithMetadata.map(\.podcast) }
+  func forEachSelectedPodcast(
+    perform action: @escaping @Sendable (Podcast) async throws -> Void
+  ) async {
+    for podcastWithMetadata in selectedPodcastsWithMetadata {
+      do {
+        try await action(podcastWithMetadata.podcast)
+      } catch {
+        log.error(error)
+      }
+    }
   }
 }

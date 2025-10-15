@@ -38,22 +38,32 @@ import Tagged
     sortMethod: SortMethod.byServerOrder.sortMethod
   )
 
-  var selectedPodcasts: [Podcast] {
-    get async {
-      var podcasts: [Podcast] = Array(capacity: selectedPodcastsWithMetadata.count)
+  func forEachSelectedPodcast(
+    perform action: @escaping @Sendable (Podcast) async throws -> Void
+  ) async {
+    // Fetch all podcasts in parallel using a task group
+    await withTaskGroup(of: Podcast?.self) { group in
       for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
-        let podcast: Podcast?
-        do {
-          podcast = try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast()
-        } catch {
-          podcast = nil
-          Self.log.error(error)
-        }
-        if let podcast {
-          podcasts.append(podcast)
+        group.addTask {
+          do {
+            return try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast()
+          } catch {
+            Log.as(LogSubsystem.SearchView.main).error(error)
+            return nil
+          }
         }
       }
-      return podcasts
+
+      // Process results as they complete
+      for await podcast in group {
+        if let podcast {
+          do {
+            try await action(podcast)
+          } catch {
+            Self.log.error(error)
+          }
+        }
+      }
     }
   }
 
