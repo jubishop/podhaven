@@ -42,7 +42,7 @@
 
 ### Concurrency Patterns
 - Domain-specific actors (`PlayActor`, `FeedActor`) serialize playback and feed fetching; `RefreshManager` fans out refresh jobs using `withThrowingDiscardingTaskGroup`.
-- Services like `CacheManager` are actors; they interact with Swift `AsyncStream`, `AsyncValueObservation`, and `withThrowingDiscardingTaskGroup` for fan-out.
+- `CacheManager` actor consumes `AsyncValueObservation` streams from `Observatory` and fans out downloads with `withDiscardingTaskGroup`.
 - `Sleeper` (via `Sleepable`) provides cancellable debouncing for search view models.
 - Always propagate cancellation (`Task.checkCancellation()` / guarding `Task.isCancelled`) before updating state.
 
