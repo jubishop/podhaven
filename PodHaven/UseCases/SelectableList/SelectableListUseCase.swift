@@ -42,9 +42,7 @@ import SwiftUI
       baselineEntries = newValue
       _allEntries = applySort()
 
-      for entry in isSelected.keys where !allEntries.ids.contains(entry) {
-        isSelected.removeValue(forKey: entry)
-      }
+      isSelected.removeAll { key, _ in !allEntries.ids.contains(key) }
     }
   }
   var filteredEntries: IdentifiedArrayOf<Item> {

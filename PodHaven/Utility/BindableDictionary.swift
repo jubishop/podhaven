@@ -27,6 +27,12 @@ class BindableDictionary<Key: Hashable, Value>: Sequence {
     dictionary.removeAll(keepingCapacity: keepCapacity)
   }
 
+  func removeAll(where shouldRemove: (Key, Value) throws -> Bool) rethrows {
+    for (key, value) in dictionary where try shouldRemove(key, value) {
+      dictionary.removeValue(forKey: key)
+    }
+  }
+
   @discardableResult
   func removeValue(forKey key: Key) -> Value? {
     dictionary.removeValue(forKey: key)
