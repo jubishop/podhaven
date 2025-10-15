@@ -47,6 +47,7 @@ struct PodcastsGridView: View {
       placement: .navigationBarDrawer(displayMode: .always),
       prompt: "Filter podcasts"
     )
+    .searchPresentationToolbarBehavior(.avoidHidingContent)
     .navigationTitle(viewModel.title)
     .refreshable {
       do {

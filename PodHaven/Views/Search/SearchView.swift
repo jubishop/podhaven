@@ -32,7 +32,6 @@ struct SearchView: View {
         selectablePodcastsToolbarItems(viewModel: viewModel)
         manualEntryToolbarItem
       }
-      .toolbarRole(.editor)
     }
     .searchable(
       text: $viewModel.searchText,
@@ -40,6 +39,7 @@ struct SearchView: View {
       prompt: Text("Search podcasts")
     )
     .searchPresentationToolbarBehavior(.avoidHidingContent)
+    .toolbarRole(.editor)
     .task(viewModel.execute)
     .onDisappear { viewModel.disappear() }
   }

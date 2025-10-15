@@ -39,6 +39,7 @@ struct EpisodesListView: View {
       placement: .navigationBarDrawer(displayMode: .always),
       prompt: "Filter episodes"
     )
+    .searchPresentationToolbarBehavior(.avoidHidingContent)
     .animation(.default, value: viewModel.episodeList.filteredEntries)
     .navigationTitle(viewModel.title)
     .toolbar {
