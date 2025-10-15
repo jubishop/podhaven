@@ -38,4 +38,26 @@ extension Logger {
       self.error(error)
     }
   }
+
+  func catchAndLog<T>(
+    _ operation: () throws -> T
+  ) -> T? {
+    do {
+      return try operation()
+    } catch {
+      self.error(error)
+      return nil
+    }
+  }
+
+  func catchAndLog<T>(
+    _ operation: @Sendable () async throws -> T
+  ) async -> T? {
+    do {
+      return try await operation()
+    } catch {
+      self.error(error)
+      return nil
+    }
+  }
 }
