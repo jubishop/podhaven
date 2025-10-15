@@ -103,10 +103,8 @@ extension SelectablePodcastList where PodcastType == Podcast {
     perform action: @escaping @Sendable (Podcast) async throws -> Void
   ) async {
     for podcastWithMetadata in selectedPodcastsWithMetadata {
-      do {
+      await log.catchAndLog {
         try await action(podcastWithMetadata.podcast)
-      } catch {
-        log.error(error)
       }
     }
   }
