@@ -11,7 +11,7 @@
 - Surface meaningful snippets instead of raw command dumps; keep output concise.
 
 ## Project Map
-- `PodHaven/` – main SwiftUI app. Folders cover Database, Cache, Feed, Play, Search, Share, Logging, Environment (alerts, navigation, sleepers), Utility (asserts, background tasks), Protocols, PropertyWrappers, UseCases, and modularized Views.
+- `PodHaven/` – main SwiftUI app. Folders cover Database, Cache, Feed, Play, iTunes (API client and models), Share, Logging, Environment (alerts, navigation, sleepers), Utility (asserts, background tasks), Protocols, PropertyWrappers, UseCases, and modularized Views (e.g., Views/Search).
 - `PodHavenTests/` – Swift Testing suites using `Testing` + `FactoryTesting`, in-memory GRDB, and rich fakes for playback, feeds, and downloads.
 - `PodHavenMacros/` – local package providing `@Saved` and `@ReadableError` macros plus associated plugins.
 - `PodhavenShare/` – share extension that reuses container factories to import feeds, episodes, and OPML files.
@@ -32,7 +32,7 @@
 ### Observability & View State
 - View models adopt `@Observable @MainActor` and stash long-lived tasks in `@ObservationIgnored` properties to avoid observation churn.
 - Views trigger async work through `task` modifiers that call `execute()` or feature-specific entry points; cancellation paths clean up ongoing `Task`s via `disappear()` or similar lifecycle methods.
-- Selection-heavy flows reuse the `SelectableList` protocol surface with `SelectableListUseCase` as the concrete implementation (see `SelectableEpisodeList`, `SelectablePodcastsGridViewModel`) for filtering, sorting, and bulk actions.
+- Selection-heavy flows reuse the `SelectableList` protocol surface with `SelectableListUseCase` as the concrete implementation (see `SelectableEpisodeList` and `SelectablePodcastList` conformers such as `PodcastsListViewModel`) for filtering, sorting, and bulk actions.
 
 ### Dependency Injection (FactoryKit)
 - Factories live in `Container` extensions; `.scope(.cached)` is the default for singleton-like services.
@@ -41,7 +41,7 @@
 - Override factories with `.context(.preview)` and `.context(.test)` in the Preview and Test extensions; tests leverage `FactoryTesting` to swap in fakes.
 
 ### Concurrency Patterns
-- Domain-specific actors (`PlayActor`, `FeedActor`, `RefreshActor`) serialize playback, feed fetching, and refresh coordination.
+- Domain-specific actors (`PlayActor`, `FeedActor`) serialize playback and feed fetching; `RefreshManager` fans out refresh jobs using `withThrowingDiscardingTaskGroup`.
 - Services like `CacheManager` are actors; they interact with Swift `AsyncStream`, `AsyncValueObservation`, and `withThrowingDiscardingTaskGroup` for fan-out.
 - `Sleeper` (via `Sleepable`) provides cancellable debouncing for search view models.
 - Always propagate cancellation (`Task.checkCancellation()` / guarding `Task.isCancelled`) before updating state.
@@ -49,7 +49,7 @@
 ### Networking & Feed Processing
 - Networking flows conform to `DataFetchable` / `DownloadingTask`; `URLSession` implements both with additional validation helpers.
 - `FeedManager` queues background feed downloads through `DownloadManager` and auto-cleans task state; `RefreshManager` fans out refresh jobs using feed + repo coordination.
-- `SearchService` calls ITunes endpoints with async decoding; `ShareService` parses share URLs to import OPML, podcasts, or episodes.
+- `ITunesService` calls iTunes endpoints with async decoding; `ShareService` parses share URLs to import OPML, podcasts, or episodes.
 
 ### Playback & Audio
 - `PlayManager` (under `PlayActor`) orchestrates AVAudioSession configuration, queue integration, command center wiring, and Point-Free `Sharing` storage of the current episode.
@@ -62,10 +62,10 @@
 - `AppDelegate` forwards background session completions to `CacheBackgroundDelegate` ensuring the system resumes suspended tasks correctly.
 
 ### Search & Discovery
-- `SearchViewModel` drives the search tab by loading iTunes top charts (trending sections) for curated category grids and debouncing search text via `Sleeper` before querying iTunes search with `SearchService.searchedPodcasts(matching:limit:)`.
-- Trending sections are loaded on-demand per genre with individual task management via `loadTrendingSectionIfNeeded`; each section tracks its own `ContentState` and cached podcasts, reusing cached data unless the section is reselected (force reload on reselection).
-- The aggregate `trendingState` mirrors the currently selected section's load/error status for view presentation.
-- Search results update on debounced text changes via `scheduleSearch()`; `disappear()` cancels outstanding search and trending tasks.
+- `SearchViewModel` drives the search tab by loading iTunes top charts (trending sections) for curated category grids and debouncing search text via `Sleeper` before querying iTunes search with `ITunesService.searchedPodcasts(matching:limit:)`.
+- Trending sections are loaded on-demand per genre when selected via `showTrendingSection(_:)` with individual task management; each section tracks its own `LoadingState` and cached podcasts, refreshed via `refreshCurrentTrendingSection()` through pull-to-refresh.
+- Views read `currentTrendingSection.state` to mirror the selected section's load/error status for presentation.
+- Search results update on debounced text changes via `performSearch()`; `disappear()` cancels outstanding search and trending tasks.
 
 ### Navigation & UI Structure
 - `Navigation` centralizes all routing using SwiftNavigation's `@CasePathable` destinations and tab-specific path managers conforming to `ManagingNavigationPaths`; switching tabs clears unrelated navigation state via `clearPath()`.
