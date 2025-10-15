@@ -39,7 +39,7 @@ extension Logger {
     }
   }
 
-  func catchAndLog<T>(
+  func `catch`<T>(
     _ operation: () throws -> T
   ) -> T? {
     do {
@@ -50,7 +50,7 @@ extension Logger {
     }
   }
 
-  func catchAndLog<T>(
+  func `catch`<T>(
     _ operation: @Sendable () async throws -> T
   ) async -> T? {
     do {

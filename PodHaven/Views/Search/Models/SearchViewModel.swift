@@ -45,7 +45,7 @@ import Tagged
     await withTaskGroup(of: Podcast?.self) { group in
       for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
         group.addTask {
-          await Self.log.catchAndLog {
+          await Self.log.catch {
             try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast()
           }
         }
@@ -54,7 +54,7 @@ import Tagged
       // Process results as they complete
       for await podcast in group {
         if let podcast {
-          await Self.log.catchAndLog {
+          await Self.log.catch {
             try await action(podcast)
           }
         }
