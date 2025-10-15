@@ -5,11 +5,24 @@ import IdentifiedCollections
 import SwiftUI
 
 @Observable @MainActor class SelectableListUseCase<Item: Searchable>: SelectableList {
+  // MARK: - SelectableList
+
+  var anySelected: Bool { filteredEntries.ids.contains { isSelected[$0] } }
+  var anyNotSelected: Bool { filteredEntries.ids.contains { !isSelected[$0] } }
+  func selectAllEntries() {
+    for entry in filteredEntries {
+      isSelected[entry.id] = true
+    }
+  }
+  func unselectAllEntries() {
+    for entry in filteredEntries {
+      isSelected[entry.id] = false
+    }
+  }
+
   // MARK: - Selection State Management
 
   var isSelected = BindableDictionary<Item.ID, Bool>(defaultValue: false)
-  var anySelected: Bool { filteredEntries.ids.contains { isSelected[$0] } }
-  var anyNotSelected: Bool { filteredEntries.ids.contains { !isSelected[$0] } }
   var selectedEntries: IdentifiedArrayOf<Item> {
     filteredEntries.filter({ isSelected[$0.id] })
   }
@@ -81,21 +94,7 @@ import SwiftUI
     self.sortMethod = sortMethod
   }
 
-  // MARK: - Public Functions
-
-  func selectAllEntries() {
-    for entry in filteredEntries {
-      isSelected[entry.id] = true
-    }
-  }
-
-  func unselectAllEntries() {
-    for entry in filteredEntries {
-      isSelected[entry.id] = false
-    }
-  }
-
-  // MARK: - Helpers
+  // MARK: - Private Helpers
 
   private func applySort() -> IdentifiedArrayOf<Item> {
     guard let sortMethod else { return baselineEntries }
