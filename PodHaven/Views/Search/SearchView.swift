@@ -186,17 +186,11 @@ struct SearchView: View {
   @ToolbarContentBuilder
   private var manualEntryToolbarItem: some ToolbarContent {
     ToolbarItem(placement: .secondaryAction) {
-      Button(
-        action: {
-          sheet {
-            ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
-          }
-        },
-        label: {
-          Label("Add Feed", systemImage: AppIcon.manualEntry.systemImageName)
+      AppIcon.manualEntry.labelButton {
+        sheet {
+          ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
         }
-      )
-      .accessibilityLabel("Add Feed URL manually")
+      }
     }
   }
 
