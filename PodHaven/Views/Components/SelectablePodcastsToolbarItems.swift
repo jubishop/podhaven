@@ -23,19 +23,19 @@ struct SelectablePodcastsToolbarItems<ViewModel: SelectablePodcastList> {
         Menu(
           content: {
             if viewModel.anySelectedSaved {
-              Button("Delete") {
+              AppIcon.delete.labelButton {
                 viewModel.deleteSelectedPodcasts()
               }
             }
 
             if viewModel.anySelectedUnsubscribed {
-              Button("Subscribe") {
+              AppIcon.subscribe.labelButton {
                 viewModel.subscribeSelectedPodcasts()
               }
             }
 
             if viewModel.anySelectedSubscribed {
-              Button("Unsubscribe") {
+              AppIcon.unsubscribe.labelButton {
                 viewModel.unsubscribeSelectedPodcasts()
               }
             }

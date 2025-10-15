@@ -4,7 +4,13 @@ import SwiftUI
 
 // MARK: - SystemImageName
 
-private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable {
+@MainActor
+private struct SystemImageName:
+  Equatable,
+  Hashable,
+  @MainActor RawRepresentable,
+  Sendable
+{
   let rawValue: String
 
   fileprivate init(rawValue: String) {
@@ -117,7 +123,7 @@ private struct SystemImageName: RawRepresentable, Equatable, Hashable, Sendable 
 
 // MARK: - AppIcon
 
-enum AppIcon: CaseIterable {
+@MainActor enum AppIcon: CaseIterable {
   // Episode Actions
   case addSelectionToBottom
   case addSelectionToTop
@@ -292,17 +298,17 @@ enum AppIcon: CaseIterable {
 
     // Podcast Actions
     case .delete:
-      return Data(text: "Delete", systemImageName: .delete)
+      return Data(text: "Delete", systemImageName: .delete, color: .red)
     case .editItems:
-      return Data(text: "Edit", systemImageName: .edit)
+      return Data(text: "Edit", systemImageName: .edit, color: .purple)
     case .showPodcast:
-      return Data(text: "Show Podcast", systemImageName: .showPodcast)
+      return Data(text: "Show Podcast", systemImageName: .showPodcast, color: .blue)
     case .subscribe:
-      return Data(text: "Subscribe", systemImageName: .subscribe)
+      return Data(text: "Subscribe", systemImageName: .subscribe, color: .green)
     case .subscribed:
       return Data(text: "Subscribed", systemImageName: .subscribed, color: .green)
     case .unsubscribe:
-      return Data(text: "Unsubscribe", systemImageName: .unsubscribe)
+      return Data(text: "Unsubscribe", systemImageName: .unsubscribe, color: .orange)
 
     // Navigation
     case .episodes:
@@ -490,22 +496,18 @@ enum AppIcon: CaseIterable {
     colorScheme == .dark ? data.darkColor : data.lightColor
   }
 
-  @MainActor
   func labelButton(action: @MainActor @escaping () -> Void) -> some View {
     AppIconLabelButton(icon: self, action: action)
   }
 
-  @MainActor
   func rawLabelButton(action: @MainActor @escaping () -> Void) -> some View {
     Button(action: action) { rawLabel }
   }
 
-  @MainActor
   func imageButton(action: @MainActor @escaping () -> Void) -> some View {
     AppIconImageButton(icon: self, action: action)
   }
 
-  @MainActor
   func rawImageButton(action: @MainActor @escaping () -> Void) -> some View {
     Button(action: action) { rawImage }
   }
