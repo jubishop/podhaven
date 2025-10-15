@@ -39,10 +39,19 @@ import Tagged
   )
 
   var selectedPodcasts: [Podcast] {
-    get async throws {
+    get async {
       var podcasts: [Podcast] = Array(capacity: selectedPodcastsWithMetadata.count)
       for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
-        podcasts.append(try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast())
+        let podcast: Podcast?
+        do {
+          podcast = try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast()
+        } catch {
+          podcast = nil
+          Self.log.error(error)
+        }
+        if let podcast {
+          podcasts.append(podcast)
+        }
       }
       return podcasts
     }

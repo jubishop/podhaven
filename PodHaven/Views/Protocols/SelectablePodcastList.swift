@@ -15,7 +15,7 @@ import Logging
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] { get }
   var selectedSavedPodcasts: [Podcast] { get }
   var selectedSavedPodcastIDs: [Podcast.ID] { get }
-  var selectedPodcasts: [Podcast] { get async throws }  // Must Implement
+  var selectedPodcasts: [Podcast] { get async }  // Must Implement
   var selectedPodcastIDs: [Podcast.ID] { get async throws }
 
   var currentSortMethod: SortMethodType { get set }
@@ -45,11 +45,7 @@ extension SelectablePodcastList {
     selectedPodcastsWithMetadata.compactMap { $0.getPodcast() }
   }
   var selectedSavedPodcastIDs: [Podcast.ID] { selectedSavedPodcasts.map(\.id) }
-  var selectedPodcastIDs: [Podcast.ID] {
-    get async throws {
-      try await selectedPodcasts.map(\.id)
-    }
-  }
+  var selectedPodcastIDs: [Podcast.ID] { get async { await selectedPodcasts.map(\.id) } }
 
   // MARK: - "Any"? Getters
 
@@ -97,6 +93,6 @@ extension SelectablePodcastList {
 
 extension SelectablePodcastList where PodcastType == Podcast {
   var selectedPodcasts: [Podcast] {
-    get async throws { selectedPodcastsWithMetadata.map(\.podcast) }
+    get async { selectedPodcastsWithMetadata.map(\.podcast) }
   }
 }
