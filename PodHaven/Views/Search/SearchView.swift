@@ -19,7 +19,7 @@ struct SearchView: View {
       Group {
         if viewModel.isShowingSearchResults {
           searchResultsView
-            .navigationTitle(viewModel.searchText)
+            .navigationTitle(viewModel.searchedText)
         } else {
           trendingView
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -64,7 +64,7 @@ struct SearchView: View {
 
     Button(
       action: {
-        viewModel.selectTrendingSection(section)
+        viewModel.showTrendingSection(section)
       },
       label: {
         HStack(spacing: 6) {

@@ -156,14 +156,21 @@ import Tagged
   var searchState: LoadingState = .idle
   var searchText: String = "" {
     didSet {
-      if searchText == "" {
-        syncPodcastListToTrendingResults(currentTrendingSection)
-      } else if searchText != oldValue {
+      let trimmedOldValue = oldValue.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard trimmedSearchText != trimmedOldValue else { return }
+
+      if trimmedSearchText == "" {
+        searchTask?.cancel()
+        searchTask = nil
+        searchedText = ""
+        showTrendingSection(currentTrendingSection)
+      } else {
         performSearch(debounce: true)
       }
     }
   }
   var trimmedSearchText: String { searchText.trimmingCharacters(in: .whitespacesAndNewlines) }
+  var searchedText: String = ""
   var searchResults: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> = [] {
     didSet {
       syncPodcastListToSearchResults()
@@ -200,13 +207,14 @@ import Tagged
     for section in trendingSections {
       section.owner = self
     }
-    selectTrendingSection(currentTrendingSection)
+    showTrendingSection(currentTrendingSection)
   }
 
   // MARK: - Trending
 
-  func selectTrendingSection(_ trendingSection: TrendingSection) {
+  func showTrendingSection(_ trendingSection: TrendingSection) {
     currentTrendingSection = trendingSection
+    syncPodcastListToTrendingResults(trendingSection)
     if !loadTrendingSection(trendingSection) {
       restartObservationForTrendingSection(trendingSection)
     }
@@ -297,6 +305,7 @@ import Tagged
 
     let task = Task { [weak self, trimmedSearchText] in
       guard let self else { return }
+      guard trimmedSearchText != "" else { return }
 
       if debounce {
         try? await sleeper.sleep(for: Self.debounceDuration)
@@ -304,6 +313,7 @@ import Tagged
       }
 
       if await executeSearch(for: trimmedSearchText) {
+        searchedText = trimmedSearchText
         restartObservationForSearchResults()
       }
     }
@@ -313,6 +323,8 @@ import Tagged
   }
 
   private func executeSearch(for term: String) async -> Bool {
+    guard term != "" else { return false }
+
     searchState = .loading
 
     do {
@@ -453,6 +465,7 @@ import Tagged
   func disappear() {
     Self.log.debug("disappear: executing")
 
+    searchText = ""
     searchTask?.cancel()
     searchTask = nil
     podcastObservationTask?.cancel()
@@ -461,7 +474,5 @@ import Tagged
       trendingSection.task?.cancel()
       trendingSection.task = nil
     }
-
-    searchText = ""
   }
 }
