@@ -1,0 +1,12 @@
+{
+  "data" : [
+    {
+      "filename" : "hardfork_byterm.json",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

@@ -1,0 +1,176 @@
+// Copyright Justin Bishop, 2025
+
+import Foundation
+import Tagged
+import XMLCoder
+
+struct PodcastRSS: Decodable, Sendable {
+  private static let log = Log.as(LogSubsystem.Feed.podcast)
+
+  // MARK: - Static Parsing Methods
+
+  static func parse(_ data: Data) async throws(ParseError) -> Podcast {
+    do {
+      return try await withCheckedThrowingContinuation { continuation in
+        do {
+          let decoder = XMLDecoder()
+          decoder.dateDecodingStrategy = .formatted(Date.rfc2822)
+          let rssPodcast = try decoder.decode(PodcastRSS.self, from: data)
+          continuation.resume(returning: rssPodcast.channel)
+        } catch let error {
+          continuation.resume(throwing: error)
+        }
+      }
+    } catch {
+      throw ParseError.invalidData(data: data, caught: error)
+    }
+  }
+
+  // MARK: - Episode
+
+  @dynamicMemberLookup struct Episode: Decodable, Sendable {
+    // MARK: - Attributes
+
+    struct TopLevelValues: Decodable, Sendable {
+      struct Enclosure: Decodable, Sendable {
+        let url: MediaURL
+      }
+      let title: String
+      let enclosure: Enclosure?
+      let guid: GUID?
+      let link: String?  // URL?
+      let description: String?
+      let contentEncoded: String?
+      let pubDate: Date?
+
+      enum CodingKeys: String, CodingKey {
+        case title, enclosure, guid, link, description, pubDate
+        case contentEncoded = "content:encoded"
+      }
+    }
+    private let values: TopLevelValues
+
+    struct iTunesNamespace: Decodable, Sendable {
+      struct Image: Decodable, Sendable {
+        let href: URL
+      }
+      let image: Image?
+      let duration: String?
+      let summary: String?
+
+      enum CodingKeys: String, CodingKey {
+        case image = "itunes:image"
+        case duration = "itunes:duration"
+        case summary = "itunes:summary"
+      }
+    }
+    let iTunes: iTunesNamespace
+
+    // MARK: - Convenience Getters
+
+    var description: String? {
+      if let contentEncoded = values.contentEncoded, !contentEncoded.isEmpty {
+        return contentEncoded
+      }
+      if let summary = iTunes.summary, !summary.isEmpty {
+        return summary
+      }
+      return values.description
+    }
+
+    var link: URL? {
+      URL(string: values.link ?? "")
+    }
+
+    // MARK: - Meta
+
+    subscript<T>(dynamicMember keyPath: KeyPath<TopLevelValues, T>) -> T {
+      values[keyPath: keyPath]
+    }
+
+    init(from decoder: any Decoder) throws {
+      values = try TopLevelValues(from: decoder)
+      iTunes = try iTunesNamespace(from: decoder)
+    }
+  }
+
+  // MARK: - Podcast
+
+  @dynamicMemberLookup struct Podcast: Decodable, Sendable {
+
+    // MARK: - Attributes
+
+    struct TopLevelValues: Decodable, Sendable {
+      struct AtomLink: Decodable, Sendable {
+        let href: URL
+        let rel: String
+      }
+      let title: String
+      let description: String
+      let contentEncoded: String?
+      let link: String?  // URL?
+      let episodes: [Episode]
+      let atomLinks: [AtomLink]
+
+      enum CodingKeys: String, CodingKey {
+        case title, description, link
+        case episodes = "item"
+        case atomLinks = "atom:link"
+        case contentEncoded = "content:encoded"
+      }
+    }
+    private let values: TopLevelValues
+
+    struct iTunesNamespace: Decodable, Sendable {
+      struct Image: Decodable, Sendable {
+        let href: URL
+      }
+      let image: Image
+      let newFeedURL: FeedURL?
+      let summary: String?
+
+      enum CodingKeys: String, CodingKey {
+        case image = "itunes:image"
+        case newFeedURL = "itunes:new-feed-url"
+        case summary = "itunes:summary"
+      }
+    }
+    let iTunes: iTunesNamespace
+
+    // MARK: - Convenience Getters
+
+    var description: String {
+      if let contentEncoded = values.contentEncoded, !contentEncoded.isEmpty {
+        return contentEncoded
+      }
+      if let summary = iTunes.summary, !summary.isEmpty {
+        return summary
+      }
+      return values.description
+    }
+
+    var feedURL: FeedURL? {
+      guard let url = self.atomLinks.first(where: { $0.rel == "self" })?.href
+      else { return nil }
+
+      return FeedURL(url)
+    }
+
+    var link: URL? {
+      URL(string: values.link ?? "")
+    }
+
+    // MARK: - Meta
+
+    subscript<T>(dynamicMember keyPath: KeyPath<TopLevelValues, T>) -> T {
+      values[keyPath: keyPath]
+    }
+
+    init(from decoder: any Decoder) throws {
+      values = try TopLevelValues(from: decoder)
+      iTunes = try iTunesNamespace(from: decoder)
+    }
+  }
+
+  private let channel: Podcast
+}

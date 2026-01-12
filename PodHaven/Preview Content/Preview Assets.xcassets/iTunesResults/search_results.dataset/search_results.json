@@ -1,0 +1,42 @@
+{
+  "resultCount": 3,
+  "results": [
+    {
+      "wrapperType": "track",
+      "kind": "podcast",
+      "collectionId": 1627920305,
+      "trackId": 1627920305,
+      "collectionName": "Lenny's Podcast: Product | Growth | Career",
+      "collectionViewUrl": "https://podcasts.apple.com/us/podcast/id1627920305",
+      "feedUrl": "https://api.substack.com/feed/podcast/10845.rss",
+      "artworkUrl100": "https://example.com/lenny100.jpg",
+      "artworkUrl600": "https://example.com/lenny600.jpg",
+      "collectionDescription": "Conversations with product and growth leaders.",
+      "primaryGenreName": "Technology"
+    },
+    {
+      "wrapperType": "track",
+      "kind": "podcast",
+      "collectionId": 1439393088,
+      "trackId": 1439393088,
+      "collectionName": "The Daily",
+      "collectionViewUrl": "https://podcasts.apple.com/us/podcast/id1439393088",
+      "feedUrl": "https://feeds.simplecast.com/54nAGcIl",
+      "artworkUrl100": "https://example.com/daily100.jpg",
+      "artworkUrl600": "https://example.com/daily600.jpg",
+      "description": "This is what the news should sound like.",
+      "primaryGenreName": "News"
+    },
+    {
+      "wrapperType": "track",
+      "kind": "podcast",
+      "collectionId": 555555555,
+      "trackId": 555555555,
+      "collectionName": "Missing Feed Podcast",
+      "collectionViewUrl": "https://podcasts.apple.com/us/podcast/id555555555",
+      "artworkUrl100": "https://example.com/missing100.jpg",
+      "artworkUrl600": "https://example.com/missing600.jpg",
+      "collectionDescription": "This item has no feed URL and should be filtered."
+    }
+  ]
+}

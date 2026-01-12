@@ -1,0 +1,35 @@
+{
+  "configurations" : [
+    {
+      "id" : "4BE465CE-8104-4EF1-B7D2-EAEF6666DDAA",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "defaultTestExecutionTimeAllowance" : 60,
+    "environmentVariableEntries" : [
+
+    ],
+    "maximumTestExecutionTimeAllowance" : 60,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:PodHaven.xcodeproj",
+      "identifier" : "8BD7F91F2CF2A49000CEDAA7",
+      "name" : "PodHaven"
+    },
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:PodHaven.xcodeproj",
+        "identifier" : "8BD7F92F2CF2A49100CEDAA7",
+        "name" : "ParallelTests"
+      }
+    }
+  ],
+  "version" : 2
+}

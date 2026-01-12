@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# Script to run a specific test repeatedly until failure
+# Captures logs for both passing and failing runs
+#
+# Usage: ./run_test_until_failure.sh <test_method_name>
+# Example: ./run_test_until_failure.sh loadingFailureClearsTheDeck
+
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <test_method_name>"
+    echo "Example: $0 loadingFailureClearsTheDeck"
+    exit 1
+fi
+
+TEST_METHOD="$1"
+TEST_NAME="ParallelTests/PlayManagerTests/$TEST_METHOD"
+LOG_DIR="test_logs_${TEST_METHOD}_$(date +%Y%m%d_%H%M%S)"
+PASS_COUNT=0
+
+# Create log directory
+mkdir -p "$LOG_DIR"
+
+echo "Running test repeatedly until failure..."
+echo "Logs will be saved to: $LOG_DIR"
+echo "Test: $TEST_NAME"
+echo ""
+
+while true; do
+    PASS_COUNT=$((PASS_COUNT + 1))
+    LOG_FILE="$LOG_DIR/run_${PASS_COUNT}.log"
+    
+    echo "Run #$PASS_COUNT - $(date)"
+    
+    # Run the test and capture all output
+    xcodebuild test \
+        -project PodHaven.xcodeproj \
+        -scheme PodHaven \
+        -testPlan PodHaven \
+        -only-testing:"$TEST_NAME" \
+        -quiet \
+        > "$LOG_FILE" 2>&1
+    
+    EXIT_CODE=$?
+    
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo "  ✓ PASS (saved to run_${PASS_COUNT}.log)"
+        # Keep the passing log for comparison
+        mv "$LOG_FILE" "$LOG_DIR/pass_run_${PASS_COUNT}.log"
+    else
+        echo "  ✗ FAIL after $PASS_COUNT attempts!"
+        echo "  Failure log saved to: $LOG_FILE"
+        mv "$LOG_FILE" "$LOG_DIR/FAILURE_run_${PASS_COUNT}.log"
+        
+        echo ""
+        echo "=== FAILURE DETECTED ==="
+        echo "Test failed on attempt #$PASS_COUNT"
+        echo "Logs saved in: $LOG_DIR/"
+        echo ""
+        echo "Compare the failure log with a passing log:"
+        echo "  Failure: $LOG_DIR/FAILURE_run_${PASS_COUNT}.log"
+        
+        # Find the most recent passing log
+        LAST_PASS=$(find "$LOG_DIR" -name "pass_run_*.log" | sort -V | tail -1)
+        if [ -n "$LAST_PASS" ]; then
+            echo "  Last pass: $LAST_PASS"
+            echo ""
+
+            # Generate and open diff with diff2html
+            DIFF_OUTPUT="$LOG_DIR/diff_pass_vs_fail.html"
+            echo "Generating side-by-side diff..."
+
+            diff -u "$LAST_PASS" "$LOG_DIR/FAILURE_run_${PASS_COUNT}.log" | \
+                diff2html -s side -i stdin -o stdout > "$DIFF_OUTPUT"
+            echo '<style>* { font-size: 18px !important; }</style>' >> "$DIFF_OUTPUT"
+
+            echo "Opening diff in browser..."
+            open "$DIFF_OUTPUT"
+        fi
+
+        echo ""
+        echo "Failure log preview:"
+        echo "===================="
+        tail -20 "$LOG_DIR/FAILURE_run_${PASS_COUNT}.log"
+        
+        break
+    fi
+    
+    # Brief pause between runs
+    sleep 0.1
+done
+
+echo ""
+echo "Script completed. Check $LOG_DIR/ for all logs."

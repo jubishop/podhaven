@@ -1,0 +1,12 @@
+{
+  "data" : [
+    {
+      "filename" : "ndg_byperson.json",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

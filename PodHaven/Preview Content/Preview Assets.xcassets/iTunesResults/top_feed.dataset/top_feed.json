@@ -1,0 +1,30 @@
+{
+  "feed": {
+    "entry": [
+      {
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/example/id1627920305",
+          "attributes": {
+            "im:id": "1627920305"
+          }
+        }
+      },
+      {
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/example/id1439393088",
+          "attributes": {
+            "im:id": "1439393088"
+          }
+        }
+      },
+      {
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/example/id1234567890",
+          "attributes": {
+            "im:id": "1234567890"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "status": "true",
+  "feeds": [
+    {
+      "id": 1365699,
+      "title": "This Is Important",
+      "url":
+          "https://omnycontent.com/d/playlist/e73c998e-6e60-432f-8610-ae210140c5b1/A41BD365-C6BC-4966-9AC2-AE28005326F5/6097C5B8-233A-45BF-8F11-AE2800532703/podcast.rss",
+      "originalUrl": "https://feeds.megaphone.fm/HSW7536705545",
+      "link": "https://www.iheart.com/podcast/1119-this-is-important-72394656/",
+      "description":
+          "Adam Devine, Anders Holm, Blake Anderson, and Kyle Newacheck seriously discuss some very important topics.",
+      "author": "iHeartPodcasts",
+      "ownerName": "iHeartPodcasts",
+      "image":
+          "https://www.omnycontent.com/d/programs/e73c998e-6e60-432f-8610-ae210140c5b1/a41bd365-c6bc-4966-9ac2-ae28005326f5/image.jpg?t=1684956895&size=Large",
+      "artwork":
+          "https://www.omnycontent.com/d/programs/e73c998e-6e60-432f-8610-ae210140c5b1/a41bd365-c6bc-4966-9ac2-ae28005326f5/image.jpg?t=1684956895&size=Large",
+      "lastUpdateTime": 1735922876,
+      "lastCrawlTime": 1736187505,
+      "lastParseTime": 1735922889,
+      "inPollingQueue": 0,
+      "priority": 5,
+      "lastGoodHttpStatusTime": 1735922870,
+      "lastHttpStatus": 200,
+      "contentType": "application/xml; charset=utf-8",
+      "itunesId": 1529931681,
+      "generator": "",
+      "language": "en-US",
+      "type": 0,
+      "dead": 0,
+      "crawlErrors": 0,
+      "parseErrors": 0,
+      "categories": {
+        "16": "Comedy",
+        "77": "Society",
+        "78": "Culture"
+      },
+      "locked": 0,
+      "explicit": true,
+      "podcastGuid": "9889570e-da9a-56f3-b329-5bce2622cdf2",
+      "medium": "podcast",
+      "episodeCount": 252,
+      "imageUrlHash": 2323994646,
+      "newestItemPubdate": 1735632000
+    },
+    {
+      "id": 4014977,
+      "title": "This Is Important",
+      "url": "https://anchor.fm/s/5fa5373c/podcast/rss",
+      "originalUrl": "https://anchor.fm/s/5fa5373c/podcast/rss",
+      "link": "https://podcasters.spotify.com/pod/show/heather-hall67",
+      "description":
+          "Ever feel like you are alone in a multitude of different situations? Well you aren’t baby 😘 We all a little messy at some point! Join me, Heather, as I talk about experiences that you can relate to and are down to earth.",
+      "author": "Heather hall",
+      "ownerName": "Heather hall",
+      "image":
+          "https://d3t3ozftmdmh3i.cloudfront.net/production/podcast_uploaded/15946631/15946631-1624653882238-18f3d8587c04b.jpg",
+      "artwork":
+          "https://d3t3ozftmdmh3i.cloudfront.net/production/podcast_uploaded/15946631/15946631-1624653882238-18f3d8587c04b.jpg",
+      "lastUpdateTime": 1680045305,
+      "lastCrawlTime": 1691276221,
+      "lastParseTime": 1690974627,
+      "inPollingQueue": 0,
+      "priority": -1,
+      "lastGoodHttpStatusTime": 1690974624,
+      "lastHttpStatus": 200,
+      "contentType": "application/rss+xml; charset=utf-8",
+      "itunesId": 1572654037,
+      "generator": "Anchor Podcasts",
+      "language": "en",
+      "type": 0,
+      "dead": 0,
+      "crawlErrors": 0,
+      "parseErrors": 0,
+      "categories": {
+        "29": "Health",
+        "30": "Fitness",
+        "33": "Mental"
+      },
+      "locked": 0,
+      "explicit": true,
+      "podcastGuid": "f79d88a8-e337-5d17-b7d2-c16121dea8ac",
+      "medium": "podcast",
+      "episodeCount": 19,
+      "imageUrlHash": 4264702025,
+      "newestItemPubdate": 1675738294
+    },
+    {
+      "id": 83904,
+      "title": "This is important",
+      "url": "https://anchor.fm/s/aa759f4/podcast/rss",
+      "originalUrl": "https://anchor.fm/s/aa759f4/podcast/rss",
+      "link": "https://anchor.fm/stephen997",
+      "description":
+          "This is bad Cover art photo provided by Markus Spiske on Unsplash: https://unsplash.com/@markusspiske",
+      "author": "Stephen",
+      "ownerName": "Stephen",
+      "image":
+          "https://d3t3ozftmdmh3i.cloudfront.net/production/podcast_uploaded/1687397/1687397-1555882321643-47d168ffa7664.jpg",
+      "artwork":
+          "https://d3t3ozftmdmh3i.cloudfront.net/production/podcast_uploaded/1687397/1687397-1555882321643-47d168ffa7664.jpg",
+      "lastUpdateTime": 1622761356,
+      "lastCrawlTime": 1649210153,
+      "lastParseTime": 1649210154,
+      "inPollingQueue": 0,
+      "priority": -1,
+      "lastGoodHttpStatusTime": 1649210153,
+      "lastHttpStatus": 200,
+      "contentType": "application/rss+xml; charset=utf-8",
+      "itunesId": 1460683379,
+      "generator": "Anchor Podcasts",
+      "language": "en",
+      "type": 0,
+      "dead": 0,
+      "crawlErrors": 0,
+      "parseErrors": 0,
+      "categories": {
+        "29": "Health",
+        "30": "Fitness"
+      },
+      "locked": 0,
+      "explicit": false,
+      "podcastGuid": "56e137df-7f39-5b6d-9560-038a68a90a8d",
+      "medium": "podcast",
+      "episodeCount": 1,
+      "imageUrlHash": 2578682451,
+      "newestItemPubdate": 1555882245
+    }
+  ],
+  "count": 3,
+  "query": "this is important",
+  "description": "Found matching feeds."
+}

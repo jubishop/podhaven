@@ -1,0 +1,3752 @@
+{
+  "feed": {
+    "author": {
+      "name": {
+        "label": "iTunes Store"
+      },
+      "uri": {
+        "label": "http://www.apple.com/itunes/"
+      }
+    },
+    "entry": [
+      {
+        "im:name": {
+          "label": "The Last Invention"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/97/73/db/9773dba8-2ebf-021e-801b-5726ebbd1b9a/mza_3773883497842031129.jpeg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/97/73/db/9773dba8-2ebf-021e-801b-5726ebbd1b9a/mza_3773883497842031129.jpeg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/97/73/db/9773dba8-2ebf-021e-801b-5726ebbd1b9a/mza_3773883497842031129.jpeg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "The AI revolution has begun \u2013 the product of a seventy-year quest by scientists, mathematicians, and visionaries who set out to build machines that could think. But what began as a fringe idea has now become one of the most powerful forces of the 21st century. This is the story of that journey: its rivalries, its competing visions of utopia and apocalypse, and the race to build what may be humanity\u2019s last invention."
+        },
+        "im:artist": {
+          "label": "Longview"
+        },
+        "title": {
+          "label": "The Last Invention - Longview"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/the-last-invention/id1839942885?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/the-last-invention/id1839942885?uo=2",
+          "attributes": {
+            "im:id": "1839942885"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-02T03:00:00-07:00",
+          "attributes": {
+            "label": "October 2, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Your Undivided Attention"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/37/9c/51/379c5161-85d7-3682-63a7-f66465966ee4/mza_11384658812708520401.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/37/9c/51/379c5161-85d7-3682-63a7-f66465966ee4/mza_11384658812708520401.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/37/9c/51/379c5161-85d7-3682-63a7-f66465966ee4/mza_11384658812708520401.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Join us every other Thursday to understand how new technologies are shaping the way we live, work, and think. \n\nYour Undivided Attention is produced by Senior Producer Julia Scott and Researcher/Producer is Joshua Lash. Sasha Fegan is our Executive Producer. We are a member of the TED Audio Collective."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 2019-2025 Center for Humane Technology"
+        },
+        "title": {
+          "label": "Your Undivided Attention - The Center for Humane Technology, Tristan Harris, Daniel Barcay and Aza Raskin"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/your-undivided-attention/id1460030305?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/your-undivided-attention/id1460030305?uo=2",
+          "attributes": {
+            "im:id": "1460030305"
+          }
+        },
+        "im:artist": {
+          "label": "The Center for Humane Technology, Tristan Harris, Daniel Barcay and Aza Raskin"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-08-26T06:05:00-07:00",
+          "attributes": {
+            "label": "August 26, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "All-In with Chamath, Jason, Sacks & Friedberg"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts124/v4/c7/d2/92/c7d292ea-44b3-47ff-2f5e-74fa5b23db6c/mza_7005270671777648882.png/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts124/v4/c7/d2/92/c7d292ea-44b3-47ff-2f5e-74fa5b23db6c/mza_7005270671777648882.png/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts124/v4/c7/d2/92/c7d292ea-44b3-47ff-2f5e-74fa5b23db6c/mza_7005270671777648882.png/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Industry veterans, degenerate gamblers & besties Chamath Palihapitiya, Jason Calacanis, David Sacks & David Friedberg cover all things economic, tech, political, social & poker."
+        },
+        "im:artist": {
+          "label": "All-In Podcast, LLC"
+        },
+        "title": {
+          "label": "All-In with Chamath, Jason, Sacks & Friedberg - All-In Podcast, LLC"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/all-in-with-chamath-jason-sacks-friedberg/id1502871393?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/all-in-with-chamath-jason-sacks-friedberg/id1502871393?uo=2",
+          "attributes": {
+            "im:id": "1502871393"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-03T09:39:00-07:00",
+          "attributes": {
+            "label": "October 3, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Embracing Digital Transformation"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/1a/d7/10/1ad71097-3439-62a2-f650-ed87c04f403f/mza_11743297669808023503.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/1a/d7/10/1ad71097-3439-62a2-f650-ed87c04f403f/mza_11743297669808023503.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/1a/d7/10/1ad71097-3439-62a2-f650-ed87c04f403f/mza_11743297669808023503.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Dr. Darren Pulsipher, Chief Enterprise Architect for Public Sector, author and professor, investigates effective change leveraging people, process, and technology. Which digital trends are a flash in the pan\u2014and which will form the foundations of lasting change? With in-depth discussion and expert interviews, Embracing Digital Transformation finds the signal in the noise of the digital revolution.\n\nPeople \nWorkers are at the heart of many of today\u2019s biggest digital transformation projects. Learn how to transform public sector work in an era of rapid disruption, including overcoming the security and scalability challenges of the remote work explosion.\n\nProcesses \nBuilding an innovative IT organization in the public sector starts with developing the right processes to evolve your information management capabilities. Find out how to boost your organization to the next level of data-driven innovation. \n\nTechnologies\nFrom the data center to the cloud, transforming public sector IT infrastructure depends on having the right technology solutions in place. Sift through confusing messages and conflicting technologies to find the true lasting drivers of value for IT organizations."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Paidar Productions"
+        },
+        "title": {
+          "label": "Embracing Digital Transformation - Dr. Darren Pulsipher"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/embracing-digital-transformation/id1501881754?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/embracing-digital-transformation/id1501881754?uo=2",
+          "attributes": {
+            "im:id": "1501881754"
+          }
+        },
+        "im:artist": {
+          "label": "Dr. Darren Pulsipher"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-02T12:41:00-07:00",
+          "attributes": {
+            "label": "October 2, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Acquired"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/e9/f9/d6e9f92c-8f46-a302-f7a2-144cefbd74bf/mza_16135045473976550452.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/e9/f9/d6e9f92c-8f46-a302-f7a2-144cefbd74bf/mza_16135045473976550452.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/d6/e9/f9/d6e9f92c-8f46-a302-f7a2-144cefbd74bf/mza_16135045473976550452.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Every company has a story.\n\nLearn the playbooks that built the world\u2019s greatest companies \u2014 and how you can apply them."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Copyright 2025 ACQ, LLC"
+        },
+        "title": {
+          "label": "Acquired - Ben Gilbert and David Rosenthal"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/acquired/id1050462261?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/acquired/id1050462261?uo=2",
+          "attributes": {
+            "im:id": "1050462261"
+          }
+        },
+        "im:artist": {
+          "label": "Ben Gilbert and David Rosenthal"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-08-26T03:19:00-07:00",
+          "attributes": {
+            "label": "August 26, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Hard Fork"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/de/c5/20/dec52092-6be0-9007-875c-6aa8e690a905/mza_12490014444602578825.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/de/c5/20/dec52092-6be0-9007-875c-6aa8e690a905/mza_12490014444602578825.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/de/c5/20/dec52092-6be0-9007-875c-6aa8e690a905/mza_12490014444602578825.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "\u201cHard Fork\u201d is a show about the future that\u2019s already here. Each week, journalists Kevin Roose and Casey Newton explore and make sense of the latest in the rapidly changing world of tech. \n\nSubscribe today at nytimes.com/podcasts or on Apple Podcasts and Spotify. You can also subscribe via your favorite podcast app here https://www.nytimes.com/activate-access/audio?source=podcatcher. For more podcasts and narrated articles, download The New York Times app at nytimes.com/app."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 2022 THE NEW YORK TIMES COMPANY; The New York Times encourages the use of RSS feeds for personal use in a news reader or as part of a non-commercial blog, subject to your agreement to our Terms of Service."
+        },
+        "title": {
+          "label": "Hard Fork - The New York Times"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/hard-fork/id1528594034?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/hard-fork/id1528594034?uo=2",
+          "attributes": {
+            "im:id": "1528594034"
+          }
+        },
+        "im:artist": {
+          "label": "The New York Times",
+          "attributes": {
+            "href": "https://podcasts.apple.com/us/artist/the-new-york-times/121664449?uo=2"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-03T04:00:00-07:00",
+          "attributes": {
+            "label": "October 3, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "The AI Daily Brief: Artificial Intelligence News and Analysis"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/9c/78/d8/9c78d82d-a2d1-a026-6ca2-f92ea61be9ae/mza_18421328158594577747.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/9c/78/d8/9c78d82d-a2d1-a026-6ca2-f92ea61be9ae/mza_18421328158594577747.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/9c/78/d8/9c78d82d-a2d1-a026-6ca2-f92ea61be9ae/mza_18421328158594577747.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "A daily news analysis show on all things artificial intelligence. NLW looks at AI from multiple angles, from the explosion of creativity brought on by new tools like Midjourney and ChatGPT to the potential disruptions to work and industries as we know them to the great philosophical, ethical and practical questions of advanced general intelligence, alignment and x-risk."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Nathaniel Whittemore"
+        },
+        "title": {
+          "label": "The AI Daily Brief: Artificial Intelligence News and Analysis - Nathaniel Whittemore"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/the-ai-daily-brief-artificial-intelligence-news/id1680633614?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/the-ai-daily-brief-artificial-intelligence-news/id1680633614?uo=2",
+          "attributes": {
+            "im:id": "1680633614"
+          }
+        },
+        "im:artist": {
+          "label": "Nathaniel Whittemore"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-06T16:48:00-07:00",
+          "attributes": {
+            "label": "October 6, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Lex Fridman Podcast"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/3e/e3/9c/3ee39c89-de08-47a6-7f3d-3849cef6d255/mza_16657851278549137484.png/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/3e/e3/9c/3ee39c89-de08-47a6-7f3d-3849cef6d255/mza_16657851278549137484.png/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts115/v4/3e/e3/9c/3ee39c89-de08-47a6-7f3d-3849cef6d255/mza_16657851278549137484.png/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Conversations about science, technology, history, philosophy and the nature of intelligence, consciousness, love, and power. Lex is an AI researcher at MIT and beyond."
+        },
+        "im:artist": {
+          "label": "Lex Fridman"
+        },
+        "title": {
+          "label": "Lex Fridman Podcast - Lex Fridman"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/lex-fridman-podcast/id1434243584?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/lex-fridman-podcast/id1434243584?uo=2",
+          "attributes": {
+            "im:id": "1434243584"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-30T18:40:00-07:00",
+          "attributes": {
+            "label": "September 30, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "DGTL Voices with Ed Marx"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/03/ed/c7/03edc7fa-8c66-eb36-9ba7-ee7b54b88f24/mza_13767531597214897483.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/03/ed/c7/03edc7fa-8c66-eb36-9ba7-ee7b54b88f24/mza_13767531597214897483.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/03/ed/c7/03edc7fa-8c66-eb36-9ba7-ee7b54b88f24/mza_13767531597214897483.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "DGTL Voices is your go-to podcast for all things digital innovation, healthcare technology, and leadership. Hosted by Ed Marx, the show features in-depth conversations with top leaders, entrepreneurs, and visionaries who are shaping the future of healthcare. Each episode dives into the latest trends, career insights, and real-world advice, providing a platform to learn, grow, and connect with like-minded professionals.\ud83c\udf99\ufe0f #DGTLVoices"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Copyright 2022 All rights reserved."
+        },
+        "title": {
+          "label": "DGTL Voices with Ed Marx - dgtlvoices"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/dgtl-voices-with-ed-marx/id1552066046?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/dgtl-voices-with-ed-marx/id1552066046?uo=2",
+          "attributes": {
+            "im:id": "1552066046"
+          }
+        },
+        "im:artist": {
+          "label": "dgtlvoices"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-01T05:00:00-07:00",
+          "attributes": {
+            "label": "October 1, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "The Digital Executive"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ef/9a/ed/ef9aed1d-f58b-27d0-de91-5252a774d2b6/mza_10732265665330473082.jpeg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ef/9a/ed/ef9aed1d-f58b-27d0-de91-5252a774d2b6/mza_10732265665330473082.jpeg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ef/9a/ed/ef9aed1d-f58b-27d0-de91-5252a774d2b6/mza_10732265665330473082.jpeg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Best 10-minute, daily tech podcast on emerging technologies, hundreds of Silicon Valley CEOs, Influencers and Celebrities. Hosted by technology executive and creator of Coruzant Technologies."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 \u00a9 2025 The Digital Executive"
+        },
+        "title": {
+          "label": "The Digital Executive - Coruzant Technologies"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/the-digital-executive/id1501617739?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/the-digital-executive/id1501617739?uo=2",
+          "attributes": {
+            "im:id": "1501617739"
+          }
+        },
+        "im:artist": {
+          "label": "Coruzant Technologies"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-03T22:00:00-07:00",
+          "attributes": {
+            "label": "October 3, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Darknet Diaries"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts122/v4/3a/80/a7/3a80a7db-5620-f77b-9935-016e61cc2fbc/mza_9399859904175514567.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts122/v4/3a/80/a7/3a80a7db-5620-f77b-9935-016e61cc2fbc/mza_9399859904175514567.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts122/v4/3a/80/a7/3a80a7db-5620-f77b-9935-016e61cc2fbc/mza_9399859904175514567.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Explore true stories of the dark side of the Internet with host Jack Rhysider as he takes you on a journey through the chilling world of hacking, data breaches, and cyber crime.\n\u00bfHablas espa\u00f1ol? Escucha en espa\u00f1ol aqu\u00ed \u2794 https://darknetdiaries.com/es/"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Jack Rhysider"
+        },
+        "title": {
+          "label": "Darknet Diaries - Jack Rhysider"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/darknet-diaries/id1296350485?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/darknet-diaries/id1296350485?uo=2",
+          "attributes": {
+            "im:id": "1296350485"
+          }
+        },
+        "im:artist": {
+          "label": "Jack Rhysider"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-06T21:00:00-07:00",
+          "attributes": {
+            "label": "October 6, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "TED Radio Hour"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/94/ea/88/94ea8879-e7f2-378c-231c-c041c7b295b5/mza_9110350352446077100.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/94/ea/88/94ea8879-e7f2-378c-231c-c041c7b295b5/mza_9110350352446077100.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/94/ea/88/94ea8879-e7f2-378c-231c-c041c7b295b5/mza_9110350352446077100.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Exploring the biggest questions of our time with the help of the world's greatest thinkers. Host Manoush Zomorodi inspires us to learn more about the world, our communities, and most importantly, ourselves.Get more brainy miscellany with TED Radio Hour+. Your subscription supports the show and unlocks a sponsor-free feed. Learn more at plus.npr.org/ted"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Copyright 2012-2021 NPR and Ted Conferences, LLC - For Personal Use Only"
+        },
+        "title": {
+          "label": "TED Radio Hour - NPR"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/ted-radio-hour/id523121474?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/ted-radio-hour/id523121474?uo=2",
+          "attributes": {
+            "im:id": "523121474"
+          }
+        },
+        "im:artist": {
+          "label": "NPR",
+          "attributes": {
+            "href": "https://podcasts.apple.com/us/artist/npr/125443881?uo=2"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-03T00:00:00-07:00",
+          "attributes": {
+            "label": "October 3, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Search Engine"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/2a/02/a0/2a02a07f-ff19-3adb-3345-fb8cca70972d/mza_2028599461846700939.jpeg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/2a/02/a0/2a02a07f-ff19-3adb-3345-fb8cca70972d/mza_2028599461846700939.jpeg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/2a/02/a0/2a02a07f-ff19-3adb-3345-fb8cca70972d/mza_2028599461846700939.jpeg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "We try to make sense of the world, one question at a time. No question too big, no question too small. Hosted by PJ Vogt, edited by Sruthi Pinnamaneni.\n***Named one of the best podcasts by Vulture, Time, The Economist, & Vogue. (OK, in 2023, but still...)***"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 PJ Vogt"
+        },
+        "title": {
+          "label": "Search Engine - PJ Vogt"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/search-engine/id1614253637?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/search-engine/id1614253637?uo=2",
+          "attributes": {
+            "im:id": "1614253637"
+          }
+        },
+        "im:artist": {
+          "label": "PJ Vogt"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-03T02:00:00-07:00",
+          "attributes": {
+            "label": "October 3, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "AI Chat: ChatGPT & AI News, Artificial Intelligence, OpenAI, Machine Learning"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/e4/a8/22/e4a8226e-bdcb-a888-010b-500b660ea891/mza_15251437576678016020.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/e4/a8/22/e4a8226e-bdcb-a888-010b-500b660ea891/mza_15251437576678016020.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/e4/a8/22/e4a8226e-bdcb-a888-010b-500b660ea891/mza_15251437576678016020.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "AI Chat is the podcast where we dive into the world of ChatGPT, cutting-edge AI news and its impact on our daily lives. With in-depth discussions and interviews with leading experts in the field, we'll explore the latest advancements in language models, machine learning, and more. \n\nFrom its practical applications to its ethical considerations, AI Chat will keep you informed and entertained on the exciting developments in the world of AI. Tune in to stay ahead of the curve on the latest technological revolution."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Jaeden Schafer"
+        },
+        "title": {
+          "label": "AI Chat: ChatGPT & AI News, Artificial Intelligence, OpenAI, Machine Learning - Jaeden Schafer"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/ai-chat-chatgpt-ai-news-artificial-intelligence-openai/id1669990482?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/ai-chat-chatgpt-ai-news-artificial-intelligence-openai/id1669990482?uo=2",
+          "attributes": {
+            "im:id": "1669990482"
+          }
+        },
+        "im:artist": {
+          "label": "Jaeden Schafer"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-07T03:31:00-07:00",
+          "attributes": {
+            "label": "October 7, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "BG2Pod with Brad Gerstner and Bill Gurley"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/PodcastSource126/v4/4b/ab/e5/4babe58b-7cda-b2b3-40a5-bcac3f262764/33f9cff7-dc0b-4293-a5bf-d8cc62ab8c98.jpg/30x30bb.png",
+            "attributes": {
+              "height": "30"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/PodcastSource126/v4/4b/ab/e5/4babe58b-7cda-b2b3-40a5-bcac3f262764/33f9cff7-dc0b-4293-a5bf-d8cc62ab8c98.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/PodcastSource126/v4/4b/ab/e5/4babe58b-7cda-b2b3-40a5-bcac3f262764/33f9cff7-dc0b-4293-a5bf-d8cc62ab8c98.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Open Source bi-weekly conversation with Brad Gerstner (@altcap) & Bill Gurley (@bgurley) on all things tech, markets, investing & capitalism"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 BG2Pod"
+        },
+        "title": {
+          "label": "BG2Pod with Brad Gerstner and Bill Gurley - BG2Pod"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/bg2pod-with-brad-gerstner-and-bill-gurley/id1727278168?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/bg2pod-with-brad-gerstner-and-bill-gurley/id1727278168?uo=2",
+          "attributes": {
+            "im:id": "1727278168"
+          }
+        },
+        "im:artist": {
+          "label": "BG2Pod"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-25T20:17:00-07:00",
+          "attributes": {
+            "label": "September 25, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Well There\u2018s Your Problem"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts125/v4/21/da/66/21da66c0-ff2d-981c-862c-8d8138903ec5/mza_1840288066774406949.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts125/v4/21/da/66/21da66c0-ff2d-981c-862c-8d8138903ec5/mza_1840288066774406949.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts125/v4/21/da/66/21da66c0-ff2d-981c-862c-8d8138903ec5/mza_1840288066774406949.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "This is a podcast about engineering disasters and systemic failures, from a leftist perspective, with jokes"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 CC BY-SA 4.0"
+        },
+        "title": {
+          "label": "Well There\u2018s Your Problem - WTYP is Justin Roczniak, November Kelly, Liam McAnderson, and friends."
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/well-there-s-your-problem/id1487829595?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/well-there-s-your-problem/id1487829595?uo=2",
+          "attributes": {
+            "im:id": "1487829595"
+          }
+        },
+        "im:artist": {
+          "label": "WTYP is Justin Roczniak, November Kelly, Liam McAnderson, and friends."
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-03T04:00:00-07:00",
+          "attributes": {
+            "label": "September 3, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "a16z Podcast"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts112/v4/4c/0b/f2/4c0bf2f6-8d27-767f-f7ec-c33202c1638c/mza_17705033532805449089.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts112/v4/4c/0b/f2/4c0bf2f6-8d27-767f-f7ec-c33202c1638c/mza_17705033532805449089.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts112/v4/4c/0b/f2/4c0bf2f6-8d27-767f-f7ec-c33202c1638c/mza_17705033532805449089.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "The a16z Podcast discusses tech and culture trends, news, and the future \u2013 especially as \u2018software eats the world\u2019. It features industry experts, business leaders, and other interesting thinkers and voices from around the world. This podcast is produced by Andreessen Horowitz (aka \u201ca16z\u201d), a Silicon Valley-based venture capital firm. Multiple episodes are released every week; visit a16z.com for more details and to sign up for our newsletters and other content as well!"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 All rights reserved"
+        },
+        "title": {
+          "label": "a16z Podcast - Andreessen Horowitz"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/a16z-podcast/id842818711?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/a16z-podcast/id842818711?uo=2",
+          "attributes": {
+            "im:id": "842818711"
+          }
+        },
+        "im:artist": {
+          "label": "Andreessen Horowitz",
+          "attributes": {
+            "href": "https://podcasts.apple.com/us/artist/andreessen-horowitz/1500782157?uo=2"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-06T03:00:00-07:00",
+          "attributes": {
+            "label": "October 6, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Digital Disruption with Geoff Nielson"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/91/58/e9/9158e97f-fc34-79e4-6376-1e54dd1ac88f/mza_1617936603711272258.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/91/58/e9/9158e97f-fc34-79e4-6376-1e54dd1ac88f/mza_1617936603711272258.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/91/58/e9/9158e97f-fc34-79e4-6376-1e54dd1ac88f/mza_1617936603711272258.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "The Next Industrial Revolution is Already Here\n\nDigital Disruption is where industry leaders and experts share insights on leveraging technology to build the organizations of the future. \n\nAs intelligent technologies reshape our lives and our livelihoods, we speak with the thinkers, the doers and innovators who will help us predict and harness this disruption. Join us as we explore how to adapt to and harness digital transformation."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Info-Tech Research Group"
+        },
+        "title": {
+          "label": "Digital Disruption with Geoff Nielson - Info-Tech Research Group"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/digital-disruption-with-geoff-nielson/id1798209377?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/digital-disruption-with-geoff-nielson/id1798209377?uo=2",
+          "attributes": {
+            "im:id": "1798209377"
+          }
+        },
+        "im:artist": {
+          "label": "Info-Tech Research Group"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-29T04:00:00-07:00",
+          "attributes": {
+            "label": "September 29, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Version History"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ba/17/b5/ba17b5d4-b856-bc4a-b22d-59ddc74daaae/mza_17909153997665936559.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ba/17/b5/ba17b5d4-b856-bc4a-b22d-59ddc74daaae/mza_17909153997665936559.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ba/17/b5/ba17b5d4-b856-bc4a-b22d-59ddc74daaae/mza_17909153997665936559.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Version History is a show about the best gadgets ever. And the worst ones. And the ones that might have changed the world, if they ever actually shipped. Every week, your favorite people from The Verge and beyond hang out to tell and debate the story of a gadget, app, website, or any other tech product, and try to determine the item\u2019s true legacy. Because not every product is a hit, but every product has a story. And the ones that really matter aren\u2019t always the ones you think.\n\nFrom the Verge and the Vox Media Podcast Network."
+        },
+        "im:artist": {
+          "label": "The Verge"
+        },
+        "title": {
+          "label": "Version History - The Verge"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/version-history/id1840983742?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/version-history/id1840983742?uo=2",
+          "attributes": {
+            "im:id": "1840983742"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-19T15:02:00-07:00",
+          "attributes": {
+            "label": "September 19, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Dwarkesh Podcast"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/e8/fe/ce/e8fece6e-c97f-8dd5-19a2-5c3b1f93f8e4/mza_726727706016079768.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/e8/fe/ce/e8fece6e-c97f-8dd5-19a2-5c3b1f93f8e4/mza_726727706016079768.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/e8/fe/ce/e8fece6e-c97f-8dd5-19a2-5c3b1f93f8e4/mza_726727706016079768.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Deeply researched interviews \n\nwww.dwarkesh.com"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Dwarkesh Patel"
+        },
+        "title": {
+          "label": "Dwarkesh Podcast - Dwarkesh Patel"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/dwarkesh-podcast/id1516093381?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/dwarkesh-podcast/id1516093381?uo=2",
+          "attributes": {
+            "im:id": "1516093381"
+          }
+        },
+        "im:artist": {
+          "label": "Dwarkesh Patel"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-04T10:45:00-07:00",
+          "attributes": {
+            "label": "October 4, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Deep Questions with Cal Newport"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/1e/88/67/1e88678f-acd3-265d-3386-06471746770d/mza_10854531537130051520.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/1e/88/67/1e88678f-acd3-265d-3386-06471746770d/mza_10854531537130051520.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/1e/88/67/1e88678f-acd3-265d-3386-06471746770d/mza_10854531537130051520.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Cal Newport is a computer science professor and a New York Times bestselling author who writes about the impact of technology on society, and the struggle to work and live deeply in a world increasingly mired in digital distractions. On this podcast, he answers questions from his readers and offers advice about cultivating focus, productivity, and meaning amidst the noise that pervades our lives."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 2024 Deep Questions with Cal Newport"
+        },
+        "title": {
+          "label": "Deep Questions with Cal Newport - Cal Newport"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/deep-questions-with-cal-newport/id1515786216?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/deep-questions-with-cal-newport/id1515786216?uo=2",
+          "attributes": {
+            "im:id": "1515786216"
+          }
+        },
+        "im:artist": {
+          "label": "Cal Newport"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-29T03:00:00-07:00",
+          "attributes": {
+            "label": "September 29, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Better Offline"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/c8/a1/3c/c8a13c5f-7295-bc72-6152-db1cf5fbd405/mza_760841200511424832.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/c8/a1/3c/c8a13c5f-7295-bc72-6152-db1cf5fbd405/mza_760841200511424832.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/c8/a1/3c/c8a13c5f-7295-bc72-6152-db1cf5fbd405/mza_760841200511424832.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Better Offline is a weekly show exploring the tech industry\u2019s influence and manipulation of society - and interrogating the growth-at-all-costs future that tech\u2019s elite wants to build.\u00a0\n\nCombining narrative-form storytelling, one-on-one interviews and panel-based discussions, Better Offline cuts through the buzzwords and obfuscation of the tech industry, investigating and evaluating the schemes and scams of everyone from cryptocurrency scumbags to the greediest of the venture capital elite. Tech industry veteran Ed Zitron and a dynamic coterie of guests will help listeners understand the who, how and why of how tech\u2019s most powerful players are changing the world - for better or for worse."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "2025 iHeartMedia, Inc. \u00a9 Any use of this intellectual property for text and data mining or computational analysis including as training material for artificial intelligence systems is strictly prohibited without express written consent from iHeartMedia"
+        },
+        "title": {
+          "label": "Better Offline - Cool Zone Media and iHeartPodcasts"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/better-offline/id1730587238?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/better-offline/id1730587238?uo=2",
+          "attributes": {
+            "im:id": "1730587238"
+          }
+        },
+        "im:artist": {
+          "label": "Cool Zone Media and iHeartPodcasts"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-02T21:00:00-07:00",
+          "attributes": {
+            "label": "October 2, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "The Vergecast"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/07/d0/2a/07d02ad9-7aed-dfda-b88b-9bf506c604e2/mza_8820453696623419612.jpeg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/07/d0/2a/07d02ad9-7aed-dfda-b88b-9bf506c604e2/mza_8820453696623419612.jpeg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/07/d0/2a/07d02ad9-7aed-dfda-b88b-9bf506c604e2/mza_8820453696623419612.jpeg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "The Vergecast is the flagship podcast from The Verge about small gadgets, Big Tech, and everything in between. Every Friday, hosts Nilay Patel and David Pierce hang out and make sense of the week\u2019s most important technology news. And every Tuesday, David leads a selection of The Verge\u2019s expert staffers in an exploration of how gadgets and software affect our lives \u2013 and which ones you should bring into yours.\u00a0"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 2022 Vox Media, Inc. All Rights Reserved"
+        },
+        "title": {
+          "label": "The Vergecast - The Verge"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/the-vergecast/id430333725?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/the-vergecast/id430333725?uo=2",
+          "attributes": {
+            "im:id": "430333725"
+          }
+        },
+        "im:artist": {
+          "label": "The Verge",
+          "attributes": {
+            "href": "https://podcasts.apple.com/us/artist/the-verge/1439224122?uo=2"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-05T02:00:00-07:00",
+          "attributes": {
+            "label": "October 5, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "IVF Disrupted: The Kindbody Story"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/08/47/96/08479688-38e0-00a3-ddee-df7fbb2a07b9/mza_2669326246086433366.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/08/47/96/08479688-38e0-00a3-ddee-df7fbb2a07b9/mza_2669326246086433366.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/08/47/96/08479688-38e0-00a3-ddee-df7fbb2a07b9/mza_2669326246086433366.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Kindbody, one of the largest fertility companies in the US, sought to disrupt egg freezing and IVF by combining spa vibes with Silicon Valley efficiency. The startup raised millions, opened dozens of clinics, and became a billion-dollar unicorn. But its ambition came with consequences. In IVF Disrupted: The Kindbody Story, reporter Jackie Davalos takes listeners beyond Kindbody\u2019s millennial-friendly waiting rooms and into the clinics themselves, showing the sometimes-heartbreaking consequences of bringing the \"move fast and break things\" mentality to the business of creating life.\u00a0\n\nRead more: IVF Disrupted: The Kindbody Story"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "2025 iHeartMedia, Inc. \u00a9 Any use of this intellectual property for text and data mining or computational analysis including as training material for artificial intelligence systems is strictly prohibited without express written consent from iHeartMedia"
+        },
+        "title": {
+          "label": "IVF Disrupted: The Kindbody Story - Bloomberg and  iHeartPodcasts"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/ivf-disrupted-the-kindbody-story/id1802010242?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/ivf-disrupted-the-kindbody-story/id1802010242?uo=2",
+          "attributes": {
+            "im:id": "1802010242"
+          }
+        },
+        "im:artist": {
+          "label": "Bloomberg and  iHeartPodcasts"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-29T07:54:00-07:00",
+          "attributes": {
+            "label": "September 29, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Panic World"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/6c/2e/ca/6c2eca01-7e61-3528-fef0-477a4f7d2919/mza_17797976073387296272.jpeg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/6c/2e/ca/6c2eca01-7e61-3528-fef0-477a4f7d2919/mza_17797976073387296272.jpeg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/6c/2e/ca/6c2eca01-7e61-3528-fef0-477a4f7d2919/mza_17797976073387296272.jpeg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "A weekly podcast, hosted by Ryan Broderick, about how the internet warps our minds, our culture, and eventually reality."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Courier Newsroom, Inc."
+        },
+        "title": {
+          "label": "Panic World - COURIER"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/panic-world/id1740187810?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/panic-world/id1740187810?uo=2",
+          "attributes": {
+            "im:id": "1740187810"
+          }
+        },
+        "im:artist": {
+          "label": "COURIER"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-01T00:31:00-07:00",
+          "attributes": {
+            "label": "October 1, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Lenny's Podcast: Product | Career | Growth"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/c7/80/a3/c780a365-a1ed-527f-365f-1bd3e51ac6d1/mza_5908526734339724450.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/c7/80/a3/c780a365-a1ed-527f-365f-1bd3e51ac6d1/mza_5908526734339724450.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/c7/80/a3/c780a365-a1ed-527f-365f-1bd3e51ac6d1/mza_5908526734339724450.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Interviews with world-class product leaders and growth experts to uncover concrete, actionable, and tactical advice to help you build, launch, and grow your own product."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Lenny Rachitsky"
+        },
+        "title": {
+          "label": "Lenny's Podcast: Product | Career | Growth - Lenny Rachitsky"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/lennys-podcast-product-career-growth/id1627920305?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/lennys-podcast-product-career-growth/id1627920305?uo=2",
+          "attributes": {
+            "im:id": "1627920305"
+          }
+        },
+        "im:artist": {
+          "label": "Lenny Rachitsky"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-05T04:02:00-07:00",
+          "attributes": {
+            "label": "October 5, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "The Cloud Pod"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/d6/2d/72/d62d7249-24ef-c185-4e61-662630885b94/mza_6931201795025944813.png/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/d6/2d/72/d62d7249-24ef-c185-4e61-662630885b94/mza_6931201795025944813.png/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/d6/2d/72/d62d7249-24ef-c185-4e61-662630885b94/mza_6931201795025944813.png/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Drowning in a sea of cloud innovations, AI breakthroughs, and shifting tooling ecosystems? The Cloud Pod is your lifeline! Join cloud veterans Justin, Jonathan, Ryan, and Matt as they decode the rapidly evolving world of public, hybrid, multi-cloud, and private cloud environments.\nEvery week, our expert hosts dissect the latest cloud-native architectures, emerging AI capabilities, and game-changing DevOps tooling that's reshaping the industry. From Kubernetes deep dives to AI integration strategies, and from Infrastructure-as-Code toolchains to serverless frameworks \u2013 nothing escapes their expert analysis.\nWhether you're wrestling with container orchestration, exploring AI service meshes, or navigating the complex world of cloud governance tools, The Cloud Pod transforms overwhelming technical noise into clear, actionable intelligence.\nStay ahead of the curve where cloud innovation, AI acceleration, and cutting-edge tooling converge! Subscribe now to turn cloud complexity into your competitive advantage."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 2025 The Cloud Pod"
+        },
+        "title": {
+          "label": "The Cloud Pod - Justin Brodley, Jonathan Baker, Ryan Lucas and Matthew Kohn"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/the-cloud-pod/id1447083316?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/the-cloud-pod/id1447083316?uo=2",
+          "attributes": {
+            "im:id": "1447083316"
+          }
+        },
+        "im:artist": {
+          "label": "Justin Brodley, Jonathan Baker, Ryan Lucas and Matthew Kohn"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-24T09:00:00-07:00",
+          "attributes": {
+            "label": "September 24, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Cheeky Pint"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/39/58/7b/39587b37-a6e1-e96b-593d-621d5ec5292a/mza_6705197557754043928.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/39/58/7b/39587b37-a6e1-e96b-593d-621d5ec5292a/mza_6705197557754043928.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/39/58/7b/39587b37-a6e1-e96b-593d-621d5ec5292a/mza_6705197557754043928.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Stripe cofounder John Collison interviews founders, builders, and leaders over a pint."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 2025 Stripe"
+        },
+        "title": {
+          "label": "Cheeky Pint - Stripe"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/cheeky-pint/id1821055332?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/cheeky-pint/id1821055332?uo=2",
+          "attributes": {
+            "im:id": "1821055332"
+          }
+        },
+        "im:artist": {
+          "label": "Stripe"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-01T01:45:00-07:00",
+          "attributes": {
+            "label": "October 1, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Uncanny Valley | WIRED"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/4c/a2/92/4ca2925d-7a78-cd2e-4dbc-4ae8109df0a6/mza_16621928615592879338.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/4c/a2/92/4ca2925d-7a78-cd2e-4dbc-4ae8109df0a6/mza_16621928615592879338.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/4c/a2/92/4ca2925d-7a78-cd2e-4dbc-4ae8109df0a6/mza_16621928615592879338.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Welcome to Uncanny Valley\u2014an insider look at the people, power, and influence of Silicon Valley\u2014where each week, WIRED\u2019s writers and editors bring you original reporting and analysis about some of the biggest stories in tech. On Thursdays, WIRED\u2019s Global Editorial Director Katie Drummond is joined by Lauren Goode and Michael Calore to break down a recent story or phenomena bubbling up in Silicon Valley and explain its influence on our daily lives. And on Fridays, WIRED\u2019s Zo\u00eb Schiffer has an urgent conversation about this week in the news."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Cond\u00e9 Nast. All rights reserved. 783607"
+        },
+        "title": {
+          "label": "Uncanny Valley | WIRED - WIRED"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/uncanny-valley-wired/id266391367?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/uncanny-valley-wired/id266391367?uo=2",
+          "attributes": {
+            "im:id": "266391367"
+          }
+        },
+        "im:artist": {
+          "label": "WIRED"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-07T02:00:00-07:00",
+          "attributes": {
+            "label": "October 7, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "This Week in Tech (Audio)"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/9b/96/ac/9b96ac54-6ef1-9380-43ad-83f3066155a0/mza_10914428610214068995.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/9b/96/ac/9b96ac54-6ef1-9380-43ad-83f3066155a0/mza_10914428610214068995.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/9b/96/ac/9b96ac54-6ef1-9380-43ad-83f3066155a0/mza_10914428610214068995.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "This Week in Tech is the top-ranked flagship tech podcast from TWiT.tv. Every Sunday, Leo Laporte and a roundtable of insiders explore the week's hottest tech news from AI to robots, and PCs to privacy. When it comes to tech, TWiT is IT.\n\nRecords live every Sunday at 5:15pm Eastern / 2:15pm Pacific / 21:15 UTC."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 This work is licensed under a Creative Commons License - Attribution-NonCommercial-NoDerivatives 4.0 International - http://creativecommons.org/licenses/by-nc-nd/4.0/"
+        },
+        "title": {
+          "label": "This Week in Tech (Audio) - TWiT"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/this-week-in-tech-audio/id73329404?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/this-week-in-tech-audio/id73329404?uo=2",
+          "attributes": {
+            "im:id": "73329404"
+          }
+        },
+        "im:artist": {
+          "label": "TWiT",
+          "attributes": {
+            "href": "https://podcasts.apple.com/us/artist/twit-tv/146041210?uo=2"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-05T19:36:00-07:00",
+          "attributes": {
+            "label": "October 5, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Waveform: The MKBHD Podcast"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/87/20/86/87208638-42bf-a5b5-cfd5-6a55f85fc656/mza_105024973981456283.jpeg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/87/20/86/87208638-42bf-a5b5-cfd5-6a55f85fc656/mza_105024973981456283.jpeg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/87/20/86/87208638-42bf-a5b5-cfd5-6a55f85fc656/mza_105024973981456283.jpeg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "A tech podcast for the gadget lovers and tech heads among us from the mind of Marques Brownlee, better known as MKBHD. MKBHD has made a name for himself on YouTube reviewing everything from the newest smartphones to cameras to electric cars. Pulling from over 10 years of experience covering the tech industry, MKBHD and co-hosts Andrew Manganelli and David Imel will keep you informed and entertained as they take a deep dive into the latest and greatest in tech and what deserves your hard earned cash. New episodes every week. Waveform is part of the Vox Media Podcast Network.\nWe wanna make the podcast even better, help us learn how we can:\u00a0https://bit.ly/2EcYbu4\u00a0"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Marques Brownlee"
+        },
+        "title": {
+          "label": "Waveform: The MKBHD Podcast - Vox Media Podcast Network"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/waveform-the-mkbhd-podcast/id1474429475?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/waveform-the-mkbhd-podcast/id1474429475?uo=2",
+          "attributes": {
+            "im:id": "1474429475"
+          }
+        },
+        "im:artist": {
+          "label": "Vox Media Podcast Network",
+          "attributes": {
+            "href": "https://podcasts.apple.com/us/artist/studio71/1469106457?uo=2"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-26T01:00:00-07:00",
+          "attributes": {
+            "label": "September 26, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "American Alchemy"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/dc/82/af/dc82af71-3bb1-8aae-a0d1-5510646d2f4a/mza_8358567098597130017.jpeg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/dc/82/af/dc82af71-3bb1-8aae-a0d1-5510646d2f4a/mza_8358567098597130017.jpeg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/dc/82/af/dc82af71-3bb1-8aae-a0d1-5510646d2f4a/mza_8358567098597130017.jpeg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Welcome to the American Alchemy.\nTune in for new videos WEEKLY highlighting the most heretical thinkers/ideas of our time.\n\ud83d\udc7d\ninstagram: @jessemichels\ntwitter: @alchemyamerican\nBusiness: usa.alchemy@gmail.com"
+        },
+        "im:artist": {
+          "label": "Jesse Michels"
+        },
+        "title": {
+          "label": "American Alchemy - Jesse Michels"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/american-alchemy/id1771917740?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/american-alchemy/id1771917740?uo=2",
+          "attributes": {
+            "im:id": "1771917740"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-27T11:00:00-07:00",
+          "attributes": {
+            "label": "September 27, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Practical AI"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/79/29/d8/7929d828-b84b-7455-6c0f-0b77d06ca86e/mza_7338295329992494043.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/79/29/d8/7929d828-b84b-7455-6c0f-0b77d06ca86e/mza_7338295329992494043.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/79/29/d8/7929d828-b84b-7455-6c0f-0b77d06ca86e/mza_7338295329992494043.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Making artificial intelligence practical, productive & accessible to everyone. Practical AI is a show in which technology professionals, business people, students, enthusiasts, and expert guests engage in lively discussions about Artificial Intelligence and related topics (Machine Learning, Deep Learning, Neural Networks, GANs, MLOps, AIOps, LLMs & more).\n\nThe focus is on productive implementations and real-world scenarios that are accessible to everyone. If you want to keep up with the latest advances in AI, while keeping one foot in the real world, then this is the show for you!"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 All rights reserved"
+        },
+        "title": {
+          "label": "Practical AI - Practical AI LLC"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/practical-ai/id1406537385?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/practical-ai/id1406537385?uo=2",
+          "attributes": {
+            "im:id": "1406537385"
+          }
+        },
+        "im:artist": {
+          "label": "Practical AI LLC"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-29T13:46:00-07:00",
+          "attributes": {
+            "label": "September 29, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Endless Thread"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/fb/17/53/fb175385-8d52-ecf9-5268-cbf7a3a67b1f/mza_9060456912121241658.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/fb/17/53/fb175385-8d52-ecf9-5268-cbf7a3a67b1f/mza_9060456912121241658.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts116/v4/fb/17/53/fb175385-8d52-ecf9-5268-cbf7a3a67b1f/mza_9060456912121241658.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Hosts Ben Brock Johnson and Amory Sivertson dig into the internet's vast and curious ecosystem of online communities to find untold histories, unsolved mysteries, and other jaw-dropping stories online and IRL."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Copyright Trustees of Boston University"
+        },
+        "title": {
+          "label": "Endless Thread - WBUR"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/endless-thread/id1321060753?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/endless-thread/id1321060753?uo=2",
+          "attributes": {
+            "im:id": "1321060753"
+          }
+        },
+        "im:artist": {
+          "label": "WBUR"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-06T02:00:00-07:00",
+          "attributes": {
+            "label": "October 6, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Tech N Out"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ae/45/c1/ae45c162-985b-7202-89d0-6865fa43bfff/mza_7986803687634816537.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ae/45/c1/ae45c162-985b-7202-89d0-6865fa43bfff/mza_7986803687634816537.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/ae/45/c1/ae45c162-985b-7202-89d0-6865fa43bfff/mza_7986803687634816537.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Tech experts, Mike and Danielle are approachable & relatable. Engaging with their audience from an expert point of view, they deliver 'Byte-Sized' information for busy people on-the-go. Follow along as their tech drama unfolds. You'll be entertained, enlightened and definitely up your tech game at the next work meeting or family gathering."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 2024 Tech N Out"
+        },
+        "title": {
+          "label": "Tech N Out - Tech N Out LLC"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/tech-n-out/id1776190033?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/tech-n-out/id1776190033?uo=2",
+          "attributes": {
+            "im:id": "1776190033"
+          }
+        },
+        "im:artist": {
+          "label": "Tech N Out LLC"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-03-10T10:56:00-07:00",
+          "attributes": {
+            "label": "March 10, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "\u7845\u8c37101"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/96/d6/82/96d682e0-e42f-d8bf-68c3-c18ff9c20c8f/mza_15727650922171364471.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/96/d6/82/96d682e0-e42f-d8bf-68c3-c18ff9c20c8f/mza_15727650922171364471.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/96/d6/82/96d682e0-e42f-d8bf-68c3-c18ff9c20c8f/mza_15727650922171364471.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "\u5931\u8d25\u3001\u80cc\u53db\u3001\u4e0d\u88ab\u7406\u89e3\uff0c\u7845\u8c37\u7cbe\u795e\u9886\u8896\u4e00\u76f4\u90fd\u4e0d\u662f\u5b8c\u7f8e\u7684\u5b58\u5728\uff1b\u4ed6\u4eec\u662f\u79d1\u5b66\u5bb6\uff0c\u521b\u9020\u8005\uff0c\u884c\u52a8\u6d3e\uff0c\u4ed6\u4eec\u6709\u72ec\u7acb\u7684\u4ef7\u503c\u89c2\u3002\u300a\u7845\u8c37101\u300b\u662f\u7531\u5a92\u4f53\u4eba\u6cd3\u541b\u53d1\u8d77\u7684\u6df1\u5ea6\u8bbf\u8c08\u8282\u76ee\uff0c\u662f\u4e00\u6863\u5206\u4eab\u5f53\u4e0b\u6700\u65b0\u9c9c\u7684\u6280\u672f\u3001\u77e5\u8bc6\u4e0e\u601d\u60f3\u7684\u79d1\u6280\u64ad\u5ba2\u3002\n\u516c\u4f17\u8d26\u53f7\uff1a\u7845\u8c37101\n\u8054\u7cfb\u90ae\u7bb1\uff1apodcast@sv101.net"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 2025 Valley101.Inc"
+        },
+        "title": {
+          "label": "\u7845\u8c37101 - \u7845\u8c37101"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/%E7%A1%85%E8%B0%B7101/id1498541229?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/%E7%A1%85%E8%B0%B7101/id1498541229?uo=2",
+          "attributes": {
+            "im:id": "1498541229"
+          }
+        },
+        "im:artist": {
+          "label": "\u7845\u8c37101"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-17T17:00:00-07:00",
+          "attributes": {
+            "label": "September 17, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Bankless"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts125/v4/7d/89/b1/7d89b1bf-d4dc-c8aa-894c-d2bc002c42be/mza_5764066019463168929.png/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts125/v4/7d/89/b1/7d89b1bf-d4dc-c8aa-894c-d2bc002c42be/mza_5764066019463168929.png/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts125/v4/7d/89/b1/7d89b1bf-d4dc-c8aa-894c-d2bc002c42be/mza_5764066019463168929.png/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "The Ultimate Guide to Crypto Finance. DeFi, NFTs, and cryptocurrencies. Level up. Go bankless."
+        },
+        "im:artist": {
+          "label": "Bankless"
+        },
+        "title": {
+          "label": "Bankless - Bankless"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/bankless/id1499409058?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/bankless/id1499409058?uo=2",
+          "attributes": {
+            "im:id": "1499409058"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-07T03:30:00-07:00",
+          "attributes": {
+            "label": "October 7, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Product Growth Podcast"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/65/63/69/65636945-c476-66e5-5152-72932b84ec32/mza_7731094162093535537.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/65/63/69/65636945-c476-66e5-5152-72932b84ec32/mza_7731094162093535537.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/65/63/69/65636945-c476-66e5-5152-72932b84ec32/mza_7731094162093535537.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "The latest insights into how great products grow, how to be a better PM or product leader, and how to get a PM job.  \n\nwww.news.aakashg.com"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Aakash Gupta"
+        },
+        "title": {
+          "label": "Product Growth Podcast - Aakash Gupta"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/product-growth-podcast/id1763555775?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/product-growth-podcast/id1763555775?uo=2",
+          "attributes": {
+            "im:id": "1763555775"
+          }
+        },
+        "im:artist": {
+          "label": "Aakash Gupta"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-07T13:26:00-07:00",
+          "attributes": {
+            "label": "October 7, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "This Week in Startups"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/bf/ce/23/bfce2354-2548-00f0-d795-a34404946a6b/mza_10222213905677371023.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/bf/ce/23/bfce2354-2548-00f0-d795-a34404946a6b/mza_10222213905677371023.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts126/v4/bf/ce/23/bfce2354-2548-00f0-d795-a34404946a6b/mza_10222213905677371023.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Jason Calacanis covers startups, tech, markets, media, and all the hottest topics in business and technology. He also interviews the world\u2019s greatest founders, operators, investors, and innovators."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Jason Calacanis"
+        },
+        "title": {
+          "label": "This Week in Startups - Jason Calacanis"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/this-week-in-startups/id315114957?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/this-week-in-startups/id315114957?uo=2",
+          "attributes": {
+            "im:id": "315114957"
+          }
+        },
+        "im:artist": {
+          "label": "Jason Calacanis",
+          "attributes": {
+            "href": "https://podcasts.apple.com/us/artist/thisweekin/356828322?uo=2"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-06T20:24:00-07:00",
+          "attributes": {
+            "label": "October 6, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Bold Names"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/6b/a6/ab/6ba6ab89-59f0-39b2-5f70-07a2eb15523a/mza_11561012620225411189.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/6b/a6/ab/6ba6ab89-59f0-39b2-5f70-07a2eb15523a/mza_11561012620225411189.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/6b/a6/ab/6ba6ab89-59f0-39b2-5f70-07a2eb15523a/mza_11561012620225411189.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "WSJ\u2019s Bold Names brings you conversations with the leaders of the bold-named companies featured in the pages of The Wall Street Journal. Hosts Tim Higgins and Christopher Mims speak to CEOs and business leaders in interviews that challenge conventional wisdom and take you inside the decisions being made in the C-suite and beyond."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "Copyright \u00a9 Dow Jones & Company, Inc. All rights reserved."
+        },
+        "title": {
+          "label": "Bold Names - The Wall Street Journal"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/bold-names/id1234320525?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/bold-names/id1234320525?uo=2",
+          "attributes": {
+            "im:id": "1234320525"
+          }
+        },
+        "im:artist": {
+          "label": "The Wall Street Journal",
+          "attributes": {
+            "href": "https://podcasts.apple.com/us/artist/the-wall-street-journal/150975419?uo=2"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-03T03:00:00-07:00",
+          "attributes": {
+            "label": "October 3, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "NVIDIA AI Podcast"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/02/09/7e/02097e12-f9c5-b422-4f6d-3e347fec4059/mza_10796319791516340006.jpeg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/02/09/7e/02097e12-f9c5-b422-4f6d-3e347fec4059/mza_10796319791516340006.jpeg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/02/09/7e/02097e12-f9c5-b422-4f6d-3e347fec4059/mza_10796319791516340006.jpeg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Explore how the latest technologies are shaping our world, from groundbreaking discoveries to transformative sustainability efforts. The\u00a0NVIDIA AI Podcast\u00a0shines a light on the stories and solutions behind the most innovative changes, helping to inspire and educate listeners. Every week, we\u2019ll bring you another tale, another 30-minute interview, as we build a real-time oral history of AI that\u2019s already garnered nearly 6.5 million listens and been acclaimed as one of the best AI and machine learning podcasts. Listen in and get inspired. More information: https://ai-podcast.nvidia.com/"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 All rights reserved e203f610-4315-11f0-9656-27588e6ca9e9"
+        },
+        "title": {
+          "label": "NVIDIA AI Podcast - NVIDIA"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/nvidia-ai-podcast/id1186480811?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/nvidia-ai-podcast/id1186480811?uo=2",
+          "attributes": {
+            "im:id": "1186480811"
+          }
+        },
+        "im:artist": {
+          "label": "NVIDIA"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-24T09:03:00-07:00",
+          "attributes": {
+            "label": "September 24, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "\u7f57\u6c38\u6d69\u7684\u5341\u5b57\u8def\u53e3"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/79/45/99/794599ee-b368-ad32-08c1-10fb8da1ab96/mza_4122156040194880124.png/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/79/45/99/794599ee-b368-ad32-08c1-10fb8da1ab96/mza_4122156040194880124.png/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/79/45/99/794599ee-b368-ad32-08c1-10fb8da1ab96/mza_4122156040194880124.png/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "\u672c\u8282\u2f6c\u662f\u2f00\u6863\u7531\u7f57\u6c38\u6d69\u4e3b\u6301\u7684\u6df1\u5ea6\u64ad\u5ba2\u7c7b\u8282\u2f6c\uff0c\u6bcf\u96c6\u957f\u8fbe\u4e09\u5230\u4e94\u4e2a\u5c0f\u65f6\u3002\n\u6211\u4eec\u4e0e\u65f6\u4ee3\u6d6a\u6f6e\u4e2d\u7684\u2f08\u7269\u5c55\u5f00\u5bf9\u8bdd\uff0c\u805a\u7126\u4e8e\u79d1\u6280\u4e0e\u2f08\u2f42\u9886\u57df\uff0c\u8bb2\u8ff0\u4e2a\u4f53\u547d\u8fd0\u6545\u4e8b\uff0c\u63a2\u8ba8\u65f6\u4ee3\u53d1\u5c55\u8d8b\u52bf\u3002"
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 \u7f57\u6c38\u6d69\u7684\u5341\u5b57\u8def\u53e3@\u5c0f\u5b87\u5b99App"
+        },
+        "title": {
+          "label": "\u7f57\u6c38\u6d69\u7684\u5341\u5b57\u8def\u53e3 - \u7f57\u6c38\u6d69\u7684\u5341\u5b57\u8def\u53e3"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/%E7%BD%97%E6%B0%B8%E6%B5%A9%E7%9A%84%E5%8D%81%E5%AD%97%E8%B7%AF%E5%8F%A3/id1834069371?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/%E7%BD%97%E6%B0%B8%E6%B5%A9%E7%9A%84%E5%8D%81%E5%AD%97%E8%B7%AF%E5%8F%A3/id1834069371?uo=2",
+          "attributes": {
+            "im:id": "1834069371"
+          }
+        },
+        "im:artist": {
+          "label": "\u7f57\u6c38\u6d69\u7684\u5341\u5b57\u8def\u53e3"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-09T21:00:00-07:00",
+          "attributes": {
+            "label": "September 9, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Y Combinator Startup Podcast"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/65/d1/1e/65d11ed6-914f-e163-bc7a-d1ea5eda5b79/mza_2184580866640883071.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/65/d1/1e/65d11ed6-914f-e163-bc7a-d1ea5eda5b79/mza_2184580866640883071.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/65/d1/1e/65d11ed6-914f-e163-bc7a-d1ea5eda5b79/mza_2184580866640883071.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "We help founders make something people want."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Y Combinator"
+        },
+        "title": {
+          "label": "Y Combinator Startup Podcast - Y Combinator"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/y-combinator-startup-podcast/id1236907421?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/y-combinator-startup-podcast/id1236907421?uo=2",
+          "attributes": {
+            "im:id": "1236907421"
+          }
+        },
+        "im:artist": {
+          "label": "Y Combinator"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-07T07:34:00-07:00",
+          "attributes": {
+            "label": "October 7, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Rabbit Hole"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/8c/5a/a7/8c5aa731-f3cd-c214-968f-d70c1de62a67/mza_11141039469126456067.jpeg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/8c/5a/a7/8c5aa731-f3cd-c214-968f-d70c1de62a67/mza_11141039469126456067.jpeg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/8c/5a/a7/8c5aa731-f3cd-c214-968f-d70c1de62a67/mza_11141039469126456067.jpeg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "What is the internet doing to us? The Times tech columnist Kevin Roose discovers what happens when our lives move online.\n\nSubscribe today at nytimes.com/podcasts or on Apple Podcasts and Spotify. You can also subscribe via your favorite podcast app here https://www.nytimes.com/activate-access/audio?source=podcatcher. For more podcasts and narrated articles, download The New York Times app at nytimes.com/app."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 2020-2021 THE NEW YORK TIMES COMPANY; The New York Times encourages the use of RSS feeds for personal use in a news reader or as part of a non-commercial blog, subject to your agreement to our Terms of Service."
+        },
+        "title": {
+          "label": "Rabbit Hole - The New York Times"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/rabbit-hole/id1507423923?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/rabbit-hole/id1507423923?uo=2",
+          "attributes": {
+            "im:id": "1507423923"
+          }
+        },
+        "im:artist": {
+          "label": "The New York Times",
+          "attributes": {
+            "href": "https://podcasts.apple.com/us/artist/the-new-york-times/121664449?uo=2"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2022-10-07T03:00:00-07:00",
+          "attributes": {
+            "label": "October 7, 2022"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Sharp Tech with Ben Thompson"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts122/v4/8c/3e/76/8c3e76f3-485f-3f8b-f6d7-3101bb86ede0/mza_10263603389201953705.png/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts122/v4/8c/3e/76/8c3e76f3-485f-3f8b-f6d7-3101bb86ede0/mza_10263603389201953705.png/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts122/v4/8c/3e/76/8c3e76f3-485f-3f8b-f6d7-3101bb86ede0/mza_10263603389201953705.png/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "A podcast about understanding how tech works and the way it is changing the world. Hosted by Andrew Sharp with Ben Thompson."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Sharp Tech Podcast LLC"
+        },
+        "title": {
+          "label": "Sharp Tech with Ben Thompson - Andrew Sharp and Ben Thompson"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/sharp-tech-with-ben-thompson/id1646152812?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/sharp-tech-with-ben-thompson/id1646152812?uo=2",
+          "attributes": {
+            "im:id": "1646152812"
+          }
+        },
+        "im:artist": {
+          "label": "Andrew Sharp and Ben Thompson"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-09-26T02:15:00-07:00",
+          "attributes": {
+            "label": "September 26, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "TBPN"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/36/4c/17/364c1774-8fb4-6c27-ce3b-3aa2c2a2184c/mza_17808688154395543467.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/36/4c/17/364c1774-8fb4-6c27-ce3b-3aa2c2a2184c/mza_17808688154395543467.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/36/4c/17/364c1774-8fb4-6c27-ce3b-3aa2c2a2184c/mza_17808688154395543467.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Technology's daily show (formerly the Technology Brothers Podcast). Streaming live on X and YouTube from 11 - 2 PM PST Monday - Friday. Available on X, Apple, Spotify, and YouTube."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 TBPN Corp"
+        },
+        "title": {
+          "label": "TBPN - John Coogan & Jordi Hays"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/tbpn/id1772360235?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/tbpn/id1772360235?uo=2",
+          "attributes": {
+            "im:id": "1772360235"
+          }
+        },
+        "im:artist": {
+          "label": "John Coogan & Jordi Hays"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-06T13:51:00-07:00",
+          "attributes": {
+            "label": "October 6, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "The Kim Komando Show"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/96/79/27/9679276f-4b9b-5643-32e5-533d7959ea46/mza_10456679050957596968.jpg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/96/79/27/9679276f-4b9b-5643-32e5-533d7959ea46/mza_10456679050957596968.jpg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/96/79/27/9679276f-4b9b-5643-32e5-533d7959ea46/mza_10456679050957596968.jpg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Join millions of listeners tuning into The Kim Komando Show, the award-winning weekly radio program airing on over 420 stations nationwide and available on-demand. Kim Komando, the trusted digital expert, brings you the latest cutting-edge gadgets, urgent tech news, and vital privacy tips to keep you secure online. Every hour, Kim engages with callers, tackling a wide array of digital life challenges. Don\u2019t be left behind in the ever-evolving tech world. Listen just once and you'll be hooked!\n\nSee megaphone.spotify.com/legal for privacy information."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "The Kim Komando Show \u00ae and all material pertaining thereto is a  Registered Trademark / Servicemark: No. 2281044.  Any and all other material herein is protected by Copyright \u00a9 1995 \u2013 2025  WestStar Multimedia Entertainment     All Rights Reserved."
+        },
+        "title": {
+          "label": "The Kim Komando Show - Kim Komando"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/the-kim-komando-show/id1572302975?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/the-kim-komando-show/id1572302975?uo=2",
+          "attributes": {
+            "im:id": "1572302975"
+          }
+        },
+        "im:artist": {
+          "label": "Kim Komando"
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-04T02:57:00-07:00",
+          "attributes": {
+            "label": "October 4, 2025"
+          }
+        }
+      },
+      {
+        "im:name": {
+          "label": "Tech Brew Ride Home"
+        },
+        "im:image": [
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/c3/3a/31/c33a317e-82e7-8f9e-cc83-c7be47c01418/mza_12817533880613156934.jpeg/55x55bb.png",
+            "attributes": {
+              "height": "55"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/c3/3a/31/c33a317e-82e7-8f9e-cc83-c7be47c01418/mza_12817533880613156934.jpeg/60x60bb.png",
+            "attributes": {
+              "height": "60"
+            }
+          },
+          {
+            "label": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts221/v4/c3/3a/31/c33a317e-82e7-8f9e-cc83-c7be47c01418/mza_12817533880613156934.jpeg/170x170bb.png",
+            "attributes": {
+              "height": "170"
+            }
+          }
+        ],
+        "summary": {
+          "label": "Silicon Valley's water cooler podcast. A tech news summary every day... 15 minutes and you're up to date. From Tech Brew, Morning Brew's tech hub."
+        },
+        "im:price": {
+          "label": "Get",
+          "attributes": {
+            "amount": "0",
+            "currency": "USD"
+          }
+        },
+        "im:contentType": {
+          "attributes": {
+            "term": "Podcast",
+            "label": "Podcast"
+          }
+        },
+        "rights": {
+          "label": "\u00a9 Amalgamated Internets, LLC"
+        },
+        "title": {
+          "label": "Tech Brew Ride Home - Morning Brew"
+        },
+        "link": {
+          "attributes": {
+            "rel": "alternate",
+            "type": "text/html",
+            "href": "https://podcasts.apple.com/us/podcast/tech-brew-ride-home/id1355212895?uo=2"
+          }
+        },
+        "id": {
+          "label": "https://podcasts.apple.com/us/podcast/tech-brew-ride-home/id1355212895?uo=2",
+          "attributes": {
+            "im:id": "1355212895"
+          }
+        },
+        "im:artist": {
+          "label": "Morning Brew",
+          "attributes": {
+            "href": "https://podcasts.apple.com/us/artist/ride-home-media/1490945560?uo=2"
+          }
+        },
+        "category": {
+          "attributes": {
+            "im:id": "1318",
+            "term": "Technology",
+            "scheme": "https://podcasts.apple.com/us/genre/podcasts-technology/id1318?uo=2",
+            "label": "Technology"
+          }
+        },
+        "im:releaseDate": {
+          "label": "2025-10-07T10:00:00-07:00",
+          "attributes": {
+            "label": "October 7, 2025"
+          }
+        }
+      }
+    ],
+    "updated": {
+      "label": "2025-10-07T21:20:27-07:00"
+    },
+    "rights": {
+      "label": "Copyright 2008 Apple Inc."
+    },
+    "title": {
+      "label": "iTunes Store: Top Podcasts in Technology"
+    },
+    "icon": {
+      "label": "http://itunes.apple.com/favicon.ico"
+    },
+    "link": [
+      {
+        "attributes": {
+          "rel": "alternate",
+          "type": "text/html",
+          "href": "https://podcasts.apple.com/WebObjects/MZStore.woa/wa/viewTop?cc=us&id=179584&popId=3"
+        }
+      },
+      {
+        "attributes": {
+          "rel": "self",
+          "href": "https://itunes.apple.com/us/rss/toppodcasts/limit=48/genre=1318/json"
+        }
+      }
+    ],
+    "id": {
+      "label": "https://itunes.apple.com/us/rss/toppodcasts/limit=48/genre=1318/json"
+    }
+  }
+}

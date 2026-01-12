@@ -1,0 +1,12 @@
+{
+  "data" : [
+    {
+      "filename" : "post_reports.rss",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
