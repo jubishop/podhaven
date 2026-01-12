@@ -10,6 +10,7 @@ struct SettingsView: View {
   @DynamicInjected(\.userSettings) private var userSettings
 
   private static let log = Log.as(LogSubsystem.SettingsView.main)
+  private static let githubURL = URL(string: "https://github.com/jubishop/podhaven")
 
   @State private var tempMaxQueueLength: Double
 
@@ -74,8 +75,8 @@ struct SettingsView: View {
           VStack(alignment: .leading, spacing: 24) {
             SettingsRow(
               infoText: """
-                Controls what happens when you tap the Next Track button \
-                on the lock screen or control center. \
+                Controls what happens when you use the Next Track button \
+                on physical inputs like car controls, the lock screen, or control center. \
                 Choose "Next Episode" to skip to the next episode in your queue, \
                 or "Skip Interval" to jump forward using your custom skip interval \
                 (also enables Previous Track for jumping back).
@@ -219,7 +220,8 @@ struct SettingsView: View {
                 Maximum size for downloaded episode storage. \
                 When the cache reaches this limit, \
                 the oldest downloaded episodes will be automatically removed \
-                to make space for new downloads.
+                to make space for new downloads. \
+                Episodes marked as Saved will never be deleted.
                 """
             ) {
               HStack {
@@ -242,6 +244,23 @@ struct SettingsView: View {
         }
       }
       .navigationTitle("Settings")
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Menu {
+            if let url = Self.githubURL {
+              Link(destination: url) {
+                Label {
+                  Text("GitHub")
+                } icon: {
+                  Image("github-mark")
+                }
+              }
+            }
+          } label: {
+            Image(systemName: "ellipsis.circle")
+          }
+        }
+      }
     }
   }
 }
