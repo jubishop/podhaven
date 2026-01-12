@@ -2,8 +2,9 @@
 
 [![Swift Version](https://img.shields.io/badge/Swift-6.10-orange.svg)](https://swift.org)
 [![Xcode Version](https://img.shields.io/badge/Xcode-16.3-blue.svg)](https://developer.apple.com/xcode/)
+[![License](https://img.shields.io/badge/License-Source%20Available-lightgrey.svg)](LICENSE)
 
-PodHaven is a modern, open-source podcast application for iOS, built with Swift and SwiftUI. It provides a clean and intuitive interface for discovering, subscribing to, and listening to your favorite podcasts.
+PodHaven is a modern podcast application for iOS, built with Swift and SwiftUI. It provides a clean and intuitive interface for discovering, subscribing to, and listening to your favorite podcasts.
 
 ## ✨ Features
 
@@ -19,7 +20,7 @@ PodHaven is a modern, open-source podcast application for iOS, built with Swift 
 
 ## 📸 Screenshots
 
-*TBD: Placeholder for app screenshots.*
+*Coming soon.*
 
 ## 🚀 Getting Started
 
@@ -108,7 +109,7 @@ PodHaven is built using modern Swift practices and a clean, modular architecture
 - **File Organization**: Each top-level type in its own file.
 - **Naming Conventions**: `PascalCase` for types, `camelCase` for functions/variables.
 - **Section Markers**: Use `// MARK: - Section Name` for organization.
-- **Copyright**: All files must include a "Copyright Justin Bishop, 2025" header.
+- **Copyright**: All files must include a "Copyright Justin Bishop, 2026" header.
 
 ### Error Handling
 - A structured approach using `ReadableError` and `CatchingError` protocols to ensure all errors are handled gracefully.
@@ -124,4 +125,6 @@ Contributions are welcome! If you have a feature request, bug report, or want to
 
 ## 📄 License
 
-*TBD: This project is not yet licensed.*
+This project is licensed under a **Source Available License**. You are free to view, study, and contribute to the code, but commercial use, redistribution, and derivative works (outside of contributions) are not permitted. See the [LICENSE](LICENSE) file for full details.
+
+Copyright (c) 2026 Justin Bishop. All rights reserved.
