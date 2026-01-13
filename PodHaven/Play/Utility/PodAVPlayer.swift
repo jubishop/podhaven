@@ -141,28 +141,23 @@ extension Container {
   }
 
   /// Swap to cached version if available.
-  /// - Parameter holdPosition: If true, seeks to restore current position after swap (for pause).
-  ///                           If false, caller handles seeking (for seek operations).
-  private func swapToCached(holdPosition: Bool) async {
+  /// - Returns: Whether a swap occurred.
+  @discardableResult
+  private func swapToCached() async -> Bool {
     guard !playingFromCache,
       let episodeID,
       let podcastEpisode = try? await repo.podcastEpisode(episodeID),
       podcastEpisode.episode.cachedURL != nil
-    else { return }
-
-    let currentTime = holdPosition ? avPlayer.currentTime() : nil
+    else { return false }
 
     do {
       let (_, playableItem) = try await loadAsset(for: podcastEpisode)
       avPlayer.replaceCurrent(with: playableItem)
       Self.log.info("swapToCached: swapped to cached version")
+      return true
     } catch {
       Self.log.error(error)
-      return
-    }
-
-    if let currentTime {
-      avPlayer.seek(to: currentTime)
+      return false
     }
   }
 
@@ -211,7 +206,7 @@ extension Container {
   func seek(to time: CMTime) async {
     Self.log.debug("seek: \(time)")
 
-    await swapToCached(holdPosition: false)
+    await swapToCached()
 
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
@@ -323,9 +318,12 @@ extension Container {
       controlStatusContinuation.yield(PlaybackStatus(status))
 
       if status == .paused {
-        Task { [weak self] in
+        Task { @MainActor [weak self] in
           guard let self else { return }
-          await swapToCached(holdPosition: true)
+          let currentTime = avPlayer.currentTime()
+          if await swapToCached() {
+            avPlayer.seek(to: currentTime)
+          }
         }
       }
     }
