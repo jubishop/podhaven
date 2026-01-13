@@ -132,6 +132,17 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v25") { db in
+      // Add partial index on queueOrder for faster queue queries.
+      // This optimizes both the filter (queueOrder IS NOT NULL) and sort (ORDER BY queueOrder).
+      try db.create(
+        index: "episode_on_queueOrder",
+        on: "episode",
+        columns: ["queueOrder"],
+        condition: Column("queueOrder") != nil
+      )
+    }
+
     return migrator
   }
 }
