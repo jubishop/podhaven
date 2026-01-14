@@ -311,10 +311,6 @@ enum PlayHelpers {
 
   // MARK: - Comparison Helpers
 
-  static var nowPlayingPlaybackRate: Double {
-    nowPlayingInfo![MPNowPlayingInfoPropertyPlaybackRate] as! Double
-  }
-
   static var nowPlayingCurrentTime: CMTime {
     guard let info = nowPlayingInfo,
       let elapsed = info[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double

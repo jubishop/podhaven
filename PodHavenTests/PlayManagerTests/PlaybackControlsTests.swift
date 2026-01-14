@@ -70,19 +70,31 @@ import Testing
 
     mpRemoteCommandCenter.firePlay()
     try await PlayHelpers.waitFor(.playing)
-    #expect(PlayHelpers.nowPlayingPlaybackRate == 1.0)
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackRate,
+      value: 1.0
+    )
 
     mpRemoteCommandCenter.firePause()
     try await PlayHelpers.waitFor(.paused)
-    #expect(PlayHelpers.nowPlayingPlaybackRate == 0.0)
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackRate,
+      value: 0.0
+    )
 
     mpRemoteCommandCenter.fireTogglePlayPause()
     try await PlayHelpers.waitFor(.playing)
-    #expect(PlayHelpers.nowPlayingPlaybackRate == 1.0)
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackRate,
+      value: 1.0
+    )
 
     mpRemoteCommandCenter.fireTogglePlayPause()
     try await PlayHelpers.waitFor(.paused)
-    #expect(PlayHelpers.nowPlayingPlaybackRate == 0.0)
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackRate,
+      value: 0.0
+    )
 
     mpRemoteCommandCenter.fireSkipForward(TimeInterval.seconds(2))
     try await PlayHelpers.waitFor(CMTime.seconds(2))
@@ -140,7 +152,10 @@ import Testing
       )
     )
     try await PlayHelpers.waitFor(.paused)
-    #expect(PlayHelpers.nowPlayingPlaybackRate == 0.0)
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackRate,
+      value: 0.0
+    )
 
     // Interruption ended: resume playback
     interruptionContinuation.yield(
@@ -154,7 +169,10 @@ import Testing
       )
     )
     try await PlayHelpers.waitFor(.playing)
-    #expect(PlayHelpers.nowPlayingPlaybackRate == 1.0)
+    try await PlayHelpers.waitForNowPlayingInfo(
+      key: MPNowPlayingInfoPropertyPlaybackRate,
+      value: 1.0
+    )
   }
 
   @Test("time update events update currentTime")
