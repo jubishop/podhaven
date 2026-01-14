@@ -20,7 +20,7 @@ struct StateManager: Sendable {
 
   private static let log = Log.as(LogSubsystem.State.manager)
 
-  private let onDeckObservationTask: ThreadSafe<Task<Void, Never>?> = .init(nil)
+  private let onDeckObservationTask = ThreadSafe<Task<Void, Never>?>(nil)
 
   // MARK: - Initialization
 
