@@ -9,6 +9,7 @@ import Foundation
 
   func play()
   func pause()
+  func seek(to: CMTime)
   func seek(to: CMTime, completionHandler: @Sendable @escaping (Bool) -> Void)
 
   func currentTime() -> CMTime

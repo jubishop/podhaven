@@ -38,6 +38,12 @@ extension Container {
   private var episodeID: Episode.ID?
   private var lastDatabaseUpdateTime: CMTime?
 
+  private var playingFromCache: Bool {
+    guard let urlAsset = avPlayer.current?.asset as? AVURLAsset
+    else { return false }
+    return urlAsset.url.isFileURL
+  }
+
   let currentTimeStream: AsyncStream<CMTime>
   let itemStatusStream: AsyncStream<(AVPlayerItem.Status, Episode.ID)>
   let controlStatusStream: AsyncStream<PlaybackStatus>
@@ -134,6 +140,27 @@ extension Container {
     avPlayer.replaceCurrent(with: nil)
   }
 
+  /// Swap to cached version if available.
+  /// - Returns: Whether a swap occurred.
+  @discardableResult
+  private func swapToCached() async -> Bool {
+    guard !playingFromCache,
+      let episodeID,
+      let podcastEpisode = try? await repo.podcastEpisode(episodeID),
+      podcastEpisode.episode.cachedURL != nil
+    else { return false }
+
+    do {
+      let (_, playableItem) = try await loadAsset(for: podcastEpisode)
+      avPlayer.replaceCurrent(with: playableItem)
+      Self.log.info("swapToCached: swapped to cached version")
+      return true
+    } catch {
+      Self.log.error(error)
+      return false
+    }
+  }
+
   // MARK: - Playback Controls
 
   func play() {
@@ -166,18 +193,20 @@ extension Container {
 
   // MARK: - Seeking
 
-  func seekForward(_ duration: CMTime) {
+  func seekForward(_ duration: CMTime) async {
     Self.log.debug("seekForward: \(duration)")
-    seek(to: avPlayer.currentTime() + duration)
+    await seek(to: avPlayer.currentTime() + duration)
   }
 
-  func seekBackward(_ duration: CMTime) {
+  func seekBackward(_ duration: CMTime) async {
     Self.log.debug("seekBackward: \(duration)")
-    seek(to: avPlayer.currentTime() - duration)
+    await seek(to: avPlayer.currentTime() - duration)
   }
 
-  func seek(to time: CMTime) {
+  func seek(to time: CMTime) async {
     Self.log.debug("seek: \(time)")
+
+    await swapToCached()
 
     removePeriodicTimeObserver()
     currentTimeContinuation.yield(time)
@@ -287,6 +316,16 @@ extension Container {
       [weak self] status in
       guard let self else { return }
       controlStatusContinuation.yield(PlaybackStatus(status))
+
+      if status != .playing {
+        Task { @MainActor [weak self] in
+          guard let self else { return }
+          let currentTime = avPlayer.currentTime()
+          if await swapToCached() {
+            avPlayer.seek(to: currentTime)
+          }
+        }
+      }
     }
   }
 

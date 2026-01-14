@@ -204,6 +204,28 @@ import Testing
     try await CacheHelpers.waitForProgress(podcastEpisode.id, progress: nil)
   }
 
+  // MARK: - OnDeck Observation
+
+  @Test("episode set as onDeck gets cached")
+  func episodeSetAsOnDeckGetsCached() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await PlayHelpers.load(podcastEpisode)
+
+    let taskID = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
+    try await CacheHelpers.waitForResumed(taskID)
+
+    let data = Data.random()
+    let fileURL = try await CacheHelpers.simulateBackgroundFinish(taskID, data: data)
+    try await CacheHelpers.waitForFileRemoved(fileURL)
+
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+    try await CacheHelpers.waitForCachedFile(cachedURL)
+
+    let actualData = try await CacheHelpers.cachedFileData(for: cachedURL)
+    #expect(actualData == data)
+  }
+
   // MARK: - OnDeck
 
   @Test("dequeue while onDeck does not clear cache")

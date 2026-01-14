@@ -36,6 +36,8 @@ class FakeAVPlayerItem: AVPlayableItem {
   // MARK: - AVPlayableItem
 
   nonisolated var description: String { url.absoluteString }
+  var asset: AVAsset { AVURLAsset(url: url) }
+
   func observeStatus(
     options: NSKeyValueObservingOptions,
     changeHandler: @escaping @Sendable (AVPlayerItem.Status) -> Void

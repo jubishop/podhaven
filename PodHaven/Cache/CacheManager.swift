@@ -1,11 +1,13 @@
 // Copyright Justin Bishop, 2025
 
+import Combine
 import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
 import Nuke
+import Sharing
 import Tagged
 import UIKit
 
@@ -50,6 +52,7 @@ struct CacheManager {
 
   // MARK: - State Management
 
+  private let currentOnDeckEpisodeID = ThreadSafe<Episode.ID?>(nil)
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
 
   // MARK: - Initialization
@@ -70,6 +73,7 @@ struct CacheManager {
       Assert.fatal("Couldn't create cache directory?")
     }
 
+    startOnDeckObservation()
     startQueueObservation()
   }
 
@@ -156,6 +160,40 @@ struct CacheManager {
   }
 
   // MARK: - Private Helpers
+
+  private func startOnDeckObservation() {
+    Assert.neverCalled()
+
+    Self.log.debug("startOnDeckObservation: starting")
+
+    Task(priority: .utility) {
+      for await onDeck in sharedState.$onDeck.publisher.values {
+        await handleOnDeckChange(onDeck)
+      }
+    }
+  }
+
+  private func handleOnDeckChange(_ onDeck: OnDeck?) async {
+    guard let onDeck else {
+      currentOnDeckEpisodeID(nil)
+      return
+    }
+
+    let episodeID = onDeck.id
+
+    guard currentOnDeckEpisodeID() != episodeID else { return }
+    currentOnDeckEpisodeID(episodeID)
+
+    Self.log.debug("handleOnDeckChange: new on deck episode: \(episodeID)")
+
+    Task {
+      do {
+        try await downloadToCache(for: episodeID)
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
 
   private func startQueueObservation() {
     Assert.neverCalled()
