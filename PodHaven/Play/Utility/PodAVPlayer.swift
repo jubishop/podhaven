@@ -317,7 +317,7 @@ extension Container {
       guard let self else { return }
       controlStatusContinuation.yield(PlaybackStatus(status))
 
-      if status == .paused {
+      if status != .playing {
         Task { @MainActor [weak self] in
           guard let self else { return }
           let currentTime = avPlayer.currentTime()

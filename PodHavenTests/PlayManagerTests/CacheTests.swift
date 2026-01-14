@@ -132,4 +132,24 @@ import Testing
     await playManager.seek(to: .seconds(30))
     try await PlayHelpers.waitForCurrentItem(cachedURL)
   }
+
+  @Test("waiting to play swaps from remote URL to cached URL")
+  func waitingToPlaySwapsFromRemoteURLToCachedURL() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    // Load and play from remote URL
+    try await PlayHelpers.load(podcastEpisode)
+    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
+    try await PlayHelpers.play()
+
+    // Simulate cache completion
+    let taskID = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+    let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
+
+    // Waiting to play (buffering) should trigger swap to cached
+    avPlayer.waitingToPlay()
+    try await PlayHelpers.waitForCurrentItem(cachedURL)
+  }
 }
