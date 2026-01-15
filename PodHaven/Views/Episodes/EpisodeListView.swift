@@ -93,7 +93,7 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
   .preview()
   .task {
     do {
-      let cacheState = Container.shared.cacheState()
+      let sharedState = Container.shared.sharedState()
       let repo = Container.shared.repo()
 
       let allThumbnails = PreviewBundle.loadAllThumbnails()
@@ -331,8 +331,8 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
       )
 
       // Simulate cache progress
-      cacheState.updateProgress(for: cachingEpisode25.id, progress: 0.25)
-      cacheState.updateProgress(for: cachingEpisode65.id, progress: 0.65)
+      sharedState.updateDownloadProgress(for: cachingEpisode25.id, progress: 0.25)
+      sharedState.updateDownloadProgress(for: cachingEpisode65.id, progress: 0.65)
       // waitingEpisode has no progress, so shows waiting icon
 
       // Add refreshed caching episodes to the list

@@ -8,7 +8,6 @@ enum LogSubsystem {
     case backgroundDelegate
     case manager
     case purger
-    case state
   }
 
   enum Database: String, LogCategorizable {
@@ -66,6 +65,7 @@ enum LogSubsystem {
 
   enum State: String, LogCategorizable {
     case manager
+    case shared
   }
 
   enum UpNextView: String, LogCategorizable {

@@ -11,9 +11,8 @@ import Testing
 
 @Suite("of CacheManager tests", .container)
 @MainActor class CacheManagerTests {
-  @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
-  @DynamicInjected(\.cacheState) private var cacheState
+  @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo

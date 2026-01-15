@@ -12,7 +12,6 @@ import UIKit
 
 @Observable @MainActor class EpisodeDetailViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
-  @ObservationIgnored @DynamicInjected(\.cacheState) private var cacheState
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation

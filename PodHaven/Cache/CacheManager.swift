@@ -45,7 +45,6 @@ struct CacheManager {
   @DynamicInjected(\.sleeper) private var sleeper
 
   private var alert: Alert { get async { await Container.shared.alert() } }
-  private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
 
   private static let log = Log.as(LogSubsystem.Cache.manager)
@@ -141,7 +140,7 @@ struct CacheManager {
 
     if let taskID = episode.downloadTaskID {
       await cacheManagerSession.allCreatedTasks[id: taskID]?.cancel()
-      await cacheState.clearProgress(for: episodeID)
+      sharedState.clearDownloadProgress(for: episodeID)
       try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
     }
 

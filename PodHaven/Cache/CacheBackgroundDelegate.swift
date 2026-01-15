@@ -16,7 +16,7 @@ extension Container {
 
 final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   private var repo: any Databasing { Container.shared.repo() }
-  private var cacheState: CacheState { get async { await Container.shared.cacheState() } }
+  private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var loadEpisodeAsset: (_ asset: AVURLAsset) async throws -> EpisodeAsset {
@@ -71,7 +71,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     guard totalBytesExpectedToWrite > 0 else { return }
     do {
       if let episode = try await repo.episode(downloadTask.taskID) {
-        await cacheState.updateProgress(
+        sharedState.updateDownloadProgress(
           for: episode.id,
           progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
         )
@@ -111,7 +111,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       }
 
       try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
-      await cacheState.clearProgress(for: episode.id)
+      sharedState.clearDownloadProgress(for: episode.id)
 
       let fileName = generateCacheFilename(for: episode)
       let destURL = CacheManager.resolveCachedFilepath(for: fileName)
@@ -163,7 +163,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         return
       }
 
-      await cacheState.clearProgress(for: episode.id)
+      sharedState.clearDownloadProgress(for: episode.id)
       try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
       Self.log.notice("Episode \(episode.toString) completed with error")
     } catch {

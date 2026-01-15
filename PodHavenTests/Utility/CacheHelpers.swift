@@ -11,7 +11,7 @@ enum CacheHelpers {
   private static var cacheBackgroundDelegate: CacheBackgroundDelegate {
     Container.shared.cacheBackgroundDelegate()
   }
-  private static var cacheState: CacheState { get async { await Container.shared.cacheState() } }
+  private static var sharedState: SharedState { Container.shared.sharedState() }
   private static var dataLoader: FakeDataLoader { Container.shared.fakeDataLoader() }
   private static var queue: any Queueing { Container.shared.queue() }
   private static var repo: any Databasing { Container.shared.repo() }
@@ -125,7 +125,7 @@ enum CacheHelpers {
 
   static func waitForProgress(_ episodeID: Episode.ID, progress: Double?) async throws {
     try await Wait.until(
-      { await cacheState.progress(episodeID) == progress },
+      { sharedState.downloadProgress[episodeID] == progress },
       { "Progress for Episode \(episodeID) never become \(String(describing: progress))" }
     )
   }

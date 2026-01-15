@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import Logging
 import Sharing
 
 extension Container {
@@ -11,9 +12,29 @@ extension Container {
 }
 
 struct SharedState: Sendable {
+  private static let log = Log.as(LogSubsystem.State.shared)
+
+  @Shared(.inMemory("downloadProgress")) var downloadProgress: [Episode.ID: Double] = [:]
   @Shared(.inMemory("onDeck")) var onDeck: OnDeck?
   @Shared(.inMemory("playbackStatus")) var playbackStatus: PlaybackStatus = .stopped
   @Shared(.inMemory("playRate")) var playRate: Float = 1.0
+
+  // MARK: - Download Progress
+
+  func updateDownloadProgress(for episodeID: Episode.ID, progress: Double) {
+    Assert.precondition(
+      progress >= 0 && progress <= 1,
+      "progress must be between 0 and 1 but is \(progress)?"
+    )
+
+    Self.log.trace("updating progress for \(episodeID): \(progress)")
+    $downloadProgress.withLock { $0[episodeID] = progress }
+  }
+
+  func clearDownloadProgress(for episodeID: Episode.ID) {
+    Self.log.debug("clearing progress for \(episodeID)")
+    _ = $downloadProgress.withLock { $0.removeValue(forKey: episodeID) }
+  }
 
   // MARK: - Queue State
 

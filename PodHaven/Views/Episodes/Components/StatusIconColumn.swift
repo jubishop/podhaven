@@ -10,7 +10,6 @@ import SwiftUI
 struct StatusIconColumn<Episode: EpisodeListable>: View {
   @Environment(\.colorScheme) private var colorScheme
 
-  @DynamicInjected(\.cacheState) private var cacheState
   @DynamicInjected(\.sharedState) private var sharedState
 
   let episode: Episode
@@ -36,7 +35,7 @@ struct StatusIconColumn<Episode: EpisodeListable>: View {
       if episode.cacheStatus == .caching,
         let episodeID = episode.episodeID
       {
-        if let progress = cacheState.progress(episodeID) {
+        if let progress = sharedState.downloadProgress[episodeID] {
           let color =
             episode.saveInCache
             ? AppIcon.episodeSavedInCache.color(for: colorScheme)
