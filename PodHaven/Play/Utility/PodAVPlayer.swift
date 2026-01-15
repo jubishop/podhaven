@@ -238,7 +238,7 @@ extension Container {
     do {
       try await repo.updateCurrentTime(episodeID, currentTime: currentTime)
       lastDatabaseUpdateTime = currentTime
-      Self.log.debug("saveCurrentTime: saved \(currentTime) for \(episodeID)")
+      Self.log.trace("saveCurrentTime: saved \(currentTime) for \(episodeID)")
     } catch {
       Self.log.error(error)
     }
