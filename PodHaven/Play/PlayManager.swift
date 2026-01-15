@@ -590,7 +590,10 @@ final class PlayManager {
     Task { [weak self] in
       guard let self else { return }
       for await notification in notifications(AVAudioSession.interruptionNotification) {
-        switch AudioInterruption.parse(notification) {
+        let parsedNotification = AudioInterruption.parse(notification)
+        Self.log.debug("Got audio interruption notification: \(parsedNotification)")
+
+        switch parsedNotification {
         case .pause:
           await pause()
         case .resume:

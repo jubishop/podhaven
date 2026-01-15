@@ -2,8 +2,11 @@
 
 import AVFoundation
 import Foundation
+import Logging
 
 enum AudioInterruption {
+  private static let log = Log.as("AudioInterruption")
+
   case pause, resume, ignore
 
   static func parse(_ notification: Notification) -> AudioInterruption {
@@ -22,7 +25,9 @@ enum AudioInterruption {
 
       let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
       if options.contains(.shouldResume) { return .resume }
+      log.warning("Ended notification but no .shouldResume option in: \(userInfo)")
     @unknown default:
+      log.warning("Unknown notification type: \(type)")
       break
     }
     return .ignore
