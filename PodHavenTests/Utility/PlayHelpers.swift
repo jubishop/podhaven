@@ -30,6 +30,14 @@ enum PlayHelpers {
     Container.shared.mpNowPlayingInfoCenter().nowPlayingInfo
   }
 
+  // MARK: - Setup
+
+  // Sets up command handling for tests (mirrors AppDelegate setup).
+  static func setupCommandHandling() async {
+    CommandCenter.registerRemoteCommandHandlers()
+    await playManager.startStreamConsumers()
+  }
+
   // MARK: - Action Helpers
 
   @discardableResult

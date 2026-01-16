@@ -46,3 +46,4 @@
 - `@ObservationIgnored` guards DI properties and transient state inside observable types.
 - Run `swift-format` on every Swift file you touch before handing work back.
 - Include `Copyright Justin Bishop, 2026` at the top of all new Swift files.
+- Use `//` for comments, not `///` (no doc comments).

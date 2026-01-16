@@ -11,6 +11,7 @@ import UIKit
 final class AppDelegate: NSObject, UIApplicationDelegate {
   @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
   @DynamicInjected(\.cachePurger) private var cachePurger
+  @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
 
   private static let log: Logger = Log.as("AppDelegate")
@@ -26,6 +27,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
     refreshScheduler.register()
     cachePurger.register()
+
+    // Enable AirPods/lock screen controls even during background launches.
+    // Audio session and command handlers must be configured synchronously.
+    do {
+      try Container.shared.configureAudioSession()()
+      CommandCenter.registerRemoteCommandHandlers()
+      Task { await playManager.startStreamConsumers() }
+    } catch {
+      Self.log.error(error)
+    }
 
     return true
   }

@@ -76,17 +76,21 @@ final class PlayManager {
 
   fileprivate init() {}
 
-  func start() async {
+  // Starts the async stream consumers for command center and notifications.
+  // Called from AppDelegate after audio session and command handlers are configured.
+  func startStreamConsumers() {
     guard Function.neverCalled() else { return }
-
-    Self.log.debug("start: executing")
-
-    guard configureAudioSession() else { return }
-
-    CommandCenter.registerRemoteCommandHandlers()
+    Self.log.debug("startStreamConsumers: executing")
 
     notificationTracking()
     asyncStreams()
+  }
+
+  // Full startup for foreground use (called when app becomes active).
+  // Loads the current episode if one exists.
+  // Note: Audio session and command handlers must already be configured.
+  func start() async {
+    Self.log.debug("start: executing")
 
     guard let currentEpisodeID = sharedState.currentEpisodeID else { return }
 
@@ -109,7 +113,10 @@ final class PlayManager {
     }
   }
 
+  @discardableResult
   func configureAudioSession() -> Bool {
+    guard Function.neverCalled() else { return true }
+
     Self.log.info("configureAudioSession: executing")
     do {
       try Container.shared.configureAudioSession()()
@@ -268,6 +275,22 @@ final class PlayManager {
   // MARK: - Playback Controls
 
   func play() async {
+    // If nothing is loaded but we have a persisted episode:
+    //   load it (enables AirPods resume after app kill)
+    if sharedState.onDeck == nil, let currentEpisodeID = sharedState.currentEpisodeID {
+      Self.log.info("play: loading currentEpisodeID \(currentEpisodeID) for background resume")
+      do {
+        guard let podcastEpisode = try await repo.podcastEpisode(currentEpisodeID) else {
+          Self.log.error("play: currentEpisodeID \(currentEpisodeID) not found in database")
+          return
+        }
+        try await load(podcastEpisode)
+      } catch {
+        Self.log.error(error)
+        return
+      }
+    }
+
     await podAVPlayer.play()
   }
 

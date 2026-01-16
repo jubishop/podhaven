@@ -2,28 +2,28 @@
 
 import Foundation
 
-/// A thread-safe value holder that broadcasts changes to multiple async stream consumers.
-///
-/// Usage:
-/// ```swift
-/// let broadcast = Broadcast<Int>(0)
-///
-/// // Read current value
-/// print(broadcast.current) // 0
-///
-/// // Consumer
-/// Task {
-///   for await value in broadcast.stream() {
-///     print("Received: \(value)")
-///   }
-/// }
-///
-/// // Replace value entirely
-/// broadcast.new(42)
-///
-/// // Update value in place
-/// broadcast.update { $0 += 1 }
-/// ```
+// A thread-safe value holder that broadcasts changes to multiple async stream consumers.
+//
+// Usage:
+// ```swift
+// let broadcast = Broadcast<Int>(0)
+//
+// // Read current value
+// print(broadcast.current) // 0
+//
+// // Consumer
+// Task {
+//   for await value in broadcast.stream() {
+//     print("Received: \(value)")
+//   }
+// }
+//
+// // Replace value entirely
+// broadcast.new(42)
+//
+// // Update value in place
+// broadcast.update { $0 += 1 }
+// ```
 final class Broadcast<T: Sendable>: Sendable {
   private let state: ThreadSafe<State>
 
@@ -40,14 +40,14 @@ final class Broadcast<T: Sendable>: Sendable {
 
   // MARK: - Current Value
 
-  /// The current value held by the broadcast.
+  // The current value held by the broadcast.
   var current: T {
     state().current
   }
 
   // MARK: - Broadcasting
 
-  /// Replaces the current value entirely and broadcasts to all streams.
+  // Replaces the current value entirely and broadcasts to all streams.
   func new(_ value: T) {
     state { state in
       state.current = value
@@ -57,7 +57,7 @@ final class Broadcast<T: Sendable>: Sendable {
     }
   }
 
-  /// Updates the current value using a closure and broadcasts the result.
+  // Updates the current value using a closure and broadcasts the result.
   func update(_ transform: (inout T) -> Void) {
     state { state in
       transform(&state.current)
@@ -69,8 +69,8 @@ final class Broadcast<T: Sendable>: Sendable {
 
   // MARK: - Streaming
 
-  /// Creates a new AsyncStream that immediately yields the current value,
-  /// then yields all future updates.
+  // Creates a new AsyncStream that immediately yields the current value,
+  // then yields all future updates.
   func stream() -> AsyncStream<T> {
     let id = UUID()
 

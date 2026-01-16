@@ -140,8 +140,7 @@ extension Container {
     avPlayer.replaceCurrent(with: nil)
   }
 
-  /// Swap to cached version if available.
-  /// - Returns: Whether a swap occurred.
+  // Swap to cached version if available. Returns whether a swap occurred.
   @discardableResult
   private func swapToCached() async -> Bool {
     guard !playingFromCache,

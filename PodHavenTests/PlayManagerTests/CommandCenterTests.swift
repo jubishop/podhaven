@@ -34,6 +34,7 @@ import Testing
   init() async throws {
     stateManager.start()
     cacheManager.start()
+    await PlayHelpers.setupCommandHandling()
   }
 
   // MARK: - Media Services Reset
