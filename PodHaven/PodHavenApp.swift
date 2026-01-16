@@ -122,6 +122,7 @@ struct PodHavenApp: App {
 
     Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
     Self.log.debug("Final environment is: \(AppInfo.environment)")
+    Self.log.debug("Build version: \(AppInfo.version) (\(AppInfo.buildNumber))")
 
     stateManager.start()
     environmentConfigured = true

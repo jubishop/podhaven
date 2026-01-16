@@ -61,33 +61,6 @@ final class PlayManager {
 
   private static let log = Log.as(LogSubsystem.Play.manager)
 
-  // MARK: - AppStorage
-
-  @Shared(.appStorage("PlayManager-currentEpisodeID"))
-  private var storedCurrentEpisodeID: Int?
-
-  private var currentEpisodeID: Episode.ID? {
-    get {
-      guard let currentEpisodeInt = storedCurrentEpisodeID,
-        let currentEpisodeInt64 = Int64(exactly: currentEpisodeInt)
-      else { return nil }
-
-      return Episode.ID(rawValue: currentEpisodeInt64)
-    }
-    set {
-      Self.log.debug("Setting currentEpisodeID to \(String(describing: newValue))")
-      $storedCurrentEpisodeID.withLock { stored in
-        guard let newEpisodeID = newValue
-        else {
-          stored = nil
-          return
-        }
-
-        stored = Int(exactly: newEpisodeID.rawValue)
-      }
-    }
-  }
-
   // MARK: - Configurable Constants
 
   let seekIgnoreTime: Duration = .seconds(1)
@@ -115,7 +88,7 @@ final class PlayManager {
     notificationTracking()
     asyncStreams()
 
-    guard let currentEpisodeID else { return }
+    guard let currentEpisodeID = sharedState.currentEpisodeID else { return }
 
     let podcastEpisode: PodcastEpisode?
     do {
@@ -391,8 +364,6 @@ final class PlayManager {
     } else {
       await setCurrentTime(.zero)
     }
-
-    currentEpisodeID = podcastEpisode.id
   }
 
   private func fetchImage(for podcastEpisode: PodcastEpisode) {

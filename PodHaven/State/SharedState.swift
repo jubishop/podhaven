@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import Logging
 import Sharing
+import Tagged
 
 extension Container {
   var sharedState: Factory<SharedState> {
@@ -14,10 +15,30 @@ extension Container {
 struct SharedState: Sendable {
   private static let log = Log.as(LogSubsystem.State.shared)
 
+  @Shared(.appStorage("currentEpisodeID")) private var storedCurrentEpisodeID: Int?
   @Shared(.inMemory("downloadProgress")) var downloadProgress: [Episode.ID: Double] = [:]
   @Shared(.inMemory("onDeck")) var onDeck: OnDeck?
   @Shared(.inMemory("playbackStatus")) var playbackStatus: PlaybackStatus = .stopped
   @Shared(.inMemory("playRate")) var playRate: Float = 1.0
+
+  // MARK: - Current Episode ID (Persisted)
+
+  var currentEpisodeID: Episode.ID? {
+    guard let currentEpisodeInt = storedCurrentEpisodeID,
+      let currentEpisodeInt64 = Int64(exactly: currentEpisodeInt)
+    else { return nil }
+    return Episode.ID(rawValue: currentEpisodeInt64)
+  }
+
+  func setCurrentEpisodeID(_ episodeID: Episode.ID?) {
+    $storedCurrentEpisodeID.withLock { stored in
+      guard let newEpisodeID = episodeID else {
+        stored = nil
+        return
+      }
+      stored = Int(exactly: newEpisodeID.rawValue)
+    }
+  }
 
   // MARK: - Download Progress
 

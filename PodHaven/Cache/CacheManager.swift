@@ -237,8 +237,8 @@ struct CacheManager {
   @MainActor
   static func canClearCache(_ episode: any EpisodeInformable) -> Bool {
     guard !episode.queued else { return false }
-    guard let onDeck = Container.shared.sharedState().onDeck else { return true }
-    return onDeck.id != episode.episodeID
+    guard let currentEpisodeID = Container.shared.sharedState().currentEpisodeID else { return true }
+    return currentEpisodeID != episode.episodeID
   }
 
   static func resolveCachedFilepath(for fileName: String) -> CachedURL {

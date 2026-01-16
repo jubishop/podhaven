@@ -39,7 +39,8 @@ struct StateManager: Sendable {
 
     onDeckObservationTask()?.cancel()
 
-    // Set onDeck immediately so callers can rely on it being set
+    // Set onDeck and currentEpisodeID immediately so callers can rely on them being set
+    sharedState.setCurrentEpisodeID(podcastEpisode.id)
     sharedState.$onDeck.withLock { $0 = OnDeck(podcastEpisode: podcastEpisode) }
 
     // Observe for updates (e.g., if episode is marked finished, cached, etc.)
