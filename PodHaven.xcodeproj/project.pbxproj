@@ -113,6 +113,8 @@
 				MigrationTests/v22Tests.swift,
 				MigrationTests/v23Tests.swift,
 				MigrationTests/v24Tests.swift,
+				MigrationTests/v25Tests.swift,
+				MigrationTests/v26Tests.swift,
 				NavigationTests.swift,
 				ObservatoryTests.swift,
 				PlayManagerTests/CacheTests.swift,
