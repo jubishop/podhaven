@@ -46,7 +46,7 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   func register(executionTask: @escaping @Sendable (Completion) async -> Void) {
-    Self.log.notice("register() called for: \(identifier)")
+    Self.log.info("register() called for: \(identifier)")
 
     guard registered.claim() else {
       Self.log.warning("Registration for BackgroundTask: \(identifier) has already been made?")
@@ -78,7 +78,7 @@ struct BackgroundTaskScheduler: Sendable {
       bgTask = Task(priority: .background) { await executionTask(complete) }
     }
 
-    Self.log.notice(
+    Self.log.info(
       """
       BGTaskScheduler.shared.register returned: \(success)
       Registration for BackgroundTask: \(identifier) complete
