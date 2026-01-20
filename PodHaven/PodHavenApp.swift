@@ -23,6 +23,7 @@ struct PodHavenApp: App {
   @DynamicInjected(\.shareService) private var shareService
   @DynamicInjected(\.stateManager) private var stateManager
   @DynamicInjected(\.userNotificationManager) private var userNotificationManager
+  @DynamicInjected(\.userSettings) private var userSettings
 
   @State private var configuringEnvironment = false
   @State private var environmentConfigured = false
@@ -42,6 +43,7 @@ struct PodHavenApp: App {
           ProgressView("Loading...")
         }
       }
+      .preferredColorScheme(userSettings.appearanceMode.colorScheme)
       .onChange(of: scenePhase, initial: true) { _, newPhase in
         Task {
           if newPhase == .active {

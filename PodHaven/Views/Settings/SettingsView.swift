@@ -155,6 +155,25 @@ struct SettingsView: View {
         }
 
         Section("Appearance") {
+          VStack(alignment: .leading, spacing: 24) {
+            SettingsRow(
+              infoText: """
+                Choose how the app appearance adapts to your preferences.  \
+                'System' follows your device's light or dark mode setting, \
+                while 'Light' and 'Dark' force that mode regardless of system settings.
+                """
+            ) {
+              Text("Appearance Mode")
+            }
+
+            Picker("", selection: Binding(userSettings.$appearanceMode)) {
+              Text("System").tag(UserSettings.AppearanceMode.system)
+              Text("Light").tag(UserSettings.AppearanceMode.light)
+              Text("Dark").tag(UserSettings.AppearanceMode.dark)
+            }
+            .pickerStyle(.segmented)
+          }
+
           SettingsRow(
             infoText: """
               When enabled, \

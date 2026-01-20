@@ -25,6 +25,24 @@ struct UserSettings: Sendable {
   @Shared(.appStorage("showTimeRemainingInEpisodeLists")) var showTimeRemainingInEpisodeLists:
     Bool = false
 
+  enum AppearanceMode: String, CaseIterable, Identifiable {
+    case system = "System"
+    case light = "Light"
+    case dark = "Dark"
+
+    var id: String { rawValue }
+
+    var colorScheme: ColorScheme? {
+      switch self {
+      case .system: nil
+      case .light: .light
+      case .dark: .dark
+      }
+    }
+  }
+
+  @Shared(.appStorage("appearanceMode")) var appearanceMode: AppearanceMode = .system
+
   enum NextTrackBehavior: String, CaseIterable, Identifiable {
     case nextEpisode = "Next Episode"
     case skipInterval = "Skip Interval"
