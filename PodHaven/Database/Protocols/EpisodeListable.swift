@@ -4,4 +4,5 @@ import Foundation
 
 protocol EpisodeListable: EpisodeFoundational {
   var image: URL { get }
+  var podcastImage: URL { get }
 }

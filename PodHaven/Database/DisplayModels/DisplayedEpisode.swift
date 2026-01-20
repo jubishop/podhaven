@@ -64,6 +64,7 @@ struct DisplayedEpisode:
   var feedURL: FeedURL { episode.feedURL }
   var podcastTitle: String { episode.podcastTitle }
   var image: URL { episode.image }
+  var podcastImage: URL { episode.podcastImage }
   var saveInCache: Bool { episode.saveInCache }
 
   // MARK: - EpisodeInformable

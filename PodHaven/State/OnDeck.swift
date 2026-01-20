@@ -33,6 +33,7 @@ struct OnDeck: EpisodeListable, Identifiable, Stringable {
   var saveInCache: Bool { podcastEpisode.saveInCache }
   var finishDate: Date? { podcastEpisode.finishDate }
   var image: URL { podcastEpisode.image }
+  var podcastImage: URL { podcastEpisode.podcastImage }
 
   // MARK: - Stringable
 

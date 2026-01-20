@@ -165,23 +165,42 @@ struct SettingsView: View {
           ) {
             Toggle("Shrink Playbar", isOn: Binding(userSettings.$shrinkPlayBarOnScroll))
           }
+        }
 
+        Section("Up Next") {
           SettingsRow(
             infoText: """
               When enabled, \
               the currently playing episode will be shown at the top of the Up Next queue.
               """
           ) {
-            Toggle("Now Playing in Up Next", isOn: Binding(userSettings.$showNowPlayingInUpNext))
+            Toggle("Show Now Playing", isOn: Binding(userSettings.$showNowPlayingInUpNext))
           }
-        }
 
-        Section("Queue") {
+          VStack(alignment: .leading, spacing: 24) {
+            SettingsRow(
+              infoText: """
+                When enabled, \
+                episodes in the Up Next queue will always display the podcast artwork \
+                instead of the episode-specific artwork.
+                """
+            ) {
+              Text("Always Show Podcast Art")
+              Spacer()
+            }
+            Toggle(
+              "Always Show Podcast Art",
+              isOn: Binding(userSettings.$alwaysShowPodcastImageInUpNext)
+            )
+            .labelsHidden()
+          }
+
           VStack(alignment: .leading, spacing: 24) {
             SettingsRow(
               infoText: """
                 Maximum number of episodes that can be in your queue. \
-                When adding episodes to the end, as many as possible will be added up to the limit. \
+                When adding episodes to the end, \
+                as many as possible will be added up to the limit. \
                 When adding episodes to the beginning, episodes will be removed from the end \
                 if necessary to stay within the limit.
                 """

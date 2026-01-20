@@ -20,6 +20,8 @@ struct UserSettings: Sendable {
   @Shared(.appStorage("enableUndoSeek")) var enableUndoSeek: Bool = false
   @Shared(.appStorage("maxQueueLength")) var maxQueueLength: Int = 200
   @Shared(.appStorage("showNowPlayingInUpNext")) var showNowPlayingInUpNext: Bool = false
+  @Shared(.appStorage("alwaysShowPodcastImageInUpNext")) var alwaysShowPodcastImageInUpNext: Bool =
+    false
 
   enum NextTrackBehavior: String, CaseIterable, Identifiable {
     case nextEpisode = "Next Episode"

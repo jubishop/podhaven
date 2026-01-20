@@ -9,15 +9,18 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
   private let imageSize: CGFloat = 64
 
   private let episode: Episode
+  private let alwaysShowPodcastImage: Bool
   private let isSelecting: Bool
   private let isSelected: Binding<Bool>
 
   init(
     episode: Episode,
+    alwaysShowPodcastImage: Bool = false,
     isSelecting: Bool = false,
     isSelected: Binding<Bool> = .constant(false)
   ) {
     self.episode = episode
+    self.alwaysShowPodcastImage = alwaysShowPodcastImage
     self.isSelecting = isSelecting
     self.isSelected = isSelected
   }
@@ -32,7 +35,7 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
 
   var episodeImage: some View {
     SquareImage(
-      image: episode.image,
+      image: alwaysShowPodcastImage ? episode.podcastImage : episode.image,
       size: imageSize
     )
     .selectable(

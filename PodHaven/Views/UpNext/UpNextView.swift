@@ -29,12 +29,15 @@ struct UpNextView: View {
       }
       .safeAreaInset(edge: .top, spacing: 12) {
         if userSettings.showNowPlayingInUpNext, let onDeck = sharedState.onDeck {
-          EpisodeListView(episode: onDeck)
-            .padding()
-            .glassEffect(in: RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal)
-            .contentShape(Rectangle())
-            .onTapGesture { PlayBar.showOnDeckEpisodeDetail() }
+          EpisodeListView(
+            episode: onDeck,
+            alwaysShowPodcastImage: userSettings.alwaysShowPodcastImageInUpNext
+          )
+          .padding()
+          .glassEffect(in: RoundedRectangle(cornerRadius: 12))
+          .padding(.horizontal)
+          .contentShape(Rectangle())
+          .onTapGesture { PlayBar.showOnDeckEpisodeDetail() }
         }
       }
       .refreshable { viewModel.refreshQueue() }
@@ -85,6 +88,7 @@ struct UpNextView: View {
   func upNextListView(_ podcastEpisode: PodcastEpisode) -> some View {
     let episodeListView = EpisodeListView(
       episode: podcastEpisode,
+      alwaysShowPodcastImage: userSettings.alwaysShowPodcastImageInUpNext,
       isSelecting: viewModel.episodeList.isSelecting,
       isSelected: $viewModel.episodeList.isSelected[podcastEpisode.id]
     )

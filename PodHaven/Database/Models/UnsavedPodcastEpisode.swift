@@ -30,6 +30,7 @@ struct UnsavedPodcastEpisode:
   var feedURL: FeedURL { unsavedPodcast.feedURL }
   var podcastTitle: String { unsavedPodcast.title }
   var image: URL { unsavedEpisode.image ?? unsavedPodcast.image }
+  var podcastImage: URL { unsavedPodcast.image }
   var saveInCache: Bool { unsavedEpisode.saveInCache }
 
   // MARK: - EpisodeInformable
