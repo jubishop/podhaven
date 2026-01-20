@@ -73,11 +73,9 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
   // MARK: - Private Helpers
 
   private var durationText: String {
-    if userSettings.showTimeRemainingInEpisodeLists && episode.started {
-      let timeRemaining = episode.duration - episode.currentTime
-      return timeRemaining.shortDescription
-    }
-    return episode.duration.shortDescription
+    userSettings.showTimeRemainingInEpisodeLists
+      ? (episode.duration.safe - episode.currentTime.safe).shortDescription
+      : episode.duration.safe.shortDescription
   }
 }
 

@@ -16,6 +16,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
 
   private static let log = Log.as(LogSubsystem.UpNextView.main)
 
@@ -85,9 +86,11 @@ import SwiftUI
 
   // MARK: - Derived State
 
-  var totalRemainingQueueTime: CMTime {
+  var totalQueueTime: CMTime {
     episodeList.filteredEntries.reduce(CMTime.zero) { total, podcastEpisode in
-      total + (podcastEpisode.episode.duration.safe - podcastEpisode.episode.currentTime.safe)
+      userSettings.showTimeRemainingInEpisodeLists
+        ? total + (podcastEpisode.episode.duration.safe - podcastEpisode.episode.currentTime.safe)
+        : total + podcastEpisode.episode.duration.safe
     }
   }
 
