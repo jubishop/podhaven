@@ -201,7 +201,10 @@ struct CachePurger: Sendable {
   private func getCachedEpisodesInDeletionOrder(cachedEpisodes: [Episode]) async throws
     -> [Episode]
   {
-    let unqueuedEpisodes = cachedEpisodes.filter { !$0.queued && !$0.saveInCache }
+    let currentEpisodeID = Container.shared.sharedState().currentEpisodeID
+    let unqueuedEpisodes = cachedEpisodes.filter {
+      !$0.queued && !$0.saveInCache && $0.id != currentEpisodeID
+    }
     var (unfinishedEpisodes, finishedEpisodes) = unqueuedEpisodes.partitioned(by: \.finished)
     finishedEpisodes.sort { lhs, rhs in
       let lhsDate = lhs.finishDate ?? .distantPast
