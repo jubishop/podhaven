@@ -22,6 +22,9 @@ struct UserSettings: Sendable {
   @Shared(.appStorage("showNowPlayingInUpNext")) var showNowPlayingInUpNext: Bool = false
   @Shared(.appStorage("alwaysShowPodcastImageInUpNext")) var alwaysShowPodcastImageInUpNext: Bool =
     false
+  @Shared(.appStorage("showTimeRemainingInEpisodeLists")) var showTimeRemainingInEpisodeLists:
+    Bool =
+      false
 
   enum NextTrackBehavior: String, CaseIterable, Identifiable {
     case nextEpisode = "Next Episode"

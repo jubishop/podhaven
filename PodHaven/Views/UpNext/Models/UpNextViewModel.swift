@@ -85,7 +85,7 @@ import SwiftUI
 
   // MARK: - Derived State
 
-  var totalQueueDuration: CMTime {
+  var totalRemainingQueueTime: CMTime {
     episodeList.filteredEntries.reduce(CMTime.zero) { total, podcastEpisode in
       total + (podcastEpisode.episode.duration.safe - podcastEpisode.episode.currentTime.safe)
     }

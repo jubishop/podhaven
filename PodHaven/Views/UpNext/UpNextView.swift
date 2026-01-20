@@ -58,7 +58,7 @@ struct UpNextView: View {
       HStack(spacing: 4) {
         AppIcon.duration.image
           .font(.system(size: 12))
-        Text(viewModel.totalQueueDuration.shortDescription)
+        Text(viewModel.totalRemainingQueueTime.shortDescription)
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize()

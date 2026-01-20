@@ -6,6 +6,8 @@ import SwiftUI
 import Tagged
 
 struct EpisodeListView<Episode: EpisodeListable>: View {
+  @DynamicInjected(\.userSettings) private var userSettings
+
   private let imageSize: CGFloat = 64
 
   private let episode: Episode
@@ -60,12 +62,22 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
 
         Spacer()
 
-        CompactMetadataItem(appIcon: .duration, value: episode.duration.shortDescription)
+        CompactMetadataItem(appIcon: .duration, value: durationText)
       }
       .font(.footnote)
     }
     .frame(minHeight: imageSize)
     .fixedSize(horizontal: false, vertical: true)
+  }
+
+  // MARK: - Private Helpers
+
+  private var durationText: String {
+    if userSettings.showTimeRemainingInEpisodeLists && episode.started {
+      let timeRemaining = episode.duration - episode.currentTime
+      return timeRemaining.shortDescription
+    }
+    return episode.duration.shortDescription
   }
 }
 

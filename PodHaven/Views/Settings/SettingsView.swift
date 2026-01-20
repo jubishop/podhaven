@@ -165,6 +165,19 @@ struct SettingsView: View {
           ) {
             Toggle("Shrink Playbar", isOn: Binding(userSettings.$shrinkPlayBarOnScroll))
           }
+
+          SettingsRow(
+            infoText: """
+              When enabled, \
+              episode lists will show the time remaining instead of the total duration \
+              for episodes you've started listening to.
+              """
+          ) {
+            Toggle(
+              "Show Time Remaining",
+              isOn: Binding(userSettings.$showTimeRemainingInEpisodeLists)
+            )
+          }
         }
 
         Section("Up Next") {
