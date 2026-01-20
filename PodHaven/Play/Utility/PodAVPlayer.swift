@@ -56,7 +56,7 @@ extension Container {
   private let rateContinuation: AsyncStream<Float>.Continuation
   private let didPlayToEndContinuation: AsyncStream<Episode.ID>.Continuation
 
-  private var periodicTimeObserver: Any?
+  private var periodicTimeObservation: (observer: Any, player: any AVPlayable)?
   private var itemStatusObserver: NSKeyValueObservation?
   private var timeControlStatusObserver: NSKeyValueObservation?
   private var rateObserver: NSKeyValueObservation?
@@ -289,10 +289,10 @@ extension Container {
   }
 
   private func addPeriodicTimeObserver() {
-    guard periodicTimeObserver == nil else { return }
+    guard periodicTimeObservation == nil else { return }
 
     Self.log.debug("addPeriodicTimeObserver: registering using player's internal queue")
-    periodicTimeObserver = avPlayer.addPeriodicTimeObserver(
+    let observer = avPlayer.addPeriodicTimeObserver(
       forInterval: .milliseconds(250),
       queue: nil
     ) { [weak self] currentTime in
@@ -306,6 +306,7 @@ extension Container {
         }
       }
     }
+    periodicTimeObservation = (observer, avPlayer)
   }
 
   private func addTimeControlStatusObserver() {
@@ -344,10 +345,10 @@ extension Container {
   }
 
   private func removePeriodicTimeObserver() {
-    if let periodicTimeObserver {
+    if let (observer, player) = periodicTimeObservation {
       Self.log.debug("removePeriodicTimeObserver: unregistering observer")
-      avPlayer.removeTimeObserver(periodicTimeObserver)
-      self.periodicTimeObserver = nil
+      player.removeTimeObserver(observer)
+      periodicTimeObservation = nil
     }
   }
 
