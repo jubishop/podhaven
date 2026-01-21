@@ -213,8 +213,7 @@ struct PodcastDetailView: View {
 
   private var loadingEpisodesMessage: some View {
     VStack {
-      Text("Loading episodes...")
-        .foregroundColor(.secondary)
+      ProgressView("Loading episodes...")
         .padding()
       Spacer()
     }

@@ -98,6 +98,7 @@ class PodcastsListViewModel:
 
   let title: String
   let filter: SQLExpression
+  private(set) var isLoading = true
 
   // MARK: - Initialization
 
@@ -117,6 +118,7 @@ class PodcastsListViewModel:
   }
 
   func execute() async {
+    defer { isLoading = false }
     do {
       for try await podcastsWithEpisodeMetadata in observatory.podcastsWithEpisodeMetadata(
         filter
@@ -125,6 +127,7 @@ class PodcastsListViewModel:
         Self.log.debug("Updating \(podcastsWithEpisodeMetadata.count) observed episodes")
 
         podcastList.allEntries = IdentifiedArray(uniqueElements: podcastsWithEpisodeMetadata)
+        isLoading = false
       }
     } catch {
       Self.log.error(error)

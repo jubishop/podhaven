@@ -121,6 +121,7 @@ class EpisodesListViewModel:
 
   let title: String
   let filter: SQLExpression
+  private(set) var isLoading = true
 
   @ObservationIgnored private var observationTask: Task<Void, Never>?
 
@@ -144,8 +145,10 @@ class EpisodesListViewModel:
 
   private func restartObservation() {
     observationTask?.cancel()
+    isLoading = true
     observationTask = Task { [weak self] in
       guard let self else { return }
+      defer { isLoading = false }
       do {
         for try await podcastEpisodes in observatory.podcastEpisodes(
           filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
@@ -156,6 +159,7 @@ class EpisodesListViewModel:
           Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
 
           episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
+          isLoading = false
         }
       } catch {
         Self.log.error(error)

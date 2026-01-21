@@ -39,7 +39,9 @@ struct EpisodesListView: View {
 
   @ViewBuilder
   private var episodesView: some View {
-    if viewModel.episodeList.filteredEntries.isEmpty {
+    if viewModel.isLoading {
+      loadingView
+    } else if viewModel.episodeList.filteredEntries.isEmpty {
       noEpisodesMessage
     } else {
       listView
@@ -66,6 +68,15 @@ struct EpisodesListView: View {
           viewModel.showPodcast(podcastEpisode)
         }
       }
+    }
+  }
+
+  private var loadingView: some View {
+    VStack {
+      ProgressView("Loading episodes...")
+        .foregroundColor(.secondary)
+        .padding()
+      Spacer()
     }
   }
 
