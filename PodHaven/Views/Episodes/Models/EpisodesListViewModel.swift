@@ -131,7 +131,7 @@ class EpisodesListViewModel:
 
   // MARK: - Observation
 
-  func execute() async {
+  func startObservation() async {
     let currentKey = observationKey
     let keyChanged = lastObservationKey != nil && lastObservationKey != currentKey
     lastObservationKey = currentKey
