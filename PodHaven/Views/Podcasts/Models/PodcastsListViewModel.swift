@@ -21,7 +21,7 @@ class PodcastsListViewModel:
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private static let log = Log.as(LogSubsystem.PodcastsView.standard)
+  private static let log = Log.as(LogSubsystem.PodcastsView.list)
 
   // MARK: - SelectablePodcastList & SortablePodcastList
 

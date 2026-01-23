@@ -20,7 +20,7 @@ enum LogSubsystem {
 
   enum EpisodesView: String, LogCategorizable {
     case detail
-    case standard
+    case list
   }
 
   enum Feed: String, LogCategorizable {
@@ -45,8 +45,8 @@ enum LogSubsystem {
 
   enum PodcastsView: String, LogCategorizable {
     case detail
+    case list
     case podcastGrid
-    case standard
   }
 
   enum SearchView: String, LogCategorizable {

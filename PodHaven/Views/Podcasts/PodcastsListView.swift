@@ -12,7 +12,7 @@ struct PodcastsListView: View {
 
   @State private var viewModel: PodcastsListViewModel
 
-  private static let log = Log.as(LogSubsystem.PodcastsView.standard)
+  private static let log = Log.as(LogSubsystem.PodcastsView.list)
 
   init(viewModel: PodcastsListViewModel) {
     self.viewModel = viewModel

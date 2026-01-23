@@ -10,7 +10,7 @@ struct EpisodesListView: View {
   @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation
 
-  private static let log = Log.as(LogSubsystem.EpisodesView.standard)
+  private static let log = Log.as(LogSubsystem.EpisodesView.list)
 
   @State private var viewModel: EpisodesListViewModel
 
@@ -33,8 +33,7 @@ struct EpisodesListView: View {
         selectableEpisodesToolbarItems(viewModel: viewModel)
       }
       .toolbarRole(.editor)
-      .onAppear { viewModel.appear() }
-      .onDisappear { viewModel.disappear() }
+      .task(id: viewModel.observationKey, viewModel.execute)
   }
 
   @ViewBuilder

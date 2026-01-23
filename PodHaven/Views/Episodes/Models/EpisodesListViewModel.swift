@@ -20,7 +20,7 @@ class EpisodesListViewModel:
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private static let log = Log.as(LogSubsystem.EpisodesView.standard)
+  private static let log = Log.as(LogSubsystem.EpisodesView.list)
 
   // MARK: - SelectableEpisodeList & SortableEpisodeList
 
@@ -83,18 +83,14 @@ class EpisodesListViewModel:
   @ObservationIgnored @Shared private var storedSortMethod: SortMethod
   var currentSortMethod: SortMethod {
     get { storedSortMethod }
-    set {
-      $storedSortMethod.withLock { $0 = newValue }
-      restartObservation()
-    }
+    set { $storedSortMethod.withLock { $0 = newValue } }
   }
 
   // MARK: - Filter Text
 
-  @ObservationIgnored private var filterWords: Set<String> = []
-
   private var textSearchFilter: SQLExpression {
-    filterWords
+    filterText
+      .split(separator: /\s+/)
       .map { word in
         let pattern = "%\(word.lowercased())%"
         return Episode.contains(pattern) || Podcast.contains(pattern)
@@ -102,19 +98,12 @@ class EpisodesListViewModel:
       .reduce(AppDB.NoOp) { $0 && $1 }
   }
 
+  private var filterText = ""
+
   @ObservationIgnored lazy var filterDebouncer = StringDebouncer(
     debounceDuration: .milliseconds(400)
   ) { [weak self] filteredText in
-    guard let self else { return }
-
-    filterWords = Set(
-      filteredText
-        .split(separator: /\s+/)
-        .map { String($0) }
-    )
-
-    Self.log.debug("Filtering episodes with words: \(filterWords)")
-    restartObservation()
+    self?.filterText = filteredText
   }
 
   // MARK: - State Management
@@ -123,7 +112,10 @@ class EpisodesListViewModel:
   let filter: SQLExpression
   private(set) var isLoading = true
 
-  @ObservationIgnored private var observationTask: Task<Void, Never>?
+  @ObservationIgnored private var lastObservationKey: String?
+  var observationKey: String {
+    "\(currentSortMethod.rawValue)-\(filterText)"
+  }
 
   // MARK: - Initialization
 
@@ -137,42 +129,38 @@ class EpisodesListViewModel:
     self.filter = filter
   }
 
-  func appear() {
-    restartObservation()
-  }
+  // MARK: - Observation
 
-  // MARK: - Observation Management
+  func execute() async {
+    let currentKey = observationKey
+    let keyChanged = lastObservationKey != nil && lastObservationKey != currentKey
+    lastObservationKey = currentKey
 
-  private func restartObservation() {
-    observationTask?.cancel()
-    isLoading = true
-    observationTask = Task { [weak self] in
-      guard let self else { return }
-      defer { isLoading = false }
-      do {
-        for try await podcastEpisodes in observatory.podcastEpisodes(
-          filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
-          order: currentSortMethod.sqlOrdering,
-          limit: 200
-        ) {
-          try Task.checkCancellation()
-          Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
+    Self.log.debug(
+      """
+      Executing observation for \(title) with key \(currentKey), changed: \(keyChanged)
+      """
+    )
 
-          episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
-          isLoading = false
-        }
-      } catch {
-        Self.log.error(error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+    if keyChanged || episodeList.allEntries.isEmpty { isLoading = true }
+    defer { isLoading = false }
+
+    do {
+      for try await podcastEpisodes in observatory.podcastEpisodes(
+        filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
+        order: currentSortMethod.sqlOrdering,
+        limit: 200
+      ) {
+        try Task.checkCancellation()
+        Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
+
+        episodeList.allEntries = IdentifiedArray(uniqueElements: podcastEpisodes)
+        isLoading = false
       }
+    } catch {
+      Self.log.error(error)
+      guard ErrorKit.isRemarkable(error) else { return }
+      alert(ErrorKit.coreMessage(for: error))
     }
-  }
-
-  // MARK: - Disappear
-
-  func disappear() {
-    observationTask?.cancel()
-    observationTask = nil
   }
 }
