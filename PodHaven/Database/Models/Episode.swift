@@ -101,6 +101,55 @@ struct UnsavedEpisode:
 
   // MARK: - Derived Data
 
+  // This is effectively a constant so its really plenty safe.
+  private nonisolated(unsafe) static let timestampRegex =
+    /(?:\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2})(?![\d:])/
+
+  // Parses timestamps (e.g. "2:15", "14:30", "1:02:15") from the description
+  // and returns them as sorted CMTimes. Returns nil if none are found.
+  var chapters: [CMTime]? {
+    guard let description else { return nil }
+
+    var seen = Set<Int>()
+    let times: [CMTime] = unsafe description.matches(of: Self.timestampRegex)
+      .compactMap { match in
+        // Swift regex doesn't support lookbehind, so manually reject matches
+        // preceded by a digit (e.g. "episode123:45" should not match "3:45").
+        guard match.range.lowerBound == description.startIndex
+          || !description[description.index(before: match.range.lowerBound)].isWholeNumber
+        else { return nil }
+
+        // Split "H:MM:SS" or "M:SS" into components and convert to total seconds.
+        let components = match.output.split(separator: ":")
+        let totalSeconds: Int
+        if components.count == 3 {
+          guard let hours = Int(components[0]),
+            let minutes = Int(components[1]),
+            let seconds = Int(components[2])
+          else { return nil }
+          totalSeconds = hours * 3600 + minutes * 60 + seconds
+        } else {
+          guard let minutes = Int(components[0]),
+            let seconds = Int(components[1])
+          else { return nil }
+          totalSeconds = minutes * 60 + seconds
+        }
+
+        // Skip zero timestamps (episode start) and duplicates.
+        guard totalSeconds > 0, seen.insert(totalSeconds).inserted else { return nil }
+
+        // Skip timestamps that exceed the episode duration.
+        let time = CMTime.seconds(Double(totalSeconds))
+        if time > duration { return nil }
+
+        return time
+      }
+      .sorted()
+
+    guard !times.isEmpty else { return nil }
+    return times
+  }
+
   var cachedURL: CachedURL? {
     guard let cachedFilename = cachedFilename
     else { return nil }

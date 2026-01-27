@@ -96,6 +96,7 @@
 				CacheManagerTests.swift,
 				CachePurgerTests.swift,
 				DownloadManagerTests.swift,
+				EpisodeTests/ChaptersTests.swift,
 				EpisodeTests/DeletionAndCacheTests.swift,
 				EpisodeTests/PersistenceTests.swift,
 				EpisodeTests/QueryTests.swift,
