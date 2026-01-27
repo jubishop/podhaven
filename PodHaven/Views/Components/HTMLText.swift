@@ -370,12 +370,12 @@ struct HTMLText: View {
         case .plain(let html):
           HTMLText(html)
         case .mixed(let segments):
-          HStack(alignment: .firstTextBaseline, spacing: 0) {
-            ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
-              switch segment {
-              case .text(let html):
-                HTMLText(html)
-              case .match(let str):
+          FlowLayout {
+            ForEach(Array(flowItems(from: segments).enumerated()), id: \.offset) { _, item in
+              switch item {
+              case .word(let str):
+                Text(str)
+              case .menu(let str):
                 Menu {
                   config.content(str)
                 } label: {
@@ -444,6 +444,40 @@ struct HTMLText: View {
     }
 
     return segments
+  }
+
+  private func flowItems(from segments: [MenuSegment]) -> [FlowItem] {
+    var items: [FlowItem] = []
+    for segment in segments {
+      switch segment {
+      case .text(let html):
+        let stripped = html.replacingOccurrences(
+          of: "<[^>]+>",
+          with: "",
+          options: .regularExpression
+        )
+        let decoded = Self.decodeHTMLEntities(stripped)
+        // Split into words, each including its trailing whitespace
+        var remaining = decoded[decoded.startIndex...]
+        while !remaining.isEmpty {
+          guard let firstNonSpace = remaining.firstIndex(where: { $0 != " " }) else {
+            items.append(.word(String(remaining)))
+            break
+          }
+          let wordStart = remaining.startIndex
+          let afterWord = remaining[firstNonSpace...].firstIndex(of: " ") ?? remaining.endIndex
+          var wordEnd = afterWord
+          while wordEnd < remaining.endIndex && remaining[wordEnd] == " " {
+            wordEnd = remaining.index(after: wordEnd)
+          }
+          items.append(.word(String(remaining[wordStart..<wordEnd])))
+          remaining = remaining[wordEnd...]
+        }
+      case .match(let str):
+        items.append(.menu(str))
+      }
+    }
+    return items
   }
 
   // MARK: - Supporting Types
@@ -615,6 +649,60 @@ struct HTMLText: View {
   private enum MenuSegment {
     case text(String)
     case match(String)
+  }
+
+  private enum FlowItem {
+    case word(String)
+    case menu(String)
+  }
+
+  private struct FlowLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+      arrange(in: proposal, subviews: subviews).size
+    }
+
+    func placeSubviews(
+      in bounds: CGRect,
+      proposal: ProposedViewSize,
+      subviews: Subviews,
+      cache: inout ()
+    ) {
+      let result = arrange(
+        in: ProposedViewSize(width: bounds.width, height: bounds.height),
+        subviews: subviews
+      )
+      for (index, position) in result.positions.enumerated() {
+        subviews[index]
+          .place(
+            at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),
+            proposal: .unspecified
+          )
+      }
+    }
+
+    private func arrange(in proposal: ProposedViewSize, subviews: Subviews) -> (
+      positions: [CGPoint], size: CGSize
+    ) {
+      var positions: [CGPoint] = []
+      var x: CGFloat = 0
+      var y: CGFloat = 0
+      var rowHeight: CGFloat = 0
+      let maxWidth = proposal.width ?? .infinity
+
+      for subview in subviews {
+        let size = subview.sizeThatFits(.unspecified)
+        if x + size.width > maxWidth && x > 0 {
+          x = 0
+          y += rowHeight
+          rowHeight = 0
+        }
+        positions.append(CGPoint(x: x, y: y))
+        x += size.width
+        rowHeight = max(rowHeight, size.height)
+      }
+
+      return (positions: positions, size: CGSize(width: maxWidth, height: y + rowHeight))
+    }
   }
 
   // MARK: - Testing
