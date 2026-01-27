@@ -102,7 +102,7 @@ struct UnsavedEpisode:
   // MARK: - Derived Data
 
   // This is effectively a constant so its really plenty safe.
-  private nonisolated(unsafe) static let timestampRegex =
+  nonisolated(unsafe) static let timestampRegex =
     /(?:\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2})(?![\d:])/
 
   // Parses timestamps (e.g. "2:15", "14:30", "1:02:15") from the description

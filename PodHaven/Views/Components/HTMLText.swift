@@ -6,14 +6,38 @@ struct HTMLText: View {
   @Environment(\.font) private var environmentFont
 
   private let html: String
+  private let menuConfig: MenuConfig?
 
   init(_ html: String) {
     self.html = html
+    self.menuConfig = nil
+  }
+
+  init<Content: View>(
+    _ html: String,
+    menuMatching pattern: Regex<Substring>,
+    menuValidator: ((String, String.Index) -> Bool)? = nil,
+    @ViewBuilder menuContent: @escaping (String) -> Content
+  ) {
+    self.html = html
+    self.menuConfig = MenuConfig(
+      pattern: pattern,
+      validator: menuValidator,
+      content: { AnyView(menuContent($0)) }
+    )
   }
 
   var body: some View {
-    let attributedString = Self.buildAttributedString(html: html, font: environmentFont ?? .body)
+    if let menuConfig {
+      menuBody(menuConfig)
+    } else {
+      standardBody
+    }
+  }
 
+  @ViewBuilder
+  private var standardBody: some View {
+    let attributedString = Self.buildAttributedString(html: html, font: environmentFont ?? .body)
     if let attributedString {
       Text(attributedString)
     } else {
@@ -34,7 +58,7 @@ struct HTMLText: View {
 
   // MARK: - HTML Preprocessing
 
-  private static func preprocessHTML(_ htmlString: String) -> String {
+  static func preprocessHTML(_ htmlString: String) -> String {
     var result = htmlString
 
     // Handle list tags
@@ -333,6 +357,95 @@ struct HTMLText: View {
     return result
   }
 
+  // MARK: - Menu Rendering
+
+  @ViewBuilder
+  private func menuBody(_ config: MenuConfig) -> some View {
+    let lines = parseMenuLines(config)
+    VStack(alignment: .leading, spacing: 2) {
+      ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+        switch line {
+        case .empty:
+          Color.clear.frame(height: 8)
+        case .plain(let html):
+          HTMLText(html)
+        case .mixed(let segments):
+          HStack(alignment: .firstTextBaseline, spacing: 0) {
+            ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+              switch segment {
+              case .text(let html):
+                HTMLText(html)
+              case .match(let str):
+                Menu {
+                  config.content(str)
+                } label: {
+                  Text(str)
+                    .foregroundColor(.accentColor)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private func parseMenuLines(_ config: MenuConfig) -> [MenuLine] {
+    let preprocessed = Self.preprocessHTML(html)
+    return
+      preprocessed
+      .split(separator: "\n", omittingEmptySubsequences: false)
+      .map { substring in
+        let lineStr = String(substring).trimmingCharacters(in: .whitespaces)
+        if lineStr.isEmpty { return .empty }
+        let segments = parseMenuSegments(lineStr, config: config)
+        if segments.count == 1, case .text = segments[0] {
+          return .plain(lineStr)
+        }
+        return .mixed(segments)
+      }
+  }
+
+  private func parseMenuSegments(_ line: String, config: MenuConfig) -> [MenuSegment] {
+    let stripped = line.replacingOccurrences(
+      of: "<[^>]+>",
+      with: "",
+      options: .regularExpression
+    )
+    let decoded = Self.decodeHTMLEntities(stripped)
+
+    let matches = decoded.matches(of: config.pattern)
+    let validMatches = matches.filter { match in
+      if let validator = config.validator {
+        return validator(decoded, match.range.lowerBound)
+      }
+      return true
+    }
+
+    guard !validMatches.isEmpty else { return [.text(line)] }
+
+    // Map decoded-string ranges back to find split points in the original HTML line.
+    // We locate each matched text literally in the remaining HTML string.
+    var segments: [MenuSegment] = []
+    var remaining = line
+    for match in validMatches {
+      let matchText = String(decoded[match.range])
+      if let range = remaining.range(of: matchText) {
+        let before = String(remaining[remaining.startIndex..<range.lowerBound])
+        if !before.isEmpty {
+          segments.append(.text(before))
+        }
+        segments.append(.match(matchText))
+        remaining = String(remaining[range.upperBound...])
+      }
+    }
+    if !remaining.isEmpty {
+      segments.append(.text(remaining))
+    }
+
+    return segments
+  }
+
   // MARK: - Supporting Types
 
   private struct TextPart {
@@ -485,6 +598,23 @@ struct HTMLText: View {
 
       return nil
     }
+  }
+
+  private struct MenuConfig {
+    let pattern: Regex<Substring>
+    let validator: ((String, String.Index) -> Bool)?
+    let content: (String) -> AnyView
+  }
+
+  private enum MenuLine {
+    case empty
+    case plain(String)
+    case mixed([MenuSegment])
+  }
+
+  private enum MenuSegment {
+    case text(String)
+    case match(String)
   }
 
   // MARK: - Testing

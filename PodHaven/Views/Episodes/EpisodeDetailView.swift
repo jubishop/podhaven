@@ -205,7 +205,16 @@ struct EpisodeDetailView: View {
           Text("Description")
             .font(.headline)
 
-          HTMLText(description)
+          HTMLText(
+            description,
+            menuMatching: unsafe UnsavedEpisode.timestampRegex,
+            menuValidator: { text, matchStart in
+              matchStart == text.startIndex
+                || !text[text.index(before: matchStart)].isWholeNumber
+            }
+          ) { _ in
+            Button("Hello World") {}
+          }
         }
       }
     }
@@ -324,6 +333,38 @@ struct EpisodeDetailView: View {
                   <li>Dr. Amara Okafor - Renewable Energy Engineer</li>
                   <li>Prof. Lars Eriksson - Environmental Economist</li>
                 </ul>
+                """
+            )
+          )
+        )
+      )
+    )
+    .preview()
+  }
+}
+
+#Preview("Episode with Timestamps") {
+  NavigationStack {
+    EpisodeDetailView(
+      viewModel: EpisodeDetailViewModel(
+        episode: DisplayedEpisode.getDisplayedEpisode(
+          UnsavedPodcastEpisode(
+            unsavedPodcast: try! Create.unsavedPodcast(
+              title: "Tech Interview Podcast",
+              description: "Deep dives into technology topics"
+            ),
+            unsavedEpisode: try! Create.unsavedEpisode(
+              title: "Episode 42: The Future of AI",
+              pubDate: Date().addingTimeInterval(-86400 * 2),
+              duration: CMTime(seconds: 5400, preferredTimescale: 1),
+              description: """
+                <p>In this episode we cover a range of AI topics:</p>
+                <p>0:00 Introduction<br/>\
+                2:15 What is machine learning?<br/>\
+                14:30 Neural networks explained<br/>\
+                28:45 The future of large language models<br/>\
+                1:02:15 Q&amp;A session</p>
+                <p>Visit <a href="https://example.com">our website</a> for show notes.</p>
                 """
             )
           )
