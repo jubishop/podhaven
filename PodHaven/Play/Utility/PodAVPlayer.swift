@@ -167,17 +167,22 @@ extension Container {
     avPlayer.play()
   }
 
-  func pause() {
+  func pause() async {
     Self.log.debug("pause: executing")
     avPlayer.pause()
+    do {
+      try await saveCurrentTime(avPlayer.currentTime())
+    } catch {
+      Self.log.error(error)
+    }
   }
 
-  func toggle() {
+  func toggle() async {
     let currentStatus = avPlayer.timeControlStatus
     Self.log.debug("toggle: executing (current status: \(currentStatus))")
     currentStatus == .paused
       ? play()
-      : pause()
+      : await pause()
   }
 
   func setRate(_ rate: Float) {
