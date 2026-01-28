@@ -100,56 +100,43 @@ where Item.ID: Sendable {
 
   // MARK: - Private Helpers
 
-  @ObservationIgnored private var entriesTask:
-    Task<(IdentifiedArrayOf<Item>, IdentifiedArrayOf<Item>), any Error>?
+  @ObservationIgnored private var entriesTask: Task<Void, Never>?
 
   private func scheduleEntriesUpdate() {
     entriesTask?.cancel()
 
-    let task = Task {
-      [baselineEntries, sortMethod, filterMethod, searchTerms]
-      () throws -> (IdentifiedArrayOf<Item>, IdentifiedArrayOf<Item>) in
+    entriesTask = Task { [weak self, baselineEntries, sortMethod, filterMethod, searchTerms] in
+      let (allEntries, filteredEntries) = await Self.computeEntries(
+        baselineEntries: baselineEntries,
+        sortMethod: sortMethod,
+        filterMethod: filterMethod,
+        searchTerms: searchTerms
+      )
+      guard !Task.isCancelled, let self else { return }
 
-      try Task.checkCancellation()
-      let sortedEntries: IdentifiedArrayOf<Item>
-      if let sortMethod {
-        sortedEntries = baselineEntries.sorted(by: sortMethod)
-      } else {
-        sortedEntries = baselineEntries
-      }
+      self._allEntries = allEntries
+      self.filteredEntries = filteredEntries
+    }
+  }
 
-      try Task.checkCancellation()
-      let filteredByMethod: IdentifiedArrayOf<Item>
-      if let filterMethod {
-        filteredByMethod = sortedEntries.filter { filterMethod($0) }
-      } else {
-        filteredByMethod = sortedEntries
-      }
+  private nonisolated static func computeEntries(
+    baselineEntries: IdentifiedArrayOf<Item>,
+    sortMethod: (@Sendable (Item, Item) -> Bool)?,
+    filterMethod: (@Sendable (Item) -> Bool)?,
+    searchTerms: [String]
+  ) async -> (IdentifiedArrayOf<Item>, IdentifiedArrayOf<Item>) {
+    let allEntries = sortMethod.map { baselineEntries.sorted(by: $0) } ?? baselineEntries
+    let filteredByMethod = filterMethod.map { allEntries.filter($0) } ?? allEntries
 
-      try Task.checkCancellation()
-      guard !searchTerms.isEmpty else {
-        return (sortedEntries, filteredByMethod)
-      }
-
-      try Task.checkCancellation()
-      let filteredBySearchTerms = filteredByMethod.filter { entry in
-        let searchable = entry.searchableString.lowercased()
-        return searchTerms.allSatisfy { searchable.contains($0) }
-      }
-
-      try Task.checkCancellation()
-      return (sortedEntries, filteredBySearchTerms)
+    guard !searchTerms.isEmpty else {
+      return (allEntries, filteredByMethod)
     }
 
-    entriesTask = task
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      let (sortedEntries, filteredBySearchTerms) = try await task.value
-      try Task.checkCancellation()
-      _allEntries = sortedEntries
-      filteredEntries = filteredBySearchTerms
+    let filteredBySearchTerms = filteredByMethod.filter { entry in
+      let searchable = entry.searchableString.lowercased()
+      return searchTerms.allSatisfy { searchable.contains($0) }
     }
+
+    return (allEntries, filteredBySearchTerms)
   }
 }

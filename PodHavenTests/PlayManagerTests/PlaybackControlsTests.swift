@@ -248,4 +248,29 @@ import Testing
     avPlayer.waitingToPlay()
     try await PlayHelpers.waitFor(.waiting)
   }
+
+  @Test("pause saves current position to database immediately")
+  func pauseSavesCurrentPositionToDatabaseImmediately() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+
+    try await playManager.load(podcastEpisode)
+    try await PlayHelpers.play()
+
+    // Advance time by 1 second - under the 3-second throttle threshold
+    avPlayer.advanceTime(to: .seconds(1))
+    try await PlayHelpers.waitFor(.seconds(1))
+
+    // Verify DB has NOT been updated yet (due to throttling)
+    var savedEpisode = try await Container.shared.repo().episode(podcastEpisode.id)
+    #expect(savedEpisode?.currentTime == .zero)
+
+    // Pause should save the current position immediately
+    await playManager.pause()
+    try await PlayHelpers.waitFor(.paused)
+
+    // Verify DB HAS been updated after pause
+    savedEpisode = try await Container.shared.repo().episode(podcastEpisode.id)
+    #expect(savedEpisode?.currentTime == .seconds(1))
+  }
 }
