@@ -10,7 +10,7 @@ import SwiftUI
 import Tagged
 import UIKit
 
-@Observable @MainActor class EpisodeDetailViewModel {
+@Observable @MainActor class EpisodeDetailViewModel: Shareable {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
   @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
@@ -65,32 +65,12 @@ import UIKit
     episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
   }
 
-  var sharePreview: SharePreview<Image, Image> {
-    SharePreview(
-      Text(episode.title),
-      image: sharePreviewImage,
-      icon: sharePreviewImage
-    )
-  }
-  var shareURL: URL? {
-    var components = URLComponents()
-    components.scheme = "https"
-    components.host = "www.artisanalsoftware.com"
-    components.path = "/podhaven/episode"
-    components.queryItems = [
-      URLQueryItem(name: "feedURL", value: episode.feedURL.rawValue.absoluteString),
-      URLQueryItem(name: "guid", value: episode.mediaGUID.guid.rawValue),
-    ]
-    return components.url
-  }
+  // MARK: - Shareable
 
-  private var sharePreviewImage: Image {
-    guard let shareArtwork
-    else { return AppIcon.showEpisode.rawImage }
-
-    return Image(uiImage: shareArtwork)
-  }
-  private var shareArtwork: UIImage?
+  var shareTitle: String { episode.title }
+  var shareArtwork: UIImage?
+  var shareFallbackIcon: AppIcon { .showEpisode }
+  var shareURL: URL? { ShareURL.episode(feedURL: episode.feedURL, guid: episode.mediaGUID.guid) }
 
   // MARK: - Initialization
 

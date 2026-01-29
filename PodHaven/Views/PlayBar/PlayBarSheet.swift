@@ -19,6 +19,23 @@ struct PlayBarSheet: View {
       sheetArtwork
 
       VStack(spacing: spacing) {
+        HStack {
+          Spacer()
+
+          if let shareURL = viewModel.shareURL {
+            ShareLink(
+              item: shareURL,
+              preview: viewModel.sharePreview,
+              label: { AppIcon.shareEpisode.image }
+            )
+            .font(.title3)
+            .padding(spacing / 2)
+            .glassEffect(.clear.interactive(), in: .capsule)
+          }
+        }
+        .padding(.horizontal, spacing)
+        .padding(.top, spacing)
+
         Spacer()
 
         HStack {

@@ -2,6 +2,8 @@
 
 import Foundation
 
+@testable import PodHaven
+
 enum ShareHelpers {
   static func shareURL(with url: URL) -> URL {
     var components = URLComponents(string: "podhaven://share")!
@@ -20,17 +22,10 @@ enum ShareHelpers {
   }
 
   static func podcastURL(feedURL: String) -> URL {
-    var components = URLComponents(string: "https://www.artisanalsoftware.com/podhaven/podcast")!
-    components.queryItems = [URLQueryItem(name: "feedURL", value: feedURL)]
-    return components.url!
+    ShareURL.podcast(feedURL: FeedURL(URL(string: feedURL)!))!
   }
 
   static func episodeURL(feedURL: String, guid: String) -> URL {
-    var components = URLComponents(string: "https://www.artisanalsoftware.com/podhaven/episode")!
-    components.queryItems = [
-      URLQueryItem(name: "feedURL", value: feedURL),
-      URLQueryItem(name: "guid", value: guid),
-    ]
-    return components.url!
+    ShareURL.episode(feedURL: FeedURL(URL(string: feedURL)!), guid: GUID(guid))!
   }
 }

@@ -14,6 +14,7 @@ import UIKit
 class PodcastDetailViewModel:
   ManagingEpisodes,
   SelectableEpisodeList,
+  Shareable,
   SortableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
@@ -255,31 +256,12 @@ class PodcastDetailViewModel:
     defaultPlaybackRate != nil
   }
 
-  var sharePreview: SharePreview<Image, Image> {
-    SharePreview(
-      Text(podcast.title),
-      image: sharePreviewImage,
-      icon: sharePreviewImage
-    )
-  }
-  var shareURL: URL? {
-    var components = URLComponents()
-    components.scheme = "https"
-    components.host = "www.artisanalsoftware.com"
-    components.path = "/podhaven/podcast"
-    components.queryItems = [
-      URLQueryItem(name: "feedURL", value: podcast.feedURL.rawValue.absoluteString)
-    ]
-    return components.url
-  }
+  // MARK: - Shareable
 
-  private var sharePreviewImage: Image {
-    guard let shareArtwork
-    else { return AppIcon.showPodcast.rawImage }
-
-    return Image(uiImage: shareArtwork)
-  }
-  private var shareArtwork: UIImage?
+  var shareTitle: String { podcast.title }
+  var shareArtwork: UIImage?
+  var shareFallbackIcon: AppIcon { .showPodcast }
+  var shareURL: URL? { ShareURL.podcast(feedURL: podcast.feedURL) }
 
   // MARK: - Initialization
 
