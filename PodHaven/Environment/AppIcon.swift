@@ -590,7 +590,12 @@ private struct SystemImageName:
     case .noEpisodeSelected:
       return Data(text: "No episode selected", systemImageName: .noEpisode)
     case .pauseButton:
-      return Data(text: "Pause", systemImageName: .pauseButton, color: .yellow)
+      return Data(
+        text: "Pause",
+        systemImageName: .pauseButton,
+        darkColor: .yellow,
+        lightColor: .pink
+      )
     case .playButton:
       return Data(text: "Play", systemImageName: .playButton, color: .green)
     case .seekBackward:
