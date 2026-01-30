@@ -7,8 +7,9 @@ struct PlayBarSheet: View {
   private let spacing: CGFloat = 12
 
   @Bindable var viewModel: PlayBarViewModel
-  @State private var isShowingSpeedPopover = false
+  @Environment(\.colorScheme) private var colorScheme
   @State private var containerWidth: CGFloat = 1
+  @State private var isShowingSpeedPopover = false
 
   init(viewModel: PlayBarViewModel) {
     self.viewModel = viewModel
@@ -19,6 +20,23 @@ struct PlayBarSheet: View {
       sheetArtwork
 
       VStack(spacing: spacing) {
+        HStack {
+          Spacer()
+
+          if let shareURL = viewModel.shareURL {
+            ShareLink(
+              item: shareURL,
+              preview: viewModel.sharePreview,
+              label: { AppIcon.shareEpisode.image }
+            )
+            .font(.title3)
+            .padding(spacing / 2)
+            .glassEffect(.clear.interactive(), in: .capsule)
+          }
+        }
+        .padding(.horizontal, spacing)
+        .padding(.top, spacing)
+
         Spacer()
 
         HStack {
@@ -46,7 +64,6 @@ struct PlayBarSheet: View {
       }
     }
     .presentationDetents([.medium])
-    .environment(\.colorScheme, .dark)
   }
 
   @ViewBuilder
@@ -58,6 +75,7 @@ struct PlayBarSheet: View {
           .scaledToFill()
           .frame(width: geometry.size.width, height: geometry.size.height)
           .clipped()
+          .overlay((colorScheme == .dark ? Color.black : Color.white).opacity(0.5))
       } else {
         Color.black
           .overlay(alignment: .top) {
@@ -70,26 +88,35 @@ struct PlayBarSheet: View {
     .ignoresSafeArea()
   }
 
+  private func metaButtonStyle<V: View>(_ content: V) -> some View {
+    content
+      .font(.callout)
+      .fontWeight(.semibold)
+      .fontDesign(.rounded)
+      .padding(.horizontal, spacing)
+      .padding(.vertical, spacing / 2)
+      .glassEffect(.clear.interactive(), in: .capsule)
+  }
+
   @ViewBuilder
   private var playbackMetaControls: some View {
-    PlaybackSpeedButton(
-      rate: viewModel.playbackRate,
-      isShowingPopover: $isShowingSpeedPopover,
-      containerWidth: containerWidth
+    metaButtonStyle(
+      PlaybackSpeedButton(
+        rate: viewModel.playbackRate,
+        isShowingPopover: $isShowingSpeedPopover,
+        containerWidth: containerWidth
+      )
     )
-    .padding(spacing / 2)
-    .glassEffect(.clear.interactive(), in: .capsule)
 
     Spacer()
 
-    AppIcon.finishEpisode
-      .imageButton {
-        viewModel.finishEpisode()
-      }
-      .font(.callout)
-      .padding(spacing / 2)
-      .glassEffect(.clear.interactive(), in: .capsule)
-      .disabled(isShowingSpeedPopover)
+    metaButtonStyle(
+      AppIcon.finishEpisode
+        .imageButton {
+          viewModel.finishEpisode()
+        }
+    )
+    .disabled(isShowingSpeedPopover)
   }
 
   private func playbackButtonStyle<V: View>(_ content: V, font: Font = .title2) -> some View {

@@ -5,8 +5,9 @@ import FactoryKit
 import Foundation
 import Logging
 import SwiftUI
+import Tagged
 
-@Observable @MainActor class PlayBarViewModel {
+@Observable @MainActor class PlayBarViewModel: Shareable {
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
@@ -47,6 +48,16 @@ import SwiftUI
 
   var duration: CMTime {
     (sharedState.onDeck?.duration ?? .zero).safe
+  }
+
+  // MARK: - Shareable
+
+  var shareTitle: String { sharedState.onDeck?.title ?? "Episode" }
+  var shareArtwork: UIImage? { episodeImage }
+  var shareFallbackIcon: AppIcon { .showEpisode }
+  var shareURL: URL? {
+    guard let onDeck = sharedState.onDeck else { return nil }
+    return ShareURL.episode(feedURL: onDeck.feedURL, guid: onDeck.mediaGUID.guid)
   }
 
   var isDragging = false {

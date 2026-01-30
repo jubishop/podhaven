@@ -152,11 +152,13 @@ extension PlayBar {
     else { return }
 
     sheet {
-      EpisodeDetailView(
-        viewModel: EpisodeDetailViewModel(
-          episode: DisplayedEpisode.getDisplayedEpisode(podcastEpisode)
+      NavigationStack {
+        EpisodeDetailView(
+          viewModel: EpisodeDetailViewModel(
+            episode: DisplayedEpisode.getDisplayedEpisode(podcastEpisode)
+          )
         )
-      )
+      }
     }
   }
 }

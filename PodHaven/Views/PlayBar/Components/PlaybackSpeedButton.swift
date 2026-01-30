@@ -13,9 +13,6 @@ struct PlaybackSpeedButton: View {
       isShowingPopover = true
     } label: {
       Text("\(formatRate(rate))x")
-        .font(.callout)
-        .fontWeight(.semibold)
-        .fontDesign(.rounded)
     }
     .popover(
       isPresented: $isShowingPopover,
