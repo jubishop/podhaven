@@ -481,42 +481,72 @@ struct HTMLText: View {
     return segments
   }
 
-  // Rebuild HTML-like attributed segments for text between matches
+  // Rebuild HTML string for text between matches, preserving all format changes
   private func rebuildHTML(
     _ text: String,
     from startOffset: Int,
     formatRanges: [(range: Range<Int>, format: TextFormat)]
   ) -> String {
-    // For simplicity, we return the plain text wrapped in appropriate tags based on the format
-    // at the start position. This handles the common case where text segments have consistent formatting.
     guard !text.isEmpty else { return text }
 
-    var format: TextFormat = .plain
-    for (range, fmt) in formatRanges where range.contains(startOffset) {
-      format = fmt
-      break
+    // Helper to find format at a given offset
+    func formatAt(_ offset: Int) -> TextFormat {
+      for (range, format) in formatRanges where range.contains(offset) {
+        return format
+      }
+      return .plain
     }
 
-    var result = text
+    // Helper to wrap text with format tags
+    func wrapWithTags(_ str: String, _ format: TextFormat) -> String {
+      guard !str.isEmpty else { return str }
+      var result = str
 
-    if format.isBold {
-      result = "<b>\(result)</b>"
+      if format.isBold {
+        result = "<b>\(result)</b>"
+      }
+      if format.isItalic {
+        result = "<i>\(result)</i>"
+      }
+      if format.isUnderlined {
+        result = "<u>\(result)</u>"
+      }
+      if format.isStrikethrough {
+        result = "<s>\(result)</s>"
+      }
+      if format.isMarked {
+        result = "<mark>\(result)</mark>"
+      }
+      if let url = format.linkURL {
+        result = "<a href=\"\(url.absoluteString)\">\(result)</a>"
+      }
+
+      return result
     }
-    if format.isItalic {
-      result = "<i>\(result)</i>"
+
+    // Split text at format boundaries and wrap each piece
+    var result = ""
+    var currentChunk = ""
+    var currentFormat = formatAt(startOffset)
+    var offset = startOffset
+
+    for char in text {
+      let charFormat = formatAt(offset)
+
+      if charFormat != currentFormat {
+        // Format changed, wrap accumulated chunk and start new one
+        result += wrapWithTags(currentChunk, currentFormat)
+        currentChunk = String(char)
+        currentFormat = charFormat
+      } else {
+        currentChunk.append(char)
+      }
+
+      offset += 1
     }
-    if format.isUnderlined {
-      result = "<u>\(result)</u>"
-    }
-    if format.isStrikethrough {
-      result = "<s>\(result)</s>"
-    }
-    if format.isMarked {
-      result = "<mark>\(result)</mark>"
-    }
-    if let url = format.linkURL {
-      result = "<a href=\"\(url.absoluteString)\">\(result)</a>"
-    }
+
+    // Wrap final chunk
+    result += wrapWithTags(currentChunk, currentFormat)
 
     return result
   }
@@ -607,7 +637,7 @@ struct HTMLText: View {
     let format: TextFormat
   }
 
-  private struct TextFormat {
+  private struct TextFormat: Equatable {
     let isBold: Bool
     let isItalic: Bool
     let isUnderlined: Bool
@@ -1434,6 +1464,56 @@ private struct HTMLTextMenuPreview: View {
         <s>00:03:00</s> Strike
         <mark>00:04:00</mark> Mark
         <b><i>00:05:00</i></b> Bold+Italic
+        """
+    ),
+
+    // MARK: - Multi-format text segments (format changes within text around timestamps)
+    MenuSample(
+      description: "Bold then italic before timestamp",
+      html: "<b>Bold</b> and <i>italic</i> 00:15:00 - after"
+    ),
+    MenuSample(
+      description: "Multiple formats before and after timestamp",
+      html: "<b>Start bold</b> <i>then italic</i> 00:20:00 <u>underline</u> <s>strike</s> end"
+    ),
+    MenuSample(
+      description: "Format change mid-word before timestamp",
+      html: "Half<b>bold</b> 00:10:00 - description"
+    ),
+    MenuSample(
+      description: "Complex: all formats before timestamp",
+      html:
+        "<b>Bold</b> <i>Italic</i> <u>Under</u> <s>Strike</s> <mark>Mark</mark> 00:30:00 - plain after"
+    ),
+    MenuSample(
+      description: "Alternating formats around multiple timestamps",
+      html:
+        "<b>Ch1</b> 00:00:00 <i>intro</i> | <u>Ch2</u> 00:10:00 <s>old</s> | <mark>Ch3</mark> 00:20:00 end"
+    ),
+    MenuSample(
+      description: "Nested formats before timestamp",
+      html: "<b>Bold <i>and italic</i> just bold</b> 00:25:00 - plain"
+    ),
+    MenuSample(
+      description: "Link and bold before timestamp",
+      html: "<a href=\"https://example.com\">Link text</a> and <b>bold</b> 00:35:00 - more"
+    ),
+    MenuSample(
+      description: "Format spanning before and after timestamp",
+      html: "<b>Bold before</b> 00:40:00 <b>bold after</b> with <i>italic</i> mixed"
+    ),
+    MenuSample(
+      description: "Many format changes in one line",
+      html:
+        "<b>A</b><i>B</i><u>C</u><s>D</s><mark>E</mark> 00:45:00 <mark>F</mark><s>G</s><u>H</u><i>I</i><b>J</b>"
+    ),
+    MenuSample(
+      description: "Real-world chapter list with mixed formatting",
+      html: """
+        <b>Introduction</b> - <i>Setting the scene</i> 00:00:00
+        <b>Part 1:</b> The <i>journey</i> begins 00:05:00
+        <mark>KEY:</mark> <b>Critical</b> <i>insight</i> revealed 00:15:00
+        <b>Conclusion</b> - <u>Final thoughts</u> 00:45:00
         """
     ),
   ]
