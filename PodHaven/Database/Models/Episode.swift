@@ -105,6 +105,24 @@ struct UnsavedEpisode:
   nonisolated(unsafe) static let timestampRegex =
     /(?:\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2})(?![\d:])/
 
+  // Parses a timestamp string (e.g. "2:15", "14:30", "1:02:15") into total seconds.
+  static func parseTimestamp(_ timestamp: some StringProtocol) -> Int? {
+    let components = timestamp.split(separator: ":")
+    guard components.count >= 2, components.count <= 3 else { return nil }
+
+    guard components.count == 3 else {
+      guard let minutes = Int(components[0]),
+        let seconds = Int(components[1])
+      else { return nil }
+      return minutes * 60 + seconds
+    }
+    guard let hours = Int(components[0]),
+      let minutes = Int(components[1]),
+      let seconds = Int(components[2])
+    else { return nil }
+    return hours * 3600 + minutes * 60 + seconds
+  }
+
   // Parses timestamps (e.g. "2:15", "14:30", "1:02:15") from the description
   // and returns them as sorted CMTimes. Returns nil if none are found.
   var chapters: [CMTime]? {
@@ -115,25 +133,12 @@ struct UnsavedEpisode:
       .compactMap { match in
         // Swift regex doesn't support lookbehind, so manually reject matches
         // preceded by a digit (e.g. "episode123:45" should not match "3:45").
-        guard match.range.lowerBound == description.startIndex
-          || !description[description.index(before: match.range.lowerBound)].isWholeNumber
+        guard
+          match.range.lowerBound == description.startIndex
+            || !description[description.index(before: match.range.lowerBound)].isWholeNumber
         else { return nil }
 
-        // Split "H:MM:SS" or "M:SS" into components and convert to total seconds.
-        let components = match.output.split(separator: ":")
-        let totalSeconds: Int
-        if components.count == 3 {
-          guard let hours = Int(components[0]),
-            let minutes = Int(components[1]),
-            let seconds = Int(components[2])
-          else { return nil }
-          totalSeconds = hours * 3600 + minutes * 60 + seconds
-        } else {
-          guard let minutes = Int(components[0]),
-            let seconds = Int(components[1])
-          else { return nil }
-          totalSeconds = minutes * 60 + seconds
-        }
+        guard let totalSeconds = Self.parseTimestamp(match.output) else { return nil }
 
         // Skip zero timestamps (episode start) and duplicates.
         guard totalSeconds > 0, seen.insert(totalSeconds).inserted else { return nil }

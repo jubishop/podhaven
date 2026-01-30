@@ -212,8 +212,10 @@ struct EpisodeDetailView: View {
               matchStart == text.startIndex
                 || !text[text.index(before: matchStart)].isWholeNumber
             }
-          ) { _ in
-            Button("Hello World") {}
+          ) { timestamp in
+            AppIcon.playFromHere.labelButton {
+              viewModel.playAt(timestamp: timestamp)
+            }
           }
         }
       }

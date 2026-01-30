@@ -140,6 +140,28 @@ import UIKit
     }
   }
 
+  func playAt(timestamp: String) {
+    guard let seconds = UnsavedEpisode.parseTimestamp(timestamp) else {
+      Self.log.warning("Failed to parse timestamp: \(timestamp)")
+      return
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode()
+        try await playManager.load(podcastEpisode)
+        await playManager.seek(to: CMTime.seconds(Double(seconds)))
+        await playManager.play()
+      } catch {
+        Self.log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.coreMessage(for: error))
+      }
+    }
+  }
+
   func pause() {
     guard isPlaying else { return }
 
