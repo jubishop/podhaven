@@ -375,11 +375,11 @@ struct HTMLText: View {
               switch item {
               case .word(let attrStr):
                 Text(attrStr)
-              case .menu(let str):
+              case .menu(let attrStr, let plainText):
                 Menu {
-                  config.content(str)
+                  config.content(plainText)
                 } label: {
-                  Text(str)
+                  Text(attrStr)
                     .foregroundColor(.accentColor)
                 }
               }
@@ -407,13 +407,24 @@ struct HTMLText: View {
   }
 
   private func parseMenuSegments(_ line: String, config: MenuConfig) -> [MenuSegment] {
-    let stripped = line.replacingOccurrences(
-      of: "<[^>]+>",
-      with: "",
-      options: .regularExpression
-    )
-    let decoded = Self.decodeHTMLEntities(stripped)
+    // Parse HTML to get text parts with formatting info
+    let textParts = Self.parseTextParts(line)
 
+    // Build decoded string and track format at each character position
+    var decoded = ""
+    var formatRanges: [(range: Range<Int>, format: TextFormat)] = []
+
+    for part in textParts {
+      let partDecoded = Self.decodeHTMLEntities(part.text)
+      let startOffset = decoded.count
+      decoded += partDecoded
+      let endOffset = decoded.count
+      if startOffset < endOffset {
+        formatRanges.append((startOffset..<endOffset, part.format))
+      }
+    }
+
+    // Find matches in decoded text
     let matches = decoded.matches(of: config.pattern)
     let validMatches = matches.filter { match in
       if let validator = config.validator {
@@ -424,26 +435,90 @@ struct HTMLText: View {
 
     guard !validMatches.isEmpty else { return [.text(line)] }
 
-    // Map decoded-string ranges back to find split points in the original HTML line.
-    // We locate each matched text literally in the remaining HTML string.
-    var segments: [MenuSegment] = []
-    var remaining = line
-    for match in validMatches {
-      let matchText = String(decoded[match.range])
-      if let range = remaining.range(of: matchText) {
-        let before = String(remaining[remaining.startIndex..<range.lowerBound])
-        if !before.isEmpty {
-          segments.append(.text(before))
-        }
-        segments.append(.match(matchText))
-        remaining = String(remaining[range.upperBound...])
+    // Helper to find format at a given offset
+    func formatAt(_ offset: Int) -> TextFormat {
+      for (range, format) in formatRanges where range.contains(offset) {
+        return format
       }
+      return .plain
     }
-    if !remaining.isEmpty {
-      segments.append(.text(remaining))
+
+    // Build segments, splitting text parts at match boundaries
+    var segments: [MenuSegment] = []
+    var currentOffset = 0
+
+    for match in validMatches {
+      let matchStart = decoded.distance(from: decoded.startIndex, to: match.range.lowerBound)
+      let matchEnd = decoded.distance(from: decoded.startIndex, to: match.range.upperBound)
+      let matchText = String(decoded[match.range])
+
+      // Add text segment for content before this match
+      if currentOffset < matchStart {
+        let beforeStart = decoded.index(decoded.startIndex, offsetBy: currentOffset)
+        let beforeEnd = decoded.index(decoded.startIndex, offsetBy: matchStart)
+        let beforeText = String(decoded[beforeStart..<beforeEnd])
+        segments.append(
+          .text(rebuildHTML(beforeText, from: currentOffset, formatRanges: formatRanges))
+        )
+      }
+
+      // Add match segment with its format
+      let matchFormat = formatAt(matchStart)
+      segments.append(.match(matchText, matchFormat))
+
+      currentOffset = matchEnd
+    }
+
+    // Add remaining text after last match
+    if currentOffset < decoded.count {
+      let remainingStart = decoded.index(decoded.startIndex, offsetBy: currentOffset)
+      let remainingText = String(decoded[remainingStart...])
+      segments.append(
+        .text(rebuildHTML(remainingText, from: currentOffset, formatRanges: formatRanges))
+      )
     }
 
     return segments
+  }
+
+  // Rebuild HTML-like attributed segments for text between matches
+  private func rebuildHTML(
+    _ text: String,
+    from startOffset: Int,
+    formatRanges: [(range: Range<Int>, format: TextFormat)]
+  ) -> String {
+    // For simplicity, we return the plain text wrapped in appropriate tags based on the format
+    // at the start position. This handles the common case where text segments have consistent formatting.
+    guard !text.isEmpty else { return text }
+
+    var format: TextFormat = .plain
+    for (range, fmt) in formatRanges where range.contains(startOffset) {
+      format = fmt
+      break
+    }
+
+    var result = text
+
+    if format.isBold {
+      result = "<b>\(result)</b>"
+    }
+    if format.isItalic {
+      result = "<i>\(result)</i>"
+    }
+    if format.isUnderlined {
+      result = "<u>\(result)</u>"
+    }
+    if format.isStrikethrough {
+      result = "<s>\(result)</s>"
+    }
+    if format.isMarked {
+      result = "<mark>\(result)</mark>"
+    }
+    if let url = format.linkURL {
+      result = "<a href=\"\(url.absoluteString)\">\(result)</a>"
+    }
+
+    return result
   }
 
   private func flowItems(from segments: [MenuSegment]) -> [FlowItem] {
@@ -478,8 +553,9 @@ struct HTMLText: View {
           }
         }
 
-      case .match(let str):
-        items.append(.menu(str))
+      case .match(let str, let format):
+        let attrStr = buildFlowAttributedString(str, format, baseFont)
+        items.append(.menu(attrStr, str))
       }
     }
     return items
@@ -692,12 +768,12 @@ struct HTMLText: View {
 
   private enum MenuSegment {
     case text(String)
-    case match(String)
+    case match(String, TextFormat)
   }
 
   private enum FlowItem {
     case word(AttributedString)
-    case menu(String)
+    case menu(AttributedString, String)
   }
 
   private struct FlowLayout: Layout {
@@ -1309,6 +1385,55 @@ private struct HTMLTextMenuPreview: View {
         <li><i>Deep dive:</i> 00:15:00 - Technical details</li>
         <li><u>Wrap-up:</u> 00:45:00 - Summary</li>
         </ul>
+        """
+    ),
+
+    // MARK: - Formatted Timestamps (timestamp itself is styled)
+    MenuSample(
+      description: "Bold timestamp",
+      html: "Chapter starts at <b>00:15:30</b> with the introduction"
+    ),
+    MenuSample(
+      description: "Italic timestamp",
+      html: "The key moment is at <i>01:23:45</i> in the recording"
+    ),
+    MenuSample(
+      description: "Underlined timestamp",
+      html: "Skip to <u>00:30:00</u> for the good part"
+    ),
+    MenuSample(
+      description: "Bold italic timestamp",
+      html: "Don't miss <b><i>02:00:00</i></b> - it's the climax!"
+    ),
+    MenuSample(
+      description: "Marked/highlighted timestamp",
+      html: "Jump to <mark>00:45:00</mark> for the spoiler"
+    ),
+    MenuSample(
+      description: "Strikethrough timestamp (corrected)",
+      html: "Was at <s>00:10:00</s>, now at <b>00:12:30</b>"
+    ),
+    MenuSample(
+      description: "Linked timestamp",
+      html: "See <a href=\"https://example.com/clip\">00:05:00</a> for the viral clip"
+    ),
+    MenuSample(
+      description: "Multiple formatted timestamps",
+      html: "<b>00:00:00</b> Intro | <i>00:10:00</i> Main | <u>00:50:00</u> Outro"
+    ),
+    MenuSample(
+      description: "Formatted timestamp with formatted surrounding text",
+      html: "<b>Important:</b> Check <i>00:25:00</i> for the <u>key insight</u>"
+    ),
+    MenuSample(
+      description: "All formatting styles on timestamps",
+      html: """
+        <b>00:00:00</b> Bold
+        <i>00:01:00</i> Italic
+        <u>00:02:00</u> Underline
+        <s>00:03:00</s> Strike
+        <mark>00:04:00</mark> Mark
+        <b><i>00:05:00</i></b> Bold+Italic
         """
     ),
   ]
