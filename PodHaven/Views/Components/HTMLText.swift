@@ -64,6 +64,9 @@ struct HTMLText: View {
     // Handle list tags
     result = handleListTags(result)
 
+    // Handle block tags
+    result = handleBlockTags(result)
+
     // Handle paragraph tags with intelligent spacing
     result = handleParagraphTags(result)
 
@@ -77,25 +80,82 @@ struct HTMLText: View {
   }
 
   private static func handleListTags(_ text: String) -> String {
-    var result = text
+    var output = ""
+    var index = text.startIndex
+    var listStack: [ListKind] = []
+    var orderedCounts: [Int] = []
 
-    // Strip <ul> tags (with newlines for spacing)
-    result = result.replacingOccurrences(of: "</ul>", with: "\n", options: .caseInsensitive)
-    result = result.replacingOccurrences(
-      of: "<ul[^>]*>",
-      with: "\n",
-      options: [.regularExpression, .caseInsensitive]
-    )
+    func appendNewlineIfNeeded() {
+      if let last = output.last, last != "\n" {
+        output.append("\n")
+      }
+    }
 
-    // Convert list items: opening tag becomes bullet, closing tag becomes newline
-    result = result.replacingOccurrences(
-      of: "<li[^>]*>",
-      with: "• ",
-      options: [.regularExpression, .caseInsensitive]
-    )
-    result = result.replacingOccurrences(of: "</li>", with: "\n", options: .caseInsensitive)
+    while index < text.endIndex {
+      if text[index] == "<", let tagEnd = text[index...].firstIndex(of: ">") {
+        let tagString = String(text[index...tagEnd])
+        if let listTag = ListTag(tagString: tagString) {
+          switch listTag {
+          case .unorderedOpen:
+            listStack.append(.unordered)
+            orderedCounts.append(0)
+            appendNewlineIfNeeded()
+          case .unorderedClose:
+            if !listStack.isEmpty {
+              listStack.removeLast()
+              orderedCounts.removeLast()
+            }
+            appendNewlineIfNeeded()
+          case .orderedOpen:
+            listStack.append(.ordered)
+            orderedCounts.append(0)
+            appendNewlineIfNeeded()
+          case .orderedClose:
+            if !listStack.isEmpty {
+              listStack.removeLast()
+              orderedCounts.removeLast()
+            }
+            appendNewlineIfNeeded()
+          case .itemOpen:
+            if let last = output.last, last != "\n" {
+              output.append("\n")
+            }
+            let listKind = listStack.last
+            if listKind == .ordered {
+              let next = (orderedCounts.popLast() ?? 0) + 1
+              orderedCounts.append(next)
+              output.append("\(next). ")
+            } else {
+              output.append("• ")
+            }
+          case .itemClose:
+            appendNewlineIfNeeded()
+          }
 
-    return result
+          index = text.index(after: tagEnd)
+          continue
+        }
+      }
+
+      output.append(text[index])
+      index = text.index(after: index)
+    }
+
+    return output
+  }
+
+  private static func handleBlockTags(_ text: String) -> String {
+    text
+      .replacingOccurrences(
+        of: "<(div|h[1-6]|section|article|header|footer|blockquote)[^>]*>",
+        with: "\n",
+        options: [.regularExpression, .caseInsensitive]
+      )
+      .replacingOccurrences(
+        of: "</(div|h[1-6]|section|article|header|footer|blockquote)>",
+        with: "\n",
+        options: [.regularExpression, .caseInsensitive]
+      )
   }
 
   private static func handleParagraphTags(_ text: String) -> String {
@@ -137,50 +197,50 @@ struct HTMLText: View {
       .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  internal static func decodeHTMLEntities(_ text: String) -> String {
-    let htmlEntities: [String: String] = [
-      "&amp;": "&",
-      "&lt;": "<",
-      "&gt;": ">",
-      "&quot;": "\"",
-      "&apos;": "'",
-      "&nbsp;": " ",
-      "&#39;": "'",
-      "&#x27;": "'",
-      "&rsquo;": "'",
-      "&lsquo;": "'",
-      "&rdquo;": "\"",
-      "&ldquo;": "\"",
-      "&mdash;": "—",
-      "&ndash;": "–",
-      "&hellip;": "…",
-      "&bull;": "•",
-      "&deg;": "°",
-      "&copy;": "©",
-      "&reg;": "®",
-      "&trade;": "™",
-      "&euro;": "€",
-      "&pound;": "£",
-      "&yen;": "¥",
-      "&cent;": "¢",
-      "&sect;": "§",
-      "&para;": "¶",
-      "&middot;": "·",
-      "&frac12;": "½",
-      "&frac14;": "¼",
-      "&frac34;": "¾",
-      "&sup1;": "¹",
-      "&sup2;": "²",
-      "&sup3;": "³",
-      "&times;": "×",
-      "&divide;": "÷",
-      "&plusmn;": "±",
-    ]
+  private static let htmlEntities: [String: String] = [
+    "&amp;": "&",
+    "&lt;": "<",
+    "&gt;": ">",
+    "&quot;": "\"",
+    "&apos;": "'",
+    "&nbsp;": " ",
+    "&#39;": "'",
+    "&#x27;": "'",
+    "&rsquo;": "'",
+    "&lsquo;": "'",
+    "&rdquo;": "\"",
+    "&ldquo;": "\"",
+    "&mdash;": "—",
+    "&ndash;": "–",
+    "&hellip;": "…",
+    "&bull;": "•",
+    "&deg;": "°",
+    "&copy;": "©",
+    "&reg;": "®",
+    "&trade;": "™",
+    "&euro;": "€",
+    "&pound;": "£",
+    "&yen;": "¥",
+    "&cent;": "¢",
+    "&sect;": "§",
+    "&para;": "¶",
+    "&middot;": "·",
+    "&frac12;": "½",
+    "&frac14;": "¼",
+    "&frac34;": "¾",
+    "&sup1;": "¹",
+    "&sup2;": "²",
+    "&sup3;": "³",
+    "&times;": "×",
+    "&divide;": "÷",
+    "&plusmn;": "±",
+  ]
 
+  internal static func decodeHTMLEntities(_ text: String) -> String {
     var result = text
 
     // Replace named entities first
-    for (entity, replacement) in htmlEntities {
+    for (entity, replacement) in Self.htmlEntities {
       result = result.replacingOccurrences(of: entity, with: replacement, options: .caseInsensitive)
     }
 
@@ -219,13 +279,21 @@ struct HTMLText: View {
       }
 
       var cursor = valueStart
+      var isValid = true
       while cursor < text.endIndex, text[cursor] != ";" {
+        let scalar = text[cursor]
+        let isValidDigit = isHex ? scalar.isHexDigit : scalar.isNumber
+        if !isValidDigit {
+          isValid = false
+          break
+        }
         cursor = text.index(after: cursor)
       }
 
-      guard cursor < text.endIndex else {
-        output.append(contentsOf: text[index..<text.endIndex])
-        return output
+      guard cursor < text.endIndex, isValid else {
+        output.append("&")
+        index = hashIndex
+        continue
       }
 
       let entityRange = index...cursor
@@ -317,40 +385,11 @@ struct HTMLText: View {
     for part in parts where !part.text.isEmpty {
       // Decode HTML entities in the text content
       let decodedText = decodeHTMLEntities(part.text)
-
-      var attributedPart = AttributedString(decodedText)
-      var resolvedFont = baseFont
-
-      if part.format.isBold {
-        resolvedFont = resolvedFont.weight(.bold)
-      }
-
-      if part.format.isItalic {
-        resolvedFont = resolvedFont.italic()
-      }
-
-      attributedPart.font = resolvedFont
-
-      if let linkURL = part.format.linkURL {
-        attributedPart.link = linkURL
-      }
-
-      if part.format.isUnderlined {
-        attributedPart.underlineStyle = .single
-      }
-
-      if part.format.isStrikethrough {
-        attributedPart.strikethroughStyle = .single
-      }
-
-      if part.format.isMarked {
-        attributedPart.backgroundColor = Color.yellow.opacity(0.3)
-      }
-
-      if part.format.isItalic {
-        attributedPart[AttributeScopes.UIKitAttributes.ObliquenessAttribute.self] = 0.2
-      }
-
+      let attributedPart = Self.styledAttributedString(
+        decodedText,
+        format: part.format,
+        baseFont: baseFont
+      )
       result.append(attributedPart)
     }
 
@@ -433,7 +472,7 @@ struct HTMLText: View {
       return true
     }
 
-    guard !validMatches.isEmpty else { return [.text(line)] }
+    guard !validMatches.isEmpty else { return [.text(textParts)] }
 
     // Helper to find format at a given offset
     func formatAt(_ offset: Int) -> TextFormat {
@@ -441,6 +480,21 @@ struct HTMLText: View {
         return format
       }
       return .plain
+    }
+
+    func sliceParts(in range: Range<Int>) -> [TextPart] {
+      var parts: [TextPart] = []
+
+      for (formatRange, format) in formatRanges {
+        let sliceRange = formatRange.clamped(to: range)
+        guard !sliceRange.isEmpty else { continue }
+        let startIndex = decoded.index(decoded.startIndex, offsetBy: sliceRange.lowerBound)
+        let endIndex = decoded.index(decoded.startIndex, offsetBy: sliceRange.upperBound)
+        let sliceText = String(decoded[startIndex..<endIndex])
+        parts.append(TextPart(text: sliceText, format: format))
+      }
+
+      return parts
     }
 
     // Build segments, splitting text parts at match boundaries
@@ -454,12 +508,7 @@ struct HTMLText: View {
 
       // Add text segment for content before this match
       if currentOffset < matchStart {
-        let beforeStart = decoded.index(decoded.startIndex, offsetBy: currentOffset)
-        let beforeEnd = decoded.index(decoded.startIndex, offsetBy: matchStart)
-        let beforeText = String(decoded[beforeStart..<beforeEnd])
-        segments.append(
-          .text(rebuildHTML(beforeText, from: currentOffset, formatRanges: formatRanges))
-        )
+        segments.append(.text(sliceParts(in: currentOffset..<matchStart)))
       }
 
       // Add match segment with its format
@@ -471,84 +520,10 @@ struct HTMLText: View {
 
     // Add remaining text after last match
     if currentOffset < decoded.count {
-      let remainingStart = decoded.index(decoded.startIndex, offsetBy: currentOffset)
-      let remainingText = String(decoded[remainingStart...])
-      segments.append(
-        .text(rebuildHTML(remainingText, from: currentOffset, formatRanges: formatRanges))
-      )
+      segments.append(.text(sliceParts(in: currentOffset..<decoded.count)))
     }
 
     return segments
-  }
-
-  // Rebuild HTML string for text between matches, preserving all format changes
-  private func rebuildHTML(
-    _ text: String,
-    from startOffset: Int,
-    formatRanges: [(range: Range<Int>, format: TextFormat)]
-  ) -> String {
-    guard !text.isEmpty else { return text }
-
-    // Helper to find format at a given offset
-    func formatAt(_ offset: Int) -> TextFormat {
-      for (range, format) in formatRanges where range.contains(offset) {
-        return format
-      }
-      return .plain
-    }
-
-    // Helper to wrap text with format tags
-    func wrapWithTags(_ str: String, _ format: TextFormat) -> String {
-      guard !str.isEmpty else { return str }
-      var result = str
-
-      if format.isBold {
-        result = "<b>\(result)</b>"
-      }
-      if format.isItalic {
-        result = "<i>\(result)</i>"
-      }
-      if format.isUnderlined {
-        result = "<u>\(result)</u>"
-      }
-      if format.isStrikethrough {
-        result = "<s>\(result)</s>"
-      }
-      if format.isMarked {
-        result = "<mark>\(result)</mark>"
-      }
-      if let url = format.linkURL {
-        result = "<a href=\"\(url.absoluteString)\">\(result)</a>"
-      }
-
-      return result
-    }
-
-    // Split text at format boundaries and wrap each piece
-    var result = ""
-    var currentChunk = ""
-    var currentFormat = formatAt(startOffset)
-    var offset = startOffset
-
-    for char in text {
-      let charFormat = formatAt(offset)
-
-      if charFormat != currentFormat {
-        // Format changed, wrap accumulated chunk and start new one
-        result += wrapWithTags(currentChunk, currentFormat)
-        currentChunk = String(char)
-        currentFormat = charFormat
-      } else {
-        currentChunk.append(char)
-      }
-
-      offset += 1
-    }
-
-    // Wrap final chunk
-    result += wrapWithTags(currentChunk, currentFormat)
-
-    return result
   }
 
   private func flowItems(from segments: [MenuSegment]) -> [FlowItem] {
@@ -557,17 +532,20 @@ struct HTMLText: View {
 
     for segment in segments {
       switch segment {
-      case .text(let html):
-        let textParts = Self.parseTextParts(html)
-
+      case .text(let textParts):
         for part in textParts {
-          let decoded = Self.decodeHTMLEntities(part.text)
-          var remaining = decoded[decoded.startIndex...]
+          var remaining = part.text[part.text.startIndex...]
 
           while !remaining.isEmpty {
             guard let firstNonSpace = remaining.firstIndex(where: { $0 != " " }) else {
               items.append(
-                .word(buildFlowAttributedString(String(remaining), part.format, baseFont))
+                .word(
+                  Self.styledAttributedString(
+                    String(remaining),
+                    format: part.format,
+                    baseFont: baseFont
+                  )
+                )
               )
               break
             }
@@ -578,22 +556,28 @@ struct HTMLText: View {
               wordEnd = remaining.index(after: wordEnd)
             }
             let wordString = String(remaining[wordStart..<wordEnd])
-            items.append(.word(buildFlowAttributedString(wordString, part.format, baseFont)))
+            items.append(
+              .word(
+                Self.styledAttributedString(wordString, format: part.format, baseFont: baseFont)
+              )
+            )
             remaining = remaining[wordEnd...]
           }
         }
 
       case .match(let str, let format):
-        let attrStr = buildFlowAttributedString(str, format, baseFont)
+        let attrStr = Self.styledAttributedString(str, format: format, baseFont: baseFont)
         items.append(.menu(attrStr, str))
       }
     }
     return items
   }
 
-  private func buildFlowAttributedString(_ text: String, _ format: TextFormat, _ baseFont: Font)
-    -> AttributedString
-  {
+  private static func styledAttributedString(
+    _ text: String,
+    format: TextFormat,
+    baseFont: Font
+  ) -> AttributedString {
     var attributedString = AttributedString(text)
     var resolvedFont = baseFont
 
@@ -653,6 +637,66 @@ struct HTMLText: View {
       isMarked: false,
       linkURL: nil
     )
+  }
+
+  private enum ListKind {
+    case unordered
+    case ordered
+  }
+
+  private enum ListTag {
+    case unorderedOpen
+    case unorderedClose
+    case orderedOpen
+    case orderedClose
+    case itemOpen
+    case itemClose
+
+    init?(tagString: String) {
+      let trimmed = tagString.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard
+        let parsed = Self.parseTagName(from: trimmed)
+      else {
+        return nil
+      }
+
+      let name = parsed.name
+      let isClosing = parsed.isClosing
+
+      switch name {
+      case "ul":
+        self = isClosing ? .unorderedClose : .unorderedOpen
+      case "ol":
+        self = isClosing ? .orderedClose : .orderedOpen
+      case "li":
+        self = isClosing ? .itemClose : .itemOpen
+      default:
+        return nil
+      }
+    }
+
+    private static func parseTagName(from tagString: String) -> (
+      name: String,
+      isClosing: Bool
+    )? {
+      guard tagString.hasPrefix("<"), tagString.hasSuffix(">") else { return nil }
+      var content = tagString.dropFirst().dropLast().trimmingCharacters(in: .whitespacesAndNewlines)
+      let isClosing = content.hasPrefix("/")
+      if isClosing {
+        content = content.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+      }
+
+      if content.hasSuffix("/") {
+        return nil
+      }
+
+      guard let namePart = content.split(whereSeparator: { $0.isWhitespace || $0 == "/" }).first
+      else {
+        return nil
+      }
+
+      return (name: namePart.lowercased(), isClosing: isClosing)
+    }
   }
 
   private class FormatStack {
@@ -726,36 +770,67 @@ struct HTMLText: View {
 
     init(tagString: String) {
       let trimmed = tagString.trimmingCharacters(in: .whitespacesAndNewlines)
-      let lowercase = trimmed.lowercased()
 
-      switch lowercase {
-      case "<b>": self = .boldOpen
-      case "</b>": self = .boldClose
-      case "<strong>": self = .strongOpen
-      case "</strong>": self = .strongClose
-      case "<i>": self = .italicOpen
-      case "</i>": self = .italicClose
-      case "<em>": self = .emOpen
-      case "</em>": self = .emClose
-      case "<u>": self = .underlineOpen
-      case "</u>": self = .underlineClose
-      case "<strike>": self = .strikeOpen
-      case "</strike>": self = .strikeClose
-      case "<s>": self = .sOpen
-      case "</s>": self = .sClose
-      case "<del>": self = .delOpen
-      case "</del>": self = .delClose
-      case "<mark>": self = .markOpen
-      case "</mark>": self = .markClose
-      case "</a>": self = .anchorClose
-      default:
-        if lowercase.hasPrefix("<a") {
+      guard let parsed = Self.parseTagName(from: trimmed) else {
+        self = .unknown
+        return
+      }
+
+      let name = parsed.name
+      let isClosing = parsed.isClosing
+
+      switch name {
+      case "b":
+        self = isClosing ? .boldClose : .boldOpen
+      case "strong":
+        self = isClosing ? .strongClose : .strongOpen
+      case "i":
+        self = isClosing ? .italicClose : .italicOpen
+      case "em":
+        self = isClosing ? .emClose : .emOpen
+      case "u":
+        self = isClosing ? .underlineClose : .underlineOpen
+      case "strike":
+        self = isClosing ? .strikeClose : .strikeOpen
+      case "s":
+        self = isClosing ? .sClose : .sOpen
+      case "del":
+        self = isClosing ? .delClose : .delOpen
+      case "mark":
+        self = isClosing ? .markClose : .markOpen
+      case "a":
+        if isClosing {
+          self = .anchorClose
+        } else {
           let url = Self.extractHref(from: trimmed)
           self = .anchorOpen(url)
-        } else {
-          self = .unknown
         }
+      default:
+        self = .unknown
       }
+    }
+
+    private static func parseTagName(from tagString: String) -> (
+      name: String,
+      isClosing: Bool
+    )? {
+      guard tagString.hasPrefix("<"), tagString.hasSuffix(">") else { return nil }
+      var content = tagString.dropFirst().dropLast().trimmingCharacters(in: .whitespacesAndNewlines)
+      let isClosing = content.hasPrefix("/")
+      if isClosing {
+        content = content.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+      }
+
+      if content.hasSuffix("/") {
+        return nil
+      }
+
+      guard let namePart = content.split(whereSeparator: { $0.isWhitespace || $0 == "/" }).first
+      else {
+        return nil
+      }
+
+      return (name: namePart.lowercased(), isClosing: isClosing)
     }
 
     private static func extractHref(from tagString: String) -> URL? {
@@ -797,7 +872,7 @@ struct HTMLText: View {
   }
 
   private enum MenuSegment {
-    case text(String)
+    case text([TextPart])
     case match(String, TextFormat)
   }
 

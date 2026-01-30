@@ -537,6 +537,43 @@ import UIKit
     #expect(string.contains("• Em dash — here"))
   }
 
+  @Test("that ordered lists convert to numbered items")
+  func testOrderedList() throws {
+    let html = "<ol><li>First</li><li>Second</li><li>Third</li></ol>"
+    guard
+      let attributed = HTMLText.buildAttributedStringForTesting(
+        html: html,
+        font: .body
+      )
+    else {
+      Issue.record("Failed to build attributed string")
+      return
+    }
+
+    let string = String(attributed.characters)
+    #expect(string.contains("1. First"))
+    #expect(string.contains("2. Second"))
+    #expect(string.contains("3. Third"))
+  }
+
+  @Test("that list items are separated even when missing closing tags")
+  func testUnclosedListItemSeparation() throws {
+    let html = "<ul><li>First<li>Second<li>Third</ul>"
+    guard
+      let attributed = HTMLText.buildAttributedStringForTesting(
+        html: html,
+        font: .body
+      )
+    else {
+      Issue.record("Failed to build attributed string")
+      return
+    }
+
+    let string = String(attributed.characters)
+    let lines = string.components(separatedBy: "\n").filter { !$0.isEmpty }
+    #expect(lines.count >= 3)
+  }
+
   @Test("that empty list items are handled")
   func testEmptyListItems() throws {
     let html = "<ul><li></li><li>Content</li><li></li></ul>"
@@ -552,6 +589,89 @@ import UIKit
 
     let string = String(attributed.characters)
     #expect(string.contains("• Content"))
+  }
+
+  // MARK: - Tag Attribute Tolerance
+
+  @Test("that formatting tags with attributes still apply styles")
+  func testFormattingTagsWithAttributes() throws {
+    let html = "<b class=\"hero\">Bold</b> <i style=\"font-style: italic\">Italic</i>"
+    guard
+      let attributed = HTMLText.buildAttributedStringForTesting(
+        html: html,
+        font: .body
+      )
+    else {
+      Issue.record("Failed to build attributed string")
+      return
+    }
+
+    let boldRun = attributed.runs.first { run in
+      String(attributed[run.range].characters).contains("Bold")
+    }
+    #expect(boldRun != nil)
+    let boldFont = boldRun?.attributes[AttributeScopes.SwiftUIAttributes.FontAttribute.self]
+    #expect(boldFont == Font.body.weight(.bold))
+
+    let italicRun = attributed.runs.first { run in
+      String(attributed[run.range].characters).contains("Italic")
+    }
+    #expect(italicRun != nil)
+    let italicFont = italicRun?.attributes[AttributeScopes.SwiftUIAttributes.FontAttribute.self]
+    #expect(italicFont == Font.body.italic())
+  }
+
+  @Test("that anchor tags with attributes still resolve links")
+  func testAnchorTagWithAttributes() throws {
+    let html = "<a class=\"link\" href=\"https://example.com\">Example</a>"
+    guard
+      let attributed = HTMLText.buildAttributedStringForTesting(
+        html: html,
+        font: .body
+      )
+    else {
+      Issue.record("Failed to build attributed string")
+      return
+    }
+
+    let nsAttributed = NSAttributedString(attributed)
+    let linkRange = (nsAttributed.string as NSString).range(of: "Example")
+    #expect(linkRange.location != NSNotFound)
+    let linkAttribute = nsAttributed.attribute(.link, at: linkRange.location, effectiveRange: nil)
+    #expect(linkAttribute as? URL == URL(string: "https://example.com"))
+  }
+
+  // MARK: - Block Tags
+
+  @Test("that div and heading tags create line breaks")
+  func testBlockTagsCreateLineBreaks() throws {
+    let html = "<div>Intro</div><h1>Header</h1><div>Body</div>"
+    guard
+      let attributed = HTMLText.buildAttributedStringForTesting(
+        html: html,
+        font: .body
+      )
+    else {
+      Issue.record("Failed to build attributed string")
+      return
+    }
+
+    let string = String(attributed.characters)
+    let lines = string.components(separatedBy: "\n").filter { !$0.isEmpty }
+    #expect(lines.count == 3)
+    #expect(lines[0] == "Intro")
+    #expect(lines[1] == "Header")
+    #expect(lines[2] == "Body")
+  }
+
+  // MARK: - Numeric Entity Recovery
+
+  @Test("that malformed numeric entities do not block later decoding")
+  func testMalformedNumericEntityRecovery() throws {
+    let html = "Broken &#123 still decodes &#x2019; end"
+    let decoded = HTMLText.decodeHTMLEntities(html)
+    #expect(decoded.contains("&#123"))
+    #expect(decoded.contains("’"))
   }
 
   @Test("that ul tags without li are stripped cleanly")

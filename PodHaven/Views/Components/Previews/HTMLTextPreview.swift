@@ -64,6 +64,13 @@ private let htmlTextPreviewGroups: [HTMLTextPreviewGroup] = [
         font: .body
       ),
       .init(
+        description: "Tags with attributes",
+        html:
+          "<b class=\"hero\">Bold with class</b> and <i style=\"font-style: italic\">italic with style</i> still render.",
+        color: .indigo,
+        font: .body
+      ),
+      .init(
         description: "Nested combinations",
         html:
           "You can combine <b><i>bold and italic</i></b>, or even <b><i><u>all three styles</u></i></b>!",
@@ -98,6 +105,30 @@ private let htmlTextPreviewGroups: [HTMLTextPreviewGroup] = [
         html:
           "<h1>Episode Title That Got Cut Off</h1><p>This simulates how PodcastIndex API truncates descriptions mid-sentence without proper closing tags",
         color: .red,
+        font: .body
+      ),
+    ]
+  ),
+  .init(
+    title: "Block Tags & Headings",
+    samples: [
+      .init(
+        description: "Div blocks",
+        html: "<div>Intro line.</div><div>Second line with <b>bold</b>.</div>",
+        color: .primary,
+        font: .body
+      ),
+      .init(
+        description: "Heading levels",
+        html: "<h1>Main Title</h1><h2>Subtitle</h2><div>Body text follows under headings.</div>",
+        color: .secondary,
+        font: .body
+      ),
+      .init(
+        description: "Section and article tags",
+        html:
+          "<section>Section opener</section><article>Article body with <em>emphasis</em>.</article>",
+        color: .orange,
         font: .body
       ),
     ]
@@ -372,6 +403,12 @@ private let htmlTextPreviewGroups: [HTMLTextPreviewGroup] = [
       .init(
         description: "Well-formed list",
         html: "<ul><li>First item</li><li>Second item</li><li>Third item</li></ul>",
+        color: .primary,
+        font: .body
+      ),
+      .init(
+        description: "Ordered list",
+        html: "<ol><li>Step one</li><li>Step two</li><li>Step three</li></ol>",
         color: .primary,
         font: .body
       ),
