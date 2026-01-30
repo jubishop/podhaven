@@ -102,6 +102,38 @@ import UIKit
     #expect(HTMLText.decodeHTMLEntities("&#X2019;") == "’")
   }
 
+  @Test("that entity-only strings build attributed output")
+  func testEntityOnlyBuildAttributedString() throws {
+    let html = "Plain entities: &amp; &lt; &gt; &ldquo;quoted&rdquo; &mdash; no tags."
+    guard
+      let attributed = HTMLText.buildAttributedStringForTesting(
+        html: html,
+        font: .body
+      )
+    else {
+      Issue.record("Expected attributed string for entity-only input")
+      return
+    }
+
+    #expect(String(attributed.characters) == "Plain entities: & < > \"quoted\" — no tags.")
+  }
+
+  @Test("that NBSP decodes to a non-breaking space")
+  func testNBSPDecoding() throws {
+    let html = "A&nbsp;B"
+    guard
+      let attributed = HTMLText.buildAttributedStringForTesting(
+        html: html,
+        font: .body
+      )
+    else {
+      Issue.record("Expected attributed string for NBSP entity")
+      return
+    }
+
+    #expect(String(attributed.characters) == "A\u{00A0}B")
+  }
+
   @Test("that nested formatting keeps expected ranges")
   func testNestedFormatting() throws {
     let html = "<b>bold <i>italic</i> bold</b>"

@@ -137,6 +137,18 @@ private let htmlTextPreviewGroups: [HTMLTextPreviewGroup] = [
     title: "Entities & Symbols",
     samples: [
       .init(
+        description: "Entity-only plain text",
+        html: "Plain entities: &amp; &lt; &gt; &ldquo;quoted&rdquo; &mdash; no tags.",
+        color: .primary,
+        font: .body
+      ),
+      .init(
+        description: "NBSP should not break",
+        html: "Narrow test: A&nbsp;B&nbsp;C in a constrained width.",
+        color: .secondary,
+        font: .body
+      ),
+      .init(
         description: "Quotes and punctuation",
         html: "Quotation marks: &lsquo;single&rsquo; and &ldquo;double&rdquo; quotes work great!",
         color: .purple,

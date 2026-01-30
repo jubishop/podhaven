@@ -2,6 +2,8 @@
 
 import SwiftUI
 
+// Renders a small HTML subset to Text/AttributedString with lossy preprocessing.
+// Lists become bullets/numbered lines, block tags become newlines, entities are decoded.
 struct HTMLText: View {
   @Environment(\.font) private var environmentFont
 
@@ -48,7 +50,11 @@ struct HTMLText: View {
   // MARK: - Main Parsing
 
   private static func buildAttributedString(html: String, font: Font) -> AttributedString? {
-    guard html.isHTML() else { return nil }
+    guard html.isHTML() else {
+      let decoded = decodeHTMLEntities(html)
+      guard decoded != html else { return nil }
+      return AttributedString(decoded)
+    }
 
     let cleanedHTML = preprocessHTML(html)
     let textParts = parseTextParts(cleanedHTML)
@@ -81,6 +87,7 @@ struct HTMLText: View {
 
   private static func handleListTags(_ text: String) -> String {
     var output = ""
+    output.reserveCapacity(text.count)
     var index = text.startIndex
     var listStack: [ListKind] = []
     var orderedCounts: [Int] = []
@@ -203,7 +210,7 @@ struct HTMLText: View {
     "&gt;": ">",
     "&quot;": "\"",
     "&apos;": "'",
-    "&nbsp;": " ",
+    "&nbsp;": "\u{00A0}",
     "&#39;": "'",
     "&#x27;": "'",
     "&rsquo;": "'",
@@ -253,6 +260,7 @@ struct HTMLText: View {
   private static func decodeNumericEntities(_ text: String) -> String {
     var index = text.startIndex
     var output = ""
+    output.reserveCapacity(text.count)
 
     while index < text.endIndex {
       let character = text[index]
@@ -655,7 +663,7 @@ struct HTMLText: View {
     init?(tagString: String) {
       let trimmed = tagString.trimmingCharacters(in: .whitespacesAndNewlines)
       guard
-        let parsed = Self.parseTagName(from: trimmed)
+        let parsed = HTMLText.parseTagName(from: trimmed)
       else {
         return nil
       }
@@ -673,29 +681,6 @@ struct HTMLText: View {
       default:
         return nil
       }
-    }
-
-    private static func parseTagName(from tagString: String) -> (
-      name: String,
-      isClosing: Bool
-    )? {
-      guard tagString.hasPrefix("<"), tagString.hasSuffix(">") else { return nil }
-      var content = tagString.dropFirst().dropLast().trimmingCharacters(in: .whitespacesAndNewlines)
-      let isClosing = content.hasPrefix("/")
-      if isClosing {
-        content = content.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
-      }
-
-      if content.hasSuffix("/") {
-        return nil
-      }
-
-      guard let namePart = content.split(whereSeparator: { $0.isWhitespace || $0 == "/" }).first
-      else {
-        return nil
-      }
-
-      return (name: namePart.lowercased(), isClosing: isClosing)
     }
   }
 
@@ -771,7 +756,7 @@ struct HTMLText: View {
     init(tagString: String) {
       let trimmed = tagString.trimmingCharacters(in: .whitespacesAndNewlines)
 
-      guard let parsed = Self.parseTagName(from: trimmed) else {
+      guard let parsed = HTMLText.parseTagName(from: trimmed) else {
         self = .unknown
         return
       }
@@ -810,53 +795,52 @@ struct HTMLText: View {
       }
     }
 
-    private static func parseTagName(from tagString: String) -> (
-      name: String,
-      isClosing: Bool
-    )? {
-      guard tagString.hasPrefix("<"), tagString.hasSuffix(">") else { return nil }
-      var content = tagString.dropFirst().dropLast().trimmingCharacters(in: .whitespacesAndNewlines)
-      let isClosing = content.hasPrefix("/")
-      if isClosing {
-        content = content.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
-      }
-
-      if content.hasSuffix("/") {
-        return nil
-      }
-
-      guard let namePart = content.split(whereSeparator: { $0.isWhitespace || $0 == "/" }).first
-      else {
-        return nil
-      }
-
-      return (name: namePart.lowercased(), isClosing: isClosing)
-    }
-
     private static func extractHref(from tagString: String) -> URL? {
-      // Match href="..." or href='...'
-      let patterns = [
-        #"href\s*=\s*"([^"]+)""#,
-        #"href\s*=\s*'([^']+)'"#,
-      ]
-
-      for pattern in patterns {
-        if let regex = try? NSRegularExpression(
-          pattern: pattern,
-          options: [.caseInsensitive]
-        ) {
-          let nsRange = NSRange(tagString.startIndex..<tagString.endIndex, in: tagString)
-          if let match = regex.firstMatch(in: tagString, options: [], range: nsRange),
-            let hrefRange = Range(match.range(at: 1), in: tagString)
-          {
-            let urlString = String(tagString[hrefRange])
-            return URL(string: urlString)
-          }
+      let nsRange = NSRange(tagString.startIndex..<tagString.endIndex, in: tagString)
+      for regex in hrefRegexes {
+        if let match = regex.firstMatch(in: tagString, options: [], range: nsRange),
+          let hrefRange = Range(match.range(at: 1), in: tagString)
+        {
+          let urlString = String(tagString[hrefRange])
+          return URL(string: urlString)
         }
       }
 
       return nil
     }
+
+    private static let hrefRegexes: [NSRegularExpression] = {
+      let patterns = [
+        #"href\s*=\s*"([^"]+)""#,
+        #"href\s*=\s*'([^']+)'"#,
+      ]
+      return patterns.compactMap {
+        try? NSRegularExpression(pattern: $0, options: [.caseInsensitive])
+      }
+    }()
+  }
+
+  private nonisolated static func parseTagName(from tagString: String) -> (
+    name: String,
+    isClosing: Bool
+  )? {
+    guard tagString.hasPrefix("<"), tagString.hasSuffix(">") else { return nil }
+    var content = tagString.dropFirst().dropLast().trimmingCharacters(in: .whitespacesAndNewlines)
+    let isClosing = content.hasPrefix("/")
+    if isClosing {
+      content = content.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    if content.hasSuffix("/") {
+      return nil
+    }
+
+    guard let namePart = content.split(whereSeparator: { $0.isWhitespace || $0 == "/" }).first
+    else {
+      return nil
+    }
+
+    return (name: namePart.lowercased(), isClosing: isClosing)
   }
 
   private struct MenuConfig {
@@ -912,11 +896,13 @@ struct HTMLText: View {
       var x: CGFloat = 0
       var y: CGFloat = 0
       var rowHeight: CGFloat = 0
-      let maxWidth = proposal.width ?? .infinity
+      var maxLineWidth: CGFloat = 0
+      let maxWidth = proposal.width ?? .greatestFiniteMagnitude
 
       for subview in subviews {
         let size = subview.sizeThatFits(.unspecified)
         if x + size.width > maxWidth && x > 0 {
+          maxLineWidth = max(maxLineWidth, x)
           x = 0
           y += rowHeight
           rowHeight = 0
@@ -926,7 +912,9 @@ struct HTMLText: View {
         rowHeight = max(rowHeight, size.height)
       }
 
-      return (positions: positions, size: CGSize(width: maxWidth, height: y + rowHeight))
+      maxLineWidth = max(maxLineWidth, x)
+      let finalWidth = proposal.width ?? maxLineWidth
+      return (positions: positions, size: CGSize(width: finalWidth, height: y + rowHeight))
     }
   }
 
