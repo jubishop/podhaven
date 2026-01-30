@@ -366,15 +366,15 @@ struct HTMLText: View {
       ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
         switch line {
         case .empty:
-          Color.clear.frame(height: 8)
+          Color.clear.frame(height: 12)
         case .plain(let html):
           HTMLText(html)
         case .mixed(let segments):
           FlowLayout {
             ForEach(Array(flowItems(from: segments).enumerated()), id: \.offset) { _, item in
               switch item {
-              case .word(let str):
-                Text(str)
+              case .word(let attrStr):
+                Text(attrStr)
               case .menu(let str):
                 Menu {
                   config.content(str)
@@ -447,37 +447,81 @@ struct HTMLText: View {
   }
 
   private func flowItems(from segments: [MenuSegment]) -> [FlowItem] {
+    let baseFont = environmentFont ?? .body
     var items: [FlowItem] = []
+
     for segment in segments {
       switch segment {
       case .text(let html):
-        let stripped = html.replacingOccurrences(
-          of: "<[^>]+>",
-          with: "",
-          options: .regularExpression
-        )
-        let decoded = Self.decodeHTMLEntities(stripped)
-        // Split into words, each including its trailing whitespace
-        var remaining = decoded[decoded.startIndex...]
-        while !remaining.isEmpty {
-          guard let firstNonSpace = remaining.firstIndex(where: { $0 != " " }) else {
-            items.append(.word(String(remaining)))
-            break
+        let textParts = Self.parseTextParts(html)
+
+        for part in textParts {
+          let decoded = Self.decodeHTMLEntities(part.text)
+          var remaining = decoded[decoded.startIndex...]
+
+          while !remaining.isEmpty {
+            guard let firstNonSpace = remaining.firstIndex(where: { $0 != " " }) else {
+              items.append(
+                .word(buildFlowAttributedString(String(remaining), part.format, baseFont))
+              )
+              break
+            }
+            let wordStart = remaining.startIndex
+            let afterWord = remaining[firstNonSpace...].firstIndex(of: " ") ?? remaining.endIndex
+            var wordEnd = afterWord
+            while wordEnd < remaining.endIndex && remaining[wordEnd] == " " {
+              wordEnd = remaining.index(after: wordEnd)
+            }
+            let wordString = String(remaining[wordStart..<wordEnd])
+            items.append(.word(buildFlowAttributedString(wordString, part.format, baseFont)))
+            remaining = remaining[wordEnd...]
           }
-          let wordStart = remaining.startIndex
-          let afterWord = remaining[firstNonSpace...].firstIndex(of: " ") ?? remaining.endIndex
-          var wordEnd = afterWord
-          while wordEnd < remaining.endIndex && remaining[wordEnd] == " " {
-            wordEnd = remaining.index(after: wordEnd)
-          }
-          items.append(.word(String(remaining[wordStart..<wordEnd])))
-          remaining = remaining[wordEnd...]
         }
+
       case .match(let str):
         items.append(.menu(str))
       }
     }
     return items
+  }
+
+  private func buildFlowAttributedString(_ text: String, _ format: TextFormat, _ baseFont: Font)
+    -> AttributedString
+  {
+    var attributedString = AttributedString(text)
+    var resolvedFont = baseFont
+
+    if format.isBold {
+      resolvedFont = resolvedFont.weight(.bold)
+    }
+
+    if format.isItalic {
+      resolvedFont = resolvedFont.italic()
+    }
+
+    attributedString.font = resolvedFont
+
+    if let linkURL = format.linkURL {
+      attributedString.link = linkURL
+    }
+
+    if format.isUnderlined {
+      attributedString.underlineStyle = .single
+    }
+
+    if format.isStrikethrough {
+      attributedString.strikethroughStyle = .single
+    }
+
+    if format.isMarked {
+      attributedString.backgroundColor = Color.yellow.opacity(0.3)
+    }
+
+    if format.isItalic {
+      attributedString[AttributeScopes.UIKitAttributes.ObliquenessAttribute.self] = 0.2
+    }
+
+    return attributedString
   }
 
   // MARK: - Supporting Types
@@ -652,7 +696,7 @@ struct HTMLText: View {
   }
 
   private enum FlowItem {
-    case word(String)
+    case word(AttributedString)
     case menu(String)
   }
 
@@ -1190,5 +1234,119 @@ private struct HTMLTextPreviewGallery: View {
 
 #Preview {
   HTMLTextPreviewGallery()
+}
+
+private struct HTMLTextMenuPreview: View {
+  private let timestampPattern = /\d{1,2}:\d{2}(?::\d{2})?/
+
+  struct MenuSample {
+    let description: String
+    let html: String
+  }
+
+  private let samples: [MenuSample] = [
+    MenuSample(
+      description: "Bold text before timestamp",
+      html: "<b>Chapter 1:</b> 00:15:30 - Introduction to the topic"
+    ),
+    MenuSample(
+      description: "Italic text after timestamp",
+      html: "00:30:00 - <i>Special guest interview</i> with the author"
+    ),
+    MenuSample(
+      description: "Multiple formats on same line",
+      html: "<b>Act II</b> 01:15:00 - The <i>turning point</i> arrives"
+    ),
+    MenuSample(
+      description: "Bold, italic, and underline mixed",
+      html: "<b><i>Important:</i></b> 00:45:30 - <u>Key takeaway</u> from discussion"
+    ),
+    MenuSample(
+      description: "Strikethrough and mark",
+      html: "<s>Old chapter</s> <mark>NEW:</mark> 02:00:00 - Updated content"
+    ),
+    MenuSample(
+      description: "Link on same line as timestamp",
+      html:
+        "00:20:00 - Check out <a href=\"https://example.com\">this resource</a> for more info"
+    ),
+    MenuSample(
+      description: "Multiple timestamps with formatting",
+      html: "<b>Intro:</b> 00:00:00 | <i>Main:</i> 00:10:00 | <u>Outro:</u> 00:55:00"
+    ),
+    MenuSample(
+      description: "Nested formatting around timestamp",
+      html: "Before <b>the <i>big</i> moment</b> at 00:25:00 comes <i>the <b>setup</b></i>"
+    ),
+    MenuSample(
+      description: "Multi-line with mixed formatting",
+      html: """
+        <p><b>Episode Chapters:</b></p>
+        <p>00:00:00 - <i>Welcome</i> and introductions</p>
+        <p><b>Part 1:</b> 00:05:30 - Background context</p>
+        <p><mark>Highlight:</mark> 00:30:00 - The <b>key revelation</b></p>
+        <p>01:00:00 - <u>Closing thoughts</u> and <a href=\"https://example.com\">links</a></p>
+        """
+    ),
+    MenuSample(
+      description: "Plain line (no timestamp) between formatted lines",
+      html: """
+        <b>Chapter 1:</b> 00:10:00 - Opening
+        This line has no timestamp but has <b>bold</b> and <i>italic</i> text.
+        <b>Chapter 2:</b> 00:20:00 - Continuation
+        """
+    ),
+    MenuSample(
+      description: "HTML entities with formatting",
+      html:
+        "<b>Q&amp;A:</b> 00:40:00 - Listener questions &mdash; <i>&ldquo;Best practices?&rdquo;</i>"
+    ),
+    MenuSample(
+      description: "List items with timestamps",
+      html: """
+        <ul>
+        <li><b>Intro:</b> 00:00:00 - Welcome</li>
+        <li><i>Deep dive:</i> 00:15:00 - Technical details</li>
+        <li><u>Wrap-up:</u> 00:45:00 - Summary</li>
+        </ul>
+        """
+    ),
+  ]
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 20) {
+        Text("Menu with HTML Formatting")
+          .font(.title2)
+          .bold()
+
+        Text("Timestamps are interactive menus; other text preserves HTML styling.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        ForEach(Array(samples.enumerated()), id: \.offset) { index, sample in
+          VStack(alignment: .leading, spacing: 8) {
+            Text(sample.description)
+              .font(.headline)
+
+            HTMLText(sample.html, menuMatching: timestampPattern) { timestamp in
+              Button("Play from \(timestamp)") {}
+              Button("Copy timestamp") {}
+            }
+            .font(.body)
+          }
+
+          if index < samples.count - 1 {
+            Divider()
+          }
+        }
+      }
+      .padding()
+    }
+  }
+}
+
+#Preview("Menu + HTML Formatting") {
+  HTMLTextMenuPreview()
 }
 #endif
