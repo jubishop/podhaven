@@ -108,6 +108,7 @@ struct UnsavedEpisode:
   // Parses a timestamp string (e.g. "2:15", "14:30", "1:02:15") into total seconds.
   static func parseTimestamp(_ timestamp: some StringProtocol) -> Int? {
     let components = timestamp.split(separator: ":")
+
     guard components.count >= 2, components.count <= 3 else { return nil }
 
     guard components.count == 3 else {
@@ -116,10 +117,12 @@ struct UnsavedEpisode:
       else { return nil }
       return minutes * 60 + seconds
     }
+
     guard let hours = Int(components[0]),
       let minutes = Int(components[1]),
       let seconds = Int(components[2])
     else { return nil }
+
     return hours * 3600 + minutes * 60 + seconds
   }
 
