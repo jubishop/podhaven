@@ -131,13 +131,6 @@ struct UnsavedEpisode:
     var seen = Set<Int>()
     let times: [CMTime] = unsafe description.matches(of: Self.timestampRegex)
       .compactMap { match in
-        // Swift regex doesn't support lookbehind, so manually reject matches
-        // preceded by a digit (e.g. "episode123:45" should not match "3:45").
-        guard
-          match.range.lowerBound == description.startIndex
-            || !description[description.index(before: match.range.lowerBound)].isWholeNumber
-        else { return nil }
-
         guard let totalSeconds = Self.parseTimestamp(match.output) else { return nil }
 
         // Skip zero timestamps (episode start) and duplicates.

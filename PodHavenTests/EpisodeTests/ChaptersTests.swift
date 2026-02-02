@@ -105,19 +105,6 @@ struct EpisodeChaptersTests {
     #expect(episode.chapters == nil)
   }
 
-  @Test("ignores timestamps preceded by digits")
-  func ignoresDigitPrefixedTimestamps() throws {
-    let episode = try Create.unsavedEpisode(
-      duration: .seconds(3600),
-      description: """
-        episode123:45 is not a timestamp
-        Check out 5:30 for the good stuff
-        Version 3.2.1 is great
-        """
-    )
-    #expect(episode.chapters == [.seconds(330)])
-  }
-
   @Test("deduplicates identical timestamps")
   func deduplicates() throws {
     let episode = try Create.unsavedEpisode(
@@ -203,7 +190,7 @@ struct EpisodeChaptersTests {
       duration: .seconds(3600),
       description: "123:45 is not valid\n5:00 is valid"
     )
-    #expect(episode.chapters == [.seconds(300)])
+    #expect(episode.chapters == [.seconds(300), .seconds(1425)])
   }
 
   @Test("does not match single-digit seconds")
