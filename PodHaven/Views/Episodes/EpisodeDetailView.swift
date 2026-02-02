@@ -207,11 +207,7 @@ struct EpisodeDetailView: View {
 
           HTMLText(
             description,
-            menuMatching: unsafe UnsavedEpisode.timestampRegex,
-            menuValidator: { text, matchStart in
-              matchStart == text.startIndex
-                || !text[text.index(before: matchStart)].isWholeNumber
-            }
+            menuMatching: unsafe UnsavedEpisode.timestampRegex
           ) { timestamp in
             AppIcon.playFromHere.labelButton {
               viewModel.playAt(timestamp: timestamp)

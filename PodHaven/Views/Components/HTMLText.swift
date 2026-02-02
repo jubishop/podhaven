@@ -18,13 +18,11 @@ struct HTMLText: View {
   init<Content: View>(
     _ html: String,
     menuMatching pattern: Regex<Substring>,
-    menuValidator: ((String, String.Index) -> Bool)? = nil,
     @ViewBuilder menuContent: @escaping (String) -> Content
   ) {
     self.html = html
     self.menuConfig = MenuConfig(
       pattern: pattern,
-      validator: menuValidator,
       content: { AnyView(menuContent($0)) }
     )
   }
@@ -473,14 +471,8 @@ struct HTMLText: View {
 
     // Find matches in decoded text
     let matches = decoded.matches(of: config.pattern)
-    let validMatches = matches.filter { match in
-      if let validator = config.validator {
-        return validator(decoded, match.range.lowerBound)
-      }
-      return true
-    }
 
-    guard !validMatches.isEmpty else { return [.text(textParts)] }
+    guard !matches.isEmpty else { return [.text(textParts)] }
 
     // Helper to find format at a given offset
     func formatAt(_ offset: Int) -> TextFormat {
@@ -509,7 +501,7 @@ struct HTMLText: View {
     var segments: [MenuSegment] = []
     var currentOffset = 0
 
-    for match in validMatches {
+    for match in matches {
       let matchStart = decoded.distance(from: decoded.startIndex, to: match.range.lowerBound)
       let matchEnd = decoded.distance(from: decoded.startIndex, to: match.range.upperBound)
       let matchText = String(decoded[match.range])
@@ -845,7 +837,6 @@ struct HTMLText: View {
 
   private struct MenuConfig {
     let pattern: Regex<Substring>
-    let validator: ((String, String.Index) -> Bool)?
     let content: (String) -> AnyView
   }
 
