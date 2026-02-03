@@ -50,6 +50,24 @@ import Tagged
     (sharedState.onDeck?.duration ?? .zero).safe
   }
 
+  // MARK: - Chapters
+
+  var chapters: [CMTime]? { sharedState.onDeck?.chapters }
+
+  var hasChapters: Bool { chapters != nil }
+
+  var canGoToPreviousChapter: Bool {
+    guard let chapters, !chapters.isEmpty else { return false }
+    let currentSeconds = sliderValue
+    return chapters.contains { $0.seconds < currentSeconds }
+  }
+
+  var canGoToNextChapter: Bool {
+    guard let chapters, !chapters.isEmpty else { return false }
+    let currentSeconds = sliderValue
+    return chapters.contains { $0.seconds > currentSeconds }
+  }
+
   // MARK: - Shareable
 
   var shareTitle: String { sharedState.onDeck?.title ?? "Episode" }
@@ -111,6 +129,36 @@ import Tagged
       guard let self else { return }
       Self.log.debug("Seeking forward")
       await playManager.seekForward()
+    }
+  }
+
+  func goToPreviousChapter() {
+    guard let chapters, !chapters.isEmpty else { return }
+
+    let currentSeconds = sliderValue
+    let previousChapter = chapters.last { $0.seconds < currentSeconds }
+
+    guard let previousChapter else { return }
+
+    Self.log.debug("Going to previous chapter at \(previousChapter.seconds)")
+    Task { [weak self] in
+      guard let self else { return }
+      await playManager.seek(to: previousChapter)
+    }
+  }
+
+  func goToNextChapter() {
+    guard let chapters, !chapters.isEmpty else { return }
+
+    let currentSeconds = sliderValue
+    let nextChapter = chapters.first { $0.seconds > currentSeconds }
+
+    guard let nextChapter else { return }
+
+    Self.log.debug("Going to next chapter at \(nextChapter.seconds)")
+    Task { [weak self] in
+      guard let self else { return }
+      await playManager.seek(to: nextChapter)
     }
   }
 

@@ -74,7 +74,6 @@ struct PodcastSettingsView: View {
                   tempPlayRate = userSettings.defaultPlaybackRate
                 }
                 .disabled(!viewModel.hasCustomPlayRate)
-                .opacity(viewModel.hasCustomPlayRate ? 1.0 : 0.3)
             }
           }
         }

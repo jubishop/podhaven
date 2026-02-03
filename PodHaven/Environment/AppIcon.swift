@@ -107,10 +107,12 @@ private struct SystemImageName:
 
   // Playback Controls
   static let loading = SystemImageName("hourglass.circle")
+  static let nextChapter = SystemImageName("forward.frame.fill")
   static let noEpisode = SystemImageName("waveform.slash")
   static let pauseButton = SystemImageName("pause.circle.fill")
   static let play = SystemImageName("play.fill")
   static let playButton = SystemImageName("play.circle.fill")
+  static let previousChapter = SystemImageName("backward.frame.fill")
   static let finishEpisode = SystemImageName("forward.end.fill")
   static let undoSeek = SystemImageName("arrow.uturn.backward")
 
@@ -269,6 +271,8 @@ private struct SystemImageName:
   case noEpisodeSelected
   case pauseButton
   case playButton
+  case nextChapter
+  case previousChapter
   case seekBackward
   case seekForward
   case finishEpisode
@@ -590,6 +594,10 @@ private struct SystemImageName:
       return Data(text: "Loading", systemImageName: .loading)
     case .moreActions:
       return Data(text: "More Actions", systemImageName: .moreActions)
+    case .nextChapter:
+      return Data(text: "Next Chapter", systemImageName: .nextChapter, color: .blue)
+    case .previousChapter:
+      return Data(text: "Previous Chapter", systemImageName: .previousChapter, color: .blue)
     case .noEpisodeSelected:
       return Data(text: "No episode selected", systemImageName: .noEpisode)
     case .pauseButton:
@@ -689,17 +697,20 @@ private struct SystemImageName:
 
 private struct AppIconImage: View {
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.isEnabled) private var isEnabled
 
   let icon: AppIcon
 
   var body: some View {
     icon.rawImage
       .foregroundStyle(icon.color(for: colorScheme))
+      .opacity(isEnabled ? 1 : 0.4)
   }
 }
 
 private struct AppIconLabel: View {
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.isEnabled) private var isEnabled
 
   let icon: AppIcon
 
@@ -710,11 +721,13 @@ private struct AppIconLabel: View {
       icon.rawImage
         .foregroundStyle(icon.color(for: colorScheme))
     }
+    .opacity(isEnabled ? 1 : 0.4)
   }
 }
 
 private struct AppIconLabelButton: View {
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.isEnabled) private var isEnabled
 
   let icon: AppIcon
   let action: () -> Void
@@ -724,11 +737,13 @@ private struct AppIconLabelButton: View {
       AppIconLabel(icon: icon)
     }
     .tint(icon.color(for: colorScheme))
+    .opacity(isEnabled ? 1 : 0.4)
   }
 }
 
 private struct AppIconImageButton: View {
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.isEnabled) private var isEnabled
 
   let icon: AppIcon
   let action: () -> Void
@@ -738,5 +753,6 @@ private struct AppIconImageButton: View {
       AppIconImage(icon: icon)
     }
     .tint(icon.color(for: colorScheme))
+    .opacity(isEnabled ? 1 : 0.4)
   }
 }

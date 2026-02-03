@@ -41,6 +41,7 @@ struct PodcastEpisode:
   var queueOrder: Int? { episode.queueOrder }
   var cacheStatus: Episode.CacheStatus { episode.cacheStatus }
   var finishDate: Date? { episode.finishDate }
+  var chapters: [CMTime]? { episode.unsaved.chapters }
 
   // MARK: - Reset
 

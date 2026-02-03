@@ -100,23 +100,47 @@ struct PlayBarSheet: View {
 
   @ViewBuilder
   private var playbackMetaControls: some View {
-    metaButtonStyle(
-      PlaybackSpeedButton(
-        rate: viewModel.playbackRate,
-        isShowingPopover: $isShowingSpeedPopover,
-        containerWidth: containerWidth
-      )
-    )
+    ZStack {
+      HStack {
+        metaButtonStyle(
+          PlaybackSpeedButton(
+            rate: viewModel.playbackRate,
+            isShowingPopover: $isShowingSpeedPopover,
+            containerWidth: containerWidth
+          )
+        )
 
-    Spacer()
+        Spacer()
 
-    metaButtonStyle(
-      AppIcon.finishEpisode
-        .imageButton {
-          viewModel.finishEpisode()
+        metaButtonStyle(
+          AppIcon.finishEpisode
+            .imageButton {
+              viewModel.finishEpisode()
+            }
+        )
+        .disabled(isShowingSpeedPopover)
+      }
+
+      if viewModel.hasChapters {
+        HStack(spacing: spacing * 3) {
+          metaButtonStyle(
+            AppIcon.previousChapter
+              .imageButton {
+                viewModel.goToPreviousChapter()
+              }
+          )
+          .disabled(isShowingSpeedPopover || !viewModel.canGoToPreviousChapter)
+
+          metaButtonStyle(
+            AppIcon.nextChapter
+              .imageButton {
+                viewModel.goToNextChapter()
+              }
+          )
+          .disabled(isShowingSpeedPopover || !viewModel.canGoToNextChapter)
         }
-    )
-    .disabled(isShowingSpeedPopover)
+      }
+    }
   }
 
   private func playbackButtonStyle<V: View>(_ content: V, font: Font = .title2) -> some View {
