@@ -213,7 +213,7 @@ struct EpisodeDetailView: View {
               viewModel.playAt(timestamp: timestamp)
             } label: {
               Label {
-                Text("Play from \(timestamp)")
+                Text("Play from \(UnsavedEpisode.formatTimestamp(timestamp))")
               } icon: {
                 AppIcon.playFromHere.image
               }

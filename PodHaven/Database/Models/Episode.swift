@@ -126,6 +126,27 @@ struct UnsavedEpisode:
     return hours * 3600 + minutes * 60 + seconds
   }
 
+  // Formats a timestamp string without unnecessary leading zeros.
+  // Examples: "00:08:23" → "8:23", "0:40" → "0:40", "1:05:30" → "1:05:30"
+  static func formatTimestamp(_ timestamp: some StringProtocol) -> String {
+    func padded(_ value: Int) -> String {
+      value < 10 ? "0\(value)" : "\(value)"
+    }
+
+    guard let totalSeconds = parseTimestamp(timestamp) else {
+      return String(timestamp)
+    }
+
+    let hours = totalSeconds / 3600
+    let minutes = (totalSeconds % 3600) / 60
+    let seconds = totalSeconds % 60
+
+    guard hours > 0 else {
+      return "\(minutes):\(padded(seconds))"
+    }
+    return "\(hours):\(padded(minutes)):\(padded(seconds))"
+  }
+
   // Parses timestamps (e.g. "2:15", "14:30", "1:02:15") from the description
   // and returns them as sorted CMTimes. Returns nil if none are found.
   var chapters: [CMTime]? {
