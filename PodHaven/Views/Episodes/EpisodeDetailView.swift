@@ -209,8 +209,14 @@ struct EpisodeDetailView: View {
             description,
             menuMatching: unsafe UnsavedEpisode.timestampRegex
           ) { timestamp in
-            AppIcon.playFromHere.labelButton {
+            Button {
               viewModel.playAt(timestamp: timestamp)
+            } label: {
+              Label {
+                Text("Play from \(timestamp)")
+              } icon: {
+                AppIcon.playFromHere.image
+              }
             }
           }
         }
