@@ -138,14 +138,24 @@ import Tagged
     guard let chapters, !chapters.isEmpty else { return }
 
     let currentSeconds = sliderValue
-    let previousChapter = chapters.last { $0.seconds < currentSeconds }
 
-    guard let previousChapter else { return }
+    // Get all chapters before the current position
+    let previousChapters = chapters.filter { $0.seconds < currentSeconds }
 
-    Self.log.debug("Going to previous chapter at \(previousChapter.seconds)")
+    guard let nearestPrevious = previousChapters.last else { return }
+
+    // If we're within 2 seconds of that chapter, skip to the one before it
+    let targetChapter: CMTime
+    if currentSeconds - nearestPrevious.seconds < 2, previousChapters.count > 1 {
+      targetChapter = previousChapters[previousChapters.count - 2]
+    } else {
+      targetChapter = nearestPrevious
+    }
+
+    Self.log.debug("Going to previous chapter at \(targetChapter.seconds)")
     Task { [weak self] in
       guard let self else { return }
-      await playManager.seek(to: previousChapter)
+      await playManager.seek(to: targetChapter)
     }
   }
 
