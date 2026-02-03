@@ -129,7 +129,7 @@ struct PlayBarSheet: View {
                 viewModel.goToPreviousChapter()
               }
           )
-          .disabled(isShowingSpeedPopover || !viewModel.canGoToPreviousChapter)
+          .disabled(isShowingSpeedPopover)
 
           metaButtonStyle(
             AppIcon.nextChapter
