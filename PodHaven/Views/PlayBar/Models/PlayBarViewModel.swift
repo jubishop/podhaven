@@ -56,6 +56,8 @@ import Tagged
 
   var hasChapters: Bool { chapters != nil }
 
+  var chapterPositions: [Double]? { chapters?.map { $0.seconds } }
+
   var canGoToPreviousChapter: Bool {
     guard let chapters, !chapters.isEmpty else { return false }
     let currentSeconds = sliderValue

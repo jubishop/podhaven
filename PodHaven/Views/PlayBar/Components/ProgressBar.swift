@@ -8,6 +8,7 @@ struct ProgressBar: View {
   @Binding var isDragging: Bool
   let range: ClosedRange<Double>
   let animationDuration: Double
+  var tickMarks: [Double]?
   let normalHeight: CGFloat = 4
   let dragHeight: CGFloat = 12
   let touchHeight: CGFloat = 36
@@ -31,6 +32,13 @@ struct ProgressBar: View {
         RoundedRectangle(cornerRadius: currentHeight / 2)
           .fill(Color.white)
           .frame(width: max(0, CGFloat(progress) * geometry.size.width), height: currentHeight)
+
+        // Tick marks
+        if let tickMarks {
+          ForEach(tickMarks, id: \.self) { position in
+            tickMark(at: position, width: geometry.size.width)
+          }
+        }
       }
       .frame(maxHeight: .infinity, alignment: .center)
       .contentShape(Rectangle().size(width: .infinity, height: touchHeight))
@@ -53,5 +61,17 @@ struct ProgressBar: View {
     }
     .frame(height: dragHeight)
     .animation(.easeInOut(duration: animationDuration), value: isDragging)
+  }
+
+  // MARK: - Tick Marks
+
+  private func tickMark(at position: Double, width: CGFloat) -> some View {
+    let markerWidth: CGFloat = 2
+    let normalized = (position - range.lowerBound) / (range.upperBound - range.lowerBound)
+
+    return RoundedRectangle(cornerRadius: markerWidth / 2)
+      .fill(Color.white)
+      .frame(width: markerWidth, height: currentHeight + 4)
+      .position(x: CGFloat(normalized) * width, y: dragHeight / 2)
   }
 }

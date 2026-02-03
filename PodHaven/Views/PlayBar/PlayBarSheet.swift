@@ -183,7 +183,8 @@ struct PlayBarSheet: View {
         value: $viewModel.sliderValue,
         isDragging: $viewModel.isDragging,
         range: 0...viewModel.duration.seconds,
-        animationDuration: progressAnimationDuration
+        animationDuration: progressAnimationDuration,
+        tickMarks: viewModel.chapterPositions
       )
 
       HStack {
