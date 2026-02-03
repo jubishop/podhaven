@@ -99,7 +99,7 @@ struct UnsavedEpisode:
     return .uncached
   }
 
-  // MARK: - Derived Data
+  // MARK: - Chapters
 
   // This is effectively a constant so its really plenty safe.
   nonisolated(unsafe) static let timestampRegex =
@@ -171,6 +171,8 @@ struct UnsavedEpisode:
     guard !times.isEmpty else { return nil }
     return times
   }
+
+  // MARK: - Cached Info
 
   var cachedURL: CachedURL? {
     guard let cachedFilename = cachedFilename
