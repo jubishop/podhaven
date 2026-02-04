@@ -116,13 +116,21 @@ extension Container {
   {
     do {
       guard let cachedURL = podcastEpisode.episode.cachedURL else {
+        Self.log.debug("performLoadAsset: loading from remote (no cache)")
         return try await loadEpisodeAsset(
           AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
         )
       }
       do {
+        Self.log.debug("performLoadAsset: loading from cache: \(cachedURL)")
         return try await loadEpisodeAsset(AVURLAsset(url: cachedURL.rawValue))
       } catch {
+        Self.log.warning(
+          """
+          performLoadAsset: cache load failed, falling back to remote
+          \(ErrorKit.loggableMessageWithUnderlying(for: error))
+          """
+        )
         return try await loadEpisodeAsset(
           AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
         )

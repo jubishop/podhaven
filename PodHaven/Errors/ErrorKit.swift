@@ -105,24 +105,24 @@ enum ErrorKit {
     return nsError.code
   }
 
-  static func underlyingErrorLogMessage(for error: any Error) -> String {
-    guard let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
-    else { return "none" }
-
-    return loggableMessage(for: underlying).description
-  }
-
   static func loggableMessageWithUnderlying(for error: any Error) -> Logger.Message {
     Logger.Message(
       stringLiteral: """
         [\(typeName(for: error))]
         \(message(for: error))
-        Underlying: \(underlyingErrorLogMessage(for: error))
+        Underlying: \(underlyLoggableMessage(for: error))
         """
     )
   }
 
   // MARK: - Private Messaging Helpers
+
+  private static func underlyLoggableMessage(for error: any Error) -> Logger.Message {
+    guard let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
+    else { return Logger.Message(stringLiteral: "none") }
+
+    return loggableMessage(for: underlying)
+  }
 
   private static func nested(_ message: String) -> String {
     message
