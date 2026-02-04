@@ -286,9 +286,31 @@ extension Container {
     guard itemStatusObserver == nil else { return }
 
     guard let currentItem = avPlayer.current, let episodeID else { return }
+    let avPlayerItem = currentItem as? AVPlayerItem
     itemStatusObserver = currentItem.observeStatus(options: [.initial, .new]) {
-      [weak self] status in
+      [weak self, avPlayerItem] status in
       guard let self else { return }
+
+      switch status {
+      case .unknown:
+        Self.log.debug("AVPlayerItem status: unknown for episode \(episodeID)")
+      case .readyToPlay:
+        Self.log.debug("AVPlayerItem status: readyToPlay for episode \(episodeID)")
+      case .failed:
+        if let error = avPlayerItem?.error {
+          Self.log.error(
+            """
+            AVPlayerItem status: failed for episode \(episodeID)
+            \(ErrorKit.loggableMessageWithUnderlying(for: error))
+            """
+          )
+        } else {
+          Self.log.error("AVPlayerItem status: failed for episode \(episodeID) (no error details)")
+        }
+      @unknown default:
+        Self.log.warning("AVPlayerItem status: unknown value (\(status.rawValue))")
+      }
+
       itemStatusContinuation.yield((status, episodeID))
     }
   }

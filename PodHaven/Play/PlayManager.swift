@@ -415,6 +415,25 @@ final class PlayManager {
     stateManager.clearOnDeck()
   }
 
+  private func handlePlaybackFailure() async {
+    Self.log.info("handlePlaybackFailure: recovering from AVPlayerItem failure")
+
+    guard let episodeID = sharedState.onDeck?.id else {
+      Self.log.warning("handlePlaybackFailure: no episode on deck to recover")
+      return
+    }
+
+    Self.log.debug("clearing onDeck and returning episode \(episodeID) to queue")
+    await stop()
+    do {
+      try await queue.unshift(episodeID)
+    } catch {
+      Self.log.error(error)
+    }
+
+    await alert("Playback failed unexpectedly. The episode has been returned to your queue.")
+  }
+
   private func setStatus(_ status: PlaybackStatus) async {
     Self.log.debug("setStatus: \(status)")
     sharedState.setPlaybackStatus(status)
@@ -455,21 +474,11 @@ final class PlayManager {
 
   // MARK: - Private Change Handlers
 
-  private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID)
-    async
-  {
-    Self.log.debug(
-      """
-      handleItemStatusChange
-        status: \(status)
-        episodeID: \(episodeID)
-      """
-    )
+  private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID) async {
+    Self.log.debug("handleItemStatusChange: \(status) for episode \(episodeID)")
 
     if status == .failed {
-      Self.log.debug(
-        "handleItemStatusChange: failed for \(episodeID), clearing on deck and unshifting"
-      )
+      Self.log.debug("status is failed for \(episodeID), clearing on deck and unshifting")
       await stop()
       do {
         try await queue.unshift(episodeID)
@@ -616,9 +625,11 @@ final class PlayManager {
         Self.log.warning(
           """
           AVPlayerItem failed to play to end time
-          \(ErrorKit.loggableMessage(for: error))
+          \(ErrorKit.loggableMessageWithUnderlying(for: error))
           """
         )
+
+        await handlePlaybackFailure()
       }
     }
 
@@ -718,7 +729,7 @@ final class PlayManager {
     Task { [weak self] in
       guard let self else { return }
       for await controlStatus in await podAVPlayer.controlStatusStream {
-        Self.log.trace("Control status changed to: \(controlStatus)")
+        Self.log.debug("AVPlayer timeControlStatus changed to: \(controlStatus)")
         switch controlStatus {
         case .paused:
           await setStatus(.paused)
