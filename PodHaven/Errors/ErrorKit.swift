@@ -38,7 +38,7 @@ enum ErrorKit {
     if !(error is any ReadableError),
       let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
     {
-      result += "\nUnderlying: \(nestedUnderlyingMessage(for: underlying))"
+      result += "\n\(nestedUnderlyingMessage(for: underlying))"
     }
 
     return Logger.Message(stringLiteral: result)
@@ -128,12 +128,12 @@ enum ErrorKit {
   }
 
   private static func nestedUnderlyingMessage(for error: any Error) -> String {
-    var result = "\(typeName(for: error)) ->\n  \(nestedMessage(for: error))"
+    var result = "Underlying: \(typeName(for: error)) ->\n  \(nestedMessage(for: error))"
 
     if !(error is any ReadableError),
       let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
     {
-      result += "\n  Underlying: \(nested(nestedUnderlyingMessage(for: underlying)))"
+      result += "\n  \(nested(nestedUnderlyingMessage(for: underlying)))"
     }
 
     return result
