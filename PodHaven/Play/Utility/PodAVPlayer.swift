@@ -128,7 +128,7 @@ extension Container {
         Self.log.warning(
           """
           performLoadAsset: cache load failed, falling back to remote
-          \(ErrorKit.loggableMessageWithUnderlying(for: error))
+          \(ErrorKit.loggableMessage(for: error))
           """
         )
         return try await loadEpisodeAsset(
@@ -309,7 +309,7 @@ extension Container {
           Self.log.error(
             """
             AVPlayerItem status: failed for episode \(episodeID)
-            \(ErrorKit.loggableMessageWithUnderlying(for: error))
+            \(ErrorKit.loggableMessage(for: error))
             """
           )
         } else {

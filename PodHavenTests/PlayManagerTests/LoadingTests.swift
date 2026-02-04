@@ -180,6 +180,8 @@ import Testing
 
   @Test("loading an episode sets loading status")
   func loadingEpisodeSetsLoadingStatus() async throws {
+    Log.setTestSystem()
+
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
 

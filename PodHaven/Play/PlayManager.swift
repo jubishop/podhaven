@@ -625,7 +625,7 @@ final class PlayManager {
         Self.log.warning(
           """
           AVPlayerItem failed to play to end time
-          \(ErrorKit.loggableMessageWithUnderlying(for: error))
+          \(ErrorKit.loggableMessage(for: error))
           """
         )
 

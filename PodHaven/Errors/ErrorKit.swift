@@ -30,12 +30,18 @@ enum ErrorKit {
   }
 
   static func loggableMessage(for error: any Error) -> Logger.Message {
-    Logger.Message(
-      stringLiteral: """
-        [\(typeName(for: error))]
-        \(message(for: error))
-        """
-    )
+    var result = """
+      [\(typeName(for: error))]
+      \(message(for: error))
+      """
+
+    if !(error is any ReadableError),
+      let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
+    {
+      result += "\nUnderlying: \(nestedUnderlyingMessage(for: underlying))"
+    }
+
+    return Logger.Message(stringLiteral: result)
   }
 
   // MARK: - Analysis
@@ -105,24 +111,7 @@ enum ErrorKit {
     return nsError.code
   }
 
-  static func loggableMessageWithUnderlying(for error: any Error) -> Logger.Message {
-    Logger.Message(
-      stringLiteral: """
-        [\(typeName(for: error))]
-        \(message(for: error))
-        Underlying: \(underlyLoggableMessage(for: error))
-        """
-    )
-  }
-
   // MARK: - Private Messaging Helpers
-
-  private static func underlyLoggableMessage(for error: any Error) -> Logger.Message {
-    guard let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
-    else { return Logger.Message(stringLiteral: "none") }
-
-    return loggableMessage(for: underlying)
-  }
 
   private static func nested(_ message: String) -> String {
     message
@@ -136,5 +125,17 @@ enum ErrorKit {
 
   private static func nestedCaughtMessage(for error: any Error) -> String {
     "\(typeName(for: error)) ->\n  \(nestedMessage(for: error))"
+  }
+
+  private static func nestedUnderlyingMessage(for error: any Error) -> String {
+    var result = "\(typeName(for: error)) ->\n  \(nestedMessage(for: error))"
+
+    if !(error is any ReadableError),
+      let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
+    {
+      result += "\n  Underlying: \(nested(nestedUnderlyingMessage(for: underlying)))"
+    }
+
+    return result
   }
 }
