@@ -35,9 +35,7 @@ enum ErrorKit {
       \(message(for: error))
       """
 
-    if !(error is any ReadableError),
-      let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
-    {
+    if let underlying = underlyingError(for: error) {
       result += "\n\(underlyingMessage(for: underlying))"
     }
 
@@ -45,6 +43,11 @@ enum ErrorKit {
   }
 
   // MARK: - Analysis
+
+  static func underlyingError(for error: any Error) -> (any Error)? {
+    guard !(error is any ReadableError) else { return nil }
+    return (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
+  }
 
   static func baseError(for error: any Error) -> any Error {
     guard let readableError = error as? any ReadableError,
@@ -120,15 +123,19 @@ enum ErrorKit {
   }
 
   private static func caughtMessage(for error: any Error) -> String {
-    "\(typeName(for: error)) ->\n  \(nested(message(for: error)))"
+    var result = "\(typeName(for: error)) ->\n  \(nested(message(for: error)))"
+
+    if let underlying = underlyingError(for: error) {
+      result += "\n  \(nested(underlyingMessage(for: underlying)))"
+    }
+
+    return result
   }
 
   private static func underlyingMessage(for error: any Error) -> String {
     var result = "Underlying: \(typeName(for: error)) ->\n  \(nested(message(for: error)))"
 
-    if !(error is any ReadableError),
-      let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
-    {
+    if let underlying = underlyingError(for: error) {
       result += "\n  \(nested(underlyingMessage(for: underlying)))"
     }
 

@@ -453,13 +453,15 @@ class ErrorTests {
     )
 
     // ReadableError uses caughtError chain, NSUnderlyingErrorKey from inner NSError
-    // appears in the message output for that NSError
+    // is now included in the caught message output
     let error = FakeError.caught(errorWithUnderlying)
     #expect(
       ErrorKit.loggableMessage(for: error) == """
         [FakeError.caught]
         NSError.Error ->
           [MiddleDomain: 50] Middle failure
+          Underlying: NSError.Error ->
+            [SystemDomain: 99] System failure
         """
     )
   }
