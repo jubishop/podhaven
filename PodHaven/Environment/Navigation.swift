@@ -18,7 +18,6 @@ extension Container {
 @Observable @MainActor class Navigation {
   @ObservationIgnored @DynamicInjected(\.sheet) private var sheet
   @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
-  @ObservationIgnored @DynamicInjected(\.notifications) private var notifications
 
   @MainActor
   protocol ManagingPath: AnyObject, Observable {

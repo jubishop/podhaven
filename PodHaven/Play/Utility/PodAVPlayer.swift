@@ -148,6 +148,12 @@ extension Container {
     avPlayer.replaceCurrent(with: nil)
   }
 
+  func isCurrentItem(_ item: AVPlayerItem?) -> Bool {
+    guard let item, let current = avPlayer.current as? AVPlayerItem
+    else { return false }
+    return item === current
+  }
+
   // Swap to cached version if available. Returns whether a swap occurred.
   @discardableResult
   private func swapToCached() async -> Bool {

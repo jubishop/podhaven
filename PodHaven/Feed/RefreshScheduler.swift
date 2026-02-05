@@ -17,7 +17,6 @@ extension Container {
 struct RefreshScheduler: Sendable {
   private var application: any ApplicationProviding { Container.shared.uiApplication() }
   private var connectionState: ConnectionState { Container.shared.connectionState() }
-  private var notifications: NotificationSequence { Container.shared.notifications() }
   private var refreshManager: RefreshManager { Container.shared.refreshManager() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
 

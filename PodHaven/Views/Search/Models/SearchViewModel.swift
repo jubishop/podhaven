@@ -19,7 +19,6 @@ class SearchViewModel:
 {
   @ObservationIgnored @DynamicInjected(\.iTunesService) private var iTunesService
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
-  @ObservationIgnored @DynamicInjected(\.notifications) private var notifications
 
   private static let log = Log.as(LogSubsystem.SearchView.main)
 

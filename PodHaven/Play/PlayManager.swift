@@ -617,6 +617,11 @@ final class PlayManager {
     Task { [weak self] in
       guard let self else { return }
       for await notification in notifications(AVPlayerItem.failedToPlayToEndTimeNotification) {
+        guard await podAVPlayer.isCurrentItem(notification.object as? AVPlayerItem) else {
+          Self.log.warning("Ignoring failedToPlayToEndTimeNotification from non-current item")
+          continue
+        }
+
         guard
           let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey]
             as? any Error
@@ -635,7 +640,11 @@ final class PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await _ in notifications(AVPlayerItem.playbackStalledNotification) {
+      for await notification in notifications(AVPlayerItem.playbackStalledNotification) {
+        guard await podAVPlayer.isCurrentItem(notification.object as? AVPlayerItem) else {
+          Self.log.warning("Ignoring playbackStalledNotification from non-current item")
+          continue
+        }
         Self.log.warning("AVPlayerItem playback stalled")
       }
     }
@@ -645,6 +654,11 @@ final class PlayManager {
       for await notification in notifications(AVPlayerItem.newErrorLogEntryNotification) {
         guard let item = notification.object as? AVPlayerItem
         else { Assert.fatal("newErrorLogEntryNotification: \(notification) is invalid") }
+
+        guard await podAVPlayer.isCurrentItem(item) else {
+          Self.log.warning("Ignoring newErrorLogEntryNotification from non-current item")
+          continue
+        }
 
         guard let errorLog = item.errorLog()
         else { Assert.fatal("newErrorLogEntryNotification fired but errorLog() returned nil?") }

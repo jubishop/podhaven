@@ -38,7 +38,6 @@ extension Container {
 
 struct CacheManager {
   @DynamicInjected(\.cacheManagerSession) private var cacheManagerSession
-  @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
