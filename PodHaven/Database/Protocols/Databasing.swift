@@ -21,7 +21,6 @@ protocol Databasing: Sendable {
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws(RepoError) -> PodcastSeries?
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries?
-  func podcastTags(_ podcastID: Podcast.ID) async throws -> [Tag]
 
   // MARK: - Episode Readers
 

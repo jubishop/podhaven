@@ -108,7 +108,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
 
   static let episodes = hasMany(Episode.self).order(\.pubDate.desc)
   static let podcastTags = hasMany(PodcastTag.self)
-  static let tags = hasMany(Tag.self, through: podcastTags, using: PodcastTag.tag)
+  static let tags = hasMany(Tag.self, through: podcastTags, using: PodcastTag.tag).order(\.name)
 
   // MARK: - SQL Expressions
 

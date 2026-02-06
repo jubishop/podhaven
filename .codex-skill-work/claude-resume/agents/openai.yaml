@@ -1,0 +1,4 @@
+interface:
+  display_name: "Claude Resume"
+  short_description: "Import Claude conversations into Codex context"
+  default_prompt: "Use $claude-resume [keywords] to search and load a Claude Code conversation for the current repo, then continue the work here."

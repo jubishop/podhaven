@@ -48,15 +48,16 @@ class TagsTests {
       _ = try await self.repo.addTag(tag.id, to: series.id)
     }
 
-    let assignedTags = try await repo.podcastTags(series.id)
-    #expect(assignedTags.map(\.id) == [tag.id])
+    let fetchedSeries = try await repo.podcastSeries(series.id)
+    #expect(fetchedSeries?.tags?.map(\.id) == [tag.id])
 
     let firstRemove = try await repo.removeTag(tag.id, from: series.id)
     let secondRemove = try await repo.removeTag(tag.id, from: series.id)
 
     #expect(firstRemove)
     #expect(!secondRemove)
-    #expect(try await repo.podcastTags(series.id).isEmpty)
+    let afterRemove = try await repo.podcastSeries(series.id)
+    #expect(afterRemove?.tags?.isEmpty == true)
   }
 
   @Test("podcastSeries() includes associated tags")
@@ -111,11 +112,13 @@ class TagsTests {
     let tag = try await repo.insertTag(named: "News")
 
     _ = try await repo.addTag(tag.id, to: series.id)
-    #expect(try await repo.podcastTags(series.id).count == 1)
+    let beforeDelete = try await repo.podcastSeries(series.id)
+    #expect(beforeDelete?.tags?.count == 1)
 
     let deleted = try await repo.deleteTag(tag.id)
     #expect(deleted)
-    #expect(try await repo.podcastTags(series.id).isEmpty)
+    let afterDelete = try await repo.podcastSeries(series.id)
+    #expect(afterDelete?.tags?.isEmpty == true)
     #expect(try await repo.allTags().isEmpty)
   }
 }

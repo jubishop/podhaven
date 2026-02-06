@@ -115,19 +115,6 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func podcastTags(_ podcastID: Podcast.ID) async throws -> [Tag] {
-    try await appDB.db.read { db in
-      guard let podcast = try Podcast.withID(podcastID).fetchOne(db)
-      else { return [] }
-
-      return
-        try podcast
-        .request(for: Podcast.tags)
-        .orderedByName()
-        .fetchAll(db)
-    }
-  }
-
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode? {
