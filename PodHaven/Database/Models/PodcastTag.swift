@@ -1,0 +1,27 @@
+// Copyright Justin Bishop, 2026
+
+import Foundation
+import GRDB
+
+struct PodcastTag: Codable, Equatable, FetchableRecord, Hashable, PersistableRecord, Sendable,
+  TableRecord
+{
+  // MARK: - Data
+
+  static let databaseTableName: String = "podcastTag"
+
+  let podcastId: Podcast.ID
+  let tagId: Tag.ID
+
+  // MARK: - Associations
+
+  static let podcast = belongsTo(Podcast.self)
+  static let tag = belongsTo(Tag.self)
+
+  // MARK: - Columns
+
+  enum Columns {
+    static let podcastId = Column("podcastId")
+    static let tagId = Column("tagId")
+  }
+}

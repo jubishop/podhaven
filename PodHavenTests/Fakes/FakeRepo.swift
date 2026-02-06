@@ -28,18 +28,29 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     try await repo.allPodcasts(filter)
   }
 
+  func allTags() async throws -> [Tag] {
+    recordCall(methodName: "allTags")
+    return try await repo.allTags()
+  }
+
   func allPodcastSeries(
     _ filter: SQLExpression,
     order: SQLOrdering = Podcast.Columns.id.desc,
-    limit: Int = Int.max
+    limit: Int = Int.max,
+    includeTags: Bool = true
   ) async throws(RepoError)
     -> [PodcastSeries]
   {
     recordCall(
       methodName: "allPodcastSeries",
-      parameters: (filter: filter, order: order, limit: limit)
+      parameters: (filter: filter, order: order, limit: limit, includeTags: includeTags)
     )
-    return try await repo.allPodcastSeries(filter, order: order, limit: limit)
+    return try await repo.allPodcastSeries(
+      filter,
+      order: order,
+      limit: limit,
+      includeTags: includeTags
+    )
   }
 
   // MARK: - Series Readers
@@ -52,6 +63,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
     recordCall(methodName: "podcastSeries", parameters: feedURL)
     return try await repo.podcastSeries(feedURL)
+  }
+
+  func podcastTags(_ podcastID: Podcast.ID) async throws -> [Tag] {
+    recordCall(methodName: "podcastTags", parameters: podcastID)
+    return try await repo.podcastTags(podcastID)
   }
 
   // MARK: - Episode Readers
@@ -144,6 +160,30 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func deletePodcast(_ podcastID: Podcast.ID) async throws -> Bool {
     recordCall(methodName: "delete", parameters: podcastID)
     return try await repo.deletePodcast(podcastID)
+  }
+
+  @discardableResult
+  func insertTag(named: String) async throws -> Tag {
+    recordCall(methodName: "insertTag", parameters: named)
+    return try await repo.insertTag(named: named)
+  }
+
+  @discardableResult
+  func deleteTag(_ tagID: Tag.ID) async throws -> Bool {
+    recordCall(methodName: "deleteTag", parameters: tagID)
+    return try await repo.deleteTag(tagID)
+  }
+
+  @discardableResult
+  func addTag(_ tagID: Tag.ID, to podcastID: Podcast.ID) async throws -> Bool {
+    recordCall(methodName: "addTag", parameters: (tagID: tagID, podcastID: podcastID))
+    return try await repo.addTag(tagID, to: podcastID)
+  }
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, from podcastID: Podcast.ID) async throws -> Bool {
+    recordCall(methodName: "removeTag", parameters: (tagID: tagID, podcastID: podcastID))
+    return try await repo.removeTag(tagID, from: podcastID)
   }
 
   // MARK: - Episode Writers

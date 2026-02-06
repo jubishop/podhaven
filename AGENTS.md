@@ -14,6 +14,7 @@
 
 ## Database
 - GRDB using SQLite.
+- Prefer GRDB QueryInterface / record APIs over raw SQL whenever possible; only use raw SQL when GRDB cannot express the needed query cleanly.
 
 ## UI Structure
 - Views stay declarative, forwarding actions to their view models or shared protocols; never introduce business logic inside SwiftUI view structs.

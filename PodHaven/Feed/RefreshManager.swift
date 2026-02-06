@@ -53,6 +53,7 @@ struct RefreshManager {
             && filter,
           order: Podcast.Columns.lastUpdate.asc,
           limit: limit,
+          includeTags: false
         )
         Self.log.debug(
           "performRefresh: fetched \(staleSeries.count) stale series (limit: \(limit))"

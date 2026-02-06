@@ -115,6 +115,7 @@ struct Observatory {
       try Podcast
         .withID(podcastID)
         .including(all: Podcast.episodes)
+        .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
     }

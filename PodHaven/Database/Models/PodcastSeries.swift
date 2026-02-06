@@ -9,17 +9,21 @@ struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifia
 
   let podcast: Podcast
   let episodes: IdentifiedArrayOf<Episode>
+  let tags: IdentifiedArrayOf<Tag>?
 
-  init(podcast: Podcast, episodes: [Episode] = []) {
+  init(podcast: Podcast, episodes: [Episode] = [], tags: IdentifiedArrayOf<Tag>? = nil) {
     self.init(
       podcast: podcast,
-      episodes: IdentifiedArrayOf(uniqueElements: episodes)
+      episodes: IdentifiedArrayOf(uniqueElements: episodes),
+      tags: tags
     )
   }
 
-  init(podcast: Podcast, episodes: IdentifiedArrayOf<Episode>) {
+  init(podcast: Podcast, episodes: IdentifiedArrayOf<Episode>, tags: IdentifiedArrayOf<Tag>? = nil)
+  {
     self.podcast = podcast
     self.episodes = episodes
+    self.tags = tags
   }
 
   // MARK: - Decodable
@@ -30,10 +34,17 @@ struct PodcastSeries: Decodable, Equatable, FetchableRecord, Hashable, Identifia
     episodes = IdentifiedArrayOf(
       uniqueElements: try container.decode([Episode].self, forKey: .episodes)
     )
+    if let decodedTags = try container.decodeIfPresent([Tag].self, forKey: .tags) {
+      tags = IdentifiedArrayOf(uniqueElements: decodedTags)
+    } else {
+      tags = nil
+    }
   }
 
   private enum CodingKeys: String, CodingKey {
-    case podcast, episodes
+    case podcast
+    case episodes
+    case tags
   }
 
   // MARK: - Stringable

@@ -42,21 +42,43 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  func allTags() async throws -> [Tag] {
+    try await appDB.db.read { db in
+      try Tag
+        .all()
+        .orderedByName()
+        .fetchAll(db)
+    }
+  }
+
   func allPodcastSeries(
     _ filter: SQLExpression,
     order: SQLOrdering,
-    limit: Int
+    limit: Int,
+    includeTags: Bool
   ) async throws(RepoError)
     -> [PodcastSeries]
   {
     do {
       return try await appDB.db.read { db in
-        try Podcast
+        let baseRequest =
+          Podcast
           .all()
           .filter(filter)
           .order(order)
           .limit(limit)
           .including(all: Podcast.episodes)
+
+        if includeTags {
+          return
+            try baseRequest
+            .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
+            .asRequest(of: PodcastSeries.self)
+            .fetchAll(db)
+        }
+
+        return
+          try baseRequest
           .asRequest(of: PodcastSeries.self)
           .fetchAll(db)
       }
@@ -73,6 +95,7 @@ struct Repo: Databasing, Sendable {
         try Podcast
           .withID(podcastID)
           .including(all: Podcast.episodes)
+          .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
           .asRequest(of: PodcastSeries.self)
           .fetchOne(db)
       }
@@ -86,8 +109,22 @@ struct Repo: Databasing, Sendable {
       try Podcast
         .filter { $0.feedURL == feedURL }
         .including(all: Podcast.episodes)
+        .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
         .asRequest(of: PodcastSeries.self)
         .fetchOne(db)
+    }
+  }
+
+  func podcastTags(_ podcastID: Podcast.ID) async throws -> [Tag] {
+    try await appDB.db.read { db in
+      guard let podcast = try Podcast.withID(podcastID).fetchOne(db)
+      else { return [] }
+
+      return
+        try podcast
+        .request(for: Podcast.tags)
+        .orderedByName()
+        .fetchAll(db)
     }
   }
 
@@ -183,7 +220,11 @@ struct Repo: Databasing, Sendable {
           unsavedEpisode.podcastId = podcast.id
           episodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
         }
-        return PodcastSeries(podcast: podcast, episodes: episodes)
+        return PodcastSeries(
+          podcast: podcast,
+          episodes: episodes,
+          tags: IdentifiedArrayOf(uniqueElements: [])
+        )
       }
     } catch let error as DatabaseError
       where error.extendedResultCode == .SQLITE_CONSTRAINT_UNIQUE
@@ -304,6 +345,47 @@ struct Repo: Databasing, Sendable {
   @discardableResult
   func deletePodcast(_ podcastID: Podcast.ID) async throws -> Bool {
     try await deletePodcast([podcastID]) > 0
+  }
+
+  @discardableResult
+  func insertTag(named: String) async throws -> Tag {
+    let normalizedName = named.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedName.isEmpty else {
+      throw DatabaseError(message: "Tag name cannot be empty")
+    }
+
+    return try await appDB.db.write { db in
+      try UnsavedTag(name: normalizedName).insertAndFetch(db, as: Tag.self)
+    }
+  }
+
+  @discardableResult
+  func deleteTag(_ tagID: Tag.ID) async throws -> Bool {
+    try await appDB.db.write { db in
+      try Tag
+        .withID(tagID)
+        .deleteAll(db)
+    } > 0
+  }
+
+  @discardableResult
+  func addTag(_ tagID: Tag.ID, to podcastID: Podcast.ID) async throws -> Bool {
+    try await appDB.db.write { db in
+      try PodcastTag(podcastId: podcastID, tagId: tagID).insert(db)
+      return true
+    }
+  }
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, from podcastID: Podcast.ID) async throws -> Bool {
+    try await appDB.db.write { db in
+      try PodcastTag
+        .filter(
+          PodcastTag.Columns.podcastId == podcastID
+            && PodcastTag.Columns.tagId == tagID
+        )
+        .deleteAll(db)
+    } > 0
   }
 
   // MARK: - Episode Writers

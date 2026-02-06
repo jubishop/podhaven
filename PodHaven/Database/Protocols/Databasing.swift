@@ -12,7 +12,8 @@ protocol Databasing: Sendable {
   // MARK: - Global Readers
 
   func allPodcasts(_ filter: SQLExpression) async throws -> [Podcast]
-  func allPodcastSeries(_ filter: SQLExpression, order: SQLOrdering, limit: Int)
+  func allTags() async throws -> [Tag]
+  func allPodcastSeries(_ filter: SQLExpression, order: SQLOrdering, limit: Int, includeTags: Bool)
     async throws(RepoError)
     -> [PodcastSeries]
 
@@ -20,6 +21,7 @@ protocol Databasing: Sendable {
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws(RepoError) -> PodcastSeries?
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries?
+  func podcastTags(_ podcastID: Podcast.ID) async throws -> [Tag]
 
   // MARK: - Episode Readers
 
@@ -53,6 +55,18 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func deletePodcast(_ podcastID: Podcast.ID) async throws -> Bool
+
+  @discardableResult
+  func insertTag(named: String) async throws -> Tag
+
+  @discardableResult
+  func deleteTag(_ tagID: Tag.ID) async throws -> Bool
+
+  @discardableResult
+  func addTag(_ tagID: Tag.ID, to podcastID: Podcast.ID) async throws -> Bool
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, from podcastID: Podcast.ID) async throws -> Bool
 
   // MARK: - Episode Writers
 

@@ -155,6 +155,20 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v27") { db in
+      try db.create(table: "tag") { t in
+        t.autoIncrementedPrimaryKey("id")
+        t.column("name", .text).notNull().collate(.nocase).unique(onConflict: .fail)
+        t.column("creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+      }
+
+      try db.create(table: "podcastTag") { t in
+        t.belongsTo("podcast", onDelete: .cascade).notNull()
+        t.belongsTo("tag", onDelete: .cascade).notNull()
+        t.uniqueKey(["podcastId", "tagId"], onConflict: .fail)
+      }
+    }
+
     return migrator
   }
 }
