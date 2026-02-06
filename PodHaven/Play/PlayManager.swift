@@ -46,6 +46,7 @@ actor PlayActor {
 final class PlayManager {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.commandCenterStream) private var commandCenterStream
+  @DynamicInjected(\.fileManager) private var fileManager
   @DynamicInjected(\.imagePipeline) private var imagePipeline
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.observatory) private var observatory
@@ -64,9 +65,11 @@ final class PlayManager {
   // MARK: - Configurable Constants
 
   let seekIgnoreTime: Duration = .seconds(1)
+  let recoveryDebounceInterval: TimeInterval = 5
 
   // MARK: - State Management
 
+  private var lastRecoveryAttempt: (episodeID: Episode.ID, time: Date)?
   private var imageFetchTask: Task<Void, Never>?
   private var loadTask: Task<Bool, any Error>?
   private var restartSeekCommandsTask: Task<Void, any Error>?
@@ -423,8 +426,50 @@ final class PlayManager {
       return
     }
 
-    Self.log.debug("clearing onDeck and returning episode \(episodeID) to queue")
+    await logFailureDiagnostics(episodeID)
     await stop()
+
+    // Attempt auto-recovery unless we just tried for this same episode
+    let shouldAttemptRecovery: Bool
+    if let lastRecoveryAttempt,
+      lastRecoveryAttempt.episodeID == episodeID,
+      Date().timeIntervalSince(lastRecoveryAttempt.time) < recoveryDebounceInterval
+    {
+      shouldAttemptRecovery = false
+    } else {
+      shouldAttemptRecovery = true
+    }
+
+    if shouldAttemptRecovery {
+      lastRecoveryAttempt = (episodeID, Date())
+      do {
+        guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
+          Self.log.warning("handlePlaybackFailure: episode \(episodeID) no longer exists")
+          return
+        }
+
+        Self.log.info(
+          "handlePlaybackFailure: attempting auto-recovery for \(podcastEpisode.toString)"
+        )
+        try await load(podcastEpisode)
+        await play()
+        Self.log.info("handlePlaybackFailure: auto-recovery succeeded")
+        return
+      } catch {
+        Self.log.warning(
+          """
+          handlePlaybackFailure: auto-recovery failed
+          \(ErrorKit.loggableMessage(for: error))
+          """
+        )
+      }
+    } else {
+      Self.log.warning(
+        "handlePlaybackFailure: skipping auto-recovery, already attempted for \(episodeID)"
+      )
+    }
+
+    // Fall back to returning episode to queue
     do {
       try await queue.unshift(episodeID)
     } catch {
@@ -432,6 +477,34 @@ final class PlayManager {
     }
 
     await alert("Playback failed unexpectedly. The episode has been returned to your queue.")
+  }
+
+  private func logFailureDiagnostics(_ episodeID: Episode.ID) async {
+    // Check cached file integrity
+    if let podcastEpisode = try? await repo.podcastEpisode(episodeID),
+      let cachedURL = podcastEpisode.episode.cachedURL
+    {
+      if fileManager.fileExists(at: cachedURL.rawValue) {
+        let size = (try? fileManager.fileSize(for: cachedURL.rawValue)) ?? -1
+        Self.log.info("logFailureDiagnostics: cached file exists, size: \(size) bytes")
+      } else {
+        Self.log.warning("logFailureDiagnostics: cached file MISSING at \(cachedURL)")
+      }
+    } else {
+      Self.log.info("logFailureDiagnostics: episode not cached")
+    }
+
+    // Log audio session state
+    let session = AVAudioSession.sharedInstance()
+    Self.log.info(
+      """
+      logFailureDiagnostics: audio session state
+        category: \(session.category.rawValue)
+        mode: \(session.mode.rawValue)
+        isOtherAudioPlaying: \(session.isOtherAudioPlaying)
+        currentRoute: \(session.currentRoute.outputs.map(\.portType.rawValue))
+      """
+    )
   }
 
   private func setStatus(_ status: PlaybackStatus) async {
@@ -611,6 +684,25 @@ final class PlayManager {
       guard let self else { return }
       for await _ in notifications(AVAudioSession.mediaServicesWereResetNotification) {
         await handleMediaServicesReset()
+      }
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+      for await notification in notifications(AVAudioSession.routeChangeNotification) {
+        guard
+          let reasonValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+          let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue)
+        else { continue }
+
+        let session = AVAudioSession.sharedInstance()
+        Self.log.info(
+          """
+          Audio route changed
+            reason: \(reason)
+            outputs: \(session.currentRoute.outputs.map(\.portType.rawValue))
+          """
+        )
       }
     }
 
