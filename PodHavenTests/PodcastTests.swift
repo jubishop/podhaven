@@ -177,7 +177,7 @@ class PodcastTests {
       AppDB.NoOp,
       order: Podcast.Columns.lastUpdate.asc,
       limit: Int.max,
-      includeTags: true
+      includeTags: false
     )
     #expect(allPodcastSeries.count == 3)
     #expect(allPodcastSeries == [neverUpdatedSeries, staleSeries, freshSeries])
@@ -186,7 +186,7 @@ class PodcastTests {
       AppDB.NoOp,
       order: Podcast.Columns.id.asc,
       limit: 2,
-      includeTags: true
+      includeTags: false
     )
     #expect(limitedPodcastSeries.count == 2)
 
@@ -194,7 +194,7 @@ class PodcastTests {
       Podcast.subscribed,
       order: Podcast.Columns.id.asc,
       limit: Int.max,
-      includeTags: true
+      includeTags: false
     )
     #expect(Set(subscribedPodcastSeries) == Set([staleSeries, freshSeries]))
   }

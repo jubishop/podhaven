@@ -61,7 +61,7 @@ struct Repo: Databasing, Sendable {
   {
     do {
       return try await appDB.db.read { db in
-        let baseRequest =
+        var baseRequest =
           Podcast
           .all()
           .filter(filter)
@@ -70,11 +70,9 @@ struct Repo: Databasing, Sendable {
           .including(all: Podcast.episodes)
 
         if includeTags {
-          return
-            try baseRequest
-            .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
-            .asRequest(of: PodcastSeries.self)
-            .fetchAll(db)
+          baseRequest = baseRequest.including(
+            all: Podcast.tags.order { $0.name.collating(.nocase) }
+          )
         }
 
         return
@@ -207,11 +205,7 @@ struct Repo: Databasing, Sendable {
           unsavedEpisode.podcastId = podcast.id
           episodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
         }
-        return PodcastSeries(
-          podcast: podcast,
-          episodes: episodes,
-          tags: IdentifiedArrayOf(uniqueElements: [])
-        )
+        return PodcastSeries(podcast: podcast, episodes: episodes)
       }
     } catch let error as DatabaseError
       where error.extendedResultCode == .SQLITE_CONSTRAINT_UNIQUE
