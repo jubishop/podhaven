@@ -328,6 +328,8 @@ struct Repo: Databasing, Sendable {
     try await deletePodcast([podcastID]) > 0
   }
 
+  // MARK: - Tag Writers
+
   @discardableResult
   func insertTag(named: String) async throws -> Tag {
     let normalizedName = named.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -349,11 +351,9 @@ struct Repo: Databasing, Sendable {
     } > 0
   }
 
-  @discardableResult
-  func addTag(_ tagID: Tag.ID, to podcastID: Podcast.ID) async throws -> Bool {
+  func addTag(_ tagID: Tag.ID, to podcastID: Podcast.ID) async throws {
     try await appDB.db.write { db in
       try PodcastTag(podcastId: podcastID, tagId: tagID).insert(db)
-      return true
     }
   }
 

@@ -24,6 +24,20 @@ class TagsTests {
     #expect(tags.map(\.name) == ["Swift"])
   }
 
+  @Test("insertTag() throws on empty string")
+  func insertTagThrowsOnEmpty() async throws {
+    await #expect(throws: DatabaseError.self) {
+      _ = try await self.repo.insertTag(named: "")
+    }
+
+    await #expect(throws: DatabaseError.self) {
+      _ = try await self.repo.insertTag(named: "   ")
+    }
+
+    let tags = try await repo.allTags()
+    #expect(tags.isEmpty)
+  }
+
   @Test("allTags() returns tags ordered by case-insensitive name")
   func allTagsReturnsOrdered() async throws {
     _ = try await repo.insertTag(named: "zeta")
@@ -39,10 +53,9 @@ class TagsTests {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
-    let tag = try await repo.insertTag(named: "Tech")
 
-    let firstAdd = try await repo.addTag(tag.id, to: series.id)
-    #expect(firstAdd)
+    let tag = try await repo.insertTag(named: "Tech")
+    try await repo.addTag(tag.id, to: series.id)
 
     await #expect(throws: DatabaseError.self) {
       _ = try await self.repo.addTag(tag.id, to: series.id)
