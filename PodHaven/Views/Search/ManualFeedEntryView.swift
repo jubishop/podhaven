@@ -52,9 +52,8 @@ struct ManualFeedEntryView: View {
                 ProgressView()
                   .scaleEffect(0.8)
               } else {
-                AppIcon.subscribe.image
+                AppIcon.subscribe.label
               }
-              Text("Add Podcast")
             }
             .frame(maxWidth: .infinity)
           }
@@ -64,12 +63,8 @@ struct ManualFeedEntryView: View {
 
         // Error Display
         if case .error(let message) = viewModel.state {
-          HStack {
-            AppIcon.error.image
-            Text(message)
-              .font(.subheadline)
-              .foregroundColor(.red)
-          }
+          AppIcon.error.label(message)
+            .font(.subheadline)
         }
       }
 
@@ -126,12 +121,8 @@ struct ManualFeedEntryView: View {
         }
 
       case .error(let message):
-        HStack {
-          AppIcon.error.image
-          Text(message)
-            .font(.subheadline)
-            .foregroundColor(.red)
-        }
+        AppIcon.error.label(message)
+          .font(.subheadline)
       }
 
       Spacer()

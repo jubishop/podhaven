@@ -1,12 +1,12 @@
-#if DEBUG && targetEnvironment(simulator)
+#if DEBUG
 // Copyright Justin Bishop, 2025
 
-public import FactoryKit
+import FactoryKit
 import Foundation
 import Nuke
 
-extension Container: @retroactive AutoRegistering {
-  public func autoRegister() {
+extension Container {
+  func registerPreviewDefaults() {
     appDB.context(.preview) { AppDB.inMemory() }.scope(.cached)
 
     iTunesServiceSession.context(.preview) { PreviewHelpers.dataFetcher }

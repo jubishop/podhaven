@@ -14,6 +14,7 @@ struct PreviewModifier: ViewModifier {
   init() {
     guard Function.neverCalled() else { return }
 
+    Container.shared.registerPreviewDefaults()
     AppInfo.environment = .preview
   }
 
