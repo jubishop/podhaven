@@ -676,8 +676,33 @@ private struct SystemImageName:
     colorScheme == .dark ? data.darkColor : data.lightColor
   }
 
+  func label(_ text: String) -> some View {
+    AppIconLabel(icon: self, textKey: LocalizedStringKey(text))
+  }
+
+  func label(_ text: LocalizedStringKey) -> some View {
+    AppIconLabel(icon: self, textKey: text)
+  }
+
+  func rawLabel(_ text: String) -> Label<Text, Image> {
+    Label(LocalizedStringKey(text), systemImage: data.systemImageName.rawValue)
+  }
+
+  func rawLabel(_ text: LocalizedStringKey) -> Label<Text, Image> {
+    Label(text, systemImage: data.systemImageName.rawValue)
+  }
+
   func labelButton(action: @MainActor @escaping () -> Void) -> some View {
     AppIconLabelButton(icon: self, action: action)
+  }
+
+  func labelButton(_ text: String, action: @MainActor @escaping () -> Void) -> some View {
+    AppIconLabelButton(icon: self, textKey: LocalizedStringKey(text), action: action)
+  }
+
+  func labelButton(_ text: LocalizedStringKey, action: @MainActor @escaping () -> Void) -> some View
+  {
+    AppIconLabelButton(icon: self, textKey: text, action: action)
   }
 
   func rawLabelButton(action: @MainActor @escaping () -> Void) -> some View {
@@ -713,10 +738,21 @@ private struct AppIconLabel: View {
   @Environment(\.isEnabled) private var isEnabled
 
   let icon: AppIcon
+  let textKey: LocalizedStringKey
+
+  init(icon: AppIcon) {
+    self.icon = icon
+    self.textKey = icon.textKey
+  }
+
+  init(icon: AppIcon, textKey: LocalizedStringKey) {
+    self.icon = icon
+    self.textKey = textKey
+  }
 
   var body: some View {
     Label {
-      Text(icon.textKey)
+      Text(textKey)
     } icon: {
       icon.rawImage
         .foregroundStyle(icon.color(for: colorScheme))
@@ -730,11 +766,24 @@ private struct AppIconLabelButton: View {
   @Environment(\.isEnabled) private var isEnabled
 
   let icon: AppIcon
+  let textKey: LocalizedStringKey
   let action: () -> Void
+
+  init(icon: AppIcon, action: @escaping () -> Void) {
+    self.icon = icon
+    self.textKey = icon.textKey
+    self.action = action
+  }
+
+  init(icon: AppIcon, textKey: LocalizedStringKey, action: @escaping () -> Void) {
+    self.icon = icon
+    self.textKey = textKey
+    self.action = action
+  }
 
   var body: some View {
     Button(action: action) {
-      AppIconLabel(icon: icon)
+      AppIconLabel(icon: icon, textKey: textKey)
     }
     .tint(icon.color(for: colorScheme))
     .opacity(isEnabled ? 1 : 0.4)

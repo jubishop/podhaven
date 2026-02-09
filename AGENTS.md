@@ -7,7 +7,18 @@
 - Stay sandbox-friendly: ask for elevated access only when instructions require files outside the workspace.
 
 ## Build & Test
-- Do not run builds or tests unless the request is explicit.
+- Build for testing:
+  ```
+  xcodebuild build-for-testing -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+  ```
+- Run all tests (ParallelTests via test plan):
+  ```
+  xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -testPlan PodHaven -parallel-testing-enabled YES
+  ```
+- Run a specific test class or method:
+  ```
+  xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:ParallelTests/SomeTestClass/testMethod
+  ```
 
 ## Compatibility
 - Backward compatibility is not necessary.  Always use the latest features and libraries.
