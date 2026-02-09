@@ -23,21 +23,24 @@ struct RefreshScheduler: Sendable {
   private static let backgroundTaskIdentifier = "com.artisanalsoftware.podhaven.refreshFeed"
 
   typealias RefreshPolicy = (
-    stalenessThreshold: Duration,
     cadence: Duration,
+    cellStalenessThreshold: Duration,
     cellLimit: Int,
+    wifiStalenessThreshold: Duration,
     wifiLimit: Int
   )
   private let backgroundPolicy: RefreshPolicy = (
-    stalenessThreshold: .hours(2),
     cadence: .minutes(15),
+    cellStalenessThreshold: .hours(4),
     cellLimit: 4,
+    wifiStalenessThreshold: .hours(1),
     wifiLimit: 16
   )
   private let foregroundPolicy: RefreshPolicy = (
-    stalenessThreshold: .hours(1),
     cadence: .minutes(5),
+    cellStalenessThreshold: .hours(2),
     cellLimit: 8,
+    wifiStalenessThreshold: .minutes(30),
     wifiLimit: 32
   )
 
@@ -152,7 +155,9 @@ struct RefreshScheduler: Sendable {
     defer { refreshLock.release() }
 
     try await refreshManager.performRefresh(
-      stalenessThreshold: refreshPolicy.stalenessThreshold,
+      stalenessThreshold: connectionState.isExpensive
+        ? refreshPolicy.cellStalenessThreshold
+        : refreshPolicy.wifiStalenessThreshold,
       filter: Podcast.subscribed,
       limit: connectionState.isExpensive
         ? refreshPolicy.cellLimit
