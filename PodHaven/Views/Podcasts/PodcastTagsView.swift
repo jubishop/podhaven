@@ -32,26 +32,13 @@ struct PodcastTagsView: View {
   // MARK: - Components
 
   private func tagChip(_ tag: Tag) -> some View {
-    let tagColor = AppIcon.tag.color(for: colorScheme)
-    let removeColor = AppIcon.removeTag.color(for: colorScheme)
-
-    return Button {
-      onRemove(tag.id)
-    } label: {
-      HStack(spacing: 4) {
-        Text(tag.name)
-          .foregroundStyle(tagColor)
-        AppIcon.removeTag.rawImage
-          .font(.caption2)
-          .fontWeight(.bold)
-          .foregroundStyle(removeColor)
-      }
+    AppIcon.removeTag
+      .labelButton(tag.name) { onRemove(tag.id) }
       .font(.subheadline)
       .padding(.horizontal, 10)
       .padding(.vertical, 6)
-      .background(tagColor.opacity(0.15))
+      .background(AppIcon.tag.color(for: colorScheme).opacity(0.15))
       .clipShape(Capsule())
-    }
   }
 
   private var addTagMenu: some View {
