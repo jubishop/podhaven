@@ -1,0 +1,73 @@
+// Copyright Justin Bishop, 2026
+
+import IdentifiedCollections
+import SwiftUI
+
+struct PodcastTagsView: View {
+  @Environment(\.colorScheme) private var colorScheme
+
+  let tags: IdentifiedArrayOf<Tag>
+  let allTags: [Tag]
+  let onAdd: (Tag.ID) -> Void
+  let onRemove: (Tag.ID) -> Void
+
+  private var availableTags: [Tag] {
+    allTags.filter { tag in
+      !tags.contains(where: { $0.id == tag.id })
+    }
+  }
+
+  var body: some View {
+    FlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
+      ForEach(tags) { tag in
+        tagChip(tag)
+      }
+
+      if !availableTags.isEmpty {
+        addTagMenu
+      }
+    }
+  }
+
+  // MARK: - Components
+
+  private func tagChip(_ tag: Tag) -> some View {
+    let tagColor = AppIcon.tag.color(for: colorScheme)
+    let removeColor = AppIcon.removeTag.color(for: colorScheme)
+
+    return Button {
+      onRemove(tag.id)
+    } label: {
+      HStack(spacing: 4) {
+        Text(tag.name)
+          .foregroundStyle(tagColor)
+        AppIcon.removeTag.rawImage
+          .font(.caption2)
+          .fontWeight(.bold)
+          .foregroundStyle(removeColor)
+      }
+      .font(.subheadline)
+      .padding(.horizontal, 10)
+      .padding(.vertical, 6)
+      .background(tagColor.opacity(0.15))
+      .clipShape(Capsule())
+    }
+  }
+
+  private var addTagMenu: some View {
+    Menu {
+      ForEach(availableTags) { tag in
+        Button(tag.name) {
+          onAdd(tag.id)
+        }
+      }
+    } label: {
+      AppIcon.addTag.label
+        .font(.subheadline)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(AppIcon.addTag.color(for: colorScheme).opacity(0.15))
+        .clipShape(Capsule())
+    }
+  }
+}

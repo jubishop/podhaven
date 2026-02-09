@@ -49,6 +49,13 @@ struct SettingsView: View {
           )
         }
 
+        Section("Organization") {
+          NavigationLink(
+            value: Navigation.Destination.settingsSection(.tags),
+            label: { Text("Tags") }
+          )
+        }
+
         Section("Playback") {
           VStack(alignment: .leading, spacing: 24) {
             SettingsRow(

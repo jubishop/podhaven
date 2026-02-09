@@ -35,6 +35,7 @@ private struct SystemImageName:
   static let showPodcast = SystemImageName("antenna.radiowaves.left.and.right")
 
   // Actions
+  static let addTag = SystemImageName("plus.circle.fill")
   static let clear = SystemImageName("xmark.circle")
   static let clearSearch = SystemImageName("xmark")
   static let delete = SystemImageName("trash")
@@ -78,6 +79,8 @@ private struct SystemImageName:
 
   // Information Display
   static let aboutInfo = SystemImageName("questionmark.circle")
+  static let removeTag = SystemImageName("xmark")
+  static let tag = SystemImageName("tag")
   static let audioPlaceholder = SystemImageName("music.note")
   static let calendar = SystemImageName("calendar")
   static let duration = SystemImageName("clock")
@@ -207,6 +210,10 @@ private struct SystemImageName:
   // Manual Entry
   case manualEntry
 
+  // Tag Actions
+  case addTag
+  case removeTag
+
   // General Actions
   case document
   case exportOPML
@@ -226,6 +233,7 @@ private struct SystemImageName:
   case notificationsDisabled
   case notificationsNotDetermined
   case publishDate
+  case tag
   case updated
 
   // Filtering
@@ -436,6 +444,12 @@ private struct SystemImageName:
     case .upNext:
       return Data(text: "Up Next", systemImageName: .queueTop)
 
+    // Tag Actions
+    case .addTag:
+      return Data(text: "Add Tag", systemImageName: .addTag, color: .green)
+    case .removeTag:
+      return Data(text: "Remove Tag", systemImageName: .removeTag, color: .red)
+
     // General Actions
     case .document:
       return Data(text: "Document", systemImageName: .document)
@@ -481,6 +495,8 @@ private struct SystemImageName:
       )
     case .publishDate:
       return Data(text: "Published", systemImageName: .publishDate, color: .secondary)
+    case .tag:
+      return Data(text: "Tag", systemImageName: .tag, color: .secondary)
     case .updated:
       return Data(text: "Updated", systemImageName: .calendar, color: .secondary)
 

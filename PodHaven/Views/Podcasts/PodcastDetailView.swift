@@ -228,6 +228,17 @@ struct PodcastDetailView: View {
       metadataRow
         .padding(.horizontal)
 
+      if viewModel.saved {
+        PodcastTagsView(
+          tags: viewModel.tags,
+          allTags: viewModel.allTags,
+          onAdd: viewModel.addTag,
+          onRemove: viewModel.removeTag
+        )
+        .padding(.horizontal)
+        .onAppear { viewModel.loadAllTags() }
+      }
+
       Divider()
 
       ScrollView {

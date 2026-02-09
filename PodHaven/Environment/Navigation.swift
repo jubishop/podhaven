@@ -99,6 +99,7 @@ extension Container {
 
   enum SettingsSection {
     case opml
+    case tags
   }
 
   enum EpisodesViewType: String, CaseIterable, Codable {
@@ -118,6 +119,8 @@ extension Container {
       switch section {
       case .opml:
         OPMLView().id("opml")
+      case .tags:
+        TagsSettingsView().id("tags")
       }
 
     // Episodes destinations
