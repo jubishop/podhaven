@@ -229,7 +229,7 @@ struct PodcastDetailView: View {
         .padding(.horizontal)
 
       if viewModel.saved {
-        PodcastTagsView(
+        TagsView(
           tags: viewModel.tags,
           allTags: viewModel.allTags,
           onAdd: viewModel.addTag,

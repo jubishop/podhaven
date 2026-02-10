@@ -3,7 +3,7 @@
 import IdentifiedCollections
 import SwiftUI
 
-struct PodcastTagsView: View {
+struct TagsView: View {
   @Environment(\.colorScheme) private var colorScheme
 
   let tags: IdentifiedArrayOf<Tag>
