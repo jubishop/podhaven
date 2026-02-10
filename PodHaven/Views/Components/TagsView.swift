@@ -5,6 +5,7 @@ import SwiftUI
 
 struct TagsView: View {
   @Environment(\.colorScheme) private var colorScheme
+  @State private var isShowingTagSettings = false
 
   let tags: IdentifiedArrayOf<Tag>
   let allTags: IdentifiedArrayOf<Tag>
@@ -21,8 +22,20 @@ struct TagsView: View {
         tagChip(tag)
       }
 
-      if !availableTags.isEmpty {
-        addTagMenu
+      addTagMenu
+    }
+    .sheet(isPresented: $isShowingTagSettings) {
+      NavigationStack {
+        TagsSettingsView()
+          .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+              Button {
+                isShowingTagSettings = false
+              } label: {
+                Image(systemName: "chevron.backward")
+              }
+            }
+          }
       }
     }
   }
@@ -52,6 +65,14 @@ struct TagsView: View {
         Button(tag.name) {
           onAdd(tag.id)
         }
+      }
+
+      if !availableTags.isEmpty {
+        Divider()
+      }
+
+      AppIcon.manageTags.labelButton {
+        isShowingTagSettings = true
       }
     } label: {
       AppIcon.addTag.label

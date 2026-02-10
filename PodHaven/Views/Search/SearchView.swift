@@ -6,8 +6,8 @@ import SwiftUI
 
 struct SearchView: View {
   @DynamicInjected(\.navigation) private var navigation
-  @DynamicInjected(\.sheet) private var sheet
 
+  @State private var isShowingManualFeedEntry = false
   @State private var viewModel: SearchViewModel
 
   init(viewModel: SearchViewModel) {
@@ -55,11 +55,13 @@ struct SearchView: View {
   private var toolbar: some ToolbarContent {
     if !viewModel.podcastList.isSelecting {
       ToolbarItem(placement: .topBarLeading) {
-        AppIcon.manualEntry.labelButton {
-          sheet {
+        AppIcon.manualEntry
+          .labelButton {
+            isShowingManualFeedEntry = true
+          }
+          .sheet(isPresented: $isShowingManualFeedEntry) {
             ManualFeedEntryView(viewModel: ManualFeedEntryViewModel())
           }
-        }
       }
     }
 

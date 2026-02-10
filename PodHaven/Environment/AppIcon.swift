@@ -212,6 +212,7 @@ private struct SystemImageName:
 
   // Tag Actions
   case addTag
+  case manageTags
   case removeTag
 
   // General Actions
@@ -447,6 +448,8 @@ private struct SystemImageName:
     // Tag Actions
     case .addTag:
       return Data(text: "Add Tag", systemImageName: .addTag, color: .green)
+    case .manageTags:
+      return Data(text: "Manage Tags", systemImageName: .tag)
     case .removeTag:
       return Data(text: "Remove Tag", systemImageName: .removeTag, color: .red)
 
