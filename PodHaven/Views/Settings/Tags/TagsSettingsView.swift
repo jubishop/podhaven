@@ -31,11 +31,11 @@ struct TagsSettingsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture { viewModel.startEditing(tag) }
-          }
-        }
-        .onDelete { indexSet in
-          for index in indexSet {
-            viewModel.deleteTag(viewModel.tags[index].id)
+            .swipeActions(edge: .trailing) {
+              AppIcon.removeTag.imageButton {
+                viewModel.deleteTag(tag.id)
+              }
+            }
           }
         }
       }

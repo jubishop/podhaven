@@ -5,6 +5,7 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
+import SwiftUI
 
 @Observable @MainActor class TagsSettingsViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
@@ -108,6 +109,24 @@ import Logging
   }
 
   func deleteTag(_ tagID: Tag.ID) {
+    let count = podcastCounts[tagID] ?? 0
+    if count > 0 {
+      let tagName = tags[id: tagID]?.name ?? "this tag"
+      alert(
+        title: "Delete Tag?",
+        "\"\(tagName)\" is used by \(count) \(count == 1 ? "podcast" : "podcasts"). Are you sure you want to delete it?"
+      ) { [weak self] in
+        Button("Delete", role: .destructive) { self?.performDeleteTag(tagID) }
+        Button("Cancel", role: .cancel) {}
+      }
+    } else {
+      performDeleteTag(tagID)
+    }
+  }
+
+  // MARK: - Private Helpers
+
+  private func performDeleteTag(_ tagID: Tag.ID) {
     Task { [weak self] in
       guard let self else { return }
 
