@@ -213,6 +213,13 @@ extension Container {
     currentTab = .settings
   }
 
+  func showTagsSettings() {
+    Self.log.debug("Showing tags settings")
+
+    settings.path = [.settingsSection(.tags)]
+    currentTab = .settings
+  }
+
   // MARK: - Search
 
   var search = PathManager()

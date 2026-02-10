@@ -7,6 +7,7 @@
 - Stay sandbox-friendly: ask for elevated access only when instructions require files outside the workspace.
 
 ## Build & Test
+- Don't actually try to build or test unless the user explicitly asks.
 - Build for testing:
   ```
   xcodebuild build-for-testing -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro'

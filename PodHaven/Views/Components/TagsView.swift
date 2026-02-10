@@ -1,11 +1,12 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import IdentifiedCollections
 import SwiftUI
 
 struct TagsView: View {
   @Environment(\.colorScheme) private var colorScheme
-  @State private var isShowingTagSettings = false
+  @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
 
   let tags: IdentifiedArrayOf<Tag>
   let allTags: IdentifiedArrayOf<Tag>
@@ -23,20 +24,6 @@ struct TagsView: View {
       }
 
       addTagMenu
-    }
-    .sheet(isPresented: $isShowingTagSettings) {
-      NavigationStack {
-        TagsSettingsView()
-          .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-              Button {
-                isShowingTagSettings = false
-              } label: {
-                Image(systemName: "chevron.backward")
-              }
-            }
-          }
-      }
     }
   }
 
@@ -72,7 +59,7 @@ struct TagsView: View {
       }
 
       AppIcon.manageTags.labelButton {
-        isShowingTagSettings = true
+        navigation.showTagsSettings()
       }
     } label: {
       AppIcon.addTag.label
