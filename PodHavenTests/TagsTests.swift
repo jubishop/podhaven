@@ -149,6 +149,30 @@ class TagsTests {
     #expect(tags.map(\.name) == ["News", "Tech"])
   }
 
+  @Test("observatory.podcastCountsByTag() returns correct counts per tag")
+  func podcastCountsByTag() async throws {
+    let seriesA = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    )
+    let seriesB = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    )
+
+    let tagOne = try await repo.insertTag(named: "News")
+    let tagTwo = try await repo.insertTag(named: "Tech")
+    _ = try await repo.insertTag(named: "Empty")
+
+    try await repo.addTag(tagOne.id, to: seriesA.id)
+    try await repo.addTag(tagOne.id, to: seriesB.id)
+    try await repo.addTag(tagTwo.id, to: seriesA.id)
+
+    let counts = try await observatory.podcastCountsByTag().get()
+    #expect(counts[tagOne.id] == 2)
+    #expect(counts[tagTwo.id] == 1)
+    #expect(counts[tagOne.id] != nil)
+    #expect(counts.count == 2)
+  }
+
   @Test("deleteTag() cascades through podcastTag mappings")
   func deletingTagRemovesPodcastMappings() async throws {
     let series = try await repo.insertSeries(

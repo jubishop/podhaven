@@ -2,11 +2,13 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 import IdentifiedCollections
 import Logging
 
 @Observable @MainActor class TagsSettingsViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
+  @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
 
@@ -15,9 +17,23 @@ import Logging
   // MARK: - State
 
   var tags: IdentifiedArrayOf<Tag> { sharedState.tags }
+  var podcastCounts: [Tag.ID: Int] = [:]
   var newTagName: String = ""
   var editingTagID: Tag.ID?
   var editingTagName: String = ""
+
+  // MARK: - Initialization
+
+  func execute() async {
+    do {
+      for try await counts in observatory.podcastCountsByTag() {
+        guard !Task.isCancelled else { return }
+        podcastCounts = counts
+      }
+    } catch {
+      Self.log.error(error)
+    }
+  }
 
   // MARK: - Actions
 

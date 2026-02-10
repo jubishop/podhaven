@@ -120,6 +120,25 @@ struct Observatory {
     }
   }
 
+  func podcastCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
+    _observe { db in
+      let rows = try Row.fetchAll(
+        db,
+        PodcastTag
+          .select(
+            PodcastTag.Columns.tagId,
+            count(PodcastTag.Columns.podcastId).forKey("count")
+          )
+          .group(PodcastTag.Columns.tagId)
+      )
+      return Dictionary(
+        uniqueKeysWithValues: rows.map { row in
+          (row[PodcastTag.Columns.tagId] as Tag.ID, row["count"] as Int)
+        }
+      )
+    }
+  }
+
   // MARK: - Singular Observations
 
   func podcastSeries(_ podcastID: Podcast.ID) -> AsyncValueObservation<PodcastSeries?> {

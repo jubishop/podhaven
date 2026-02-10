@@ -22,10 +22,15 @@ struct TagsSettingsView: View {
               .onSubmit { viewModel.renameTag() }
               .onAppear { focusedTagID = tag.id }
           } else {
-            Text(tag.name)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .contentShape(Rectangle())
-              .onTapGesture { viewModel.startEditing(tag) }
+            VStack(alignment: .leading) {
+              Text(tag.name)
+              Text("Podcasts: \(viewModel.podcastCounts[tag.id] ?? 0)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture { viewModel.startEditing(tag) }
           }
         }
         .onDelete { indexSet in
@@ -53,6 +58,7 @@ struct TagsSettingsView: View {
       .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
       .padding(.horizontal)
     }
+    .task { await viewModel.execute() }
     .navigationTitle("Tags")
     .onChange(of: focusedTagID) { _, newValue in
       if newValue == nil, viewModel.editingTagID != nil {
