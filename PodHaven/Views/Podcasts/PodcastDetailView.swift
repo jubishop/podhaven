@@ -228,6 +228,8 @@ struct PodcastDetailView: View {
       metadataRow
         .padding(.horizontal)
 
+      Divider()
+
       if viewModel.saved {
         TagsView(
           tags: viewModel.tags,
