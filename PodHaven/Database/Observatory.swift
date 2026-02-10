@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import GRDB
+import IdentifiedCollections
 
 extension Container {
   var observatory: Factory<Observatory> {
@@ -106,6 +107,17 @@ struct Observatory {
       order: Episode.Columns.queueOrder.asc,
       limit: limit
     )
+  }
+
+  // MARK: - Tags
+
+  func tags() -> AsyncValueObservation<IdentifiedArrayOf<Tag>> {
+    _observe { db in
+      try Tag
+        .all()
+        .orderedByName()
+        .fetchIdentifiedArray(db)
+    }
   }
 
   // MARK: - Singular Observations

@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import IdentifiedCollections
 import Logging
 import Sharing
 import Tagged
@@ -20,6 +21,7 @@ struct SharedState: Sendable {
   @Shared(.inMemory("onDeck")) var onDeck: OnDeck?
   @Shared(.inMemory("playbackStatus")) var playbackStatus: PlaybackStatus = .stopped
   @Shared(.inMemory("playRate")) var playRate: Float = 1.0
+  @Shared(.inMemory("tags")) var tags: IdentifiedArrayOf<Tag> = []
 
   // MARK: - Current Episode ID (Persisted)
 
@@ -110,6 +112,10 @@ struct SharedState: Sendable {
   func setPlayRate(_ rate: Float) {
     guard rate > 0 else { return }
     $playRate.withLock { $0 = rate }
+  }
+
+  func setTags(_ tags: IdentifiedArrayOf<Tag>) {
+    $tags.withLock { $0 = tags }
   }
 
   // MARK: - Initialization

@@ -8,31 +8,18 @@ import Logging
 @Observable @MainActor class TagsSettingsViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
 
   private static let log = Log.as(LogSubsystem.SettingsView.tags)
 
   // MARK: - State
 
-  var tags: IdentifiedArrayOf<Tag> = []
+  var tags: IdentifiedArrayOf<Tag> { sharedState.tags }
   var newTagName: String = ""
   var editingTagID: Tag.ID?
   var editingTagName: String = ""
 
   // MARK: - Actions
-
-  func loadTags() {
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        tags = try await repo.allTags()
-      } catch {
-        Self.log.error(error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
-      }
-    }
-  }
 
   func addTag() {
     let name = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -49,7 +36,6 @@ import Logging
       do {
         try await repo.insertTag(named: name)
         newTagName = ""
-        tags = try await repo.allTags()
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -99,7 +85,6 @@ import Logging
         try await repo.renameTag(tagID, newName: newName)
         editingTagID = nil
         editingTagName = ""
-        tags = try await repo.allTags()
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -114,7 +99,6 @@ import Logging
 
       do {
         try await repo.deleteTag(tagID)
-        tags = try await repo.allTags()
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }

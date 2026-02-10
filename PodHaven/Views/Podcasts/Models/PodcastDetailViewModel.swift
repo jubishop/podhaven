@@ -25,6 +25,7 @@ class PodcastDetailViewModel:
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.userNotificationManager) private
     var userNotificationManager
 
@@ -249,7 +250,7 @@ class PodcastDetailViewModel:
   var saved: Bool { podcastSeries != nil }
 
   var tags: IdentifiedArrayOf<Tag> { podcastSeries?.tags ?? [] }
-  var allTags: IdentifiedArrayOf<Tag> = []
+  var allTags: IdentifiedArrayOf<Tag> { sharedState.tags }
 
   var mostRecentEpisodeDate: Date {
     episodeList.allEntries.first?.pubDate ?? Date.epoch
@@ -414,18 +415,6 @@ class PodcastDetailViewModel:
   }
 
   // MARK: - Tag Management
-
-  func loadAllTags() {
-    Task { [weak self] in
-      guard let self else { return }
-
-      do {
-        allTags = try await repo.allTags()
-      } catch {
-        Self.log.error(error)
-      }
-    }
-  }
 
   func addTag(_ tagID: Tag.ID) {
     guard let podcastID = podcastSeries?.id else {

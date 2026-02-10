@@ -238,7 +238,6 @@ struct PodcastDetailView: View {
           onRemove: viewModel.removeTag
         )
         .padding(.horizontal)
-        .onAppear { viewModel.loadAllTags() }
       }
 
       Divider()

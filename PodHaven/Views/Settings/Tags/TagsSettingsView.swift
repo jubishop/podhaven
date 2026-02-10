@@ -54,7 +54,6 @@ struct TagsSettingsView: View {
       .padding(.horizontal)
     }
     .navigationTitle("Tags")
-    .onAppear { viewModel.loadTags() }
     .onChange(of: focusedTagID) { _, newValue in
       if newValue == nil, viewModel.editingTagID != nil {
         viewModel.renameTag()

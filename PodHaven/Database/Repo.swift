@@ -42,15 +42,6 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func allTags() async throws -> IdentifiedArrayOf<Tag> {
-    try await appDB.db.read { db in
-      try Tag
-        .all()
-        .orderedByName()
-        .fetchIdentifiedArray(db)
-    }
-  }
-
   func allPodcastSeries(
     _ filter: SQLExpression,
     order: SQLOrdering,
