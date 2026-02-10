@@ -36,6 +36,7 @@ private struct SystemImageName:
 
   // Actions
   static let addTag = SystemImageName("plus.circle.fill")
+  static let removeTag = SystemImageName("xmark.circle.fill")
   static let clear = SystemImageName("xmark.circle")
   static let clearSearch = SystemImageName("xmark")
   static let delete = SystemImageName("trash")
@@ -79,7 +80,6 @@ private struct SystemImageName:
 
   // Information Display
   static let aboutInfo = SystemImageName("questionmark.circle")
-  static let removeTag = SystemImageName("xmark")
   static let tag = SystemImageName("tag")
   static let audioPlaceholder = SystemImageName("music.note")
   static let calendar = SystemImageName("calendar")
