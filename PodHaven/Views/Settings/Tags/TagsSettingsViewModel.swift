@@ -15,6 +15,8 @@ import Logging
 
   var tags: IdentifiedArrayOf<Tag> = []
   var newTagName: String = ""
+  var editingTagID: Tag.ID?
+  var editingTagName: String = ""
 
   // MARK: - Actions
 
@@ -47,6 +49,56 @@ import Logging
       do {
         try await repo.insertTag(named: name)
         newTagName = ""
+        tags = try await repo.allTags()
+      } catch {
+        Self.log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.coreMessage(for: error))
+      }
+    }
+  }
+
+  func startEditing(_ tag: Tag) {
+    editingTagID = tag.id
+    editingTagName = tag.name
+  }
+
+  func cancelEditing() {
+    editingTagID = nil
+    editingTagName = ""
+  }
+
+  func renameTag() {
+    guard let tagID = editingTagID else { return }
+    let newName = editingTagName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard !newName.isEmpty else {
+      cancelEditing()
+      return
+    }
+
+    // Allow if unchanged
+    if let existing = tags[id: tagID], existing.name == newName {
+      cancelEditing()
+      return
+    }
+
+    // Block if another tag has the same name (case-insensitive)
+    if let conflict = tags.first(where: { $0.name.caseInsensitiveCompare(newName) == .orderedSame }
+    ),
+      conflict.id != tagID
+    {
+      alert("A tag named \"\(conflict.name)\" already exists.")
+      return
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        try await repo.renameTag(tagID, newName: newName)
+        editingTagID = nil
+        editingTagName = ""
         tags = try await repo.allTags()
       } catch {
         Self.log.error(error)

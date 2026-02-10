@@ -4,6 +4,7 @@ import IdentifiedCollections
 import SwiftUI
 
 struct TagsSettingsView: View {
+  @FocusState private var focusedTagID: Tag.ID?
   @State private var viewModel = TagsSettingsViewModel()
 
   var body: some View {
@@ -13,7 +14,19 @@ struct TagsSettingsView: View {
           .foregroundStyle(.secondary)
       } else {
         ForEach(viewModel.tags) { tag in
-          Text(tag.name)
+          if viewModel.editingTagID == tag.id {
+            TextField("Tag name", text: $viewModel.editingTagName)
+              .textInputAutocapitalization(.words)
+              .submitLabel(.done)
+              .focused($focusedTagID, equals: tag.id)
+              .onSubmit { viewModel.renameTag() }
+              .onAppear { focusedTagID = tag.id }
+          } else {
+            Text(tag.name)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .contentShape(Rectangle())
+              .onTapGesture { viewModel.startEditing(tag) }
+          }
         }
         .onDelete { indexSet in
           for index in indexSet {
@@ -42,6 +55,11 @@ struct TagsSettingsView: View {
     }
     .navigationTitle("Tags")
     .onAppear { viewModel.loadTags() }
+    .onChange(of: focusedTagID) { _, newValue in
+      if newValue == nil, viewModel.editingTagID != nil {
+        viewModel.renameTag()
+      }
+    }
   }
 }
 

@@ -343,6 +343,20 @@ struct Repo: Databasing, Sendable {
   }
 
   @discardableResult
+  func renameTag(_ tagID: Tag.ID, newName: String) async throws -> Bool {
+    let normalizedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedName.isEmpty else {
+      throw DatabaseError(message: "Tag name cannot be empty")
+    }
+
+    return try await appDB.db.write { db in
+      try Tag
+        .withID(tagID)
+        .updateAll(db, Tag.Columns.name.set(to: normalizedName))
+    } > 0
+  }
+
+  @discardableResult
   func deleteTag(_ tagID: Tag.ID) async throws -> Bool {
     try await appDB.db.write { db in
       try Tag

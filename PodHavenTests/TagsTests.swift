@@ -117,6 +117,37 @@ class TagsTests {
     #expect(withTags[0].tags?.map(\.name) == ["Tech"])
   }
 
+  @Test("renameTag() updates name and preserves podcast associations")
+  func renameTagPreservesAssociations() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    )
+    let tag = try await repo.insertTag(named: "news")
+    try await repo.addTag(tag.id, to: series.id)
+
+    let renamed = try await repo.renameTag(tag.id, newName: "News")
+    #expect(renamed)
+
+    let tags = try await repo.allTags()
+    #expect(tags.map(\.name) == ["News"])
+
+    let fetchedSeries = try await repo.podcastSeries(series.id)
+    #expect(fetchedSeries?.tags?.map(\.id) == [tag.id])
+  }
+
+  @Test("renameTag() throws on conflict with another tag")
+  func renameTagThrowsOnConflict() async throws {
+    _ = try await repo.insertTag(named: "News")
+    let tech = try await repo.insertTag(named: "Tech")
+
+    await #expect(throws: DatabaseError.self) {
+      _ = try await self.repo.renameTag(tech.id, newName: "news")
+    }
+
+    let tags = try await repo.allTags()
+    #expect(tags.map(\.name) == ["News", "Tech"])
+  }
+
   @Test("deleteTag() cascades through podcastTag mappings")
   func deletingTagRemovesPodcastMappings() async throws {
     let series = try await repo.insertSeries(
