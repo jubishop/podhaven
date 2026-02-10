@@ -12,7 +12,7 @@ protocol Databasing: Sendable {
   // MARK: - Global Readers
 
   func allPodcasts(_ filter: SQLExpression) async throws -> [Podcast]
-  func allTags() async throws -> [Tag]
+  func allTags() async throws -> IdentifiedArrayOf<Tag>
   func allPodcastSeries(_ filter: SQLExpression, order: SQLOrdering, limit: Int, includeTags: Bool)
     async throws(RepoError)
     -> [PodcastSeries]

@@ -28,7 +28,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     try await repo.allPodcasts(filter)
   }
 
-  func allTags() async throws -> [Tag] {
+  func allTags() async throws -> IdentifiedArrayOf<Tag> {
     recordCall(methodName: "allTags")
     return try await repo.allTags()
   }

@@ -22,6 +22,13 @@ extension TableRecord where Self: Identifiable {
   }
 }
 
+extension FetchRequest where RowDecoder: FetchableRecord & Identifiable {
+  // Returns an identified array of fetched records.
+  func fetchIdentifiedArray(_ db: Database) throws -> IdentifiedArrayOf<RowDecoder> {
+    try IdentifiedArray(fetchCursor(db))
+  }
+}
+
 extension PersistableRecord {
   func upsertLimitedColumns<U: FetchableRecord>(_ db: Database, columns: [any ColumnExpression])
     throws -> U

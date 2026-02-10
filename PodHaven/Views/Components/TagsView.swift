@@ -7,14 +7,12 @@ struct TagsView: View {
   @Environment(\.colorScheme) private var colorScheme
 
   let tags: IdentifiedArrayOf<Tag>
-  let allTags: [Tag]
+  let allTags: IdentifiedArrayOf<Tag>
   let onAdd: (Tag.ID) -> Void
   let onRemove: (Tag.ID) -> Void
 
-  private var availableTags: [Tag] {
-    allTags.filter { tag in
-      !tags.contains(where: { $0.id == tag.id })
-    }
+  private var availableTags: IdentifiedArrayOf<Tag> {
+    allTags.filter { !tags.ids.contains($0.id) }
   }
 
   var body: some View {

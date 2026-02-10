@@ -249,7 +249,7 @@ class PodcastDetailViewModel:
   var saved: Bool { podcastSeries != nil }
 
   var tags: IdentifiedArrayOf<Tag> { podcastSeries?.tags ?? [] }
-  var allTags: [Tag] = []
+  var allTags: IdentifiedArrayOf<Tag> = []
 
   var mostRecentEpisodeDate: Date {
     episodeList.allEntries.first?.pubDate ?? Date.epoch

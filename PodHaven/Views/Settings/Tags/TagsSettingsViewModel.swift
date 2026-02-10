@@ -13,7 +13,7 @@ import Logging
 
   // MARK: - State
 
-  var tags: [Tag] = []
+  var tags: IdentifiedArrayOf<Tag> = []
   var newTagName: String = ""
 
   // MARK: - Actions
@@ -35,6 +35,11 @@ import Logging
   func addTag() {
     let name = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !name.isEmpty else { return }
+
+    if tags.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+      alert("A tag named \"\(name)\" already exists.")
+      return
+    }
 
     Task { [weak self] in
       guard let self else { return }

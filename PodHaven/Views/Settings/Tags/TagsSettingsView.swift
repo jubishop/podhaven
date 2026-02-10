@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import IdentifiedCollections
 import SwiftUI
 
 struct TagsSettingsView: View {

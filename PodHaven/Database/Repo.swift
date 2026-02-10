@@ -42,12 +42,12 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func allTags() async throws -> [Tag] {
+  func allTags() async throws -> IdentifiedArrayOf<Tag> {
     try await appDB.db.read { db in
       try Tag
         .all()
         .orderedByName()
-        .fetchAll(db)
+        .fetchIdentifiedArray(db)
     }
   }
 
