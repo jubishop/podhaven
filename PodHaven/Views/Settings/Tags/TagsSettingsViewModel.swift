@@ -27,6 +27,7 @@ import Logging
 
     if tags.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
       alert("A tag named \"\(name)\" already exists.")
+      newTagName = ""
       return
     }
 
@@ -58,38 +59,35 @@ import Logging
     guard let tagID = editingTagID else { return }
     let newName = editingTagName.trimmingCharacters(in: .whitespacesAndNewlines)
 
-    guard !newName.isEmpty else {
-      cancelEditing()
-      return
-    }
-
-    // Allow if unchanged
-    if let existing = tags[id: tagID], existing.name == newName {
+    // Nothing to persist — exit editing immediately
+    guard !newName.isEmpty, tags[id: tagID]?.name != newName else {
       cancelEditing()
       return
     }
 
     // Block if another tag has the same name (case-insensitive)
-    if let conflict = tags.first(where: { $0.name.caseInsensitiveCompare(newName) == .orderedSame }
+    if let conflict = tags.first(
+      where: { $0.name.caseInsensitiveCompare(newName) == .orderedSame }
     ),
       conflict.id != tagID
     {
       alert("A tag named \"\(conflict.name)\" already exists.")
+      cancelEditing()
       return
     }
 
+    // Keep editing state visible until async rename completes to avoid flicker
     Task { [weak self] in
       guard let self else { return }
 
       do {
         try await repo.renameTag(tagID, newName: newName)
-        editingTagID = nil
-        editingTagName = ""
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
       }
+      cancelEditing()
     }
   }
 
