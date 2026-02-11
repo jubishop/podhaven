@@ -43,8 +43,10 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastDisplayable>: Searchable, 
 extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType == Podcast {
   // MARK: - QueryInterfaceRequest
 
-  static func all() -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
-    Podcast.all()
+  static func all(
+    _ filter: PodcastFilter = { $0 }
+  ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
+    filter(Podcast.all())
       .annotated(with: [
         Podcast.episodes.count.forKey(CodingKeys.episodeCount),
         Podcast.episodes.max(\.pubDate).forKey(CodingKeys.mostRecentEpisodeDate),

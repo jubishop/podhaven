@@ -97,12 +97,12 @@ class PodcastsListViewModel:
   var displayMode: PodcastDisplayMode = .grid
 
   let title: String
-  let filter: SQLExpression
+  let filter: PodcastFilter
   private(set) var isLoading = true
 
   // MARK: - Initialization
 
-  init(title: String, filter: SQLExpression = AppDB.NoOp) {
+  init(title: String, filter: @escaping PodcastFilter = { $0 }) {
     let sortMethod = Shared(
       wrappedValue: SortMethod.byTitle,
       .appStorage("PodcastsList-sortMethod-\(title)")

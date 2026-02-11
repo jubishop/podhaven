@@ -152,8 +152,7 @@ struct PodcastsListView: View {
     .navigationDestination(for: String.self) { _ in
       PodcastsListView(
         viewModel: PodcastsListViewModel(
-          title: "My Podcasts",
-          filter: AppDB.NoOp
+          title: "My Podcasts"
         )
       )
     }

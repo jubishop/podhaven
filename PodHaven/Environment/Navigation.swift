@@ -16,6 +16,7 @@ extension Container {
 }
 
 @Observable @MainActor class Navigation {
+  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.sheet) private var sheet
   @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
 
@@ -106,9 +107,39 @@ extension Container {
     case recentEpisodes, finished, unqueued, cached, saved, unfinished, previouslyQueued
   }
 
-  enum PodcastsViewType: String, CaseIterable, Codable {
+  enum PodcastsViewType: Codable, Hashable, Sendable {
     case subscribed
     case unsubscribed
+    case tag(Tag.ID)
+
+    enum CodingKeys: String, CodingKey {
+      case type, tagID
+    }
+
+    init(from decoder: any Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      let type = try container.decode(String.self, forKey: .type)
+      switch type {
+      case "subscribed": self = .subscribed
+      case "unsubscribed": self = .unsubscribed
+      case "tag":
+        self = .tag(try container.decode(Tag.ID.self, forKey: .tagID))
+      default: self = .subscribed
+      }
+    }
+
+    func encode(to encoder: any Encoder) throws {
+      var container = encoder.container(keyedBy: CodingKeys.self)
+      switch self {
+      case .subscribed:
+        try container.encode("subscribed", forKey: .type)
+      case .unsubscribed:
+        try container.encode("unsubscribed", forKey: .type)
+      case .tag(let tagID):
+        try container.encode("tag", forKey: .type)
+        try container.encode(tagID, forKey: .tagID)
+      }
+    }
   }
 
   @ViewBuilder
@@ -171,7 +202,7 @@ extension Container {
         PodcastsListView(
           viewModel: PodcastsListViewModel(
             title: "Subscribed",
-            filter: Podcast.subscribed
+            filter: { $0.filter(Podcast.subscribed) }
           )
         )
         .id("subscribed")
@@ -179,10 +210,28 @@ extension Container {
         PodcastsListView(
           viewModel: PodcastsListViewModel(
             title: "Unsubscribed",
-            filter: Podcast.unsubscribed
+            filter: { $0.filter(Podcast.unsubscribed) }
           )
         )
         .id("unsubscribed")
+      case .tag(let tagID):
+        if let tag = sharedState.tags[id: tagID] {
+          PodcastsListView(
+            viewModel: PodcastsListViewModel(
+              title: tag.name,
+              filter: Podcast.hasTag(tagID)
+            )
+          )
+          .id("tag-\(tagID)")
+        } else {
+          PodcastsListView(
+            viewModel: PodcastsListViewModel(
+              title: "Subscribed",
+              filter: { $0.filter(Podcast.subscribed) }
+            )
+          )
+          .id("subscribed")
+        }
       }
 
     // Universal destinations

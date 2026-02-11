@@ -7,6 +7,8 @@ import SavedMacro
 import Tagged
 
 typealias FeedURL = Tagged<UnsavedPodcast, URL>
+typealias PodcastFilter =
+  @Sendable (QueryInterfaceRequest<Podcast>) -> QueryInterfaceRequest<Podcast>
 
 struct UnsavedPodcast:
   Identifiable,
@@ -116,6 +118,12 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   static let unsubscribed: SQLExpression = Columns.subscriptionDate == nil
   static func contains(_ pattern: String) -> SQLExpression {
     Columns.title.lowercased.like(pattern) || Columns.description.lowercased.like(pattern)
+  }
+
+  // MARK: - PodcastFilters
+
+  static func hasTag(_ tagID: Tag.ID) -> PodcastFilter {
+    { $0.joining(required: Podcast.podcastTags.filter(PodcastTag.Columns.tagId == tagID)) }
   }
 
   // MARK: - Columns

@@ -22,7 +22,7 @@ actor ObservatoryTests {
     try await repo.insertSeries(UnsavedPodcastSeries(unsavedPodcast: podcastWithNoEpisodes))
 
     let allPodcastsWithEpisodeMetadata =
-      try await observatory.podcastsWithEpisodeMetadata(AppDB.NoOp).get()
+    try await observatory.podcastsWithEpisodeMetadata().get()
 
     #expect(allPodcastsWithEpisodeMetadata.count == 1)
     let metadata = allPodcastsWithEpisodeMetadata[0]
@@ -72,7 +72,7 @@ actor ObservatoryTests {
 
     let allPodcastsWithEpisodeMetadata =
       IdentifiedArray(
-        uniqueElements: try await observatory.podcastsWithEpisodeMetadata(AppDB.NoOp).get(),
+        uniqueElements: try await observatory.podcastsWithEpisodeMetadata().get(),
         id: \.podcast.feedURL
       )
     #expect(allPodcastsWithEpisodeMetadata.count == 2)

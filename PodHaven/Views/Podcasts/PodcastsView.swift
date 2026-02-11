@@ -6,6 +6,7 @@ import SwiftUI
 
 struct PodcastsView: View {
   @DynamicInjected(\.navigation) private var navigation
+  @DynamicInjected(\.sharedState) private var sharedState
 
   var body: some View {
     NavStack(manager: navigation.podcasts) {
@@ -19,6 +20,17 @@ struct PodcastsView: View {
             value: Navigation.Destination.podcastsViewType(.unsubscribed),
             label: { Text("Unsubscribed") }
           )
+        }
+
+        if !sharedState.tags.isEmpty {
+          Section("Tags") {
+            ForEach(sharedState.tags) { tag in
+              NavigationLink(
+                value: Navigation.Destination.podcastsViewType(.tag(tag.id)),
+                label: { Text(tag.name) }
+              )
+            }
+          }
         }
       }
       .navigationTitle("All Podcast Lists")
