@@ -19,7 +19,7 @@ struct TagsSettingsView: View {
               .textInputAutocapitalization(.words)
               .submitLabel(.done)
               .focused($focusedTagID, equals: tag.id)
-              .onSubmit { viewModel.renameTag() }
+              .onSubmit(viewModel.renameTag)
               .onAppear { focusedTagID = tag.id }
           } else {
             VStack(alignment: .leading) {
@@ -45,7 +45,7 @@ struct TagsSettingsView: View {
         TextField("New tag name", text: $viewModel.newTagName)
           .textInputAutocapitalization(.words)
           .submitLabel(.done)
-          .onSubmit { viewModel.addTag() }
+          .onSubmit(viewModel.addTag)
 
         AppIcon.addTag
           .imageButton(action: viewModel.addTag)
@@ -58,7 +58,7 @@ struct TagsSettingsView: View {
       .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
       .padding(.horizontal)
     }
-    .task { await viewModel.execute() }
+    .task(viewModel.execute)
     .navigationTitle("Tags")
     .onChange(of: focusedTagID) { _, newValue in
       if newValue == nil, viewModel.editingTagID != nil {

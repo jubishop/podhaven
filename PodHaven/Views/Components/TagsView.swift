@@ -39,11 +39,7 @@ struct TagsView: View {
       }
     }
     .tint(.accentColor)
-    .font(.subheadline)
-    .padding(.horizontal, 10)
-    .padding(.vertical, 6)
-    .background(AppIcon.tag.color(for: colorScheme).opacity(0.15))
-    .clipShape(Capsule())
+    .tagCapsule(color: AppIcon.tag.color(for: colorScheme))
   }
 
   private var addTagMenu: some View {
@@ -63,11 +59,7 @@ struct TagsView: View {
       }
     } label: {
       AppIcon.addTag.label
-        .font(.subheadline)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(AppIcon.addTag.color(for: colorScheme).opacity(0.15))
-        .clipShape(Capsule())
+        .tagCapsule(color: AppIcon.addTag.color(for: colorScheme))
     }
   }
 }

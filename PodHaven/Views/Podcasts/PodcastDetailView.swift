@@ -238,9 +238,9 @@ struct PodcastDetailView: View {
           onRemove: viewModel.removeTag
         )
         .padding(.horizontal)
-      }
 
-      Divider()
+        Divider()
+      }
 
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
