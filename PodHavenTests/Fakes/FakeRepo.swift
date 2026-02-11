@@ -3,7 +3,6 @@
 import AVFoundation
 import Foundation
 import GRDB
-import IdentifiedCollections
 import Tagged
 
 @testable import PodHaven
@@ -26,11 +25,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   func allPodcasts(_ filter: SQLExpression) async throws -> [Podcast] {
     try await repo.allPodcasts(filter)
-  }
-
-  func allTags() async throws -> [Tag] {
-    recordCall(methodName: "allTags")
-    return try await repo.allTags()
   }
 
   func allPodcastSeries(
@@ -161,6 +155,12 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   func insertTag(named: String) async throws -> Tag {
     recordCall(methodName: "insertTag", parameters: named)
     return try await repo.insertTag(named: named)
+  }
+
+  @discardableResult
+  func renameTag(_ tagID: Tag.ID, newName: String) async throws -> Bool {
+    recordCall(methodName: "renameTag", parameters: (tagID: tagID, newName: newName))
+    return try await repo.renameTag(tagID, newName: newName)
   }
 
   @discardableResult

@@ -42,15 +42,6 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func allTags() async throws -> [Tag] {
-    try await appDB.db.read { db in
-      try Tag
-        .all()
-        .orderedByName()
-        .fetchAll(db)
-    }
-  }
-
   func allPodcastSeries(
     _ filter: SQLExpression,
     order: SQLOrdering,
@@ -340,6 +331,20 @@ struct Repo: Databasing, Sendable {
     return try await appDB.db.write { db in
       try UnsavedTag(name: normalizedName).insertAndFetch(db, as: Tag.self)
     }
+  }
+
+  @discardableResult
+  func renameTag(_ tagID: Tag.ID, newName: String) async throws -> Bool {
+    let normalizedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedName.isEmpty else {
+      throw DatabaseError(message: "Tag name cannot be empty")
+    }
+
+    return try await appDB.db.write { db in
+      try Tag
+        .withID(tagID)
+        .updateAll(db, Tag.Columns.name.set(to: normalizedName))
+    } > 0
   }
 
   @discardableResult

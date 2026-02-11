@@ -25,6 +25,7 @@ class PodcastDetailViewModel:
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
+  @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.userNotificationManager) private
     var userNotificationManager
 
@@ -248,6 +249,9 @@ class PodcastDetailViewModel:
   var loaded: Bool { !episodeList.allEntries.isEmpty }
   var saved: Bool { podcastSeries != nil }
 
+  var tags: IdentifiedArrayOf<Tag> { podcastSeries?.tags ?? [] }
+  var allTags: IdentifiedArrayOf<Tag> { sharedState.tags }
+
   var mostRecentEpisodeDate: Date {
     episodeList.allEntries.first?.pubDate ?? Date.epoch
   }
@@ -407,6 +411,46 @@ class PodcastDetailViewModel:
       Self.log.error(error)
       guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.coreMessage(for: error))
+    }
+  }
+
+  // MARK: - Tag Management
+
+  func addTag(_ tagID: Tag.ID) {
+    guard let podcastID = podcastSeries?.id else {
+      Self.log.warning("Cannot add tag to unsaved podcast")
+      return
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        try await repo.addTag(tagID, to: podcastID)
+      } catch {
+        Self.log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.coreMessage(for: error))
+      }
+    }
+  }
+
+  func removeTag(_ tagID: Tag.ID) {
+    guard let podcastID = podcastSeries?.id else {
+      Self.log.warning("Cannot remove tag from unsaved podcast")
+      return
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      do {
+        try await repo.removeTag(tagID, from: podcastID)
+      } catch {
+        Self.log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.coreMessage(for: error))
+      }
     }
   }
 

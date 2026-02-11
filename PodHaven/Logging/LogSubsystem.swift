@@ -57,6 +57,7 @@ enum LogSubsystem {
   enum SettingsView: String, LogCategorizable {
     case main
     case opml
+    case tags
   }
 
   enum ShareService: String, LogCategorizable {

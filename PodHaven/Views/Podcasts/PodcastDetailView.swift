@@ -230,6 +230,18 @@ struct PodcastDetailView: View {
 
       Divider()
 
+      if viewModel.saved {
+        TagsView(
+          tags: viewModel.tags,
+          allTags: viewModel.allTags,
+          onAdd: viewModel.addTag,
+          onRemove: viewModel.removeTag
+        )
+        .padding(.horizontal)
+
+        Divider()
+      }
+
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
           // Title

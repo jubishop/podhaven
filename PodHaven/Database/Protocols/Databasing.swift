@@ -3,7 +3,6 @@
 import AVFoundation
 import Foundation
 import GRDB
-import IdentifiedCollections
 import Tagged
 
 protocol Databasing: Sendable {
@@ -12,7 +11,6 @@ protocol Databasing: Sendable {
   // MARK: - Global Readers
 
   func allPodcasts(_ filter: SQLExpression) async throws -> [Podcast]
-  func allTags() async throws -> [Tag]
   func allPodcastSeries(_ filter: SQLExpression, order: SQLOrdering, limit: Int, includeTags: Bool)
     async throws(RepoError)
     -> [PodcastSeries]
@@ -59,6 +57,9 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func insertTag(named: String) async throws -> Tag
+
+  @discardableResult
+  func renameTag(_ tagID: Tag.ID, newName: String) async throws -> Bool
 
   @discardableResult
   func deleteTag(_ tagID: Tag.ID) async throws -> Bool

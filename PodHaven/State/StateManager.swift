@@ -30,6 +30,7 @@ struct StateManager: Sendable {
     guard Function.neverCalled() else { return }
 
     startObservingQueuedPodcastEpisodes()
+    startObservingTags()
   }
 
   // MARK: - On Deck
@@ -90,6 +91,22 @@ struct StateManager: Sendable {
   }
 
   // MARK: - Observations
+
+  private func startObservingTags() {
+    Assert.neverCalled()
+
+    Task {
+      do {
+        for try await tags in observatory.tags() {
+          guard !Task.isCancelled else { return }
+          Self.log.debug("Updating observed tags: \(tags.count) tags")
+          sharedState.setTags(tags)
+        }
+      } catch {
+        Self.log.error(error)
+      }
+    }
+  }
 
   private func startObservingQueuedPodcastEpisodes() {
     Assert.neverCalled()

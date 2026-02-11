@@ -10,6 +10,7 @@ import Testing
 
 @Suite("of Tag model and repo tests", .container)
 class TagsTests {
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
   @Test("insertTag() trims and throws on case-insensitive duplicates")
@@ -20,7 +21,7 @@ class TagsTests {
       _ = try await self.repo.insertTag(named: "swift")
     }
 
-    let tags = try await repo.allTags()
+    let tags = try await observatory.tags().get()
     #expect(tags.map(\.name) == ["Swift"])
   }
 
@@ -34,17 +35,17 @@ class TagsTests {
       _ = try await self.repo.insertTag(named: "   ")
     }
 
-    let tags = try await repo.allTags()
+    let tags = try await observatory.tags().get()
     #expect(tags.isEmpty)
   }
 
-  @Test("allTags() returns tags ordered by case-insensitive name")
-  func allTagsReturnsOrdered() async throws {
+  @Test("observatory.tags() returns tags ordered by case-insensitive name")
+  func tagsReturnsOrdered() async throws {
     _ = try await repo.insertTag(named: "zeta")
     _ = try await repo.insertTag(named: "Alpha")
     _ = try await repo.insertTag(named: "beta")
 
-    let tags = try await repo.allTags()
+    let tags = try await observatory.tags().get()
     #expect(tags.map(\.name) == ["Alpha", "beta", "zeta"])
   }
 
@@ -117,6 +118,61 @@ class TagsTests {
     #expect(withTags[0].tags?.map(\.name) == ["Tech"])
   }
 
+  @Test("renameTag() updates name and preserves podcast associations")
+  func renameTagPreservesAssociations() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    )
+    let tag = try await repo.insertTag(named: "news")
+    try await repo.addTag(tag.id, to: series.id)
+
+    let renamed = try await repo.renameTag(tag.id, newName: "News")
+    #expect(renamed)
+
+    let tags = try await observatory.tags().get()
+    #expect(tags.map(\.name) == ["News"])
+
+    let fetchedSeries = try await repo.podcastSeries(series.id)
+    #expect(fetchedSeries?.tags?.map(\.id) == [tag.id])
+  }
+
+  @Test("renameTag() throws on conflict with another tag")
+  func renameTagThrowsOnConflict() async throws {
+    _ = try await repo.insertTag(named: "News")
+    let tech = try await repo.insertTag(named: "Tech")
+
+    await #expect(throws: DatabaseError.self) {
+      _ = try await self.repo.renameTag(tech.id, newName: "news")
+    }
+
+    let tags = try await observatory.tags().get()
+    #expect(tags.map(\.name) == ["News", "Tech"])
+  }
+
+  @Test("observatory.podcastCountsByTag() returns correct counts per tag")
+  func podcastCountsByTag() async throws {
+    let seriesA = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    )
+    let seriesB = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    )
+
+    let tagOne = try await repo.insertTag(named: "News")
+    let tagTwo = try await repo.insertTag(named: "Tech")
+    _ = try await repo.insertTag(named: "Empty")
+
+    try await repo.addTag(tagOne.id, to: seriesA.id)
+    try await repo.addTag(tagOne.id, to: seriesB.id)
+    try await repo.addTag(tagTwo.id, to: seriesA.id)
+
+    let counts = try await observatory.podcastCountsByTag().get()
+    #expect(counts[tagOne.id] == 2)
+    #expect(counts[tagTwo.id] == 1)
+    #expect(counts[tagOne.id] != nil)
+    #expect(counts.count == 2)
+  }
+
   @Test("deleteTag() cascades through podcastTag mappings")
   func deletingTagRemovesPodcastMappings() async throws {
     let series = try await repo.insertSeries(
@@ -132,6 +188,6 @@ class TagsTests {
     #expect(deleted)
     let afterDelete = try await repo.podcastSeries(series.id)
     #expect(afterDelete?.tags?.isEmpty == true)
-    #expect(try await repo.allTags().isEmpty)
+    #expect(try await observatory.tags().get().isEmpty)
   }
 }
