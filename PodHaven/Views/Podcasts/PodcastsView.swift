@@ -42,7 +42,7 @@ struct PodcastsView: View {
           }
         }
       }
-      .navigationTitle("All Podcast Lists")
+      .navigationTitle("Podcasts")
       .task(viewModel.execute)
     }
   }

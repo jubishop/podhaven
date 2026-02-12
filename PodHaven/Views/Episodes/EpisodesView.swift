@@ -39,7 +39,7 @@ struct EpisodesView: View {
           label: { Text("Previously Queued") }
         )
       }
-      .navigationTitle("All Episode Lists")
+      .navigationTitle("Episodes")
     }
   }
 }
