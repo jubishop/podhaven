@@ -50,6 +50,21 @@ enum PlaybackStatus: Equatable, CustomStringConvertible {
     return false
   }
 
+  var widgetString: String {
+    switch self {
+    case .loading:
+      return "loading"
+    case .paused:
+      return "paused"
+    case .playing:
+      return "playing"
+    case .stopped:
+      return "stopped"
+    case .waiting:
+      return "waiting"
+    }
+  }
+
   var description: String {
     switch self {
     case .loading(let title):

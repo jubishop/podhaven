@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import Logging
 import SwiftUI
+import Tagged
 
 @main
 struct PodHavenApp: App {
@@ -16,6 +17,7 @@ struct PodHavenApp: App {
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.fileLogManager) private var fileLogManager
   @DynamicInjected(\.notifications) private var notifications
+  @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.repo) private var repo
@@ -79,9 +81,52 @@ struct PodHavenApp: App {
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.coreMessage(for: error))
       }
+    } else if isWidgetURL(url) {
+      await handleWidgetURL(url)
     } else {
       Self.log.warning("Incoming URL: \(url) is not supported")
       alert("Incoming URL: \(url) is not supported")
+    }
+  }
+
+  // MARK: - Widget URL Handling
+
+  private func isWidgetURL(_ url: URL) -> Bool {
+    url.host == "widget"
+  }
+
+  private func handleWidgetURL(_ url: URL) async {
+    let pathComponents = url.pathComponents.filter { $0 != "/" }
+
+    switch pathComponents.first {
+    case "now-playing":
+      Self.log.debug("Widget deep link: now-playing")
+      navigation.currentTab = .upNext
+
+    case "queue":
+      if let idString = pathComponents.dropFirst().first,
+        let episodeIDInt = Int64(idString)
+      {
+        let episodeID = Episode.ID(rawValue: episodeIDInt)
+        Self.log.debug("Widget deep link: queue episode \(episodeID)")
+
+        do {
+          if let podcastEpisode = try await repo.podcastEpisode(episodeID) {
+            navigation.showEpisode(podcastEpisode)
+          } else {
+            Self.log.warning("Widget deep link: episode \(episodeID) not found")
+            navigation.currentTab = .upNext
+          }
+        } catch {
+          Self.log.error(error)
+          navigation.currentTab = .upNext
+        }
+      } else {
+        navigation.currentTab = .upNext
+      }
+
+    default:
+      Self.log.warning("Unknown widget deep link path: \(url)")
     }
   }
 

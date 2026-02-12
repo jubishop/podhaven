@@ -74,6 +74,10 @@ enum LogSubsystem {
     case main
   }
 
+  enum Widget: String, LogCategorizable {
+    case writer
+  }
+
   enum ViewProtocols: String, LogCategorizable {
     case episodeList
     case podcastList

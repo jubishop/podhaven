@@ -17,6 +17,7 @@ extension Container {
 struct StateManager: Sendable {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.sharedState) private var sharedState
+  @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
 
   private static let log = Log.as(LogSubsystem.State.manager)
 
@@ -43,6 +44,8 @@ struct StateManager: Sendable {
     // Set onDeck and currentEpisodeID immediately so callers can rely on them being set
     sharedState.setCurrentEpisodeID(podcastEpisode.id)
     sharedState.$onDeck.withLock { $0 = OnDeck(podcastEpisode: podcastEpisode) }
+
+    Task { await widgetSnapshotWriter.onDeckChanged() }
 
     // Observe for updates (e.g., if episode is marked finished, cached, etc.)
     onDeckObservationTask(
@@ -73,6 +76,8 @@ struct StateManager: Sendable {
   func clearOnDeck() {
     onDeckObservationTask()?.cancel()
     sharedState.$onDeck.withLock { $0 = nil }
+
+    Task { await widgetSnapshotWriter.onDeckChanged() }
   }
 
   // MARK: - Artwork
@@ -82,12 +87,16 @@ struct StateManager: Sendable {
       guard onDeck?.id == episodeID else { return }
       onDeck?.artwork = artwork
     }
+
+    Task { await widgetSnapshotWriter.artworkChanged() }
   }
 
   // MARK: - Current Time
 
   func setCurrentTime(_ currentTime: CMTime) {
     sharedState.$onDeck.withLock { $0?.currentTime = currentTime }
+
+    Task { await widgetSnapshotWriter.currentTimeChanged() }
   }
 
   // MARK: - Observations
