@@ -169,6 +169,14 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v28") { db in
+      try db.create(table: "episodeTag") { t in
+        t.belongsTo("episode", onDelete: .cascade).notNull()
+        t.belongsTo("tag", onDelete: .cascade).notNull()
+        t.uniqueKey(["episodeId", "tagId"], onConflict: .fail)
+      }
+    }
+
     return migrator
   }
 }

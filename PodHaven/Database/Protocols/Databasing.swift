@@ -69,6 +69,11 @@ protocol Databasing: Sendable {
   @discardableResult
   func removeTag(_ tagID: Tag.ID, from podcastID: Podcast.ID) async throws -> Bool
 
+  func addTag(_ tagID: Tag.ID, to episodeID: Episode.ID) async throws
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, from episodeID: Episode.ID) async throws -> Bool
+
   // MARK: - Episode Writers
 
   @discardableResult

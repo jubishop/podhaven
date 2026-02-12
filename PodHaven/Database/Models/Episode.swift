@@ -231,7 +231,9 @@ struct Episode: EpisodeInformable, Saved, RSSUpdatable {
 
   // MARK: - Associations
 
+  static let episodeTags = hasMany(EpisodeTag.self)
   static let podcast = belongsTo(Podcast.self)
+  static let tags = hasMany(Tag.self, through: episodeTags, using: EpisodeTag.tag).order(\.name)
   var podcastID: Podcast.ID { self.podcastId! }
 
   // MARK: - SQL Expressions

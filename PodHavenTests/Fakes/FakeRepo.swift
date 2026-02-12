@@ -180,6 +180,20 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.removeTag(tagID, from: podcastID)
   }
 
+  func addTag(_ tagID: Tag.ID, to episodeID: Episode.ID) async throws {
+    recordCall(methodName: "addTag", parameters: (tagID: tagID, episodeID: episodeID))
+    try await repo.addTag(tagID, to: episodeID)
+  }
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, from episodeID: Episode.ID) async throws -> Bool {
+    recordCall(
+      methodName: "removeTag",
+      parameters: (tagID: tagID, episodeID: episodeID)
+    )
+    return try await repo.removeTag(tagID, from: episodeID)
+  }
+
   // MARK: - Episode Writers
 
   @discardableResult

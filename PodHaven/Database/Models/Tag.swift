@@ -26,6 +26,8 @@ struct UnsavedTag: Identifiable, Savable {
 struct Tag: Saved {
   // MARK: - Associations
 
+  static let episodeTags = hasMany(EpisodeTag.self)
+  static let episodes = hasMany(Episode.self, through: episodeTags, using: EpisodeTag.episode)
   static let podcastTags = hasMany(PodcastTag.self)
   static let podcasts = hasMany(Podcast.self, through: podcastTags, using: PodcastTag.podcast)
 

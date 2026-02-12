@@ -190,4 +190,52 @@ class TagsTests {
     #expect(afterDelete?.tags?.isEmpty == true)
     #expect(try await observatory.tags().get().isEmpty)
   }
+
+  @Test("addTag(to episode) throws on duplicate and removeTag(from episode) unassigns")
+  func assignAndUnassignEpisodeTags() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let episode = series.episodes[0]
+
+    let tag = try await repo.insertTag(named: "Favorite")
+    try await repo.addTag(tag.id, to: episode.id)
+
+    await #expect(throws: DatabaseError.self) {
+      try await self.repo.addTag(tag.id, to: episode.id)
+    }
+
+    let firstRemove = try await repo.removeTag(tag.id, from: episode.id)
+    #expect(firstRemove)
+
+    let secondRemove = try await repo.removeTag(tag.id, from: episode.id)
+    #expect(!secondRemove)
+  }
+
+  @Test("deleteTag() cascades through episodeTag mappings")
+  func deletingTagRemovesEpisodeMappings() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let episode = series.episodes[0]
+
+    let tag = try await repo.insertTag(named: "Bookmark")
+    try await repo.addTag(tag.id, to: episode.id)
+
+    let removeBeforeDelete = try await repo.removeTag(tag.id, from: episode.id)
+    #expect(removeBeforeDelete)
+
+    try await repo.addTag(tag.id, to: episode.id)
+    let deleted = try await repo.deleteTag(tag.id)
+    #expect(deleted)
+
+    let removeAfterDelete = try await repo.removeTag(tag.id, from: episode.id)
+    #expect(!removeAfterDelete)
+  }
 }

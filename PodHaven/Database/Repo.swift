@@ -374,6 +374,24 @@ struct Repo: Databasing, Sendable {
     } > 0
   }
 
+  func addTag(_ tagID: Tag.ID, to episodeID: Episode.ID) async throws {
+    try await appDB.db.write { db in
+      try EpisodeTag(episodeId: episodeID, tagId: tagID).insert(db)
+    }
+  }
+
+  @discardableResult
+  func removeTag(_ tagID: Tag.ID, from episodeID: Episode.ID) async throws -> Bool {
+    try await appDB.db.write { db in
+      try EpisodeTag
+        .filter(
+          EpisodeTag.Columns.episodeId == episodeID
+            && EpisodeTag.Columns.tagId == tagID
+        )
+        .deleteAll(db)
+    } > 0
+  }
+
   // MARK: - Episode Writers
 
   @discardableResult
