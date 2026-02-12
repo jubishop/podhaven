@@ -40,6 +40,19 @@ struct Observatory {
     )
   }
 
+  func podcastCounts() -> AsyncValueObservation<PodcastCounts> {
+    _observe { db in
+      let subscribed = try Podcast.all().subscribed().fetchCount(db)
+      let unsubscribed = try Podcast.all().unsubscribed().fetchCount(db)
+
+      return PodcastCounts(
+        subscribed: subscribed,
+        unsubscribed: unsubscribed,
+        byTag: try Self._podcastCountsByTag(db)
+      )
+    }
+  }
+
   func podcastsWithEpisodeMetadata(
     _ filter: @escaping PodcastFilter = { $0 },
     limit: Int = Int.max
@@ -122,20 +135,7 @@ struct Observatory {
 
   func podcastCountsByTag() -> AsyncValueObservation<[Tag.ID: Int]> {
     _observe { db in
-      let rows = try Row.fetchAll(
-        db,
-        PodcastTag
-          .select(
-            PodcastTag.Columns.tagId,
-            count(PodcastTag.Columns.podcastId).forKey("count")
-          )
-          .group(PodcastTag.Columns.tagId)
-      )
-      return Dictionary(
-        uniqueKeysWithValues: rows.map { row in
-          (row[PodcastTag.Columns.tagId] as Tag.ID, row["count"] as Int)
-        }
-      )
+      try Self._podcastCountsByTag(db)
     }
   }
 
@@ -163,6 +163,25 @@ struct Observatory {
   }
 
   // Private Helpers
+
+  private static func _podcastCountsByTag(_ db: Database) throws -> [Tag.ID: Int] {
+    Assert.precondition(db.isInsideTransaction, "_podcastCountsByTag requires a transaction")
+
+    let rows = try Row.fetchAll(
+      db,
+      PodcastTag
+        .select(
+          PodcastTag.Columns.tagId,
+          count(PodcastTag.Columns.podcastId).forKey("count")
+        )
+        .group(PodcastTag.Columns.tagId)
+    )
+    return Dictionary(
+      uniqueKeysWithValues: rows.map { row in
+        (row[PodcastTag.Columns.tagId] as Tag.ID, row["count"] as Int)
+      }
+    )
+  }
 
   private func _observe<T: Equatable>(_ block: @escaping @Sendable (Database) throws -> T)
     -> AsyncValueObservation<T>

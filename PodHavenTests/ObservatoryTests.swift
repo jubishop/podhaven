@@ -22,7 +22,7 @@ actor ObservatoryTests {
     try await repo.insertSeries(UnsavedPodcastSeries(unsavedPodcast: podcastWithNoEpisodes))
 
     let allPodcastsWithEpisodeMetadata =
-    try await observatory.podcastsWithEpisodeMetadata().get()
+      try await observatory.podcastsWithEpisodeMetadata().get()
 
     #expect(allPodcastsWithEpisodeMetadata.count == 1)
     let metadata = allPodcastsWithEpisodeMetadata[0]

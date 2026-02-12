@@ -58,8 +58,8 @@ struct TagsSettingsView: View {
       .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
       .padding(.horizontal)
     }
-    .task(viewModel.execute)
     .navigationTitle("Tags")
+    .task(viewModel.execute)
     .onChange(of: focusedTagID) { _, newValue in
       if newValue == nil, viewModel.editingTagID != nil {
         viewModel.renameTag()
