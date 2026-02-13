@@ -22,6 +22,10 @@
 		8B9B8EEE2DCD5BCB00E574E6 /* FactoryTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9B8EED2DCD5BCB00E574E6 /* FactoryTesting */; };
 		8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DEE2D01722E00742C6C /* Nuke */; };
 		8B9E8DF12D01722E00742C6C /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DF02D01722E00742C6C /* NukeUI */; };
+		8BA4F4222F3E74AC000AC336 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8BA4F4212F3E74AC000AC336 /* WidgetKit.framework */; };
+		8BA4F4242F3E74AC000AC336 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8BA4F4232F3E74AC000AC336 /* SwiftUI.framework */; };
+		8BA4F4312F3E74AD000AC336 /* PodHavenWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		8BA4F4512F3E7DF1000AC336 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8BA4F4502F3E7DF1000AC336 /* AppIntents.framework */; };
 		8BABCD382EBF24760016CEF3 /* ReadableErrorMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8BABCD372EBF24760016CEF3 /* ReadableErrorMacro */; };
 		8BAE003C2DDE79A4008E40B2 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 8BAE003B2DDE79A4008E40B2 /* Logging */; };
 		8BBD96982E2701F500BE32DD /* PodHavenShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8BBD968E2E2701F400BE32DD /* PodHavenShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -41,6 +45,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 8BD7F91F2CF2A49000CEDAA7;
 			remoteInfo = PodHaven;
+		};
+		8BA4F42F2F3E74AD000AC336 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8BD7F9182CF2A49000CEDAA7 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8BA4F41F2F3E74AC000AC336;
+			remoteInfo = PodHavenWidgetExtension;
 		};
 		8BBD96962E2701F500BE32DD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -66,6 +77,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				8BBD96982E2701F500BE32DD /* PodHavenShare.appex in Embed Foundation Extensions */,
+				8BA4F4312F3E74AD000AC336 /* PodHavenWidget.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -74,6 +86,10 @@
 
 /* Begin PBXFileReference section */
 		8B9B8B322DCBB25500E574E6 /* PerformanceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PerformanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PodHavenWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8BA4F4212F3E74AC000AC336 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		8BA4F4232F3E74AC000AC336 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		8BA4F4502F3E7DF1000AC336 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		8BBD968E2E2701F400BE32DD /* PodHavenShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PodHavenShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BC2DC8F2EC0FF0E00D323CF /* libswiftRegexBuilder.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libswiftRegexBuilder.tbd; path = usr/lib/swift/libswiftRegexBuilder.tbd; sourceTree = SDKROOT; };
 		8BD0C2362CF638C700B7DC07 /* PodHaven.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = PodHaven.xctestplan; sourceTree = "<group>"; };
@@ -142,6 +158,24 @@
 			);
 			target = 8B9B8B252DCBB25500E574E6 /* PerformanceTests */;
 		};
+		8BA4F4362F3E74AD000AC336 /* Exceptions for "PodHavenWidget" folder in "PodHavenWidget" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8BA4F41F2F3E74AC000AC336 /* PodHavenWidget */;
+		};
+		8BA4F44F2F3E7B4E000AC336 /* Exceptions for "PodHaven" folder in "PodHavenWidget" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Widget/Intents/PlayPauseIntent.swift,
+				Widget/Intents/SkipBackwardIntent.swift,
+				Widget/Intents/SkipForwardIntent.swift,
+				Widget/WidgetConstants.swift,
+				Widget/WidgetSnapshot.swift,
+			);
+			target = 8BA4F41F2F3E74AC000AC336 /* PodHavenWidget */;
+		};
 		8BBD969E2E2701F500BE32DD /* Exceptions for "PodHavenShare" folder in "PodHavenShare" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -159,6 +193,14 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		8BA4F4252F3E74AC000AC336 /* PodHavenWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8BA4F4362F3E74AD000AC336 /* Exceptions for "PodHavenWidget" folder in "PodHavenWidget" target */,
+			);
+			path = PodHavenWidget;
+			sourceTree = "<group>";
+		};
 		8BBD968F2E2701F500BE32DD /* PodHavenShare */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -171,6 +213,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				8BCAF0922D07E231002F069D /* Exceptions for "PodHaven" folder in "PodHaven" target */,
+				8BA4F44F2F3E7B4E000AC336 /* Exceptions for "PodHaven" folder in "PodHavenWidget" target */,
 			);
 			path = PodHaven;
 			sourceTree = "<group>";
@@ -195,6 +238,16 @@
 				8B9B8EEE2DCD5BCB00E574E6 /* FactoryTesting in Frameworks */,
 				8B9B8B2C2DCBB25500E574E6 /* XMLCoder in Frameworks */,
 				8BABCD382EBF24760016CEF3 /* ReadableErrorMacro in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8BA4F41D2F3E74AC000AC336 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8BA4F4242F3E74AC000AC336 /* SwiftUI.framework in Frameworks */,
+				8BA4F4222F3E74AC000AC336 /* WidgetKit.framework in Frameworks */,
+				8BA4F4512F3E7DF1000AC336 /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -245,7 +298,10 @@
 		8B9B8EEA2DCD5BC200E574E6 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				8BA4F4502F3E7DF1000AC336 /* AppIntents.framework */,
 				8BC2DC8F2EC0FF0E00D323CF /* libswiftRegexBuilder.tbd */,
+				8BA4F4212F3E74AC000AC336 /* WidgetKit.framework */,
+				8BA4F4232F3E74AC000AC336 /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -257,6 +313,7 @@
 				8BD7F9222CF2A49000CEDAA7 /* PodHaven */,
 				8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */,
 				8BBD968F2E2701F500BE32DD /* PodHavenShare */,
+				8BA4F4252F3E74AC000AC336 /* PodHavenWidget */,
 				8B9B8EEA2DCD5BC200E574E6 /* Frameworks */,
 				8BD7F9212CF2A49000CEDAA7 /* Products */,
 			);
@@ -269,6 +326,7 @@
 				8BD7F9302CF2A49100CEDAA7 /* ParallelTests.xctest */,
 				8B9B8B322DCBB25500E574E6 /* PerformanceTests.xctest */,
 				8BBD968E2E2701F400BE32DD /* PodHavenShare.appex */,
+				8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -301,6 +359,28 @@
 			productName = PodHavenTests;
 			productReference = 8B9B8B322DCBB25500E574E6 /* PerformanceTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		8BA4F41F2F3E74AC000AC336 /* PodHavenWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8BA4F4322F3E74AD000AC336 /* Build configuration list for PBXNativeTarget "PodHavenWidget" */;
+			buildPhases = (
+				8BA4F41C2F3E74AC000AC336 /* Sources */,
+				8BA4F41D2F3E74AC000AC336 /* Frameworks */,
+				8BA4F41E2F3E74AC000AC336 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8BA4F4252F3E74AC000AC336 /* PodHavenWidget */,
+			);
+			name = PodHavenWidget;
+			packageProductDependencies = (
+			);
+			productName = PodHavenWidgetExtension;
+			productReference = 8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		8BBD968D2E2701F400BE32DD /* PodHavenShare */ = {
 			isa = PBXNativeTarget;
@@ -338,6 +418,7 @@
 			);
 			dependencies = (
 				8BBD96972E2701F500BE32DD /* PBXTargetDependency */,
+				8BA4F4302F3E74AD000AC336 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				8BD7F9222CF2A49000CEDAA7 /* PodHaven */,
@@ -398,9 +479,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1640;
+				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
+					8BA4F41F2F3E74AC000AC336 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					8BBD968D2E2701F400BE32DD = {
 						CreatedOnToolsVersion = 16.4;
 					};
@@ -447,12 +531,20 @@
 				8BD7F92F2CF2A49100CEDAA7 /* ParallelTests */,
 				8B9B8B252DCBB25500E574E6 /* PerformanceTests */,
 				8BBD968D2E2701F400BE32DD /* PodHavenShare */,
+				8BA4F41F2F3E74AC000AC336 /* PodHavenWidget */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		8B9B8B2E2DCBB25500E574E6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8BA4F41E2F3E74AC000AC336 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -510,6 +602,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8BA4F41C2F3E74AC000AC336 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8BBD968A2E2701F400BE32DD /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -538,6 +637,11 @@
 			isa = PBXTargetDependency;
 			target = 8BD7F91F2CF2A49000CEDAA7 /* PodHaven */;
 			targetProxy = 8B9B8B272DCBB25500E574E6 /* PBXContainerItemProxy */;
+		};
+		8BA4F4302F3E74AD000AC336 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8BA4F41F2F3E74AC000AC336 /* PodHavenWidget */;
+			targetProxy = 8BA4F42F2F3E74AD000AC336 /* PBXContainerItemProxy */;
 		};
 		8BBD96972E2701F500BE32DD /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -779,6 +883,107 @@
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PodHaven.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PodHaven";
+			};
+			name = Release;
+		};
+		8BA4F4332F3E74AD000AC336 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = PodHavenWidget/PodHavenWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PodHavenWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PodHavenWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PodHaven.debug.PodHavenWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG WIDGET_EXTENSION";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8BA4F4342F3E74AD000AC336 /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = PodHavenWidget/PodHavenWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PodHavenWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PodHavenWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PodHaven.dev.PodHavenWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG WIDGET_EXTENSION";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Development;
+		};
+		8BA4F4352F3E74AD000AC336 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = PodHavenWidget/PodHavenWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PodHavenWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PodHavenWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PodHaven.PodHavenWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = WIDGET_EXTENSION;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -1167,6 +1372,16 @@
 				8B9B8B302DCBB25500E574E6 /* Debug */,
 				8B7332612E1778EB008C1622 /* Development */,
 				8B9B8B312DCBB25500E574E6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8BA4F4322F3E74AD000AC336 /* Build configuration list for PBXNativeTarget "PodHavenWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8BA4F4332F3E74AD000AC336 /* Debug */,
+				8BA4F4342F3E74AD000AC336 /* Development */,
+				8BA4F4352F3E74AD000AC336 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
