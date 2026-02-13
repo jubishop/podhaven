@@ -1,8 +1,6 @@
 // Copyright Justin Bishop, 2026
 
-import CoreGraphics
 import Foundation
-import ImageIO
 import UIKit
 
 enum WidgetSnapshotReader {
@@ -37,39 +35,9 @@ enum WidgetSnapshotReader {
     }
   }
 
-  // Largest widget artwork is 80pt at 3x = 240px.
-  private static let maxArtworkPixels = 240
-
   static func decodeArtwork(from base64String: String?) -> UIImage? {
     guard let base64String else { return nil }
     guard let data = Data(base64Encoded: base64String) else { return nil }
-    return downsampledImage(from: data, maxPixels: maxArtworkPixels)
-  }
-
-  // Uses ImageIO to decode at a reduced size, avoiding the full-resolution
-  // bitmap allocation that can OOM in the widget extension process.
-  private static func downsampledImage(from data: Data, maxPixels: Int) -> UIImage? {
-    let options: [CFString: Any] = [
-      kCGImageSourceShouldCache: false
-    ]
-    guard let source = CGImageSourceCreateWithData(data as CFData, options as CFDictionary)
-    else { return nil }
-
-    let downsampleOptions: [CFString: Any] = [
-      kCGImageSourceCreateThumbnailFromImageAlways: true,
-      kCGImageSourceThumbnailMaxPixelSize: maxPixels,
-      kCGImageSourceShouldCacheImmediately: true,
-      kCGImageSourceCreateThumbnailWithTransform: true,
-    ]
-
-    guard
-      let cgImage = CGImageSourceCreateThumbnailAtIndex(
-        source,
-        0,
-        downsampleOptions as CFDictionary
-      )
-    else { return nil }
-
-    return UIImage(cgImage: cgImage)
+    return UIImage(data: data)
   }
 }
