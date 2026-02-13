@@ -4,9 +4,9 @@ import AVFoundation
 import FactoryKit
 import Foundation
 import Logging
+import Tagged
 import UIKit
 import WidgetKit
-import Tagged
 
 extension Container {
   var widgetSnapshotWriter: Factory<WidgetSnapshotWriter> {
@@ -122,10 +122,35 @@ actor WidgetSnapshotWriter {
 
   // MARK: - Artwork Encoding
 
+  // Max pixel size for widget artwork. The largest artwork view is 80pt
+  // (systemMedium) at 3x scale = 240px.
+  private let maxArtworkPixels: CGFloat = 240
+
   private func encodeArtwork(_ image: UIImage?) -> String? {
     guard let image else { return nil }
-    guard let jpegData = image.jpegData(compressionQuality: 0.7) else { return nil }
+    let downsized = downsample(image, maxPixels: maxArtworkPixels)
+    guard let jpegData = downsized.jpegData(compressionQuality: 0.7) else { return nil }
     return jpegData.base64EncodedString()
+  }
+
+  private func downsample(_ image: UIImage, maxPixels: CGFloat) -> UIImage {
+    let size = image.size
+    let scale = image.scale
+    let pixelWidth = size.width * scale
+    let pixelHeight = size.height * scale
+
+    guard max(pixelWidth, pixelHeight) > maxPixels else { return image }
+
+    let ratio = maxPixels / max(pixelWidth, pixelHeight)
+    let targetSize = CGSize(
+      width: (pixelWidth * ratio).rounded(.down),
+      height: (pixelHeight * ratio).rounded(.down)
+    )
+
+    let renderer = UIGraphicsImageRenderer(size: targetSize)
+    return renderer.image { _ in
+      image.draw(in: CGRect(origin: .zero, size: targetSize))
+    }
   }
 
   // MARK: - Widget Reloading

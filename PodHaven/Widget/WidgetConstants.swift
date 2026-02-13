@@ -9,7 +9,7 @@ enum WidgetConstants {
   static let nowPlayingKind = "NowPlayingWidget"
   static let queueKind = "QueueWidget"
 
-  static var snapshotURL: URL {
+  static var containerURL: URL {
     guard
       let containerURL = FileManager.default.containerURL(
         forSecurityApplicationGroupIdentifier: appGroupID
@@ -19,6 +19,14 @@ enum WidgetConstants {
       // since a missing app group is an unrecoverable configuration error.
       fatalError("App group container not found for \(appGroupID)")
     }
-    return containerURL.appendingPathComponent(snapshotFilename)
+    return containerURL
+  }
+
+  static var snapshotURL: URL {
+    containerURL.appendingPathComponent(snapshotFilename)
+  }
+
+  static var widgetLogFileURL: URL {
+    containerURL.appendingPathComponent("widget-log.ndjson")
   }
 }

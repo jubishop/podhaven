@@ -46,12 +46,23 @@ struct DebugSection: View {
       }
 
       ShareLink(
-        item: AppInfo.documentsDirectory.appendingPathComponent("log.ndjson"),
+        item: FileLogManager.logFileURL,
         preview: SharePreview(
           "PodHaven Logs",
           image: AppIcon.shareLogs.rawImage
         ),
         label: { AppIcon.shareLogs.label }
+      )
+
+      ShareLink(
+        item: WidgetConstants.widgetLogFileURL,
+        preview: SharePreview(
+          "Widget Logs",
+          image: AppIcon.shareLogs.rawImage
+        ),
+        label: {
+          Label("Share Widget Logs", systemImage: "square.and.arrow.up")
+        }
       )
 
       ShareLink(

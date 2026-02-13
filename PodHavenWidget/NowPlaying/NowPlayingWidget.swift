@@ -9,10 +9,12 @@ struct NowPlayingProvider: TimelineProvider {
   }
 
   func getSnapshot(in context: Context, completion: @escaping (NowPlayingEntry) -> Void) {
+    WidgetLog.debug("getSnapshot called (isPreview=\(context.isPreview))")
     completion(makeEntry())
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<NowPlayingEntry>) -> Void) {
+    WidgetLog.debug("getTimeline called (family=\(context.family))")
     let entry = makeEntry()
     let nextUpdate = Date().addingTimeInterval(300)
     let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
@@ -20,11 +22,19 @@ struct NowPlayingProvider: TimelineProvider {
   }
 
   private func makeEntry() -> NowPlayingEntry {
-    guard let snapshot = WidgetSnapshotReader.read(),
-      let nowPlaying = snapshot.nowPlaying
-    else {
+    guard let snapshot = WidgetSnapshotReader.read() else {
+      WidgetLog.warning("makeEntry: no snapshot available, returning empty")
       return .empty
     }
+
+    guard let nowPlaying = snapshot.nowPlaying else {
+      WidgetLog.info("makeEntry: snapshot has no nowPlaying, returning empty")
+      return .empty
+    }
+
+    WidgetLog.debug(
+      "makeEntry: \(nowPlaying.episodeTitle) (\(nowPlaying.playbackStatus)), artwork=\(nowPlaying.artworkBase64 != nil)"
+    )
 
     return NowPlayingEntry(
       date: Date(),
