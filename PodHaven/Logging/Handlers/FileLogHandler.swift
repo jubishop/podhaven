@@ -4,20 +4,6 @@ import FactoryKit
 import Foundation
 import Logging
 
-struct FileLogEntry: Codable {
-  let level: Int
-  let levelName: String
-  let timestamp: Int64
-  let subsystem: String
-  let category: String
-  let message: String
-  let metadata: [String: String]?
-  let source: String
-  let file: String
-  let function: String
-  let line: UInt
-}
-
 struct FileLogHandler: LogHandler {
   @DynamicInjected(\.fileLogManager) private var fileLogManager
 
@@ -57,7 +43,7 @@ struct FileLogHandler: LogHandler {
 
     fileLogManager.writeToFile(
       level: level,
-      fileLogEntry: FileLogEntry(
+      entry: NDJSONLogEntry(
         level: level.intValue,
         levelName: level.rawValue,
         timestamp: Int64(Date().timeIntervalSince1970 * 1000),
@@ -70,7 +56,7 @@ struct FileLogHandler: LogHandler {
         source: source,
         file: file,
         function: function,
-        line: line,
+        line: line
       )
     )
   }

@@ -168,6 +168,8 @@
 		8BA4F44F2F3E7B4E000AC336 /* Exceptions for "PodHaven" folder in "PodHavenWidget" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Logging/NDJSONFileWriter.swift,
+				Logging/NDJSONLogEntry.swift,
 				Widget/Intents/PlayPauseIntent.swift,
 				Widget/Intents/SkipBackwardIntent.swift,
 				Widget/Intents/SkipForwardIntent.swift,

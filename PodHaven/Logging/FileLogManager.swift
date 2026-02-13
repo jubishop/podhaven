@@ -16,8 +16,8 @@ struct FileLogManager: Sendable {
     AppInfo.documentsDirectory.appendingPathComponent("log.ndjson")
   }()
 
-  private let maxFileSizeBytes: UInt64 = 2_000_000  // 2MB trigger
-  private let targetFileSizeBytes: UInt64 = 1_750_000  // 1.75MB after truncation
+  private let maxFileSizeBytes = 2_000_000  // 2MB trigger
+  private let targetFileSizeBytes = 1_750_000  // 1.75MB after truncation
 
   private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
   private let isActive = ThreadSafe(true)
@@ -30,15 +30,15 @@ struct FileLogManager: Sendable {
 
   // MARK: - Logging
 
-  func writeToFile(level: Logger.Level, fileLogEntry: FileLogEntry) {
+  func writeToFile(level: Logger.Level, entry: NDJSONLogEntry) {
     let runSynchronously = level == .critical || !isActive()
 
     if runSynchronously {
-      let result = logQueue.sync { performWriteToFile(fileLogEntry) }
+      let result = logQueue.sync { performWrite(entry) }
       Self.log.logResult(result)
     } else {
       logQueue.async {
-        let result = performWriteToFile(fileLogEntry)
+        let result = performWrite(entry)
         Task(priority: .background) {
           Self.log.logResult(result)
         }
@@ -62,61 +62,26 @@ struct FileLogManager: Sendable {
 
   // MARK: - File Operations
 
-  private func performWriteToFile(_ fileLogEntry: FileLogEntry) -> LogResult {
+  private func performWrite(_ entry: NDJSONLogEntry) -> LogResult {
     do {
-      let jsonData = try JSONEncoder().encode(fileLogEntry)
-      guard let newlineData = "\n".data(using: .utf8)
-      else { throw LoggingError.dataEncodingFailure("\n") }
+      let currentSize = try NDJSONFileWriter.appendEntry(entry, to: Self.logFileURL)
 
-      var writeData = jsonData
-      writeData.append(newlineData)
-
-      var followUp: LogResult?
-
-      do {
-        let fileHandle = try FileHandle(forWritingTo: Self.logFileURL)
-        defer { fileHandle.closeFile() }
-
-        fileHandle.seekToEndOfFile()
-        fileHandle.write(writeData)
-
-        let currentSize = fileHandle.offsetInFile
-        if currentSize > maxFileSizeBytes {
-          followUp = try truncateLogFile()
+      if currentSize > UInt64(maxFileSizeBytes) {
+        if let result = try NDJSONFileWriter.truncateIfNeeded(
+          at: Self.logFileURL,
+          maxSize: maxFileSizeBytes,
+          targetSize: targetFileSizeBytes
+        ) {
+          return .log(
+            .info,
+            "File log truncated from \(result.originalSize) bytes to \(result.newSize) bytes"
+          )
         }
-      } catch CocoaError.fileNoSuchFile {
-        // File doesn't exist, create it
-        try writeData.write(to: Self.logFileURL)
       }
 
-      guard let followUp else { return .success }
-      return followUp
+      return .success
     } catch {
       return .failure(error)
     }
-  }
-
-  // MARK: - Cleanup
-
-  private func truncateLogFile() throws -> LogResult {
-    let fileData = try Data(contentsOf: Self.logFileURL)
-
-    let bytesToRemove = fileData.count - Int(targetFileSizeBytes)
-    guard bytesToRemove > 0
-    else { throw LoggingError.truncationNegativeBytes(bytesToRemove) }
-
-    // Find the first newline after the cutoff to keep valid JSON lines
-    let searchRange = bytesToRemove..<fileData.count
-    guard let newlineIndex = fileData[searchRange].firstIndex(of: UInt8(ascii: "\n"))
-    else { throw LoggingError.truncationNoNewlineFound(bytesToRemove) }
-
-    // Keep everything after the newline
-    let truncatedData = fileData[(newlineIndex + 1)...]
-    try truncatedData.write(to: Self.logFileURL, options: .atomic)
-
-    return .log(
-      .info,
-      "File log truncated from \(fileData.count) bytes to \(truncatedData.count) bytes"
-    )
   }
 }

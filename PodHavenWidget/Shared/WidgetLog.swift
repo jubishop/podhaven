@@ -4,13 +4,17 @@ import Foundation
 import OSLog
 
 // Lightweight logger for the widget extension that writes NDJSON entries
-// to widget-log.ndjson in the app group container. Uses the same NDJSON
-// format as the main app for compatibility with analyze-logs. Also logs
-// to OSLog for Xcode console visibility during development.
+// to widget-log.ndjson in the app group container. Uses NDJSONLogEntry and
+// NDJSONFileWriter shared with the main app for compatible output that the
+// analyze-logs skill can parse. Also logs to OSLog for Xcode console
+// visibility during development.
 enum WidgetLog {
   private static let osLog = Logger(subsystem: "PodHavenWidget", category: "Widget")
 
   private static let logQueue = DispatchQueue(label: "WidgetLog", qos: .utility)
+
+  private static let maxFileSizeBytes = 500_000  // 500KB trigger
+  private static let targetFileSizeBytes = 400_000  // 400KB after truncation
 
   static func debug(
     _ message: String,
@@ -62,13 +66,14 @@ enum WidgetLog {
     function: String,
     line: UInt
   ) {
-    let entry = WidgetLogEntry(
+    let entry = NDJSONLogEntry(
       level: levelInt,
       levelName: level,
       timestamp: Int64(Date().timeIntervalSince1970 * 1000),
-      subsystem: "Widget",
-      category: "widget",
+      subsystem: "PodHavenWidget",
+      category: "Widget",
       message: message,
+      metadata: nil,
       source: "PodHavenWidget",
       file: file,
       function: function,
@@ -76,43 +81,21 @@ enum WidgetLog {
     )
 
     logQueue.async {
-      writeEntry(entry)
-    }
-  }
-
-  private static func writeEntry(_ entry: WidgetLogEntry) {
-    do {
-      var data = try JSONEncoder().encode(entry)
-      guard let newline = "\n".data(using: .utf8) else { return }
-      data.append(newline)
-
-      let url = WidgetConstants.widgetLogFileURL
-
       do {
-        let fileHandle = try FileHandle(forWritingTo: url)
-        defer { fileHandle.closeFile() }
-        fileHandle.seekToEndOfFile()
-        fileHandle.write(data)
-      } catch CocoaError.fileNoSuchFile {
-        try data.write(to: url)
+        let currentSize = try NDJSONFileWriter.appendEntry(
+          entry,
+          to: WidgetConstants.widgetLogFileURL
+        )
+        if currentSize > UInt64(maxFileSizeBytes) {
+          try NDJSONFileWriter.truncateIfNeeded(
+            at: WidgetConstants.widgetLogFileURL,
+            maxSize: maxFileSizeBytes,
+            targetSize: targetFileSizeBytes
+          )
+        }
+      } catch {
+        osLog.error("Failed to write log entry: \(error.localizedDescription, privacy: .public)")
       }
-    } catch {
-      osLog.error("Failed to write log entry: \(error.localizedDescription, privacy: .public)")
     }
   }
-}
-
-// Same shape as the main app's FileLogEntry so both produce
-// compatible NDJSON that the analyze-logs skill can parse.
-private struct WidgetLogEntry: Codable {
-  let level: Int
-  let levelName: String
-  let timestamp: Int64
-  let subsystem: String
-  let category: String
-  let message: String
-  let source: String
-  let file: String
-  let function: String
-  let line: UInt
 }
