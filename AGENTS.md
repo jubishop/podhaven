@@ -54,8 +54,8 @@
 - Never force-unwrap (`!`) in production code; use `Assert` or guarded unwraps with readable error handling.
 - Prefer triple-quoted strings for multi-line or >100 character literals; use camelCase variables and PascalCase types.
 - Maintain alphabetical protocol conformance order and consistent attribute ordering.
-- Use @InjectedObservable when injecting observable types, @DynamicInjected otherwise.
-- Add @InjectedObservable's first and then @DynamicInjected's after, each alphabetical within their group.
+- Use `@InjectedObservable` when injecting observable types, `@DynamicInjected` otherwise.
+- Add `@InjectedObservable` first and then `@DynamicInjected` after, each alphabetical within their group.
 - `@ObservationIgnored` guards DI properties and transient state inside observable types.
 - Run `swift-format` on every Swift file you touch before handing work back.
 - Include `Copyright Justin Bishop, 2026` at the top of all new Swift files.
