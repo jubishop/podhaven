@@ -184,6 +184,10 @@ extension Container {
   func pause() async {
     Self.log.debug("pause: executing")
     avPlayer.pause()
+    await savePosition()
+  }
+
+  func savePosition() async {
     do {
       try await saveCurrentTime(avPlayer.currentTime())
     } catch {
@@ -361,6 +365,12 @@ extension Container {
       if status != .playing {
         Task { @MainActor [weak self] in
           guard let self else { return }
+          Self.log.debug(
+            """
+            timeControlStatus: \(PlaybackStatus(status)), \
+            reason: \(String(describing: avPlayer.reasonForWaitingToPlay))
+            """
+          )
           let currentTime = avPlayer.currentTime()
           if await swapToCached() {
             avPlayer.seek(to: currentTime)
