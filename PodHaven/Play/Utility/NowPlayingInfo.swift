@@ -18,20 +18,23 @@ enum NowPlayingInfo {
     Self.log.debug("setOnDeck: \(onDeck.toString)")
 
     var nowPlayingInfo: [String: Any] = [:]
+    let durationSeconds = onDeck.duration.safe.seconds
+    let elapsedSeconds = onDeck.episode.currentTime.safe.seconds
 
     nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = onDeck.podcastTitle
     nowPlayingInfo[MPMediaItemPropertyArtist] = onDeck.podcastTitle
     nowPlayingInfo[MPMediaItemPropertyPodcastTitle] = onDeck.podcastTitle
     nowPlayingInfo[MPMediaItemPropertyMediaType] = MPMediaType.podcast.rawValue
-    nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = onDeck.duration.safe.seconds
+    nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = durationSeconds
     nowPlayingInfo[MPMediaItemPropertyTitle] = onDeck.title
     nowPlayingInfo[MPMediaItemPropertyReleaseDate] = onDeck.pubDate
     nowPlayingInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.episode.mediaURL.rawValue
-    nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
+    nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsedSeconds
     nowPlayingInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] = onDeck.episode.guid.rawValue
     nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = false
     nowPlayingInfo[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
-    nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackProgress] = 0.0
+    nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackProgress] =
+      durationSeconds > 0 ? elapsedSeconds / durationSeconds : 0.0
     nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()

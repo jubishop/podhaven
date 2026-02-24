@@ -133,6 +133,8 @@ import Testing
 
   @Test("media services reset with no episode then manual load restores controls")
   func mediaServicesResetWithNoEpisodeThenManualLoadRestoresControls() async throws {
+    Log.setTestSystem()
+
     await playManager.start()
 
     let initialCommandCenter = mpRemoteCommandCenter

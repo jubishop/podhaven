@@ -435,6 +435,7 @@ final class PlayManager {
       return
     }
 
+    await podAVPlayer.savePosition()
     await logFailureDiagnostics(episodeID)
     await stop()
 
