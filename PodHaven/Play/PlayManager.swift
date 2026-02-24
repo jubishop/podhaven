@@ -118,11 +118,18 @@ final class PlayManager {
 
   @discardableResult
   func configureAudioSession() -> Bool {
-    guard Function.neverCalled() else { return true }
-
     Self.log.info("configureAudioSession: executing")
     do {
       try Container.shared.configureAudioSession()()
+      let session = AVAudioSession.sharedInstance()
+      Self.log.info(
+        """
+        configureAudioSession: configured
+          category: \(session.category.rawValue)
+          mode: \(session.mode.rawValue)
+          routeSharingPolicy: \(session.routeSharingPolicy.rawValue)
+        """
+      )
     } catch {
       Self.log.error(error)
       Task { @MainActor [weak self] in
@@ -166,7 +173,9 @@ final class PlayManager {
       await clearOnDeck()
 
       do {
+        guard configureAudioSession() else { return false }
         try Container.shared.setAudioSessionActive()(true)
+        Self.log.debug("performLoad: audio session activated")
         await podAVPlayer.setRate(
           Float(incoming.podcast.defaultPlaybackRate ?? userSettings.defaultPlaybackRate)
         )
@@ -551,7 +560,7 @@ final class PlayManager {
     Self.log.debug("handleItemStatusChange: \(status) for episode \(episodeID)")
 
     if status == .failed {
-      Self.log.debug("status is failed for \(episodeID), clearing on deck and unshifting")
+      Self.log.warning("status is failed for \(episodeID), clearing on deck and unshifting")
       await stop()
       do {
         try await queue.unshift(episodeID)
@@ -610,16 +619,23 @@ final class PlayManager {
     guard configureAudioSession() else { return }
     Self.log.debug("handleMediaServicesReset: audio session configured")
 
+    // Force creation of new instances since the old ones are invalid after media services reset
+    Container.shared.avPlayer.reset(.scope)
+    Self.log.debug("handleMediaServicesReset: reset AVPlayer scope")
+
+    Container.shared.mpRemoteCommandCenter.reset(.scope)
+    Self.log.debug("handleMediaServicesReset: reset mpRemoteCommandCenter scope")
+
+    Container.shared.mpNowPlayingInfoCenter.reset(.scope)
+    Self.log.debug("handleMediaServicesReset: reset mpNowPlayingInfoCenter scope")
+
+    // Re-register on the fresh factory instances
     CommandCenter.registerRemoteCommandHandlers()
     Self.log.debug("handleMediaServicesReset: remote command handlers re-registered")
 
     let currentOnDeck = sharedState.onDeck
     await clearOnDeck()
     Self.log.debug("handleMediaServicesReset: cleared existing playback state")
-
-    // Force creation of a new AVPlayer instance since the old one is invalid
-    Container.shared.avPlayer.reset(.scope)
-    Self.log.debug("handleMediaServicesReset: reset AVPlayer scope")
 
     Self.log.debug(
       """
