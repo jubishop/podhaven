@@ -1,20 +1,23 @@
 // Copyright Justin Bishop, 2026
 
+import Logging
 import SwiftUI
 import WidgetKit
 
 struct QueueProvider: TimelineProvider {
+  private static let log = Logger(label: "PodHavenWidget/Queue")
+
   func placeholder(in context: Context) -> QueueEntry {
     .preview
   }
 
   func getSnapshot(in context: Context, completion: @escaping (QueueEntry) -> Void) {
-    WidgetLog.debug("Queue getSnapshot called (isPreview=\(context.isPreview))")
+    Self.log.debug("Queue getSnapshot called (isPreview=\(context.isPreview))")
     completion(makeEntry())
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<QueueEntry>) -> Void) {
-    WidgetLog.debug("Queue getTimeline called (family=\(context.family))")
+    Self.log.debug("Queue getTimeline called (family=\(context.family))")
     let entry = makeEntry()
     let nextUpdate = Date().addingTimeInterval(600)
     let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
@@ -23,11 +26,11 @@ struct QueueProvider: TimelineProvider {
 
   private func makeEntry() -> QueueEntry {
     guard let snapshot = WidgetSnapshotReader.read() else {
-      WidgetLog.warning("Queue makeEntry: no snapshot available, returning empty")
+      Self.log.warning("Queue makeEntry: no snapshot available, returning empty")
       return .empty
     }
 
-    WidgetLog.debug("Queue makeEntry: \(snapshot.queue.count) items")
+    Self.log.debug("Queue makeEntry: \(snapshot.queue.count) items")
 
     let items = snapshot.queue.map { queueItem in
       QueueEntry.QueueEntryItem(

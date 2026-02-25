@@ -3,8 +3,8 @@
 import Foundation
 
 // Shared NDJSON file writer used by both the main app (FileLogManager) and the
-// widget extension (WidgetLog). Foundation-only so it compiles in either target
-// without pulling in Logging, FactoryKit, or other app-specific dependencies.
+// widget extension. Foundation-only so it compiles in either target without
+// pulling in Logging, FactoryKit, or other app-specific dependencies.
 enum NDJSONFileWriter {
 
   // MARK: - Writing

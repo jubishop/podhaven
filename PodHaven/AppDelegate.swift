@@ -59,10 +59,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     case .appStore, .testFlight, .iPhoneDev, .macDev:
       configureSentry()
 
+      let fileLogManager = Container.shared.fileLogManager()
       LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
           OSLogHandler(label: label),
-          FileLogHandler(label: label),
+          FileLogHandler(label: label, writeEntry: fileLogManager.writeToFile),
           SentryLogHandler(label: label),
           CrashReportHandler(label: label),
         ])

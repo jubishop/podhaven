@@ -1,9 +1,9 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import Foundation
 import Logging
 import os
+import SwiftUI
 
 extension Logging.Logger.Level {
   fileprivate var osLogLevel: OSLogType {
@@ -51,7 +51,7 @@ struct OSLogHandler: LogHandler {
     function: String,
     line: UInt
   ) {
-    #if DEBUG
+    #if DEBUG && !WIDGET_EXTENSION
     let system = Log.getTestSystem()
     if !system.isEmpty {
       logger.log(

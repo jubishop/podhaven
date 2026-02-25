@@ -1,36 +1,39 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
+import Logging
 import UIKit
 
 enum WidgetSnapshotReader {
+  private static let log = Logger(label: "PodHavenWidget/SnapshotReader")
+
   static func read() -> WidgetSnapshot? {
     let url = WidgetConstants.snapshotURL
 
     guard FileManager.default.fileExists(atPath: url.path) else {
-      WidgetLog.warning("Snapshot file does not exist at \(url.path)")
+      log.warning("Snapshot file does not exist at \(url.path)")
       return nil
     }
 
     do {
       let data = try Data(contentsOf: url)
-      WidgetLog.debug("Read snapshot file: \(data.count) bytes")
+      log.debug("Read snapshot file: \(data.count) bytes")
 
       let snapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
 
       guard snapshot.schemaVersion <= WidgetSnapshot.currentSchemaVersion else {
-        WidgetLog.warning(
+        log.warning(
           "Snapshot schema version \(snapshot.schemaVersion) is newer than supported \(WidgetSnapshot.currentSchemaVersion)"
         )
         return nil
       }
 
-      WidgetLog.debug(
+      log.debug(
         "Decoded snapshot: nowPlaying=\(snapshot.nowPlaying != nil), queue=\(snapshot.queue.count) items, updatedAt=\(snapshot.updatedAt)"
       )
       return snapshot
     } catch {
-      WidgetLog.error("Failed to decode snapshot: \(error)")
+      log.error("Failed to decode snapshot: \(error)")
       return nil
     }
   }

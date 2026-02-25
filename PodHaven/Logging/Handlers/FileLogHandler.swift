@@ -1,11 +1,9 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import Foundation
 import Logging
 
 struct FileLogHandler: LogHandler {
-  @DynamicInjected(\.fileLogManager) private var fileLogManager
 
   // MARK: - LogHandler
 
@@ -17,14 +15,22 @@ struct FileLogHandler: LogHandler {
   }
   public var logLevel: Logger.Level = .trace
 
+  // MARK: - State
+
   private let subsystem: String
   private let category: String
+  private let writeEntry: @Sendable (Logger.Level, NDJSONLogEntry) -> Void
 
-  init(label: String) {
+  // MARK: - Initialization
+
+  init(label: String, writeEntry: @escaping @Sendable (Logger.Level, NDJSONLogEntry) -> Void) {
     let (subsystem, category) = LogKit.destructureLabel(from: label)
     self.subsystem = subsystem
     self.category = category
+    self.writeEntry = writeEntry
   }
+
+  // MARK: - Logging
 
   public func log(
     level: Logger.Level,
@@ -41,23 +47,22 @@ struct FileLogHandler: LogHandler {
       oneOff: metadata
     )
 
-    fileLogManager.writeToFile(
-      level: level,
-      entry: NDJSONLogEntry(
-        level: level.intValue,
-        levelName: level.rawValue,
-        timestamp: Int64(Date().timeIntervalSince1970 * 1000),
-        subsystem: subsystem,
-        category: category,
-        message: message.description,
-        metadata: mergedMetadata.isEmpty
-          ? nil
-          : Dictionary(uniqueKeysWithValues: mergedMetadata.map { ($0.key, $0.value.description) }),
-        source: source,
-        file: file,
-        function: function,
-        line: line
-      )
+    let entry = NDJSONLogEntry(
+      level: level.intValue,
+      levelName: level.rawValue,
+      timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+      subsystem: subsystem,
+      category: category,
+      message: message.description,
+      metadata: mergedMetadata.isEmpty
+        ? nil
+        : Dictionary(uniqueKeysWithValues: mergedMetadata.map { ($0.key, $0.value.description) }),
+      source: source,
+      file: file,
+      function: function,
+      line: line
     )
+
+    writeEntry(level, entry)
   }
 }

@@ -1,20 +1,23 @@
 // Copyright Justin Bishop, 2026
 
+import Logging
 import SwiftUI
 import WidgetKit
 
 struct NowPlayingProvider: TimelineProvider {
+  private static let log = Logger(label: "PodHavenWidget/NowPlaying")
+
   func placeholder(in context: Context) -> NowPlayingEntry {
     .preview
   }
 
   func getSnapshot(in context: Context, completion: @escaping (NowPlayingEntry) -> Void) {
-    WidgetLog.debug("getSnapshot called (isPreview=\(context.isPreview))")
+    Self.log.debug("getSnapshot called (isPreview=\(context.isPreview))")
     completion(makeEntry())
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<NowPlayingEntry>) -> Void) {
-    WidgetLog.debug("getTimeline called (family=\(context.family))")
+    Self.log.debug("getTimeline called (family=\(context.family))")
     let entry = makeEntry()
     let nextUpdate = Date().addingTimeInterval(300)
     let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
@@ -23,16 +26,16 @@ struct NowPlayingProvider: TimelineProvider {
 
   private func makeEntry() -> NowPlayingEntry {
     guard let snapshot = WidgetSnapshotReader.read() else {
-      WidgetLog.warning("makeEntry: no snapshot available, returning empty")
+      Self.log.warning("makeEntry: no snapshot available, returning empty")
       return .empty
     }
 
     guard let nowPlaying = snapshot.nowPlaying else {
-      WidgetLog.info("makeEntry: snapshot has no nowPlaying, returning empty")
+      Self.log.info("makeEntry: snapshot has no nowPlaying, returning empty")
       return .empty
     }
 
-    WidgetLog.debug(
+    Self.log.debug(
       "makeEntry: \(nowPlaying.episodeTitle) (\(nowPlaying.playbackStatus)), artwork=\(nowPlaying.artworkBase64 != nil)"
     )
 

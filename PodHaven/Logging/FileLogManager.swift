@@ -16,17 +16,33 @@ struct FileLogManager: Sendable {
     AppInfo.documentsDirectory.appendingPathComponent("log.ndjson")
   }()
 
-  private let maxFileSizeBytes = 2_000_000  // 2MB trigger
-  private let targetFileSizeBytes = 1_750_000  // 1.75MB after truncation
-
-  private let logQueue = DispatchQueue(label: "FileLogHandler", qos: .background)
-  private let isActive = ThreadSafe(true)
-
   private static let log = Log.as("FileLogManager")
+
+  private let writer: NDJSONLogFileManager
+  private let isActive = ThreadSafe(true)
 
   // MARK: - Initialization
 
-  fileprivate init() {}
+  fileprivate init() {
+    self.writer = NDJSONLogFileManager(
+      fileURL: Self.logFileURL,
+      maxFileSizeBytes: 2_000_000,
+      targetFileSizeBytes: 1_750_000,
+      queueLabel: "FileLogHandler",
+      onError: { error in
+        Task(priority: .background) {
+          Self.log.logResult(.failure(error))
+        }
+      },
+      onTruncation: { originalSize, newSize in
+        Task(priority: .background) {
+          Self.log.logResult(
+            .log(.info, "File log truncated from \(originalSize) bytes to \(newSize) bytes")
+          )
+        }
+      }
+    )
+  }
 
   // MARK: - Logging
 
@@ -34,15 +50,22 @@ struct FileLogManager: Sendable {
     let runSynchronously = level == .critical || !isActive()
 
     if runSynchronously {
-      let result = logQueue.sync { performWrite(entry) }
+      let result: LogResult
+      do {
+        if let truncation = try writer.writeSync(entry) {
+          result = .log(
+            .info,
+            "File log truncated from \(truncation.originalSize) bytes to \(truncation.newSize) bytes"
+          )
+        } else {
+          result = .success
+        }
+      } catch {
+        result = .failure(error)
+      }
       Self.log.logResult(result)
     } else {
-      logQueue.async {
-        let result = performWrite(entry)
-        Task(priority: .background) {
-          Self.log.logResult(result)
-        }
-      }
+      writer.writeAsync(entry)
     }
   }
 
@@ -54,34 +77,9 @@ struct FileLogManager: Sendable {
       isActive(true)
     case .background:
       isActive(false)
-      logQueue.sync {}
+      writer.flush()
     default:
       break
-    }
-  }
-
-  // MARK: - File Operations
-
-  private func performWrite(_ entry: NDJSONLogEntry) -> LogResult {
-    do {
-      let currentSize = try NDJSONFileWriter.appendEntry(entry, to: Self.logFileURL)
-
-      if currentSize > UInt64(maxFileSizeBytes) {
-        if let result = try NDJSONFileWriter.truncateIfNeeded(
-          at: Self.logFileURL,
-          maxSize: maxFileSizeBytes,
-          targetSize: targetFileSizeBytes
-        ) {
-          return .log(
-            .info,
-            "File log truncated from \(result.originalSize) bytes to \(result.newSize) bytes"
-          )
-        }
-      }
-
-      return .success
-    } catch {
-      return .failure(error)
     }
   }
 }
