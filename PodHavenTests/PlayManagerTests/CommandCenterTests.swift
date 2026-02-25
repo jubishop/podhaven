@@ -147,9 +147,13 @@ import Testing
       .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
     try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
 
-    // Verify factory scopes were reset
+    // Wait for factory scopes to be reset — configureCallCount is incremented via a fire-and-forget
+    // Task in the test fake so it can race ahead of the scope resets in handleMediaServicesReset.
+    try await Wait.until(
+      { @MainActor in self.mpRemoteCommandCenter !== initialCommandCenter },
+      { "Expected mpRemoteCommandCenter factory scope to be reset" }
+    )
     let postResetCommandCenter = mpRemoteCommandCenter
-    #expect(initialCommandCenter !== postResetCommandCenter)
 
     // Verify handlers are registered on the fresh command center
     #expect(postResetCommandCenter.play.isEnabled == true)
