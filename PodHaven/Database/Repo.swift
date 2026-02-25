@@ -13,7 +13,6 @@ extension Container {
   var repo: Factory<any Databasing> {
     Factory(self) { self.makeRepo() }.scope(.cached)
   }
-
 }
 
 struct Repo: Databasing, Sendable {
@@ -413,18 +412,22 @@ struct Repo: Databasing, Sendable {
             podcast = upsertedPodcast
           } else {
             let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
-            podcast = try unsavedPodcast.upsertLimitedColumns(
+            podcast = try unsavedPodcast.upsertAndFetch(
               db,
-              columns: unsavedPodcast.rssUpdatableColumns.map(\.0)
+              as: Podcast.self,
+              updating: .noColumnUnlessSpecified,
+              doUpdate: unsavedPodcast.rssUpsertAssignments
             )
             upsertedPodcasts.append(podcast)
           }
 
           var newUnsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
           newUnsavedEpisode.podcastId = podcast.id
-          let episode: Episode = try newUnsavedEpisode.upsertLimitedColumns(
+          let episode: Episode = try newUnsavedEpisode.upsertAndFetch(
             db,
-            columns: newUnsavedEpisode.rssUpdatableColumns.map(\.0)
+            as: Episode.self,
+            updating: .noColumnUnlessSpecified,
+            doUpdate: newUnsavedEpisode.rssUpsertAssignments
           )
           return PodcastEpisode(podcast: podcast, episode: episode)
         }
