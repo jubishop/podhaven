@@ -12,8 +12,9 @@ extension Container {
 }
 
 struct WidgetService {
-  @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.repo) private var repo
+
+  private var navigation: Navigation { get async { await Container.shared.navigation() } }
 
   private static let log = Log.as(LogSubsystem.Widget.service)
 
@@ -26,12 +27,13 @@ struct WidgetService {
   // MARK: - URL Handling
 
   func handleIncomingURL(_ url: URL) async {
+    let navigation = await self.navigation
     let pathComponents = url.pathComponents.filter { $0 != "/" }
 
     switch pathComponents.first {
     case "now-playing":
       Self.log.debug("Widget deep link: now-playing")
-      navigation.currentTab = .upNext
+      await navigation.showUpNext()
 
     case "queue":
       if let idString = pathComponents.dropFirst().first,
@@ -42,17 +44,17 @@ struct WidgetService {
 
         do {
           if let podcastEpisode = try await repo.podcastEpisode(episodeID) {
-            navigation.showEpisode(podcastEpisode)
+            await navigation.showEpisode(podcastEpisode)
           } else {
             Self.log.warning("Widget deep link: episode \(episodeID) not found")
-            navigation.currentTab = .upNext
+            await navigation.showUpNext()
           }
         } catch {
           Self.log.error(error)
-          navigation.currentTab = .upNext
+          await navigation.showUpNext()
         }
       } else {
-        navigation.currentTab = .upNext
+        await navigation.showUpNext()
       }
 
     default:
