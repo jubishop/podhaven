@@ -75,6 +75,7 @@ enum LogSubsystem {
   }
 
   enum Widget: String, LogCategorizable {
+    case service
     case writer
   }
 
