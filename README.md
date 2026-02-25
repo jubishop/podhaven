@@ -9,8 +9,8 @@ PodHaven is a modern podcast application for iOS, built with Swift and SwiftUI. 
 
 ## Features
 
-- **Discover & Search**: Find new podcasts with a powerful search powered by the [PodcastIndex API](https://podcastindex.org/). Search by title, term, or person.
-- **Trending Podcasts**: See what's currently popular and discover new shows.
+- **Discover & Search**: Find new podcasts powered by the [iTunes Search API](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI/).
+- **Trending Podcasts**: Browse top podcasts across 18 genre categories using Apple's rankings.
 - **Subscribe & Manage**: Easily subscribe to your favorite podcasts and manage your library.
 - **Tags**: Organize podcasts and episodes with custom tags.
 - **Episode Playback**: A modern audio player with background playback, lock screen controls, and playback position tracking.
@@ -19,6 +19,7 @@ PodHaven is a modern podcast application for iOS, built with Swift and SwiftUI. 
 - **OPML Import/Export**: Import your existing podcast subscriptions from another app, or export your library from PodHaven.
 - **Share Extension**: Add new podcasts directly from Safari or other apps using the share sheet.
 - **Widgets**: Home screen widgets for quick access to your podcasts.
+- **New Episode Notifications**: Get notified when subscribed podcasts publish new episodes, with per-podcast control and rich artwork attachments.
 - **Background Refresh**: Automatic feed updates in the background.
 
 ## Getting Started
@@ -81,7 +82,7 @@ PodHaven is built using modern Swift practices and a clean, modular architecture
 - **UI Layer:** Built entirely with **SwiftUI** for a declarative and responsive user interface.
 - **State Management:** Uses Swift's **Observation** framework (`@Observable`) with **Factory** for dependency injection.
 - **Database:** Uses **GRDB.swift** for fast and safe access to the local SQLite database, preferring the QueryInterface API over raw SQL.
-- **Networking:** Leverages **URLSession** for network requests, with **XMLCoder** for parsing podcast RSS feeds.
+- **Networking:** Leverages **URLSession** with the **iTunes Search API** for podcast discovery, and **XMLCoder** for parsing RSS feeds.
 - **Image Handling:** **Nuke** for efficient image loading and caching.
 - **Concurrency:** Built from the ground up with Swift's modern structured concurrency (`async/await`).
 - **Macros:** Custom Swift macros for `ReadableError` conformance and state management.
