@@ -105,6 +105,7 @@ actor WidgetSnapshotWriter {
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
       nowPlaying: nowPlaying,
       queue: queueItems,
+      queueTotalCount: queuedEpisodes.count,
       updatedAt: Date()
     )
 

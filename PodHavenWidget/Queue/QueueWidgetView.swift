@@ -34,9 +34,9 @@ struct QueueWidgetView: View {
         queueItemRow(item: item, index: index)
       }
 
-      if entry.items.count > itemCount {
+      if entry.totalCount > itemCount {
         Spacer(minLength: 0)
-        Text("+\(entry.items.count - itemCount) more")
+        Text("+\(entry.totalCount - itemCount) more")
           .font(.caption2)
           .foregroundStyle(.secondary)
           .frame(maxWidth: .infinity, alignment: .trailing)

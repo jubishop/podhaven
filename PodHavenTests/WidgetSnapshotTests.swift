@@ -41,6 +41,7 @@ struct WidgetSnapshotTests {
           durationSeconds: 2400
         ),
       ],
+      queueTotalCount: 10,
       updatedAt: Date()
     )
 
@@ -56,6 +57,7 @@ struct WidgetSnapshotTests {
     #expect(decoded.nowPlaying?.playbackStatus == .playing)
     #expect(decoded.nowPlaying?.artworkBase64 == artworkBase64)
     #expect(decoded.queue.count == 2)
+    #expect(decoded.queueTotalCount == 10)
     #expect(decoded.queue[0].episodeID == 100)
     #expect(decoded.queue[0].episodeTitle == "Queue Episode 1")
     #expect(decoded.queue[1].episodeID == 101)
@@ -67,6 +69,7 @@ struct WidgetSnapshotTests {
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
       nowPlaying: nil,
       queue: [],
+      queueTotalCount: 0,
       updatedAt: Date()
     )
 
@@ -75,6 +78,7 @@ struct WidgetSnapshotTests {
 
     #expect(decoded.nowPlaying == nil)
     #expect(decoded.queue.isEmpty)
+    #expect(decoded.queueTotalCount == 0)
   }
 
   @Test("snapshot encodes and decodes with nil artworkBase64")
@@ -91,6 +95,7 @@ struct WidgetSnapshotTests {
         artworkBase64: nil
       ),
       queue: [],
+      queueTotalCount: 0,
       updatedAt: Date()
     )
 
@@ -108,6 +113,7 @@ struct WidgetSnapshotTests {
       schemaVersion: 999,
       nowPlaying: nil,
       queue: [],
+      queueTotalCount: 0,
       updatedAt: Date()
     )
 

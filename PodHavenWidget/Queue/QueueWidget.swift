@@ -41,7 +41,7 @@ struct QueueProvider: TimelineProvider {
       )
     }
 
-    return QueueEntry(date: Date(), items: items)
+    return QueueEntry(date: Date(), items: items, totalCount: snapshot.queueTotalCount)
   }
 
   private func formatDuration(_ seconds: Double) -> String {

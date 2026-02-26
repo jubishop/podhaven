@@ -6,6 +6,7 @@ import WidgetKit
 struct QueueEntry: TimelineEntry {
   let date: Date
   let items: [QueueEntryItem]
+  let totalCount: Int
 
   private static let queueBaseURL = URL(string: "podhaven://widget/queue/")!
 
@@ -20,7 +21,7 @@ struct QueueEntry: TimelineEntry {
     }
   }
 
-  static let empty = QueueEntry(date: Date(), items: [])
+  static let empty = QueueEntry(date: Date(), items: [], totalCount: 0)
 
   static let preview = QueueEntry(
     date: Date(),
@@ -55,6 +56,7 @@ struct QueueEntry: TimelineEntry {
         podcastTitle: "Systems Programming",
         durationFormatted: "47:20"
       ),
-    ]
+    ],
+    totalCount: 8
   )
 }

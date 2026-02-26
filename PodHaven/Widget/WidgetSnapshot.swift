@@ -31,5 +31,6 @@ struct WidgetSnapshot: Codable, Sendable {
   let schemaVersion: Int
   let nowPlaying: NowPlaying?
   let queue: [QueueItem]
+  let queueTotalCount: Int
   let updatedAt: Date
 }
