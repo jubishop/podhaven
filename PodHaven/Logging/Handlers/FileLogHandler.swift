@@ -1,25 +1,114 @@
-// Copyright Justin Bishop, 2025
+// Copyright Justin Bishop, 2026
 
 import FactoryKit
 import Foundation
 import Logging
 
-struct FileLogEntry: Codable {
-  let level: Int
-  let levelName: String
-  let timestamp: Int64
-  let subsystem: String
-  let category: String
-  let message: String
-  let metadata: [String: String]?
-  let source: String
-  let file: String
-  let function: String
-  let line: UInt
+extension Container {
+  fileprivate var fileLogWriter: ParameterFactory<(URL, Int, Int), FileLogHandler.Writer> {
+    ParameterFactory(self) {
+      FileLogHandler.Writer(fileURL: $0.0, maxFileSizeBytes: $0.1, targetFileSizeBytes: $0.2)
+    }
+    .scope(.cached)
+  }
 }
 
 struct FileLogHandler: LogHandler {
-  @DynamicInjected(\.fileLogManager) private var fileLogManager
+
+  // MARK: - Types
+
+  final class Writer: Sendable {
+    private static let log = Log.as("FileLogWriter")
+
+    let fileURL: URL
+    let maxFileSizeBytes: Int
+    let targetFileSizeBytes: Int
+    private let queue: DispatchQueue
+
+    init(fileURL: URL, maxFileSizeBytes: Int, targetFileSizeBytes: Int) {
+      self.fileURL = fileURL
+      self.maxFileSizeBytes = maxFileSizeBytes
+      self.targetFileSizeBytes = targetFileSizeBytes
+      let fileName = fileURL.deletingPathExtension().lastPathComponent
+      self.queue = DispatchQueue(
+        label: "com.artisanalsoftware.PodHaven.FileLogHandler.Writer.\(fileName)",
+        qos: .background
+      )
+    }
+
+    func write(_ entry: Entry, synchronously: Bool) {
+      if synchronously {
+        queue.sync { self.writeAndReport(entry) }
+      } else {
+        queue.async { self.writeAndReport(entry) }
+      }
+    }
+
+    func flush() {
+      queue.sync {}
+    }
+
+    private func writeAndReport(_ entry: Entry) {
+      do {
+        let currentSize = try appendEntry(entry)
+        if currentSize > UInt64(maxFileSizeBytes) {
+          if let truncation = try truncateIfNeeded() {
+            Self.log.info(
+              "Log truncated from \(truncation.originalSize) to \(truncation.newSize) bytes"
+            )
+          }
+        }
+      } catch {
+        Self.log.error(error)
+      }
+    }
+
+    private func appendEntry(_ entry: Entry) throws -> UInt64 {
+      var data = try JSONEncoder().encode(entry)
+      data.append(0x0A)
+
+      do {
+        let handle = try FileHandle(forWritingTo: fileURL)
+        defer { handle.closeFile() }
+        handle.seekToEndOfFile()
+        handle.write(data)
+        return handle.offsetInFile
+      } catch CocoaError.fileNoSuchFile {
+        try data.write(to: fileURL)
+        return UInt64(data.count)
+      }
+    }
+
+    private func truncateIfNeeded() throws -> (originalSize: Int, newSize: Int)? {
+      let data = try Data(contentsOf: fileURL)
+      guard data.count > maxFileSizeBytes else { return nil }
+
+      let bytesToRemove = data.count - targetFileSizeBytes
+      guard bytesToRemove > 0 else { return nil }
+
+      let searchRange = bytesToRemove..<data.count
+      guard let newlineIndex = data[searchRange].firstIndex(of: 0x0A) else { return nil }
+
+      let truncated = data[(newlineIndex + 1)...]
+      try truncated.write(to: fileURL, options: .atomic)
+
+      return (originalSize: data.count, newSize: truncated.count)
+    }
+  }
+
+  struct Entry: Codable {
+    let level: Int
+    let levelName: String
+    let timestamp: Int64
+    let subsystem: String
+    let category: String
+    let message: String
+    let metadata: [String: String]?
+    let source: String
+    let file: String
+    let function: String
+    let line: UInt
+  }
 
   // MARK: - LogHandler
 
@@ -31,14 +120,34 @@ struct FileLogHandler: LogHandler {
   }
   public var logLevel: Logger.Level = .trace
 
+  // MARK: - State
+
+  private static let writer = ThreadSafe<Writer?>(nil)
   private let subsystem: String
   private let category: String
+  private let writer: Writer
+  private let writeSynchronously: @Sendable (Logger.Level) -> Bool
 
-  init(label: String) {
+  // MARK: - Initialization
+
+  init(
+    label: String,
+    fileURL: URL,
+    maxFileSizeBytes: Int,
+    targetFileSizeBytes: Int,
+    writeSynchronously: @escaping @Sendable (Logger.Level) -> Bool
+  ) {
     let (subsystem, category) = LogKit.destructureLabel(from: label)
     self.subsystem = subsystem
     self.category = category
+    self.writeSynchronously = writeSynchronously
+
+    let writer = Container.shared.fileLogWriter((fileURL, maxFileSizeBytes, targetFileSizeBytes))
+    Self.writer(writer)
+    self.writer = writer
   }
+
+  // MARK: - Logging
 
   public func log(
     level: Logger.Level,
@@ -55,23 +164,28 @@ struct FileLogHandler: LogHandler {
       oneOff: metadata
     )
 
-    fileLogManager.writeToFile(
-      level: level,
-      fileLogEntry: FileLogEntry(
-        level: level.intValue,
-        levelName: level.rawValue,
-        timestamp: Int64(Date().timeIntervalSince1970 * 1000),
-        subsystem: subsystem,
-        category: category,
-        message: message.description,
-        metadata: mergedMetadata.isEmpty
-          ? nil
-          : Dictionary(uniqueKeysWithValues: mergedMetadata.map { ($0.key, $0.value.description) }),
-        source: source,
-        file: file,
-        function: function,
-        line: line,
-      )
+    let entry = Entry(
+      level: level.intValue,
+      levelName: level.rawValue,
+      timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+      subsystem: subsystem,
+      category: category,
+      message: message.description,
+      metadata: mergedMetadata.isEmpty
+        ? nil
+        : Dictionary(uniqueKeysWithValues: mergedMetadata.map { ($0.key, $0.value.description) }),
+      source: source,
+      file: file,
+      function: function,
+      line: line
     )
+
+    writer.write(entry, synchronously: writeSynchronously(level))
+  }
+
+  // MARK: - Flush
+
+  static func flush() {
+    writer()?.flush()
   }
 }

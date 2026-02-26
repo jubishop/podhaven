@@ -46,7 +46,7 @@ struct DebugSection: View {
       }
 
       ShareLink(
-        item: AppInfo.documentsDirectory.appendingPathComponent("log.ndjson"),
+        item: AppInfo.logFileURL,
         preview: SharePreview(
           "PodHaven Logs",
           image: AppIcon.shareLogs.rawImage

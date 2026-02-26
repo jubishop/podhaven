@@ -7,7 +7,7 @@ enum ShareExtensionError: Error, LocalizedError {
   case invalidURLScheme
   case noInputItems
   case noURLFound
-  case urlLoadingFailed(Error)
+  case urlLoadingFailed(any Error)
   case itemNotURL
   case sharedContainerNotFound
 

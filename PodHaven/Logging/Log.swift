@@ -1,10 +1,11 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import Foundation
 import Logging
 
 #if DEBUG
+import FactoryKit
+
 extension Container {
   fileprivate var testLogSystem: Factory<ThreadSafe<String>> {
     Factory(self) { ThreadSafe("") }.scope(.cached)

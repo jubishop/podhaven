@@ -3,6 +3,7 @@
 import FactoryKit
 import Logging
 import Sentry
+import SwiftUI
 import Tagged
 import UIKit
 
@@ -21,7 +22,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
     AppInfo.initializeEnvironment()
-    Self.configureLogging()
+    configureLogging()
 
     Self.log.debug("Initial environment is: \(AppInfo.environment)")
 
@@ -54,15 +55,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
   // MARK: - Logging
 
-  private static func configureLogging() {
+  private func configureLogging() {
     switch AppInfo.environment {
     case .appStore, .testFlight, .iPhoneDev, .macDev:
-      configureSentry()
+      Self.configureSentry()
 
+      let sharedState = Container.shared.sharedState()
       LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
           OSLogHandler(label: label),
-          FileLogHandler(label: label),
+          FileLogHandler(
+            label: label,
+            fileURL: AppInfo.logFileURL,
+            maxFileSizeBytes: 2_000_000,
+            targetFileSizeBytes: 1_750_000,
+            writeSynchronously: { $0 >= .critical || !sharedState.isActive }
+          ),
           SentryLogHandler(label: label),
           CrashReportHandler(label: label),
         ])
@@ -76,6 +84,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
       Self.log.debug("configureLogging: OSLog")
     }
   }
+
+  // MARK: - Scene Phase
+
+  func handleScenePhaseChange(to phase: ScenePhase) {
+    if phase == .background {
+      FileLogHandler.flush()
+    }
+  }
+
+  // MARK: - Sentry
 
   private static func configureSentry() {
     SentrySDK.start { options in

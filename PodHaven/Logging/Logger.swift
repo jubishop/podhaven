@@ -22,17 +22,6 @@ extension Logger {
     }
   }
 
-  func logResult(_ result: LogResult) {
-    switch result {
-    case .success:
-      break
-    case .log(let level, let message):
-      log(level: level, message())
-    case .failure(let error):
-      self.error(error)
-    }
-  }
-
   func `catch`<T>(
     _ operation: () throws -> T
   ) -> T? {
