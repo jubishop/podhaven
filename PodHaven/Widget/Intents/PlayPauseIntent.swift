@@ -14,7 +14,6 @@ struct PlayPauseIntent: AudioPlaybackIntent {
     #if !WIDGET_EXTENSION
     let playManager = Container.shared.playManager()
     await playManager.toggle()
-
     return .result()
     #else
     Assert.fatal("AudioPlaybackIntent should never execute in widget process")
