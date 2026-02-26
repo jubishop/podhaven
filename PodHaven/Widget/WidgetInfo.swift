@@ -2,12 +2,16 @@
 
 import Foundation
 
-enum WidgetConstants {
-  static let appGroupID = "group.podhaven.shared"
-  static let snapshotFilename = "widget-snapshot.json"
+enum WidgetInfo {
+
+  // MARK: - Widget Kinds
 
   static let nowPlayingKind = "NowPlayingWidget"
   static let queueKind = "QueueWidget"
+
+  // MARK: - Data Storage
+
+  static let appGroupID = "group.podhaven.shared"
 
   static var containerURL: URL {
     guard
@@ -15,18 +19,16 @@ enum WidgetConstants {
         forSecurityApplicationGroupIdentifier: appGroupID
       )
     else {
-      // Assert is unavailable in the widget target; fatalError directly
-      // since a missing app group is an unrecoverable configuration error.
-      fatalError("App group container not found for \(appGroupID)")
+      Assert.fatal("App group container not found for \(appGroupID)")
     }
     return containerURL
   }
 
   static var snapshotURL: URL {
-    containerURL.appendingPathComponent(snapshotFilename)
+    containerURL.appendingPathComponent("widget-snapshot.json")
   }
 
-  static var widgetLogFileURL: URL {
+  static var logFileURL: URL {
     containerURL.appendingPathComponent("widget-log.ndjson")
   }
 }

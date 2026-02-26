@@ -15,12 +15,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
 
-  private let fileLogWriter = NDJSONLogFileManager(
-    fileURL: AppInfo.logFileURL,
-    maxFileSizeBytes: 2_000_000,
-    targetFileSizeBytes: 1_750_000
-  )
-
   private static let log: Logger = Log.as("AppDelegate")
 
   func application(
@@ -72,13 +66,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
           OSLogHandler(label: label),
           FileLogHandler(
             label: label,
-            writeEntry: { level, entry in
-              if level >= .critical || !sharedState.isActive {
-                self.fileLogWriter.writeSync(entry)
-              } else {
-                self.fileLogWriter.writeAsync(entry)
-              }
-            }
+            fileURL: AppInfo.logFileURL,
+            maxFileSizeBytes: 2_000_000,
+            targetFileSizeBytes: 1_750_000,
+            writeSynchronously: { $0 >= .critical || !sharedState.isActive }
           ),
           SentryLogHandler(label: label),
           CrashReportHandler(label: label),
@@ -98,7 +89,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
   func handleScenePhaseChange(to phase: ScenePhase) {
     if phase == .background {
-      fileLogWriter.flush()
+      FileLogHandler.flush()
     }
   }
 

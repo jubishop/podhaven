@@ -55,7 +55,7 @@ struct DebugSection: View {
       )
 
       ShareLink(
-        item: WidgetConstants.widgetLogFileURL,
+        item: WidgetInfo.logFileURL,
         preview: SharePreview(
           "Widget Logs",
           image: AppIcon.shareLogs.rawImage

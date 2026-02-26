@@ -53,7 +53,7 @@ struct QueueProvider: TimelineProvider {
 }
 
 struct QueueWidget: Widget {
-  let kind = WidgetConstants.queueKind
+  let kind = WidgetInfo.queueKind
 
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: QueueProvider()) { entry in

@@ -6,25 +6,16 @@ import WidgetKit
 
 @main
 struct PodHavenWidgetBundle: WidgetBundle {
-  nonisolated private static let widgetWriter = NDJSONLogFileManager(
-    fileURL: WidgetConstants.widgetLogFileURL,
-    maxFileSizeBytes: 500_000,
-    targetFileSizeBytes: 400_000
-  )
-
   nonisolated private static let log: Logging.Logger = {
     LoggingSystem.bootstrap { label in
       MultiplexLogHandler([
         OSLogHandler(label: label),
         FileLogHandler(
           label: label,
-          writeEntry: { level, entry in
-            if level >= .critical {
-              widgetWriter.writeSync(entry)
-            } else {
-              widgetWriter.writeAsync(entry)
-            }
-          }
+          fileURL: WidgetInfo.logFileURL,
+          maxFileSizeBytes: 500_000,
+          targetFileSizeBytes: 400_000,
+          writeSynchronously: { $0 >= .critical }
         ),
       ])
     }

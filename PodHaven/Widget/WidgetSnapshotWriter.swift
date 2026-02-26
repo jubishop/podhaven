@@ -26,26 +26,26 @@ actor WidgetSnapshotWriter {
   // MARK: - Snapshot Triggers
 
   func onDeckChanged() {
-    scheduleWrite(reloadKinds: [WidgetConstants.nowPlayingKind])
+    scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
   }
 
   func artworkChanged() {
-    scheduleWrite(reloadKinds: [WidgetConstants.nowPlayingKind])
+    scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
   }
 
   func playbackStatusChanged() {
-    scheduleWrite(reloadKinds: [WidgetConstants.nowPlayingKind])
+    scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
   }
 
   func currentTimeChanged() {
     let now = Date()
     guard now.timeIntervalSince(lastCurrentTimeWrite) >= 30 else { return }
     lastCurrentTimeWrite = now
-    scheduleWrite(reloadKinds: [WidgetConstants.nowPlayingKind])
+    scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
   }
 
   func queueChanged() {
-    scheduleWrite(reloadKinds: [WidgetConstants.queueKind])
+    scheduleWrite(reloadKinds: [WidgetInfo.queueKind])
   }
 
   // MARK: - Coalesced Writing
@@ -110,7 +110,7 @@ actor WidgetSnapshotWriter {
 
     do {
       let data = try JSONEncoder().encode(snapshot)
-      try data.write(to: WidgetConstants.snapshotURL, options: .atomic)
+      try data.write(to: WidgetInfo.snapshotURL, options: .atomic)
       Self.log.debug("Wrote widget snapshot (\(data.count) bytes)")
     } catch {
       Self.log.error(error)

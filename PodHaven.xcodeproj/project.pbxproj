@@ -181,15 +181,13 @@
 				Logging/Logger.swift,
 				Logging/LoggerLevel.swift,
 				Logging/LogKit.swift,
-				Logging/NDJSONLogEntry.swift,
-				Logging/NDJSONLogFileManager.swift,
 				Utility/Assert.swift,
 				Utility/Function.swift,
 				Utility/ThreadSafe.swift,
 				Widget/Intents/PlayPauseIntent.swift,
 				Widget/Intents/SkipBackwardIntent.swift,
 				Widget/Intents/SkipForwardIntent.swift,
-				Widget/WidgetConstants.swift,
+				Widget/WidgetInfo.swift,
 				Widget/WidgetSnapshot.swift,
 			);
 			target = 8BA4F41F2F3E74AC000AC336 /* PodHavenWidget */;

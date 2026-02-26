@@ -52,7 +52,7 @@ struct NowPlayingProvider: TimelineProvider {
 }
 
 struct NowPlayingWidget: Widget {
-  let kind = WidgetConstants.nowPlayingKind
+  let kind = WidgetInfo.nowPlayingKind
 
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: NowPlayingProvider()) { entry in

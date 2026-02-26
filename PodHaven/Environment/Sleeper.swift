@@ -5,7 +5,7 @@ import Foundation
 
 extension Container {
   var sleeper: Factory<any Sleepable> {
-    self { Sleeper() }.cached
+    Factory(self) { Sleeper() }.cached
   }
 }
 

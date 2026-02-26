@@ -8,7 +8,7 @@ enum WidgetSnapshotReader {
   private static let log = Logger(label: "PodHavenWidget/SnapshotReader")
 
   static func read() -> WidgetSnapshot? {
-    let url = WidgetConstants.snapshotURL
+    let url = WidgetInfo.snapshotURL
 
     guard FileManager.default.fileExists(atPath: url.path) else {
       log.warning("Snapshot file does not exist at \(url.path)")
