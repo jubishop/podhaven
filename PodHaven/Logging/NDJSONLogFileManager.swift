@@ -71,16 +71,51 @@ struct NDJSONLogFileManager: Sendable {
   }
 
   private func write(_ entry: NDJSONLogEntry) throws -> (originalSize: Int, newSize: Int)? {
-    let currentSize = try NDJSONFileWriter.appendEntry(entry, to: fileURL)
+    let currentSize = try appendEntry(entry)
 
     if currentSize > UInt64(maxFileSizeBytes) {
-      return try NDJSONFileWriter.truncateIfNeeded(
-        at: fileURL,
-        maxSize: maxFileSizeBytes,
-        targetSize: targetFileSizeBytes
-      )
+      return try truncateIfNeeded()
     }
 
     return nil
+  }
+
+  // Encodes the entry as JSON, appends it with a trailing newline to the file
+  // at `fileURL`, and returns the file size after the write. Creates the file
+  // if it doesn't already exist.
+  private func appendEntry(_ entry: NDJSONLogEntry) throws -> UInt64 {
+    var data = try JSONEncoder().encode(entry)
+    data.append(0x0A)  // newline
+
+    do {
+      let handle = try FileHandle(forWritingTo: fileURL)
+      defer { handle.closeFile() }
+      handle.seekToEndOfFile()
+      handle.write(data)
+      return handle.offsetInFile
+    } catch CocoaError.fileNoSuchFile {
+      try data.write(to: fileURL)
+      return UInt64(data.count)
+    }
+  }
+
+  // Removes the oldest NDJSON lines from the file until its size is at or
+  // below `targetFileSizeBytes`. Only acts when the file exceeds
+  // `maxFileSizeBytes`. Returns the original and new byte counts when
+  // truncation occurs, or nil if no truncation was needed.
+  private func truncateIfNeeded() throws -> (originalSize: Int, newSize: Int)? {
+    let data = try Data(contentsOf: fileURL)
+    guard data.count > maxFileSizeBytes else { return nil }
+
+    let bytesToRemove = data.count - targetFileSizeBytes
+    guard bytesToRemove > 0 else { return nil }
+
+    let searchRange = bytesToRemove..<data.count
+    guard let newlineIndex = data[searchRange].firstIndex(of: 0x0A) else { return nil }
+
+    let truncated = data[(newlineIndex + 1)...]
+    try truncated.write(to: fileURL, options: .atomic)
+
+    return (originalSize: data.count, newSize: truncated.count)
   }
 }

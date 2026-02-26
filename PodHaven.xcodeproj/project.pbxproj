@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		61039D8E4688754CA0FEE505 /* FactoryKit in Frameworks */ = {isa = PBXBuildFile; productRef = 21B605E34CECF44A86187ECD /* FactoryKit */; };
 		78467F52904B4485ACAE3505 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 49CAAA44B9304A9F8C8FEEC8 /* Sentry */; };
 		8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8B05D8FB2CF51C0B003AA19D /* GRDB */; };
 		8B14BBE32D0CB37A0007E89B /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8B14BBE22D0CB37A0007E89B /* IdentifiedCollections */; };
@@ -27,8 +28,6 @@
 		8BA4F4312F3E74AD000AC336 /* PodHavenWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8BA4F4512F3E7DF1000AC336 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8BA4F4502F3E7DF1000AC336 /* AppIntents.framework */; };
 		8BA4F4702F3E9000000AC336 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 8BA4F4712F3E9001000AC336 /* Logging */; };
-		AF396B2F1DBEC4D55DD18A5F /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = F6FBB57DA0643D700A323209 /* IdentifiedCollections */; };
-		61039D8E4688754CA0FEE505 /* FactoryKit in Frameworks */ = {isa = PBXBuildFile; productRef = 21B605E34CECF44A86187ECD /* FactoryKit */; };
 		8BABCD382EBF24760016CEF3 /* ReadableErrorMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8BABCD372EBF24760016CEF3 /* ReadableErrorMacro */; };
 		8BAE003C2DDE79A4008E40B2 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 8BAE003B2DDE79A4008E40B2 /* Logging */; };
 		8BBD96982E2701F500BE32DD /* PodHavenShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8BBD968E2E2701F400BE32DD /* PodHavenShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -39,6 +38,7 @@
 		8BD728BE2DDBAE9B00763D7F /* ReadableErrorMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD728BD2DDBAE9B00763D7F /* ReadableErrorMacro */; };
 		8BD728C02DDBAEA500763D7F /* ReadableErrorMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD728BF2DDBAEA500763D7F /* ReadableErrorMacro */; };
 		8BE319E92D0E22D8009F48C9 /* Semaphore in Frameworks */ = {isa = PBXBuildFile; productRef = 8BE319E82D0E22D8009F48C9 /* Semaphore */; };
+		AF396B2F1DBEC4D55DD18A5F /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = F6FBB57DA0643D700A323209 /* IdentifiedCollections */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -181,7 +181,6 @@
 				Logging/Logger.swift,
 				Logging/LoggerLevel.swift,
 				Logging/LogKit.swift,
-				Logging/NDJSONFileWriter.swift,
 				Logging/NDJSONLogEntry.swift,
 				Logging/NDJSONLogFileManager.swift,
 				Utility/Assert.swift,
@@ -1588,6 +1587,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		21B605E34CECF44A86187ECD /* FactoryKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B2510D92D3317840033A510 /* XCRemoteSwiftPackageReference "Factory" */;
+			productName = FactoryKit;
+		};
 		49CAAA44B9304A9F8C8FEEC8 /* Sentry */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 5712A9FBAD044D6D9F8BAEBD /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
@@ -1633,11 +1637,6 @@
 			productName = Sharing;
 		};
 		8B89D16A2DD57A3500E6B96E /* FactoryKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 8B2510D92D3317840033A510 /* XCRemoteSwiftPackageReference "Factory" */;
-			productName = FactoryKit;
-		};
-		21B605E34CECF44A86187ECD /* FactoryKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8B2510D92D3317840033A510 /* XCRemoteSwiftPackageReference "Factory" */;
 			productName = FactoryKit;
