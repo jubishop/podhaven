@@ -12,7 +12,7 @@ struct NowPlayingEntry: TimelineEntry {
   let playbackStatus: PlaybackStatus
   let artwork: UIImage?
 
-  var isPlaying: Bool { playbackStatus.isPlaying }
+  var isPlaying: Bool { playbackStatus.playing }
   var isLoading: Bool { playbackStatus.loading }
 
   var progress: Double {

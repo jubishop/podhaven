@@ -14,8 +14,6 @@ enum PlaybackStatus: Codable, Equatable, CustomStringConvertible, Sendable {
     return nil
   }
 
-  var isPlaying: Bool { self == .playing }
-
   var paused: Bool {
     if case .paused = self { return true }
     return false
