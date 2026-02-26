@@ -13,12 +13,7 @@ struct PlayPauseIntent: AudioPlaybackIntent {
   func perform() async throws -> some IntentResult {
     #if !WIDGET_EXTENSION
     let playManager = Container.shared.playManager()
-    let sharedState = Container.shared.sharedState()
-    if sharedState.playbackStatus.playing {
-      await playManager.pause()
-    } else {
-      await playManager.play()
-    }
+    await playManager.toggle()
     return .result()
     #else
     Assert.fatal("AudioPlaybackIntent should never execute in widget process")

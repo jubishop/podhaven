@@ -41,6 +41,7 @@
 ##  Shared Utilities & Helpers
 - `Assert` funnels invariants through structured fatal logging; avoid `fatalError`/`precondition` outside this helper.
 - `ThreadSafe` supports concurrency-safe storage.
+- Never use `Task.sleep` in production code; always use the injected `Sleepable` (`sleeper`) so tests can control timing.
 
 ## Errors and Logging
 - All Error instances should conform to `ReadableError` and use `ErrorKit`.

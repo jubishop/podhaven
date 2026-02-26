@@ -16,6 +16,7 @@ extension Container {
 
 actor WidgetSnapshotWriter {
   @DynamicInjected(\.sharedState) private var sharedState
+  @DynamicInjected(\.sleeper) private var sleeper
 
   private static let log = Log.as(LogSubsystem.Widget.writer)
 
@@ -55,9 +56,10 @@ actor WidgetSnapshotWriter {
 
     coalesceTask?.cancel()
     coalesceTask = Task { [weak self] in
-      try? await Task.sleep(for: .milliseconds(100))
+      guard let self else { return }
+      try? await sleeper.sleep(for: .milliseconds(100))
       guard !Task.isCancelled else { return }
-      await self?.flush()
+      await flush()
     }
   }
 
@@ -131,7 +133,7 @@ actor WidgetSnapshotWriter {
   private func encodeArtwork(_ image: UIImage?) -> String? {
     guard let image else { return nil }
     let downsized = downsample(image, maxPixels: maxArtworkPixels)
-    guard let jpegData = downsized.jpegData(compressionQuality: 0.7) else { return nil }
+    guard let jpegData = downsized.jpegData(compressionQuality: 1.0) else { return nil }
     return jpegData.base64EncodedString()
   }
 
