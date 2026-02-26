@@ -3,21 +3,9 @@
 import FactoryKit
 import Logging
 import Sentry
+import SwiftUI
 import Tagged
 import UIKit
-
-extension Container {
-  var fileLogWriter: Factory<NDJSONLogFileManager> {
-    Factory(self) {
-      NDJSONLogFileManager(
-        fileURL: AppInfo.logFileURL,
-        maxFileSizeBytes: 2_000_000,
-        targetFileSizeBytes: 1_750_000
-      )
-    }
-    .scope(.cached)
-  }
-}
 
 // MARK: - AppDelegate
 
@@ -27,6 +15,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
 
+  private let fileLogWriter = NDJSONLogFileManager(
+    fileURL: AppInfo.logFileURL,
+    maxFileSizeBytes: 2_000_000,
+    targetFileSizeBytes: 1_750_000
+  )
+
   private static let log: Logger = Log.as("AppDelegate")
 
   func application(
@@ -34,7 +28,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
     AppInfo.initializeEnvironment()
-    Self.configureLogging()
+    configureLogging()
 
     Self.log.debug("Initial environment is: \(AppInfo.environment)")
 
@@ -67,12 +61,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
   // MARK: - Logging
 
-  private static func configureLogging() {
+  private func configureLogging() {
     switch AppInfo.environment {
     case .appStore, .testFlight, .iPhoneDev, .macDev:
-      configureSentry()
+      Self.configureSentry()
 
-      let writer = Container.shared.fileLogWriter()
       let sharedState = Container.shared.sharedState()
       LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
@@ -81,9 +74,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             label: label,
             writeEntry: { level, entry in
               if level >= .critical || !sharedState.isActive {
-                writer.writeSync(entry)
+                self.fileLogWriter.writeSync(entry)
               } else {
-                writer.writeAsync(entry)
+                self.fileLogWriter.writeAsync(entry)
               }
             }
           ),
@@ -100,6 +93,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
       Self.log.debug("configureLogging: OSLog")
     }
   }
+
+  // MARK: - Scene Phase
+
+  func handleScenePhaseChange(to phase: ScenePhase) {
+    if phase == .background {
+      fileLogWriter.flush()
+    }
+  }
+
+  // MARK: - Sentry
 
   private static func configureSentry() {
     SentrySDK.start { options in

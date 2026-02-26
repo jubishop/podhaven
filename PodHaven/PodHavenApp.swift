@@ -16,7 +16,6 @@ struct PodHavenApp: App {
   @InjectedObservable(\.sheet) private var sheet
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.cachePurger) private var cachePurger
-  @DynamicInjected(\.fileLogWriter) private var fileLogWriter
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.playManager) private var playManager
@@ -57,7 +56,7 @@ struct PodHavenApp: App {
 
           sharedState.$isActive.withLock { $0 = newPhase == .active }
           if didStartServices {
-            if newPhase == .background { fileLogWriter.flush() }
+            appDelegate.handleScenePhaseChange(to: newPhase)
             refreshScheduler.handleScenePhaseChange(to: newPhase)
             cachePurger.handleScenePhaseChange(to: newPhase)
             await userNotificationManager.handleScenePhaseChange(to: newPhase)
