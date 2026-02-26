@@ -17,7 +17,7 @@ struct FileLogHandler: LogHandler {
 
   // MARK: - Types
 
-  final class Writer: Sendable {
+  fileprivate final class Writer: Sendable {
     private static let log = Log.as("FileLogWriter")
 
     let fileURL: URL
@@ -96,7 +96,7 @@ struct FileLogHandler: LogHandler {
     }
   }
 
-  struct Entry: Codable {
+  fileprivate struct Entry: Codable {
     let level: Int
     let levelName: String
     let timestamp: Int64
