@@ -12,14 +12,7 @@ extension Container {
       NDJSONLogFileManager(
         fileURL: AppInfo.logFileURL,
         maxFileSizeBytes: 2_000_000,
-        targetFileSizeBytes: 1_750_000,
-        queueLabel: "FileLogHandler",
-        onError: { error in
-          Log.as("FileLogWriter").error(error)
-        },
-        onTruncation: { orig, new in
-          Log.as("FileLogWriter").info("Log truncated from \(orig) to \(new) bytes")
-        }
+        targetFileSizeBytes: 1_750_000
       )
     }
     .scope(.cached)
@@ -87,8 +80,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
           FileLogHandler(
             label: label,
             writeEntry: { level, entry in
-              if level == .critical || !sharedState.isActive {
-                writer.writeSyncReporting(entry)
+              if level >= .critical || !sharedState.isActive {
+                writer.writeSync(entry)
               } else {
                 writer.writeAsync(entry)
               }

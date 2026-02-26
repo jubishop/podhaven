@@ -9,14 +9,7 @@ struct PodHavenWidgetBundle: WidgetBundle {
   nonisolated private static let widgetWriter = NDJSONLogFileManager(
     fileURL: WidgetConstants.widgetLogFileURL,
     maxFileSizeBytes: 500_000,
-    targetFileSizeBytes: 400_000,
-    queueLabel: "WidgetFileLog",
-    onError: { error in
-      Log.as("FileLog").error("Failed to write log: \(error)")
-    },
-    onTruncation: { orig, new in
-      Log.as("FileLog").info("Log truncated from \(orig) to \(new) bytes")
-    }
+    targetFileSizeBytes: 400_000
   )
 
   nonisolated private static let log: Logging.Logger = {
@@ -26,8 +19,8 @@ struct PodHavenWidgetBundle: WidgetBundle {
         FileLogHandler(
           label: label,
           writeEntry: { level, entry in
-            if level >= .error {
-              widgetWriter.writeSyncReporting(entry)
+            if level >= .critical {
+              widgetWriter.writeSync(entry)
             } else {
               widgetWriter.writeAsync(entry)
             }

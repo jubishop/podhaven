@@ -1,12 +1,10 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
+import Logging
 
-// Shared NDJSON log file writer used by both the main app (FileLogManager) and
-// the widget extension. Foundation-only so it compiles in either target without
-// pulling in Logging, FactoryKit, or other app-specific dependencies.
-// Parameterized with file URL, size limits, and callbacks so each target can
-// handle errors and truncation events with its own logging system.
+// Shared NDJSON log file writer used by both the main app and the widget
+// extension. Logs errors and truncation events via a static Logger.
 struct NDJSONLogFileManager: Sendable {
 
   // MARK: - Configuration
@@ -15,11 +13,9 @@ struct NDJSONLogFileManager: Sendable {
   let maxFileSizeBytes: Int
   let targetFileSizeBytes: Int
 
-  let onError: @Sendable (any Error) -> Void
-  let onTruncation: @Sendable (_ originalSize: Int, _ newSize: Int) -> Void
-
   // MARK: - State
 
+  private static let log = Log.as("FileLogWriter")
   private let queue: DispatchQueue
 
   // MARK: - Initialization
@@ -27,47 +23,27 @@ struct NDJSONLogFileManager: Sendable {
   init(
     fileURL: URL,
     maxFileSizeBytes: Int,
-    targetFileSizeBytes: Int,
-    queueLabel: String,
-    onError: @escaping @Sendable (any Error) -> Void,
-    onTruncation: @escaping @Sendable (_ originalSize: Int, _ newSize: Int) -> Void
+    targetFileSizeBytes: Int
   ) {
     self.fileURL = fileURL
     self.maxFileSizeBytes = maxFileSizeBytes
     self.targetFileSizeBytes = targetFileSizeBytes
-    self.onError = onError
-    self.onTruncation = onTruncation
-    self.queue = DispatchQueue(label: queueLabel, qos: .background)
+    self.queue = DispatchQueue(label: "NDJSONLogFileManager", qos: .background)
   }
 
   // MARK: - Writing
 
-  // Dispatches the write + truncate on the internal queue. Calls onError or
-  // onTruncation callbacks as appropriate.
+  // Dispatches the write + truncate on the internal queue.
   func writeAsync(_ entry: NDJSONLogEntry) {
     queue.async {
-      do {
-        let truncation = try self.write(entry)
-        if let truncation {
-          self.onTruncation(truncation.originalSize, truncation.newSize)
-        }
-      } catch {
-        self.onError(error)
-      }
+      self.writeAndReport(entry)
     }
   }
 
-  // Synchronous write on the internal queue. Reports errors and truncation
-  // through the configured callbacks (like writeAsync does, but blocking).
-  func writeSyncReporting(_ entry: NDJSONLogEntry) {
+  // Synchronous write on the internal queue.
+  func writeSync(_ entry: NDJSONLogEntry) {
     queue.sync {
-      do {
-        if let truncation = try self.write(entry) {
-          self.onTruncation(truncation.originalSize, truncation.newSize)
-        }
-      } catch {
-        self.onError(error)
-      }
+      self.writeAndReport(entry)
     }
   }
 
@@ -77,6 +53,18 @@ struct NDJSONLogFileManager: Sendable {
   }
 
   // MARK: - Private
+
+  private func writeAndReport(_ entry: NDJSONLogEntry) {
+    do {
+      if let truncation = try write(entry) {
+        Self.log.info(
+          "Log truncated from \(truncation.originalSize) to \(truncation.newSize) bytes"
+        )
+      }
+    } catch {
+      Self.log.error(error)
+    }
+  }
 
   private func write(_ entry: NDJSONLogEntry) throws -> (originalSize: Int, newSize: Int)? {
     let currentSize = try NDJSONFileWriter.appendEntry(entry, to: fileURL)
