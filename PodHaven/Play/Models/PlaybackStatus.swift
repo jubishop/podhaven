@@ -1,24 +1,8 @@
 // Copyright Justin Bishop, 2025
 
-import AVFoundation
-import Foundation
-
-enum PlaybackStatus: Equatable, CustomStringConvertible {
+enum PlaybackStatus: Codable, Equatable, CustomStringConvertible, Sendable {
   case loading(String)
   case paused, playing, stopped, waiting
-
-  init(_ timeControlStatus: AVPlayer.TimeControlStatus) {
-    switch timeControlStatus {
-    case .paused:
-      self = .paused
-    case .playing:
-      self = .playing
-    case .waitingToPlayAtSpecifiedRate:
-      self = .waiting
-    @unknown default:
-      Assert.fatal("Unknown time control status: \(timeControlStatus)")
-    }
-  }
 
   var loading: Bool {
     if case .loading = self { return true }
@@ -29,6 +13,8 @@ enum PlaybackStatus: Equatable, CustomStringConvertible {
     if case .loading(let title) = self { return title }
     return nil
   }
+
+  var isPlaying: Bool { self == .playing }
 
   var paused: Bool {
     if case .paused = self { return true }
@@ -48,21 +34,6 @@ enum PlaybackStatus: Equatable, CustomStringConvertible {
   var waiting: Bool {
     if case .waiting = self { return true }
     return false
-  }
-
-  var widgetStatus: WidgetPlaybackStatus {
-    switch self {
-    case .loading:
-      return .loading
-    case .paused:
-      return .paused
-    case .playing:
-      return .playing
-    case .stopped:
-      return .stopped
-    case .waiting:
-      return .waiting
-    }
   }
 
   var description: String {

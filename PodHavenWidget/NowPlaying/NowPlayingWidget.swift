@@ -30,6 +30,19 @@ struct NowPlayingProvider: TimelineProvider {
       return .empty
     }
 
+    if let loadingTitle = snapshot.loadingTitle {
+      Self.log.debug("makeEntry: loading \(loadingTitle)")
+      return NowPlayingEntry(
+        date: Date(),
+        episodeTitle: loadingTitle,
+        podcastTitle: nil,
+        durationSeconds: 0,
+        currentTimeSeconds: 0,
+        playbackStatus: .loading(loadingTitle),
+        artwork: nil
+      )
+    }
+
     guard let nowPlaying = snapshot.nowPlaying else {
       Self.log.info("makeEntry: snapshot has no nowPlaying, returning empty")
       return .empty
@@ -45,7 +58,7 @@ struct NowPlayingProvider: TimelineProvider {
       podcastTitle: nowPlaying.podcastTitle,
       durationSeconds: nowPlaying.durationSeconds,
       currentTimeSeconds: nowPlaying.currentTimeSeconds,
-      isPlaying: nowPlaying.playbackStatus.isPlaying,
+      playbackStatus: nowPlaying.playbackStatus,
       artwork: WidgetSnapshotReader.decodeArtwork(from: nowPlaying.artworkBase64)
     )
   }

@@ -181,6 +181,7 @@
 				Logging/Logger.swift,
 				Logging/LoggerLevel.swift,
 				Logging/LogKit.swift,
+				Play/Models/PlaybackStatus.swift,
 				Utility/Assert.swift,
 				Utility/Function.swift,
 				Utility/ThreadSafe.swift,

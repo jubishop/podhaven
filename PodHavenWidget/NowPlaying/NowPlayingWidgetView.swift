@@ -24,7 +24,9 @@ struct NowPlayingWidgetView: View {
 
   private var smallView: some View {
     VStack(alignment: .leading, spacing: 6) {
-      if let episodeTitle = entry.episodeTitle {
+      if entry.isLoading, let episodeTitle = entry.episodeTitle {
+        loadingState(episodeTitle: episodeTitle)
+      } else if let episodeTitle = entry.episodeTitle {
         artworkView(size: 44)
 
         Text(episodeTitle)
@@ -53,7 +55,9 @@ struct NowPlayingWidgetView: View {
 
   private var mediumView: some View {
     HStack(spacing: 12) {
-      if let episodeTitle = entry.episodeTitle {
+      if entry.isLoading, let episodeTitle = entry.episodeTitle {
+        loadingState(episodeTitle: episodeTitle)
+      } else if let episodeTitle = entry.episodeTitle {
         artworkView(size: 80)
 
         VStack(alignment: .leading, spacing: 4) {
@@ -153,6 +157,19 @@ struct NowPlayingWidgetView: View {
       }
     }
     .frame(height: 4)
+  }
+
+  private func loadingState(episodeTitle: String) -> some View {
+    VStack(spacing: 8) {
+      ProgressView()
+        .scaleEffect(0.8)
+      Text("Loading \(episodeTitle)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
+        .multilineTextAlignment(.center)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
   private var emptyState: some View {

@@ -84,7 +84,7 @@ actor WidgetSnapshotWriter {
           podcastTitle: onDeck.podcastTitle,
           durationSeconds: onDeck.duration.seconds,
           currentTimeSeconds: onDeck.currentTime.seconds,
-          playbackStatus: playbackStatus.widgetStatus,
+          playbackStatus: playbackStatus,
           artworkBase64: encodeArtwork(onDeck.artwork)
         )
       } else {
@@ -103,6 +103,7 @@ actor WidgetSnapshotWriter {
 
     let snapshot = WidgetSnapshot(
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
+      loadingTitle: playbackStatus.loadingTitle,
       nowPlaying: nowPlaying,
       queue: queueItems,
       queueTotalCount: queuedEpisodes.count,

@@ -435,3 +435,20 @@ extension Container {
     }
   }
 }
+
+// MARK: - PlaybackStatus + AVPlayer
+
+extension PlaybackStatus {
+  init(_ timeControlStatus: AVPlayer.TimeControlStatus) {
+    switch timeControlStatus {
+    case .paused:
+      self = .paused
+    case .playing:
+      self = .playing
+    case .waitingToPlayAtSpecifiedRate:
+      self = .waiting
+    @unknown default:
+      Assert.fatal("Unknown time control status: \(timeControlStatus)")
+    }
+  }
+}

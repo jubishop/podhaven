@@ -18,6 +18,7 @@ struct WidgetSnapshotTests {
 
     let snapshot = WidgetSnapshot(
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
+      loadingTitle: nil,
       nowPlaying: WidgetSnapshot.NowPlaying(
         episodeID: 42,
         episodeTitle: "Test Episode",
@@ -67,6 +68,7 @@ struct WidgetSnapshotTests {
   func encodeDecodeNilNowPlaying() throws {
     let snapshot = WidgetSnapshot(
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
+      loadingTitle: nil,
       nowPlaying: nil,
       queue: [],
       queueTotalCount: 0,
@@ -85,6 +87,7 @@ struct WidgetSnapshotTests {
   func encodeDecodeNilArtwork() throws {
     let snapshot = WidgetSnapshot(
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
+      loadingTitle: nil,
       nowPlaying: WidgetSnapshot.NowPlaying(
         episodeID: 1,
         episodeTitle: "No Art",
@@ -111,6 +114,7 @@ struct WidgetSnapshotTests {
   func unknownSchemaVersion() throws {
     let snapshot = WidgetSnapshot(
       schemaVersion: 999,
+      loadingTitle: nil,
       nowPlaying: nil,
       queue: [],
       queueTotalCount: 0,
@@ -125,15 +129,35 @@ struct WidgetSnapshotTests {
     #expect(decoded.schemaVersion > WidgetSnapshot.currentSchemaVersion)
   }
 
-  // MARK: - PlaybackStatus Widget Status
+  @Test("snapshot encodes and decodes with loading title")
+  func encodeDecodeLoadingTitle() throws {
+    let snapshot = WidgetSnapshot(
+      schemaVersion: WidgetSnapshot.currentSchemaVersion,
+      loadingTitle: "Loading Episode",
+      nowPlaying: nil,
+      queue: [],
+      queueTotalCount: 0,
+      updatedAt: Date()
+    )
 
-  @Test("playbackStatus widgetStatus returns correct values")
-  func playbackStatusWidgetStatus() {
-    #expect(PlaybackStatus.playing.widgetStatus == .playing)
-    #expect(PlaybackStatus.paused.widgetStatus == .paused)
-    #expect(PlaybackStatus.stopped.widgetStatus == .stopped)
-    #expect(PlaybackStatus.waiting.widgetStatus == .waiting)
-    #expect(PlaybackStatus.loading("Test").widgetStatus == .loading)
+    let data = try JSONEncoder().encode(snapshot)
+    let decoded = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
+
+    #expect(decoded.loadingTitle == "Loading Episode")
+    #expect(decoded.nowPlaying == nil)
+  }
+
+  // MARK: - PlaybackStatus Codable
+
+  @Test("PlaybackStatus encodes and decodes all cases")
+  func playbackStatusCodable() throws {
+    let cases: [PlaybackStatus] = [.playing, .paused, .stopped, .waiting, .loading("Test Episode")]
+
+    for status in cases {
+      let data = try JSONEncoder().encode(status)
+      let decoded = try JSONDecoder().decode(PlaybackStatus.self, from: data)
+      #expect(decoded == status)
+    }
   }
 
   // MARK: - Intent Conformance

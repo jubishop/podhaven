@@ -9,8 +9,11 @@ struct NowPlayingEntry: TimelineEntry {
   let podcastTitle: String?
   let durationSeconds: Double
   let currentTimeSeconds: Double
-  let isPlaying: Bool
+  let playbackStatus: PlaybackStatus
   let artwork: UIImage?
+
+  var isPlaying: Bool { playbackStatus.isPlaying }
+  var isLoading: Bool { playbackStatus.loading }
 
   var progress: Double {
     guard durationSeconds > 0 else { return 0 }
@@ -42,7 +45,7 @@ struct NowPlayingEntry: TimelineEntry {
     podcastTitle: nil,
     durationSeconds: 0,
     currentTimeSeconds: 0,
-    isPlaying: false,
+    playbackStatus: .stopped,
     artwork: nil
   )
 
@@ -52,7 +55,17 @@ struct NowPlayingEntry: TimelineEntry {
     podcastTitle: "Swift Talk",
     durationSeconds: 2460,
     currentTimeSeconds: 1230,
-    isPlaying: true,
+    playbackStatus: .playing,
+    artwork: nil
+  )
+
+  static let loading = NowPlayingEntry(
+    date: Date(),
+    episodeTitle: "Understanding Swift Concurrency",
+    podcastTitle: nil,
+    durationSeconds: 0,
+    currentTimeSeconds: 0,
+    playbackStatus: .loading("Understanding Swift Concurrency"),
     artwork: nil
   )
 }

@@ -2,12 +2,6 @@
 
 import Foundation
 
-enum WidgetPlaybackStatus: String, Codable, Sendable {
-  case loading, paused, playing, stopped, waiting
-
-  var isPlaying: Bool { self == .playing }
-}
-
 struct WidgetSnapshot: Codable, Sendable {
   static let currentSchemaVersion = 1
 
@@ -17,7 +11,7 @@ struct WidgetSnapshot: Codable, Sendable {
     let podcastTitle: String
     let durationSeconds: Double
     let currentTimeSeconds: Double
-    let playbackStatus: WidgetPlaybackStatus
+    let playbackStatus: PlaybackStatus
     let artworkBase64: String?
   }
 
@@ -29,6 +23,7 @@ struct WidgetSnapshot: Codable, Sendable {
   }
 
   let schemaVersion: Int
+  let loadingTitle: String?
   let nowPlaying: NowPlaying?
   let queue: [QueueItem]
   let queueTotalCount: Int
