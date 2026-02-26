@@ -12,13 +12,7 @@ struct PlayPauseIntent: AudioPlaybackIntent {
 
   func perform() async throws -> some IntentResult {
     #if !WIDGET_EXTENSION
-    let sharedState = Container.shared.sharedState()
     let playManager = Container.shared.playManager()
-    let writer = Container.shared.widgetSnapshotWriter()
-
-    let optimisticStatus: PlaybackStatus =
-      sharedState.playbackStatus == .paused ? .playing : .paused
-    await writer.flush(playbackStatus: optimisticStatus)
     await playManager.toggle()
 
     return .result()

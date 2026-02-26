@@ -63,24 +63,19 @@ actor WidgetSnapshotWriter {
     }
   }
 
-  func flush(playbackStatus: PlaybackStatus? = nil) {
+  func flush() {
     coalesceTask?.cancel()
     coalesceTask = nil
 
     let kindsToReload = pendingReloadKinds
     pendingReloadKinds.removeAll()
 
-    writeSnapshot(reloadKinds: kindsToReload, playbackStatusOverride: playbackStatus)
+    writeSnapshot(reloadKinds: kindsToReload)
   }
 
   // MARK: - Snapshot Building
 
-  private func writeSnapshot(
-    reloadKinds: Set<String>,
-    playbackStatusOverride: PlaybackStatus? = nil
-  ) {
-    let playbackStatus = playbackStatusOverride ?? sharedState.playbackStatus
-    let queuedEpisodes = sharedState.queuedPodcastEpisodes
+  private func writeSnapshot(reloadKinds: Set<String>) {
     let nowPlaying: WidgetSnapshot.NowPlaying? =
       if let onDeck = sharedState.onDeck {
         WidgetSnapshot.NowPlaying(
@@ -89,14 +84,14 @@ actor WidgetSnapshotWriter {
           podcastTitle: onDeck.podcastTitle,
           durationSeconds: onDeck.duration.seconds,
           currentTimeSeconds: onDeck.currentTime.seconds,
-          playbackStatus: playbackStatus,
+          playbackStatus: sharedState.playbackStatus,
           artworkBase64: encodeArtwork(onDeck.artwork)
         )
       } else {
         nil
       }
 
-    let queueItems = Array(queuedEpisodes.prefix(5))
+    let queueItems = Array(sharedState.queuedPodcastEpisodes.prefix(5))
       .map { episode in
         WidgetSnapshot.QueueItem(
           episodeID: episode.id.rawValue,
@@ -108,10 +103,10 @@ actor WidgetSnapshotWriter {
 
     let snapshot = WidgetSnapshot(
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
-      loadingTitle: playbackStatus.loadingTitle,
+      loadingTitle: sharedState.playbackStatus.loadingTitle,
       nowPlaying: nowPlaying,
       queue: queueItems,
-      queueTotalCount: queuedEpisodes.count,
+      queueTotalCount: sharedState.queuedPodcastEpisodes.count,
       updatedAt: Date()
     )
 
@@ -124,11 +119,7 @@ actor WidgetSnapshotWriter {
       return
     }
 
-    var kinds = reloadKinds
-    if playbackStatusOverride != nil {
-      kinds.insert(WidgetInfo.nowPlayingKind)
-    }
-    reloadWidgets(kinds: kinds)
+    reloadWidgets(kinds: reloadKinds)
   }
 
   // MARK: - Artwork Encoding
