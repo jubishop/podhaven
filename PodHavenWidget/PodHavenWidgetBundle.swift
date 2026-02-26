@@ -7,7 +7,7 @@ import os
 
 @main
 struct PodHavenWidgetBundle: WidgetBundle {
-  private static let widgetWriter = NDJSONLogFileManager(
+  nonisolated private static let widgetWriter = NDJSONLogFileManager(
     fileURL: WidgetConstants.widgetLogFileURL,
     maxFileSizeBytes: 500_000,
     targetFileSizeBytes: 400_000,
@@ -22,7 +22,7 @@ struct PodHavenWidgetBundle: WidgetBundle {
     }
   )
 
-  private static let log: Logging.Logger = {
+  nonisolated private static let log: Logging.Logger = {
     LoggingSystem.bootstrap { label in
       MultiplexLogHandler([
         OSLogHandler(label: label),
