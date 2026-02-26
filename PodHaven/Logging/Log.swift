@@ -3,7 +3,7 @@
 import Foundation
 import Logging
 
-#if !WIDGET_EXTENSION && DEBUG
+#if DEBUG
 import FactoryKit
 
 extension Container {
@@ -16,7 +16,7 @@ extension Container {
 enum Log {
   // MARK: - Initialization
 
-  #if !WIDGET_EXTENSION && DEBUG
+  #if DEBUG
   static func setTestSystem(_ system: String = #function) {
     Container.shared.testLogSystem()(system)
   }

@@ -28,7 +28,11 @@ struct NDJSONLogFileManager: Sendable {
     self.fileURL = fileURL
     self.maxFileSizeBytes = maxFileSizeBytes
     self.targetFileSizeBytes = targetFileSizeBytes
-    self.queue = DispatchQueue(label: "NDJSONLogFileManager", qos: .background)
+    let fileName = fileURL.deletingPathExtension().lastPathComponent
+    self.queue = DispatchQueue(
+      label: "com.artisanalsoftware.PodHaven.NDJSONLogFileManager.\(fileName)",
+      qos: .background
+    )
   }
 
   // MARK: - Writing

@@ -21,6 +21,13 @@
   xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:ParallelTests/SomeTestClass/testMethod
   ```
 
+## Widget Target (PodHavenWidget)
+- The project uses Xcode's **file system synchronized groups** — targets auto-include files from their own folder.
+- The widget target's own files live in `PodHavenWidget/`.
+- Shared files from `PodHaven/` are included in the widget via `membershipExceptions` in a `PBXFileSystemSynchronizedBuildFileExceptionSet` in `project.pbxproj` (search for `Exceptions for "PodHaven" folder in "PodHavenWidget" target`).
+- When adding a PodHaven source file that the widget needs, add its relative path (e.g. `Utility/ThreadSafe.swift`) to that exceptions list.
+- If the shared file imports a package (e.g. `IdentifiedCollections`), that package must also be added to the widget target's `packageProductDependencies`, its Frameworks build phase, and a new `XCSwiftPackageProductDependency` entry.
+
 ## Compatibility
 - Backward compatibility is not necessary.  Always use the latest features and libraries.
 

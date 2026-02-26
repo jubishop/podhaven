@@ -27,6 +27,7 @@
 		8BA4F4312F3E74AD000AC336 /* PodHavenWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8BA4F4512F3E7DF1000AC336 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8BA4F4502F3E7DF1000AC336 /* AppIntents.framework */; };
 		8BA4F4702F3E9000000AC336 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 8BA4F4712F3E9001000AC336 /* Logging */; };
+		AF396B2F1DBEC4D55DD18A5F /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = F6FBB57DA0643D700A323209 /* IdentifiedCollections */; };
 		61039D8E4688754CA0FEE505 /* FactoryKit in Frameworks */ = {isa = PBXBuildFile; productRef = 21B605E34CECF44A86187ECD /* FactoryKit */; };
 		8BABCD382EBF24760016CEF3 /* ReadableErrorMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8BABCD372EBF24760016CEF3 /* ReadableErrorMacro */; };
 		8BAE003C2DDE79A4008E40B2 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 8BAE003B2DDE79A4008E40B2 /* Logging */; };
@@ -185,6 +186,7 @@
 				Logging/NDJSONLogFileManager.swift,
 				Utility/Assert.swift,
 				Utility/Function.swift,
+				Utility/ThreadSafe.swift,
 				Widget/Intents/PlayPauseIntent.swift,
 				Widget/Intents/SkipBackwardIntent.swift,
 				Widget/Intents/SkipForwardIntent.swift,
@@ -267,6 +269,7 @@
 				8BA4F4512F3E7DF1000AC336 /* AppIntents.framework in Frameworks */,
 				8BA4F4702F3E9000000AC336 /* Logging in Frameworks */,
 				61039D8E4688754CA0FEE505 /* FactoryKit in Frameworks */,
+				AF396B2F1DBEC4D55DD18A5F /* IdentifiedCollections in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -398,6 +401,7 @@
 			packageProductDependencies = (
 				8BA4F4712F3E9001000AC336 /* Logging */,
 				21B605E34CECF44A86187ECD /* FactoryKit */,
+				F6FBB57DA0643D700A323209 /* IdentifiedCollections */,
 			);
 			productName = PodHavenWidgetExtension;
 			productReference = 8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */;
@@ -1700,6 +1704,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8BE319E72D0E22D8009F48C9 /* XCRemoteSwiftPackageReference "Semaphore" */;
 			productName = Semaphore;
+		};
+		F6FBB57DA0643D700A323209 /* IdentifiedCollections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B14BBE12D0CB37A0007E89B /* XCRemoteSwiftPackageReference "swift-identified-collections" */;
+			productName = IdentifiedCollections;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
