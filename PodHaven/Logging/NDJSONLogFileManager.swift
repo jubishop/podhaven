@@ -57,14 +57,6 @@ struct NDJSONLogFileManager: Sendable {
     }
   }
 
-  // Synchronous write on the internal queue. Returns truncation info if
-  // truncation occurred, nil otherwise. Throws on write failure.
-  func writeSync(_ entry: NDJSONLogEntry) throws -> (originalSize: Int, newSize: Int)? {
-    try queue.sync {
-      try self.write(entry)
-    }
-  }
-
   // Synchronous write on the internal queue. Reports errors and truncation
   // through the configured callbacks (like writeAsync does, but blocking).
   func writeSyncReporting(_ entry: NDJSONLogEntry) {

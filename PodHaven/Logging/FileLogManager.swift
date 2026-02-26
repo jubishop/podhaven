@@ -48,15 +48,7 @@ struct FileLogManager: Sendable {
     let runSynchronously = level == .critical || !isActive()
 
     if runSynchronously {
-      do {
-        if let truncation = try writer.writeSync(entry) {
-          Self.log.info(
-            "File log truncated from \(truncation.originalSize) bytes to \(truncation.newSize) bytes"
-          )
-        }
-      } catch {
-        Self.log.error(error)
-      }
+      writer.writeSyncReporting(entry)
     } else {
       writer.writeAsync(entry)
     }
