@@ -2,8 +2,8 @@
 
 import Foundation
 import Logging
-import os
 import SwiftUI
+import os
 
 extension Logging.Logger.Level {
   fileprivate var osLogLevel: OSLogType {
