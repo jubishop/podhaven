@@ -3,7 +3,6 @@
 import Logging
 import SwiftUI
 import WidgetKit
-import os
 
 @main
 struct PodHavenWidgetBundle: WidgetBundle {
@@ -13,12 +12,10 @@ struct PodHavenWidgetBundle: WidgetBundle {
     targetFileSizeBytes: 400_000,
     queueLabel: "WidgetFileLog",
     onError: { error in
-      os.Logger(subsystem: "PodHavenWidget", category: "FileLog")
-        .error("Failed to write log: \(error.localizedDescription, privacy: .public)")
+      Log.as("FileLog").error("Failed to write log: \(error)")
     },
     onTruncation: { orig, new in
-      os.Logger(subsystem: "PodHavenWidget", category: "FileLog")
-        .info("Log truncated from \(orig) to \(new) bytes")
+      Log.as("FileLog").info("Log truncated from \(orig) to \(new) bytes")
     }
   )
 

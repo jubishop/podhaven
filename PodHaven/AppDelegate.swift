@@ -9,21 +9,16 @@ import UIKit
 extension Container {
   var fileLogWriter: Factory<NDJSONLogFileManager> {
     Factory(self) {
-      let log = Log.as("FileLogManager")
-      return NDJSONLogFileManager(
+      NDJSONLogFileManager(
         fileURL: AppInfo.logFileURL,
         maxFileSizeBytes: 2_000_000,
         targetFileSizeBytes: 1_750_000,
         queueLabel: "FileLogHandler",
         onError: { error in
-          Task(priority: .background) {
-            log.error(error)
-          }
+          Log.as("FileLogWriter").error(error)
         },
-        onTruncation: { originalSize, newSize in
-          Task(priority: .background) {
-            log.info("File log truncated from \(originalSize) bytes to \(newSize) bytes")
-          }
+        onTruncation: { orig, new in
+          Log.as("FileLogWriter").info("Log truncated from \(orig) to \(new) bytes")
         }
       )
     }

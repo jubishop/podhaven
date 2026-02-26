@@ -171,6 +171,8 @@
 			membershipExceptions = (
 				Logging/Handlers/FileLogHandler.swift,
 				Logging/Handlers/OSLogHandler.swift,
+				Logging/Log.swift,
+				Logging/LogCategorizable.swift,
 				Logging/LoggerLevel.swift,
 				Logging/LogKit.swift,
 				Logging/NDJSONFileWriter.swift,

@@ -1,10 +1,11 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import Foundation
 import Logging
 
-#if DEBUG
+#if !WIDGET_EXTENSION && DEBUG
+import FactoryKit
+
 extension Container {
   fileprivate var testLogSystem: Factory<ThreadSafe<String>> {
     Factory(self) { ThreadSafe("") }.scope(.cached)
@@ -15,7 +16,7 @@ extension Container {
 enum Log {
   // MARK: - Initialization
 
-  #if DEBUG
+  #if !WIDGET_EXTENSION && DEBUG
   static func setTestSystem(_ system: String = #function) {
     Container.shared.testLogSystem()(system)
   }
