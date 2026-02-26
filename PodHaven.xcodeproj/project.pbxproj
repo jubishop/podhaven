@@ -27,6 +27,7 @@
 		8BA4F4312F3E74AD000AC336 /* PodHavenWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8BA4F4512F3E7DF1000AC336 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8BA4F4502F3E7DF1000AC336 /* AppIntents.framework */; };
 		8BA4F4702F3E9000000AC336 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 8BA4F4712F3E9001000AC336 /* Logging */; };
+		61039D8E4688754CA0FEE505 /* FactoryKit in Frameworks */ = {isa = PBXBuildFile; productRef = 21B605E34CECF44A86187ECD /* FactoryKit */; };
 		8BABCD382EBF24760016CEF3 /* ReadableErrorMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8BABCD372EBF24760016CEF3 /* ReadableErrorMacro */; };
 		8BAE003C2DDE79A4008E40B2 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 8BAE003B2DDE79A4008E40B2 /* Logging */; };
 		8BBD96982E2701F500BE32DD /* PodHavenShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8BBD968E2E2701F400BE32DD /* PodHavenShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -171,6 +172,7 @@
 			membershipExceptions = (
 				Errors/ErrorKit.swift,
 				Errors/ReadableError.swift,
+				Extensions/Array.swift,
 				Logging/Handlers/FileLogHandler.swift,
 				Logging/Handlers/OSLogHandler.swift,
 				Logging/Log.swift,
@@ -181,6 +183,8 @@
 				Logging/NDJSONFileWriter.swift,
 				Logging/NDJSONLogEntry.swift,
 				Logging/NDJSONLogFileManager.swift,
+				Utility/Assert.swift,
+				Utility/Function.swift,
 				Widget/Intents/PlayPauseIntent.swift,
 				Widget/Intents/SkipBackwardIntent.swift,
 				Widget/Intents/SkipForwardIntent.swift,
@@ -262,6 +266,7 @@
 				8BA4F4222F3E74AC000AC336 /* WidgetKit.framework in Frameworks */,
 				8BA4F4512F3E7DF1000AC336 /* AppIntents.framework in Frameworks */,
 				8BA4F4702F3E9000000AC336 /* Logging in Frameworks */,
+				61039D8E4688754CA0FEE505 /* FactoryKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -392,6 +397,7 @@
 			name = PodHavenWidget;
 			packageProductDependencies = (
 				8BA4F4712F3E9001000AC336 /* Logging */,
+				21B605E34CECF44A86187ECD /* FactoryKit */,
 			);
 			productName = PodHavenWidgetExtension;
 			productReference = 8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */;
@@ -1623,6 +1629,11 @@
 			productName = Sharing;
 		};
 		8B89D16A2DD57A3500E6B96E /* FactoryKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B2510D92D3317840033A510 /* XCRemoteSwiftPackageReference "Factory" */;
+			productName = FactoryKit;
+		};
+		21B605E34CECF44A86187ECD /* FactoryKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8B2510D92D3317840033A510 /* XCRemoteSwiftPackageReference "Factory" */;
 			productName = FactoryKit;
