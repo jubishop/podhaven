@@ -15,7 +15,7 @@ struct SkipForwardIntent: AudioPlaybackIntent {
     let playManager = Container.shared.playManager()
     await playManager.seekForward()
     #else
-    assertionFailure("AudioPlaybackIntent should never execute in widget process")
+    Assert.fatal("AudioPlaybackIntent should never execute in widget process")
     #endif
     return .result()
   }

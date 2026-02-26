@@ -20,7 +20,7 @@ struct PlayPauseIntent: AudioPlaybackIntent {
       await playManager.play()
     }
     #else
-    assertionFailure("AudioPlaybackIntent should never execute in widget process")
+    Assert.fatal("AudioPlaybackIntent should never execute in widget process")
     #endif
     return .result()
   }
