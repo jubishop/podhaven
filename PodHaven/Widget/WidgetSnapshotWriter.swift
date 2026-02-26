@@ -84,7 +84,7 @@ actor WidgetSnapshotWriter {
           podcastTitle: onDeck.podcastTitle,
           durationSeconds: onDeck.duration.seconds,
           currentTimeSeconds: onDeck.currentTime.seconds,
-          playbackStatus: playbackStatus.widgetString,
+          playbackStatus: playbackStatus.widgetStatus,
           artworkBase64: encodeArtwork(onDeck.artwork)
         )
       } else {

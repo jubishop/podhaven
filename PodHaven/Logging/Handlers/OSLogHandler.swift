@@ -2,7 +2,6 @@
 
 import Foundation
 import Logging
-import SwiftUI
 import os
 
 extension Logging.Logger.Level {

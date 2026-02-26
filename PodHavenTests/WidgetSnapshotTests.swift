@@ -24,7 +24,7 @@ struct WidgetSnapshotTests {
         podcastTitle: "Test Podcast",
         durationSeconds: 1800,
         currentTimeSeconds: 450,
-        playbackStatus: "playing",
+        playbackStatus: .playing,
         artworkBase64: artworkBase64
       ),
       queue: [
@@ -53,7 +53,7 @@ struct WidgetSnapshotTests {
     #expect(decoded.nowPlaying?.podcastTitle == "Test Podcast")
     #expect(decoded.nowPlaying?.durationSeconds == 1800)
     #expect(decoded.nowPlaying?.currentTimeSeconds == 450)
-    #expect(decoded.nowPlaying?.playbackStatus == "playing")
+    #expect(decoded.nowPlaying?.playbackStatus == .playing)
     #expect(decoded.nowPlaying?.artworkBase64 == artworkBase64)
     #expect(decoded.queue.count == 2)
     #expect(decoded.queue[0].episodeID == 100)
@@ -87,7 +87,7 @@ struct WidgetSnapshotTests {
         podcastTitle: "Podcast",
         durationSeconds: 600,
         currentTimeSeconds: 0,
-        playbackStatus: "paused",
+        playbackStatus: .paused,
         artworkBase64: nil
       ),
       queue: [],
@@ -119,15 +119,15 @@ struct WidgetSnapshotTests {
     #expect(decoded.schemaVersion > WidgetSnapshot.currentSchemaVersion)
   }
 
-  // MARK: - PlaybackStatus Widget String
+  // MARK: - PlaybackStatus Widget Status
 
-  @Test("playbackStatus widgetString returns correct values")
-  func playbackStatusWidgetString() {
-    #expect(PlaybackStatus.playing.widgetString == "playing")
-    #expect(PlaybackStatus.paused.widgetString == "paused")
-    #expect(PlaybackStatus.stopped.widgetString == "stopped")
-    #expect(PlaybackStatus.waiting.widgetString == "waiting")
-    #expect(PlaybackStatus.loading("Test").widgetString == "loading")
+  @Test("playbackStatus widgetStatus returns correct values")
+  func playbackStatusWidgetStatus() {
+    #expect(PlaybackStatus.playing.widgetStatus == .playing)
+    #expect(PlaybackStatus.paused.widgetStatus == .paused)
+    #expect(PlaybackStatus.stopped.widgetStatus == .stopped)
+    #expect(PlaybackStatus.waiting.widgetStatus == .waiting)
+    #expect(PlaybackStatus.loading("Test").widgetStatus == .loading)
   }
 
   // MARK: - Intent Conformance

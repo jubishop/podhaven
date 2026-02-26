@@ -45,7 +45,7 @@ struct NowPlayingProvider: TimelineProvider {
       podcastTitle: nowPlaying.podcastTitle,
       durationSeconds: nowPlaying.durationSeconds,
       currentTimeSeconds: nowPlaying.currentTimeSeconds,
-      isPlaying: nowPlaying.playbackStatus == "playing",
+      isPlaying: nowPlaying.playbackStatus.isPlaying,
       artwork: WidgetSnapshotReader.decodeArtwork(from: nowPlaying.artworkBase64)
     )
   }

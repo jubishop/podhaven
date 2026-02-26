@@ -2,6 +2,12 @@
 
 import Foundation
 
+enum WidgetPlaybackStatus: String, Codable, Sendable {
+  case loading, paused, playing, stopped, waiting
+
+  var isPlaying: Bool { self == .playing }
+}
+
 struct WidgetSnapshot: Codable, Sendable {
   static let currentSchemaVersion = 1
 
@@ -11,7 +17,7 @@ struct WidgetSnapshot: Codable, Sendable {
     let podcastTitle: String
     let durationSeconds: Double
     let currentTimeSeconds: Double
-    let playbackStatus: String
+    let playbackStatus: WidgetPlaybackStatus
     let artworkBase64: String?
   }
 

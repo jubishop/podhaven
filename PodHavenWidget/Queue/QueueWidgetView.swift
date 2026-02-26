@@ -61,7 +61,7 @@ struct QueueWidgetView: View {
   }
 
   private func queueItemRow(item: QueueEntry.QueueEntryItem, index: Int) -> some View {
-    Link(destination: item.deepLinkURL ?? URL(string: "podhaven://widget/queue")!) {
+    Link(destination: item.deepLinkURL) {
       HStack(spacing: 8) {
         Text("\(index + 1)")
           .font(.caption2)

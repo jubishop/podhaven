@@ -1,10 +1,13 @@
 // Copyright Justin Bishop, 2026
 
+import Foundation
 import WidgetKit
 
 struct QueueEntry: TimelineEntry {
   let date: Date
   let items: [QueueEntryItem]
+
+  private static let queueBaseURL = URL(string: "podhaven://widget/queue/")!
 
   struct QueueEntryItem: Identifiable {
     let id: Int64
@@ -12,8 +15,8 @@ struct QueueEntry: TimelineEntry {
     let podcastTitle: String
     let durationFormatted: String
 
-    var deepLinkURL: URL? {
-      URL(string: "podhaven://widget/queue/\(id)")
+    var deepLinkURL: URL {
+      QueueEntry.queueBaseURL.appending(path: String(id))
     }
   }
 
