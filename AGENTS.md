@@ -32,7 +32,6 @@
 - Backward compatibility is not necessary.  Always use the latest features and libraries.
 
 ## Database
-- GRDB using SQLite.
 - Prefer GRDB QueryInterface / record APIs over raw SQL whenever possible; only use raw SQL when GRDB cannot express the needed query cleanly.
 
 ## UI Structure
