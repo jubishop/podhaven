@@ -31,14 +31,12 @@ struct FileLogManager: Sendable {
       queueLabel: "FileLogHandler",
       onError: { error in
         Task(priority: .background) {
-          Self.log.logResult(.failure(error))
+          Self.log.error(error)
         }
       },
       onTruncation: { originalSize, newSize in
         Task(priority: .background) {
-          Self.log.logResult(
-            .log(.info, "File log truncated from \(originalSize) bytes to \(newSize) bytes")
-          )
+          Self.log.info("File log truncated from \(originalSize) bytes to \(newSize) bytes")
         }
       }
     )
@@ -50,20 +48,15 @@ struct FileLogManager: Sendable {
     let runSynchronously = level == .critical || !isActive()
 
     if runSynchronously {
-      let result: LogResult
       do {
         if let truncation = try writer.writeSync(entry) {
-          result = .log(
-            .info,
+          Self.log.info(
             "File log truncated from \(truncation.originalSize) bytes to \(truncation.newSize) bytes"
           )
-        } else {
-          result = .success
         }
       } catch {
-        result = .failure(error)
+        Self.log.error(error)
       }
-      Self.log.logResult(result)
     } else {
       writer.writeAsync(entry)
     }
