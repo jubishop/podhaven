@@ -63,23 +63,26 @@ actor WidgetSnapshotWriter {
     }
   }
 
-  private func flush() {
-    let kindsToReload = pendingReloadKinds
-    pendingReloadKinds.removeAll()
+  func flush(playbackStatus: PlaybackStatus? = nil) {
+    coalesceTask?.cancel()
     coalesceTask = nil
 
-    writeSnapshot(reloadKinds: kindsToReload)
+    let kindsToReload = pendingReloadKinds
+    pendingReloadKinds.removeAll()
+
+    writeSnapshot(reloadKinds: kindsToReload, playbackStatusOverride: playbackStatus)
   }
 
   // MARK: - Snapshot Building
 
-  private func writeSnapshot(reloadKinds: Set<String>) {
-    let onDeck = sharedState.onDeck
-    let playbackStatus = sharedState.playbackStatus
+  private func writeSnapshot(
+    reloadKinds: Set<String>,
+    playbackStatusOverride: PlaybackStatus? = nil
+  ) {
+    let playbackStatus = playbackStatusOverride ?? sharedState.playbackStatus
     let queuedEpisodes = sharedState.queuedPodcastEpisodes
-
     let nowPlaying: WidgetSnapshot.NowPlaying? =
-      if let onDeck {
+      if let onDeck = sharedState.onDeck {
         WidgetSnapshot.NowPlaying(
           episodeID: onDeck.id.rawValue,
           episodeTitle: onDeck.title,
@@ -121,7 +124,11 @@ actor WidgetSnapshotWriter {
       return
     }
 
-    reloadWidgets(kinds: reloadKinds)
+    var kinds = reloadKinds
+    if playbackStatusOverride != nil {
+      kinds.insert(WidgetInfo.nowPlayingKind)
+    }
+    reloadWidgets(kinds: kinds)
   }
 
   // MARK: - Artwork Encoding

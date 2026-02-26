@@ -119,7 +119,7 @@ struct NowPlayingWidgetView: View {
 
   private func playPauseButton(size: CGFloat) -> some View {
     Button(intent: PlayPauseIntent()) {
-      Image(systemName: entry.isPlaying ? "pause.fill" : "play.fill")
+      Image(systemName: entry.playbackStatus == .paused ? "play.fill" : "pause.fill")
         .font(.system(size: size * 0.55))
         .frame(width: size, height: size)
     }
