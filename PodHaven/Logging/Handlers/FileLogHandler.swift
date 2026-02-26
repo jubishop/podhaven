@@ -15,7 +15,7 @@ extension Container {
 
 struct FileLogHandler: LogHandler {
 
-  // MARK: - Types
+  // MARK: - Writer
 
   fileprivate final class Writer: Sendable {
     private static let log = Log.as("FileLogWriter")
@@ -38,9 +38,10 @@ struct FileLogHandler: LogHandler {
 
     func write(_ entry: Entry, synchronously: Bool) {
       if synchronously {
-        queue.sync { self.writeAndReport(entry) }
+        let result = queue.sync { self.writeEntry(entry) }
+        report(result)
       } else {
-        queue.async { self.writeAndReport(entry) }
+        queue.async { self.report(self.writeEntry(entry)) }
       }
     }
 
@@ -48,17 +49,38 @@ struct FileLogHandler: LogHandler {
       queue.sync {}
     }
 
-    private func writeAndReport(_ entry: Entry) {
+    private enum WriteResult {
+      case ok
+      case truncated(originalSize: Int, newSize: Int)
+      case failed(any Error)
+    }
+
+    // Must be called on `queue`.
+    private func writeEntry(_ entry: Entry) -> WriteResult {
       do {
         let currentSize = try appendEntry(entry)
         if currentSize > UInt64(maxFileSizeBytes) {
           if let truncation = try truncateIfNeeded() {
-            Self.log.info(
-              "Log truncated from \(truncation.originalSize) to \(truncation.newSize) bytes"
+            return .truncated(
+              originalSize: truncation.originalSize,
+              newSize: truncation.newSize
             )
           }
         }
+        return .ok
       } catch {
+        return .failed(error)
+      }
+    }
+
+    // Must be called outside `queue` (or asynchronously) to avoid deadlock.
+    private func report(_ result: WriteResult) {
+      switch result {
+      case .ok:
+        break
+      case .truncated(let originalSize, let newSize):
+        Self.log.info("Log truncated from \(originalSize) to \(newSize) bytes")
+      case .failed(let error):
         Self.log.error(error)
       }
     }
@@ -95,6 +117,8 @@ struct FileLogHandler: LogHandler {
       return (originalSize: data.count, newSize: truncated.count)
     }
   }
+
+  // MARK: - Entry
 
   fileprivate struct Entry: Codable {
     let level: Int
