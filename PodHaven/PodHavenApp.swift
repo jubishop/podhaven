@@ -3,6 +3,7 @@
 import AVFoundation
 import FactoryKit
 import Logging
+import Sharing
 import SwiftUI
 import Tagged
 
@@ -15,7 +16,7 @@ struct PodHavenApp: App {
   @InjectedObservable(\.sheet) private var sheet
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.cachePurger) private var cachePurger
-  @DynamicInjected(\.fileLogManager) private var fileLogManager
+  @DynamicInjected(\.fileLogWriter) private var fileLogWriter
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.playManager) private var playManager
@@ -54,8 +55,9 @@ struct PodHavenApp: App {
             await startServices()
           }
 
+          sharedState.$isActive.withLock { $0 = newPhase == .active }
           if didStartServices {
-            fileLogManager.handleScenePhaseChange(to: newPhase)
+            if newPhase == .background { fileLogWriter.flush() }
             refreshScheduler.handleScenePhaseChange(to: newPhase)
             cachePurger.handleScenePhaseChange(to: newPhase)
             await userNotificationManager.handleScenePhaseChange(to: newPhase)

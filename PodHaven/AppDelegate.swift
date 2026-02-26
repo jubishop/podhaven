@@ -6,6 +6,31 @@ import Sentry
 import Tagged
 import UIKit
 
+extension Container {
+  var fileLogWriter: Factory<NDJSONLogFileManager> {
+    Factory(self) {
+      let log = Log.as("FileLogManager")
+      return NDJSONLogFileManager(
+        fileURL: AppInfo.logFileURL,
+        maxFileSizeBytes: 2_000_000,
+        targetFileSizeBytes: 1_750_000,
+        queueLabel: "FileLogHandler",
+        onError: { error in
+          Task(priority: .background) {
+            log.error(error)
+          }
+        },
+        onTruncation: { originalSize, newSize in
+          Task(priority: .background) {
+            log.info("File log truncated from \(originalSize) bytes to \(newSize) bytes")
+          }
+        }
+      )
+    }
+    .scope(.cached)
+  }
+}
+
 // MARK: - AppDelegate
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
@@ -59,11 +84,21 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     case .appStore, .testFlight, .iPhoneDev, .macDev:
       configureSentry()
 
-      let fileLogManager = Container.shared.fileLogManager()
+      let writer = Container.shared.fileLogWriter()
+      let sharedState = Container.shared.sharedState()
       LoggingSystem.bootstrap { label in
         MultiplexLogHandler([
           OSLogHandler(label: label),
-          FileLogHandler(label: label, writeEntry: fileLogManager.writeToFile),
+          FileLogHandler(
+            label: label,
+            writeEntry: { level, entry in
+              if level == .critical || !sharedState.isActive {
+                writer.writeSyncReporting(entry)
+              } else {
+                writer.writeAsync(entry)
+              }
+            }
+          ),
           SentryLogHandler(label: label),
           CrashReportHandler(label: label),
         ])

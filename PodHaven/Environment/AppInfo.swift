@@ -195,6 +195,10 @@ enum AppInfo {
     return dataDir
   }
 
+  static var logFileURL: URL {
+    documentsDirectory.appendingPathComponent("log.ndjson")
+  }
+
   static var applicationSupportDirectory: URL {
     let baseURL = URL.applicationSupportDirectory
 

@@ -20,6 +20,7 @@ struct SharedState: Sendable {
 
   @Shared(.appStorage("currentEpisodeID")) private var storedCurrentEpisodeID: Int?
   @Shared(.inMemory("downloadProgress")) var downloadProgress: [Episode.ID: Double] = [:]
+  @Shared(.inMemory("isActive")) var isActive: Bool = true
   @Shared(.inMemory("onDeck")) var onDeck: OnDeck?
   @Shared(.inMemory("playbackStatus")) var playbackStatus: PlaybackStatus = .stopped
   @Shared(.inMemory("playRate")) var playRate: Float = 1.0

@@ -46,7 +46,7 @@ struct DebugSection: View {
       }
 
       ShareLink(
-        item: FileLogManager.logFileURL,
+        item: AppInfo.logFileURL,
         preview: SharePreview(
           "PodHaven Logs",
           image: AppIcon.shareLogs.rawImage
