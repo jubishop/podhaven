@@ -17,7 +17,6 @@ struct PodHavenApp: App {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.notifications) private var notifications
-  @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.repo) private var repo
