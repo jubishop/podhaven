@@ -13,7 +13,9 @@ struct DebugSection: View {
     Section("Debugging") {
       Text("Environment: \(AppInfo.environment.rawValue)")
 
-      Text("Device ID: \(AppInfo.deviceIdentifier)")
+      Button("Copy Device ID") {
+        UIPasteboard.general.string = AppInfo.deviceIdentifier
+      }
 
       if AppInfo.myDevice {
         Text("My Device")

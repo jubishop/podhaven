@@ -101,9 +101,9 @@ struct UnsavedEpisode:
 
   // MARK: - Chapters
 
-  // This is effectively a constant so its really plenty safe.
-  nonisolated(unsafe) static let timestampRegex =
+  static var timestampRegex: Regex<Substring> {
     /(?:\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2})(?![\d:])/
+  }
 
   // Parses a timestamp string (e.g. "2:15", "14:30", "1:02:15") into total seconds.
   static func parseTimestamp(_ timestamp: some StringProtocol) -> Int? {
@@ -153,7 +153,7 @@ struct UnsavedEpisode:
     guard let description else { return nil }
 
     var seen = Set<Int>()
-    let times: [CMTime] = unsafe description.matches(of: Self.timestampRegex)
+    let times: [CMTime] = description.matches(of: Self.timestampRegex)
       .compactMap { match in
         guard let totalSeconds = Self.parseTimestamp(match.output) else { return nil }
 
