@@ -53,5 +53,4 @@ After applying fixes, re-run the same test scope from Step 1. Repeat Steps 2–4
 
 ## Rules
 
-- Follow all coding standards from AGENTS.md (no force-unwraps, use `Assert`, `ReadableError`, `//` comments, etc.).
 - If a failure requires architectural changes or is ambiguous, stop and explain the situation instead of guessing.
