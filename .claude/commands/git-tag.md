@@ -1,21 +1,29 @@
 ---
-description: Create and push a release tag with a summary of changes
-argument-hint: <tag-name>
-allowed-tools: Bash(git tag:*), Bash(git log:*), Bash(git describe:*), Bash(git push:*), Bash(git diff:*), Bash(git branch:*)
+description: Update an existing release tag with an AI-generated summary
+argument-hint: [tag-name]
+allowed-tools: Bash(git tag:*), Bash(git log:*), Bash(git describe:*), Bash(git push:*), Bash(git diff:*), Bash(git rev-parse:*)
 ---
 
-First, determine the current branch:
+Determine the target tag. If `$ARGUMENTS` is provided, use that. Otherwise default to the most recent tag:
 
-!`git branch --show-current`
+!`git describe --tags --abbrev=0`
 
-Then view the actual code changes to analyze:
+Find the tag immediately before the target tag to determine the range of changes it covers:
 
-- If on main branch: view all code changes since the most recent git tag:
-  !`git diff $(git describe --tags --abbrev=0)..HEAD`
+!`git tag --sort=version:refname | grep -B1 "^<target-tag>$" | head -1`
 
-- If on any other branch: view code changes compared to main:
-  !`git diff main`
+Then view the code changes between that previous tag and the target tag:
 
-Create a new annotated git tag named `$ARGUMENTS` with a message that summarizes these code changes using language a technically savvy end user would understand. Focus on user-facing improvements, new features, and bug fixes rather than internal implementation details. Base your summary strictly on the actual code diff, not commit messages.
+!`git diff <previous-tag>..<target-tag>`
 
-Then push the new tag to the remote.
+Replace the existing tag in place at the same commit with a new annotated message:
+
+!`git tag -f -a "<target-tag>" $(git rev-parse "<target-tag>") -m "<message>"`
+
+Then force-push the updated tag to the remote:
+
+!`git push origin "<target-tag>" --force`
+
+## Message style
+
+Summarize the code changes using language a technically savvy end user would understand. Focus on user-facing improvements, new features, and bug fixes rather than internal implementation details. Base your summary strictly on the actual code diff, not commit messages.

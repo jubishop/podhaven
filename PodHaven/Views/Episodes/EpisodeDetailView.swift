@@ -207,7 +207,7 @@ struct EpisodeDetailView: View {
 
           HTMLText(
             description,
-            menuMatching: unsafe UnsavedEpisode.timestampRegex
+            menuMatching: UnsavedEpisode.timestampRegex
           ) { timestamp in
             Button {
               viewModel.playAt(timestamp: timestamp)

@@ -434,6 +434,7 @@
 				8BD7F91C2CF2A49000CEDAA7 /* Sources */,
 				8BD7F91D2CF2A49000CEDAA7 /* Frameworks */,
 				8BD7F91E2CF2A49000CEDAA7 /* Resources */,
+				8BF0A1C32E4F678900ABCDEF /* Embed Git Commit SHA */,
 				39E22D98602E4E34B0A8541B /* Upload Debug Symbols to Sentry */,
 				8BBD96992E2701F500BE32DD /* Embed Foundation Extensions */,
 			);
@@ -598,6 +599,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		8BF0A1C32E4F678900ABCDEF /* Embed Git Commit SHA */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Embed Git Commit SHA";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ -d \"${PROJECT_DIR}/.git\" ]; then\n  commit=$(git -C \"${PROJECT_DIR}\" rev-parse --short HEAD)\n\n  if ! git -C \"${PROJECT_DIR}\" diff --quiet HEAD; then\n    if [ \"${ACTION}\" = \"install\" ]; then\n      echo \"error: Uncommitted changes detected — commit before archiving.\"\n      exit 1\n    fi\n    commit=\"${commit}-dirty\"\n  fi\n\n  /usr/libexec/PlistBuddy -c \"Add :GitCommitHash string ${commit}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\" 2>/dev/null ||\n  /usr/libexec/PlistBuddy -c \"Set :GitCommitHash ${commit}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nfi\n";
+		};
 		39E22D98602E4E34B0A8541B /* Upload Debug Symbols to Sentry */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

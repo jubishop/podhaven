@@ -3,7 +3,6 @@
 import FactoryKit
 import Foundation
 import Logging
-import Security
 import StoreKit
 import UIKit
 
@@ -29,21 +28,13 @@ enum AppInfo {
 
   // MARK: - Environment Info
 
-  private static let key = "com.artisanalsoftware.PodHaven"
-  private static let myDeviceIDs: Set = [
-    "A3235431-26A0-4E1E-8587-7AD5B964048C",  // testFlight
-    "8E1DAAE1-A90E-457E-A4A2-93367FF12908",  // iPhoneDev
-    "B290299A-7693-4F5B-AF94-14E6C6279A84",  // macDev
+  private static let myDeviceIDs: Set<String> = [
+    "394CD3D8-E351-4086-A7C2-87FEBA88C839" // iPhoneDev
+    
   ]
 
-  static var deviceIdentifier: String {
-    guard let uuid = KeychainHelper.get(forKey: key) else {
-      let newUUID = UUID().uuidString
-      KeychainHelper.set(newUUID, forKey: key)
-      return newUUID
-    }
-    return uuid
-  }
+  private static let _deviceIdentifier = ThreadSafe<String>("Unknown")
+  static var deviceIdentifier: String { _deviceIdentifier() }
 
   static var myDevice: Bool { myDeviceIDs.contains(deviceIdentifier) }
 
@@ -53,9 +44,10 @@ enum AppInfo {
     get { _environment() }
   }
 
-  static func initializeEnvironment() {
+  @MainActor static func initializeEnvironment() {
     guard Function.neverCalled() else { return }
 
+    _deviceIdentifier(UIDevice.current.identifierForVendor?.uuidString ?? "Unknown")
     environment = detectEnvironment()
   }
 
@@ -154,6 +146,10 @@ enum AppInfo {
     Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
   }
 
+  static var gitCommitHash: String {
+    Bundle.main.infoDictionary?["GitCommitHash"] as? String ?? "Unknown"
+  }
+
   static var buildDate: Date {
     if let infoPath = Bundle.main.path(forResource: "Info", ofType: "plist"),
       let infoAttr = try? FileManager.default.attributesOfItem(atPath: infoPath),
@@ -211,57 +207,5 @@ enum AppInfo {
     try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
 
     return dataDir
-  }
-}
-
-private class KeychainHelper {
-  static func get(forKey key: String) -> String? {
-    let query: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrAccount as String: key,
-      kSecReturnData as String: true,
-      kSecMatchLimit as String: kSecMatchLimitOne,
-    ]
-
-    var dataTypeRef: AnyObject?
-    let status = unsafe SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
-
-    if status == errSecSuccess,
-      let retrievedData = dataTypeRef as? Data,
-      let value = String(data: retrievedData, encoding: .utf8)
-    {
-      return value
-    }
-
-    return nil
-  }
-
-  static func set(_ value: String, forKey key: String) {
-    if let existingValue = get(forKey: key) {
-      if existingValue == value {
-        return
-      } else {
-        delete(forKey: key)
-      }
-    }
-
-    if let data = value.data(using: .utf8) {
-      let query: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrAccount as String: key,
-        kSecValueData as String: data,
-      ]
-
-      SecItemAdd(query as CFDictionary, nil)
-    }
-  }
-
-  static func delete(forKey key: String) {
-    let query: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrAccount as String: key,
-    ]
-
-    SecItemDelete(query as CFDictionary)
   }
 }
