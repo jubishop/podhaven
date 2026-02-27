@@ -10,7 +10,6 @@ struct WidgetSnapshot: Codable, Sendable {
     let episodeTitle: String
     let podcastTitle: String
     let durationSeconds: Double
-    let currentTimeSeconds: Double
     let playbackStatus: PlaybackStatus
     let artworkBase64: String?
   }

@@ -22,7 +22,6 @@ actor WidgetSnapshotWriter {
 
   private var pendingReloadKinds: Set<String> = []
   private var coalesceTask: Task<Void, Never>?
-  private var lastCurrentTimeWrite: Date = .distantPast
 
   // MARK: - Snapshot Triggers
 
@@ -35,13 +34,6 @@ actor WidgetSnapshotWriter {
   }
 
   func playbackStatusChanged() {
-    scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
-  }
-
-  func currentTimeChanged() {
-    let now = Date()
-    guard now.timeIntervalSince(lastCurrentTimeWrite) >= 30 else { return }
-    lastCurrentTimeWrite = now
     scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
   }
 
@@ -83,7 +75,6 @@ actor WidgetSnapshotWriter {
           episodeTitle: onDeck.title,
           podcastTitle: onDeck.podcastTitle,
           durationSeconds: onDeck.duration.seconds,
-          currentTimeSeconds: onDeck.currentTime.seconds,
           playbackStatus: sharedState.playbackStatus,
           artworkBase64: encodeArtwork(onDeck.artwork)
         )

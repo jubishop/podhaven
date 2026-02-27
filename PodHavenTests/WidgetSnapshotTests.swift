@@ -24,7 +24,6 @@ struct WidgetSnapshotTests {
         episodeTitle: "Test Episode",
         podcastTitle: "Test Podcast",
         durationSeconds: 1800,
-        currentTimeSeconds: 450,
         playbackStatus: .playing,
         artworkBase64: artworkBase64
       ),
@@ -54,7 +53,6 @@ struct WidgetSnapshotTests {
     #expect(decoded.nowPlaying?.episodeTitle == "Test Episode")
     #expect(decoded.nowPlaying?.podcastTitle == "Test Podcast")
     #expect(decoded.nowPlaying?.durationSeconds == 1800)
-    #expect(decoded.nowPlaying?.currentTimeSeconds == 450)
     #expect(decoded.nowPlaying?.playbackStatus == .playing)
     #expect(decoded.nowPlaying?.artworkBase64 == artworkBase64)
     #expect(decoded.queue.count == 2)
@@ -93,7 +91,6 @@ struct WidgetSnapshotTests {
         episodeTitle: "No Art",
         podcastTitle: "Podcast",
         durationSeconds: 600,
-        currentTimeSeconds: 0,
         playbackStatus: .paused,
         artworkBase64: nil
       ),

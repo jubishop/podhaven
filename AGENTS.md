@@ -38,3 +38,4 @@
 - Prefer triple-quoted strings for multi-line or >100 character literals.
 - Run `swift-format` on every Swift file you touch before handing work back.
 - Use `//` for comments, not `///` (no doc comments).
+- Never leave behind unused code, properties, or parameters. If something becomes unused, remove it immediately.

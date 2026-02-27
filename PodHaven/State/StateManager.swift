@@ -95,8 +95,6 @@ struct StateManager: Sendable {
 
   func setCurrentTime(_ currentTime: CMTime) {
     sharedState.$onDeck.withLock { $0?.currentTime = currentTime }
-
-    Task { await widgetSnapshotWriter.currentTimeChanged() }
   }
 
   // MARK: - Observations

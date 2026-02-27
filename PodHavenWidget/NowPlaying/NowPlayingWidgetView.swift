@@ -40,7 +40,7 @@ struct NowPlayingWidgetView: View {
         HStack {
           playPauseButton(size: 28)
           Spacer()
-          Text(entry.remainingFormatted)
+          Text(entry.durationFormatted)
             .font(.caption2)
             .foregroundStyle(.secondary)
         }
@@ -76,8 +76,6 @@ struct NowPlayingWidgetView: View {
 
           Spacer(minLength: 0)
 
-          progressBar
-
           HStack(spacing: 16) {
             skipBackwardButton(size: 24)
             playPauseButton(size: 28)
@@ -85,7 +83,7 @@ struct NowPlayingWidgetView: View {
 
             Spacer()
 
-            Text(entry.remainingFormatted)
+            Text(entry.durationFormatted)
               .font(.caption2)
               .foregroundStyle(.secondary)
           }
@@ -142,21 +140,6 @@ struct NowPlayingWidgetView: View {
         .frame(width: size, height: size)
     }
     .buttonStyle(.plain)
-  }
-
-  private var progressBar: some View {
-    GeometryReader { geometry in
-      ZStack(alignment: .leading) {
-        Capsule()
-          .fill(.quaternary)
-          .frame(height: 4)
-
-        Capsule()
-          .fill(.tint)
-          .frame(width: geometry.size.width * entry.progress, height: 4)
-      }
-    }
-    .frame(height: 4)
   }
 
   private func loadingState(episodeTitle: String) -> some View {
