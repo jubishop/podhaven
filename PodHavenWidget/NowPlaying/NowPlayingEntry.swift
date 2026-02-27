@@ -14,11 +14,7 @@ struct NowPlayingEntry: TimelineEntry {
   var isPlaying: Bool { playbackStatus.playing }
   var isLoading: Bool { playbackStatus.loading }
 
-  var durationFormatted: String {
-    let minutes = Int(durationSeconds) / 60
-    let seconds = Int(durationSeconds) % 60
-    return String(format: "%d:%02d", minutes, seconds)
-  }
+  var durationFormatted: String { durationSeconds.playbackTimeFormat }
 
   static let empty = NowPlayingEntry(
     date: Date(),
@@ -35,15 +31,6 @@ struct NowPlayingEntry: TimelineEntry {
     podcastTitle: "Swift Talk",
     durationSeconds: 2460,
     playbackStatus: .playing,
-    artwork: nil
-  )
-
-  static let loading = NowPlayingEntry(
-    date: Date(),
-    episodeTitle: "Understanding Swift Concurrency",
-    podcastTitle: nil,
-    durationSeconds: 0,
-    playbackStatus: .loading("Understanding Swift Concurrency"),
     artwork: nil
   )
 }

@@ -2,9 +2,7 @@
 
 import AppIntents
 
-#if !WIDGET_EXTENSION
 import FactoryKit
-#endif
 
 struct PlayPauseIntent: AudioPlaybackIntent {
   static let title: LocalizedStringResource = "Play or Pause"

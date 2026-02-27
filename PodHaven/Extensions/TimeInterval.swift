@@ -1,12 +1,10 @@
 // Copyright Justin Bishop, 2025
 
-import AVFoundation
 import Foundation
 
 extension TimeInterval {
   // MARK: - Conversions
 
-  var asCMTime: CMTime { CMTime.seconds(self) }
   var asDuration: Duration { Duration.seconds(self) }
 
   // MARK: - Creation Helpers

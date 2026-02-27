@@ -2,9 +2,7 @@
 
 import AppIntents
 
-#if !WIDGET_EXTENSION
 import FactoryKit
-#endif
 
 struct SkipBackwardIntent: AudioPlaybackIntent {
   static let title: LocalizedStringResource = "Skip Backward"

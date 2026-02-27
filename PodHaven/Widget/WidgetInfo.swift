@@ -11,9 +11,9 @@ enum WidgetInfo {
 
   // MARK: - Data Storage
 
-  static let appGroupID = "group.podhaven.shared"
+  private static let appGroupID = "group.podhaven.shared"
 
-  static var containerURL: URL {
+  private static var containerURL: URL {
     guard
       let containerURL = FileManager.default.containerURL(
         forSecurityApplicationGroupIdentifier: appGroupID

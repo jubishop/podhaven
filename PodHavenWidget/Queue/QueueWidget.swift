@@ -37,18 +37,11 @@ struct QueueProvider: TimelineProvider {
         id: queueItem.episodeID,
         episodeTitle: queueItem.episodeTitle,
         podcastTitle: queueItem.podcastTitle,
-        durationFormatted: formatDuration(queueItem.durationSeconds)
+        durationFormatted: queueItem.durationSeconds.playbackTimeFormat
       )
     }
 
     return QueueEntry(date: Date(), items: items, totalCount: snapshot.queueTotalCount)
-  }
-
-  private func formatDuration(_ seconds: Double) -> String {
-    let totalSeconds = Int(seconds)
-    let minutes = totalSeconds / 60
-    let secs = totalSeconds % 60
-    return String(format: "%d:%02d", minutes, secs)
   }
 }
 
