@@ -24,7 +24,7 @@ struct NowPlayingWidgetView: View {
 
   private var smallView: some View {
     VStack(alignment: .leading, spacing: 6) {
-      if entry.isLoading, let episodeTitle = entry.episodeTitle {
+      if entry.playbackStatus.loading, let episodeTitle = entry.episodeTitle {
         loadingState(episodeTitle: episodeTitle)
       } else if let episodeTitle = entry.episodeTitle {
         artworkView(size: 44)
@@ -55,7 +55,7 @@ struct NowPlayingWidgetView: View {
 
   private var mediumView: some View {
     HStack(spacing: 12) {
-      if entry.isLoading, let episodeTitle = entry.episodeTitle {
+      if entry.playbackStatus.loading, let episodeTitle = entry.episodeTitle {
         loadingState(episodeTitle: episodeTitle)
       } else if let episodeTitle = entry.episodeTitle {
         artworkView(size: 80)

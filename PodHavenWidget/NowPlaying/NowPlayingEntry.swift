@@ -11,9 +11,6 @@ struct NowPlayingEntry: TimelineEntry {
   let playbackStatus: PlaybackStatus
   let artwork: UIImage?
 
-  var isPlaying: Bool { playbackStatus.playing }
-  var isLoading: Bool { playbackStatus.loading }
-
   static let empty = NowPlayingEntry(
     date: Date(),
     episodeTitle: nil,
