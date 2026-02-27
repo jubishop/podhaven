@@ -36,7 +36,7 @@ struct NowPlayingProvider: TimelineProvider {
         date: Date(),
         episodeTitle: loadingTitle,
         podcastTitle: nil,
-        durationSeconds: 0,
+        durationFormatted: "",
         playbackStatus: .loading(loadingTitle),
         artwork: nil
       )
@@ -55,7 +55,7 @@ struct NowPlayingProvider: TimelineProvider {
       date: Date(),
       episodeTitle: nowPlaying.episodeTitle,
       podcastTitle: nowPlaying.podcastTitle,
-      durationSeconds: nowPlaying.durationSeconds,
+      durationFormatted: nowPlaying.durationSeconds.playbackTimeFormat,
       playbackStatus: nowPlaying.playbackStatus,
       artwork: WidgetSnapshotReader.decodeArtwork(from: nowPlaying.artworkBase64)
     )
