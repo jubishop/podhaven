@@ -29,8 +29,8 @@ enum AppInfo {
   // MARK: - Environment Info
 
   private static let myDeviceIDs: Set<String> = [
-    "394CD3D8-E351-4086-A7C2-87FEBA88C839" // iPhoneDev
-    
+    "394CD3D8-E351-4086-A7C2-87FEBA88C839",  // iPhoneDev
+    "48850004-711A-4B96-B6A4-588689CF3609",  // testFlight
   ]
 
   private static let _deviceIdentifier = ThreadSafe<String>("Unknown")
