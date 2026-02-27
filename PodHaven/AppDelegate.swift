@@ -102,6 +102,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
       options.sendDefaultPii = true
       options.enableAppHangTracking = false
       options.enableLogs = true
+      options.initialScope = { scope in
+        scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
+        return scope
+      }
     }
   }
 }

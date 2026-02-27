@@ -46,6 +46,7 @@ struct SentryLogHandler: LogHandler {
         "version": AppInfo.version,
         "buildNumber": AppInfo.buildNumber,
         "buildDate": AppInfo.buildDate,
+        "gitCommitHash": AppInfo.gitCommitHash,
       ] as [String: Any]
 
     switch level {

@@ -154,6 +154,10 @@ enum AppInfo {
     Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
   }
 
+  static var gitCommitHash: String {
+    Bundle.main.infoDictionary?["GitCommitHash"] as? String ?? "Unknown"
+  }
+
   static var buildDate: Date {
     if let infoPath = Bundle.main.path(forResource: "Info", ofType: "plist"),
       let infoAttr = try? FileManager.default.attributesOfItem(atPath: infoPath),
