@@ -50,6 +50,12 @@ if ! command -v xcbeautify &>/dev/null; then
   exit 1
 fi
 
+# Require llm for AI-generated tag summaries
+if ! command -v llm &>/dev/null; then
+  echo "error: llm not found. Install with: pipx install llm" >&2
+  exit 1
+fi
+
 # Preflight: block deploys from non-main branches
 branch=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD)
 if [[ "$branch" != "main" && "$FORCE" != true ]]; then
@@ -101,8 +107,32 @@ xcodebuild -exportArchive \
   "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
   2>&1 | xcbeautify
 
-# Tag only after successful upload
-git -C "$PROJECT_DIR" tag "$tag"
+# Tag after successful upload — with AI-generated summary
+prev_tag=$(git -C "$PROJECT_DIR" tag -l "v*b*" --sort=version:refname | tail -1)
+
+if [[ -z "$prev_tag" ]]; then
+  echo "error: No previous tag found. Cannot generate summary." >&2
+  exit 1
+fi
+
+echo "==> Generating release summary (${prev_tag}..HEAD)..."
+diff_content=$(git -C "$PROJECT_DIR" diff "${prev_tag}..HEAD" | head -c 50000)
+
+if [[ -z "$diff_content" ]]; then
+  echo "error: No diff between ${prev_tag} and HEAD." >&2
+  exit 1
+fi
+
+tag_message=$(echo "$diff_content" | llm -s \
+  "Summarize this code diff for release notes. Write for a technically savvy end user. Focus on user-facing improvements, new features, and bug fixes. Be concise — a few bullet points or a short paragraph.")
+
+if [[ -z "$tag_message" ]]; then
+  echo "error: llm returned empty summary." >&2
+  exit 1
+fi
+
+echo "==> Summary generated."
+git -C "$PROJECT_DIR" tag -a "$tag" -m "$tag_message"
 git -C "$PROJECT_DIR" push origin "$tag"
 
 # Clean up
