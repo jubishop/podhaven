@@ -1,24 +1,8 @@
 // Copyright Justin Bishop, 2025
 
-import AVFoundation
-import Foundation
-
-enum PlaybackStatus: Equatable, CustomStringConvertible {
+enum PlaybackStatus: Codable, Equatable, CustomStringConvertible, Sendable {
   case loading(String)
   case paused, playing, stopped, waiting
-
-  init(_ timeControlStatus: AVPlayer.TimeControlStatus) {
-    switch timeControlStatus {
-    case .paused:
-      self = .paused
-    case .playing:
-      self = .playing
-    case .waitingToPlayAtSpecifiedRate:
-      self = .waiting
-    @unknown default:
-      Assert.fatal("Unknown time control status: \(timeControlStatus)")
-    }
-  }
 
   var loading: Bool {
     if case .loading = self { return true }
