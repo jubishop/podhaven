@@ -123,6 +123,7 @@ struct PodHavenApp: App {
     guard !Task.isCancelled else { return }
 
     Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
+    Self.log.debug("My device?: \(AppInfo.myDevice)")
     Self.log.debug("Final environment is: \(AppInfo.environment)")
     Self.log.debug("Build version: \(AppInfo.version) (\(AppInfo.buildNumber))")
 
