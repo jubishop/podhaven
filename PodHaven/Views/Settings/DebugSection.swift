@@ -62,9 +62,7 @@ struct DebugSection: View {
           "Widget Logs",
           image: AppIcon.shareLogs.rawImage
         ),
-        label: {
-          Label("Share Widget Logs", systemImage: "square.and.arrow.up")
-        }
+        label: { AppIcon.shareLogs.label("Share Widget Logs") }
       )
 
       ShareLink(

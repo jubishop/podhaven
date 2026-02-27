@@ -50,7 +50,7 @@ struct OSLogHandler: LogHandler {
     function: String,
     line: UInt
   ) {
-    #if DEBUG && !WIDGET_EXTENSION
+    #if DEBUG
     let system = Log.getTestSystem()
     if !system.isEmpty {
       logger.log(
