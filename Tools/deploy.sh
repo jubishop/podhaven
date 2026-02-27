@@ -78,7 +78,7 @@ xcodebuild archive \
   -allowProvisioningUpdates \
   "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
   CURRENT_PROJECT_VERSION="$build" \
-  2>&1 | xcbeautify
+  2>&1 | xcbeautify --preserve-unbeautified
 
 # Export and upload
 echo "==> Uploading to App Store Connect..."
@@ -87,7 +87,7 @@ xcodebuild -exportArchive \
   -exportOptionsPlist "$EXPORT_OPTIONS" \
   -allowProvisioningUpdates \
   "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
-  2>&1 | xcbeautify
+  2>&1 | xcbeautify --preserve-unbeautified
 
 # Tag only after successful upload
 git -C "$PROJECT_DIR" tag "$tag"

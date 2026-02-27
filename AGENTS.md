@@ -2,6 +2,7 @@
 - If discussing Swift, SwiftUI, and iOS: Consult the apple-docs and apple-deep-docs mcps for up to date information.
 
 ## Repo Guardrails
+- **This is a public repository.** Never add secrets, API keys, auth tokens, or credentials to any file.
 - Never create commits or push unless the humans explicitly ask.
 - Assume the working tree may hold user edits; respect them and avoid resets or reverts.
 
