@@ -16,10 +16,15 @@ SCHEME="PodHaven"
 EXPORT_OPTIONS="$PROJECT_DIR/ExportOptions.plist"
 ARCHIVE_PATH="$PROJECT_DIR/build/PodHaven.xcarchive"
 
-# Parse optional API key arguments
+# Parse arguments
 AUTH_FLAGS=()
+FORCE=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -f|--force)
+      FORCE=true
+      shift
+      ;;
     --api-key)
       AUTH_FLAGS+=(-authenticationKeyPath "$2")
       shift 2
@@ -42,6 +47,13 @@ done
 # Require xcbeautify for formatted build output
 if ! command -v xcbeautify &>/dev/null; then
   echo "error: xcbeautify not found. Install with: brew install xcbeautify" >&2
+  exit 1
+fi
+
+# Preflight: block deploys from non-main branches
+branch=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD)
+if [[ "$branch" != "main" && "$FORCE" != true ]]; then
+  echo "error: Not on main branch (on '$branch'). Use -f to deploy anyway." >&2
   exit 1
 fi
 
@@ -95,5 +107,6 @@ git -C "$PROJECT_DIR" push origin "$tag"
 
 # Clean up
 rm -rf "$PROJECT_DIR/build"
+rm -rf ~/Library/Developer/Xcode/Archives/*/"PodHaven "*
 
 echo "==> Done. Tagged ${commit} as ${tag}"
