@@ -39,6 +39,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Require xcbeautify for formatted build output
+if ! command -v xcbeautify &>/dev/null; then
+  echo "error: xcbeautify not found. Install with: brew install xcbeautify" >&2
+  exit 1
+fi
+
 # Preflight: block deploys from a dirty working tree
 if ! git -C "$PROJECT_DIR" diff --quiet HEAD; then
   echo "error: Uncommitted changes detected — commit before deploying." >&2
@@ -67,11 +73,12 @@ xcodebuild archive \
   -project "$PROJECT" \
   -scheme "$SCHEME" \
   -configuration Release \
+  -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE_PATH" \
   -allowProvisioningUpdates \
   "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
   CURRENT_PROJECT_VERSION="$build" \
-  | tail -1
+  2>&1 | xcbeautify
 
 # Export and upload
 echo "==> Uploading to App Store Connect..."
@@ -80,7 +87,7 @@ xcodebuild -exportArchive \
   -exportOptionsPlist "$EXPORT_OPTIONS" \
   -allowProvisioningUpdates \
   "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
-  | tail -1
+  2>&1 | xcbeautify
 
 # Tag only after successful upload
 git -C "$PROJECT_DIR" tag "$tag"
