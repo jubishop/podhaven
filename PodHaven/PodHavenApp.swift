@@ -18,7 +18,6 @@ struct PodHavenApp: App {
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
-  @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.shareService) private var shareService
   @DynamicInjected(\.stateManager) private var stateManager
