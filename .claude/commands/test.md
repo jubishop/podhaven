@@ -53,9 +53,4 @@ After applying fixes, re-run the same test scope from Step 1. Repeat Steps 2–4
 
 ## Rules
 
-- Follow all coding standards from AGENTS.md (no force-unwraps, use `Assert`, `ReadableError`, `//` comments, etc.).
-- Tests use Swift Testing (`@Suite`, `#expect`). Never introduce XCTest APIs.
-- Tests must never use `Task.sleep`. Use `Wait.until` for async conditions.
-- Tests may use `sleeper.sleep` only to advance artificial time.
-- Do not create commits or modify unrelated code.
 - If a failure requires architectural changes or is ambiguous, stop and explain the situation instead of guessing.
