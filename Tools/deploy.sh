@@ -131,7 +131,10 @@ if [[ -z "$tag_message" ]]; then
   exit 1
 fi
 
-echo "==> Summary generated."
+echo "==> Summary generated:"
+echo ""
+echo "$tag_message"
+echo ""
 git -C "$PROJECT_DIR" tag -a "$tag" -m "$tag_message"
 git -C "$PROJECT_DIR" push origin "$tag"
 
