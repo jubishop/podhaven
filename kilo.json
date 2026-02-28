@@ -1,0 +1,10 @@
+{
+  "$schema": "https://kilo.ai/config.json",
+  "mcp": {
+    "apple-docs": {
+      "type": "local",
+      "command": ["npx", "-y", "@kimsungwhee/apple-docs-mcp@latest"],
+      "enabled": true
+    }
+  }
+}
