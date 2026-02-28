@@ -209,13 +209,13 @@ struct EpisodeDetailView: View {
 
           HTMLText(
             description,
-            menuMatching: UnsavedEpisode.timestampRegex
+            menuMatching: Timestamp.regex
           ) { timestamp in
             Button {
               viewModel.playAt(timestamp: timestamp)
             } label: {
               Label {
-                Text("Play from \(UnsavedEpisode.formatTimestamp(timestamp))")
+                Text("Play from \(Timestamp.format(timestamp))")
               } icon: {
                 AppIcon.playFromHere.image
               }

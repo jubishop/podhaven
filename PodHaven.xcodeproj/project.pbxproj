@@ -115,6 +115,8 @@
 				MigrationTests/v23Tests.swift,
 				MigrationTests/v24Tests.swift,
 				MigrationTests/v25Tests.swift,
+				MigrationTests/v27Tests.swift,
+				MigrationTests/v28Tests.swift,
 				NavigationTests.swift,
 				ObservatoryTests.swift,
 				PlayManagerTests/CacheTests.swift,
@@ -133,7 +135,9 @@
 				RefreshManagerTests.swift,
 				ShareServiceTests.swift,
 				StateManagerTests.swift,
+				TagsTests.swift,
 				TimeIntervalTests.swift,
+				TimestampTests.swift,
 				UserNotificationManagerTests.swift,
 				Utility/CacheHelpers.swift,
 				Utility/PlayHelpers.swift,
@@ -484,21 +488,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		8BF0A1C32E4F678900ABCDEF /* Embed Git Commit SHA */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-			);
-			name = "Embed Git Commit SHA";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "if [ -d \"${PROJECT_DIR}/.git\" ]; then\n  commit=$(git -C \"${PROJECT_DIR}\" rev-parse --short HEAD)\n\n  if ! git -C \"${PROJECT_DIR}\" diff --quiet HEAD; then\n    if [ \"${ACTION}\" = \"install\" ]; then\n      echo \"error: Uncommitted changes detected — commit before archiving.\"\n      exit 1\n    fi\n    commit=\"${commit}-dirty\"\n  fi\n\n  /usr/libexec/PlistBuddy -c \"Add :GitCommitHash string ${commit}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\" 2>/dev/null ||\n  /usr/libexec/PlistBuddy -c \"Set :GitCommitHash ${commit}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nfi\n";
-		};
 		39E22D98602E4E34B0A8541B /* Upload Debug Symbols to Sentry */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -515,6 +504,21 @@
 			shellPath = /bin/sh;
 			shellScript = "if [[ \"$(uname -m)\" == arm64 ]]; then\n    export PATH=\"/opt/homebrew/bin:$PATH\"\nfi\nif which sentry-cli >/dev/null; then\nexport SENTRY_ORG=artisanal-software\nexport SENTRY_PROJECT=podhaven\nexport SENTRY_AUTH_TOKEN=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\nERROR=$(sentry-cli debug-files upload \\\n\"$DWARF_DSYM_FOLDER_PATH\" --force-foreground 2>&1 >/dev/null)\nif [ ! $? -eq 0 ]; then\necho \"error: sentry-cli - $ERROR\"\nfi\nelse\necho \"error: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi\n";
 			showEnvVarsInLog = 0;
+		};
+		8BF0A1C32E4F678900ABCDEF /* Embed Git Commit SHA */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Embed Git Commit SHA";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ -d \"${PROJECT_DIR}/.git\" ]; then\n  commit=$(git -C \"${PROJECT_DIR}\" rev-parse --short HEAD)\n\n  if ! git -C \"${PROJECT_DIR}\" diff --quiet HEAD; then\n    if [ \"${ACTION}\" = \"install\" ]; then\n      echo \"error: Uncommitted changes detected — commit before archiving.\"\n      exit 1\n    fi\n    commit=\"${commit}-dirty\"\n  fi\n\n  /usr/libexec/PlistBuddy -c \"Add :GitCommitHash string ${commit}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\" 2>/dev/null ||\n  /usr/libexec/PlistBuddy -c \"Set :GitCommitHash ${commit}\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
