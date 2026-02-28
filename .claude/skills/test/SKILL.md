@@ -2,6 +2,7 @@
 description: Run tests and fix any failures
 argument-hint: [specific test class or method, e.g. ParallelTests/SomeTestClass/testMethod]
 allowed-tools: Bash(xcodebuild:*), Bash(swift-format:*), Read, Edit, Write, Glob, Grep, Task
+context: fork
 ---
 
 Run the project's tests and, if any fail, diagnose and fix the failures. Repeat until all tests pass or you determine the failure is not fixable without user input.

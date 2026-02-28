@@ -1,6 +1,7 @@
 ---
 description: Analyze PodHaven NDJSON log files
 argument-hint: <path-to-log-file>
+context: fork
 ---
 
 Analyze the log file at `$ARGUMENTS`.
