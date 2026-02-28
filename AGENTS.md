@@ -30,6 +30,8 @@
 - Tests may use `sleeper.sleep` only to artificially advance time when testing production code that uses sleeps (e.g., debouncing, rate limiting).
 - In-memory GRDB (`AppDB.inMemory()`) powers repo tests; helpers under `Create` build realistic unsaved models.
 - Override factories with `.context(.test)` to plug in fakes from `PodHavenTests/Fakes`
+- Each test file belongs to either the `ParallelTests` or `PerformanceTests` target, never both. Almost always use `ParallelTests` unless it's a specific performance test.
+- Xcode auto-adds new test files to both targets. To exclude a file from a target, add its path (relative to `PodHavenTests/`) to the `membershipExceptions` list in the corresponding `PBXFileSystemSynchronizedBuildFileExceptionSet` in `project.pbxproj`.
 
 ## Previews
 - Previews stub factories for in-memory SwiftUI previews with no network calls or DB access.

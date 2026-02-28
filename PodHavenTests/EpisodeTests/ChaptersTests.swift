@@ -224,4 +224,85 @@ struct EpisodeChaptersTests {
     )
     #expect(episode.chapters == [.seconds(600)])
   }
+
+  // MARK: - Timestamp Newline Insertion
+
+  @Test("inserts newlines before timestamps that are missing them")
+  func timestampNewlines() throws {
+    let episode = try Create.unsavedEpisode(
+      description: "Chapters:00:00 Intro00:40 Topic01:07 Deep Dive"
+    )
+    let result = try #require(episode.descriptionWithNewlines)
+    let lines = result.components(separatedBy: "\n").filter { !$0.isEmpty }
+    #expect(lines.count == 4)
+    #expect(lines[0] == "Chapters:")
+    #expect(lines[1] == "00:00 Intro")
+    #expect(lines[2] == "00:40 Topic")
+    #expect(lines[3] == "01:07 Deep Dive")
+  }
+
+  @Test("does not duplicate newlines before timestamps that already have them")
+  func timestampNewlinesNoDuplication() throws {
+    let episode = try Create.unsavedEpisode(
+      description: "Chapters:\n00:00 Intro\n00:40 Topic"
+    )
+    let result = try #require(episode.descriptionWithNewlines)
+    let lines = result.components(separatedBy: "\n").filter { !$0.isEmpty }
+    #expect(lines.count == 3)
+    #expect(lines[0] == "Chapters:")
+    #expect(lines[1] == "00:00 Intro")
+    #expect(lines[2] == "00:40 Topic")
+  }
+
+  @Test("handles both MM:SS and HH:MM:SS formats")
+  func timestampNewlinesFormats() throws {
+    let episode = try Create.unsavedEpisode(
+      description: "00:00 Start01:30 Middle05:45:30 Long Format10:00 End"
+    )
+    let result = try #require(episode.descriptionWithNewlines)
+    #expect(result.contains("\n01:30 Middle"))
+    #expect(result.contains("\n05:45:30 Long"))
+    #expect(result.contains("\n10:00 End"))
+  }
+
+  @Test("does not start with a blank line when timestamp is at position zero")
+  func timestampNewlinesAtStart() throws {
+    let episode = try Create.unsavedEpisode(
+      description: "00:00 Intro01:00 Next"
+    )
+    let result = try #require(episode.descriptionWithNewlines)
+    #expect(!result.hasPrefix("\n"))
+    #expect(result.hasPrefix("00:00 Intro"))
+    #expect(result.contains("\n01:00 Next"))
+  }
+
+  @Test("does not match partial timestamps preceded by digits")
+  func timestampNewlinesNoPartialMatch() throws {
+    let episode = try Create.unsavedEpisode(
+      description: "Code 123:45 appeared"
+    )
+    let result = try #require(episode.descriptionWithNewlines)
+    #expect(!result.contains("\n23:45"))
+    #expect(!result.contains("\n3:45"))
+  }
+
+  @Test("handles mixed content where some timestamps have newlines and some do not")
+  func timestampNewlinesMixed() throws {
+    let episode = try Create.unsavedEpisode(
+      description: "00:00 Intro\n01:00 Topic A02:00 Topic B\n03:00 Wrap Up"
+    )
+    let result = try #require(episode.descriptionWithNewlines)
+    let lines = result.components(separatedBy: "\n").filter { !$0.isEmpty }
+    #expect(lines.count == 4)
+    #expect(lines[0] == "00:00 Intro")
+    #expect(lines[1] == "01:00 Topic A")
+    #expect(lines[2] == "02:00 Topic B")
+    #expect(lines[3] == "03:00 Wrap Up")
+  }
+
+  @Test("returns nil when description is nil")
+  func timestampNewlinesNilDescription() throws {
+    let episode = try Create.unsavedEpisode(description: nil)
+    #expect(episode.descriptionWithNewlines == nil)
+  }
 }

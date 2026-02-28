@@ -101,61 +101,15 @@ struct UnsavedEpisode:
 
   // MARK: - Chapters
 
-  static var timestampRegex: Regex<Substring> {
-    /(?:\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2})(?![\d:])/
-  }
-
-  // Parses a timestamp string (e.g. "2:15", "14:30", "1:02:15") into total seconds.
-  static func parseTimestamp(_ timestamp: some StringProtocol) -> Int? {
-    let components = timestamp.split(separator: ":")
-
-    guard components.count >= 2, components.count <= 3 else { return nil }
-
-    guard components.count == 3 else {
-      guard let minutes = Int(components[0]),
-        let seconds = Int(components[1])
-      else { return nil }
-      return minutes * 60 + seconds
-    }
-
-    guard let hours = Int(components[0]),
-      let minutes = Int(components[1]),
-      let seconds = Int(components[2])
-    else { return nil }
-
-    return hours * 3600 + minutes * 60 + seconds
-  }
-
-  // Formats a timestamp string without unnecessary leading zeros.
-  // Examples: "00:08:23" → "8:23", "0:40" → "0:40", "1:05:30" → "1:05:30"
-  static func formatTimestamp(_ timestamp: some StringProtocol) -> String {
-    func padded(_ value: Int) -> String {
-      value < 10 ? "0\(value)" : "\(value)"
-    }
-
-    guard let totalSeconds = parseTimestamp(timestamp) else {
-      return String(timestamp)
-    }
-
-    let hours = totalSeconds / 3600
-    let minutes = (totalSeconds % 3600) / 60
-    let seconds = totalSeconds % 60
-
-    guard hours > 0 else {
-      return "\(minutes):\(padded(seconds))"
-    }
-    return "\(hours):\(padded(minutes)):\(padded(seconds))"
-  }
-
   // Parses timestamps (e.g. "2:15", "14:30", "1:02:15") from the description
   // and returns them as sorted CMTimes. Returns nil if none are found.
   var chapters: [CMTime]? {
     guard let description else { return nil }
 
     var seen = Set<Int>()
-    let times: [CMTime] = description.matches(of: Self.timestampRegex)
+    let times: [CMTime] = description.matches(of: Timestamp.regex)
       .compactMap { match in
-        guard let totalSeconds = Self.parseTimestamp(match.output) else { return nil }
+        guard let totalSeconds = Timestamp.parse(match.output) else { return nil }
 
         // Skip zero timestamps (episode start) and duplicates.
         guard totalSeconds > 0, seen.insert(totalSeconds).inserted else { return nil }

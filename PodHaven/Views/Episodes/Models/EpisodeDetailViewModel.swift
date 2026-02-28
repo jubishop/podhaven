@@ -141,7 +141,7 @@ import UIKit
   }
 
   func playAt(timestamp: String) {
-    guard let seconds = UnsavedEpisode.parseTimestamp(timestamp) else {
+    guard let seconds = Timestamp.parse(timestamp) else {
       Self.log.warning("Failed to parse timestamp: \(timestamp)")
       return
     }
