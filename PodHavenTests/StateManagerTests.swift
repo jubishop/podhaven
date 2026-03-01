@@ -301,7 +301,7 @@ actor StateManagerTests {
     let updateCount = Counter()
 
     let task = Task {
-      for await episodes in sharedState.queuedPodcastEpisodesStream() {
+      for await episodes in sharedState.$queuedPodcastEpisodes.stream() {
         await updateCount(episodes.count)
       }
     }
@@ -336,7 +336,7 @@ actor StateManagerTests {
     let observedEpisodes = ActorContainer<[PodcastEpisode]>()
 
     let task = Task {
-      for await episodes in sharedState.queuedPodcastEpisodesStream() {
+      for await episodes in sharedState.$queuedPodcastEpisodes.stream() {
         await observedEpisodes.set(episodes)
       }
     }

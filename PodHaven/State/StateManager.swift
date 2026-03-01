@@ -5,7 +5,6 @@ import FactoryKit
 import Foundation
 import GRDB
 import Logging
-import Sharing
 import UIKit
 
 extension Container {
@@ -42,7 +41,7 @@ struct StateManager: Sendable {
 
     // Set onDeck and currentEpisodeID immediately so callers can rely on them being set
     sharedState.setCurrentEpisodeID(podcastEpisode.id)
-    sharedState.$onDeck.withLock { $0 = OnDeck(podcastEpisode: podcastEpisode) }
+    sharedState.$onDeck.new(OnDeck(podcastEpisode: podcastEpisode))
 
     // Observe for updates (e.g., if episode is marked finished, cached, etc.)
     onDeckObservationTask(
@@ -52,7 +51,7 @@ struct StateManager: Sendable {
             guard !Task.isCancelled else { return }
 
             if let episode {
-              sharedState.$onDeck.withLock { onDeck in
+              sharedState.$onDeck.update { onDeck in
                 onDeck = OnDeck(
                   podcastEpisode: episode,
                   artwork: onDeck?.artwork,
@@ -60,7 +59,7 @@ struct StateManager: Sendable {
                 )
               }
             } else {
-              sharedState.$onDeck.withLock { $0 = nil }
+              sharedState.$onDeck.new(nil)
             }
           }
         } catch {
@@ -72,13 +71,13 @@ struct StateManager: Sendable {
 
   func clearOnDeck() {
     onDeckObservationTask()?.cancel()
-    sharedState.$onDeck.withLock { $0 = nil }
+    sharedState.$onDeck.new(nil)
   }
 
   // MARK: - Artwork
 
   func setArtwork(_ artwork: UIImage, for episodeID: Episode.ID) {
-    sharedState.$onDeck.withLock { onDeck in
+    sharedState.$onDeck.update { onDeck in
       guard onDeck?.id == episodeID else { return }
       onDeck?.artwork = artwork
     }
@@ -87,7 +86,7 @@ struct StateManager: Sendable {
   // MARK: - Current Time
 
   func setCurrentTime(_ currentTime: CMTime) {
-    sharedState.$onDeck.withLock { $0?.currentTime = currentTime }
+    sharedState.$onDeck.update { $0?.currentTime = currentTime }
   }
 
   // MARK: - Observations

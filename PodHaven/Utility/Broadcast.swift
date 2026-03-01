@@ -1,17 +1,19 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
+import Observation
 
-// A thread-safe value holder that broadcasts changes to multiple async stream consumers.
+// A thread-safe, observable value holder that broadcasts changes to multiple
+// async stream consumers and SwiftUI views.
 //
 // Usage:
 // ```swift
 // let broadcast = Broadcast<Int>(0)
 //
-// // Read current value
+// // Read current value (also registers SwiftUI observation)
 // print(broadcast.current) // 0
 //
-// // Consumer
+// // Consumer (async stream)
 // Task {
 //   for await value in broadcast.stream() {
 //     print("Received: \(value)")
@@ -24,7 +26,8 @@ import Foundation
 // // Update value in place
 // broadcast.update { $0 += 1 }
 // ```
-final class Broadcast<T: Sendable>: Sendable {
+final class Broadcast<T: Sendable>: Sendable, Observable {
+  private let registrar = ObservationRegistrar()
   private let state: ThreadSafe<State>
 
   private struct State: Sendable {
@@ -41,28 +44,34 @@ final class Broadcast<T: Sendable>: Sendable {
   // MARK: - Current Value
 
   // The current value held by the broadcast.
+  // Reading this property registers observation for SwiftUI views.
   var current: T {
-    state().current
+    registrar.access(self, keyPath: \.current)
+    return state().current
   }
 
   // MARK: - Broadcasting
 
   // Replaces the current value entirely and broadcasts to all streams.
   func new(_ value: T) {
-    state { state in
-      state.current = value
-      for continuation in state.continuations.values {
-        continuation.yield(value)
+    registrar.withMutation(of: self, keyPath: \.current) {
+      state { state in
+        state.current = value
+        for continuation in state.continuations.values {
+          continuation.yield(value)
+        }
       }
     }
   }
 
   // Updates the current value using a closure and broadcasts the result.
   func update(_ transform: (inout T) -> Void) {
-    state { state in
-      transform(&state.current)
-      for continuation in state.continuations.values {
-        continuation.yield(state.current)
+    registrar.withMutation(of: self, keyPath: \.current) {
+      state { state in
+        transform(&state.current)
+        for continuation in state.continuations.values {
+          continuation.yield(state.current)
+        }
       }
     }
   }
@@ -84,5 +93,25 @@ final class Broadcast<T: Sendable>: Sendable {
         self?.state { _ = $0.continuations.removeValue(forKey: id) }
       }
     }
+  }
+}
+
+// Property wrapper that pairs a Broadcast with a clean read API.
+// `wrappedValue` returns the current value (with SwiftUI observation),
+// `projectedValue` ($property) exposes the Broadcast for .new(), .update(), .stream().
+@propertyWrapper
+struct ObservableBroadcast<T: Sendable>: Sendable {
+  private let broadcast: Broadcast<T>
+
+  init(wrappedValue: T) {
+    broadcast = Broadcast(wrappedValue)
+  }
+
+  var wrappedValue: T {
+    broadcast.current
+  }
+
+  var projectedValue: Broadcast<T> {
+    broadcast
   }
 }

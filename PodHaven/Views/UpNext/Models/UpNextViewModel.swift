@@ -76,7 +76,7 @@ import SwiftUI
   func execute() async {
     Self.log.debug("executing UpNextViewModel")
 
-    for await podcastEpisodes in sharedState.queuedPodcastEpisodesStream() {
+    for await podcastEpisodes in sharedState.$queuedPodcastEpisodes.stream() {
       guard !Task.isCancelled else { return }
       Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
 

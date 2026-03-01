@@ -3,7 +3,6 @@
 import AVFoundation
 import FactoryKit
 import Foundation
-import Sharing
 import SwiftUI
 import Tagged
 
@@ -188,7 +187,7 @@ struct PlayBarPreview: View {
         sharedState.setPlaybackStatus(status)
 
         let podcastEpisode = try! await Create.podcastEpisode()
-        sharedState.$onDeck.withLock { $0 = OnDeck(podcastEpisode: podcastEpisode, artwork: image) }
+        sharedState.$onDeck.new(OnDeck(podcastEpisode: podcastEpisode, artwork: image))
 
         for _ in 1...10 {
           _ = try! await Create.podcastEpisode()

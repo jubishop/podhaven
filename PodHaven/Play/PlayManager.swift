@@ -911,7 +911,7 @@ final class PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await _ in sharedState.queuedPodcastEpisodesStream() {
+      for await _ in sharedState.$queuedPodcastEpisodes.stream() {
         Self.log.debug("queue changed")
         handleTrackBehaviorChange()
       }
