@@ -137,6 +137,7 @@ echo "$tag_message"
 echo ""
 git -C "$PROJECT_DIR" tag -a "$tag" -m "$tag_message"
 git -C "$PROJECT_DIR" push origin "$tag"
+gh release create "$tag" --title "$tag" --notes "$tag_message"
 
 # Clean up
 rm -rf "$PROJECT_DIR/build"
