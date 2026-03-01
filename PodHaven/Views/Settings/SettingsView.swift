@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
-import Sharing
 import SwiftUI
 
 struct SettingsView: View {
@@ -73,7 +72,7 @@ struct SettingsView: View {
             }
 
             Slider(
-              value: Binding(userSettings.$defaultPlaybackRate),
+              value: userSettings.$defaultPlaybackRate.binding,
               in: 0.8...2.0,
               step: 0.1
             )
@@ -93,7 +92,7 @@ struct SettingsView: View {
               Spacer()
             }
 
-            Picker("Next Track Behavior", selection: Binding(userSettings.$nextTrackBehavior)) {
+            Picker("Next Track Behavior", selection: userSettings.$nextTrackBehavior.binding) {
               ForEach(UserSettings.NextTrackBehavior.allCases) { behavior in
                 Text(behavior.rawValue).tag(behavior)
               }
@@ -112,7 +111,7 @@ struct SettingsView: View {
               Spacer()
             }
 
-            Picker("Skip Forward Interval", selection: Binding(userSettings.$skipForwardInterval)) {
+            Picker("Skip Forward Interval", selection: userSettings.$skipForwardInterval.binding) {
               Text("5 sec").tag(5.0)
               Text("10 sec").tag(10.0)
               Text("15 sec").tag(15.0)
@@ -136,7 +135,7 @@ struct SettingsView: View {
               Spacer()
             }
 
-            Picker("Skip Backward Interval", selection: Binding(userSettings.$skipBackwardInterval))
+            Picker("Skip Backward Interval", selection: userSettings.$skipBackwardInterval.binding)
             {
               Text("5 sec").tag(5.0)
               Text("10 sec").tag(10.0)
@@ -157,7 +156,7 @@ struct SettingsView: View {
               if you accidentally seek.
               """
           ) {
-            Toggle("Enable Undo Seek", isOn: Binding(userSettings.$enableUndoSeek))
+            Toggle("Enable Undo Seek", isOn: userSettings.$enableUndoSeek.binding)
           }
         }
 
@@ -173,7 +172,7 @@ struct SettingsView: View {
               Text("Appearance Mode")
             }
 
-            Picker("", selection: Binding(userSettings.$appearanceMode)) {
+            Picker("", selection: userSettings.$appearanceMode.binding) {
               Text("System").tag(UserSettings.AppearanceMode.system)
               Text("Light").tag(UserSettings.AppearanceMode.light)
               Text("Dark").tag(UserSettings.AppearanceMode.dark)
@@ -189,7 +188,7 @@ struct SettingsView: View {
               Scroll back up to reveal them again.
               """
           ) {
-            Toggle("Shrink Playbar", isOn: Binding(userSettings.$shrinkPlayBarOnScroll))
+            Toggle("Shrink Playbar", isOn: userSettings.$shrinkPlayBarOnScroll.binding)
           }
 
           SettingsRow(
@@ -201,7 +200,7 @@ struct SettingsView: View {
           ) {
             Toggle(
               "Show Time Remaining",
-              isOn: Binding(userSettings.$showTimeRemainingInEpisodeLists)
+              isOn: userSettings.$showTimeRemainingInEpisodeLists.binding
             )
           }
         }
@@ -213,7 +212,7 @@ struct SettingsView: View {
               the currently playing episode will be shown at the top of the Up Next queue.
               """
           ) {
-            Toggle("Show Now Playing", isOn: Binding(userSettings.$showNowPlayingInUpNext))
+            Toggle("Show Now Playing", isOn: userSettings.$showNowPlayingInUpNext.binding)
           }
 
           VStack(alignment: .leading, spacing: 24) {
@@ -229,7 +228,7 @@ struct SettingsView: View {
             }
             Toggle(
               "Always Show Podcast Art",
-              isOn: Binding(userSettings.$alwaysShowPodcastImageInUpNext)
+              isOn: userSettings.$alwaysShowPodcastImageInUpNext.binding
             )
             .labelsHidden()
           }
@@ -257,7 +256,7 @@ struct SettingsView: View {
               step: 50,
               onEditingChanged: { editing in
                 if !editing {
-                  userSettings.$maxQueueLength.withLock { $0 = Int(tempMaxQueueLength) }
+                  userSettings.$maxQueueLength.new(Int(tempMaxQueueLength))
                   Task {
                     do {
                       try await queue.enforceMaxQueueLength()
@@ -290,7 +289,7 @@ struct SettingsView: View {
               }
             }
             Slider(
-              value: Binding(userSettings.$cacheSizeLimitGB),
+              value: userSettings.$cacheSizeLimitGB.binding,
               in: 0.5...20.0,
               step: 0.5
             )

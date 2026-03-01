@@ -7,7 +7,6 @@ import Foundation
 import MediaPlayer
 import Nuke
 import Semaphore
-import Sharing
 import Testing
 
 @testable import PodHaven

@@ -5,7 +5,6 @@ import FactoryKit
 import Foundation
 import Logging
 import MediaPlayer
-import Sharing
 import Tagged
 
 enum NowPlayingInfo {

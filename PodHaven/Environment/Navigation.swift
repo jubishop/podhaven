@@ -4,7 +4,6 @@ import FactoryKit
 import GRDB
 import IdentifiedCollections
 import Logging
-import Sharing
 import SwiftNavigation
 import SwiftUI
 import UIKit
@@ -31,21 +30,21 @@ extension Container {
   }
 
   @MainActor @Observable
-  class SavedPathManager<TopDestination: Codable & Hashable & Sendable>: ManagingPath {
-    @ObservationIgnored @Shared private var topDestination: TopDestination?
+  class SavedPathManager<TopDestination: DefaultsStorable & Hashable>: ManagingPath {
+    @ObservationIgnored @PersistedBroadcast private var topDestination: TopDestination?
 
     var path: [Destination] = [] {
       didSet {
         guard let first = path.first
         else {
-          $topDestination.withLock { $0 = nil }
+          $topDestination.new(nil)
           return
         }
 
         guard let extracted = extractTopDestination(first)
         else { Assert.fatal("Top view isn't the expected destination type?") }
 
-        $topDestination.withLock { $0 = extracted }
+        $topDestination.new(extracted)
       }
     }
 
@@ -57,7 +56,7 @@ extension Container {
       extractTopDestination: @escaping (Destination) -> TopDestination?,
       makeDestination: @escaping (TopDestination) -> Destination
     ) {
-      self._topDestination = Shared(.appStorage(storageKey))
+      self._topDestination = PersistedBroadcast(wrappedValue: nil, storageKey)
       self.extractTopDestination = extractTopDestination
       self.makeDestination = makeDestination
 
@@ -103,11 +102,11 @@ extension Container {
     case tags
   }
 
-  enum EpisodesViewType: String, CaseIterable, Codable {
+  enum EpisodesViewType: String, DefaultsStorable, CaseIterable {
     case recentEpisodes, finished, unqueued, cached, saved, unfinished, previouslyQueued
   }
 
-  enum PodcastsViewType: Codable, Hashable, Sendable {
+  enum PodcastsViewType: DefaultsStorable, Codable, Hashable, Sendable {
     case subscribed
     case unsubscribed
     case tag(Tag.ID)

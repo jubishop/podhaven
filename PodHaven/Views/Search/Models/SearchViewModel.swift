@@ -5,7 +5,6 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
-import Sharing
 import SwiftUI
 import Tagged
 import UIKit
@@ -118,7 +117,7 @@ class SearchViewModel:
 
   // MARK: - State Management
 
-  @ObservationIgnored @Shared(.appStorage("SearchView-displayMode"))
+  @ObservationIgnored @PersistedBroadcast("SearchView-displayMode")
   var displayMode: PodcastDisplayMode = .grid
 
   enum LoadingState: Equatable {

@@ -5,7 +5,6 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
-import Sharing
 import SwiftUI
 
 @Observable @MainActor
@@ -26,7 +25,7 @@ class EpisodesListViewModel:
 
   var episodeList = PowerList<PodcastEpisode>()
 
-  enum SortMethod: String, SortingMethod {
+  enum SortMethod: String, DefaultsStorable, SortingMethod {
     case newestFirst
     case oldestFirst
     case longest
@@ -80,10 +79,10 @@ class EpisodesListViewModel:
   }
   let allSortMethods = SortMethod.allCases
 
-  @ObservationIgnored @Shared private var storedSortMethod: SortMethod
+  @ObservationIgnored @PersistedBroadcast private var storedSortMethod: SortMethod
   var currentSortMethod: SortMethod {
     get { storedSortMethod }
-    set { $storedSortMethod.withLock { $0 = newValue } }
+    set { $storedSortMethod.new(newValue) }
   }
 
   // MARK: - Filter Text
@@ -120,11 +119,10 @@ class EpisodesListViewModel:
   // MARK: - Initialization
 
   init(title: String, filter: SQLExpression = AppDB.NoOp) {
-    let sortMethod = Shared(
+    self._storedSortMethod = PersistedBroadcast(
       wrappedValue: SortMethod.newestFirst,
-      .appStorage("EpisodesList-sortMethod-\(title)")
+      "EpisodesList-sortMethod-\(title)"
     )
-    self._storedSortMethod = sortMethod
     self.title = title
     self.filter = filter
   }

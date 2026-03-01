@@ -3,7 +3,6 @@
 import AVFoundation
 import FactoryKit
 import Logging
-import Sharing
 import SwiftUI
 
 @main
@@ -51,7 +50,7 @@ struct PodHavenApp: App {
             await startServices()
           }
 
-          sharedState.$isActive.withLock { $0 = newPhase == .active }
+          sharedState.$isActive.new(newPhase == .active)
           if didStartServices {
             appDelegate.handleScenePhaseChange(to: newPhase)
             refreshScheduler.handleScenePhaseChange(to: newPhase)
@@ -123,7 +122,7 @@ struct PodHavenApp: App {
     // Initial environment and logging already configured in AppDelegate
     await AppInfo.finalizeEnvironment()
     guard !Task.isCancelled else { return }
-    
+
     await userNotificationManager.initialize()
     guard !Task.isCancelled else { return }
 

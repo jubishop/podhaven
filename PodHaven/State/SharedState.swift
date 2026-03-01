@@ -4,7 +4,6 @@ import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Logging
-import Sharing
 import Tagged
 
 extension Container {
@@ -18,13 +17,19 @@ struct SharedState: Sendable {
 
   private static let log = Log.as(LogSubsystem.State.shared)
 
-  @Shared(.appStorage("currentEpisodeID")) private var storedCurrentEpisodeID: Int?
-  @Shared(.inMemory("downloadProgress")) var downloadProgress: [Episode.ID: Double] = [:]
-  @Shared(.inMemory("isActive")) var isActive: Bool = true
-  @Shared(.inMemory("onDeck")) var onDeck: OnDeck?
-  @Shared(.inMemory("playbackStatus")) var playbackStatus: PlaybackStatus = .stopped
-  @Shared(.inMemory("playRate")) var playRate: Float = 1.0
-  @Shared(.inMemory("tags")) var tags: IdentifiedArrayOf<Tag> = []
+  // MARK: - Persisted State
+
+  @PersistedBroadcast("currentEpisodeID") private var storedCurrentEpisodeID: Int? = nil
+
+  // MARK: - In-Memory State (Observable Broadcasts)
+
+  @ObservableBroadcast var downloadProgress: [Episode.ID: Double] = [:]
+  @ObservableBroadcast var isActive: Bool = true
+  @ObservableBroadcast var onDeck: OnDeck? = nil
+  @ObservableBroadcast var playbackStatus: PlaybackStatus = .stopped
+  @ObservableBroadcast var playRate: Float = 1.0
+  @ObservableBroadcast var tags: IdentifiedArrayOf<Tag> = []
+  @ObservableBroadcast var queuedPodcastEpisodes: [PodcastEpisode] = []
 
   // MARK: - Current Episode ID (Persisted)
 
@@ -36,13 +41,11 @@ struct SharedState: Sendable {
   }
 
   func setCurrentEpisodeID(_ episodeID: Episode.ID?) {
-    $storedCurrentEpisodeID.withLock { stored in
-      guard let newEpisodeID = episodeID else {
-        stored = nil
-        return
-      }
-      stored = Int(exactly: newEpisodeID.rawValue)
+    guard let newEpisodeID = episodeID else {
+      $storedCurrentEpisodeID.new(nil)
+      return
     }
+    $storedCurrentEpisodeID.new(Int(exactly: newEpisodeID.rawValue))
   }
 
   // MARK: - Download Progress
@@ -54,35 +57,20 @@ struct SharedState: Sendable {
     )
 
     Self.log.trace("updating progress for \(episodeID): \(progress)")
-    $downloadProgress.withLock { $0[episodeID] = progress }
+    $downloadProgress.update { $0[episodeID] = progress }
   }
 
   func clearDownloadProgress(for episodeID: Episode.ID) {
     Self.log.debug("clearing progress for \(episodeID)")
-    _ = $downloadProgress.withLock { $0.removeValue(forKey: episodeID) }
+    $downloadProgress.update { _ = $0.removeValue(forKey: episodeID) }
   }
 
-  // MARK: - Queue State
-
-  private let queueBroadcast = Broadcast<[PodcastEpisode]>([])
-
-  var queuedPodcastEpisodes: [PodcastEpisode] {
-    queueBroadcast.current
-  }
+  // MARK: - Queue
 
   func setQueuedPodcastEpisodes(_ episodes: [PodcastEpisode]) {
-    queueBroadcast.new(episodes)
-
+    $queuedPodcastEpisodes.new(episodes)
     Task { await widgetSnapshotWriter.queueChanged() }
   }
-
-  // MARK: - Queue Streams
-
-  func queuedPodcastEpisodesStream() -> AsyncStream<[PodcastEpisode]> {
-    queueBroadcast.stream()
-  }
-
-  // MARK: - Queue Derived Properties
 
   var queueCount: Int {
     queuedPodcastEpisodes.count
@@ -111,18 +99,17 @@ struct SharedState: Sendable {
   // MARK: - State Setters
 
   func setPlaybackStatus(_ status: PlaybackStatus) {
-    $playbackStatus.withLock { $0 = status }
-
+    $playbackStatus.new(status)
     Task { await widgetSnapshotWriter.playbackStatusChanged() }
   }
 
   func setPlayRate(_ rate: Float) {
     guard rate > 0 else { return }
-    $playRate.withLock { $0 = rate }
+    $playRate.new(rate)
   }
 
   func setTags(_ tags: IdentifiedArrayOf<Tag>) {
-    $tags.withLock { $0 = tags }
+    $tags.new(tags)
   }
 
   // MARK: - Initialization

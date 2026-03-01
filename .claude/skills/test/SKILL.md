@@ -54,4 +54,5 @@ After applying fixes, re-run the same test scope from Step 1. Repeat Steps 2–4
 
 ## Rules
 
+- Always run tests with `-parallel-testing-enabled YES`. Never disable parallel testing.
 - If a failure requires architectural changes or is ambiguous, stop and explain the situation instead of guessing.

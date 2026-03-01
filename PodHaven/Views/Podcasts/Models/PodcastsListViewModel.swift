@@ -5,7 +5,6 @@ import Foundation
 import GRDB
 import IdentifiedCollections
 import Logging
-import Sharing
 import SwiftUI
 
 @Observable @MainActor
@@ -27,7 +26,7 @@ class PodcastsListViewModel:
 
   var podcastList: PowerList<PodcastWithEpisodeMetadata<Podcast>>
 
-  enum SortMethod: String, SortingMethod {
+  enum SortMethod: String, DefaultsStorable, SortingMethod {
     case byTitle
     case byMostRecentEpisode
     case byEpisodeCount
@@ -81,11 +80,11 @@ class PodcastsListViewModel:
   }
   let allSortMethods = SortMethod.allCases
 
-  @ObservationIgnored @Shared private var storedSortMethod: SortMethod
+  @ObservationIgnored @PersistedBroadcast private var storedSortMethod: SortMethod
   var currentSortMethod: SortMethod {
     get { storedSortMethod }
     set {
-      $storedSortMethod.withLock { $0 = newValue }
+      $storedSortMethod.new(newValue)
       podcastList.filterMethod = newValue.filterMethod
       podcastList.sortMethod = newValue.sortMethod
     }
@@ -93,7 +92,7 @@ class PodcastsListViewModel:
 
   // MARK: - State Management
 
-  @ObservationIgnored @Shared(.appStorage("PodcastsList-displayMode"))
+  @ObservationIgnored @PersistedBroadcast("PodcastsList-displayMode")
   var displayMode: PodcastDisplayMode = .grid
 
   let title: String
@@ -103,17 +102,17 @@ class PodcastsListViewModel:
   // MARK: - Initialization
 
   init(title: String, filter: @escaping PodcastFilter = { $0 }) {
-    let sortMethod = Shared(
+    let persisted = PersistedBroadcast(
       wrappedValue: SortMethod.byTitle,
-      .appStorage("PodcastsList-sortMethod-\(title)")
+      "PodcastsList-sortMethod-\(title)"
     )
-    self._storedSortMethod = sortMethod
+    self._storedSortMethod = persisted
 
     self.title = title
     self.filter = filter
     self.podcastList = PowerList(
-      filterMethod: sortMethod.wrappedValue.filterMethod,
-      sortMethod: sortMethod.wrappedValue.sortMethod
+      filterMethod: persisted.wrappedValue.filterMethod,
+      sortMethod: persisted.wrappedValue.sortMethod
     )
   }
 

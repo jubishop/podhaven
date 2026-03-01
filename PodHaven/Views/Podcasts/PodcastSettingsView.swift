@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
-import Sharing
 import SwiftUI
 
 struct PodcastSettingsView: View {
@@ -200,7 +199,7 @@ struct PodcastSettingsView: View {
     @State private var viewModel: PodcastDetailViewModel?
 
     init() {
-      Container.shared.userSettings().$defaultPlaybackRate.withLock { $0 = 1.5 }
+      Container.shared.userSettings().$defaultPlaybackRate.new(1.5)
     }
 
     var body: some View {

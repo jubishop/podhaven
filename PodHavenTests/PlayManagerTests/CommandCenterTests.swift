@@ -417,7 +417,7 @@ import Testing
 
   @Test("skipInterval mode does not set queue info in nowPlayingInfo")
   func skipIntervalModeDoesNotSetQueueInfoInNowPlayingInfo() async throws {
-    userSettings.$nextTrackBehavior.withLock { $0 = .skipInterval }
+    userSettings.$nextTrackBehavior.new(.skipInterval)
 
     await playManager.start()
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -438,7 +438,7 @@ import Testing
 
   @Test("skipInterval mode keeps next and previous track commands always enabled")
   func skipIntervalModeKeepsNextAndPreviousTrackCommandsAlwaysEnabled() async throws {
-    userSettings.$nextTrackBehavior.withLock { $0 = .skipInterval }
+    userSettings.$nextTrackBehavior.new(.skipInterval)
 
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
@@ -462,7 +462,7 @@ import Testing
 
   @Test("skipInterval mode nextTrack command seeks forward 30 seconds")
   func skipIntervalModeNextTrackCommandSeeksForward30Seconds() async throws {
-    userSettings.$nextTrackBehavior.withLock { $0 = .skipInterval }
+    userSettings.$nextTrackBehavior.new(.skipInterval)
 
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
@@ -495,7 +495,7 @@ import Testing
 
   @Test("skipInterval mode previousTrack command seeks backward 15 seconds")
   func skipIntervalModePreviousTrackCommandSeeksBackward15Seconds() async throws {
-    userSettings.$nextTrackBehavior.withLock { $0 = .skipInterval }
+    userSettings.$nextTrackBehavior.new(.skipInterval)
 
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
@@ -528,7 +528,7 @@ import Testing
 
   @Test("skipInterval mode does not advance to next episode on nextTrack")
   func skipIntervalModeDoesNotAdvanceToNextEpisodeOnNextTrack() async throws {
-    userSettings.$nextTrackBehavior.withLock { $0 = .skipInterval }
+    userSettings.$nextTrackBehavior.new(.skipInterval)
 
     await playManager.start()
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -582,7 +582,7 @@ import Testing
     )
     #expect(mpRemoteCommandCenter.previousTrack.isEnabled == false)
 
-    userSettings.$nextTrackBehavior.withLock { $0 = .skipInterval }
+    userSettings.$nextTrackBehavior.new(.skipInterval)
 
     try await Wait.until(
       {
@@ -593,7 +593,7 @@ import Testing
       { "Expected both next/previous track to be enabled in skipInterval mode" }
     )
 
-    userSettings.$nextTrackBehavior.withLock { $0 = .nextEpisode }
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
 
     try await Wait.until(
       { @MainActor in self.mpRemoteCommandCenter.previousTrack.isEnabled == false },
@@ -624,7 +624,7 @@ import Testing
     )
 
     // Switch to skip-interval behavior and verify we stay on the same episode when using next track.
-    userSettings.$nextTrackBehavior.withLock { $0 = .skipInterval }
+    userSettings.$nextTrackBehavior.new(.skipInterval)
     try await PlayHelpers.waitForNowPlayingInfo(
       key: MPNowPlayingInfoPropertyPlaybackQueueIndex,
       value: nil
@@ -642,7 +642,7 @@ import Testing
     #expect(PlayHelpers.nowPlayingCurrentTime == expectedSkipTime)
 
     // Switching back to next-episode should dequeue to the queued episode.
-    userSettings.$nextTrackBehavior.withLock { $0 = .nextEpisode }
+    userSettings.$nextTrackBehavior.new(.nextEpisode)
     mpRemoteCommandCenter.fireNextTrack()
 
     try await PlayHelpers.waitForOnDeck(queuedEpisode)

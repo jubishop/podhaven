@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2026
 
 import AppIntents
-
 import FactoryKit
 
 struct SkipForwardIntent: AudioPlaybackIntent {

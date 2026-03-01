@@ -7,7 +7,6 @@ import GRDB
 import IdentifiedCollections
 import Logging
 import Nuke
-import Sharing
 import Tagged
 import UIKit
 
@@ -165,7 +164,7 @@ struct CacheManager {
     Self.log.debug("startOnDeckObservation: starting")
 
     Task(priority: .utility) {
-      for await onDeck in sharedState.$onDeck.publisher.values {
+      for await onDeck in sharedState.$onDeck.stream() {
         await handleOnDeckChange(onDeck)
       }
     }
@@ -199,7 +198,7 @@ struct CacheManager {
     Self.log.debug("startQueueObservation: starting")
 
     Task(priority: .utility) {
-      for await episodes in sharedState.queuedPodcastEpisodesStream() {
+      for await episodes in sharedState.$queuedPodcastEpisodes.stream() {
         let queuedEpisodeIDs = Set(episodes.map(\.episode.id))
         await handleQueueChange(queuedEpisodeIDs)
       }

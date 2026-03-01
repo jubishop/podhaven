@@ -16,7 +16,6 @@
 		8B4C20062DD5A3770027FCDA /* SavedMacro in Frameworks */ = {isa = PBXBuildFile; productRef = 8B4C20052DD5A3770027FCDA /* SavedMacro */; };
 		8B7DAA1E2D3F1294000E9153 /* Tagged in Frameworks */ = {isa = PBXBuildFile; productRef = 8B7DAA1D2D3F1294000E9153 /* Tagged */; };
 		8B80C7C62E2186EB007A7D1B /* SwiftNavigation in Frameworks */ = {isa = PBXBuildFile; productRef = 8B80C7C52E2186EB007A7D1B /* SwiftNavigation */; };
-		8B84776B2DC167A200C6C2A5 /* Sharing in Frameworks */ = {isa = PBXBuildFile; productRef = 8B84776A2DC167A200C6C2A5 /* Sharing */; };
 		8B89D16B2DD57A3500E6B96E /* FactoryKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8B89D16A2DD57A3500E6B96E /* FactoryKit */; };
 		8B9B8B2C2DCBB25500E574E6 /* XMLCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9B8B282DCBB25500E574E6 /* XMLCoder */; };
 		8B9B8EE62DCD552B00E574E6 /* FactoryTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9B8EE52DCD552B00E574E6 /* FactoryTesting */; };
@@ -303,7 +302,6 @@
 				8BE319E92D0E22D8009F48C9 /* Semaphore in Frameworks */,
 				8B80C7C62E2186EB007A7D1B /* SwiftNavigation in Frameworks */,
 				8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */,
-				8B84776B2DC167A200C6C2A5 /* Sharing in Frameworks */,
 				78467F52904B4485ACAE3505 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -465,7 +463,6 @@
 				49CAAA44B9304A9F8C8FEEC8 /* Sentry */,
 				8B2AC03C2D25D2F700DB7FE5 /* XMLCoder */,
 				8B7DAA1D2D3F1294000E9153 /* Tagged */,
-				8B84776A2DC167A200C6C2A5 /* Sharing */,
 				8B89D16A2DD57A3500E6B96E /* FactoryKit */,
 				8B4C20052DD5A3770027FCDA /* SavedMacro */,
 				8BD728BD2DDBAE9B00763D7F /* ReadableErrorMacro */,
@@ -547,7 +544,6 @@
 				8B2AC03B2D25D2F700DB7FE5 /* XCRemoteSwiftPackageReference "XMLCoder" */,
 				8B2510D92D3317840033A510 /* XCRemoteSwiftPackageReference "Factory" */,
 				8B7DAA1C2D3F1294000E9153 /* XCRemoteSwiftPackageReference "swift-tagged" */,
-				8B8477692DC167A200C6C2A5 /* XCRemoteSwiftPackageReference "swift-sharing" */,
 				8B4866C32DD57215004D78DC /* XCLocalSwiftPackageReference "PodHavenMacros" */,
 				8BAE003A2DDE79A4008E40B2 /* XCRemoteSwiftPackageReference "swift-log" */,
 				8B80C7C42E2186EB007A7D1B /* XCRemoteSwiftPackageReference "swift-navigation" */,
@@ -1550,14 +1546,6 @@
 				kind = branch;
 			};
 		};
-		8B8477692DC167A200C6C2A5 /* XCRemoteSwiftPackageReference "swift-sharing" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/pointfreeco/swift-sharing";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 		8B950BDB2D01720500E1D1AF /* XCRemoteSwiftPackageReference "Nuke" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kean/Nuke";
@@ -1652,11 +1640,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8B80C7C42E2186EB007A7D1B /* XCRemoteSwiftPackageReference "swift-navigation" */;
 			productName = SwiftNavigation;
-		};
-		8B84776A2DC167A200C6C2A5 /* Sharing */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 8B8477692DC167A200C6C2A5 /* XCRemoteSwiftPackageReference "swift-sharing" */;
-			productName = Sharing;
 		};
 		8B89D16A2DD57A3500E6B96E /* FactoryKit */ = {
 			isa = XCSwiftPackageProductDependency;
