@@ -56,6 +56,12 @@ if ! command -v llm &>/dev/null; then
   exit 1
 fi
 
+# Require gh for creating GitHub releases
+if ! command -v gh &>/dev/null; then
+  echo "error: gh not found. Install with: brew install gh" >&2
+  exit 1
+fi
+
 # Preflight: block deploys from non-main branches
 branch=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD)
 if [[ "$branch" != "main" && "$FORCE" != true ]]; then
@@ -137,6 +143,7 @@ echo "$tag_message"
 echo ""
 git -C "$PROJECT_DIR" tag -a "$tag" -m "$tag_message"
 git -C "$PROJECT_DIR" push origin "$tag"
+gh release create "$tag" --title "$tag" --notes "$tag_message"
 
 # Clean up
 rm -rf "$PROJECT_DIR/build"
