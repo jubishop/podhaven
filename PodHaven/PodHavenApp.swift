@@ -23,6 +23,7 @@ struct PodHavenApp: App {
   @DynamicInjected(\.userNotificationManager) private var userNotificationManager
   @DynamicInjected(\.userSettings) private var userSettings
   @DynamicInjected(\.widgetService) private var widgetService
+  @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
 
   @State private var configuringEnvironment = false
   @State private var environmentConfigured = false
@@ -132,6 +133,7 @@ struct PodHavenApp: App {
     Self.log.debug("Build version: \(AppInfo.version) (\(AppInfo.buildNumber))")
 
     stateManager.start()
+    widgetSnapshotWriter.start()
     environmentConfigured = true
   }
 

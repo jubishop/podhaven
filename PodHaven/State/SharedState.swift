@@ -13,8 +13,6 @@ extension Container {
 }
 
 struct SharedState: Sendable {
-  @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
-
   private static let log = Log.as(LogSubsystem.State.shared)
 
   // MARK: - Persisted State
@@ -69,7 +67,6 @@ struct SharedState: Sendable {
 
   func setQueuedPodcastEpisodes(_ episodes: [PodcastEpisode]) {
     $queuedPodcastEpisodes.new(episodes)
-    Task { await widgetSnapshotWriter.queueChanged() }
   }
 
   var queueCount: Int {
@@ -100,7 +97,6 @@ struct SharedState: Sendable {
 
   func setPlaybackStatus(_ status: PlaybackStatus) {
     $playbackStatus.new(status)
-    Task { await widgetSnapshotWriter.playbackStatusChanged() }
   }
 
   func setPlayRate(_ rate: Float) {

@@ -14,54 +14,71 @@ extension Container {
   }
 }
 
-actor WidgetSnapshotWriter {
-  @DynamicInjected(\.sharedState) private var sharedState
-  @DynamicInjected(\.sleeper) private var sleeper
+final class WidgetSnapshotWriter: Sendable {
+  private var sharedState: SharedState { Container.shared.sharedState() }
+  private var sleeper: any Sleepable { Container.shared.sleeper() }
 
   private static let log = Log.as(LogSubsystem.Widget.writer)
 
-  private var pendingReloadKinds: Set<String> = []
-  private var coalesceTask: Task<Void, Never>?
+  private let pendingReloadKinds = ThreadSafe<Set<String>>([])
+  private let coalesceTask = ThreadSafe<Task<Void, Never>?>(nil)
 
-  // MARK: - Snapshot Triggers
+  // MARK: - Start
 
-  func onDeckChanged() {
-    scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
-  }
+  func start() {
+    guard Function.neverCalled() else { return }
 
-  func artworkChanged() {
-    scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
-  }
+    Task { [weak self] in
+      guard let self else { return }
 
-  func playbackStatusChanged() {
-    scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
-  }
+      for await _ in sharedState.$onDeck.stream() {
+        scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
+      }
+    }
 
-  func queueChanged() {
-    scheduleWrite(reloadKinds: [WidgetInfo.queueKind])
+    Task { [weak self] in
+      guard let self else { return }
+
+      for await _ in sharedState.$playbackStatus.stream() {
+        scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
+      }
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      for await _ in sharedState.$queuedPodcastEpisodes.stream() {
+        scheduleWrite(reloadKinds: [WidgetInfo.queueKind])
+      }
+    }
   }
 
   // MARK: - Coalesced Writing
 
   private func scheduleWrite(reloadKinds: Set<String>) {
-    pendingReloadKinds.formUnion(reloadKinds)
+    pendingReloadKinds { $0.formUnion(reloadKinds) }
 
-    coalesceTask?.cancel()
-    coalesceTask = Task { [weak self] in
-      guard let self else { return }
-      try? await sleeper.sleep(for: .milliseconds(100))
-      guard !Task.isCancelled else { return }
-      await flush()
-    }
+    coalesceTask()?.cancel()
+    coalesceTask(
+      Task { [weak self] in
+        guard let self else { return }
+        try? await sleeper.sleep(for: .milliseconds(100))
+        guard !Task.isCancelled else { return }
+        flush()
+      }
+    )
   }
 
-  func flush() {
-    coalesceTask?.cancel()
-    coalesceTask = nil
+  private func flush() {
+    coalesceTask()?.cancel()
+    coalesceTask(nil)
 
-    let kindsToReload = pendingReloadKinds
-    pendingReloadKinds.removeAll()
+    let kindsToReload: Set<String> = pendingReloadKinds { kinds in
+      defer { kinds.removeAll() }
+      return kinds
+    }
 
+    guard !kindsToReload.isEmpty else { return }
     writeSnapshot(reloadKinds: kindsToReload)
   }
 
