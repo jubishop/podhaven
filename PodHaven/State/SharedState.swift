@@ -4,7 +4,6 @@ import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Logging
-import Sharing
 import Tagged
 
 extension Container {
@@ -18,7 +17,7 @@ struct SharedState: Sendable {
 
   // MARK: - Persisted State
 
-  @Shared(.appStorage("currentEpisodeID")) private var storedCurrentEpisodeID: Int?
+  @PersistedBroadcast("currentEpisodeID") private var storedCurrentEpisodeID: Int? = nil
 
   // MARK: - In-Memory State (Observable Broadcasts)
 
@@ -40,13 +39,11 @@ struct SharedState: Sendable {
   }
 
   func setCurrentEpisodeID(_ episodeID: Episode.ID?) {
-    $storedCurrentEpisodeID.withLock { stored in
-      guard let newEpisodeID = episodeID else {
-        stored = nil
-        return
-      }
-      stored = Int(exactly: newEpisodeID.rawValue)
+    guard let newEpisodeID = episodeID else {
+      $storedCurrentEpisodeID.new(nil)
+      return
     }
+    $storedCurrentEpisodeID.new(Int(exactly: newEpisodeID.rawValue))
   }
 
   // MARK: - Download Progress

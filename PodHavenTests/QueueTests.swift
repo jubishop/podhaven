@@ -468,7 +468,7 @@ class QueueTests {
   @Test("appending episodes is no-op when queue is full")
   func testAppendNoOpWhenQueueFull() async throws {
     // Set max queue length to 5 (current queue size)
-    userSettings.$maxQueueLength.withLock { $0 = 5 }
+    userSettings.$maxQueueLength.new(5)
 
     // Queue has 5 episodes: ["top", "midtop", "middle", "midbottom", "bottom"]
     // Try to append 1 new episode, should be a no-op
@@ -490,7 +490,7 @@ class QueueTests {
   @Test("appending multiple episodes adds as many as possible when would exceed max")
   func testAppendMultiplePartialWhenWouldExceedMax() async throws {
     // Set max queue length to 6
-    userSettings.$maxQueueLength.withLock { $0 = 6 }
+    userSettings.$maxQueueLength.new(6)
 
     // Queue has 5 episodes: ["top", "midtop", "middle", "midbottom", "bottom"]
     // Try to append 3 new episodes (would total 8), should add only the first 1
@@ -518,7 +518,7 @@ class QueueTests {
   @Test("appending multiple episodes when queue has room for some")
   func testAppendMultiplePartialFit() async throws {
     // Set max queue length to 7
-    userSettings.$maxQueueLength.withLock { $0 = 7 }
+    userSettings.$maxQueueLength.new(7)
 
     // Queue has 5 episodes: ["top", "midtop", "middle", "midbottom", "bottom"]
     // Try to append 3 new episodes (would total 8), should add only the first 2
@@ -548,7 +548,7 @@ class QueueTests {
   @Test("appending episodes works when under max queue length")
   func testAppendWorksWhenUnderMax() async throws {
     // Set max queue length to 10
-    userSettings.$maxQueueLength.withLock { $0 = 10 }
+    userSettings.$maxQueueLength.new(10)
 
     // Queue has 5 episodes, append 2 more (total 7, under limit)
     let episode1 = try await fetchEpisode("unqtop")
@@ -568,7 +568,7 @@ class QueueTests {
   @Test("unshifting episodes respects max queue length")
   func testUnshiftRespectsMaxQueueLength() async throws {
     // Set max queue length to 3
-    userSettings.$maxQueueLength.withLock { $0 = 3 }
+    userSettings.$maxQueueLength.new(3)
 
     // Queue has 5 episodes: ["top", "midtop", "middle", "midbottom", "bottom"]
     // Unshift 1 new episode, should remove 3 oldest episodes from the end
@@ -586,7 +586,7 @@ class QueueTests {
   @Test("unshifting multiple episodes respects max queue length")
   func testUnshiftMultipleRespectsMaxQueueLength() async throws {
     // Set max queue length to 4
-    userSettings.$maxQueueLength.withLock { $0 = 4 }
+    userSettings.$maxQueueLength.new(4)
 
     // Queue has 5 episodes: ["top", "midtop", "middle", "midbottom", "bottom"]
     // Unshift 2 new episodes, should remove 3 oldest episodes from the end
@@ -605,7 +605,7 @@ class QueueTests {
   @Test("max queue length at minimum value (50) allows appends")
   func testMaxQueueLengthMinimum() async throws {
     // Set to minimum allowed value
-    userSettings.$maxQueueLength.withLock { $0 = 50 }
+    userSettings.$maxQueueLength.new(50)
 
     // Queue has 5 episodes, append 1 more
     let newEpisode = try await fetchEpisode("unqtop")
@@ -624,7 +624,7 @@ class QueueTests {
     #expect(initialGUIDs == ["top", "midtop", "middle", "midbottom", "bottom"])
 
     // Lower the max queue length to 3
-    userSettings.$maxQueueLength.withLock { $0 = 3 }
+    userSettings.$maxQueueLength.new(3)
 
     // Call enforceMaxQueueLength to trim the queue
     try await queue.enforceMaxQueueLength()
@@ -650,7 +650,7 @@ class QueueTests {
     #expect(initialGUIDs == ["top", "midtop", "middle", "midbottom", "bottom"])
 
     // Set max to 10 (above current queue size)
-    userSettings.$maxQueueLength.withLock { $0 = 10 }
+    userSettings.$maxQueueLength.new(10)
 
     // Call enforceMaxQueueLength
     try await queue.enforceMaxQueueLength()

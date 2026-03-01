@@ -1,15 +1,6 @@
 {
-  "originHash" : "0830efbc1e9a7a4905d1ca3562c47d79cf5744c7220894a0340d6baa9d318f30",
+  "originHash" : "39c854b3f9f8864b2a32cc9df8f7c3c30e2eb582aab6cd91c19361bea889ae4e",
   "pins" : [
-    {
-      "identity" : "combine-schedulers",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/combine-schedulers",
-      "state" : {
-        "revision" : "fd16d76fd8b9a976d88bfb6cacc05ca8d19c91b6",
-        "version" : "1.1.0"
-      }
-    },
     {
       "identity" : "factory",
       "kind" : "remoteSourceControl",
@@ -74,15 +65,6 @@
       }
     },
     {
-      "identity" : "swift-clocks",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-clocks",
-      "state" : {
-        "revision" : "cc46202b53476d64e824e0b6612da09d84ffde8e",
-        "version" : "1.0.6"
-      }
-    },
-    {
       "identity" : "swift-collections",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections.git",
@@ -107,15 +89,6 @@
       "state" : {
         "revision" : "2a2a938798236b8fa0bc57c453ee9de9f9ec3ab0",
         "version" : "1.4.1"
-      }
-    },
-    {
-      "identity" : "swift-dependencies",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-dependencies",
-      "state" : {
-        "revision" : "c79f72b3e67a1eb64f66f76704c22ed6a5c1ed84",
-        "version" : "1.11.0"
       }
     },
     {
@@ -161,15 +134,6 @@
       "state" : {
         "revision" : "4f47ebafed5f0b0172cf5c661454fa8e28fb2ac4",
         "version" : "2.0.9"
-      }
-    },
-    {
-      "identity" : "swift-sharing",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-sharing",
-      "state" : {
-        "branch" : "main",
-        "revision" : "c6216db28b1f5e24737e47c8800ce361d6f7a0bc"
       }
     },
     {

@@ -3,9 +3,6 @@
 import FactoryKit
 import FactoryTesting
 import Foundation
-import GRDB
-import Sharing
-import SwiftUI
 import Testing
 
 @testable import PodHaven
@@ -13,12 +10,6 @@ import Testing
 @Suite("of Navigation tests", .container)
 @MainActor class NavigationTests {
   @DynamicInjected(\.navigation) private var navigation
-
-  @ObservationIgnored @Shared(.appStorage("navigationEpisodesTopDestination"))
-  private var topEpisodeDestination: Navigation.EpisodesViewType?
-
-  @ObservationIgnored @Shared(.appStorage("navigationPodcastsTopDestination"))
-  private var topPodcastDestination: Navigation.PodcastsViewType?
 
   @Test("that showEpisodes sets current tab and appends to episodes path")
   func showEpisodesNavigatesToCorrectTab() async throws {
@@ -63,17 +54,39 @@ import Testing
     )
   }
 
-  @Test("episodes tab restores stored top destination on activation")
-  func episodesTabRestoresStoredDestination() async throws {
-    $topEpisodeDestination.withLock { $0 = .cached }
-
+  @Test("episodes tab saves top destination when path changes")
+  func episodesTabSavesTopDestination() async throws {
+    navigation.showEpisodes(.cached)
     #expect(navigation.episodes.path == [.episodesViewType(.cached)])
+
+    navigation.showEpisodes(.finished)
+    #expect(navigation.episodes.path == [.episodesViewType(.finished)])
   }
 
-  @Test("podcasts tab restores stored top destination on activation")
-  func podcastsTabRestoresStoredDestination() async throws {
-    $topPodcastDestination.withLock { $0 = .subscribed }
-
+  @Test("podcasts tab saves top destination when path changes")
+  func podcastsTabSavesTopDestination() async throws {
+    navigation.showPodcastList(.subscribed)
     #expect(navigation.podcasts.path == [.podcastsViewType(.subscribed)])
+
+    navigation.showPodcastList(.unsubscribed)
+    #expect(navigation.podcasts.path == [.podcastsViewType(.unsubscribed)])
+  }
+
+  @Test("clearing episodes path resets top destination")
+  func clearingEpisodesPathResetsTopDestination() async throws {
+    navigation.showEpisodes(.cached)
+    #expect(navigation.episodes.path.count == 1)
+
+    navigation.episodes.path = []
+    #expect(navigation.episodes.path.isEmpty)
+  }
+
+  @Test("clearing podcasts path resets top destination")
+  func clearingPodcastsPathResetsTopDestination() async throws {
+    navigation.showPodcastList(.subscribed)
+    #expect(navigation.podcasts.path.count == 1)
+
+    navigation.podcasts.path = []
+    #expect(navigation.podcasts.path.isEmpty)
   }
 }

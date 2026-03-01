@@ -2,6 +2,7 @@
 
 import Foundation
 import Observation
+import SwiftUI
 
 // A thread-safe, observable value holder that broadcasts changes to multiple
 // async stream consumers and SwiftUI views.
@@ -29,6 +30,7 @@ import Observation
 final class Broadcast<T: Sendable>: Sendable, Observable {
   private let registrar = ObservationRegistrar()
   private let state: ThreadSafe<State>
+  private let onChange: (@Sendable (T) -> Void)?
 
   private struct State: Sendable {
     var current: T
@@ -37,7 +39,8 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 
   // MARK: - Initialization
 
-  init(_ initialValue: T) {
+  init(_ initialValue: T, onChange: (@Sendable (T) -> Void)? = nil) {
+    self.onChange = onChange
     state = ThreadSafe(State(current: initialValue))
   }
 
@@ -62,18 +65,21 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
         }
       }
     }
+    onChange?(value)
   }
 
   // Updates the current value using a closure and broadcasts the result.
   func update(_ transform: (inout T) -> Void) {
-    registrar.withMutation(of: self, keyPath: \.current) {
+    let updated: T = registrar.withMutation(of: self, keyPath: \.current) {
       state { state in
         transform(&state.current)
         for continuation in state.continuations.values {
           continuation.yield(state.current)
         }
+        return state.current
       }
     }
+    onChange?(updated)
   }
 
   // MARK: - Streaming
@@ -113,5 +119,40 @@ struct ObservableBroadcast<T: Sendable>: Sendable {
 
   var projectedValue: Broadcast<T> {
     broadcast
+  }
+}
+
+// Property wrapper that pairs a Broadcast with UserDefaults persistence.
+// Every mutation auto-persists via the onChange callback.
+// In test context, skips UserDefaults to prevent cross-test contamination.
+@propertyWrapper
+struct PersistedBroadcast<T: DefaultsStorable>: Sendable {
+  private let broadcast: Broadcast<T>
+
+  init(wrappedValue: T, _ key: String) {
+    if AppInfo.environment == .testing {
+      broadcast = Broadcast(wrappedValue)
+    } else {
+      broadcast = Broadcast(T.load(from: UserDefaults.standard, forKey: key) ?? wrappedValue) {
+        $0.store(to: UserDefaults.standard, forKey: key)
+      }
+    }
+  }
+
+  var wrappedValue: T {
+    get { broadcast.current }
+    nonmutating set { broadcast.new(newValue) }
+  }
+
+  var projectedValue: Broadcast<T> {
+    broadcast
+  }
+}
+
+// MARK: - Binding Support
+
+extension Broadcast {
+  @MainActor var binding: Binding<T> {
+    Binding(get: { self.current }, set: { self.new($0) })
   }
 }

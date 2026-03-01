@@ -7,7 +7,6 @@ import Foundation
 import GRDB
 import Logging
 import Nuke
-import Sharing
 import SwiftUI
 import Tagged
 
@@ -877,7 +876,7 @@ final class PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await _ in userSettings.$nextTrackBehavior.publisher.values {
+      for await _ in userSettings.$nextTrackBehavior.stream() {
         Self.log.debug("nextTrackBehavior changed")
         handleTrackBehaviorChange()
       }
@@ -885,7 +884,7 @@ final class PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await _ in userSettings.$defaultPlaybackRate.publisher.values {
+      for await _ in userSettings.$defaultPlaybackRate.stream() {
         Self.log.debug("defaultPlaybackRate changed")
         handleDefaultPlaybackRateChange()
       }
@@ -893,7 +892,7 @@ final class PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await _ in userSettings.$skipForwardInterval.publisher.values {
+      for await _ in userSettings.$skipForwardInterval.stream() {
         Self.log.debug("skipForwardInterval changed")
         handleSkipIntervalsChange()
       }
@@ -901,7 +900,7 @@ final class PlayManager {
 
     Task { [weak self] in
       guard let self else { return }
-      for await _ in userSettings.$skipBackwardInterval.publisher.values {
+      for await _ in userSettings.$skipBackwardInterval.stream() {
         Self.log.debug("skipBackwardInterval changed")
         handleSkipIntervalsChange()
       }

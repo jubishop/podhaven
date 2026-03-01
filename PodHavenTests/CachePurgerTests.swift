@@ -4,7 +4,6 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
-import Sharing
 import Testing
 
 @testable import PodHaven
@@ -14,9 +13,7 @@ import Testing
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
-
-  @ObservationIgnored @Shared(.appStorage("cacheSizeLimitGB"))
-  private var cacheSizeLimitGB: Double?
+  @DynamicInjected(\.userSettings) private var userSettings
 
   private var fileManager: FakeFileManager {
     Container.shared.fileManager() as! FakeFileManager
@@ -344,7 +341,7 @@ import Testing
   @Test("executePurge uses updated user settings cache limit")
   func executePurgeUsesUpdatedUserSettingsCacheLimit() async throws {
     // Set a custom cache limit of 500 MB (0.5 GB)
-    $cacheSizeLimitGB.withLock { $0 = 0.5 }
+    userSettings.$cacheSizeLimitGB.new(0.5)
 
     // Verify the cache purger uses the new limit
     let expectedLimit: Int64 = Int64(0.5 * 1024 * 1024 * 1024)  // 500 MB in bytes

@@ -117,7 +117,7 @@ import Testing
     Log.setTestSystem()
 
     // Set default playback rate before starting playManager
-    userSettings.$defaultPlaybackRate.withLock { $0 = 1.5 }
+    userSettings.$defaultPlaybackRate.new(1.5)
 
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
@@ -180,7 +180,7 @@ import Testing
     )
 
     // Change the default playback rate - current episode should keep its rate
-    userSettings.$defaultPlaybackRate.withLock { $0 = 1.5 }
+    userSettings.$defaultPlaybackRate.new(1.5)
 
     // The currently loaded episode should NOT update (it has its own defaultPlaybackRate)
     // Verify it still has 1.0
@@ -197,7 +197,7 @@ import Testing
     )
 
     // Change it again
-    userSettings.$defaultPlaybackRate.withLock { $0 = 2.0 }
+    userSettings.$defaultPlaybackRate.new(2.0)
 
     // Current episode should still have 1.5
     try await PlayHelpers.waitForNowPlayingInfo(

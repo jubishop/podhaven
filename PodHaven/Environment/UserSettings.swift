@@ -2,7 +2,6 @@
 
 import FactoryKit
 import Logging
-import Sharing
 import SwiftUI
 
 extension Container {
@@ -12,20 +11,20 @@ extension Container {
 }
 
 struct UserSettings: Sendable {
-  @Shared(.appStorage("shrinkPlayBarOnScroll")) var shrinkPlayBarOnScroll: Bool = true
-  @Shared(.appStorage("cacheSizeLimitGB")) var cacheSizeLimitGB: Double = 1.0
-  @Shared(.appStorage("defaultPlaybackRate")) var defaultPlaybackRate: Double = 1.0
-  @Shared(.appStorage("skipForwardInterval")) var skipForwardInterval: TimeInterval = 30
-  @Shared(.appStorage("skipBackwardInterval")) var skipBackwardInterval: TimeInterval = 15
-  @Shared(.appStorage("enableUndoSeek")) var enableUndoSeek: Bool = false
-  @Shared(.appStorage("maxQueueLength")) var maxQueueLength: Int = 200
-  @Shared(.appStorage("showNowPlayingInUpNext")) var showNowPlayingInUpNext: Bool = false
-  @Shared(.appStorage("alwaysShowPodcastImageInUpNext")) var alwaysShowPodcastImageInUpNext: Bool =
+  @PersistedBroadcast("shrinkPlayBarOnScroll") var shrinkPlayBarOnScroll: Bool = true
+  @PersistedBroadcast("cacheSizeLimitGB") var cacheSizeLimitGB: Double = 1.0
+  @PersistedBroadcast("defaultPlaybackRate") var defaultPlaybackRate: Double = 1.0
+  @PersistedBroadcast("skipForwardInterval") var skipForwardInterval: TimeInterval = 30
+  @PersistedBroadcast("skipBackwardInterval") var skipBackwardInterval: TimeInterval = 15
+  @PersistedBroadcast("enableUndoSeek") var enableUndoSeek: Bool = false
+  @PersistedBroadcast("maxQueueLength") var maxQueueLength: Int = 200
+  @PersistedBroadcast("showNowPlayingInUpNext") var showNowPlayingInUpNext: Bool = false
+  @PersistedBroadcast("alwaysShowPodcastImageInUpNext") var alwaysShowPodcastImageInUpNext: Bool =
     false
-  @Shared(.appStorage("showTimeRemainingInEpisodeLists")) var showTimeRemainingInEpisodeLists:
-    Bool = false
+  @PersistedBroadcast("showTimeRemainingInEpisodeLists") var showTimeRemainingInEpisodeLists: Bool =
+    false
 
-  enum AppearanceMode: String, CaseIterable, Identifiable {
+  enum AppearanceMode: String, DefaultsStorable, CaseIterable, Identifiable {
     case system = "System"
     case light = "Light"
     case dark = "Dark"
@@ -41,16 +40,16 @@ struct UserSettings: Sendable {
     }
   }
 
-  @Shared(.appStorage("appearanceMode")) var appearanceMode: AppearanceMode = .system
+  @PersistedBroadcast("appearanceMode") var appearanceMode: AppearanceMode = .system
 
-  enum NextTrackBehavior: String, CaseIterable, Identifiable {
+  enum NextTrackBehavior: String, DefaultsStorable, CaseIterable, Identifiable {
     case nextEpisode = "Next Episode"
     case skipInterval = "Skip Interval"
 
     var id: String { rawValue }
   }
 
-  @Shared(.appStorage("nextTrackBehavior")) var nextTrackBehavior: NextTrackBehavior = .nextEpisode
+  @PersistedBroadcast("nextTrackBehavior") var nextTrackBehavior: NextTrackBehavior = .nextEpisode
 
   private static let log = Log.as("UserSettings")
 
