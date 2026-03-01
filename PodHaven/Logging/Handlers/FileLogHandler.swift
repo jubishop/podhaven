@@ -38,10 +38,16 @@ struct FileLogHandler: LogHandler {
 
     func write(_ entry: Entry, synchronously: Bool) {
       if synchronously {
-        let result = queue.sync { self.writeEntry(entry) }
+        let result = queue.sync { writeEntry(entry) }
         report(result)
       } else {
-        queue.async { self.report(self.writeEntry(entry)) }
+        queue.async {
+          let result = self.writeEntry(entry)
+          Task { [weak self] in
+            guard let self else { return }
+            report(result)
+          }
+        }
       }
     }
 
