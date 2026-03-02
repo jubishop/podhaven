@@ -167,3 +167,30 @@ struct NowPlayingWidgetView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
+
+#Preview("Now Playing - Small", as: .systemSmall) {
+  NowPlayingWidget()
+} timeline: {
+  NowPlayingEntry.preview
+  NowPlayingEntry.empty
+}
+
+#Preview("Now Playing - Medium", as: .systemMedium) {
+  NowPlayingWidget()
+} timeline: {
+  NowPlayingEntry.preview
+  NowPlayingEntry.empty
+}
+
+#Preview("Now Playing - Loading", as: .systemMedium) {
+  NowPlayingWidget()
+} timeline: {
+  NowPlayingEntry(
+    date: Date(),
+    episodeTitle: "Understanding Swift Concurrency",
+    podcastTitle: nil,
+    durationFormatted: "",
+    playbackStatus: .loading("Understanding Swift Concurrency"),
+    artwork: nil
+  )
+}

@@ -109,3 +109,17 @@ struct QueueWidgetView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
+
+#Preview("Queue - Medium", as: .systemMedium) {
+  QueueWidget()
+} timeline: {
+  QueueEntry.preview
+  QueueEntry.empty
+}
+
+#Preview("Queue - Large", as: .systemLarge) {
+  QueueWidget()
+} timeline: {
+  QueueEntry.preview
+  QueueEntry.empty
+}
