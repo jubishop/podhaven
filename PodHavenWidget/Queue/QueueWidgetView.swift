@@ -110,6 +110,7 @@ struct QueueWidgetView: View {
   }
 }
 
+#if DEBUG
 #Preview("Queue - Medium", as: .systemMedium) {
   QueueWidget()
 } timeline: {
@@ -123,3 +124,4 @@ struct QueueWidgetView: View {
   QueueEntry.preview
   QueueEntry.empty
 }
+#endif

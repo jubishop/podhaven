@@ -168,6 +168,7 @@ struct NowPlayingWidgetView: View {
   }
 }
 
+#if DEBUG
 #Preview("Now Playing - Small", as: .systemSmall) {
   NowPlayingWidget()
 } timeline: {
@@ -194,3 +195,4 @@ struct NowPlayingWidgetView: View {
     artwork: nil
   )
 }
+#endif
