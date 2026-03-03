@@ -112,18 +112,20 @@ struct QueueWidgetView: View {
   // MARK: - Empty State
 
   private var emptyState: some View {
-    VStack(spacing: 8) {
-      Image(systemName: "list.bullet")
-        .font(.title2)
-        .foregroundStyle(.secondary)
-      Text("Queue Empty")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      Text("Add episodes to your queue")
-        .font(.caption2)
-        .foregroundStyle(.tertiary)
+    Link(destination: URL(string: "podhaven://widget/queue")!) {
+      VStack(spacing: 8) {
+        Image(systemName: "list.bullet")
+          .font(.title2)
+          .foregroundStyle(.secondary)
+        Text("Queue Empty")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Text("Add episodes to your queue")
+          .font(.caption2)
+          .foregroundStyle(.tertiary)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
 
