@@ -99,7 +99,7 @@ final class WidgetSnapshotWriter: Sendable {
         nil
       }
 
-    let queueItems = Array(sharedState.queuedPodcastEpisodes.prefix(5))
+    let queueItems = Array(sharedState.queuedPodcastEpisodes.prefix(8))
       .map { episode in
         WidgetSnapshot.QueueItem(
           episodeID: episode.id.rawValue,

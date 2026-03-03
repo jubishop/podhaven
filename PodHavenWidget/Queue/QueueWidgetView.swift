@@ -7,6 +7,26 @@ struct QueueWidgetView: View {
   let entry: QueueEntry
 
   @Environment(\.widgetFamily) var family
+  @Environment(\.dynamicTypeSize) var dynamicTypeSize
+
+  private var itemCount: Int {
+    switch dynamicTypeSize {
+    case .small:
+      return family == .systemLarge ? 8 : 3
+    case .medium:
+      return family == .systemLarge ? 5 : 3
+    case .large:
+      return family == .systemLarge ? 5 : 3
+    case .xLarge:
+      return family == .systemLarge ? 5 : 2
+    case .xxLarge:
+      return family == .systemLarge ? 5 : 2
+    case .xxxLarge:
+      return family == .systemLarge ? 5 : 2
+    default:
+      Assert.fatal("Invalid dynamicTypeSize for QueueWidgetView: \(dynamicTypeSize)")
+    }
+  }
 
   var body: some View {
     if entry.items.isEmpty {
@@ -22,7 +42,6 @@ struct QueueWidgetView: View {
     VStack(alignment: .leading, spacing: 0) {
       headerRow
 
-      let itemCount = family == .systemLarge ? 5 : 3
       let visibleItems = Array(entry.items.prefix(itemCount))
 
       ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in

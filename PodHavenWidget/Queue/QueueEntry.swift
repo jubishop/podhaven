@@ -56,7 +56,25 @@ struct QueueEntry: TimelineEntry {
         podcastTitle: "Systems Programming",
         durationFormatted: "47:20"
       ),
+      QueueEntryItem(
+        id: 6,
+        episodeTitle: "Designing for Accessibility",
+        podcastTitle: "UI Unpacked",
+        durationFormatted: "29:50"
+      ),
+      QueueEntryItem(
+        id: 7,
+        episodeTitle: "What Makes a Great API",
+        podcastTitle: "Backend Bytes",
+        durationFormatted: "44:10"
+      ),
+      QueueEntryItem(
+        id: 8,
+        episodeTitle: "The Art of Debugging",
+        podcastTitle: "Code Stories",
+        durationFormatted: "33:25"
+      ),
     ],
-    totalCount: 8
+    totalCount: 12
   )
 }
