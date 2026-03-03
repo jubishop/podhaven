@@ -14,13 +14,13 @@ struct QueueWidgetView: View {
     case .small:
       return family == .systemLarge ? 8 : 3
     case .medium:
-      return family == .systemLarge ? 5 : 3
+      return family == .systemLarge ? 8 : 3
     case .large:
-      return family == .systemLarge ? 5 : 3
+      return family == .systemLarge ? 8 : 3
     case .xLarge:
-      return family == .systemLarge ? 5 : 2
+      return family == .systemLarge ? 7 : 2
     case .xxLarge:
-      return family == .systemLarge ? 5 : 2
+      return family == .systemLarge ? 6 : 2
     case .xxxLarge:
       return family == .systemLarge ? 5 : 2
     default:
