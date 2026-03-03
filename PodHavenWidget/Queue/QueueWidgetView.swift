@@ -12,17 +12,17 @@ struct QueueWidgetView: View {
   private var itemCount: Int {
     switch dynamicTypeSize {
     case .small:
-      return family == .systemLarge ? 8 : 3
+      return family == .systemLarge ? 8 : 2
     case .medium:
-      return family == .systemLarge ? 8 : 3
+      return family == .systemLarge ? 8 : 2
     case .large:
-      return family == .systemLarge ? 8 : 3
+      return family == .systemLarge ? 8 : 2
     case .xLarge:
-      return family == .systemLarge ? 7 : 2
-    case .xxLarge:
       return family == .systemLarge ? 6 : 2
+    case .xxLarge:
+      return family == .systemLarge ? 6 : 1
     case .xxxLarge:
-      return family == .systemLarge ? 5 : 2
+      return family == .systemLarge ? 5 : 1
     default:
       Assert.fatal("Invalid dynamicTypeSize for QueueWidgetView: \(dynamicTypeSize)")
     }
@@ -53,10 +53,12 @@ struct QueueWidgetView: View {
 
       if entry.totalCount > itemCount {
         Spacer(minLength: 0)
-        Text("+\(entry.totalCount - itemCount) more")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity, alignment: .trailing)
+        Link(destination: URL(string: "podhaven://widget/queue")!) {
+          Text("+\(entry.totalCount - itemCount) more")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
       } else {
         Spacer(minLength: 0)
       }
