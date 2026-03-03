@@ -183,7 +183,20 @@ struct NowPlayingWidgetView: View {
   NowPlayingEntry.empty
 }
 
-#Preview("Now Playing - Loading", as: .systemMedium) {
+#Preview("Loading - Small", as: .systemSmall) {
+  NowPlayingWidget()
+} timeline: {
+  NowPlayingEntry(
+    date: Date(),
+    episodeTitle: "Understanding Swift Concurrency",
+    podcastTitle: nil,
+    durationFormatted: "",
+    playbackStatus: .loading("Understanding Swift Concurrency"),
+    artwork: nil
+  )
+}
+
+#Preview("Loading - Medium", as: .systemMedium) {
   NowPlayingWidget()
 } timeline: {
   NowPlayingEntry(
