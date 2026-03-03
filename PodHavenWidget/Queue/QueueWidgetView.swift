@@ -6,28 +6,6 @@ import WidgetKit
 struct QueueWidgetView: View {
   let entry: QueueEntry
 
-  @Environment(\.widgetFamily) var family
-  @Environment(\.dynamicTypeSize) var dynamicTypeSize
-
-  private var itemCount: Int {
-    switch dynamicTypeSize {
-    case .small:
-      return family == .systemLarge ? 8 : 2
-    case .medium:
-      return family == .systemLarge ? 8 : 2
-    case .large:
-      return family == .systemLarge ? 8 : 2
-    case .xLarge:
-      return family == .systemLarge ? 6 : 2
-    case .xxLarge:
-      return family == .systemLarge ? 6 : 1
-    case .xxxLarge:
-      return family == .systemLarge ? 5 : 1
-    default:
-      Assert.fatal("Invalid dynamicTypeSize for QueueWidgetView: \(dynamicTypeSize)")
-    }
-  }
-
   var body: some View {
     if entry.items.isEmpty {
       emptyState
@@ -42,25 +20,24 @@ struct QueueWidgetView: View {
     VStack(alignment: .leading, spacing: 0) {
       headerRow
 
-      ForEach(Array(entry.items.prefix(itemCount).enumerated()), id: \.element.id) { index, item in
-        if index > 0 {
-          Divider()
-            .padding(.leading, 28)
+      TruncatingVStack {
+        ForEach(Array(entry.items.enumerated()), id: \.element.id) { index, item in
+          VStack(spacing: 0) {
+            if index > 0 {
+              Divider()
+                .padding(.leading, 28)
+            }
+            queueItemRow(item: item, index: index)
+          }
         }
 
-        queueItemRow(item: item, index: index)
-      }
-
-      if entry.totalCount > itemCount {
-        Spacer(minLength: 0)
         Link(destination: URL(string: "podhaven://widget/queue")!) {
-          Text("+\(entry.totalCount - itemCount) more")
+          Text("View Full Queue")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
-      } else {
-        Spacer(minLength: 0)
+        .layoutValue(key: TruncatingRoleKey.self, value: .overflow)
       }
     }
   }
