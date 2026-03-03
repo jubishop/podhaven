@@ -42,9 +42,7 @@ struct QueueWidgetView: View {
     VStack(alignment: .leading, spacing: 0) {
       headerRow
 
-      let visibleItems = Array(entry.items.prefix(itemCount))
-
-      ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
+      ForEach(Array(entry.items.prefix(itemCount).enumerated()), id: \.element.id) { index, item in
         if index > 0 {
           Divider()
             .padding(.leading, 28)
