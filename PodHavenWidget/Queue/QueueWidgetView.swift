@@ -25,11 +25,11 @@ struct QueueWidgetView: View {
       TruncatingVStack {
         ForEach(Array(entry.items.enumerated()), id: \.element.id) { index, item in
           VStack(spacing: 0) {
-            if index > 0 {
-              Divider()
-                .padding(.leading, imageSize + 4)
-            }
             queueItemRow(item: item, index: index)
+
+            Divider()
+              .padding(.leading, imageSize + 4)
+              .padding(.trailing, 14)
           }
         }
 
@@ -39,6 +39,7 @@ struct QueueWidgetView: View {
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
+        .padding(.trailing, 14)
         .layoutValue(key: TruncatingRoleKey.self, value: .overflow)
       }
     }
@@ -46,7 +47,7 @@ struct QueueWidgetView: View {
 
   private var headerRow: some View {
     HStack {
-      Image(systemName: "list.bullet")
+      AppIcon.episodes.rawImage
         .font(.caption)
         .foregroundStyle(.secondary)
       Text("Up Next")
@@ -83,6 +84,11 @@ struct QueueWidgetView: View {
           }
           .font(.caption2)
         }
+
+        Image(systemName: "chevron.right")
+          .font(.caption2)
+          .fontWeight(.semibold)
+          .foregroundStyle(.tertiary)
       }
       .padding(.vertical, 4)
     }
