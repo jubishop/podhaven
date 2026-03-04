@@ -24,7 +24,7 @@ final class WidgetSnapshotWriter: Sendable {
   private static let log = Log.as(LogSubsystem.Widget.writer)
 
   private let pendingReloadKinds = ThreadSafe<Set<String>>([])
-  private let coalesceTask = ThreadSafe<Task<Void, Never>?>(nil)
+  private let debounce = Debounce(duration: .milliseconds(100))
 
   // MARK: - Start
 
@@ -68,16 +68,10 @@ final class WidgetSnapshotWriter: Sendable {
 
   private func scheduleWrite(reloadKinds: Set<String>) {
     pendingReloadKinds { $0.formUnion(reloadKinds) }
-
-    coalesceTask()?.cancel()
-    coalesceTask(
-      Task { [weak self] in
-        guard let self else { return }
-        try? await sleeper.sleep(for: .milliseconds(100))
-        guard !Task.isCancelled else { return }
-        await flush()
-      }
-    )
+    debounce { [weak self] in
+      guard let self else { return }
+      await flush()
+    }
   }
 
   private func flush() async {
