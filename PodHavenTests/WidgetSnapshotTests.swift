@@ -32,13 +32,15 @@ struct WidgetSnapshotTests {
           episodeID: 100,
           episodeTitle: "Queue Episode 1",
           podcastTitle: "Queue Podcast 1",
-          durationSeconds: 3600
+          durationSeconds: 3600,
+          artworkBase64: artworkBase64
         ),
         WidgetSnapshot.QueueItem(
           episodeID: 101,
           episodeTitle: "Queue Episode 2",
           podcastTitle: "Queue Podcast 2",
-          durationSeconds: 2400
+          durationSeconds: 2400,
+          artworkBase64: nil
         ),
       ],
       queueTotalCount: 10,
@@ -59,7 +61,9 @@ struct WidgetSnapshotTests {
     #expect(decoded.queueTotalCount == 10)
     #expect(decoded.queue[0].episodeID == 100)
     #expect(decoded.queue[0].episodeTitle == "Queue Episode 1")
+    #expect(decoded.queue[0].artworkBase64 == artworkBase64)
     #expect(decoded.queue[1].episodeID == 101)
+    #expect(decoded.queue[1].artworkBase64 == nil)
   }
 
   @Test("snapshot encodes and decodes with nil nowPlaying")

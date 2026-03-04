@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import SwiftUI
 
 // MARK: - SystemImageName
@@ -150,7 +149,7 @@ private struct SystemImageName:
 
 // MARK: - AppIcon
 
-@MainActor enum AppIcon: CaseIterable {
+@MainActor enum AppIcon: Equatable, Hashable, Sendable {
   // Episode Actions
   case addSelectionToBottom
   case addSelectionToTop
@@ -282,8 +281,8 @@ private struct SystemImageName:
   case playButton
   case nextChapter
   case previousChapter
-  case seekBackward
-  case seekForward
+  case seekBackward(Int)
+  case seekForward(Int)
   case finishEpisode
   case undoSeek
   case selectAll
@@ -628,14 +627,12 @@ private struct SystemImageName:
       )
     case .playButton:
       return Data(text: "Play", systemImageName: .playButton, color: .green)
-    case .seekBackward:
-      let interval = Int(Container.shared.userSettings().skipBackwardInterval)
+    case .seekBackward(let interval):
       return Data(
         text: "Seek Backward",
         systemImageName: SystemImageName(rawValue: "gobackward.\(interval)")
       )
-    case .seekForward:
-      let interval = Int(Container.shared.userSettings().skipForwardInterval)
+    case .seekForward(let interval):
       return Data(
         text: "Seek Forward",
         systemImageName: SystemImageName(rawValue: "goforward.\(interval)")

@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import SwiftUI
 
 struct SeekForwardButton: View {
@@ -8,7 +9,7 @@ struct SeekForwardButton: View {
   let action: () -> Void
 
   var body: some View {
-    AppIcon.seekForward
+    AppIcon.seekForward(Int(Container.shared.userSettings().skipForwardInterval))
       .imageButton {
         animationTrigger.toggle()
         action()

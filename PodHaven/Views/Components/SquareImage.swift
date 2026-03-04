@@ -1,12 +1,17 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
-import NukeUI
 import SwiftUI
+
+#if !WIDGET_EXTENSION
+import NukeUI
+#endif
 
 struct SquareImage: View {
   enum ImageSource {
+    #if !WIDGET_EXTENSION
     case url(URL)
+    #endif
     case uiImage(UIImage?)
   }
 
@@ -21,6 +26,7 @@ struct SquareImage: View {
     max(2, size ?? internalSize)
   }
 
+  #if !WIDGET_EXTENSION
   init(
     image: URL,
     cornerRadius: CGFloat = 8,
@@ -32,6 +38,7 @@ struct SquareImage: View {
     self.size = size
     self.placeholderIcon = placeholderIcon
   }
+  #endif
 
   init(
     image: UIImage?,
@@ -48,6 +55,7 @@ struct SquareImage: View {
   var body: some View {
     Group {
       switch imageSource {
+      #if !WIDGET_EXTENSION
       case .url(let url):
         PipelinedLazyImage(url: url) { state in
           if let image = state.image {
@@ -58,6 +66,7 @@ struct SquareImage: View {
             placeholderView
           }
         }
+      #endif
       case .uiImage(let uiImage):
         if let uiImage {
           Image(uiImage: uiImage)

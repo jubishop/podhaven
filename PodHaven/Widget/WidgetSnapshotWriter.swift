@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import Foundation
 import Logging
+import Nuke
 import Tagged
 import UIKit
 import WidgetKit
@@ -17,6 +18,8 @@ extension Container {
 final class WidgetSnapshotWriter: Sendable {
   private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
+  private var userSettings: UserSettings { Container.shared.userSettings() }
+  private var imagePipeline: ImagePipeline { Container.shared.imagePipeline() }
 
   private static let log = Log.as(LogSubsystem.Widget.writer)
 
@@ -51,6 +54,14 @@ final class WidgetSnapshotWriter: Sendable {
         scheduleWrite(reloadKinds: [WidgetInfo.queueKind])
       }
     }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      for await _ in userSettings.$alwaysShowPodcastImageInUpNext.stream() {
+        scheduleWrite(reloadKinds: [WidgetInfo.queueKind])
+      }
+    }
   }
 
   // MARK: - Coalesced Writing
@@ -64,12 +75,12 @@ final class WidgetSnapshotWriter: Sendable {
         guard let self else { return }
         try? await sleeper.sleep(for: .milliseconds(100))
         guard !Task.isCancelled else { return }
-        flush()
+        await flush()
       }
     )
   }
 
-  private func flush() {
+  private func flush() async {
     coalesceTask()?.cancel()
     coalesceTask(nil)
 
@@ -79,12 +90,12 @@ final class WidgetSnapshotWriter: Sendable {
     }
 
     guard !kindsToReload.isEmpty else { return }
-    writeSnapshot(reloadKinds: kindsToReload)
+    await writeSnapshot(reloadKinds: kindsToReload)
   }
 
   // MARK: - Snapshot Building
 
-  private func writeSnapshot(reloadKinds: Set<String>) {
+  private func writeSnapshot(reloadKinds: Set<String>) async {
     let nowPlaying: WidgetSnapshot.NowPlaying? =
       if let onDeck = sharedState.onDeck {
         WidgetSnapshot.NowPlaying(
@@ -93,19 +104,24 @@ final class WidgetSnapshotWriter: Sendable {
           podcastTitle: onDeck.podcastTitle,
           durationSeconds: onDeck.duration.seconds,
           playbackStatus: sharedState.playbackStatus,
-          artworkBase64: encodeArtwork(onDeck.artwork)
+          artworkBase64: encodeArtwork(onDeck.artwork, maxPixels: maxNowPlayingArtworkPixels)
         )
       } else {
         nil
       }
 
-    let queueItems = Array(sharedState.queuedPodcastEpisodes.prefix(8))
-      .map { episode in
+    let episodes = Array(sharedState.queuedPodcastEpisodes.prefix(8))
+    let showPodcastImage = userSettings.alwaysShowPodcastImageInUpNext
+    let queueArtwork = await loadQueueArtwork(for: episodes, showPodcastImage: showPodcastImage)
+
+    let queueItems = episodes.enumerated()
+      .map { index, episode in
         WidgetSnapshot.QueueItem(
           episodeID: episode.id.rawValue,
           episodeTitle: episode.title,
           podcastTitle: episode.podcastTitle,
-          durationSeconds: episode.duration.seconds
+          durationSeconds: episode.duration.seconds,
+          artworkBase64: encodeArtwork(queueArtwork[index], maxPixels: maxQueueArtworkPixels)
         )
       }
 
@@ -130,15 +146,44 @@ final class WidgetSnapshotWriter: Sendable {
     reloadWidgets(kinds: reloadKinds)
   }
 
+  private func loadQueueArtwork(
+    for episodes: [PodcastEpisode],
+    showPodcastImage: Bool
+  ) async -> [UIImage?] {
+    await withTaskGroup(of: (Int, UIImage?).self, returning: [UIImage?].self) { group in
+      for (index, episode) in episodes.enumerated() {
+        group.addTask { [imagePipeline] in
+          let url = showPodcastImage ? episode.podcastImage : episode.image
+          do {
+            let image = try await imagePipeline.image(for: url)
+            return (index, image)
+          } catch {
+            Self.log.error(error)
+            return (index, nil)
+          }
+        }
+      }
+
+      var results = [UIImage?](capacity: episodes.count)
+      for _ in episodes { results.append(nil) }
+      for await (index, image) in group {
+        results[index] = image
+      }
+      return results
+    }
+  }
+
   // MARK: - Artwork Encoding
 
-  // Max pixel size for widget artwork. The largest artwork view is 80pt
-  // (systemMedium) at 3x scale = 240px.
-  private let maxArtworkPixels: CGFloat = 240
+  // Now-playing artwork: largest view is 80pt (systemMedium) at 3x = 240px.
+  private let maxNowPlayingArtworkPixels: CGFloat = 240
 
-  private func encodeArtwork(_ image: UIImage?) -> String? {
+  // Queue artwork: ~28pt thumbnails at 3x = ~96px (rounded up for safety).
+  private let maxQueueArtworkPixels: CGFloat = 96
+
+  private func encodeArtwork(_ image: UIImage?, maxPixels: CGFloat) -> String? {
     guard let image else { return nil }
-    let downsized = downsample(image, maxPixels: maxArtworkPixels)
+    let downsized = downsample(image, maxPixels: maxPixels)
     guard let jpegData = downsized.jpegData(compressionQuality: 1.0) else { return nil }
     return jpegData.base64EncodedString()
   }

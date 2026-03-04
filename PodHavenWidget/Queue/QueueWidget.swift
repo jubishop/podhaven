@@ -37,7 +37,8 @@ struct QueueProvider: TimelineProvider {
         id: queueItem.episodeID,
         episodeTitle: queueItem.episodeTitle,
         podcastTitle: queueItem.podcastTitle,
-        durationFormatted: queueItem.durationSeconds.playbackTimeFormat
+        durationFormatted: queueItem.durationSeconds.playbackTimeFormat,
+        artwork: WidgetSnapshotReader.decodeArtwork(from: queueItem.artworkBase64)
       )
     }
 

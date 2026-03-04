@@ -48,7 +48,11 @@ struct NowPlayingProvider: TimelineProvider {
     }
 
     Self.log.debug(
-      "makeEntry: \(nowPlaying.episodeTitle) (\(nowPlaying.playbackStatus)), artwork=\(nowPlaying.artworkBase64 != nil)"
+      """
+      makeEntry: \(nowPlaying.episodeTitle) \
+      (\(nowPlaying.playbackStatus)), \
+      artwork=\(nowPlaying.artworkBase64 != nil)
+      """
     )
 
     return NowPlayingEntry(

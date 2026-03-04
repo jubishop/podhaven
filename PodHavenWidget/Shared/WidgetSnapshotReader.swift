@@ -23,13 +23,22 @@ enum WidgetSnapshotReader {
 
       guard snapshot.schemaVersion <= WidgetSnapshot.currentSchemaVersion else {
         log.warning(
-          "Snapshot schema version \(snapshot.schemaVersion) is newer than supported \(WidgetSnapshot.currentSchemaVersion)"
+          """
+          Snapshot schema version \
+          \(snapshot.schemaVersion) is newer than \
+          supported \(WidgetSnapshot.currentSchemaVersion)
+          """
         )
         return nil
       }
 
       log.debug(
-        "Decoded snapshot: nowPlaying=\(snapshot.nowPlaying != nil), queue=\(snapshot.queue.count) items, updatedAt=\(snapshot.updatedAt)"
+        """
+        Decoded snapshot: \
+        nowPlaying=\(snapshot.nowPlaying != nil), \
+        queue=\(snapshot.queue.count) items, \
+        updatedAt=\(snapshot.updatedAt)
+        """
       )
       return snapshot
     } catch {

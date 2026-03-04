@@ -25,7 +25,7 @@ struct QueueWidgetView: View {
           VStack(spacing: 0) {
             if index > 0 {
               Divider()
-                .padding(.leading, 28)
+                .padding(.leading, Self.artworkSize + 8)
             }
             queueItemRow(item: item, index: index)
           }
@@ -56,14 +56,17 @@ struct QueueWidgetView: View {
     .padding(.bottom, 6)
   }
 
+  private static let artworkSize: CGFloat = 28
+
   private func queueItemRow(item: QueueEntry.QueueEntryItem, index: Int) -> some View {
     Link(destination: item.deepLinkURL) {
       HStack(spacing: 8) {
-        Text("\(index + 1)")
-          .font(.caption2)
-          .fontWeight(.medium)
-          .foregroundStyle(.secondary)
-          .frame(width: 18)
+        SquareImage(
+          image: item.artwork,
+          cornerRadius: 4,
+          size: Self.artworkSize,
+          placeholderIcon: .audioPlaceholder
+        )
 
         VStack(alignment: .leading, spacing: 1) {
           Text(item.episodeTitle)

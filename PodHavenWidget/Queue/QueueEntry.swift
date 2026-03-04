@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
+import UIKit
 import WidgetKit
 
 struct QueueEntry: TimelineEntry {
@@ -15,6 +16,7 @@ struct QueueEntry: TimelineEntry {
     let episodeTitle: String
     let podcastTitle: String
     let durationFormatted: String
+    let artwork: UIImage?
 
     var deepLinkURL: URL {
       QueueEntry.queueBaseURL.appending(path: String(id))
@@ -30,49 +32,57 @@ struct QueueEntry: TimelineEntry {
         id: 1,
         episodeTitle: "Understanding Swift Concurrency",
         podcastTitle: "Swift Talk",
-        durationFormatted: "41:00"
+        durationFormatted: "41:00",
+        artwork: nil
       ),
       QueueEntryItem(
         id: 2,
         episodeTitle: "The Future of AI",
         podcastTitle: "Tech Matters",
-        durationFormatted: "58:30"
+        durationFormatted: "58:30",
+        artwork: nil
       ),
       QueueEntryItem(
         id: 3,
         episodeTitle: "Building Better Habits",
         podcastTitle: "The Daily",
-        durationFormatted: "22:15"
+        durationFormatted: "22:15",
+        artwork: nil
       ),
       QueueEntryItem(
         id: 4,
         episodeTitle: "Deep Work in Practice",
         podcastTitle: "Focus Mode",
-        durationFormatted: "35:45"
+        durationFormatted: "35:45",
+        artwork: nil
       ),
       QueueEntryItem(
         id: 5,
         episodeTitle: "Rust vs Swift Performance",
         podcastTitle: "Systems Programming",
-        durationFormatted: "47:20"
+        durationFormatted: "47:20",
+        artwork: nil
       ),
       QueueEntryItem(
         id: 6,
         episodeTitle: "Designing for Accessibility",
         podcastTitle: "UI Unpacked",
-        durationFormatted: "29:50"
+        durationFormatted: "29:50",
+        artwork: nil
       ),
       QueueEntryItem(
         id: 7,
         episodeTitle: "What Makes a Great API",
         podcastTitle: "Backend Bytes",
-        durationFormatted: "44:10"
+        durationFormatted: "44:10",
+        artwork: nil
       ),
       QueueEntryItem(
         id: 8,
         episodeTitle: "The Art of Debugging",
         podcastTitle: "Code Stories",
-        durationFormatted: "33:25"
+        durationFormatted: "33:25",
+        artwork: nil
       ),
     ],
     totalCount: 12

@@ -19,6 +19,7 @@ struct WidgetSnapshot: Codable, Sendable {
     let episodeTitle: String
     let podcastTitle: String
     let durationSeconds: Double
+    let artworkBase64: String?
   }
 
   let schemaVersion: Int
