@@ -68,18 +68,11 @@ struct QueueWidgetView: View {
           placeholderIcon: .audioPlaceholder
         )
 
-        VStack(alignment: .leading, spacing: 1) {
-          Text(item.episodeTitle)
-            .font(.caption)
-            .fontWeight(.medium)
-            .lineLimit(1)
-            .foregroundStyle(.primary)
-
-          Text(item.podcastTitle)
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-        }
+        Text(item.episodeTitle)
+          .font(.caption)
+          .fontWeight(.medium)
+          .lineLimit(2, reservesSpace: true)
+          .foregroundStyle(.primary)
 
         Spacer()
 
