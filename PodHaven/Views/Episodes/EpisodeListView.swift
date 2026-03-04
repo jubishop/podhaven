@@ -28,7 +28,7 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
   }
 
   var body: some View {
-    HStack(alignment: .center, spacing: 4) {
+    HStack(spacing: 4) {
       episodeImage
       StatusIconColumn(episode: episode, iconSpacing: 10, iconSize: 12)
       episodeInfoSection
