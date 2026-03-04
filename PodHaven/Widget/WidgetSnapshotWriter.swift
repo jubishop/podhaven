@@ -81,8 +81,10 @@ final class WidgetSnapshotWriter: Sendable {
   }
 
   private func flush() async {
-    coalesceTask()?.cancel()
-    coalesceTask(nil)
+    await writeSnapshot()
+
+    // If cancelled during the write, leave pending kinds for the next cycle.
+    guard !Task.isCancelled else { return }
 
     let kindsToReload: Set<String> = pendingReloadKinds { kinds in
       defer { kinds.removeAll() }
@@ -90,12 +92,12 @@ final class WidgetSnapshotWriter: Sendable {
     }
 
     guard !kindsToReload.isEmpty else { return }
-    await writeSnapshot(reloadKinds: kindsToReload)
+    reloadWidgets(kinds: kindsToReload)
   }
 
   // MARK: - Snapshot Building
 
-  private func writeSnapshot(reloadKinds: Set<String>) async {
+  private func writeSnapshot() async {
     let nowPlaying: WidgetSnapshot.NowPlaying? =
       if let onDeck = sharedState.onDeck {
         WidgetSnapshot.NowPlaying(
@@ -113,6 +115,9 @@ final class WidgetSnapshotWriter: Sendable {
     let episodes = Array(sharedState.queuedPodcastEpisodes.prefix(8))
     let showPodcastImage = userSettings.alwaysShowPodcastImageInUpNext
     let queueArtwork = await loadQueueArtwork(for: episodes, showPodcastImage: showPodcastImage)
+
+    // If cancelled during artwork loading, bail before writing a stale snapshot.
+    guard !Task.isCancelled else { return }
 
     let queueItems = episodes.enumerated()
       .map { index, episode in
@@ -140,10 +145,7 @@ final class WidgetSnapshotWriter: Sendable {
       Self.log.debug("Wrote widget snapshot (\(data.count) bytes)")
     } catch {
       Self.log.error(error)
-      return
     }
-
-    reloadWidgets(kinds: reloadKinds)
   }
 
   private func loadQueueArtwork(
