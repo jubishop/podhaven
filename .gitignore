@@ -33,3 +33,6 @@ worktrees/
 # Conductor
 .conductor/
 .todos/
+
+# Claude
+*.save

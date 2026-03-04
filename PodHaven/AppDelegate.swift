@@ -100,8 +100,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
       options.dsn =
         "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
       options.sendDefaultPii = true
-      options.enableAppHangTracking = false
+      options.enableAppHangTracking = true
       options.enableLogs = true
+      options.experimental.enableSessionReplayInUnreliableEnvironment = true
       options.initialScope = { scope in
         scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
         return scope

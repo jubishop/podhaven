@@ -28,7 +28,7 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
   }
 
   var body: some View {
-    HStack(alignment: .center, spacing: 4) {
+    HStack(spacing: 4) {
       episodeImage
       StatusIconColumn(episode: episode, iconSpacing: 10, iconSize: 12)
       episodeInfoSection
@@ -48,7 +48,7 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
 
   var episodeInfoSection: some View {
     VStack(alignment: .leading) {
-      HTMLText(episode.title)
+      Text(episode.title)
         .font(.body)
         .lineLimit(2, reservesSpace: true)
         .multilineTextAlignment(.leading)
@@ -59,9 +59,7 @@ struct EpisodeListView<Episode: EpisodeListable>: View {
       // Metadata Row
       HStack {
         CompactMetadataItem(appIcon: .publishDate, value: episode.pubDate.usShort)
-
         Spacer()
-
         CompactMetadataItem(appIcon: .duration, value: durationText)
       }
       .font(.footnote)

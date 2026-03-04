@@ -37,6 +37,7 @@
 - Previews stub factories for in-memory SwiftUI previews with no network calls or DB access.
 
 ## Coding Standards
+- Prefer `if let` / `guard let` over `.map` on optionals
 - Never force-unwrap (`!`) in production code; use `Assert` or guarded unwraps with readable error handling.
 - Prefer triple-quoted strings for multi-line or >100 character literals.
 - Run `swift-format` on every Swift file you touch before handing work back.
