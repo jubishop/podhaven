@@ -36,9 +36,10 @@ struct QueueWidgetView: View {
         Link(destination: URL(string: "podhaven://widget/queue")!) {
           Text("View Full Queue")
             .font(.caption2)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.tint)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
+        .padding(.top, 4)
         .padding(.trailing, 14)
         .layoutValue(key: TruncatingRoleKey.self, value: .overflow)
       }
