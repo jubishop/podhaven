@@ -36,7 +36,8 @@ struct QueueProvider: TimelineProvider {
       QueueEntry.QueueEntryItem(
         id: queueItem.episodeID,
         episodeTitle: queueItem.episodeTitle,
-        durationFormatted: queueItem.durationSeconds.playbackTimeFormat,
+        pubDateFormatted: Date(timeIntervalSince1970: queueItem.pubDateTimestamp).usShort,
+        durationFormatted: queueItem.durationSeconds.compactReadableFormat,
         artwork: WidgetSnapshotReader.decodeArtwork(from: queueItem.artworkBase64)
       )
     }
@@ -56,6 +57,6 @@ struct QueueWidget: Widget {
     }
     .configurationDisplayName("Up Next")
     .description("See what's coming up in your queue.")
-    .supportedFamilies([.systemMedium, .systemLarge])
+    .supportedFamilies([.systemLarge])
   }
 }

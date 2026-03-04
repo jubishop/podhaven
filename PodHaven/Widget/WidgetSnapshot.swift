@@ -17,6 +17,7 @@ struct WidgetSnapshot: Codable, Sendable {
   struct QueueItem: Codable, Sendable {
     let episodeID: Int64
     let episodeTitle: String
+    let pubDateTimestamp: Double
     let durationSeconds: Double
     let artworkBase64: String?
   }

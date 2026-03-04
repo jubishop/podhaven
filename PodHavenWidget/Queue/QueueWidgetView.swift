@@ -4,6 +4,8 @@ import SwiftUI
 import WidgetKit
 
 struct QueueWidgetView: View {
+  private let imageSize: CGFloat = 44
+
   let entry: QueueEntry
 
   var body: some View {
@@ -25,7 +27,7 @@ struct QueueWidgetView: View {
           VStack(spacing: 0) {
             if index > 0 {
               Divider()
-                .padding(.leading, Self.artworkSize + 8)
+                .padding(.leading, imageSize + 4)
             }
             queueItemRow(item: item, index: index)
           }
@@ -56,29 +58,31 @@ struct QueueWidgetView: View {
     .padding(.bottom, 6)
   }
 
-  private static let artworkSize: CGFloat = 28
-
   private func queueItemRow(item: QueueEntry.QueueEntryItem, index: Int) -> some View {
     Link(destination: item.deepLinkURL) {
-      HStack(spacing: 8) {
+      HStack(spacing: 4) {
         SquareImage(
           image: item.artwork,
           cornerRadius: 4,
-          size: Self.artworkSize,
+          size: imageSize,
           placeholderIcon: .audioPlaceholder
         )
 
-        Text(item.episodeTitle)
-          .font(.caption)
-          .fontWeight(.medium)
-          .lineLimit(2, reservesSpace: true)
-          .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: 4) {
+          Text(item.episodeTitle)
+            .font(.caption)
+            .fontWeight(.medium)
+            .lineLimit(2, reservesSpace: true)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
 
-        Spacer()
-
-        Text(item.durationFormatted)
+          HStack {
+            CompactMetadataItem(appIcon: .publishDate, value: item.pubDateFormatted)
+            Spacer()
+            CompactMetadataItem(appIcon: .duration, value: item.durationFormatted)
+          }
           .font(.caption2)
-          .foregroundStyle(.tertiary)
+        }
       }
       .padding(.vertical, 4)
     }
@@ -105,13 +109,6 @@ struct QueueWidgetView: View {
 }
 
 #if DEBUG
-#Preview("Queue - Medium", as: .systemMedium) {
-  QueueWidget()
-} timeline: {
-  QueueEntry.preview
-  QueueEntry.empty
-}
-
 #Preview("Queue - Large", as: .systemLarge) {
   QueueWidget()
 } timeline: {

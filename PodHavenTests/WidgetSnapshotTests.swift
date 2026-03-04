@@ -31,12 +31,14 @@ struct WidgetSnapshotTests {
         WidgetSnapshot.QueueItem(
           episodeID: 100,
           episodeTitle: "Queue Episode 1",
+          pubDateTimestamp: Date().timeIntervalSince1970,
           durationSeconds: 3600,
           artworkBase64: artworkBase64
         ),
         WidgetSnapshot.QueueItem(
           episodeID: 101,
           episodeTitle: "Queue Episode 2",
+          pubDateTimestamp: Date().addingTimeInterval(-86400).timeIntervalSince1970,
           durationSeconds: 2400,
           artworkBase64: nil
         ),

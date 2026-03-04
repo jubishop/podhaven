@@ -14,6 +14,7 @@ struct QueueEntry: TimelineEntry {
   struct QueueEntryItem: Identifiable {
     let id: Int64
     let episodeTitle: String
+    let pubDateFormatted: String
     let durationFormatted: String
     let artwork: UIImage?
 
@@ -30,48 +31,56 @@ struct QueueEntry: TimelineEntry {
       QueueEntryItem(
         id: 1,
         episodeTitle: "Understanding Swift Concurrency",
+        pubDateFormatted: "2/28/26",
         durationFormatted: "41:00",
         artwork: nil
       ),
       QueueEntryItem(
         id: 2,
         episodeTitle: "The Future of AI",
+        pubDateFormatted: "2/25/26",
         durationFormatted: "58:30",
         artwork: nil
       ),
       QueueEntryItem(
         id: 3,
         episodeTitle: "Building Better Habits",
+        pubDateFormatted: "2/20/26",
         durationFormatted: "22:15",
         artwork: nil
       ),
       QueueEntryItem(
         id: 4,
         episodeTitle: "Deep Work in Practice",
+        pubDateFormatted: "2/18/26",
         durationFormatted: "35:45",
         artwork: nil
       ),
       QueueEntryItem(
         id: 5,
         episodeTitle: "Rust vs Swift Performance",
+        pubDateFormatted: "2/15/26",
         durationFormatted: "47:20",
         artwork: nil
       ),
       QueueEntryItem(
         id: 6,
         episodeTitle: "Designing for Accessibility",
+        pubDateFormatted: "2/10/26",
         durationFormatted: "29:50",
         artwork: nil
       ),
       QueueEntryItem(
         id: 7,
         episodeTitle: "What Makes a Great API",
+        pubDateFormatted: "2/5/26",
         durationFormatted: "44:10",
         artwork: nil
       ),
       QueueEntryItem(
         id: 8,
         episodeTitle: "The Art of Debugging",
+        pubDateFormatted: "1/30/26",
         durationFormatted: "33:25",
         artwork: nil
       ),

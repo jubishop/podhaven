@@ -118,6 +118,7 @@ final class WidgetSnapshotWriter: Sendable {
         WidgetSnapshot.QueueItem(
           episodeID: episode.id.rawValue,
           episodeTitle: episode.title,
+          pubDateTimestamp: episode.pubDate.timeIntervalSince1970,
           durationSeconds: episode.duration.seconds,
           artworkBase64: encodeArtwork(queueArtwork[index], maxPixels: maxQueueArtworkPixels)
         )
