@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import SwiftUI
 
 struct SeekBackwardButton: View {
@@ -8,7 +9,7 @@ struct SeekBackwardButton: View {
   let action: () -> Void
 
   var body: some View {
-    AppIcon.seekBackward
+    AppIcon.seekBackward(Int(Container.shared.userSettings().skipBackwardInterval))
       .imageButton {
         animationTrigger.toggle()
         action()

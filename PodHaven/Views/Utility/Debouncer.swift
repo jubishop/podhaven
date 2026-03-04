@@ -5,7 +5,7 @@ import Foundation
 import SwiftUI
 
 @Observable @MainActor
-class Debouncer<Value: Equatable> {
+class Debouncer<Value: Equatable & Sendable> {
   // MARK: - Dependencies
 
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
@@ -26,7 +26,7 @@ class Debouncer<Value: Equatable> {
   }
   private(set) var debouncedValue: Value
 
-  @ObservationIgnored private var task: Task<Void, Never>?
+  @ObservationIgnored private lazy var debounceAction = Debounce(duration: debounceDuration)
 
   // MARK: - Initialization
 
@@ -47,30 +47,23 @@ class Debouncer<Value: Equatable> {
   func reset() {
     currentValue = initialValue
     debouncedValue = initialValue
-    task?.cancel()
+    debounceAction.cancel()
   }
 
   // MARK: - Private Helpers
 
   private func debounce() {
-    task?.cancel()
-
-    task = Task { [weak self, currentValue] in
+    let value = currentValue
+    debounceAction { [weak self] in
       guard let self else { return }
-
-      do {
-        if debounceDuration > .zero {
-          try await sleeper.sleep(for: debounceDuration)
-        }
-        guard !Task.isCancelled else { return }
-        guard debouncedValue != currentValue else { return }
-
-        debouncedValue = currentValue
-        await onChange(currentValue)
-      } catch {
-        // Sleep was cancelled or interrupted - this is expected behavior
-      }
+      await applyDebouncedValue(value)
     }
+  }
+
+  private func applyDebouncedValue(_ value: Value) async {
+    guard debouncedValue != value else { return }
+    debouncedValue = value
+    await onChange(value)
   }
 }
 
