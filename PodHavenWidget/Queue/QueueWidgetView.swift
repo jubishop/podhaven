@@ -32,30 +32,20 @@ struct QueueWidgetView: View {
               .padding(.trailing, 14)
           }
         }
-
-        Link(destination: URL(string: "podhaven://widget/queue")!) {
-          Text("View Full Queue")
-            .font(.callout)
-            .foregroundStyle(.tint)
-            .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-        .padding(.top, 4)
-        .padding(.trailing, 14)
-        .layoutValue(key: TruncatingRoleKey.self, value: .overflow)
       }
     }
   }
 
   private var headerRow: some View {
-    HStack {
-      AppIcon.episodes.rawImage
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      Text("Up Next")
-        .font(.caption)
-        .fontWeight(.semibold)
-        .foregroundStyle(.secondary)
-      Spacer()
+    Link(destination: URL(string: "podhaven://widget/queue")!) {
+      HStack {
+        AppIcon.episodes.rawImage
+        Text("Up Next")
+          .fontWeight(.semibold)
+        Spacer()
+      }
+      .font(.callout)
+      .foregroundStyle(.tint)
     }
     .padding(.bottom, 6)
   }
