@@ -52,7 +52,7 @@ struct QueueWidgetView: View {
 
   private func queueItemRow(item: QueueEntry.QueueEntryItem, index: Int) -> some View {
     Link(destination: item.deepLinkURL) {
-      HStack(spacing: 6) {
+      HStack(spacing: 8) {
         SquareImage(
           image: item.artwork,
           cornerRadius: 4,
