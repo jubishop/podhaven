@@ -4,7 +4,6 @@ import FactoryKit
 import Foundation
 import Logging
 import StoreKit
-import UIKit
 
 enum EnvironmentType: String {
   case appStore

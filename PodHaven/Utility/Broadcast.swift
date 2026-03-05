@@ -129,33 +129,6 @@ struct Broadcasted<T: Sendable>: Sendable {
   }
 }
 
-// Property wrapper that pairs a Broadcast with UserDefaults persistence.
-// Every mutation auto-persists via the onChange callback.
-// In test context, skips UserDefaults to prevent cross-test contamination.
-@propertyWrapper
-struct PersistedBroadcast<T: DefaultsStorable>: Sendable {
-  private let broadcast: Broadcast<T>
-
-  init(wrappedValue: T, _ key: String) {
-    if AppInfo.environment == .testing {
-      broadcast = Broadcast(wrappedValue)
-    } else {
-      broadcast = Broadcast(T.load(from: UserDefaults.standard, forKey: key) ?? wrappedValue) {
-        $0.store(to: UserDefaults.standard, forKey: key)
-      }
-    }
-  }
-
-  var wrappedValue: T {
-    get { broadcast.current }
-    nonmutating set { broadcast.new(newValue) }
-  }
-
-  var projectedValue: Broadcast<T> {
-    broadcast
-  }
-}
-
 // MARK: - Binding Support
 
 extension Broadcast {
