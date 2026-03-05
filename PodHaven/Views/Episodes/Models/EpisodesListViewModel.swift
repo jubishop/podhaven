@@ -25,7 +25,7 @@ class EpisodesListViewModel:
 
   var episodeList = PowerList<PodcastEpisode>()
 
-  enum SortMethod: String, DefaultsStorable, SortingMethod {
+  enum SortMethod: String, Codable, DefaultsStorable, SortingMethod {
     case newestFirst
     case oldestFirst
     case longest

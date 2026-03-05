@@ -80,19 +80,6 @@ extension Optional: DefaultsStorable where Wrapped: DefaultsStorable {
   }
 }
 
-// MARK: - RawRepresentable Conformance
-
-extension DefaultsStorable where Self: RawRepresentable, RawValue: DefaultsStorable {
-  func store(to defaults: UserDefaults, forKey key: String) {
-    rawValue.store(to: defaults, forKey: key)
-  }
-
-  static func load(from defaults: UserDefaults, forKey key: String) -> Self? {
-    guard let rawValue = RawValue.load(from: defaults, forKey: key) else { return nil }
-    return Self(rawValue: rawValue)
-  }
-}
-
 // MARK: - Codable Conformance
 
 extension DefaultsStorable where Self: Codable {

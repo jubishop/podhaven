@@ -102,7 +102,7 @@ extension Container {
     case tags
   }
 
-  enum EpisodesViewType: String, DefaultsStorable, CaseIterable {
+  enum EpisodesViewType: String, Codable, DefaultsStorable, CaseIterable {
     case recentEpisodes, finished, unqueued, cached, saved, unfinished, previouslyQueued
   }
 
