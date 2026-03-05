@@ -91,29 +91,7 @@ tag="v${version}b${build}"
 
 echo "==> Build ${build} (${tag}) from ${commit}"
 
-# Archive
-echo "==> Archiving..."
-xcodebuild archive \
-  -project "$PROJECT" \
-  -scheme "$SCHEME" \
-  -configuration Release \
-  -destination 'generic/platform=iOS' \
-  -archivePath "$ARCHIVE_PATH" \
-  -allowProvisioningUpdates \
-  "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
-  CURRENT_PROJECT_VERSION="$build" \
-  2>&1 | xcbeautify
-
-# Export and upload
-echo "==> Uploading to App Store Connect..."
-xcodebuild -exportArchive \
-  -archivePath "$ARCHIVE_PATH" \
-  -exportOptionsPlist "$EXPORT_OPTIONS" \
-  -allowProvisioningUpdates \
-  "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
-  2>&1 | xcbeautify
-
-# Tag after successful upload — with AI-generated summary
+# Generate AI release summary before archiving
 prev_tag=$(git -C "$PROJECT_DIR" tag -l "v*b*" --sort=version:refname | tail -1)
 
 if [[ -z "$prev_tag" ]]; then
@@ -141,8 +119,43 @@ echo "==> Summary generated:"
 echo ""
 echo "$tag_message"
 echo ""
+
+# Create and push tag before uploading so it's never lost
 git -C "$PROJECT_DIR" tag -a "$tag" -m "$tag_message"
 git -C "$PROJECT_DIR" push origin "$tag"
+
+# Roll back the tag if anything below fails
+rollback_tag() {
+  echo "error: Deploy failed — rolling back tag ${tag}..." >&2
+  git -C "$PROJECT_DIR" tag -d "$tag" 2>/dev/null
+  git -C "$PROJECT_DIR" push origin --delete "$tag" 2>/dev/null
+}
+trap rollback_tag ERR
+
+# Archive
+echo "==> Archiving..."
+xcodebuild archive \
+  -project "$PROJECT" \
+  -scheme "$SCHEME" \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -archivePath "$ARCHIVE_PATH" \
+  -allowProvisioningUpdates \
+  "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
+  CURRENT_PROJECT_VERSION="$build" \
+  2>&1 | xcbeautify
+
+# Export and upload
+echo "==> Uploading to App Store Connect..."
+xcodebuild -exportArchive \
+  -archivePath "$ARCHIVE_PATH" \
+  -exportOptionsPlist "$EXPORT_OPTIONS" \
+  -allowProvisioningUpdates \
+  "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
+  2>&1 | xcbeautify
+
+# Upload succeeded — disable rollback and create GitHub release
+trap - ERR
 gh release create "$tag" --title "$tag" --notes "$tag_message"
 
 # Clean up
