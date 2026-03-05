@@ -31,20 +31,20 @@ extension Container {
 
   @MainActor @Observable
   class SavedPathManager<TopDestination: DefaultsStorable & Hashable>: ManagingPath {
-    @ObservationIgnored @PersistedBroadcast private var topDestination: TopDestination?
+    @ObservationIgnored @PersistedThreadSafe private var topDestination: TopDestination?
 
     var path: [Destination] = [] {
       didSet {
         guard let first = path.first
         else {
-          $topDestination.new(nil)
+          topDestination = nil
           return
         }
 
         guard let extracted = extractTopDestination(first)
         else { Assert.fatal("Top view isn't the expected destination type?") }
 
-        $topDestination.new(extracted)
+        topDestination = extracted
       }
     }
 
@@ -56,7 +56,7 @@ extension Container {
       extractTopDestination: @escaping (Destination) -> TopDestination?,
       makeDestination: @escaping (TopDestination) -> Destination
     ) {
-      self._topDestination = PersistedBroadcast(wrappedValue: nil, storageKey)
+      self._topDestination = PersistedThreadSafe(wrappedValue: nil, storageKey)
       self.extractTopDestination = extractTopDestination
       self.makeDestination = makeDestination
 

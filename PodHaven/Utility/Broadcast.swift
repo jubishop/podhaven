@@ -113,7 +113,7 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 // `wrappedValue` returns the current value (with SwiftUI observation),
 // `projectedValue` ($property) exposes the Broadcast for .new(), .update(), .stream().
 @propertyWrapper
-struct ObservableBroadcast<T: Sendable>: Sendable {
+struct Broadcasted<T: Sendable>: Sendable {
   private let broadcast: Broadcast<T>
 
   init(wrappedValue: T) {
