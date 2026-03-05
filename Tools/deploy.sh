@@ -100,7 +100,7 @@ if [[ -z "$prev_tag" ]]; then
 fi
 
 echo "==> Generating release summary (${prev_tag}..HEAD)..."
-diff_content=$(git -C "$PROJECT_DIR" diff "${prev_tag}..HEAD" | head -c 50000)
+diff_content=$(set +o pipefail; git -C "$PROJECT_DIR" diff "${prev_tag}..HEAD" | head -c 50000)
 
 if [[ -z "$diff_content" ]]; then
   echo "error: No diff between ${prev_tag} and HEAD." >&2
