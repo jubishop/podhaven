@@ -57,29 +57,36 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
 
   // Replaces the current value entirely and broadcasts to all streams.
   func new(_ value: T) {
-    registrar.withMutation(of: self, keyPath: \.current) {
-      state { state in
-        state.current = value
-        for continuation in state.continuations.values {
-          continuation.yield(value)
-        }
+    state { state in
+      state.current = value
+      for continuation in state.continuations.values {
+        continuation.yield(value)
       }
     }
-    onChange?(value)
+    notifyObservers(value)
   }
 
   // Updates the current value using a closure and broadcasts the result.
   func update(_ transform: (inout T) -> Void) {
-    let updated: T = registrar.withMutation(of: self, keyPath: \.current) {
-      state { state in
-        transform(&state.current)
-        for continuation in state.continuations.values {
-          continuation.yield(state.current)
-        }
-        return state.current
+    let updated: T = state { state in
+      transform(&state.current)
+      for continuation in state.continuations.values {
+        continuation.yield(state.current)
       }
+      return state.current
     }
-    onChange?(updated)
+    notifyObservers(updated)
+  }
+
+  // Fires observation notifications on the main actor so SwiftUI
+  // reliably picks up the change, regardless of which thread mutated.
+  // Also invokes the onChange callback for side effects like persistence.
+  private func notifyObservers(_ value: T) {
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      registrar.withMutation(of: self, keyPath: \.current) {}
+    }
+    onChange?(value)
   }
 
   // MARK: - Streaming
