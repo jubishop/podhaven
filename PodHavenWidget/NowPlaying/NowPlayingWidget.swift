@@ -72,6 +72,7 @@ struct NowPlayingWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: NowPlayingProvider()) { entry in
       NowPlayingWidgetView(entry: entry)
+        .dynamicTypeSize(.small ... .xxxLarge)
         .containerBackground(.fill.tertiary, for: .widget)
     }
     .configurationDisplayName("Now Playing")
