@@ -82,11 +82,11 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
   // reliably picks up the change, regardless of which thread mutated.
   // Also invokes the onChange callback for side effects like persistence.
   private func notifyObservers(_ value: T) {
+    onChange?(value)
     Task { @MainActor [weak self] in
       guard let self else { return }
       registrar.withMutation(of: self, keyPath: \.current) {}
     }
-    onChange?(value)
   }
 
   // MARK: - Streaming
