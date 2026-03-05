@@ -88,6 +88,10 @@ final class FakeFileManager: FileManaging, Sendable {
       .sorted { $0.absoluteString < $1.absoluteString }
   }
 
+  func containerURL(forSecurityApplicationGroupIdentifier groupIdentifier: String) -> URL? {
+    URL(fileURLWithPath: "/tmp/fake/\(groupIdentifier)")
+  }
+
   func fileSize(for url: URL) throws -> Int64 {
     guard let data = inMemoryFiles[url]
     else { throw TestError.fileNotFound(url) }

@@ -26,6 +26,10 @@ protocol FileManaging {
     withIntermediateDirectories createIntermediates: Bool
   ) throws
 
+  // MARK: - Container
+
+  func containerURL(forSecurityApplicationGroupIdentifier groupIdentifier: String) -> URL?
+
   // MARK: - File Attribute Operations
 
   func fileExists(atPath path: String) -> Bool

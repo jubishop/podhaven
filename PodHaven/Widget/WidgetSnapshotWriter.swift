@@ -17,6 +17,7 @@ extension Container {
 }
 
 final class WidgetSnapshotWriter: Sendable {
+  private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var userSettings: UserSettings { Container.shared.userSettings() }
@@ -166,7 +167,7 @@ final class WidgetSnapshotWriter: Sendable {
 
     do {
       let data = try JSONEncoder().encode(snapshot)
-      try data.write(to: WidgetInfo.snapshotURL, options: .atomic)
+      try await fileManager.writeData(data, to: WidgetInfo.snapshotURL)
       Self.log.debug("Wrote widget snapshot (\(data.count) bytes)")
     } catch {
       Self.log.error(error)

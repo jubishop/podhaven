@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 
 enum WidgetInfo {
@@ -14,8 +15,9 @@ enum WidgetInfo {
   private static let appGroupID = "group.podhaven.shared"
 
   private static var containerURL: URL {
+    let fileManager = Container.shared.fileManager()
     guard
-      let containerURL = FileManager.default.containerURL(
+      let containerURL = fileManager.containerURL(
         forSecurityApplicationGroupIdentifier: appGroupID
       )
     else {
