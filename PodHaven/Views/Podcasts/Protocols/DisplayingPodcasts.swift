@@ -2,7 +2,7 @@
 
 import Foundation
 
-enum PodcastDisplayMode: String, DefaultsStorable {
+enum PodcastDisplayMode: String, Codable, DefaultsStorable {
   case grid
   case list
 }

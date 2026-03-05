@@ -62,6 +62,30 @@ final class WidgetSnapshotWriter: Sendable {
         scheduleWrite(reloadKinds: [WidgetInfo.queueKind])
       }
     }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      for await _ in userSettings.$nextTrackBehavior.stream() {
+        scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
+      }
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      for await _ in userSettings.$skipForwardInterval.stream() {
+        scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
+      }
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+
+      for await _ in userSettings.$skipBackwardInterval.stream() {
+        scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
+      }
+    }
   }
 
   // MARK: - Coalesced Writing
@@ -130,6 +154,9 @@ final class WidgetSnapshotWriter: Sendable {
       nowPlaying: nowPlaying,
       queue: queueItems,
       queueTotalCount: sharedState.queuedPodcastEpisodes.count,
+      nextTrackBehavior: userSettings.nextTrackBehavior,
+      skipForwardInterval: Int(userSettings.skipForwardInterval),
+      skipBackwardInterval: Int(userSettings.skipBackwardInterval),
       updatedAt: Date()
     )
 

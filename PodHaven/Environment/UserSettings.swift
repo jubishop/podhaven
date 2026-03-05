@@ -24,7 +24,7 @@ struct UserSettings: Sendable {
   @PersistedBroadcast("showTimeRemainingInEpisodeLists") var showTimeRemainingInEpisodeLists: Bool =
     false
 
-  enum AppearanceMode: String, DefaultsStorable, CaseIterable, Identifiable {
+  enum AppearanceMode: String, Codable, DefaultsStorable, CaseIterable, Identifiable {
     case system = "System"
     case light = "Light"
     case dark = "Dark"
@@ -41,13 +41,6 @@ struct UserSettings: Sendable {
   }
 
   @PersistedBroadcast("appearanceMode") var appearanceMode: AppearanceMode = .system
-
-  enum NextTrackBehavior: String, DefaultsStorable, CaseIterable, Identifiable {
-    case nextEpisode = "Next Episode"
-    case skipInterval = "Skip Interval"
-
-    var id: String { rawValue }
-  }
 
   @PersistedBroadcast("nextTrackBehavior") var nextTrackBehavior: NextTrackBehavior = .nextEpisode
 

@@ -26,7 +26,7 @@ class PodcastsListViewModel:
 
   var podcastList: PowerList<PodcastWithEpisodeMetadata<Podcast>>
 
-  enum SortMethod: String, DefaultsStorable, SortingMethod {
+  enum SortMethod: String, Codable, DefaultsStorable, SortingMethod {
     case byTitle
     case byMostRecentEpisode
     case byEpisodeCount

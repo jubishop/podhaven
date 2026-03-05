@@ -30,6 +30,8 @@ struct NowPlayingProvider: TimelineProvider {
       return .empty
     }
 
+    let trackControlStyle = trackControlStyle(from: snapshot)
+
     if let loadingTitle = snapshot.loadingTitle {
       Self.log.debug("makeEntry: loading \(loadingTitle)")
       return NowPlayingEntry(
@@ -38,7 +40,8 @@ struct NowPlayingProvider: TimelineProvider {
         podcastTitle: nil,
         durationFormatted: "",
         playbackStatus: .loading(loadingTitle),
-        artwork: nil
+        artwork: nil,
+        trackControlStyle: trackControlStyle
       )
     }
 
@@ -61,8 +64,19 @@ struct NowPlayingProvider: TimelineProvider {
       podcastTitle: nowPlaying.podcastTitle,
       durationFormatted: nowPlaying.durationSeconds.playbackTimeFormat,
       playbackStatus: nowPlaying.playbackStatus,
-      artwork: WidgetSnapshotReader.decodeArtwork(from: nowPlaying.artworkBase64)
+      artwork: WidgetSnapshotReader.decodeArtwork(from: nowPlaying.artworkBase64),
+      trackControlStyle: trackControlStyle
     )
+  }
+
+  private func trackControlStyle(from snapshot: WidgetSnapshot) -> TrackControlStyle {
+    if snapshot.nextTrackBehavior == .skipInterval,
+      let forward = snapshot.skipForwardInterval,
+      let backward = snapshot.skipBackwardInterval
+    {
+      return .seekInterval(forward: forward, backward: backward)
+    }
+    return .skipEpisode
   }
 }
 

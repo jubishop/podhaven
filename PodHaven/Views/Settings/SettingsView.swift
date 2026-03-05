@@ -84,8 +84,7 @@ struct SettingsView: View {
                 Controls what happens when you use the Next Track button \
                 on physical inputs like car controls, the lock screen, or control center. \
                 Choose "Next Episode" to skip to the next episode in your queue, \
-                or "Skip Interval" to jump forward using your custom skip interval \
-                (also enables Previous Track for jumping back).
+                or "Skip Interval" to jump forward/backward using your custom skip interval.
                 """
             ) {
               Text("Next Track Behavior")
@@ -93,7 +92,7 @@ struct SettingsView: View {
             }
 
             Picker("Next Track Behavior", selection: userSettings.$nextTrackBehavior.binding) {
-              ForEach(UserSettings.NextTrackBehavior.allCases) { behavior in
+              ForEach(NextTrackBehavior.allCases) { behavior in
                 Text(behavior.rawValue).tag(behavior)
               }
             }

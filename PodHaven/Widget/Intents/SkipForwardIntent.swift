@@ -13,7 +13,7 @@ struct SkipForwardIntent: AudioPlaybackIntent {
     await playManager.seekForward()
     return .result()
     #else
-    Assert.fatal("AudioPlaybackIntent should never execute in widget process")
+    Assert.fatal("SkipForwardIntent should never execute in widget process")
     #endif
   }
 }

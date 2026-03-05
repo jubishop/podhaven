@@ -77,9 +77,15 @@ struct NowPlayingWidgetView: View {
           Spacer(minLength: 0)
 
           HStack(spacing: 16) {
-            skipBackwardButton(size: 24)
-            playPauseButton(size: 28)
-            skipForwardButton(size: 24)
+            switch entry.trackControlStyle {
+            case .seekInterval(let forward, let backward):
+              seekBackwardButton(size: 24, interval: backward)
+              playPauseButton(size: 28)
+              seekForwardButton(size: 24, interval: forward)
+            case .skipEpisode:
+              playPauseButton(size: 28)
+              finishEpisodeButton(size: 24)
+            }
 
             Spacer()
 
@@ -98,21 +104,12 @@ struct NowPlayingWidgetView: View {
   // MARK: - Components
 
   private func artworkView(size: CGFloat) -> some View {
-    Group {
-      if let artwork = entry.artwork {
-        Image(uiImage: artwork)
-          .resizable()
-          .aspectRatio(contentMode: .fill)
-      } else {
-        Image(systemName: "music.note")
-          .font(.title2)
-          .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .background(.quaternary)
-      }
-    }
-    .frame(width: size, height: size)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
+    SquareImage(
+      image: entry.artwork,
+      cornerRadius: 8,
+      size: size,
+      placeholderIcon: .audioPlaceholder
+    )
   }
 
   private func playPauseButton(size: CGFloat) -> some View {
@@ -124,18 +121,27 @@ struct NowPlayingWidgetView: View {
     .buttonStyle(.plain)
   }
 
-  private func skipForwardButton(size: CGFloat) -> some View {
+  private func seekForwardButton(size: CGFloat, interval: Int) -> some View {
     Button(intent: SkipForwardIntent()) {
-      Image(systemName: "forward.fill")
+      Image(systemName: "goforward.\(interval)")
         .font(.system(size: size * 0.45))
         .frame(width: size, height: size)
     }
     .buttonStyle(.plain)
   }
 
-  private func skipBackwardButton(size: CGFloat) -> some View {
+  private func seekBackwardButton(size: CGFloat, interval: Int) -> some View {
     Button(intent: SkipBackwardIntent()) {
-      Image(systemName: "backward.fill")
+      Image(systemName: "gobackward.\(interval)")
+        .font(.system(size: size * 0.45))
+        .frame(width: size, height: size)
+    }
+    .buttonStyle(.plain)
+  }
+
+  private func finishEpisodeButton(size: CGFloat) -> some View {
+    Button(intent: FinishEpisodeIntent()) {
+      Image(systemName: "forward.end.fill")
         .font(.system(size: size * 0.45))
         .frame(width: size, height: size)
     }
@@ -192,7 +198,8 @@ struct NowPlayingWidgetView: View {
     podcastTitle: nil,
     durationFormatted: "",
     playbackStatus: .loading("Understanding Swift Concurrency"),
-    artwork: nil
+    artwork: nil,
+    trackControlStyle: .seekInterval(forward: 30, backward: 15)
   )
 }
 
@@ -205,7 +212,8 @@ struct NowPlayingWidgetView: View {
     podcastTitle: nil,
     durationFormatted: "",
     playbackStatus: .loading("Understanding Swift Concurrency"),
-    artwork: nil
+    artwork: nil,
+    trackControlStyle: .seekInterval(forward: 30, backward: 15)
   )
 }
 #endif
