@@ -4,7 +4,7 @@ import SwiftUI
 import WidgetKit
 
 struct QueueWidgetView: View {
-  private let imageSize: CGFloat = 44
+  private let imageSize: CGFloat = 56
 
   let entry: QueueEntry
 
@@ -35,7 +35,7 @@ struct QueueWidgetView: View {
 
         Link(destination: URL(string: "podhaven://widget/queue")!) {
           Text("View Full Queue")
-            .font(.caption2)
+            .font(.callout)
             .foregroundStyle(.tint)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
@@ -72,8 +72,7 @@ struct QueueWidgetView: View {
 
         VStack(alignment: .leading, spacing: 4) {
           Text(item.episodeTitle)
-            .font(.caption)
-            .fontWeight(.medium)
+            .font(.callout)
             .lineLimit(2, reservesSpace: true)
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -83,11 +82,11 @@ struct QueueWidgetView: View {
             Spacer()
             CompactMetadataItem(appIcon: .duration, value: item.durationFormatted)
           }
-          .font(.caption2)
+          .font(.caption)
         }
 
         Image(systemName: "chevron.right")
-          .font(.caption2)
+          .font(.caption)
           .fontWeight(.semibold)
           .foregroundStyle(.tertiary)
       }
