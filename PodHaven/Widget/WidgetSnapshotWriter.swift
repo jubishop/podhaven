@@ -3,6 +3,7 @@
 import AVFoundation
 import FactoryKit
 import Foundation
+import GRDB
 import Logging
 import Nuke
 import Tagged
@@ -20,11 +21,13 @@ final class WidgetSnapshotWriter: Sendable {
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var userSettings: UserSettings { Container.shared.userSettings() }
   private var imagePipeline: ImagePipeline { Container.shared.imagePipeline() }
+  private var observatory: Observatory { Container.shared.observatory() }
 
   private static let log = Log.as(LogSubsystem.Widget.writer)
 
   private let pendingReloadKinds = ThreadSafe<Set<String>>([])
   private let debounce = Debounce(duration: .milliseconds(100))
+  private let queueWidgetEpisodes = ThreadSafe<[QueueWidgetEpisode]>([])
 
   // MARK: - Start
 
@@ -50,7 +53,8 @@ final class WidgetSnapshotWriter: Sendable {
     Task { [weak self] in
       guard let self else { return }
 
-      for await _ in sharedState.$queuedPodcastEpisodes.stream() {
+      for try await episodes in observatory.queueWidgetEpisodes() {
+        queueWidgetEpisodes(episodes)
         scheduleWrite(reloadKinds: [WidgetInfo.queueKind])
       }
     }
@@ -130,7 +134,7 @@ final class WidgetSnapshotWriter: Sendable {
         nil
       }
 
-    let episodes = Array(sharedState.queuedPodcastEpisodes.prefix(8))
+    let episodes = Array(queueWidgetEpisodes().prefix(8))
     let showPodcastImage = userSettings.alwaysShowPodcastImageInUpNext
     let queueArtwork = await loadQueueArtwork(for: episodes, showPodcastImage: showPodcastImage)
 
@@ -153,7 +157,7 @@ final class WidgetSnapshotWriter: Sendable {
       loadingTitle: sharedState.playbackStatus.loadingTitle,
       nowPlaying: nowPlaying,
       queue: queueItems,
-      queueTotalCount: sharedState.queuedPodcastEpisodes.count,
+      queueTotalCount: queueWidgetEpisodes().count,
       nextTrackBehavior: userSettings.nextTrackBehavior,
       skipForwardInterval: Int(userSettings.skipForwardInterval),
       skipBackwardInterval: Int(userSettings.skipBackwardInterval),
@@ -170,7 +174,7 @@ final class WidgetSnapshotWriter: Sendable {
   }
 
   private func loadQueueArtwork(
-    for episodes: [PodcastEpisode],
+    for episodes: [QueueWidgetEpisode],
     showPodcastImage: Bool
   ) async -> [UIImage?] {
     await withTaskGroup(of: (Int, UIImage?).self, returning: [UIImage?].self) { group in
