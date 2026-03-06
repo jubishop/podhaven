@@ -115,14 +115,14 @@ struct NowPlayingWidgetView: View {
   private var playPauseButton: some View {
     Group {
       if entry.playbackStatus.waiting {
-        AppIcon.loading.rawImage
+        AppIcon.loading.image
           .disabled(true)
       } else {
         Button(intent: PlayPauseIntent()) {
           if entry.playbackStatus.playing {
-            AppIcon.pauseButton.rawImage
+            AppIcon.pauseButton.image
           } else {
-            AppIcon.playButton.rawImage
+            AppIcon.playButton.image
           }
         }
       }
@@ -131,19 +131,19 @@ struct NowPlayingWidgetView: View {
 
   private func seekForwardButton(interval: Int) -> some View {
     Button(intent: SkipForwardIntent()) {
-      AppIcon.seekForward(interval).rawImage
+      AppIcon.seekForward(interval).image
     }
   }
 
   private func seekBackwardButton(interval: Int) -> some View {
     Button(intent: SkipBackwardIntent()) {
-      AppIcon.seekBackward(interval).rawImage
+      AppIcon.seekBackward(interval).image
     }
   }
 
   private var finishEpisodeButton: some View {
     Button(intent: FinishEpisodeIntent()) {
-      AppIcon.finishEpisode.rawImage
+      AppIcon.finishEpisode.image
     }
   }
 
