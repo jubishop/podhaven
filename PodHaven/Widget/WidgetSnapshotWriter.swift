@@ -30,6 +30,7 @@ final class WidgetSnapshotWriter: Sendable {
   private let debounce = Debounce(duration: .milliseconds(250))
   private let queueWidgetEpisodes = ThreadSafe<[QueueWidgetEpisode]>([])
   private let lastOnDeck = ThreadSafe<OnDeck?>(nil)
+  private let lastPlaybackStatus = ThreadSafe<PlaybackStatus>(.stopped)
 
   // MARK: - Start
 
@@ -56,6 +57,11 @@ final class WidgetSnapshotWriter: Sendable {
       guard let self else { return }
 
       for await status in sharedState.$playbackStatus.stream() {
+        let changed: Bool = lastPlaybackStatus { last in
+          defer { last = status }
+          return status != last
+        }
+        guard changed else { continue }
         WidgetInfo.playbackStatus = status
         reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
       }
