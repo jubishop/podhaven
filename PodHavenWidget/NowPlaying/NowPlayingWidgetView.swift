@@ -125,6 +125,7 @@ struct NowPlayingWidgetView: View {
             AppIcon.playButton.image
           }
         }
+        .buttonStyle(.plain)
       }
     }
   }
@@ -133,18 +134,21 @@ struct NowPlayingWidgetView: View {
     Button(intent: SkipForwardIntent()) {
       AppIcon.seekForward(interval).image
     }
+    .buttonStyle(.plain)
   }
 
   private func seekBackwardButton(interval: Int) -> some View {
     Button(intent: SkipBackwardIntent()) {
       AppIcon.seekBackward(interval).image
     }
+    .buttonStyle(.plain)
   }
 
   private var finishEpisodeButton: some View {
     Button(intent: FinishEpisodeIntent()) {
       AppIcon.finishEpisode.image
     }
+    .buttonStyle(.plain)
   }
 
   private func loadingState(episodeTitle: String) -> some View {
