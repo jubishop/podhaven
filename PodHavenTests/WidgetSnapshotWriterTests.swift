@@ -98,15 +98,12 @@ import Testing
   func includesUserSettings() async throws {
     userSettings.$skipForwardInterval.new(45)
     userSettings.$skipBackwardInterval.new(10)
-    userSettings.$nextTrackBehavior.new(.skipInterval)
-
     writer.start()
     try await waitForSnapshot()
 
     let snapshot = try await decodeSnapshot()
     #expect(snapshot.skipForwardInterval == 45)
     #expect(snapshot.skipBackwardInterval == 10)
-    #expect(snapshot.nextTrackBehavior == .skipInterval)
   }
 
   @Test("includes queue items from database")

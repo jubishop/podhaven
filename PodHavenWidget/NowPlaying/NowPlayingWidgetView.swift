@@ -79,15 +79,9 @@ struct NowPlayingWidgetView: View {
           Spacer(minLength: 0)
 
           HStack(spacing: 16) {
-            switch entry.trackControlStyle {
-            case .seekInterval(let forward, let backward):
-              seekBackwardButton(interval: backward)
-              playPauseButton
-              seekForwardButton(interval: forward)
-            case .skipEpisode:
-              playPauseButton
-              finishEpisodeButton
-            }
+            seekBackwardButton(interval: entry.skipBackwardInterval)
+            playPauseButton
+            seekForwardButton(interval: entry.skipForwardInterval)
 
             Spacer()
 
@@ -144,13 +138,6 @@ struct NowPlayingWidgetView: View {
     .buttonStyle(.plain)
   }
 
-  private var finishEpisodeButton: some View {
-    Button(intent: FinishEpisodeIntent()) {
-      AppIcon.finishEpisode.image
-    }
-    .buttonStyle(.plain)
-  }
-
   private func loadingState(episodeTitle: String) -> some View {
     VStack(spacing: 8) {
       ProgressView()
@@ -202,7 +189,8 @@ struct NowPlayingWidgetView: View {
     durationFormatted: "",
     playbackStatus: .loading("Understanding Swift Concurrency"),
     artwork: nil,
-    trackControlStyle: .seekInterval(forward: 30, backward: 15)
+    skipForwardInterval: 30,
+    skipBackwardInterval: 15
   )
 }
 
@@ -216,7 +204,8 @@ struct NowPlayingWidgetView: View {
     durationFormatted: "41:00",
     playbackStatus: .waiting,
     artwork: nil,
-    trackControlStyle: .seekInterval(forward: 30, backward: 15)
+    skipForwardInterval: 30,
+    skipBackwardInterval: 15
   )
 }
 
@@ -230,7 +219,8 @@ struct NowPlayingWidgetView: View {
     durationFormatted: "41:00",
     playbackStatus: .waiting,
     artwork: nil,
-    trackControlStyle: .seekInterval(forward: 30, backward: 15)
+    skipForwardInterval: 30,
+    skipBackwardInterval: 15
   )
 }
 
@@ -244,7 +234,8 @@ struct NowPlayingWidgetView: View {
     durationFormatted: "",
     playbackStatus: .loading("Understanding Swift Concurrency"),
     artwork: nil,
-    trackControlStyle: .seekInterval(forward: 30, backward: 15)
+    skipForwardInterval: 30,
+    skipBackwardInterval: 15
   )
 }
 #endif

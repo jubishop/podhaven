@@ -3,11 +3,6 @@
 import UIKit
 import WidgetKit
 
-enum TrackControlStyle {
-  case seekInterval(forward: Int, backward: Int)
-  case skipEpisode
-}
-
 struct NowPlayingEntry: TimelineEntry {
   let date: Date
   let episodeTitle: String?
@@ -15,7 +10,8 @@ struct NowPlayingEntry: TimelineEntry {
   let durationFormatted: String
   let playbackStatus: PlaybackStatus
   let artwork: UIImage?
-  let trackControlStyle: TrackControlStyle
+  let skipForwardInterval: Int
+  let skipBackwardInterval: Int
 
   static let empty = NowPlayingEntry(
     date: Date(),
@@ -24,7 +20,8 @@ struct NowPlayingEntry: TimelineEntry {
     durationFormatted: "",
     playbackStatus: .stopped,
     artwork: nil,
-    trackControlStyle: .skipEpisode
+    skipForwardInterval: 30,
+    skipBackwardInterval: 15
   )
 
   static let preview = NowPlayingEntry(
@@ -34,6 +31,7 @@ struct NowPlayingEntry: TimelineEntry {
     durationFormatted: "41:00",
     playbackStatus: .playing,
     artwork: nil,
-    trackControlStyle: .seekInterval(forward: 30, backward: 15)
+    skipForwardInterval: 30,
+    skipBackwardInterval: 15
   )
 }

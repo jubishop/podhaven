@@ -71,14 +71,6 @@ final class WidgetSnapshotWriter: Sendable {
     Task { [weak self] in
       guard let self else { return }
 
-      for await _ in userSettings.$nextTrackBehavior.stream() {
-        scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
-      }
-    }
-
-    Task { [weak self] in
-      guard let self else { return }
-
       for await _ in userSettings.$skipForwardInterval.stream() {
         scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
       }
@@ -159,7 +151,6 @@ final class WidgetSnapshotWriter: Sendable {
       nowPlaying: nowPlaying,
       queue: queueItems,
       queueTotalCount: queueWidgetEpisodes().count,
-      nextTrackBehavior: userSettings.nextTrackBehavior,
       skipForwardInterval: Int(userSettings.skipForwardInterval),
       skipBackwardInterval: Int(userSettings.skipBackwardInterval),
       updatedAt: Date()

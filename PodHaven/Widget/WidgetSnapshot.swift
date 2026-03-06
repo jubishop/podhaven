@@ -27,8 +27,7 @@ struct WidgetSnapshot: Codable, Sendable {
   let nowPlaying: NowPlaying?
   let queue: [QueueItem]
   let queueTotalCount: Int
-  let nextTrackBehavior: NextTrackBehavior?
-  let skipForwardInterval: Int?
-  let skipBackwardInterval: Int?
+  let skipForwardInterval: Int
+  let skipBackwardInterval: Int
   let updatedAt: Date
 }

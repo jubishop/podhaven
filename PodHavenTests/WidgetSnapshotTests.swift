@@ -44,7 +44,6 @@ struct WidgetSnapshotTests {
         ),
       ],
       queueTotalCount: 10,
-      nextTrackBehavior: .nextEpisode,
       skipForwardInterval: 30,
       skipBackwardInterval: 15,
       updatedAt: Date()
@@ -77,9 +76,8 @@ struct WidgetSnapshotTests {
       nowPlaying: nil,
       queue: [],
       queueTotalCount: 0,
-      nextTrackBehavior: nil,
-      skipForwardInterval: nil,
-      skipBackwardInterval: nil,
+      skipForwardInterval: 30,
+      skipBackwardInterval: 15,
       updatedAt: Date()
     )
 
@@ -106,9 +104,8 @@ struct WidgetSnapshotTests {
       ),
       queue: [],
       queueTotalCount: 0,
-      nextTrackBehavior: nil,
-      skipForwardInterval: nil,
-      skipBackwardInterval: nil,
+      skipForwardInterval: 30,
+      skipBackwardInterval: 15,
       updatedAt: Date()
     )
 
@@ -128,9 +125,8 @@ struct WidgetSnapshotTests {
       nowPlaying: nil,
       queue: [],
       queueTotalCount: 0,
-      nextTrackBehavior: nil,
-      skipForwardInterval: nil,
-      skipBackwardInterval: nil,
+      skipForwardInterval: 30,
+      skipBackwardInterval: 15,
       updatedAt: Date()
     )
 
@@ -150,9 +146,8 @@ struct WidgetSnapshotTests {
       nowPlaying: nil,
       queue: [],
       queueTotalCount: 0,
-      nextTrackBehavior: nil,
-      skipForwardInterval: nil,
-      skipBackwardInterval: nil,
+      skipForwardInterval: 30,
+      skipBackwardInterval: 15,
       updatedAt: Date()
     )
 
