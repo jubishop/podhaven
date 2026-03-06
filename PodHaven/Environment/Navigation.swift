@@ -312,6 +312,12 @@ extension Container {
 
   var upNext = PathManager()
 
+  // MARK: - UpNext Navigation
+
+  func showUpNext() {
+    currentTab = .upNext
+  }
+
   // MARK: - Episodes
 
   var episodes = SavedPathManager<EpisodesViewType>(

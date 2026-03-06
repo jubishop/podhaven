@@ -8,4 +8,14 @@ extension Container {
     Factory(self) { UserDefaults.standard }
       .scope(.cached)
   }
+
+  var sharedDefaults: Factory<any KeyValueStore> {
+    Factory(self) {
+      guard let defaults = UserDefaults(suiteName: "group.podhaven.shared") else {
+        Assert.fatal("UserDefaults not found for group.podhaven.shared")
+      }
+      return defaults
+    }
+    .scope(.cached)
+  }
 }
