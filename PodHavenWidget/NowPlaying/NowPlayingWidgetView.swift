@@ -26,6 +26,8 @@ struct NowPlayingWidgetView: View {
     VStack(alignment: .leading, spacing: 6) {
       if entry.playbackStatus.loading, let episodeTitle = entry.episodeTitle {
         loadingState(episodeTitle: episodeTitle)
+      } else if entry.playbackStatus.stopped || entry.episodeTitle == nil {
+        emptyState
       } else if let episodeTitle = entry.episodeTitle {
         artworkView(size: 44)
 
@@ -38,14 +40,12 @@ struct NowPlayingWidgetView: View {
         Spacer(minLength: 0)
 
         HStack {
-          playPauseButton(size: 28)
+          playPauseButton
           Spacer()
           Text(entry.durationFormatted)
             .font(.caption2)
             .foregroundStyle(.secondary)
         }
-      } else {
-        emptyState
       }
     }
     .widgetURL(URL(string: "podhaven://widget/now-playing"))
@@ -57,6 +57,8 @@ struct NowPlayingWidgetView: View {
     HStack(spacing: 12) {
       if entry.playbackStatus.loading, let episodeTitle = entry.episodeTitle {
         loadingState(episodeTitle: episodeTitle)
+      } else if entry.playbackStatus.stopped || entry.episodeTitle == nil {
+        emptyState
       } else if let episodeTitle = entry.episodeTitle {
         artworkView(size: 80)
 
@@ -79,12 +81,12 @@ struct NowPlayingWidgetView: View {
           HStack(spacing: 16) {
             switch entry.trackControlStyle {
             case .seekInterval(let forward, let backward):
-              seekBackwardButton(size: 24, interval: backward)
-              playPauseButton(size: 28)
-              seekForwardButton(size: 24, interval: forward)
+              seekBackwardButton(interval: backward)
+              playPauseButton
+              seekForwardButton(interval: forward)
             case .skipEpisode:
-              playPauseButton(size: 28)
-              finishEpisodeButton(size: 24)
+              playPauseButton
+              finishEpisodeButton
             }
 
             Spacer()
@@ -94,8 +96,6 @@ struct NowPlayingWidgetView: View {
               .foregroundStyle(.secondary)
           }
         }
-      } else {
-        emptyState
       }
     }
     .widgetURL(URL(string: "podhaven://widget/now-playing"))
@@ -112,40 +112,39 @@ struct NowPlayingWidgetView: View {
     )
   }
 
-  private func playPauseButton(size: CGFloat) -> some View {
-    Button(intent: PlayPauseIntent()) {
-      Image(systemName: entry.playbackStatus == .paused ? "play.fill" : "pause.fill")
-        .font(.system(size: size * 0.55))
-        .frame(width: size, height: size)
+  private var playPauseButton: some View {
+    Group {
+      if entry.playbackStatus.waiting {
+        AppIcon.loading.rawImage
+          .disabled(true)
+      } else {
+        Button(intent: PlayPauseIntent()) {
+          if entry.playbackStatus.playing {
+            AppIcon.pauseButton.rawImage
+          } else {
+            AppIcon.playButton.rawImage
+          }
+        }
+      }
     }
-    .buttonStyle(.plain)
   }
 
-  private func seekForwardButton(size: CGFloat, interval: Int) -> some View {
+  private func seekForwardButton(interval: Int) -> some View {
     Button(intent: SkipForwardIntent()) {
-      Image(systemName: "goforward.\(interval)")
-        .font(.system(size: size * 0.45))
-        .frame(width: size, height: size)
+      AppIcon.seekForward(interval).rawImage
     }
-    .buttonStyle(.plain)
   }
 
-  private func seekBackwardButton(size: CGFloat, interval: Int) -> some View {
+  private func seekBackwardButton(interval: Int) -> some View {
     Button(intent: SkipBackwardIntent()) {
-      Image(systemName: "gobackward.\(interval)")
-        .font(.system(size: size * 0.45))
-        .frame(width: size, height: size)
+      AppIcon.seekBackward(interval).rawImage
     }
-    .buttonStyle(.plain)
   }
 
-  private func finishEpisodeButton(size: CGFloat) -> some View {
+  private var finishEpisodeButton: some View {
     Button(intent: FinishEpisodeIntent()) {
-      Image(systemName: "forward.end.fill")
-        .font(.system(size: size * 0.45))
-        .frame(width: size, height: size)
+      AppIcon.finishEpisode.rawImage
     }
-    .buttonStyle(.plain)
   }
 
   private func loadingState(episodeTitle: String) -> some View {
@@ -163,7 +162,7 @@ struct NowPlayingWidgetView: View {
 
   private var emptyState: some View {
     VStack(spacing: 8) {
-      Image(systemName: "headphones")
+      Image(systemName: AppIcon.noEpisodeSelected.systemImageName)
         .font(.title2)
         .foregroundStyle(.secondary)
       Text("Nothing Playing")
@@ -198,6 +197,34 @@ struct NowPlayingWidgetView: View {
     podcastTitle: nil,
     durationFormatted: "",
     playbackStatus: .loading("Understanding Swift Concurrency"),
+    artwork: nil,
+    trackControlStyle: .seekInterval(forward: 30, backward: 15)
+  )
+}
+
+#Preview("Waiting - Small", as: .systemSmall) {
+  NowPlayingWidget()
+} timeline: {
+  NowPlayingEntry(
+    date: Date(),
+    episodeTitle: "Understanding Swift Concurrency",
+    podcastTitle: "Swift Talk",
+    durationFormatted: "41:00",
+    playbackStatus: .waiting,
+    artwork: nil,
+    trackControlStyle: .seekInterval(forward: 30, backward: 15)
+  )
+}
+
+#Preview("Waiting - Medium", as: .systemMedium) {
+  NowPlayingWidget()
+} timeline: {
+  NowPlayingEntry(
+    date: Date(),
+    episodeTitle: "Understanding Swift Concurrency",
+    podcastTitle: "Swift Talk",
+    durationFormatted: "41:00",
+    playbackStatus: .waiting,
     artwork: nil,
     trackControlStyle: .seekInterval(forward: 30, backward: 15)
   )

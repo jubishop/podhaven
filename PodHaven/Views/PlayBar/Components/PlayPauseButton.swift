@@ -10,7 +10,8 @@ struct PlayPauseButton: View {
 
   var body: some View {
     if sharedState.playbackStatus.waiting {
-      AppIcon.loading.imageButton(action: action)
+      AppIcon.loading.image
+        .disabled(true)
     } else if sharedState.playbackStatus.playing {
       AppIcon.pauseButton.imageButton(action: action)
     } else {
