@@ -198,9 +198,14 @@ extension Container {
   func toggle() async {
     let currentStatus = avPlayer.timeControlStatus
     Self.log.debug("toggle: executing (current status: \(currentStatus))")
-    currentStatus == .paused
-      ? play()
-      : await pause()
+
+    if currentStatus == .paused {
+      play()
+    } else if currentStatus == .playing {
+      await pause()
+    } else {
+      Self.log.warning("Calling toggle when current status is: \(currentStatus)")
+    }
   }
 
   func setRate(_ rate: Float) {
