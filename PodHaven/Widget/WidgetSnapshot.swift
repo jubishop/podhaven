@@ -10,7 +10,6 @@ struct WidgetSnapshot: Codable, Sendable {
     let episodeTitle: String
     let podcastTitle: String
     let durationSeconds: Double
-    let playbackStatus: PlaybackStatus
     let artworkBase64: String?
   }
 
@@ -23,7 +22,6 @@ struct WidgetSnapshot: Codable, Sendable {
   }
 
   let schemaVersion: Int
-  let loadingTitle: String?
   let nowPlaying: NowPlaying?
   let queue: [QueueItem]
   let queueTotalCount: Int

@@ -42,6 +42,9 @@ extension Container: @retroactive AutoRegistering {
 
     fileManager.context(.test) { FakeFileManager() }.scope(.cached)
 
+    sharedDefaults.context(.test) { FakeKeyValueStore() }.scope(.cached)
+    standardDefaults.context(.test) { FakeKeyValueStore() }.scope(.cached)
+
     uiApplication.context(.test) { @MainActor in FakeApplication() }.scope(.cached)
 
     imagePipeline.context(.test) {

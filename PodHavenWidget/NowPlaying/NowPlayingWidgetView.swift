@@ -194,6 +194,21 @@ struct NowPlayingWidgetView: View {
   )
 }
 
+#Preview("Loading - Medium", as: .systemMedium) {
+  NowPlayingWidget()
+} timeline: {
+  NowPlayingEntry(
+    date: Date(),
+    episodeTitle: "Understanding Swift Concurrency",
+    podcastTitle: nil,
+    durationFormatted: "",
+    playbackStatus: .loading("Understanding Swift Concurrency"),
+    artwork: nil,
+    skipForwardInterval: 30,
+    skipBackwardInterval: 15
+  )
+}
+
 #Preview("Waiting - Small", as: .systemSmall) {
   NowPlayingWidget()
 } timeline: {
@@ -218,21 +233,6 @@ struct NowPlayingWidgetView: View {
     podcastTitle: "Swift Talk",
     durationFormatted: "41:00",
     playbackStatus: .waiting,
-    artwork: nil,
-    skipForwardInterval: 30,
-    skipBackwardInterval: 15
-  )
-}
-
-#Preview("Loading - Medium", as: .systemMedium) {
-  NowPlayingWidget()
-} timeline: {
-  NowPlayingEntry(
-    date: Date(),
-    episodeTitle: "Understanding Swift Concurrency",
-    podcastTitle: nil,
-    durationFormatted: "",
-    playbackStatus: .loading("Understanding Swift Concurrency"),
     artwork: nil,
     skipForwardInterval: 30,
     skipBackwardInterval: 15

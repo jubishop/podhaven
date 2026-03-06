@@ -18,13 +18,11 @@ struct WidgetSnapshotTests {
 
     let snapshot = WidgetSnapshot(
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
-      loadingTitle: nil,
       nowPlaying: WidgetSnapshot.NowPlaying(
         episodeID: 42,
         episodeTitle: "Test Episode",
         podcastTitle: "Test Podcast",
         durationSeconds: 1800,
-        playbackStatus: .playing,
         artworkBase64: artworkBase64
       ),
       queue: [
@@ -57,7 +55,6 @@ struct WidgetSnapshotTests {
     #expect(decoded.nowPlaying?.episodeTitle == "Test Episode")
     #expect(decoded.nowPlaying?.podcastTitle == "Test Podcast")
     #expect(decoded.nowPlaying?.durationSeconds == 1800)
-    #expect(decoded.nowPlaying?.playbackStatus == .playing)
     #expect(decoded.nowPlaying?.artworkBase64 == artworkBase64)
     #expect(decoded.queue.count == 2)
     #expect(decoded.queueTotalCount == 10)
@@ -72,7 +69,7 @@ struct WidgetSnapshotTests {
   func encodeDecodeNilNowPlaying() throws {
     let snapshot = WidgetSnapshot(
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
-      loadingTitle: nil,
+
       nowPlaying: nil,
       queue: [],
       queueTotalCount: 0,
@@ -93,13 +90,12 @@ struct WidgetSnapshotTests {
   func encodeDecodeNilArtwork() throws {
     let snapshot = WidgetSnapshot(
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
-      loadingTitle: nil,
+
       nowPlaying: WidgetSnapshot.NowPlaying(
         episodeID: 1,
         episodeTitle: "No Art",
         podcastTitle: "Podcast",
         durationSeconds: 600,
-        playbackStatus: .paused,
         artworkBase64: nil
       ),
       queue: [],
@@ -121,7 +117,7 @@ struct WidgetSnapshotTests {
   func unknownSchemaVersion() throws {
     let snapshot = WidgetSnapshot(
       schemaVersion: 999,
-      loadingTitle: nil,
+
       nowPlaying: nil,
       queue: [],
       queueTotalCount: 0,
@@ -136,26 +132,6 @@ struct WidgetSnapshotTests {
     // Reader should reject unknown schema versions
     #expect(decoded.schemaVersion == 999)
     #expect(decoded.schemaVersion > WidgetSnapshot.currentSchemaVersion)
-  }
-
-  @Test("snapshot encodes and decodes with loading title")
-  func encodeDecodeLoadingTitle() throws {
-    let snapshot = WidgetSnapshot(
-      schemaVersion: WidgetSnapshot.currentSchemaVersion,
-      loadingTitle: "Loading Episode",
-      nowPlaying: nil,
-      queue: [],
-      queueTotalCount: 0,
-      skipForwardInterval: 30,
-      skipBackwardInterval: 15,
-      updatedAt: Date()
-    )
-
-    let data = try JSONEncoder().encode(snapshot)
-    let decoded = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
-
-    #expect(decoded.loadingTitle == "Loading Episode")
-    #expect(decoded.nowPlaying == nil)
   }
 
   // MARK: - PlaybackStatus Codable

@@ -2,6 +2,19 @@
 
 import FactoryKit
 import Foundation
+import Logging
+
+extension Container {
+  var sharedDefaults: Factory<any KeyValueStore> {
+    Factory(self) {
+      guard let defaults = UserDefaults(suiteName: WidgetInfo.appGroupID) else {
+        Assert.fatal("UserDefaults not found for \(WidgetInfo.appGroupID)")
+      }
+      return defaults
+    }
+    .scope(.cached)
+  }
+}
 
 enum WidgetInfo {
 
@@ -12,7 +25,7 @@ enum WidgetInfo {
 
   // MARK: - Data Storage
 
-  private static let appGroupID = "group.podhaven.shared"
+  fileprivate static let appGroupID = "group.podhaven.shared"
 
   private static var containerURL: URL {
     let fileManager = Container.shared.fileManager()
@@ -32,5 +45,33 @@ enum WidgetInfo {
 
   static var logFileURL: URL {
     containerURL.appendingPathComponent("widget-log.ndjson")
+  }
+
+  // MARK: - Playback Status
+
+  private static let playbackStatusKey = "playbackStatus"
+
+  private static let log = Logger(label: "WidgetInfo")
+
+  static var playbackStatus: PlaybackStatus {
+    get {
+      guard let data = Container.shared.sharedDefaults().data(forKey: playbackStatusKey)
+      else { return .stopped }
+
+      do {
+        return try JSONDecoder().decode(PlaybackStatus.self, from: data)
+      } catch {
+        log.error("Failed to decode playback status: \(error)")
+        return .stopped
+      }
+    }
+    set {
+      do {
+        let data = try JSONEncoder().encode(newValue)
+        Container.shared.sharedDefaults().set(data, forKey: playbackStatusKey)
+      } catch {
+        log.error("Failed to encode playback status: \(error)")
+      }
+    }
   }
 }

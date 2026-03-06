@@ -25,23 +25,25 @@ struct NowPlayingProvider: TimelineProvider {
   }
 
   private func makeEntry() -> NowPlayingEntry {
-    guard let snapshot = WidgetSnapshotReader.read() else {
-      Self.log.warning("makeEntry: no snapshot available, returning empty")
-      return .empty
-    }
+    let playbackStatus = WidgetInfo.playbackStatus
 
-    if let loadingTitle = snapshot.loadingTitle {
+    if let loadingTitle = playbackStatus.loadingTitle {
       Self.log.debug("makeEntry: loading \(loadingTitle)")
       return NowPlayingEntry(
         date: Date(),
         episodeTitle: loadingTitle,
         podcastTitle: nil,
         durationFormatted: "",
-        playbackStatus: .loading(loadingTitle),
+        playbackStatus: playbackStatus,
         artwork: nil,
-        skipForwardInterval: snapshot.skipForwardInterval,
-        skipBackwardInterval: snapshot.skipBackwardInterval
+        skipForwardInterval: 0,
+        skipBackwardInterval: 0
       )
+    }
+
+    guard let snapshot = WidgetSnapshotReader.read() else {
+      Self.log.warning("makeEntry: no snapshot available, returning empty")
+      return .empty
     }
 
     guard let nowPlaying = snapshot.nowPlaying else {
@@ -52,7 +54,7 @@ struct NowPlayingProvider: TimelineProvider {
     Self.log.debug(
       """
       makeEntry: \(nowPlaying.episodeTitle) \
-      (\(nowPlaying.playbackStatus)), \
+      (\(playbackStatus)), \
       artwork=\(nowPlaying.artworkBase64 != nil)
       """
     )
@@ -62,7 +64,7 @@ struct NowPlayingProvider: TimelineProvider {
       episodeTitle: nowPlaying.episodeTitle,
       podcastTitle: nowPlaying.podcastTitle,
       durationFormatted: nowPlaying.durationSeconds.playbackTimeFormat,
-      playbackStatus: nowPlaying.playbackStatus,
+      playbackStatus: playbackStatus,
       artwork: WidgetSnapshotReader.decodeArtwork(from: nowPlaying.artworkBase64),
       skipForwardInterval: snapshot.skipForwardInterval,
       skipBackwardInterval: snapshot.skipBackwardInterval

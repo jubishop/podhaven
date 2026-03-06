@@ -9,6 +9,12 @@ struct PlayPauseIntent: AudioPlaybackIntent {
 
   func perform() async throws -> some IntentResult {
     #if !WIDGET_EXTENSION
+    let currentStatus = Container.shared.sharedState().playbackStatus
+    switch currentStatus {
+    case .playing: WidgetInfo.playbackStatus = .paused
+    case .paused: WidgetInfo.playbackStatus = .playing
+    default: break
+    }
     let playManager = Container.shared.playManager()
     await playManager.toggle()
     return .result()

@@ -175,6 +175,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Environment/AppIcon.swift,
+				Environment/UserDefaults.swift,
 				Errors/ErrorKit.swift,
 				Errors/ReadableError.swift,
 				Extensions/Array.swift,
@@ -194,6 +195,7 @@
 				Play/Models/PlaybackStatus.swift,
 				Protocols/DefaultsStorable.swift,
 				Protocols/FileManaging.swift,
+				Protocols/KeyValueStore.swift,
 				Utility/Assert.swift,
 				Utility/Function.swift,
 				Utility/ThreadSafe.swift,

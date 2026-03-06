@@ -46,8 +46,9 @@ final class WidgetSnapshotWriter: Sendable {
     Task { [weak self] in
       guard let self else { return }
 
-      for await _ in sharedState.$playbackStatus.stream() {
-        scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
+      for await status in sharedState.$playbackStatus.stream() {
+        WidgetInfo.playbackStatus = status
+        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
       }
     }
 
@@ -120,7 +121,6 @@ final class WidgetSnapshotWriter: Sendable {
           episodeTitle: onDeck.title,
           podcastTitle: onDeck.podcastTitle,
           durationSeconds: onDeck.duration.seconds,
-          playbackStatus: sharedState.playbackStatus,
           artworkBase64: encodeArtwork(onDeck.artwork, maxPixels: maxNowPlayingArtworkPixels)
         )
       } else {
@@ -147,7 +147,6 @@ final class WidgetSnapshotWriter: Sendable {
 
     let snapshot = WidgetSnapshot(
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
-      loadingTitle: sharedState.playbackStatus.loadingTitle,
       nowPlaying: nowPlaying,
       queue: queueItems,
       queueTotalCount: queueWidgetEpisodes().count,

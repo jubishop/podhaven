@@ -66,32 +66,34 @@ import Testing
     #expect(snapshot.nowPlaying?.episodeID == episode.id.rawValue)
     #expect(snapshot.nowPlaying?.episodeTitle == episode.title)
     #expect(snapshot.nowPlaying?.podcastTitle == episode.podcastTitle)
-    #expect(snapshot.nowPlaying?.playbackStatus == .playing)
   }
 
-  @Test("includes paused playback status")
-  func includesPausedPlaybackStatus() async throws {
-    let episode = try await Create.podcastEpisode()
-    let onDeck = OnDeck(podcastEpisode: episode)
-    sharedState.$onDeck.new(onDeck)
+  @Test("writes playback status to WidgetInfo")
+  func writesPlaybackStatusToWidgetInfo() async throws {
+    writer.start()
+
+    sharedState.$playbackStatus.new(.playing)
+    try await Wait.until(
+      { WidgetInfo.playbackStatus == .playing },
+      { "WidgetInfo.playbackStatus was not updated to .playing" }
+    )
+
     sharedState.$playbackStatus.new(.paused)
-
-    writer.start()
-    try await waitForSnapshot()
-
-    let snapshot = try await decodeSnapshot()
-    #expect(snapshot.nowPlaying?.playbackStatus == .paused)
+    try await Wait.until(
+      { WidgetInfo.playbackStatus == .paused },
+      { "WidgetInfo.playbackStatus was not updated to .paused" }
+    )
   }
 
-  @Test("includes loading title")
-  func includesLoadingTitle() async throws {
-    sharedState.$playbackStatus.new(.loading("My Episode"))
-
+  @Test("writes loading status to WidgetInfo")
+  func writesLoadingStatusToWidgetInfo() async throws {
     writer.start()
-    try await waitForSnapshot()
 
-    let snapshot = try await decodeSnapshot()
-    #expect(snapshot.loadingTitle == "My Episode")
+    sharedState.$playbackStatus.new(.loading("My Episode"))
+    try await Wait.until(
+      { WidgetInfo.playbackStatus.loadingTitle == "My Episode" },
+      { "WidgetInfo.playbackStatus was not updated to loading" }
+    )
   }
 
   @Test("includes user settings")
