@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Synchronization
@@ -103,6 +104,32 @@ extension ThreadSafe {
     }
     set {
       mutex.withLock { $0[id: id] = newValue }
+    }
+  }
+}
+
+// MARK: - PersistedThreadSafe
+
+// Property wrapper that pairs a ThreadSafe with UserDefaults persistence.
+// Use instead of PersistedBroadcast when SwiftUI observation and
+// AsyncStream are not needed — just thread-safe read/write with persistence.
+@propertyWrapper
+struct PersistedThreadSafe<T: DefaultsStorable>: Sendable {
+  private let storage: ThreadSafe<T>
+  private let key: String
+  private let store: any KeyValueStore
+
+  init(wrappedValue: T, _ key: String) {
+    self.key = key
+    self.store = Container.shared.standardDefaults()
+    storage = ThreadSafe(T.load(from: store, forKey: key) ?? wrappedValue)
+  }
+
+  var wrappedValue: T {
+    get { storage() }
+    nonmutating set {
+      storage(newValue)
+      newValue.store(to: store, forKey: key)
     }
   }
 }

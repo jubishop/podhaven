@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 import Observation
 import SwiftUI
@@ -134,5 +135,31 @@ struct Broadcasted<T: Sendable>: Sendable {
 extension Broadcast {
   @MainActor var binding: Binding<T> {
     Binding(get: { self.current }, set: { self.new($0) })
+  }
+}
+
+// MARK: - PersistedBroadcast
+
+// Property wrapper that pairs a Broadcast with UserDefaults persistence.
+// Every mutation auto-persists via the onChange callback.
+// In test context, uses injected FakeKeyValueStore to prevent cross-test contamination.
+@propertyWrapper
+struct PersistedBroadcast<T: DefaultsStorable>: Sendable {
+  private let broadcast: Broadcast<T>
+
+  init(wrappedValue: T, _ key: String) {
+    let store = Container.shared.standardDefaults()
+    broadcast = Broadcast(T.load(from: store, forKey: key) ?? wrappedValue) {
+      $0.store(to: store, forKey: key)
+    }
+  }
+
+  var wrappedValue: T {
+    get { broadcast.current }
+    nonmutating set { broadcast.new(newValue) }
+  }
+
+  var projectedValue: Broadcast<T> {
+    broadcast
   }
 }
