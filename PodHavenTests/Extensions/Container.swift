@@ -44,6 +44,7 @@ extension Container: @retroactive AutoRegistering {
 
     sharedDefaults.context(.test) { FakeKeyValueStore() }.scope(.cached)
     standardDefaults.context(.test) { FakeKeyValueStore() }.scope(.cached)
+    sharedDefaults.context(.test) { FakeKeyValueStore() }.scope(.cached)
 
     uiApplication.context(.test) { @MainActor in FakeApplication() }.scope(.cached)
 
