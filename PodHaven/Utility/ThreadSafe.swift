@@ -117,19 +117,19 @@ extension ThreadSafe {
 struct PersistedThreadSafe<T: DefaultsStorable>: Sendable {
   private let storage: ThreadSafe<T>
   private let key: String
-  private let store: any KeyValueStore
 
   init(wrappedValue: T, _ key: String) {
     self.key = key
-    self.store = Container.shared.standardDefaults()
-    storage = ThreadSafe(T.load(from: store, forKey: key) ?? wrappedValue)
+    storage = ThreadSafe(
+      T.load(from: Container.shared.standardDefaults(), forKey: key) ?? wrappedValue
+    )
   }
 
   var wrappedValue: T {
     get { storage() }
     nonmutating set {
       storage(newValue)
-      newValue.store(to: store, forKey: key)
+      newValue.store(to: Container.shared.standardDefaults(), forKey: key)
     }
   }
 }
