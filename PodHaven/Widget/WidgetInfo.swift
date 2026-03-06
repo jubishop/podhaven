@@ -4,18 +4,6 @@ import FactoryKit
 import Foundation
 import Logging
 
-extension Container {
-  var sharedDefaults: Factory<any KeyValueStore> {
-    Factory(self) {
-      guard let defaults = UserDefaults(suiteName: WidgetInfo.appGroupID) else {
-        Assert.fatal("UserDefaults not found for \(WidgetInfo.appGroupID)")
-      }
-      return defaults
-    }
-    .scope(.cached)
-  }
-}
-
 enum WidgetInfo {
 
   // MARK: - Widget Kinds
