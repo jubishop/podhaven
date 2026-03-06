@@ -14,38 +14,12 @@ import Testing
   @DynamicInjected(\.userSettings) private var userSettings
   @DynamicInjected(\.queue) private var queue
 
-  private var fakeFileManager: FakeFileManager {
-    Container.shared.fileManager() as! FakeFileManager
-  }
-
-  private var sleeper: FakeSleeper {
-    Container.shared.sleeper() as! FakeSleeper
-  }
-
-  // MARK: - Helpers
-
-  private func waitForSnapshot() async throws {
-    try await sleeper.waitForSleepRequests(count: 1)
-    await sleeper.advanceTime(by: .milliseconds(250))
-    try await Wait.until(
-      { [fakeFileManager] in fakeFileManager.fileExists(at: WidgetInfo.snapshotURL) },
-      { "Snapshot file was never written" }
-    )
-  }
-
-  private func decodeSnapshot() async throws -> WidgetSnapshot {
-    let data = try await fakeFileManager.readData(from: WidgetInfo.snapshotURL)
-    return try JSONDecoder().decode(WidgetSnapshot.self, from: data)
-  }
-
-  // MARK: - Tests
-
   @Test("writes valid JSON when nothing is playing and queue is empty")
   func writesValidJSONWhenNothingPlayingAndQueueEmpty() async throws {
     writer.start()
-    try await waitForSnapshot()
+    try await WidgetHelpers.waitForSnapshot()
 
-    let snapshot = try await decodeSnapshot()
+    let snapshot = try await WidgetHelpers.decodeSnapshot()
     #expect(snapshot.nowPlaying == nil)
     #expect(snapshot.queue.isEmpty)
     #expect(snapshot.queueTotalCount == 0)
@@ -60,9 +34,9 @@ import Testing
     sharedState.$playbackStatus.new(.playing)
 
     writer.start()
-    try await waitForSnapshot()
+    try await WidgetHelpers.waitForSnapshot()
 
-    let snapshot = try await decodeSnapshot()
+    let snapshot = try await WidgetHelpers.decodeSnapshot()
     #expect(snapshot.nowPlaying?.episodeID == episode.id.rawValue)
     #expect(snapshot.nowPlaying?.episodeTitle == episode.title)
     #expect(snapshot.nowPlaying?.podcastTitle == episode.podcastTitle)
@@ -101,9 +75,9 @@ import Testing
     userSettings.$skipForwardInterval.new(45)
     userSettings.$skipBackwardInterval.new(10)
     writer.start()
-    try await waitForSnapshot()
+    try await WidgetHelpers.waitForSnapshot()
 
-    let snapshot = try await decodeSnapshot()
+    let snapshot = try await WidgetHelpers.decodeSnapshot()
     #expect(snapshot.skipForwardInterval == 45)
     #expect(snapshot.skipBackwardInterval == 10)
   }
@@ -119,9 +93,9 @@ import Testing
     try await queue.unshift([ep2.id, ep1.id])
 
     writer.start()
-    try await waitForSnapshot()
+    try await WidgetHelpers.waitForSnapshot()
 
-    let snapshot = try await decodeSnapshot()
+    let snapshot = try await WidgetHelpers.decodeSnapshot()
     #expect(snapshot.queue.count == 2)
     #expect(snapshot.queueTotalCount == 2)
     let titles = snapshot.queue.map(\.episodeTitle)
@@ -141,9 +115,9 @@ import Testing
     try await queue.unshift(episodeIDs)
 
     writer.start()
-    try await waitForSnapshot()
+    try await WidgetHelpers.waitForSnapshot()
 
-    let snapshot = try await decodeSnapshot()
+    let snapshot = try await WidgetHelpers.decodeSnapshot()
     #expect(snapshot.queue.count == 8)
     #expect(snapshot.queueTotalCount == 10)
   }

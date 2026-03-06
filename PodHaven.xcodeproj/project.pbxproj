@@ -160,7 +160,10 @@
 				Utility/CacheHelpers.swift,
 				Utility/PlayHelpers.swift,
 				Utility/ShareHelpers.swift,
+				Utility/WidgetHelpers.swift,
 				ViewModelTests/OPMLViewModelTests.swift,
+				WidgetSnapshotTests.swift,
+				WidgetSnapshotWriterTests.swift,
 			);
 			target = 8B9B8B252DCBB25500E574E6 /* PerformanceTests */;
 		};
