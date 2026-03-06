@@ -26,7 +26,7 @@ import Testing
 
   private func waitForSnapshot() async throws {
     try await sleeper.waitForSleepRequests(count: 1)
-    await sleeper.advanceTime(by: .milliseconds(100))
+    await sleeper.advanceTime(by: .milliseconds(250))
     try await Wait.until(
       { [fakeFileManager] in fakeFileManager.fileExists(at: WidgetInfo.snapshotURL) },
       { "Snapshot file was never written" }

@@ -45,6 +45,12 @@ struct OnDeck: EpisodeListable, Identifiable, Stringable {
     hasher.combine(podcastEpisode)
   }
 
+  // MARK: - Widget Equality
+
+  func widgetEquals(_ other: OnDeck) -> Bool {
+    id == other.id && (artwork != nil) == (other.artwork != nil)
+  }
+
   // MARK: - Equatable
 
   static func == (lhs: OnDeck, rhs: OnDeck) -> Bool {

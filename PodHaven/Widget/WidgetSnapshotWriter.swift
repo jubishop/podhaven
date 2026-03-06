@@ -27,8 +27,9 @@ final class WidgetSnapshotWriter: Sendable {
   private static let log = Log.as(LogSubsystem.Widget.writer)
 
   private let pendingReloadKinds = ThreadSafe<Set<String>>([])
-  private let debounce = Debounce(duration: .milliseconds(100))
+  private let debounce = Debounce(duration: .milliseconds(250))
   private let queueWidgetEpisodes = ThreadSafe<[QueueWidgetEpisode]>([])
+  private let lastOnDeck = ThreadSafe<OnDeck?>(nil)
 
   // MARK: - Start
 
@@ -38,8 +39,16 @@ final class WidgetSnapshotWriter: Sendable {
     Task { [weak self] in
       guard let self else { return }
 
-      for await _ in sharedState.$onDeck.stream() {
-        scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
+      for await onDeck in sharedState.$onDeck.stream() {
+        let changed: Bool = lastOnDeck { last in
+          defer { last = onDeck }
+          guard let onDeck else { return last != nil }
+          guard let last else { return true }
+          return !onDeck.widgetEquals(last)
+        }
+        if changed {
+          scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
+        }
       }
     }
 
