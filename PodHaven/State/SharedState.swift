@@ -17,7 +17,7 @@ struct SharedState: Sendable {
 
   // MARK: - Persisted State
 
-  @PersistedThreadSafe("currentEpisodeID") private var storedCurrentEpisodeID: Int? = nil
+  @PersistedThreadSafe("currentEpisodeID") var currentEpisodeID: Episode.ID? = nil
 
   // MARK: - In-Memory State (Observable Broadcasts)
 
@@ -28,23 +28,6 @@ struct SharedState: Sendable {
   @Broadcasted var playRate: Float = 1.0
   @Broadcasted var tags: IdentifiedArrayOf<Tag> = []
   @Broadcasted var queuedPodcastEpisodes: [PodcastEpisode] = []
-
-  // MARK: - Current Episode ID (Persisted)
-
-  var currentEpisodeID: Episode.ID? {
-    guard let currentEpisodeInt = storedCurrentEpisodeID,
-      let currentEpisodeInt64 = Int64(exactly: currentEpisodeInt)
-    else { return nil }
-    return Episode.ID(rawValue: currentEpisodeInt64)
-  }
-
-  func setCurrentEpisodeID(_ episodeID: Episode.ID?) {
-    guard let newEpisodeID = episodeID else {
-      storedCurrentEpisodeID = nil
-      return
-    }
-    storedCurrentEpisodeID = Int(exactly: newEpisodeID.rawValue)
-  }
 
   // MARK: - Download Progress
 
