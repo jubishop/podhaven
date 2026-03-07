@@ -34,6 +34,7 @@ struct AppLauncher: Sendable {
   // Synchronous early-launch work. Called from AppDelegate.didFinishLaunchingWithOptions.
   @MainActor func bootstrap() {
     AppInfo.initializeEnvironment()
+    guard AppInfo.environment != .preview else { return }
 
     // Force DB initialization so schema migrations run immediately.
     _ = Container.shared.appDB()
