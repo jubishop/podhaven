@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import AVFoundation
 import FactoryKit
 import Logging
 import SwiftUI
@@ -12,28 +11,22 @@ struct PodHavenApp: App {
 
   @InjectedObservable(\.alert) private var alert
   @InjectedObservable(\.sheet) private var sheet
-  @DynamicInjected(\.cacheManager) private var cacheManager
+  @DynamicInjected(\.appLauncher) private var appLauncher
   @DynamicInjected(\.cachePurger) private var cachePurger
-  @DynamicInjected(\.notifications) private var notifications
-  @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.shareService) private var shareService
-  @DynamicInjected(\.stateManager) private var stateManager
   @DynamicInjected(\.userNotificationManager) private var userNotificationManager
   @DynamicInjected(\.userSettings) private var userSettings
 
-  @State private var configuringEnvironment = false
-  @State private var environmentConfigured = false
-  @State private var isStartingServices = false
-  @State private var didStartServices = false
+  @State private var initialized = false
 
   private static let log = Log.as("Main")
 
   var body: some Scene {
     WindowGroup {
       Group {
-        if environmentConfigured {
+        if initialized {
           ContentView()
             .customAlert($alert.config)
             .customSheet($sheet.config)
@@ -46,11 +39,10 @@ struct PodHavenApp: App {
         Task {
           if newPhase == .active {
             await initialize()
-            await startServices()
           }
 
           sharedState.$isActive.new(newPhase == .active)
-          if didStartServices {
+          if initialized {
             appDelegate.handleScenePhaseChange(to: newPhase)
             refreshScheduler.handleScenePhaseChange(to: newPhase)
             cachePurger.handleScenePhaseChange(to: newPhase)
@@ -84,80 +76,18 @@ struct PodHavenApp: App {
     }
   }
 
-  // MARK: - Memory Monitoring
-
-  private func startMemoryWarningMonitoring() {
-    guard Function.neverCalled() else { return }
-
-    Task {
-      for await _ in notifications(UIApplication.didReceiveMemoryWarningNotification) {
-        Self.log.warning("System memory warning received")
-
-        if AppInfo.myDevice {
-          alert("Memory warning received")
-        }
-      }
-    }
-  }
-
   // MARK: - Launch Handling
 
   private func initialize() async {
-    guard !environmentConfigured else { return }
+    guard !initialized else { return }
     guard UIApplication.shared.applicationState == .active else {
-      Self.log.debug("Environment configuration deferred: app not active")
-      return
-    }
-    guard !configuringEnvironment else {
-      Self.log.debug("Environment configuration already running")
+      Self.log.debug("Initialization deferred: app not active")
       return
     }
 
-    configuringEnvironment = true
-    defer { configuringEnvironment = false }
-
-    // Initial environment and logging already configured in AppDelegate
-    await AppInfo.finalizeEnvironment()
+    await appLauncher.prepareForForeground()
     guard !Task.isCancelled else { return }
 
-    await userNotificationManager.initialize()
-    guard !Task.isCancelled else { return }
-
-    Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
-    Self.log.debug("My device?: \(AppInfo.myDevice)")
-    Self.log.debug("Final environment is: \(AppInfo.environment)")
-    Self.log.debug("Build version: \(AppInfo.version) (\(AppInfo.buildNumber))")
-
-    stateManager.start()
-    environmentConfigured = true
-  }
-
-  private func startServices() async {
-    guard environmentConfigured else { return }
-    guard AppInfo.environment != .testing else { return }
-
-    guard !didStartServices else { return }
-    guard UIApplication.shared.applicationState == .active else {
-      Self.log.debug("Service startup deferred: app not active")
-      return
-    }
-    guard !isStartingServices else {
-      Self.log.debug("Service startup already running")
-      return
-    }
-
-    isStartingServices = true
-    defer { isStartingServices = false }
-
-    startMemoryWarningMonitoring()
-
-    await playManager.start()
-    guard !Task.isCancelled else { return }
-
-    cacheManager.start()
-    refreshScheduler.start()
-    cachePurger.start()
-
-    didStartServices = true
+    initialized = true
   }
 }

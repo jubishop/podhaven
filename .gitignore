@@ -16,6 +16,7 @@ playground.xcworkspace
 # Building
 .build/
 build/
+.derivedData/
 
 # Sentry
 .sentryclirc
