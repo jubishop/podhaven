@@ -9,6 +9,9 @@ struct SkipForwardIntent: AudioPlaybackIntent {
 
   func perform() async throws -> some IntentResult {
     #if !WIDGET_EXTENSION
+    let appLauncher = Container.shared.appLauncher()
+    await appLauncher.prepareForPlayback()
+
     let playManager = Container.shared.playManager()
     await playManager.seekForward()
     return .result()
