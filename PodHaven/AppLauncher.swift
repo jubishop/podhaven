@@ -40,7 +40,9 @@ struct AppLauncher: Sendable {
 
     configureLogging()
 
-    Self.log.debug("Initial environment is: \(AppInfo.environment)")
+    Self.log.debug(
+      "Initial environment is: \(AppInfo.environment), state: \(UIApplication.shared.applicationState)"
+    )
 
     refreshScheduler.register()
     cachePurger.register()
@@ -50,7 +52,6 @@ struct AppLauncher: Sendable {
     do {
       try Container.shared.configureAudioSession()()
       CommandCenter.registerRemoteCommandHandlers()
-      Task { await playManager.startStreamConsumers() }
     } catch {
       Self.log.error(error)
     }
@@ -89,18 +90,16 @@ struct AppLauncher: Sendable {
     Self.log.debug("Build version: \(AppInfo.version) (\(AppInfo.buildNumber))")
 
     // Ensure playback subsystems are started (no-op if already done by an intent)
-    stateManager.start()
-    widgetSnapshotWriter.start()
-
+    await prepareForPlayback()
     guard AppInfo.environment != .testing else { return }
-
-    await playManager.start()
     guard !Task.isCancelled else { return }
 
+    // Start all other services
     cacheManager.start()
     refreshScheduler.start()
     cachePurger.start()
 
+    // System monitoring
     startMemoryWarningMonitoring()
   }
 

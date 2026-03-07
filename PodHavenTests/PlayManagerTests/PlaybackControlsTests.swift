@@ -31,7 +31,7 @@ import Testing
   init() async throws {
     stateManager.start()
     cacheManager.start()
-    await PlayHelpers.setupCommandHandling()
+    PlayHelpers.setupCommandHandling()
   }
 
   // MARK: - Playback Controls

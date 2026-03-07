@@ -27,6 +27,7 @@ struct StateManager: Sendable {
 
   func start() {
     guard Function.neverCalled() else { return }
+    Self.log.debug("start: executing")
 
     startObservingQueuedPodcastEpisodes()
     startObservingTags()

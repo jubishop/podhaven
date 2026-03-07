@@ -33,9 +33,9 @@ enum PlayHelpers {
   // MARK: - Setup
 
   // Sets up command handling for tests (mirrors AppDelegate setup).
-  static func setupCommandHandling() async {
+  static func setupCommandHandling() {
     CommandCenter.registerRemoteCommandHandlers()
-    await playManager.startStreamConsumers()
+    playManager.startStreamConsumers()
   }
 
   // MARK: - Action Helpers
