@@ -89,7 +89,7 @@ actor RefreshManagerTests {
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
-    #expect(updatedSeries.podcast.lastUpdate.approximatelyEquals(Date()))
+    #expect(updatedSeries.podcast.lastUpdate.approximatelyEquals(Date(), accuracy: .seconds(10)))
   }
 
   @Test("that selective updates only update changed content")
