@@ -263,7 +263,7 @@ import Testing
     try await CacheHelpers.waitForCached(podcastEpisode.id)
 
     // Set currentEpisodeID directly without setting onDeck (simulates background app launch)
-    sharedState.setCurrentEpisodeID(podcastEpisode.id)
+    sharedState.currentEpisodeID = podcastEpisode.id
     #expect(sharedState.onDeck == nil)
     #expect(sharedState.currentEpisodeID == podcastEpisode.id)
 

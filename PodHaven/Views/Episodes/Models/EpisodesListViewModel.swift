@@ -79,11 +79,7 @@ class EpisodesListViewModel:
   }
   let allSortMethods = SortMethod.allCases
 
-  @ObservationIgnored @PersistedBroadcast private var storedSortMethod: SortMethod
-  var currentSortMethod: SortMethod {
-    get { storedSortMethod }
-    set { $storedSortMethod.new(newValue) }
-  }
+  @ObservationIgnored @PersistedBroadcast var currentSortMethod: SortMethod
 
   // MARK: - Filter Text
 
@@ -119,7 +115,7 @@ class EpisodesListViewModel:
   // MARK: - Initialization
 
   init(title: String, filter: SQLExpression = AppDB.NoOp) {
-    self._storedSortMethod = PersistedBroadcast(
+    self._currentSortMethod = PersistedBroadcast(
       wrappedValue: SortMethod.newestFirst,
       "EpisodesList-sortMethod-\(title)"
     )

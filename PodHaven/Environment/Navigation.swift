@@ -31,7 +31,7 @@ extension Container {
 
   @MainActor @Observable
   class SavedPathManager<TopDestination: DefaultsStorable & Hashable>: ManagingPath {
-    @ObservationIgnored @PersistedThreadSafe private var topDestination: TopDestination?
+    @ObservationIgnored @Persisted private var topDestination: TopDestination?
 
     var path: [Destination] = [] {
       didSet {
@@ -56,7 +56,7 @@ extension Container {
       extractTopDestination: @escaping (Destination) -> TopDestination?,
       makeDestination: @escaping (TopDestination) -> Destination
     ) {
-      self._topDestination = PersistedThreadSafe(wrappedValue: nil, storageKey)
+      self._topDestination = Persisted(wrappedValue: nil, storageKey)
       self.extractTopDestination = extractTopDestination
       self.makeDestination = makeDestination
 

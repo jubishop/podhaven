@@ -41,8 +41,8 @@ final class Broadcast<T: Sendable>: Sendable, Observable {
   // MARK: - Initialization
 
   init(_ initialValue: T, onChange: (@Sendable (T) -> Void)? = nil) {
-    self.onChange = onChange
     state = ThreadSafe(State(current: initialValue))
+    self.onChange = onChange
   }
 
   // MARK: - Current Value
@@ -147,10 +147,15 @@ extension Broadcast {
 struct PersistedBroadcast<T: DefaultsStorable>: Sendable {
   private let broadcast: Broadcast<T>
 
-  init(wrappedValue: T, _ key: String) {
+  init(
+    wrappedValue: T,
+    _ key: String,
+    onChange: (@Sendable (T) -> Void)? = nil
+  ) {
     let store = Container.shared.standardDefaults()
     broadcast = Broadcast(T.load(from: store, forKey: key) ?? wrappedValue) {
       $0.store(to: store, forKey: key)
+      onChange?($0)
     }
   }
 

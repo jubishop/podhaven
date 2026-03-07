@@ -16,6 +16,8 @@ where RawValue: StatementColumnConvertible {}
 extension Tagged: @retroactive DatabaseValueConvertible
 where RawValue: DatabaseValueConvertible {}
 
+extension Tagged: DefaultsStorable where RawValue: Codable {}
+
 extension Tagged: Stringable where RawValue: Stringable {
   var toString: String { rawValue.toString }
 }
