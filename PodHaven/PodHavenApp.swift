@@ -13,7 +13,6 @@ struct PodHavenApp: App {
   @InjectedObservable(\.sheet) private var sheet
   @DynamicInjected(\.appLauncher) private var appLauncher
   @DynamicInjected(\.cachePurger) private var cachePurger
-  @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.shareService) private var shareService
@@ -21,7 +20,6 @@ struct PodHavenApp: App {
   @DynamicInjected(\.userSettings) private var userSettings
   @DynamicInjected(\.widgetService) private var widgetService
 
-  @State private var isInitializing = false
   @State private var initialized = false
 
   private static let log = Log.as("Main")
@@ -81,22 +79,6 @@ struct PodHavenApp: App {
     }
   }
 
-  // MARK: - Memory Monitoring
-
-  private func startMemoryWarningMonitoring() {
-    guard Function.neverCalled() else { return }
-
-    Task {
-      for await _ in notifications(UIApplication.didReceiveMemoryWarningNotification) {
-        Self.log.warning("System memory warning received")
-
-        if AppInfo.myDevice {
-          alert("Memory warning received")
-        }
-      }
-    }
-  }
-
   // MARK: - Launch Handling
 
   private func initialize() async {
@@ -105,18 +87,10 @@ struct PodHavenApp: App {
       Self.log.debug("Initialization deferred: app not active")
       return
     }
-    guard !isInitializing else {
-      Self.log.debug("Initialization already running")
-      return
-    }
-
-    isInitializing = true
-    defer { isInitializing = false }
 
     await appLauncher.prepareForForeground()
     guard !Task.isCancelled else { return }
 
-    startMemoryWarningMonitoring()
     initialized = true
   }
 }
