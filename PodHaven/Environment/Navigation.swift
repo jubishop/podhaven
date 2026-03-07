@@ -308,6 +308,14 @@ extension Container {
     currentTab = .search
   }
 
+  // MARK: - On-Deck Episode Detail
+
+  func showOnDeckEpisodeDetail() {
+    Self.log.debug("Showing on-deck episode detail sheet")
+    currentTab = .upNext
+    PlayBar.showOnDeckEpisodeDetail()
+  }
+
   // MARK: - UpNext
 
   var upNext = PathManager()
