@@ -16,12 +16,14 @@ struct PlayPauseIntent: AudioPlaybackIntent {
     let playManager = Container.shared.playManager()
 
     switch sharedState.playbackStatus {
+    case .paused:
+      WidgetInfo.playbackStatus = .playing
+      await playManager.play()
     case .playing:
       WidgetInfo.playbackStatus = .paused
       await playManager.pause()
-    default:
-      WidgetInfo.playbackStatus = .playing
-      await playManager.play()
+    case .stopped, .waiting, .loading:
+      break
     }
 
     return .result()
