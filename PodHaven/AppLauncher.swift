@@ -55,7 +55,6 @@ struct AppLauncher: Sendable {
   // MARK: - Playback
 
   // Minimum initialization for audio playback from a background launch.
-  // Called from widget intents when the app may not have a foreground scene.
   func prepareForPlayback() async {
     guard Function.neverCalled() else { return }
 
