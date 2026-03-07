@@ -64,7 +64,6 @@ struct RefreshScheduler: Sendable {
 
   func start() {
     guard Function.neverCalled() else { return }
-
     Self.log.debug("start: executing")
 
     backgroundTaskScheduler.scheduleNext(in: backgroundPolicy.cadence)

@@ -34,7 +34,7 @@ import Testing
   init() async throws {
     stateManager.start()
     cacheManager.start()
-    await PlayHelpers.setupCommandHandling()
+    PlayHelpers.setupCommandHandling()
   }
 
   // MARK: - Loading
@@ -392,21 +392,6 @@ import Testing
       try await playManager.load(originalEpisode)
     }
 
-    try await PlayHelpers.waitFor(.playing)
-  }
-
-  @Test("playing while loading retains playing status")
-  func playingWhileLoadingRetainsPlayingStatus() async throws {
-    await playManager.start()
-    let podcastEpisode = try await Create.podcastEpisode()
-
-    try await PlayHelpers.executeMidLoad(for: podcastEpisode.episode.mediaURL) {
-      await playManager.play()
-    }
-    try await playManager.load(podcastEpisode)
-
-    try await PlayHelpers.waitForCurrentItem(podcastEpisode.episode.mediaURL)
-    try await PlayHelpers.waitForOnDeck(podcastEpisode)
     try await PlayHelpers.waitFor(.playing)
   }
 

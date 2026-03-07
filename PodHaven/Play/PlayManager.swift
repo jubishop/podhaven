@@ -80,9 +80,9 @@ final class PlayManager {
 
   // Starts the async stream consumers for command center and notifications.
   // Called from AppDelegate after audio session and command handlers are configured.
-  func startStreamConsumers() {
+  nonisolated func startStreamConsumers() {
     guard Function.neverCalled() else { return }
-    Self.log.debug("startStreamConsumers: executing")
+    Log.as(LogSubsystem.Play.manager).debug("startStreamConsumers: executing")
 
     notificationTracking()
     asyncStreams()
@@ -92,26 +92,26 @@ final class PlayManager {
   // Loads the current episode if one exists.
   // Note: Audio session and command handlers must already be configured.
   func start() async {
+    guard Function.neverCalled() else { return }
     Self.log.debug("start: executing")
 
+    startStreamConsumers()
+    await loadPersistedEpisodeIfNeeded()
+  }
+
+  private func loadPersistedEpisodeIfNeeded() async {
+    guard sharedState.onDeck == nil else { return }
     guard let currentEpisodeID = sharedState.currentEpisodeID else { return }
 
-    let podcastEpisode: PodcastEpisode?
+    Self.log.info("Loading persisted episode \(currentEpisodeID)")
     do {
-      podcastEpisode = try await repo.podcastEpisode(currentEpisodeID)
-    } catch {
-      await alert("Podcast episode with id: \"\(currentEpisodeID)\" not found")
-      Self.log.error(error)
-      return
-    }
-
-    if let podcastEpisode {
-      do {
-        try await load(podcastEpisode)
-      } catch {
-        await alert("Failed to load podcast episode \(podcastEpisode.episode.title)")
-        Self.log.error(error)
+      guard let podcastEpisode = try await repo.podcastEpisode(currentEpisodeID) else {
+        Self.log.warning("Persisted episode \(currentEpisodeID) not found in database")
+        return
       }
+      try await load(podcastEpisode)
+    } catch {
+      Self.log.error(error)
     }
   }
 
@@ -286,20 +286,11 @@ final class PlayManager {
   // MARK: - Playback Controls
 
   func play() async {
-    // If nothing is loaded but we have a persisted episode:
-    //   load it (enables AirPods resume after app kill)
-    if sharedState.onDeck == nil, let currentEpisodeID = sharedState.currentEpisodeID {
-      Self.log.info("play: loading currentEpisodeID \(currentEpisodeID) for background resume")
-      do {
-        guard let podcastEpisode = try await repo.podcastEpisode(currentEpisodeID) else {
-          Self.log.error("play: currentEpisodeID \(currentEpisodeID) not found in database")
-          return
-        }
-        try await load(podcastEpisode)
-      } catch {
-        Self.log.error(error)
-        return
-      }
+    await loadPersistedEpisodeIfNeeded()
+
+    guard sharedState.onDeck != nil else {
+      Self.log.warning("play: nothing to play")
+      return
     }
 
     await podAVPlayer.play()
@@ -676,10 +667,10 @@ final class PlayManager {
 
   // MARK: - Notification Tracking
 
-  private func notificationTracking() {
+  private nonisolated func notificationTracking() {
     Assert.neverCalled()
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await notification in notifications(AVAudioSession.interruptionNotification) {
         let parsedNotification = AudioInterruption.parse(notification)
@@ -696,14 +687,14 @@ final class PlayManager {
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in notifications(AVAudioSession.mediaServicesWereResetNotification) {
         await handleMediaServicesReset()
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await notification in notifications(AVAudioSession.routeChangeNotification) {
         guard
@@ -722,7 +713,7 @@ final class PlayManager {
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await notification in notifications(AVPlayerItem.failedToPlayToEndTimeNotification) {
         guard await podAVPlayer.isCurrentItem(notification.object as? AVPlayerItem) else {
@@ -746,7 +737,7 @@ final class PlayManager {
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await notification in notifications(AVPlayerItem.playbackStalledNotification) {
         guard await podAVPlayer.isCurrentItem(notification.object as? AVPlayerItem) else {
@@ -757,7 +748,7 @@ final class PlayManager {
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await notification in notifications(AVPlayerItem.newErrorLogEntryNotification) {
         guard let item = notification.object as? AVPlayerItem
@@ -785,12 +776,12 @@ final class PlayManager {
 
   // MARK: - Subordinate Async Streams
 
-  private func asyncStreams() {
+  private nonisolated func asyncStreams() {
     Assert.neverCalled()
 
     // CommandCenter
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await command in commandCenterStream.stream {
         switch command {
@@ -827,28 +818,28 @@ final class PlayManager {
 
     // PodAVPlayer
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await (status, episodeID) in await podAVPlayer.itemStatusStream {
         await handleItemStatusChange(status: status, episodeID: episodeID)
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await currentTime in await podAVPlayer.currentTimeStream {
         await setCurrentTime(currentTime)
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await rate in await podAVPlayer.rateStream {
         await setPlaybackRate(rate)
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await controlStatus in await podAVPlayer.controlStatusStream {
         Self.log.debug("AVPlayer timeControlStatus changed to: \(controlStatus)")
@@ -865,7 +856,7 @@ final class PlayManager {
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await episodeID in await podAVPlayer.didPlayToEndStream {
         await handleDidPlayToEnd(episodeID)
@@ -874,7 +865,7 @@ final class PlayManager {
 
     // UserSettings
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in userSettings.$nextTrackBehavior.stream() {
         Self.log.debug("nextTrackBehavior changed")
@@ -882,7 +873,7 @@ final class PlayManager {
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in userSettings.$defaultPlaybackRate.stream() {
         Self.log.debug("defaultPlaybackRate changed")
@@ -890,7 +881,7 @@ final class PlayManager {
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in userSettings.$skipForwardInterval.stream() {
         Self.log.debug("skipForwardInterval changed")
@@ -898,7 +889,7 @@ final class PlayManager {
       }
     }
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in userSettings.$skipBackwardInterval.stream() {
         Self.log.debug("skipBackwardInterval changed")
@@ -908,7 +899,7 @@ final class PlayManager {
 
     // SharedState
 
-    Task { [weak self] in
+    Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in sharedState.$queuedPodcastEpisodes.stream() {
         Self.log.debug("queue changed")

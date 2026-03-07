@@ -39,6 +39,13 @@ enum CommandCenter: Sendable {
 
     let commandCenter = Container.shared.mpRemoteCommandCenter()
     let continuation = Container.shared.commandCenterStream().continuation
+    let playManager = Container.shared.playManager()
+
+    let yield: (Command) -> Void = { command in
+      log.debug("Remote command received: \(command)")
+      playManager.startStreamConsumers()
+      continuation.yield(command)
+    }
 
     commandCenter.play.removeCommandTarget()
     commandCenter.pause.removeCommandTarget()
@@ -51,36 +58,36 @@ enum CommandCenter: Sendable {
     commandCenter.previousTrack.removeCommandTarget()
 
     commandCenter.play.addCommandTarget { event in
-      continuation.yield(.play)
+      yield(.play)
       return .success
     }
     commandCenter.pause.addCommandTarget { event in
-      continuation.yield(.pause)
+      yield(.pause)
       return .success
     }
     commandCenter.togglePlayPause.addCommandTarget { event in
-      continuation.yield(.togglePlayPause)
+      yield(.togglePlayPause)
       return .success
     }
     commandCenter.skipForward.addCommandTarget { event in
       guard let skipEvent = event as? any MPSkipIntervalCommandEventable
       else { Assert.fatal("Event is not a MPSkipIntervalCommandEventable") }
 
-      continuation.yield(.skipForward(skipEvent.interval))
+      yield(.skipForward(skipEvent.interval))
       return .success
     }
     commandCenter.skipBackward.addCommandTarget { event in
       guard let skipEvent = event as? any MPSkipIntervalCommandEventable
       else { Assert.fatal("Event is not a MPSkipIntervalCommandEventable") }
 
-      continuation.yield(.skipBackward(skipEvent.interval))
+      yield(.skipBackward(skipEvent.interval))
       return .success
     }
     commandCenter.changePlaybackPosition.addCommandTarget { event in
       guard let positionEvent = event as? any MPChangePlaybackPositionCommandEventable
       else { Assert.fatal("Event is not a MPChangePlaybackPositionCommandEventable") }
 
-      continuation.yield(.playbackPosition(positionEvent.positionTime))
+      yield(.playbackPosition(positionEvent.positionTime))
       return .success
     }
     commandCenter.changePlaybackRate.supportedPlaybackRates =
@@ -89,15 +96,15 @@ enum CommandCenter: Sendable {
       guard let rateEvent = event as? any MPChangePlaybackRateCommandEventable
       else { Assert.fatal("Event is not a MPChangePlaybackRateCommandEventable") }
 
-      continuation.yield(.changePlaybackRate(rateEvent.playbackRate))
+      yield(.changePlaybackRate(rateEvent.playbackRate))
       return .success
     }
     commandCenter.nextTrack.addCommandTarget { event in
-      continuation.yield(.nextEpisode)
+      yield(.nextEpisode)
       return .success
     }
     commandCenter.previousTrack.addCommandTarget { event in
-      continuation.yield(.previousEpisode)
+      yield(.previousEpisode)
       return .success
     }
 
