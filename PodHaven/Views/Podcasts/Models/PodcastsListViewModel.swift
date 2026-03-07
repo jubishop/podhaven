@@ -80,11 +80,11 @@ class PodcastsListViewModel:
   }
   let allSortMethods = SortMethod.allCases
 
-  @ObservationIgnored @PersistedBroadcast private var storedSortMethod: SortMethod
+  @ObservationIgnored @PersistedBroadcast private var persistedSortMethod: SortMethod
   var currentSortMethod: SortMethod {
-    get { storedSortMethod }
+    get { persistedSortMethod }
     set {
-      $storedSortMethod.new(newValue)
+      $persistedSortMethod.new(newValue)
       podcastList.filterMethod = newValue.filterMethod
       podcastList.sortMethod = newValue.sortMethod
     }
@@ -102,17 +102,17 @@ class PodcastsListViewModel:
   // MARK: - Initialization
 
   init(title: String, filter: @escaping PodcastFilter = { $0 }) {
-    let persisted = PersistedBroadcast(
+    let persistedSortMethod = PersistedBroadcast(
       wrappedValue: SortMethod.byTitle,
       "PodcastsList-sortMethod-\(title)"
     )
-    self._storedSortMethod = persisted
+    self._persistedSortMethod = persistedSortMethod
 
     self.title = title
     self.filter = filter
     self.podcastList = PowerList(
-      filterMethod: persisted.wrappedValue.filterMethod,
-      sortMethod: persisted.wrappedValue.sortMethod
+      filterMethod: persistedSortMethod.wrappedValue.filterMethod,
+      sortMethod: persistedSortMethod.wrappedValue.sortMethod
     )
   }
 
