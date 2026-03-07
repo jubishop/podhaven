@@ -33,6 +33,10 @@ struct AppLauncher: Sendable {
   // Synchronous early-launch work. Called from AppDelegate.didFinishLaunchingWithOptions.
   @MainActor func bootstrap() {
     AppInfo.initializeEnvironment()
+
+    // Force DB initialization so schema migrations run immediately.
+    _ = Container.shared.appDB()
+
     configureLogging()
 
     Self.log.debug("Initial environment is: \(AppInfo.environment)")
