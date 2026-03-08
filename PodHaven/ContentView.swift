@@ -54,8 +54,5 @@ struct ContentView: View {
     .tabViewBottomAccessory {
       PlayBar(viewModel: playBarViewModel)
     }
-    .sheet(isPresented: $playBarViewModel.playBarSheetIsPresented) {
-      PlayBarSheet(viewModel: playBarViewModel)
-    }
   }
 }
