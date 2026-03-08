@@ -628,40 +628,33 @@ final class PlayManager {
     await clearOnDeck()
     Self.log.debug("handleMediaServicesReset: cleared existing playback state")
 
-    Self.log.debug(
-      """
-      handleMediaServicesReset: captured state:
-        currentOnDeck: \(String(describing: currentOnDeck?.toString))
-      """
-    )
-
-    if let currentOnDeck {
-      do {
-        guard let podcastEpisode = try await repo.podcastEpisode(currentOnDeck.id)
-        else {
-          Self.log.warning(
-            "handleMediaServicesReset: episode \(currentOnDeck.id) no longer exists"
-          )
-          await setStatus(.stopped)
-          return
-        }
-
-        Self.log.info("handleMediaServicesReset: reloading \(podcastEpisode.toString)")
-        try await load(podcastEpisode)
-
-        Self.log.info("handleMediaServicesReset: recovery finished successfully")
-      } catch {
-        Self.log.error(error)
-
-        await alert(
+    do {
+      let episodeToLoad: PodcastEpisode?
+      if let currentOnDeck {
+        Self.log.debug("handleMediaServicesReset: recovering on-deck episode \(currentOnDeck.id)")
+        episodeToLoad = try await repo.podcastEpisode(currentOnDeck.id)
+      } else if let nextEpisode = try await queue.nextEpisode {
+        Self.log.debug(
           """
-          Playback was interrupted by a system issue and couldn't be restored automatically. \
-          The episode has been put back in your queue.
+          handleMediaServicesReset: no on-deck episode, \
+          falling back to top of queue: \(nextEpisode.toString)
           """
         )
+        episodeToLoad = nextEpisode
+      } else {
+        episodeToLoad = nil
       }
-    } else {
-      Self.log.debug("handleMediaServicesReset: no episode was playing, recovery not needed")
+
+      guard let episodeToLoad else {
+        Self.log.debug("handleMediaServicesReset: no episode to recover")
+        return
+      }
+
+      Self.log.info("handleMediaServicesReset: reloading \(episodeToLoad.toString)")
+      try await load(episodeToLoad)
+      Self.log.info("handleMediaServicesReset: recovery finished successfully")
+    } catch {
+      Self.log.error(error)
     }
   }
 
