@@ -9,7 +9,7 @@ struct ContentView: View {
 
   private static let log = Log.as("ContentView")
 
-  @State private var playBarViewModel = PlayBarViewModel()
+  private let playBarViewModel = PlayBarViewModel()
 
   var body: some View {
     TabView(selection: $navigation.currentTab) {
@@ -53,9 +53,6 @@ struct ContentView: View {
     .tabBarMinimizeBehavior(userSettings.shrinkPlayBarOnScroll ? .onScrollDown : .never)
     .tabViewBottomAccessory {
       PlayBar(viewModel: playBarViewModel)
-    }
-    .sheet(isPresented: $playBarViewModel.playBarSheetIsPresented) {
-      PlayBarSheet(viewModel: playBarViewModel)
     }
   }
 }

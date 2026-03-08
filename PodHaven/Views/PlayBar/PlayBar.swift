@@ -84,7 +84,7 @@ struct PlayBar: View {
       Spacer()
 
       AppIcon.expandUp.imageButton {
-        viewModel.playBarSheetIsPresented = true
+        PlayBar.showPlayBarSheet(viewModel: viewModel)
       }
     }
     .padding(.horizontal, spacing * 2)
@@ -125,6 +125,14 @@ struct PlayBar: View {
 // MARK: - Static Actions
 
 extension PlayBar {
+  static func showPlayBarSheet(viewModel: PlayBarViewModel) {
+    @DynamicInjected(\.sheet) var sheet
+
+    sheet {
+      PlayBarSheet(viewModel: viewModel)
+    }
+  }
+
   static func showOnDeckEpisodeDetail() {
     @DynamicInjected(\.alert) var alert
 
@@ -147,7 +155,7 @@ extension PlayBar {
       let podcastEpisode = try await repo.podcastEpisode(onDeck.id)
     else { return }
 
-    sheet {
+    sheet(id: podcastEpisode.id) {
       NavigationStack {
         EpisodeDetailView(
           viewModel: EpisodeDetailViewModel(

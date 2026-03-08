@@ -70,6 +70,13 @@ enum PlayHelpers {
     )
   }
 
+  static func waitForPlayRate(_ rate: Float) async throws {
+    try await Wait.until(
+      { Container.shared.sharedState().playRate == rate },
+      { "Expected playRate to be \(rate), got \(Container.shared.sharedState().playRate)" }
+    )
+  }
+
   static func waitFor(_ time: CMTime) async throws {
     try await Wait.until(
       { @MainActor in

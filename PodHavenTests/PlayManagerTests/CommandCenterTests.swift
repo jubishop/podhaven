@@ -133,7 +133,6 @@ import Testing
 
   @Test("media services reset with no episode then manual load restores controls")
   func mediaServicesResetWithNoEpisodeThenManualLoadRestoresControls() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
 
@@ -195,7 +194,6 @@ import Testing
 
   @Test("nextTrackCommand is enabled when queue has episodes")
   func nextTrackCommandIsEnabledWhenQueueHasEpisodes() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -212,7 +210,6 @@ import Testing
 
   @Test("nextTrackCommand is disabled after queue becomes empty")
   func nextTrackCommandIsDisabledAfterQueueBecomesEmpty() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -238,7 +235,6 @@ import Testing
 
   @Test("nextTrackCommand advances to next episode when enabled")
   func nextTrackCommandAdvancesToNextEpisodeWhenEnabled() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -264,7 +260,6 @@ import Testing
 
   @Test("queue count updates MPNowPlayingInfoPropertyPlaybackQueueCount")
   func queueCountUpdatesMPNowPlayingInfoPropertyPlaybackQueueCount() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     let (playingEpisode, queuedEpisode1, queuedEpisode2) =
@@ -352,7 +347,6 @@ import Testing
 
   @Test("nextTrackCommand disables when queue empties while paused")
   func nextTrackCommandDisablesWhenQueueEmptiesWhilePaused() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     let (currentEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -563,7 +557,6 @@ import Testing
 
   @Test("changing nextTrackBehavior toggles remote command availability")
   func changingNextTrackBehaviorTogglesCommandAvailability() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
@@ -603,7 +596,6 @@ import Testing
 
   @Test("changing nextTrackBehavior switches command actions")
   func changingNextTrackBehaviorSwitchesCommandActions() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()

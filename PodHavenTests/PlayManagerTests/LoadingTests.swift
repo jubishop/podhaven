@@ -179,7 +179,6 @@ import Testing
 
   @Test("loading an episode sets loading status")
   func loadingEpisodeSetsLoadingStatus() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
@@ -232,7 +231,6 @@ import Testing
 
   @Test("loading fetches episode image if it exists")
   func loadingFetchesEpisodeImageIfItExists() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     dataLoader.setDefaultHandler { url in
@@ -339,7 +337,6 @@ import Testing
 
   @Test("loading during image fetching cancels previous image fetch")
   func loadingDuringImageFetchingCancelsPreviousImageFetch() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
 

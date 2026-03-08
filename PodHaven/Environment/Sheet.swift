@@ -17,8 +17,12 @@ extension Container {
 
   // MARK: - Public Sheet Presentation
 
-  func callAsFunction<Content: View>(@ViewBuilder content: @escaping () -> Content) {
-    config = SheetConfig(content: content)
+  func callAsFunction<Content: View>(
+    id: AnyHashable? = nil,
+    @ViewBuilder content: @escaping () -> Content
+  ) {
+    if let id, config?.id == id { return }
+    config = SheetConfig(id: id, content: content)
   }
 
   func dismiss() {
@@ -27,9 +31,11 @@ extension Container {
 }
 
 @Observable @MainActor class SheetConfig {
+  let id: AnyHashable?
   let content: AnyView
 
-  init<Content: View>(@ViewBuilder content: @escaping () -> Content) {
+  init<Content: View>(id: AnyHashable?, @ViewBuilder content: @escaping () -> Content) {
+    self.id = id
     self.content = AnyView(content())
   }
 }

@@ -1,30 +1,8 @@
 // Copyright Justin Bishop, 2025
 
-import Foundation
 import Logging
 
-#if DEBUG
-import FactoryKit
-
-extension Container {
-  fileprivate var testLogSystem: Factory<ThreadSafe<String>> {
-    Factory(self) { ThreadSafe("") }.scope(.cached)
-  }
-}
-#endif
-
 enum Log {
-  // MARK: - Initialization
-
-  #if DEBUG
-  static func setTestSystem(_ system: String = #function) {
-    Container.shared.testLogSystem()(system)
-  }
-  static func getTestSystem() -> String {
-    Container.shared.testLogSystem()()
-  }
-  #endif
-
   static func `as`(_ categorizable: any LogCategorizable) -> Logger {
     var logger = Logger(
       label: LogKit.buildLabel(

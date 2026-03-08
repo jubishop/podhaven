@@ -50,20 +50,6 @@ struct OSLogHandler: LogHandler {
     function: String,
     line: UInt
   ) {
-    #if DEBUG
-    let system = Log.getTestSystem()
-    if !system.isEmpty {
-      logger.log(
-        level: level.osLogLevel,
-        """
-        \(system):
-        \(message, privacy: .public)
-        """
-      )
-      return
-    }
-    #endif
-
     logger.log(level: level.osLogLevel, "\(message, privacy: .public)")
   }
 }

@@ -18,7 +18,6 @@ import Tagged
 
   // MARK: - State Management
 
-  var playBarSheetIsPresented = false
 
   var isLoading: Bool { sharedState.playbackStatus.loading }
   var isPlaying: Bool { sharedState.playbackStatus.playing }

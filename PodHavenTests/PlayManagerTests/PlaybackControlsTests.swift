@@ -38,7 +38,6 @@ import Testing
 
   @Test("play and pause functions play and pause playback")
   func playAndPauseFunctionsPlayAndPausePlayback() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
@@ -62,7 +61,6 @@ import Testing
 
   @Test("command center stops and starts playback")
   func commandCenterStopsAndStartsPlayback() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
@@ -131,7 +129,6 @@ import Testing
 
   @Test("audio session interruption stops and restarts playback")
   func audioSessionInterruptionStopsPlayback() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
     let podcastEpisode = try await Create.podcastEpisode()
