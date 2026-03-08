@@ -75,7 +75,7 @@ extension Container {
   }
 
   var currentTab: Tab = .upNext {
-    willSet { sheet.dismiss() }
+    willSet { if newValue != currentTab { sheet.dismiss() } }
   }
 
   // MARK: - Unified Navigation Destination

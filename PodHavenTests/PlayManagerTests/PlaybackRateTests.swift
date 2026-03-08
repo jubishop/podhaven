@@ -114,7 +114,6 @@ import Testing
 
   @Test("default playback rate set before initialization is used when playing")
   func defaultPlaybackRateSetBeforeInitializationIsUsedWhenPlaying() async throws {
-    Log.setTestSystem()
 
     // Set default playback rate before starting playManager
     userSettings.$defaultPlaybackRate.new(1.5)
@@ -128,7 +127,7 @@ import Testing
 
     // Verify the rate matches the default we set
     #expect(avPlayer.rate == 1.5)
-    #expect(sharedState.playRate == 1.5)
+    try await PlayHelpers.waitForPlayRate(1.5)
     try await PlayHelpers.waitForNowPlayingInfo(
       key: MPNowPlayingInfoPropertyDefaultPlaybackRate,
       value: 1.5
@@ -137,7 +136,6 @@ import Testing
 
   @Test("podcast with defaultPlaybackRate uses that rate when loaded and played")
   func podcastWithDefaultPlaybackRateUsesThatRateWhenLoadedAndPlayed() async throws {
-    Log.setTestSystem()
 
     await playManager.start()
 
@@ -155,7 +153,7 @@ import Testing
     try await PlayHelpers.waitFor(.playing)
 
     // Verify both SharedState and AVPlayer use the podcast's defaultPlaybackRate
-    #expect(sharedState.playRate == Float(customRate))
+    try await PlayHelpers.waitForPlayRate(Float(customRate))
     #expect(avPlayer.rate == Float(customRate))
     try await PlayHelpers.waitForNowPlayingInfo(
       key: MPNowPlayingInfoPropertyDefaultPlaybackRate,

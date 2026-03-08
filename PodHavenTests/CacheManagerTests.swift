@@ -74,7 +74,7 @@ import Testing
 
   @Test("download failure clears cache for episode")
   func downloadFailureClearsCacheForEpisode() async throws {
-    Log.setTestSystem()
+
     let podcastEpisode = try await Create.podcastEpisode()
     let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 

@@ -147,7 +147,7 @@ extension PlayBar {
       let podcastEpisode = try await repo.podcastEpisode(onDeck.id)
     else { return }
 
-    sheet {
+    sheet(id: podcastEpisode.id) {
       NavigationStack {
         EpisodeDetailView(
           viewModel: EpisodeDetailViewModel(
