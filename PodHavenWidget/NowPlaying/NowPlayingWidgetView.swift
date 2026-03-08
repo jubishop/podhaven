@@ -29,7 +29,15 @@ struct NowPlayingWidgetView: View {
       } else if entry.playbackStatus.stopped || entry.episodeTitle == nil {
         emptyState
       } else if let episodeTitle = entry.episodeTitle {
-        artworkView(size: 44)
+        HStack(alignment: .top) {
+          artworkView(size: 52)
+          Spacer()
+          VStack(alignment: .leading, spacing: 12) {
+            CompactMetadataItem(appIcon: .publishDate, value: entry.pubDateFormatted)
+            CompactMetadataItem(appIcon: .duration, value: entry.durationFormatted)
+          }
+          .font(.caption2)
+        }
 
         Text(episodeTitle)
           .font(.caption)
@@ -39,15 +47,15 @@ struct NowPlayingWidgetView: View {
 
         Spacer(minLength: 0)
 
-        HStack {
+        HStack(spacing: 16) {
+          seekBackwardButton(interval: entry.skipBackwardInterval)
           playPauseButton
-          Spacer()
-          Text(entry.durationFormatted)
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+          seekForwardButton(interval: entry.skipForwardInterval)
         }
+        .frame(maxWidth: .infinity)
       }
     }
+    .dynamicTypeSize(.small ... .xLarge)
     .widgetURL(URL(string: "podhaven://widget/now-playing"))
   }
 
@@ -92,6 +100,7 @@ struct NowPlayingWidgetView: View {
         }
       }
     }
+    .dynamicTypeSize(.small ... .xxxLarge)
     .widgetURL(URL(string: "podhaven://widget/now-playing"))
   }
 
@@ -186,6 +195,7 @@ struct NowPlayingWidgetView: View {
     date: Date(),
     episodeTitle: "Understanding Swift Concurrency",
     podcastTitle: nil,
+    pubDateFormatted: "",
     durationFormatted: "",
     playbackStatus: .loading("Understanding Swift Concurrency"),
     artwork: nil,
@@ -201,6 +211,7 @@ struct NowPlayingWidgetView: View {
     date: Date(),
     episodeTitle: "Understanding Swift Concurrency",
     podcastTitle: nil,
+    pubDateFormatted: "",
     durationFormatted: "",
     playbackStatus: .loading("Understanding Swift Concurrency"),
     artwork: nil,
@@ -216,6 +227,7 @@ struct NowPlayingWidgetView: View {
     date: Date(),
     episodeTitle: "Understanding Swift Concurrency",
     podcastTitle: "Swift Talk",
+    pubDateFormatted: "2/28/26",
     durationFormatted: "41:00",
     playbackStatus: .waiting,
     artwork: nil,
@@ -231,6 +243,7 @@ struct NowPlayingWidgetView: View {
     date: Date(),
     episodeTitle: "Understanding Swift Concurrency",
     podcastTitle: "Swift Talk",
+    pubDateFormatted: "2/28/26",
     durationFormatted: "41:00",
     playbackStatus: .waiting,
     artwork: nil,

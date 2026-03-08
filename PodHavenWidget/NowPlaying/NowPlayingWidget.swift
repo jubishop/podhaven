@@ -33,6 +33,7 @@ struct NowPlayingProvider: TimelineProvider {
         date: Date(),
         episodeTitle: loadingTitle,
         podcastTitle: nil,
+        pubDateFormatted: "",
         durationFormatted: "",
         playbackStatus: playbackStatus,
         artwork: nil,
@@ -63,6 +64,7 @@ struct NowPlayingProvider: TimelineProvider {
       date: Date(),
       episodeTitle: nowPlaying.episodeTitle,
       podcastTitle: nowPlaying.podcastTitle,
+      pubDateFormatted: Date(timeIntervalSince1970: nowPlaying.pubDateTimestamp).usShort,
       durationFormatted: nowPlaying.durationSeconds.playbackTimeFormat,
       playbackStatus: playbackStatus,
       artwork: WidgetSnapshotReader.decodeArtwork(from: nowPlaying.artworkBase64),
@@ -78,7 +80,6 @@ struct NowPlayingWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: NowPlayingProvider()) { entry in
       NowPlayingWidgetView(entry: entry)
-        .dynamicTypeSize(.small ... .xxxLarge)
         .containerBackground(.fill.tertiary, for: .widget)
     }
     .configurationDisplayName("Now Playing")

@@ -3,12 +3,13 @@
 import Foundation
 
 struct WidgetSnapshot: Codable, Sendable {
-  static let currentSchemaVersion = 1
+  static let currentSchemaVersion = 2
 
   struct NowPlaying: Codable, Sendable {
     let episodeID: Int64
     let episodeTitle: String
     let podcastTitle: String
+    let pubDateTimestamp: Double
     let durationSeconds: Double
     let artworkBase64: String?
   }

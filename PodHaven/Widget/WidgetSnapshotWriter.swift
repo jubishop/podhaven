@@ -135,6 +135,7 @@ final class WidgetSnapshotWriter: Sendable {
           episodeID: onDeck.id.rawValue,
           episodeTitle: onDeck.title,
           podcastTitle: onDeck.podcastTitle,
+          pubDateTimestamp: onDeck.pubDate.timeIntervalSince1970,
           durationSeconds: onDeck.duration.seconds,
           artworkBase64: encodeArtwork(onDeck.artwork, maxPixels: maxNowPlayingArtworkPixels)
         )

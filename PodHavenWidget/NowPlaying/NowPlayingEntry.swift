@@ -7,6 +7,7 @@ struct NowPlayingEntry: TimelineEntry {
   let date: Date
   let episodeTitle: String?
   let podcastTitle: String?
+  let pubDateFormatted: String
   let durationFormatted: String
   let playbackStatus: PlaybackStatus
   let artwork: UIImage?
@@ -17,6 +18,7 @@ struct NowPlayingEntry: TimelineEntry {
     date: Date(),
     episodeTitle: nil,
     podcastTitle: nil,
+    pubDateFormatted: "",
     durationFormatted: "",
     playbackStatus: .stopped,
     artwork: nil,
@@ -28,6 +30,7 @@ struct NowPlayingEntry: TimelineEntry {
     date: Date(),
     episodeTitle: "Understanding Swift Concurrency",
     podcastTitle: "Swift Talk",
+    pubDateFormatted: "2/28/26",
     durationFormatted: "41:00",
     playbackStatus: .playing,
     artwork: nil,

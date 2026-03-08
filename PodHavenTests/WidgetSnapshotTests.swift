@@ -15,6 +15,7 @@ struct WidgetSnapshotTests {
   func encodeDecodeRoundTrip() throws {
     let artworkData = Data(repeating: 0xFF, count: 100)
     let artworkBase64 = artworkData.base64EncodedString()
+    let nowPlayingPubDate: Double = 1_700_000_000
 
     let snapshot = WidgetSnapshot(
       schemaVersion: WidgetSnapshot.currentSchemaVersion,
@@ -22,6 +23,7 @@ struct WidgetSnapshotTests {
         episodeID: 42,
         episodeTitle: "Test Episode",
         podcastTitle: "Test Podcast",
+        pubDateTimestamp: nowPlayingPubDate,
         durationSeconds: 1800,
         artworkBase64: artworkBase64
       ),
@@ -54,6 +56,7 @@ struct WidgetSnapshotTests {
     #expect(decoded.nowPlaying?.episodeID == 42)
     #expect(decoded.nowPlaying?.episodeTitle == "Test Episode")
     #expect(decoded.nowPlaying?.podcastTitle == "Test Podcast")
+    #expect(decoded.nowPlaying?.pubDateTimestamp == nowPlayingPubDate)
     #expect(decoded.nowPlaying?.durationSeconds == 1800)
     #expect(decoded.nowPlaying?.artworkBase64 == artworkBase64)
     #expect(decoded.queue.count == 2)
@@ -95,6 +98,7 @@ struct WidgetSnapshotTests {
         episodeID: 1,
         episodeTitle: "No Art",
         podcastTitle: "Podcast",
+        pubDateTimestamp: Date().timeIntervalSince1970,
         durationSeconds: 600,
         artworkBase64: nil
       ),
