@@ -161,7 +161,10 @@ extension Container {
           .id("recentEpisodes")
       case .unqueued:
         EpisodesListView(
-          viewModel: EpisodesListViewModel(title: "Unqueued", filter: Episode.unqueued)
+          viewModel: EpisodesListViewModel(
+            title: "Unqueued",
+            filter: Episode.unqueued && Episode.unfinished
+          )
         )
         .id("unqueued")
       case .cached:
@@ -181,7 +184,10 @@ extension Container {
         .id("finished")
       case .unfinished:
         EpisodesListView(
-          viewModel: EpisodesListViewModel(title: "Unfinished", filter: Episode.unfinished)
+          viewModel: EpisodesListViewModel(
+            title: "Unfinished",
+            filter: Episode.unfinished && Episode.started
+          )
         )
         .id("unfinished")
       case .previouslyQueued:
