@@ -91,6 +91,26 @@ import Testing
     #expect(sharedState.playbackStatus == .stopped)
   }
 
+  @Test("media services reset with no on-deck but queued episode loads top of queue")
+  func mediaServicesResetWithNoOnDeckLoadsTopOfQueue() async throws {
+    await playManager.start()
+    let podcastEpisode = try await Create.podcastEpisode()
+    let initialCallCount = await audioSession.configureCallCount
+
+    // Put the episode in the queue but don't load it on deck
+    try await queue.unshift(podcastEpisode.id)
+    #expect(sharedState.onDeck == nil)
+
+    // Trigger media services reset
+    notifier.continuation(for: AVAudioSession.mediaServicesWereResetNotification)
+      .yield(Notification(name: AVAudioSession.mediaServicesWereResetNotification))
+    try await PlayHelpers.waitForConfigureCallCount(callCount: initialCallCount + 1)
+
+    // The episode from the top of the queue should now be loaded on deck
+    try await PlayHelpers.waitForOnDeck(podcastEpisode)
+    try await PlayHelpers.waitFor(.paused)
+  }
+
   @Test("media services reset with episode resets factory scopes and re-registers handlers")
   func mediaServicesResetWithEpisodeResetsFactoryScopesAndReregistersHandlers() async throws {
     await playManager.start()
