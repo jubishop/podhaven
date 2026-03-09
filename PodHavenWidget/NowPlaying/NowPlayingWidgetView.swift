@@ -56,7 +56,6 @@ struct NowPlayingWidgetView: View {
       }
     }
     .dynamicTypeSize(.small ... .xLarge)
-    .widgetURL(URL(string: "podhaven://widget/now-playing"))
   }
 
   // MARK: - System Medium
@@ -101,18 +100,19 @@ struct NowPlayingWidgetView: View {
       }
     }
     .dynamicTypeSize(.small ... .xxxLarge)
-    .widgetURL(URL(string: "podhaven://widget/now-playing"))
   }
 
   // MARK: - Components
 
   private func artworkView(size: CGFloat) -> some View {
-    SquareImage(
-      image: entry.artwork,
-      cornerRadius: 8,
-      size: size,
-      placeholderIcon: .audioPlaceholder
-    )
+    OptionalLink(url: URL(string: "podhaven://widget/now-playing")) {
+      SquareImage(
+        image: entry.artwork,
+        cornerRadius: 8,
+        size: size,
+        placeholderIcon: .audioPlaceholder
+      )
+    }
   }
 
   private var playPauseButton: some View {

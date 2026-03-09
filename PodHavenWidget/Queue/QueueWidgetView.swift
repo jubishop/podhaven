@@ -10,7 +10,7 @@ struct QueueWidgetView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      Link(destination: URL(string: "podhaven://widget/queue")!) {
+      OptionalLink(url: URL(string: "podhaven://widget/queue")) {
         HStack {
           AppIcon.episodes.label("Up Next")
             .fontWeight(.semibold)
