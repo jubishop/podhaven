@@ -112,7 +112,7 @@ struct BackgroundTaskScheduler: Sendable {
         scheduled next background task: \(identifier)
           type: \(taskType)
           duration: \(duration)
-          earliest begin date: \(request.earliestBeginDate!)
+          earliest begin date: \(request.earliestBeginDate?.description ?? "nil")
         """
       )
 

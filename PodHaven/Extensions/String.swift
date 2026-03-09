@@ -16,7 +16,9 @@ extension String {
   func hash(to length: Int = 4) -> String {
     guard length > 0 else { return "" }
 
-    let data = self.data(using: .utf8)!
+    guard let data = self.data(using: .utf8) else {
+      Assert.fatal("Failed to encode string to UTF-8 data")
+    }
     let hash = SHA256.hash(data: data)
     let hashData = Data(hash)
 

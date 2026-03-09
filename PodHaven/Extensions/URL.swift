@@ -5,7 +5,12 @@ public import Foundation
 extension URL: Stringable {
   public var toString: String { self.absoluteString }
 
-  static let placeholder = URL(string: "about:blank")!
+  static let placeholder: URL = {
+    guard let url = URL(string: "about:blank") else {
+      Assert.fatal("Failed to create placeholder URL from 'about:blank'")
+    }
+    return url
+  }()
 
   func convertToHTTPSURL() throws(URLError) -> URL {
     guard var components = URLComponents(url: self, resolvingAgainstBaseURL: false)
