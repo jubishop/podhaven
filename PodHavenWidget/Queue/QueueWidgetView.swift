@@ -9,45 +9,43 @@ struct QueueWidgetView: View {
   let entry: QueueEntry
 
   var body: some View {
-    if entry.items.isEmpty {
-      emptyState
-    } else {
-      queueList
-    }
-  }
-
-  // MARK: - Queue List
-
-  private var queueList: some View {
     VStack(alignment: .leading, spacing: 0) {
-      headerRow
+      Link(destination: URL(string: "podhaven://widget/queue")!) {
+        HStack {
+          AppIcon.episodes.label("Up Next")
+            .fontWeight(.semibold)
+          Spacer()
+        }
+        .font(.callout)
+      }
+      .padding(.bottom, 6)
 
-      TruncatingVStack {
-        ForEach(Array(entry.items.enumerated()), id: \.element.id) { index, item in
-          VStack(spacing: 0) {
-            queueItemRow(item: item, index: index)
+      if entry.items.isEmpty {
+        VStack(spacing: 8) {
+          Image(systemName: AppIcon.upNext.systemImageName)
+            .font(.largeTitle)
+            .foregroundStyle(.quaternary)
+          Text("Add episodes to your queue")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else {
+        TruncatingVStack {
+          ForEach(Array(entry.items.enumerated()), id: \.element.id) { index, item in
+            VStack(spacing: 0) {
+              if index > 0 {
+                Divider()
+                  .padding(.leading, imageSize + 4)
+                  .padding(.trailing, 14)
+              }
 
-            Divider()
-              .padding(.leading, imageSize + 4)
-              .padding(.trailing, 14)
+              queueItemRow(item: item, index: index)
+            }
           }
         }
       }
     }
-  }
-
-  private var headerRow: some View {
-    Link(destination: URL(string: "podhaven://widget/queue")!) {
-      HStack {
-        AppIcon.episodes.rawImage
-        Text("Up Next")
-          .fontWeight(.semibold)
-        Spacer()
-      }
-      .font(.callout)
-      .foregroundStyle(.tint)
-    }
-    .padding(.bottom, 6)
   }
 
   private func queueItemRow(item: QueueEntry.QueueEntryItem, index: Int) -> some View {
@@ -75,33 +73,14 @@ struct QueueWidgetView: View {
           .font(.caption)
         }
 
-        Image(systemName: "chevron.right")
+        AppIcon.chevronRight.image
           .font(.caption)
           .fontWeight(.semibold)
-          .foregroundStyle(.tertiary)
       }
       .padding(.vertical, 4)
     }
   }
 
-  // MARK: - Empty State
-
-  private var emptyState: some View {
-    Link(destination: URL(string: "podhaven://widget/queue")!) {
-      VStack(spacing: 8) {
-        Image(systemName: "list.bullet")
-          .font(.title2)
-          .foregroundStyle(.secondary)
-        Text("Queue Empty")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        Text("Add episodes to your queue")
-          .font(.caption2)
-          .foregroundStyle(.tertiary)
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-  }
 }
 
 #if DEBUG
