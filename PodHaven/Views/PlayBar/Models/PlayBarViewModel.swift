@@ -18,7 +18,6 @@ import Tagged
 
   // MARK: - State Management
 
-
   var isLoading: Bool { sharedState.playbackStatus.loading }
   var isPlaying: Bool { sharedState.playbackStatus.playing }
   var isStopped: Bool { sharedState.playbackStatus.stopped }

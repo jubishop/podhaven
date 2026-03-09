@@ -74,9 +74,7 @@ extension Container {
     case settings, search, upNext, episodes, podcasts
   }
 
-  var currentTab: Tab = .upNext {
-    willSet { if newValue != currentTab { sheet.dismiss() } }
-  }
+  var currentTab: Tab = .upNext
 
   // MARK: - Unified Navigation Destination
 
@@ -263,6 +261,7 @@ extension Container {
   func showOPMLImport() {
     Self.log.debug("Showing OPML import")
 
+    sheet.dismiss()
     settings.path.append(.settingsSection(.opml))
     currentTab = .settings
   }
@@ -270,6 +269,7 @@ extension Container {
   func showTagsSettings() {
     Self.log.debug("Showing tags settings")
 
+    sheet.dismiss()
     settings.path = [.settingsSection(.tags)]
     currentTab = .settings
   }
@@ -280,16 +280,10 @@ extension Container {
 
   // MARK: - Search Navigation
 
-  func showSearchedPodcast(_ unsavedPodcast: UnsavedPodcast) {
-    Self.log.debug("Showing searched podcast: \(unsavedPodcast.toString)")
-
-    search.path = [.podcast(DisplayedPodcast(unsavedPodcast))]
-    currentTab = .search
-  }
-
   func showSearchedUnsavedPodcastSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) {
     Self.log.debug("Showing searched unsaved series: \(unsavedPodcastSeries.toString)")
 
+    sheet.dismiss()
     search.path = [.unsavedPodcastSeries(unsavedPodcastSeries)]
     currentTab = .search
   }
@@ -300,6 +294,7 @@ extension Container {
   ) {
     Self.log.debug("Showing searched episode: \(unsavedEpisode.toString)")
 
+    sheet.dismiss()
     search.path = [
       .unsavedPodcastSeries(unsavedPodcastSeries),
       .episode(
@@ -318,6 +313,7 @@ extension Container {
 
   func showOnDeckEpisodeDetail() {
     Self.log.debug("Showing on-deck episode detail sheet")
+
     currentTab = .upNext
     PlayBar.showOnDeckEpisodeDetail()
   }
@@ -329,6 +325,9 @@ extension Container {
   // MARK: - UpNext Navigation
 
   func showUpNext() {
+    Self.log.debug("Showing up next")
+
+    sheet.dismiss()
     currentTab = .upNext
   }
 
@@ -342,15 +341,6 @@ extension Container {
     },
     makeDestination: { .episodesViewType($0) }
   )
-
-  // MARK: - Episodes Navigation
-
-  func showEpisodes(_ viewType: EpisodesViewType) {
-    Self.log.debug("Showing episode list: \(viewType)")
-
-    episodes.path = [.episodesViewType(viewType)]
-    currentTab = .episodes
-  }
 
   // MARK: - Podcasts
 
@@ -368,6 +358,7 @@ extension Container {
   func showPodcastList(_ viewType: PodcastsViewType) {
     Self.log.debug("Showing podcast list: \(viewType)")
 
+    sheet.dismiss()
     podcasts.path = [.podcastsViewType(viewType)]
     currentTab = .podcasts
   }
@@ -375,6 +366,7 @@ extension Container {
   func showPodcast(_ podcast: Podcast) {
     Self.log.debug("Showing podcast: \(podcast.toString)")
 
+    sheet.dismiss()
     podcasts.path = [
       .podcastsViewType(podcast.subscribed ? .subscribed : .unsubscribed),
       .podcast(DisplayedPodcast(podcast)),
@@ -385,6 +377,7 @@ extension Container {
   func showEpisode(_ podcastEpisode: PodcastEpisode) {
     Self.log.debug("Showing PodcastEpisode: \(podcastEpisode.toString)")
 
+    sheet.dismiss()
     podcasts.path = [
       .podcastsViewType(podcastEpisode.podcast.subscribed ? .subscribed : .unsubscribed),
       .podcast(DisplayedPodcast(podcastEpisode.podcast)),
