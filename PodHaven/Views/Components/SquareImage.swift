@@ -91,21 +91,22 @@ struct SquareImage: View {
     .clipped()
   }
 
+  @ViewBuilder
   func selectable(
     isSelecting: Bool,
     isSelected: Binding<Bool>
   ) -> some View {
-    self
-      .overlay {
-        if isSelecting {
+    if !isSelecting {
+      self
+    } else {
+      self
+        .overlay {
           Rectangle()
             .fill(Color.black.opacity(isSelected.wrappedValue ? 0.0 : 0.5))
             .cornerRadius(cornerRadius)
             .allowsHitTesting(false)
         }
-      }
-      .overlay(alignment: .bottomTrailing) {
-        if isSelecting {
+        .overlay(alignment: .bottomTrailing) {
           let buttonSize = max(24, currentSize * 0.2)
           let buttonPadding = max(8, currentSize * 0.08)
           Button(
@@ -127,7 +128,7 @@ struct SquareImage: View {
           .buttonStyle(.borderless)
           .padding(buttonPadding)
         }
-      }
+    }
   }
 
   private var placeholderView: some View {

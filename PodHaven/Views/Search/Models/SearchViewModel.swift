@@ -290,7 +290,7 @@ class SearchViewModel:
 
   private func executeTrendingSectionFetch(_ trendingSection: TrendingSection) async -> Bool {
     do {
-      let results = try await iTunesService.topPodcasts(genreID: trendingSection.genreID, limit: 72)
+      let results = try await iTunesService.topPodcasts(genreID: trendingSection.genreID, limit: 48)
       try Task.checkCancellation()
 
       if results.isEmpty {
