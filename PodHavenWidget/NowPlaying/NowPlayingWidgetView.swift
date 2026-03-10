@@ -47,10 +47,12 @@ struct NowPlayingWidgetView: View {
 
         Spacer(minLength: 0)
 
-        HStack(spacing: 16) {
-          seekBackwardButton(interval: entry.skipBackwardInterval)
-          playPauseButton
-          seekForwardButton(interval: entry.skipForwardInterval)
+        HStack(spacing: 0) {
+          seekBackwardButton(interval: entry.skipBackwardInterval).font(.caption2)
+          Spacer(minLength: 0)
+          playPauseButton.font(.caption)
+          Spacer(minLength: 0)
+          seekForwardButton(interval: entry.skipForwardInterval).font(.caption2)
         }
         .frame(maxWidth: .infinity)
       }
@@ -128,7 +130,6 @@ struct NowPlayingWidgetView: View {
             AppIcon.playButton.image
           }
         }
-        .buttonStyle(.plain)
       }
     }
   }
@@ -137,14 +138,12 @@ struct NowPlayingWidgetView: View {
     Button(intent: SkipForwardIntent()) {
       AppIcon.seekForward(interval).image
     }
-    .buttonStyle(.plain)
   }
 
   private func seekBackwardButton(interval: Int) -> some View {
     Button(intent: SkipBackwardIntent()) {
       AppIcon.seekBackward(interval).image
     }
-    .buttonStyle(.plain)
   }
 
   private func loadingState(episodeTitle: String) -> some View {
