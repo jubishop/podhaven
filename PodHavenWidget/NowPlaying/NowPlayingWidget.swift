@@ -19,7 +19,7 @@ struct NowPlayingProvider: TimelineProvider {
   func getTimeline(in context: Context, completion: @escaping (Timeline<NowPlayingEntry>) -> Void) {
     Self.log.debug("getTimeline called (family=\(context.family))")
     let entry = makeEntry()
-    let nextUpdate = Date().addingTimeInterval(300)
+    let nextUpdate = Date().addingTimeInterval(1800)
     let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
     completion(timeline)
   }

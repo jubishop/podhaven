@@ -19,7 +19,7 @@ struct QueueProvider: TimelineProvider {
   func getTimeline(in context: Context, completion: @escaping (Timeline<QueueEntry>) -> Void) {
     Self.log.debug("Queue getTimeline called (family=\(context.family))")
     let entry = makeEntry()
-    let nextUpdate = Date().addingTimeInterval(600)
+    let nextUpdate = Date().addingTimeInterval(3600)
     let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
     completion(timeline)
   }
