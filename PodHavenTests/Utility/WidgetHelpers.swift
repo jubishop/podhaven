@@ -20,12 +20,24 @@ enum WidgetHelpers {
   // MARK: - Helpers
 
   static func waitForSnapshot() async throws {
-    try await sleeper.waitForSleepRequests(count: 1)
-    await sleeper.advanceTime(by: .milliseconds(250))
-    try await Wait.until(
-      { [fakeFileManager] in fakeFileManager.fileExists(at: WidgetInfo.snapshotURL) },
-      { "Snapshot file was never written" }
-    )
+    try await waitForSnapshot(where: { _ in true })
+  }
+
+  @discardableResult
+  static func waitForSnapshot(
+    where predicate: @Sendable (WidgetSnapshot) -> Bool
+  ) async throws -> WidgetSnapshot {
+    for _ in 0..<5 {
+      try await sleeper.waitForSleepRequests(count: 1)
+      await sleeper.advanceTime(by: .milliseconds(250))
+      try await Wait.until(
+        { [fakeFileManager] in fakeFileManager.fileExists(at: WidgetInfo.snapshotURL) },
+        { "Snapshot file was never written" }
+      )
+      let snapshot = try await decodeSnapshot()
+      if predicate(snapshot) { return snapshot }
+    }
+    throw TestError.waitUntilFailure("Snapshot never matched expected condition")
   }
 
   static func decodeSnapshot() async throws -> WidgetSnapshot {

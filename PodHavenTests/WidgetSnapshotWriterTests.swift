@@ -93,18 +93,16 @@ import Testing
     try await queue.unshift([ep2.id, ep1.id])
 
     writer.start()
-    try await WidgetHelpers.waitForSnapshot()
+    let snapshot = try await WidgetHelpers.waitForSnapshot { $0.queueTotalCount == 2 }
 
-    let snapshot = try await WidgetHelpers.decodeSnapshot()
     #expect(snapshot.queue.count == 2)
-    #expect(snapshot.queueTotalCount == 2)
     let titles = snapshot.queue.map(\.episodeTitle)
     #expect(titles.contains("Queue Ep 1"))
     #expect(titles.contains("Queue Ep 2"))
   }
 
-  @Test("caps queue at 8 but reports full queueTotalCount")
-  func capsQueueAt8ButReportsFullQueueTotalCount() async throws {
+  @Test("caps queue at 5 but reports full queueTotalCount")
+  func capsQueueAt5ButReportsFullQueueTotalCount() async throws {
     var episodeIDs: [Episode.ID] = []
     for i in 1...10 {
       let ep = try await Create.podcastEpisode(
@@ -115,10 +113,8 @@ import Testing
     try await queue.unshift(episodeIDs)
 
     writer.start()
-    try await WidgetHelpers.waitForSnapshot()
+    let snapshot = try await WidgetHelpers.waitForSnapshot { $0.queueTotalCount == 10 }
 
-    let snapshot = try await WidgetHelpers.decodeSnapshot()
-    #expect(snapshot.queue.count == 8)
-    #expect(snapshot.queueTotalCount == 10)
+    #expect(snapshot.queue.count == 5)
   }
 }

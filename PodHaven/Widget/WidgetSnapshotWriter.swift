@@ -143,7 +143,7 @@ final class WidgetSnapshotWriter: Sendable {
         nil
       }
 
-    let episodes = Array(queueWidgetEpisodes().prefix(8))
+    let episodes = Array(queueWidgetEpisodes().prefix(5))
     let showPodcastImage = userSettings.alwaysShowPodcastImageInUpNext
     let queueArtwork = await loadQueueArtwork(for: episodes, showPodcastImage: showPodcastImage)
 
