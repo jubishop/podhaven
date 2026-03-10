@@ -73,7 +73,7 @@ struct QueueWidgetView: View {
           .font(.caption)
         }
 
-        AppIcon.chevronRight.image
+        AppIcon.navigateInto.image
           .font(.caption)
           .fontWeight(.semibold)
       }

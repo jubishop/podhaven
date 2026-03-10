@@ -26,8 +26,8 @@ private struct SystemImageName:
   static let expandUp = SystemImageName("chevron.up")
   static let grid = SystemImageName("square.grid.2x2")
   static let list = SystemImageName("list.bullet")
-  static let chevronRight = SystemImageName("chevron.right")
   static let moreActions = SystemImageName("ellipsis.circle")
+  static let navigateInto = SystemImageName("chevron.right")
   static let podcastsList = SystemImageName("dot.radiowaves.left.and.right")
   static let search = SystemImageName("magnifyingglass")
   static let settings = SystemImageName("gear")
@@ -260,7 +260,7 @@ private struct SystemImageName:
   case sortByRecentlyFinished
 
   // UI Controls & Status
-  case chevronRight
+  case navigateInto
   case clear
   case clearSearch
   case downloadEpisode
@@ -505,8 +505,8 @@ private struct SystemImageName:
       return Data(text: "Updated", systemImageName: .calendar, color: .secondary)
 
     // UI Controls & Status
-    case .chevronRight:
-      return Data(text: "Chevron Right", systemImageName: .chevronRight, color: .secondary)
+    case .navigateInto:
+      return Data(text: "Navigate Into", systemImageName: .navigateInto, color: .secondary)
     case .clear:
       return Data(text: "Clear", systemImageName: .clear)
     case .clearSearch:
