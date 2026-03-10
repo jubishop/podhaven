@@ -63,27 +63,6 @@ struct QueueEntry: TimelineEntry {
         durationFormatted: "47:20",
         artwork: nil
       ),
-      QueueEntryItem(
-        id: 6,
-        episodeTitle: "Designing for Accessibility",
-        pubDateFormatted: "2/10/26",
-        durationFormatted: "29:50",
-        artwork: nil
-      ),
-      QueueEntryItem(
-        id: 7,
-        episodeTitle: "What Makes a Great API",
-        pubDateFormatted: "2/5/26",
-        durationFormatted: "44:10",
-        artwork: nil
-      ),
-      QueueEntryItem(
-        id: 8,
-        episodeTitle: "The Art of Debugging",
-        pubDateFormatted: "1/30/26",
-        durationFormatted: "33:25",
-        artwork: nil
-      ),
     ],
     totalCount: 12
   )
