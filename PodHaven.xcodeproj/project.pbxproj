@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		61039D8E4688754CA0FEE505 /* FactoryKit in Frameworks */ = {isa = PBXBuildFile; productRef = 21B605E34CECF44A86187ECD /* FactoryKit */; };
 		78467F52904B4485ACAE3505 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 49CAAA44B9304A9F8C8FEEC8 /* Sentry */; };
+		8B032F102F5FD9BD00F14168 /* Tagged in Frameworks */ = {isa = PBXBuildFile; productRef = 8B032F0F2F5FD9BD00F14168 /* Tagged */; };
 		8B05D8FC2CF51C0B003AA19D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8B05D8FB2CF51C0B003AA19D /* GRDB */; };
 		8B14BBE32D0CB37A0007E89B /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8B14BBE22D0CB37A0007E89B /* IdentifiedCollections */; };
 		8B2AC03D2D25D2F700DB7FE5 /* XMLCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 8B2AC03C2D25D2F700DB7FE5 /* XMLCoder */; };
@@ -204,6 +205,7 @@
 				Utility/ThreadSafe.swift,
 				Views/Components/CompactMetadataItem.swift,
 				Views/Components/SquareImage.swift,
+				Widget/Intents/PlayEpisodeIntent.swift,
 				Widget/Intents/PlayPauseIntent.swift,
 				Widget/Intents/SkipBackwardIntent.swift,
 				Widget/Intents/SkipForwardIntent.swift,
@@ -287,6 +289,7 @@
 				8BA4F4702F3E9000000AC336 /* Logging in Frameworks */,
 				61039D8E4688754CA0FEE505 /* FactoryKit in Frameworks */,
 				AF396B2F1DBEC4D55DD18A5F /* IdentifiedCollections in Frameworks */,
+				8B032F102F5FD9BD00F14168 /* Tagged in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -418,6 +421,7 @@
 				8BA4F4712F3E9001000AC336 /* Logging */,
 				21B605E34CECF44A86187ECD /* FactoryKit */,
 				F6FBB57DA0643D700A323209 /* IdentifiedCollections */,
+				8B032F0F2F5FD9BD00F14168 /* Tagged */,
 			);
 			productName = PodHavenWidgetExtension;
 			productReference = 8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */;
@@ -1619,6 +1623,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5712A9FBAD044D6D9F8BAEBD /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
 			productName = Sentry;
+		};
+		8B032F0F2F5FD9BD00F14168 /* Tagged */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8B7DAA1C2D3F1294000E9153 /* XCRemoteSwiftPackageReference "swift-tagged" */;
+			productName = Tagged;
 		};
 		8B05D8FB2CF51C0B003AA19D /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;

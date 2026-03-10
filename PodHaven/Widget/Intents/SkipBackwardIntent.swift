@@ -14,6 +14,7 @@ struct SkipBackwardIntent: AudioPlaybackIntent {
 
     let playManager = Container.shared.playManager()
     await playManager.seekBackward()
+
     return .result()
     #else
     Assert.fatal("SkipBackwardIntent should never execute in widget process")

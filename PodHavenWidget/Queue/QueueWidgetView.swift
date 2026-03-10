@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -49,36 +50,39 @@ struct QueueWidgetView: View {
   }
 
   private func queueItemRow(item: QueueEntry.QueueEntryItem, index: Int) -> some View {
-    Link(destination: item.deepLinkURL) {
-      HStack(spacing: 8) {
-        SquareImage(
-          image: item.artwork,
-          cornerRadius: 4,
-          size: imageSize,
-          placeholderIcon: .audioPlaceholder
-        )
+    HStack(spacing: 8) {
+      Link(destination: item.deepLinkURL) {
+        HStack(spacing: 8) {
+          SquareImage(
+            image: item.artwork,
+            cornerRadius: 4,
+            size: imageSize,
+            placeholderIcon: .audioPlaceholder
+          )
 
-        VStack(alignment: .leading, spacing: 4) {
-          Text(item.episodeTitle)
-            .font(.callout)
-            .lineLimit(2, reservesSpace: true)
-            .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(item.episodeTitle)
+              .font(.callout)
+              .lineLimit(2, reservesSpace: true)
+              .multilineTextAlignment(.leading)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
 
-          HStack {
-            CompactMetadataItem(appIcon: .publishDate, value: item.pubDateFormatted)
-            Spacer()
-            CompactMetadataItem(appIcon: .duration, value: item.durationFormatted)
+            HStack {
+              CompactMetadataItem(appIcon: .publishDate, value: item.pubDateFormatted)
+              Spacer()
+              CompactMetadataItem(appIcon: .duration, value: item.durationFormatted)
+            }
+            .font(.caption)
           }
-          .font(.caption)
         }
-
-        AppIcon.navigateInto.image
-          .font(.caption)
-          .fontWeight(.semibold)
       }
-      .padding(.vertical, 4)
+
+      Button(intent: PlayEpisodeIntent(episodeID: item.id)) {
+        AppIcon.playButton.image
+          .font(.callout)
+      }
     }
+    .padding(.vertical, 4)
   }
 
 }
