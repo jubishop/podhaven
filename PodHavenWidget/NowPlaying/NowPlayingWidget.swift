@@ -48,7 +48,7 @@ struct NowPlayingProvider: TimelineProvider {
     }
 
     guard let nowPlaying = snapshot.nowPlaying else {
-      Self.log.info("makeEntry: snapshot has no nowPlaying, returning empty")
+      Self.log.warning("makeEntry: snapshot has no nowPlaying, returning empty")
       return .empty
     }
 

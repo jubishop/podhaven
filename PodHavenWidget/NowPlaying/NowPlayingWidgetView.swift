@@ -137,18 +137,17 @@ struct NowPlayingWidgetView: View {
     }
   }
 
+  @ViewBuilder
   private var playPauseButton: some View {
-    Group {
-      if entry.playbackStatus.waiting {
-        AppIcon.loading.image
-          .disabled(true)
-      } else {
-        Button(intent: PlayPauseIntent()) {
-          if entry.playbackStatus.playing {
-            AppIcon.pauseButton.image
-          } else {
-            AppIcon.playButton.image
-          }
+    if entry.playbackStatus.waiting {
+      AppIcon.loading.image
+        .disabled(true)
+    } else {
+      Button(intent: PlayPauseIntent()) {
+        if entry.playbackStatus.playing {
+          AppIcon.pauseButton.image
+        } else {
+          AppIcon.playButton.image
         }
       }
     }
