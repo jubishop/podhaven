@@ -32,7 +32,7 @@ struct NowPlayingProvider: TimelineProvider {
       return NowPlayingEntry(
         date: Date(),
         episodeTitle: loadingTitle,
-        podcastTitle: nil,
+        podcastTitle: "",
         pubDateFormatted: "",
         durationFormatted: "",
         playbackStatus: playbackStatus,

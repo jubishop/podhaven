@@ -47,6 +47,7 @@ struct QueueWidgetView: View {
         }
       }
     }
+    .dynamicTypeSize(.small ... .xxxLarge)
   }
 
   private func queueItemRow(item: QueueEntry.QueueEntryItem, index: Int) -> some View {

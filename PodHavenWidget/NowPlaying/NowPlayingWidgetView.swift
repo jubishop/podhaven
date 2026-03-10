@@ -7,6 +7,8 @@ import WidgetKit
 struct NowPlayingWidgetView: View {
   @Environment(\.widgetFamily) var family
 
+  private let mediumImageSize: CGFloat = 80
+
   let entry: NowPlayingEntry
 
   private var isMedium: Bool { family == .systemMedium }
@@ -14,26 +16,29 @@ struct NowPlayingWidgetView: View {
   var body: some View {
     switch family {
     case .systemSmall:
-      smallView
+      smallView.dynamicTypeSize(.small ... .xxLarge)
     case .systemMedium:
-      mediumView
+      mediumView.dynamicTypeSize(.small ... .xxLarge)
     default:
-      smallView
+      Assert.fatal("Incorrect widget size: \(family)")
     }
   }
 
   // MARK: - System Small
 
+  @ViewBuilder
   private var smallView: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      if let loadingTitle = entry.playbackStatus.loadingTitle {
-        loadingState(episodeTitle: loadingTitle)
-      } else if entry.playbackStatus.stopped || entry.episodeTitle == nil {
-        emptyState
-      } else if let episodeTitle = entry.episodeTitle {
+    if let loadingTitle = entry.playbackStatus.loadingTitle {
+      loadingState(episodeTitle: loadingTitle)
+    } else if entry.playbackStatus.stopped {
+      emptyState
+    } else {
+      VStack(alignment: .leading, spacing: 0) {
         HStack(alignment: .top) {
           artworkView(size: 52)
+
           Spacer()
+
           VStack(alignment: .leading, spacing: 8) {
             CompactMetadataItem(appIcon: .publishDate, value: entry.pubDateFormatted)
             CompactMetadataItem(appIcon: .duration, value: entry.durationFormatted)
@@ -43,7 +48,7 @@ struct NowPlayingWidgetView: View {
 
         Spacer(minLength: 0)
 
-        Text(episodeTitle)
+        Text(entry.episodeTitle)
           .font(.caption)
           .fontWeight(.semibold)
           .lineLimit(2)
@@ -60,50 +65,63 @@ struct NowPlayingWidgetView: View {
         .frame(maxWidth: .infinity)
       }
     }
-    .dynamicTypeSize(.small ... .xLarge)
   }
 
   // MARK: - System Medium
 
+  @ViewBuilder
   private var mediumView: some View {
-    HStack(spacing: 12) {
-      if let loadingTitle = entry.playbackStatus.loadingTitle {
-        loadingState(episodeTitle: loadingTitle)
-      } else if entry.playbackStatus.stopped || entry.episodeTitle == nil {
-        emptyState
-      } else if let episodeTitle = entry.episodeTitle {
-        artworkView(size: 80)
+    if let loadingTitle = entry.playbackStatus.loadingTitle {
+      loadingState(episodeTitle: loadingTitle)
+    } else if entry.playbackStatus.stopped {
+      emptyState
+    } else {
+      VStack(spacing: 0) {
+        HStack(spacing: 12) {
+          artworkView(size: mediumImageSize)
 
-        VStack(alignment: .leading, spacing: 4) {
-          Text(episodeTitle)
-            .font(.subheadline)
-            .fontWeight(.semibold)
-            .lineLimit(2)
+          VStack(alignment: .leading, spacing: 0) {
+            Text(entry.episodeTitle)
+              .font(.subheadline)
+              .fontWeight(.semibold)
+              .lineLimit(2, reservesSpace: true)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
 
-          if let podcastTitle = entry.podcastTitle {
-            Text(podcastTitle)
+            Spacer(minLength: 4)
+            Spacer(minLength: 0)
+
+            Text(entry.podcastTitle)
               .font(.caption)
               .foregroundStyle(.secondary)
               .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            HStack {
+              CompactMetadataItem(appIcon: .publishDate, value: entry.pubDateFormatted)
+              Spacer()
+              CompactMetadataItem(appIcon: .duration, value: entry.durationFormatted)
+            }
+            .font(.caption)
           }
-
-          Spacer(minLength: 0)
-
-          HStack(spacing: 16) {
-            seekBackwardButton(interval: entry.skipBackwardInterval)
-            playPauseButton
-            seekForwardButton(interval: entry.skipForwardInterval)
-
-            Spacer()
-
-            Text(entry.durationFormatted)
-              .font(.caption2)
-              .foregroundStyle(.secondary)
-          }
+          .frame(minHeight: mediumImageSize)
+          .fixedSize(horizontal: false, vertical: true)
         }
+
+        Spacer(minLength: 0)
+
+        HStack(spacing: 0) {
+          Spacer(minLength: 0)
+          seekBackwardButton(interval: entry.skipBackwardInterval).font(.callout)
+          Spacer(minLength: 0)
+          playPauseButton.font(.headline)
+          Spacer(minLength: 0)
+          seekForwardButton(interval: entry.skipForwardInterval).font(.callout)
+          Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
       }
     }
-    .dynamicTypeSize(.small ... .xxxLarge)
   }
 
   // MARK: - Components
@@ -183,7 +201,7 @@ struct NowPlayingWidgetView: View {
   NowPlayingEntry(
     date: Date(),
     episodeTitle: "Understanding Swift Concurrency",
-    podcastTitle: nil,
+    podcastTitle: "",
     pubDateFormatted: "",
     durationFormatted: "",
     playbackStatus: .loading("Understanding Swift Concurrency"),
@@ -201,7 +219,7 @@ struct NowPlayingWidgetView: View {
   NowPlayingEntry(
     date: Date(),
     episodeTitle: "Understanding Swift Concurrency",
-    podcastTitle: nil,
+    podcastTitle: "",
     pubDateFormatted: "",
     durationFormatted: "",
     playbackStatus: .loading("Understanding Swift Concurrency"),

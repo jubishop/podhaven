@@ -5,8 +5,8 @@ import WidgetKit
 
 struct NowPlayingEntry: TimelineEntry {
   let date: Date
-  let episodeTitle: String?
-  let podcastTitle: String?
+  let episodeTitle: String
+  let podcastTitle: String
   let pubDateFormatted: String
   let durationFormatted: String
   let playbackStatus: PlaybackStatus
@@ -16,8 +16,8 @@ struct NowPlayingEntry: TimelineEntry {
 
   static let empty = NowPlayingEntry(
     date: Date(),
-    episodeTitle: nil,
-    podcastTitle: nil,
+    episodeTitle: "",
+    podcastTitle: "",
     pubDateFormatted: "",
     durationFormatted: "",
     playbackStatus: .stopped,

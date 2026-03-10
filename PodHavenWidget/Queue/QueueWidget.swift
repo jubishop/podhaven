@@ -52,7 +52,6 @@ struct QueueWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: QueueProvider()) { entry in
       QueueWidgetView(entry: entry)
-        .dynamicTypeSize(.small ... .xxxLarge)
         .containerBackground(.fill.tertiary, for: .widget)
     }
     .configurationDisplayName("Up Next")
