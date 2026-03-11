@@ -21,7 +21,7 @@
 - Never use `Task.sleep` in production code; always use the injected `Sleepable` (`sleeper`) so tests can control timing.
 
 ## Errors and Logging
-- All Error instances should conform to `ReadableError` and use `ErrorKit`.
+- Log errors at the appropriate level using `ErrorKit` for formatting system error messages.
 - All logging should go through static `Logger` instances created via `Log.as` methods.
 
 ## Testing

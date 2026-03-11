@@ -18,29 +18,23 @@ struct PodcastOPML: Codable, Sendable {
 
   // MARK: - Import Methods
 
-  static func parse(_ url: URL) async throws(ParseError) -> PodcastOPML {
+  static func parse(_ url: URL) async throws -> PodcastOPML {
     log.debug("Parsing url: \(url)")
-
-    return try await ParseError.catch {
-      try await parse(try await Container.shared.podcastOPMLSession().validatedData(from: url))
-    }
+    return try await parse(
+      try await Container.shared.podcastOPMLSession().validatedData(from: url)
+    )
   }
 
-  static func parse(_ data: Data) async throws(ParseError) -> PodcastOPML {
+  static func parse(_ data: Data) async throws -> PodcastOPML {
     log.debug("Parsing data of size: \(data.count)")
-
-    do {
-      return try await withCheckedThrowingContinuation { continuation in
-        do {
-          let decoder = XMLDecoder()
-          let podcastOPML = try decoder.decode(PodcastOPML.self, from: data)
-          continuation.resume(returning: podcastOPML)
-        } catch let error {
-          continuation.resume(throwing: error)
-        }
+    return try await withCheckedThrowingContinuation { continuation in
+      do {
+        let decoder = XMLDecoder()
+        let podcastOPML = try decoder.decode(PodcastOPML.self, from: data)
+        continuation.resume(returning: podcastOPML)
+      } catch let error {
+        continuation.resume(throwing: error)
       }
-    } catch {
-      throw ParseError.invalidData(data: data, caught: error)
     }
   }
 
@@ -56,13 +50,9 @@ struct PodcastOPML: Codable, Sendable {
     }
   }
 
-  static func exportSubscribedPodcasts() async throws(ParseError) -> Data {
-    do {
-      let subscribedPodcasts = try await Container.shared.repo().allPodcasts(Podcast.subscribed)
-      return try await generateOPML(from: subscribedPodcasts)
-    } catch {
-      throw ParseError.exportFailure(error)
-    }
+  static func exportSubscribedPodcasts() async throws -> Data {
+    let subscribedPodcasts = try await Container.shared.repo().allPodcasts(Podcast.subscribed)
+    return try await generateOPML(from: subscribedPodcasts)
   }
 
   private static func generateOPML(from podcasts: [Podcast]) async throws -> Data {

@@ -92,7 +92,7 @@ import UIKit
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -125,7 +125,7 @@ import UIKit
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
         return
       }
 
@@ -135,7 +135,7 @@ import UIKit
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -157,7 +157,7 @@ import UIKit
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -183,7 +183,7 @@ import UIKit
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -200,7 +200,7 @@ import UIKit
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -217,7 +217,7 @@ import UIKit
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -228,11 +228,11 @@ import UIKit
 
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await cacheManager.downloadToCache(for: podcastEpisode.id)
+        await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -246,11 +246,11 @@ import UIKit
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: false)
-        try await cacheManager.clearCache(for: podcastEpisode.id)
+        await cacheManager.clearCache(for: podcastEpisode.id)
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -262,11 +262,11 @@ import UIKit
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
-        try await cacheManager.downloadToCache(for: podcastEpisode.id)
+        await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -283,7 +283,7 @@ import UIKit
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -315,7 +315,7 @@ import UIKit
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
       clearObservationTask()
     }
@@ -352,7 +352,7 @@ import UIKit
     } catch {
       Self.log.error(error)
       guard ErrorKit.isRemarkable(error) else { return }
-      self.alert(ErrorKit.coreMessage(for: error))
+      self.alert(ErrorKit.message(for: error))
     }
   }
 

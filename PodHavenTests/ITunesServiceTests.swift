@@ -63,7 +63,7 @@ final class ITunesServiceTests {
     let feedURL = ITunesURL.topPodcastsRequest(limit: 5).url!
     await session.respond(to: feedURL, error: URLError(.badServerResponse))
 
-    await #expect(throws: SearchError.self) {
+    await #expect(throws: (any Error).self) {
       _ = try await self.iTunesService.topPodcasts(limit: 5)
     }
   }

@@ -250,7 +250,7 @@ import Testing
 
     try await PlayHelpers.load(podcastEpisode)
 
-    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+    #expect(await cacheManager.clearCache(for: podcastEpisode.id) == nil)
     try await CacheHelpers.waitForCached(podcastEpisode.id)
   }
 
@@ -267,7 +267,7 @@ import Testing
     #expect(sharedState.onDeck == nil)
     #expect(sharedState.currentEpisodeID == podcastEpisode.id)
 
-    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+    #expect(await cacheManager.clearCache(for: podcastEpisode.id) == nil)
     try await CacheHelpers.waitForCached(podcastEpisode.id)
   }
 
@@ -276,7 +276,7 @@ import Testing
   @Test("downloadToCache begins download")
   func downloadToCacheBeginsDownload() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
-    let taskID = try await cacheManager.downloadToCache(for: podcastEpisode.id)!
+    let taskID = await cacheManager.downloadToCache(for: podcastEpisode.id)!
     try await CacheHelpers.waitForResumed(taskID)
     try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id, taskID: taskID)
   }
@@ -286,7 +286,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     try await CacheHelpers.downloadToCache(podcastEpisode.id)
 
-    #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
+    #expect(await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
   }
 
   @Test("downloadToCache does nothing if already cached")
@@ -296,7 +296,7 @@ import Testing
     try await CacheHelpers.simulateBackgroundFinish(taskID)
     try await CacheHelpers.waitForCached(podcastEpisode.id)
 
-    #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
+    #expect(await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
   }
 
   @Test("multiple concurrent downloads are cached successfully")
@@ -331,7 +331,7 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     try await CacheHelpers.downloadToCache(podcastEpisode.id)
 
-    try await cacheManager.clearCache(for: podcastEpisode.id)
+    await cacheManager.clearCache(for: podcastEpisode.id)
     try await CacheHelpers.waitForNoDownloadTaskID(podcastEpisode.id)
   }
 
@@ -344,7 +344,7 @@ import Testing
     let cachedURL = try await CacheHelpers.waitForCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFile(cachedURL)
 
-    try await cacheManager.clearCache(for: podcastEpisode.id)
+    await cacheManager.clearCache(for: podcastEpisode.id)
     try await CacheHelpers.waitForNotCached(podcastEpisode.id)
     try await CacheHelpers.waitForCachedFileRemoved(cachedURL)
   }
@@ -354,14 +354,14 @@ import Testing
     let podcastEpisode = try await Create.podcastEpisode()
     try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
 
-    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+    #expect(await cacheManager.clearCache(for: podcastEpisode.id) == nil)
     try await CacheHelpers.waitForDownloadTaskID(podcastEpisode.id)
   }
 
   @Test("clearing cache of an uncached episode does nothing")
   func clearingCacheOfAnUncachedEpisodeDoesNothing() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
-    #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+    #expect(await cacheManager.clearCache(for: podcastEpisode.id) == nil)
   }
 
   // MARK: - Filenames
@@ -374,8 +374,8 @@ import Testing
     let withExt = try await Create.podcastEpisode(
       Create.unsavedEpisode(mediaURL: MediaURL(URL(string: "https://a.b/c/d.wav")!))
     )
-    let noExtTaskID = try await cacheManager.downloadToCache(for: noExt.id)!
-    let withExtTaskID = try await cacheManager.downloadToCache(for: withExt.id)!
+    let noExtTaskID = await cacheManager.downloadToCache(for: noExt.id)!
+    let withExtTaskID = await cacheManager.downloadToCache(for: withExt.id)!
 
     try await CacheHelpers.simulateBackgroundFinish(noExtTaskID)
     try await CacheHelpers.simulateBackgroundFinish(withExtTaskID)

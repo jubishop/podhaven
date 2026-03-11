@@ -320,7 +320,7 @@ class SearchViewModel:
       guard !Task.isCancelled else { return false }
 
       trendingSection.results = []
-      trendingSection.state = .error(ErrorKit.coreMessage(for: error))
+      trendingSection.state = .error(ErrorKit.message(for: error))
     }
     return true
   }
@@ -370,7 +370,7 @@ class SearchViewModel:
         guard !Task.isCancelled else { return false }
 
         searchResults = []
-        searchState = .error(ErrorKit.coreMessage(for: error))
+        searchState = .error(ErrorKit.message(for: error))
       }
       return true
     }

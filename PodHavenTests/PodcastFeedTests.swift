@@ -58,17 +58,8 @@ struct PodcastFeedTests {
   func parseInvalidGameInformerFeed() async throws {
     let data = PreviewBundle.loadAsset(named: "game_informer_invalid", in: .FeedRSS)
     let fakeURL = FeedURL(URL.valid())
-    await #expect {
+    await #expect(throws: (any Error).self) {
       try await PodcastFeed.parse(data, from: fakeURL)
-    } throws: { error in
-      guard let error = error as? FeedError
-      else { return false }
-
-      if case .parseFailure(let thrownURL, _) = error {
-        return thrownURL.rawValue == fakeURL.rawValue
-      }
-
-      return false
     }
   }
 
@@ -166,7 +157,7 @@ struct PodcastFeedTests {
   func parseWithInvalidFeedURL() async throws {
     let url = URL(string: "file://invalid.url")!
 
-    await #expect(throws: FeedError.self) {
+    await #expect(throws: (any Error).self) {
       try await PodcastFeed.parse(FeedURL(url))
     }
   }

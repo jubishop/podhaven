@@ -117,7 +117,7 @@ extension ManagingEpisodes {
 
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
-        try await cacheManager.downloadToCache(for: episodeID)
+        await cacheManager.downloadToCache(for: episodeID)
       } catch {
         log.error(error)
       }
@@ -132,7 +132,7 @@ extension ManagingEpisodes {
 
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
-        try await cacheManager.clearCache(for: episodeID)
+        await cacheManager.clearCache(for: episodeID)
         try await repo.updateSaveInCache(episodeID, saveInCache: false)
       } catch {
         log.error(error)
@@ -147,7 +147,7 @@ extension ManagingEpisodes {
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await repo.updateSaveInCache(episodeID, saveInCache: true)
-        try await cacheManager.downloadToCache(for: episodeID)
+        await cacheManager.downloadToCache(for: episodeID)
       } catch {
         log.error(error)
       }

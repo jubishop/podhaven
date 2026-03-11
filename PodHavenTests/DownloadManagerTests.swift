@@ -78,7 +78,7 @@ struct DownloadManagerTests {
 
     // This task has had no chance to begin yet
     await task2.cancel()
-    await #expect(throws: DownloadError.cancelled(url2)) {
+    await #expect(throws: CancellationError.self) {
       try await task2.downloadFinished()
     }
   }
@@ -98,12 +98,12 @@ struct DownloadManagerTests {
     }
 
     // Task throws cancelled after being cancelled mid-flight
-    await #expect(throws: DownloadError.cancelled(url)) {
+    await #expect(throws: CancellationError.self) {
       try await task.downloadFinished()
     }
 
     // The result always remains cancelled.
-    await #expect(throws: DownloadError.cancelled(url)) {
+    await #expect(throws: CancellationError.self) {
       try await task.downloadFinished()
     }
   }
@@ -123,18 +123,18 @@ struct DownloadManagerTests {
 
     // At this point: task should be active, task2 should be pending
     await downloadManager.cancelAllDownloads()
-    await #expect(throws: DownloadError.cancelled(url)) {
+    await #expect(throws: CancellationError.self) {
       try await task.downloadFinished()
     }
-    await #expect(throws: DownloadError.cancelled(url2)) {
+    await #expect(throws: CancellationError.self) {
       try await task2.downloadFinished()
     }
 
     // The results always remain cancelled.
-    await #expect(throws: DownloadError.cancelled(url)) {
+    await #expect(throws: CancellationError.self) {
       try await task.downloadFinished()
     }
-    await #expect(throws: DownloadError.cancelled(url2)) {
+    await #expect(throws: CancellationError.self) {
       try await task2.downloadFinished()
     }
   }
@@ -249,7 +249,7 @@ struct DownloadManagerTests {
 
   // MARK: - Download Failure Tests
 
-  @Test("that network errors are propagated as caught errors")
+  @Test("that network errors are propagated")
   func networkErrorIsPropagated() async throws {
     let downloadManager = DownloadManager(session: session)
 
@@ -259,7 +259,7 @@ struct DownloadManagerTests {
 
     let downloadTask = await downloadManager.addURL(url)
 
-    await #expect(throws: DownloadError.caught(networkError)) {
+    await #expect(throws: URLError.self) {
       try await downloadTask.downloadFinished()
     }
     #expect(await downloadTask.finished)
@@ -282,7 +282,7 @@ struct DownloadManagerTests {
 
     let downloadTask = await downloadManager.addURL(url)
 
-    await #expect(throws: DownloadError.notOKResponseCode(code: 404, url: url)) {
+    await #expect(throws: (any Error).self) {
       try await downloadTask.downloadFinished()
     }
     #expect(await downloadTask.finished)
@@ -305,7 +305,7 @@ struct DownloadManagerTests {
 
     let downloadTask = await downloadManager.addURL(url)
 
-    await #expect(throws: DownloadError.notOKResponseCode(code: 500, url: url)) {
+    await #expect(throws: (any Error).self) {
       try await downloadTask.downloadFinished()
     }
     #expect(await downloadTask.finished)
@@ -321,7 +321,7 @@ struct DownloadManagerTests {
 
     let downloadTask = await downloadManager.addURL(url)
 
-    await #expect(throws: DownloadError.caught(timeoutError)) {
+    await #expect(throws: URLError.self) {
       try await downloadTask.downloadFinished()
     }
     #expect(await downloadTask.finished)
@@ -341,7 +341,7 @@ struct DownloadManagerTests {
     let successTask = await downloadManager.addURL(successURL)
 
     // Wait for both to complete
-    await #expect(throws: DownloadError.self) {
+    await #expect(throws: (any Error).self) {
       try await failingTask.downloadFinished()
     }
 
@@ -370,13 +370,13 @@ struct DownloadManagerTests {
 
     let tasks = await urls.asyncMap { await downloadManager.addURL($0) }
 
-    await #expect(throws: DownloadError.caught(URLError(.notConnectedToInternet))) {
+    await #expect(throws: URLError.self) {
       try await tasks[0].downloadFinished()
     }
-    await #expect(throws: DownloadError.notOKResponseCode(code: 404, url: urls[1])) {
+    await #expect(throws: (any Error).self) {
       try await tasks[1].downloadFinished()
     }
-    await #expect(throws: DownloadError.caught(URLError(.timedOut))) {
+    await #expect(throws: URLError.self) {
       try await tasks[2].downloadFinished()
     }
   }
@@ -392,17 +392,17 @@ struct DownloadManagerTests {
     let downloadTask = await downloadManager.addURL(url)
 
     // First call should throw
-    await #expect(throws: DownloadError.caught(networkError)) {
+    await #expect(throws: URLError.self) {
       try await downloadTask.downloadFinished()
     }
 
     // Second call should throw the same error
-    await #expect(throws: DownloadError.caught(networkError)) {
+    await #expect(throws: URLError.self) {
       try await downloadTask.downloadFinished()
     }
 
     // Third call should still throw the same error
-    await #expect(throws: DownloadError.caught(networkError)) {
+    await #expect(throws: URLError.self) {
       try await downloadTask.downloadFinished()
     }
   }

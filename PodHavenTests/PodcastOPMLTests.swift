@@ -39,7 +39,7 @@ struct PodcastOPMLTests {
   @Test("parsing invalid OPML file")
   func parseInvalidOPMLFile() async throws {
     let data = PreviewBundle.loadAsset(named: "invalid", in: .OPML)
-    await #expect(throws: ParseError.self) {
+    await #expect(throws: (any Error).self) {
       try await PodcastOPML.parse(data)
     }
   }

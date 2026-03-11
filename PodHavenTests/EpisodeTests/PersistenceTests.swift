@@ -304,7 +304,7 @@ class EpisodePersistenceTests {
     #expect(original.image == unsavedEpisode.image)
   }
 
-  @Test("that inserting duplicate episodes across feeds throws duplicateConflict")
+  @Test("that inserting duplicate episodes across feeds throws SQLITE_CONSTRAINT_UNIQUE")
   func insertDuplicateEpisodesThrowsDuplicateConflict() async throws {
     let sharedGUID = GUID("shared-guid")
     let sharedMediaURL = MediaURL(URL.valid())
@@ -324,16 +324,8 @@ class EpisodePersistenceTests {
       unsavedEpisodes: [duplicateEpisode]
     )
 
-    do {
+    await #expect(throws: DatabaseError.self) {
       try await repo.insertSeries(secondSeries)
-      Issue.record("Expected duplicateConflict error to be thrown")
-    } catch let error {
-      guard case .duplicateConflict(let errorSeries, _) = error else {
-        Issue.record("Expected duplicateConflict but got \(error)")
-        return
-      }
-      #expect(errorSeries.unsavedPodcast.feedURL == secondSeries.unsavedPodcast.feedURL)
-      #expect(errorSeries.unsavedEpisodes.count == secondSeries.unsavedEpisodes.count)
     }
   }
 }

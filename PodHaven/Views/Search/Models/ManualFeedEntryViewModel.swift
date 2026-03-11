@@ -130,7 +130,7 @@ import Tagged
       return true
     } catch {
       Self.log.error(error)
-      state = .error(ErrorKit.coreMessage(for: error))
+      state = .error(ErrorKit.message(for: error))
       return false
     }
   }

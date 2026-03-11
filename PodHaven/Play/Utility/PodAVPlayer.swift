@@ -78,7 +78,7 @@ extension Container {
 
   // MARK: - Loading
 
-  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> PodcastEpisode {
+  func load(_ podcastEpisode: PodcastEpisode) async throws -> PodcastEpisode {
     Self.log.debug("load: \(podcastEpisode.toString)")
 
     episodeID = nil
@@ -91,27 +91,33 @@ extension Container {
     return podcastEpisode
   }
 
-  private func loadAsset(for podcastEpisode: PodcastEpisode) async throws(PlaybackError)
+  private func loadAsset(for podcastEpisode: PodcastEpisode) async throws
     -> (podcastEpisode: PodcastEpisode, playableItem: any AVPlayableItem)
   {
     Self.log.debug("loadAsset: \(podcastEpisode.toString)")
 
     let episodeAsset: EpisodeAsset = try await performLoadAsset(for: podcastEpisode)
 
-    guard episodeAsset.isPlayable
-    else { throw PlaybackError.mediaNotPlayable(podcastEpisode) }
-
-    do {
-      try await repo.updateDuration(podcastEpisode.id, duration: episodeAsset.duration)
-      guard let updatedPodcastEpisode = try await repo.podcastEpisode(podcastEpisode.id)
-      else { throw PlaybackError.durationUpdateFailure(podcastEpisode: podcastEpisode) }
-
-      return (updatedPodcastEpisode, episodeAsset.playerItem())
-    } catch {
-      throw PlaybackError.caught(error)
+    guard episodeAsset.isPlayable else {
+      Self.log.error(
+        """
+        MediaGUID Not Playable
+          PodcastEpisode: \(podcastEpisode.toString)
+          MediaGUID: \(podcastEpisode.episode.unsaved.id)
+        """
+      )
+      throw URLError(.cannotDecodeContentData)
     }
+
+    try await repo.updateDuration(podcastEpisode.id, duration: episodeAsset.duration)
+    guard let updatedPodcastEpisode = try await repo.podcastEpisode(podcastEpisode.id) else {
+      Self.log.error("Failed to update duration for PodcastEpisode: \(podcastEpisode.toString)")
+      throw URLError(.cannotDecodeContentData)
+    }
+
+    return (updatedPodcastEpisode, episodeAsset.playerItem())
   }
-  private func performLoadAsset(for podcastEpisode: PodcastEpisode) async throws(PlaybackError)
+  private func performLoadAsset(for podcastEpisode: PodcastEpisode) async throws
     -> EpisodeAsset
   {
     do {
@@ -125,18 +131,25 @@ extension Container {
         Self.log.debug("performLoadAsset: loading from cache: \(cachedURL)")
         return try await loadEpisodeAsset(AVURLAsset(url: cachedURL.rawValue))
       } catch {
-        Self.log.warning(
-          """
-          performLoadAsset: cache load failed, falling back to remote
-          \(ErrorKit.loggableMessage(for: error))
-          """
+        Self.log.caughtError(
+          "performLoadAsset: cache load failed, falling back to remote",
+          error,
+          remarkable: .warning
         )
         return try await loadEpisodeAsset(
           AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
         )
       }
     } catch {
-      throw PlaybackError.loadFailure(podcastEpisode: podcastEpisode, caught: error)
+      Self.log.caughtError(
+        """
+        Failed to load avAsset
+          PodcastEpisode: \(podcastEpisode.toString)
+          MediaGUID: \(podcastEpisode.episode.unsaved.id)
+        """,
+        error
+      )
+      throw error
     }
   }
 
@@ -259,8 +272,10 @@ extension Container {
   }
 
   private func saveCurrentTime(_ currentTime: CMTime) async throws {
-    guard let episodeID
-    else { throw PlaybackError.settingCurrentTimeOnNil(currentTime) }
+    guard let episodeID else {
+      Self.log.warning("Setting current time on nil player item with CMTime: \(currentTime)")
+      return
+    }
 
     do {
       try await repo.updateCurrentTime(episodeID, currentTime: currentTime)
@@ -274,8 +289,10 @@ extension Container {
   // MARK: - Change Handlers
 
   private func handleCurrentTimeChange(_ currentTime: CMTime) async throws {
-    guard let episodeID
-    else { throw PlaybackError.settingCurrentTimeOnNil(currentTime) }
+    guard let episodeID else {
+      Self.log.warning("Setting current time on nil player item with CMTime: \(currentTime)")
+      return
+    }
 
     // Only update the database every 3 seconds
     if currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds >= 3.0 {
@@ -321,11 +338,9 @@ extension Container {
         Self.log.debug("AVPlayerItem status: readyToPlay for episode \(episodeID)")
       case .failed:
         if let error = avPlayerItem?.error {
-          Self.log.error(
-            """
-            AVPlayerItem status: failed for episode \(episodeID)
-            \(ErrorKit.loggableMessage(for: error))
-            """
+          Self.log.caughtError(
+            "AVPlayerItem status: failed for episode \(episodeID)",
+            error
           )
         } else {
           Self.log.error("AVPlayerItem status: failed for episode \(episodeID) (no error details)")

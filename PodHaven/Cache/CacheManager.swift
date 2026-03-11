@@ -77,21 +77,24 @@ struct CacheManager {
   // MARK: - Public Methods
 
   @discardableResult
-  func downloadToCache(for episodeID: Episode.ID) async throws(CacheError)
-    -> URLSessionDownloadTask.ID?
-  {
+  func downloadToCache(for episodeID: Episode.ID) async -> URLSessionDownloadTask.ID? {
     Self.log.trace("downloadToCache: \(episodeID)")
 
-    return try await CacheError.catch {
-      try await performDownloadToCache(episodeID)
+    do {
+      return try await performDownloadToCache(episodeID)
+    } catch {
+      Self.log.error(error)
+      return nil
     }
   }
   private func performDownloadToCache(_ episodeID: Episode.ID) async throws
     -> URLSessionDownloadTask.ID?
   {
     let podcastEpisode = try await repo.podcastEpisode(episodeID)
-    guard let podcastEpisode
-    else { throw CacheError.episodeNotFound(episodeID) }
+    guard let podcastEpisode else {
+      Self.log.warning("Episode \(episodeID) not found for cache operation")
+      return nil
+    }
 
     guard podcastEpisode.episode.cacheStatus != .cached
     else {
@@ -118,17 +121,22 @@ struct CacheManager {
   }
 
   @discardableResult
-  func clearCache(for episodeID: Episode.ID) async throws(CacheError) -> CachedURL? {
+  func clearCache(for episodeID: Episode.ID) async -> CachedURL? {
     Self.log.debug("clearCache: \(episodeID)")
 
-    return try await CacheError.catch {
-      try await performClearCache(episodeID)
+    do {
+      return try await performClearCache(episodeID)
+    } catch {
+      Self.log.error(error)
+      return nil
     }
   }
   private func performClearCache(_ episodeID: Episode.ID) async throws -> CachedURL? {
     let episode = try await repo.episode(episodeID)
-    guard let episode
-    else { throw CacheError.episodeNotFound(episodeID) }
+    guard let episode else {
+      Self.log.warning("Episode \(episodeID) not found for cache operation")
+      return nil
+    }
 
     guard await Self.canClearCache(episode)
     else {
@@ -184,11 +192,7 @@ struct CacheManager {
     Self.log.debug("handleOnDeckChange: new on deck episode: \(episodeID)")
 
     Task {
-      do {
-        try await downloadToCache(for: episodeID)
-      } catch {
-        Self.log.error(error)
-      }
+      await downloadToCache(for: episodeID)
     }
   }
 
@@ -220,11 +224,7 @@ struct CacheManager {
     await withDiscardingTaskGroup { group in
       for episodeID in newEpisodeIDs {
         group.addTask { [episodeID] in
-          do {
-            try await downloadToCache(for: episodeID)
-          } catch {
-            Self.log.error(error)
-          }
+          await downloadToCache(for: episodeID)
         }
       }
     }

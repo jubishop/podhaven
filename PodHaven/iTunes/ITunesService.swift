@@ -34,7 +34,7 @@ struct ITunesService {
 
   // MARK: - Public API
 
-  func searchedPodcasts(matching term: String, limit: Int) async throws(SearchError)
+  func searchedPodcasts(matching term: String, limit: Int) async throws
     -> [PodcastWithEpisodeMetadata<UnsavedPodcast>]
   {
     let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -47,7 +47,7 @@ struct ITunesService {
     return searchResult.podcastsWithMetadata
   }
 
-  func topPodcasts(genreID: Int? = nil, limit: Int) async throws(SearchError)
+  func topPodcasts(genreID: Int? = nil, limit: Int) async throws
     -> [PodcastWithEpisodeMetadata<UnsavedPodcast>]
   {
     let topPodcastResult: ITunesTopPodcastsFeed =
@@ -58,7 +58,7 @@ struct ITunesService {
     return try await lookupPodcasts(podcastIDs: topPodcastResult.podcastIDs)
   }
 
-  func lookupPodcasts(podcastIDs: [ITunesPodcastID]) async throws(SearchError)
+  func lookupPodcasts(podcastIDs: [ITunesPodcastID]) async throws
     -> [PodcastWithEpisodeMetadata<UnsavedPodcast>]
   {
     let lookupResult: ITunesEntityResults = try decode(
@@ -72,21 +72,13 @@ struct ITunesService {
 
   // MARK: - Private Helpers
 
-  private func performRequest(_ request: URLRequest) async throws(SearchError) -> Data {
-    do {
-      return try await session.validatedData(for: request)
-    } catch {
-      throw SearchError.fetchFailure(request: request, caught: error)
-    }
+  private func performRequest(_ request: URLRequest) async throws -> Data {
+    try await session.validatedData(for: request)
   }
 
-  private func decode<T: Decodable>(_ data: Data) throws(SearchError) -> T {
-    do {
-      let decoder = JSONDecoder()
-      decoder.dateDecodingStrategy = .iso8601
-      return try decoder.decode(T.self, from: data)
-    } catch {
-      throw SearchError.parseFailure(data: data, caught: error)
-    }
+  private func decode<T: Decodable>(_ data: Data) throws -> T {
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try decoder.decode(T.self, from: data)
   }
 }

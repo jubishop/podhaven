@@ -304,7 +304,7 @@ class PodcastDetailViewModel:
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -354,7 +354,7 @@ class PodcastDetailViewModel:
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -373,7 +373,7 @@ class PodcastDetailViewModel:
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -393,7 +393,7 @@ class PodcastDetailViewModel:
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -410,7 +410,7 @@ class PodcastDetailViewModel:
     } catch {
       Self.log.error(error)
       guard ErrorKit.isRemarkable(error) else { return }
-      alert(ErrorKit.coreMessage(for: error))
+      alert(ErrorKit.message(for: error))
     }
   }
 
@@ -430,7 +430,7 @@ class PodcastDetailViewModel:
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -449,7 +449,7 @@ class PodcastDetailViewModel:
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -494,7 +494,7 @@ class PodcastDetailViewModel:
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
       clearObservationTask()
     }

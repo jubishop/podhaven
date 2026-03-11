@@ -131,13 +131,13 @@ class PodcastsListViewModel:
     } catch {
       Self.log.error(error)
       guard ErrorKit.isRemarkable(error) else { return }
-      alert(ErrorKit.coreMessage(for: error))
+      alert(ErrorKit.message(for: error))
     }
   }
 
   // MARK: - Full Grid Functions
 
-  func refreshPodcasts() async throws(RefreshError) {
+  func refreshPodcasts() async throws {
     try await refreshManager.performRefresh(
       stalenessThreshold: .minutes(1),
       filter: podcastList.filteredEntryIDs.contains(Podcast.Columns.feedURL)

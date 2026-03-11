@@ -33,7 +33,7 @@ struct PodcastsListView: View {
         } catch {
           Self.log.error(error)
           guard ErrorKit.isRemarkable(error) else { return }
-          alert(ErrorKit.coreMessage(for: error))
+          alert(ErrorKit.message(for: error))
         }
       }
       .toolbar { toolbar }

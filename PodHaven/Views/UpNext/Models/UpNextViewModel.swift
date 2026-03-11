@@ -160,11 +160,7 @@ import SwiftUI
     for podcastEpisode in uncachedEpisodes {
       Task { [weak self] in
         guard let self else { return }
-        do {
-          try await cacheManager.downloadToCache(for: podcastEpisode.id)
-        } catch {
-          Self.log.error(error)
-        }
+        await cacheManager.downloadToCache(for: podcastEpisode.id)
       }
     }
   }

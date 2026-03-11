@@ -66,41 +66,27 @@ class PodcastTests {
   @Test("that a podcast feedURL must be valid")
   func failToInsertInvalidFeedURL() async throws {
     // Bad scheme
-    let schemeTitle = "Scheme title"
     let schemeURL = URL(string: "file://example.com/data")!
-    await #expect(
-      throws: ModelError.podcastInitializationFailure(
-        feedURL: FeedURL(schemeURL),
-        title: schemeTitle,
-        caught: URLError(.badURL, userInfo: ["message": "URL: \(schemeURL) must use https scheme."])
-      )
-    ) {
+    await #expect(throws: (any Error).self) {
       try await self.repo.insertSeries(
         UnsavedPodcastSeries(
           unsavedPodcast: Create.unsavedPodcast(
             feedURL: FeedURL(schemeURL),
-            title: schemeTitle
+            title: "Scheme title"
           )
         )
       )
     }
 
     // Not absolute
-    let relativeTitle = "Relative title"
     let relativeURL = URL(string: "https:/path/to/data")!
-    await #expect(
-      throws: ModelError.podcastInitializationFailure(
-        feedURL: FeedURL(relativeURL),
-        title: relativeTitle,
-        caught: URLError(
-          .badURL,
-          userInfo: ["message": "URL: \(relativeURL) must have a valid host."]
-        )
-      )
-    ) {
+    await #expect(throws: (any Error).self) {
       try await self.repo.insertSeries(
         UnsavedPodcastSeries(
-          unsavedPodcast: Create.unsavedPodcast(feedURL: FeedURL(relativeURL), title: relativeTitle)
+          unsavedPodcast: Create.unsavedPodcast(
+            feedURL: FeedURL(relativeURL),
+            title: "Relative title"
+          )
         )
       )
     }

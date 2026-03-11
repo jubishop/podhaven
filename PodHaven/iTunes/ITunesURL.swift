@@ -1,11 +1,13 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
+import Logging
 import Tagged
 
 typealias ITunesPodcastID = Tagged<ITunesURL, Int>
 
 struct ITunesURL {
+  private static let log = Log.as("ITunesURL")
   private static let podcastEntity = "podcast"
 
   // MARK: - URL Analysis
@@ -15,7 +17,7 @@ struct ITunesURL {
     url.scheme == "https" && url.host?.contains("podcasts.apple.com") == true
   }
 
-  static func extractPodcastID(from url: URL) throws(ShareError) -> ITunesPodcastID {
+  static func extractPodcastID(from url: URL) -> ITunesPodcastID? {
     let pathComponents = url.path.components(separatedBy: "/")
     for component in pathComponents {
       if component.hasPrefix("id"), component.count > 2 {
@@ -23,8 +25,8 @@ struct ITunesURL {
         if let iTunesID = Int(idString) { return ITunesPodcastID(rawValue: iTunesID) }
       }
     }
-
-    throw ShareError.noIdentifierFound(url)
+    log.warning("Failed to extract podcast ID from: \(url)")
+    return nil
   }
 
   // MARK: - Static Searches

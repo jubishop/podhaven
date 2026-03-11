@@ -69,7 +69,7 @@ struct PodHavenApp: App {
       } catch {
         Self.log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     } else if WidgetService.isWidgetURL(url) {
       await widgetService.handleIncomingURL(url)

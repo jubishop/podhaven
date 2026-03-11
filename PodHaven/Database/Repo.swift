@@ -46,7 +46,7 @@ struct Repo: Databasing, Sendable {
     order: SQLOrdering,
     limit: Int,
     includeTags: Bool
-  ) async throws(RepoError)
+  ) async throws
     -> [PodcastSeries]
   {
     do {
@@ -71,13 +71,20 @@ struct Repo: Databasing, Sendable {
           .fetchAll(db)
       }
     } catch {
-      throw RepoError.readAllFailure(type: PodcastSeries.self, filter: filter, caught: error)
+      Self.log.caughtError(
+        """
+        Failed to fetch PodcastSeries
+          Filter: \(filter)
+        """,
+        error
+      )
+      throw error
     }
   }
 
   // MARK: - Series Readers
 
-  func podcastSeries(_ podcastID: Podcast.ID) async throws(RepoError) -> PodcastSeries? {
+  func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
     do {
       return try await appDB.db.read { db in
         try Podcast
@@ -88,7 +95,8 @@ struct Repo: Databasing, Sendable {
           .fetchOne(db)
       }
     } catch {
-      throw RepoError.readFailure(type: Podcast.self, id: podcastID.rawValue, caught: error)
+      Self.log.caughtError("Failed to fetch Podcast ID: \(podcastID.rawValue)", error)
+      throw error
     }
   }
 
@@ -175,7 +183,7 @@ struct Repo: Databasing, Sendable {
   // MARK: - Series Writers
 
   @discardableResult
-  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) async throws(RepoError)
+  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) async throws
     -> PodcastSeries
   {
     Self.log.debug(
@@ -200,16 +208,18 @@ struct Repo: Databasing, Sendable {
     } catch let error as DatabaseError
       where error.extendedResultCode == .SQLITE_CONSTRAINT_UNIQUE
     {
-      throw RepoError.duplicateConflict(
-        unsavedPodcastSeries: unsavedPodcastSeries,
-        caught: error
+      Self.log.caughtError(
+        "Duplicate conflict inserting PodcastSeries: \(unsavedPodcastSeries.toString)",
+        error,
+        remarkable: .notice
       )
+      throw error
     } catch {
-      throw RepoError.insertFailure(
-        type: PodcastSeries.self,
-        description: "PodcastSeries: \(unsavedPodcastSeries.toString)",
-        caught: error
+      Self.log.caughtError(
+        "Failed to insert PodcastSeries \(unsavedPodcastSeries.toString)",
+        error
       )
+      throw error
     }
   }
 
@@ -219,7 +229,7 @@ struct Repo: Databasing, Sendable {
     podcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [Episode]
-  ) async throws(RepoError) -> [Episode] {
+  ) async throws -> [Episode] {
     do {
       return try await appDB.db.write { db in
         var newEpisodes = [Episode](capacity: unsavedEpisodes.count)
@@ -261,12 +271,14 @@ struct Repo: Databasing, Sendable {
         description +=
           "\nUnsavedEpisodes:\n    \(unsavedEpisodes.map(\.toString).joined(separator: "\n    "))"
       }
-      throw RepoError.updateFailure(
-        type: PodcastSeries.self,
-        id: podcastSeries.id.rawValue,
-        description: description,
-        caught: error
+      Self.log.caughtError(
+        """
+        Failed to update PodcastSeries ID: \(podcastSeries.id.rawValue)
+          \(description)
+        """,
+        error
       )
+      throw error
     }
   }
 
@@ -395,7 +407,7 @@ struct Repo: Databasing, Sendable {
 
   @discardableResult
   func upsertPodcastEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode])
-    async throws(RepoError) -> [PodcastEpisode]
+    async throws -> [PodcastEpisode]
   {
     guard !unsavedPodcastEpisodes.isEmpty
     else { return [] }
@@ -433,16 +445,19 @@ struct Repo: Databasing, Sendable {
         }
       }
     } catch {
-      throw RepoError.upsertFailure(
-        type: PodcastEpisode.self,
-        description: unsavedPodcastEpisodes.map(\.toString).joined(separator: ","),
-        caught: error
+      Self.log.caughtError(
+        """
+        Failed to upsert PodcastEpisode
+          \(unsavedPodcastEpisodes.map(\.toString).joined(separator: ","))
+        """,
+        error
       )
+      throw error
     }
   }
 
   @discardableResult
-  func upsertPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws(RepoError)
+  func upsertPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws
     -> PodcastEpisode
   {
     let podcastEpisodes = try await upsertPodcastEpisodes([unsavedPodcastEpisode])

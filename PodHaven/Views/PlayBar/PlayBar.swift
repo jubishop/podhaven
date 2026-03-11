@@ -141,7 +141,7 @@ extension PlayBar {
         try await presentOnDeckEpisodeDetail()
       } catch {
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }

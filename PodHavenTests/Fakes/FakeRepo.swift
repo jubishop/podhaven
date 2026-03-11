@@ -32,7 +32,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     order: SQLOrdering = Podcast.Columns.id.desc,
     limit: Int = Int.max,
     includeTags: Bool = true
-  ) async throws(RepoError)
+  ) async throws
     -> [PodcastSeries]
   {
     recordCall(
@@ -49,7 +49,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   // MARK: - Series Readers
 
-  func podcastSeries(_ podcastID: Podcast.ID) async throws(RepoError) -> PodcastSeries? {
+  func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
     recordCall(methodName: "podcastSeries", parameters: podcastID)
     return try await repo.podcastSeries(podcastID)
   }
@@ -104,7 +104,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   // MARK: - Series Writers
 
   @discardableResult
-  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) async throws(RepoError)
+  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) async throws
     -> PodcastSeries
   {
     recordCall(
@@ -119,7 +119,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     podcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [Episode]
-  ) async throws(RepoError) -> [Episode] {
+  ) async throws -> [Episode] {
     recordCall(
       methodName: "updateSeriesFromFeed",
       parameters: (
@@ -198,14 +198,14 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
 
   @discardableResult
   func upsertPodcastEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode])
-    async throws(RepoError) -> [PodcastEpisode]
+    async throws -> [PodcastEpisode]
   {
     recordCall(methodName: "upsertPodcastEpisodes", parameters: unsavedPodcastEpisodes)
     return try await repo.upsertPodcastEpisodes(unsavedPodcastEpisodes)
   }
 
   @discardableResult
-  func upsertPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws(RepoError)
+  func upsertPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws
     -> PodcastEpisode
   {
     recordCall(methodName: "upsertPodcastEpisode", parameters: unsavedPodcastEpisode)
