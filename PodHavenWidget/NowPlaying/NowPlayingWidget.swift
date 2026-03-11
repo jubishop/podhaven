@@ -21,11 +21,18 @@ struct NowPlayingProvider: TimelineProvider {
     let entry = makeEntry()
     var entries = [entry]
 
-    // When actively playing, schedule a fallback entry that shows paused.
-    // The app reloads the timeline every 4 minutes via a heartbeat (free
-    // during an active audio session), pushing this fallback forward. It
-    // only fires when the app is killed and can no longer reload.
-    if entry.playbackStatus.playing {
+    // Schedule a fallback entry for active states so the widget recovers
+    // if the app is killed. During playback the app reloads the timeline
+    // every 4 minutes via a heartbeat (free during an active audio
+    // session), pushing this fallback forward indefinitely.
+    let fallbackStatus: PlaybackStatus? =
+      switch entry.playbackStatus {
+      case .playing, .waiting: .paused
+      case .loading: .stopped
+      case .paused, .stopped: nil
+      }
+
+    if let fallbackStatus {
       entries.append(
         NowPlayingEntry(
           date: Date().addingTimeInterval(300),
@@ -33,7 +40,7 @@ struct NowPlayingProvider: TimelineProvider {
           podcastTitle: entry.podcastTitle,
           pubDateFormatted: entry.pubDateFormatted,
           durationFormatted: entry.durationFormatted,
-          playbackStatus: .paused,
+          playbackStatus: fallbackStatus,
           artwork: entry.artwork,
           skipForwardInterval: entry.skipForwardInterval,
           skipBackwardInterval: entry.skipBackwardInterval

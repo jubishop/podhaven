@@ -138,4 +138,76 @@ import Testing
     await sleeper.advanceTime(by: .seconds(240))
     try await sleeper.waitForSleepRequests(count: 1)
   }
+
+  @Test("heartbeat stops when paused and restarts when playing resumes")
+  func heartbeatStopsAndRestarts() async throws {
+    writer.start()
+    try await WidgetHelpers.waitForSnapshot()
+    let sleeper = Container.shared.sleeper() as! FakeSleeper
+
+    sharedState.$playbackStatus.new(.playing)
+    try await Wait.until(
+      { WidgetInfo.playbackStatus == .playing },
+      { "playbackStatus was not updated to .playing" }
+    )
+    try await sleeper.waitForSleepRequests(count: 1)
+
+    // Pausing cancels the heartbeat
+    sharedState.$playbackStatus.new(.paused)
+    try await Wait.until(
+      { WidgetInfo.playbackStatus == .paused },
+      { "playbackStatus was not updated to .paused" }
+    )
+    await sleeper.advanceTime(by: .seconds(240))
+
+    // Resuming playback starts a fresh heartbeat
+    sharedState.$playbackStatus.new(.playing)
+    try await Wait.until(
+      { WidgetInfo.playbackStatus == .playing },
+      { "playbackStatus was not updated to .playing" }
+    )
+    try await sleeper.waitForSleepRequests(count: 1)
+    await sleeper.advanceTime(by: .seconds(240))
+    try await sleeper.waitForSleepRequests(count: 1)
+  }
+
+  @Test("heartbeat restarts after transient loading and waiting states")
+  func heartbeatRestartsAfterTransientStates() async throws {
+    writer.start()
+    try await WidgetHelpers.waitForSnapshot()
+    let sleeper = Container.shared.sleeper() as! FakeSleeper
+
+    // Loading an episode — no heartbeat
+    sharedState.$playbackStatus.new(.loading("My Episode"))
+    try await Wait.until(
+      { WidgetInfo.playbackStatus.loading },
+      { "playbackStatus was not updated to .loading" }
+    )
+
+    // Playback starts — heartbeat begins
+    sharedState.$playbackStatus.new(.playing)
+    try await Wait.until(
+      { WidgetInfo.playbackStatus == .playing },
+      { "playbackStatus was not updated to .playing" }
+    )
+    try await sleeper.waitForSleepRequests(count: 1)
+
+    // Buffering mid-stream — heartbeat stops
+    sharedState.$playbackStatus.new(.waiting)
+    try await Wait.until(
+      { WidgetInfo.playbackStatus == .waiting },
+      { "playbackStatus was not updated to .waiting" }
+    )
+    await sleeper.advanceTime(by: .seconds(240))
+
+    // Buffering resolves — heartbeat restarts
+    sharedState.$playbackStatus.new(.playing)
+    try await Wait.until(
+      { WidgetInfo.playbackStatus == .playing },
+      { "playbackStatus was not updated to .playing" }
+    )
+    try await sleeper.waitForSleepRequests(count: 1)
+    await sleeper.advanceTime(by: .seconds(240))
+    try await sleeper.waitForSleepRequests(count: 1)
+  }
 }
