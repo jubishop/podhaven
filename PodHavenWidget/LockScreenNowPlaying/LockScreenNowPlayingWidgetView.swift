@@ -63,7 +63,7 @@ struct LockScreenNowPlayingWidgetView: View {
           .font(.headline)
       }
     } else {
-      HStack(spacing: 8) {
+      HStack(spacing: 4) {
         Button(intent: PlayPauseIntent()) {
           (entry.playbackStatus.playing
             ? AppIcon.pauseButton.image
@@ -71,15 +71,21 @@ struct LockScreenNowPlayingWidgetView: View {
             .font(.title2)
             .widgetAccentable()
         }
+        .buttonStyle(.borderless)
 
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading) {
           Text(entry.episodeTitle)
-            .font(.headline)
-            .lineLimit(1)
-          Text(entry.podcastTitle)
             .font(.caption)
+            .lineLimit(2, reservesSpace: true)
+
+          Spacer(minLength: 0)
+
+          Text(entry.podcastTitle)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
             .lineLimit(1)
         }
+        .padding(.vertical, 4)
       }
     }
   }
