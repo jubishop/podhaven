@@ -48,7 +48,8 @@ final class WidgetSnapshotWriter: Sendable {
           return !onDeck.widgetEquals(last)
         }
         if changed {
-          scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
+          scheduleWrite(
+            reloadKinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
         }
       }
     }
@@ -63,7 +64,7 @@ final class WidgetSnapshotWriter: Sendable {
         }
         guard changed else { continue }
         WidgetInfo.playbackStatus = status
-        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
+        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
       }
     }
 

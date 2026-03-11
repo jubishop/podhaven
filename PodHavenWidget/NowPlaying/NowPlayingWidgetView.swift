@@ -20,7 +20,7 @@ struct NowPlayingWidgetView: View {
     case .systemMedium:
       mediumView.dynamicTypeSize(.small ... .xxLarge)
     default:
-      Assert.fatal("Incorrect widget size: \(family)")
+      Assert.fatal("Incorrect NowPlaying widget size: \(family)")
     }
   }
 

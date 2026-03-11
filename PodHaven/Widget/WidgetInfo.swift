@@ -10,6 +10,7 @@ enum WidgetInfo {
 
   static let nowPlayingKind = "NowPlayingWidget"
   static let queueKind = "QueueWidget"
+  static let lockScreenNowPlayingKind = "LockScreenNowPlayingWidget"
 
   // MARK: - Data Storage
 

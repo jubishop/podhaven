@@ -29,5 +29,6 @@ struct PodHavenWidgetBundle: WidgetBundle {
   var body: some Widget {
     NowPlayingWidget()
     QueueWidget()
+    LockScreenNowPlayingWidget()
   }
 }

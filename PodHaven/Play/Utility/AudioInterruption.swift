@@ -25,7 +25,7 @@ enum AudioInterruption {
 
       let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
       if options.contains(.shouldResume) { return .resume }
-      log.warning("Ended notification but no .shouldResume option in: \(userInfo)")
+      log.debug("Ended notification but no .shouldResume option in: \(userInfo)")
     @unknown default:
       log.warning("Unknown notification type: \(type)")
       break
