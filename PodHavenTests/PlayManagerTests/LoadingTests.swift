@@ -412,7 +412,7 @@ import Testing
 
     let originalSemaphore = await episodeAssetLoader.waitRespond(
       to: originalEpisode.episode.mediaURL,
-      error: PlaybackError.mediaNotPlayable(originalEpisode)
+      error: TestError.assetLoadFailure(originalEpisode)
     )
     let incomingSemaphore = await episodeAssetLoader.waitRespond(
       to: incomingEpisode.episode.mediaURL,

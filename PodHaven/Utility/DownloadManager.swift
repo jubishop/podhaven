@@ -4,7 +4,7 @@ import Foundation
 import IdentifiedCollections
 import Logging
 
-typealias DownloadResult = Result<DownloadData, DownloadError>
+typealias DownloadResult = Result<DownloadData, any Error>
 
 struct DownloadData: Equatable, Hashable {
   let url: URL
@@ -33,7 +33,7 @@ actor DownloadTask: Identifiable {
     }
   }
 
-  func downloadFinished() async throws(DownloadError) -> DownloadData {
+  func downloadFinished() async throws -> DownloadData {
     if let result { return try result.get() }
 
     let result = await withCheckedContinuation { continuation in
@@ -43,7 +43,7 @@ actor DownloadTask: Identifiable {
   }
 
   func cancel() {
-    haveFinished(.failure(DownloadError.cancelled(url)))
+    haveFinished(.failure(CancellationError()))
   }
 
   // MARK: - Fileprivate Methods

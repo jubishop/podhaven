@@ -174,10 +174,11 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
 
-      try await withThrowingTaskGroup(of: Void.self) { group in
-        for episodeID in try await selectedPodcastEpisodeIDs {
+      let episodeIDs = try await selectedPodcastEpisodeIDs
+      await withDiscardingTaskGroup { group in
+        for episodeID in episodeIDs {
           group.addTask {
-            try await Container.shared.cacheManager().downloadToCache(for: episodeID)
+            await Container.shared.cacheManager().downloadToCache(for: episodeID)
           }
         }
       }
@@ -196,7 +197,7 @@ extension SelectableEpisodeList {
         for episodeID in cachedEpisodeIDs {
           group.addTask {
             try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: false)
-            try await Container.shared.cacheManager().clearCache(for: episodeID)
+            await Container.shared.cacheManager().clearCache(for: episodeID)
           }
         }
       }
@@ -213,7 +214,7 @@ extension SelectableEpisodeList {
         for episodeID in try await selectedPodcastEpisodeIDs {
           group.addTask {
             try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: true)
-            try await Container.shared.cacheManager().downloadToCache(for: episodeID)
+            await Container.shared.cacheManager().downloadToCache(for: episodeID)
           }
         }
       }
@@ -246,10 +247,10 @@ extension SelectableEpisodeList {
     guard !downloadingEpisodeIDs.isEmpty else { return }
 
     Task {
-      await withThrowingTaskGroup(of: Void.self) { group in
+      await withDiscardingTaskGroup { group in
         for episodeID in downloadingEpisodeIDs {
           group.addTask {
-            try await Container.shared.cacheManager().clearCache(for: episodeID)
+            await Container.shared.cacheManager().clearCache(for: episodeID)
           }
         }
       }

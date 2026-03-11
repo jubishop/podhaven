@@ -24,6 +24,8 @@ extension Container {
 // MARK: - EpisodeFeed
 
 struct EpisodeFeed: Sendable, Equatable {
+  private static let log = Log.as(LogSubsystem.Feed.podcast)
+
   let guid: GUID
   let mediaURL: MediaURL
 
@@ -31,15 +33,18 @@ struct EpisodeFeed: Sendable, Equatable {
 
   private let rssEpisode: PodcastRSS.Episode
 
-  fileprivate init(rssEpisode: PodcastRSS.Episode) throws(ParseError) {
-    guard let mediaURL = rssEpisode.enclosure?.url
-    else { throw ParseError.missingMediaURL(rssEpisode.title) }
+  fileprivate init?(rssEpisode: PodcastRSS.Episode) {
+    guard let mediaURL = rssEpisode.enclosure?.url else {
+      Self.log.warning("Missing required enclosure media url for \(rssEpisode.title)")
+      return nil
+    }
 
     let validatedMediaURL: MediaURL
     do {
       validatedMediaURL = try mediaURL.convertToHTTPSURL()
     } catch {
-      throw ParseError.invalidMediaURL(mediaURL)
+      Self.log.warning("Invalid MediaURL: \(mediaURL)")
+      return nil
     }
 
     self.rssEpisode = rssEpisode
@@ -47,22 +52,20 @@ struct EpisodeFeed: Sendable, Equatable {
     self.mediaURL = validatedMediaURL
   }
 
-  func toUnsavedEpisode(merging episode: Episode? = nil) throws(FeedError) -> UnsavedEpisode {
+  func toUnsavedEpisode(merging episode: Episode? = nil) throws -> UnsavedEpisode {
     // We intentionally dont merge other fields from Episode because we will have potentially stale
     // data compared to the database.  We should only use rssColumnAssignments() for updating.
-    try FeedError.catch {
-      try UnsavedEpisode(
-        podcastId: episode?.podcastId,
-        guid: guid,
-        mediaURL: mediaURL,
-        title: rssEpisode.title,
-        pubDate: rssEpisode.pubDate ?? episode?.pubDate,
-        duration: duration ?? episode?.duration,
-        description: rssEpisode.description ?? episode?.description,
-        link: rssEpisode.link ?? episode?.link,
-        image: rssEpisode.iTunes.image?.href ?? episode?.image
-      )
-    }
+    try UnsavedEpisode(
+      podcastId: episode?.podcastId,
+      guid: guid,
+      mediaURL: mediaURL,
+      title: rssEpisode.title,
+      pubDate: rssEpisode.pubDate ?? episode?.pubDate,
+      duration: duration ?? episode?.duration,
+      description: rssEpisode.description ?? episode?.description,
+      link: rssEpisode.link ?? episode?.link,
+      image: rssEpisode.iTunes.image?.href ?? episode?.image
+    )
   }
 
   // MARK: - Private Helpers
@@ -96,27 +99,23 @@ struct PodcastFeed: Sendable, Stringable {
 
   // MARK: - Static Parsing Methods
 
-  static func parse(_ url: FeedURL) async throws(FeedError) -> PodcastFeed {
-    try await FeedError.catch {
-      let data = try await Container.shared.podcastFeedSession().validatedData(from: url.rawValue)
-      return try await parse(data, from: url)
-    }
+  static func parse(_ url: FeedURL) async throws -> PodcastFeed {
+    let data = try await Container.shared.podcastFeedSession().validatedData(from: url.rawValue)
+    return try await parse(data, from: url)
   }
 
-  static func parse(_ downloadData: DownloadData) async throws(FeedError) -> PodcastFeed {
-    try await FeedError.catch {
-      try await parse(downloadData.data, from: FeedURL(downloadData.url))
-    }
+  static func parse(_ downloadData: DownloadData) async throws -> PodcastFeed {
+    try await parse(downloadData.data, from: FeedURL(downloadData.url))
   }
 
-  static func parse(_ data: Data, from: FeedURL) async throws(FeedError) -> PodcastFeed {
+  static func parse(_ data: Data, from: FeedURL) async throws -> PodcastFeed {
     do {
       log.trace("Parsing data of size \(data.count) from \(from)")
-
       let rssPodcast = try await PodcastRSS.parse(data)
       return try PodcastFeed(rssPodcast: rssPodcast, from: from)
     } catch {
-      throw FeedError.parseFailure(url: from, caught: error)
+      log.caughtError("Failed to parse feed at \(from)", error)
+      throw error
     }
   }
 
@@ -134,14 +133,7 @@ struct PodcastFeed: Sendable, Stringable {
     self.feedURL = try (rssPodcast.feedURL ?? from).convertToHTTPSURL()
     self.link = rssPodcast.link
     self.image = rssPodcast.iTunes.image.href
-    self.episodeFeeds = rssPodcast.episodes.compactMap { rssEpisode in
-      do {
-        return try EpisodeFeed(rssEpisode: rssEpisode)
-      } catch {
-        Self.log.error(error)
-        return nil
-      }
-    }
+    self.episodeFeeds = rssPodcast.episodes.compactMap { EpisodeFeed(rssEpisode: $0) }
   }
 
   var updatedFeedURL: FeedURL {
@@ -149,7 +141,7 @@ struct PodcastFeed: Sendable, Stringable {
   }
 
   func toUnsavedSeries(merging podcastSeries: PodcastSeries? = nil)
-    throws(FeedError) -> UnsavedPodcastSeries
+    throws -> UnsavedPodcastSeries
   {
     UnsavedPodcastSeries(
       unsavedPodcast: try toUnsavedPodcast(merging: podcastSeries?.podcast),
@@ -157,16 +149,14 @@ struct PodcastFeed: Sendable, Stringable {
     )
   }
 
-  func toUnsavedPodcast(merging podcast: Podcast? = nil) throws(FeedError) -> UnsavedPodcast {
-    try FeedError.catch {
-      try UnsavedPodcast(
-        feedURL: updatedFeedURL,
-        title: rssPodcast.title,
-        image: image,
-        description: rssPodcast.description,
-        link: link ?? podcast?.link
-      )
-    }
+  func toUnsavedPodcast(merging podcast: Podcast? = nil) throws -> UnsavedPodcast {
+    try UnsavedPodcast(
+      feedURL: updatedFeedURL,
+      title: rssPodcast.title,
+      image: image,
+      description: rssPodcast.description,
+      link: link ?? podcast?.link
+    )
   }
 
   func toUnsavedEpisodes(merging episodes: IdentifiedArrayOf<Episode>? = nil)

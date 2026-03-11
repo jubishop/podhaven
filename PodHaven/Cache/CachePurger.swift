@@ -120,7 +120,7 @@ struct CachePurger: Sendable {
       if let cachedURL = episode.cachedURL {
         do {
           let fileSize = try fileManager.fileSize(for: cachedURL.rawValue)
-          if let clearedURL = try await cacheManager.clearCache(for: episode.id) {
+          if let clearedURL = await cacheManager.clearCache(for: episode.id) {
             freedBytes += fileSize
             deletedCount += 1
             Self.log.debug(

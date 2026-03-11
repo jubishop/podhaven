@@ -147,12 +147,9 @@ final class PlayManager {
   // MARK: - Loading
 
   @discardableResult
-  func load(_ podcastEpisode: PodcastEpisode) async throws(PlaybackError) -> Bool {
+  func load(_ podcastEpisode: PodcastEpisode) async throws -> Bool {
     loadTask?.cancel()
-
-    return try await PlaybackError.catch {
-      try await performLoad(podcastEpisode)
-    }
+    return try await performLoad(podcastEpisode)
   }
 
   private func performLoad(_ incoming: PodcastEpisode) async throws -> Bool {
@@ -341,7 +338,7 @@ final class PlayManager {
       }
     } catch {
       Self.log.error(error)
-      await alert(ErrorKit.coreMessage(for: error))
+      await alert(ErrorKit.message(for: error))
     }
   }
 
@@ -456,11 +453,10 @@ final class PlayManager {
         Self.log.info("handlePlaybackFailure: auto-recovery succeeded")
         return
       } catch {
-        Self.log.warning(
-          """
-          handlePlaybackFailure: auto-recovery failed
-          \(ErrorKit.loggableMessage(for: error))
-          """
+        Self.log.caughtError(
+          "handlePlaybackFailure: auto-recovery failed",
+          error,
+          remarkable: .warning
         )
       }
     } else {
@@ -719,11 +715,10 @@ final class PlayManager {
             as? any Error
         else { Assert.fatal("failedToPlayToEndTimeNotification: \(notification) is invalid") }
 
-        Self.log.warning(
-          """
-          AVPlayerItem failed to play to end time
-          \(ErrorKit.loggableMessage(for: error))
-          """
+        Self.log.caughtError(
+          "AVPlayerItem failed to play to end time",
+          error,
+          remarkable: .warning
         )
 
         await handlePlaybackFailure()

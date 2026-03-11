@@ -38,7 +38,7 @@ extension ManagingPodcasts {
       } catch {
         log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -56,7 +56,7 @@ extension ManagingPodcasts {
       } catch {
         log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -72,7 +72,7 @@ extension ManagingPodcasts {
       } catch {
         log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -87,7 +87,7 @@ extension ManagingPodcasts {
       } catch {
         log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -103,7 +103,7 @@ extension ManagingPodcasts {
       } catch {
         log.error(error)
         guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.coreMessage(for: error))
+        alert(ErrorKit.message(for: error))
       }
     }
   }

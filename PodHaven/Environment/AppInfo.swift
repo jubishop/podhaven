@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import Logging
+
 #if !WIDGET_EXTENSION
 import StoreKit
 #endif
@@ -65,8 +66,9 @@ enum AppInfo {
     #if !DEBUG && !targetEnvironment(simulator)
     do {
       let result = try await AppTransaction.shared
-      let refinedEnvironment = try appTransactionEnvironment(for: result)
-      if environment != refinedEnvironment {
+      if let refinedEnvironment = appTransactionEnvironment(for: result),
+        environment != refinedEnvironment
+      {
         log.debug("Environment refined to \(refinedEnvironment)")
         environment = refinedEnvironment
       }
@@ -76,8 +78,9 @@ enum AppInfo {
       // Retry with refresh
       do {
         let refreshed = try await AppTransaction.refresh()
-        let refinedEnvironment = try appTransactionEnvironment(for: refreshed)
-        if environment != refinedEnvironment {
+        if let refinedEnvironment = appTransactionEnvironment(for: refreshed),
+          environment != refinedEnvironment
+        {
           log.debug("Environment refined to \(refinedEnvironment) after refresh")
           environment = refinedEnvironment
         }
@@ -113,7 +116,7 @@ enum AppInfo {
   #if !WIDGET_EXTENSION
   private static func appTransactionEnvironment(
     for verificationResult: VerificationResult<AppTransaction>
-  ) throws -> EnvironmentType {
+  ) -> EnvironmentType? {
     switch verificationResult {
     case .verified(let appTransaction):
       switch appTransaction.environment {
@@ -122,12 +125,14 @@ enum AppInfo {
       case .production:
         return .appStore
       default:
-        throw AppInfoError.unknownAppTransactionEnvironment(
-          environment: String(describing: appTransaction.environment)
+        log.warning(
+          "Unknown App Store transaction environment: \(appTransaction.environment)"
         )
+        return nil
       }
     case .unverified(_, _):
-      throw AppInfoError.unverifiedAppTransaction
+      log.warning("Unable to verify App Store transaction for environment detection")
+      return nil
     }
   }
   #endif

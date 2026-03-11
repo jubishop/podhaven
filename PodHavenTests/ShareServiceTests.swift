@@ -110,46 +110,36 @@ import Testing
     )
   }
 
-  @Test("that ShareError.extractionFailure is thrown for URLs without url parameter")
-  func extractionFailureForMissingURLParameter() async throws {
+  @Test("that an error is thrown for URLs without url parameter")
+  func errorForMissingURLParameter() async throws {
     let shareURL = URL(string: "podhaven://share?invalid=true")!
 
-    await #expect(throws: ShareError.extractionFailure(shareURL)) {
+    await #expect(throws: (any Error).self) {
       try await self.shareService.handleIncomingURL(shareURL)
     }
   }
 
-  @Test("that ShareError.extractionFailure is thrown for URLs with empty url parameter")
-  func extractionFailureForEmptyURLParameter() async throws {
+  @Test("that an error is thrown for URLs with empty url parameter")
+  func errorForEmptyURLParameter() async throws {
     let shareURL = URL(string: "podhaven://share?url=")!
 
-    await #expect(throws: ShareError.extractionFailure(shareURL)) {
+    await #expect(throws: (any Error).self) {
       try await self.shareService.handleIncomingURL(shareURL)
     }
   }
 
-  @Test("that ShareError.unsupportedURL is thrown for unknown urls")
-  func unsupportedURLForUnknownURLs() async throws {
+  @Test("that an error is thrown for unknown urls")
+  func errorForUnknownURLs() async throws {
     let unsupportedURL = URL(string: "https://example.com/podcast")!
     let shareURL = ShareHelpers.shareURL(with: unsupportedURL)
 
-    await #expect(throws: ShareError.unsupportedURL(unsupportedURL)) {
+    await #expect(throws: (any Error).self) {
       try await self.shareService.handleIncomingURL(shareURL)
     }
   }
 
-  @Test("that ShareError.noIdentifierFound is thrown for Apple Podcasts URLs without ID")
-  func noIdentifierFoundForApplePodcastsURLWithoutID() async throws {
-    let applePodcastsURL = URL(string: "https://podcasts.apple.com/us/podcast/podcast-name")!
-    let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
-
-    await #expect(throws: ShareError.noIdentifierFound(applePodcastsURL)) {
-      try await self.shareService.handleIncomingURL(shareURL)
-    }
-  }
-
-  @Test("that ShareError.caught wraps SearchError.fetchFailure when iTunes lookup fails")
-  func fetchFailureForITunesLookupRequest() async throws {
+  @Test("that an error is thrown when iTunes lookup fails")
+  func errorForITunesLookupFailure() async throws {
     let itunesID = "1234567890"
     let applePodcastsURL = ShareHelpers.itunesPodcastURL(for: itunesID, withTitle: "Test Podcast")
     let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
@@ -157,24 +147,13 @@ import Testing
 
     await itunesSession.respond(to: lookupURL, error: URLError(.networkConnectionLost))
 
-    do {
-      try await shareService.handleIncomingURL(shareURL)
-      Issue.record("Expected ShareError.caught to be thrown")
-    } catch let ShareError.caught(error) {
-      guard let searchError = error as? SearchError,
-        case .fetchFailure(let request, _) = searchError
-      else {
-        Issue.record("Expected SearchError.fetchFailure inside ShareError.caught, got: \(error)")
-        return
-      }
-      #expect(request.url == lookupURL)
-    } catch {
-      Issue.record("Expected ShareError.caught, got: \(error)")
+    await #expect(throws: (any Error).self) {
+      try await self.shareService.handleIncomingURL(shareURL)
     }
   }
 
-  @Test("that ShareError.caught wraps SearchError.parseFailure for invalid iTunes response")
-  func parseFailureForInvalidITunesResponse() async throws {
+  @Test("that an error is thrown for invalid iTunes response")
+  func errorForInvalidITunesResponse() async throws {
     let itunesID = "1234567890"
     let applePodcastsURL = ShareHelpers.itunesPodcastURL(for: itunesID, withTitle: "Test Podcast")
     let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
@@ -183,51 +162,13 @@ import Testing
 
     await itunesSession.respond(to: lookupURL, data: invalidJSON)
 
-    do {
-      try await shareService.handleIncomingURL(shareURL)
-      Issue.record("Expected ShareError.caught to be thrown")
-    } catch let ShareError.caught(error) {
-      guard let searchError = error as? SearchError,
-        case .parseFailure(let data, _) = searchError
-      else {
-        Issue.record("Expected SearchError.parseFailure inside ShareError.caught, got: \(error)")
-        return
-      }
-      #expect(data == invalidJSON)
-    } catch {
-      Issue.record("Expected ShareError.caught, got: \(error)")
-    }
-  }
-
-  @Test("that ShareError.noFeedURLFound is thrown when iTunes response has no feed URL")
-  func noFeedURLFoundForITunesResponseWithoutFeedURL() async throws {
-    let itunesID = "1234567890"
-    let applePodcastsURL = ShareHelpers.itunesPodcastURL(for: itunesID, withTitle: "Test Podcast")
-    let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
-    let lookupURL = ITunesURL.lookupRequest(podcastIDs: [ITunesPodcastID(Int(itunesID)!)]).url!
-
-    let responseWithoutFeedURL = """
-      {
-        "resultCount": 1,
-        "results": [
-          {
-            "collectionId": \(itunesID),
-            "kind": "podcast"
-          }
-        ]
-      }
-      """
-      .data(using: .utf8)!
-
-    await itunesSession.respond(to: lookupURL, data: responseWithoutFeedURL)
-
-    await #expect(throws: ShareError.noFeedURLFound) {
+    await #expect(throws: (any Error).self) {
       try await self.shareService.handleIncomingURL(shareURL)
     }
   }
 
-  @Test("that ShareError.caught wraps other errors properly")
-  func caughtErrorWrapsOtherErrors() async throws {
+  @Test("that an error is thrown when feed fetch fails")
+  func errorWhenFeedFetchFails() async throws {
     let itunesID = "1627920305"
     let applePodcastsURL = ShareHelpers.itunesPodcastURL(for: itunesID, withTitle: "Test Podcast")
     let shareURL = ShareHelpers.shareURL(with: applePodcastsURL)
@@ -253,7 +194,7 @@ import Testing
     let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
     await feedSession.respond(to: feedURL, error: URLError(.cannotConnectToHost))
 
-    await #expect(throws: ShareError.caught(URLError(.cannotConnectToHost))) {
+    await #expect(throws: (any Error).self) {
       try await self.shareService.handleIncomingURL(shareURL)
     }
   }

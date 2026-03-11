@@ -48,22 +48,18 @@ struct UnsavedPodcast:
     queueAllEpisodes: QueueAllEpisodes = .never,
     cacheAllEpisodes: CacheAllEpisodes = .never,
     notifyNewEpisodes: Bool = false
-  ) throws(ModelError) {
-    do {
-      self.feedURL = try feedURL.convertToHTTPSURL()
-      self.title = title
-      self.image = try image.convertToHTTPSURL()
-      self.description = description
-      self.link = try? link?.convertToHTTPSURL()
-      self.lastUpdate = lastUpdate ?? Date.epoch
-      self.subscriptionDate = subscriptionDate
-      self.defaultPlaybackRate = defaultPlaybackRate
-      self.queueAllEpisodes = queueAllEpisodes
-      self.cacheAllEpisodes = cacheAllEpisodes
-      self.notifyNewEpisodes = notifyNewEpisodes
-    } catch {
-      throw ModelError.podcastInitializationFailure(feedURL: feedURL, title: title, caught: error)
-    }
+  ) throws {
+    self.feedURL = try feedURL.convertToHTTPSURL()
+    self.title = title
+    self.image = try image.convertToHTTPSURL()
+    self.description = description
+    self.link = try? link?.convertToHTTPSURL()
+    self.lastUpdate = lastUpdate ?? Date.epoch
+    self.subscriptionDate = subscriptionDate
+    self.defaultPlaybackRate = defaultPlaybackRate
+    self.queueAllEpisodes = queueAllEpisodes
+    self.cacheAllEpisodes = cacheAllEpisodes
+    self.notifyNewEpisodes = notifyNewEpisodes
   }
 
   // MARK: - Savable

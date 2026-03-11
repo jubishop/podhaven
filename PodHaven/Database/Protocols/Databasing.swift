@@ -12,12 +12,12 @@ protocol Databasing: Sendable {
 
   func allPodcasts(_ filter: SQLExpression) async throws -> [Podcast]
   func allPodcastSeries(_ filter: SQLExpression, order: SQLOrdering, limit: Int, includeTags: Bool)
-    async throws(RepoError)
+    async throws
     -> [PodcastSeries]
 
   // MARK: - Series Readers
 
-  func podcastSeries(_ podcastID: Podcast.ID) async throws(RepoError) -> PodcastSeries?
+  func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries?
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries?
 
   // MARK: - Episode Readers
@@ -34,7 +34,7 @@ protocol Databasing: Sendable {
   // MARK: - Series Writers
 
   @discardableResult
-  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) async throws(RepoError)
+  func insertSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) async throws
     -> PodcastSeries
 
   @discardableResult
@@ -43,7 +43,7 @@ protocol Databasing: Sendable {
     podcast: Podcast?,
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [Episode]
-  ) async throws(RepoError) -> [Episode]
+  ) async throws -> [Episode]
 
   // MARK: - Podcast Writers
 
@@ -78,10 +78,10 @@ protocol Databasing: Sendable {
 
   @discardableResult
   func upsertPodcastEpisodes(_ unsavedPodcastEpisodes: [UnsavedPodcastEpisode])
-    async throws(RepoError) -> [PodcastEpisode]
+    async throws -> [PodcastEpisode]
 
   @discardableResult
-  func upsertPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws(RepoError)
+  func upsertPodcastEpisode(_ unsavedPodcastEpisode: UnsavedPodcastEpisode) async throws
     -> PodcastEpisode
 
   // MARK: - Episode Attribute Writers

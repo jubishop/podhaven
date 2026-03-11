@@ -353,12 +353,8 @@ import Testing
   func setupNotFoundFeedResponse(to feedURL: URL) async {
     await feedSession.respond(
       to: feedURL,
-      error: DownloadError.notOKResponseCode(code: 404, url: feedURL)
+      error: URLError(.resourceUnavailable)
     )
-  }
-
-  func setupFeedError(to feedURL: URL, error: Error) async {
-    await feedSession.respond(to: feedURL, error: error)
   }
 
   // MARK: - Import Helpers

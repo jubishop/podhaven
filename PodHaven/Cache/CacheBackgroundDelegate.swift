@@ -125,8 +125,17 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         try fileManager.moveItem(at: location, to: destURL.rawValue)
         let episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: destURL.rawValue))
 
-        guard episodeAsset.isPlayable
-        else { throw CacheError.mediaNotPlayable(episode) }
+        guard episodeAsset.isPlayable else {
+          Self.log.error(
+            """
+            MediaGUID Not Playable
+              Episode: \(episode.toString)
+              MediaGUID: \(episode.unsaved.id)
+            """
+          )
+          try await repo.updateCachedFilename(episode.id, cachedFilename: nil)
+          return
+        }
 
         try await repo.updateDuration(episode.id, duration: episodeAsset.duration)
       } catch {
