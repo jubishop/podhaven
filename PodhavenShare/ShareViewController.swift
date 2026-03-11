@@ -46,6 +46,6 @@ class ShareViewController: UIViewController {
       }
       responder = responder?.next
     }
-    throw ShareExtensionError.applicationNotFound
+    fatalError("UIApplication not found in responder chain")
   }
 }

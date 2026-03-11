@@ -3,18 +3,14 @@
 import Foundation
 
 enum ShareExtensionError: Error, LocalizedError {
-  case applicationNotFound
   case invalidURLScheme
   case noInputItems
   case noURLFound
   case urlLoadingFailed(any Error)
   case itemNotURL
-  case sharedContainerNotFound
 
   var errorDescription: String? {
     switch self {
-    case .applicationNotFound:
-      return "UIApplication not found in responder chain"
     case .invalidURLScheme:
       return "Failed to create PodHaven URL scheme"
     case .noInputItems:
@@ -25,8 +21,6 @@ enum ShareExtensionError: Error, LocalizedError {
       return "Failed to load URL: \(error)"
     case .itemNotURL:
       return "Shared item is not a URL"
-    case .sharedContainerNotFound:
-      return "Shared app group container not found"
     }
   }
 }
