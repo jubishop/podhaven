@@ -117,4 +117,25 @@ import Testing
 
     #expect(snapshot.queue.count == 5)
   }
+
+  @Test("reloads now-playing timeline periodically while playing")
+  func heartbeatReloadsWhilePlaying() async throws {
+    writer.start()
+    try await WidgetHelpers.waitForSnapshot()
+
+    sharedState.$playbackStatus.new(.playing)
+    try await Wait.until(
+      { WidgetInfo.playbackStatus == .playing },
+      { "playbackStatus was not updated to .playing" }
+    )
+
+    let sleeper = Container.shared.sleeper() as! FakeSleeper
+
+    // Heartbeat registers a sleep for its interval
+    try await sleeper.waitForSleepRequests(count: 1)
+
+    // Advancing past the interval causes the heartbeat to loop
+    await sleeper.advanceTime(by: .seconds(240))
+    try await sleeper.waitForSleepRequests(count: 1)
+  }
 }

@@ -31,6 +31,7 @@ final class WidgetSnapshotWriter: Sendable {
   private let queueWidgetEpisodes = ThreadSafe<[QueueWidgetEpisode]>([])
   private let lastOnDeck = ThreadSafe<OnDeck?>(nil)
   private let lastPlaybackStatus = ThreadSafe<PlaybackStatus>(.stopped)
+  private let heartbeatTask = ThreadSafe<Task<Void, Never>?>(nil)
 
   // MARK: - Start
 
@@ -64,6 +65,12 @@ final class WidgetSnapshotWriter: Sendable {
         guard changed else { continue }
         WidgetInfo.playbackStatus = status
         reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
+
+        if status.playing {
+          startHeartbeat()
+        } else {
+          stopHeartbeat()
+        }
       }
     }
 
@@ -239,6 +246,31 @@ final class WidgetSnapshotWriter: Sendable {
     let renderer = UIGraphicsImageRenderer(size: targetSize)
     return renderer.image { _ in
       image.draw(in: CGRect(origin: .zero, size: targetSize))
+    }
+  }
+
+  // MARK: - Heartbeat
+
+  // Reload the now-playing timeline periodically while playing so the
+  // widget's fallback "paused" entry keeps getting pushed forward. These
+  // reloads are free while the app holds an active audio session.
+  private func startHeartbeat() {
+    stopHeartbeat()
+    let task = Task { [weak self] in
+      while !Task.isCancelled {
+        guard let self else { return }
+        try? await sleeper.sleep(for: .seconds(240))
+        guard !Task.isCancelled else { return }
+        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
+      }
+    }
+    heartbeatTask(task)
+  }
+
+  private func stopHeartbeat() {
+    heartbeatTask { task in
+      task?.cancel()
+      task = nil
     }
   }
 
