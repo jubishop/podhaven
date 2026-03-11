@@ -75,7 +75,11 @@ enum LogSubsystem {
   }
 
   enum Widget: String, LogCategorizable {
+    case bundle
+    case nowPlaying
+    case queue
     case service
+    case snapshotReader
     case writer
   }
 

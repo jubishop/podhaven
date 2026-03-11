@@ -5,7 +5,7 @@ import SwiftUI
 import WidgetKit
 
 struct QueueProvider: TimelineProvider {
-  private static let log = Logger(label: "PodHavenWidget/Queue")
+  private static let log = Log.as(LogSubsystem.Widget.queue)
 
   func placeholder(in context: Context) -> QueueEntry {
     .preview

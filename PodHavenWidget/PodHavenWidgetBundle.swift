@@ -19,7 +19,7 @@ struct PodHavenWidgetBundle: WidgetBundle {
         ),
       ])
     }
-    return Logger(label: "PodHavenWidget/Widget")
+    return Log.as(LogSubsystem.Widget.bundle)
   }()
 
   init() {

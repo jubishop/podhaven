@@ -5,7 +5,7 @@ import SwiftUI
 import WidgetKit
 
 struct NowPlayingProvider: TimelineProvider {
-  private static let log = Logger(label: "PodHavenWidget/NowPlaying")
+  private static let log = Log.as(LogSubsystem.Widget.nowPlaying)
 
   func placeholder(in context: Context) -> NowPlayingEntry {
     .preview
