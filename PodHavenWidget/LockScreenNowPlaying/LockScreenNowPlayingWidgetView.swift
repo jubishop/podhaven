@@ -52,7 +52,7 @@ struct LockScreenNowPlayingWidgetView: View {
       HStack(spacing: 6) {
         AppIcon.noEpisodeSelected.image
           .font(.title3)
-        Text("Nothing Playing")
+        Text("Stopped")
           .font(.headline)
       }
     } else if entry.playbackStatus.loading || entry.playbackStatus.waiting {

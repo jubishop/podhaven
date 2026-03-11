@@ -22,8 +22,7 @@ struct LockScreenNowPlayingProvider: TimelineProvider {
   ) {
     Self.log.debug("getTimeline called (family=\(context.family))")
     let entry = makeEntry()
-    let nextUpdate = Date().addingTimeInterval(1800)
-    let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
+    let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(1800)))
     completion(timeline)
   }
 

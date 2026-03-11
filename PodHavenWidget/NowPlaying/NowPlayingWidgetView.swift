@@ -184,7 +184,7 @@ struct NowPlayingWidgetView: View {
       Image(systemName: AppIcon.noEpisodeSelected.systemImageName)
         .font(isMedium ? .title : .title2)
         .foregroundStyle(.secondary)
-      Text("Nothing Playing")
+      Text("Stopped")
         .font(isMedium ? .subheadline : .caption)
         .foregroundStyle(.secondary)
     }
