@@ -5,7 +5,7 @@ import Logging
 import UIKit
 
 enum WidgetSnapshotReader {
-  private static let log = Logger(label: "PodHavenWidget/SnapshotReader")
+  private static let log = Log.as(LogSubsystem.Widget.snapshotReader)
 
   static func read() -> WidgetSnapshot? {
     let url = WidgetInfo.snapshotURL

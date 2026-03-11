@@ -3,7 +3,9 @@
 import FactoryKit
 import Foundation
 import Logging
+#if !WIDGET_EXTENSION
 import StoreKit
+#endif
 
 enum EnvironmentType: String {
   case appStore
@@ -20,10 +22,12 @@ enum AppInfo {
 
   // MARK: - System Settings
 
+  #if !WIDGET_EXTENSION
   static func openSettings() {
     guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
     Task { @MainActor in Container.shared.uiApplication().open(url) }
   }
+  #endif
 
   // MARK: - Environment Info
 
@@ -43,13 +47,16 @@ enum AppInfo {
     get { _environment() }
   }
 
+  #if !WIDGET_EXTENSION
   @MainActor static func initializeEnvironment() {
     guard Function.neverCalled() else { return }
 
     _deviceIdentifier(UIDevice.current.identifierForVendor?.uuidString ?? "Unknown")
     environment = detectEnvironment()
   }
+  #endif
 
+  #if !WIDGET_EXTENSION
   // Asynchronous environment refinement using AppTransactions
   static func finalizeEnvironment() async {
     guard Function.neverCalled() else { return }
@@ -81,6 +88,7 @@ enum AppInfo {
     }
     #endif
   }
+  #endif
 
   // Initial synchronous environment detection
   private static func detectEnvironment() -> EnvironmentType {
@@ -102,6 +110,7 @@ enum AppInfo {
     #endif
   }
 
+  #if !WIDGET_EXTENSION
   private static func appTransactionEnvironment(
     for verificationResult: VerificationResult<AppTransaction>
   ) throws -> EnvironmentType {
@@ -121,6 +130,7 @@ enum AppInfo {
       throw AppInfoError.unverifiedAppTransaction
     }
   }
+  #endif
 
   private static func currentDevelopmentEnvironment() -> EnvironmentType {
     (ProcessInfo.processInfo.isMacCatalystApp || ProcessInfo.processInfo.isiOSAppOnMac)
@@ -160,6 +170,13 @@ enum AppInfo {
   }
 
   // MARK: - Data Storage
+
+  static var appGroupID: String {
+    guard let groupID = Bundle.main.infoDictionary?["AppGroupID"] as? String else {
+      Assert.fatal("AppGroupID not found in Info.plist")
+    }
+    return groupID
+  }
 
   static var bundleIdentifier: String {
     Bundle.main.bundleIdentifier ?? "com.artisanalsoftware.PodHaven"

@@ -14,16 +14,14 @@ enum WidgetInfo {
 
   // MARK: - Data Storage
 
-  private static let appGroupID = "group.podhaven.shared"
-
   private static var containerURL: URL {
     let fileManager = Container.shared.fileManager()
     guard
       let containerURL = fileManager.containerURL(
-        forSecurityApplicationGroupIdentifier: appGroupID
+        forSecurityApplicationGroupIdentifier: AppInfo.appGroupID
       )
     else {
-      Assert.fatal("App group container not found for \(appGroupID)")
+      Assert.fatal("App group container not found for \(AppInfo.appGroupID)")
     }
     return containerURL
   }

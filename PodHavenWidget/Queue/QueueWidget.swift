@@ -5,7 +5,7 @@ import SwiftUI
 import WidgetKit
 
 struct QueueProvider: TimelineProvider {
-  private static let log = Logger(label: "PodHavenWidget/Queue")
+  private static let log = Log.as(LogSubsystem.Widget.queue)
 
   func placeholder(in context: Context) -> QueueEntry {
     .preview
@@ -19,8 +19,7 @@ struct QueueProvider: TimelineProvider {
   func getTimeline(in context: Context, completion: @escaping (Timeline<QueueEntry>) -> Void) {
     Self.log.debug("Queue getTimeline called (family=\(context.family))")
     let entry = makeEntry()
-    let nextUpdate = Date().addingTimeInterval(3600)
-    let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
+    let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(3600)))
     completion(timeline)
   }
 

@@ -11,8 +11,8 @@ extension Container {
 
   var sharedDefaults: Factory<any KeyValueStore> {
     Factory(self) {
-      guard let defaults = UserDefaults(suiteName: "group.podhaven.shared") else {
-        Assert.fatal("UserDefaults not found for group.podhaven.shared")
+      guard let defaults = UserDefaults(suiteName: AppInfo.appGroupID) else {
+        Assert.fatal("UserDefaults not found for \(AppInfo.appGroupID)")
       }
       return defaults
     }

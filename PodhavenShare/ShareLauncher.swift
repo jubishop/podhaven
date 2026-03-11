@@ -62,9 +62,12 @@ enum ShareLauncher {
   }
 
   private static func copyFileToSharedContainer(_ sourceURL: URL) async throws -> URL {
+    guard let appGroupID = Bundle.main.infoDictionary?["AppGroupID"] as? String
+    else { throw ShareExtensionError.sharedContainerNotFound }
+
     guard
       let sharedContainer = FileManager.default.containerURL(
-        forSecurityApplicationGroupIdentifier: "group.podhaven.shared"
+        forSecurityApplicationGroupIdentifier: appGroupID
       )
     else { throw ShareExtensionError.sharedContainerNotFound }
 
