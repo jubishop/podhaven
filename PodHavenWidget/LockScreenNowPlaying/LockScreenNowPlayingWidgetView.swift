@@ -25,25 +25,21 @@ struct LockScreenNowPlayingWidgetView: View {
   @ViewBuilder
   private var circularView: some View {
     if entry.playbackStatus.stopped {
-      Image(systemName: AppIcon.noEpisodeSelected.systemImageName)
+      AppIcon.noEpisodeSelected.image
         .font(.title2)
-        .foregroundStyle(.secondary)
         .widgetAccentable()
     } else if entry.playbackStatus.loading || entry.playbackStatus.waiting {
-      Image(systemName: AppIcon.loading.systemImageName)
+      AppIcon.loading.image
         .font(.title2)
-        .foregroundStyle(.secondary)
         .widgetAccentable()
     } else {
       Button(intent: PlayPauseIntent()) {
-        Image(
-          systemName: entry.playbackStatus.playing
-            ? AppIcon.pauseButton.systemImageName
-            : AppIcon.playButton.systemImageName
-        )
-        .font(.title2)
-        .widgetAccentable()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        (entry.playbackStatus.playing
+          ? AppIcon.pauseButton.image
+          : AppIcon.playButton.image)
+          .font(.title2)
+          .widgetAccentable()
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
   }
@@ -54,32 +50,26 @@ struct LockScreenNowPlayingWidgetView: View {
   private var rectangularView: some View {
     if entry.playbackStatus.stopped {
       HStack(spacing: 6) {
-        Image(systemName: AppIcon.noEpisodeSelected.systemImageName)
+        AppIcon.noEpisodeSelected.image
           .font(.title3)
-          .foregroundStyle(.secondary)
         Text("Nothing Playing")
           .font(.headline)
-          .foregroundStyle(.secondary)
       }
     } else if entry.playbackStatus.loading || entry.playbackStatus.waiting {
       HStack(spacing: 6) {
-        Image(systemName: AppIcon.loading.systemImageName)
+        AppIcon.loading.image
           .font(.title3)
-          .foregroundStyle(.secondary)
         Text("Loading...")
           .font(.headline)
-          .foregroundStyle(.secondary)
       }
     } else {
       HStack(spacing: 8) {
         Button(intent: PlayPauseIntent()) {
-          Image(
-            systemName: entry.playbackStatus.playing
-              ? AppIcon.pauseButton.systemImageName
-              : AppIcon.playButton.systemImageName
-          )
-          .font(.title2)
-          .widgetAccentable()
+          (entry.playbackStatus.playing
+            ? AppIcon.pauseButton.image
+            : AppIcon.playButton.image)
+            .font(.title2)
+            .widgetAccentable()
         }
 
         VStack(alignment: .leading, spacing: 1) {
@@ -88,7 +78,6 @@ struct LockScreenNowPlayingWidgetView: View {
             .lineLimit(1)
           Text(entry.podcastTitle)
             .font(.caption)
-            .foregroundStyle(.secondary)
             .lineLimit(1)
         }
       }
