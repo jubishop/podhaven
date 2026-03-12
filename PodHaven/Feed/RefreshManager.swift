@@ -101,7 +101,7 @@ struct RefreshManager {
         """,
         error
       )
-      throw error
+      return false
     }
 
     try await updateSeriesFromFeed(

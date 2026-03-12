@@ -41,8 +41,6 @@ struct SentryLogHandler: LogHandler {
         "subsystem": subsystem,
         "category": category,
         "environment": AppInfo.environment,
-        "deviceIdentifier": AppInfo.deviceIdentifier,
-        "developerDevice": AppInfo.myDevice,
         "version": AppInfo.version,
         "buildNumber": AppInfo.buildNumber,
         "buildDate": AppInfo.buildDate,
