@@ -795,7 +795,7 @@ final class PlayManager {
         guard let errorLog = item.errorLog()
         else { Assert.fatal("newErrorLogEntryNotification fired but errorLog() returned nil?") }
 
-        Self.log.error(
+        Self.log.warning(
           """
           Error log events for episode \
             \(String(describing: sharedState.onDeck?.id)) (\(errorLog.events.count)):

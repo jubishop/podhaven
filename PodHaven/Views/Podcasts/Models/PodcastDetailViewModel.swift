@@ -181,6 +181,8 @@ class PodcastDetailViewModel:
             "defaultPlaybackRate: failed to update for podcast \(podcastID)",
             error
           )
+          guard ErrorKit.isRemarkable(error) else { return }
+          alert(ErrorKit.message(for: error))
         }
       }
     }
@@ -201,6 +203,8 @@ class PodcastDetailViewModel:
           try await repo.updateQueueAllEpisodes(podcastID, queueAllEpisodes: newValue)
         } catch {
           Self.log.caughtError("queueAllEpisodes: failed to update for podcast \(podcastID)", error)
+          guard ErrorKit.isRemarkable(error) else { return }
+          alert(ErrorKit.message(for: error))
         }
       }
     }
@@ -221,6 +225,8 @@ class PodcastDetailViewModel:
           try await repo.updateCacheAllEpisodes(podcastID, cacheAllEpisodes: newValue)
         } catch {
           Self.log.caughtError("cacheAllEpisodes: failed to update for podcast \(podcastID)", error)
+          guard ErrorKit.isRemarkable(error) else { return }
+          alert(ErrorKit.message(for: error))
         }
       }
     }
@@ -247,6 +253,8 @@ class PodcastDetailViewModel:
             "notifyNewEpisodes: failed to update for podcast \(podcastID)",
             error
           )
+          guard ErrorKit.isRemarkable(error) else { return }
+          alert(ErrorKit.message(for: error))
         }
       }
     }

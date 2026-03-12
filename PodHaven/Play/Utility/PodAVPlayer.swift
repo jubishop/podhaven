@@ -26,15 +26,15 @@ extension Container {
 }
 
 enum PodAVPlayerError: Error, LocalizedError {
-  case notPlayable(Episode.ID)
-  case episodeNotFoundAfterUpdate(Episode.ID)
+  case notPlayable(Episode.ID, details: String)
+  case episodeNotFoundAfterUpdate(Episode.ID, details: String)
 
   var errorDescription: String? {
     switch self {
-    case .notPlayable(let id):
-      return "Episode \(id) media is not playable"
-    case .episodeNotFoundAfterUpdate(let id):
-      return "Episode \(id) not found after duration update"
+    case .notPlayable(let id, let details):
+      return "Episode \(id) media is not playable\n\(details)"
+    case .episodeNotFoundAfterUpdate(let id, let details):
+      return "Episode \(id) not found after duration update\n\(details)"
     }
   }
 }
@@ -113,20 +113,23 @@ enum PodAVPlayerError: Error, LocalizedError {
     let episodeAsset: EpisodeAsset = try await performLoadAsset(for: podcastEpisode)
 
     guard episodeAsset.isPlayable else {
-      Self.log.error(
-        """
-        MediaGUID Not Playable
-          PodcastEpisode: \(podcastEpisode.toString)
-          MediaGUID: \(podcastEpisode.episode.unsaved.id)
-        """
+      throw PodAVPlayerError.notPlayable(
+        podcastEpisode.id,
+        details:
+          """
+          PodcastEpisode: 
+            \(podcastEpisode.toString), 
+            MediaGUID: \(podcastEpisode.episode.unsaved.id)
+          """
       )
-      throw PodAVPlayerError.notPlayable(podcastEpisode.id)
     }
 
     try await repo.updateDuration(podcastEpisode.id, duration: episodeAsset.duration)
     guard let updatedPodcastEpisode = try await repo.podcastEpisode(podcastEpisode.id) else {
-      Self.log.error("Failed to update duration for PodcastEpisode: \(podcastEpisode.toString)")
-      throw PodAVPlayerError.episodeNotFoundAfterUpdate(podcastEpisode.id)
+      throw PodAVPlayerError.episodeNotFoundAfterUpdate(
+        podcastEpisode.id,
+        details: "PodcastEpisode: \(podcastEpisode.toString)"
+      )
     }
 
     return (updatedPodcastEpisode, episodeAsset.playerItem())

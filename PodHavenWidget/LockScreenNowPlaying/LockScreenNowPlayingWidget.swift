@@ -5,7 +5,7 @@ import SwiftUI
 import WidgetKit
 
 struct LockScreenNowPlayingProvider: TimelineProvider {
-  private static let log = Logger(label: "PodHavenWidget/LockScreenNowPlaying")
+  private static let log = Log.as(LogSubsystem.Widget.lockScreenNowPlaying)
 
   func placeholder(in context: Context) -> LockScreenNowPlayingEntry {
     .preview

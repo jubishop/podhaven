@@ -78,13 +78,16 @@ final class WidgetSnapshotWriter: Sendable {
     Task { [weak self] in
       guard let self else { return }
 
-      do {
-        for try await episodes in observatory.queueWidgetEpisodes() {
-          queueWidgetEpisodes(episodes)
-          scheduleWrite(reloadKinds: [WidgetInfo.queueKind])
+      while !Task.isCancelled {
+        do {
+          for try await episodes in observatory.queueWidgetEpisodes() {
+            queueWidgetEpisodes(episodes)
+            scheduleWrite(reloadKinds: [WidgetInfo.queueKind])
+          }
+        } catch {
+          Self.log.caughtError("start: queueWidgetEpisodes observation failed", error)
+          try? await sleeper.sleep(for: .seconds(1))
         }
-      } catch {
-        Self.log.caughtError("start: queueWidgetEpisodes observation failed", error)
       }
     }
 

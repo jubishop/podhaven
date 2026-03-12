@@ -187,6 +187,8 @@ import SwiftUI
         try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
       } catch {
         Self.log.caughtError("sort: failed to sort queue by \(method)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -203,6 +205,8 @@ import SwiftUI
           "removeSelectedFromQueue: failed to dequeue \(episodeList.selectedEntryIDs.count) episodes",
           error
         )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }

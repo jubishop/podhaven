@@ -38,7 +38,7 @@ enum WidgetInfo {
 
   private static let playbackStatusKey = "playbackStatus"
 
-  private static let log = Logger(label: "WidgetInfo")
+  private static let log = Log.as("WidgetInfo")
 
   static var playbackStatus: PlaybackStatus {
     get {

@@ -2,6 +2,7 @@
 
 import AppIntents
 import FactoryKit
+import Logging
 import Tagged
 
 struct PlayEpisodeIntent: AudioPlaybackIntent {
@@ -17,6 +18,8 @@ struct PlayEpisodeIntent: AudioPlaybackIntent {
     self.episodeID = Int(episodeID)
   }
 
+  private static let log = Log.as("PlayEpisodeIntent")
+
   func perform() async throws -> some IntentResult {
     #if !WIDGET_EXTENSION
     let appLauncher = Container.shared.appLauncher()
@@ -26,9 +29,13 @@ struct PlayEpisodeIntent: AudioPlaybackIntent {
     let playManager = Container.shared.playManager()
     let id = Episode.ID(rawValue: Int64(episodeID))
 
-    if let podcastEpisode = try await repo.podcastEpisode(id) {
-      try await playManager.load(podcastEpisode)
-      await playManager.play()
+    do {
+      if let podcastEpisode = try await repo.podcastEpisode(id) {
+        try await playManager.load(podcastEpisode)
+        await playManager.play()
+      }
+    } catch {
+      Self.log.caughtError("perform: failed for episode \(id)", error)
     }
 
     return .result()
