@@ -3,6 +3,7 @@
 import FactoryKit
 import Foundation
 import Logging
+import os
 
 extension Container {
   fileprivate var fileLogWriter: ParameterFactory<(URL, Int, Int), FileLogHandler.Writer> {
@@ -19,6 +20,7 @@ struct FileLogHandler: LogHandler {
 
   fileprivate final class Writer: Sendable {
     private static let log = Log.as("FileLogWriter")
+    private static let fallbackLog = os.Logger(subsystem: "PodHaven", category: "FileLogWriter")
 
     let fileURL: URL
     let maxFileSizeBytes: Int
@@ -57,7 +59,7 @@ struct FileLogHandler: LogHandler {
 
     private enum WriteResult {
       case ok
-      case truncated(originalSize: Int, newSize: Int)
+      case message(String)
       case failed(any Error)
     }
 
@@ -67,9 +69,8 @@ struct FileLogHandler: LogHandler {
         let currentSize = try appendEntry(entry)
         if currentSize > UInt64(maxFileSizeBytes) {
           if let truncation = try truncateIfNeeded() {
-            return .truncated(
-              originalSize: truncation.originalSize,
-              newSize: truncation.newSize
+            return .message(
+              "Log truncated from \(truncation.originalSize) to \(truncation.newSize) bytes"
             )
           }
         }
@@ -84,12 +85,11 @@ struct FileLogHandler: LogHandler {
       switch result {
       case .ok:
         break
-      case .truncated(let originalSize, let newSize):
-        Self.log.info("Log truncated from \(originalSize) to \(newSize) bytes")
+      case .message(let message):
+        Self.log.info("\(message)")
       case .failed(let error):
-        Self.log.caughtError(
-          "report: failed to write log entry to \(fileURL.lastPathComponent)",
-          error
+        Self.fallbackLog.error(
+          "Failed to write log entry: \(error.localizedDescription, privacy: .public)"
         )
       }
     }
