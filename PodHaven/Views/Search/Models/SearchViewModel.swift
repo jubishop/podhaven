@@ -327,9 +327,11 @@ class SearchViewModel:
       }
     } catch {
       Self.log.caughtError(
-        "executeTrendingSectionFetch: failed for genre \(String(describing: trendingSection.genreID))",
-        error,
-        mundane: .trace
+        """
+        executeTrendingSectionFetch: \
+        failed for genre \(String(describing: trendingSection.genreID))
+        """,
+        error
       )
       guard !Task.isCancelled else { return false }
 
@@ -380,11 +382,7 @@ class SearchViewModel:
           """
         )
       } catch {
-        Self.log.caughtError(
-          "executeSearch: failed for term '\(searchedText)'",
-          error,
-          mundane: .trace
-        )
+        Self.log.caughtError("executeSearch: failed for term '\(searchedText)'", error)
         guard !Task.isCancelled else { return false }
 
         searchResults = []
@@ -480,7 +478,6 @@ class SearchViewModel:
           update(podcasts)
         }
       } catch {
-        guard ErrorKit.isRemarkable(error) else { return }
         Self.log.caughtError(
           "restartObservation: observation failed for \(feedURLs.count) feed URLs",
           error,

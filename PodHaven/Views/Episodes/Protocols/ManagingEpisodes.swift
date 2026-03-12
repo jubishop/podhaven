@@ -62,6 +62,8 @@ extension ManagingEpisodes {
         await playManager.play()
       } catch {
         Self.log.caughtError("playEpisode: failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -121,6 +123,8 @@ extension ManagingEpisodes {
         try await queue.dequeue(episodeID)
       } catch {
         Self.log.caughtError("removeEpisodeFromQueue: failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -134,6 +138,8 @@ extension ManagingEpisodes {
         await cacheManager.downloadToCache(for: episodeID)
       } catch {
         Self.log.caughtError("cacheEpisode: failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -150,6 +156,8 @@ extension ManagingEpisodes {
         try await repo.updateSaveInCache(episodeID, saveInCache: false)
       } catch {
         Self.log.caughtError("uncacheEpisode: failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -164,6 +172,8 @@ extension ManagingEpisodes {
         await cacheManager.downloadToCache(for: episodeID)
       } catch {
         Self.log.caughtError("saveEpisodeInCache: failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -179,6 +189,8 @@ extension ManagingEpisodes {
         try await repo.updateSaveInCache(episodeID, saveInCache: false)
       } catch {
         Self.log.caughtError("unsaveEpisodeFromCache: failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -194,6 +206,8 @@ extension ManagingEpisodes {
         try await repo.markFinished(episodeID)
       } catch {
         Self.log.caughtError("markEpisodeFinished: failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -206,6 +220,8 @@ extension ManagingEpisodes {
         try await navigation.showPodcast(getOrCreatePodcastEpisode(episode).podcast)
       } catch {
         Self.log.caughtError("showPodcast: failed for \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }

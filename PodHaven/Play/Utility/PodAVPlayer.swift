@@ -25,6 +25,20 @@ extension Container {
   }
 }
 
+enum PodAVPlayerError: Error, LocalizedError {
+  case notPlayable(Episode.ID)
+  case episodeNotFoundAfterUpdate(Episode.ID)
+
+  var errorDescription: String? {
+    switch self {
+    case .notPlayable(let id):
+      return "Episode \(id) media is not playable"
+    case .episodeNotFoundAfterUpdate(let id):
+      return "Episode \(id) not found after duration update"
+    }
+  }
+}
+
 @MainActor class PodAVPlayer {
   @DynamicInjected(\.avPlayer) private var avPlayer
   @DynamicInjected(\.loadEpisodeAsset) private var loadEpisodeAsset
@@ -106,13 +120,13 @@ extension Container {
           MediaGUID: \(podcastEpisode.episode.unsaved.id)
         """
       )
-      throw URLError(.cannotDecodeContentData)
+      throw PodAVPlayerError.notPlayable(podcastEpisode.id)
     }
 
     try await repo.updateDuration(podcastEpisode.id, duration: episodeAsset.duration)
     guard let updatedPodcastEpisode = try await repo.podcastEpisode(podcastEpisode.id) else {
       Self.log.error("Failed to update duration for PodcastEpisode: \(podcastEpisode.toString)")
-      throw URLError(.cannotDecodeContentData)
+      throw PodAVPlayerError.episodeNotFoundAfterUpdate(podcastEpisode.id)
     }
 
     return (updatedPodcastEpisode, episodeAsset.playerItem())

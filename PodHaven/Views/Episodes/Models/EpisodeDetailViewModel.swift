@@ -325,18 +325,12 @@ import UIKit
     observationTask = Task { [weak self] in
       guard let self else { return }
 
-      do {
-        try await observePodcastEpisode()
-      } catch {
-        Self.log.caughtError("startObservation: failed for \(episode.toString)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
-      }
+      await observePodcastEpisode()
       clearObservationTask()
     }
   }
 
-  private func observePodcastEpisode() async throws {
+  private func observePodcastEpisode() async {
     guard let podcastEpisode = self.podcastEpisode
     else { Assert.fatal("Observing a non-saved podcastEpisode") }
 

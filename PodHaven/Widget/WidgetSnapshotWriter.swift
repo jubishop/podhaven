@@ -206,7 +206,8 @@ final class WidgetSnapshotWriter: Sendable {
           } catch {
             Self.log.caughtError(
               "loadQueueArtwork: failed to load image \(url) for episode \(episode.id)",
-              error
+              error,
+              remarkable: .info
             )
             return (index, nil)
           }
@@ -286,7 +287,14 @@ final class WidgetSnapshotWriter: Sendable {
 
   private func reloadWidgets(kinds: Set<String>) {
     WidgetCenter.shared.getCurrentConfigurations { result in
-      guard case .success(let configurations) = result else { return }
+      let configurations: [WidgetKit.WidgetInfo]
+      switch result {
+      case .success(let value):
+        configurations = value
+      case .failure(let error):
+        Self.log.caughtError("reloadWidgets: failed to get current widget configurations", error)
+        return
+      }
 
       let placedKinds = Set(configurations.map(\.kind))
 

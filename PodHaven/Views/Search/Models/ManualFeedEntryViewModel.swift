@@ -102,7 +102,7 @@ import Tagged
 
       previewState = .loaded(preview)
     } catch {
-      Self.log.caughtError("fetchPreview: failed for \(feedURL)", error, mundane: .trace)
+      Self.log.caughtError("fetchPreview: failed for \(feedURL)", error)
       guard !Task.isCancelled else { return }
       previewState = .error("Failed to load preview")
     }

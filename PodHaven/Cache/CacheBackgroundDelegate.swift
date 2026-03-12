@@ -112,7 +112,14 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     do {
       guard let episode = try await repo.episode(downloadTask.taskID) else {
         Self.log.debug("No episode for task #\(downloadTask.taskID)?")
-        try fileManager.removeItem(at: location)
+        do {
+          try fileManager.removeItem(at: location)
+        } catch {
+          Self.log.caughtError(
+            "didFinishDownloadingTo: failed to remove orphaned temp file at \(location) for task #\(downloadTask.taskID)",
+            error
+          )
+        }
         return
       }
 
@@ -174,7 +181,7 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     task: any DownloadingTask,
     didCompleteWithError error: (any Error)?
   ) async {
-    guard error != nil else { return }
+    guard let downloadError = error else { return }
 
     do {
       guard let episode = try await repo.episode(task.taskID) else {
@@ -184,7 +191,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
       sharedState.clearDownloadProgress(for: episode.id)
       try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
-      Self.log.notice("Episode \(episode.toString) completed with error")
+      Self.log.caughtError(
+        "Episode \(episode.toString) download failed",
+        downloadError
+      )
     } catch {
       Self.log.caughtError(
         "didCompleteWithError: failed to clean up after download error for task #\(task.taskID)",

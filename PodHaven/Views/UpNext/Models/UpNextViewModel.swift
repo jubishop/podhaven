@@ -110,6 +110,8 @@ import SwiftUI
         try await queue.unshift(episode.id)
       } catch {
         Self.log.caughtError("queueEpisodeOnTop: failed for \(episode.toString)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -128,6 +130,8 @@ import SwiftUI
         try await queue.append(episode.id)
       } catch {
         Self.log.caughtError("queueEpisodeAtBottom: failed for \(episode.toString)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
@@ -144,6 +148,8 @@ import SwiftUI
         try await queue.insert(episodeList.allEntries[from].episode.id, at: to)
       } catch {
         Self.log.caughtError("moveEpisode: failed to move from \(from) to \(to)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }

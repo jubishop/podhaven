@@ -66,7 +66,7 @@ struct RefreshManager {
             Self.log.caughtError(
               "Failed to refresh series: \(podcastSeries.toString)",
               error,
-              mundane: .trace
+              remarkable: .info
             )
           }
         }
@@ -235,6 +235,13 @@ struct RefreshManager {
       }
     }
 
-    try await repo.updateLastUpdate(podcastSeries.id)
+    do {
+      try await repo.updateLastUpdate(podcastSeries.id)
+    } catch {
+      Self.log.caughtError(
+        "updateSeriesFromFeed: failed to update lastUpdate for podcast \(podcastSeries.id)",
+        error
+      )
+    }
   }
 }

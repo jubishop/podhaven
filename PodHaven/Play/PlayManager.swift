@@ -797,7 +797,8 @@ final class PlayManager {
 
         Self.log.error(
           """
-          Error log events (\(errorLog.events.count)):
+          Error log events for episode \
+            \(String(describing: sharedState.onDeck?.id)) (\(errorLog.events.count)):
             \(errorLog.events.map { event in
               String(describing: event.errorComment)
             }.joined(separator: "\n  "))
