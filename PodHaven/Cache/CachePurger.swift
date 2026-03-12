@@ -92,7 +92,7 @@ struct CachePurger: Sendable {
     try await purgeDanglingFiles(cachedEpisodes: cachedEpisodes)
 
     // Validate that cached episodes still have their files on disk
-    try await validateCachedEpisodes(cachedEpisodes: cachedEpisodes)
+    await validateCachedEpisodes(cachedEpisodes: cachedEpisodes)
 
     // Calculate total cache size
     let totalSize = try calculateCacheSize()
@@ -171,19 +171,26 @@ struct CachePurger: Sendable {
 
   // MARK: - Cached Episode Validation
 
-  private func validateCachedEpisodes(cachedEpisodes: [Episode]) async throws {
+  private func validateCachedEpisodes(cachedEpisodes: [Episode]) async {
     for episode in cachedEpisodes {
       guard let cachedURL = episode.cachedURL else { continue }
       guard !fileManager.fileExists(at: cachedURL.rawValue) else { continue }
 
-      try await repo.updateCachedFilename(episode.id, cachedFilename: nil)
-      Self.log.notice(
-        """
-        cleared cached filename for episode with missing file:
-          episode: \(episode.toString)
-          missing file: \(cachedURL.lastPathComponent)
-        """
-      )
+      do {
+        try await repo.updateCachedFilename(episode.id, cachedFilename: nil)
+        Self.log.notice(
+          """
+          cleared cached filename for episode with missing file:
+            episode: \(episode.toString)
+            missing file: \(cachedURL.lastPathComponent)
+          """
+        )
+      } catch {
+        Self.log.caughtError(
+          "validateCachedEpisodes: failed to clear cached filename for \(episode.toString)",
+          error
+        )
+      }
     }
   }
 

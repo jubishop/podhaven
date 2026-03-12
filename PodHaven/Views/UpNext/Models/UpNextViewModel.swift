@@ -87,7 +87,7 @@ import SwiftUI
   // MARK: - Derived State
 
   var totalQueueTime: CMTime {
-    episodeList.filteredEntries.reduce(CMTime.zero) { total, podcastEpisode in
+    episodeList.allEntries.reduce(CMTime.zero) { total, podcastEpisode in
       userSettings.showTimeRemainingInEpisodeLists
         ? total + (podcastEpisode.episode.duration.safe - podcastEpisode.episode.currentTime.safe)
         : total + podcastEpisode.episode.duration.safe
@@ -141,7 +141,7 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        try await queue.insert(episodeList.filteredEntries[from].episode.id, at: to)
+        try await queue.insert(episodeList.allEntries[from].episode.id, at: to)
       } catch {
         Self.log.caughtError("moveEpisode: failed to move from \(from) to \(to)", error)
       }
@@ -151,7 +151,7 @@ import SwiftUI
   func refreshQueue() {
     Self.log.debug("refreshQueue: downloading and caching uncached episodes")
 
-    let uncachedEpisodes = episodeList.filteredEntries.filter { podcastEpisode in
+    let uncachedEpisodes = episodeList.allEntries.filter { podcastEpisode in
       podcastEpisode.episode.cacheStatus != .cached
     }
     guard !uncachedEpisodes.isEmpty else { return }
@@ -177,7 +177,7 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        let sortedEpisodes = episodeList.filteredEntries.sorted(by: method.sortMethod)
+        let sortedEpisodes = episodeList.allEntries.sorted(by: method.sortMethod)
         try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
       } catch {
         Self.log.caughtError("sort: failed to sort queue by \(method)", error)

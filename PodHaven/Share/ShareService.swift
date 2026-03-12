@@ -105,8 +105,12 @@ struct ShareService {
     let opmlViewModel = await OPMLViewModel()
     await opmlViewModel.importOPMLFromURL(url: url)
 
-    try Container.shared.fileManager().removeItem(at: url)
-    Self.log.debug("Cleaned up shared OPML file: \(url)")
+    do {
+      try Container.shared.fileManager().removeItem(at: url)
+      Self.log.debug("Cleaned up shared OPML file: \(url)")
+    } catch {
+      Self.log.caughtError("handleOPMLURL: failed to clean up shared OPML file \(url)", error)
+    }
   }
 
   // MARK: - Private URL Analysis

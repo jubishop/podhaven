@@ -129,14 +129,13 @@ struct Queue: Queueing {
         .fetchOne(db) ?? -1
 
       guard maxQueueOrder == episodeIDs.count - 1 else {
-        Self.log.error(
+        Assert.fatal(
           """
           Queue reordering requires all queued episodes
             Expected max queueOrder: \(episodeIDs.count - 1)
             Actual max queueOrder: \(maxQueueOrder)
           """
         )
-        return
       }
 
       // Update each episode's queueOrder using GRDB

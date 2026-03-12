@@ -19,7 +19,7 @@ struct UpNextView: View {
   var body: some View {
     NavStack(manager: navigation.upNext) {
       List {
-        ForEach(viewModel.episodeList.filteredEntries) { podcastEpisode in
+        ForEach(viewModel.episodeList.allEntries) { podcastEpisode in
           upNextListView(podcastEpisode)
             .listRow()
             .episodeSwipeActions(viewModel: viewModel, episode: podcastEpisode)
@@ -43,7 +43,7 @@ struct UpNextView: View {
       .refreshable { viewModel.refreshQueue() }
       .navigationTitle("Up Next")
       .environment(\.editMode, $viewModel.editMode)
-      .animation(.default, value: viewModel.episodeList.filteredEntries)
+      .animation(.default, value: viewModel.episodeList.allEntries)
       .toolbar { toolbar }
       .toolbarRole(.editor)
     }

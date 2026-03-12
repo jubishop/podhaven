@@ -450,19 +450,6 @@ class QueueTests {
     #expect(finalGUIDs == ["top", "midtop", "middle", "midbottom", "bottom"])
   }
 
-  @Test("updateQueueOrders with incomplete reorder is a no-op")
-  func updateQueueOrdersIncompleteIsNoOp() async throws {
-    let topEpisode = try await fetchEpisode("top")
-    let midtopEpisode = try await fetchEpisode("midtop")
-
-    // Try to reorder with only 2 episodes when queue has 5 -- logs and returns early
-    try await queue.updateQueueOrders([topEpisode.id, midtopEpisode.id])
-
-    // Queue should remain unchanged
-    let finalGUIDs = try await fetchGUIDs()
-    #expect(finalGUIDs == ["top", "midtop", "middle", "midbottom", "bottom"])
-  }
-
   @Test("appending episodes is no-op when queue is full")
   func testAppendNoOpWhenQueueFull() async throws {
     // Set max queue length to 5 (current queue size)
