@@ -120,29 +120,23 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         try fileManager.removeItem(at: destURL.rawValue)
       }
 
-      try await repo.updateCachedFilename(episode.id, cachedFilename: fileName)
-      do {
-        try fileManager.moveItem(at: location, to: destURL.rawValue)
-        let episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: destURL.rawValue))
+      try fileManager.moveItem(at: location, to: destURL.rawValue)
+      let episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: destURL.rawValue))
 
-        guard episodeAsset.isPlayable else {
-          Self.log.error(
-            """
-            MediaGUID Not Playable
-              Episode: \(episode.toString)
-              MediaGUID: \(episode.unsaved.id)
-            """
-          )
-          try await repo.updateCachedFilename(episode.id, cachedFilename: nil)
-          return
-        }
-
-        try await repo.updateDuration(episode.id, duration: episodeAsset.duration)
-      } catch {
-        try await repo.updateCachedFilename(episode.id, cachedFilename: nil)
-        throw error
+      guard episodeAsset.isPlayable else {
+        Self.log.error(
+          """
+          MediaGUID Not Playable
+            Episode: \(episode.toString)
+            MediaGUID: \(episode.unsaved.id)
+          """
+        )
+        try? fileManager.removeItem(at: destURL.rawValue)
+        return
       }
 
+      try await repo.updateDuration(episode.id, duration: episodeAsset.duration)
+      try await repo.updateCachedFilename(episode.id, cachedFilename: fileName)
       Self.log.debug("Cached episode \(episode.id) to \(fileName)")
     } catch {
       Self.log.error(error)
