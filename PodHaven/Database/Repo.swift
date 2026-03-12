@@ -49,54 +49,38 @@ struct Repo: Databasing, Sendable {
   ) async throws
     -> [PodcastSeries]
   {
-    do {
-      return try await appDB.db.read { db in
-        var baseRequest =
-          Podcast
-          .all()
-          .filter(filter)
-          .order(order)
-          .limit(limit)
-          .including(all: Podcast.episodes)
+    try await appDB.db.read { db in
+      var baseRequest =
+        Podcast
+        .all()
+        .filter(filter)
+        .order(order)
+        .limit(limit)
+        .including(all: Podcast.episodes)
 
-        if includeTags {
-          baseRequest = baseRequest.including(
-            all: Podcast.tags.order { $0.name.collating(.nocase) }
-          )
-        }
-
-        return
-          try baseRequest
-          .asRequest(of: PodcastSeries.self)
-          .fetchAll(db)
+      if includeTags {
+        baseRequest = baseRequest.including(
+          all: Podcast.tags.order { $0.name.collating(.nocase) }
+        )
       }
-    } catch {
-      Self.log.caughtError(
-        """
-        Failed to fetch PodcastSeries
-          Filter: \(filter)
-        """,
-        error
-      )
-      throw error
+
+      return
+        try baseRequest
+        .asRequest(of: PodcastSeries.self)
+        .fetchAll(db)
     }
   }
 
   // MARK: - Series Readers
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries? {
-    do {
-      return try await appDB.db.read { db in
-        try Podcast
-          .withID(podcastID)
-          .including(all: Podcast.episodes)
-          .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
-          .asRequest(of: PodcastSeries.self)
-          .fetchOne(db)
-      }
-    } catch {
-      Self.log.caughtError("Failed to fetch Podcast ID: \(podcastID.rawValue)", error)
-      throw error
+    try await appDB.db.read { db in
+      try Podcast
+        .withID(podcastID)
+        .including(all: Podcast.episodes)
+        .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
+        .asRequest(of: PodcastSeries.self)
+        .fetchOne(db)
     }
   }
 
@@ -194,32 +178,15 @@ struct Repo: Databasing, Sendable {
       """
     )
 
-    do {
-      return try await appDB.db.write { db in
-        let unsavedPodcast = unsavedPodcastSeries.unsavedPodcast
-        let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
-        var episodes = IdentifiedArrayOf<Episode>()
-        for var unsavedEpisode in unsavedPodcastSeries.unsavedEpisodes {
-          unsavedEpisode.podcastId = podcast.id
-          episodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
-        }
-        return PodcastSeries(podcast: podcast, episodes: episodes)
+    return try await appDB.db.write { db in
+      let unsavedPodcast = unsavedPodcastSeries.unsavedPodcast
+      let podcast = try unsavedPodcast.insertAndFetch(db, as: Podcast.self)
+      var episodes = IdentifiedArrayOf<Episode>()
+      for var unsavedEpisode in unsavedPodcastSeries.unsavedEpisodes {
+        unsavedEpisode.podcastId = podcast.id
+        episodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
       }
-    } catch let error as DatabaseError
-      where error.extendedResultCode == .SQLITE_CONSTRAINT_UNIQUE
-    {
-      Self.log.caughtError(
-        "Duplicate conflict inserting PodcastSeries: \(unsavedPodcastSeries.toString)",
-        error,
-        remarkable: .notice
-      )
-      throw error
-    } catch {
-      Self.log.caughtError(
-        "Failed to insert PodcastSeries \(unsavedPodcastSeries.toString)",
-        error
-      )
-      throw error
+      return PodcastSeries(podcast: podcast, episodes: episodes)
     }
   }
 
@@ -261,24 +228,6 @@ struct Repo: Databasing, Sendable {
         }
         return newEpisodes
       }
-    } catch {
-      var description = podcastSeries.toString
-      if !existingEpisodes.isEmpty {
-        description +=
-          "\nEpisodes:\n    \(existingEpisodes.map(\.toString).joined(separator: "\n    "))"
-      }
-      if !unsavedEpisodes.isEmpty {
-        description +=
-          "\nUnsavedEpisodes:\n    \(unsavedEpisodes.map(\.toString).joined(separator: "\n    "))"
-      }
-      Self.log.caughtError(
-        """
-        Failed to update PodcastSeries ID: \(podcastSeries.id.rawValue)
-          \(description)
-        """,
-        error
-      )
-      throw error
     }
   }
 
@@ -412,47 +361,36 @@ struct Repo: Databasing, Sendable {
     guard !unsavedPodcastEpisodes.isEmpty
     else { return [] }
 
-    do {
-      return try await appDB.db.write { db in
-        var upsertedPodcasts: IdentifiedArray<FeedURL, Podcast> = IdentifiedArray(id: \.feedURL)
+    return try await appDB.db.write { db in
+      var upsertedPodcasts: IdentifiedArray<FeedURL, Podcast> = IdentifiedArray(id: \.feedURL)
 
-        return try unsavedPodcastEpisodes.map { unsavedPodcastEpisode in
-          let podcast: Podcast
-          if let upsertedPodcast = upsertedPodcasts[
-            id: unsavedPodcastEpisode.unsavedPodcast.feedURL
-          ] {
-            podcast = upsertedPodcast
-          } else {
-            let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
-            podcast = try unsavedPodcast.upsertAndFetch(
-              db,
-              as: Podcast.self,
-              updating: .noColumnUnlessSpecified,
-              doUpdate: unsavedPodcast.rssUpsertAssignments
-            )
-            upsertedPodcasts.append(podcast)
-          }
-
-          var newUnsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
-          newUnsavedEpisode.podcastId = podcast.id
-          let episode: Episode = try newUnsavedEpisode.upsertAndFetch(
+      return try unsavedPodcastEpisodes.map { unsavedPodcastEpisode in
+        let podcast: Podcast
+        if let upsertedPodcast = upsertedPodcasts[
+          id: unsavedPodcastEpisode.unsavedPodcast.feedURL
+        ] {
+          podcast = upsertedPodcast
+        } else {
+          let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
+          podcast = try unsavedPodcast.upsertAndFetch(
             db,
-            as: Episode.self,
+            as: Podcast.self,
             updating: .noColumnUnlessSpecified,
-            doUpdate: newUnsavedEpisode.rssUpsertAssignments
+            doUpdate: unsavedPodcast.rssUpsertAssignments
           )
-          return PodcastEpisode(podcast: podcast, episode: episode)
+          upsertedPodcasts.append(podcast)
         }
+
+        var newUnsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
+        newUnsavedEpisode.podcastId = podcast.id
+        let episode: Episode = try newUnsavedEpisode.upsertAndFetch(
+          db,
+          as: Episode.self,
+          updating: .noColumnUnlessSpecified,
+          doUpdate: newUnsavedEpisode.rssUpsertAssignments
+        )
+        return PodcastEpisode(podcast: podcast, episode: episode)
       }
-    } catch {
-      Self.log.caughtError(
-        """
-        Failed to upsert PodcastEpisode
-          \(unsavedPodcastEpisodes.map(\.toString).joined(separator: ","))
-        """,
-        error
-      )
-      throw error
     }
   }
 

@@ -109,14 +109,9 @@ struct PodcastFeed: Sendable, Stringable {
   }
 
   static func parse(_ data: Data, from: FeedURL) async throws -> PodcastFeed {
-    do {
-      log.trace("Parsing data of size \(data.count) from \(from)")
-      let rssPodcast = try await PodcastRSS.parse(data)
-      return try PodcastFeed(rssPodcast: rssPodcast, from: from)
-    } catch {
-      log.caughtError("Failed to parse feed at \(from)", error)
-      throw error
-    }
+    log.trace("Parsing data of size \(data.count) from \(from)")
+    let rssPodcast = try await PodcastRSS.parse(data)
+    return try PodcastFeed(rssPodcast: rssPodcast, from: from)
   }
 
   // MARK: - Instance Definition

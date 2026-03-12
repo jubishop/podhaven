@@ -173,12 +173,33 @@ struct RefreshManager {
 
     let podcastToUpdate = podcastSeries.podcast.rssEquals(newPodcast) ? nil : newPodcast
     if podcastToUpdate != nil || !unsavedEpisodes.isEmpty || !updatedEpisodes.isEmpty {
-      let newEpisodes = try await repo.updateSeriesFromFeed(
-        podcastSeries: podcastSeries,
-        podcast: podcastToUpdate,
-        unsavedEpisodes: unsavedEpisodes,
-        existingEpisodes: updatedEpisodes
-      )
+      let newEpisodes: [Episode]
+      do {
+        newEpisodes = try await repo.updateSeriesFromFeed(
+          podcastSeries: podcastSeries,
+          podcast: podcastToUpdate,
+          unsavedEpisodes: unsavedEpisodes,
+          existingEpisodes: updatedEpisodes
+        )
+      } catch {
+        var description = podcastSeries.toString
+        if !updatedEpisodes.isEmpty {
+          description +=
+            "\nEpisodes:\n    \(updatedEpisodes.map(\.toString).joined(separator: "\n    "))"
+        }
+        if !unsavedEpisodes.isEmpty {
+          description +=
+            "\nUnsavedEpisodes:\n    \(unsavedEpisodes.map(\.toString).joined(separator: "\n    "))"
+        }
+        Self.log.caughtError(
+          """
+          Failed to update PodcastSeries ID: \(podcastSeries.id.rawValue)
+            \(description)
+          """,
+          error
+        )
+        return
+      }
 
       if podcastSeries.podcast.notifyNewEpisodes {
         await userNotificationManager.scheduleNewEpisodeNotification(

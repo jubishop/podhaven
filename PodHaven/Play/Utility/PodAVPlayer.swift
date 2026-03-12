@@ -120,36 +120,24 @@ extension Container {
   private func performLoadAsset(for podcastEpisode: PodcastEpisode) async throws
     -> EpisodeAsset
   {
+    guard let cachedURL = podcastEpisode.episode.cachedURL else {
+      Self.log.debug("performLoadAsset: loading from remote (no cache)")
+      return try await loadEpisodeAsset(
+        AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
+      )
+    }
     do {
-      guard let cachedURL = podcastEpisode.episode.cachedURL else {
-        Self.log.debug("performLoadAsset: loading from remote (no cache)")
-        return try await loadEpisodeAsset(
-          AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
-        )
-      }
-      do {
-        Self.log.debug("performLoadAsset: loading from cache: \(cachedURL)")
-        return try await loadEpisodeAsset(AVURLAsset(url: cachedURL.rawValue))
-      } catch {
-        Self.log.caughtError(
-          "performLoadAsset: cache load failed, falling back to remote",
-          error,
-          remarkable: .warning
-        )
-        return try await loadEpisodeAsset(
-          AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
-        )
-      }
+      Self.log.debug("performLoadAsset: loading from cache: \(cachedURL)")
+      return try await loadEpisodeAsset(AVURLAsset(url: cachedURL.rawValue))
     } catch {
       Self.log.caughtError(
-        """
-        Failed to load avAsset
-          PodcastEpisode: \(podcastEpisode.toString)
-          MediaGUID: \(podcastEpisode.episode.unsaved.id)
-        """,
-        error
+        "performLoadAsset: cache load failed, falling back to remote",
+        error,
+        remarkable: .warning
       )
-      throw error
+      return try await loadEpisodeAsset(
+        AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
+      )
     }
   }
 
