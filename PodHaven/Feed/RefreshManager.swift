@@ -99,7 +99,8 @@ struct RefreshManager {
           PodcastSeries: \(podcastSeries.toString)
           FeedURL: \(podcastSeries.podcast.feedURL)
         """,
-        error
+        error,
+        remarkable: .notice
       )
       return false
     }

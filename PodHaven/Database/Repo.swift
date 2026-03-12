@@ -197,37 +197,35 @@ struct Repo: Databasing, Sendable {
     unsavedEpisodes: [UnsavedEpisode],
     existingEpisodes: [Episode]
   ) async throws -> [Episode] {
-    do {
-      return try await appDB.db.write { db in
-        var newEpisodes = [Episode](capacity: unsavedEpisodes.count)
+    try await appDB.db.write { db in
+      var newEpisodes = [Episode](capacity: unsavedEpisodes.count)
 
-        // Update only RSS feed attributes for podcast if provided
-        if let podcast = podcast {
-          try Podcast
-            .withID(podcast.id)
-            .updateAll(db, podcast.rssColumnAssignments)
-        }
-
-        // Update only RSS feed attributes for existing episodes (excluding duration)
-        for existingEpisode in existingEpisodes {
-          try Episode
-            .withID(existingEpisode.id)
-            .updateAll(db, existingEpisode.rssColumnAssignments)
-        }
-
-        // Insert new episodes (all attributes needed for new episodes)
-        for var unsavedEpisode in unsavedEpisodes {
-          unsavedEpisode.podcastId = podcastSeries.id
-          newEpisodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
-        }
-
-        if podcastSeries.podcast.queueAllEpisodes == .onTop {
-          try queue.unshift(db, newEpisodes.map(\.id))
-        } else if podcastSeries.podcast.queueAllEpisodes == .onBottom {
-          try queue.append(db, newEpisodes.map(\.id))
-        }
-        return newEpisodes
+      // Update only RSS feed attributes for podcast if provided
+      if let podcast = podcast {
+        try Podcast
+          .withID(podcast.id)
+          .updateAll(db, podcast.rssColumnAssignments)
       }
+
+      // Update only RSS feed attributes for existing episodes (excluding duration)
+      for existingEpisode in existingEpisodes {
+        try Episode
+          .withID(existingEpisode.id)
+          .updateAll(db, existingEpisode.rssColumnAssignments)
+      }
+
+      // Insert new episodes (all attributes needed for new episodes)
+      for var unsavedEpisode in unsavedEpisodes {
+        unsavedEpisode.podcastId = podcastSeries.id
+        newEpisodes.append(try unsavedEpisode.insertAndFetch(db, as: Episode.self))
+      }
+
+      if podcastSeries.podcast.queueAllEpisodes == .onTop {
+        try queue.unshift(db, newEpisodes.map(\.id))
+      } else if podcastSeries.podcast.queueAllEpisodes == .onBottom {
+        try queue.append(db, newEpisodes.map(\.id))
+      }
+      return newEpisodes
     }
   }
 
