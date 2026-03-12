@@ -32,7 +32,7 @@ extension SelectablePodcastList {
   private var repo: any Databasing { Container.shared.repo() }
   private var alert: Alert { Container.shared.alert() }
 
-  private var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcastList) }
+  nonisolated private static var log: Logger { Log.as(LogSubsystem.ViewProtocols.podcastList) }
 
   // MARK: - Selection Getters
 
@@ -70,7 +70,7 @@ extension SelectablePodcastList {
       do {
         try await repo.deletePodcast(savedPodcastIDs)
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }
@@ -95,7 +95,7 @@ extension SelectablePodcastList {
       do {
         try await repo.markUnsubscribed(savedPodcastIDs)
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }
@@ -109,7 +109,7 @@ extension SelectablePodcastList where PodcastType == Podcast {
       do {
         try await action(podcastWithMetadata.podcast)
       } catch {
-        log.caughtError(
+        Self.log.caughtError(
           "forEachSelectedPodcast: action failed for \(podcastWithMetadata.podcast.title)",
           error
         )

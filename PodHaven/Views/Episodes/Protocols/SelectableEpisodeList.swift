@@ -48,7 +48,7 @@ extension SelectableEpisodeList {
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
 
-  private var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
+  nonisolated private static var log: Logger { Log.as(LogSubsystem.ViewProtocols.episodeList) }
 
   // MARK: - Selection Getters
 
@@ -117,7 +117,7 @@ extension SelectableEpisodeList {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await queue.append(episodeIDs)
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }
@@ -132,7 +132,7 @@ extension SelectableEpisodeList {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await queue.unshift(episodeIDs)
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }
@@ -147,7 +147,7 @@ extension SelectableEpisodeList {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await queue.replace(episodeIDs)
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }
@@ -168,7 +168,7 @@ extension SelectableEpisodeList {
           await playManager.play()
         }
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }
@@ -183,7 +183,7 @@ extension SelectableEpisodeList {
       do {
         try await queue.dequeue(savedEpisodeIDs)
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }
@@ -204,7 +204,7 @@ extension SelectableEpisodeList {
           }
         }
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }
@@ -244,7 +244,7 @@ extension SelectableEpisodeList {
           }
         }
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }
@@ -295,7 +295,7 @@ extension SelectableEpisodeList {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await repo.markFinished(episodeIDs)
       } catch {
-        log.error(error)
+        Self.log.error(error)
       }
     }
   }

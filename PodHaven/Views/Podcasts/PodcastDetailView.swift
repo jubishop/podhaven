@@ -13,7 +13,7 @@ struct PodcastDetailView: View {
   @State private var showingImageOverlay = false
   @State private var viewModel: PodcastDetailViewModel
 
-  private static var log: Logger { Log.as(LogSubsystem.PodcastsView.detail) }
+  nonisolated private static let log = Log.as(LogSubsystem.PodcastsView.detail)
 
   init(viewModel: PodcastDetailViewModel) {
     self.viewModel = viewModel

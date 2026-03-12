@@ -34,7 +34,7 @@ extension ManagingEpisodes {
 
   private var alert: Alert { Container.shared.alert() }
 
-  private var log: Logger { Log.as(LogSubsystem.ViewProtocols.managingEpisode) }
+  nonisolated private static var log: Logger { Log.as(LogSubsystem.ViewProtocols.managingEpisode) }
 
   // MARK: - Getters
 
@@ -61,7 +61,7 @@ extension ManagingEpisodes {
         try await playManager.load(podcastEpisode)
         await playManager.play()
       } catch {
-        log.caughtError("playEpisode: failed for \(episode.title)", error)
+        Self.log.caughtError("playEpisode: failed for \(episode.title)", error)
       }
     }
   }
@@ -86,7 +86,7 @@ extension ManagingEpisodes {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await queue.unshift(episodeID)
       } catch {
-        log.caughtError("queueEpisodeOnTop: failed for \(episode.title)", error)
+        Self.log.caughtError("queueEpisodeOnTop: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -103,7 +103,7 @@ extension ManagingEpisodes {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await queue.append(episodeID)
       } catch {
-        log.caughtError("queueEpisodeAtBottom: failed for \(episode.title)", error)
+        Self.log.caughtError("queueEpisodeAtBottom: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -120,7 +120,7 @@ extension ManagingEpisodes {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await queue.dequeue(episodeID)
       } catch {
-        log.caughtError("removeEpisodeFromQueue: failed for \(episode.title)", error)
+        Self.log.caughtError("removeEpisodeFromQueue: failed for \(episode.title)", error)
       }
     }
   }
@@ -133,7 +133,7 @@ extension ManagingEpisodes {
         let episodeID = try await getOrCreateEpisodeID(episode)
         await cacheManager.downloadToCache(for: episodeID)
       } catch {
-        log.caughtError("cacheEpisode: failed for \(episode.title)", error)
+        Self.log.caughtError("cacheEpisode: failed for \(episode.title)", error)
       }
     }
   }
@@ -149,7 +149,7 @@ extension ManagingEpisodes {
         await cacheManager.clearCache(for: episodeID)
         try await repo.updateSaveInCache(episodeID, saveInCache: false)
       } catch {
-        log.caughtError("uncacheEpisode: failed for \(episode.title)", error)
+        Self.log.caughtError("uncacheEpisode: failed for \(episode.title)", error)
       }
     }
   }
@@ -163,7 +163,7 @@ extension ManagingEpisodes {
         try await repo.updateSaveInCache(episodeID, saveInCache: true)
         await cacheManager.downloadToCache(for: episodeID)
       } catch {
-        log.caughtError("saveEpisodeInCache: failed for \(episode.title)", error)
+        Self.log.caughtError("saveEpisodeInCache: failed for \(episode.title)", error)
       }
     }
   }
@@ -178,7 +178,7 @@ extension ManagingEpisodes {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await repo.updateSaveInCache(episodeID, saveInCache: false)
       } catch {
-        log.caughtError("unsaveEpisodeFromCache: failed for \(episode.title)", error)
+        Self.log.caughtError("unsaveEpisodeFromCache: failed for \(episode.title)", error)
       }
     }
   }
@@ -193,7 +193,7 @@ extension ManagingEpisodes {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await repo.markFinished(episodeID)
       } catch {
-        log.caughtError("markEpisodeFinished: failed for \(episode.title)", error)
+        Self.log.caughtError("markEpisodeFinished: failed for \(episode.title)", error)
       }
     }
   }
@@ -205,7 +205,7 @@ extension ManagingEpisodes {
       do {
         try await navigation.showPodcast(getOrCreatePodcastEpisode(episode).podcast)
       } catch {
-        log.caughtError("showPodcast: failed for \(episode.title)", error)
+        Self.log.caughtError("showPodcast: failed for \(episode.title)", error)
       }
     }
   }

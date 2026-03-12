@@ -59,7 +59,7 @@ final class PlayManager {
   private var alert: Alert { get async { await Container.shared.alert() } }
   private var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
 
-  private static let log = Log.as(LogSubsystem.Play.manager)
+  nonisolated private static let log = Log.as(LogSubsystem.Play.manager)
 
   // MARK: - Configurable Constants
 
@@ -82,7 +82,7 @@ final class PlayManager {
   // Called from AppDelegate after audio session and command handlers are configured.
   nonisolated func startStreamConsumers() {
     guard Function.neverCalled() else { return }
-    Log.as(LogSubsystem.Play.manager).debug("startStreamConsumers: executing")
+    Self.log.debug("startStreamConsumers: executing")
 
     notificationTracking()
     asyncStreams()

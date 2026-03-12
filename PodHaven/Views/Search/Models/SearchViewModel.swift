@@ -19,7 +19,7 @@ class SearchViewModel:
   @ObservationIgnored @DynamicInjected(\.iTunesService) private var iTunesService
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
 
-  private static let log = Log.as(LogSubsystem.SearchView.main)
+  nonisolated private static let log = Log.as(LogSubsystem.SearchView.main)
 
   // MARK: - ManagingPodcasts
 
@@ -40,7 +40,7 @@ class SearchViewModel:
           do {
             return try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast()
           } catch {
-            Log.as(LogSubsystem.SearchView.main)
+            Self.log
               .caughtError(
                 "forEachSelectedPodcast: failed to get/create podcast \(selectedPodcastWithMetadata.podcast.title)",
                 error
