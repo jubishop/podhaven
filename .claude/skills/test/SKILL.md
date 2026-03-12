@@ -1,6 +1,7 @@
 ---
 description: Run tests and fix any failures
 argument-hint: [specific test class or method, e.g. ParallelTests/SomeTestClass/testMethod]
+disable-model-invocation: true
 allowed-tools: Bash(xcodebuild:*), Bash(swift-format:*), Read, Edit, Write, Glob, Grep, Task
 context: fork
 ---

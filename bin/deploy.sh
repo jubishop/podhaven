@@ -69,9 +69,9 @@ if [[ "$branch" != "main" && "$FORCE" != true ]]; then
   exit 1
 fi
 
-# Preflight: block deploys from a dirty working tree
-if ! git -C "$PROJECT_DIR" diff --quiet HEAD; then
-  echo "error: Uncommitted changes detected — commit before deploying." >&2
+# Preflight: block deploys from a dirty or incomplete working tree
+if [[ -n $(git -C "$PROJECT_DIR" status --porcelain) ]]; then
+  echo "error: Uncommitted or untracked changes detected — commit before deploying." >&2
   exit 1
 fi
 
@@ -87,6 +87,12 @@ version=$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" \
   | grep '^\s*MARKETING_VERSION' \
   | head -1 \
   | sed 's/.*= //')
+
+if [[ -z "$version" ]]; then
+  echo "error: Could not determine MARKETING_VERSION from build settings." >&2
+  exit 1
+fi
+
 tag="v${version}b${build}"
 
 echo "==> Build ${build} (${tag}) from ${commit}"
@@ -120,20 +126,20 @@ echo ""
 echo "$tag_message"
 echo ""
 
-# Create and push tag before uploading so it's never lost
+# Create tag locally (pushed after successful upload)
 git -C "$PROJECT_DIR" tag -a "$tag" -m "$tag_message"
-git -C "$PROJECT_DIR" push origin "$tag"
 
-# Roll back the tag if anything below fails
+# Roll back the local tag if archive or upload fails
 rollback_tag() {
-  echo "error: Deploy failed — rolling back tag ${tag}..." >&2
+  echo "error: Deploy failed — rolling back local tag ${tag}..." >&2
   git -C "$PROJECT_DIR" tag -d "$tag" 2>/dev/null
-  git -C "$PROJECT_DIR" push origin --delete "$tag" 2>/dev/null
 }
 trap rollback_tag ERR
 
 # Archive
 echo "==> Archiving..."
+BUILD_LOG="$PROJECT_DIR/build/xcodebuild-archive.log"
+mkdir -p "$PROJECT_DIR/build"
 xcodebuild archive \
   -project "$PROJECT" \
   -scheme "$SCHEME" \
@@ -143,19 +149,22 @@ xcodebuild archive \
   -allowProvisioningUpdates \
   "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
   CURRENT_PROJECT_VERSION="$build" \
-  2>&1 | xcbeautify
+  GIT_COMMIT_HASH="$commit" \
+  2>&1 | tee "$BUILD_LOG" | xcbeautify
 
 # Export and upload
 echo "==> Uploading to App Store Connect..."
+UPLOAD_LOG="$PROJECT_DIR/build/xcodebuild-upload.log"
 xcodebuild -exportArchive \
   -archivePath "$ARCHIVE_PATH" \
   -exportOptionsPlist "$EXPORT_OPTIONS" \
   -allowProvisioningUpdates \
   "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
-  2>&1 | xcbeautify
+  2>&1 | tee "$UPLOAD_LOG" | xcbeautify
 
-# Upload succeeded — disable rollback and create GitHub release
+# Upload succeeded — disable rollback, push tag, and create GitHub release
 trap - ERR
+git -C "$PROJECT_DIR" push origin "$tag"
 gh release create "$tag" --title "$tag" --notes "$tag_message"
 
 # Clean up
