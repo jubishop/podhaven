@@ -111,7 +111,10 @@ final class PlayManager {
       }
       try await load(podcastEpisode)
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "loadPersistedEpisodeIfNeeded: failed to load persisted episode \(currentEpisodeID)",
+        error
+      )
     }
   }
 
@@ -130,7 +133,7 @@ final class PlayManager {
         """
       )
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("configureAudioSession: failed to configure audio session", error)
       Task { @MainActor [weak self] in
         guard let self else { return }
         await alert("Couldn't get audio permissions") {
@@ -469,7 +472,10 @@ final class PlayManager {
     do {
       try await queue.unshift(episodeID)
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "handlePlaybackFailure: failed to return episode \(episodeID) to queue",
+        error
+      )
     }
 
     await alert("Playback failed unexpectedly. The episode has been returned to your queue.")
@@ -477,12 +483,30 @@ final class PlayManager {
 
   private func logFailureDiagnostics(_ episodeID: Episode.ID) async {
     // Check cached file integrity
-    if let podcastEpisode = try? await repo.podcastEpisode(episodeID),
-      let cachedURL = podcastEpisode.episode.cachedURL
-    {
+    let podcastEpisode: PodcastEpisode?
+    do {
+      podcastEpisode = try await repo.podcastEpisode(episodeID)
+    } catch {
+      Self.log.caughtError(
+        "logFailureDiagnostics: failed to fetch episode \(episodeID)",
+        error
+      )
+      podcastEpisode = nil
+    }
+
+    if let podcastEpisode, let cachedURL = podcastEpisode.episode.cachedURL {
       if fileManager.fileExists(at: cachedURL.rawValue) {
-        let size = (try? fileManager.fileSize(for: cachedURL.rawValue)) ?? -1
-        Self.log.info("logFailureDiagnostics: cached file exists, size: \(size) bytes")
+        let size: Int64
+        do {
+          size = try fileManager.fileSize(for: cachedURL.rawValue)
+          Self.log.info("logFailureDiagnostics: cached file exists, size: \(size) bytes")
+        } catch {
+          size = -1
+          Self.log.caughtError(
+            "logFailureDiagnostics: failed to get file size at \(cachedURL)",
+            error
+          )
+        }
       } else {
         Self.log.warning("logFailureDiagnostics: cached file MISSING at \(cachedURL)")
       }
@@ -511,7 +535,7 @@ final class PlayManager {
       do {
         try Container.shared.setAudioSessionActive()(false)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("setStatus: failed to deactivate audio session", error)
       }
     }
   }

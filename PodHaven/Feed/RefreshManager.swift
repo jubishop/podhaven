@@ -222,7 +222,10 @@ struct RefreshManager {
             try await repo.updateSaveInCache(newEpisode.id, saveInCache: true)
             await cacheManager.downloadToCache(for: newEpisode.id)
           } catch {
-            Self.log.error(error)
+            Self.log.caughtError(
+              "updateSeriesFromFeed: failed to save episode \(newEpisode.id) in cache",
+              error
+            )
           }
         }
       }

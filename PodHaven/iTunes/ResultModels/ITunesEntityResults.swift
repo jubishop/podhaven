@@ -2,10 +2,20 @@
 
 import Foundation
 import Tagged
+import Logging
 
 struct ITunesEntityResults: Decodable, Sendable {
+  private static let log = Log.as("ITunesEntityResults")
+
   var podcastsWithMetadata: [PodcastWithEpisodeMetadata<UnsavedPodcast>] {
-    results.compactMap { try? $0.toPodcastWithEpisodeMetadata() }
+    results.compactMap { entity in
+      do {
+        return try entity.toPodcastWithEpisodeMetadata()
+      } catch {
+        Self.log.error(error, remarkable: .notice)
+        return nil
+      }
+    }
   }
 
   private struct ITunesEntity: Decodable, Sendable {

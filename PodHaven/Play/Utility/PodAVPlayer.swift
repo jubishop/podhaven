@@ -158,11 +158,20 @@ extension Container {
   // Swap to cached version if available. Returns whether a swap occurred.
   @discardableResult
   private func swapToCached() async -> Bool {
-    guard !playingFromCache,
-      let episodeID,
-      let podcastEpisode = try? await repo.podcastEpisode(episodeID),
-      podcastEpisode.episode.cachedURL != nil
-    else { return false }
+    guard !playingFromCache, let episodeID else { return false }
+
+    let podcastEpisode: PodcastEpisode
+    do {
+      guard let fetched = try await repo.podcastEpisode(episodeID) else { return false }
+      guard fetched.episode.cachedURL != nil else { return false }
+      podcastEpisode = fetched
+    } catch {
+      Self.log.caughtError(
+        "swapToCached: failed to fetch episode \(episodeID)",
+        error
+      )
+      return false
+    }
 
     do {
       let (_, playableItem) = try await loadAsset(for: podcastEpisode)
@@ -189,11 +198,7 @@ extension Container {
   }
 
   func savePosition() async {
-    do {
-      try await saveCurrentTime(avPlayer.currentTime())
-    } catch {
-      Self.log.error(error)
-    }
+    await saveCurrentTime(avPlayer.currentTime())
   }
 
   func toggle() async {
@@ -246,11 +251,7 @@ extension Container {
         Self.log.debug("seek: to \(time) completed")
         Task { [weak self] in
           guard let self else { return }
-          do {
-            try await saveCurrentTime(time)
-          } catch {
-            Self.log.error(error)
-          }
+          await saveCurrentTime(time)
           await addPeriodicTimeObserver()
         }
       } else {
@@ -259,7 +260,7 @@ extension Container {
     }
   }
 
-  private func saveCurrentTime(_ currentTime: CMTime) async throws {
+  private func saveCurrentTime(_ currentTime: CMTime) async {
     guard let episodeID else {
       Self.log.warning("Setting current time on nil player item with CMTime: \(currentTime)")
       return
@@ -270,13 +271,16 @@ extension Container {
       lastDatabaseUpdateTime = currentTime
       Self.log.trace("saveCurrentTime: saved \(currentTime) for \(episodeID)")
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "saveCurrentTime: failed to save time \(currentTime) for episode \(episodeID)",
+        error
+      )
     }
   }
 
   // MARK: - Change Handlers
 
-  private func handleCurrentTimeChange(_ currentTime: CMTime) async throws {
+  private func handleCurrentTimeChange(_ currentTime: CMTime) async {
     guard let episodeID else {
       Self.log.warning("Setting current time on nil player item with CMTime: \(currentTime)")
       return
@@ -284,7 +288,7 @@ extension Container {
 
     // Only update the database every 3 seconds
     if currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds >= 3.0 {
-      try await saveCurrentTime(currentTime)
+      await saveCurrentTime(currentTime)
     }
 
     // Always yield to the stream for UI updates (250ms)
@@ -352,11 +356,7 @@ extension Container {
       guard let self else { return }
       Task { [weak self, currentTime] in
         guard let self else { return }
-        do {
-          try await self.handleCurrentTimeChange(currentTime)
-        } catch {
-          Self.log.error(error)
-        }
+        await self.handleCurrentTimeChange(currentTime)
       }
     }
     periodicTimeObservation = (observer, avPlayer)

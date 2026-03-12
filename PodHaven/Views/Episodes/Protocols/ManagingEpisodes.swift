@@ -32,6 +32,8 @@ extension ManagingEpisodes {
   private var repo: any Databasing { Container.shared.repo() }
   private var sharedState: SharedState { Container.shared.sharedState() }
 
+  private var alert: Alert { Container.shared.alert() }
+
   private var log: Logger { Log.as(LogSubsystem.ViewProtocols.managingEpisode) }
 
   // MARK: - Getters
@@ -80,8 +82,14 @@ extension ManagingEpisodes {
     Task { [weak self] in
       guard let self else { return }
 
-      let episodeID = try await getOrCreateEpisodeID(episode)
-      try await queue.unshift(episodeID)
+      do {
+        let episodeID = try await getOrCreateEpisodeID(episode)
+        try await queue.unshift(episodeID)
+      } catch {
+        log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
     }
   }
 
@@ -91,8 +99,14 @@ extension ManagingEpisodes {
     Task { [weak self] in
       guard let self else { return }
 
-      let episodeID = try await getOrCreateEpisodeID(episode)
-      try await queue.append(episodeID)
+      do {
+        let episodeID = try await getOrCreateEpisodeID(episode)
+        try await queue.append(episodeID)
+      } catch {
+        log.error(error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
     }
   }
 

@@ -207,7 +207,11 @@ enum AppInfo {
 
     // Development builds use subdirectories
     let dataDir = baseURL.appendingPathComponent(subdirectory)
-    try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+    do {
+      try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+    } catch {
+      Assert.fatal("Failed to create documents directory at \(dataDir): \(error)")
+    }
 
     return dataDir
   }
@@ -225,7 +229,11 @@ enum AppInfo {
 
     // Development builds use subdirectories
     let dataDir = baseURL.appendingPathComponent(subdirectory)
-    try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+    do {
+      try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+    } catch {
+      Assert.fatal("Failed to create application support directory at \(dataDir): \(error)")
+    }
 
     return dataDir
   }

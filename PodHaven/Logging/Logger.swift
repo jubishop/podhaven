@@ -47,25 +47,4 @@ extension Logger {
     }
   }
 
-  func `catch`<T>(
-    _ operation: () throws -> T
-  ) -> T? {
-    do {
-      return try operation()
-    } catch {
-      self.error(error)
-      return nil
-    }
-  }
-
-  func `catch`<T>(
-    _ operation: @Sendable () async throws -> T
-  ) async -> T? {
-    do {
-      return try await operation()
-    } catch {
-      self.error(error)
-      return nil
-    }
-  }
 }

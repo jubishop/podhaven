@@ -106,8 +106,11 @@ import SwiftUI
 
     Task { [weak self] in
       guard let self else { return }
-
-      try await queue.unshift(episode.id)
+      do {
+        try await queue.unshift(episode.id)
+      } catch {
+        Self.log.error(error)
+      }
     }
   }
 
@@ -121,8 +124,11 @@ import SwiftUI
 
     Task { [weak self] in
       guard let self else { return }
-
-      try await queue.append(episode.id)
+      do {
+        try await queue.append(episode.id)
+      } catch {
+        Self.log.error(error)
+      }
     }
   }
 

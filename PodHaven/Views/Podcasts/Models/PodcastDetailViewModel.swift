@@ -276,7 +276,11 @@ class PodcastDetailViewModel:
     Task { [weak self] in
       guard let self else { return }
 
-      shareArtwork = try await imagePipeline.image(for: podcast.image)
+      do {
+        shareArtwork = try await imagePipeline.image(for: podcast.image)
+      } catch {
+        Self.log.error(error)
+      }
     }
   }
 

@@ -34,21 +34,24 @@ class SearchViewModel:
   func forEachSelectedPodcast(
     perform action: @escaping @Sendable (Podcast) async throws -> Void
   ) async {
-    // Fetch all podcasts in parallel using a task group
     await withTaskGroup(of: Podcast?.self) { group in
       for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
         group.addTask {
-          await Self.log.catch {
-            try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast()
+          do {
+            return try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast()
+          } catch {
+            Log.as(LogSubsystem.SearchView.main).error(error)
+            return nil
           }
         }
       }
 
-      // Process results as they complete
       for await podcast in group {
         if let podcast {
-          await Self.log.catch {
+          do {
             try await action(podcast)
+          } catch {
+            Self.log.error(error)
           }
         }
       }

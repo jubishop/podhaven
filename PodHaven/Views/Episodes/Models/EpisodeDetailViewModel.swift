@@ -79,7 +79,11 @@ import UIKit
 
     Task { [weak self] in
       guard let self else { return }
-      shareArtwork = try await imagePipeline.image(for: episode.image)
+      do {
+        shareArtwork = try await imagePipeline.image(for: episode.image)
+      } catch {
+        Self.log.error(error)
+      }
     }
   }
 
@@ -292,8 +296,12 @@ import UIKit
     Task { [weak self] in
       guard let self else { return }
 
-      let podcastEpisode = try await getOrCreatePodcastEpisode()
-      navigation.showPodcast(podcastEpisode.podcast)
+      do {
+        let podcastEpisode = try await getOrCreatePodcastEpisode()
+        navigation.showPodcast(podcastEpisode.podcast)
+      } catch {
+        Self.log.error(error)
+      }
     }
   }
 

@@ -1,6 +1,9 @@
 // Copyright Justin Bishop, 2026
 
 import Foundation
+import Logging
+
+private let defaultsStorableLog = Log.as("DefaultsStorable")
 
 protocol DefaultsStorable: Sendable {
   func store(to store: any KeyValueStore, forKey key: String)
@@ -36,12 +39,24 @@ extension Optional: DefaultsStorable where Wrapped: DefaultsStorable {
 
 extension DefaultsStorable where Self: Codable {
   func store(to store: any KeyValueStore, forKey key: String) {
-    guard let data = try? JSONEncoder().encode(self) else { return }
-    store.set(data, forKey: key)
+    do {
+      let data = try JSONEncoder().encode(self)
+      store.set(data, forKey: key)
+    } catch {
+      defaultsStorableLog.caughtError(
+        "store: failed to encode \(Self.self) for key '\(key)'",
+        error
+      )
+    }
   }
 
   static func load(from store: any KeyValueStore, forKey key: String) -> Self? {
     guard let data = store.data(forKey: key) else { return nil }
-    return try? JSONDecoder().decode(Self.self, from: data)
+    do {
+      return try JSONDecoder().decode(Self.self, from: data)
+    } catch {
+      defaultsStorableLog.caughtError("load: failed to decode \(Self.self) for key '\(key)'", error)
+      return nil
+    }
   }
 }

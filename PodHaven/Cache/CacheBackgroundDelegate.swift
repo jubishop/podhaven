@@ -77,7 +77,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         )
       }
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "didWriteData: failed to update download progress for task #\(downloadTask.taskID)",
+        error
+      )
     }
   }
 
@@ -131,7 +134,14 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
             MediaGUID: \(episode.unsaved.id)
           """
         )
-        try? fileManager.removeItem(at: destURL.rawValue)
+        do {
+          try fileManager.removeItem(at: destURL.rawValue)
+        } catch {
+          Self.log.caughtError(
+            "didFinishDownloadingTo: failed to remove unplayable file at \(destURL)",
+            error
+          )
+        }
         return
       }
 
@@ -139,7 +149,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       try await repo.updateCachedFilename(episode.id, cachedFilename: fileName)
       Self.log.debug("Cached episode \(episode.id) to \(fileName)")
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "didFinishDownloadingTo: failed to process completed download for task #\(downloadTask.taskID)",
+        error
+      )
     }
   }
 
@@ -170,7 +183,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
       try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
       Self.log.notice("Episode \(episode.toString) completed with error")
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "didCompleteWithError: failed to clean up after download error for task #\(task.taskID)",
+        error
+      )
     }
   }
 
