@@ -15,7 +15,6 @@ extension Container {
 }
 
 struct FileLogHandler: LogHandler {
-
   // MARK: - Writer
 
   fileprivate final class Writer: Sendable {
@@ -145,13 +144,13 @@ struct FileLogHandler: LogHandler {
 
   // MARK: - LogHandler
 
-  public var metadata: Logger.Metadata = [:]
-  public var metadataProvider: Logger.MetadataProvider?
-  public subscript(metadataKey metadataKey: String) -> Logger.Metadata.Value? {
+  public var metadata: Logging.Logger.Metadata = [:]
+  public var metadataProvider: Logging.Logger.MetadataProvider?
+  public subscript(metadataKey metadataKey: String) -> Logging.Logger.Metadata.Value? {
     get { self.metadata[metadataKey] }
     set(newValue) { self.metadata[metadataKey] = newValue }
   }
-  public var logLevel: Logger.Level = .trace
+  public var logLevel: Logging.Logger.Level = .trace
 
   // MARK: - State
 
@@ -159,7 +158,7 @@ struct FileLogHandler: LogHandler {
   private let subsystem: String
   private let category: String
   private let writer: Writer
-  private let writeSynchronously: @Sendable (Logger.Level) -> Bool
+  private let writeSynchronously: @Sendable (Logging.Logger.Level) -> Bool
 
   // MARK: - Initialization
 
@@ -168,7 +167,7 @@ struct FileLogHandler: LogHandler {
     fileURL: URL,
     maxFileSizeBytes: Int,
     targetFileSizeBytes: Int,
-    writeSynchronously: @escaping @Sendable (Logger.Level) -> Bool
+    writeSynchronously: @escaping @Sendable (Logging.Logger.Level) -> Bool
   ) {
     let (subsystem, category) = LogKit.destructureLabel(from: label)
     self.subsystem = subsystem
@@ -183,9 +182,9 @@ struct FileLogHandler: LogHandler {
   // MARK: - Logging
 
   public func log(
-    level: Logger.Level,
-    message: Logger.Message,
-    metadata: Logger.Metadata?,
+    level: Logging.Logger.Level,
+    message: Logging.Logger.Message,
+    metadata: Logging.Logger.Metadata?,
     source: String,
     file: String,
     function: String,

@@ -43,7 +43,11 @@ struct EpisodeFeed: Sendable, Equatable {
     do {
       validatedMediaURL = try mediaURL.convertToHTTPSURL()
     } catch {
-      Self.log.warning("Invalid MediaURL: \(mediaURL)")
+      Self.log.caughtError(
+        "Invalid MediaURL: \(mediaURL) for '\(rssEpisode.title)'",
+        error,
+        remarkable: .warning
+      )
       return nil
     }
 

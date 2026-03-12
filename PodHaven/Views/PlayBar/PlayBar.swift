@@ -9,6 +9,7 @@ import Tagged
 struct PlayBar: View {
   @Environment(\.tabViewBottomAccessoryPlacement) var placement
 
+  private static let log = Log.as(LogSubsystem.PlayBar.main)
   private let spacing: CGFloat = 12
 
   private let viewModel: PlayBarViewModel
@@ -140,6 +141,7 @@ extension PlayBar {
       do {
         try await presentOnDeckEpisodeDetail()
       } catch {
+        log.caughtError("showOnDeckEpisodeDetail: failed", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
