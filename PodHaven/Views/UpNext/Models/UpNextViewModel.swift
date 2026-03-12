@@ -109,7 +109,7 @@ import SwiftUI
       do {
         try await queue.unshift(episode.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("queueEpisodeOnTop: failed for \(episode.toString)", error)
       }
     }
   }
@@ -127,7 +127,7 @@ import SwiftUI
       do {
         try await queue.append(episode.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("queueEpisodeAtBottom: failed for \(episode.toString)", error)
       }
     }
   }
@@ -143,7 +143,7 @@ import SwiftUI
       do {
         try await queue.insert(episodeList.filteredEntries[from].episode.id, at: to)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("moveEpisode: failed to move from \(from) to \(to)", error)
       }
     }
   }
@@ -180,7 +180,7 @@ import SwiftUI
         let sortedEpisodes = episodeList.filteredEntries.sorted(by: method.sortMethod)
         try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("sort: failed to sort queue by \(method)", error)
       }
     }
   }

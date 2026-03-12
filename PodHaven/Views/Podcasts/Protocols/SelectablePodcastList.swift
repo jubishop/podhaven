@@ -67,7 +67,11 @@ extension SelectablePodcastList {
     Task { [weak self] in
       guard let self else { return }
 
-      try await repo.deletePodcast(savedPodcastIDs)
+      do {
+        try await repo.deletePodcast(savedPodcastIDs)
+      } catch {
+        log.error(error)
+      }
     }
   }
 
@@ -88,7 +92,11 @@ extension SelectablePodcastList {
     Task { [weak self] in
       guard let self else { return }
 
-      try await repo.markUnsubscribed(savedPodcastIDs)
+      do {
+        try await repo.markUnsubscribed(savedPodcastIDs)
+      } catch {
+        log.error(error)
+      }
     }
   }
 }
@@ -101,7 +109,10 @@ extension SelectablePodcastList where PodcastType == Podcast {
       do {
         try await action(podcastWithMetadata.podcast)
       } catch {
-        log.error(error)
+        log.caughtError(
+          "forEachSelectedPodcast: action failed for \(podcastWithMetadata.podcast.title)",
+          error
+        )
       }
     }
   }

@@ -179,7 +179,10 @@ struct PodcastFeed: Sendable, Stringable {
               ?? existingEpisodesByGUID[episodeFeed.guid]
           )
         } catch {
-          Self.log.error(error)
+          Self.log.caughtError(
+            "Failed to convert episode feed to unsaved episode: \(episodeFeed.mediaGUID)",
+            error
+          )
           return nil
         }
       }

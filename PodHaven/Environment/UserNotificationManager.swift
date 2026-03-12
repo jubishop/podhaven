@@ -145,7 +145,10 @@ final class UserNotificationManager {
         """
       )
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "scheduleNewEpisodeNotification: failed for \(podcast.title) (\(episodes.count) episodes)",
+        error
+      )
     }
   }
 
@@ -177,7 +180,7 @@ final class UserNotificationManager {
 
       return attachment
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("createImageAttachment: failed for \(imageURL)", error)
       return nil
     }
   }

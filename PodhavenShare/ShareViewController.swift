@@ -19,12 +19,7 @@ class ShareViewController: UIViewController {
     guard let extensionContext = extensionContext
     else { fatalError("extensionContext is nil") }
 
-    guard let application = try? findUIApplication()
-    else {
-      log.error("Failed to find UIApplication")
-      extensionContext.completeRequest(returningItems: nil, completionHandler: nil)
-      return
-    }
+    let application = findUIApplication()
 
     Task { [weak self, application, extensionContext] in
       guard let self else { return }
@@ -38,7 +33,7 @@ class ShareViewController: UIViewController {
     }
   }
 
-  private func findUIApplication() throws -> UIApplication {
+  private func findUIApplication() -> UIApplication {
     var responder: UIResponder? = self
     while responder != nil {
       if let application = responder as? UIApplication {

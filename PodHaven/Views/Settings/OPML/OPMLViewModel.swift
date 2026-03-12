@@ -15,7 +15,7 @@ import UniformTypeIdentifiers
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
-  private static let log = Log.as(LogSubsystem.SettingsView.opml)
+  nonisolated private static let log = Log.as(LogSubsystem.SettingsView.opml)
 
   var opmlImporting = false
   var opmlFile: OPMLFile?
@@ -53,7 +53,7 @@ import UniformTypeIdentifiers
 
       try await downloadOPMLFile(opml)
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("importOPMLFromURL: failed for \(url)", error)
       guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.message(for: error))
     }
@@ -97,7 +97,10 @@ import UniformTypeIdentifiers
                   try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
                 }
               } catch {
-                await Self.log.error(error)
+                Self.log.caughtError(
+                  "downloadOPMLFile: failed to subscribe/refresh existing podcast \(podcast.toString)",
+                  error
+                )
               }
             }
           }
@@ -145,6 +148,13 @@ import UniformTypeIdentifiers
           } catch DatabaseError.SQLITE_CONSTRAINT_UNIQUE {
             await updateOutlineStatus(outline, in: opmlFile, to: .finished)
           } catch {
+            Self.log.caughtError(
+              """
+              downloadOPMLFile: \
+              failed to download/parse feed '\(await outline.text)' (\(await outline.feedURL))
+              """,
+              error
+            )
             await updateOutlineStatus(outline, in: opmlFile, to: .failed)
           }
         }

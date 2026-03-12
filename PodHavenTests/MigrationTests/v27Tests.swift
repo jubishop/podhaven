@@ -12,7 +12,7 @@ class V27MigrationTests {
   private let migrator: DatabaseMigrator
 
   init() async throws {
-    self.migrator = try Schema.makeMigrator()
+    self.migrator = Schema.makeMigrator()
   }
 
   @Test("v27 migration adds tag and podcastTag tables with indexes and constraints")

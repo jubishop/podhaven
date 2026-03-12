@@ -63,7 +63,11 @@ struct RefreshManager {
           do {
             try await refreshSeries(podcastSeries: podcastSeries)
           } catch {
-            Self.log.error(error, mundane: .trace)
+            Self.log.caughtError(
+              "Failed to refresh series: \(podcastSeries.toString)",
+              error,
+              mundane: .trace
+            )
           }
         }
       }

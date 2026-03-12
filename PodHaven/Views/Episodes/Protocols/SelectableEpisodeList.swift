@@ -113,8 +113,12 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
 
-      let episodeIDs = try await selectedPodcastEpisodeIDs
-      try await queue.append(episodeIDs)
+      do {
+        let episodeIDs = try await selectedPodcastEpisodeIDs
+        try await queue.append(episodeIDs)
+      } catch {
+        log.error(error)
+      }
     }
   }
 
@@ -124,8 +128,12 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
 
-      let episodeIDs = try await selectedPodcastEpisodeIDs
-      try await queue.unshift(episodeIDs)
+      do {
+        let episodeIDs = try await selectedPodcastEpisodeIDs
+        try await queue.unshift(episodeIDs)
+      } catch {
+        log.error(error)
+      }
     }
   }
 
@@ -135,8 +143,12 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
 
-      let episodeIDs = try await selectedPodcastEpisodeIDs
-      try await queue.replace(episodeIDs)
+      do {
+        let episodeIDs = try await selectedPodcastEpisodeIDs
+        try await queue.replace(episodeIDs)
+      } catch {
+        log.error(error)
+      }
     }
   }
 
@@ -146,13 +158,17 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
 
-      let podcastEpisodes = try await selectedPodcastEpisodes
-      let firstPodcastEpisode = podcastEpisodes.first
-      let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
-      try await queue.unshift(allExceptFirstPodcastEpisode.map(\.id))
-      if let firstPodcastEpisode {
-        try await playManager.load(firstPodcastEpisode)
-        await playManager.play()
+      do {
+        let podcastEpisodes = try await selectedPodcastEpisodes
+        let firstPodcastEpisode = podcastEpisodes.first
+        let allExceptFirstPodcastEpisode = podcastEpisodes.dropFirst()
+        try await queue.unshift(allExceptFirstPodcastEpisode.map(\.id))
+        if let firstPodcastEpisode {
+          try await playManager.load(firstPodcastEpisode)
+          await playManager.play()
+        }
+      } catch {
+        log.error(error)
       }
     }
   }
@@ -164,7 +180,11 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
 
-      try await queue.dequeue(savedEpisodeIDs)
+      do {
+        try await queue.dequeue(savedEpisodeIDs)
+      } catch {
+        log.error(error)
+      }
     }
   }
 
@@ -174,13 +194,17 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
 
-      let episodeIDs = try await selectedPodcastEpisodeIDs
-      await withDiscardingTaskGroup { group in
-        for episodeID in episodeIDs {
-          group.addTask {
-            await Container.shared.cacheManager().downloadToCache(for: episodeID)
+      do {
+        let episodeIDs = try await selectedPodcastEpisodeIDs
+        await withDiscardingTaskGroup { group in
+          for episodeID in episodeIDs {
+            group.addTask {
+              await Container.shared.cacheManager().downloadToCache(for: episodeID)
+            }
           }
         }
+      } catch {
+        log.error(error)
       }
     }
   }
@@ -210,13 +234,17 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
 
-      try await withThrowingTaskGroup(of: Void.self) { group in
-        for episodeID in try await selectedPodcastEpisodeIDs {
-          group.addTask {
-            try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: true)
-            await Container.shared.cacheManager().downloadToCache(for: episodeID)
+      do {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+          for episodeID in try await selectedPodcastEpisodeIDs {
+            group.addTask {
+              try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: true)
+              await Container.shared.cacheManager().downloadToCache(for: episodeID)
+            }
           }
         }
+      } catch {
+        log.error(error)
       }
     }
   }
@@ -263,8 +291,12 @@ extension SelectableEpisodeList {
     Task { [weak self] in
       guard let self else { return }
 
-      let episodeIDs = try await selectedPodcastEpisodeIDs
-      try await repo.markFinished(episodeIDs)
+      do {
+        let episodeIDs = try await selectedPodcastEpisodeIDs
+        try await repo.markFinished(episodeIDs)
+      } catch {
+        log.error(error)
+      }
     }
   }
 }

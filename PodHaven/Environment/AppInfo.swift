@@ -165,13 +165,23 @@ enum AppInfo {
   }
 
   static var buildDate: Date {
-    if let infoPath = Bundle.main.path(forResource: "Info", ofType: "plist"),
-      let infoAttr = try? FileManager.default.attributesOfItem(atPath: infoPath),
-      let infoDate = infoAttr[FileAttributeKey.creationDate] as? Date
-    {
-      return infoDate
+    guard let infoPath = Bundle.main.path(forResource: "Info", ofType: "plist")
+    else { return Date() }
+
+    do {
+      let infoAttr = try FileManager.default.attributesOfItem(atPath: infoPath)
+      if let infoDate = infoAttr[FileAttributeKey.creationDate] as? Date {
+        return infoDate
+      }
+      return Date()
+    } catch {
+      log.caughtError(
+        "Failed to read Info.plist attributes at \(infoPath)",
+        error,
+        remarkable: .info
+      )
+      return Date()
     }
-    return Date()
   }
 
   // MARK: - Data Storage

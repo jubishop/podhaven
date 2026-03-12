@@ -82,7 +82,11 @@ import UIKit
       do {
         shareArtwork = try await imagePipeline.image(for: episode.image)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "init: failed to load share artwork for \(episode.image)",
+          error,
+          remarkable: .info
+        )
       }
     }
   }
@@ -94,7 +98,7 @@ import UIKit
       do {
         try await performAppear()
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("appear: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -127,7 +131,7 @@ import UIKit
       do {
         podcastEpisode = try await getOrCreatePodcastEpisode()
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("playNow: failed to get/create episode \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
         return
@@ -137,7 +141,7 @@ import UIKit
         try await playManager.load(podcastEpisode)
         await playManager.play()
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("playNow: failed to load episode \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -159,7 +163,10 @@ import UIKit
         await playManager.seek(to: CMTime.seconds(Double(seconds)))
         await playManager.play()
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "playAt: failed for \(episode.toString) at timestamp \(timestamp)",
+          error
+        )
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -185,7 +192,7 @@ import UIKit
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await queue.unshift(podcastEpisode.episode.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("addToTopOfQueue: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -202,7 +209,7 @@ import UIKit
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await queue.append(podcastEpisode.episode.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("appendToQueue: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -219,7 +226,7 @@ import UIKit
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await queue.dequeue(podcastEpisode.episode.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("removeFromQueue: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -234,7 +241,7 @@ import UIKit
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("cacheEpisode: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -252,7 +259,7 @@ import UIKit
         try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: false)
         await cacheManager.clearCache(for: podcastEpisode.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("uncacheEpisode: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -268,7 +275,7 @@ import UIKit
         try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
         await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("saveEpisodeInCache: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -285,7 +292,7 @@ import UIKit
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await repo.markFinished(podcastEpisode.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("markFinished: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -300,7 +307,7 @@ import UIKit
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         navigation.showPodcast(podcastEpisode.podcast)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("showPodcast: failed for \(episode.toString)", error)
       }
     }
   }
@@ -321,7 +328,7 @@ import UIKit
       do {
         try await observePodcastEpisode()
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("startObservation: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -358,7 +365,10 @@ import UIKit
         self.podcastEpisode = updatedEpisode
       }
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "observePodcastEpisode: observation failed for \(podcastEpisode.toString)",
+        error
+      )
       guard ErrorKit.isRemarkable(error) else { return }
       self.alert(ErrorKit.message(for: error))
     }

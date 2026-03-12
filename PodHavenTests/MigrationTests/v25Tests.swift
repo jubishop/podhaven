@@ -12,7 +12,7 @@ class V25MigrationTests {
   private let migrator: DatabaseMigrator
 
   init() async throws {
-    self.migrator = try Schema.makeMigrator()
+    self.migrator = Schema.makeMigrator()
   }
 
   @Test("v25 migration adds partial index on queueOrder column")

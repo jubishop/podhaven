@@ -55,7 +55,7 @@ import SwiftUI
         try await repo.insertTag(named: name)
         newTagName = ""
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("addTag: failed to insert tag '\(name)'", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -100,7 +100,7 @@ import SwiftUI
       do {
         try await repo.renameTag(tagID, newName: newName)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("renameTag: failed to rename tag \(tagID) to '\(newName)'", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -133,7 +133,7 @@ import SwiftUI
       do {
         try await repo.deleteTag(tagID)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("deleteTag: failed to delete tag \(tagID)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

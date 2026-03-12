@@ -93,7 +93,10 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     do {
       try fileManager.moveItem(at: location, to: safeTempURL)
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "didFinishDownloadingTo: failed to move \(location) to safe temp \(safeTempURL)",
+        error
+      )
       return
     }
 

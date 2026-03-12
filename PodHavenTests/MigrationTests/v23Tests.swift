@@ -12,7 +12,7 @@ class V23MigrationTests {
   private let migrator: DatabaseMigrator
 
   init() async throws {
-    self.migrator = try Schema.makeMigrator()
+    self.migrator = Schema.makeMigrator()
   }
 
   @Test("v23 migration converts cacheAllEpisodes from BOOLEAN to TEXT enum")

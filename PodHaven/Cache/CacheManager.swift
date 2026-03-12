@@ -83,7 +83,7 @@ struct CacheManager {
     do {
       return try await performDownloadToCache(episodeID)
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("downloadToCache: failed for episode \(episodeID)", error)
       return nil
     }
   }
@@ -127,7 +127,7 @@ struct CacheManager {
     do {
       return try await performClearCache(episodeID)
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("clearCache: failed for episode \(episodeID)", error)
       return nil
     }
   }

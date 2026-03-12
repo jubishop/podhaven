@@ -20,7 +20,7 @@ struct AppDB {
     Self.log.debug("creating inMemory AppDB")
     do {
       let dbQueue = try DatabaseQueue(configuration: makeConfiguration())
-      return try AppDB(dbQueue, migrate: migrate)
+      return AppDB(dbQueue, migrate: migrate)
     } catch {
       Assert.fatal("Failed to initialize inMemory AppDB queue: \(ErrorKit.message(for: error))")
     }
@@ -38,7 +38,7 @@ struct AppDB {
         "Creating onDisk AppDB in preview is not supported"
       )
       let dbPool = try DatabasePool(path: sqlitePath, configuration: makeConfiguration())
-      return try AppDB(dbPool)
+      return AppDB(dbPool)
     } catch {
       Assert.fatal("Failed to initialize onDisk AppDB pool: \(ErrorKit.message(for: error))")
     }
@@ -53,7 +53,7 @@ struct AppDB {
         path: URL.temporaryDirectory.appendingPathComponent(fileName).path,
         configuration: makeConfiguration()
       )
-      return try AppDB(dbQueue)
+      return AppDB(dbQueue)
     } catch {
       Assert.fatal("Failed to initialize onDisk AppDB queue: \(ErrorKit.message(for: error))")
     }
@@ -90,10 +90,10 @@ struct AppDB {
   // MARK: - Initialization
 
   let db: any DatabaseWriter
-  private init(_ db: some DatabaseWriter, migrate: Bool = true) throws {
+  private init(_ db: some DatabaseWriter, migrate: Bool = true) {
     self.db = db
     if migrate {
-      try Schema.makeMigrator().migrate(db)
+      Schema.migrate(db)
     }
   }
 

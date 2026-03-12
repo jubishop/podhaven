@@ -806,8 +806,12 @@ struct HTMLText: View {
         #"href\s*=\s*"([^"]+)""#,
         #"href\s*=\s*'([^']+)'"#,
       ]
-      return patterns.compactMap {
-        try? NSRegularExpression(pattern: $0, options: [.caseInsensitive])
+      return patterns.map {
+        do {
+          return try NSRegularExpression(pattern: $0, options: [.caseInsensitive])
+        } catch {
+          Assert.fatal("Failed to compile hardcoded regex pattern '\($0)': \(error)")
+        }
       }
     }()
   }

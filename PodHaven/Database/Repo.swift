@@ -246,7 +246,10 @@ struct Repo: Databasing, Sendable {
           try fileManager.removeItem(at: url.rawValue)
           Self.log.debug("Removed cached file at: \(url)")
         } catch {
-          Self.log.error(error)
+          Self.log.caughtError(
+            "Failed to remove cached file at \(url) for episode \(episode.toString)",
+            error
+          )
         }
       }
 

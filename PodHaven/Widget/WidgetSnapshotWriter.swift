@@ -204,7 +204,10 @@ final class WidgetSnapshotWriter: Sendable {
             let image = try await imagePipeline.image(for: url)
             return (index, image)
           } catch {
-            Self.log.error(error)
+            Self.log.caughtError(
+              "loadQueueArtwork: failed to load image \(url) for episode \(episode.id)",
+              error
+            )
             return (index, nil)
           }
         }

@@ -64,7 +64,10 @@ struct StateManager: Sendable {
             }
           }
         } catch {
-          Self.log.error(error)
+          Self.log.caughtError(
+            "setOnDeck: observation failed for episode \(podcastEpisode.id)",
+            error
+          )
         }
       }
     )

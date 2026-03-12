@@ -177,7 +177,10 @@ class PodcastDetailViewModel:
         do {
           try await repo.updateDefaultPlaybackRate(podcastID, defaultPlaybackRate: newValue)
         } catch {
-          Self.log.error(error)
+          Self.log.caughtError(
+            "defaultPlaybackRate: failed to update for podcast \(podcastID)",
+            error
+          )
         }
       }
     }
@@ -197,7 +200,7 @@ class PodcastDetailViewModel:
         do {
           try await repo.updateQueueAllEpisodes(podcastID, queueAllEpisodes: newValue)
         } catch {
-          Self.log.error(error)
+          Self.log.caughtError("queueAllEpisodes: failed to update for podcast \(podcastID)", error)
         }
       }
     }
@@ -217,7 +220,7 @@ class PodcastDetailViewModel:
         do {
           try await repo.updateCacheAllEpisodes(podcastID, cacheAllEpisodes: newValue)
         } catch {
-          Self.log.error(error)
+          Self.log.caughtError("cacheAllEpisodes: failed to update for podcast \(podcastID)", error)
         }
       }
     }
@@ -240,7 +243,10 @@ class PodcastDetailViewModel:
             await userNotificationManager.requestAuthorizationIfNeeded()
           }
         } catch {
-          Self.log.error(error)
+          Self.log.caughtError(
+            "notifyNewEpisodes: failed to update for podcast \(podcastID)",
+            error
+          )
         }
       }
     }
@@ -279,7 +285,11 @@ class PodcastDetailViewModel:
       do {
         shareArtwork = try await imagePipeline.image(for: podcast.image)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "init: failed to load share artwork for \(podcast.image)",
+          error,
+          remarkable: .info
+        )
       }
     }
   }
@@ -306,7 +316,7 @@ class PodcastDetailViewModel:
       do {
         try await performAppear()
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("appear: failed for \(podcast.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -356,7 +366,7 @@ class PodcastDetailViewModel:
           Assert.fatal("Podcast type is not supported: \(String(describing: podcast))")
         }
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("subscribe: failed for \(podcast.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -375,7 +385,7 @@ class PodcastDetailViewModel:
 
         try await repo.markUnsubscribed(podcastSeries.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("unsubscribe: failed for \(podcast.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -395,7 +405,7 @@ class PodcastDetailViewModel:
 
         try await repo.deletePodcast(podcastSeries.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("delete: failed for \(podcast.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -412,7 +422,7 @@ class PodcastDetailViewModel:
         try await parsePodcastFeed()
       }
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("refreshSeries: failed for \(podcast.toString)", error)
       guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.message(for: error))
     }
@@ -432,7 +442,7 @@ class PodcastDetailViewModel:
       do {
         try await repo.addTag(tagID, to: podcastID)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("addTag: failed to add tag \(tagID) to podcast \(podcastID)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -451,7 +461,10 @@ class PodcastDetailViewModel:
       do {
         try await repo.removeTag(tagID, from: podcastID)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "removeTag: failed to remove tag \(tagID) from podcast \(podcastID)",
+          error
+        )
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -496,7 +509,7 @@ class PodcastDetailViewModel:
       do {
         try await observePodcastSeries(podcastID)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("startObservation: failed for podcast \(podcastID)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

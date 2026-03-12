@@ -129,7 +129,7 @@ class PodcastsListViewModel:
         isLoading = false
       }
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("execute: observation failed for podcast list '\(title)'", error)
       guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.message(for: error))
     }

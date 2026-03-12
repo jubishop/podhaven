@@ -48,7 +48,7 @@ enum WidgetInfo {
       do {
         return try JSONDecoder().decode(PlaybackStatus.self, from: data)
       } catch {
-        log.error("Failed to decode playback status: \(error)")
+        log.caughtError("Failed to decode playback status", error)
         return .stopped
       }
     }
@@ -57,7 +57,7 @@ enum WidgetInfo {
         let data = try JSONEncoder().encode(newValue)
         Container.shared.sharedDefaults().set(data, forKey: playbackStatusKey)
       } catch {
-        log.error("Failed to encode playback status: \(error)")
+        log.caughtError("Failed to encode playback status \(newValue)", error)
       }
     }
   }

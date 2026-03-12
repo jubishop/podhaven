@@ -50,7 +50,10 @@ struct WidgetService {
             await navigation.showUpNext()
           }
         } catch {
-          Self.log.error(error)
+          Self.log.caughtError(
+            "Widget deep link: failed to fetch episode \(episodeID)",
+            error
+          )
           await navigation.showUpNext()
         }
       } else {

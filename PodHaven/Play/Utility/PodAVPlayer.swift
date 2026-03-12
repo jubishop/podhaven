@@ -179,7 +179,10 @@ extension Container {
       Self.log.info("swapToCached: swapped to cached version")
       return true
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "swapToCached: failed to load cached asset for \(podcastEpisode.toString)",
+        error
+      )
       return false
     }
   }

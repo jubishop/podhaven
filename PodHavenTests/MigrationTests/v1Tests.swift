@@ -12,7 +12,7 @@ class V1MigrationTests {
   private let migrator: DatabaseMigrator
 
   init() async throws {
-    self.migrator = try Schema.makeMigrator()
+    self.migrator = Schema.makeMigrator()
   }
 
   @Test("v1 migration creates schema with all expected tables and constraints")

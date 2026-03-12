@@ -14,8 +14,10 @@ enum LogSubsystem {
     case appDB
     case episode
     case observatory
+    case podcast
     case repo
     case queue
+    case schema
   }
 
   enum EpisodesView: String, LogCategorizable {

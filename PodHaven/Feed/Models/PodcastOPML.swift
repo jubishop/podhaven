@@ -134,11 +134,19 @@ struct PodcastOPML: Codable, Sendable {
     body.outlines
       .flatMap { $0.flattenedOutlines }
       .compactMap { outline in
-        guard let xmlUrl = outline.xmlUrl,
-          let feedURL = try? xmlUrl.convertToHTTPSURL()
-        else { return nil }
+        guard let xmlUrl = outline.xmlUrl else { return nil }
 
-        return (feedURL: feedURL, title: outline.text)
+        do {
+          let feedURL = try xmlUrl.convertToHTTPSURL()
+          return (feedURL: feedURL, title: outline.text)
+        } catch {
+          Self.log.caughtError(
+            "Invalid feed URL '\(xmlUrl)' for outline '\(outline.text)'",
+            error,
+            remarkable: .info
+          )
+          return nil
+        }
       }
   }
 

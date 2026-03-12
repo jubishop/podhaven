@@ -2,16 +2,29 @@
 
 import Foundation
 import GRDB
+import Logging
 
 enum Schema {
+  private static let log = Log.as(LogSubsystem.Database.schema)
+
   // MARK: - Columns
 
   static let id = Column("id")
   static let creationDate = Column("creationDate")
 
+  // MARK: - Migration
+
+  static func migrate(_ db: some DatabaseWriter) {
+    do {
+      try makeMigrator().migrate(db)
+    } catch {
+      Assert.fatal("Schema migration failed: \(ErrorKit.message(for: error))")
+    }
+  }
+
   // MARK: - Migrator
 
-  static func makeMigrator() throws -> DatabaseMigrator {
+  static func makeMigrator() -> DatabaseMigrator {
     var migrator = DatabaseMigrator()
 
     migrator.registerMigration("v1") { db in

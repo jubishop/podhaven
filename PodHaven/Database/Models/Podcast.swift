@@ -3,6 +3,7 @@
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Logging
 import SavedMacro
 import Tagged
 
@@ -36,6 +37,8 @@ struct UnsavedPodcast:
   let cacheAllEpisodes: CacheAllEpisodes
   let notifyNewEpisodes: Bool
 
+  private static let log = Log.as(LogSubsystem.Database.podcast)
+
   init(
     feedURL: FeedURL,
     title: String,
@@ -53,7 +56,20 @@ struct UnsavedPodcast:
     self.title = title
     self.image = try image.convertToHTTPSURL()
     self.description = description
-    self.link = try? link?.convertToHTTPSURL()
+    if let link {
+      do {
+        self.link = try link.convertToHTTPSURL()
+      } catch {
+        Self.log.caughtError(
+          "Invalid link URL '\(link)' for podcast '\(title)'",
+          error,
+          remarkable: .info
+        )
+        self.link = nil
+      }
+    } else {
+      self.link = nil
+    }
     self.lastUpdate = lastUpdate ?? Date.epoch
     self.subscriptionDate = subscriptionDate
     self.defaultPlaybackRate = defaultPlaybackRate

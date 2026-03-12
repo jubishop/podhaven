@@ -125,7 +125,7 @@ struct BackgroundTaskScheduler: Sendable {
         )
       }
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("scheduleNext: failed to submit background task '\(identifier)'", error)
     }
   }
 }

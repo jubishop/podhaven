@@ -152,7 +152,10 @@ class EpisodesListViewModel:
         isLoading = false
       }
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "startObservation: observation failed for episode list '\(title)'",
+        error
+      )
       guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.message(for: error))
     }

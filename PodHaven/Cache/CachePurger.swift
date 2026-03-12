@@ -132,7 +132,10 @@ struct CachePurger: Sendable {
             )
           }
         } catch {
-          Self.log.error(error)
+          Self.log.caughtError(
+            "executePurge: failed to get file size for \(cachedURL) (\(episode.toString))",
+            error
+          )
         }
       }
     }
@@ -158,7 +161,10 @@ struct CachePurger: Sendable {
         try fileManager.removeItem(at: cachedFile)
         Self.log.notice("found and deleted dangling file: \(cachedFile.lastPathComponent)")
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "purgeDanglingFiles: failed to remove dangling file \(cachedFile.lastPathComponent)",
+          error
+        )
       }
     }
   }

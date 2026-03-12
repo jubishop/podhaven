@@ -42,7 +42,7 @@ enum WidgetSnapshotReader {
       )
       return snapshot
     } catch {
-      log.error("Failed to decode snapshot: \(error)")
+      log.caughtError("Failed to decode snapshot at \(url.path)", error)
       return nil
     }
   }

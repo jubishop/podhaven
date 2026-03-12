@@ -102,7 +102,7 @@ import Tagged
 
       previewState = .loaded(preview)
     } catch {
-      Self.log.error(error, mundane: .trace)
+      Self.log.caughtError("fetchPreview: failed for \(feedURL)", error, mundane: .trace)
       guard !Task.isCancelled else { return }
       previewState = .error("Failed to load preview")
     }
@@ -129,7 +129,7 @@ import Tagged
       urlText = ""
       return true
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("submitURL: failed for \(url)", error)
       state = .error(ErrorKit.message(for: error))
       return false
     }

@@ -12,7 +12,7 @@ class V18MigrationTests {
   private let migrator: DatabaseMigrator
 
   init() async throws {
-    self.migrator = try Schema.makeMigrator()
+    self.migrator = Schema.makeMigrator()
   }
 
   @Test("v18 migration adds defaultPlaybackRate column to podcast table with check constraint")

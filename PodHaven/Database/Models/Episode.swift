@@ -4,6 +4,7 @@ import AVFoundation
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Logging
 import SavedMacro
 import Tagged
 
@@ -79,8 +80,34 @@ struct UnsavedEpisode:
     self.pubDate = pubDate ?? Date()
     self.duration = duration ?? CMTime.zero
     self.description = description
-    self.link = try? link?.convertToHTTPSURL()
-    self.image = try? image?.convertToHTTPSURL()
+    if let link {
+      do {
+        self.link = try link.convertToHTTPSURL()
+      } catch {
+        Self.log.caughtError(
+          "Invalid link URL '\(link)' for episode '\(title)'",
+          error,
+          remarkable: .info
+        )
+        self.link = nil
+      }
+    } else {
+      self.link = nil
+    }
+    if let image {
+      do {
+        self.image = try image.convertToHTTPSURL()
+      } catch {
+        Self.log.caughtError(
+          "Invalid image URL '\(image)' for episode '\(title)'",
+          error,
+          remarkable: .info
+        )
+        self.image = nil
+      }
+    } else {
+      self.image = nil
+    }
     self.finishDate = finishDate
     self.currentTime = currentTime ?? CMTime.zero
     self.queueOrder = queueOrder

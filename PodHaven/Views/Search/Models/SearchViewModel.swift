@@ -40,7 +40,11 @@ class SearchViewModel:
           do {
             return try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast()
           } catch {
-            Log.as(LogSubsystem.SearchView.main).error(error)
+            Log.as(LogSubsystem.SearchView.main)
+              .caughtError(
+                "forEachSelectedPodcast: failed to get/create podcast \(selectedPodcastWithMetadata.podcast.title)",
+                error
+              )
             return nil
           }
         }
@@ -51,7 +55,10 @@ class SearchViewModel:
           do {
             try await action(podcast)
           } catch {
-            Self.log.error(error)
+            Self.log.caughtError(
+              "forEachSelectedPodcast: action failed for \(podcast.title)",
+              error
+            )
           }
         }
       }
@@ -319,7 +326,11 @@ class SearchViewModel:
         )
       }
     } catch {
-      Self.log.error(error, mundane: .trace)
+      Self.log.caughtError(
+        "executeTrendingSectionFetch: failed for genre \(String(describing: trendingSection.genreID))",
+        error,
+        mundane: .trace
+      )
       guard !Task.isCancelled else { return false }
 
       trendingSection.results = []
@@ -369,7 +380,11 @@ class SearchViewModel:
           """
         )
       } catch {
-        Self.log.error(error, mundane: .trace)
+        Self.log.caughtError(
+          "executeSearch: failed for term '\(searchedText)'",
+          error,
+          mundane: .trace
+        )
         guard !Task.isCancelled else { return false }
 
         searchResults = []

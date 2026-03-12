@@ -67,7 +67,7 @@ struct PodHavenApp: App {
       do {
         try await shareService.handleIncomingURL(url)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("handleIncomingURL: failed for share URL \(url)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

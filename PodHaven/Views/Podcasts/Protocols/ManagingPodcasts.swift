@@ -36,7 +36,7 @@ extension ManagingPodcasts {
           try await queue.unshift(latestEpisode.id)
         }
       } catch {
-        log.error(error)
+        log.caughtError("queueLatestEpisodeToTop: failed for \(podcast.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -54,7 +54,7 @@ extension ManagingPodcasts {
           try await queue.append(latestEpisode.id)
         }
       } catch {
-        log.error(error)
+        log.caughtError("queueLatestEpisodeToBottom: failed for \(podcast.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -70,7 +70,7 @@ extension ManagingPodcasts {
       do {
         try await repo.deletePodcast(podcastID)
       } catch {
-        log.error(error)
+        log.caughtError("deletePodcast: failed for podcast \(podcastID)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -85,7 +85,7 @@ extension ManagingPodcasts {
         let podcast = try await getOrCreatePodcast(podcast)
         try await repo.markSubscribed(podcast.id)
       } catch {
-        log.error(error)
+        log.caughtError("subscribePodcast: failed for \(podcast.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -101,7 +101,7 @@ extension ManagingPodcasts {
       do {
         try await repo.markUnsubscribed(podcastID)
       } catch {
-        log.error(error)
+        log.caughtError("unsubscribePodcast: failed for podcast \(podcastID)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

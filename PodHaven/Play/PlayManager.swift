@@ -213,7 +213,10 @@ final class PlayManager {
     do {
       try await queue.dequeue(incoming.id)
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "cleanUpAfterLoadSuccess: failed to dequeue incoming episode \(incoming.toString)",
+        error
+      )
     }
 
     // If there was an outgoing episode, put it back at the front of the queue
@@ -222,7 +225,10 @@ final class PlayManager {
       do {
         try await queue.unshift(outgoing.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "cleanUpAfterLoadSuccess: failed to unshift outgoing episode \(outgoing.toString)",
+          error
+        )
       }
     }
   }
@@ -250,7 +256,10 @@ final class PlayManager {
       do {
         try await queue.unshift(outgoing.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "cleanUpAfterLoadFailure: failed to unshift outgoing episode \(outgoing.toString)",
+          error
+        )
       }
     }
 
@@ -265,7 +274,10 @@ final class PlayManager {
       do {
         try await queue.unshift(incoming.id)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "cleanUpAfterLoadFailure: failed to unshift incoming episode \(incoming.toString)",
+          error
+        )
       }
     }
 
@@ -319,7 +331,7 @@ final class PlayManager {
     do {
       try await repo.markFinished(episodeID)
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("finishEpisode: failed to mark episode \(episodeID) finished", error)
     }
 
     guard episodeID == onDeckID
@@ -340,7 +352,7 @@ final class PlayManager {
         await setStatus(.stopped)
       }
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("finishEpisode: failed to load next episode after \(episodeID)", error)
       await alert(ErrorKit.message(for: error))
     }
   }
@@ -404,7 +416,10 @@ final class PlayManager {
         stateManager.setArtwork(image, for: episodeID)
         NowPlayingInfo.setImage(image)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "fetchImage: failed to load image \(imageURL) for episode \(episodeID)",
+          error
+        )
       }
     }
   }
@@ -576,7 +591,10 @@ final class PlayManager {
       do {
         try await queue.unshift(episodeID)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "handleItemStatusChange: failed to unshift episode \(episodeID) after status failure",
+          error
+        )
       }
     }
   }
@@ -674,7 +692,10 @@ final class PlayManager {
       try await load(episodeToLoad)
       Self.log.info("handleMediaServicesReset: recovery finished successfully")
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "handleMediaServicesReset: failed to recover playback",
+        error
+      )
     }
   }
 

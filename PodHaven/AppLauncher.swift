@@ -36,10 +36,10 @@ struct AppLauncher: Sendable {
     AppInfo.initializeEnvironment()
     guard AppInfo.environment != .preview else { return }
 
+    configureLogging()
+
     // Force DB initialization so schema migrations run immediately.
     _ = Container.shared.appDB()
-
-    configureLogging()
 
     Self.log.debug(
       "Initial environment is: \(AppInfo.environment), state: \(UIApplication.shared.applicationState)"
@@ -134,8 +134,8 @@ struct AppLauncher: Sendable {
           FileLogHandler(
             label: label,
             fileURL: AppInfo.logFileURL,
-            maxFileSizeBytes: 2_000_000,
-            targetFileSizeBytes: 1_750_000,
+            maxFileSizeBytes: 3_000_000,
+            targetFileSizeBytes: 2_000_000,
             writeSynchronously: { $0 >= .critical || !sharedState.isActive }
           ),
           SentryLogHandler(label: label),
