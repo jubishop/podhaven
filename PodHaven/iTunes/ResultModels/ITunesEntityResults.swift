@@ -1,8 +1,8 @@
 // Copyright Justin Bishop, 2025
 
 import Foundation
-import Tagged
 import Logging
+import Tagged
 
 struct ITunesEntityResults: Decodable, Sendable {
   private static let log = Log.as("ITunesEntityResults")
@@ -12,7 +12,11 @@ struct ITunesEntityResults: Decodable, Sendable {
       do {
         return try entity.toPodcastWithEpisodeMetadata()
       } catch {
-        Self.log.error(error, remarkable: .notice)
+        Self.log.caughtError(
+          "Failed to convert iTunes entity (feedURL: \(String(describing: entity.feedURL)))",
+          error,
+          remarkable: .notice
+        )
         return nil
       }
     }

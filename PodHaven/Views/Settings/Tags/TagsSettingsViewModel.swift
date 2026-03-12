@@ -32,7 +32,7 @@ import SwiftUI
         podcastCounts = counts
       }
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("execute: podcastCountsByTag observation failed", error)
     }
   }
 

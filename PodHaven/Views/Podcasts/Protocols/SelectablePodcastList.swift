@@ -70,7 +70,10 @@ extension SelectablePodcastList {
       do {
         try await repo.deletePodcast(savedPodcastIDs)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "deleteSelectedPodcasts: failed to delete \(savedPodcastIDs.count) podcasts",
+          error
+        )
       }
     }
   }
@@ -95,7 +98,10 @@ extension SelectablePodcastList {
       do {
         try await repo.markUnsubscribed(savedPodcastIDs)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "unsubscribeSelectedPodcasts: failed to unsubscribe \(savedPodcastIDs.count) podcasts",
+          error
+        )
       }
     }
   }

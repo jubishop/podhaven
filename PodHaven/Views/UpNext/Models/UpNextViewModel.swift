@@ -193,7 +193,10 @@ import SwiftUI
       do {
         try await queue.dequeue(episodeList.selectedEntryIDs)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "removeSelectedFromQueue: failed to dequeue \(episodeList.selectedEntryIDs.count) episodes",
+          error
+        )
       }
     }
   }

@@ -106,7 +106,7 @@ struct StateManager: Sendable {
           sharedState.setTags(tags)
         }
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("startObservingTags: observation failed", error)
       }
     }
   }
@@ -122,7 +122,7 @@ struct StateManager: Sendable {
           sharedState.setQueuedPodcastEpisodes(queuedPodcastEpisodes)
         }
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("startObservingQueuedPodcastEpisodes: observation failed", error)
       }
     }
   }

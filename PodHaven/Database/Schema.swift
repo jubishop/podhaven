@@ -198,8 +198,15 @@ enum Schema {
 
       func migrate<T: Codable>(_ key: String, _ nativeValue: @autoclosure () -> T) {
         guard let existing = defaults.object(forKey: key), !(existing is Data) else { return }
-        if let data = try? JSONEncoder().encode(nativeValue()) {
+        do {
+          let data = try JSONEncoder().encode(nativeValue())
           defaults.set(data, forKey: key)
+        } catch {
+          log.caughtError(
+            "v29 migration: failed to encode '\(key)' (\(type(of: existing)))",
+            error,
+            remarkable: .info
+          )
         }
       }
 

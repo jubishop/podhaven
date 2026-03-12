@@ -73,7 +73,7 @@ enum AppInfo {
         environment = refinedEnvironment
       }
     } catch {
-      log.error(error)
+      log.caughtError("finalizeEnvironment: AppTransaction.shared failed", error)
 
       // Retry with refresh
       do {
@@ -85,7 +85,7 @@ enum AppInfo {
           environment = refinedEnvironment
         }
       } catch {
-        log.error(error)
+        log.caughtError("finalizeEnvironment: AppTransaction.refresh also failed", error)
         // Keep existing environment
       }
     }

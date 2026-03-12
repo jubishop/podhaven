@@ -198,7 +198,7 @@ final class UserNotificationManager {
       Self.log.debug("Authorization \(granted ? "granted" : "denied")")
       return granted
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("requestAuthorization: failed to request notification permission", error)
       return false
     }
   }

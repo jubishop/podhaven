@@ -85,7 +85,7 @@ struct RefreshScheduler: Sendable {
 
         complete(true)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("register: background refresh failed", error)
         complete(false)
       }
 
@@ -128,7 +128,7 @@ struct RefreshScheduler: Sendable {
 
             Self.log.debug("foregroundRefreshTask: refresh completed gracefully")
           } catch {
-            Self.log.error(error)
+            Self.log.caughtError("foregroundRefreshTask: refresh failed", error)
           }
           await backgroundTask.end()
 

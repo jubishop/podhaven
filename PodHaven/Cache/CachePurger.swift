@@ -70,7 +70,7 @@ struct CachePurger: Sendable {
 
         complete(true)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("register: background cache purge failed", error)
         complete(false)
       }
     }

@@ -23,7 +23,7 @@ import Logging
         self.counts = counts
       }
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("execute: podcastCounts observation failed", error)
     }
   }
 }

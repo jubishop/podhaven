@@ -117,7 +117,7 @@ extension SelectableEpisodeList {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await queue.append(episodeIDs)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("addSelectedEpisodesToBottomOfQueue: failed", error)
       }
     }
   }
@@ -132,7 +132,7 @@ extension SelectableEpisodeList {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await queue.unshift(episodeIDs)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("addSelectedEpisodesToTopOfQueue: failed", error)
       }
     }
   }
@@ -147,7 +147,7 @@ extension SelectableEpisodeList {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await queue.replace(episodeIDs)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("replaceQueueWithSelected: failed", error)
       }
     }
   }
@@ -168,7 +168,10 @@ extension SelectableEpisodeList {
           await playManager.play()
         }
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "playSelectedEpisodes: failed to play \(selectedEpisodes.count) episodes",
+          error
+        )
       }
     }
   }
@@ -183,7 +186,10 @@ extension SelectableEpisodeList {
       do {
         try await queue.dequeue(savedEpisodeIDs)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError(
+          "dequeueSelectedEpisodes: failed to dequeue \(savedEpisodeIDs.count) episodes",
+          error
+        )
       }
     }
   }
@@ -204,7 +210,7 @@ extension SelectableEpisodeList {
           }
         }
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("cacheSelectedEpisodes: failed to resolve episode IDs", error)
       }
     }
   }
@@ -216,11 +222,19 @@ extension SelectableEpisodeList {
       .map(\.id)
     guard !cachedEpisodeIDs.isEmpty else { return }
 
+    let log = Self.log
     Task {
-      await withThrowingTaskGroup(of: Void.self) { group in
+      await withDiscardingTaskGroup { group in
         for episodeID in cachedEpisodeIDs {
           group.addTask {
-            try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: false)
+            do {
+              try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: false)
+            } catch {
+              log.caughtError(
+                "uncacheSelectedEpisodes: failed to unsave episode \(episodeID)",
+                error
+              )
+            }
             await Container.shared.cacheManager().clearCache(for: episodeID)
           }
         }
@@ -231,20 +245,33 @@ extension SelectableEpisodeList {
   func saveSelectedEpisodesInCache() {
     guard anySelectedNotSavedInCache else { return }
 
+    let log = Self.log
     Task { [weak self] in
       guard let self else { return }
 
+      let episodeIDs: [Episode.ID]
       do {
-        try await withThrowingTaskGroup(of: Void.self) { group in
-          for episodeID in try await selectedPodcastEpisodeIDs {
-            group.addTask {
+        episodeIDs = try await selectedPodcastEpisodeIDs
+      } catch {
+        log.caughtError("saveSelectedEpisodesInCache: failed to resolve episode IDs", error)
+        return
+      }
+
+      await withDiscardingTaskGroup { group in
+        for episodeID in episodeIDs {
+          group.addTask {
+            do {
               try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: true)
-              await Container.shared.cacheManager().downloadToCache(for: episodeID)
+            } catch {
+              log.caughtError(
+                "saveSelectedEpisodesInCache: failed to save episode \(episodeID)",
+                error
+              )
+              return
             }
+            await Container.shared.cacheManager().downloadToCache(for: episodeID)
           }
         }
-      } catch {
-        Self.log.error(error)
       }
     }
   }
@@ -256,11 +283,19 @@ extension SelectableEpisodeList {
       .map(\.id)
     guard !savedEpisodeIDs.isEmpty else { return }
 
+    let log = Self.log
     Task {
-      await withThrowingTaskGroup(of: Void.self) { group in
+      await withDiscardingTaskGroup { group in
         for episodeID in savedEpisodeIDs {
           group.addTask {
-            try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: false)
+            do {
+              try await Container.shared.repo().updateSaveInCache(episodeID, saveInCache: false)
+            } catch {
+              log.caughtError(
+                "unsaveSelectedEpisodesFromCache: failed to unsave episode \(episodeID)",
+                error
+              )
+            }
           }
         }
       }
@@ -295,7 +330,7 @@ extension SelectableEpisodeList {
         let episodeIDs = try await selectedPodcastEpisodeIDs
         try await repo.markFinished(episodeIDs)
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("markSelectedEpisodesFinished: failed", error)
       }
     }
   }

@@ -87,7 +87,10 @@ struct FileLogHandler: LogHandler {
       case .truncated(let originalSize, let newSize):
         Self.log.info("Log truncated from \(originalSize) to \(newSize) bytes")
       case .failed(let error):
-        Self.log.error(error)
+        Self.log.caughtError(
+          "report: failed to write log entry to \(fileURL.lastPathComponent)",
+          error
+        )
       }
     }
 

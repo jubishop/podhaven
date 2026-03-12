@@ -54,7 +54,7 @@ struct AppLauncher: Sendable {
       try Container.shared.configureAudioSession()()
       CommandCenter.registerRemoteCommandHandlers()
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("bootstrap: failed to configure audio session", error)
     }
   }
 

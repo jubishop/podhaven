@@ -31,7 +31,10 @@ struct PodcastsListView: View {
         do {
           try await viewModel.refreshPodcasts()
         } catch {
-          Self.log.error(error)
+          Self.log.caughtError(
+            "refreshable: failed to refresh podcast list '\(viewModel.title)'",
+            error
+          )
           guard ErrorKit.isRemarkable(error) else { return }
           alert(ErrorKit.message(for: error))
         }

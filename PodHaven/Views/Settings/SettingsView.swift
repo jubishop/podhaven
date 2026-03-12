@@ -260,7 +260,10 @@ struct SettingsView: View {
                     do {
                       try await queue.enforceMaxQueueLength()
                     } catch {
-                      Self.log.error(error)
+                      Self.log.caughtError(
+                        "maxQueueLength: failed to enforce max queue length \(Int(tempMaxQueueLength))",
+                        error
+                      )
                     }
                   }
                 }

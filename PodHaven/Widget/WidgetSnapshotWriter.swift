@@ -84,7 +84,7 @@ final class WidgetSnapshotWriter: Sendable {
           scheduleWrite(reloadKinds: [WidgetInfo.queueKind])
         }
       } catch {
-        Self.log.error(error)
+        Self.log.caughtError("start: queueWidgetEpisodes observation failed", error)
       }
     }
 
@@ -188,7 +188,7 @@ final class WidgetSnapshotWriter: Sendable {
       try await fileManager.writeData(data, to: WidgetInfo.snapshotURL)
       Self.log.debug("Wrote widget snapshot (\(data.count) bytes)")
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError("writeSnapshot: failed to encode/write widget snapshot", error)
     }
   }
 

@@ -481,7 +481,11 @@ class SearchViewModel:
         }
       } catch {
         guard ErrorKit.isRemarkable(error) else { return }
-        Self.log.error(error, mundane: .trace)
+        Self.log.caughtError(
+          "restartObservation: observation failed for \(feedURLs.count) feed URLs",
+          error,
+          mundane: .trace
+        )
       }
     }
   }

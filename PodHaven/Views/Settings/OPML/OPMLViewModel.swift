@@ -31,7 +31,10 @@ import UniformTypeIdentifiers
     do {
       url = try result.get()
     } catch {
-      Self.log.error(error)
+      Self.log.caughtError(
+        "opmlFileImporterCompletion: failed to get URL from file importer",
+        error
+      )
       guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.message(for: error))
       return
