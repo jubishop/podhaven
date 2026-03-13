@@ -31,10 +31,6 @@ enum ErrorKit {
 
   // MARK: - Analysis
 
-  static func underlyingError(for error: any Error) -> (any Error)? {
-    (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
-  }
-
   static func isRemarkable(_ error: any Error) -> Bool {
     if error is CancellationError { return false }
 
@@ -48,6 +44,10 @@ enum ErrorKit {
   }
 
   // MARK: - Private Formatting Helpers
+
+  private static func underlyingError(for error: any Error) -> (any Error)? {
+    (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error
+  }
 
   private static func typeName(for error: any Error) -> String {
     let mirror = Mirror(reflecting: error)

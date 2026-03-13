@@ -10,17 +10,18 @@ extension Logger {
     _ header: String,
     _ error: any Error,
     remarkable: Logger.Level = .error,
-    mundane: Logger.Level = .info,
+    mundane: Logger.Level = .trace,
     file: String = #fileID,
     function: String = #function,
-    line: UInt = #line
+    line: UInt = #line,
+    isRemarkable: (any Error) -> Bool = ErrorKit.isRemarkable
   ) {
     Assert.precondition(
       mundane <= remarkable,
       "mundane level (\(mundane)) must not exceed remarkable level (\(remarkable))"
     )
     let message: Logger.Message = "\(header)\n\(ErrorKit.loggableMessage(for: error))"
-    if ErrorKit.isRemarkable(error) {
+    if isRemarkable(error) {
       self.log(level: remarkable, message, file: file, function: function, line: line)
     } else {
       self.log(level: mundane, message, file: file, function: function, line: line)
@@ -33,14 +34,15 @@ extension Logger {
     mundane: Logger.Level = .info,
     file: String = #fileID,
     function: String = #function,
-    line: UInt = #line
+    line: UInt = #line,
+    isRemarkable: (any Error) -> Bool = ErrorKit.isRemarkable
   ) {
     Assert.precondition(
       mundane <= remarkable,
       "mundane level (\(mundane)) must not exceed remarkable level (\(remarkable))"
     )
     let message = ErrorKit.loggableMessage(for: error)
-    if ErrorKit.isRemarkable(error) {
+    if isRemarkable(error) {
       self.log(level: remarkable, message, file: file, function: function, line: line)
     } else {
       self.log(level: mundane, message, file: file, function: function, line: line)
