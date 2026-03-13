@@ -80,6 +80,9 @@ struct AppLauncher: Sendable {
     Self.log.info("Preparing for foreground")
 
     await AppInfo.finalizeEnvironment()
+    SentrySDK.configureScope { scope in
+      scope.setEnvironment(AppInfo.environment.rawValue)
+    }
     guard !Task.isCancelled else { return }
 
     await userNotificationManager.initialize()
@@ -158,6 +161,7 @@ struct AppLauncher: Sendable {
     SentrySDK.start { options in
       options.dsn =
         "https://df2c739d3207c6cbc8d0e6f965238234@o4508469263663104.ingest.us.sentry.io/4508469264711681"
+      options.environment = AppInfo.environment.rawValue
       options.sendDefaultPii = true
       options.enableAppHangTracking = true
       options.enableLogs = true

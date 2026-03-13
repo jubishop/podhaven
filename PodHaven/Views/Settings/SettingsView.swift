@@ -301,6 +301,8 @@ struct SettingsView: View {
           }
         }
 
+        FeedbackSection()
+
         if AppInfo.environment != .appStore {
           DebugSection()
         }
