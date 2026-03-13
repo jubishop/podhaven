@@ -15,36 +15,44 @@ enum WidgetSnapshotReader {
       return nil
     }
 
+    let data: Data
     do {
-      let data = try Data(contentsOf: url)
-      log.debug("Read snapshot file: \(data.count) bytes")
+      data = try Data(contentsOf: url)
+    } catch {
+      log.caughtError("Failed to read snapshot file at \(url.path)", error)
+      return nil
+    }
 
-      let snapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
+    log.debug("Read snapshot file: \(data.count) bytes")
 
-      guard snapshot.schemaVersion <= WidgetSnapshot.currentSchemaVersion else {
-        log.warning(
-          """
-          Snapshot schema version \
-          \(snapshot.schemaVersion) is newer than \
-          supported \(WidgetSnapshot.currentSchemaVersion)
-          """
-        )
-        return nil
-      }
-
-      log.debug(
-        """
-        Decoded snapshot: \
-        nowPlaying=\(snapshot.nowPlaying != nil), \
-        queue=\(snapshot.queue.count) items, \
-        updatedAt=\(snapshot.updatedAt)
-        """
-      )
-      return snapshot
+    let snapshot: WidgetSnapshot
+    do {
+      snapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
     } catch {
       log.caughtError("Failed to decode snapshot at \(url.path)", error)
       return nil
     }
+
+    guard snapshot.schemaVersion <= WidgetSnapshot.currentSchemaVersion else {
+      log.warning(
+        """
+        Snapshot schema version \
+        \(snapshot.schemaVersion) is newer than \
+        supported \(WidgetSnapshot.currentSchemaVersion)
+        """
+      )
+      return nil
+    }
+
+    log.debug(
+      """
+      Decoded snapshot: \
+      nowPlaying=\(snapshot.nowPlaying != nil), \
+      queue=\(snapshot.queue.count) items, \
+      updatedAt=\(snapshot.updatedAt)
+      """
+    )
+    return snapshot
   }
 
   static func decodeArtwork(from base64String: String?) -> UIImage? {

@@ -365,8 +365,6 @@ import UIKit
         "observePodcastEpisode: observation failed for \(podcastEpisode.toString)",
         error
       )
-      guard ErrorKit.isRemarkable(error) else { return }
-      self.alert(ErrorKit.message(for: error))
     }
   }
 

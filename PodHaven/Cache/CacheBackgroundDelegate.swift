@@ -207,10 +207,19 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
 
     do {
       try await repo.updateDuration(episode.id, duration: episodeAsset.duration)
+    } catch {
+      Self.log.caughtError(
+        "didFinishDownloadingTo: failed to update duration for \(episode.toString)",
+        error
+      )
+      return
+    }
+
+    do {
       try await repo.updateCachedFilename(episode.id, cachedFilename: fileName)
     } catch {
       Self.log.caughtError(
-        "didFinishDownloadingTo: failed to update DB after caching \(episode.toString) to \(fileName)",
+        "didFinishDownloadingTo: failed to update cached filename for \(episode.toString) to \(fileName)",
         error
       )
       return

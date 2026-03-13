@@ -511,12 +511,10 @@ final class PlayManager {
 
     if let podcastEpisode, let cachedURL = podcastEpisode.episode.cachedURL {
       if fileManager.fileExists(at: cachedURL.rawValue) {
-        let size: Int64
         do {
-          size = try fileManager.fileSize(for: cachedURL.rawValue)
+          let size = try fileManager.fileSize(for: cachedURL.rawValue)
           Self.log.info("logFailureDiagnostics: cached file exists, size: \(size) bytes")
         } catch {
-          size = -1
           Self.log.caughtError(
             "logFailureDiagnostics: failed to get file size at \(cachedURL)",
             error

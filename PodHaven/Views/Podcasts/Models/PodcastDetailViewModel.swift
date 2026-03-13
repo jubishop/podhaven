@@ -518,8 +518,6 @@ class PodcastDetailViewModel:
         try await observePodcastSeries(podcastID)
       } catch {
         Self.log.caughtError("startObservation: failed for podcast \(podcastID)", error)
-        guard ErrorKit.isRemarkable(error) else { return }
-        alert(ErrorKit.message(for: error))
       }
       clearObservationTask()
     }

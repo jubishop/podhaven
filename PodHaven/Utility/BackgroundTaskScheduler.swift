@@ -107,25 +107,27 @@ struct BackgroundTaskScheduler: Sendable {
 
     do {
       try BGTaskScheduler.shared.submit(request)
-      Self.log.debug(
-        """
-        scheduled next background task: \(identifier)
-          type: \(taskType)
-          duration: \(duration)
-          earliest begin date: \(request.earliestBeginDate?.description ?? "nil")
-        """
-      )
-
-      BGTaskScheduler.shared.getPendingTaskRequests { requests in
-        Self.log.debug(
-          """
-          Pending background tasks:
-            \(Self.formatPendingTasks(requests))
-          """
-        )
-      }
     } catch {
       Self.log.caughtError("scheduleNext: failed to submit background task '\(identifier)'", error)
+      return
+    }
+
+    Self.log.debug(
+      """
+      scheduled next background task: \(identifier)
+        type: \(taskType)
+        duration: \(duration)
+        earliest begin date: \(request.earliestBeginDate?.description ?? "nil")
+      """
+    )
+
+    BGTaskScheduler.shared.getPendingTaskRequests { requests in
+      Self.log.debug(
+        """
+        Pending background tasks:
+          \(Self.formatPendingTasks(requests))
+        """
+      )
     }
   }
 }

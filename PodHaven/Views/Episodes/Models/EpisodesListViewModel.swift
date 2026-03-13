@@ -13,7 +13,6 @@ class EpisodesListViewModel:
   SelectableEpisodeList,
   SortableEpisodeList
 {
-  @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
@@ -156,8 +155,6 @@ class EpisodesListViewModel:
         "startObservation: observation failed for episode list '\(title)'",
         error
       )
-      guard ErrorKit.isRemarkable(error) else { return }
-      alert(ErrorKit.message(for: error))
     }
   }
 }
