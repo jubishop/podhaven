@@ -4,6 +4,7 @@ import FactoryKit
 import SwiftUI
 
 struct SettingsView: View {
+  @DynamicInjected(\.alert) private var alert
   @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.userSettings) private var userSettings
@@ -264,6 +265,8 @@ struct SettingsView: View {
                         "maxQueueLength: failed to enforce max queue length \(Int(tempMaxQueueLength))",
                         error
                       )
+                      guard ErrorKit.isRemarkable(error) else { return }
+                      alert(ErrorKit.message(for: error))
                     }
                   }
                 }

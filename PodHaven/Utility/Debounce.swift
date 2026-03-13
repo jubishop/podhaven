@@ -19,13 +19,11 @@ final class Debounce: Sendable {
     task { existing in
       existing?.cancel()
       existing = Task {
-        do {
-          if duration > .zero {
-            try await sleeper.sleep(for: duration)
-          }
-          guard !Task.isCancelled else { return }
-          await action()
-        } catch {}
+        if duration > .zero {
+          try? await sleeper.sleep(for: duration)
+        }
+        guard !Task.isCancelled else { return }
+        await action()
       }
     }
   }
