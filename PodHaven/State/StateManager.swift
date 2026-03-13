@@ -16,6 +16,7 @@ extension Container {
 struct StateManager: Sendable {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.sharedState) private var sharedState
+  @DynamicInjected(\.sleeper) private var sleeper
 
   private static let log = Log.as(LogSubsystem.State.manager)
 
@@ -47,27 +48,33 @@ struct StateManager: Sendable {
     // Observe for updates (e.g., if episode is marked finished, cached, etc.)
     onDeckObservationTask(
       Task {
-        do {
-          for try await episode in observatory.podcastEpisode(podcastEpisode.id) {
-            guard !Task.isCancelled else { return }
+        var retryDelay: Duration = .seconds(1)
+        while !Task.isCancelled {
+          do {
+            for try await episode in observatory.podcastEpisode(podcastEpisode.id) {
+              guard !Task.isCancelled else { return }
+              retryDelay = .seconds(1)
 
-            if let episode {
-              sharedState.$onDeck.update { onDeck in
-                onDeck = OnDeck(
-                  podcastEpisode: episode,
-                  artwork: onDeck?.artwork,
-                  currentTime: onDeck?.currentTime
-                )
+              if let episode {
+                sharedState.$onDeck.update { onDeck in
+                  onDeck = OnDeck(
+                    podcastEpisode: episode,
+                    artwork: onDeck?.artwork,
+                    currentTime: onDeck?.currentTime
+                  )
+                }
+              } else {
+                sharedState.$onDeck.new(nil)
               }
-            } else {
-              sharedState.$onDeck.new(nil)
             }
+          } catch {
+            Self.log.caughtError(
+              "setOnDeck: observation failed for episode \(podcastEpisode.id)",
+              error
+            )
+            try? await sleeper.sleep(for: retryDelay)
+            retryDelay = min(retryDelay * 2, .seconds(60))
           }
-        } catch {
-          Self.log.caughtError(
-            "setOnDeck: observation failed for episode \(podcastEpisode.id)",
-            error
-          )
         }
       }
     )
@@ -99,14 +106,20 @@ struct StateManager: Sendable {
     Assert.neverCalled()
 
     Task {
-      do {
-        for try await tags in observatory.tags() {
-          guard !Task.isCancelled else { return }
-          Self.log.debug("Updating observed tags: \(tags.count) tags")
-          sharedState.setTags(tags)
+      var retryDelay: Duration = .seconds(1)
+      while !Task.isCancelled {
+        do {
+          for try await tags in observatory.tags() {
+            guard !Task.isCancelled else { return }
+            retryDelay = .seconds(1)
+            Self.log.debug("Updating observed tags: \(tags.count) tags")
+            sharedState.setTags(tags)
+          }
+        } catch {
+          Self.log.caughtError("startObservingTags: observation failed", error)
+          try? await sleeper.sleep(for: retryDelay)
+          retryDelay = min(retryDelay * 2, .seconds(60))
         }
-      } catch {
-        Self.log.caughtError("startObservingTags: observation failed", error)
       }
     }
   }
@@ -115,14 +128,20 @@ struct StateManager: Sendable {
     Assert.neverCalled()
 
     Task {
-      do {
-        for try await queuedPodcastEpisodes in observatory.queuedPodcastEpisodes() {
-          guard !Task.isCancelled else { return }
-          Self.log.debug("Updating observed queue: \(queuedPodcastEpisodes.count) episodes")
-          sharedState.setQueuedPodcastEpisodes(queuedPodcastEpisodes)
+      var retryDelay: Duration = .seconds(1)
+      while !Task.isCancelled {
+        do {
+          for try await queuedPodcastEpisodes in observatory.queuedPodcastEpisodes() {
+            guard !Task.isCancelled else { return }
+            retryDelay = .seconds(1)
+            Self.log.debug("Updating observed queue: \(queuedPodcastEpisodes.count) episodes")
+            sharedState.setQueuedPodcastEpisodes(queuedPodcastEpisodes)
+          }
+        } catch {
+          Self.log.caughtError("startObservingQueuedPodcastEpisodes: observation failed", error)
+          try? await sleeper.sleep(for: retryDelay)
+          retryDelay = min(retryDelay * 2, .seconds(60))
         }
-      } catch {
-        Self.log.caughtError("startObservingQueuedPodcastEpisodes: observation failed", error)
       }
     }
   }
