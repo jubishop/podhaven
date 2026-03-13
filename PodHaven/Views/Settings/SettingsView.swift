@@ -301,7 +301,12 @@ struct SettingsView: View {
           }
         }
 
-        FeedbackSection()
+        Section("Feedback") {
+          NavigationLink(
+            value: Navigation.Destination.settingsSection(.feedback),
+            label: { Text("Send Feedback") }
+          )
+        }
 
         if AppInfo.environment != .appStore {
           DebugSection()

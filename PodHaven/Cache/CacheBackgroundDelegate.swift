@@ -245,24 +245,36 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
   ) async {
     guard let downloadError = error else { return }
 
+    let episode: Episode?
     do {
-      guard let episode = try await repo.episode(task.taskID) else {
-        Self.log.warning("No episode for task #\(task.taskID)?")
-        return
-      }
-
-      sharedState.clearDownloadProgress(for: episode.id)
-      try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
-      Self.log.caughtError(
-        "Episode \(episode.toString) download failed",
-        downloadError
-      )
+      episode = try await repo.episode(task.taskID)
     } catch {
       Self.log.caughtError(
-        "didCompleteWithError: failed to clean up after download error for task #\(task.taskID)",
+        "didCompleteWithError: failed to fetch episode for task #\(task.taskID)",
+        error
+      )
+      Self.log.caughtError("Download failed for task #\(task.taskID)", downloadError)
+      return
+    }
+
+    guard let episode else {
+      Self.log.warning("No episode for task #\(task.taskID)?")
+      Self.log.caughtError("Download failed for unknown task #\(task.taskID)", downloadError)
+      return
+    }
+
+    sharedState.clearDownloadProgress(for: episode.id)
+
+    do {
+      try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
+    } catch {
+      Self.log.caughtError(
+        "didCompleteWithError: failed to clear download task ID for \(episode.toString)",
         error
       )
     }
+
+    Self.log.caughtError("Episode \(episode.toString) download failed", downloadError)
   }
 
   func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
