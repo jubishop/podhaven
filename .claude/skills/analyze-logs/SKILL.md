@@ -37,7 +37,10 @@ Read and analyze the log file to answer the user's question. If no specific ques
    ```
    python3 -c "from datetime import datetime, UTC; print(datetime.fromtimestamp(TIMESTAMP_MS/1000, UTC))"
    ```
-3. Note the time span covered and report it to the user.
+3. Note the time span covered and report it to the user. **Always present times in Pacific Time (America/Los_Angeles).** When converting, use:
+   ```
+   python3 -c "from datetime import datetime, UTC; from zoneinfo import ZoneInfo; print(datetime.fromtimestamp(TIMESTAMP_MS/1000, UTC).astimezone(ZoneInfo('America/Los_Angeles')))"
+   ```
 
 ### Step 2 — Find problems
 
