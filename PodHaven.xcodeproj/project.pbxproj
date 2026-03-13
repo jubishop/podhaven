@@ -784,6 +784,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				GIT_COMMIT_HASH = Unknown;
 				INFOPLIST_FILE = PodHaven/Info.plist;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -1288,6 +1289,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				GIT_COMMIT_HASH = Unknown;
 				INFOPLIST_FILE = PodHaven/Info.plist;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -1340,6 +1342,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				GIT_COMMIT_HASH = Unknown;
 				INFOPLIST_FILE = PodHaven/Info.plist;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
