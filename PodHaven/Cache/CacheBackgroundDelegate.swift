@@ -109,8 +109,9 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
     downloadTask: any DownloadingTask,
     didFinishDownloadingTo location: URL
   ) async {
+    let episode: Episode
     do {
-      guard let episode = try await repo.episode(downloadTask.taskID) else {
+      guard let fetched = try await repo.episode(downloadTask.taskID) else {
         Self.log.debug("No episode for task #\(downloadTask.taskID)?")
         do {
           try fileManager.removeItem(at: location)
@@ -122,48 +123,100 @@ final class CacheBackgroundDelegate: NSObject, URLSessionDownloadDelegate {
         }
         return
       }
-
-      try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
-      sharedState.clearDownloadProgress(for: episode.id)
-
-      let fileName = generateCacheFilename(for: episode)
-      let destURL = CacheManager.resolveCachedFilepath(for: fileName)
-      if fileManager.fileExists(at: destURL.rawValue) {
-        Self.log.notice("File already cached for \(episode.id) at \(destURL), removing")
-        try fileManager.removeItem(at: destURL.rawValue)
-      }
-
-      try fileManager.moveItem(at: location, to: destURL.rawValue)
-      let episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: destURL.rawValue))
-
-      guard episodeAsset.isPlayable else {
-        Self.log.error(
-          """
-          MediaGUID Not Playable
-            Episode: \(episode.toString)
-            MediaGUID: \(episode.unsaved.id)
-          """
-        )
-        do {
-          try fileManager.removeItem(at: destURL.rawValue)
-        } catch {
-          Self.log.caughtError(
-            "didFinishDownloadingTo: failed to remove unplayable file at \(destURL)",
-            error
-          )
-        }
-        return
-      }
-
-      try await repo.updateDuration(episode.id, duration: episodeAsset.duration)
-      try await repo.updateCachedFilename(episode.id, cachedFilename: fileName)
-      Self.log.debug("Cached episode \(episode.id) to \(fileName)")
+      episode = fetched
     } catch {
       Self.log.caughtError(
-        "didFinishDownloadingTo: failed to process completed download for task #\(downloadTask.taskID)",
+        "didFinishDownloadingTo: failed to fetch episode for task #\(downloadTask.taskID)",
+        error
+      )
+      return
+    }
+
+    do {
+      try await repo.updateDownloadTaskID(episode.id, downloadTaskID: nil)
+    } catch {
+      Self.log.caughtError(
+        "didFinishDownloadingTo: failed to clear download task ID for \(episode.toString)",
         error
       )
     }
+    sharedState.clearDownloadProgress(for: episode.id)
+
+    let fileName = generateCacheFilename(for: episode)
+    let destURL = CacheManager.resolveCachedFilepath(for: fileName)
+    if fileManager.fileExists(at: destURL.rawValue) {
+      Self.log.notice("File already cached for \(episode.id) at \(destURL), removing")
+      do {
+        try fileManager.removeItem(at: destURL.rawValue)
+      } catch {
+        Self.log.caughtError(
+          "didFinishDownloadingTo: failed to remove existing cached file at \(destURL) for \(episode.toString)",
+          error
+        )
+        return
+      }
+    }
+
+    do {
+      try fileManager.moveItem(at: location, to: destURL.rawValue)
+    } catch {
+      Self.log.caughtError(
+        "didFinishDownloadingTo: failed to move downloaded file to \(destURL) for \(episode.toString)",
+        error
+      )
+      return
+    }
+
+    let episodeAsset: EpisodeAsset
+    do {
+      episodeAsset = try await loadEpisodeAsset(AVURLAsset(url: destURL.rawValue))
+    } catch {
+      Self.log.caughtError(
+        "didFinishDownloadingTo: failed to load asset at \(destURL) for \(episode.toString)",
+        error
+      )
+      do {
+        try fileManager.removeItem(at: destURL.rawValue)
+      } catch {
+        Self.log.caughtError(
+          "didFinishDownloadingTo: failed to clean up file at \(destURL) after asset load failure",
+          error
+        )
+      }
+      return
+    }
+
+    guard episodeAsset.isPlayable else {
+      Self.log.error(
+        """
+        MediaGUID Not Playable
+          Episode: \(episode.toString)
+          MediaGUID: \(episode.unsaved.id)
+        """
+      )
+      do {
+        try fileManager.removeItem(at: destURL.rawValue)
+      } catch {
+        Self.log.caughtError(
+          "didFinishDownloadingTo: failed to remove unplayable file at \(destURL)",
+          error
+        )
+      }
+      return
+    }
+
+    do {
+      try await repo.updateDuration(episode.id, duration: episodeAsset.duration)
+      try await repo.updateCachedFilename(episode.id, cachedFilename: fileName)
+    } catch {
+      Self.log.caughtError(
+        "didFinishDownloadingTo: failed to update DB after caching \(episode.toString) to \(fileName)",
+        error
+      )
+      return
+    }
+
+    Self.log.debug("Cached episode \(episode.id) to \(fileName)")
   }
 
   func urlSession(

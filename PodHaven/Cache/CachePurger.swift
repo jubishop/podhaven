@@ -118,8 +118,18 @@ struct CachePurger: Sendable {
       guard freedBytes < bytesToFree else { break }
 
       if let cachedURL = episode.cachedURL {
+        let fileSize: Int64
         do {
-          let fileSize = try fileManager.fileSize(for: cachedURL.rawValue)
+          fileSize = try fileManager.fileSize(for: cachedURL.rawValue)
+        } catch {
+          Self.log.caughtError(
+            "executePurge: failed to get file size for \(cachedURL) (\(episode.toString))",
+            error
+          )
+          continue
+        }
+
+        do {
           if let clearedURL = try await cacheManager.clearCache(for: episode.id) {
             freedBytes += fileSize
             deletedCount += 1
@@ -133,7 +143,7 @@ struct CachePurger: Sendable {
           }
         } catch {
           Self.log.caughtError(
-            "executePurge: failed to get file size for \(cachedURL) (\(episode.toString))",
+            "executePurge: failed to clear cache for \(episode.toString)",
             error
           )
         }

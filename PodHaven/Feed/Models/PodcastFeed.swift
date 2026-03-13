@@ -185,7 +185,8 @@ struct PodcastFeed: Sendable, Stringable {
         } catch {
           Self.log.caughtError(
             "Failed to convert episode feed to unsaved episode: \(episodeFeed.mediaGUID)",
-            error
+            error,
+            remarkable: .warning
           )
           return nil
         }

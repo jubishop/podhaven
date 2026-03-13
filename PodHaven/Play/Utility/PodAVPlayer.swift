@@ -173,6 +173,7 @@ enum PodAVPlayerError: Error, LocalizedError {
   }
 
   // Swap to cached version if available. Returns whether a swap occurred.
+  // Note: We don't bother throwing here, just return false for any failure.
   @discardableResult
   private func swapToCached() async -> Bool {
     guard !playingFromCache, let episodeID else { return false }
@@ -180,7 +181,6 @@ enum PodAVPlayerError: Error, LocalizedError {
     let podcastEpisode: PodcastEpisode
     do {
       guard let fetched = try await repo.podcastEpisode(episodeID) else { return false }
-      guard fetched.episode.cachedURL != nil else { return false }
       podcastEpisode = fetched
     } catch {
       Self.log.caughtError(
@@ -190,11 +190,11 @@ enum PodAVPlayerError: Error, LocalizedError {
       return false
     }
 
+    guard podcastEpisode.episode.cachedURL != nil else { return false }
+
+    let playableItem: any AVPlayableItem
     do {
-      let (_, playableItem) = try await loadAsset(for: podcastEpisode)
-      avPlayer.replaceCurrent(with: playableItem)
-      Self.log.info("swapToCached: swapped to cached version")
-      return true
+      (_, playableItem) = try await loadAsset(for: podcastEpisode)
     } catch {
       Self.log.caughtError(
         "swapToCached: failed to load cached asset for \(podcastEpisode.toString)",
@@ -202,6 +202,10 @@ enum PodAVPlayerError: Error, LocalizedError {
       )
       return false
     }
+
+    avPlayer.replaceCurrent(with: playableItem)
+    Self.log.info("swapToCached: swapped to cached version")
+    return true
   }
 
   // MARK: - Playback Controls
