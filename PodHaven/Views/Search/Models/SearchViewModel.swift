@@ -481,7 +481,7 @@ class SearchViewModel:
         Self.log.caughtError(
           "restartObservation: observation failed for \(feedURLs.count) feed URLs",
           error,
-          mundane: .trace
+          remarkable: .info
         )
       }
     }

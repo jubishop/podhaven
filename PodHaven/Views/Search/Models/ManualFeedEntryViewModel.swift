@@ -7,8 +7,6 @@ import Tagged
 
 @Observable @MainActor class ManualFeedEntryViewModel {
   @ObservationIgnored @DynamicInjected(\.shareService) private var shareService
-  @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
-
   private static let log = Log.as(LogSubsystem.SearchView.manual)
 
   // MARK: - Configuration
@@ -47,7 +45,9 @@ import Tagged
     }
   }
 
-  @ObservationIgnored private var previewTask: Task<Void, Never>?
+  @ObservationIgnored private lazy var debouncePreview = Debounce(
+    duration: Self.previewDebounceDuration
+  )
 
   var canSubmit: Bool {
     !urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading
@@ -61,26 +61,18 @@ import Tagged
   // MARK: - Actions
 
   private func schedulePreview() {
-    previewTask?.cancel()
-    previewTask = nil
-
     let trimmedURL = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
 
     guard !trimmedURL.isEmpty, let url = URL(string: trimmedURL) else {
+      debouncePreview.cancel()
       previewState = .idle
       return
     }
 
-    let task = Task { [weak self] in
+    debouncePreview { [weak self] in
       guard let self else { return }
-
-      try? await sleeper.sleep(for: Self.previewDebounceDuration)
-      guard !Task.isCancelled else { return }
-
       await fetchPreview(for: FeedURL(url))
     }
-
-    previewTask = task
   }
 
   private func fetchPreview(for feedURL: FeedURL) async {

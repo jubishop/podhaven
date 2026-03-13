@@ -167,7 +167,7 @@ enum AppInfo {
   static var buildDate: Date {
     guard let infoPath = Bundle.main.path(forResource: "Info", ofType: "plist")
     else {
-      log.error("Info.plist not found, returning current date as buildDate")
+      log.warning("Info.plist not found, returning current date as buildDate")
       return Date()
     }
 
@@ -176,7 +176,7 @@ enum AppInfo {
       if let infoDate = infoAttr[FileAttributeKey.creationDate] as? Date {
         return infoDate
       }
-      log.error("Info.plist has no creationDate attribute, returning current date as buildDate")
+      log.warning("Info.plist has no creationDate attribute, returning current date as buildDate")
       return Date()
     } catch {
       log.caughtError(

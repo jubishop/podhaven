@@ -49,7 +49,17 @@ enum WidgetSnapshotReader {
 
   static func decodeArtwork(from base64String: String?) -> UIImage? {
     guard let base64String else { return nil }
-    guard let data = Data(base64Encoded: base64String) else { return nil }
-    return UIImage(data: data)
+
+    guard let data = Data(base64Encoded: base64String) else {
+      log.warning("Failed to decode base64 artwork string (\(base64String.count) chars)")
+      return nil
+    }
+
+    guard let image = UIImage(data: data) else {
+      log.warning("Failed to create UIImage from decoded artwork data (\(data.count) bytes)")
+      return nil
+    }
+
+    return image
   }
 }

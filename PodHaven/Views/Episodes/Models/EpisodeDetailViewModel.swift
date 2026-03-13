@@ -308,6 +308,8 @@ import UIKit
         navigation.showPodcast(podcastEpisode.podcast)
       } catch {
         Self.log.caughtError("showPodcast: failed for \(episode.toString)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
       }
     }
   }
