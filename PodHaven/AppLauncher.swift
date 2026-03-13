@@ -161,7 +161,6 @@ struct AppLauncher: Sendable {
       options.sendDefaultPii = true
       options.enableAppHangTracking = true
       options.enableLogs = true
-      options.experimental.enableSessionReplayInUnreliableEnvironment = true
       options.initialScope = { scope in
         scope.setTag(value: AppInfo.gitCommitHash, key: "git-commit-hash")
         scope.setUser(User(userId: AppInfo.deviceIdentifier))
