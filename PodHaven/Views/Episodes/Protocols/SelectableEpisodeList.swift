@@ -197,6 +197,7 @@ extension SelectableEpisodeList {
   func cacheSelectedEpisodes() {
     guard anySelectedNotCached else { return }
 
+    let log = Self.log
     Task { [weak self] in
       guard let self else { return }
 
@@ -205,12 +206,19 @@ extension SelectableEpisodeList {
         await withDiscardingTaskGroup { group in
           for episodeID in episodeIDs {
             group.addTask {
-              await Container.shared.cacheManager().downloadToCache(for: episodeID)
+              do {
+                try await Container.shared.cacheManager().downloadToCache(for: episodeID)
+              } catch {
+                log.caughtError(
+                  "cacheSelectedEpisodes: failed for episode \(episodeID)",
+                  error
+                )
+              }
             }
           }
         }
       } catch {
-        Self.log.caughtError("cacheSelectedEpisodes: failed to resolve episode IDs", error)
+        log.caughtError("cacheSelectedEpisodes: failed to resolve episode IDs", error)
       }
     }
   }
@@ -235,7 +243,14 @@ extension SelectableEpisodeList {
                 error
               )
             }
-            await Container.shared.cacheManager().clearCache(for: episodeID)
+            do {
+              try await Container.shared.cacheManager().clearCache(for: episodeID)
+            } catch {
+              log.caughtError(
+                "uncacheSelectedEpisodes: failed to clear cache for episode \(episodeID)",
+                error
+              )
+            }
           }
         }
       }
@@ -269,7 +284,14 @@ extension SelectableEpisodeList {
               )
               return
             }
-            await Container.shared.cacheManager().downloadToCache(for: episodeID)
+            do {
+              try await Container.shared.cacheManager().downloadToCache(for: episodeID)
+            } catch {
+              log.caughtError(
+                "saveSelectedEpisodesInCache: failed to cache episode \(episodeID)",
+                error
+              )
+            }
           }
         }
       }
@@ -309,11 +331,19 @@ extension SelectableEpisodeList {
       .map(\.id)
     guard !downloadingEpisodeIDs.isEmpty else { return }
 
+    let log = Self.log
     Task {
       await withDiscardingTaskGroup { group in
         for episodeID in downloadingEpisodeIDs {
           group.addTask {
-            await Container.shared.cacheManager().clearCache(for: episodeID)
+            do {
+              try await Container.shared.cacheManager().clearCache(for: episodeID)
+            } catch {
+              log.caughtError(
+                "cancelSelectedEpisodeDownloads: failed for episode \(episodeID)",
+                error
+              )
+            }
           }
         }
       }

@@ -37,7 +37,7 @@ enum CacheHelpers {
 
   @discardableResult
   static func downloadToCache(_ episodeID: Episode.ID) async throws -> URLSessionDownloadTask.ID {
-    let taskID = await cacheManager.downloadToCache(for: episodeID)!
+    let taskID = try await cacheManager.downloadToCache(for: episodeID)!
     try await waitForResumed(taskID)
     try await waitForDownloadTaskID(episodeID, taskID: taskID)
     return taskID

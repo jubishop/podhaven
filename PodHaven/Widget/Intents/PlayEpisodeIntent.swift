@@ -30,10 +30,12 @@ struct PlayEpisodeIntent: AudioPlaybackIntent {
     let id = Episode.ID(rawValue: Int64(episodeID))
 
     do {
-      if let podcastEpisode = try await repo.podcastEpisode(id) {
-        try await playManager.load(podcastEpisode)
-        await playManager.play()
+      guard let podcastEpisode = try await repo.podcastEpisode(id) else {
+        Self.log.warning("perform: episode \(id) not found")
+        return .result()
       }
+      try await playManager.load(podcastEpisode)
+      await playManager.play()
     } catch {
       Self.log.caughtError("perform: failed for episode \(id)", error)
     }

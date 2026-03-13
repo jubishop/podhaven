@@ -135,7 +135,7 @@ extension ManagingEpisodes {
 
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
-        await cacheManager.downloadToCache(for: episodeID)
+        try await cacheManager.downloadToCache(for: episodeID)
       } catch {
         Self.log.caughtError("cacheEpisode: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -152,7 +152,7 @@ extension ManagingEpisodes {
 
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
-        await cacheManager.clearCache(for: episodeID)
+        try await cacheManager.clearCache(for: episodeID)
         try await repo.updateSaveInCache(episodeID, saveInCache: false)
       } catch {
         Self.log.caughtError("uncacheEpisode: failed for \(episode.title)", error)
@@ -169,7 +169,7 @@ extension ManagingEpisodes {
       do {
         let episodeID = try await getOrCreateEpisodeID(episode)
         try await repo.updateSaveInCache(episodeID, saveInCache: true)
-        await cacheManager.downloadToCache(for: episodeID)
+        try await cacheManager.downloadToCache(for: episodeID)
       } catch {
         Self.log.caughtError("saveEpisodeInCache: failed for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }

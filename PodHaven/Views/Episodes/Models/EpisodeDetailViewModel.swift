@@ -239,7 +239,7 @@ import UIKit
 
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
-        await cacheManager.downloadToCache(for: podcastEpisode.id)
+        try await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
         Self.log.caughtError("cacheEpisode: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -257,7 +257,7 @@ import UIKit
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: false)
-        await cacheManager.clearCache(for: podcastEpisode.id)
+        try await cacheManager.clearCache(for: podcastEpisode.id)
       } catch {
         Self.log.caughtError("uncacheEpisode: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -273,7 +273,7 @@ import UIKit
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
         try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
-        await cacheManager.downloadToCache(for: podcastEpisode.id)
+        try await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
         Self.log.caughtError("saveEpisodeInCache: failed for \(episode.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }

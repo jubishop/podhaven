@@ -172,7 +172,14 @@ import SwiftUI
     for podcastEpisode in uncachedEpisodes {
       Task { [weak self] in
         guard let self else { return }
-        await cacheManager.downloadToCache(for: podcastEpisode.id)
+        do {
+          try await cacheManager.downloadToCache(for: podcastEpisode.id)
+        } catch {
+          Self.log.caughtError(
+            "refreshQueue: failed to cache \(podcastEpisode.toString)",
+            error
+          )
+        }
       }
     }
   }

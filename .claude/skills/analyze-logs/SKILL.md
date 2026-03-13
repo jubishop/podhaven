@@ -1,8 +1,7 @@
 ---
 description: Analyze PodHaven NDJSON log files
 argument-hint: <path-to-log-file>
-user-invocable: false
-context: fork
+disable-model-invocation: true
 ---
 
 Analyze the log file at `$ARGUMENTS`.
