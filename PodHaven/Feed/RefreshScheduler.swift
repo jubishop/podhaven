@@ -20,7 +20,7 @@ struct RefreshScheduler: Sendable {
   private var refreshManager: RefreshManager { Container.shared.refreshManager() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
 
-  private static let backgroundTaskIdentifier = "com.artisanalsoftware.podhaven.refreshFeed"
+  private static let backgroundTaskIdentifier = "com.artisanalsoftware.PodHaven.refreshFeed"
 
   typealias RefreshPolicy = (
     cadence: Duration,

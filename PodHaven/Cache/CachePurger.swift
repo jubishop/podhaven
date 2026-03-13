@@ -21,7 +21,7 @@ struct CachePurger: Sendable {
   private var repo: any Databasing { Container.shared.repo() }
   private var userSettings: UserSettings { Container.shared.userSettings() }
 
-  private static let backgroundTaskIdentifier = "com.artisanalsoftware.podhaven.purgeCache"
+  private static let backgroundTaskIdentifier = "com.artisanalsoftware.PodHaven.purgeCache"
 
   private static let log = Log.as(LogSubsystem.Cache.purger)
 

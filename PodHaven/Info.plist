@@ -16,8 +16,8 @@
 	</array>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.artisanalsoftware.podhaven.refreshFeed</string>
-		<string>com.artisanalsoftware.podhaven.purgeCache</string>
+		<string>com.artisanalsoftware.PodHaven.refreshFeed</string>
+		<string>com.artisanalsoftware.PodHaven.purgeCache</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
