@@ -47,16 +47,25 @@ import UniformTypeIdentifiers
   }
 
   func importOPMLFromURL(url: URL) async {
+    Self.log.debug("Starting OPML import from URL: \(url)")
+
+    _ = url.startAccessingSecurityScopedResource()
+    defer { url.stopAccessingSecurityScopedResource() }
+
+    let opml: PodcastOPML
     do {
-      Self.log.debug("Starting OPML import from URL: \(url)")
+      opml = try await PodcastOPML.parse(url)
+    } catch {
+      Self.log.caughtError("importOPMLFromURL: failed to parse OPML at \(url)", error)
+      guard ErrorKit.isRemarkable(error) else { return }
+      alert(ErrorKit.message(for: error))
+      return
+    }
 
-      _ = url.startAccessingSecurityScopedResource()
-      let opml = try await PodcastOPML.parse(url)
-      url.stopAccessingSecurityScopedResource()
-
+    do {
       try await downloadOPMLFile(opml)
     } catch {
-      Self.log.caughtError("importOPMLFromURL: failed for \(url)", error)
+      Self.log.caughtError("importOPMLFromURL: failed to download OPML feeds from \(url)", error)
       guard ErrorKit.isRemarkable(error) else { return }
       alert(ErrorKit.message(for: error))
     }

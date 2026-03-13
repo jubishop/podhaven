@@ -535,7 +535,14 @@ class PodcastDetailViewModel:
       else {
         Self.log.debug("Podcast was deleted")
         _podcastSeries = nil
-        try await parsePodcastFeed()
+        do {
+          try await parsePodcastFeed()
+        } catch {
+          Self.log.caughtError(
+            "observePodcastSeries: failed to re-parse feed after podcast \(podcastID) was deleted",
+            error
+          )
+        }
         return
       }
 

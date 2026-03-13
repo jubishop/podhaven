@@ -150,12 +150,28 @@ extension ManagingEpisodes {
     Task { [weak self] in
       guard let self else { return }
 
+      let episodeID: Episode.ID
       do {
-        let episodeID = try await getOrCreateEpisodeID(episode)
-        try await cacheManager.clearCache(for: episodeID)
+        episodeID = try await getOrCreateEpisodeID(episode)
+      } catch {
+        Self.log.caughtError("uncacheEpisode: failed to get/create episode \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+        return
+      }
+
+      do {
         try await repo.updateSaveInCache(episodeID, saveInCache: false)
       } catch {
-        Self.log.caughtError("uncacheEpisode: failed for \(episode.title)", error)
+        Self.log.caughtError("uncacheEpisode: failed to unsave episode \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+
+      do {
+        try await cacheManager.clearCache(for: episodeID)
+      } catch {
+        Self.log.caughtError("uncacheEpisode: failed to clear cache for \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -166,12 +182,32 @@ extension ManagingEpisodes {
     Task { [weak self] in
       guard let self else { return }
 
+      let episodeID: Episode.ID
       do {
-        let episodeID = try await getOrCreateEpisodeID(episode)
+        episodeID = try await getOrCreateEpisodeID(episode)
+      } catch {
+        Self.log.caughtError(
+          "saveEpisodeInCache: failed to get/create episode \(episode.title)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+        return
+      }
+
+      do {
         try await repo.updateSaveInCache(episodeID, saveInCache: true)
+      } catch {
+        Self.log.caughtError("saveEpisodeInCache: failed to save episode \(episode.title)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+        return
+      }
+
+      do {
         try await cacheManager.downloadToCache(for: episodeID)
       } catch {
-        Self.log.caughtError("saveEpisodeInCache: failed for \(episode.title)", error)
+        Self.log.caughtError("saveEpisodeInCache: failed to cache episode \(episode.title)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

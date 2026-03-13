@@ -254,12 +254,34 @@ import UIKit
     Task { [weak self] in
       guard let self else { return }
 
+      let podcastEpisode: PodcastEpisode
       do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode()
+        podcastEpisode = try await getOrCreatePodcastEpisode()
+      } catch {
+        Self.log.caughtError(
+          "uncacheEpisode: failed to get/create episode \(episode.toString)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+        return
+      }
+
+      do {
         try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: false)
+      } catch {
+        Self.log.caughtError("uncacheEpisode: failed to unsave episode \(episode.toString)", error)
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+      }
+
+      do {
         try await cacheManager.clearCache(for: podcastEpisode.id)
       } catch {
-        Self.log.caughtError("uncacheEpisode: failed for \(episode.toString)", error)
+        Self.log.caughtError(
+          "uncacheEpisode: failed to clear cache for \(episode.toString)",
+          error
+        )
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -270,12 +292,38 @@ import UIKit
     Task { [weak self] in
       guard let self else { return }
 
+      let podcastEpisode: PodcastEpisode
       do {
-        let podcastEpisode = try await getOrCreatePodcastEpisode()
+        podcastEpisode = try await getOrCreatePodcastEpisode()
+      } catch {
+        Self.log.caughtError(
+          "saveEpisodeInCache: failed to get/create episode \(episode.toString)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+        return
+      }
+
+      do {
         try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
+      } catch {
+        Self.log.caughtError(
+          "saveEpisodeInCache: failed to save episode \(episode.toString)",
+          error
+        )
+        guard ErrorKit.isRemarkable(error) else { return }
+        alert(ErrorKit.message(for: error))
+        return
+      }
+
+      do {
         try await cacheManager.downloadToCache(for: podcastEpisode.id)
       } catch {
-        Self.log.caughtError("saveEpisodeInCache: failed for \(episode.toString)", error)
+        Self.log.caughtError(
+          "saveEpisodeInCache: failed to cache episode \(episode.toString)",
+          error
+        )
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }

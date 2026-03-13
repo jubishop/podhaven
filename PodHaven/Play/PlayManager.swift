@@ -171,14 +171,16 @@ final class PlayManager {
       await setStatus(.loading(incoming.episode.title))
       await clearOnDeck()
 
+      guard configureAudioSession() else { return false }
+
       do {
-        guard configureAudioSession() else { return false }
         try Container.shared.setAudioSessionActive()(true)
         Self.log.debug("performLoad: audio session activated")
         await podAVPlayer.setRate(
           Float(incoming.podcast.defaultPlaybackRate ?? userSettings.defaultPlaybackRate)
         )
-        try await setOnDeck(try await podAVPlayer.load(incoming))
+        let loaded = try await podAVPlayer.load(incoming)
+        try await setOnDeck(loaded)
       } catch {
         await Task { [weak self, outgoing, incoming] in  // Task to execute even inside cancellation
           guard let self else { return }
