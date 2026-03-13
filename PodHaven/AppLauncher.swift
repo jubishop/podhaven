@@ -42,7 +42,10 @@ struct AppLauncher: Sendable {
     _ = Container.shared.appDB()
 
     Self.log.debug(
-      "Initial environment is: \(AppInfo.environment), state: \(UIApplication.shared.applicationState)"
+      """
+      Initial environment is: \(AppInfo.environment), 
+      state: \(UIApplication.shared.applicationState)
+      """
     )
 
     refreshScheduler.register()
