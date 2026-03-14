@@ -37,7 +37,7 @@ struct RefreshScheduler: Sendable {
     wifiLimit: 32
   )
   private let foregroundPolicy: RefreshPolicy = (
-    cadence: .minutes(10),
+    cadence: .minutes(5),
     cellStalenessThreshold: .hours(4),
     cellLimit: 8,
     wifiStalenessThreshold: .hours(1),
