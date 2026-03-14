@@ -58,6 +58,7 @@ enum LogSubsystem {
   }
 
   enum SettingsView: String, LogCategorizable {
+    case feedback
     case main
     case opml
     case tags
