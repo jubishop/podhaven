@@ -89,8 +89,6 @@ struct BGProcessingTaskScheduler: Sendable {
 
     Self.log.debug("scheduleNext() called for: \(identifier)")
 
-    BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: identifier)
-
     let request = BGProcessingTaskRequest(identifier: identifier)
     request.earliestBeginDate = Date.now.advanced(by: duration.asTimeInterval)
     request.requiresNetworkConnectivity = requiresNetworkConnectivity
