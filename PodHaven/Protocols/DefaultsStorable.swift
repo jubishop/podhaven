@@ -17,6 +17,7 @@ extension Int: DefaultsStorable {}
 extension Double: DefaultsStorable {}
 extension Float: DefaultsStorable {}
 extension String: DefaultsStorable {}
+extension Date: DefaultsStorable {}
 
 // MARK: - Optional Conformance
 

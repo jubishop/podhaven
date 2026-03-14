@@ -30,18 +30,7 @@ struct BackgroundTaskScheduler: Sendable {
   private let identifier: String
   private let cadence: Duration
   private let taskType: BackgroundTaskType
-  private var lastAttempt: Date {
-    get {
-      UserDefaults.standard.object(forKey: "BackgroundTaskScheduler.lastAttempt.\(identifier)")
-        as? Date ?? .distantPast
-    }
-    nonmutating set {
-      UserDefaults.standard.set(
-        newValue,
-        forKey: "BackgroundTaskScheduler.lastAttempt.\(identifier)"
-      )
-    }
-  }
+  @PersistedThreadSafe private var lastAttempt: Date
 
   // MARK: - Helpers
 
@@ -73,6 +62,10 @@ struct BackgroundTaskScheduler: Sendable {
     self.identifier = identifier
     self.cadence = cadence
     self.taskType = taskType
+    _lastAttempt = PersistedThreadSafe(
+      wrappedValue: .distantPast,
+      "BackgroundTaskScheduler.lastAttempt.\(identifier)"
+    )
 
     Self.log.debug("BackgroundTaskScheduler with identifier: \(identifier)")
   }
