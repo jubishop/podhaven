@@ -33,7 +33,7 @@ struct DebugSection: View {
       if AppInfo.myDevice {
         Button("Show Pending Background Tasks") {
           BGTaskScheduler.shared.getPendingTaskRequests { requests in
-            let formatted = BackgroundTaskScheduler.formatPendingTasks(requests)
+            let formatted = BGProcessingTaskScheduler.formatPendingTasks(requests)
             Task { @MainActor in
               alert(
                 title: "Pending Tasks",

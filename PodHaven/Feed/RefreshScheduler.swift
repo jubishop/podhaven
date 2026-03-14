@@ -50,15 +50,15 @@ struct RefreshScheduler: Sendable {
 
   private let refreshLock = ThreadLock()
   private let foregroundRefreshTask = ThreadSafe<Task<Void, any Error>?>(nil)
-  private let backgroundTaskScheduler: BackgroundTaskScheduler
+  private let processingTaskScheduler: BGProcessingTaskScheduler
 
   // MARK: - Initialization
 
   fileprivate init() {
-    self.backgroundTaskScheduler = BackgroundTaskScheduler(
+    self.processingTaskScheduler = BGProcessingTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
       cadence: backgroundPolicy.cadence,
-      taskType: .appRefresh
+      requiresNetworkConnectivity: true
     )
   }
 
@@ -66,7 +66,7 @@ struct RefreshScheduler: Sendable {
     guard Function.neverCalled() else { return }
     Self.log.debug("start: executing")
 
-    backgroundTaskScheduler.scheduleNext(in: backgroundPolicy.cadence)
+    processingTaskScheduler.scheduleNext(in: backgroundPolicy.cadence)
   }
 
   // MARK: - Background Task
@@ -74,7 +74,7 @@ struct RefreshScheduler: Sendable {
   func register() {
     Self.log.debug("registering")
 
-    backgroundTaskScheduler.register { complete in
+    processingTaskScheduler.register { complete in
       do {
         Self.log.debug("background refresh: performing refresh")
 
@@ -175,7 +175,7 @@ struct RefreshScheduler: Sendable {
     case .background:
       Self.log.debug("backgrounded")
 
-      backgroundTaskScheduler.scheduleNext(in: backgroundPolicy.cadence)
+      processingTaskScheduler.scheduleNext(in: backgroundPolicy.cadence)
     default:
       break
     }

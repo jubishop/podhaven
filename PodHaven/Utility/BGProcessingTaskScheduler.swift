@@ -5,44 +5,42 @@ import ConcurrencyExtras
 import Foundation
 import Logging
 
-struct BackgroundTaskScheduler: Sendable {
+struct BGProcessingTaskScheduler: Sendable {
   typealias Completion = @Sendable (Bool) -> Void
 
-  enum TaskType {
-    case appRefresh
-    case processing
-  }
-
-  private static let log = Log.as("BackgroundTaskScheduler")
+  private static let log = Log.as("BGProcessingTaskScheduler")
 
   private let registered = ThreadLock()
   private let identifier: String
   private let cadence: Duration
-  private let taskType: TaskType
+  private let requiresNetworkConnectivity: Bool
 
   // MARK: - Helpers
 
   // For Debugging/Logging only.
   static func formatPendingTasks(_ requests: [BGTaskRequest]) -> String {
     requests.map { request in
-      let type = request is BGAppRefreshTaskRequest ? "appRefresh" : "processing"
       let date: String
       if let beginDate = request.earliestBeginDate {
         date = beginDate.formatted(date: .abbreviated, time: .shortened)
       } else {
         date = "none"
       }
-      return "  - \(request.identifier) (\(type), earliest: \(date))"
+      return "  - \(request.identifier) (earliest: \(date))"
     }
     .joined(separator: "\n  ")
   }
 
-  init(identifier: String, cadence: Duration, taskType: TaskType) {
+  init(
+    identifier: String,
+    cadence: Duration,
+    requiresNetworkConnectivity: Bool = false
+  ) {
     self.identifier = identifier
     self.cadence = cadence
-    self.taskType = taskType
+    self.requiresNetworkConnectivity = requiresNetworkConnectivity
 
-    Self.log.debug("BackgroundTaskScheduler with identifier: \(identifier), type: \(taskType)")
+    Self.log.debug("BGProcessingTaskScheduler with identifier: \(identifier)")
   }
 
   func register(executionTask: @escaping @Sendable (Completion) async -> Void) {
@@ -89,21 +87,12 @@ struct BackgroundTaskScheduler: Sendable {
   func scheduleNext(in passedDuration: Duration? = nil) {
     let duration = passedDuration ?? cadence
 
-    Self.log.debug("scheduleNext() called for: \(identifier), type: \(taskType)")
+    Self.log.debug("scheduleNext() called for: \(identifier)")
 
-    let request: BGTaskRequest
-    switch taskType {
-    case .appRefresh:
-      let refreshRequest = BGAppRefreshTaskRequest(identifier: identifier)
-      refreshRequest.earliestBeginDate = Date.now.advanced(by: duration.asTimeInterval)
-      request = refreshRequest
-    case .processing:
-      let processingRequest = BGProcessingTaskRequest(identifier: identifier)
-      processingRequest.earliestBeginDate = Date.now.advanced(by: duration.asTimeInterval)
-      processingRequest.requiresNetworkConnectivity = false
-      processingRequest.requiresExternalPower = false
-      request = processingRequest
-    }
+    let request = BGProcessingTaskRequest(identifier: identifier)
+    request.earliestBeginDate = Date.now.advanced(by: duration.asTimeInterval)
+    request.requiresNetworkConnectivity = requiresNetworkConnectivity
+    request.requiresExternalPower = false
 
     do {
       try BGTaskScheduler.shared.submit(request)
@@ -115,7 +104,6 @@ struct BackgroundTaskScheduler: Sendable {
     Self.log.debug(
       """
       scheduled next background task: \(identifier)
-        type: \(taskType)
         duration: \(duration)
         earliest begin date: \(request.earliestBeginDate?.description ?? "nil")
       """

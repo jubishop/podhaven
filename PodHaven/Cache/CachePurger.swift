@@ -35,15 +35,14 @@ struct CachePurger: Sendable {
   // MARK: - State Management
 
   private let purgeLock = ThreadLock()
-  private let backgroundTaskScheduler: BackgroundTaskScheduler
+  private let processingTaskScheduler: BGProcessingTaskScheduler
 
   // MARK: - Initialization
 
   fileprivate init() {
-    self.backgroundTaskScheduler = BackgroundTaskScheduler(
+    self.processingTaskScheduler = BGProcessingTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
-      cadence: cadence,
-      taskType: .processing
+      cadence: cadence
     )
   }
 
@@ -51,7 +50,7 @@ struct CachePurger: Sendable {
     guard Function.neverCalled() else { return }
     Self.log.debug("start: executing")
 
-    backgroundTaskScheduler.scheduleNext(in: cadence)
+    processingTaskScheduler.scheduleNext(in: cadence)
   }
 
   // MARK: - Background Task
@@ -59,7 +58,7 @@ struct CachePurger: Sendable {
   func register() {
     Self.log.debug("registering")
 
-    backgroundTaskScheduler.register { complete in
+    processingTaskScheduler.register { complete in
       do {
         Self.log.debug("background cache purge: performing purge")
 
@@ -247,7 +246,7 @@ struct CachePurger: Sendable {
     case .background:
       Self.log.debug("backgrounded")
 
-      backgroundTaskScheduler.scheduleNext(in: cadence)
+      processingTaskScheduler.scheduleNext(in: cadence)
     default:
       break
     }
