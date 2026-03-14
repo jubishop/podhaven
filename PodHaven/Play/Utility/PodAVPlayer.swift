@@ -148,10 +148,18 @@ enum PodAVPlayerError: Error, LocalizedError {
       return try await loadEpisodeAsset(AVURLAsset(url: cachedURL.rawValue))
     } catch {
       Self.log.caughtError(
-        "performLoadAsset: cache load failed, falling back to remote",
+        "performLoadAsset: cache load failed, clearing cached filename and falling back to remote",
         error,
         remarkable: .warning
       )
+      do {
+        try await repo.updateCachedFilename(podcastEpisode.id, cachedFilename: nil)
+      } catch {
+        Self.log.caughtError(
+          "performLoadAsset: failed to clear cached filename for \(podcastEpisode.toString)",
+          error
+        )
+      }
       return try await loadEpisodeAsset(
         AVURLAsset(url: podcastEpisode.episode.mediaURL.rawValue)
       )
