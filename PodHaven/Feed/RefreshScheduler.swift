@@ -66,7 +66,7 @@ struct RefreshScheduler: Sendable {
     guard Function.neverCalled() else { return }
     Self.log.debug("start: executing")
 
-    processingTaskScheduler.scheduleNext(in: backgroundPolicy.cadence)
+    processingTaskScheduler.scheduleNextIfNeeded(in: backgroundPolicy.cadence)
   }
 
   // MARK: - Background Task

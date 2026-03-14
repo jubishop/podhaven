@@ -50,7 +50,7 @@ struct CachePurger: Sendable {
     guard Function.neverCalled() else { return }
     Self.log.debug("start: executing")
 
-    processingTaskScheduler.scheduleNext(in: cadence)
+    processingTaskScheduler.scheduleNextIfNeeded(in: cadence)
   }
 
   // MARK: - Background Task
