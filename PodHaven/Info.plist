@@ -6,8 +6,8 @@
 	<string>$(APP_GROUP_ID)</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>$(PRODUCT_BUNDLE_IDENTIFIER).refresh</string>
-		<string>$(PRODUCT_BUNDLE_IDENTIFIER).purge</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).feedRefresh</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER).cachePurge</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>

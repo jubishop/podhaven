@@ -21,7 +21,7 @@ struct CachePurger: Sendable {
   private var repo: any Databasing { Container.shared.repo() }
   private var userSettings: UserSettings { Container.shared.userSettings() }
 
-  private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).purge"
+  private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).cachePurge"
 
   private static let log = Log.as(LogSubsystem.Cache.purger)
 
