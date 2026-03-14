@@ -257,9 +257,11 @@ struct CachePurger: Sendable {
   func handleScenePhaseChange(to scenePhase: ScenePhase) {
     switch scenePhase {
     case .active:
-      processingTaskScheduler.scheduleNext(in: cadence)
+      Self.log.debug("activated")
     case .background:
       Self.log.debug("backgrounded")
+
+      processingTaskScheduler.scheduleNextIfNeeded(in: cadence)
     default:
       break
     }

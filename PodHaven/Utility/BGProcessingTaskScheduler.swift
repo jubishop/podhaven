@@ -84,6 +84,19 @@ struct BGProcessingTaskScheduler: Sendable {
     )
   }
 
+  func scheduleNextIfNeeded(in passedDuration: Duration? = nil) {
+    BGTaskScheduler.shared.getPendingTaskRequests { [self] requests in
+      let hasPending = requests.contains { $0.identifier == identifier }
+      if hasPending {
+        Self.log.debug("scheduleNextIfNeeded: task already pending for \(identifier), skipping")
+        return
+      }
+
+      Self.log.debug("scheduleNextIfNeeded: no pending task for \(identifier), scheduling")
+      scheduleNext(in: passedDuration)
+    }
+  }
+
   func scheduleNext(in passedDuration: Duration? = nil) {
     let duration = passedDuration ?? cadence
 

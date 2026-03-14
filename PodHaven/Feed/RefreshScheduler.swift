@@ -171,10 +171,11 @@ struct RefreshScheduler: Sendable {
     case .active:
       Self.log.debug("activated")
 
-      processingTaskScheduler.scheduleNext(in: backgroundPolicy.cadence)
       beginForegroundRefreshing()
     case .background:
       Self.log.debug("backgrounded")
+
+      processingTaskScheduler.scheduleNextIfNeeded(in: backgroundPolicy.cadence)
     default:
       break
     }
