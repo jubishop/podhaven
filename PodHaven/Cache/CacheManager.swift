@@ -138,8 +138,15 @@ struct CacheManager {
       return nil
     }
 
+    do {
+      try fileManager.removeItem(at: cachedURL.rawValue)
+    } catch {
+      Self.log.caughtError(
+        "clearCache: failed to remove cached file for \(episode.toString)",
+        error
+      )
+    }
     try await repo.updateCachedFilename(episode.id, cachedFilename: nil)
-    try fileManager.removeItem(at: cachedURL.rawValue)
 
     Self.log.debug("cache cleared for: \(episode.toString)")
 
