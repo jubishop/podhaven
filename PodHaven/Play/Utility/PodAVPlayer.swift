@@ -41,6 +41,7 @@ enum PodAVPlayerError: Error, LocalizedError {
 
 @MainActor class PodAVPlayer {
   @DynamicInjected(\.avPlayer) private var avPlayer
+  @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.loadEpisodeAsset) private var loadEpisodeAsset
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.repo) private var repo
@@ -157,6 +158,15 @@ enum PodAVPlayerError: Error, LocalizedError {
       } catch {
         Self.log.caughtError(
           "performLoadAsset: failed to clear cached filename for \(podcastEpisode.toString)",
+          error
+        )
+      }
+      do {
+        try await cacheManager.downloadToCache(for: podcastEpisode.id)
+        Self.log.info("performLoadAsset: re-queued cache download for \(podcastEpisode.toString)")
+      } catch {
+        Self.log.caughtError(
+          "performLoadAsset: failed to re-queue cache download for \(podcastEpisode.toString)",
           error
         )
       }
