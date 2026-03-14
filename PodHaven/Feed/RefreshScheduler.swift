@@ -62,13 +62,6 @@ struct RefreshScheduler: Sendable {
     )
   }
 
-  func start() {
-    guard Function.neverCalled() else { return }
-    Self.log.debug("start: executing")
-
-    backgroundTaskScheduler.scheduleNextIfNeeded(in: backgroundPolicy.cadence)
-  }
-
   // MARK: - Background Task
 
   func register() {
@@ -175,7 +168,7 @@ struct RefreshScheduler: Sendable {
     case .background:
       Self.log.debug("backgrounded")
 
-      backgroundTaskScheduler.scheduleNextIfNeeded(in: backgroundPolicy.cadence)
+      backgroundTaskScheduler.scheduleNextIfNeeded()
     default:
       break
     }

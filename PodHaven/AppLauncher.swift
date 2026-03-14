@@ -103,8 +103,6 @@ struct AppLauncher: Sendable {
 
     // Start all other services
     cacheManager.start()
-    refreshScheduler.start()
-    cachePurger.start()
 
     // System monitoring
     startMemoryWarningMonitoring()

@@ -27,7 +27,6 @@ struct BackgroundTaskScheduler: Sendable {
 
   private static let log = Log.as("BackgroundTaskScheduler")
 
-  private let registered = ThreadLock()
   private let identifier: String
   private let cadence: Duration
   private let taskType: BackgroundTaskType
@@ -67,12 +66,8 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   func register(executionTask: @escaping @Sendable (Completion) async -> Void) {
+    guard Function.neverCalled(identifier) else { return }
     Self.log.info("register() called for: \(identifier)")
-
-    guard registered.claim() else {
-      Self.log.warning("Registration for BackgroundTask: \(identifier) has already been made?")
-      return
-    }
 
     let success = BGTaskScheduler.shared.register(
       forTaskWithIdentifier: identifier,
@@ -95,7 +90,7 @@ struct BackgroundTaskScheduler: Sendable {
         complete(false)
       }
 
-      scheduleNext()
+      scheduleNextIfNeeded()
       bgTask = Task(priority: .background) { await executionTask(complete) }
     }
 
@@ -105,9 +100,11 @@ struct BackgroundTaskScheduler: Sendable {
       Registration for BackgroundTask: \(identifier) complete
       """
     )
+
+    scheduleNextIfNeeded()
   }
 
-  func scheduleNextIfNeeded(in passedDuration: Duration? = nil) {
+  func scheduleNextIfNeeded() {
     BGTaskScheduler.shared.getPendingTaskRequests { [self] requests in
       let hasPending = requests.contains { $0.identifier == identifier }
       if hasPending {
@@ -116,17 +113,15 @@ struct BackgroundTaskScheduler: Sendable {
       }
 
       Self.log.debug("scheduleNextIfNeeded: no pending task for \(identifier), scheduling")
-      scheduleNext(in: passedDuration)
+      scheduleNext()
     }
   }
 
-  func scheduleNext(in passedDuration: Duration? = nil) {
-    let duration = passedDuration ?? cadence
-
+  private func scheduleNext() {
     Self.log.debug("scheduleNext() called for: \(identifier)")
 
     let request = taskType.makeRequest(identifier: identifier)
-    request.earliestBeginDate = Date.now.advanced(by: duration.asTimeInterval)
+    request.earliestBeginDate = Date.now.advanced(by: cadence.asTimeInterval)
 
     do {
       try BGTaskScheduler.shared.submit(request)
@@ -138,7 +133,7 @@ struct BackgroundTaskScheduler: Sendable {
     Self.log.debug(
       """
       scheduled next background task: \(identifier)
-        duration: \(duration)
+        cadence: \(cadence)
         earliest begin date: \(request.earliestBeginDate?.description ?? "nil")
       """
     )

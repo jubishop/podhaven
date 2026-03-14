@@ -17,6 +17,13 @@ enum Assert {
     )
   }
 
+  static func neverCalled(_ id: String) {
+    Assert.precondition(
+      Function.neverCalled(id),
+      "\(id) has already been called?"
+    )
+  }
+
   static func fatal(
     _ message: String,
     file: String = #fileID,

@@ -47,13 +47,6 @@ struct CachePurger: Sendable {
     )
   }
 
-  func start() {
-    guard Function.neverCalled() else { return }
-    Self.log.debug("start: executing")
-
-    backgroundTaskScheduler.scheduleNextIfNeeded(in: cadence)
-  }
-
   // MARK: - Background Task
 
   func register() {
@@ -262,7 +255,7 @@ struct CachePurger: Sendable {
     case .background:
       Self.log.debug("backgrounded")
 
-      backgroundTaskScheduler.scheduleNextIfNeeded(in: cadence)
+      backgroundTaskScheduler.scheduleNextIfNeeded()
     default:
       break
     }
