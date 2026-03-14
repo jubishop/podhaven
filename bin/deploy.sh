@@ -149,7 +149,6 @@ xcodebuild archive \
   -allowProvisioningUpdates \
   "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
   CURRENT_PROJECT_VERSION="$build" \
-  GIT_COMMIT_HASH="$commit" \
   2>&1 | tee "$BUILD_LOG" | xcbeautify
 
 # Export and upload

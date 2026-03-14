@@ -85,6 +85,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		8B1A2B3C2F4D5E6F00AABB11 /* Generated.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Generated.xcconfig; sourceTree = "<group>"; };
 		8B9B8B322DCBB25500E574E6 /* PerformanceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PerformanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PodHavenWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BA4F4212F3E74AC000AC336 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -345,6 +346,7 @@
 		8BD7F9172CF2A49000CEDAA7 = {
 			isa = PBXGroup;
 			children = (
+				8B1A2B3C2F4D5E6F00AABB11 /* Generated.xcconfig */,
 				8BD0C2362CF638C700B7DC07 /* PodHaven.xctestplan */,
 				8BD7F9222CF2A49000CEDAA7 /* PodHaven */,
 				8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */,
@@ -765,6 +767,7 @@
 		};
 		8B73325F2E1778EB008C1622 /* Development */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8B1A2B3C2F4D5E6F00AABB11 /* Generated.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = DevAppIcon;
 				CLANG_ANALYZER_GCD_PERFORMANCE = YES;
@@ -782,7 +785,6 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				GIT_COMMIT_HASH = Unknown;
 				INFOPLIST_FILE = PodHaven/Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -1270,6 +1272,7 @@
 		};
 		8BD7F9452CF2A49100CEDAA7 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8B1A2B3C2F4D5E6F00AABB11 /* Generated.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = DebugAppIcon;
 				CLANG_ANALYZER_GCD_PERFORMANCE = YES;
@@ -1287,7 +1290,6 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				GIT_COMMIT_HASH = Unknown;
 				INFOPLIST_FILE = PodHaven/Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -1323,6 +1325,7 @@
 		};
 		8BD7F9462CF2A49100CEDAA7 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8B1A2B3C2F4D5E6F00AABB11 /* Generated.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ANALYZER_GCD_PERFORMANCE = YES;
@@ -1340,7 +1343,6 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				GIT_COMMIT_HASH = Unknown;
 				INFOPLIST_FILE = PodHaven/Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

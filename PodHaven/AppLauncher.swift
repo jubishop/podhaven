@@ -95,6 +95,7 @@ struct AppLauncher: Sendable {
     Self.log.debug("My device?: \(AppInfo.myDevice)")
     Self.log.debug("Final environment is: \(AppInfo.environment)")
     Self.log.debug("Build version: \(AppInfo.version) (\(AppInfo.buildNumber))")
+    Self.log.debug("Git commit hash is: \(AppInfo.gitCommitHash)")
 
     // Ensure playback subsystems are started (no-op if already done by an intent)
     await prepareForPlayback()

@@ -18,7 +18,7 @@ struct DebugSection: View {
       }
 
       if AppInfo.myDevice {
-        Text("My Device")
+        Text("Git: \(AppInfo.gitCommitHash)")
       }
 
       Text("Language: \(AppInfo.languageCode ?? "Unknown")")
