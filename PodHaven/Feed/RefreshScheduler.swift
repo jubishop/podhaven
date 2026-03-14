@@ -30,11 +30,11 @@ struct RefreshScheduler: Sendable {
     wifiLimit: Int
   )
   private let backgroundPolicy: RefreshPolicy = (
-    cadence: .minutes(30),
-    cellStalenessThreshold: .hours(4),
-    cellLimit: 8,
-    wifiStalenessThreshold: .hours(1),
-    wifiLimit: 32
+    cadence: .hours(1),
+    cellStalenessThreshold: .hours(8),
+    cellLimit: 16,
+    wifiStalenessThreshold: .hours(2),
+    wifiLimit: 64
   )
   private let foregroundPolicy: RefreshPolicy = (
     cadence: .minutes(5),
@@ -58,7 +58,7 @@ struct RefreshScheduler: Sendable {
     self.backgroundTaskScheduler = BackgroundTaskScheduler(
       identifier: Self.backgroundTaskIdentifier,
       cadence: backgroundPolicy.cadence,
-      taskType: .appRefresh
+      taskType: .processing(requiresNetworkConnectivity: true)
     )
   }
 

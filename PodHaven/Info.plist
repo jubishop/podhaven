@@ -28,7 +28,6 @@
 	<string>$(GIT_COMMIT_HASH)</string>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>fetch</string>
 		<string>processing</string>
 		<string>audio</string>
 	</array>
