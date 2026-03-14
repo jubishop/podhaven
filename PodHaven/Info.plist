@@ -22,6 +22,8 @@
 	</array>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>GitCommitHash</key>
 	<string>$(GIT_COMMIT_HASH)</string>
 	<key>UIBackgroundModes</key>
