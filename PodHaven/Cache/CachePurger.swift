@@ -199,6 +199,21 @@ struct CachePurger: Sendable {
           "validateCachedEpisodes: failed to clear cached filename for \(episode.toString)",
           error
         )
+        continue
+      }
+
+      if episode.queued {
+        do {
+          try await cacheManager.downloadToCache(for: episode.id)
+          Self.log.notice(
+            "re-queued download for queued episode with missing cache: \(episode.toString)"
+          )
+        } catch {
+          Self.log.caughtError(
+            "validateCachedEpisodes: failed to re-queue download for \(episode.toString)",
+            error
+          )
+        }
       }
     }
   }

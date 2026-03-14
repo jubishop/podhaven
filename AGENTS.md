@@ -23,6 +23,11 @@
 ## Errors and Logging
 - Log errors at the appropriate level using `ErrorKit` for formatting system error messages.
 - All logging should go through static `Logger` instances created via `Log.as` methods.
+- Catch errors locally only when the function has extra context derived entirely locally; otherwise let them propagate up the call stack.
+- Every error must be logged somewhere by the top of the call stack — errors must never silently disappear.
+- Keep `do`/`catch` scope minimal — wrap only the `try` calls, not surrounding work.
+- Use `log.caughtError()` when there's a caught error object; use `log.error()` only when there's no error object.
+- Avoid `try?` — prefer `do`/`catch` with appropriate logging so failures are visible. Exceptions: `Task.checkCancellation()` and `sleeper.sleep()` where silent failure is intentional.
 
 ## Testing
 - Tests use the Swift Testing DSL: `@Suite("…", .container)` with `#expect` assertions; async tests rely on structured concurrency.
