@@ -30,7 +30,7 @@ struct CachePurger: Sendable {
   var cacheSizeLimit: Int64 {
     Int64(userSettings.cacheSizeLimitGB * 1024 * 1024 * 1024)
   }
-  private let cadence: Duration = .hours(2)
+  private let cadence: Duration = .hours(4)
 
   // MARK: - State Management
 

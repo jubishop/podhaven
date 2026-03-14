@@ -30,6 +30,18 @@ struct BackgroundTaskScheduler: Sendable {
   private let identifier: String
   private let cadence: Duration
   private let taskType: BackgroundTaskType
+  private var lastAttempt: Date {
+    get {
+      UserDefaults.standard.object(forKey: "BackgroundTaskScheduler.lastAttempt.\(identifier)")
+        as? Date ?? .distantPast
+    }
+    nonmutating set {
+      UserDefaults.standard.set(
+        newValue,
+        forKey: "BackgroundTaskScheduler.lastAttempt.\(identifier)"
+      )
+    }
+  }
 
   // MARK: - Helpers
 
@@ -105,6 +117,14 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   func scheduleNextIfNeeded() {
+    let elapsed = Date.now.timeIntervalSince(lastAttempt)
+    guard elapsed >= cadence.asTimeInterval else {
+      Self.log.debug(
+        "scheduleNextIfNeeded: throttled for \(identifier), last attempt \(Int(elapsed))s ago"
+      )
+      return
+    }
+
     BGTaskScheduler.shared.getPendingTaskRequests { [self] requests in
       let hasPending = requests.contains { $0.identifier == identifier }
       if hasPending {
@@ -122,6 +142,8 @@ struct BackgroundTaskScheduler: Sendable {
 
     let request = taskType.makeRequest(identifier: identifier)
     request.earliestBeginDate = Date.now.advanced(by: cadence.asTimeInterval)
+
+    lastAttempt = .now
 
     do {
       try BGTaskScheduler.shared.submit(request)

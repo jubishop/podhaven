@@ -37,18 +37,19 @@ struct PodHavenApp: App {
       }
       .preferredColorScheme(userSettings.appearanceMode.colorScheme)
       .onChange(of: scenePhase, initial: true) { _, newPhase in
-        Task {
-          if newPhase == .active {
-            await initialize()
-          }
+        sharedState.$isActive.new(newPhase == .active)
 
-          sharedState.$isActive.new(newPhase == .active)
-          if initialized {
-            appDelegate.handleScenePhaseChange(to: newPhase)
-            refreshScheduler.handleScenePhaseChange(to: newPhase)
-            cachePurger.handleScenePhaseChange(to: newPhase)
-            await userNotificationManager.handleScenePhaseChange(to: newPhase)
+        switch newPhase {
+        case .active:
+          Task {
+            await appLauncher.prepareForForeground()
+            initialized = true
+            notifyScenePhaseChange(newPhase)
           }
+        case .background where initialized:
+          notifyScenePhaseChange(newPhase)
+        default:
+          break
         }
       }
       .onOpenURL { url in
@@ -58,6 +59,15 @@ struct PodHavenApp: App {
         }
       }
     }
+  }
+
+  // MARK: - Scene Phase
+
+  private func notifyScenePhaseChange(_ phase: ScenePhase) {
+    appDelegate.handleScenePhaseChange(to: phase)
+    refreshScheduler.handleScenePhaseChange(to: phase)
+    cachePurger.handleScenePhaseChange(to: phase)
+    Task { await userNotificationManager.handleScenePhaseChange(to: phase) }
   }
 
   // MARK: - URL Handling
@@ -77,20 +87,5 @@ struct PodHavenApp: App {
       Self.log.warning("Incoming URL: \(url) is not supported")
       alert("Incoming URL: \(url) is not supported")
     }
-  }
-
-  // MARK: - Launch Handling
-
-  private func initialize() async {
-    guard !initialized else { return }
-    guard UIApplication.shared.applicationState == .active else {
-      Self.log.debug("Initialization deferred: app not active")
-      return
-    }
-
-    await appLauncher.prepareForForeground()
-    guard !Task.isCancelled else { return }
-
-    initialized = true
   }
 }
