@@ -13,11 +13,11 @@ struct DebugSection: View {
     Section("Debugging") {
       Text("Environment: \(AppInfo.environment.rawValue)")
 
-      Button("Copy Device ID") {
-        UIPasteboard.general.string = AppInfo.deviceIdentifier
-      }
-
       if AppInfo.myDevice {
+        Button("Copy Device ID") {
+          UIPasteboard.general.string = AppInfo.deviceIdentifier
+        }
+
         Text("Git: \(AppInfo.gitCommitHash)")
       }
 
