@@ -11,18 +11,24 @@ import UIKit
 import WidgetKit
 
 extension Container {
+  var controlCenter: Factory<any ControlReloading> {
+    Factory(self) { ControlCenter.shared }.scope(.cached)
+  }
+
   var widgetSnapshotWriter: Factory<WidgetSnapshotWriter> {
     Factory(self) { WidgetSnapshotWriter() }.scope(.cached)
   }
 }
 
 final class WidgetSnapshotWriter: Sendable {
+  private var controlCenter: any ControlReloading { Container.shared.controlCenter() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
+  private var imagePipeline: ImagePipeline { Container.shared.imagePipeline() }
+  private var observatory: Observatory { Container.shared.observatory() }
   private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var userSettings: UserSettings { Container.shared.userSettings() }
-  private var imagePipeline: ImagePipeline { Container.shared.imagePipeline() }
-  private var observatory: Observatory { Container.shared.observatory() }
+  private var widgetState: WidgetState { Container.shared.widgetState() }
 
   private static let log = Log.as(LogSubsystem.Widget.writer)
 
@@ -64,8 +70,10 @@ final class WidgetSnapshotWriter: Sendable {
           return status != last
         }
         guard changed else { continue }
-        WidgetInfo.playbackStatus = status
+        widgetState.playbackStatus = status
+        Self.log.debug("Playback status changed to \(status), reloading play/pause control")
         reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
+        controlCenter.reloadControls(ofKind: WidgetInfo.playPauseControlKind)
 
         if status.playing {
           startHeartbeat()
@@ -105,16 +113,24 @@ final class WidgetSnapshotWriter: Sendable {
     Task { [weak self] in
       guard let self else { return }
 
-      for await _ in userSettings.$skipForwardInterval.stream() {
-        scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
+      for await interval in userSettings.$skipForwardInterval.stream() {
+        let intInterval = Int(interval)
+        Self.log.debug("Skip forward interval changed to \(intInterval), reloading control")
+        widgetState.skipForwardInterval = intInterval
+        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
+        controlCenter.reloadControls(ofKind: WidgetInfo.skipForwardControlKind)
       }
     }
 
     Task { [weak self] in
       guard let self else { return }
 
-      for await _ in userSettings.$skipBackwardInterval.stream() {
-        scheduleWrite(reloadKinds: [WidgetInfo.nowPlayingKind])
+      for await interval in userSettings.$skipBackwardInterval.stream() {
+        let intInterval = Int(interval)
+        Self.log.debug("Skip backward interval changed to \(intInterval), reloading control")
+        widgetState.skipBackwardInterval = intInterval
+        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
+        controlCenter.reloadControls(ofKind: WidgetInfo.skipBackwardControlKind)
       }
     }
   }
@@ -184,8 +200,6 @@ final class WidgetSnapshotWriter: Sendable {
       nowPlaying: nowPlaying,
       queue: queueItems,
       queueTotalCount: queueWidgetEpisodes().count,
-      skipForwardInterval: Int(userSettings.skipForwardInterval),
-      skipBackwardInterval: Int(userSettings.skipBackwardInterval),
       updatedAt: Date()
     )
 

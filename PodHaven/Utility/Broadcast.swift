@@ -150,9 +150,9 @@ struct PersistedBroadcast<T: DefaultsStorable>: Sendable {
   init(
     wrappedValue: T,
     _ key: String,
+    store: any KeyValueStore = Container.shared.standardDefaults(),
     onChange: (@Sendable (T) -> Void)? = nil
   ) {
-    let store = Container.shared.standardDefaults()
     broadcast = Broadcast(T.load(from: store, forKey: key) ?? wrappedValue) {
       $0.store(to: store, forKey: key)
       onChange?($0)

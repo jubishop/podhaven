@@ -30,5 +30,8 @@ struct PodHavenWidgetBundle: WidgetBundle {
     NowPlayingWidget()
     QueueWidget()
     LockScreenNowPlayingWidget()
+    PlayPauseControl()
+    SkipForwardControl()
+    SkipBackwardControl()
   }
 }

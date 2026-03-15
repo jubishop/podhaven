@@ -2,7 +2,6 @@
 
 import FactoryKit
 import Foundation
-import Logging
 
 enum WidgetInfo {
 
@@ -11,6 +10,9 @@ enum WidgetInfo {
   static let nowPlayingKind = "NowPlayingWidget"
   static let queueKind = "QueueWidget"
   static let lockScreenNowPlayingKind = "LockScreenNowPlayingWidget"
+  static let playPauseControlKind = "PlayPauseControl"
+  static let skipForwardControlKind = "SkipForwardControl"
+  static let skipBackwardControlKind = "SkipBackwardControl"
 
   // MARK: - Data Storage
 
@@ -32,33 +34,5 @@ enum WidgetInfo {
 
   static var logFileURL: URL {
     containerURL.appendingPathComponent("widget-log.ndjson")
-  }
-
-  // MARK: - Playback Status
-
-  private static let playbackStatusKey = "playbackStatus"
-
-  private static let log = Log.as("WidgetInfo")
-
-  static var playbackStatus: PlaybackStatus {
-    get {
-      guard let data = Container.shared.sharedDefaults().data(forKey: playbackStatusKey)
-      else { return .stopped }
-
-      do {
-        return try JSONDecoder().decode(PlaybackStatus.self, from: data)
-      } catch {
-        log.caughtError("Failed to decode playback status", error)
-        return .stopped
-      }
-    }
-    set {
-      do {
-        let data = try JSONEncoder().encode(newValue)
-        Container.shared.sharedDefaults().set(data, forKey: playbackStatusKey)
-      } catch {
-        log.caughtError("Failed to encode playback status \(newValue)", error)
-      }
-    }
   }
 }

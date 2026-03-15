@@ -117,11 +117,17 @@ extension ThreadSafe {
 struct PersistedThreadSafe<T: DefaultsStorable>: Sendable {
   private let storage: ThreadSafe<T>
   private let key: String
+  private let store: any KeyValueStore
 
-  init(wrappedValue: T, _ key: String) {
+  init(
+    wrappedValue: T,
+    _ key: String,
+    store: any KeyValueStore = Container.shared.standardDefaults()
+  ) {
     self.key = key
+    self.store = store
     storage = ThreadSafe(
-      T.load(from: Container.shared.standardDefaults(), forKey: key) ?? wrappedValue
+      T.load(from: store, forKey: key) ?? wrappedValue
     )
   }
 
@@ -129,7 +135,17 @@ struct PersistedThreadSafe<T: DefaultsStorable>: Sendable {
     get { storage() }
     nonmutating set {
       storage(newValue)
-      newValue.store(to: Container.shared.standardDefaults(), forKey: key)
+      newValue.store(to: store, forKey: key)
+    }
+  }
+
+  var projectedValue: PersistedThreadSafe<T> { self }
+
+  // Re-reads the value from the backing store into the in-memory cache.
+  // Use when another process may have written to the same store.
+  func refresh() {
+    if let loaded = T.load(from: store, forKey: key) {
+      storage(loaded)
     }
   }
 }

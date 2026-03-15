@@ -1,6 +1,6 @@
 // Copyright Justin Bishop, 2025
 
-enum PlaybackStatus: Codable, Equatable, CustomStringConvertible, Sendable {
+enum PlaybackStatus: Codable, DefaultsStorable, Equatable, CustomStringConvertible, Sendable {
   case loading(String)
   case paused, playing, stopped, waiting
 

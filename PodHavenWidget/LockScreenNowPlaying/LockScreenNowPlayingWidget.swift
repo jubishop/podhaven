@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Logging
 import SwiftUI
 import WidgetKit
@@ -27,7 +28,9 @@ struct LockScreenNowPlayingProvider: TimelineProvider {
   }
 
   private func makeEntry() -> LockScreenNowPlayingEntry {
-    let playbackStatus = WidgetInfo.playbackStatus
+    let state = Container.shared.widgetState()
+    state.$playbackStatus.refresh()
+    let playbackStatus = state.playbackStatus
 
     if playbackStatus.loadingTitle != nil {
       Self.log.debug("makeEntry: loading")

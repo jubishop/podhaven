@@ -33,7 +33,7 @@ struct LockScreenNowPlayingWidgetView: View {
         .font(.title2)
         .widgetAccentable()
     } else {
-      Button(intent: PlayPauseIntent()) {
+      Button(intent: PlayPauseIntent(playing: !entry.playbackStatus.playing)) {
         (entry.playbackStatus.playing
           ? AppIcon.pauseButton.image
           : AppIcon.playButton.image)
@@ -64,7 +64,7 @@ struct LockScreenNowPlayingWidgetView: View {
       }
     } else {
       HStack(spacing: 4) {
-        Button(intent: PlayPauseIntent()) {
+        Button(intent: PlayPauseIntent(playing: !entry.playbackStatus.playing)) {
           (entry.playbackStatus.playing
             ? AppIcon.pauseButton.image
             : AppIcon.playButton.image)

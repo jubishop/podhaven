@@ -9,10 +9,12 @@ import Testing
 
 @Suite("of WidgetSnapshotWriter tests", .container)
 @MainActor class WidgetSnapshotWriterTests {
-  @DynamicInjected(\.widgetSnapshotWriter) private var writer
+  @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.userSettings) private var userSettings
-  @DynamicInjected(\.queue) private var queue
+  @DynamicInjected(\.widgetSnapshotWriter) private var writer
+
+  nonisolated private var widgetState: WidgetState { Container.shared.widgetState() }
 
   @Test("writes valid JSON when nothing is playing and queue is empty")
   func writesValidJSONWhenNothingPlayingAndQueueEmpty() async throws {
@@ -48,14 +50,14 @@ import Testing
 
     sharedState.$playbackStatus.new(.playing)
     try await Wait.until(
-      { WidgetInfo.playbackStatus == .playing },
-      { "WidgetInfo.playbackStatus was not updated to .playing" }
+      { self.widgetState.playbackStatus == .playing },
+      { "widgetState.playbackStatus was not updated to .playing" }
     )
 
     sharedState.$playbackStatus.new(.paused)
     try await Wait.until(
-      { WidgetInfo.playbackStatus == .paused },
-      { "WidgetInfo.playbackStatus was not updated to .paused" }
+      { self.widgetState.playbackStatus == .paused },
+      { "widgetState.playbackStatus was not updated to .paused" }
     )
   }
 
@@ -65,21 +67,20 @@ import Testing
 
     sharedState.$playbackStatus.new(.loading("My Episode"))
     try await Wait.until(
-      { WidgetInfo.playbackStatus.loadingTitle == "My Episode" },
-      { "WidgetInfo.playbackStatus was not updated to loading" }
+      { self.widgetState.playbackStatus.loadingTitle == "My Episode" },
+      { "widgetState.playbackStatus was not updated to loading" }
     )
   }
 
-  @Test("includes user settings")
-  func includesUserSettings() async throws {
+  @Test("syncs skip intervals to UserDefaults")
+  func syncsSkipIntervals() async throws {
     userSettings.$skipForwardInterval.new(45)
     userSettings.$skipBackwardInterval.new(10)
     writer.start()
     try await WidgetHelpers.waitForSnapshot()
 
-    let snapshot = try await WidgetHelpers.decodeSnapshot()
-    #expect(snapshot.skipForwardInterval == 45)
-    #expect(snapshot.skipBackwardInterval == 10)
+    #expect(widgetState.skipForwardInterval == 45)
+    #expect(widgetState.skipBackwardInterval == 10)
   }
 
   @Test("includes queue items from database")
@@ -125,7 +126,7 @@ import Testing
 
     sharedState.$playbackStatus.new(.playing)
     try await Wait.until(
-      { WidgetInfo.playbackStatus == .playing },
+      { self.widgetState.playbackStatus == .playing },
       { "playbackStatus was not updated to .playing" }
     )
 
@@ -147,7 +148,7 @@ import Testing
 
     sharedState.$playbackStatus.new(.playing)
     try await Wait.until(
-      { WidgetInfo.playbackStatus == .playing },
+      { self.widgetState.playbackStatus == .playing },
       { "playbackStatus was not updated to .playing" }
     )
     try await sleeper.waitForSleepRequests(count: 1)
@@ -155,7 +156,7 @@ import Testing
     // Pausing cancels the heartbeat
     sharedState.$playbackStatus.new(.paused)
     try await Wait.until(
-      { WidgetInfo.playbackStatus == .paused },
+      { self.widgetState.playbackStatus == .paused },
       { "playbackStatus was not updated to .paused" }
     )
     await sleeper.advanceTime(by: .seconds(240))
@@ -163,7 +164,7 @@ import Testing
     // Resuming playback starts a fresh heartbeat
     sharedState.$playbackStatus.new(.playing)
     try await Wait.until(
-      { WidgetInfo.playbackStatus == .playing },
+      { self.widgetState.playbackStatus == .playing },
       { "playbackStatus was not updated to .playing" }
     )
     try await sleeper.waitForSleepRequests(count: 1)
@@ -180,14 +181,14 @@ import Testing
     // Loading an episode — no heartbeat
     sharedState.$playbackStatus.new(.loading("My Episode"))
     try await Wait.until(
-      { WidgetInfo.playbackStatus.loading },
+      { self.widgetState.playbackStatus.loading },
       { "playbackStatus was not updated to .loading" }
     )
 
     // Playback starts — heartbeat begins
     sharedState.$playbackStatus.new(.playing)
     try await Wait.until(
-      { WidgetInfo.playbackStatus == .playing },
+      { self.widgetState.playbackStatus == .playing },
       { "playbackStatus was not updated to .playing" }
     )
     try await sleeper.waitForSleepRequests(count: 1)
@@ -195,7 +196,7 @@ import Testing
     // Buffering mid-stream — heartbeat stops
     sharedState.$playbackStatus.new(.waiting)
     try await Wait.until(
-      { WidgetInfo.playbackStatus == .waiting },
+      { self.widgetState.playbackStatus == .waiting },
       { "playbackStatus was not updated to .waiting" }
     )
     await sleeper.advanceTime(by: .seconds(240))
@@ -203,11 +204,78 @@ import Testing
     // Buffering resolves — heartbeat restarts
     sharedState.$playbackStatus.new(.playing)
     try await Wait.until(
-      { WidgetInfo.playbackStatus == .playing },
+      { self.widgetState.playbackStatus == .playing },
       { "playbackStatus was not updated to .playing" }
     )
     try await sleeper.waitForSleepRequests(count: 1)
     await sleeper.advanceTime(by: .seconds(240))
     try await sleeper.waitForSleepRequests(count: 1)
+  }
+
+  // MARK: - Control Center Reloads
+
+  nonisolated private var fakeControlCenter: FakeControlCenter {
+    Container.shared.controlCenter() as! FakeControlCenter
+  }
+
+  @Test("reloads play/pause control when playback status changes")
+  func reloadsPlayPauseControlOnStatusChange() async throws {
+    writer.start()
+    try await WidgetHelpers.waitForSnapshot()
+    fakeControlCenter.reset()
+
+    sharedState.$playbackStatus.new(.playing)
+    try await Wait.until(
+      { self.fakeControlCenter.reloadCount(ofKind: WidgetInfo.playPauseControlKind) >= 1 },
+      { "play/pause control was not reloaded on .playing" }
+    )
+
+    sharedState.$playbackStatus.new(.paused)
+    try await Wait.until(
+      { self.fakeControlCenter.reloadCount(ofKind: WidgetInfo.playPauseControlKind) >= 2 },
+      { "play/pause control was not reloaded on .paused" }
+    )
+  }
+
+  @Test("reloads skip forward control when interval changes")
+  func reloadsSkipForwardControlOnIntervalChange() async throws {
+    writer.start()
+    try await WidgetHelpers.waitForSnapshot()
+    fakeControlCenter.reset()
+
+    userSettings.$skipForwardInterval.new(45)
+    try await Wait.until(
+      { self.fakeControlCenter.reloadCount(ofKind: WidgetInfo.skipForwardControlKind) >= 1 },
+      { "skip forward control was not reloaded" }
+    )
+  }
+
+  @Test("reloads skip backward control when interval changes")
+  func reloadsSkipBackwardControlOnIntervalChange() async throws {
+    writer.start()
+    try await WidgetHelpers.waitForSnapshot()
+    fakeControlCenter.reset()
+
+    userSettings.$skipBackwardInterval.new(10)
+    try await Wait.until(
+      { self.fakeControlCenter.reloadCount(ofKind: WidgetInfo.skipBackwardControlKind) >= 1 },
+      { "skip backward control was not reloaded" }
+    )
+  }
+
+  @Test("does not reload skip controls when playback status changes")
+  func doesNotReloadSkipControlsOnStatusChange() async throws {
+    writer.start()
+    try await WidgetHelpers.waitForSnapshot()
+    fakeControlCenter.reset()
+
+    sharedState.$playbackStatus.new(.playing)
+    try await Wait.until(
+      { self.fakeControlCenter.reloadCount(ofKind: WidgetInfo.playPauseControlKind) >= 1 },
+      { "play/pause control was not reloaded" }
+    )
+
+    #expect(fakeControlCenter.reloadCount(ofKind: WidgetInfo.skipForwardControlKind) == 0)
+    #expect(fakeControlCenter.reloadCount(ofKind: WidgetInfo.skipBackwardControlKind) == 0)
   }
 }

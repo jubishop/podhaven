@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Logging
 import SwiftUI
 import WidgetKit
@@ -53,7 +54,11 @@ struct NowPlayingProvider: TimelineProvider {
   }
 
   private func makeEntry() -> NowPlayingEntry {
-    let playbackStatus = WidgetInfo.playbackStatus
+    let state = Container.shared.widgetState()
+    state.$playbackStatus.refresh()
+    state.$skipForwardInterval.refresh()
+    state.$skipBackwardInterval.refresh()
+    let playbackStatus = state.playbackStatus
 
     if let loadingTitle = playbackStatus.loadingTitle {
       Self.log.debug("makeEntry: loading \(loadingTitle)")
@@ -96,8 +101,8 @@ struct NowPlayingProvider: TimelineProvider {
       durationFormatted: nowPlaying.durationSeconds.playbackTimeFormat,
       playbackStatus: playbackStatus,
       artwork: WidgetSnapshotReader.decodeArtwork(from: nowPlaying.artworkBase64),
-      skipForwardInterval: snapshot.skipForwardInterval,
-      skipBackwardInterval: snapshot.skipBackwardInterval
+      skipForwardInterval: state.skipForwardInterval,
+      skipBackwardInterval: state.skipBackwardInterval
     )
   }
 }

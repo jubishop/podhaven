@@ -210,6 +210,7 @@
 				Widget/Intents/SkipForwardIntent.swift,
 				Widget/WidgetInfo.swift,
 				Widget/WidgetSnapshot.swift,
+				Widget/WidgetState.swift,
 			);
 			target = 8BA4F41F2F3E74AC000AC336 /* PodHavenWidget */;
 		};

@@ -143,7 +143,7 @@ struct NowPlayingWidgetView: View {
       AppIcon.loading.image
         .disabled(true)
     } else {
-      Button(intent: PlayPauseIntent()) {
+      Button(intent: PlayPauseIntent(playing: !entry.playbackStatus.playing)) {
         if entry.playbackStatus.playing {
           AppIcon.pauseButton.image
         } else {

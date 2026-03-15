@@ -44,8 +44,6 @@ struct WidgetSnapshotTests {
         ),
       ],
       queueTotalCount: 10,
-      skipForwardInterval: 30,
-      skipBackwardInterval: 15,
       updatedAt: Date()
     )
 
@@ -76,8 +74,6 @@ struct WidgetSnapshotTests {
       nowPlaying: nil,
       queue: [],
       queueTotalCount: 0,
-      skipForwardInterval: 30,
-      skipBackwardInterval: 15,
       updatedAt: Date()
     )
 
@@ -104,8 +100,6 @@ struct WidgetSnapshotTests {
       ),
       queue: [],
       queueTotalCount: 0,
-      skipForwardInterval: 30,
-      skipBackwardInterval: 15,
       updatedAt: Date()
     )
 
@@ -125,8 +119,6 @@ struct WidgetSnapshotTests {
       nowPlaying: nil,
       queue: [],
       queueTotalCount: 0,
-      skipForwardInterval: 30,
-      skipBackwardInterval: 15,
       updatedAt: Date()
     )
 
@@ -153,10 +145,11 @@ struct WidgetSnapshotTests {
 
   // MARK: - Intent Conformance
 
-  @Test("PlayPauseIntent conforms to AudioPlaybackIntent")
+  @Test("PlayPauseIntent conforms to AudioPlaybackIntent and SetValueIntent")
   func playPauseIntentConformance() {
     let intent: any AudioPlaybackIntent = PlayPauseIntent()
     #expect(intent is PlayPauseIntent)
+    #expect(intent is any SetValueIntent)
   }
 
   @Test("SkipForwardIntent conforms to AudioPlaybackIntent")

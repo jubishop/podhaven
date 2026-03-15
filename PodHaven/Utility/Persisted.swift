@@ -9,17 +9,33 @@ import Foundation
 struct Persisted<T: DefaultsStorable> {
   private var value: T
   private let key: String
+  private let store: any KeyValueStore
 
-  init(wrappedValue: T, _ key: String) {
+  init(
+    wrappedValue: T,
+    _ key: String,
+    store: any KeyValueStore = Container.shared.standardDefaults()
+  ) {
     self.key = key
-    value = T.load(from: Container.shared.standardDefaults(), forKey: key) ?? wrappedValue
+    self.store = store
+    value = T.load(from: store, forKey: key) ?? wrappedValue
   }
 
   var wrappedValue: T {
     get { value }
     set {
       value = newValue
-      newValue.store(to: Container.shared.standardDefaults(), forKey: key)
+      newValue.store(to: store, forKey: key)
+    }
+  }
+
+  var projectedValue: Persisted<T> { self }
+
+  // Re-reads the value from the backing store into the in-memory cache.
+  // Use when another process may have written to the same store.
+  mutating func refresh() {
+    if let loaded = T.load(from: store, forKey: key) {
+      value = loaded
     }
   }
 }

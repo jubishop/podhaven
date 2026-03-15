@@ -79,6 +79,7 @@ enum LogSubsystem {
 
   enum Widget: String, LogCategorizable {
     case bundle
+    case controlCenter
     case lockScreenNowPlaying
     case nowPlaying
     case queue
