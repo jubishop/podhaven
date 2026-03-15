@@ -44,10 +44,12 @@ struct Observatory {
     _observe { db in
       let subscribed = try Podcast.all().subscribed().fetchCount(db)
       let unsubscribed = try Podcast.all().unsubscribed().fetchCount(db)
+      let untagged = try Podcast.all().having(Podcast.podcastTags.isEmpty).fetchCount(db)
 
       return PodcastCounts(
         subscribed: subscribed,
         unsubscribed: unsubscribed,
+        untagged: untagged,
         byTag: try Self._podcastCountsByTag(db)
       )
     }

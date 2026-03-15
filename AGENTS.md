@@ -1,5 +1,5 @@
 ## MCP Usage
-- If discussing Swift, SwiftUI, and iOS: Consult the apple-docs and apple-deep-docs mcps for up to date information.
+- If discussing Swift, SwiftUI, and iOS: Consult the apple-docs mcp for up to date information.
 
 ## Repo Guardrails
 - **This is a public repository.** Never add secrets, API keys, auth tokens, or credentials to any file.
@@ -17,7 +17,7 @@
 
 ##  Shared Utilities & Helpers
 - `Assert` funnels invariants through structured fatal logging; avoid `fatalError`/`precondition` outside this helper.
-- `ThreadSafe` supports concurrency-safe storage.
+- `ThreadSafe` supports concurrency-safe storage.  `Broadcast` adds AsyncStreams and Observability.
 - Never use `Task.sleep` in production code; always use the injected `Sleepable` (`sleeper`) so tests can control timing.
 
 ## Errors and Logging
@@ -40,6 +40,9 @@
 
 ## Previews
 - Previews stub factories for in-memory SwiftUI previews with no network calls or DB access.
+
+## Database
+- Prefer pure GRDB APIs (associations, aggregates, column expressions, `joining()`, `having()`, `filter()`, etc.) over raw SQL strings.
 
 ## Coding Standards
 - Always use `[weak self]` in closures and Tasks that capture `self`, unless a strong reference is explicitly required.

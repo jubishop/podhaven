@@ -463,6 +463,37 @@ class PodcastTests {
     #expect(updated4 == false)
   }
 
+  @Test("untagged filter returns only podcasts with no tags")
+  func testUntaggedFilter() async throws {
+    let series1 = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: Create.unsavedPodcast())
+    )
+    let series2 = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: Create.unsavedPodcast())
+    )
+    let series3 = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: Create.unsavedPodcast())
+    )
+
+    let tag = try await repo.insertTag(named: "Tech")
+    try await repo.addTag(tag.id, to: series1.id)
+
+    let untagged = try await repo.db.read { db in
+      try Podcast.all().having(Podcast.podcastTags.isEmpty).fetchAll(db)
+    }
+    #expect(untagged.count == 2)
+    #expect(Set(untagged.map(\.id)) == Set([series2.id, series3.id]))
+
+    // Tagging the remaining podcasts should make untagged empty
+    try await repo.addTag(tag.id, to: series2.id)
+    try await repo.addTag(tag.id, to: series3.id)
+
+    let untaggedAfter = try await repo.db.read { db in
+      try Podcast.all().having(Podcast.podcastTags.isEmpty).fetchAll(db)
+    }
+    #expect(untaggedAfter.isEmpty)
+  }
+
   @Test("updateNotifyNewEpisodes() successfully updates podcast notifyNewEpisodes setting")
   func testUpdateNotifyNewEpisodes() async throws {
     // Insert a podcast with default notifyNewEpisodes value (false)

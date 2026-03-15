@@ -5,5 +5,6 @@ import Foundation
 struct PodcastCounts: Equatable {
   let subscribed: Int
   let unsubscribed: Int
+  let untagged: Int
   let byTag: [Tag.ID: Int]
 }

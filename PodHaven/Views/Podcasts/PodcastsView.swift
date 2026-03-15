@@ -31,6 +31,13 @@ struct PodcastsView: View {
 
         if !sharedState.tags.isEmpty {
           Section("Tags") {
+            NavigationLink(value: Navigation.Destination.podcastsViewType(.untagged)) {
+              LabeledContent("Untagged") {
+                Text("\(viewModel.counts?.untagged ?? 0)")
+                  .foregroundStyle(.secondary)
+              }
+            }
+
             ForEach(sharedState.tags) { tag in
               NavigationLink(value: Navigation.Destination.podcastsViewType(.tag(tag.id))) {
                 LabeledContent(tag.name) {

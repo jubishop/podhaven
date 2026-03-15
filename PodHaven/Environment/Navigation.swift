@@ -108,6 +108,7 @@ extension Container {
   enum PodcastsViewType: DefaultsStorable, Codable, Hashable, Sendable {
     case subscribed
     case unsubscribed
+    case untagged
     case tag(Tag.ID)
 
     enum CodingKeys: String, CodingKey {
@@ -120,6 +121,7 @@ extension Container {
       switch type {
       case "subscribed": self = .subscribed
       case "unsubscribed": self = .unsubscribed
+      case "untagged": self = .untagged
       case "tag":
         self = .tag(try container.decode(Tag.ID.self, forKey: .tagID))
       default: self = .subscribed
@@ -133,6 +135,8 @@ extension Container {
         try container.encode("subscribed", forKey: .type)
       case .unsubscribed:
         try container.encode("unsubscribed", forKey: .type)
+      case .untagged:
+        try container.encode("untagged", forKey: .type)
       case .tag(let tagID):
         try container.encode("tag", forKey: .type)
         try container.encode(tagID, forKey: .tagID)
@@ -220,6 +224,14 @@ extension Container {
           )
         )
         .id("unsubscribed")
+      case .untagged:
+        PodcastsListView(
+          viewModel: PodcastsListViewModel(
+            title: "Untagged",
+            filter: { $0.having(Podcast.podcastTags.isEmpty) }
+          )
+        )
+        .id("untagged")
       case .tag(let tagID):
         if let tag = sharedState.tags[id: tagID] {
           PodcastsListView(
