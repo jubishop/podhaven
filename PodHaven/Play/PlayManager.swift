@@ -653,7 +653,11 @@ final class PlayManager {
     guard configureAudioSession() else { return }
     Self.log.debug("handleMediaServicesReset: audio session configured")
 
-    // Force creation of new instances since the old ones are invalid after media services reset
+    // Clean up the old AVPlayer before resetting, since @DynamicInjected re-resolves
+    // on each access — after reset, avPlayer points to the new instance and the old
+    // one's observers and player item would be leaked.
+    await podAVPlayer.clear()
+
     Container.shared.avPlayer.reset(.scope)
     Self.log.debug("handleMediaServicesReset: reset AVPlayer scope")
 
