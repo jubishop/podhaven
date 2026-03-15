@@ -6,7 +6,7 @@ import MediaPlayer
 
 extension Container {
   var mpNowPlayingInfoCenter: Factory<any MPNowPlayingInfoCenterable> {
-    Factory(self) { MPNowPlayingInfoCenter.default() }.scope(.cached)
+    Factory(self) { MPNowPlayingInfoCenter.default() }
   }
 }
 

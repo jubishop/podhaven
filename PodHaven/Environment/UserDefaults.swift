@@ -6,7 +6,6 @@ import Foundation
 extension Container {
   var standardDefaults: Factory<any KeyValueStore> {
     Factory(self) { UserDefaults.standard }
-      .scope(.cached)
   }
 
   var sharedDefaults: Factory<any KeyValueStore> {

@@ -6,6 +6,6 @@ import Nuke
 
 extension Container {
   var imagePipeline: Factory<ImagePipeline> {
-    Factory(self) { ImagePipeline.shared }.scope(.cached)
+    Factory(self) { ImagePipeline.shared }
   }
 }

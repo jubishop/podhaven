@@ -73,12 +73,13 @@ enum NowPlayingInfo {
   }
 
   static func setCurrentTime(_ currentTime: CMTime) {
-    Self.log.trace("setCurrentTime: \(currentTime)")
-
     guard let duration = Container.shared.sharedState().onDeck?.duration else { return }
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
-    guard var nowPlayingInfo = infoCenter.nowPlayingInfo else { return }
+    guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
+      Self.log.warning("setCurrentTime: nowPlayingInfo is nil")
+      return
+    }
     defer { infoCenter.nowPlayingInfo = nowPlayingInfo }
 
     let elapsedSeconds = currentTime.safe.seconds
@@ -108,7 +109,10 @@ enum NowPlayingInfo {
     Self.log.debug("setPlaybackRate: \(rate)")
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
-    guard var nowPlayingInfo = infoCenter.nowPlayingInfo else { return }
+    guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
+      Self.log.warning("setPlaybackRate: nowPlayingInfo is nil")
+      return
+    }
     defer { infoCenter.nowPlayingInfo = nowPlayingInfo }
 
     guard rate.isFinite
@@ -125,7 +129,10 @@ enum NowPlayingInfo {
     Self.log.debug("updateQueueCount")
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
-    guard var nowPlayingInfo = infoCenter.nowPlayingInfo else { return }
+    guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
+      Self.log.warning("updateQueueCount: nowPlayingInfo is nil")
+      return
+    }
     defer { infoCenter.nowPlayingInfo = nowPlayingInfo }
 
     switch Container.shared.userSettings().nextTrackBehavior {
@@ -147,7 +154,10 @@ enum NowPlayingInfo {
       podcast?.defaultPlaybackRate ?? Container.shared.userSettings().defaultPlaybackRate
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
-    guard var nowPlayingInfo = infoCenter.nowPlayingInfo else { return }
+    guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
+      Self.log.warning("updateDefaultPlaybackRate: nowPlayingInfo is nil")
+      return
+    }
     defer { infoCenter.nowPlayingInfo = nowPlayingInfo }
 
     nowPlayingInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = defaultPlaybackRate

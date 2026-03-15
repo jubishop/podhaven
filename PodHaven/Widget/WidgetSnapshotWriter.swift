@@ -12,7 +12,7 @@ import WidgetKit
 
 extension Container {
   var controlCenter: Factory<any ControlReloading> {
-    Factory(self) { ControlCenter.shared }.scope(.cached)
+    Factory(self) { ControlCenter.shared }
   }
 
   var widgetSnapshotWriter: Factory<WidgetSnapshotWriter> {

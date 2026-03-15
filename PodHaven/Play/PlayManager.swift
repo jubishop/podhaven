@@ -73,6 +73,7 @@ final class PlayManager {
   private var loadTask: Task<Bool, any Error>?
   private var restartSeekCommandsTask: Task<Void, any Error>?
   private var ignoreSeekCommands = false
+  private var lastLoggedTime: Double = 0
 
   // MARK: - Initialization
 
@@ -542,8 +543,19 @@ final class PlayManager {
     )
   }
 
+  private func setCurrentTime(_ currentTime: CMTime) async {
+    let seconds = currentTime.safe.seconds
+    if seconds - lastLoggedTime >= 10 {
+      lastLoggedTime = seconds
+      Self.log.debug("setCurrentTime: \(currentTime)")
+    }
+    NowPlayingInfo.setCurrentTime(currentTime)
+    stateManager.setCurrentTime(currentTime)
+  }
+
   private func setStatus(_ status: PlaybackStatus) async {
     Self.log.debug("setStatus: \(status)")
+    await checkForDesync("setStatus(\(status))")
     sharedState.setPlaybackStatus(status)
 
     if status == .stopped {
@@ -555,17 +567,25 @@ final class PlayManager {
     }
   }
 
-  private func setCurrentTime(_ currentTime: CMTime) async {
-    Self.log.trace("setCurrentTime: \(currentTime)")
-    NowPlayingInfo.setCurrentTime(currentTime)
-    stateManager.setCurrentTime(currentTime)
-  }
-
   // Incoming state update from the AVPlayer (in contrast to setRate(_))
   private func setPlaybackRate(_ rate: Float) async {
     Self.log.debug("setPlaybackRate: \(rate)")
+    await checkForDesync("setPlaybackRate(\(rate))")
     NowPlayingInfo.setPlaybackRate(rate)
     sharedState.setPlayRate(rate)
+  }
+
+  private func checkForDesync(_ caller: String) async {
+    let avTime = await podAVPlayer.currentTime.safe.seconds
+    let onDeckTime = sharedState.onDeck?.currentTime.safe.seconds ?? 0
+    if avTime > 0, abs(avTime - onDeckTime) > 30 {
+      Self.log.critical(
+        """
+        Playback position desync detected in \(caller)
+          avPlayer: \(avTime)s, onDeck: \(onDeckTime)s, delta: \(abs(avTime - onDeckTime))s
+        """
+      )
+    }
   }
 
   private func temporarilyHaltSeekCommands() {
@@ -651,12 +671,6 @@ final class PlayManager {
     // Force creation of new instances since the old ones are invalid after media services reset
     Container.shared.avPlayer.reset(.scope)
     Self.log.debug("handleMediaServicesReset: reset AVPlayer scope")
-
-    Container.shared.mpRemoteCommandCenter.reset(.scope)
-    Self.log.debug("handleMediaServicesReset: reset mpRemoteCommandCenter scope")
-
-    Container.shared.mpNowPlayingInfoCenter.reset(.scope)
-    Self.log.debug("handleMediaServicesReset: reset mpNowPlayingInfoCenter scope")
 
     // Re-register on the fresh factory instances
     CommandCenter.registerRemoteCommandHandlers()
