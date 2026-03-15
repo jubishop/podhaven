@@ -10,7 +10,7 @@ import UserNotifications
 
 extension Container {
   var userNotificationCenter: Factory<any NotifyingCenter> {
-    Factory(self) { UNUserNotificationCenter.current() }.scope(.unique)
+    Factory(self) { UNUserNotificationCenter.current() }
   }
 
   var userNotificationManager: Factory<UserNotificationManager> {

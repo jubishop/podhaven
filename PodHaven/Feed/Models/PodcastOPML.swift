@@ -9,7 +9,7 @@ import XMLCoder
 
 extension Container {
   var podcastOPMLSession: Factory<any DataFetchable> {
-    Factory(self) { URLSession.shared }.scope(.unique)
+    Factory(self) { URLSession.shared }
   }
 }
 

@@ -5,7 +5,7 @@ import Foundation
 
 extension Container {
   var fileManager: Factory<any FileManaging> {
-    Factory(self) { FileManager.default }.scope(.unique)
+    Factory(self) { FileManager.default }
   }
 }
 
