@@ -106,12 +106,12 @@ struct AppLauncher: Sendable {
     cacheManager.start()
 
     // System monitoring
-    startMemoryWarningMonitoring()
+    startSystemMonitoring()
   }
 
-  // MARK: - Memory Monitoring
+  // MARK: - System Monitoring
 
-  private func startMemoryWarningMonitoring() {
+  private func startSystemMonitoring() {
     guard Function.neverCalled() else { return }
 
     Task {
@@ -121,6 +121,20 @@ struct AppLauncher: Sendable {
         if AppInfo.myDevice {
           await alert("Memory warning received")
         }
+      }
+    }
+
+    Task {
+      for await _ in notifications(ProcessInfo.thermalStateDidChangeNotification) {
+        let state =
+          switch ProcessInfo.processInfo.thermalState {
+          case .nominal: "nominal"
+          case .fair: "fair"
+          case .serious: "serious"
+          case .critical: "critical"
+          @unknown default: "unknown"
+          }
+        Self.log.warning("Thermal state changed to: \(state)")
       }
     }
   }

@@ -737,6 +737,14 @@ final class PlayManager {
 
     Task { @PlayActor [weak self] in
       guard let self else { return }
+      for await _ in notifications(AVAudioSession.mediaServicesWereLostNotification) {
+        Self.log.error("Media services were lost")
+        await checkForDesync("mediaServicesWereLost")
+      }
+    }
+
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
       for await _ in notifications(AVAudioSession.mediaServicesWereResetNotification) {
         await handleMediaServicesReset()
       }
@@ -758,6 +766,8 @@ final class PlayManager {
             outputs: \(session.currentRoute.outputs.map(\.portType.rawValue))
           """
         )
+
+        await podAVPlayer.savePosition()
       }
     }
 
@@ -781,6 +791,16 @@ final class PlayManager {
         )
 
         await handlePlaybackFailure()
+      }
+    }
+
+    Task { @PlayActor [weak self] in
+      guard let self else { return }
+      for await notification in notifications(AVPlayerItem.timeJumpedNotification)
+      where await podAVPlayer.isCurrentItem(notification.object as? AVPlayerItem) {
+        let avTime = await podAVPlayer.currentTime
+        Self.log.info("AVPlayerItem time jumped to \(avTime)")
+        await setCurrentTime(avTime)
       }
     }
 
