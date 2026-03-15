@@ -555,7 +555,6 @@ final class PlayManager {
 
   private func setStatus(_ status: PlaybackStatus) async {
     Self.log.debug("setStatus: \(status)")
-    await checkForDesync("setStatus(\(status))")
     sharedState.setPlaybackStatus(status)
 
     if status == .stopped {
@@ -570,22 +569,8 @@ final class PlayManager {
   // Incoming state update from the AVPlayer (in contrast to setRate(_))
   private func setPlaybackRate(_ rate: Float) async {
     Self.log.debug("setPlaybackRate: \(rate)")
-    await checkForDesync("setPlaybackRate(\(rate))")
     NowPlayingInfo.setPlaybackRate(rate)
     sharedState.setPlayRate(rate)
-  }
-
-  private func checkForDesync(_ caller: String) async {
-    let avTime = await podAVPlayer.currentTime.safe.seconds
-    let onDeckTime = sharedState.onDeck?.currentTime.safe.seconds ?? 0
-    if avTime > 0, abs(avTime - onDeckTime) > 30 {
-      Self.log.error(
-        """
-        Playback position desync detected in \(caller)
-          avPlayer: \(avTime)s, onDeck: \(onDeckTime)s, delta: \(abs(avTime - onDeckTime))s
-        """
-      )
-    }
   }
 
   private func temporarilyHaltSeekCommands() {
@@ -739,7 +724,6 @@ final class PlayManager {
       guard let self else { return }
       for await _ in notifications(AVAudioSession.mediaServicesWereLostNotification) {
         Self.log.error("Media services were lost")
-        await checkForDesync("mediaServicesWereLost")
       }
     }
 
@@ -798,9 +782,8 @@ final class PlayManager {
       guard let self else { return }
       for await notification in notifications(AVPlayerItem.timeJumpedNotification)
       where await podAVPlayer.isCurrentItem(notification.object as? AVPlayerItem) {
-        let avTime = await podAVPlayer.currentTime
-        Self.log.info("AVPlayerItem time jumped to \(avTime)")
-        await setCurrentTime(avTime)
+        let time = (notification.object as? AVPlayerItem)?.currentTime()
+        Self.log.info("AVPlayerItem time jumped to \(String(describing: time))")
       }
     }
 

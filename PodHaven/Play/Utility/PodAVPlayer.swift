@@ -50,8 +50,6 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   // MARK: - State Management
 
-  var currentTime: CMTime { avPlayer.currentTime() }
-
   private var episodeID: Episode.ID?
   private var lastDatabaseUpdateTime: CMTime?
 
