@@ -579,7 +579,7 @@ final class PlayManager {
     let avTime = await podAVPlayer.currentTime.safe.seconds
     let onDeckTime = sharedState.onDeck?.currentTime.safe.seconds ?? 0
     if avTime > 0, abs(avTime - onDeckTime) > 30 {
-      Self.log.critical(
+      Self.log.error(
         """
         Playback position desync detected in \(caller)
           avPlayer: \(avTime)s, onDeck: \(onDeckTime)s, delta: \(abs(avTime - onDeckTime))s

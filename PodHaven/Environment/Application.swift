@@ -5,7 +5,7 @@ import UIKit
 
 extension Container {
   var uiApplication: Factory<any ApplicationProviding> {
-    Factory(self) { @MainActor in UIApplication.shared }
+    Factory(self) { @MainActor in UIApplication.shared }.scope(.unique)
   }
 }
 

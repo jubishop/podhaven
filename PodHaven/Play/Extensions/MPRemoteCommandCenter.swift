@@ -6,7 +6,7 @@ import MediaPlayer
 
 extension Container {
   var mpRemoteCommandCenter: Factory<any MPRemoteCommandableCenter> {
-    Factory(self) { MPRemoteCommandCenter.shared() }
+    Factory(self) { MPRemoteCommandCenter.shared() }.scope(.unique)
   }
 }
 

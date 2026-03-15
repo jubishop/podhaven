@@ -22,6 +22,7 @@ extension Container {
         )
       }
     }
+    .scope(.unique)
   }
 }
 

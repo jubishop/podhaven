@@ -9,5 +9,6 @@ typealias NotificationSequence =
 extension Container {
   var notifications: Factory<NotificationSequence> {
     Factory(self) { { name in NotificationCenter.default.notifications(named: name) } }
+      .scope(.unique)
   }
 }
