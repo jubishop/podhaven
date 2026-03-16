@@ -14,6 +14,7 @@
 
 ## UI Structure
 - Views stay declarative, forwarding actions to their view models or shared protocols; never introduce business logic inside SwiftUI view structs.
+- Always use `AppIcon` for labels and images (e.g., `AppIcon.play` instead of `Image(systemName: "play.fill")`).
 
 ##  Shared Utilities & Helpers
 - `Assert` funnels invariants through structured fatal logging; avoid `fatalError`/`precondition` outside this helper.
