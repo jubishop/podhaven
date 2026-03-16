@@ -27,6 +27,7 @@ class EpisodesListViewModel:
   enum SortMethod: String, Codable, DefaultsStorable, SortingMethod {
     case newestFirst
     case oldestFirst
+    case recentlyAdded
     case longest
     case shortest
     case recentlyFinished
@@ -38,6 +39,8 @@ class EpisodesListViewModel:
         return .sortByNewest
       case .oldestFirst:
         return .sortByOldest
+      case .recentlyAdded:
+        return .sortByRecentlyAdded
       case .longest:
         return .sortByLongest
       case .shortest:
@@ -55,6 +58,8 @@ class EpisodesListViewModel:
         return Episode.Columns.pubDate.desc
       case .oldestFirst:
         return Episode.Columns.pubDate.asc
+      case .recentlyAdded:
+        return Episode.Columns.creationDate.desc
       case .longest:
         return Episode.Columns.duration.desc
       case .shortest:

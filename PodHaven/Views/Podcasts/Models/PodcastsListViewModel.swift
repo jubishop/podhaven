@@ -28,6 +28,7 @@ class PodcastsListViewModel:
   enum SortMethod: String, Codable, DefaultsStorable, SortingMethod {
     case byTitle
     case byMostRecentEpisode
+    case byMostRecentlyAdded
     case byEpisodeCount
     case byMostRecentlySubscribed
 
@@ -37,6 +38,8 @@ class PodcastsListViewModel:
         return .sortByTitle
       case .byMostRecentEpisode:
         return .sortByNewest
+      case .byMostRecentlyAdded:
+        return .sortByRecentlyAdded
       case .byEpisodeCount:
         return .sortByEpisodeCount
       case .byMostRecentlySubscribed:
@@ -56,6 +59,8 @@ class PodcastsListViewModel:
           let rhsDate = rhs.mostRecentEpisodeDate ?? Date.distantPast
           return lhsDate > rhsDate
         }
+      case .byMostRecentlyAdded:
+        return { lhs, rhs in lhs.creationDate > rhs.creationDate }
       case .byEpisodeCount:
         return { lhs, rhs in lhs.episodeCount > rhs.episodeCount }
       case .byMostRecentlySubscribed:

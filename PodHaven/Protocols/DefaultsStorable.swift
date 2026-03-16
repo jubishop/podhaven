@@ -56,7 +56,11 @@ extension DefaultsStorable where Self: Codable {
     do {
       return try JSONDecoder().decode(Self.self, from: data)
     } catch {
-      defaultsStorableLog.caughtError("load: failed to decode \(Self.self) for key '\(key)'", error)
+      defaultsStorableLog.caughtError(
+        "load: failed to decode \(Self.self) for key '\(key)', clearing stale value",
+        error
+      )
+      store.removeObject(forKey: key)
       return nil
     }
   }

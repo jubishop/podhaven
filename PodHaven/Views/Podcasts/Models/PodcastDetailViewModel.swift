@@ -72,6 +72,7 @@ class PodcastDetailViewModel:
   enum SortMethod: SortingMethod {
     case newestFirst
     case oldestFirst
+    case recentlyAdded
     case longest
     case shortest
     case recentlyFinished
@@ -83,6 +84,8 @@ class PodcastDetailViewModel:
         return .sortByNewest
       case .oldestFirst:
         return .sortByOldest
+      case .recentlyAdded:
+        return .sortByRecentlyAdded
       case .longest:
         return .sortByLongest
       case .shortest:
@@ -100,6 +103,12 @@ class PodcastDetailViewModel:
         return nil  // This is the default for PodcastSeries
       case .oldestFirst:
         return { $0.pubDate < $1.pubDate }
+      case .recentlyAdded:
+        return { lhs, rhs in
+          let lhsDate = lhs.getPodcastEpisode()?.episode.creationDate ?? Date.distantFuture
+          let rhsDate = rhs.getPodcastEpisode()?.episode.creationDate ?? Date.distantFuture
+          return lhsDate > rhsDate
+        }
       case .longest:
         return { $0.duration > $1.duration }
       case .shortest:
