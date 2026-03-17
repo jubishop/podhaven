@@ -69,9 +69,18 @@ import Tagged
       return
     }
 
+    let feedURL: FeedURL
+    do {
+      feedURL = try FeedURL(url).convertToHTTPSURL()
+    } catch {
+      debouncePreview.cancel()
+      previewState = .idle
+      return
+    }
+
     debouncePreview { [weak self] in
       guard let self else { return }
-      await fetchPreview(for: FeedURL(url))
+      await fetchPreview(for: feedURL)
     }
   }
 
@@ -114,9 +123,18 @@ import Tagged
       return false
     }
 
+    let feedURL: FeedURL
+    do {
+      feedURL = try FeedURL(url).convertToHTTPSURL()
+    } catch {
+      Self.log.caughtError("submitURL: invalid URL '\(trimmedURL)'", error)
+      state = .error("Please enter a valid URL")
+      return false
+    }
+
     state = .loading
     do {
-      try await shareService.handlePodcastURL(FeedURL(url))
+      try await shareService.handlePodcastURL(feedURL)
       state = .idle
       urlText = ""
       return true
