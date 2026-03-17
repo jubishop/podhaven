@@ -52,6 +52,13 @@ final class WidgetSnapshotWriter: Sendable {
     Task { [weak self] in
       guard let self else { return }
 
+      // PlayManager has already restored onDeck by the time we start.
+      // If nothing is playing, clear any stale snapshot from a prior session.
+      if sharedState.onDeck == nil {
+        try? fileManager.removeItem(at: WidgetInfo.nowPlayingSnapshotURL)
+        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
+      }
+
       for await onDeck in sharedState.$onDeck.stream() {
         let changed: Bool = lastOnDeck { last in
           defer { last = onDeck }

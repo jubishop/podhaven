@@ -11,7 +11,7 @@ enum WidgetSnapshotReader {
 
   static func read<T: WidgetSnapshotType>(_ type: T.Type, from url: URL) -> T? {
     guard FileManager.default.fileExists(atPath: url.path) else {
-      log.warning("Snapshot file does not exist at \(url.path)")
+      log.debug("Snapshot file does not exist at \(url.path)")
       return nil
     }
 
