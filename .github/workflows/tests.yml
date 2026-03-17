@@ -32,6 +32,7 @@ jobs:
 
       - name: Run tests
         run: |
+          set -o pipefail
           xcodebuild test \
             -scheme PodHaven \
             -testPlan PodHaven \
@@ -40,4 +41,5 @@ jobs:
             -parallel-testing-enabled YES \
             -clonedSourcePackagesDirPath .spm-cache \
             CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
