@@ -58,29 +58,6 @@ enum WidgetHelpers {
     )
   }
 
-  // MARK: - Immediate Helper
-
-  // Polls for a snapshot file without waiting for debounce. Use for snapshots
-  // that are written immediately (entity list).
-  @discardableResult
-  static func waitForImmediate<T: WidgetSnapshotType>(
-    _ type: T.Type,
-    url: URL,
-    where predicate: @escaping @Sendable (T) -> Bool = { _ in true }
-  ) async throws -> T {
-    try await Wait.until(
-      { [fakeFileManager] in
-        guard fakeFileManager.fileExists(at: url) else { return false }
-        guard let data = try? await fakeFileManager.readData(from: url) else { return false }
-        guard let snapshot = try? JSONDecoder().decode(T.self, from: data) else { return false }
-        return predicate(snapshot)
-      },
-      { "Snapshot at \(url.lastPathComponent) was never written or never matched condition" }
-    )
-    let data = try await fakeFileManager.readData(from: url)
-    return try JSONDecoder().decode(T.self, from: data)
-  }
-
   // MARK: - Per-Type Convenience
 
   @discardableResult

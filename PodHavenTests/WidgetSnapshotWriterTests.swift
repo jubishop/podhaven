@@ -16,13 +16,14 @@ import Testing
 
   nonisolated private var widgetState: WidgetState { Container.shared.widgetState() }
 
-  @Test("writes valid JSON when nothing is playing and queue is empty")
-  func writesValidJSONWhenNothingPlayingAndQueueEmpty() async throws {
+  @Test("writes valid queue JSON when queue is empty")
+  func writesValidQueueJSONWhenQueueEmpty() async throws {
     writer.start()
-    let snapshot = try await WidgetHelpers.waitForNowPlayingSnapshot()
+    let snapshot = try await WidgetHelpers.waitForQueueSnapshot()
 
-    #expect(snapshot.nowPlaying == nil)
-    #expect(snapshot.schemaVersion == NowPlayingSnapshot.currentSchemaVersion)
+    #expect(snapshot.queue.isEmpty)
+    #expect(snapshot.queueTotalCount == 0)
+    #expect(snapshot.schemaVersion == QueueSnapshot.currentSchemaVersion)
   }
 
   @Test("includes now-playing data when onDeck is set")
@@ -75,7 +76,7 @@ import Testing
     userSettings.$skipForwardInterval.new(45)
     userSettings.$skipBackwardInterval.new(10)
     writer.start()
-    try await WidgetHelpers.waitForNowPlayingSnapshot()
+    try await WidgetHelpers.waitForQueueSnapshot()
 
     #expect(widgetState.skipForwardInterval == 45)
     #expect(widgetState.skipBackwardInterval == 10)
@@ -120,7 +121,7 @@ import Testing
   @Test("reloads now-playing timeline periodically while playing")
   func heartbeatReloadsWhilePlaying() async throws {
     writer.start()
-    try await WidgetHelpers.waitForNowPlayingSnapshot()
+    try await WidgetHelpers.waitForQueueSnapshot()
 
     sharedState.$playbackStatus.new(.playing)
     try await Wait.until(
@@ -141,7 +142,7 @@ import Testing
   @Test("heartbeat stops when paused and restarts when playing resumes")
   func heartbeatStopsAndRestarts() async throws {
     writer.start()
-    try await WidgetHelpers.waitForNowPlayingSnapshot()
+    try await WidgetHelpers.waitForQueueSnapshot()
     let sleeper = Container.shared.sleeper() as! FakeSleeper
 
     sharedState.$playbackStatus.new(.playing)
@@ -173,7 +174,7 @@ import Testing
   @Test("heartbeat restarts after transient loading and waiting states")
   func heartbeatRestartsAfterTransientStates() async throws {
     writer.start()
-    try await WidgetHelpers.waitForNowPlayingSnapshot()
+    try await WidgetHelpers.waitForQueueSnapshot()
     let sleeper = Container.shared.sleeper() as! FakeSleeper
 
     // Loading an episode — no heartbeat
@@ -219,7 +220,7 @@ import Testing
   @Test("reloads play/pause control when playback status changes")
   func reloadsPlayPauseControlOnStatusChange() async throws {
     writer.start()
-    try await WidgetHelpers.waitForNowPlayingSnapshot()
+    try await WidgetHelpers.waitForQueueSnapshot()
     fakeControlCenter.reset()
 
     sharedState.$playbackStatus.new(.playing)
@@ -238,7 +239,7 @@ import Testing
   @Test("reloads skip forward control when interval changes")
   func reloadsSkipForwardControlOnIntervalChange() async throws {
     writer.start()
-    try await WidgetHelpers.waitForNowPlayingSnapshot()
+    try await WidgetHelpers.waitForQueueSnapshot()
     fakeControlCenter.reset()
 
     userSettings.$skipForwardInterval.new(45)
@@ -251,7 +252,7 @@ import Testing
   @Test("reloads skip backward control when interval changes")
   func reloadsSkipBackwardControlOnIntervalChange() async throws {
     writer.start()
-    try await WidgetHelpers.waitForNowPlayingSnapshot()
+    try await WidgetHelpers.waitForQueueSnapshot()
     fakeControlCenter.reset()
 
     userSettings.$skipBackwardInterval.new(10)
@@ -264,7 +265,7 @@ import Testing
   @Test("does not reload skip controls when playback status changes")
   func doesNotReloadSkipControlsOnStatusChange() async throws {
     writer.start()
-    try await WidgetHelpers.waitForNowPlayingSnapshot()
+    try await WidgetHelpers.waitForQueueSnapshot()
     fakeControlCenter.reset()
 
     sharedState.$playbackStatus.new(.playing)
