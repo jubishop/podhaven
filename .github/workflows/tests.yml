@@ -14,46 +14,12 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Select latest Xcode
-        run: |
-          ls -d /Applications/Xcode*.app
-          sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
-          xcodebuild -version
+      - uses: actions/checkout@v4
 
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Cache SPM packages
-        uses: actions/cache@v4
+      - uses: mxcl/xcodebuild@v3
         with:
-          path: .spm-cache
-          key: spm-${{ hashFiles('PodHaven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
-          restore-keys: spm-
-
-      - name: Run tests
-        run: |
-          set -o pipefail
-          xcodebuild test \
-            -scheme PodHaven \
-            -testPlan PodHaven \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-            -skipMacroValidation \
-            -parallel-testing-enabled YES \
-            -resultBundlePath TestResults \
-            -clonedSourcePackagesDirPath .spm-cache \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | xcbeautify --renderer github-actions
-
-      - name: Print test failures
-        if: failure()
-        run: |
-          xcrun xcresulttool get test-results summary --path TestResults.xcresult 2>/dev/null || true
-          xcrun xcresulttool get test-results failures --path TestResults.xcresult 2>/dev/null || true
-
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: TestResults
-          path: TestResults.xcresult
+          scheme: PodHaven
+          platform: iOS
+          action: test
+          verbosity: xcbeautify
+          trust-plugins: true
