@@ -136,6 +136,17 @@ rollback_tag() {
 }
 trap rollback_tag ERR
 
+# Run tests
+echo "==> Running tests..."
+TEST_LOG="$PROJECT_DIR/build/xcodebuild-test.log"
+mkdir -p "$PROJECT_DIR/build"
+xcodebuild test \
+  -project "$PROJECT" \
+  -scheme "$SCHEME" \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  2>&1 | tee "$TEST_LOG" | xcbeautify
+echo "==> Tests passed."
+
 # Archive
 echo "==> Archiving..."
 BUILD_LOG="$PROJECT_DIR/build/xcodebuild-archive.log"
