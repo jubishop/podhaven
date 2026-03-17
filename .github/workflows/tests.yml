@@ -20,10 +20,22 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - uses: mxcl/xcodebuild@v3
+      - name: Run tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -scheme PodHaven \
+            -testPlan PodHaven \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -skipMacroValidation \
+            -resultBundlePath TestResults \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | xcbeautify --renderer github-actions
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
         with:
-          scheme: PodHaven
-          platform: iOS
-          action: test
-          verbosity: xcbeautify
-          trust-plugins: true
+          name: TestResults
+          path: TestResults.xcresult
