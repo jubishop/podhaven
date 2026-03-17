@@ -28,8 +28,6 @@ jobs:
             -testPlan PodHaven \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             -skipMacroValidation \
-            -default-test-execution-time-allowance 600 \
-            -maximum-test-execution-time-allowance 600 \
             -resultBundlePath TestResults \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
