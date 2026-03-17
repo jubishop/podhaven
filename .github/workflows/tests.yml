@@ -36,7 +36,7 @@ jobs:
       - name: Print test failures
         if: failure()
         run: |
-          xcrun xcresulttool get test-results failures --path TestResults.xcresult || true
+          xcrun xcresulttool get test-results summary --path TestResults.xcresult --compact || true
 
       - name: Upload test results
         if: failure()
