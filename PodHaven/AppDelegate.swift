@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
       let url = URL(string: urlString)
     else {
       Self.log.warning("Notification tap: no valid URL in userInfo")
-      await Container.shared.navigation().showPodcastList(.subscribed)
+      Container.shared.navigation().showPodcastList(.subscribed)
       return
     }
 
