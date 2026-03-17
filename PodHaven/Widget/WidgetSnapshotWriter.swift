@@ -52,7 +52,6 @@ final class WidgetSnapshotWriter: Sendable {
     Task { [weak self] in
       guard let self else { return }
 
-      var isFirstEmission = true
       for await onDeck in sharedState.$onDeck.stream() {
         let changed: Bool = lastOnDeck { last in
           defer { last = onDeck }
@@ -60,8 +59,7 @@ final class WidgetSnapshotWriter: Sendable {
           guard let last else { return true }
           return !onDeck.widgetEquals(last)
         }
-        if changed || isFirstEmission {
-          isFirstEmission = false
+        if changed {
           nowPlayingDebounce { [weak self] in
             guard let self else { return }
             await writeNowPlayingSnapshot()

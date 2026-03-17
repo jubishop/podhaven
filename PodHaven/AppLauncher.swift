@@ -69,8 +69,8 @@ struct AppLauncher: Sendable {
 
     Self.log.info("Preparing for background audio playback")
     stateManager.start()
-    widgetSnapshotWriter.start()
     await playManager.start()
+    widgetSnapshotWriter.start()
   }
 
   // MARK: - Foreground
