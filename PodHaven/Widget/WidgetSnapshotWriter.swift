@@ -52,6 +52,7 @@ final class WidgetSnapshotWriter: Sendable {
     Task { [weak self] in
       guard let self else { return }
 
+      var isFirstEmission = true
       for await onDeck in sharedState.$onDeck.stream() {
         let changed: Bool = lastOnDeck { last in
           defer { last = onDeck }
@@ -59,7 +60,8 @@ final class WidgetSnapshotWriter: Sendable {
           guard let last else { return true }
           return !onDeck.widgetEquals(last)
         }
-        if changed {
+        if changed || isFirstEmission {
+          isFirstEmission = false
           nowPlayingDebounce { [weak self] in
             guard let self else { return }
             await writeNowPlayingSnapshot()
@@ -102,7 +104,6 @@ final class WidgetSnapshotWriter: Sendable {
             queueWidgetEpisodes(episodes)
             queueDebounce { [weak self] in
               guard let self else { return }
-              guard await isWidgetPlaced(kind: WidgetInfo.queueKind) else { return }
               await writeQueueSnapshot()
               reloadWidgets(kinds: [WidgetInfo.queueKind])
             }
@@ -121,7 +122,6 @@ final class WidgetSnapshotWriter: Sendable {
       for await _ in userSettings.$alwaysShowPodcastImageInUpNext.stream() {
         queueDebounce { [weak self] in
           guard let self else { return }
-          guard await isWidgetPlaced(kind: WidgetInfo.queueKind) else { return }
           await writeQueueSnapshot()
           reloadWidgets(kinds: [WidgetInfo.queueKind])
         }
@@ -206,7 +206,6 @@ final class WidgetSnapshotWriter: Sendable {
       uniqueURLs.insert(imageURL)
     }
 
-    // Fetch each unique URL once.
     var artworkDict: [String: String] = [:]
     await withTaskGroup(of: (String, String?).self) { group in
       for urlString in uniqueURLs {
@@ -320,22 +319,6 @@ final class WidgetSnapshotWriter: Sendable {
     heartbeatTask { task in
       task?.cancel()
       task = nil
-    }
-  }
-
-  // MARK: - Widget Placement
-
-  private func isWidgetPlaced(kind: String) async -> Bool {
-    await withCheckedContinuation { continuation in
-      widgetCenter.getCurrentConfigurations { result in
-        switch result {
-        case .success(let configurations):
-          continuation.resume(returning: configurations.contains { $0.kind == kind })
-        case .failure(let error):
-          Self.log.caughtError("isWidgetPlaced: failed to get configurations", error)
-          continuation.resume(returning: true)
-        }
-      }
     }
   }
 
