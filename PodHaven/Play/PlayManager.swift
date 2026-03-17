@@ -624,17 +624,6 @@ final class PlayManager {
     NowPlayingInfo.updateQueueCount()
   }
 
-  private func handleDefaultPlaybackRateChange() {
-    Self.log.debug(
-      """
-      handleDefaultPlaybackRateChange:
-        defaultPlaybackRate: \(userSettings.defaultPlaybackRate)
-      """
-    )
-
-    NowPlayingInfo.updateDefaultPlaybackRate()
-  }
-
   private func handleSkipIntervalsChange() {
     Self.log.debug(
       """
@@ -925,14 +914,6 @@ final class PlayManager {
       for await _ in userSettings.$nextTrackBehavior.stream() {
         Self.log.debug("nextTrackBehavior changed")
         handleTrackBehaviorChange()
-      }
-    }
-
-    Task { @PlayActor [weak self] in
-      guard let self else { return }
-      for await _ in userSettings.$defaultPlaybackRate.stream() {
-        Self.log.debug("defaultPlaybackRate changed")
-        handleDefaultPlaybackRateChange()
       }
     }
 
