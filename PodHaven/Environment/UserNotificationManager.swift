@@ -118,10 +118,12 @@ final class UserNotificationManager {
     if episodes.count == 1, let episode = episodes.first {
       content.title = podcast.title
       content.body = episode.title
+      content.userInfo = ["url": NotificationService.episodeURL(episode.id)]
       imageURL = episode.image ?? podcast.image
     } else {
       content.title = podcast.title
       content.body = "\(episodes.count) new episodes available"
+      content.userInfo = ["url": NotificationService.podcastURL(podcast.id)]
       imageURL = podcast.image
     }
 

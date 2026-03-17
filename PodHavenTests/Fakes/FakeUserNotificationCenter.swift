@@ -10,12 +10,14 @@ struct RecordedNotificationRequest: Sendable {
   let title: String
   let body: String
   let hasSound: Bool
+  let urlString: String?
 
   init(from request: UNNotificationRequest) {
     self.identifier = request.identifier
     self.title = request.content.title
     self.body = request.content.body
     self.hasSound = request.content.sound != nil
+    self.urlString = request.content.userInfo["url"] as? String
   }
 }
 

@@ -15,6 +15,7 @@ struct PodHavenApp: App {
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.sharedState) private var sharedState
+  @DynamicInjected(\.notificationService) private var notificationService
   @DynamicInjected(\.shareService) private var shareService
   @DynamicInjected(\.userNotificationManager) private var userNotificationManager
   @DynamicInjected(\.userSettings) private var userSettings
@@ -83,6 +84,8 @@ struct PodHavenApp: App {
       }
     } else if WidgetService.isWidgetURL(url) {
       await widgetService.handleIncomingURL(url)
+    } else if NotificationService.isNotificationURL(url) {
+      await notificationService.handleIncomingURL(url)
     } else {
       Self.log.warning("Incoming URL: \(url) is not supported")
       alert("Incoming URL: \(url) is not supported")

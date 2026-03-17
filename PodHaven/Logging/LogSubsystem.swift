@@ -64,6 +64,10 @@ enum LogSubsystem {
     case tags
   }
 
+  enum NotificationService: String, LogCategorizable {
+    case main
+  }
+
   enum ShareService: String, LogCategorizable {
     case main
   }

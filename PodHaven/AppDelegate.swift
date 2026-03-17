@@ -1,20 +1,26 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
+import Logging
 import SwiftUI
 import Tagged
 import UIKit
+import UserNotifications
 
 // MARK: - AppDelegate
 
-final class AppDelegate: NSObject, UIApplicationDelegate {
+final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
   @DynamicInjected(\.appLauncher) private var appLauncher
   @DynamicInjected(\.cacheBackgroundDelegate) private var cacheBackgroundDelegate
+  @DynamicInjected(\.notificationService) private var notificationService
+
+  private static let log = Log.as("AppDelegate")
 
   func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    UNUserNotificationCenter.current().delegate = self
     appLauncher.bootstrap()
     return true
   }
@@ -36,5 +42,24 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     if phase == .background {
       FileLogHandler.flush()
     }
+  }
+
+  // MARK: - UNUserNotificationCenterDelegate
+
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse
+  ) async {
+    let userInfo = response.notification.request.content.userInfo
+
+    guard let urlString = userInfo["url"] as? String,
+      let url = URL(string: urlString)
+    else {
+      Self.log.warning("Notification tap: no valid URL in userInfo")
+      return
+    }
+
+    Self.log.debug("Notification tap: \(url)")
+    await notificationService.handleIncomingURL(url)
   }
 }
