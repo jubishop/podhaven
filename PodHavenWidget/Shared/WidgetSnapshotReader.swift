@@ -77,20 +77,6 @@ enum WidgetSnapshotReader {
     return snapshot
   }
 
-  static func readPodcastDetail() -> PodcastDetailSnapshot? {
-    let snapshot = read(PodcastDetailSnapshot.self, from: WidgetInfo.podcastDetailSnapshotURL)
-    if let snapshot {
-      log.debug(
-        """
-        Decoded podcast-detail snapshot: \
-        podcasts=\(snapshot.subscribedPodcasts.count), \
-        updatedAt=\(snapshot.updatedAt)
-        """
-      )
-    }
-    return snapshot
-  }
-
   // MARK: - Artwork
 
   static func decodeArtwork(from base64String: String?) -> UIImage? {
@@ -109,20 +95,6 @@ enum WidgetSnapshotReader {
     return image
   }
 
-  static func loadArtwork() -> [String: String] {
-    let url = WidgetInfo.artworkURL
-    guard FileManager.default.fileExists(atPath: url.path) else { return [:] }
-    do {
-      let data = try Data(contentsOf: url)
-      let decoded = try JSONDecoder().decode(WidgetArtwork.self, from: data)
-      log.debug("Loaded artwork file: \(decoded.artwork.count) entries")
-      return decoded.artwork
-    } catch {
-      log.caughtError("Failed to load artwork file", error)
-      return [:]
-    }
-  }
-
   static func decodeArtwork(forKey key: String?, from artworkDict: [String: String]) -> UIImage? {
     guard let key, let base64String = artworkDict[key] else { return nil }
 
@@ -132,7 +104,9 @@ enum WidgetSnapshotReader {
     }
 
     guard let image = UIImage(data: data) else {
-      log.warning("Failed to create UIImage from artwork data for key \(key) (\(data.count) bytes)")
+      log.warning(
+        "Failed to create UIImage from artwork data for key \(key) (\(data.count) bytes)"
+      )
       return nil
     }
 

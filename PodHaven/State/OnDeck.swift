@@ -49,6 +49,10 @@ struct OnDeck: EpisodeListable, Identifiable, Stringable {
 
   func widgetEquals(_ other: OnDeck) -> Bool {
     id == other.id
+      && title == other.title
+      && pubDate == other.pubDate
+      && duration == other.duration
+      && (artwork != nil) == (other.artwork != nil)
   }
 
   // MARK: - Equatable

@@ -67,37 +67,8 @@ struct V30MigrationTests {
     #expect(q.queue.count == 1)
     #expect(q.queue[0].episodeID == 100)
     #expect(q.queue[0].artworkURL == nil)
+    #expect(q.artwork.isEmpty)
     #expect(q.queueTotalCount == 5)
-  }
-
-  @Test("migrates entity list from subscribed podcasts")
-  func migratesEntityList() throws {
-    let dir = try makeTempDir()
-
-    let legacy: [String: Any] = [
-      "schemaVersion": 4,
-      "queue": [] as [[String: Any]],
-      "queueTotalCount": 0,
-      "subscribedPodcasts": [
-        [
-          "feedURLString": "https://example.com/feed.xml",
-          "title": "My Podcast",
-          "artworkBase64": "CCCC",
-        ] as [String: Any]
-      ],
-      "updatedAt": 1_700_000_000.0,
-    ]
-    let legacyData = try JSONSerialization.data(withJSONObject: legacy)
-    try legacyData.write(to: dir.appendingPathComponent("widget-snapshot.json"))
-
-    Schema.migrateWidgetSnapshotFiles(in: dir)
-
-    let elData = try Data(contentsOf: dir.appendingPathComponent("widget-podcast-entities.json"))
-    let el = try JSONDecoder().decode(PodcastEntityListSnapshot.self, from: elData)
-    #expect(el.schemaVersion == 1)
-    #expect(el.podcasts.count == 1)
-    #expect(el.podcasts[0].feedURLString == "https://example.com/feed.xml")
-    #expect(el.podcasts[0].title == "My Podcast")
   }
 
   @Test("skips gracefully when no legacy file exists")
@@ -112,11 +83,13 @@ struct V30MigrationTests {
       )
     )
     #expect(
-      !FileManager.default.fileExists(atPath: dir.appendingPathComponent("widget-queue.json").path)
+      !FileManager.default.fileExists(
+        atPath: dir.appendingPathComponent("widget-queue.json").path
+      )
     )
   }
 
-  @Test("handles legacy snapshot with nil nowPlaying and no subscribed podcasts")
+  @Test("handles legacy snapshot with nil nowPlaying")
   func handlesMinimalLegacySnapshot() throws {
     let dir = try makeTempDir()
 
@@ -135,13 +108,6 @@ struct V30MigrationTests {
     let np = try JSONDecoder().decode(NowPlayingSnapshot.self, from: npData)
     #expect(np.nowPlaying == nil)
     #expect(np.schemaVersion == 1)
-
-    // No entity list file since subscribedPodcasts was nil
-    #expect(
-      !FileManager.default.fileExists(
-        atPath: dir.appendingPathComponent("widget-podcast-entities.json").path
-      )
-    )
 
     // Old file should be deleted
     #expect(

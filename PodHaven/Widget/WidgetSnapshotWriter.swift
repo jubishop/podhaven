@@ -39,18 +39,10 @@ final class WidgetSnapshotWriter: Sendable {
 
   private let nowPlayingDebounce = Debounce(duration: .milliseconds(250))
   private let queueDebounce = Debounce(duration: .seconds(1))
-  private let podcastDetailDebounce = Debounce(duration: .seconds(30))
-  private let artworkDebounce = Debounce(duration: .milliseconds(500))
   private let queueWidgetEpisodes = ThreadSafe<[WidgetEpisode]>([])
-  private let podcastDetailData = ThreadSafe<[PodcastDetailWidgetData]>([])
-  // Double-optional: .none = no value received yet, .some(nil) = received nil
-  private let lastOnDeck = ThreadSafe<OnDeck??>(OnDeck??.none)
+  private let lastOnDeck = ThreadSafe<OnDeck?>(nil)
   private let lastPlaybackStatus = ThreadSafe<PlaybackStatus>(.stopped)
   private let heartbeatTask = ThreadSafe<Task<Void, Never>?>(nil)
-
-  // All artwork at 240px max — the largest needed size (now-playing / podcast headers).
-  // Smaller uses (queue thumbnails, episode rows) downscale at render time.
-  private let maxArtworkPixels: CGFloat = 240
 
   // MARK: - Start
 
@@ -62,11 +54,10 @@ final class WidgetSnapshotWriter: Sendable {
 
       for await onDeck in sharedState.$onDeck.stream() {
         let changed: Bool = lastOnDeck { last in
-          defer { last = .some(onDeck) }
-          guard let previous = last else { return true }
-          guard let onDeck else { return previous != nil }
-          guard let previous else { return true }
-          return !onDeck.widgetEquals(previous)
+          defer { last = onDeck }
+          guard let onDeck else { return last != nil }
+          guard let last else { return true }
+          return !onDeck.widgetEquals(last)
         }
         if changed {
           nowPlayingDebounce { [weak self] in
@@ -111,6 +102,7 @@ final class WidgetSnapshotWriter: Sendable {
             queueWidgetEpisodes(episodes)
             queueDebounce { [weak self] in
               guard let self else { return }
+              guard await isWidgetPlaced(kind: WidgetInfo.queueKind) else { return }
               await writeQueueSnapshot()
               reloadWidgets(kinds: [WidgetInfo.queueKind])
             }
@@ -126,47 +118,10 @@ final class WidgetSnapshotWriter: Sendable {
     Task { [weak self] in
       guard let self else { return }
 
-      var retryDelay: Duration = .seconds(1)
-      var isFirstEmission = true
-      while !Task.isCancelled {
-        do {
-          for try await data in observatory.podcastDetailWidgetData() {
-            retryDelay = .seconds(1)
-            podcastDetailData(data)
-            await writePodcastEntityList()
-
-            guard await isWidgetPlaced(kind: WidgetInfo.podcastDetailKind) else { continue }
-
-            let isInitial = isFirstEmission
-            isFirstEmission = false
-
-            if isInitial {
-              await writePodcastDetailSnapshot()
-              scheduleArtworkReconciliation()
-              reloadWidgets(kinds: [WidgetInfo.podcastDetailKind])
-            } else {
-              podcastDetailDebounce { [weak self] in
-                guard let self else { return }
-                await writePodcastDetailSnapshot()
-                scheduleArtworkReconciliation()
-                reloadWidgets(kinds: [WidgetInfo.podcastDetailKind])
-              }
-            }
-          }
-        } catch {
-          Self.log.caughtError("start: podcastDetailWidgetData observation failed", error)
-          try? await sleeper.sleep(for: retryDelay)
-          retryDelay = min(retryDelay * 2, .seconds(60))
-        }
-      }
-    }
-
-    Task { [weak self] in
-      guard let self else { return }
-
       for await _ in userSettings.$alwaysShowPodcastImageInUpNext.stream() {
         queueDebounce { [weak self] in
           guard let self else { return }
+          guard await isWidgetPlaced(kind: WidgetInfo.queueKind) else { return }
           await writeQueueSnapshot()
           reloadWidgets(kinds: [WidgetInfo.queueKind])
         }
@@ -206,17 +161,13 @@ final class WidgetSnapshotWriter: Sendable {
   private func writeNowPlayingSnapshot() async {
     let nowPlaying: NowPlayingSnapshot.NowPlaying? =
       if let onDeck = sharedState.onDeck {
-        await NowPlayingSnapshot.NowPlaying(
+        NowPlayingSnapshot.NowPlaying(
           episodeID: onDeck.id.rawValue,
           episodeTitle: onDeck.title,
           podcastTitle: onDeck.podcastTitle,
           pubDateTimestamp: onDeck.pubDate.timeIntervalSince1970,
           durationSeconds: onDeck.duration.seconds,
-          artworkBase64: Self.loadAndEncodeImage(
-            from: onDeck.image,
-            maxPixels: maxNowPlayingArtworkPixels,
-            imagePipeline: imagePipeline
-          )
+          artworkBase64: encodeArtwork(onDeck.artwork, maxPixels: maxNowPlayingArtworkPixels)
         )
       } else {
         nil
@@ -312,176 +263,13 @@ final class WidgetSnapshotWriter: Sendable {
     }
   }
 
-  // MARK: - Podcast Detail Snapshot
-
-  private func writePodcastDetailSnapshot() async {
-    let podcastData = podcastDetailData()
-
-    let subscribedPodcasts = podcastData.map { item in
-      PodcastDetailSnapshot.SubscribedPodcast(
-        feedURLString: item.podcast.feedURL.rawValue.absoluteString,
-        title: item.podcast.title,
-        artworkURL: item.podcast.image.absoluteString,
-        recentEpisodes: item.episodes.prefix(4)
-          .map { episode in
-            PodcastDetailSnapshot.PodcastEpisodeItem(
-              episodeID: episode.id.rawValue,
-              episodeTitle: episode.title,
-              pubDateTimestamp: episode.pubDate.timeIntervalSince1970,
-              durationSeconds: episode.duration.seconds,
-              artworkURL: episode.episodeImage?.absoluteString
-            )
-          }
-      )
-    }
-
-    let snapshot = PodcastDetailSnapshot(
-      schemaVersion: PodcastDetailSnapshot.currentSchemaVersion,
-      subscribedPodcasts: subscribedPodcasts,
-      updatedAt: Date()
-    )
-
-    do {
-      let data = try JSONEncoder().encode(snapshot)
-      try await fileManager.writeData(data, to: WidgetInfo.podcastDetailSnapshotURL)
-      Self.log.debug("Wrote podcast-detail snapshot (\(data.count) bytes)")
-    } catch {
-      Self.log.caughtError("writePodcastDetailSnapshot: failed to encode/write", error)
-    }
-  }
-
-  // MARK: - Podcast Entity List
-
-  private func writePodcastEntityList() async {
-    let data = podcastDetailData()
-    let items = data.map { item in
-      PodcastEntityListSnapshot.PodcastEntityItem(
-        feedURLString: item.podcast.feedURL.rawValue.absoluteString,
-        title: item.podcast.title
-      )
-    }
-
-    let snapshot = PodcastEntityListSnapshot(
-      schemaVersion: PodcastEntityListSnapshot.currentSchemaVersion,
-      podcasts: items,
-      updatedAt: Date()
-    )
-
-    do {
-      let encodedData = try JSONEncoder().encode(snapshot)
-      try await fileManager.writeData(encodedData, to: WidgetInfo.podcastEntityListURL)
-      Self.log.debug("Wrote podcast entity list (\(encodedData.count) bytes)")
-    } catch {
-      Self.log.caughtError("writePodcastEntityList: failed to encode/write", error)
-    }
-  }
-
-  // MARK: - Shared Artwork
-
-  private func scheduleArtworkReconciliation() {
-    artworkDebounce { [weak self] in
-      guard let self else { return }
-      await reconcileArtwork()
-    }
-  }
-
-  // Collects artwork URLs referenced by podcast detail data, fetches any that
-  // are missing from the existing artwork file, and writes the file with
-  // exactly the needed set — pruning stale entries automatically.
-  // Now-playing and queue embed artwork directly in their snapshot files.
-  private func reconcileArtwork() async {
-    var neededURLs = Set<String>()
-
-    for item in podcastDetailData() {
-      neededURLs.insert(item.podcast.image.absoluteString)
-      for episode in item.episodes.prefix(4) {
-        if let episodeImage = episode.episodeImage {
-          neededURLs.insert(episodeImage.absoluteString)
-        }
-      }
-    }
-
-    // Read existing artwork to avoid re-fetching images we already have.
-    var existing: [String: String] = [:]
-    do {
-      let data = try await fileManager.readData(from: WidgetInfo.artworkURL)
-      let decoded = try JSONDecoder().decode(WidgetArtwork.self, from: data)
-      existing = decoded.artwork
-    } catch {
-      // File doesn't exist yet or is malformed — start fresh.
-    }
-
-    // Fetch only new URLs, keep existing entries that are still needed.
-    var artworkDict: [String: String] = [:]
-    var fetchedNewImages = false
-    await withTaskGroup(of: (String, String?).self) { group in
-      for urlString in neededURLs {
-        if let cached = existing[urlString] {
-          artworkDict[urlString] = cached
-          continue
-        }
-        group.addTask { [imagePipeline, maxArtworkPixels] in
-          guard let url = URL(string: urlString) else { return (urlString, nil) }
-          do {
-            let image = try await imagePipeline.image(for: url)
-            let encoded = Self.encodeArtwork(image, maxPixels: maxArtworkPixels)
-            return (urlString, encoded)
-          } catch {
-            Self.log.caughtError(
-              "reconcileArtwork: failed to load \(urlString)",
-              error,
-              remarkable: .info
-            )
-            return (urlString, nil)
-          }
-        }
-      }
-      for await (urlString, base64) in group {
-        if let base64 {
-          artworkDict[urlString] = base64
-          fetchedNewImages = true
-        }
-      }
-    }
-
-    guard !Task.isCancelled else { return }
-
-    do {
-      let encoded = try JSONEncoder().encode(WidgetArtwork(artwork: artworkDict))
-      try await fileManager.writeData(encoded, to: WidgetInfo.artworkURL)
-      Self.log.debug(
-        "Wrote artwork file (\(artworkDict.count) entries, \(encoded.count) bytes)"
-      )
-    } catch {
-      Self.log.caughtError("reconcileArtwork: failed to write artwork file", error)
-      return
-    }
-
-    // If new images were fetched, reload widgets so they pick up the artwork.
-    if fetchedNewImages {
-      Self.log.debug("New artwork fetched, reloading podcast detail timeline")
-      reloadWidgets(kinds: [WidgetInfo.podcastDetailKind])
-    }
-  }
-
   // MARK: - Artwork Encoding
 
-  private static func loadAndEncodeImage(
-    from url: URL,
-    maxPixels: CGFloat,
-    imagePipeline: ImagePipeline
-  ) async -> String? {
-    do {
-      let image = try await imagePipeline.image(for: url)
-      return encodeArtwork(image, maxPixels: maxPixels)
-    } catch {
-      log.caughtError(
-        "loadAndEncodeImage: failed to load \(url)",
-        error,
-        remarkable: .info
-      )
-      return nil
-    }
+  private func encodeArtwork(_ image: UIImage?, maxPixels: CGFloat) -> String? {
+    guard let image else { return nil }
+    let downsized = Self.downsample(image, maxPixels: maxPixels)
+    guard let jpegData = downsized.jpegData(compressionQuality: 0.8) else { return nil }
+    return jpegData.base64EncodedString()
   }
 
   private static func encodeArtwork(_ image: UIImage, maxPixels: CGFloat) -> String? {

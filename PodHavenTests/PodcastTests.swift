@@ -28,9 +28,6 @@ class PodcastTests {
     }
     #expect(fetchedPodcast == podcast)
 
-    let fetchedByFeedURL = try await repo.podcast(podcast.feedURL)
-    #expect(fetchedByFeedURL == podcast)
-
     let urlFilteredPodcastSeries = try await repo.podcastSeries(podcast.feedURL)
     #expect(urlFilteredPodcastSeries?.podcast == podcast)
 
@@ -64,13 +61,6 @@ class PodcastTests {
       try Podcast.filter { $0.title == podcast.title }.fetchCount(db)
     }
     #expect(titleCount == 0)
-  }
-
-  @Test("that podcast(feedURL:) returns nil for nonexistent feed URL")
-  func podcastByFeedURLReturnsNilWhenNotFound() async throws {
-    let nonexistentFeedURL = FeedURL(rawValue: URL(string: "https://nonexistent.com/feed.xml")!)
-    let result = try await repo.podcast(nonexistentFeedURL)
-    #expect(result == nil)
   }
 
   @Test("that a podcast feedURL must be valid")

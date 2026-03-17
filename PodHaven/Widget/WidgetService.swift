@@ -60,53 +60,6 @@ struct WidgetService {
         await navigation.showUpNext()
       }
 
-    case "podcast-detail":
-      let subComponents = Array(pathComponents.dropFirst())
-
-      if subComponents.first == "episode",
-        let idString = subComponents.dropFirst().first,
-        let episodeIDInt = Int64(idString)
-      {
-        let episodeID = Episode.ID(rawValue: episodeIDInt)
-        Self.log.debug("Widget deep link: podcast-detail episode \(episodeID)")
-
-        do {
-          if let podcastEpisode = try await repo.podcastEpisode(episodeID) {
-            await navigation.showEpisode(podcastEpisode)
-          } else {
-            Self.log.warning("Widget deep link: episode \(episodeID) not found")
-          }
-        } catch {
-          Self.log.caughtError(
-            "Widget deep link: failed to fetch episode \(episodeID)",
-            error
-          )
-        }
-      } else if let feedURLString = URLComponents(string: url.absoluteString)?
-        .queryItems?
-        .first(where: { $0.name == "feedURL" })?
-        .value,
-        let feedURL = URL(string: feedURLString)
-      {
-        let typedFeedURL = FeedURL(rawValue: feedURL)
-        Self.log.debug("Widget deep link: podcast-detail podcast \(typedFeedURL)")
-
-        do {
-          if let podcast = try await repo.podcast(typedFeedURL) {
-            await navigation.showPodcast(podcast)
-          } else {
-            Self.log.warning("Widget deep link: podcast \(typedFeedURL) not found")
-          }
-        } catch {
-          Self.log.caughtError(
-            "Widget deep link: failed to fetch podcast \(typedFeedURL)",
-            error
-          )
-        }
-      } else {
-        Self.log.warning("Widget deep link: unrecognized podcast-detail URL: \(url)")
-      }
-
     default:
       Self.log.warning("Unknown widget deep link path: \(url)")
     }

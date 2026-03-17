@@ -206,7 +206,6 @@
 				Views/Components/SquareImage.swift,
 				Widget/Intents/PlayEpisodeIntent.swift,
 				Widget/Intents/PlayPauseIntent.swift,
-				Widget/Intents/PodcastDetailIntent.swift,
 				Widget/Intents/SkipBackwardIntent.swift,
 				Widget/Intents/SkipForwardIntent.swift,
 				Widget/WidgetInfo.swift,

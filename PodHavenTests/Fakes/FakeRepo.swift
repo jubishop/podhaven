@@ -59,13 +59,6 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.podcastSeries(feedURL)
   }
 
-  // MARK: - Podcast Readers
-
-  func podcast(_ feedURL: FeedURL) async throws -> Podcast? {
-    recordCall(methodName: "podcast", parameters: feedURL)
-    return try await repo.podcast(feedURL)
-  }
-
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode? {

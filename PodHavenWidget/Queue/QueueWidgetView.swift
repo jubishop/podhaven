@@ -1,9 +1,12 @@
 // Copyright Justin Bishop, 2026
 
+import AppIntents
 import SwiftUI
 import WidgetKit
 
 struct QueueWidgetView: View {
+  private let imageSize: CGFloat = 56
+
   let entry: QueueEntry
 
   var body: some View {
@@ -29,21 +32,58 @@ struct QueueWidgetView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
-        WidgetEpisodeList(
-          podcastEpisodes: entry.items.map { item in
-            WidgetEpisodeList.Episode(
-              id: item.id,
-              title: item.episodeTitle,
-              pubDateFormatted: item.pubDateFormatted,
-              durationFormatted: item.durationFormatted,
-              artwork: item.artwork,
-              deepLinkURL: item.deepLinkURL
-            )
+        TruncatingVStack {
+          ForEach(Array(entry.items.enumerated()), id: \.element.id) { index, item in
+            VStack(spacing: 0) {
+              if index > 0 {
+                Divider()
+                  .padding(.leading, imageSize + 4)
+                  .padding(.trailing, 14)
+              }
+
+              queueItemRow(item: item, index: index)
+            }
           }
-        )
+        }
       }
     }
     .dynamicTypeSize(.small ... .xxxLarge)
+  }
+
+  private func queueItemRow(item: QueueEntry.QueueEntryItem, index: Int) -> some View {
+    HStack(spacing: 8) {
+      Link(destination: item.deepLinkURL) {
+        HStack(spacing: 8) {
+          SquareImage(
+            image: item.artwork,
+            cornerRadius: 4,
+            size: imageSize,
+            placeholderIcon: .audioPlaceholder
+          )
+
+          VStack(alignment: .leading, spacing: 4) {
+            Text(item.episodeTitle)
+              .font(.callout)
+              .lineLimit(2, reservesSpace: true)
+              .multilineTextAlignment(.leading)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            HStack {
+              CompactMetadataItem(appIcon: .publishDate, value: item.pubDateFormatted)
+              Spacer()
+              CompactMetadataItem(appIcon: .duration, value: item.durationFormatted)
+            }
+            .font(.caption)
+          }
+        }
+      }
+
+      Button(intent: PlayEpisodeIntent(episodeID: item.id)) {
+        AppIcon.playButton.image
+          .font(.callout)
+      }
+    }
+    .padding(.vertical, 4)
   }
 
 }

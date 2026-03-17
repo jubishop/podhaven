@@ -252,10 +252,9 @@ enum Schema {
   // MARK: - v30: Widget Snapshot File Migration
 
   // Migrate the monolithic widget-snapshot.json into per-widget files.
-  // The old format stored inline base64 artwork; the new format stores
-  // artwork URL keys referencing a shared artwork file. Since the old
-  // format doesn't have the original URLs, we migrate text data only —
-  // artwork will be populated on the next writer cycle.
+  // The old format stored all widget data in a single file. The new
+  // architecture uses separate files per widget type. Artwork is not
+  // migrated — it will be populated on the next writer cycle.
   //
   // Extracted as a static method so it can be tested with a temp directory.
   static func migrateWidgetSnapshotFiles(in containerURL: URL) {
@@ -279,14 +278,9 @@ enum Schema {
         let pubDateTimestamp: Double
         let durationSeconds: Double
       }
-      struct SubscribedPodcast: Codable {
-        let feedURLString: String
-        let title: String
-      }
       let nowPlaying: NowPlaying?
       let queue: [QueueItem]
       let queueTotalCount: Int
-      let subscribedPodcasts: [SubscribedPodcast]?
       let updatedAt: Date
     }
 
@@ -300,7 +294,7 @@ enum Schema {
         let podcastTitle: String
         let pubDateTimestamp: Double
         let durationSeconds: Double
-        let artworkURL: String?
+        let artworkBase64: String?
       }
       let schemaVersion: Int
       let nowPlaying: NowPlaying?
@@ -320,15 +314,6 @@ enum Schema {
       let artwork: [String: String]
       let updatedAt: Date
     }
-    struct V1EntityList: Codable {
-      struct PodcastEntityItem: Codable {
-        let feedURLString: String
-        let title: String
-      }
-      let schemaVersion: Int
-      let podcasts: [PodcastEntityItem]
-      let updatedAt: Date
-    }
 
     do {
       let data = try Data(contentsOf: oldURL)
@@ -344,7 +329,7 @@ enum Schema {
             podcastTitle: $0.podcastTitle,
             pubDateTimestamp: $0.pubDateTimestamp,
             durationSeconds: $0.durationSeconds,
-            artworkURL: nil
+            artworkBase64: nil
           )
         },
         updatedAt: now
@@ -369,21 +354,6 @@ enum Schema {
       )
       try JSONEncoder().encode(queueSnapshot)
         .write(to: containerURL.appendingPathComponent("widget-queue.json"))
-
-      if let subscribedPodcasts = legacy.subscribedPodcasts {
-        let entitySnapshot = V1EntityList(
-          schemaVersion: 1,
-          podcasts: subscribedPodcasts.map {
-            V1EntityList.PodcastEntityItem(
-              feedURLString: $0.feedURLString,
-              title: $0.title
-            )
-          },
-          updatedAt: now
-        )
-        try JSONEncoder().encode(entitySnapshot)
-          .write(to: containerURL.appendingPathComponent("widget-podcast-entities.json"))
-      }
 
       try FileManager.default.removeItem(at: oldURL)
       log.info("v30: migrated widget-snapshot.json to per-widget files")

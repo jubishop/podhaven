@@ -152,74 +152,6 @@ struct WidgetSnapshotTests {
     #expect(decoded.schemaVersion > QueueSnapshot.currentSchemaVersion)
   }
 
-  // MARK: - PodcastDetailSnapshot Round-Trip
-
-  @Test("PodcastDetailSnapshot encodes and decodes with all fields intact")
-  func podcastDetailRoundTrip() throws {
-    let imageURL = "https://example.com/podcast.jpg"
-
-    let snapshot = PodcastDetailSnapshot(
-      schemaVersion: PodcastDetailSnapshot.currentSchemaVersion,
-      subscribedPodcasts: [
-        PodcastDetailSnapshot.SubscribedPodcast(
-          feedURLString: "https://example.com/feed.xml",
-          title: "Test Podcast",
-          artworkURL: imageURL,
-          recentEpisodes: [
-            PodcastDetailSnapshot.PodcastEpisodeItem(
-              episodeID: 200,
-              episodeTitle: "Episode 1",
-              pubDateTimestamp: Date().timeIntervalSince1970,
-              durationSeconds: 1800,
-              artworkURL: nil
-            )
-          ]
-        )
-      ],
-      updatedAt: Date()
-    )
-
-    let data = try JSONEncoder().encode(snapshot)
-    let decoded = try JSONDecoder().decode(PodcastDetailSnapshot.self, from: data)
-
-    #expect(decoded.schemaVersion == PodcastDetailSnapshot.currentSchemaVersion)
-    #expect(decoded.subscribedPodcasts.count == 1)
-    #expect(decoded.subscribedPodcasts[0].feedURLString == "https://example.com/feed.xml")
-    #expect(decoded.subscribedPodcasts[0].title == "Test Podcast")
-    #expect(decoded.subscribedPodcasts[0].artworkURL == imageURL)
-    #expect(decoded.subscribedPodcasts[0].recentEpisodes?.count == 1)
-    #expect(decoded.subscribedPodcasts[0].recentEpisodes?[0].episodeID == 200)
-  }
-
-  // MARK: - PodcastEntityListSnapshot Round-Trip
-
-  @Test("PodcastEntityListSnapshot encodes and decodes with all fields intact")
-  func podcastEntityListRoundTrip() throws {
-    let snapshot = PodcastEntityListSnapshot(
-      schemaVersion: PodcastEntityListSnapshot.currentSchemaVersion,
-      podcasts: [
-        PodcastEntityListSnapshot.PodcastEntityItem(
-          feedURLString: "https://example.com/feed1.xml",
-          title: "Podcast One"
-        ),
-        PodcastEntityListSnapshot.PodcastEntityItem(
-          feedURLString: "https://example.com/feed2.xml",
-          title: "Podcast Two"
-        ),
-      ],
-      updatedAt: Date()
-    )
-
-    let data = try JSONEncoder().encode(snapshot)
-    let decoded = try JSONDecoder().decode(PodcastEntityListSnapshot.self, from: data)
-
-    #expect(decoded.schemaVersion == PodcastEntityListSnapshot.currentSchemaVersion)
-    #expect(decoded.podcasts.count == 2)
-    #expect(decoded.podcasts[0].feedURLString == "https://example.com/feed1.xml")
-    #expect(decoded.podcasts[0].title == "Podcast One")
-    #expect(decoded.podcasts[1].feedURLString == "https://example.com/feed2.xml")
-  }
-
   // MARK: - PlaybackStatus Codable
 
   @Test("PlaybackStatus encodes and decodes all cases")
@@ -278,33 +210,4 @@ struct WidgetSnapshotTests {
     #expect(episodeID == 12345)
   }
 
-  @Test("podcast-detail episode deep link parses correctly")
-  func podcastDetailEpisodeDeepLink() throws {
-    let url = try #require(URL(string: "podhaven://widget/podcast-detail/episode/999"))
-
-    #expect(url.host == "widget")
-    let pathComponents = url.pathComponents.filter { $0 != "/" }
-    #expect(pathComponents[0] == "podcast-detail")
-    #expect(pathComponents[1] == "episode")
-    #expect(pathComponents[2] == "999")
-  }
-
-  @Test("podcast-detail podcast deep link parses correctly")
-  func podcastDetailPodcastDeepLink() throws {
-    let feedURL = "https://example.com/feed.xml"
-    var components = URLComponents(string: "podhaven://widget/podcast-detail")!
-    components.queryItems = [URLQueryItem(name: "feedURL", value: feedURL)]
-    let url = try #require(components.url)
-
-    #expect(url.host == "widget")
-    let pathComponents = url.pathComponents.filter { $0 != "/" }
-    #expect(pathComponents.first == "podcast-detail")
-    let parsedFeedURL = try #require(
-      URLComponents(string: url.absoluteString)?
-        .queryItems?
-        .first(where: { $0.name == "feedURL" })?
-        .value
-    )
-    #expect(parsedFeedURL == feedURL)
-  }
 }

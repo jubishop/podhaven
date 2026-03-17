@@ -105,25 +105,4 @@ enum WidgetHelpers {
     )
   }
 
-  @discardableResult
-  static func waitForPodcastDetailSnapshot(
-    where predicate: @escaping @Sendable (PodcastDetailSnapshot) -> Bool = { _ in true }
-  ) async throws -> PodcastDetailSnapshot {
-    try await waitForDebounced(
-      PodcastDetailSnapshot.self,
-      url: WidgetInfo.podcastDetailSnapshotURL,
-      where: predicate
-    )
-  }
-
-  @discardableResult
-  static func waitForPodcastEntityList(
-    where predicate: @escaping @Sendable (PodcastEntityListSnapshot) -> Bool = { _ in true }
-  ) async throws -> PodcastEntityListSnapshot {
-    try await waitForImmediate(
-      PodcastEntityListSnapshot.self,
-      url: WidgetInfo.podcastEntityListURL,
-      where: predicate
-    )
-  }
 }
