@@ -71,42 +71,43 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   func register(executionTask: @escaping @Sendable (Completion) async -> Void) {
-    guard Function.neverCalled(identifier) else { return }
-    Self.log.info("register() called for: \(identifier)")
+    Once.run(identifier) {
+      Self.log.info("register() called for: \(identifier)")
 
-    let success = BGTaskScheduler.shared.register(
-      forTaskWithIdentifier: identifier,
-      using: nil
-    ) { task in
-      Self.log.debug("iOS is executing the background task: \(identifier)")
+      let success = BGTaskScheduler.shared.register(
+        forTaskWithIdentifier: identifier,
+        using: nil
+      ) { task in
+        Self.log.debug("iOS is executing the background task: \(identifier)")
 
-      let taskWrapper = UncheckedSendable(task)
-      let didComplete = ThreadLock()
-      let complete: Completion = { [didComplete, taskWrapper] success in
-        guard didComplete.claim() else { return }
-        taskWrapper.value.setTaskCompleted(success: success)
+        let taskWrapper = UncheckedSendable(task)
+        let didComplete = ThreadLock()
+        let complete: Completion = { [didComplete, taskWrapper] success in
+          guard didComplete.claim() else { return }
+          taskWrapper.value.setTaskCompleted(success: success)
+        }
+
+        var bgTask: Task<Void, Never>? = nil
+        task.expirationHandler = { [complete] in
+          Self.log.debug("handle: expiration triggered, cancelling running task for: \(identifier)")
+
+          bgTask?.cancel()
+          complete(false)
+        }
+
+        scheduleNextIfNeeded()
+        bgTask = Task(priority: .background) { await executionTask(complete) }
       }
 
-      var bgTask: Task<Void, Never>? = nil
-      task.expirationHandler = { [complete] in
-        Self.log.debug("handle: expiration triggered, cancelling running task for: \(identifier)")
-
-        bgTask?.cancel()
-        complete(false)
-      }
+      Self.log.info(
+        """
+        BGTaskScheduler.shared.register returned: \(success)
+        Registration for BackgroundTask: \(identifier) complete
+        """
+      )
 
       scheduleNextIfNeeded()
-      bgTask = Task(priority: .background) { await executionTask(complete) }
     }
-
-    Self.log.info(
-      """
-      BGTaskScheduler.shared.register returned: \(success)
-      Registration for BackgroundTask: \(identifier) complete
-      """
-    )
-
-    scheduleNextIfNeeded()
   }
 
   func scheduleNextIfNeeded() {

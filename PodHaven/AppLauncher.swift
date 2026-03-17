@@ -26,6 +26,9 @@ struct AppLauncher: Sendable {
   }
 
   private static let log = Log.as("AppLauncher")
+  private let prepareForPlaybackOnce = AsyncOnce()
+  private let prepareForForegroundOnce = AsyncOnce()
+  private let startSystemMonitoringOnce = Once()
 
   fileprivate init() {}
 
@@ -65,12 +68,12 @@ struct AppLauncher: Sendable {
 
   // Minimum initialization for audio playback from a background launch.
   func prepareForPlayback() async {
-    guard Function.neverCalled() else { return }
-
-    Self.log.info("Preparing for background audio playback")
-    stateManager.start()
-    await playManager.start()
-    widgetSnapshotWriter.start()
+    await prepareForPlaybackOnce.run {
+      Self.log.info("Preparing for background audio playback")
+      stateManager.start()
+      await playManager.start()
+      widgetSnapshotWriter.start()
+    }
   }
 
   // MARK: - Foreground
@@ -78,63 +81,63 @@ struct AppLauncher: Sendable {
   // Full initialization for the foreground UI experience.
   // Called when the app scene becomes active.
   func prepareForForeground() async {
-    guard Function.neverCalled() else { return }
+    await prepareForForegroundOnce.run {
+      Self.log.info("Preparing for foreground")
 
-    Self.log.info("Preparing for foreground")
+      await AppInfo.finalizeEnvironment()
+      SentrySDK.configureScope { scope in
+        scope.setEnvironment(AppInfo.environment.rawValue)
+      }
+      guard !Task.isCancelled else { return }
 
-    await AppInfo.finalizeEnvironment()
-    SentrySDK.configureScope { scope in
-      scope.setEnvironment(AppInfo.environment.rawValue)
+      await userNotificationManager.initialize()
+      guard !Task.isCancelled else { return }
+
+      Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
+      Self.log.debug("My device?: \(AppInfo.myDevice)")
+      Self.log.debug("Final environment is: \(AppInfo.environment)")
+      Self.log.debug("Build version: \(AppInfo.version) (\(AppInfo.buildNumber))")
+      Self.log.debug("Git commit hash is: \(AppInfo.gitCommitHash)")
+
+      // Ensure playback subsystems are started (no-op if already done by an intent)
+      await prepareForPlayback()
+      guard AppInfo.environment != .testing else { return }
+      guard !Task.isCancelled else { return }
+
+      // Start all other services
+      cacheManager.start()
+
+      // System monitoring
+      startSystemMonitoring()
     }
-    guard !Task.isCancelled else { return }
-
-    await userNotificationManager.initialize()
-    guard !Task.isCancelled else { return }
-
-    Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
-    Self.log.debug("My device?: \(AppInfo.myDevice)")
-    Self.log.debug("Final environment is: \(AppInfo.environment)")
-    Self.log.debug("Build version: \(AppInfo.version) (\(AppInfo.buildNumber))")
-    Self.log.debug("Git commit hash is: \(AppInfo.gitCommitHash)")
-
-    // Ensure playback subsystems are started (no-op if already done by an intent)
-    await prepareForPlayback()
-    guard AppInfo.environment != .testing else { return }
-    guard !Task.isCancelled else { return }
-
-    // Start all other services
-    cacheManager.start()
-
-    // System monitoring
-    startSystemMonitoring()
   }
 
   // MARK: - System Monitoring
 
   private func startSystemMonitoring() {
-    guard Function.neverCalled() else { return }
+    startSystemMonitoringOnce.run {
+      Task {
+        for await _ in notifications(UIApplication.didReceiveMemoryWarningNotification) {
+          Self.log.warning("System memory warning received")
 
-    Task {
-      for await _ in notifications(UIApplication.didReceiveMemoryWarningNotification) {
-        Self.log.warning("System memory warning received")
-
-        if AppInfo.myDevice {
-          await alert("Memory warning received")
+          if AppInfo.myDevice {
+            await alert("Memory warning received")
+          }
         }
       }
-    }
 
-    Task {
-      for await _ in notifications(ProcessInfo.thermalStateDidChangeNotification) {
-        let state =
-          switch ProcessInfo.processInfo.thermalState {
-          case .nominal: "nominal"
-          case .fair: "fair"
-          case .serious: "serious"
-          case .critical: "critical"
-          @unknown default: "unknown"
-          }
-        Self.log.warning("Thermal state changed to: \(state)")
+      Task {
+        for await _ in notifications(ProcessInfo.thermalStateDidChangeNotification) {
+          let state =
+            switch ProcessInfo.processInfo.thermalState {
+            case .nominal: "nominal"
+            case .fair: "fair"
+            case .serious: "serious"
+            case .critical: "critical"
+            @unknown default: "unknown"
+            }
+          Self.log.warning("Thermal state changed to: \(state)")
+        }
       }
     }
   }

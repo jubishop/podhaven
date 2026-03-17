@@ -3,6 +3,7 @@
 import CoreMedia
 import FactoryKit
 import Foundation
+import GRDB
 import Logging
 import Nuke
 import Tagged
@@ -27,6 +28,7 @@ final class WidgetSnapshotWriter: Sendable {
   private var controlCenter: any ControlReloading { Container.shared.controlCenter() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var imagePipeline: ImagePipeline { Container.shared.imagePipeline() }
+  private var observatory: Observatory { Container.shared.observatory() }
   private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var userSettings: UserSettings { Container.shared.userSettings() }
@@ -41,126 +43,132 @@ final class WidgetSnapshotWriter: Sendable {
   private let lastOnDeck = ThreadSafe<OnDeck?>(nil)
   private let lastPlaybackStatus = ThreadSafe<PlaybackStatus>(.stopped)
   private let heartbeatTask = ThreadSafe<Task<Void, Never>?>(nil)
+  private let startOnce = Once()
 
   // MARK: - Start
 
   func start() {
-    guard Function.neverCalled() else { return }
+    startOnce.run {
+      Task { [weak self] in
+        guard let self else { return }
 
-    Task { [weak self] in
-      guard let self else { return }
-
-      // PlayManager has already restored onDeck by the time we start.
-      // If nothing is playing, clear any stale snapshot from a prior session.
-      if sharedState.onDeck == nil {
-        do {
-          try fileManager.removeItem(at: WidgetInfo.nowPlayingSnapshotURL)
-        } catch {
-          Self.log.caughtError(
-            "start: failed to remove stale now-playing snapshot",
-            error,
-            isRemarkable: { error in
-              let nsError = error as NSError
-              if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
-                return false
+        // PlayManager has already restored onDeck by the time we start.
+        // If nothing is playing, clear any stale snapshot from a prior session.
+        if sharedState.onDeck == nil {
+          do {
+            try fileManager.removeItem(at: WidgetInfo.nowPlayingSnapshotURL)
+          } catch {
+            Self.log.caughtError(
+              "start: failed to remove stale now-playing snapshot",
+              error,
+              isRemarkable: { error in
+                let nsError = error as NSError
+                if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
+                  return false
+                }
+                return ErrorKit.isRemarkable(error)
               }
-              return ErrorKit.isRemarkable(error)
-            }
-          )
+            )
+          }
+          reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
         }
-        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
-      }
 
-      for await onDeck in sharedState.$onDeck.stream() {
-        let changed: Bool = lastOnDeck { last in
-          defer { last = onDeck }
-          guard let onDeck else { return last != nil }
-          guard let last else { return true }
-          return !onDeck.widgetEquals(last)
-        }
-        if changed {
-          nowPlayingDebounce { [weak self] in
-            guard let self else { return }
-            await writeNowPlayingSnapshot()
-            reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
+        for await onDeck in sharedState.$onDeck.stream() {
+          let changed: Bool = lastOnDeck { last in
+            defer { last = onDeck }
+            guard let onDeck else { return last != nil }
+            guard let last else { return true }
+            return !onDeck.widgetEquals(last)
+          }
+          if changed {
+            nowPlayingDebounce { [weak self] in
+              guard let self else { return }
+              await writeNowPlayingSnapshot()
+              reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
+            }
           }
         }
       }
-    }
 
-    Task { [weak self] in
-      guard let self else { return }
+      Task { [weak self] in
+        guard let self else { return }
 
-      for await status in sharedState.$playbackStatus.stream() {
-        let changed: Bool = lastPlaybackStatus { last in
-          defer { last = status }
-          return status != last
-        }
-        guard changed else { continue }
-        widgetState.playbackStatus = status
-        Self.log.debug("Playback status changed to \(status), reloading play/pause control")
-        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
-        controlCenter.reloadControls(ofKind: WidgetInfo.playPauseControlKind)
+        for await status in sharedState.$playbackStatus.stream() {
+          let changed: Bool = lastPlaybackStatus { last in
+            defer { last = status }
+            return status != last
+          }
+          guard changed else { continue }
+          widgetState.playbackStatus = status
+          Self.log.debug("Playback status changed to \(status), reloading play/pause control")
+          reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
+          controlCenter.reloadControls(ofKind: WidgetInfo.playPauseControlKind)
 
-        if status.playing {
-          startHeartbeat()
-        } else {
-          stopHeartbeat()
-        }
-      }
-    }
-
-    Task { [weak self] in
-      guard let self else { return }
-
-      for await podcastEpisodes in sharedState.$queuedPodcastEpisodes.stream() {
-        let episodes = podcastEpisodes.map(WidgetEpisode.init)
-        let changed: Bool = queueWidgetEpisodes { current in
-          defer { current = episodes }
-          return current != episodes
-        }
-        guard changed else { continue }
-        queueDebounce { [weak self] in
-          guard let self else { return }
-          await writeQueueSnapshot()
-          reloadWidgets(kinds: [WidgetInfo.queueKind])
+          if status.playing {
+            startHeartbeat()
+          } else {
+            stopHeartbeat()
+          }
         }
       }
-    }
 
-    Task { [weak self] in
-      guard let self else { return }
+      Task { [weak self] in
+        guard let self else { return }
 
-      for await _ in userSettings.$alwaysShowPodcastImageInUpNext.stream() {
-        queueDebounce { [weak self] in
-          guard let self else { return }
-          await writeQueueSnapshot()
-          reloadWidgets(kinds: [WidgetInfo.queueKind])
+        var retryDelay: Duration = .seconds(1)
+        while !Task.isCancelled {
+          do {
+            for try await episodes in observatory.queueWidgetEpisodes() {
+              retryDelay = .seconds(1)
+              queueWidgetEpisodes(episodes)
+              queueDebounce { [weak self] in
+                guard let self else { return }
+                await writeQueueSnapshot()
+                reloadWidgets(kinds: [WidgetInfo.queueKind])
+              }
+            }
+          } catch {
+            Self.log.caughtError("start: queueWidgetEpisodes observation failed", error)
+            try? await sleeper.sleep(for: retryDelay)
+            retryDelay = min(retryDelay * 2, .seconds(60))
+          }
         }
       }
-    }
 
-    Task { [weak self] in
-      guard let self else { return }
+      Task { [weak self] in
+        guard let self else { return }
 
-      for await interval in userSettings.$skipForwardInterval.stream() {
-        let intInterval = Int(interval)
-        Self.log.debug("Skip forward interval changed to \(intInterval), reloading control")
-        widgetState.skipForwardInterval = intInterval
-        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
-        controlCenter.reloadControls(ofKind: WidgetInfo.skipForwardControlKind)
+        for await _ in userSettings.$alwaysShowPodcastImageInUpNext.stream() {
+          queueDebounce { [weak self] in
+            guard let self else { return }
+            await writeQueueSnapshot()
+            reloadWidgets(kinds: [WidgetInfo.queueKind])
+          }
+        }
       }
-    }
 
-    Task { [weak self] in
-      guard let self else { return }
+      Task { [weak self] in
+        guard let self else { return }
 
-      for await interval in userSettings.$skipBackwardInterval.stream() {
-        let intInterval = Int(interval)
-        Self.log.debug("Skip backward interval changed to \(intInterval), reloading control")
-        widgetState.skipBackwardInterval = intInterval
-        reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
-        controlCenter.reloadControls(ofKind: WidgetInfo.skipBackwardControlKind)
+        for await interval in userSettings.$skipForwardInterval.stream() {
+          let intInterval = Int(interval)
+          Self.log.debug("Skip forward interval changed to \(intInterval), reloading control")
+          widgetState.skipForwardInterval = intInterval
+          reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
+          controlCenter.reloadControls(ofKind: WidgetInfo.skipForwardControlKind)
+        }
+      }
+
+      Task { [weak self] in
+        guard let self else { return }
+
+        for await interval in userSettings.$skipBackwardInterval.stream() {
+          let intInterval = Int(interval)
+          Self.log.debug("Skip backward interval changed to \(intInterval), reloading control")
+          widgetState.skipBackwardInterval = intInterval
+          reloadWidgets(kinds: [WidgetInfo.nowPlayingKind])
+          controlCenter.reloadControls(ofKind: WidgetInfo.skipBackwardControlKind)
+        }
       }
     }
   }

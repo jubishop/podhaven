@@ -20,6 +20,7 @@ struct StateManager: Sendable {
 
   private static let log = Log.as(LogSubsystem.State.manager)
 
+  private let startOnce = Once()
   private let onDeckObservationTask = ThreadSafe<Task<Void, Never>?>(nil)
 
   // MARK: - Initialization
@@ -27,11 +28,12 @@ struct StateManager: Sendable {
   fileprivate init() {}
 
   func start() {
-    guard Function.neverCalled() else { return }
-    Self.log.debug("start: executing")
+    startOnce.run {
+      Self.log.debug("start: executing")
 
-    startObservingQueuedPodcastEpisodes()
-    startObservingTags()
+      startObservingQueuedPodcastEpisodes()
+      startObservingTags()
+    }
   }
 
   // MARK: - On Deck
@@ -103,8 +105,6 @@ struct StateManager: Sendable {
   // MARK: - Observations
 
   private func startObservingTags() {
-    Assert.neverCalled()
-
     Task {
       var retryDelay: Duration = .seconds(1)
       while !Task.isCancelled {
@@ -125,8 +125,6 @@ struct StateManager: Sendable {
   }
 
   private func startObservingQueuedPodcastEpisodes() {
-    Assert.neverCalled()
-
     Task {
       var retryDelay: Duration = .seconds(1)
       while !Task.isCancelled {

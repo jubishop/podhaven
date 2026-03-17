@@ -11,11 +11,14 @@ struct PreviewModifier: ViewModifier {
   @InjectedObservable(\.sheet) private var sheet
   @DynamicInjected(\.playManager) private var playManager
 
-  init() {
-    guard Function.neverCalled() else { return }
+  private static let initializeOnce = Once()
+  private static let startOnce = AsyncOnce()
 
-    Container.shared.registerPreviewDefaults()
-    AppInfo.environment = .preview
+  init() {
+    Self.initializeOnce.run {
+      Container.shared.registerPreviewDefaults()
+      AppInfo.environment = .preview
+    }
   }
 
   func body(content: Content) -> some View {
@@ -23,9 +26,9 @@ struct PreviewModifier: ViewModifier {
       .customAlert($alert.config)
       .customSheet($sheet.config)
       .task {
-        guard Function.neverCalled("PreviewModifier.task") else { return }
-
-        await playManager.start()
+        await Self.startOnce.run {
+          await playManager.start()
+        }
       }
   }
 }
