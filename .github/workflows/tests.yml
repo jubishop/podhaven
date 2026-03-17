@@ -28,6 +28,7 @@ jobs:
             -testPlan PodHaven \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             -skipMacroValidation \
+            -parallel-testing-enabled NO \
             -resultBundlePath TestResults \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
@@ -36,7 +37,7 @@ jobs:
       - name: Print test failures
         if: failure()
         run: |
-          xcrun xcresulttool get test-results failures --path TestResults.xcresult 2>/dev/null || true
+          xcrun xcresulttool get test-results failures --path TestResults.xcresult || true
 
       - name: Upload test results
         if: failure()
