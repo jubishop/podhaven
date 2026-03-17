@@ -14,8 +14,11 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Select Xcode 18
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_18*.app | sort -V | tail -1)"
+      - name: Select latest Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          xcodebuild -version
 
       - name: Checkout
         uses: actions/checkout@v4
