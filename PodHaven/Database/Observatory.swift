@@ -4,7 +4,6 @@ import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
-import Tagged
 
 extension Container {
   var observatory: Factory<Observatory> {

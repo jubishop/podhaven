@@ -55,7 +55,21 @@ final class WidgetSnapshotWriter: Sendable {
       // PlayManager has already restored onDeck by the time we start.
       // If nothing is playing, clear any stale snapshot from a prior session.
       if sharedState.onDeck == nil {
-        try? fileManager.removeItem(at: WidgetInfo.nowPlayingSnapshotURL)
+        do {
+          try fileManager.removeItem(at: WidgetInfo.nowPlayingSnapshotURL)
+        } catch {
+          Self.log.caughtError(
+            "start: failed to remove stale now-playing snapshot",
+            error,
+            isRemarkable: { error in
+              let nsError = error as NSError
+              if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
+                return false
+              }
+              return ErrorKit.isRemarkable(error)
+            }
+          )
+        }
         reloadWidgets(kinds: [WidgetInfo.nowPlayingKind, WidgetInfo.lockScreenNowPlayingKind])
       }
 
@@ -172,7 +186,7 @@ final class WidgetSnapshotWriter: Sendable {
           podcastTitle: onDeck.podcastTitle,
           pubDateTimestamp: onDeck.pubDate.timeIntervalSince1970,
           durationSeconds: onDeck.duration.seconds,
-          artworkBase64: encodeArtwork(onDeck.artwork, maxPixels: maxNowPlayingArtworkPixels)
+          artworkBase64: Self.encodeArtwork(onDeck.artwork, maxPixels: maxNowPlayingArtworkPixels)
         )
       } else {
         nil
@@ -211,7 +225,7 @@ final class WidgetSnapshotWriter: Sendable {
       uniqueURLs.insert(imageURL)
     }
 
-    var artworkDict: [String: String] = [:]
+    var artworkDict = [String: String](minimumCapacity: uniqueURLs.count)
     await withTaskGroup(of: (String, String?).self) { group in
       for urlString in uniqueURLs {
         group.addTask { [imagePipeline, maxQueueArtworkPixels] in
@@ -269,14 +283,8 @@ final class WidgetSnapshotWriter: Sendable {
 
   // MARK: - Artwork Encoding
 
-  private func encodeArtwork(_ image: UIImage?, maxPixels: CGFloat) -> String? {
+  private static func encodeArtwork(_ image: UIImage?, maxPixels: CGFloat) -> String? {
     guard let image else { return nil }
-    let downsized = Self.downsample(image, maxPixels: maxPixels)
-    guard let jpegData = downsized.jpegData(compressionQuality: 0.8) else { return nil }
-    return jpegData.base64EncodedString()
-  }
-
-  private static func encodeArtwork(_ image: UIImage, maxPixels: CGFloat) -> String? {
     let downsized = downsample(image, maxPixels: maxPixels)
     guard let jpegData = downsized.jpegData(compressionQuality: 0.8) else { return nil }
     return jpegData.base64EncodedString()
