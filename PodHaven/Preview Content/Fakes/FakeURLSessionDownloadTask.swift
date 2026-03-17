@@ -7,41 +7,33 @@ import Tagged
 actor FakeURLSessionDownloadTask: DownloadingTask {
   let taskID: URLSessionDownloadTask.ID
 
-  var isResumed = false
-  var isCancelled = false
+  let isResumed = ThreadSafe(false)
+  let isCancelled = ThreadSafe(false)
 
   init() {
     taskID = URLSessionDownloadTask.ID(Int.random(in: 1_000_000...9_999_999))
   }
 
   nonisolated func resume() {
-    Task { await markAsResumed() }
+    isResumed(true)
   }
 
   nonisolated func cancel() {
-    Task { await markAsCancelled() }
+    isCancelled(true)
   }
 
   func assertResumed(_ resumed: Bool = true) {
     Assert.precondition(
-      isResumed == resumed,
-      "Expected resumed to be \(resumed) but was \(isResumed)"
+      isResumed() == resumed,
+      "Expected resumed to be \(resumed) but was \(isResumed())"
     )
   }
 
   func assertCancelled(_ cancelled: Bool = true) {
     Assert.precondition(
-      isCancelled == cancelled,
-      "Expected cancelled to be \(cancelled) but was \(isCancelled)"
+      isCancelled() == cancelled,
+      "Expected cancelled to be \(cancelled) but was \(isCancelled())"
     )
-  }
-
-  private func markAsResumed() {
-    isResumed = true
-  }
-
-  private func markAsCancelled() {
-    isCancelled = true
   }
 }
 #endif
