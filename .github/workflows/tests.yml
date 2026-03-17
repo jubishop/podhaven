@@ -38,8 +38,22 @@ jobs:
             -testPlan PodHaven \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             -skipMacroValidation \
-            -parallel-testing-enabled NO \
+            -parallel-testing-enabled YES \
+            -resultBundlePath TestResults \
             -clonedSourcePackagesDirPath .spm-cache \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
-            | xcbeautify --renderer github-actions
+            2>&1 | xcbeautify --renderer github-actions
+
+      - name: Print test failures
+        if: failure()
+        run: |
+          xcrun xcresulttool get test-results summary --path TestResults.xcresult 2>/dev/null || true
+          xcrun xcresulttool get test-results failures --path TestResults.xcresult 2>/dev/null || true
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults
+          path: TestResults.xcresult
