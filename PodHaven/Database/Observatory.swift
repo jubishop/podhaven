@@ -124,17 +124,6 @@ struct Observatory {
     )
   }
 
-  func queueWidgetEpisodes() -> AsyncValueObservation<[WidgetEpisode]> {
-    _observe { db in
-      try Episode.all()
-        .filter(Episode.queued)
-        .including(required: Episode.podcast)
-        .order(Episode.Columns.queueOrder.asc)
-        .asRequest(of: WidgetEpisode.self)
-        .fetchAll(db)
-    }
-  }
-
   // MARK: - Tags
 
   func tags() -> AsyncValueObservation<IdentifiedArrayOf<Tag>> {

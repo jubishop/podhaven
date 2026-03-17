@@ -2,10 +2,8 @@
 
 import AVFoundation
 import Foundation
-import GRDB
-import Tagged
 
-struct WidgetEpisode: Equatable, FetchableRecord, Identifiable {
+struct WidgetEpisode: Equatable, Identifiable {
   let id: Episode.ID
   let title: String
   let pubDate: Date
@@ -15,16 +13,12 @@ struct WidgetEpisode: Equatable, FetchableRecord, Identifiable {
 
   var image: URL { episodeImage ?? podcastImage }
 
-  init(row: Row) throws {
-    id = row[Episode.Columns.id]
-    title = row[Episode.Columns.title]
-    pubDate = row[Episode.Columns.pubDate]
-    duration = row[Episode.Columns.duration]
-    episodeImage = row[Episode.Columns.image]
-
-    guard let podcastRow = row.scopes["podcast"] else {
-      Assert.fatal("WidgetEpisode requires podcast scope via including(required:)")
-    }
-    podcastImage = podcastRow[Podcast.Columns.image]
+  init(_ podcastEpisode: PodcastEpisode) {
+    id = podcastEpisode.id
+    title = podcastEpisode.title
+    pubDate = podcastEpisode.pubDate
+    duration = podcastEpisode.duration
+    episodeImage = podcastEpisode.episode.image
+    podcastImage = podcastEpisode.podcast.image
   }
 }

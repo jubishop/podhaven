@@ -9,7 +9,6 @@ import Testing
 
 @Suite("of WidgetSnapshotWriter tests", .container)
 @MainActor class WidgetSnapshotWriterTests {
-  @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.userSettings) private var userSettings
   @DynamicInjected(\.widgetSnapshotWriter) private var writer
@@ -82,15 +81,15 @@ import Testing
     #expect(widgetState.skipBackwardInterval == 10)
   }
 
-  @Test("includes queue items from database")
-  func includesQueueItemsFromDatabase() async throws {
+  @Test("includes queue items from shared state")
+  func includesQueueItemsFromSharedState() async throws {
     let ep1 = try await Create.podcastEpisode(
       try Create.unsavedEpisode(title: "Queue Ep 1")
     )
     let ep2 = try await Create.podcastEpisode(
       try Create.unsavedEpisode(title: "Queue Ep 2")
     )
-    try await queue.unshift([ep2.id, ep1.id])
+    sharedState.$queuedPodcastEpisodes.new([ep1, ep2])
 
     writer.start()
     let snapshot = try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 2 }
@@ -103,14 +102,14 @@ import Testing
 
   @Test("caps queue at 5 but reports full queueTotalCount")
   func capsQueueAt5ButReportsFullQueueTotalCount() async throws {
-    var episodeIDs: [Episode.ID] = []
+    var episodes: [PodcastEpisode] = []
     for i in 1...10 {
       let ep = try await Create.podcastEpisode(
         try Create.unsavedEpisode(title: "Ep \(i)")
       )
-      episodeIDs.append(ep.id)
+      episodes.append(ep)
     }
-    try await queue.unshift(episodeIDs)
+    sharedState.$queuedPodcastEpisodes.new(episodes)
 
     writer.start()
     let snapshot = try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 10 }
