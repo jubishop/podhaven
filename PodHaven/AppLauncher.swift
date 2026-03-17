@@ -70,9 +70,9 @@ struct AppLauncher: Sendable {
   func prepareForPlayback() async {
     await prepareForPlaybackOnce.run {
       Self.log.info("Preparing for background audio playback")
-      stateManager.start()
-      await playManager.start()
-      widgetSnapshotWriter.start()
+      self.stateManager.start()
+      await self.playManager.start()
+      self.widgetSnapshotWriter.start()
     }
   }
 
@@ -90,7 +90,7 @@ struct AppLauncher: Sendable {
       }
       guard !Task.isCancelled else { return }
 
-      await userNotificationManager.initialize()
+      await self.userNotificationManager.initialize()
       guard !Task.isCancelled else { return }
 
       Self.log.debug("Device identifier is: \(AppInfo.deviceIdentifier)")
@@ -100,15 +100,15 @@ struct AppLauncher: Sendable {
       Self.log.debug("Git commit hash is: \(AppInfo.gitCommitHash)")
 
       // Ensure playback subsystems are started (no-op if already done by an intent)
-      await prepareForPlayback()
+      await self.prepareForPlayback()
       guard AppInfo.environment != .testing else { return }
       guard !Task.isCancelled else { return }
 
       // Start all other services
-      cacheManager.start()
+      self.cacheManager.start()
 
       // System monitoring
-      startSystemMonitoring()
+      self.startSystemMonitoring()
     }
   }
 
@@ -117,17 +117,17 @@ struct AppLauncher: Sendable {
   private func startSystemMonitoring() {
     startSystemMonitoringOnce.run {
       Task {
-        for await _ in notifications(UIApplication.didReceiveMemoryWarningNotification) {
+        for await _ in self.notifications(UIApplication.didReceiveMemoryWarningNotification) {
           Self.log.warning("System memory warning received")
 
           if AppInfo.myDevice {
-            await alert("Memory warning received")
+            await self.alert("Memory warning received")
           }
         }
       }
 
       Task {
-        for await _ in notifications(ProcessInfo.thermalStateDidChangeNotification) {
+        for await _ in self.notifications(ProcessInfo.thermalStateDidChangeNotification) {
           let state =
             switch ProcessInfo.processInfo.thermalState {
             case .nominal: "nominal"

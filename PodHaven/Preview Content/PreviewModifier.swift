@@ -27,7 +27,7 @@ struct PreviewModifier: ViewModifier {
       .customSheet($sheet.config)
       .task {
         await Self.startOnce.run {
-          await playManager.start()
+          await self.playManager.start()
         }
       }
   }

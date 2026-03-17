@@ -99,8 +99,8 @@ final class PlayManager {
     await startOnce.run {
       Self.log.debug("start: executing")
 
-      startStreamConsumers()
-      await loadPersistedEpisodeIfNeeded()
+      self.startStreamConsumers()
+      await self.loadPersistedEpisodeIfNeeded()
     }
   }
 
