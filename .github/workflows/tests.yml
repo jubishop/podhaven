@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Run tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -scheme PodHaven \
+            -testPlan PodHaven \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -skipMacroValidation \
+            -resultBundlePath TestResults \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | xcbeautify --renderer github-actions
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults
+          path: TestResults.xcresult
