@@ -234,6 +234,10 @@ enum Schema {
       migrate("skipBackwardInterval", defaults.double(forKey: "skipBackwardInterval"))
     }
 
+    // Note: the widget extension may refresh before the app runs this migration,
+    // briefly showing empty widgets until the user opens the app. This is acceptable
+    // — the window is short, the .empty states are designed for it, and adding a
+    // fallback reader for the legacy file isn't worth the complexity.
     migrator.registerMigration("v30") { _ in
       guard
         let containerURL = FileManager.default.containerURL(
