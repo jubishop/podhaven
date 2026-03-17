@@ -140,7 +140,7 @@
 				ObservatoryTests/PodcastEpisodesTests.swift,
 				ObservatoryTests/PodcastsTests.swift,
 				ObservatoryTests/PodcastsWithMetadataTests.swift,
-				ObservatoryTests/QueueTests.swift,
+				ObservatoryTests/ObservatoryQueueTests.swift,
 				PlayManagerTests/CacheTests.swift,
 				PlayManagerTests/CommandCenterTests.swift,
 				PlayManagerTests/EpisodeFinishingTests.swift,

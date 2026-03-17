@@ -10,7 +10,7 @@ import Testing
 @testable import PodHaven
 
 @Suite("of Observatory queue tests", .container)
-actor QueueTests {
+actor ObservatoryQueueTests {
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
