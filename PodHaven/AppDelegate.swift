@@ -60,9 +60,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     let userInfo = response.notification.request.content.userInfo
 
     guard let urlString = userInfo["url"] as? String,
-      let url = URL(string: urlString)
+      let url = URL(string: urlString),
+      NotificationService.isNotificationURL(url)
     else {
-      Self.log.warning("Notification tap: no valid URL in userInfo")
+      Self.log.warning("Notification tap: no valid notification URL in userInfo")
       Container.shared.navigation().showPodcastList(.subscribed)
       return
     }
