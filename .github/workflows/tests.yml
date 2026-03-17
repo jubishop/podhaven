@@ -31,6 +31,7 @@ jobs:
             -scheme PodHaven \
             -testPlan PodHaven \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -skipMacroValidation \
             -parallel-testing-enabled YES \
             -clonedSourcePackagesDirPath .spm-cache \
             CODE_SIGN_IDENTITY="" \
