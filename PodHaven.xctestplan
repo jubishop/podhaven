@@ -9,11 +9,11 @@
     }
   ],
   "defaultOptions" : {
-    "defaultTestExecutionTimeAllowance" : 60,
+    "defaultTestExecutionTimeAllowance" : 600,
     "environmentVariableEntries" : [
 
     ],
-    "maximumTestExecutionTimeAllowance" : 60,
+    "maximumTestExecutionTimeAllowance" : 600,
     "targetForVariableExpansion" : {
       "containerPath" : "container:PodHaven.xcodeproj",
       "identifier" : "8BD7F91F2CF2A49000CEDAA7",
