@@ -34,6 +34,7 @@ struct OnDeck: EpisodeListable, Identifiable, Stringable {
   var finishDate: Date? { podcastEpisode.finishDate }
   var image: URL { podcastEpisode.image }
   var podcastImage: URL { podcastEpisode.podcastImage }
+  var podcastTitle: String { podcastEpisode.podcastTitle }
 
   // MARK: - Stringable
 
@@ -50,6 +51,7 @@ struct OnDeck: EpisodeListable, Identifiable, Stringable {
   func widgetEquals(_ other: OnDeck) -> Bool {
     id == other.id
       && title == other.title
+      && podcastTitle == other.podcastTitle
       && pubDate == other.pubDate
       && duration == other.duration
       && (artwork != nil) == (other.artwork != nil)
