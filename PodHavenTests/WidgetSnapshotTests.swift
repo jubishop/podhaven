@@ -9,88 +9,57 @@ import Testing
 @Suite("of WidgetSnapshot tests")
 struct WidgetSnapshotTests {
 
-  // MARK: - Encode/Decode Round-Trip
+  // MARK: - NowPlayingSnapshot Round-Trip
 
-  @Test("snapshot encodes and decodes with all fields intact")
-  func encodeDecodeRoundTrip() throws {
-    let artworkData = Data(repeating: 0xFF, count: 100)
-    let artworkBase64 = artworkData.base64EncodedString()
-    let nowPlayingPubDate: Double = 1_700_000_000
+  @Test("NowPlayingSnapshot encodes and decodes with all fields intact")
+  func nowPlayingRoundTrip() throws {
+    let artworkBase64 = Data(repeating: 0xFF, count: 100).base64EncodedString()
+    let pubDate: Double = 1_700_000_000
 
-    let snapshot = WidgetSnapshot(
-      schemaVersion: WidgetSnapshot.currentSchemaVersion,
-      nowPlaying: WidgetSnapshot.NowPlaying(
+    let snapshot = NowPlayingSnapshot(
+      schemaVersion: NowPlayingSnapshot.currentSchemaVersion,
+      nowPlaying: NowPlayingSnapshot.NowPlaying(
         episodeID: 42,
         episodeTitle: "Test Episode",
         podcastTitle: "Test Podcast",
-        pubDateTimestamp: nowPlayingPubDate,
+        pubDateTimestamp: pubDate,
         durationSeconds: 1800,
         artworkBase64: artworkBase64
       ),
-      queue: [
-        WidgetSnapshot.QueueItem(
-          episodeID: 100,
-          episodeTitle: "Queue Episode 1",
-          pubDateTimestamp: Date().timeIntervalSince1970,
-          durationSeconds: 3600,
-          artworkBase64: artworkBase64
-        ),
-        WidgetSnapshot.QueueItem(
-          episodeID: 101,
-          episodeTitle: "Queue Episode 2",
-          pubDateTimestamp: Date().addingTimeInterval(-86400).timeIntervalSince1970,
-          durationSeconds: 2400,
-          artworkBase64: nil
-        ),
-      ],
-      queueTotalCount: 10,
       updatedAt: Date()
     )
 
     let data = try JSONEncoder().encode(snapshot)
-    let decoded = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
+    let decoded = try JSONDecoder().decode(NowPlayingSnapshot.self, from: data)
 
-    #expect(decoded.schemaVersion == WidgetSnapshot.currentSchemaVersion)
+    #expect(decoded.schemaVersion == NowPlayingSnapshot.currentSchemaVersion)
     #expect(decoded.nowPlaying?.episodeID == 42)
     #expect(decoded.nowPlaying?.episodeTitle == "Test Episode")
     #expect(decoded.nowPlaying?.podcastTitle == "Test Podcast")
-    #expect(decoded.nowPlaying?.pubDateTimestamp == nowPlayingPubDate)
+    #expect(decoded.nowPlaying?.pubDateTimestamp == pubDate)
     #expect(decoded.nowPlaying?.durationSeconds == 1800)
     #expect(decoded.nowPlaying?.artworkBase64 == artworkBase64)
-    #expect(decoded.queue.count == 2)
-    #expect(decoded.queueTotalCount == 10)
-    #expect(decoded.queue[0].episodeID == 100)
-    #expect(decoded.queue[0].episodeTitle == "Queue Episode 1")
-    #expect(decoded.queue[0].artworkBase64 == artworkBase64)
-    #expect(decoded.queue[1].episodeID == 101)
-    #expect(decoded.queue[1].artworkBase64 == nil)
   }
 
-  @Test("snapshot encodes and decodes with nil nowPlaying")
-  func encodeDecodeNilNowPlaying() throws {
-    let snapshot = WidgetSnapshot(
-      schemaVersion: WidgetSnapshot.currentSchemaVersion,
-
+  @Test("NowPlayingSnapshot encodes and decodes with nil nowPlaying")
+  func nowPlayingNilRoundTrip() throws {
+    let snapshot = NowPlayingSnapshot(
+      schemaVersion: NowPlayingSnapshot.currentSchemaVersion,
       nowPlaying: nil,
-      queue: [],
-      queueTotalCount: 0,
       updatedAt: Date()
     )
 
     let data = try JSONEncoder().encode(snapshot)
-    let decoded = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
+    let decoded = try JSONDecoder().decode(NowPlayingSnapshot.self, from: data)
 
     #expect(decoded.nowPlaying == nil)
-    #expect(decoded.queue.isEmpty)
-    #expect(decoded.queueTotalCount == 0)
   }
 
-  @Test("snapshot encodes and decodes with nil artworkBase64")
-  func encodeDecodeNilArtwork() throws {
-    let snapshot = WidgetSnapshot(
-      schemaVersion: WidgetSnapshot.currentSchemaVersion,
-
-      nowPlaying: WidgetSnapshot.NowPlaying(
+  @Test("NowPlayingSnapshot encodes and decodes with nil artworkBase64")
+  func nowPlayingNilArtwork() throws {
+    let snapshot = NowPlayingSnapshot(
+      schemaVersion: NowPlayingSnapshot.currentSchemaVersion,
+      nowPlaying: NowPlayingSnapshot.NowPlaying(
         episodeID: 1,
         episodeTitle: "No Art",
         podcastTitle: "Podcast",
@@ -98,36 +67,157 @@ struct WidgetSnapshotTests {
         durationSeconds: 600,
         artworkBase64: nil
       ),
-      queue: [],
-      queueTotalCount: 0,
       updatedAt: Date()
     )
 
     let data = try JSONEncoder().encode(snapshot)
-    let decoded = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
+    let decoded = try JSONDecoder().decode(NowPlayingSnapshot.self, from: data)
 
     #expect(decoded.nowPlaying?.artworkBase64 == nil)
   }
 
-  // MARK: - Schema Version Forward Compatibility
-
-  @Test("unknown schema version returns nil from reader")
-  func unknownSchemaVersion() throws {
-    let snapshot = WidgetSnapshot(
+  @Test("NowPlayingSnapshot unknown schema version is detectable")
+  func nowPlayingUnknownSchemaVersion() throws {
+    let snapshot = NowPlayingSnapshot(
       schemaVersion: 999,
-
       nowPlaying: nil,
-      queue: [],
-      queueTotalCount: 0,
       updatedAt: Date()
     )
 
     let data = try JSONEncoder().encode(snapshot)
-    let decoded = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
+    let decoded = try JSONDecoder().decode(NowPlayingSnapshot.self, from: data)
 
-    // Reader should reject unknown schema versions
     #expect(decoded.schemaVersion == 999)
-    #expect(decoded.schemaVersion > WidgetSnapshot.currentSchemaVersion)
+    #expect(decoded.schemaVersion > NowPlayingSnapshot.currentSchemaVersion)
+  }
+
+  // MARK: - QueueSnapshot Round-Trip
+
+  @Test("QueueSnapshot encodes and decodes with all fields intact")
+  func queueRoundTrip() throws {
+    let imageURL = "https://example.com/episode1.jpg"
+
+    let artworkBase64 = Data(repeating: 0xFF, count: 50).base64EncodedString()
+    let snapshot = QueueSnapshot(
+      schemaVersion: QueueSnapshot.currentSchemaVersion,
+      queue: [
+        QueueSnapshot.QueueItem(
+          episodeID: 100,
+          episodeTitle: "Queue Episode 1",
+          pubDateTimestamp: Date().timeIntervalSince1970,
+          durationSeconds: 3600,
+          artworkURL: imageURL
+        ),
+        QueueSnapshot.QueueItem(
+          episodeID: 101,
+          episodeTitle: "Queue Episode 2",
+          pubDateTimestamp: Date().addingTimeInterval(-86400).timeIntervalSince1970,
+          durationSeconds: 2400,
+          artworkURL: nil
+        ),
+      ],
+      queueTotalCount: 10,
+      artwork: [imageURL: artworkBase64],
+      updatedAt: Date()
+    )
+
+    let data = try JSONEncoder().encode(snapshot)
+    let decoded = try JSONDecoder().decode(QueueSnapshot.self, from: data)
+
+    #expect(decoded.schemaVersion == QueueSnapshot.currentSchemaVersion)
+    #expect(decoded.queue.count == 2)
+    #expect(decoded.queueTotalCount == 10)
+    #expect(decoded.queue[0].episodeID == 100)
+    #expect(decoded.queue[0].episodeTitle == "Queue Episode 1")
+    #expect(decoded.queue[0].artworkURL == imageURL)
+    #expect(decoded.artwork[imageURL] == artworkBase64)
+    #expect(decoded.queue[1].episodeID == 101)
+    #expect(decoded.queue[1].artworkURL == nil)
+  }
+
+  @Test("QueueSnapshot unknown schema version is detectable")
+  func queueUnknownSchemaVersion() throws {
+    let snapshot = QueueSnapshot(
+      schemaVersion: 999,
+      queue: [],
+      queueTotalCount: 0,
+      artwork: [:],
+      updatedAt: Date()
+    )
+
+    let data = try JSONEncoder().encode(snapshot)
+    let decoded = try JSONDecoder().decode(QueueSnapshot.self, from: data)
+
+    #expect(decoded.schemaVersion == 999)
+    #expect(decoded.schemaVersion > QueueSnapshot.currentSchemaVersion)
+  }
+
+  // MARK: - PodcastDetailSnapshot Round-Trip
+
+  @Test("PodcastDetailSnapshot encodes and decodes with all fields intact")
+  func podcastDetailRoundTrip() throws {
+    let imageURL = "https://example.com/podcast.jpg"
+
+    let snapshot = PodcastDetailSnapshot(
+      schemaVersion: PodcastDetailSnapshot.currentSchemaVersion,
+      subscribedPodcasts: [
+        PodcastDetailSnapshot.SubscribedPodcast(
+          feedURLString: "https://example.com/feed.xml",
+          title: "Test Podcast",
+          artworkURL: imageURL,
+          recentEpisodes: [
+            PodcastDetailSnapshot.PodcastEpisodeItem(
+              episodeID: 200,
+              episodeTitle: "Episode 1",
+              pubDateTimestamp: Date().timeIntervalSince1970,
+              durationSeconds: 1800,
+              artworkURL: nil
+            )
+          ]
+        )
+      ],
+      updatedAt: Date()
+    )
+
+    let data = try JSONEncoder().encode(snapshot)
+    let decoded = try JSONDecoder().decode(PodcastDetailSnapshot.self, from: data)
+
+    #expect(decoded.schemaVersion == PodcastDetailSnapshot.currentSchemaVersion)
+    #expect(decoded.subscribedPodcasts.count == 1)
+    #expect(decoded.subscribedPodcasts[0].feedURLString == "https://example.com/feed.xml")
+    #expect(decoded.subscribedPodcasts[0].title == "Test Podcast")
+    #expect(decoded.subscribedPodcasts[0].artworkURL == imageURL)
+    #expect(decoded.subscribedPodcasts[0].recentEpisodes?.count == 1)
+    #expect(decoded.subscribedPodcasts[0].recentEpisodes?[0].episodeID == 200)
+  }
+
+  // MARK: - PodcastEntityListSnapshot Round-Trip
+
+  @Test("PodcastEntityListSnapshot encodes and decodes with all fields intact")
+  func podcastEntityListRoundTrip() throws {
+    let snapshot = PodcastEntityListSnapshot(
+      schemaVersion: PodcastEntityListSnapshot.currentSchemaVersion,
+      podcasts: [
+        PodcastEntityListSnapshot.PodcastEntityItem(
+          feedURLString: "https://example.com/feed1.xml",
+          title: "Podcast One"
+        ),
+        PodcastEntityListSnapshot.PodcastEntityItem(
+          feedURLString: "https://example.com/feed2.xml",
+          title: "Podcast Two"
+        ),
+      ],
+      updatedAt: Date()
+    )
+
+    let data = try JSONEncoder().encode(snapshot)
+    let decoded = try JSONDecoder().decode(PodcastEntityListSnapshot.self, from: data)
+
+    #expect(decoded.schemaVersion == PodcastEntityListSnapshot.currentSchemaVersion)
+    #expect(decoded.podcasts.count == 2)
+    #expect(decoded.podcasts[0].feedURLString == "https://example.com/feed1.xml")
+    #expect(decoded.podcasts[0].title == "Podcast One")
+    #expect(decoded.podcasts[1].feedURLString == "https://example.com/feed2.xml")
   }
 
   // MARK: - PlaybackStatus Codable
@@ -186,5 +276,35 @@ struct WidgetSnapshotTests {
 
     let episodeID = try #require(Int64(pathComponents.dropFirst().first ?? ""))
     #expect(episodeID == 12345)
+  }
+
+  @Test("podcast-detail episode deep link parses correctly")
+  func podcastDetailEpisodeDeepLink() throws {
+    let url = try #require(URL(string: "podhaven://widget/podcast-detail/episode/999"))
+
+    #expect(url.host == "widget")
+    let pathComponents = url.pathComponents.filter { $0 != "/" }
+    #expect(pathComponents[0] == "podcast-detail")
+    #expect(pathComponents[1] == "episode")
+    #expect(pathComponents[2] == "999")
+  }
+
+  @Test("podcast-detail podcast deep link parses correctly")
+  func podcastDetailPodcastDeepLink() throws {
+    let feedURL = "https://example.com/feed.xml"
+    var components = URLComponents(string: "podhaven://widget/podcast-detail")!
+    components.queryItems = [URLQueryItem(name: "feedURL", value: feedURL)]
+    let url = try #require(components.url)
+
+    #expect(url.host == "widget")
+    let pathComponents = url.pathComponents.filter { $0 != "/" }
+    #expect(pathComponents.first == "podcast-detail")
+    let parsedFeedURL = try #require(
+      URLComponents(string: url.absoluteString)?
+        .queryItems?
+        .first(where: { $0.name == "feedURL" })?
+        .value
+    )
+    #expect(parsedFeedURL == feedURL)
   }
 }

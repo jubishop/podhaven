@@ -5,7 +5,7 @@ import Foundation
 import GRDB
 import Tagged
 
-struct QueueWidgetEpisode: Equatable, FetchableRecord, Identifiable {
+struct WidgetEpisode: Equatable, FetchableRecord, Identifiable {
   let id: Episode.ID
   let title: String
   let pubDate: Date
@@ -23,7 +23,7 @@ struct QueueWidgetEpisode: Equatable, FetchableRecord, Identifiable {
     episodeImage = row[Episode.Columns.image]
 
     guard let podcastRow = row.scopes["podcast"] else {
-      Assert.fatal("QueueWidgetEpisode requires podcast scope via including(required:)")
+      Assert.fatal("WidgetEpisode requires podcast scope via including(required:)")
     }
     podcastImage = podcastRow[Podcast.Columns.image]
   }

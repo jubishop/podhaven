@@ -13,6 +13,11 @@ enum WidgetInfo {
   static let playPauseControlKind = "PlayPauseControl"
   static let skipForwardControlKind = "SkipForwardControl"
   static let skipBackwardControlKind = "SkipBackwardControl"
+  static let podcastDetailKind = "PodcastDetailWidget"
+
+  // MARK: - Deep Links
+
+  static let podcastDetailBaseURL = URL(string: "podhaven://widget/podcast-detail/")!
 
   // MARK: - Data Storage
 
@@ -28,8 +33,24 @@ enum WidgetInfo {
     return containerURL
   }
 
-  static var snapshotURL: URL {
-    containerURL.appendingPathComponent("widget-snapshot.json")
+  static var nowPlayingSnapshotURL: URL {
+    containerURL.appendingPathComponent("widget-now-playing.json")
+  }
+
+  static var queueSnapshotURL: URL {
+    containerURL.appendingPathComponent("widget-queue.json")
+  }
+
+  static var podcastDetailSnapshotURL: URL {
+    containerURL.appendingPathComponent("widget-podcast-detail.json")
+  }
+
+  static var podcastEntityListURL: URL {
+    containerURL.appendingPathComponent("widget-podcast-entities.json")
+  }
+
+  static var artworkURL: URL {
+    containerURL.appendingPathComponent("widget-artwork.json")
   }
 
   static var logFileURL: URL {

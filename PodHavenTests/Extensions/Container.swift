@@ -44,6 +44,8 @@ extension Container: @retroactive AutoRegistering {
 
     controlCenter.context(.test) { FakeControlCenter() }.scope(.cached)
 
+    widgetCenter.context(.test) { FakeWidgetCenter() }.scope(.cached)
+
     standardDefaults.context(.test) { FakeKeyValueStore() }.scope(.cached)
     sharedDefaults.context(.test) { FakeKeyValueStore() }.scope(.cached)
 

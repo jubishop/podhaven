@@ -29,6 +29,7 @@ struct PodHavenWidgetBundle: WidgetBundle {
   var body: some Widget {
     NowPlayingWidget()
     QueueWidget()
+    PodcastDetailWidget()
     LockScreenNowPlayingWidget()
     PlayPauseControl()
     SkipForwardControl()

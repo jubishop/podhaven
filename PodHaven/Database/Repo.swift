@@ -95,6 +95,16 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  // MARK: - Podcast Readers
+
+  func podcast(_ feedURL: FeedURL) async throws -> Podcast? {
+    try await appDB.db.read { db in
+      try Podcast
+        .filter { $0.feedURL == feedURL }
+        .fetchOne(db)
+    }
+  }
+
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode? {

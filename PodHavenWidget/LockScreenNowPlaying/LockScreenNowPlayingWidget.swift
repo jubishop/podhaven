@@ -42,7 +42,7 @@ struct LockScreenNowPlayingProvider: TimelineProvider {
       )
     }
 
-    guard let snapshot = WidgetSnapshotReader.read() else {
+    guard let snapshot = WidgetSnapshotReader.readNowPlaying() else {
       Self.log.warning("makeEntry: no snapshot available, returning empty")
       return .empty
     }

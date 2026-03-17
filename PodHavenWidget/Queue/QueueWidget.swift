@@ -24,7 +24,7 @@ struct QueueProvider: TimelineProvider {
   }
 
   private func makeEntry() -> QueueEntry {
-    guard let snapshot = WidgetSnapshotReader.read() else {
+    guard let snapshot = WidgetSnapshotReader.readQueue() else {
       Self.log.warning("Queue makeEntry: no snapshot available, returning empty")
       return .empty
     }
@@ -37,7 +37,10 @@ struct QueueProvider: TimelineProvider {
         episodeTitle: queueItem.episodeTitle,
         pubDateFormatted: Date(timeIntervalSince1970: queueItem.pubDateTimestamp).usShort,
         durationFormatted: queueItem.durationSeconds.compactReadableFormat,
-        artwork: WidgetSnapshotReader.decodeArtwork(from: queueItem.artworkBase64)
+        artwork: WidgetSnapshotReader.decodeArtwork(
+          forKey: queueItem.artworkURL,
+          from: snapshot.artwork
+        )
       )
     }
 

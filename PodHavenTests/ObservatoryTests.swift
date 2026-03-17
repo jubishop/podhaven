@@ -522,6 +522,101 @@ actor ObservatoryTests {
     try await observedEpisodes.waitForEqual(to: [episode1, episode2])
   }
 
+  // MARK: - podcastDetailWidgetData()
+
+  @Test("podcastDetailWidgetData() returns only subscribed podcasts with up to 4 recent episodes")
+  func testPodcastDetailWidgetData() async throws {
+    let feedURL1 = FeedURL(URL(string: "https://subscribed.com/feed.rss")!)
+    let feedURL2 = FeedURL(URL(string: "https://unsubscribed.com/feed.rss")!)
+    let podcastImage = URL.valid()
+
+    let subscribedPodcast = try Create.unsavedPodcast(
+      feedURL: feedURL1,
+      title: "Subscribed Pod",
+      image: podcastImage
+    )
+    let unsubscribedPodcast = try Create.unsavedPodcast(
+      feedURL: feedURL2,
+      title: "Unsubscribed Pod"
+    )
+
+    let series1 = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: subscribedPodcast,
+        unsavedEpisodes: [
+          Create.unsavedEpisode(title: "Ep 1", pubDate: 1.minutesAgo),
+          Create.unsavedEpisode(title: "Ep 2", pubDate: 10.minutesAgo),
+          Create.unsavedEpisode(title: "Ep 3", pubDate: 20.minutesAgo),
+          Create.unsavedEpisode(title: "Ep 4", pubDate: 30.minutesAgo),
+          Create.unsavedEpisode(title: "Ep 5", pubDate: 40.minutesAgo),
+        ]
+      )
+    )
+    try await repo.markSubscribed(series1.podcast.id)
+
+    try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: unsubscribedPodcast,
+        unsavedEpisodes: [Create.unsavedEpisode(title: "Unsub Ep")]
+      )
+    )
+
+    let data = try await observatory.podcastDetailWidgetData().get()
+
+    #expect(data.count == 1)
+    #expect(data[0].podcast.feedURL == feedURL1)
+    #expect(data[0].podcast.title == "Subscribed Pod")
+    #expect(data[0].podcast.image == podcastImage)
+    #expect(data[0].episodes.count == 4)
+    #expect(data[0].episodes.map(\.title) == ["Ep 1", "Ep 2", "Ep 3", "Ep 4"])
+  }
+
+  @Test("podcastDetailWidgetData() returns empty when no podcasts are subscribed")
+  func testPodcastDetailWidgetDataEmpty() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast()
+    try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisodes: [Create.unsavedEpisode()]
+      )
+    )
+
+    let data = try await observatory.podcastDetailWidgetData().get()
+    #expect(data.isEmpty)
+  }
+
+  @Test("podcastDetailWidgetData() orders podcasts by title")
+  func testPodcastDetailWidgetDataOrdering() async throws {
+    let feedURLZ = FeedURL(URL(string: "https://z.com/feed.rss")!)
+    let feedURLA = FeedURL(URL(string: "https://a.com/feed.rss")!)
+    let feedURLM = FeedURL(URL(string: "https://m.com/feed.rss")!)
+
+    let series1 = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: Create.unsavedPodcast(feedURL: feedURLZ, title: "Zebra Pod"),
+        unsavedEpisodes: [Create.unsavedEpisode()]
+      )
+    )
+    let series2 = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: Create.unsavedPodcast(feedURL: feedURLA, title: "Alpha Pod"),
+        unsavedEpisodes: [Create.unsavedEpisode()]
+      )
+    )
+    let series3 = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: Create.unsavedPodcast(feedURL: feedURLM, title: "Middle Pod"),
+        unsavedEpisodes: [Create.unsavedEpisode()]
+      )
+    )
+    try await repo.markSubscribed([series1.podcast.id, series2.podcast.id, series3.podcast.id])
+
+    let data = try await observatory.podcastDetailWidgetData().get()
+
+    #expect(data.count == 3)
+    #expect(data.map(\.podcast.title) == ["Alpha Pod", "Middle Pod", "Zebra Pod"])
+  }
+
   // MARK: - podcasts(feedURLs)
 
   @Test("podcasts() with empty array")

@@ -20,6 +20,10 @@ protocol Databasing: Sendable {
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries?
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries?
 
+  // MARK: - Podcast Readers
+
+  func podcast(_ feedURL: FeedURL) async throws -> Podcast?
+
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode?

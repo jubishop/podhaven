@@ -4,6 +4,7 @@ import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
+import Tagged
 
 extension Container {
   var observatory: Factory<Observatory> {
@@ -124,14 +125,40 @@ struct Observatory {
     )
   }
 
-  func queueWidgetEpisodes() -> AsyncValueObservation<[QueueWidgetEpisode]> {
+  func queueWidgetEpisodes() -> AsyncValueObservation<[WidgetEpisode]> {
     _observe { db in
       try Episode.all()
         .filter(Episode.queued)
         .including(required: Episode.podcast)
         .order(Episode.Columns.queueOrder.asc)
-        .asRequest(of: QueueWidgetEpisode.self)
+        .asRequest(of: WidgetEpisode.self)
         .fetchAll(db)
+    }
+  }
+
+  // MARK: - Podcast Detail Widget
+
+  func podcastDetailWidgetData() -> AsyncValueObservation<[PodcastDetailWidgetData]> {
+    _observe { db in
+      let podcasts =
+        try Podcast
+        .all()
+        .filter(Podcast.subscribed)
+        .order(Podcast.Columns.title.collating(.localizedCaseInsensitiveCompare))
+        .asRequest(of: WidgetPodcast.self)
+        .fetchAll(db)
+
+      return try podcasts.map { podcast in
+        let episodes =
+          try Episode
+          .joining(required: Episode.podcast.filter(Podcast.Columns.feedURL == podcast.feedURL))
+          .including(required: Episode.podcast)
+          .order(Episode.Columns.pubDate.desc)
+          .limit(4)
+          .asRequest(of: WidgetEpisode.self)
+          .fetchAll(db)
+        return PodcastDetailWidgetData(podcast: podcast, episodes: episodes)
+      }
     }
   }
 

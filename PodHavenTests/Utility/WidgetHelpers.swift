@@ -17,31 +17,113 @@ enum WidgetHelpers {
     Container.shared.sleeper() as! FakeSleeper
   }
 
-  // MARK: - Helpers
+  // MARK: - Debounced Helper
 
-  static func waitForSnapshot() async throws {
-    try await waitForSnapshot(where: { _ in true })
+  // Waits for debounce sleep cycles, then polls for the snapshot file.
+  // Multiple independent debounces may be active, so we tolerate iterations
+  // where a different debounce fires before the one we're waiting for.
+  @discardableResult
+  static func waitForDebounced<T: WidgetSnapshotType>(
+    _ type: T.Type,
+    url: URL,
+    where predicate: @escaping @Sendable (T) -> Bool = { _ in true }
+  ) async throws -> T {
+    for _ in 0..<10 {
+      try await sleeper.waitForSleepRequests(count: 1)
+      await sleeper.advanceTime(by: .milliseconds(250))
+
+      // Wait.until polls with real Task.sleep, giving async write work time
+      // to complete after advanceTime resumes the debounce continuation.
+      // Wrap in do/catch so we can try the next debounce cycle if the file
+      // wasn't written by this particular debounce.
+      do {
+        try await Wait.until(
+          maxAttempts: 50,
+          { [fakeFileManager] in
+            guard fakeFileManager.fileExists(at: url) else { return false }
+            let data = try await fakeFileManager.readData(from: url)
+            let snapshot = try JSONDecoder().decode(T.self, from: data)
+            return predicate(snapshot)
+          },
+          { "Snapshot at \(url.lastPathComponent) not ready yet" }
+        )
+        let data = try await fakeFileManager.readData(from: url)
+        return try JSONDecoder().decode(T.self, from: data)
+      } catch {
+        continue
+      }
+    }
+    throw TestError.waitUntilFailure(
+      "Snapshot at \(url.lastPathComponent) never matched expected condition"
+    )
+  }
+
+  // MARK: - Immediate Helper
+
+  // Polls for a snapshot file without waiting for debounce. Use for snapshots
+  // that are written immediately (entity list).
+  @discardableResult
+  static func waitForImmediate<T: WidgetSnapshotType>(
+    _ type: T.Type,
+    url: URL,
+    where predicate: @escaping @Sendable (T) -> Bool = { _ in true }
+  ) async throws -> T {
+    try await Wait.until(
+      { [fakeFileManager] in
+        guard fakeFileManager.fileExists(at: url) else { return false }
+        guard let data = try? await fakeFileManager.readData(from: url) else { return false }
+        guard let snapshot = try? JSONDecoder().decode(T.self, from: data) else { return false }
+        return predicate(snapshot)
+      },
+      { "Snapshot at \(url.lastPathComponent) was never written or never matched condition" }
+    )
+    let data = try await fakeFileManager.readData(from: url)
+    return try JSONDecoder().decode(T.self, from: data)
+  }
+
+  // MARK: - Per-Type Convenience
+
+  @discardableResult
+  static func waitForNowPlayingSnapshot(
+    where predicate: @escaping @Sendable (NowPlayingSnapshot) -> Bool = { _ in true }
+  ) async throws -> NowPlayingSnapshot {
+    try await waitForDebounced(
+      NowPlayingSnapshot.self,
+      url: WidgetInfo.nowPlayingSnapshotURL,
+      where: predicate
+    )
   }
 
   @discardableResult
-  static func waitForSnapshot(
-    where predicate: @Sendable (WidgetSnapshot) -> Bool
-  ) async throws -> WidgetSnapshot {
-    for _ in 0..<5 {
-      try await sleeper.waitForSleepRequests(count: 1)
-      await sleeper.advanceTime(by: .milliseconds(250))
-      try await Wait.until(
-        { [fakeFileManager] in fakeFileManager.fileExists(at: WidgetInfo.snapshotURL) },
-        { "Snapshot file was never written" }
-      )
-      let snapshot = try await decodeSnapshot()
-      if predicate(snapshot) { return snapshot }
-    }
-    throw TestError.waitUntilFailure("Snapshot never matched expected condition")
+  static func waitForQueueSnapshot(
+    where predicate: @escaping @Sendable (QueueSnapshot) -> Bool = { _ in true }
+  ) async throws -> QueueSnapshot {
+    try await waitForDebounced(
+      QueueSnapshot.self,
+      url: WidgetInfo.queueSnapshotURL,
+      where: predicate
+    )
   }
 
-  static func decodeSnapshot() async throws -> WidgetSnapshot {
-    let data = try await fakeFileManager.readData(from: WidgetInfo.snapshotURL)
-    return try JSONDecoder().decode(WidgetSnapshot.self, from: data)
+  @discardableResult
+  static func waitForPodcastDetailSnapshot(
+    where predicate: @escaping @Sendable (PodcastDetailSnapshot) -> Bool = { _ in true }
+  ) async throws -> PodcastDetailSnapshot {
+    try await waitForDebounced(
+      PodcastDetailSnapshot.self,
+      url: WidgetInfo.podcastDetailSnapshotURL,
+      where: predicate
+    )
+  }
+
+  @discardableResult
+  static func waitForPodcastEntityList(
+    where predicate: @escaping @Sendable (PodcastEntityListSnapshot) -> Bool = { _ in true }
+  ) async throws -> PodcastEntityListSnapshot {
+    try await waitForImmediate(
+      PodcastEntityListSnapshot.self,
+      url: WidgetInfo.podcastEntityListURL,
+      where: predicate
+    )
   }
 }
