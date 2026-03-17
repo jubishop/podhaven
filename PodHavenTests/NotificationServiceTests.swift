@@ -56,14 +56,14 @@ import Testing
     )
   }
 
-  @Test("episode URL with unknown ID does not navigate")
-  func episodeURLWithUnknownIDDoesNotNavigate() async throws {
+  @Test("episode URL with unknown ID falls back to podcast list")
+  func episodeURLWithUnknownIDFallsBackToPodcastList() async throws {
     let url = try #require(URL(string: "podhaven://notification/episode/99999"))
 
     await notificationService.handleIncomingURL(url)
 
-    #expect(navigation.currentTab == .upNext)
-    #expect(navigation.podcasts.path.isEmpty)
+    #expect(navigation.currentTab == .podcasts)
+    #expect(navigation.podcasts.path == [.podcastsViewType(.subscribed)])
   }
 
   // MARK: - Podcast Deep Link
@@ -94,14 +94,14 @@ import Testing
     )
   }
 
-  @Test("podcast URL with unknown ID does not navigate")
-  func podcastURLWithUnknownIDDoesNotNavigate() async throws {
+  @Test("podcast URL with unknown ID falls back to podcast list")
+  func podcastURLWithUnknownIDFallsBackToPodcastList() async throws {
     let url = try #require(URL(string: "podhaven://notification/podcast/99999"))
 
     await notificationService.handleIncomingURL(url)
 
-    #expect(navigation.currentTab == .upNext)
-    #expect(navigation.podcasts.path.isEmpty)
+    #expect(navigation.currentTab == .podcasts)
+    #expect(navigation.podcasts.path == [.podcastsViewType(.subscribed)])
   }
 
   // MARK: - Unknown Path

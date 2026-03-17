@@ -52,12 +52,14 @@ struct NotificationService {
             await navigation.showEpisode(podcastEpisode)
           } else {
             Self.log.warning("Notification deep link: episode \(episodeID) not found")
+            await navigation.showPodcastList(.subscribed)
           }
         } catch {
           Self.log.caughtError(
             "Notification deep link: failed to fetch episode \(episodeID)",
             error
           )
+          await navigation.showPodcastList(.subscribed)
         }
       }
 
@@ -73,12 +75,14 @@ struct NotificationService {
             await navigation.showPodcast(podcastSeries.podcast)
           } else {
             Self.log.warning("Notification deep link: podcast \(podcastID) not found")
+            await navigation.showPodcastList(.subscribed)
           }
         } catch {
           Self.log.caughtError(
             "Notification deep link: failed to fetch podcast \(podcastID)",
             error
           )
+          await navigation.showPodcastList(.subscribed)
         }
       }
 

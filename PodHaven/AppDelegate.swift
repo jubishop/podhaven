@@ -48,6 +48,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
   func userNotificationCenter(
     _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification
+  ) async -> UNNotificationPresentationOptions {
+    [.banner, .sound]
+  }
+
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
     didReceive response: UNNotificationResponse
   ) async {
     let userInfo = response.notification.request.content.userInfo
