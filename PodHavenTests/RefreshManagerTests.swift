@@ -52,10 +52,13 @@ actor RefreshManagerTests {
       in: .FeedRSS
     )
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    let refreshStart = Date.now
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    let refreshEnd = Date.now
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
-    #expect(updatedSeries.podcast.lastUpdate.approximatelyEquals(Date()))
+    #expect(updatedSeries.podcast.lastUpdate >= refreshStart)
+    #expect(updatedSeries.podcast.lastUpdate <= refreshEnd)
     #expect(
       updatedSeries.podcast.feedURL
         == FeedURL(URL(string: "https://feeds.simplecast.com/l2i9YnTdNEW")!)
@@ -86,10 +89,13 @@ actor RefreshManagerTests {
 
     let updatedData = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
     await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: updatedData)
+    let refreshStart = Date.now
     try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+    let refreshEnd = Date.now
 
     let updatedSeries = try await repo.podcastSeries(podcastSeries.podcast.id)!
-    #expect(updatedSeries.podcast.lastUpdate.approximatelyEquals(Date()))
+    #expect(updatedSeries.podcast.lastUpdate >= refreshStart)
+    #expect(updatedSeries.podcast.lastUpdate <= refreshEnd)
   }
 
   @Test("that selective updates only update changed content")
