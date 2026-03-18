@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
@@ -98,6 +99,53 @@ import Testing
     let titles = snapshot.queue.map(\.episodeTitle)
     #expect(titles.contains("Queue Ep 1"))
     #expect(titles.contains("Queue Ep 2"))
+  }
+
+  @Test("skips queue snapshot write when only non-widget episode fields change")
+  func skipsQueueSnapshotWriteWhenOnlyNonWidgetFieldsChange() async throws {
+    let ep = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Widget Ep")
+    )
+    sharedState.$queuedPodcastEpisodes.new([ep])
+
+    writer.start()
+    try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 1 }
+
+    let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
+    let initialData = try await fakeFileManager.readData(from: WidgetInfo.queueSnapshotURL)
+
+    // Build a PodcastEpisode with identical widget-relevant fields (id, title,
+    // pubDate, duration, image) but a different currentTime.
+    let modifiedUnsaved = try UnsavedEpisode(
+      podcastId: ep.episode.podcastId,
+      guid: ep.episode.guid,
+      mediaURL: ep.episode.mediaURL,
+      title: ep.episode.title,
+      pubDate: ep.episode.pubDate,
+      duration: ep.episode.duration,
+      description: ep.episode.description,
+      link: ep.episode.link,
+      image: ep.episode.image,
+      currentTime: CMTime(seconds: 99, preferredTimescale: 1)
+    )
+    let modifiedEpisode = Episode(
+      id: ep.episode.id,
+      creationDate: ep.episode.creationDate,
+      from: modifiedUnsaved
+    )
+    let modifiedPE = PodcastEpisode(podcast: ep.podcast, episode: modifiedEpisode)
+    sharedState.$queuedPodcastEpisodes.new([modifiedPE])
+
+    // Observe a playback status change to confirm the event loop has processed
+    // all pending stream emissions, including the queue change above.
+    sharedState.$playbackStatus.new(.playing)
+    try await Wait.until(
+      { self.widgetState.playbackStatus == .playing },
+      { "playbackStatus was not updated to .playing" }
+    )
+
+    let currentData = try await fakeFileManager.readData(from: WidgetInfo.queueSnapshotURL)
+    #expect(initialData == currentData)
   }
 
   @Test("caps queue at 5 but reports full queueTotalCount")
