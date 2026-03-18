@@ -254,6 +254,49 @@ actor UserNotificationManagerTests {
     #expect(request.hasSound == true)
   }
 
+  @Test("scheduleNewEpisodeNotification includes episode deep-link URL for single episode")
+  func scheduleNewEpisodeNotificationIncludesEpisodeURL() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    fakeCenter.setAuthorizationStatus(.authorized)
+
+    await userNotificationManager.scheduleNewEpisodeNotification(
+      podcast: podcastEpisode.podcast,
+      episodes: [podcastEpisode.episode]
+    )
+
+    let request = fakeCenter.addedRequests.first!
+    #expect(
+      request.urlString
+        == "podhaven://notification/episode/\(podcastEpisode.episode.id.rawValue)"
+    )
+  }
+
+  @Test("scheduleNewEpisodeNotification includes podcast deep-link URL for multiple episodes")
+  func scheduleNewEpisodeNotificationIncludesPodcastURL() async throws {
+    let repo = Container.shared.repo()
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(),
+          try Create.unsavedEpisode(),
+        ]
+      )
+    )
+    fakeCenter.setAuthorizationStatus(.authorized)
+
+    await userNotificationManager.scheduleNewEpisodeNotification(
+      podcast: podcastSeries.podcast,
+      episodes: Array(podcastSeries.episodes)
+    )
+
+    let request = fakeCenter.addedRequests.first!
+    #expect(
+      request.urlString
+        == "podhaven://notification/podcast/\(podcastSeries.podcast.id.rawValue)"
+    )
+  }
+
   @Test("scheduleNewEpisodeNotification uses episode count for multiple episodes")
   func scheduleNewEpisodeNotificationUsesCountForMultipleEpisodes() async throws {
     let repo = Container.shared.repo()
