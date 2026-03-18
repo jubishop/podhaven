@@ -138,6 +138,7 @@
 				NavigationTests.swift,
 				NotificationServiceTests.swift,
 				ObservatoryTests/MetadataTests.swift,
+				ObservatoryTests/ObservatoryOnDeckTests.swift,
 				ObservatoryTests/ObservatoryQueueTests.swift,
 				ObservatoryTests/PodcastEpisodesTests.swift,
 				ObservatoryTests/PodcastsTests.swift,

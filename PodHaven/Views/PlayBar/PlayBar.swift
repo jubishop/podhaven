@@ -197,7 +197,9 @@ struct PlayBarPreview: View {
         sharedState.setPlaybackStatus(status)
 
         let podcastEpisode = try! await Create.podcastEpisode()
-        sharedState.$onDeck.new(OnDeck(podcastEpisode: podcastEpisode, artwork: image))
+        var onDeck = OnDeck(from: podcastEpisode)
+        onDeck.artwork = image
+        sharedState.$onDeck.new(onDeck)
 
         for _ in 1...10 {
           _ = try! await Create.podcastEpisode()

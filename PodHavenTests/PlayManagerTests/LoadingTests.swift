@@ -61,10 +61,10 @@ import Testing
     expectedInfo[MPMediaItemPropertyTitle] = onDeck.title
     expectedInfo[MPMediaItemPropertyReleaseDate] = onDeck.pubDate
     expectedInfo[MPNowPlayingInfoPropertyPlaybackQueueIndex] = 0
-    expectedInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.episode.mediaURL.rawValue
+    expectedInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.mediaURL.rawValue
     expectedInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
     expectedInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
-    expectedInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] = onDeck.episode.guid.rawValue
+    expectedInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] = onDeck.mediaGUID.guid.rawValue
     expectedInfo[MPNowPlayingInfoPropertyIsLiveStream] = false
     expectedInfo[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
     expectedInfo[MPNowPlayingInfoPropertyPlaybackProgress] = 0.0

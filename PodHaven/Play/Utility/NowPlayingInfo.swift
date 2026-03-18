@@ -149,9 +149,10 @@ enum NowPlayingInfo {
   static func updateDefaultPlaybackRate(for podcastEpisode: PodcastEpisode? = nil) {
     Self.log.debug("updateDefaultPlaybackRate")
 
-    let podcast = podcastEpisode?.podcast ?? Container.shared.sharedState().onDeck?.podcast
     let defaultPlaybackRate =
-      podcast?.defaultPlaybackRate ?? Container.shared.userSettings().defaultPlaybackRate
+      podcastEpisode?.podcast.defaultPlaybackRate
+      ?? Container.shared.sharedState().onDeck?.defaultPlaybackRate
+      ?? Container.shared.userSettings().defaultPlaybackRate
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {

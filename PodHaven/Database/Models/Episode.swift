@@ -128,29 +128,8 @@ struct UnsavedEpisode:
 
   // MARK: - Chapters
 
-  // Parses timestamps (e.g. "2:15", "14:30", "1:02:15") from the description
-  // and returns them as sorted CMTimes. Returns nil if none are found.
   var chapters: [CMTime]? {
-    guard let description else { return nil }
-
-    var seen = Set<Int>()
-    let times: [CMTime] = description.matches(of: Timestamp.regex)
-      .compactMap { match in
-        guard let totalSeconds = Timestamp.parse(match.output) else { return nil }
-
-        // Skip zero timestamps (episode start) and duplicates.
-        guard totalSeconds > 0, seen.insert(totalSeconds).inserted else { return nil }
-
-        // Skip timestamps that exceed the episode duration.
-        let time = CMTime.seconds(Double(totalSeconds))
-        if time > duration { return nil }
-
-        return time
-      }
-      .sorted()
-
-    guard !times.isEmpty else { return nil }
-    return times
+    Episode.chapters(from: description, duration: duration)
   }
 
   // MARK: - Cached Info
@@ -294,6 +273,35 @@ struct Episode: EpisodeInformable, Saved, RSSUpdatable {
     case uncached
     case caching
     case cached
+  }
+}
+
+// MARK: - Chapter Parsing
+
+extension Episode {
+  // Parses timestamps (e.g. "2:15", "14:30", "1:02:15") from the description
+  // and returns them as sorted CMTimes. Returns nil if none are found.
+  static func chapters(from description: String?, duration: CMTime) -> [CMTime]? {
+    guard let description else { return nil }
+
+    var seen = Set<Int>()
+    let times: [CMTime] = description.matches(of: Timestamp.regex)
+      .compactMap { match in
+        guard let totalSeconds = Timestamp.parse(match.output) else { return nil }
+
+        // Skip zero timestamps (episode start) and duplicates.
+        guard totalSeconds > 0, seen.insert(totalSeconds).inserted else { return nil }
+
+        // Skip timestamps that exceed the episode duration.
+        let time = CMTime.seconds(Double(totalSeconds))
+        if time > duration { return nil }
+
+        return time
+      }
+      .sorted()
+
+    guard !times.isEmpty else { return nil }
+    return times
   }
 }
 
