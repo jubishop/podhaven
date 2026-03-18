@@ -138,7 +138,6 @@ enum CommandCenter: Sendable {
     log.debug("updateNextTrack")
 
     let commandCenter = Container.shared.mpRemoteCommandCenter()
-
     commandCenter.previousTrack.isEnabled = true
 
     switch Container.shared.userSettings().nextTrackBehavior {
