@@ -31,12 +31,7 @@ jobs:
             -resultBundlePath TestResults \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | xcbeautify --renderer github-actions
-
-      - name: Print test failures
-        if: failure()
-        run: |
-          xcrun xcresulttool get test-results summary --path TestResults.xcresult --compact || true
+            2>&1 | xcbeautify --renderer github-actions --quiet
 
       - name: Upload test results
         if: failure()
