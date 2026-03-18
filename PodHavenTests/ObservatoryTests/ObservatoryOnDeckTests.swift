@@ -25,7 +25,7 @@ actor ObservatoryOnDeckTests {
       UnsavedPodcastSeries(
         unsavedPodcast: unsavedPodcast,
         unsavedEpisodes: [
-          Create.unsavedEpisode(
+          try Create.unsavedEpisode(
             title: "Test Episode",
             pubDate: pubDate,
             duration: duration,
@@ -72,7 +72,7 @@ actor ObservatoryOnDeckTests {
       image: podcastImage,
       defaultPlaybackRate: 1.5
     )
-    let unsavedEpisode = Create.unsavedEpisode(
+    let unsavedEpisode = try Create.unsavedEpisode(
       title: "Row Init Episode",
       pubDate: pubDate,
       duration: duration,
@@ -139,7 +139,7 @@ actor ObservatoryOnDeckTests {
       image: podcastImage,
       defaultPlaybackRate: 1.5
     )
-    let unsavedEpisode = Create.unsavedEpisode(
+    let unsavedEpisode = try Create.unsavedEpisode(
       title: "Convenience Init Episode",
       pubDate: pubDate,
       duration: duration,
@@ -245,27 +245,26 @@ actor ObservatoryOnDeckTests {
   func testOnDeckEpisodeDeletion() async throws {
     let (episode, _, _) = try await Create.threePodcastEpisodes()
 
-    let observedOnDeck = ActorContainer<OnDeck?>()
+    let receivedNonNil = ActorContainer<Bool>()
+    let receivedNil = ActorContainer<Bool>()
 
     Task {
       for try await onDeck in observatory.onDeck(episode.id) {
-        await observedOnDeck.set(onDeck)
+        if onDeck != nil {
+          await receivedNonNil.set(true)
+        } else {
+          await receivedNil.set(true)
+        }
       }
     }
 
     // Wait for initial non-nil emission
-    try await Wait.until(
-      { await observedOnDeck.value != nil },
-      { "Expected non-nil OnDeck" }
-    )
+    try await receivedNonNil.waitForItem()
 
     // Delete the episode's podcast (cascades to episode)
     try await repo.deletePodcast(episode.episode.podcastID)
 
     // Should emit nil
-    try await Wait.until(
-      { await observedOnDeck.value == nil },
-      { "Expected nil OnDeck after deletion" }
-    )
+    try await receivedNil.waitForItem()
   }
 }
