@@ -20,6 +20,8 @@ enum EnvironmentType: String {
 
 enum AppInfo {
   private static let log = Log.as("AppInfo")
+  private static let initializeEnvironmentOnce = Once()
+  private static let finalizeEnvironmentOnce = AsyncOnce()
 
   // MARK: - System Settings
 
@@ -50,46 +52,46 @@ enum AppInfo {
 
   #if !WIDGET_EXTENSION
   @MainActor static func initializeEnvironment() {
-    guard Function.neverCalled() else { return }
-
-    _deviceIdentifier(UIDevice.current.identifierForVendor?.uuidString ?? "Unknown")
-    environment = detectEnvironment()
+    initializeEnvironmentOnce.run {
+      _deviceIdentifier(UIDevice.current.identifierForVendor?.uuidString ?? "Unknown")
+      environment = detectEnvironment()
+    }
   }
   #endif
 
   #if !WIDGET_EXTENSION
   // Asynchronous environment refinement using AppTransactions
   static func finalizeEnvironment() async {
-    guard Function.neverCalled() else { return }
-
-    // Only refine environment for release builds on real devices
-    #if !DEBUG && !targetEnvironment(simulator)
-    do {
-      let result = try await AppTransaction.shared
-      if let refinedEnvironment = appTransactionEnvironment(for: result),
-        environment != refinedEnvironment
-      {
-        log.debug("Environment refined to \(refinedEnvironment)")
-        environment = refinedEnvironment
-      }
-    } catch {
-      log.caughtError("finalizeEnvironment: AppTransaction.shared failed", error)
-
-      // Retry with refresh
+    await finalizeEnvironmentOnce.run {
+      // Only refine environment for release builds on real devices
+      #if !DEBUG && !targetEnvironment(simulator)
       do {
-        let refreshed = try await AppTransaction.refresh()
-        if let refinedEnvironment = appTransactionEnvironment(for: refreshed),
+        let result = try await AppTransaction.shared
+        if let refinedEnvironment = appTransactionEnvironment(for: result),
           environment != refinedEnvironment
         {
-          log.debug("Environment refined to \(refinedEnvironment) after refresh")
+          log.debug("Environment refined to \(refinedEnvironment)")
           environment = refinedEnvironment
         }
       } catch {
-        log.caughtError("finalizeEnvironment: AppTransaction.refresh also failed", error)
-        // Keep existing environment
+        log.caughtError("finalizeEnvironment: AppTransaction.shared failed", error)
+
+        // Retry with refresh
+        do {
+          let refreshed = try await AppTransaction.refresh()
+          if let refinedEnvironment = appTransactionEnvironment(for: refreshed),
+            environment != refinedEnvironment
+          {
+            log.debug("Environment refined to \(refinedEnvironment) after refresh")
+            environment = refinedEnvironment
+          }
+        } catch {
+          log.caughtError("finalizeEnvironment: AppTransaction.refresh also failed", error)
+          // Keep existing environment
+        }
       }
+      #endif
     }
-    #endif
   }
   #endif
 

@@ -37,14 +37,16 @@ enum CommandCenter: Sendable {
   static func registerRemoteCommandHandlers() {
     log.debug("Now registering remote command handlers")
 
+    let appLauncher = Container.shared.appLauncher()
     let commandCenter = Container.shared.mpRemoteCommandCenter()
     let continuation = Container.shared.commandCenterStream().continuation
-    let playManager = Container.shared.playManager()
 
     let yield: (Command) -> Void = { command in
       log.debug("Remote command received: \(command)")
-      playManager.startStreamConsumers()
-      continuation.yield(command)
+      Task {
+        await appLauncher.prepareForPlayback()
+        continuation.yield(command)
+      }
     }
 
     commandCenter.play.removeCommandTarget()

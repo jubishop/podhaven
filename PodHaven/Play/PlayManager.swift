@@ -71,6 +71,8 @@ final class PlayManager {
   private var lastRecoveryAttempt: (episodeID: Episode.ID, time: Date)?
   private var imageFetchTask: Task<Void, Never>?
   private var loadTask: Task<Bool, any Error>?
+  private let startOnce = AsyncOnce()
+  private let startStreamConsumersOnce = Once()
   private var restartSeekCommandsTask: Task<Void, any Error>?
   private var ignoreSeekCommands = false
   private var lastLoggedTime: Double = 0
@@ -82,22 +84,24 @@ final class PlayManager {
   // Starts the async stream consumers for command center and notifications.
   // Called from AppDelegate after audio session and command handlers are configured.
   nonisolated func startStreamConsumers() {
-    guard Function.neverCalled() else { return }
-    Self.log.debug("startStreamConsumers: executing")
+    startStreamConsumersOnce.run {
+      Self.log.debug("startStreamConsumers: executing")
 
-    notificationTracking()
-    asyncStreams()
+      notificationTracking()
+      asyncStreams()
+    }
   }
 
   // Full startup for foreground use (called when app becomes active).
   // Loads the current episode if one exists.
   // Note: Audio session and command handlers must already be configured.
   func start() async {
-    guard Function.neverCalled() else { return }
-    Self.log.debug("start: executing")
+    await startOnce.run {
+      Self.log.debug("start: executing")
 
-    startStreamConsumers()
-    await loadPersistedEpisodeIfNeeded()
+      self.startStreamConsumers()
+      await self.loadPersistedEpisodeIfNeeded()
+    }
   }
 
   private func loadPersistedEpisodeIfNeeded() async {
@@ -734,8 +738,6 @@ final class PlayManager {
   // MARK: - Notification Tracking
 
   private nonisolated func notificationTracking() {
-    Assert.neverCalled()
-
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await notification in notifications(AVAudioSession.interruptionNotification) {
@@ -861,8 +863,6 @@ final class PlayManager {
   // MARK: - Subordinate Async Streams
 
   private nonisolated func asyncStreams() {
-    Assert.neverCalled()
-
     // CommandCenter
 
     Task { @PlayActor [weak self] in

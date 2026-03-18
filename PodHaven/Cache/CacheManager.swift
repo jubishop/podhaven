@@ -49,6 +49,7 @@ struct CacheManager {
 
   // MARK: - State Management
 
+  private let startOnce = Once()
   private let currentOnDeckEpisodeID = ThreadSafe<Episode.ID?>(nil)
   private let currentQueuedEpisodeIDs = ThreadSafe<Set<Episode.ID>>([])
 
@@ -57,21 +58,21 @@ struct CacheManager {
   fileprivate init() {}
 
   func start() {
-    guard Function.neverCalled() else { return }
+    startOnce.run {
+      Self.log.debug("start: executing")
 
-    Self.log.debug("start: executing")
+      do {
+        try fileManager.createDirectory(
+          at: Self.cacheDirectory,
+          withIntermediateDirectories: true
+        )
+      } catch {
+        Assert.fatal("Couldn't create cache directory?")
+      }
 
-    do {
-      try fileManager.createDirectory(
-        at: Self.cacheDirectory,
-        withIntermediateDirectories: true
-      )
-    } catch {
-      Assert.fatal("Couldn't create cache directory?")
+      startOnDeckObservation()
+      startQueueObservation()
     }
-
-    startOnDeckObservation()
-    startQueueObservation()
   }
 
   // MARK: - Public Methods
@@ -156,8 +157,6 @@ struct CacheManager {
   // MARK: - Private Helpers
 
   private func startOnDeckObservation() {
-    Assert.neverCalled()
-
     Self.log.debug("startOnDeckObservation: starting")
 
     Task(priority: .utility) {
@@ -190,8 +189,6 @@ struct CacheManager {
   }
 
   private func startQueueObservation() {
-    Assert.neverCalled()
-
     Self.log.debug("startQueueObservation: starting")
 
     Task(priority: .utility) {

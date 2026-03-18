@@ -1,28 +1,8 @@
-import FactoryKit
-import Foundation
 import Logging
 import System
 
 enum Assert {
   private static let log = Log.as("Assert", level: .critical)
-
-  static func neverCalled(
-    file: String = #fileID,
-    function: String = #function,
-    line: UInt = #line
-  ) {
-    Assert.precondition(
-      Function.neverCalled(file: file, function: function, line: line),
-      "\(file):\(function):\(line) has already been called?"
-    )
-  }
-
-  static func neverCalled(_ id: String) {
-    Assert.precondition(
-      Function.neverCalled(id),
-      "\(id) has already been called?"
-    )
-  }
 
   static func fatal(
     _ message: String,
