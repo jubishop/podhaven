@@ -378,7 +378,7 @@ final class PlayManager {
 
   // MARK: - Chapter Navigation
 
-  private func seekToNextChapter() async {
+  func seekToNextChapter() async {
     guard let chapters = sharedState.onDeck?.chapters, !chapters.isEmpty else {
       await seekForward()
       return
@@ -392,7 +392,7 @@ final class PlayManager {
     }
   }
 
-  private func seekToPreviousChapter() async {
+  func seekToPreviousChapter() async {
     guard let chapters = sharedState.onDeck?.chapters, !chapters.isEmpty else {
       await seekBackward()
       return

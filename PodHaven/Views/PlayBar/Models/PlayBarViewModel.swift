@@ -127,46 +127,18 @@ import Tagged
   }
 
   func goToPreviousChapter() {
-    guard let chapters, !chapters.isEmpty else { return }
-
-    let currentSeconds = sliderValue
-
-    // Get all chapters before the current position
-    let previousChapters = chapters.filter { $0.seconds < currentSeconds }
-
-    let targetTime: CMTime
-    if let nearestPrevious = previousChapters.last {
-      // If we're within 2 seconds of that chapter, skip to the one before it (or start)
-      if currentSeconds - nearestPrevious.seconds < 2 {
-        targetTime =
-          previousChapters.count > 1 ? previousChapters[previousChapters.count - 2] : .zero
-      } else {
-        targetTime = nearestPrevious
-      }
-    } else {
-      // No previous chapter, seek to start of episode
-      targetTime = .zero
-    }
-
-    Self.log.debug("Going to previous chapter at \(targetTime.seconds)")
     Task { [weak self] in
       guard let self else { return }
-      await playManager.seek(to: targetTime)
+      Self.log.debug("Going to previous chapter")
+      await playManager.seekToPreviousChapter()
     }
   }
 
   func goToNextChapter() {
-    guard let chapters, !chapters.isEmpty else { return }
-
-    let currentSeconds = sliderValue
-    let nextChapter = chapters.first { $0.seconds > currentSeconds }
-
-    guard let nextChapter else { return }
-
-    Self.log.debug("Going to next chapter at \(nextChapter.seconds)")
     Task { [weak self] in
       guard let self else { return }
-      await playManager.seek(to: nextChapter)
+      Self.log.debug("Going to next chapter")
+      await playManager.seekToNextChapter()
     }
   }
 
