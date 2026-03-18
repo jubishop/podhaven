@@ -143,3 +143,9 @@ protocol Databasing: Sendable {
   func updateNotifyNewEpisodes(_ podcastID: Podcast.ID, notifyNewEpisodes: Bool)
     async throws -> Bool
 }
+
+extension Databasing {
+  func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
+    try await podcastSeries(feedURL, iTunesID: nil)
+  }
+}
