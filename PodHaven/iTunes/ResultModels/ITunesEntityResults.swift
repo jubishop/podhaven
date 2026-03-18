@@ -100,7 +100,8 @@ struct ITunesEntityResults: Decodable, Sendable {
         title: title,
         image: imageURL,
         description: description,
-        link: link
+        link: link,
+        iTunesID: podcastID
       )
     }
   }

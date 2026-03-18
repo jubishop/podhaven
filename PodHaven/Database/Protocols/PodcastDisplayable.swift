@@ -11,6 +11,7 @@ where ID: Sendable {
   var podcastID: Podcast.ID? { get }
 
   var feedURL: FeedURL { get }
+  var iTunesID: ITunesPodcastID? { get }
   var image: URL { get }
   var title: String { get }
   var description: String { get }
@@ -27,6 +28,7 @@ where ID: Sendable {
 
 extension PodcastDisplayable {
   var podcastID: Podcast.ID? { id as? Podcast.ID }
+  var iTunesID: ITunesPodcastID? { nil }
   var isSaved: Bool { podcastID != nil }
   var subscribed: Bool { subscriptionDate != nil }
 }

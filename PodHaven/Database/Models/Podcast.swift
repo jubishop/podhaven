@@ -24,6 +24,7 @@ struct UnsavedPodcast:
 
   // Feed
   let feedURL: FeedURL
+  let iTunesID: ITunesPodcastID?
   let title: String
   let image: URL
   let description: String
@@ -45,6 +46,7 @@ struct UnsavedPodcast:
     image: URL,
     description: String,
     link: URL?,
+    iTunesID: ITunesPodcastID? = nil,
     lastUpdate: Date? = nil,
     subscriptionDate: Date? = nil,
     defaultPlaybackRate: Double? = nil,
@@ -53,6 +55,7 @@ struct UnsavedPodcast:
     notifyNewEpisodes: Bool = false
   ) throws {
     self.feedURL = try feedURL.convertToHTTPSURL()
+    self.iTunesID = iTunesID
     self.title = title
     self.image = try image.convertToHTTPSURL()
     self.description = description
@@ -111,7 +114,8 @@ struct UnsavedPodcast:
       title: title,
       image: image,
       description: description,
-      link: link
+      link: link,
+      iTunesID: iTunesID
     )
   }
 }
@@ -144,6 +148,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
     static let id = Column("id")
     static let creationDate = Column("creationDate")
     static let feedURL = Column("feedURL")
+    static let iTunesID = Column("iTunesID")
     static let title = Column("title")
     static let image = Column("image")
     static let description = Column("description")
@@ -169,6 +174,7 @@ struct Podcast: PodcastDisplayable, Saved, RSSUpdatable {
   // MARK: - PodcastDisplayable
 
   var feedURL: FeedURL { unsaved.feedURL }
+  var iTunesID: ITunesPodcastID? { unsaved.iTunesID }
   var image: URL { unsaved.image }
   var title: String { unsaved.title }
   var description: String { unsaved.description }

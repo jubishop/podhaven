@@ -84,10 +84,17 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
+  func podcastSeries(_ feedURL: FeedURL, iTunesID: ITunesPodcastID? = nil) async throws
+    -> PodcastSeries?
+  {
     try await appDB.db.read { db in
-      try Podcast
-        .filter { $0.feedURL == feedURL }
+      var filter: SQLExpression = Podcast.Columns.feedURL == feedURL
+      if let iTunesID {
+        filter = filter || Podcast.Columns.iTunesID == iTunesID
+      }
+      return
+        try Podcast
+        .filter(filter)
         .including(all: Podcast.episodes)
         .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
         .asRequest(of: PodcastSeries.self)
@@ -363,23 +370,39 @@ struct Repo: Databasing, Sendable {
     else { return [] }
 
     return try await appDB.db.write { db in
-      var upsertedPodcasts: IdentifiedArray<FeedURL, Podcast> = IdentifiedArray(id: \.feedURL)
+      var upsertedPodcastsByFeedURL: IdentifiedArray<FeedURL, Podcast> =
+        IdentifiedArray(id: \.feedURL)
+      var upsertedPodcastsByITunesID: IdentifiedArray<ITunesPodcastID?, Podcast> =
+        IdentifiedArray(id: \.iTunesID)
 
       return try unsavedPodcastEpisodes.map { unsavedPodcastEpisode in
         let podcast: Podcast
-        if let upsertedPodcast = upsertedPodcasts[
-          id: unsavedPodcastEpisode.unsavedPodcast.feedURL
-        ] {
-          podcast = upsertedPodcast
+        let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
+
+        if let cached = upsertedPodcastsByFeedURL[id: unsavedPodcast.feedURL] {
+          podcast = cached
+        } else if let iTunesID = unsavedPodcast.iTunesID,
+          let cached = upsertedPodcastsByITunesID[id: iTunesID]
+        {
+          podcast = cached
+        } else if let iTunesID = unsavedPodcast.iTunesID,
+          let existing =
+            try Podcast
+            .filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
+        {
+          podcast = existing
         } else {
-          let unsavedPodcast = unsavedPodcastEpisode.unsavedPodcast
           podcast = try unsavedPodcast.upsertAndFetch(
             db,
             as: Podcast.self,
             updating: .noColumnUnlessSpecified,
             doUpdate: unsavedPodcast.rssUpsertAssignments
           )
-          upsertedPodcasts.append(podcast)
+        }
+
+        upsertedPodcastsByFeedURL.append(podcast)
+        if podcast.iTunesID != nil {
+          upsertedPodcastsByITunesID.append(podcast)
         }
 
         var newUnsavedEpisode = unsavedPodcastEpisode.unsavedEpisode
@@ -426,6 +449,17 @@ struct Repo: Databasing, Sendable {
   @discardableResult
   func markUnsubscribed(_ podcastID: Podcast.ID) async throws -> Bool {
     try await markUnsubscribed([podcastID]) > 0
+  }
+
+  @discardableResult
+  func updateITunesID(_ podcastID: Podcast.ID, iTunesID: ITunesPodcastID) async throws -> Bool {
+    Self.log.debug("updateITunesID: \(podcastID) to \(iTunesID)")
+
+    return try await appDB.db.write { db in
+      try Podcast
+        .withID(podcastID)
+        .updateAll(db, Podcast.Columns.iTunesID.set(to: iTunesID))
+    } > 0
   }
 
   @discardableResult

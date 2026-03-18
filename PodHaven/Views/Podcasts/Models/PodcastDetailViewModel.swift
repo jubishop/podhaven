@@ -499,10 +499,19 @@ class PodcastDetailViewModel:
       return true
     }
 
-    guard let podcastSeries = try await repo.podcastSeries(podcast.feedURL)
+    guard
+      let podcastSeries = try await repo.podcastSeries(
+        podcast.feedURL,
+        iTunesID: podcast.iTunesID
+      )
     else { return false }
 
     Self.log.debug("\(podcastSeries.toString) exists in db")
+
+    // Soft migration: backfill iTunesID for pre-existing podcasts
+    if podcastSeries.podcast.iTunesID == nil, let iTunesID = podcast.iTunesID {
+      try await repo.updateITunesID(podcastSeries.podcast.id, iTunesID: iTunesID)
+    }
 
     self.podcastSeries = podcastSeries
     startObservation(podcastSeries.id)
@@ -585,7 +594,11 @@ class PodcastDetailViewModel:
   {
     if let podcastSeries { return podcastSeries }
 
-    guard let podcastSeries = try await repo.podcastSeries(podcast.feedURL)
+    guard
+      let podcastSeries = try await repo.podcastSeries(
+        podcast.feedURL,
+        iTunesID: podcast.iTunesID
+      )
     else { return nil }
 
     self.podcastSeries = podcastSeries
@@ -601,7 +614,7 @@ class PodcastDetailViewModel:
 
     Self.log.debug("Now fetching and parsing feed for \(podcast.toString)")
     let podcastFeed = try await PodcastFeed.parse(podcast.feedURL)
-    let unsavedPodcast = try podcastFeed.toUnsavedPodcast()
+    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: podcast.iTunesID)
     podcast = DisplayedPodcast(unsavedPodcast)
     episodeList.allEntries = IdentifiedArray(
       uniqueElements: podcastFeed.toUnsavedEpisodes(merging: podcastSeries?.episodes)

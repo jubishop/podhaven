@@ -250,6 +250,12 @@ enum Schema {
       migrateWidgetSnapshotFiles(in: containerURL)
     }
 
+    migrator.registerMigration("v31") { db in
+      try db.alter(table: "podcast") { t in
+        t.add(column: "iTunesID", .integer).unique()
+      }
+    }
+
     return migrator
   }
 
