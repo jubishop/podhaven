@@ -167,6 +167,7 @@ import Testing
   func changingDefaultPlaybackRateUpdatesMPNowPlayingInfoPropertyDefaultPlaybackRateForNewEpisodes()
     async throws
   {
+    userSettings.$defaultPlaybackRate.new(1.0)
     await playManager.start()
     let (firstEpisode, secondEpisode, thirdEpisode) = try await Create.threePodcastEpisodes()
 
