@@ -140,7 +140,7 @@ enum NowPlayingInfo {
       nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackQueueIndex] = 0
       nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackQueueCount] =
         Container.shared.sharedState().queueCount + 1
-    case .skipInterval:
+    case .skipInterval, .nextChapter:
       nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackQueueIndex] = nil
       nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackQueueCount] = nil
     }

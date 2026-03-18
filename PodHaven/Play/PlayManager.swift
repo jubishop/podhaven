@@ -376,6 +376,46 @@ final class PlayManager {
     await podAVPlayer.seek(to: time)
   }
 
+  // MARK: - Chapter Navigation
+
+  func seekToNextChapter() async {
+    guard let chapters = sharedState.onDeck?.chapters, !chapters.isEmpty else {
+      await seekForward()
+      return
+    }
+
+    let currentSeconds = (sharedState.onDeck?.currentTime ?? .zero).seconds
+    if let nextChapter = chapters.first(where: { $0.seconds > currentSeconds }) {
+      await seek(to: nextChapter)
+    } else {
+      await finishEpisode()
+    }
+  }
+
+  func seekToPreviousChapter() async {
+    guard let chapters = sharedState.onDeck?.chapters, !chapters.isEmpty else {
+      await seekBackward()
+      return
+    }
+
+    let currentSeconds = (sharedState.onDeck?.currentTime ?? .zero).seconds
+    let previousChapters = chapters.filter { $0.seconds < currentSeconds }
+
+    let targetTime: CMTime
+    if let nearestPrevious = previousChapters.last {
+      if currentSeconds - nearestPrevious.seconds < 2 {
+        targetTime =
+          previousChapters.count > 1 ? previousChapters[previousChapters.count - 2] : .zero
+      } else {
+        targetTime = nearestPrevious
+      }
+    } else {
+      targetTime = .zero
+    }
+
+    await seek(to: targetTime)
+  }
+
   // Incoming command from user input (in contrast to setPlaybackRate(_))
   func setRate(_ rate: Float) async {
     Assert.precondition(rate > 0, "Setting playback rate to 0?")
@@ -853,9 +893,18 @@ final class PlayManager {
             await finishEpisode()
           case .skipInterval:
             await seekForward()
+          case .nextChapter:
+            await seekToNextChapter()
           }
         case .previousEpisode:
-          await seekBackward()
+          switch userSettings.nextTrackBehavior {
+          case .nextEpisode:
+            await seek(to: .zero)
+          case .skipInterval:
+            await seekBackward()
+          case .nextChapter:
+            await seekToPreviousChapter()
+          }
         }
       }
     }
