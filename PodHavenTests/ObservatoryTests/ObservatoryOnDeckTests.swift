@@ -57,6 +57,142 @@ actor ObservatoryOnDeckTests {
     #expect(onDeck == nil)
   }
 
+  @Test("init(row:) populates all fields from database")
+  func testRowInitAllFields() async throws {
+    let podcastImage = URL.valid()
+    let episodeImage = URL.valid()
+    let feedURL = FeedURL(URL.valid())
+    let pubDate = 10.minutesAgo
+    let finishDate = 5.minutesAgo
+    let duration = CMTime.seconds(3600)
+    let description = "0:00 Intro\n5:00 Chapter One\n30:00 Chapter Two"
+
+    let unsavedPodcast = try Create.unsavedPodcast(
+      feedURL: feedURL,
+      image: podcastImage,
+      defaultPlaybackRate: 1.5
+    )
+    let unsavedEpisode = Create.unsavedEpisode(
+      title: "Row Init Episode",
+      pubDate: pubDate,
+      duration: duration,
+      description: description,
+      image: episodeImage,
+      finishDate: finishDate,
+      currentTime: CMTime.seconds(120),
+      queueOrder: 3,
+      queueDate: Date(),
+      cachedFilename: "test.mp3",
+      saveInCache: true
+    )
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisodes: [unsavedEpisode]
+      )
+    )
+
+    let episode = series.episodes[0]
+    let onDeck = try #require(try await observatory.onDeck(episode.id).get())
+
+    // Episode fields
+    #expect(onDeck.id == episode.id)
+    #expect(onDeck.mediaURL == unsavedEpisode.mediaURL)
+    #expect(onDeck.title == "Row Init Episode")
+    #expect(onDeck.pubDate.approximatelyEquals(pubDate))
+    #expect(onDeck.duration == duration)
+    let unwrappedFinish = try #require(onDeck.finishDate)
+    #expect(unwrappedFinish.approximatelyEquals(finishDate))
+    #expect(onDeck.queueOrder == 3)
+    #expect(onDeck.cacheStatus == .cached)
+    #expect(onDeck.saveInCache == true)
+
+    // Podcast fields
+    #expect(onDeck.podcastImage == podcastImage)
+    #expect(onDeck.podcastTitle == unsavedPodcast.title)
+    #expect(onDeck.feedURL == feedURL)
+    #expect(onDeck.defaultPlaybackRate == 1.5)
+
+    // Computed fields
+    #expect(onDeck.image == episodeImage)
+    #expect(onDeck.mediaGUID.guid == unsavedEpisode.guid)
+    #expect(onDeck.mediaGUID.mediaURL == unsavedEpisode.mediaURL)
+    #expect(onDeck.chapters?.count == 2)
+
+    // In-memory fields are not read from the DB row
+    #expect(onDeck.artwork == nil)
+    #expect(onDeck.currentTime == .zero)
+  }
+
+  @Test("init(from:) populates all fields from PodcastEpisode")
+  func testConvenienceInitAllFields() async throws {
+    let podcastImage = URL.valid()
+    let episodeImage = URL.valid()
+    let feedURL = FeedURL(URL.valid())
+    let pubDate = 10.minutesAgo
+    let finishDate = 5.minutesAgo
+    let duration = CMTime.seconds(3600)
+    let description = "0:00 Intro\n5:00 Chapter One\n30:00 Chapter Two"
+
+    let unsavedPodcast = try Create.unsavedPodcast(
+      feedURL: feedURL,
+      image: podcastImage,
+      defaultPlaybackRate: 1.5
+    )
+    let unsavedEpisode = Create.unsavedEpisode(
+      title: "Convenience Init Episode",
+      pubDate: pubDate,
+      duration: duration,
+      description: description,
+      image: episodeImage,
+      finishDate: finishDate,
+      currentTime: CMTime.seconds(45),
+      queueOrder: 2,
+      queueDate: Date(),
+      cachedFilename: "cached.mp3",
+      saveInCache: true
+    )
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisodes: [unsavedEpisode]
+      )
+    )
+
+    let episode = series.episodes[0]
+    let podcastEpisode = try #require(
+      try await observatory.podcastEpisode(episode.id).get()
+    )
+    let onDeck = OnDeck(from: podcastEpisode)
+
+    // Episode fields
+    #expect(onDeck.id == podcastEpisode.id)
+    #expect(onDeck.mediaURL == podcastEpisode.episode.unsaved.mediaURL)
+    #expect(onDeck.title == podcastEpisode.title)
+    #expect(onDeck.pubDate == podcastEpisode.pubDate)
+    #expect(onDeck.duration == podcastEpisode.duration)
+    #expect(onDeck.finishDate == podcastEpisode.finishDate)
+    #expect(onDeck.queueOrder == podcastEpisode.queueOrder)
+    #expect(onDeck.cacheStatus == podcastEpisode.cacheStatus)
+    #expect(onDeck.saveInCache == podcastEpisode.saveInCache)
+
+    // Podcast fields
+    #expect(onDeck.podcastImage == podcastEpisode.podcastImage)
+    #expect(onDeck.podcastTitle == podcastEpisode.podcastTitle)
+    #expect(onDeck.feedURL == podcastEpisode.feedURL)
+    #expect(onDeck.defaultPlaybackRate == podcastEpisode.podcast.defaultPlaybackRate)
+
+    // Computed fields
+    #expect(onDeck.image == podcastEpisode.image)
+    #expect(onDeck.mediaGUID == podcastEpisode.mediaGUID)
+    #expect(onDeck.chapters == podcastEpisode.chapters)
+
+    // currentTime should come from PodcastEpisode, artwork always starts nil
+    #expect(onDeck.currentTime == podcastEpisode.currentTime)
+    #expect(onDeck.currentTime == CMTime.seconds(45))
+    #expect(onDeck.artwork == nil)
+  }
+
   @Test("onDeck() does not trigger on currentTime-only changes")
   func testOnDeckCurrentTimeDeduplication() async throws {
     let (episode, _, _) = try await Create.threePodcastEpisodes()

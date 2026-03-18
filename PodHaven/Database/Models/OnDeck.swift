@@ -67,6 +67,9 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     feedURL = podcastRow[Podcast.Columns.feedURL]
     defaultPlaybackRate = podcastRow[Podcast.Columns.defaultPlaybackRate]
 
+    // artwork and currentTime are managed in-memory by StateManager, not read
+    // from the DB row. Reading currentTime here would cause GRDB to track the
+    // column and re-query every 3 seconds during playback.
     artwork = nil
     currentTime = .zero
   }
