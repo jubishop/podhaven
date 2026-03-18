@@ -85,7 +85,9 @@ struct SettingsView: View {
                 Controls what happens when you use the Next Track button \
                 on physical inputs like car controls, the lock screen, or control center. \
                 Choose "Next Episode" to skip to the next episode in your queue, \
-                or "Skip Interval" to jump forward/backward using your custom skip interval.
+                "Skip Interval" to jump forward/backward using your custom skip interval, \
+                or "Next Chapter" to navigate between chapters when available \
+                (falls back to Skip Interval when no chapters are found).
                 """
             ) {
               Text("Next Track Behavior")
