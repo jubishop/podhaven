@@ -53,7 +53,7 @@ struct StateManager: Sendable {
         var retryDelay: Duration = .seconds(1)
         while !Task.isCancelled {
           do {
-            for try await observed in observatory.onDeck(podcastEpisode.id) {
+            for try await observed in observatory.episode(podcastEpisode.id) {
               guard !Task.isCancelled else { return }
               retryDelay = .seconds(1)
 

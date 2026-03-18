@@ -387,7 +387,7 @@ import UIKit
     Self.log.debug("Starting observation for episode: \(podcastEpisode.toString)")
 
     do {
-      for try await updatedEpisode in self.observatory.podcastEpisode(podcastEpisode.id) {
+      for try await updatedEpisode in self.observatory.episode(podcastEpisode.id) {
         try Task.checkCancellation()
 
         Self.log.debug("Updating observed episode: \(String(describing: updatedEpisode?.toString))")
