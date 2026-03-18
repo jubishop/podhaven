@@ -32,6 +32,7 @@ import SwiftUI
   enum SortMethod: SortingMethod {
     case newestFirst
     case oldestFirst
+    case recentlyAdded
     case mostRecentlyQueued
     case leastRecentlyQueued
 
@@ -41,6 +42,8 @@ import SwiftUI
         return .sortByNewest
       case .oldestFirst:
         return .sortByOldest
+      case .recentlyAdded:
+        return .sortByRecentlyAdded
       case .mostRecentlyQueued:
         return .sortByMostRecentlyQueued
       case .leastRecentlyQueued:
@@ -54,6 +57,8 @@ import SwiftUI
         return { lhs, rhs in lhs.episode.pubDate > rhs.episode.pubDate }
       case .oldestFirst:
         return { lhs, rhs in lhs.episode.pubDate < rhs.episode.pubDate }
+      case .recentlyAdded:
+        return { lhs, rhs in lhs.episode.creationDate > rhs.episode.creationDate }
       case .mostRecentlyQueued:
         return { lhs, rhs in
           let lhsDate = lhs.episode.queueDate ?? lhs.episode.creationDate
