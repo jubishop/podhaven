@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
@@ -9,7 +10,6 @@ import Testing
 
 @Suite("of WidgetSnapshotWriter tests", .container)
 @MainActor class WidgetSnapshotWriterTests {
-  @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.userSettings) private var userSettings
   @DynamicInjected(\.widgetSnapshotWriter) private var writer
@@ -82,15 +82,15 @@ import Testing
     #expect(widgetState.skipBackwardInterval == 10)
   }
 
-  @Test("includes queue items from database")
-  func includesQueueItemsFromDatabase() async throws {
+  @Test("includes queue items from shared state")
+  func includesQueueItemsFromSharedState() async throws {
     let ep1 = try await Create.podcastEpisode(
       try Create.unsavedEpisode(title: "Queue Ep 1")
     )
     let ep2 = try await Create.podcastEpisode(
       try Create.unsavedEpisode(title: "Queue Ep 2")
     )
-    try await queue.unshift([ep2.id, ep1.id])
+    sharedState.$queuedPodcastEpisodes.new([ep1, ep2])
 
     writer.start()
     let snapshot = try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 2 }
@@ -101,16 +101,63 @@ import Testing
     #expect(titles.contains("Queue Ep 2"))
   }
 
+  @Test("skips queue snapshot write when only non-widget episode fields change")
+  func skipsQueueSnapshotWriteWhenOnlyNonWidgetFieldsChange() async throws {
+    let ep = try await Create.podcastEpisode(
+      try Create.unsavedEpisode(title: "Widget Ep")
+    )
+    sharedState.$queuedPodcastEpisodes.new([ep])
+
+    writer.start()
+    try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 1 }
+
+    let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
+    let initialData = try await fakeFileManager.readData(from: WidgetInfo.queueSnapshotURL)
+
+    // Build a PodcastEpisode with identical widget-relevant fields (id, title,
+    // pubDate, duration, image) but a different currentTime.
+    let modifiedUnsaved = try UnsavedEpisode(
+      podcastId: ep.episode.podcastId,
+      guid: ep.episode.guid,
+      mediaURL: ep.episode.mediaURL,
+      title: ep.episode.title,
+      pubDate: ep.episode.pubDate,
+      duration: ep.episode.duration,
+      description: ep.episode.description,
+      link: ep.episode.link,
+      image: ep.episode.image,
+      currentTime: CMTime(seconds: 99, preferredTimescale: 1)
+    )
+    let modifiedEpisode = Episode(
+      id: ep.episode.id,
+      creationDate: ep.episode.creationDate,
+      from: modifiedUnsaved
+    )
+    let modifiedPE = PodcastEpisode(podcast: ep.podcast, episode: modifiedEpisode)
+    sharedState.$queuedPodcastEpisodes.new([modifiedPE])
+
+    // Observe a playback status change to confirm the event loop has processed
+    // all pending stream emissions, including the queue change above.
+    sharedState.$playbackStatus.new(.playing)
+    try await Wait.until(
+      { self.widgetState.playbackStatus == .playing },
+      { "playbackStatus was not updated to .playing" }
+    )
+
+    let currentData = try await fakeFileManager.readData(from: WidgetInfo.queueSnapshotURL)
+    #expect(initialData == currentData)
+  }
+
   @Test("caps queue at 5 but reports full queueTotalCount")
   func capsQueueAt5ButReportsFullQueueTotalCount() async throws {
-    var episodeIDs: [Episode.ID] = []
+    var episodes: [PodcastEpisode] = []
     for i in 1...10 {
       let ep = try await Create.podcastEpisode(
         try Create.unsavedEpisode(title: "Ep \(i)")
       )
-      episodeIDs.append(ep.id)
+      episodes.append(ep)
     }
-    try await queue.unshift(episodeIDs)
+    sharedState.$queuedPodcastEpisodes.new(episodes)
 
     writer.start()
     let snapshot = try await WidgetHelpers.waitForQueueSnapshot { $0.queueTotalCount == 10 }

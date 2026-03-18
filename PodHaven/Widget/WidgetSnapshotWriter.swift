@@ -3,7 +3,6 @@
 import CoreMedia
 import FactoryKit
 import Foundation
-import GRDB
 import Logging
 import Nuke
 import Tagged
@@ -28,7 +27,6 @@ final class WidgetSnapshotWriter: Sendable {
   private var controlCenter: any ControlReloading { Container.shared.controlCenter() }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
   private var imagePipeline: ImagePipeline { Container.shared.imagePipeline() }
-  private var observatory: Observatory { Container.shared.observatory() }
   private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
   private var userSettings: UserSettings { Container.shared.userSettings() }
@@ -115,22 +113,17 @@ final class WidgetSnapshotWriter: Sendable {
     Task { [weak self] in
       guard let self else { return }
 
-      var retryDelay: Duration = .seconds(1)
-      while !Task.isCancelled {
-        do {
-          for try await episodes in observatory.queueWidgetEpisodes() {
-            retryDelay = .seconds(1)
-            queueWidgetEpisodes(episodes)
-            queueDebounce { [weak self] in
-              guard let self else { return }
-              await writeQueueSnapshot()
-              reloadWidgets(kinds: [WidgetInfo.queueKind])
-            }
-          }
-        } catch {
-          Self.log.caughtError("start: queueWidgetEpisodes observation failed", error)
-          try? await sleeper.sleep(for: retryDelay)
-          retryDelay = min(retryDelay * 2, .seconds(60))
+      for await podcastEpisodes in sharedState.$queuedPodcastEpisodes.stream() {
+        let episodes = podcastEpisodes.map(WidgetEpisode.init)
+        let changed: Bool = queueWidgetEpisodes { current in
+          defer { current = episodes }
+          return current != episodes
+        }
+        guard changed else { continue }
+        queueDebounce { [weak self] in
+          guard let self else { return }
+          await writeQueueSnapshot()
+          reloadWidgets(kinds: [WidgetInfo.queueKind])
         }
       }
     }
