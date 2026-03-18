@@ -45,7 +45,7 @@ struct StateManager: Sendable {
 
     // Set onDeck and currentEpisodeID immediately so callers can rely on them being set
     sharedState.currentEpisodeID = podcastEpisode.id
-    sharedState.$onDeck.new(OnDeck(podcastEpisode: podcastEpisode))
+    sharedState.$onDeck.new(OnDeck(from: podcastEpisode))
 
     // Observe for updates (e.g., if episode is marked finished, cached, etc.)
     onDeckObservationTask(
@@ -53,17 +53,15 @@ struct StateManager: Sendable {
         var retryDelay: Duration = .seconds(1)
         while !Task.isCancelled {
           do {
-            for try await episode in observatory.podcastEpisode(podcastEpisode.id) {
+            for try await observed in observatory.onDeck(podcastEpisode.id) {
               guard !Task.isCancelled else { return }
               retryDelay = .seconds(1)
 
-              if let episode {
+              if var observed {
                 sharedState.$onDeck.update { onDeck in
-                  onDeck = OnDeck(
-                    podcastEpisode: episode,
-                    artwork: onDeck?.artwork,
-                    currentTime: onDeck?.currentTime
-                  )
+                  observed.artwork = onDeck?.artwork
+                  observed.currentTime = onDeck?.currentTime ?? .zero
+                  onDeck = observed
                 }
               } else {
                 sharedState.$onDeck.new(nil)

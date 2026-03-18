@@ -164,6 +164,16 @@ struct Observatory {
     }
   }
 
+  func onDeck(_ episodeID: Episode.ID) -> AsyncValueObservation<OnDeck?> {
+    _observe { db in
+      try Episode
+        .withID(episodeID)
+        .including(required: Episode.podcast)
+        .asRequest(of: OnDeck.self)
+        .fetchOne(db)
+    }
+  }
+
   // Private Helpers
 
   private static func _podcastCountsByTag(_ db: Database) throws -> [Tag.ID: Int] {

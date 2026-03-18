@@ -29,7 +29,7 @@ import Testing
   @Test("includes now-playing data when onDeck is set")
   func includesNowPlayingDataWhenOnDeckIsSet() async throws {
     let episode = try await Create.podcastEpisode()
-    let onDeck = OnDeck(podcastEpisode: episode)
+    let onDeck = OnDeck(from: episode)
     sharedState.$onDeck.new(onDeck)
     sharedState.$playbackStatus.new(.playing)
 
