@@ -118,6 +118,8 @@ struct NowPlayingWidgetView: View {
           Spacer(minLength: 0)
           seekForwardButton(interval: entry.skipForwardInterval).font(.callout)
           Spacer(minLength: 0)
+          finishEpisodeButton.font(.callout)
+          Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
       }
@@ -162,6 +164,12 @@ struct NowPlayingWidgetView: View {
   private func seekBackwardButton(interval: Int) -> some View {
     Button(intent: SkipBackwardIntent()) {
       AppIcon.seekBackward(interval).image
+    }
+  }
+
+  private var finishEpisodeButton: some View {
+    Button(intent: FinishEpisodeIntent()) {
+      AppIcon.finishEpisode.image
     }
   }
 

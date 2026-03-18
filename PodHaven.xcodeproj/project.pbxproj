@@ -213,6 +213,7 @@
 				Utility/ThreadSafe.swift,
 				Views/Components/CompactMetadataItem.swift,
 				Views/Components/SquareImage.swift,
+				Widget/Intents/FinishEpisodeIntent.swift,
 				Widget/Intents/PlayEpisodeIntent.swift,
 				Widget/Intents/PlayPauseIntent.swift,
 				Widget/Intents/SkipBackwardIntent.swift,
