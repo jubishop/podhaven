@@ -42,11 +42,11 @@ struct UnsavedPodcast:
 
   init(
     feedURL: FeedURL,
+    iTunesID: ITunesPodcastID? = nil,
     title: String,
     image: URL,
     description: String,
     link: URL?,
-    iTunesID: ITunesPodcastID? = nil,
     lastUpdate: Date? = nil,
     subscriptionDate: Date? = nil,
     defaultPlaybackRate: Double? = nil,
@@ -111,11 +111,11 @@ struct UnsavedPodcast:
   func toOriginalUnsavedPodcast() throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: feedURL,
+      iTunesID: iTunesID,
       title: title,
       image: image,
       description: description,
-      link: link,
-      iTunesID: iTunesID
+      link: link
     )
   }
 }

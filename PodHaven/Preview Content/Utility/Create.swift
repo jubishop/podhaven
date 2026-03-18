@@ -46,11 +46,11 @@ enum Create {
 
   static func unsavedPodcast(
     feedURL: FeedURL = FeedURL(URL.valid()),
+    iTunesID: ITunesPodcastID? = nil,
     title: String = String.random(),
     image: URL = URL.valid(),
     description: String = String.random(),
     link: URL? = nil,
-    iTunesID: ITunesPodcastID? = nil,
     lastUpdate: Date? = nil,
     subscriptionDate: Date? = nil,
     defaultPlaybackRate: Double? = nil,
@@ -60,11 +60,11 @@ enum Create {
   ) throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: feedURL,
+      iTunesID: iTunesID,
       title: title,
       image: image,
       description: description,
       link: link,
-      iTunesID: iTunesID,
       lastUpdate: lastUpdate,
       subscriptionDate: subscriptionDate,
       defaultPlaybackRate: defaultPlaybackRate,
@@ -76,11 +76,11 @@ enum Create {
 
   static func podcast(
     feedURL: FeedURL = FeedURL(URL.valid()),
+    iTunesID: ITunesPodcastID? = nil,
     title: String = String.random(),
     image: URL = URL.valid(),
     description: String = String.random(),
     link: URL? = nil,
-    iTunesID: ITunesPodcastID? = nil,
     lastUpdate: Date? = nil,
     subscriptionDate: Date? = nil,
     defaultPlaybackRate: Double? = nil,
@@ -94,11 +94,11 @@ enum Create {
           unsavedPodcast:
             try unsavedPodcast(
               feedURL: feedURL,
+              iTunesID: iTunesID,
               title: title,
               image: image,
               description: description,
               link: link,
-              iTunesID: iTunesID,
               lastUpdate: lastUpdate,
               subscriptionDate: subscriptionDate,
               defaultPlaybackRate: defaultPlaybackRate,

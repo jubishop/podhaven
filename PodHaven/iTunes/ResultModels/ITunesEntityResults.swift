@@ -97,11 +97,11 @@ struct ITunesEntityResults: Decodable, Sendable {
 
       return try UnsavedPodcast(
         feedURL: feedURL,
+        iTunesID: podcastID,
         title: title,
         image: imageURL,
         description: description,
-        link: link,
-        iTunesID: podcastID
+        link: link
       )
     }
   }

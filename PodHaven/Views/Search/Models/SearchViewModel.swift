@@ -400,11 +400,10 @@ class SearchViewModel:
   private func restartObservationForSearchResults() {
     guard isShowingSearchResults else { return }
 
-    let iTunesIDMapping = buildITunesIDMapping(from: searchResults)
     restartObservation(
       feedURLs: Array(searchResults.ids),
-      iTunesIDs: Array(iTunesIDMapping.keys)
-    ) { [weak self] podcasts in
+      iTunesIDMapping: buildITunesIDMapping(from: searchResults)
+    ) { [weak self] podcasts, iTunesIDMapping in
       guard let self else { return }
 
       Self.log.debug(
@@ -429,12 +428,11 @@ class SearchViewModel:
   private func restartObservationForTrendingSection(_ trendingSection: TrendingSection) {
     guard !isShowingSearchResults, trendingSection == currentTrendingSection else { return }
 
-    let iTunesIDMapping = buildITunesIDMapping(from: trendingSection.results)
     restartObservation(
       feedURLs: Array(trendingSection.results.ids),
-      iTunesIDs: Array(iTunesIDMapping.keys)
+      iTunesIDMapping: buildITunesIDMapping(from: trendingSection.results)
     ) {
-      [weak self, trendingSection] podcasts in
+      [weak self, trendingSection] podcasts, iTunesIDMapping in
       guard let self else { return }
 
       Self.log.debug(
@@ -462,8 +460,11 @@ class SearchViewModel:
 
   private func restartObservation(
     feedURLs: [FeedURL],
-    iTunesIDs: [ITunesPodcastID] = [],
-    update: @escaping ([PodcastWithEpisodeMetadata<Podcast>]) -> Void
+    iTunesIDMapping: [ITunesPodcastID: FeedURL] = [:],
+    update:
+      @escaping (
+        [PodcastWithEpisodeMetadata<Podcast>], [ITunesPodcastID: FeedURL]
+      ) -> Void
   ) {
     currentResultsObservationTask?.cancel()
 
@@ -477,11 +478,11 @@ class SearchViewModel:
 
       do {
         for try await podcasts in observatory.podcastsWithEpisodeMetadata(
-          feedURLs: feedURLs,
-          iTunesIDs: iTunesIDs
+          feedURLs,
+          iTunesIDs: Array(iTunesIDMapping.keys)
         ) {
           try Task.checkCancellation()
-          update(podcasts)
+          update(podcasts, iTunesIDMapping)
         }
       } catch {
         Self.log.caughtError(
@@ -529,11 +530,11 @@ class SearchViewModel:
       do {
         let bridged = try UnsavedPodcast(
           feedURL: searchFeedURL,
+          iTunesID: iTunesID,
           title: podcast.title,
           image: podcast.image,
           description: podcast.description,
           link: podcast.link,
-          iTunesID: iTunesID,
           subscriptionDate: podcast.subscriptionDate
         )
         return PodcastWithEpisodeMetadata(

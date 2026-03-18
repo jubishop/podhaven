@@ -157,11 +157,11 @@ struct PodcastFeed: Sendable, Stringable {
   ) throws -> UnsavedPodcast {
     try UnsavedPodcast(
       feedURL: updatedFeedURL,
+      iTunesID: iTunesID ?? podcast?.iTunesID,
       title: rssPodcast.title,
       image: image,
       description: rssPodcast.description,
-      link: link ?? podcast?.link,
-      iTunesID: iTunesID ?? podcast?.iTunesID
+      link: link ?? podcast?.link
     )
   }
 
