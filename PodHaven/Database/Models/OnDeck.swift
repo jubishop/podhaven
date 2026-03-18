@@ -19,8 +19,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
   private let episodeImage: URL?
   let finishDate: Date?
   let queueOrder: Int?
-  private let cachedFilename: String?
-  private let downloadTaskID: URLSessionDownloadTask.ID?
+  let cacheStatus: Episode.CacheStatus
   let saveInCache: Bool
 
   // MARK: - Podcast Fields
@@ -48,9 +47,17 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     episodeImage = row[Episode.Columns.image]
     finishDate = row[Episode.Columns.finishDate]
     queueOrder = row[Episode.Columns.queueOrder]
-    cachedFilename = row[Episode.Columns.cachedFilename]
-    downloadTaskID = row[Episode.Columns.downloadTaskID]
     saveInCache = row[Episode.Columns.saveInCache]
+
+    let cachedFilename: String? = row[Episode.Columns.cachedFilename]
+    let downloadTaskID: URLSessionDownloadTask.ID? = row[Episode.Columns.downloadTaskID]
+    if cachedFilename != nil {
+      cacheStatus = .cached
+    } else if downloadTaskID != nil {
+      cacheStatus = .caching
+    } else {
+      cacheStatus = .uncached
+    }
 
     guard let podcastRow = row.scopes["podcast"] else {
       Assert.fatal("OnDeck requires podcast scope via including(required:)")
@@ -77,8 +84,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
     episodeImage = podcastEpisode.episode.unsaved.image
     finishDate = podcastEpisode.finishDate
     queueOrder = podcastEpisode.queueOrder
-    cachedFilename = nil
-    downloadTaskID = nil
+    cacheStatus = podcastEpisode.cacheStatus
     saveInCache = podcastEpisode.saveInCache
     podcastImage = podcastEpisode.podcastImage
     podcastTitle = podcastEpisode.podcastTitle
@@ -94,17 +100,6 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
   var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
 
   // MARK: - Derived Properties
-
-  var cacheStatus: Episode.CacheStatus {
-    if cachedFilename != nil { return .cached }
-    if downloadTaskID != nil { return .caching }
-    return .uncached
-  }
-
-  var cachedURL: CachedURL? {
-    guard let cachedFilename else { return nil }
-    return CacheManager.resolveCachedFilepath(for: cachedFilename)
-  }
 
   var chapters: [CMTime]? {
     Episode.chapters(from: description, duration: duration)
@@ -134,8 +129,7 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       && lhs.episodeImage == rhs.episodeImage
       && lhs.finishDate == rhs.finishDate
       && lhs.queueOrder == rhs.queueOrder
-      && lhs.cachedFilename == rhs.cachedFilename
-      && lhs.downloadTaskID == rhs.downloadTaskID
+      && lhs.cacheStatus == rhs.cacheStatus
       && lhs.saveInCache == rhs.saveInCache
       && lhs.podcastImage == rhs.podcastImage
       && lhs.podcastTitle == rhs.podcastTitle
