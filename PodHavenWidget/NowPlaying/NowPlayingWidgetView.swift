@@ -112,20 +112,19 @@ struct NowPlayingWidgetView: View {
 
         ZStack {
           HStack(spacing: 0) {
-            Spacer(minLength: 24)
+            Spacer(minLength: 64)
             seekBackwardButton(interval: entry.skipBackwardInterval).font(.callout)
             Spacer(minLength: 0)
             playPauseButton.font(.headline)
             Spacer(minLength: 0)
             seekForwardButton(interval: entry.skipForwardInterval).font(.callout)
-            Spacer(minLength: 24)
+            Spacer(minLength: 64)
           }
 
           HStack {
             Spacer()
             finishEpisodeButton.font(.callout)
           }
-          .padding(.trailing, 4)
         }
         .frame(maxWidth: .infinity)
       }
