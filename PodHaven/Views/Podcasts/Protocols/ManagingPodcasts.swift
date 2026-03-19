@@ -62,14 +62,15 @@ extension ManagingPodcasts {
   }
 
   func deletePodcast(_ podcast: PodcastType) {
+    guard let podcastID = podcast.podcastID else { return }
+
     Task { [weak self] in
       guard let self else { return }
 
       do {
-        let podcast = try await getOrCreatePodcast(podcast)
-        try await repo.deletePodcast(podcast.id)
+        try await repo.deletePodcast(podcastID)
       } catch {
-        Self.log.caughtError("deletePodcast: failed for \(podcast.title)", error)
+        Self.log.caughtError("deletePodcast: failed for podcast \(podcastID)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
@@ -92,14 +93,15 @@ extension ManagingPodcasts {
   }
 
   func unsubscribePodcast(_ podcast: PodcastType) {
+    guard let podcastID = podcast.podcastID else { return }
+
     Task { [weak self] in
       guard let self else { return }
 
       do {
-        let podcast = try await getOrCreatePodcast(podcast)
-        try await repo.markUnsubscribed(podcast.id)
+        try await repo.markUnsubscribed(podcastID)
       } catch {
-        Self.log.caughtError("unsubscribePodcast: failed for \(podcast.title)", error)
+        Self.log.caughtError("unsubscribePodcast: failed for podcast \(podcastID)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
       }
