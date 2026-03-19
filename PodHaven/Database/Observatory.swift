@@ -67,11 +67,19 @@ struct Observatory {
     }
   }
 
-  func podcastsWithEpisodeMetadata(_ feedURLs: [FeedURL], limit: Int = Int.max)
-    -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]>
-  {
+  func podcastsWithEpisodeMetadata(
+    _ feedURLs: [FeedURL],
+    iTunesIDs: [ITunesPodcastID] = [],
+    limit: Int = Int.max
+  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]> {
     podcastsWithEpisodeMetadata(
-      { $0.filter(feedURLs.contains(Podcast.Columns.feedURL)) },
+      { request in
+        var filter = feedURLs.contains(Podcast.Columns.feedURL)
+        if !iTunesIDs.isEmpty {
+          filter = filter || iTunesIDs.contains(Podcast.Columns.iTunesID)
+        }
+        return request.filter(filter)
+      },
       limit: limit
     )
   }

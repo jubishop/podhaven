@@ -18,7 +18,7 @@ protocol Databasing: Sendable {
   // MARK: - Series Readers
 
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries?
-  func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries?
+  func podcastSeries(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws -> PodcastSeries?
 
   // MARK: - Episode Readers
 
@@ -122,6 +122,9 @@ protocol Databasing: Sendable {
   func markUnsubscribed(_ podcastID: Podcast.ID) async throws -> Bool
 
   @discardableResult
+  func updateITunesID(_ podcastID: Podcast.ID, iTunesID: ITunesPodcastID) async throws -> Bool
+
+  @discardableResult
   func updateLastUpdate(_ podcastID: Podcast.ID) async throws -> Bool
 
   @discardableResult
@@ -139,4 +142,10 @@ protocol Databasing: Sendable {
   @discardableResult
   func updateNotifyNewEpisodes(_ podcastID: Podcast.ID, notifyNewEpisodes: Bool)
     async throws -> Bool
+}
+
+extension Databasing {
+  func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
+    try await podcastSeries(feedURL, iTunesID: nil)
+  }
 }

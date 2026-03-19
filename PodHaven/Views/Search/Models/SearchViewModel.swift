@@ -400,7 +400,10 @@ class SearchViewModel:
   private func restartObservationForSearchResults() {
     guard isShowingSearchResults else { return }
 
-    restartObservation(feedURLs: Array(searchResults.ids)) { [weak self] podcasts in
+    restartObservation(
+      feedURLs: Array(searchResults.ids),
+      iTunesIDMapping: buildITunesIDMapping(from: searchResults)
+    ) { [weak self] podcasts, iTunesIDMapping in
       guard let self else { return }
 
       Self.log.debug(
@@ -411,13 +414,8 @@ class SearchViewModel:
         """
       )
       for podcast in podcasts {
-        if searchResults[id: podcast.feedURL] != nil {
-          searchResults[id: podcast.feedURL] =
-            PodcastWithEpisodeMetadata(
-              podcast: DisplayedPodcast(podcast.podcast),
-              episodeCount: podcast.episodeCount,
-              mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
-            )
+        if let updated = updatedResult(for: podcast, in: &searchResults, mapping: iTunesIDMapping) {
+          searchResults[id: updated.id] = updated
         } else {
           Self.log.notice("Observed podcast: \(podcast.toString) not showing in search?")
         }
@@ -430,8 +428,11 @@ class SearchViewModel:
   private func restartObservationForTrendingSection(_ trendingSection: TrendingSection) {
     guard !isShowingSearchResults, trendingSection == currentTrendingSection else { return }
 
-    restartObservation(feedURLs: Array(trendingSection.results.ids)) {
-      [weak self, trendingSection] podcasts in
+    restartObservation(
+      feedURLs: Array(trendingSection.results.ids),
+      iTunesIDMapping: buildITunesIDMapping(from: trendingSection.results)
+    ) {
+      [weak self, trendingSection] podcasts, iTunesIDMapping in
       guard let self else { return }
 
       Self.log.debug(
@@ -442,13 +443,12 @@ class SearchViewModel:
         """
       )
       for podcast in podcasts {
-        if trendingSection.results[id: podcast.feedURL] != nil {
-          trendingSection.results[id: podcast.feedURL] =
-            PodcastWithEpisodeMetadata(
-              podcast: DisplayedPodcast(podcast.podcast),
-              episodeCount: podcast.episodeCount,
-              mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
-            )
+        if let updated = updatedResult(
+          for: podcast,
+          in: &trendingSection.results,
+          mapping: iTunesIDMapping
+        ) {
+          trendingSection.results[id: updated.id] = updated
         } else {
           Self.log.notice("Observed podcast: \(podcast.toString) not showing in trending?")
         }
@@ -460,7 +460,11 @@ class SearchViewModel:
 
   private func restartObservation(
     feedURLs: [FeedURL],
-    update: @escaping ([PodcastWithEpisodeMetadata<Podcast>]) -> Void
+    iTunesIDMapping: [ITunesPodcastID: FeedURL] = [:],
+    update:
+      @escaping (
+        [PodcastWithEpisodeMetadata<Podcast>], [ITunesPodcastID: FeedURL]
+      ) -> Void
   ) {
     currentResultsObservationTask?.cancel()
 
@@ -473,9 +477,12 @@ class SearchViewModel:
       guard let self else { return }
 
       do {
-        for try await podcasts in observatory.podcastsWithEpisodeMetadata(feedURLs) {
+        for try await podcasts in observatory.podcastsWithEpisodeMetadata(
+          feedURLs,
+          iTunesIDs: Array(iTunesIDMapping.keys)
+        ) {
           try Task.checkCancellation()
-          update(podcasts)
+          update(podcasts, iTunesIDMapping)
         }
       } catch {
         Self.log.caughtError(
@@ -485,6 +492,65 @@ class SearchViewModel:
         )
       }
     }
+  }
+
+  // MARK: - iTunesID Matching Helpers
+
+  private func buildITunesIDMapping(
+    from results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>>
+  ) -> [ITunesPodcastID: FeedURL] {
+    var mapping: [ITunesPodcastID: FeedURL] = [:]
+    for result in results {
+      if let iTunesID = result.podcast.iTunesID {
+        mapping[iTunesID] = result.id
+      }
+    }
+    return mapping
+  }
+
+  private func updatedResult(
+    for podcast: PodcastWithEpisodeMetadata<Podcast>,
+    in results: inout IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>>,
+    mapping: [ITunesPodcastID: FeedURL]
+  ) -> PodcastWithEpisodeMetadata<DisplayedPodcast>? {
+    // Direct feedURL match
+    if results[id: podcast.feedURL] != nil {
+      return PodcastWithEpisodeMetadata(
+        podcast: DisplayedPodcast(podcast.podcast),
+        episodeCount: podcast.episodeCount,
+        mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
+      )
+    }
+
+    // iTunesID match — create bridge entry preserving search feedURL
+    if let iTunesID = podcast.iTunesID,
+      let searchFeedURL = mapping[iTunesID],
+      let existing = results[id: searchFeedURL]
+    {
+      do {
+        let bridged = try UnsavedPodcast(
+          feedURL: searchFeedURL,
+          iTunesID: iTunesID,
+          title: podcast.title,
+          image: podcast.image,
+          description: podcast.description,
+          link: podcast.link,
+          subscriptionDate: podcast.subscriptionDate
+        )
+        return PodcastWithEpisodeMetadata(
+          podcast: DisplayedPodcast(bridged),
+          episodeCount: podcast.episodeCount,
+          mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
+        )
+      } catch {
+        Self.log.caughtError(
+          "Failed to create bridged podcast for iTunesID match: \(existing.toString)",
+          error
+        )
+      }
+    }
+
+    return nil
   }
 
   // MARK: - Podcast List Syncing
