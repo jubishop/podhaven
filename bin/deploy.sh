@@ -106,46 +106,83 @@ fi
 
 tag="v${version}b${build}"
 
+prev_tag=$(git -C "$PROJECT_DIR" tag -l "v*b*" --sort=version:refname | tail -1)
+prev_tag_commit=$(git -C "$PROJECT_DIR" rev-parse "${prev_tag}^{commit}" 2>/dev/null || true)
+head_commit=$(git -C "$PROJECT_DIR" rev-parse HEAD)
+
+if [[ -n "$prev_tag" && "$prev_tag_commit" == "$head_commit" ]]; then
+  # Latest tag points at HEAD — recover from a prior interrupted deploy.
+  remote_exists=false
+  if git -C "$PROJECT_DIR" ls-remote --tags origin "$prev_tag" | grep -q .; then
+    remote_exists=true
+  fi
+
+  if [[ "$remote_exists" == true ]] && gh release view "$prev_tag" &>/dev/null; then
+    echo "==> ${prev_tag} is already fully deployed. Nothing to do."
+    exit 0
+  fi
+
+  if [[ "$remote_exists" == true ]]; then
+    tag_message=$(git -C "$PROJECT_DIR" tag -l --format='%(contents)' "$prev_tag")
+    echo "==> ${prev_tag} was pushed but has no GitHub release. Creating..."
+    gh release create "$prev_tag" --title "$prev_tag" --notes "$tag_message"
+    echo "==> Done."
+    exit 0
+  fi
+
+  # Tag exists locally but was never pushed — resume the deploy.
+  tag="$prev_tag"
+  build="${prev_tag##*b}"
+  tag_message=$(git -C "$PROJECT_DIR" tag -l --format='%(contents)' "$prev_tag")
+  echo "==> Resuming interrupted deploy for ${tag}..."
+else
+  # Normal path: generate summary and create a new tag.
+  if [[ -z "$prev_tag" ]]; then
+    echo "error: No previous tag found. Cannot generate summary." >&2
+    exit 1
+  fi
+
+  echo "==> Generating release summary (${prev_tag}..HEAD)..."
+  diff_content=$(set +o pipefail; git -C "$PROJECT_DIR" diff "${prev_tag}..HEAD" | head -c 50000)
+
+  if [[ -z "$diff_content" ]]; then
+    echo "error: No changes to deploy since ${prev_tag}." >&2
+    exit 1
+  fi
+
+  tag_message=$(echo "$diff_content" | llm -s \
+    "Summarize this code diff for release notes. Write for a technically savvy end user. Focus on user-facing improvements, new features, and bug fixes. Be concise — a few bullet points or a short paragraph.")
+
+  if [[ -z "$tag_message" ]]; then
+    echo "error: llm returned empty summary." >&2
+    exit 1
+  fi
+
+  echo "==> Summary generated:"
+  echo ""
+  echo "$tag_message"
+  echo ""
+
+  git -C "$PROJECT_DIR" tag -a "$tag" -m "$tag_message"
+fi
+
 echo "==> Build ${build} (${tag}) from ${commit}"
 
-# Generate AI release summary before archiving
-prev_tag=$(git -C "$PROJECT_DIR" tag -l "v*b*" --sort=version:refname | tail -1)
-
-if [[ -z "$prev_tag" ]]; then
-  echo "error: No previous tag found. Cannot generate summary." >&2
-  exit 1
-fi
-
-echo "==> Generating release summary (${prev_tag}..HEAD)..."
-diff_content=$(set +o pipefail; git -C "$PROJECT_DIR" diff "${prev_tag}..HEAD" | head -c 50000)
-
-if [[ -z "$diff_content" ]]; then
-  echo "error: No diff between ${prev_tag} and HEAD." >&2
-  exit 1
-fi
-
-tag_message=$(echo "$diff_content" | llm -s \
-  "Summarize this code diff for release notes. Write for a technically savvy end user. Focus on user-facing improvements, new features, and bug fixes. Be concise — a few bullet points or a short paragraph.")
-
-if [[ -z "$tag_message" ]]; then
-  echo "error: llm returned empty summary." >&2
-  exit 1
-fi
-
-echo "==> Summary generated:"
-echo ""
-echo "$tag_message"
-echo ""
-
-# Create tag locally (pushed after successful upload)
-git -C "$PROJECT_DIR" tag -a "$tag" -m "$tag_message"
-
-# Roll back the local tag if archive or upload fails
-rollback_tag() {
-  echo "error: Deploy failed — rolling back local tag ${tag}..." >&2
-  git -C "$PROJECT_DIR" tag -d "$tag" 2>/dev/null
+# On exit: clean up on failure, finalize on success.
+DEPLOY_SUCCEEDED=false
+on_exit() {
+  if [[ "$DEPLOY_SUCCEEDED" != true ]]; then
+    echo "error: Deploy failed — rolling back local tag ${tag}..." >&2
+    git -C "$PROJECT_DIR" tag -d "$tag" 2>/dev/null
+  else
+    git -C "$PROJECT_DIR" push origin "$tag" 2>/dev/null || true
+    gh release create "$tag" --title "$tag" --notes "$tag_message" 2>/dev/null || true
+    echo "==> Done. Tagged ${commit} as ${tag}"
+  fi
+  rm -rf "$PROJECT_DIR/build"
+  rm -rf ~/Library/Developer/Xcode/Archives/*/"PodHaven "*
 }
-trap rollback_tag ERR
+trap on_exit EXIT
 
 # Run tests
 echo "==> Running tests..."
@@ -183,13 +220,5 @@ xcodebuild -exportArchive \
   "${AUTH_FLAGS[@]+"${AUTH_FLAGS[@]}"}" \
   2>&1 | tee "$UPLOAD_LOG" | xcbeautify
 
-# Upload succeeded — disable rollback, push tag, and create GitHub release
-trap - ERR
-git -C "$PROJECT_DIR" push origin "$tag"
-gh release create "$tag" --title "$tag" --notes "$tag_message"
-
-# Clean up
-rm -rf "$PROJECT_DIR/build"
-rm -rf ~/Library/Developer/Xcode/Archives/*/"PodHaven "*
-
-echo "==> Done. Tagged ${commit} as ${tag}"
+# Signal success — the EXIT trap handles the rest.
+DEPLOY_SUCCEEDED=true
