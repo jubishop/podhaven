@@ -26,7 +26,7 @@ func selectablePodcastsToolbarItems<ViewModel: SelectablePodcastList>(viewModel:
 
           Divider()
 
-          if viewModel.anySelectedSaved || viewModel.anySelectedSubscribed {
+          if viewModel.anySelectedSaved {
             AppIcon.delete.labelButton {
               viewModel.deleteSelectedPodcasts()
             }

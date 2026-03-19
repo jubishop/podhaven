@@ -18,7 +18,7 @@ struct PodcastContextMenuModifier<ViewModel: ManagingPodcasts>: ViewModifier {
           viewModel.queueLatestEpisodeToBottom(podcast)
         }
 
-        if podcast.isSaved || podcast.subscribed {
+        if podcast.isSaved {
           AppIcon.delete.labelButton {
             viewModel.deletePodcast(podcast)
           }
