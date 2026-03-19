@@ -160,8 +160,8 @@ actor ObservatoryOnDeckTests {
     )
 
     let episode = series.episodes[0]
-    let podcastEpisode: PodcastEpisode? = try await observatory.episode(episode.id).get()
-    let podcastEpisode = try #require(podcastEpisode)
+    let optionalEpisode: PodcastEpisode? = try await observatory.episode(episode.id).get()
+    let podcastEpisode = try #require(optionalEpisode)
     let onDeck = OnDeck(from: podcastEpisode)
 
     // Episode fields
