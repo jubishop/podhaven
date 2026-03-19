@@ -28,7 +28,7 @@ failed_test_logs/
 test_logs_*/
 
 # Worktrees
-worktrees/
+worktrees
 
 # BearClaude
 .specstory/
