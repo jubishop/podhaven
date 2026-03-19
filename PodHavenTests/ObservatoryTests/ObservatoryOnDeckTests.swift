@@ -6,6 +6,7 @@ import FactoryTesting
 import Foundation
 import GRDB
 import Testing
+import UIKit
 
 @testable import PodHaven
 
@@ -190,6 +191,21 @@ actor ObservatoryOnDeckTests {
     #expect(onDeck.currentTime == podcastEpisode.currentTime)
     #expect(onDeck.currentTime == CMTime.seconds(45))
     #expect(onDeck.artwork == nil)
+  }
+
+  @Test("equality and hash ignore artwork and currentTime")
+  func testEqualityAndHashIgnoreInMemoryFields() async throws {
+    let (episode, _, _) = try await Create.threePodcastEpisodes()
+    let optionalEpisode: PodcastEpisode? = try await observatory.episode(episode.id).get()
+    let podcastEpisode = try #require(optionalEpisode)
+
+    let a = OnDeck(from: podcastEpisode)
+    var b = OnDeck(from: podcastEpisode)
+    b.artwork = UIImage()
+    b.currentTime = CMTime.seconds(99)
+
+    #expect(a == b)
+    #expect(a.hashValue == b.hashValue)
   }
 
   @Test("onDeck() does not trigger on currentTime-only changes")
