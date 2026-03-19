@@ -96,8 +96,23 @@ struct DisplayedPodcast:
         return existingSeries.podcast
       }
 
-      // Podcast doesn't exist, parse feed and insert
+      // Podcast doesn't exist by our keys, parse feed to discover resolved URL
       let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
+
+      // The parsed feed may have a different feedURL (redirect/itunes:new-feed-url).
+      // Check if that resolved URL matches an existing podcast.
+      if podcastFeed.updatedFeedURL != unsavedPodcast.feedURL {
+        if let existingSeries = try await repo.podcastSeries(
+          podcastFeed.updatedFeedURL,
+          iTunesID: unsavedPodcast.iTunesID
+        ) {
+          if existingSeries.podcast.iTunesID == nil, let iTunesID = unsavedPodcast.iTunesID {
+            try await repo.updateITunesID(existingSeries.podcast.id, iTunesID: iTunesID)
+          }
+          return existingSeries.podcast
+        }
+      }
+
       let podcastSeries = try await repo.insertSeries(
         try podcastFeed.toUnsavedSeries(iTunesID: unsavedPodcast.iTunesID)
       )

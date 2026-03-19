@@ -88,17 +88,19 @@ struct Repo: Databasing, Sendable {
     -> PodcastSeries?
   {
     try await appDB.db.read { db in
-      var filter: SQLExpression = Podcast.Columns.feedURL == feedURL
-      if let iTunesID {
-        filter = filter || Podcast.Columns.iTunesID == iTunesID
-      }
-      return
-        try Podcast
-        .filter(filter)
+      let base =
+        Podcast
         .including(all: Podcast.episodes)
         .including(all: Podcast.tags.order { $0.name.collating(.nocase) })
         .asRequest(of: PodcastSeries.self)
-        .fetchOne(db)
+      // feedURL takes priority over iTunesID
+      if let result = try base.filter(Podcast.Columns.feedURL == feedURL).fetchOne(db) {
+        return result
+      }
+      if let iTunesID {
+        return try base.filter(Podcast.Columns.iTunesID == iTunesID).fetchOne(db)
+      }
+      return nil
     }
   }
 
