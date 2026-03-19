@@ -117,17 +117,22 @@ import Testing
     // Finish the current episode and auto-advance to the queued one.
     avPlayer.finishEpisode()
     try await PlayHelpers.waitForOnDeck(queuedEpisode)
+    try await Wait.until(
+      { await playManager.ignoreRemoteScrubCommands == false },
+      { "Expected remote scrub suppression to end before testing stale commands" }
+    )
 
-    // Queue a stale scrub from the finished episode, then a pause marker.
-    // Once pause lands, the stale scrub has already been processed.
+    // Queue a stale scrub from the finished episode, then a playback-rate
+    // marker. Once the rate changes, the stale scrub has already been
+    // processed.
     commandCenterContinuation.yield(
       .playbackPosition(
         TimeInterval.seconds(5),
         sourceEpisodeID: playingEpisode.id
       )
     )
-    commandCenterContinuation.yield(.pause)
-    try await PlayHelpers.waitFor(.paused)
+    commandCenterContinuation.yield(.changePlaybackRate(1.7))
+    try await PlayHelpers.waitForPlayRate(1.7)
 
     #expect(sharedState.onDeck?.id == queuedEpisode.id)
     #expect(sharedState.onDeck?.currentTime == .zero)
@@ -146,11 +151,10 @@ import Testing
 
     avPlayer.finishEpisode()
     try await PlayHelpers.waitForOnDeck(queuedEpisode)
-
-    // Use a pause command as an ordering barrier. Once it lands, the episode
-    // transition is complete and fresh scrubs should be accepted.
-    commandCenterContinuation.yield(.pause)
-    try await PlayHelpers.waitFor(.paused)
+    try await Wait.until(
+      { await playManager.ignoreRemoteScrubCommands == false },
+      { "Expected remote scrub suppression to end before testing fresh commands" }
+    )
 
     mpRemoteCommandCenter.fireSeek(to: TimeInterval.seconds(10))
     try await PlayHelpers.waitFor(.seconds(10))

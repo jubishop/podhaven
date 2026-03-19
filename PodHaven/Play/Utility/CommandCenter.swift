@@ -92,7 +92,7 @@ enum CommandCenter: Sendable {
       yield(
         .playbackPosition(
           positionEvent.positionTime,
-          sourceEpisodeID: Container.shared.sharedState().currentEpisodeID
+          sourceEpisodeID: Container.shared.sharedState().onDeck?.id
         )
       )
       return .success

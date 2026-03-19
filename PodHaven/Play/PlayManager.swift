@@ -71,7 +71,7 @@ final class PlayManager {
   private var loadTask: Task<Bool, any Error>?
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
-  private var ignoreRemoteScrubCommands = false
+  private(set) var ignoreRemoteScrubCommands = false
   private var lastLoggedTime: Double = 0
 
   // MARK: - Initialization
