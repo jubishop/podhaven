@@ -58,6 +58,8 @@ struct StateManager: Sendable {
               retryDelay = .seconds(1)
 
               if var observed {
+                // Observatory emits OnDeck with artwork = nil and
+                // currentTime = .zero; restore them from current state.
                 sharedState.$onDeck.update { onDeck in
                   observed.artwork = onDeck?.artwork
                   observed.currentTime = onDeck?.currentTime ?? .zero

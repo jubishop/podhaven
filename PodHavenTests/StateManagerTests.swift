@@ -5,6 +5,7 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import Testing
+import UIKit
 
 @testable import PodHaven
 
@@ -71,6 +72,33 @@ actor StateManagerTests {
     // Setting the same episode again should not reset currentTime
     stateManager.setOnDeck(podcastEpisode)
     #expect(sharedState.onDeck?.currentTime == CMTime.seconds(100))
+  }
+
+  @Test("setOnDeck preserves artwork and currentTime through DB observation updates")
+  func setOnDeckPreservesStateOnDBChange() async throws {
+    let podcastEpisode = try await fetchPodcastEpisode("episode1")
+    stateManager.setOnDeck(podcastEpisode)
+
+    let testImage = UIImage()
+    let testTime = CMTime.seconds(42)
+    stateManager.setArtwork(testImage, for: podcastEpisode.id)
+    stateManager.setCurrentTime(testTime)
+
+    #expect(sharedState.onDeck?.artwork != nil)
+    #expect(sharedState.onDeck?.currentTime == testTime)
+
+    // Trigger a DB change that causes observatory to re-emit
+    _ = try await repo.markFinished(podcastEpisode.id)
+
+    // Wait for the observation to fire and update onDeck with the new finishDate
+    try await Wait.until(
+      { Container.shared.sharedState().onDeck?.finishDate != nil },
+      { "Expected onDeck to have a finishDate after markFinished" }
+    )
+
+    // Verify in-memory state survived the DB-triggered refresh
+    #expect(sharedState.onDeck?.artwork != nil)
+    #expect(sharedState.onDeck?.currentTime == testTime)
   }
 
   // MARK: - clearOnDeck Tests
