@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "MAIN=$(cd \"$(git rev-parse --git-common-dir)/..\" && pwd) && bash \"$MAIN/.claude/scripts/link-deriveddata.sh\"",
+            "command": "echo test >> /tmp/link-deriveddata.log",
             "timeout": 10
           }
         ]
