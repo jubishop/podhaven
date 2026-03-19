@@ -162,6 +162,8 @@ struct Observatory {
     }
   }
 
+  // When T is OnDeck, emitted values always have artwork = nil and
+  // currentTime = .zero; StateManager.setOnDeck() restores these fields.
   func episode<T: FetchableRecord & Equatable>(
     _ episodeID: Episode.ID
   ) -> AsyncValueObservation<T?> {

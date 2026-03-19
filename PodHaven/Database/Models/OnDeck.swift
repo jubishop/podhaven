@@ -119,6 +119,27 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
       && (artwork != nil) == (other.artwork != nil)
   }
 
+  // MARK: - Hashable
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine(id)
+    hasher.combine(guid)
+    hasher.combine(mediaURL)
+    hasher.combine(title)
+    hasher.combine(pubDate)
+    hasher.combine(duration)
+    hasher.combine(description)
+    hasher.combine(episodeImage)
+    hasher.combine(finishDate)
+    hasher.combine(queueOrder)
+    hasher.combine(cacheStatus)
+    hasher.combine(saveInCache)
+    hasher.combine(podcastImage)
+    hasher.combine(podcastTitle)
+    hasher.combine(feedURL)
+    hasher.combine(defaultPlaybackRate)
+  }
+
   // MARK: - Equatable
 
   static func == (lhs: OnDeck, rhs: OnDeck) -> Bool {

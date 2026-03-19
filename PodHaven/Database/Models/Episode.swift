@@ -269,7 +269,7 @@ struct Episode: EpisodeInformable, Saved, RSSUpdatable {
 
   // MARK: - Cache Status
 
-  enum CacheStatus: Equatable, Sendable {
+  enum CacheStatus: Hashable, Sendable {
     case uncached
     case caching
     case cached
