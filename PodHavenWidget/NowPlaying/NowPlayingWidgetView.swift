@@ -110,14 +110,21 @@ struct NowPlayingWidgetView: View {
 
         Spacer(minLength: 0)
 
-        HStack(spacing: 0) {
-          Spacer(minLength: 0)
-          seekBackwardButton(interval: entry.skipBackwardInterval).font(.callout)
-          Spacer(minLength: 0)
-          playPauseButton.font(.headline)
-          Spacer(minLength: 0)
-          seekForwardButton(interval: entry.skipForwardInterval).font(.callout)
-          Spacer(minLength: 0)
+        ZStack {
+          HStack(spacing: 0) {
+            Spacer(minLength: 64)
+            seekBackwardButton(interval: entry.skipBackwardInterval).font(.callout)
+            Spacer(minLength: 0)
+            playPauseButton.font(.headline)
+            Spacer(minLength: 0)
+            seekForwardButton(interval: entry.skipForwardInterval).font(.callout)
+            Spacer(minLength: 64)
+          }
+
+          HStack {
+            Spacer()
+            finishEpisodeButton.font(.callout)
+          }
         }
         .frame(maxWidth: .infinity)
       }
@@ -162,6 +169,12 @@ struct NowPlayingWidgetView: View {
   private func seekBackwardButton(interval: Int) -> some View {
     Button(intent: SkipBackwardIntent()) {
       AppIcon.seekBackward(interval).image
+    }
+  }
+
+  private var finishEpisodeButton: some View {
+    Button(intent: FinishEpisodeIntent()) {
+      AppIcon.finishEpisode.image
     }
   }
 
