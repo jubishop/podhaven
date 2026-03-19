@@ -160,6 +160,7 @@
 				PodcastTests.swift,
 				QueueTests.swift,
 				RefreshManagerTests.swift,
+				SearchResultPodcastTests.swift,
 				ShareServiceTests.swift,
 				StateManagerTests.swift,
 				TagsTests.swift,

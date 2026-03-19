@@ -520,39 +520,16 @@ class SearchViewModel:
       return nil
     }
 
-    // Build a Podcast with the result's feedURL so the IdentifiedArray identity stays stable.
-    // WARNING: The bridged Podcast has a synthetic feedURL (the search result's URL, not the
-    // canonical DB URL). This is safe because all DB operations use podcast.id, not feedURL.
-    let displayPodcast: Podcast
+    // Use SearchResultPodcast to keep IdentifiedArray identity stable on resultFeedURL
+    // while preserving the canonical Podcast data for sharing, navigation, and DB operations.
+    let displayPodcast: any PodcastDisplayable
     if resultFeedURL == podcast.feedURL {
       displayPodcast = podcast.podcast
     } else {
-      do {
-        displayPodcast = Podcast(
-          id: podcast.podcast.id,
-          creationDate: podcast.podcast.creationDate,
-          from: try UnsavedPodcast(
-            feedURL: resultFeedURL,
-            iTunesID: podcast.iTunesID,
-            title: podcast.title,
-            image: podcast.image,
-            description: podcast.description,
-            link: podcast.link,
-            lastUpdate: podcast.podcast.lastUpdate,
-            subscriptionDate: podcast.subscriptionDate,
-            defaultPlaybackRate: podcast.defaultPlaybackRate,
-            queueAllEpisodes: podcast.queueAllEpisodes,
-            cacheAllEpisodes: podcast.cacheAllEpisodes,
-            notifyNewEpisodes: podcast.notifyNewEpisodes
-          )
-        )
-      } catch {
-        Self.log.caughtError(
-          "Failed to build bridged Podcast for \(podcast.toString)",
-          error
-        )
-        return nil
-      }
+      displayPodcast = SearchResultPodcast(
+        resultFeedURL: resultFeedURL,
+        podcast: podcast.podcast
+      )
     }
 
     return (
