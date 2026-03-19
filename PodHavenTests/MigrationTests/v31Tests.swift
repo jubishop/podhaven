@@ -67,13 +67,13 @@ class V31MigrationTests {
 
     // Verify existing podcast has NULL iTunesID after migration
     try await appDB.db.read { db in
-      let iTunesID = try Int?
-        .fetchOne(
-          db,
-          sql: "SELECT iTunesID FROM podcast WHERE id = ?",
-          arguments: [testPodcastID]
-        )
-      #expect(iTunesID == nil, "Existing podcast should have NULL iTunesID after migration")
+      let row = try Row.fetchOne(
+        db,
+        sql: "SELECT iTunesID FROM podcast WHERE id = ?",
+        arguments: [testPodcastID]
+      )
+      #expect(row != nil, "Podcast row should exist")
+      #expect(row?["iTunesID"] == nil, "Existing podcast should have NULL iTunesID after migration")
     }
 
     // Insert podcasts with iTunesID values
