@@ -519,7 +519,9 @@ class SearchViewModel:
       return false
     }
 
-    // Build a Podcast with the result's feedURL so the identity stays stable
+    // Build a Podcast with the result's feedURL so the IdentifiedArray identity stays stable.
+    // WARNING: The bridged Podcast has a synthetic feedURL (the search result's URL, not the
+    // canonical DB URL). This is safe because all DB operations use podcast.id, not feedURL.
     let displayPodcast: Podcast
     if resultFeedURL == podcast.feedURL {
       displayPodcast = podcast.podcast

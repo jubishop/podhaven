@@ -11,12 +11,10 @@ import Logging
   var podcastList: PowerList<PodcastWithEpisodeMetadata<PodcastType>> { get }
 
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] { get }
-  var selectedSavedPodcasts: [Podcast] { get }
-  var selectedSavedPodcastIDs: [Podcast.ID] { get }
 
   // Must Implement: Iterates over selected podcasts, calling the closure for each one that passes
-  // the filter. Subscribe passes all; delete/unsubscribe passes only isSaved to avoid creating
-  // DB rows for unsaved search results.
+  // the filter. Delete/unsubscribe pass isSaved/subscribed to avoid creating DB rows for unsaved
+  // search results; subscribe uses the default (all).
   func forEachSelectedPodcast(
     where filter: @escaping (PodcastWithEpisodeMetadata<PodcastType>) -> Bool,
     perform action: @escaping @Sendable (Podcast) async throws -> Void
@@ -42,10 +40,12 @@ extension SelectablePodcastList {
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] {
     podcastList.selectedEntries.elements
   }
-  var selectedSavedPodcasts: [Podcast] {
-    selectedPodcastsWithMetadata.compactMap { $0.getPodcast() }
+
+  func forEachSelectedPodcast(
+    perform action: @escaping @Sendable (Podcast) async throws -> Void
+  ) async {
+    await forEachSelectedPodcast(where: { _ in true }, perform: action)
   }
-  var selectedSavedPodcastIDs: [Podcast.ID] { selectedSavedPodcasts.map(\.id) }
 
   // MARK: - "Any"? Getters
 
@@ -77,7 +77,7 @@ extension SelectablePodcastList {
     Task { [weak self] in
       guard let self else { return }
 
-      await forEachSelectedPodcast(where: { _ in true }) { podcast in
+      await forEachSelectedPodcast { podcast in
         try await Container.shared.repo().markSubscribed(podcast.id)
       }
     }
