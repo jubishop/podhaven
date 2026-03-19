@@ -122,6 +122,7 @@ import Testing
     try await PlayHelpers.waitFor(.zero)
 
     // Advance time to end the halt period
+    try await sleeper.waitForSleepRequests(count: 1)
     await sleeper.advanceTime(by: .seconds(2))
     mpRemoteCommandCenter.fireSeek(to: .seconds(10))
     try await PlayHelpers.waitFor(.seconds(10))
