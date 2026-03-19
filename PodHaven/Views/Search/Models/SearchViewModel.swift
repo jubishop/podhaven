@@ -506,30 +506,58 @@ class SearchViewModel:
     in results: inout IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>>,
     mapping: [ITunesPodcastID: FeedURL]
   ) -> Bool {
-    let updated = PodcastWithEpisodeMetadata(
-      podcast: DisplayedPodcast(podcast.podcast),
+    // Find which feedURL slot this saved podcast occupies in results
+    let resultFeedURL: FeedURL
+    if results[id: podcast.feedURL] != nil {
+      resultFeedURL = podcast.feedURL
+    } else if let iTunesID = podcast.iTunesID,
+      let searchFeedURL = mapping[iTunesID],
+      results[id: searchFeedURL] != nil
+    {
+      resultFeedURL = searchFeedURL
+    } else {
+      return false
+    }
+
+    // Build a Podcast with the result's feedURL so the identity stays stable
+    let displayPodcast: Podcast
+    if resultFeedURL == podcast.feedURL {
+      displayPodcast = podcast.podcast
+    } else {
+      do {
+        displayPodcast = Podcast(
+          id: podcast.podcast.id,
+          creationDate: podcast.podcast.creationDate,
+          from: try UnsavedPodcast(
+            feedURL: resultFeedURL,
+            iTunesID: podcast.iTunesID,
+            title: podcast.title,
+            image: podcast.image,
+            description: podcast.description,
+            link: podcast.link,
+            lastUpdate: podcast.podcast.lastUpdate,
+            subscriptionDate: podcast.subscriptionDate,
+            defaultPlaybackRate: podcast.defaultPlaybackRate,
+            queueAllEpisodes: podcast.queueAllEpisodes,
+            cacheAllEpisodes: podcast.cacheAllEpisodes,
+            notifyNewEpisodes: podcast.notifyNewEpisodes
+          )
+        )
+      } catch {
+        Self.log.caughtError(
+          "Failed to build bridged Podcast for \(podcast.toString)",
+          error
+        )
+        return false
+      }
+    }
+
+    results[id: resultFeedURL] = PodcastWithEpisodeMetadata(
+      podcast: DisplayedPodcast(displayPodcast),
       episodeCount: podcast.episodeCount,
       mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
     )
-
-    // Direct feedURL match — same identity, replace in place
-    if results[id: podcast.feedURL] != nil {
-      results[id: podcast.feedURL] = updated
-      return true
-    }
-
-    // iTunesID match — identity changes from search feedURL to canonical feedURL,
-    // so remove the old entry and insert at the same position.
-    if let iTunesID = podcast.iTunesID,
-      let searchFeedURL = mapping[iTunesID],
-      let index = results.index(id: searchFeedURL)
-    {
-      results.remove(id: searchFeedURL)
-      results.insert(updated, at: index)
-      return true
-    }
-
-    return false
+    return true
   }
 
   // MARK: - Podcast List Syncing
