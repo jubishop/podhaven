@@ -28,21 +28,6 @@ jobs:
             -testPlan PodHaven \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             -skipMacroValidation \
-            -resultBundlePath TestResults \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | xcbeautify --renderer github-actions --quiet --is-ci
-
-      - name: Failure summary
-        if: failure()
-        run: |
-          if [ -d TestResults.xcresult ]; then
-            echo "::group::Test Failures"
-            xcrun xcresulttool get test-results summary --path TestResults.xcresult --compact
-            echo "::endgroup::"
-            echo "::group::Build Issues"
-            xcrun xcresulttool get build-results --path TestResults.xcresult --compact
-            echo "::endgroup::"
-          else
-            echo "::error::No xcresult bundle — build failed before tests ran"
-          fi
