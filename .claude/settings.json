@@ -1,11 +1,12 @@
 {
   "hooks": {
-    "WorktreeCreate": [
+    "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(cd \"$(git rev-parse --git-common-dir)/..\" && pwd)/.claude/scripts/link-deriveddata.sh\""
+            "command": "MAIN=$(cd \"$(git rev-parse --git-common-dir)/..\" && pwd) && bash \"$MAIN/.claude/scripts/link-deriveddata.sh\"",
+            "timeout": 10
           }
         ]
       }
