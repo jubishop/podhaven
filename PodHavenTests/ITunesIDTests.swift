@@ -309,10 +309,10 @@ class ITunesIDTests {
     #expect(unsavedSeries.unsavedPodcast.iTunesID == iTunesID)
   }
 
-  // MARK: - DisplayedPodcast.getOrCreatePodcast with iTunesID bridge
+  // MARK: - DisplayedPodcast.getOrCreatePodcast with iTunesID lookup
 
-  @Test("getOrCreatePodcast resolves bridged UnsavedPodcast to saved Podcast via iTunesID")
-  func testGetOrCreatePodcastBridgedResolution() async throws {
+  @Test("getOrCreatePodcast resolves UnsavedPodcast to saved Podcast via iTunesID")
+  func testGetOrCreatePodcastITunesIDResolution() async throws {
     let dbFeedURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
     let iTunesID = ITunesPodcastID(444)
     let unsavedPodcast = try Create.unsavedPodcast(

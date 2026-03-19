@@ -29,6 +29,6 @@ where ID: Sendable {
 extension PodcastDisplayable {
   var podcastID: Podcast.ID? { id as? Podcast.ID }
   var iTunesID: ITunesPodcastID? { nil }
-  var isSaved: Bool { podcastID != nil || subscribed }
+  var isSaved: Bool { podcastID != nil }
   var subscribed: Bool { subscriptionDate != nil }
 }
