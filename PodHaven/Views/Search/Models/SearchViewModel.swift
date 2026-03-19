@@ -32,12 +32,10 @@ class SearchViewModel:
   var podcastList = PowerList<PodcastWithEpisodeMetadata<DisplayedPodcast>>()
 
   func forEachSelectedPodcast(
-    where filter: @escaping (PodcastWithEpisodeMetadata<DisplayedPodcast>) -> Bool,
     perform action: @escaping @Sendable (Podcast) async throws -> Void
   ) async {
     await withTaskGroup(of: Podcast?.self) { group in
-      for selectedPodcastWithMetadata in selectedPodcastsWithMetadata
-      where filter(selectedPodcastWithMetadata) {
+      for selectedPodcastWithMetadata in selectedPodcastsWithMetadata {
         group.addTask {
           do {
             return try await selectedPodcastWithMetadata.podcast.getOrCreatePodcast()

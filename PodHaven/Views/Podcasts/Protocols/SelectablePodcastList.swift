@@ -11,12 +11,11 @@ import Logging
   var podcastList: PowerList<PodcastWithEpisodeMetadata<PodcastType>> { get }
 
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] { get }
+  var selectedSavedPodcasts: [Podcast] { get }
+  var selectedSavedPodcastIDs: [Podcast.ID] { get }
 
-  // Must Implement: Iterates over selected podcasts, calling the closure for each one that passes
-  // the filter. Delete/unsubscribe pass isSaved/subscribed to avoid creating DB rows for unsaved
-  // search results; subscribe uses the default (all).
+  // Must Implement: Iterates over selected podcasts in parallel, calling the closure for each one
   func forEachSelectedPodcast(
-    where filter: @escaping (PodcastWithEpisodeMetadata<PodcastType>) -> Bool,
     perform action: @escaping @Sendable (Podcast) async throws -> Void
   ) async
 
@@ -40,12 +39,10 @@ extension SelectablePodcastList {
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] {
     podcastList.selectedEntries.elements
   }
-
-  func forEachSelectedPodcast(
-    perform action: @escaping @Sendable (Podcast) async throws -> Void
-  ) async {
-    await forEachSelectedPodcast(where: { _ in true }, perform: action)
+  var selectedSavedPodcasts: [Podcast] {
+    selectedPodcastsWithMetadata.compactMap { $0.getPodcast() }
   }
+  var selectedSavedPodcastIDs: [Podcast.ID] { selectedSavedPodcasts.map(\.id) }
 
   // MARK: - "Any"? Getters
 
@@ -64,11 +61,19 @@ extension SelectablePodcastList {
   // MARK: - Actions
 
   func deleteSelectedPodcasts() {
+    let savedPodcastIDs = selectedSavedPodcastIDs
+    guard !savedPodcastIDs.isEmpty else { return }
+
     Task { [weak self] in
       guard let self else { return }
 
-      await forEachSelectedPodcast(where: { $0.isSaved }) { podcast in
-        try await Container.shared.repo().deletePodcast(podcast.id)
+      do {
+        try await repo.deletePodcast(savedPodcastIDs)
+      } catch {
+        Self.log.caughtError(
+          "deleteSelectedPodcasts: failed to delete \(savedPodcastIDs.count) podcasts",
+          error
+        )
       }
     }
   }
@@ -84,11 +89,19 @@ extension SelectablePodcastList {
   }
 
   func unsubscribeSelectedPodcasts() {
+    let savedPodcastIDs = selectedSavedPodcastIDs
+    guard !savedPodcastIDs.isEmpty else { return }
+
     Task { [weak self] in
       guard let self else { return }
 
-      await forEachSelectedPodcast(where: { $0.subscribed }) { podcast in
-        try await Container.shared.repo().markUnsubscribed(podcast.id)
+      do {
+        try await repo.markUnsubscribed(savedPodcastIDs)
+      } catch {
+        Self.log.caughtError(
+          "unsubscribeSelectedPodcasts: failed to unsubscribe \(savedPodcastIDs.count) podcasts",
+          error
+        )
       }
     }
   }
@@ -96,10 +109,9 @@ extension SelectablePodcastList {
 
 extension SelectablePodcastList where PodcastType == Podcast {
   func forEachSelectedPodcast(
-    where filter: @escaping (PodcastWithEpisodeMetadata<Podcast>) -> Bool,
     perform action: @escaping @Sendable (Podcast) async throws -> Void
   ) async {
-    for podcastWithMetadata in selectedPodcastsWithMetadata where filter(podcastWithMetadata) {
+    for podcastWithMetadata in selectedPodcastsWithMetadata {
       do {
         try await action(podcastWithMetadata.podcast)
       } catch {
