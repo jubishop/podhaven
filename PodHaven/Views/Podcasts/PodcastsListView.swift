@@ -61,13 +61,18 @@ struct PodcastsListView: View {
     } else if viewModel.podcastList.filteredEntries.isEmpty {
       noPodcastsMessage
     } else {
-      switch viewModel.displayMode {
-      case .grid:
-        gridView
-      case .list:
-        listView
-          .animation(.default, value: viewModel.podcastList.filteredEntries)
-      }
+      podcastList
+        .animation(.default, value: viewModel.podcastList.filteredEntries)
+    }
+  }
+
+  @ViewBuilder
+  private var podcastList: some View {
+    switch viewModel.displayMode {
+    case .grid:
+      gridView
+    case .list:
+      listView
     }
   }
 

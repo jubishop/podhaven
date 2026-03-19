@@ -160,6 +160,7 @@ struct SearchView: View {
         )
       } else {
         resultsView
+          .animation(.default, value: viewModel.podcastList.filteredEntries)
       }
     case .error(let message):
       errorView(title: "Unable to Load", message: message)
@@ -222,7 +223,6 @@ struct SearchView: View {
         .listRow()
       }
     }
-    .animation(.default, value: viewModel.podcastList.filteredEntries)
   }
 
   // MARK: - Reusable Views
