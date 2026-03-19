@@ -14,8 +14,11 @@ import Logging
   var selectedSavedPodcasts: [Podcast] { get }
   var selectedSavedPodcastIDs: [Podcast.ID] { get }
 
-  // Must Implement: Iterates over selected podcasts in parallel, calling the closure for each one
+  // Must Implement: Iterates over selected podcasts, calling the closure for each one that passes
+  // the filter. Subscribe passes all; delete/unsubscribe passes only isSaved to avoid creating
+  // DB rows for unsaved search results.
   func forEachSelectedPodcast(
+    where filter: @escaping (PodcastWithEpisodeMetadata<PodcastType>) -> Bool,
     perform action: @escaping @Sendable (Podcast) async throws -> Void
   ) async
 
@@ -64,7 +67,7 @@ extension SelectablePodcastList {
     Task { [weak self] in
       guard let self else { return }
 
-      await forEachSelectedPodcast { podcast in
+      await forEachSelectedPodcast(where: { $0.isSaved }) { podcast in
         try await Container.shared.repo().deletePodcast(podcast.id)
       }
     }
@@ -74,7 +77,7 @@ extension SelectablePodcastList {
     Task { [weak self] in
       guard let self else { return }
 
-      await forEachSelectedPodcast { podcast in
+      await forEachSelectedPodcast(where: { _ in true }) { podcast in
         try await Container.shared.repo().markSubscribed(podcast.id)
       }
     }
@@ -84,7 +87,7 @@ extension SelectablePodcastList {
     Task { [weak self] in
       guard let self else { return }
 
-      await forEachSelectedPodcast { podcast in
+      await forEachSelectedPodcast(where: { $0.isSaved }) { podcast in
         try await Container.shared.repo().markUnsubscribed(podcast.id)
       }
     }
@@ -93,9 +96,10 @@ extension SelectablePodcastList {
 
 extension SelectablePodcastList where PodcastType == Podcast {
   func forEachSelectedPodcast(
+    where filter: @escaping (PodcastWithEpisodeMetadata<Podcast>) -> Bool,
     perform action: @escaping @Sendable (Podcast) async throws -> Void
   ) async {
-    for podcastWithMetadata in selectedPodcastsWithMetadata {
+    for podcastWithMetadata in selectedPodcastsWithMetadata where filter(podcastWithMetadata) {
       do {
         try await action(podcastWithMetadata.podcast)
       } catch {
