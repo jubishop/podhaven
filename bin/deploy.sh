@@ -16,6 +16,17 @@ SCHEME="PodHaven"
 EXPORT_OPTIONS="$PROJECT_DIR/ExportOptions.plist"
 ARCHIVE_PATH="$PROJECT_DIR/build/PodHaven.xcarchive"
 
+# Resolve the first available iPhone simulator for this scheme
+SIM_DESTINATION=$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -showdestinations 2>/dev/null \
+  | grep 'platform:iOS Simulator.*OS:.*name:iPhone' \
+  | head -1 \
+  | sed 's/.*name://' | sed 's/ *}$//')
+
+if [[ -z "$SIM_DESTINATION" ]]; then
+  echo "error: No iPhone simulator found. Install one via Xcode." >&2
+  exit 1
+fi
+
 # Parse arguments
 AUTH_FLAGS=()
 FORCE=false
@@ -143,7 +154,7 @@ mkdir -p "$PROJECT_DIR/build"
 xcodebuild test \
   -project "$PROJECT" \
   -scheme "$SCHEME" \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -destination "platform=iOS Simulator,name=$SIM_DESTINATION" \
   2>&1 | tee "$TEST_LOG" | xcbeautify
 echo "==> Tests passed."
 
