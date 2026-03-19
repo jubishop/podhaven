@@ -22,6 +22,7 @@ import Logging
   var anySelectedSubscribed: Bool { get }
   var anySelectedUnsubscribed: Bool { get }
   var anySelectedSaved: Bool { get }
+  var anySelectedSavedOrSubscribed: Bool { get }
 
   func deleteSelectedPodcasts()
   func subscribeSelectedPodcasts()
@@ -58,22 +59,18 @@ extension SelectablePodcastList {
     selectedPodcastsWithMetadata.contains(where: \.isSaved)
   }
 
+  var anySelectedSavedOrSubscribed: Bool {
+    selectedPodcastsWithMetadata.contains { $0.isSaved || $0.subscribed }
+  }
+
   // MARK: - Actions
 
   func deleteSelectedPodcasts() {
-    let savedPodcastIDs = selectedSavedPodcastIDs
-    guard !savedPodcastIDs.isEmpty else { return }
-
     Task { [weak self] in
       guard let self else { return }
 
-      do {
-        try await repo.deletePodcast(savedPodcastIDs)
-      } catch {
-        Self.log.caughtError(
-          "deleteSelectedPodcasts: failed to delete \(savedPodcastIDs.count) podcasts",
-          error
-        )
+      await forEachSelectedPodcast { podcast in
+        try await Container.shared.repo().deletePodcast(podcast.id)
       }
     }
   }
@@ -89,19 +86,11 @@ extension SelectablePodcastList {
   }
 
   func unsubscribeSelectedPodcasts() {
-    let savedPodcastIDs = selectedSavedPodcastIDs
-    guard !savedPodcastIDs.isEmpty else { return }
-
     Task { [weak self] in
       guard let self else { return }
 
-      do {
-        try await repo.markUnsubscribed(savedPodcastIDs)
-      } catch {
-        Self.log.caughtError(
-          "unsubscribeSelectedPodcasts: failed to unsubscribe \(savedPodcastIDs.count) podcasts",
-          error
-        )
+      await forEachSelectedPodcast { podcast in
+        try await Container.shared.repo().markUnsubscribed(podcast.id)
       }
     }
   }

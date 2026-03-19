@@ -70,7 +70,16 @@ class ITunesIDTests {
     )
     try await repo.insertSeries(UnsavedPodcastSeries(unsavedPodcast: podcast1))
 
-    // Query with feedURL match — should find Podcast A
+    // Insert second podcast that matches by iTunesID 999
+    let podcast2 = try Create.unsavedPodcast(
+      feedURL: FeedURL(URL(string: "https://example.com/feed-b.rss")!),
+      iTunesID: ITunesPodcastID(999),
+      title: "Podcast B"
+    )
+    try await repo.insertSeries(UnsavedPodcastSeries(unsavedPodcast: podcast2))
+
+    // Query with feedURL matching Podcast A and iTunesID matching Podcast B
+    // Should return Podcast A (feedURL takes priority)
     let result = try await repo.podcastSeries(feedURL, iTunesID: ITunesPodcastID(999))
     #expect(result != nil)
     #expect(result?.podcast.title == "Podcast A")
@@ -298,6 +307,39 @@ class ITunesIDTests {
     let iTunesID = ITunesPodcastID(5678)
     let unsavedSeries = try feed.toUnsavedSeries(iTunesID: iTunesID)
     #expect(unsavedSeries.unsavedPodcast.iTunesID == iTunesID)
+  }
+
+  // MARK: - DisplayedPodcast.getOrCreatePodcast with iTunesID bridge
+
+  @Test("getOrCreatePodcast resolves bridged UnsavedPodcast to saved Podcast via iTunesID")
+  func testGetOrCreatePodcastBridgedResolution() async throws {
+    let dbFeedURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
+    let iTunesID = ITunesPodcastID(444)
+    let unsavedPodcast = try Create.unsavedPodcast(
+      feedURL: dbFeedURL,
+      iTunesID: iTunesID,
+      title: "Saved Podcast"
+    )
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
+    )
+
+    // Create a bridged UnsavedPodcast with different feedURL but same iTunesID
+    let searchFeedURL = FeedURL(URL(string: "https://example.com/itunes.rss")!)
+    let bridged = try UnsavedPodcast(
+      feedURL: searchFeedURL,
+      iTunesID: iTunesID,
+      title: "Saved Podcast"
+    )
+    let displayed = DisplayedPodcast(bridged)
+
+    // Should resolve to the existing saved podcast, not create a new one
+    let resolved = try await displayed.getOrCreatePodcast()
+    #expect(resolved.id == series.podcast.id)
+    #expect(resolved.feedURL == dbFeedURL)
+
+    let allPodcasts = try await repo.allPodcasts(AppDB.NoOp)
+    #expect(allPodcasts.count == 1)
   }
 
   // MARK: - toOriginalUnsavedPodcast preserves iTunesID
