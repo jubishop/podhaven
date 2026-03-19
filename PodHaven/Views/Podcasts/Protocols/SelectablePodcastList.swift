@@ -87,7 +87,7 @@ extension SelectablePodcastList {
     Task { [weak self] in
       guard let self else { return }
 
-      await forEachSelectedPodcast(where: { $0.isSaved }) { podcast in
+      await forEachSelectedPodcast(where: { $0.subscribed }) { podcast in
         try await Container.shared.repo().markUnsubscribed(podcast.id)
       }
     }
