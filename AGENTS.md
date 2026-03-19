@@ -55,3 +55,4 @@
 - Never leave behind unused code, properties, or parameters. If something becomes unused, remove it immediately.
 - Avoid using `@unchecked`/`unsafe` in code unless absolutely necessary.
 - Avoid `inout` parameters; return values instead.
+- Use `@MainActor` on functions/types instead of `MainActor.run { }` blocks.

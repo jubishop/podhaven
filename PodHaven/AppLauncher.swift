@@ -85,9 +85,7 @@ struct AppLauncher: Sendable {
       Self.log.info("Preparing for foreground")
 
       await AppInfo.finalizeEnvironment()
-      SentrySDK.configureScope { scope in
-        scope.setEnvironment(AppInfo.environment.rawValue)
-      }
+      await Self.applySentryEnvironment()
       guard !Task.isCancelled else { return }
 
       await self.userNotificationManager.initialize()
@@ -175,6 +173,12 @@ struct AppLauncher: Sendable {
   }
 
   // MARK: - Sentry
+
+  @MainActor private static func applySentryEnvironment() {
+    SentrySDK.configureScope { scope in
+      scope.setEnvironment(AppInfo.environment.rawValue)
+    }
+  }
 
   private static func configureSentry() {
     SentrySDK.start { options in

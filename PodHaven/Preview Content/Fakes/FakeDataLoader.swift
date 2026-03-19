@@ -5,7 +5,6 @@ import FactoryKit
 import Foundation
 import Nuke
 import SwiftUI
-import ConcurrencyExtras
 
 extension Container {
   var fakeDataLoader: Factory<FakeDataLoader> {
@@ -23,47 +22,29 @@ struct FakeDataLoader: DataLoading {
 
   // MARK: - DataLoading
 
-  private final class TaskCancellable<Success: Sendable, Failure: Error>: Cancellable {
-    private let task: Task<Success, Failure>
-
-    init(task: Task<Success, Failure>) {
-      self.task = task
-    }
-
-    func cancel() {
-      task.cancel()
-    }
-  }
-
   func loadData(
-    with request: URLRequest,
-    didReceiveData: @escaping (Data, URLResponse) -> Void,
-    completion: @escaping ((any Error)?) -> Void
-  ) -> any Cancellable {
+    with request: URLRequest
+  ) async throws -> (AsyncThrowingStream<Data, any Error>, URLResponse) {
     let url = request.url!
     loadedURLs { set in set.insert(url) }
 
-    let callbacks = UncheckedSendable((didReceiveData: didReceiveData, completion: completion))
-    let task = Task {
-      if let fakeHandler = fakeHandlers[url] ?? defaultHandler() {
-        let fakeData = try await fakeHandler(url)
-        try Task.checkCancellation()
-        callbacks.didReceiveData(
-          fakeData,
-          HTTPURLResponse(
-            url: url,
-            statusCode: 200,
-            httpVersion: nil,
-            headerFields: nil
-          )!
-        )
-        callbacks.completion(nil)
-      } else {
-        callbacks.completion(URLError(.fileDoesNotExist))
-      }
-    }
+    let response = HTTPURLResponse(
+      url: url,
+      statusCode: 200,
+      httpVersion: nil,
+      headerFields: nil
+    )!
 
-    return TaskCancellable(task: task)
+    guard let fakeHandler = fakeHandlers[url] ?? defaultHandler() else {
+      throw URLError(.fileDoesNotExist)
+    }
+    let data = try await fakeHandler(url)
+    try Task.checkCancellation()
+    let stream = AsyncThrowingStream<Data, any Error> { continuation in
+      continuation.yield(data)
+      continuation.finish()
+    }
+    return (stream, response)
   }
 
   // MARK: - Test Helpers

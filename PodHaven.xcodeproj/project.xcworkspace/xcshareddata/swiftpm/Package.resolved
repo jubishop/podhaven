@@ -25,7 +25,7 @@
       "location" : "https://github.com/kean/Nuke",
       "state" : {
         "branch" : "main",
-        "revision" : "83e19143355b02e9261edb2323b3e1e93287ebb9"
+        "revision" : "60a9506ae2b9d3eac66c4fa70225a1fe02a5362f"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/getsentry/sentry-cocoa/",
       "state" : {
         "branch" : "main",
-        "revision" : "b98414228953f3fc2deea76300fc2e0d3f096a30"
+        "revision" : "e921ff97637838aa9080a35975ce57a10581e7ee"
       }
     },
     {
@@ -70,7 +70,7 @@
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
         "branch" : "main",
-        "revision" : "3e505b97bbabd1e3f6431b65fbe73a04b5f94442"
+        "revision" : "6675bc0ff86e61436e615df6fc5174e043e57924"
       }
     },
     {
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-custom-dump",
       "state" : {
-        "revision" : "2a2a938798236b8fa0bc57c453ee9de9f9ec3ab0",
-        "version" : "1.4.1"
+        "revision" : "06c57924455064182d6b217f06ebc05d00cb2990",
+        "version" : "1.5.0"
       }
     },
     {
@@ -106,7 +106,7 @@
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
         "branch" : "main",
-        "revision" : "4f1022c5cd566f78b360766360ff5743f3d59708"
+        "revision" : "154acdf7d45e63427310b2b31448afdb956b3966"
       }
     },
     {
@@ -142,7 +142,7 @@
       "location" : "https://github.com/swiftlang/swift-syntax",
       "state" : {
         "branch" : "main",
-        "revision" : "491b82f2c03b6aafbfa4e6d80ebdf4d346a3217b"
+        "revision" : "33e65f8d5bc8823a1402ef76332970822824b36a"
       }
     },
     {
