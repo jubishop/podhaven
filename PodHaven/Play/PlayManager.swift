@@ -52,7 +52,6 @@ final class PlayManager {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
-  @DynamicInjected(\.sleeper) private var sleeper
   @DynamicInjected(\.stateManager) private var stateManager
   @DynamicInjected(\.userSettings) private var userSettings
 
@@ -63,7 +62,6 @@ final class PlayManager {
 
   // MARK: - Configurable Constants
 
-  let seekIgnoreTime: Duration = .seconds(1)
   let recoveryDebounceInterval: TimeInterval = 5
 
   // MARK: - State Management
@@ -73,8 +71,7 @@ final class PlayManager {
   private var loadTask: Task<Bool, any Error>?
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
-  private var restartSeekCommandsTask: Task<Void, any Error>?
-  private var ignoreSeekCommands = false
+  private var ignoreRemoteScrubCommands = false
   private var lastLoggedTime: Double = 0
 
   // MARK: - Initialization
@@ -344,7 +341,9 @@ final class PlayManager {
     guard episodeID == onDeckID
     else { return }
 
-    temporarilyHaltSeekCommands()
+    ignoreRemoteScrubCommands = true
+    defer { ignoreRemoteScrubCommands = false }
+
     await clearOnDeck()
 
     // Automatically load and play the next episode if one exists
@@ -617,18 +616,6 @@ final class PlayManager {
     sharedState.setPlayRate(rate)
   }
 
-  private func temporarilyHaltSeekCommands() {
-    restartSeekCommandsTask?.cancel()
-    ignoreSeekCommands = true
-    restartSeekCommandsTask = Task { [weak self] in
-      guard let self else { return }
-
-      try await sleeper.sleep(for: seekIgnoreTime)
-      try Task.checkCancellation()
-      ignoreSeekCommands = false
-    }
-  }
-
   // MARK: - Private Change Handlers
 
   private func handleItemStatusChange(status: AVPlayerItem.Status, episodeID: Episode.ID) async {
@@ -879,9 +866,29 @@ final class PlayManager {
           await seekForward(interval)
         case .skipBackward(let interval):
           await seekBackward(interval)
-        case .playbackPosition(let position):
-          if ignoreSeekCommands {
-            Self.log.debug("playManager: ignoring seek to \(position)")
+        case .playbackPosition(let position, let sourceEpisodeID):
+          guard let sourceEpisodeID, let currentEpisodeID = sharedState.onDeck?.id else {
+            Self.log.debug(
+              """
+              playManager: dropping remote scrub to \(position) because no on-deck episode is \
+              bound
+              """
+            )
+            continue
+          }
+
+          guard sourceEpisodeID == currentEpisodeID else {
+            Self.log.debug(
+              """
+              playManager: dropping stale remote scrub to \(position) from episode \
+              \(sourceEpisodeID) while current episode is \(currentEpisodeID)
+              """
+            )
+            continue
+          }
+
+          if ignoreRemoteScrubCommands {
+            Self.log.debug("playManager: ignoring remote scrub to \(position) during transition")
             continue
           }
           await seek(to: CMTime.seconds(position))

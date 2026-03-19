@@ -5,7 +5,6 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import MediaPlayer
-import Semaphore
 import Testing
 
 @testable import PodHaven
@@ -24,8 +23,8 @@ import Testing
   private var mpRemoteCommandCenter: FakeMPRemoteCommandCenter {
     Container.shared.mpRemoteCommandCenter() as! FakeMPRemoteCommandCenter
   }
-  private var sleeper: FakeSleeper {
-    Container.shared.sleeper() as! FakeSleeper
+  private var commandCenterContinuation: AsyncStream<CommandCenter.Command>.Continuation {
+    Container.shared.commandCenterStream().continuation
   }
 
   init() async throws {
@@ -105,8 +104,8 @@ import Testing
     try await PlayHelpers.waitFor(CMTime.seconds(5))
   }
 
-  @Test("seek commands are ignored during episode finish")
-  func seekCommandsAreIgnoredDuringEpisodeFinish() async throws {
+  @Test("stale seek commands are ignored after episode finish")
+  func staleSeekCommandsAreIgnoredAfterEpisodeFinish() async throws {
     await playManager.start()
     let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
 
@@ -115,16 +114,45 @@ import Testing
     await playManager.play()
     try await PlayHelpers.waitFor(.playing)
 
-    // Finish episode which should start ignoring seek commands
+    // Finish the current episode and auto-advance to the queued one.
     avPlayer.finishEpisode()
     try await PlayHelpers.waitForOnDeck(queuedEpisode)
-    mpRemoteCommandCenter.fireSeek(to: .seconds(5))
-    try await PlayHelpers.waitFor(.zero)
 
-    // Advance time to end the halt period
-    try await sleeper.waitForSleepRequests(count: 1)
-    await sleeper.advanceTime(by: .seconds(2))
-    mpRemoteCommandCenter.fireSeek(to: .seconds(10))
+    // Queue a stale scrub from the finished episode, then a pause marker.
+    // Once pause lands, the stale scrub has already been processed.
+    commandCenterContinuation.yield(
+      .playbackPosition(
+        TimeInterval.seconds(5),
+        sourceEpisodeID: playingEpisode.id
+      )
+    )
+    commandCenterContinuation.yield(.pause)
+    try await PlayHelpers.waitFor(.paused)
+
+    #expect(sharedState.onDeck?.id == queuedEpisode.id)
+    #expect(sharedState.onDeck?.currentTime == .zero)
+    #expect(PlayHelpers.nowPlayingCurrentTime == .zero)
+  }
+
+  @Test("fresh seek commands still work after episode finish")
+  func freshSeekCommandsStillWorkAfterEpisodeFinish() async throws {
+    await playManager.start()
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await Container.shared.queue().unshift(queuedEpisode.id)
+    try await playManager.load(playingEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitFor(.playing)
+
+    avPlayer.finishEpisode()
+    try await PlayHelpers.waitForOnDeck(queuedEpisode)
+
+    // Use a pause command as an ordering barrier. Once it lands, the episode
+    // transition is complete and fresh scrubs should be accepted.
+    commandCenterContinuation.yield(.pause)
+    try await PlayHelpers.waitFor(.paused)
+
+    mpRemoteCommandCenter.fireSeek(to: TimeInterval.seconds(10))
     try await PlayHelpers.waitFor(.seconds(10))
   }
 

@@ -26,7 +26,7 @@ enum CommandCenter: Sendable {
     case play, pause, togglePlayPause
     case skipBackward(TimeInterval)
     case skipForward(TimeInterval)
-    case playbackPosition(TimeInterval)
+    case playbackPosition(TimeInterval, sourceEpisodeID: Episode.ID?)
     case changePlaybackRate(Float)
     case nextEpisode
     case previousEpisode
@@ -89,7 +89,12 @@ enum CommandCenter: Sendable {
       guard let positionEvent = event as? any MPChangePlaybackPositionCommandEventable
       else { Assert.fatal("Event is not a MPChangePlaybackPositionCommandEventable") }
 
-      yield(.playbackPosition(positionEvent.positionTime))
+      yield(
+        .playbackPosition(
+          positionEvent.positionTime,
+          sourceEpisodeID: Container.shared.sharedState().currentEpisodeID
+        )
+      )
       return .success
     }
     commandCenter.changePlaybackRate.supportedPlaybackRates =
