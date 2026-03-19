@@ -326,7 +326,7 @@ class ITunesIDTests {
 
     // Create a bridged UnsavedPodcast with different feedURL but same iTunesID
     let searchFeedURL = FeedURL(URL(string: "https://example.com/itunes.rss")!)
-    let bridged = try UnsavedPodcast(
+    let bridged = try Create.unsavedPodcast(
       feedURL: searchFeedURL,
       iTunesID: iTunesID,
       title: "Saved Podcast"
