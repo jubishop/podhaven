@@ -162,22 +162,14 @@ struct Observatory {
     }
   }
 
-  func podcastEpisode(_ episodeID: Episode.ID) -> AsyncValueObservation<PodcastEpisode?> {
+  func episode<T: FetchableRecord & Equatable>(
+    _ episodeID: Episode.ID
+  ) -> AsyncValueObservation<T?> {
     _observe { db in
       try Episode
         .withID(episodeID)
         .including(required: Episode.podcast)
-        .asRequest(of: PodcastEpisode.self)
-        .fetchOne(db)
-    }
-  }
-
-  func onDeck(_ episodeID: Episode.ID) -> AsyncValueObservation<OnDeck?> {
-    _observe { db in
-      try Episode
-        .withID(episodeID)
-        .including(required: Episode.podcast)
-        .asRequest(of: OnDeck.self)
+        .asRequest(of: T.self)
         .fetchOne(db)
     }
   }

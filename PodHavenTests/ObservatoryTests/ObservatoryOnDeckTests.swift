@@ -36,7 +36,7 @@ actor ObservatoryOnDeckTests {
     )
 
     let episode = series.episodes[0]
-    let onDeck = try await observatory.onDeck(episode.id).get()
+    let onDeck: OnDeck? = try await observatory.episode(episode.id).get()
 
     let unwrapped = try #require(onDeck)
     #expect(unwrapped.id == episode.id)
@@ -53,7 +53,7 @@ actor ObservatoryOnDeckTests {
 
   @Test("onDeck() returns nil for a non-existing episode")
   func testOnDeckNonExisting() async throws {
-    let onDeck = try await observatory.onDeck(Episode.ID(rawValue: 999)).get()
+    let onDeck: OnDeck? = try await observatory.episode(Episode.ID(rawValue: 999)).get()
     #expect(onDeck == nil)
   }
 
@@ -93,7 +93,7 @@ actor ObservatoryOnDeckTests {
     )
 
     let episode = series.episodes[0]
-    let onDeck = try #require(try await observatory.onDeck(episode.id).get())
+    let onDeck: OnDeck = try #require(try await observatory.episode(episode.id).get())
 
     // Episode fields
     #expect(onDeck.id == episode.id)
@@ -160,9 +160,8 @@ actor ObservatoryOnDeckTests {
     )
 
     let episode = series.episodes[0]
-    let podcastEpisode = try #require(
-      try await observatory.podcastEpisode(episode.id).get()
-    )
+    let optionalEpisode: PodcastEpisode? = try await observatory.episode(episode.id).get()
+    let podcastEpisode = try #require(optionalEpisode)
     let onDeck = OnDeck(from: podcastEpisode)
 
     // Episode fields
@@ -200,7 +199,7 @@ actor ObservatoryOnDeckTests {
     let updateCount = Counter()
 
     Task {
-      for try await _ in observatory.onDeck(episode.id) {
+      for try await _: OnDeck? in observatory.episode(episode.id) {
         await updateCount.increment()
       }
     }
@@ -228,7 +227,7 @@ actor ObservatoryOnDeckTests {
     let updateCount = Counter()
 
     Task {
-      for try await _ in observatory.onDeck(episode.id) {
+      for try await _: OnDeck? in observatory.episode(episode.id) {
         await updateCount.increment()
       }
     }
@@ -249,7 +248,7 @@ actor ObservatoryOnDeckTests {
     let receivedNil = ActorContainer<Bool>()
 
     Task {
-      for try await onDeck in observatory.onDeck(episode.id) {
+      for try await onDeck: OnDeck? in observatory.episode(episode.id) {
         if onDeck != nil {
           await receivedNonNil.set(true)
         } else {
