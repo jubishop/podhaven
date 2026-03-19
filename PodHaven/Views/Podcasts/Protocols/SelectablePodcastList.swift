@@ -22,7 +22,6 @@ import Logging
   var anySelectedSubscribed: Bool { get }
   var anySelectedUnsubscribed: Bool { get }
   var anySelectedSaved: Bool { get }
-  var anySelectedSavedOrSubscribed: Bool { get }
 
   func deleteSelectedPodcasts()
   func subscribeSelectedPodcasts()
@@ -57,10 +56,6 @@ extension SelectablePodcastList {
 
   var anySelectedSaved: Bool {
     selectedPodcastsWithMetadata.contains(where: \.isSaved)
-  }
-
-  var anySelectedSavedOrSubscribed: Bool {
-    selectedPodcastsWithMetadata.contains { $0.isSaved || $0.subscribed }
   }
 
   // MARK: - Actions
