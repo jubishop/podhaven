@@ -39,3 +39,4 @@ worktrees
 
 # Claude
 *.save
+.tmp/
