@@ -28,6 +28,14 @@ jobs:
             -testPlan PodHaven \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             -skipMacroValidation \
+            -resultBundlePath TestResults \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | xcbeautify --renderer github-actions --is-ci
+
+      - name: Print test failures
+        if: failure()
+        run: |
+          xcresulttool get test-results summary \
+            --path TestResults.xcresult \
+            --compact
