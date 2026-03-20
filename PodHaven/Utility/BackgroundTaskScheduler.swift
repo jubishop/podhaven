@@ -154,13 +154,27 @@ struct BackgroundTaskScheduler: Sendable {
       """
     )
 
-    BGTaskScheduler.shared.getPendingTaskRequests { requests in
-      Self.log.debug(
-        """
-        Pending background tasks:
-          \(Self.formatPendingTasks(requests))
-        """
-      )
+    confirmAndLogPendingTask()
+  }
+
+  func confirmAndLogPendingTask() {
+    Assert.precondition(
+      lastAttempt != .distantPast,
+      "confirmAndLogPendingTask called before any scheduling attempt"
+    )
+
+    BGTaskScheduler.shared.getPendingTaskRequests { [self] requests in
+      let hasPending = requests.contains { $0.identifier == identifier }
+      if hasPending {
+        Self.log.debug("Pending task verified for '\(identifier)'")
+      } else {
+        Self.log.error(
+          """
+          Expected a pending task for '\(identifier)' but none found — \
+          last scheduling attempt: \(lastAttempt.formatted())
+          """
+        )
+      }
     }
   }
 }
