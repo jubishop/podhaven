@@ -38,5 +38,6 @@ worktrees
 .todos/
 
 # Claude
+.claude/plans
 *.save
 .tmp/
