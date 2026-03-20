@@ -32,8 +32,14 @@ struct WidgetService {
 
     switch pathComponents.first {
     case "now-playing":
-      Self.log.debug("Widget deep link: now-playing")
-      await navigation.showOnDeckEpisodeDetail()
+      let subpath = pathComponents.dropFirst().first
+      if subpath == "episode" {
+        Self.log.debug("Widget deep link: now-playing episode detail")
+        await navigation.showOnDeckEpisodeDetail()
+      } else {
+        Self.log.debug("Widget deep link: now-playing play bar sheet")
+        await navigation.showPlayBarSheet()
+      }
 
     case "queue":
       if let idString = pathComponents.dropFirst().first,

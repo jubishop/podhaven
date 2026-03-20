@@ -333,6 +333,13 @@ extension Container {
     PlayBar.showOnDeckEpisodeDetail()
   }
 
+  func showPlayBarSheet() {
+    Self.log.debug("Showing play bar sheet")
+
+    currentTab = .upNext
+    PlayBar.showPlayBarSheet(viewModel: PlayBarViewModel())
+  }
+
   // MARK: - UpNext
 
   var upNext = PathManager()

@@ -134,7 +134,7 @@ struct NowPlayingWidgetView: View {
   // MARK: - Components
 
   private func artworkView(size: CGFloat) -> some View {
-    OptionalLink(url: URL(string: "podhaven://widget/now-playing")) {
+    OptionalLink(url: URL(string: "podhaven://widget/now-playing/episode")) {
       SquareImage(
         image: entry.artwork,
         cornerRadius: 8,

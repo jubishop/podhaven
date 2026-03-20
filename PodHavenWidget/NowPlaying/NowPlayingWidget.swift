@@ -113,6 +113,7 @@ struct NowPlayingWidget: Widget {
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: NowPlayingProvider()) { entry in
       NowPlayingWidgetView(entry: entry)
+        .widgetURL(URL(string: "podhaven://widget/now-playing"))
         .containerBackground(.fill.tertiary, for: .widget)
     }
     .configurationDisplayName("Now Playing")
