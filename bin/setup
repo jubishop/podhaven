@@ -1,0 +1,7 @@
+#!/bin/bash
+# One-time project setup after cloning.
+
+set -eo pipefail
+
+git config core.hooksPath bin/hooks
+echo "Git hooks configured."

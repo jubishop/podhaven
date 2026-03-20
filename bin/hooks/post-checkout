@@ -1,0 +1,10 @@
+#!/bin/bash
+# Automatically run prep-worktree when a new worktree is created.
+# $1 = previous HEAD (null hash for new worktrees), $2 = new HEAD, $3 = branch flag
+
+if [ "$1" = "0000000000000000000000000000000000000000" ]; then
+  SCRIPT="$(git rev-parse --show-toplevel)/bin/prep-worktree"
+  if [ -x "$SCRIPT" ]; then
+    "$SCRIPT" "$(git rev-parse --show-toplevel)"
+  fi
+fi
