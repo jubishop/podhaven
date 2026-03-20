@@ -30,4 +30,4 @@ jobs:
             -skipMacroValidation \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | xcbeautify --renderer github-actions --quiet --is-ci
+            2>&1 | xcbeautify --renderer github-actions --is-ci
