@@ -60,12 +60,13 @@ fi
 BUILD_LOG="/tmp/prep-worktree-build-$(basename "$WORKTREE_PATH").log"
 if [ ! -f "$WT_DD/Build/Products" ] || [ "$(find "$WT_DD/Build" -name '*.o' 2>/dev/null | head -1)" = "" ]; then
   echo "Starting background build to warm cache..."
-  (cd "$WORKTREE_PATH" && xcodebuild build \
+  cd "$WORKTREE_PATH" && xcodebuild build \
     -project "$PROJECT_NAME.xcodeproj" \
     -scheme "$PROJECT_NAME" \
     -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
     -quiet \
-    > "$BUILD_LOG" 2>&1 &)
+    > "$BUILD_LOG" 2>&1 </dev/null &
+  disown 2>/dev/null || true
   echo "Build running in background (log: $BUILD_LOG)"
 else
   echo "Build artifacts already exist, skipping background build"
