@@ -123,7 +123,7 @@ struct SearchView: View {
     case .loading:
       loadingView(text: "Searching for \(viewModel.searchedText)...")
     case .loaded:
-      if viewModel.podcastList.filteredEntries.isEmpty {
+      if viewModel.podcastList.allEntries.isEmpty {
         placeholderView(
           icon: .search,
           title: "No results found",
@@ -160,7 +160,7 @@ struct SearchView: View {
         )
       } else {
         resultsView
-          .animation(.default, value: viewModel.podcastList.filteredEntries)
+          .animation(.default, value: viewModel.podcastList.allEntries)
       }
     case .error(let message):
       errorView(title: "Unable to Load", message: message)
@@ -181,7 +181,7 @@ struct SearchView: View {
 
   private var resultsGrid: some View {
     ScrollView {
-      ItemGrid(items: viewModel.podcastList.filteredEntries) { podcastWithEpisodeMetadata in
+      ItemGrid(items: viewModel.podcastList.allEntries) { podcastWithEpisodeMetadata in
         NavigationLink(
           value: Navigation.Destination.podcast(podcastWithEpisodeMetadata.podcast),
           label: {
@@ -204,7 +204,7 @@ struct SearchView: View {
 
   private var resultsList: some View {
     List {
-      ForEach(viewModel.podcastList.filteredEntries) { podcastWithEpisodeMetadata in
+      ForEach(viewModel.podcastList.allEntries) { podcastWithEpisodeMetadata in
         NavigationLink(
           value: Navigation.Destination.podcast(podcastWithEpisodeMetadata.podcast),
           label: {
