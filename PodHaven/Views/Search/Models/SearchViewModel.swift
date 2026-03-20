@@ -413,17 +413,20 @@ class SearchViewModel:
           \(podcasts.count) saved podcasts
         """
       )
+      var updatedIDs: Set<FeedURL> = []
       for podcast in podcasts {
         if let (feedURL, updated) = buildUpdatedResult(
           for: podcast,
           in: searchResults
         ) {
           searchResults[id: feedURL] = updated
+          updatedIDs.insert(feedURL)
         } else {
           Self.log.notice("Observed podcast: \(podcast.toString) not showing in search?")
         }
       }
 
+      searchResults = revertDeletedPodcasts(in: searchResults, updatedIDs: updatedIDs)
       syncPodcastListToSearchResults()
     }
   }
@@ -445,17 +448,23 @@ class SearchViewModel:
           \(podcasts.count) saved podcasts
         """
       )
+      var updatedIDs: Set<FeedURL> = []
       for podcast in podcasts {
         if let (feedURL, updated) = buildUpdatedResult(
           for: podcast,
           in: trendingSection.results
         ) {
           trendingSection.results[id: feedURL] = updated
+          updatedIDs.insert(feedURL)
         } else {
           Self.log.notice("Observed podcast: \(podcast.toString) not showing in trending?")
         }
       }
 
+      trendingSection.results = revertDeletedPodcasts(
+        in: trendingSection.results,
+        updatedIDs: updatedIDs
+      )
       syncPodcastListToTrendingResults(trendingSection)
     }
   }
@@ -490,6 +499,38 @@ class SearchViewModel:
           remarkable: .info
         )
       }
+    }
+  }
+
+  // MARK: - Deletion Reversion
+
+  private func revertDeletedPodcasts(
+    in results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>>,
+    updatedIDs: Set<FeedURL>
+  ) -> IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> {
+    var results = results
+    for result in results where !updatedIDs.contains(result.id) {
+      if let reverted = revertToUnsaved(result) {
+        results[id: result.id] = reverted
+      }
+    }
+    return results
+  }
+
+  private func revertToUnsaved(
+    _ result: PodcastWithEpisodeMetadata<DisplayedPodcast>
+  ) -> PodcastWithEpisodeMetadata<DisplayedPodcast>? {
+    guard result.podcast.getPodcast() != nil else { return nil }
+    do {
+      let unsaved = try result.podcast.toOriginalUnsavedPodcast()
+      return PodcastWithEpisodeMetadata(
+        podcast: DisplayedPodcast(unsaved),
+        episodeCount: 0,
+        mostRecentEpisodeDate: nil
+      )
+    } catch {
+      Self.log.caughtError("revertToUnsaved: failed for \(result.podcast.title)", error)
+      return nil
     }
   }
 
