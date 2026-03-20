@@ -1,16 +1,3 @@
 {
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo test >> /tmp/link-deriveddata.log",
-            "timeout": 10
-          }
-        ]
-      }
-    ]
-  },
   "enabledPlugins": {}
 }
