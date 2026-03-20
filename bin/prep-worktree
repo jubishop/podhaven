@@ -1,0 +1,74 @@
+#!/bin/bash
+# Prepares a worktree for Xcode by sharing SourcePackages and enabling compilation caching.
+# Usage: prep-worktree <worktree-path>
+
+set -eo pipefail
+
+if [ -z "$1" ]; then
+  echo "Usage: prep-worktree <worktree-path>"
+  exit 1
+fi
+
+WORKTREE_PATH="$(cd "$1" && pwd)"
+MAIN_REPO="$(cd "$(git -C "$WORKTREE_PATH" rev-parse --git-common-dir)/.." && pwd)"
+DERIVED_DATA_DIR="$HOME/Library/Developer/Xcode/DerivedData"
+PROJECT_NAME="PodHaven"
+
+xcode_hash() {
+  python3 -c "
+import hashlib, struct, sys
+md5 = hashlib.md5(sys.argv[1].encode('utf-8')).digest()
+hi, lo = struct.unpack('>QQ', md5)
+r = [''] * 28
+v = hi
+for i in range(13, -1, -1):
+    r[i] = chr(ord('a') + v % 26); v //= 26
+v = lo
+for i in range(27, 13, -1):
+    r[i] = chr(ord('a') + v % 26); v //= 26
+print(''.join(r))
+" "$1"
+}
+
+MAIN_HASH=$(xcode_hash "$MAIN_REPO/$PROJECT_NAME.xcodeproj")
+MAIN_DD="$DERIVED_DATA_DIR/$PROJECT_NAME-$MAIN_HASH"
+
+WT_HASH=$(xcode_hash "$WORKTREE_PATH/$PROJECT_NAME.xcodeproj")
+WT_DD="$DERIVED_DATA_DIR/$PROJECT_NAME-$WT_HASH"
+
+# Symlink SourcePackages
+if [ -d "$MAIN_DD/SourcePackages" ] && [ ! -e "$WT_DD/SourcePackages" ]; then
+  mkdir -p "$WT_DD"
+  ln -s "$MAIN_DD/SourcePackages" "$WT_DD/SourcePackages"
+  echo "Linked SourcePackages"
+elif [ -L "$WT_DD/SourcePackages" ]; then
+  echo "SourcePackages already linked"
+elif [ ! -d "$MAIN_DD/SourcePackages" ]; then
+  echo "Warning: main repo SourcePackages not found — build in Xcode from main first"
+fi
+
+# Copy compilation caching settings
+SETTINGS_SRC="$MAIN_REPO/$PROJECT_NAME.xcodeproj/project.xcworkspace/xcuserdata/$(whoami).xcuserdatad/WorkspaceSettings.xcsettings"
+SETTINGS_DST="$WORKTREE_PATH/$PROJECT_NAME.xcodeproj/project.xcworkspace/xcuserdata/$(whoami).xcuserdatad/WorkspaceSettings.xcsettings"
+if [ -f "$SETTINGS_SRC" ] && [ ! -f "$SETTINGS_DST" ]; then
+  mkdir -p "$(dirname "$SETTINGS_DST")"
+  cp "$SETTINGS_SRC" "$SETTINGS_DST"
+  echo "Copied workspace settings (compilation caching)"
+fi
+
+# Kick off a background build to warm the cache
+BUILD_LOG="/tmp/prep-worktree-build-$(basename "$WORKTREE_PATH").log"
+if [ ! -f "$WT_DD/Build/Products" ] || [ "$(find "$WT_DD/Build" -name '*.o' 2>/dev/null | head -1)" = "" ]; then
+  echo "Starting background build to warm cache..."
+  (cd "$WORKTREE_PATH" && xcodebuild build \
+    -project "$PROJECT_NAME.xcodeproj" \
+    -scheme "$PROJECT_NAME" \
+    -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+    -quiet \
+    > "$BUILD_LOG" 2>&1 &)
+  echo "Build running in background (log: $BUILD_LOG)"
+else
+  echo "Build artifacts already exist, skipping background build"
+fi
+
+echo "Ready: open $WORKTREE_PATH/$PROJECT_NAME.xcodeproj"
