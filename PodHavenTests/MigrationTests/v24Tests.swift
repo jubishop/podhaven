@@ -6,7 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("v24 migration tests", .container)
+@Suite("of v24 migration tests", .container)
 class V24MigrationTests {
   private let appDB = AppDB.inMemory(migrate: false)
   private let migrator: DatabaseMigrator

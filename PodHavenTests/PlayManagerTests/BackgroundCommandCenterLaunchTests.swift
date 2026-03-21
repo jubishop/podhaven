@@ -8,7 +8,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Background command center launch tests", .container)
+@Suite("of Background command center launch tests", .container)
 @MainActor struct BackgroundCommandCenterLaunchTests {
   @DynamicInjected(\.sharedState) private var sharedState
 

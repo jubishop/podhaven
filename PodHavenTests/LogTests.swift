@@ -1,14 +1,10 @@
 // Copyright Justin Bishop, 2025
 
-import AVFoundation
-import FactoryKit
-import FactoryTesting
-import Foundation
 import Testing
 
 @testable import PodHaven
 
-@Suite("of Log tests", .container)
+@Suite("of Log tests")
 class LogTests {
   @Test("log enum values")
   func logEnumValues() async throws {

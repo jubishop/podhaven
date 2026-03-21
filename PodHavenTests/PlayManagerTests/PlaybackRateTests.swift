@@ -9,7 +9,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Playback rate tests", .container)
+@Suite("of Playback rate tests", .container)
 @MainActor struct PlaybackRateTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.playManager) private var playManager

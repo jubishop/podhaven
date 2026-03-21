@@ -9,7 +9,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Episode persistence tests", .container)
+@Suite("of Episode persistence tests", .container)
 class EpisodePersistenceTests {
   @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.queue) private var queue

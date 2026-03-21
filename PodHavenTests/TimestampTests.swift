@@ -4,7 +4,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Timestamp parsing and formatting", .container)
+@Suite("of Timestamp parsing and formatting tests")
 struct TimestampTests {
   // MARK: - parse
 
