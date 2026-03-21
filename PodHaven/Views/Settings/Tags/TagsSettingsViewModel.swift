@@ -52,7 +52,7 @@ import SwiftUI
       guard let self else { return }
 
       do {
-        try await repo.insertTag(named: name)
+        try await repo.insertTag(UnsavedTag(name: name))
         newTagName = ""
       } catch {
         Self.log.caughtError("addTag: failed to insert tag '\(name)'", error)

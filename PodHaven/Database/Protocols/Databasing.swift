@@ -56,7 +56,7 @@ protocol Databasing: Sendable {
   // MARK: - Tag Writers
 
   @discardableResult
-  func insertTag(named: String) async throws -> Tag
+  func insertTag(_ unsavedTag: UnsavedTag) async throws -> Tag
 
   @discardableResult
   func renameTag(_ tagID: Tag.ID, newName: String) async throws -> Bool
