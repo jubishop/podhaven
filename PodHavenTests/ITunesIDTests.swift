@@ -8,7 +8,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("iTunes ID tests", .container)
+@Suite("of iTunes ID tests", .container)
 class ITunesIDTests {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.observatory) private var observatory

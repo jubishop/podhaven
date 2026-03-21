@@ -8,7 +8,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Queue management tests", .container)
+@Suite("of Queue management tests", .container)
 @MainActor struct QueueManagementTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader

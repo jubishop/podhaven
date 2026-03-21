@@ -8,7 +8,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Cache functionality tests", .container)
+@Suite("of Cache functionality tests", .container)
 @MainActor struct CacheTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader

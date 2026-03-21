@@ -234,7 +234,7 @@ Tests should exercise production code, not reimplement it. If a test needs compl
 - Run `swift-format` on every test file you touch.
 - Use `//` for comments, not `///`.
 - Use `[weak self]` in closures and Tasks that capture `self`.
-- No force-unwraps (`!`) except when casting to known fake types (e.g. `as! FakeRepo`).
+- Force-unwraps (`!`) are acceptable in test code.
 - No unused code, properties, or parameters.
 
 ## Audit Steps
@@ -253,7 +253,6 @@ Search the scoped files for:
 - `@Suite` without `.container` — verify the test genuinely needs no DI
 - `Thread.sleep` — must never appear
 - Direct `sleeper.sleep` calls — verify they are advancing fake time, not delaying
-- Force-unwraps (`!`) — verify they are only on fake casts (`as! FakeSomething`)
 - Missing `Wait.until` / `Wait.forValue` — flag any polling loops or artificial delays
 - Inline setup logic that should use `Create` helpers or domain helpers
 

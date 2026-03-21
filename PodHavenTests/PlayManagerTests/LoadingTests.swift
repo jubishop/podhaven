@@ -11,7 +11,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Loading tests", .container)
+@Suite("of Loading tests", .container)
 @MainActor struct LoadingTests {
   @DynamicInjected(\.fakeAudioSession) private var audioSession
   @DynamicInjected(\.cacheManager) private var cacheManager
@@ -173,7 +173,7 @@ import Testing
       to: failingEpisode.episode.mediaURL,
       error: TestError.assetLoadFailure(failingEpisode)
     )
-    _ = try? await playManager.load(failingEpisode)
+    do { try await playManager.load(failingEpisode) } catch { /* expected */  }
     try await PlayHelpers.waitForAudioActive(false)
   }
 

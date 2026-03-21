@@ -9,7 +9,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Command center tests", .container)
+@Suite("of Command center tests", .container)
 @MainActor struct CommandCenterTests {
   @DynamicInjected(\.fakeAudioSession) private var audioSession
   @DynamicInjected(\.cacheManager) private var cacheManager

@@ -9,7 +9,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Episode deletion and cache tests", .container)
+@Suite("of Episode deletion and cache tests", .container)
 class EpisodeDeletionAndCacheTests {
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.queue) private var queue

@@ -7,7 +7,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("SearchResultPodcast tests", .container)
+@Suite("of SearchResultPodcast tests", .container)
 class SearchResultPodcastTests {
   @DynamicInjected(\.repo) private var repo
 
