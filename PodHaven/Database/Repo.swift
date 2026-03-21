@@ -293,13 +293,8 @@ struct Repo: Databasing, Sendable {
 
   @discardableResult
   func insertTag(_ unsavedTag: UnsavedTag) async throws -> Tag {
-    let normalizedName = unsavedTag.name.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !normalizedName.isEmpty else {
-      throw DatabaseError(message: "Tag name cannot be empty")
-    }
-
-    return try await appDB.db.write { db in
-      try UnsavedTag(name: normalizedName).insertAndFetch(db, as: Tag.self)
+    try await appDB.db.write { db in
+      try unsavedTag.insertAndFetch(db, as: Tag.self)
     }
   }
 
