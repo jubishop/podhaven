@@ -158,10 +158,9 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   func confirmAndLogPendingTask() {
-    Assert.precondition(
-      lastAttempt != .distantPast,
-      "confirmAndLogPendingTask called before any scheduling attempt"
-    )
+    guard lastAttempt != .distantPast else {
+      return
+    }
 
     BGTaskScheduler.shared.getPendingTaskRequests { [self] requests in
       let hasPending = requests.contains { $0.identifier == identifier }

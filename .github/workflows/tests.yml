@@ -36,6 +36,20 @@ jobs:
       - name: Print test failures
         if: failure()
         run: |
-          $(xcrun --find xcresulttool) get test-results summary \
+          json=$($(xcrun --find xcresulttool) get test-results summary \
             --path TestResults.xcresult \
-            --compact
+            --compact)
+          echo "$json" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for f in data.get('testFailures', []):
+              name = f.get('testName', 'Unknown test')
+              text = f.get('failureText', 'No details')
+              print(f'::error title={name}::{text}')
+          if not data.get('testFailures'):
+              print('::error::Tests failed but no failure details were captured')
+          passed = data.get('passedTests', 0)
+          failed = data.get('failedTests', 0)
+          skipped = data.get('skippedTests', 0)
+          print(f'\nResults: {passed} passed, {failed} failed, {skipped} skipped')
+          "
