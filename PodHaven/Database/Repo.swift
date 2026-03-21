@@ -292,14 +292,9 @@ struct Repo: Databasing, Sendable {
   // MARK: - Tag Writers
 
   @discardableResult
-  func insertTag(named: String) async throws -> Tag {
-    let normalizedName = named.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !normalizedName.isEmpty else {
-      throw DatabaseError(message: "Tag name cannot be empty")
-    }
-
-    return try await appDB.db.write { db in
-      try UnsavedTag(name: normalizedName).insertAndFetch(db, as: Tag.self)
+  func insertTag(_ unsavedTag: UnsavedTag) async throws -> Tag {
+    try await appDB.db.write { db in
+      try unsavedTag.insertAndFetch(db, as: Tag.self)
     }
   }
 

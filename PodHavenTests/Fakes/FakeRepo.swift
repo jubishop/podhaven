@@ -157,9 +157,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
-  func insertTag(named: String) async throws -> Tag {
-    recordCall(methodName: "insertTag", parameters: named)
-    return try await repo.insertTag(named: named)
+  func insertTag(_ unsavedTag: UnsavedTag) async throws -> Tag {
+    recordCall(methodName: "insertTag", parameters: unsavedTag)
+    return try await repo.insertTag(unsavedTag)
   }
 
   @discardableResult

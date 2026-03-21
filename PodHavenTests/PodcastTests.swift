@@ -475,7 +475,7 @@ class PodcastTests {
       UnsavedPodcastSeries(unsavedPodcast: Create.unsavedPodcast())
     )
 
-    let tag = try await repo.insertTag(named: "Tech")
+    let tag = try await repo.insertTag(UnsavedTag(name: "Tech"))
     try await repo.addTag(tag.id, to: series1.id)
 
     let untagged = try await repo.db.read { db in

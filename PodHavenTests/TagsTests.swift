@@ -15,10 +15,10 @@ class TagsTests {
 
   @Test("insertTag() trims and throws on case-insensitive duplicates")
   func insertTagThrowsOnDuplicate() async throws {
-    _ = try await repo.insertTag(named: "  Swift  ")
+    _ = try await repo.insertTag(UnsavedTag(name: "  Swift  "))
 
     await #expect(throws: DatabaseError.self) {
-      _ = try await self.repo.insertTag(named: "swift")
+      _ = try await self.repo.insertTag(UnsavedTag(name: "swift"))
     }
 
     let tags = try await observatory.tags().get()
@@ -28,11 +28,11 @@ class TagsTests {
   @Test("insertTag() throws on empty string")
   func insertTagThrowsOnEmpty() async throws {
     await #expect(throws: DatabaseError.self) {
-      _ = try await self.repo.insertTag(named: "")
+      _ = try await self.repo.insertTag(UnsavedTag(name: ""))
     }
 
     await #expect(throws: DatabaseError.self) {
-      _ = try await self.repo.insertTag(named: "   ")
+      _ = try await self.repo.insertTag(UnsavedTag(name: "   "))
     }
 
     let tags = try await observatory.tags().get()
@@ -41,9 +41,9 @@ class TagsTests {
 
   @Test("observatory.tags() returns tags ordered by case-insensitive name")
   func tagsReturnsOrdered() async throws {
-    _ = try await repo.insertTag(named: "zeta")
-    _ = try await repo.insertTag(named: "Alpha")
-    _ = try await repo.insertTag(named: "beta")
+    _ = try await repo.insertTag(UnsavedTag(name: "zeta"))
+    _ = try await repo.insertTag(UnsavedTag(name: "Alpha"))
+    _ = try await repo.insertTag(UnsavedTag(name: "beta"))
 
     let tags = try await observatory.tags().get()
     #expect(tags.map(\.name) == ["Alpha", "beta", "zeta"])
@@ -55,7 +55,7 @@ class TagsTests {
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
 
-    let tag = try await repo.insertTag(named: "Tech")
+    let tag = try await repo.insertTag(UnsavedTag(name: "Tech"))
     try await repo.addTag(tag.id, to: series.id)
 
     await #expect(throws: DatabaseError.self) {
@@ -80,8 +80,8 @@ class TagsTests {
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
 
-    let tagOne = try await repo.insertTag(named: "beta")
-    let tagTwo = try await repo.insertTag(named: "Alpha")
+    let tagOne = try await repo.insertTag(UnsavedTag(name: "beta"))
+    let tagTwo = try await repo.insertTag(UnsavedTag(name: "Alpha"))
 
     _ = try await repo.addTag(tagOne.id, to: series.id)
     _ = try await repo.addTag(tagTwo.id, to: series.id)
@@ -96,7 +96,7 @@ class TagsTests {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
-    let tag = try await repo.insertTag(named: "Tech")
+    let tag = try await repo.insertTag(UnsavedTag(name: "Tech"))
     _ = try await repo.addTag(tag.id, to: series.id)
 
     let withoutTags = try await repo.allPodcastSeries(
@@ -123,7 +123,7 @@ class TagsTests {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
-    let tag = try await repo.insertTag(named: "news")
+    let tag = try await repo.insertTag(UnsavedTag(name: "news"))
     try await repo.addTag(tag.id, to: series.id)
 
     let renamed = try await repo.renameTag(tag.id, newName: "News")
@@ -138,8 +138,8 @@ class TagsTests {
 
   @Test("renameTag() throws on conflict with another tag")
   func renameTagThrowsOnConflict() async throws {
-    _ = try await repo.insertTag(named: "News")
-    let tech = try await repo.insertTag(named: "Tech")
+    _ = try await repo.insertTag(UnsavedTag(name: "News"))
+    let tech = try await repo.insertTag(UnsavedTag(name: "Tech"))
 
     await #expect(throws: DatabaseError.self) {
       _ = try await self.repo.renameTag(tech.id, newName: "news")
@@ -158,9 +158,9 @@ class TagsTests {
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
 
-    let tagOne = try await repo.insertTag(named: "News")
-    let tagTwo = try await repo.insertTag(named: "Tech")
-    _ = try await repo.insertTag(named: "Empty")
+    let tagOne = try await repo.insertTag(UnsavedTag(name: "News"))
+    let tagTwo = try await repo.insertTag(UnsavedTag(name: "Tech"))
+    _ = try await repo.insertTag(UnsavedTag(name: "Empty"))
 
     try await repo.addTag(tagOne.id, to: seriesA.id)
     try await repo.addTag(tagOne.id, to: seriesB.id)
@@ -178,7 +178,7 @@ class TagsTests {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     )
-    let tag = try await repo.insertTag(named: "News")
+    let tag = try await repo.insertTag(UnsavedTag(name: "News"))
 
     _ = try await repo.addTag(tag.id, to: series.id)
     let beforeDelete = try await repo.podcastSeries(series.id)
@@ -201,7 +201,7 @@ class TagsTests {
     )
     let episode = series.episodes[0]
 
-    let tag = try await repo.insertTag(named: "Favorite")
+    let tag = try await repo.insertTag(UnsavedTag(name: "Favorite"))
     try await repo.addTag(tag.id, to: episode.id)
 
     await #expect(throws: DatabaseError.self) {
@@ -225,7 +225,7 @@ class TagsTests {
     )
     let episode = series.episodes[0]
 
-    let tag = try await repo.insertTag(named: "Bookmark")
+    let tag = try await repo.insertTag(UnsavedTag(name: "Bookmark"))
     try await repo.addTag(tag.id, to: episode.id)
 
     let removeBeforeDelete = try await repo.removeTag(tag.id, from: episode.id)
