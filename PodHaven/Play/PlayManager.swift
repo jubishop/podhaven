@@ -139,8 +139,8 @@ final class PlayManager {
       Task { @MainActor [weak self] in
         guard let self else { return }
         await alert("Couldn't get audio permissions") {
-          Button("Send Report and Crash") {
-            Assert.fatal("Failed to initialize the audio session")
+          Button("Send Report and Crash") { [error] in
+            Assert.fatal("Failed to initialize the audio session: \(error)")
           }
         }
       }
