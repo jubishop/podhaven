@@ -28,6 +28,37 @@ jobs:
             -testPlan PodHaven \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             -skipMacroValidation \
+            -resultBundlePath TestResults \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | xcbeautify --renderer github-actions --quiet --is-ci
+            2>&1 | tee xcodebuild.log | xcbeautify --renderer github-actions --is-ci
+
+      - name: Print raw errors
+        if: failure()
+        run: |
+          echo "::group::Raw xcodebuild errors"
+          grep -A 3 -iE '(fatal error|assertion|precondition|trap|crash|error:)' xcodebuild.log || echo "No matching lines found"
+          echo "::endgroup::"
+
+      - name: Print test failures
+        if: failure()
+        run: |
+          json=$($(xcrun --find xcresulttool) get test-results summary \
+            --path TestResults.xcresult \
+            --compact 2>/dev/null) || true
+          if [ -n "$json" ]; then
+            echo "$json" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for f in data.get('testFailures', []):
+              name = f.get('testName', 'Unknown test')
+              text = f.get('failureText', 'No details')
+              print(f'::error title={name}::{text}')
+          passed = data.get('passedTests', 0)
+          failed = data.get('failedTests', 0)
+          skipped = data.get('skippedTests', 0)
+          print(f'\nResults: {passed} passed, {failed} failed, {skipped} skipped')
+          "
+          else
+            echo "::error::No result bundle found — check raw errors above"
+          fi
