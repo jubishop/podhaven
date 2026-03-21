@@ -95,7 +95,7 @@ class EmbeddingServiceTests {
       checkCancellation: false
     )
 
-    let cached = try await repo.fetchEmbedding(for: episode.id)
+    let cached = try await repo.embedding(for: episode.id)
     #expect(cached != nil)
     #expect(cached?.dimension == 3)
 
@@ -107,7 +107,7 @@ class EmbeddingServiceTests {
       checkCancellation: false
     )
 
-    let cached2 = try await repo.fetchEmbedding(for: episode.id)
+    let cached2 = try await repo.embedding(for: episode.id)
     #expect(cached2?.computedAt == originalComputedAt)
   }
 
@@ -135,8 +135,8 @@ class EmbeddingServiceTests {
       embedding: embedding,
       checkCancellation: false
     )
-    let correctHash = try await repo.fetchEmbedding(for: episode.id)!.sourceHash
-    let correctVector = try await repo.fetchEmbedding(for: episode.id)!.floatVector
+    let correctHash = try await repo.embedding(for: episode.id)!.sourceHash
+    let correctVector = try await repo.embedding(for: episode.id)!.floatVector
 
     // Overwrite with a stale hash but different vector
     let staleVector: [Float] = [99.0, 99.0, 99.0]
@@ -148,10 +148,10 @@ class EmbeddingServiceTests {
       dimension: 3,
       computedAt: Date()
     )
-    try await repo.saveEmbedding(staleEmbedding)
+    try await repo.insertEmbedding(staleEmbedding)
 
     // Verify stale embedding was saved
-    let afterStale = try await repo.fetchEmbedding(for: episode.id)!
+    let afterStale = try await repo.embedding(for: episode.id)!
     #expect(afterStale.sourceHash == "stale-hash")
 
     // Recompute — should detect stale hash and recompute
@@ -161,7 +161,7 @@ class EmbeddingServiceTests {
       checkCancellation: false
     )
 
-    let refreshed = try await repo.fetchEmbedding(for: episode.id)!
+    let refreshed = try await repo.embedding(for: episode.id)!
     #expect(refreshed.sourceHash == correctHash)
     #expect(refreshed.floatVector == correctVector)
   }

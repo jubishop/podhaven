@@ -111,11 +111,11 @@ struct EmbeddingService: Sendable {
     podcastID: Podcast.ID,
     embedding: any Embedding
   ) async throws -> [Float]? {
-    if let cached = try await repo.fetchPodcastEmbedding(for: podcastID) {
+    if let cached = try await repo.podcastEmbedding(for: podcastID) {
       return cached.floatVector
     }
 
-    guard let podcast = try await repo.fetchPodcast(podcastID) else { return nil }
+    guard let podcast = try await repo.podcast(podcastID) else { return nil }
 
     let cleanedDescription = cleanText(podcast.description)
     guard !cleanedDescription.isEmpty else { return nil }
@@ -132,7 +132,7 @@ struct EmbeddingService: Sendable {
       dimension: normalized.count,
       computedAt: Date()
     )
-    try await repo.savePodcastEmbedding(podcastEmbedding)
+    try await repo.insertPodcastEmbedding(podcastEmbedding)
 
     return normalized
   }
@@ -147,7 +147,7 @@ struct EmbeddingService: Sendable {
     for episode in episodes {
       if checkCancellation { try Task.checkCancellation() }
 
-      let existingEmbedding = try await repo.fetchEmbedding(for: episode.id)
+      let existingEmbedding = try await repo.embedding(for: episode.id)
       let sourceText = embeddingSourceText(for: episode)
       let hash = sha256(sourceText)
 
@@ -167,7 +167,7 @@ struct EmbeddingService: Sendable {
         dimension: vector.count,
         computedAt: Date()
       )
-      try await repo.saveEmbedding(episodeEmbedding)
+      try await repo.insertEmbedding(episodeEmbedding)
     }
   }
 

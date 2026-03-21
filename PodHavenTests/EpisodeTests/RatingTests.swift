@@ -144,7 +144,7 @@ class EpisodeRatingTests {
 
     _ = try await createPodcastWithEpisode()
 
-    let signals = try await repo.fetchSignalEpisodes()
+    let signals = try await repo.allSignalEpisodes()
     #expect(signals.count == 3)
   }
 }

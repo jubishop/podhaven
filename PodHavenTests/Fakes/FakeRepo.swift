@@ -264,49 +264,49 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.updateSaveInCache(episodeID, saveInCache: saveInCache)
   }
 
-  func fetchPodcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
-    recordCall(methodName: "fetchPodcast", parameters: podcastID)
-    return try await repo.fetchPodcast(podcastID)
+  func podcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
+    recordCall(methodName: "podcast", parameters: podcastID)
+    return try await repo.podcast(podcastID)
   }
 
-  func saveEmbedding(_ embedding: EpisodeEmbedding) async throws {
-    recordCall(methodName: "saveEmbedding", parameters: embedding.episodeId)
-    try await repo.saveEmbedding(embedding)
+  func insertEmbedding(_ embedding: EpisodeEmbedding) async throws {
+    recordCall(methodName: "insertEmbedding", parameters: embedding.episodeId)
+    try await repo.insertEmbedding(embedding)
   }
 
-  func savePodcastEmbedding(_ embedding: PodcastEmbedding) async throws {
-    recordCall(methodName: "savePodcastEmbedding", parameters: embedding.podcastId)
-    try await repo.savePodcastEmbedding(embedding)
+  func insertPodcastEmbedding(_ embedding: PodcastEmbedding) async throws {
+    recordCall(methodName: "insertPodcastEmbedding", parameters: embedding.podcastId)
+    try await repo.insertPodcastEmbedding(embedding)
   }
 
-  func fetchEmbedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
-    recordCall(methodName: "fetchEmbedding", parameters: episodeID)
-    return try await repo.fetchEmbedding(for: episodeID)
+  func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
+    recordCall(methodName: "embedding", parameters: episodeID)
+    return try await repo.embedding(for: episodeID)
   }
 
-  func fetchEmbeddings(for episodeIDs: [Episode.ID]) async throws -> [EpisodeEmbedding] {
-    recordCall(methodName: "fetchEmbeddings", parameters: episodeIDs)
-    return try await repo.fetchEmbeddings(for: episodeIDs)
+  func embeddings(for episodeIDs: [Episode.ID]) async throws -> [EpisodeEmbedding] {
+    recordCall(methodName: "embeddings", parameters: episodeIDs)
+    return try await repo.embeddings(for: episodeIDs)
   }
 
-  func fetchPodcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding? {
-    recordCall(methodName: "fetchPodcastEmbedding", parameters: podcastID)
-    return try await repo.fetchPodcastEmbedding(for: podcastID)
+  func podcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding? {
+    recordCall(methodName: "podcastEmbedding", parameters: podcastID)
+    return try await repo.podcastEmbedding(for: podcastID)
   }
 
-  func fetchSignalEpisodes() async throws -> [Episode] {
-    recordCall(methodName: "fetchSignalEpisodes", parameters: ())
-    return try await repo.fetchSignalEpisodes()
+  func allSignalEpisodes() async throws -> [Episode] {
+    recordCall(methodName: "allSignalEpisodes", parameters: ())
+    return try await repo.allSignalEpisodes()
   }
 
-  func fetchCandidateEpisodes(excludingOnDeckID onDeckID: Episode.ID?) async throws -> [Episode] {
-    recordCall(methodName: "fetchCandidateEpisodes", parameters: onDeckID)
-    return try await repo.fetchCandidateEpisodes(excludingOnDeckID: onDeckID)
+  func allCandidateEpisodes(excludingOnDeckID onDeckID: Episode.ID?) async throws -> [Episode] {
+    recordCall(methodName: "allCandidateEpisodes", parameters: onDeckID)
+    return try await repo.allCandidateEpisodes(excludingOnDeckID: onDeckID)
   }
 
-  func fetchAllPodcastTags() async throws -> [PodcastTag] {
-    recordCall(methodName: "fetchAllPodcastTags", parameters: ())
-    return try await repo.fetchAllPodcastTags()
+  func allPodcastTags() async throws -> [PodcastTag] {
+    recordCall(methodName: "allPodcastTags", parameters: ())
+    return try await repo.allPodcastTags()
   }
 
   @discardableResult

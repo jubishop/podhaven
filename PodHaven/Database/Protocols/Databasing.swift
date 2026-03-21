@@ -20,6 +20,10 @@ protocol Databasing: Sendable {
   func podcastSeries(_ podcastID: Podcast.ID) async throws -> PodcastSeries?
   func podcastSeries(_ feedURL: FeedURL, iTunesID: ITunesPodcastID?) async throws -> PodcastSeries?
 
+  // MARK: - Podcast Readers
+
+  func podcast(_ podcastID: Podcast.ID) async throws -> Podcast?
+
   // MARK: - Episode Readers
 
   func episode(_ episodeID: Episode.ID) async throws -> Episode?
@@ -103,24 +107,6 @@ protocol Databasing: Sendable {
   @discardableResult
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool
 
-  // MARK: - Podcast Readers
-
-  func fetchPodcast(_ podcastID: Podcast.ID) async throws -> Podcast?
-
-  // MARK: - Embedding Readers
-
-  func saveEmbedding(_ embedding: EpisodeEmbedding) async throws
-  func savePodcastEmbedding(_ embedding: PodcastEmbedding) async throws
-  func fetchEmbedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding?
-  func fetchEmbeddings(for episodeIDs: [Episode.ID]) async throws -> [EpisodeEmbedding]
-  func fetchPodcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding?
-
-  // MARK: - Recommendation Readers
-
-  func fetchSignalEpisodes() async throws -> [Episode]
-  func fetchCandidateEpisodes(excludingOnDeckID: Episode.ID?) async throws -> [Episode]
-  func fetchAllPodcastTags() async throws -> [PodcastTag]
-
   @discardableResult
   func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool
 
@@ -163,6 +149,23 @@ protocol Databasing: Sendable {
   @discardableResult
   func updateNotifyNewEpisodes(_ podcastID: Podcast.ID, notifyNewEpisodes: Bool)
     async throws -> Bool
+
+  // MARK: - Embedding Writers
+
+  func insertEmbedding(_ embedding: EpisodeEmbedding) async throws
+  func insertPodcastEmbedding(_ embedding: PodcastEmbedding) async throws
+
+  // MARK: - Embedding Readers
+
+  func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding?
+  func embeddings(for episodeIDs: [Episode.ID]) async throws -> [EpisodeEmbedding]
+  func podcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding?
+
+  // MARK: - Recommendation Readers
+
+  func allSignalEpisodes() async throws -> [Episode]
+  func allCandidateEpisodes(excludingOnDeckID: Episode.ID?) async throws -> [Episode]
+  func allPodcastTags() async throws -> [PodcastTag]
 }
 
 extension Databasing {

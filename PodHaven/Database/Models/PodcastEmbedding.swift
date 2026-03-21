@@ -4,7 +4,7 @@ import Foundation
 import GRDB
 
 struct PodcastEmbedding: Codable, Equatable, FetchableRecord, Hashable, PersistableRecord, Sendable,
-  TableRecord
+  TableRecord, VectorStorable
 {
   // MARK: - Data
 
@@ -32,21 +32,4 @@ struct PodcastEmbedding: Codable, Equatable, FetchableRecord, Hashable, Persista
     static let computedAt = Column("computedAt")
   }
 
-  // MARK: - Vector Conversion
-
-  var floatVector: [Float] {
-    do {
-      return try JSONDecoder().decode([Float].self, from: vector)
-    } catch {
-      Assert.fatal("Failed to decode podcast embedding vector: \(error)")
-    }
-  }
-
-  static func vectorData(from floats: [Float]) -> Data {
-    do {
-      return try JSONEncoder().encode(floats)
-    } catch {
-      Assert.fatal("Failed to encode podcast embedding vector: \(error)")
-    }
-  }
 }

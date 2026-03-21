@@ -105,7 +105,7 @@ struct RecommendationEngine: Sendable {
 
     // Score candidates
     let candidateIDs: [Episode.ID] = candidates.map { $0.id }
-    let candidateEmbeddings = try await repo.fetchEmbeddings(for: candidateIDs)
+    let candidateEmbeddings = try await repo.embeddings(for: candidateIDs)
     let embeddingsByEpisode: [Episode.ID: EpisodeEmbedding] = Dictionary(
       candidateEmbeddings.map { ($0.episodeId, $0) },
       uniquingKeysWith: { first, _ in first }
@@ -147,7 +147,7 @@ struct RecommendationEngine: Sendable {
     signalEpisodes: [Episode]
   ) async throws -> (positive: [Float]?, negative: [Float]?) {
     let episodeIDs: [Episode.ID] = signalEpisodes.map { $0.id }
-    let embeddings = try await repo.fetchEmbeddings(for: episodeIDs)
+    let embeddings = try await repo.embeddings(for: episodeIDs)
     let embeddingsByEpisode: [Episode.ID: EpisodeEmbedding] = Dictionary(
       embeddings.map { ($0.episodeId, $0) },
       uniquingKeysWith: { first, _ in first }
@@ -259,14 +259,14 @@ struct RecommendationEngine: Sendable {
   // MARK: - Fetch Signal Episodes
 
   private func fetchSignalEpisodes() async throws -> [Episode] {
-    try await repo.fetchSignalEpisodes()
+    try await repo.allSignalEpisodes()
   }
 
   // MARK: - Fetch Candidates
 
   private func fetchCandidates() async throws -> [Episode] {
     let onDeckID = Container.shared.sharedState().onDeck?.id
-    return try await repo.fetchCandidateEpisodes(excludingOnDeckID: onDeckID)
+    return try await repo.allCandidateEpisodes(excludingOnDeckID: onDeckID)
   }
 
   // MARK: - Podcast Affinity
@@ -314,7 +314,7 @@ struct RecommendationEngine: Sendable {
     // Get tags from positively-rated episodes' podcasts
     let positivePodcastIDs = Set(positiveEpisodes.map(\.podcastID))
 
-    let allTags = try await repo.fetchAllPodcastTags()
+    let allTags = try await repo.allPodcastTags()
     var allPodcastTags: [Podcast.ID: Set<Tag.ID>] = [:]
     for tag in allTags {
       allPodcastTags[tag.podcastId, default: Set()].insert(tag.tagId)

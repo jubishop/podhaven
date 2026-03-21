@@ -58,14 +58,14 @@ class V33MigrationTests {
       dimension: 3,
       computedAt: Date()
     )
-    try await Container.shared.repo().saveEmbedding(embedding)
+    try await Container.shared.repo().insertEmbedding(embedding)
 
-    let beforeDelete = try await Container.shared.repo().fetchEmbedding(for: episodeID)
+    let beforeDelete = try await Container.shared.repo().embedding(for: episodeID)
     #expect(beforeDelete != nil)
 
     _ = try await Container.shared.repo().deletePodcast(podcastID)
 
-    let afterDelete = try await Container.shared.repo().fetchEmbedding(for: episodeID)
+    let afterDelete = try await Container.shared.repo().embedding(for: episodeID)
     #expect(afterDelete == nil)
   }
 }
