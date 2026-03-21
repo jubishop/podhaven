@@ -23,7 +23,9 @@ enum Create {
     queueOrder: Int? = nil,
     queueDate: Date? = nil,
     cachedFilename: String? = nil,
-    saveInCache: Bool = false
+    saveInCache: Bool = false,
+    rating: EpisodeRating? = nil,
+    ratingDate: Date? = nil
   ) throws -> UnsavedEpisode {
     try UnsavedEpisode(
       podcastId: podcastId,
@@ -40,7 +42,9 @@ enum Create {
       queueOrder: queueOrder,
       queueDate: queueDate,
       cachedFilename: cachedFilename,
-      saveInCache: saveInCache
+      saveInCache: saveInCache,
+      rating: rating,
+      ratingDate: ratingDate
     )
   }
 

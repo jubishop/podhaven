@@ -257,6 +257,34 @@ enum Schema {
       try db.create(indexOn: "podcast", columns: ["iTunesID"], options: .unique)
     }
 
+    migrator.registerMigration("v32") { db in
+      try db.alter(table: "episode") { t in
+        t.add(column: "rating", .text)
+          .check { $0 == nil || $0 == "loved" || $0 == "liked" || $0 == "disliked" }
+        t.add(column: "ratingDate", .datetime)
+      }
+    }
+
+    migrator.registerMigration("v33") { db in
+      try db.create(table: "episodeEmbedding") { t in
+        t.belongsTo("episode", onDelete: .cascade).notNull().unique()
+        t.column("vector", .blob).notNull()
+        t.column("sourceHash", .text).notNull()
+        t.column("embeddingRevision", .integer).notNull()
+        t.column("dimension", .integer).notNull()
+        t.column("computedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+      }
+
+      try db.create(table: "podcastEmbedding") { t in
+        t.belongsTo("podcast", onDelete: .cascade).notNull().unique()
+        t.column("vector", .blob).notNull()
+        t.column("sourceHash", .text).notNull()
+        t.column("embeddingRevision", .integer).notNull()
+        t.column("dimension", .integer).notNull()
+        t.column("computedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+      }
+    }
+
     return migrator
   }
 

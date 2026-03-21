@@ -13,6 +13,7 @@ struct PodHavenApp: App {
   @InjectedObservable(\.sheet) private var sheet
   @DynamicInjected(\.appLauncher) private var appLauncher
   @DynamicInjected(\.cachePurger) private var cachePurger
+  @DynamicInjected(\.embeddingTask) private var embeddingTask
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.notificationService) private var notificationService
@@ -68,6 +69,7 @@ struct PodHavenApp: App {
     appDelegate.handleScenePhaseChange(to: phase)
     refreshScheduler.handleScenePhaseChange(to: phase)
     cachePurger.handleScenePhaseChange(to: phase)
+    embeddingTask.handleScenePhaseChange(to: phase)
     Task { await userNotificationManager.handleScenePhaseChange(to: phase) }
   }
 

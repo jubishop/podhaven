@@ -40,6 +40,26 @@ import UIKit
     }
   }
 
+  // MARK: - Rating
+
+  var currentRating: EpisodeRating? { episode.rating }
+  var canRate: Bool { episode.isSaved }
+
+  func rateEpisode(_ rating: EpisodeRating) {
+    Task { [weak self] in
+      guard let self, let episodeID = episode.episodeID else { return }
+
+      let newRating: EpisodeRating? = currentRating == rating ? nil : rating
+      Self.log.debug("Rating episode \(episodeID): \(String(describing: newRating))")
+
+      do {
+        try await repo.updateRating(episodeID, rating: newRating)
+      } catch {
+        Self.log.caughtError("Failed to update rating", error)
+      }
+    }
+  }
+
   // MARK: - Derived State
 
   var onDeck: Bool {

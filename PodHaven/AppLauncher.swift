@@ -14,6 +14,7 @@ extension Container {
 struct AppLauncher: Sendable {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.cachePurger) private var cachePurger
+  @DynamicInjected(\.embeddingTask) private var embeddingTask
   @DynamicInjected(\.notifications) private var notifications
   @DynamicInjected(\.playManager) private var playManager
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
@@ -53,6 +54,7 @@ struct AppLauncher: Sendable {
 
     refreshScheduler.register()
     cachePurger.register()
+    embeddingTask.register()
 
     // Audio session and command handlers must be configured synchronously
     // to enable AirPods/lock screen controls even during background launches.

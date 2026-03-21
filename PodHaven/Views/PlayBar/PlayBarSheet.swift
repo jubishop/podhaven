@@ -44,6 +44,9 @@ struct PlayBarSheet: View {
         }
         .padding(.horizontal, spacing)
 
+        ratingControls
+          .padding(.horizontal, spacing)
+
         HStack {
           Spacer()
 
@@ -141,6 +144,33 @@ struct PlayBarSheet: View {
         }
       }
     }
+  }
+
+  @ViewBuilder
+  private var ratingControls: some View {
+    HStack(spacing: spacing * 2) {
+      ratingButton(.dislike, active: .disliked, rating: .disliked)
+      ratingButton(.like, active: .liked, rating: .liked)
+      ratingButton(.love, active: .loved, rating: .loved)
+    }
+    .glassEffect(.clear.interactive(), in: .capsule)
+  }
+
+  private func ratingButton(
+    _ inactive: AppIcon,
+    active: AppIcon,
+    rating: EpisodeRating
+  ) -> some View {
+    let isActive = viewModel.currentRating == rating
+    let icon = isActive ? active : inactive
+    return
+      icon.imageButton {
+        viewModel.rateEpisode(rating)
+      }
+      .font(.title3)
+      .accessibilityLabel(icon.text)
+      .accessibilityValue(isActive ? "Selected" : "Not selected")
+      .disabled(isShowingSpeedPopover)
   }
 
   private func playbackButtonStyle<V: View>(_ content: V, font: Font = .title2) -> some View {

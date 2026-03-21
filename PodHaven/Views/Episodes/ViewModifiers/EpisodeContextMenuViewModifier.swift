@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import SwiftUI
 
@@ -89,8 +90,49 @@ struct EpisodeContextMenuViewModifier<
           }
         }
 
+        if episode.isSaved, let episodeID = episode.episodeID {
+          Divider()
+          ratingMenuItems(episodeID: episodeID, currentRating: episode.rating)
+        }
+
         additionalContent()
       }
+  }
+}
+
+// MARK: - Rating Menu Items
+
+@MainActor
+private func ratingMenuItems(
+  episodeID: Episode.ID,
+  currentRating: EpisodeRating?
+) -> some View {
+  Group {
+    let repo = Container.shared.repo()
+
+    let likeIcon: AppIcon = currentRating == .liked ? .liked : .like
+    likeIcon.labelButton {
+      Task {
+        try? await repo.updateRating(episodeID, rating: currentRating == .liked ? nil : .liked)
+      }
+    }
+
+    let loveIcon: AppIcon = currentRating == .loved ? .loved : .love
+    loveIcon.labelButton {
+      Task {
+        try? await repo.updateRating(episodeID, rating: currentRating == .loved ? nil : .loved)
+      }
+    }
+
+    let dislikeIcon: AppIcon = currentRating == .disliked ? .disliked : .dislike
+    dislikeIcon.labelButton {
+      Task {
+        try? await repo.updateRating(
+          episodeID,
+          rating: currentRating == .disliked ? nil : .disliked
+        )
+      }
+    }
   }
 }
 

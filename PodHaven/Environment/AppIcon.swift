@@ -108,6 +108,14 @@ private struct SystemImageName:
   static let trendingSocietyCulture = SystemImageName("globe.americas.fill")
   static let trendingTVFilm = SystemImageName("tv.fill")
 
+  // Ratings
+  static let thumbsUp = SystemImageName("hand.thumbsup")
+  static let thumbsUpFilled = SystemImageName("hand.thumbsup.fill")
+  static let thumbsDown = SystemImageName("hand.thumbsdown")
+  static let thumbsDownFilled = SystemImageName("hand.thumbsdown.fill")
+  static let heart = SystemImageName("heart")
+  static let heartFilled = SystemImageName("heart.fill")
+
   // Playback Controls
   static let loading = SystemImageName("hourglass.circle")
   static let nextChapter = SystemImageName("forward.frame.fill")
@@ -210,6 +218,14 @@ private struct SystemImageName:
 
   // Manual Entry
   case manualEntry
+
+  // Rating Actions
+  case like
+  case liked
+  case dislike
+  case disliked
+  case love
+  case loved
 
   // Tag Actions
   case addTag
@@ -447,6 +463,20 @@ private struct SystemImageName:
       return Data(text: "TV & Film", systemImageName: .trendingTVFilm, color: .indigo)
     case .upNext:
       return Data(text: "Up Next", systemImageName: .queueTop)
+
+    // Rating Actions
+    case .like:
+      return Data(text: "Like", systemImageName: .thumbsUp, color: .green)
+    case .liked:
+      return Data(text: "Liked", systemImageName: .thumbsUpFilled, color: .green)
+    case .dislike:
+      return Data(text: "Dislike", systemImageName: .thumbsDown, color: .red)
+    case .disliked:
+      return Data(text: "Disliked", systemImageName: .thumbsDownFilled, color: .red)
+    case .love:
+      return Data(text: "Love", systemImageName: .heart, color: .pink)
+    case .loved:
+      return Data(text: "Loved", systemImageName: .heartFilled, color: .pink)
 
     // Tag Actions
     case .addTag:

@@ -103,6 +103,27 @@ protocol Databasing: Sendable {
   @discardableResult
   func updateSaveInCache(_ episodeID: Episode.ID, saveInCache: Bool) async throws -> Bool
 
+  // MARK: - Podcast Readers
+
+  func fetchPodcast(_ podcastID: Podcast.ID) async throws -> Podcast?
+
+  // MARK: - Embedding Readers
+
+  func saveEmbedding(_ embedding: EpisodeEmbedding) async throws
+  func savePodcastEmbedding(_ embedding: PodcastEmbedding) async throws
+  func fetchEmbedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding?
+  func fetchEmbeddings(for episodeIDs: [Episode.ID]) async throws -> [EpisodeEmbedding]
+  func fetchPodcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding?
+
+  // MARK: - Recommendation Readers
+
+  func fetchSignalEpisodes() async throws -> [Episode]
+  func fetchCandidateEpisodes(excludingOnDeckID: Episode.ID?) async throws -> [Episode]
+  func fetchAllPodcastTags() async throws -> [PodcastTag]
+
+  @discardableResult
+  func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool
+
   @discardableResult
   func markFinished(_ episodeIDs: [Episode.ID]) async throws -> Int
 

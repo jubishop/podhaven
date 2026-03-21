@@ -25,6 +25,10 @@ struct EpisodeDetailView: View {
 
         metadataRow
 
+        if viewModel.canRate {
+          ratingRow
+        }
+
         Divider()
 
         descriptionView
@@ -175,6 +179,33 @@ struct EpisodeDetailView: View {
       }
       .buttonStyle(PlainButtonStyle())
     }
+  }
+
+  // MARK: - Rating Row
+
+  var ratingRow: some View {
+    HStack(spacing: 24) {
+      detailRatingButton(.dislike, active: .disliked, rating: .disliked)
+      detailRatingButton(.like, active: .liked, rating: .liked)
+      detailRatingButton(.love, active: .loved, rating: .loved)
+    }
+    .frame(maxWidth: .infinity)
+  }
+
+  private func detailRatingButton(
+    _ inactive: AppIcon,
+    active: AppIcon,
+    rating: EpisodeRating
+  ) -> some View {
+    let isActive = viewModel.currentRating == rating
+    let icon = isActive ? active : inactive
+    return
+      icon.imageButton {
+        viewModel.rateEpisode(rating)
+      }
+      .font(.title2)
+      .accessibilityLabel(icon.text)
+      .accessibilityValue(isActive ? "Selected" : "Not selected")
   }
 
   // MARK: - Metadata Row

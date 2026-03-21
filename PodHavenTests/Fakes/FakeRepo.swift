@@ -264,6 +264,60 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.updateSaveInCache(episodeID, saveInCache: saveInCache)
   }
 
+  func fetchPodcast(_ podcastID: Podcast.ID) async throws -> Podcast? {
+    recordCall(methodName: "fetchPodcast", parameters: podcastID)
+    return try await repo.fetchPodcast(podcastID)
+  }
+
+  func saveEmbedding(_ embedding: EpisodeEmbedding) async throws {
+    recordCall(methodName: "saveEmbedding", parameters: embedding.episodeId)
+    try await repo.saveEmbedding(embedding)
+  }
+
+  func savePodcastEmbedding(_ embedding: PodcastEmbedding) async throws {
+    recordCall(methodName: "savePodcastEmbedding", parameters: embedding.podcastId)
+    try await repo.savePodcastEmbedding(embedding)
+  }
+
+  func fetchEmbedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
+    recordCall(methodName: "fetchEmbedding", parameters: episodeID)
+    return try await repo.fetchEmbedding(for: episodeID)
+  }
+
+  func fetchEmbeddings(for episodeIDs: [Episode.ID]) async throws -> [EpisodeEmbedding] {
+    recordCall(methodName: "fetchEmbeddings", parameters: episodeIDs)
+    return try await repo.fetchEmbeddings(for: episodeIDs)
+  }
+
+  func fetchPodcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding? {
+    recordCall(methodName: "fetchPodcastEmbedding", parameters: podcastID)
+    return try await repo.fetchPodcastEmbedding(for: podcastID)
+  }
+
+  func fetchSignalEpisodes() async throws -> [Episode] {
+    recordCall(methodName: "fetchSignalEpisodes", parameters: ())
+    return try await repo.fetchSignalEpisodes()
+  }
+
+  func fetchCandidateEpisodes(excludingOnDeckID onDeckID: Episode.ID?) async throws -> [Episode] {
+    recordCall(methodName: "fetchCandidateEpisodes", parameters: onDeckID)
+    return try await repo.fetchCandidateEpisodes(excludingOnDeckID: onDeckID)
+  }
+
+  func fetchAllPodcastTags() async throws -> [PodcastTag] {
+    recordCall(methodName: "fetchAllPodcastTags", parameters: ())
+    return try await repo.fetchAllPodcastTags()
+  }
+
+  @discardableResult
+  func updateRating(_ episodeID: Episode.ID, rating: EpisodeRating?) async throws -> Bool {
+    recordCall(
+      methodName: "updateRating",
+      parameters: (episodeID: episodeID, rating: rating)
+    )
+    return try await repo.updateRating(episodeID, rating: rating)
+  }
+
   @discardableResult
   func markFinished(_ episodeIDs: [Episode.ID]) async throws -> Int {
     recordCall(methodName: "markFinished", parameters: episodeIDs)
