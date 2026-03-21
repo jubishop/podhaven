@@ -299,7 +299,7 @@ struct Repo: Databasing, Sendable {
     }
 
     return try await appDB.db.write { db in
-      try UnsavedTag(name: normalizedName).insertAndFetch(db, as: Tag.self)
+      try Tag(name: normalizedName).insertAndFetch(db, as: Tag.self)
     }
   }
 

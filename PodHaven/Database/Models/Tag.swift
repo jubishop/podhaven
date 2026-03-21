@@ -2,28 +2,26 @@
 
 import Foundation
 import GRDB
-import SavedMacro
 import Tagged
 
-struct UnsavedTag: Identifiable, Savable {
-  // MARK: - Identifiable
-
-  var id: String { name }
+struct Tag: Identifiable, Savable {
+  typealias ID = Tagged<Tag, Int64>
 
   // MARK: - Data
 
-  static let databaseTableName: String = "tag"
+  static let databaseTableName = "tag"
 
+  let id: ID
+  let creationDate: Date
   let name: String
 
-  // MARK: - Stringable / Searchable
+  // For creating new tags before insertion (id and creationDate are DB-generated)
+  init(name: String) {
+    self.id = ID(rawValue: 0)
+    self.creationDate = .distantPast
+    self.name = name
+  }
 
-  var toString: String { name }
-  var searchableString: String { name }
-}
-
-@Saved<UnsavedTag>
-struct Tag: Saved {
   // MARK: - Associations
 
   static let episodeTags = hasMany(EpisodeTag.self)
@@ -39,9 +37,16 @@ struct Tag: Saved {
     static let creationDate = Column("creationDate")
   }
 
-  // MARK: - Derived Passthroughs
+  // MARK: - Stringable / Searchable
 
-  var name: String { unsaved.name }
+  var toString: String { name }
+  var searchableString: String { name }
+
+  // MARK: - PersistableRecord
+
+  func encode(to container: inout PersistenceContainer) {
+    container[Columns.name] = name
+  }
 }
 
 // MARK: - DerivableRequest
