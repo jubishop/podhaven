@@ -51,7 +51,7 @@ struct EmbeddingTask: Sendable {
         let repo = Container.shared.repo()
 
         let signalEpisodes = try await repo.allSignalEpisodes()
-        let candidates = try await repo.allCandidateEpisodes(excludingOnDeckID: nil)
+        let candidates = try await repo.allCandidateEpisodes()
 
         let allEpisodeIDs: [Episode.ID] = (signalEpisodes + candidates).map { $0.id }
         let existingEmbeddings = try await repo.embeddings(for: allEpisodeIDs)

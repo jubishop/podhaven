@@ -382,7 +382,7 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func allCandidateEpisodes(excludingOnDeckID onDeckID: Episode.ID?) async throws -> [Episode] {
+  func allCandidateEpisodes(excluding excludedIDs: [Episode.ID] = []) async throws -> [Episode] {
     try await appDB.db.read { db in
       var request =
         Episode
@@ -390,8 +390,8 @@ struct Repo: Databasing, Sendable {
         .filter(!Episode.rated)
         .filter(Episode.unqueued)
 
-      if let onDeckID {
-        request = request.filter(Episode.Columns.id != onDeckID)
+      if !excludedIDs.isEmpty {
+        request = request.filter(!excludedIDs.contains(Episode.Columns.id))
       }
 
       return try request.fetchAll(db)

@@ -164,11 +164,15 @@ protocol Databasing: Sendable {
   // MARK: - Recommendation Readers
 
   func allSignalEpisodes() async throws -> [Episode]
-  func allCandidateEpisodes(excludingOnDeckID: Episode.ID?) async throws -> [Episode]
+  func allCandidateEpisodes(excluding: [Episode.ID]) async throws -> [Episode]
   func allPodcastTags() async throws -> [PodcastTag]
 }
 
 extension Databasing {
+  func allCandidateEpisodes() async throws -> [Episode] {
+    try await allCandidateEpisodes(excluding: [])
+  }
+
   func podcastSeries(_ feedURL: FeedURL) async throws -> PodcastSeries? {
     try await podcastSeries(feedURL, iTunesID: nil)
   }

@@ -3,8 +3,15 @@
 import Foundation
 import GRDB
 
-struct PodcastEmbedding: Codable, Equatable, FetchableRecord, Hashable, PersistableRecord, Sendable,
-  TableRecord, VectorStorable
+struct PodcastEmbedding:
+  Codable,
+  Equatable,
+  FetchableRecord,
+  Hashable,
+  PersistableRecord,
+  Sendable,
+  TableRecord,
+  VectorStorable
 {
   // MARK: - Data
 

@@ -266,7 +266,8 @@ struct RecommendationEngine: Sendable {
 
   private func fetchCandidates() async throws -> [Episode] {
     let onDeckID = Container.shared.sharedState().onDeck?.id
-    return try await repo.allCandidateEpisodes(excludingOnDeckID: onDeckID)
+    let excluded = [onDeckID].compactMap { $0 }
+    return try await repo.allCandidateEpisodes(excluding: excluded)
   }
 
   // MARK: - Podcast Affinity

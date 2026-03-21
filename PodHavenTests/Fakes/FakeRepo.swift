@@ -299,9 +299,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.allSignalEpisodes()
   }
 
-  func allCandidateEpisodes(excludingOnDeckID onDeckID: Episode.ID?) async throws -> [Episode] {
-    recordCall(methodName: "allCandidateEpisodes", parameters: onDeckID)
-    return try await repo.allCandidateEpisodes(excludingOnDeckID: onDeckID)
+  func allCandidateEpisodes(excluding excludedIDs: [Episode.ID] = []) async throws -> [Episode] {
+    recordCall(methodName: "allCandidateEpisodes", parameters: excludedIDs)
+    return try await repo.allCandidateEpisodes(excluding: excludedIDs)
   }
 
   func allPodcastTags() async throws -> [PodcastTag] {
