@@ -36,6 +36,6 @@ jobs:
       - name: Print test failures
         if: failure()
         run: |
-          xcresulttool get test-results summary \
+          $(xcrun --find xcresulttool) get test-results summary \
             --path TestResults.xcresult \
             --compact
