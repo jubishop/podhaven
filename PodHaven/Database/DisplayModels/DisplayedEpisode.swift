@@ -93,11 +93,6 @@ struct DisplayedEpisode:
       return podcastEpisode
     } else if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
-    } else if let episodeID = episode.episodeID {
-      guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
-        Assert.fatal("PodcastEpisode not found for saved episode \(episodeID)")
-      }
-      return podcastEpisode
     } else {
       Assert.fatal("Can't make PodcastEpisode from: \(type(of: episode))")
     }
