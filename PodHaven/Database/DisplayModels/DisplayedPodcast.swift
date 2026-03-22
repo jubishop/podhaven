@@ -73,17 +73,17 @@ struct DisplayedPodcast:
 
   var podcastID: Podcast.ID? { podcast.podcastID }
   var feedURL: FeedURL { podcast.feedURL }
+  var iTunesID: ITunesPodcastID? { podcast.iTunesID }
   var image: URL { podcast.image }
   var title: String { podcast.title }
   var description: String { podcast.description }
-  var subscriptionDate: Date? { podcast.subscriptionDate }
-  var subscribed: Bool { podcast.subscribed }
-  var iTunesID: ITunesPodcastID? { podcast.iTunesID }
   var link: URL? { podcast.link }
+  var subscriptionDate: Date? { podcast.subscriptionDate }
   var defaultPlaybackRate: Double? { podcast.defaultPlaybackRate }
   var queueAllEpisodes: QueueAllEpisodes { podcast.queueAllEpisodes }
   var cacheAllEpisodes: CacheAllEpisodes { podcast.cacheAllEpisodes }
   var notifyNewEpisodes: Bool { podcast.notifyNewEpisodes }
+  var subscribed: Bool { podcast.subscribed }
 
   // MARK: - Helpers
 
@@ -121,11 +121,6 @@ struct DisplayedPodcast:
       let podcastSeries = try await repo.insertSeries(
         try podcastFeed.toUnsavedSeries(iTunesID: unsavedPodcast.iTunesID)
       )
-      return podcastSeries.podcast
-    } else if let podcastID = podcast.podcastID {
-      guard let podcastSeries = try await repo.podcastSeries(podcastID) else {
-        Assert.fatal("Podcast not found for ID \(podcastID)")
-      }
       return podcastSeries.podcast
     } else {
       Assert.fatal("Can't make Podcast from: \(type(of: podcast))")
