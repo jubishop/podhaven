@@ -3,11 +3,11 @@
 import AVFoundation
 import FactoryKit
 import Foundation
+import GRDB
 
 @dynamicMemberLookup
 struct ListedEpisode:
   EpisodeListable,
-  Searchable,
   Hashable,
   Sendable
 {
@@ -34,9 +34,7 @@ struct ListedEpisode:
   // MARK: - Hashable / Equatable
 
   func hash(into hasher: inout Hasher) {
-    if let podcastEpisode = getPodcastEpisode() {
-      hasher.combine(podcastEpisode)
-    } else if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
+    if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       hasher.combine(unsavedPodcastEpisode)
     } else if let listableEpisode = getListablePodcastEpisode() {
       hasher.combine(listableEpisode)
@@ -46,35 +44,23 @@ struct ListedEpisode:
   }
 
   static func == (lhs: ListedEpisode, rhs: ListedEpisode) -> Bool {
-    if let leftPE = lhs.getPodcastEpisode(), let rightPE = rhs.getPodcastEpisode() {
-      return leftPE == rightPE
-    }
     if let leftUnsaved = lhs.getUnsavedPodcastEpisode(),
       let rightUnsaved = rhs.getUnsavedPodcastEpisode()
     {
       return leftUnsaved == rightUnsaved
     }
+
     if let leftListable = lhs.getListablePodcastEpisode(),
       let rightListable = rhs.getListablePodcastEpisode()
     {
       return leftListable == rightListable
     }
-    return false
-  }
 
-  // MARK: - Stringable / Searchable
-
-  var toString: String { episode.toString }
-  var searchableString: String {
-    if let searchable = episode as? any Searchable {
-      return searchable.searchableString
-    }
-    return episode.title
+    return false  // Different concrete types are not equal
   }
 
   // MARK: - EpisodeListable
 
-  var episodeID: Episode.ID? { episode.episodeID }
   var mediaGUID: MediaGUID { episode.mediaGUID }
   var title: String { episode.title }
   var pubDate: Date { episode.pubDate }
@@ -82,10 +68,10 @@ struct ListedEpisode:
   var currentTime: CMTime { episode.currentTime }
   var queueOrder: Int? { episode.queueOrder }
   var cacheStatus: Episode.CacheStatus { episode.cacheStatus }
-  var saveInCache: Bool { episode.saveInCache }
   var finishDate: Date? { episode.finishDate }
   var image: URL { episode.image }
   var podcastImage: URL { episode.podcastImage }
+  var saveInCache: Bool { episode.saveInCache }
 
   // MARK: - Getters
 
@@ -95,25 +81,21 @@ struct ListedEpisode:
   func getUnsavedPodcastEpisode() -> UnsavedPodcastEpisode? {
     episode as? UnsavedPodcastEpisode
   }
-  func getPodcastEpisode() -> PodcastEpisode? { episode as? PodcastEpisode }
-
-  func getDisplayedEpisode() -> DisplayedEpisode? {
-    guard let displayable = episode as? any EpisodeDisplayable else { return nil }
-    return DisplayedEpisode(displayable)
-  }
 
   func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
-    if let podcastEpisode = getPodcastEpisode() {
-      return podcastEpisode
-    } else if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
+    if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
-    } else if let episodeID = episode.episodeID {
-      guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
-        Assert.fatal("PodcastEpisode not found for saved episode \(episodeID)")
+    } else if let listablePodcastEpisode = getListablePodcastEpisode() {
+      guard let podcastEpisode = try await repo.podcastEpisode(listablePodcastEpisode.id) else {
+        throw DatabaseError(
+          message:
+            """
+              PodcastEpisode not found for saved episode \(listablePodcastEpisode.id)
+            """
+        )
       }
       return podcastEpisode
-    } else {
-      Assert.fatal("Can't get or create PodcastEpisode from: \(type(of: episode))")
     }
+    Assert.fatal("Can't make PodcastEpisode from: \(type(of: episode))")
   }
 }

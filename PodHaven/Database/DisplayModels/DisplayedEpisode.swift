@@ -19,7 +19,6 @@ struct DisplayedEpisode:
       !(episode is DisplayedEpisode),
       "Cannot wrap an instance of itself as a DisplayedEpisode"
     )
-
     self.episode = episode
   }
 

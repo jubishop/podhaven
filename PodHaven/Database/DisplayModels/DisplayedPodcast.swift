@@ -21,7 +21,6 @@ struct DisplayedPodcast:
       !(podcast is DisplayedPodcast),
       "Cannot wrap an instance of itself as a DisplayedPodcast"
     )
-
     self.podcast = podcast
   }
 
