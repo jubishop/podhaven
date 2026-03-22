@@ -386,6 +386,7 @@ struct Repo: Databasing, Sendable {
     try await appDB.db.read { db in
       var request =
         Episode
+        .filter(Episode.unstarted)
         .filter(Episode.unfinished)
         .filter(!Episode.rated)
         .filter(Episode.unqueued)
