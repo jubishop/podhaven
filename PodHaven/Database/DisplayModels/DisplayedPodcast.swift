@@ -14,9 +14,9 @@ struct DisplayedPodcast:
 {
   @DynamicInjected(\.repo) private var repo
 
-  let podcast: any PodcastDisplayable
+  let podcast: any PodcastListable
 
-  init(_ podcast: any PodcastDisplayable) {
+  init(_ podcast: any PodcastListable) {
     Assert.precondition(
       !(podcast is DisplayedPodcast),
       "Cannot wrap an instance of itself as a DisplayedPodcast"
@@ -25,7 +25,7 @@ struct DisplayedPodcast:
     self.podcast = podcast
   }
 
-  subscript<T>(dynamicMember keyPath: KeyPath<any PodcastDisplayable, T>) -> T {
+  subscript<T>(dynamicMember keyPath: KeyPath<any PodcastListable, T>) -> T {
     podcast[keyPath: keyPath]
   }
 
@@ -45,6 +45,8 @@ struct DisplayedPodcast:
       hasher.combine(podcast)
     } else if let unsavedPodcast = getUnsavedPodcast() {
       hasher.combine(unsavedPodcast)
+    } else if let listablePodcast = podcast as? ListablePodcast {
+      hasher.combine(listablePodcast)
     } else {
       Assert.fatal("Can't make hash from: \(type(of: podcast))")
     }
@@ -61,6 +63,12 @@ struct DisplayedPodcast:
       return leftUnsavedPodcast == rightUnsavedPodcast
     }
 
+    if let leftListable = lhs.podcast as? ListablePodcast,
+      let rightListable = rhs.podcast as? ListablePodcast
+    {
+      return leftListable == rightListable
+    }
+
     return false  // Different concrete types are not equal
   }
 
@@ -69,25 +77,30 @@ struct DisplayedPodcast:
   var toString: String { podcast.toString }
   var searchableString: String { podcast.searchableString }
 
-  // MARK: - PodcastDisplayable
+  // MARK: - PodcastListable
 
   var podcastID: Podcast.ID? { podcast.podcastID }
   var feedURL: FeedURL { podcast.feedURL }
-  var iTunesID: ITunesPodcastID? { podcast.iTunesID }
   var image: URL { podcast.image }
   var title: String { podcast.title }
   var description: String { podcast.description }
-  var link: URL? { podcast.link }
   var subscriptionDate: Date? { podcast.subscriptionDate }
-  var defaultPlaybackRate: Double? { podcast.defaultPlaybackRate }
-  var queueAllEpisodes: QueueAllEpisodes { podcast.queueAllEpisodes }
-  var cacheAllEpisodes: CacheAllEpisodes { podcast.cacheAllEpisodes }
-  var notifyNewEpisodes: Bool { podcast.notifyNewEpisodes }
   var subscribed: Bool { podcast.subscribed }
+
+  // MARK: - PodcastDisplayable (delegated when available, defaults otherwise)
+
+  var iTunesID: ITunesPodcastID? { displayable?.iTunesID }
+  var link: URL? { displayable?.link }
+  var defaultPlaybackRate: Double? { displayable?.defaultPlaybackRate }
+  var queueAllEpisodes: QueueAllEpisodes { displayable?.queueAllEpisodes ?? .never }
+  var cacheAllEpisodes: CacheAllEpisodes { displayable?.cacheAllEpisodes ?? .never }
+  var notifyNewEpisodes: Bool { displayable?.notifyNewEpisodes ?? false }
+
+  private var displayable: (any PodcastDisplayable)? { podcast as? any PodcastDisplayable }
 
   // MARK: - Helpers
 
-  static func getOrCreatePodcast(_ podcast: any PodcastDisplayable) async throws -> Podcast {
+  static func getOrCreatePodcast(_ podcast: any PodcastListable) async throws -> Podcast {
     try await getDisplayedPodcast(podcast).getOrCreatePodcast()
   }
   func getOrCreatePodcast() async throws -> Podcast {
@@ -122,12 +135,17 @@ struct DisplayedPodcast:
         try podcastFeed.toUnsavedSeries(iTunesID: unsavedPodcast.iTunesID)
       )
       return podcastSeries.podcast
+    } else if let podcastID = podcast.podcastID {
+      guard let podcastSeries = try await repo.podcastSeries(podcastID) else {
+        Assert.fatal("Podcast not found for ID \(podcastID)")
+      }
+      return podcastSeries.podcast
     } else {
       Assert.fatal("Can't make Podcast from: \(type(of: podcast))")
     }
   }
 
-  static func getPodcast(_ podcast: any PodcastDisplayable) -> Podcast? {
+  static func getPodcast(_ podcast: any PodcastListable) -> Podcast? {
     getDisplayedPodcast(podcast).getPodcast()
   }
   func getPodcast() -> Podcast? {
@@ -137,12 +155,12 @@ struct DisplayedPodcast:
     return podcast as? Podcast
   }
 
-  static func getUnsavedPodcast(_ podcast: any PodcastDisplayable) -> UnsavedPodcast? {
+  static func getUnsavedPodcast(_ podcast: any PodcastListable) -> UnsavedPodcast? {
     getDisplayedPodcast(podcast).getUnsavedPodcast()
   }
   func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
 
-  static func toOriginalUnsavedPodcast(_ podcast: any PodcastDisplayable) throws
+  static func toOriginalUnsavedPodcast(_ podcast: any PodcastListable) throws
     -> UnsavedPodcast
   {
     try getDisplayedPodcast(podcast).toOriginalUnsavedPodcast()
@@ -159,7 +177,7 @@ struct DisplayedPodcast:
     }
   }
 
-  static func getDisplayedPodcast(_ podcast: any PodcastDisplayable) -> DisplayedPodcast {
+  static func getDisplayedPodcast(_ podcast: any PodcastListable) -> DisplayedPodcast {
     guard let displayedPodcast = podcast as? DisplayedPodcast
     else { return DisplayedPodcast(podcast) }
 

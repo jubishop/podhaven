@@ -38,6 +38,8 @@ struct DisplayedEpisode:
       hasher.combine(podcastEpisode)
     } else if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       hasher.combine(unsavedPodcastEpisode)
+    } else if let listableEpisode = episode as? ListablePodcastEpisode {
+      hasher.combine(listableEpisode)
     } else {
       Assert.fatal("Can't make hash from: \(type(of: episode))")
     }
@@ -54,6 +56,12 @@ struct DisplayedEpisode:
       let rightUnsavedPodcastEpisode = rhs.getUnsavedPodcastEpisode()
     {
       return leftUnsavedPodcastEpisode == rightUnsavedPodcastEpisode
+    }
+
+    if let leftListable = lhs.episode as? ListablePodcastEpisode,
+      let rightListable = rhs.episode as? ListablePodcastEpisode
+    {
+      return leftListable == rightListable
     }
 
     return false  // Different concrete types are not equal
@@ -93,6 +101,11 @@ struct DisplayedEpisode:
       return podcastEpisode
     } else if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
+    } else if let episodeID = episode.episodeID {
+      guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
+        Assert.fatal("PodcastEpisode not found for saved episode \(episodeID)")
+      }
+      return podcastEpisode
     } else {
       Assert.fatal("Can't make PodcastEpisode from: \(type(of: episode))")
     }

@@ -5,7 +5,7 @@ import Foundation
 import Logging
 
 @MainActor protocol ManagingPodcasts: AnyObject {
-  associatedtype PodcastType: PodcastDisplayable
+  associatedtype PodcastType: PodcastListable
 
   func queueLatestEpisodeToTop(_ podcast: PodcastType)
   func queueLatestEpisodeToBottom(_ podcast: PodcastType)

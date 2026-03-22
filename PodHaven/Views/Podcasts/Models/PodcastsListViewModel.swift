@@ -23,7 +23,7 @@ class PodcastsListViewModel:
 
   // MARK: - SelectablePodcastList & SortablePodcastList
 
-  var podcastList: PowerList<PodcastWithEpisodeMetadata<Podcast>>
+  var podcastList: PowerList<PodcastWithEpisodeMetadata<ListablePodcast>>
 
   enum SortMethod: String, Codable, DefaultsStorable, SortingMethod {
     case byTitle
@@ -48,7 +48,9 @@ class PodcastsListViewModel:
     }
 
     var sortMethod:
-      @Sendable (PodcastWithEpisodeMetadata<Podcast>, PodcastWithEpisodeMetadata<Podcast>) -> Bool
+      @Sendable (
+        PodcastWithEpisodeMetadata<ListablePodcast>, PodcastWithEpisodeMetadata<ListablePodcast>
+      ) -> Bool
     {
       switch self {
       case .byTitle:
@@ -72,7 +74,7 @@ class PodcastsListViewModel:
       }
     }
 
-    var filterMethod: (@Sendable (PodcastWithEpisodeMetadata<Podcast>) -> Bool)? {
+    var filterMethod: (@Sendable (PodcastWithEpisodeMetadata<ListablePodcast>) -> Bool)? {
       switch self {
       case .byMostRecentEpisode:
         return { $0.mostRecentEpisodeDate != nil }
@@ -123,11 +125,11 @@ class PodcastsListViewModel:
   func execute() async {
     defer { isLoading = false }
     do {
-      for try await podcastsWithEpisodeMetadata in observatory.podcastsWithEpisodeMetadata(
+      for try await podcastsWithEpisodeMetadata in observatory.listablePodcastsWithEpisodeMetadata(
         filter
       ) {
         try Task.checkCancellation()
-        Self.log.debug("Updating \(podcastsWithEpisodeMetadata.count) observed episodes")
+        Self.log.debug("Updating \(podcastsWithEpisodeMetadata.count) observed podcasts")
 
         podcastList.allEntries = IdentifiedArray(uniqueElements: podcastsWithEpisodeMetadata)
         isLoading = false
@@ -135,6 +137,18 @@ class PodcastsListViewModel:
     } catch {
       Self.log.caughtError("execute: observation failed for podcast list '\(title)'", error)
     }
+  }
+
+  // MARK: - ManagingPodcasts
+
+  func getOrCreatePodcast(_ podcast: ListablePodcast) async throws -> Podcast {
+    guard let podcastID = podcast.podcastID else {
+      Assert.fatal("ListablePodcast should always be saved")
+    }
+    guard let podcastSeries = try await repo.podcastSeries(podcastID) else {
+      Assert.fatal("Podcast not found for ID \(podcastID)")
+    }
+    return podcastSeries.podcast
   }
 
   // MARK: - Full Grid Functions

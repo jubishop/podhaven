@@ -84,13 +84,27 @@ struct Observatory {
     )
   }
 
+  // MARK: - Listable Podcasts
+
+  func listablePodcastsWithEpisodeMetadata(
+    _ filter: @escaping PodcastFilter = { $0 },
+    limit: Int = Int.max
+  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> {
+    _observe { db in
+      try PodcastWithEpisodeMetadata<ListablePodcast>
+        .all(filter)
+        .limit(limit)
+        .fetchAll(db)
+    }
+  }
+
   // MARK: - PodcastEpisodes
 
-  func podcastEpisodes(
+  func podcastEpisodes<T: FetchableRecord & Equatable>(
     filter: SQLExpression,
     order: SQLOrdering = Episode.Columns.pubDate.desc,
     limit: Int = Int.max
-  ) -> AsyncValueObservation<[PodcastEpisode]> {
+  ) -> AsyncValueObservation<[T]> {
     _observe { db in
       try Episode
         .all()
@@ -98,16 +112,16 @@ struct Observatory {
         .including(required: Episode.podcast)
         .order(order)
         .limit(limit)
-        .asRequest(of: PodcastEpisode.self)
+        .asRequest(of: T.self)
         .fetchAll(db)
     }
   }
 
-  func podcastEpisodes(
+  func podcastEpisodes<T: FetchableRecord & Equatable>(
     _ mediaGUIDs: [MediaGUID],
     order: SQLOrdering = Episode.Columns.pubDate.desc,
     limit: Int = Int.max
-  ) -> AsyncValueObservation<[PodcastEpisode]> {
+  ) -> AsyncValueObservation<[T]> {
     let mediaGUIDFilters = mediaGUIDs.map { mediaGUID in
       Episode.Columns.guid == mediaGUID.guid && Episode.Columns.mediaURL == mediaGUID.mediaURL
     }

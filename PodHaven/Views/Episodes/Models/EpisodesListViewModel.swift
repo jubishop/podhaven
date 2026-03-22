@@ -22,7 +22,7 @@ class EpisodesListViewModel:
 
   // MARK: - SelectableEpisodeList & SortableEpisodeList
 
-  var episodeList = PowerList<PodcastEpisode>()
+  var episodeList = PowerList<ListablePodcastEpisode>()
 
   enum SortMethod: String, Codable, DefaultsStorable, SortingMethod {
     case newestFirst
@@ -144,11 +144,13 @@ class EpisodesListViewModel:
     defer { isLoading = false }
 
     do {
-      for try await podcastEpisodes in observatory.podcastEpisodes(
-        filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
-        order: currentSortMethod.sqlOrdering,
-        limit: 200
-      ) {
+      let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+        observatory.podcastEpisodes(
+          filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
+          order: currentSortMethod.sqlOrdering,
+          limit: 200
+        )
+      for try await podcastEpisodes in observation {
         try Task.checkCancellation()
         Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
 
@@ -160,6 +162,35 @@ class EpisodesListViewModel:
         "startObservation: observation failed for episode list '\(title)'",
         error
       )
+    }
+  }
+
+  // MARK: - ManagingEpisodes
+
+  func getOrCreatePodcastEpisode(_ episode: ListablePodcastEpisode) async throws -> PodcastEpisode {
+    guard let episodeID = episode.episodeID else {
+      Assert.fatal("ListablePodcastEpisode should always be saved")
+    }
+    guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
+      Assert.fatal("PodcastEpisode not found for ID \(episodeID)")
+    }
+    return podcastEpisode
+  }
+
+  // MARK: - SelectableEpisodeList
+
+  var selectedPodcastEpisodes: [PodcastEpisode] {
+    get async throws {
+      let episodeIDs = selectedEpisodes.compactMap(\.episodeID)
+      guard !episodeIDs.isEmpty else { return [] }
+
+      var results: [PodcastEpisode] = []
+      for episodeID in episodeIDs {
+        if let podcastEpisode = try await repo.podcastEpisode(episodeID) {
+          results.append(podcastEpisode)
+        }
+      }
+      return results
     }
   }
 }

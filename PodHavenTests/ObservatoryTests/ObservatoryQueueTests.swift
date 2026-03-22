@@ -71,7 +71,7 @@ actor ObservatoryQueueTests {
       )
     )
 
-    let finishedEpisodes =
+    let finishedEpisodes: [PodcastEpisode] =
       try await observatory.podcastEpisodes(
         filter: Episode.finished,
         order: Episode.Columns.finishDate.desc

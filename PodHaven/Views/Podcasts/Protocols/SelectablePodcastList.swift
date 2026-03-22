@@ -6,15 +6,14 @@ import IdentifiedCollections
 import Logging
 
 @MainActor protocol SelectablePodcastList: AnyObject {
-  associatedtype PodcastType: PodcastDisplayable
+  associatedtype PodcastType: PodcastListable
 
   var podcastList: PowerList<PodcastWithEpisodeMetadata<PodcastType>> { get }
 
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] { get }
-  var selectedSavedPodcasts: [Podcast] { get }
   var selectedSavedPodcastIDs: [Podcast.ID] { get }
 
-  // Must Implement: Iterates over selected podcasts in parallel, calling the closure for each one
+  // Must Implement: Iterates over selected podcasts, calling the closure for each one
   func forEachSelectedPodcast(
     perform action: @escaping @Sendable (Podcast) async throws -> Void
   ) async
@@ -39,10 +38,9 @@ extension SelectablePodcastList {
   var selectedPodcastsWithMetadata: [PodcastWithEpisodeMetadata<PodcastType>] {
     podcastList.selectedEntries.elements
   }
-  var selectedSavedPodcasts: [Podcast] {
-    selectedPodcastsWithMetadata.compactMap { $0.getPodcast() }
+  var selectedSavedPodcastIDs: [Podcast.ID] {
+    selectedPodcastsWithMetadata.compactMap(\.podcastID)
   }
-  var selectedSavedPodcastIDs: [Podcast.ID] { selectedSavedPodcasts.map(\.id) }
 
   // MARK: - "Any"? Getters
 
@@ -117,6 +115,29 @@ extension SelectablePodcastList where PodcastType == Podcast {
       } catch {
         Self.log.caughtError(
           "forEachSelectedPodcast: action failed for \(podcastWithMetadata.podcast.title)",
+          error
+        )
+      }
+    }
+  }
+}
+
+extension SelectablePodcastList where PodcastType == ListablePodcast {
+  func forEachSelectedPodcast(
+    perform action: @escaping @Sendable (Podcast) async throws -> Void
+  ) async {
+    let repo = Container.shared.repo()
+
+    for podcastID in selectedSavedPodcastIDs {
+      do {
+        guard let podcastSeries = try await repo.podcastSeries(podcastID) else {
+          Self.log.warning("forEachSelectedPodcast: podcast \(podcastID) not found")
+          continue
+        }
+        try await action(podcastSeries.podcast)
+      } catch {
+        Self.log.caughtError(
+          "forEachSelectedPodcast: action failed for podcast \(podcastID)",
           error
         )
       }

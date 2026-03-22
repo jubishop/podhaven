@@ -3,8 +3,13 @@
 import Foundation
 import GRDB
 
+enum PodcastMetadataCodingKeys: String, CodingKey, ColumnExpression {
+  case episodeCount
+  case mostRecentEpisodeDate
+}
+
 @dynamicMemberLookup
-struct PodcastWithEpisodeMetadata<PodcastType: PodcastDisplayable>: Searchable, Stringable {
+struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Stringable {
   // MARK: - Getters
 
   subscript<T>(dynamicMember keyPath: KeyPath<PodcastType, T>) -> T {
@@ -33,37 +38,49 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastDisplayable>: Searchable, 
     self.episodeCount = episodeCount
     self.mostRecentEpisodeDate = mostRecentEpisodeDate
   }
+}
 
-  // MARK: - Getters
+// MARK: - PodcastDisplayable Helpers
 
+extension PodcastWithEpisodeMetadata where PodcastType: PodcastDisplayable {
   func getPodcast() -> Podcast? { DisplayedPodcast.getPodcast(podcast) }
   func getUnsavedPodcast() -> UnsavedPodcast? { DisplayedPodcast.getUnsavedPodcast(podcast) }
 }
 
-extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType == Podcast {
-  // MARK: - QueryInterfaceRequest
+// MARK: - FetchableRecord
 
+extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType: FetchableRecord {
+  init(row: Row) throws {
+    self.podcast = try PodcastType(row: row)
+    self.episodeCount = row[PodcastMetadataCodingKeys.episodeCount]
+    self.mostRecentEpisodeDate = row[PodcastMetadataCodingKeys.mostRecentEpisodeDate]
+  }
+}
+
+// MARK: - Query Builders
+
+extension PodcastWithEpisodeMetadata where PodcastType == Podcast {
   static func all(
     _ filter: PodcastFilter = { $0 }
   ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
     filter(Podcast.all())
       .annotated(with: [
-        Podcast.episodes.count.forKey(CodingKeys.episodeCount),
-        Podcast.episodes.max(\.pubDate).forKey(CodingKeys.mostRecentEpisodeDate),
+        Podcast.episodes.count.forKey(PodcastMetadataCodingKeys.episodeCount),
+        Podcast.episodes.max(\.pubDate).forKey(PodcastMetadataCodingKeys.mostRecentEpisodeDate),
       ])
       .asRequest(of: PodcastWithEpisodeMetadata.self)
   }
+}
 
-  // MARK: - Custom Decoding
-
-  enum CodingKeys: String, CodingKey, ColumnExpression {
-    case episodeCount
-    case mostRecentEpisodeDate
-  }
-
-  init(row: Row) throws {
-    self.podcast = try Podcast(row: row)
-    self.episodeCount = row[CodingKeys.episodeCount]
-    self.mostRecentEpisodeDate = row[CodingKeys.mostRecentEpisodeDate]
+extension PodcastWithEpisodeMetadata where PodcastType == ListablePodcast {
+  static func all(
+    _ filter: PodcastFilter = { $0 }
+  ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
+    filter(Podcast.all())
+      .annotated(with: [
+        Podcast.episodes.count.forKey(PodcastMetadataCodingKeys.episodeCount),
+        Podcast.episodes.max(\.pubDate).forKey(PodcastMetadataCodingKeys.mostRecentEpisodeDate),
+      ])
+      .asRequest(of: PodcastWithEpisodeMetadata.self)
   }
 }
