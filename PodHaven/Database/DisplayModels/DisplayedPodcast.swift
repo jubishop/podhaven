@@ -131,21 +131,6 @@ struct DisplayedPodcast:
   }
   func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
 
-  static func toOriginalUnsavedPodcast(_ podcast: any PodcastDisplayable) throws
-    -> UnsavedPodcast
-  {
-    try getDisplayedPodcast(podcast).toOriginalUnsavedPodcast()
-  }
-  func toOriginalUnsavedPodcast() throws -> UnsavedPodcast {
-    if let podcast = getPodcast() {
-      return try podcast.toOriginalUnsavedPodcast()
-    } else if let unsavedPodcast = getUnsavedPodcast() {
-      return try unsavedPodcast.toOriginalUnsavedPodcast()
-    } else {
-      Assert.fatal("Can't make Original UnsavedPodcast from: \(type(of: podcast))")
-    }
-  }
-
   static func getDisplayedPodcast(_ podcast: any PodcastDisplayable) -> DisplayedPodcast {
     guard let displayedPodcast = podcast as? DisplayedPodcast
     else { return DisplayedPodcast(podcast) }
