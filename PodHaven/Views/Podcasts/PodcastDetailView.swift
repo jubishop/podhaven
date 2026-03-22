@@ -20,6 +20,32 @@ struct PodcastDetailView: View {
   }
 
   var body: some View {
+    Group {
+      if viewModel.isHydratingInitialPresentation {
+        initialLoadingView
+      } else {
+        contentView
+      }
+    }
+    .toolbar {
+      if !viewModel.isHydratingInitialPresentation {
+        toolbar
+      }
+    }
+    .toolbarRole(.editor)
+    .sheet(isPresented: $viewModel.showingSettings) {
+      PodcastSettingsView(viewModel: viewModel)
+    }
+    .onAppear { viewModel.appear() }
+    .onDisappear { viewModel.disappear() }
+    .overlay {
+      if showingImageOverlay {
+        fullScreenImageOverlay
+      }
+    }
+  }
+
+  private var contentView: some View {
     VStack(spacing: 4) {
       headerView
         .padding(.horizontal)
@@ -33,17 +59,13 @@ struct PodcastDetailView: View {
         episodeListView
       }
     }
-    .toolbar { toolbar }
-    .toolbarRole(.editor)
-    .sheet(isPresented: $viewModel.showingSettings) {
-      PodcastSettingsView(viewModel: viewModel)
-    }
-    .onAppear { viewModel.appear() }
-    .onDisappear { viewModel.disappear() }
-    .overlay {
-      if showingImageOverlay {
-        fullScreenImageOverlay
-      }
+  }
+
+  private var initialLoadingView: some View {
+    VStack {
+      ProgressView("Loading podcast...")
+        .padding()
+      Spacer()
     }
   }
 

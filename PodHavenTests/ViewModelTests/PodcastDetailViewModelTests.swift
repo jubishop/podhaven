@@ -9,6 +9,8 @@ import Testing
 
 @Suite("PodcastDetailViewModel tests", .container)
 @MainActor final class PodcastDetailViewModelTests {
+  @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.podcastFeedSession) private var podcastFeedSession
   @DynamicInjected(\.repo) private var repo
@@ -81,13 +83,15 @@ import Testing
     let listablePodcast = try await fetchListablePodcast(savedSeries.id)
     let viewModel = PodcastDetailViewModel(listedPodcast: ListedPodcast(listablePodcast))
 
+    #expect(viewModel.isHydratingInitialPresentation)
     #expect(viewModel.shareURL == ShareURL.podcast(feedURL: savedSeries.podcast.feedURL))
 
     try await viewModel.performAppear()
 
     try await Wait.until(
       { @MainActor in
-        viewModel.saved
+        !viewModel.isHydratingInitialPresentation
+          && viewModel.saved
           && viewModel.podcast.title == savedSeries.podcast.title
           && viewModel.podcast.description == savedSeries.podcast.description
           && viewModel.episodeList.allEntries.count == savedSeries.episodes.count
@@ -95,6 +99,7 @@ import Testing
       { @MainActor in
         """
         Expected list-backed podcast detail to hydrate saved podcast data.
+        isHydratingInitialPresentation: \(viewModel.isHydratingInitialPresentation)
         saved: \(viewModel.saved)
         title: \(viewModel.podcast.title)
         description: \(viewModel.podcast.description)
@@ -139,6 +144,7 @@ import Testing
     )
     let viewModel = PodcastDetailViewModel(listedPodcast: ListedPodcast(searchResult))
 
+    #expect(viewModel.isHydratingInitialPresentation == false)
     #expect(viewModel.shareURL == ShareURL.podcast(feedURL: feedURL))
     #expect(viewModel.podcast.description == searchDescription)
     #expect(viewModel.podcast.link == searchLink)
@@ -223,6 +229,42 @@ import Testing
         saved: \(viewModel.saved)
         podcast: \(viewModel.podcast.toString)
         episode count: \(viewModel.episodeList.allEntries.count)
+        """
+      }
+    )
+  }
+
+  @Test("deleting an observed saved series alerts and dismisses when feed recovery fails")
+  func observedDeletionFailureAlertsAndDismisses() async throws {
+    let feedURL = FeedURL(URL(string: "https://example.com/deleted-podcast.rss")!)
+    let feedData = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    await feedSession.respond(to: feedURL.rawValue, data: feedData)
+    let podcastFeed = try await PodcastFeed.parse(feedData, from: feedURL)
+    let savedSeries = try await repo.insertSeries(podcastFeed.toUnsavedSeries())
+    let displayedPodcast = DisplayedPodcast(savedSeries.podcast)
+    let viewModel = PodcastDetailViewModel(podcast: displayedPodcast)
+
+    navigation.currentTab = .podcasts
+    navigation.podcasts.path = [
+      .podcastsViewType(.unsubscribed),
+      .podcast(displayedPodcast),
+    ]
+
+    try await viewModel.performAppear()
+
+    await feedSession.respond(to: feedURL.rawValue, error: URLError(.cannotLoadFromNetwork))
+    _ = try await repo.deletePodcast(savedSeries.id)
+
+    try await Wait.until(
+      { @MainActor in
+        alert.config != nil
+          && navigation.podcasts.path == [.podcastsViewType(.unsubscribed)]
+      },
+      { @MainActor in
+        """
+        Expected failed feed recovery after deletion to alert and dismiss.
+        alert presented: \(alert.config != nil)
+        navigation path: \(navigation.podcasts.path)
         """
       }
     )

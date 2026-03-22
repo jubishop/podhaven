@@ -13,12 +13,14 @@ struct PodcastDetailSource: Sendable {
   @DynamicInjected(\.repo) private var repo
 
   let initialPresentation: PodcastDetailPresentation
+  let requiresHydratedPresentation: Bool
 
   init(podcast: DisplayedPodcast) {
     initialPresentation = PodcastDetailPresentation(
       podcast: podcast,
       episodes: []
     )
+    requiresHydratedPresentation = false
   }
 
   init(listedPodcast: ListedPodcast) {
@@ -26,6 +28,7 @@ struct PodcastDetailSource: Sendable {
       podcast: DisplayedPodcast(PodcastDetailSnapshot(listedPodcast)),
       episodes: []
     )
+    requiresHydratedPresentation = listedPodcast.getListablePodcast() != nil
   }
 
   init(unsavedPodcastSeries: UnsavedPodcastSeries) {
@@ -42,6 +45,7 @@ struct PodcastDetailSource: Sendable {
         }
       )
     )
+    requiresHydratedPresentation = false
   }
 
   func savedSeries(currentPodcast: DisplayedPodcast) async throws -> PodcastSeries? {

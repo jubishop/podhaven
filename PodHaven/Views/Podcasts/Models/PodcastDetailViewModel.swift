@@ -30,6 +30,7 @@ class PodcastDetailViewModel:
     var userNotificationManager
 
   private static let log = Log.as(LogSubsystem.PodcastsView.detail)
+  private static let unavailableMessage = "This podcast is no longer available."
 
   // MARK: - Data
 
@@ -46,6 +47,7 @@ class PodcastDetailViewModel:
 
       _podcastSeries = newValue
       podcast = DisplayedPodcast(newValue.podcast)
+      isHydratingInitialPresentation = false
 
       // Careful to only update allEntries once
       var allEntries = episodeList.allEntries
@@ -171,6 +173,7 @@ class PodcastDetailViewModel:
   // MARK: - Derived State
 
   var displayingAboutSection: Bool = false
+  var isHydratingInitialPresentation: Bool
   var showingSettings: Bool = false
 
   var defaultPlaybackRate: Double? {
@@ -296,6 +299,7 @@ class PodcastDetailViewModel:
   private init(detailSource: PodcastDetailSource) {
     self.detailSource = detailSource
     self.podcast = detailSource.initialPresentation.podcast
+    isHydratingInitialPresentation = detailSource.requiresHydratedPresentation
     episodeList.sortMethod = currentSortMethod.sortMethod
     episodeList.allEntries = detailSource.initialPresentation.episodes
 
@@ -336,6 +340,9 @@ class PodcastDetailViewModel:
         Self.log.caughtError("appear: failed for \(podcast.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
+        if isHydratingInitialPresentation {
+          navigation.dismiss()
+        }
       }
     }
   }
@@ -557,6 +564,8 @@ class PodcastDetailViewModel:
             "observePodcastSeries: failed to re-parse feed after podcast \(podcastID) was deleted",
             error
           )
+          alert(Self.unavailableMessage)
+          navigation.dismiss()
         }
         return
       }
@@ -615,5 +624,6 @@ class PodcastDetailViewModel:
   private func apply(_ presentation: PodcastDetailPresentation) {
     podcast = presentation.podcast
     episodeList.allEntries = presentation.episodes
+    isHydratingInitialPresentation = false
   }
 }
