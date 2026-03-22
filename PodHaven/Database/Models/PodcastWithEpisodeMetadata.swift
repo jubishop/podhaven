@@ -3,11 +3,6 @@
 import Foundation
 import GRDB
 
-enum PodcastMetadataCodingKeys: String, CodingKey, ColumnExpression {
-  case episodeCount
-  case mostRecentEpisodeDate
-}
-
 @dynamicMemberLookup
 struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Stringable {
   // MARK: - Getters
@@ -38,6 +33,21 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Str
     self.episodeCount = episodeCount
     self.mostRecentEpisodeDate = mostRecentEpisodeDate
   }
+}
+
+// MARK: - FetchableRecord
+
+extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType: FetchableRecord {
+  init(row: Row) throws {
+    self.podcast = try PodcastType(row: row)
+    self.episodeCount = row[CodingKeys.episodeCount]
+    self.mostRecentEpisodeDate = row[CodingKeys.mostRecentEpisodeDate]
+  }
+
+  enum CodingKeys: String, CodingKey, ColumnExpression {
+    case episodeCount
+    case mostRecentEpisodeDate
+  }
 
   // MARK: Query Builders
 
@@ -46,19 +56,9 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Str
   ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
     filter(Podcast.all())
       .annotated(with: [
-        Podcast.episodes.count.forKey(PodcastMetadataCodingKeys.episodeCount),
-        Podcast.episodes.max(\.pubDate).forKey(PodcastMetadataCodingKeys.mostRecentEpisodeDate),
+        Podcast.episodes.count.forKey(CodingKeys.episodeCount),
+        Podcast.episodes.max(\.pubDate).forKey(CodingKeys.mostRecentEpisodeDate),
       ])
       .asRequest(of: PodcastWithEpisodeMetadata.self)
-  }
-}
-
-// MARK: - FetchableRecord
-
-extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType: FetchableRecord {
-  init(row: Row) throws {
-    self.podcast = try PodcastType(row: row)
-    self.episodeCount = row[PodcastMetadataCodingKeys.episodeCount]
-    self.mostRecentEpisodeDate = row[PodcastMetadataCodingKeys.mostRecentEpisodeDate]
   }
 }
