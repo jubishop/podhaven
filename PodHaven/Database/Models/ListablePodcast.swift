@@ -9,7 +9,7 @@ import Tagged
 // detail-only columns like lastUpdate, defaultPlaybackRate, etc.
 struct ListablePodcast: PodcastListable, FetchableRecord {
   let id: Podcast.ID
-  let creationDate: Date?
+  let creationDate: Date
 
   // MARK: - PodcastListable
 
