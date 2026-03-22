@@ -3,7 +3,7 @@
 import Foundation
 
 protocol PodcastDisplayable: PodcastListable {
-  var iTunesID: ITunesPodcastID? { get }
+  var description: String { get }
   var link: URL? { get }
   var defaultPlaybackRate: Double? { get }
   var queueAllEpisodes: QueueAllEpisodes { get }
@@ -11,6 +11,3 @@ protocol PodcastDisplayable: PodcastListable {
   var notifyNewEpisodes: Bool { get }
 }
 
-extension PodcastDisplayable {
-  var iTunesID: ITunesPodcastID? { nil }
-}

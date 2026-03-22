@@ -17,13 +17,12 @@ struct ListablePodcast: PodcastListable, FetchableRecord {
   let iTunesID: ITunesPodcastID?
   let image: URL
   let title: String
-  let description: String
   let subscriptionDate: Date?
 
   // MARK: - Stringable / Searchable
 
   var toString: String { "(\(feedURL.toString)) - \(title)" }
-  var searchableString: String { "\(title) - \(description)" }
+  var searchableString: String { title }
 
   // MARK: - FetchableRecord
 
@@ -33,7 +32,6 @@ struct ListablePodcast: PodcastListable, FetchableRecord {
     feedURL = row[Podcast.Columns.feedURL]
     title = row[Podcast.Columns.title]
     image = row[Podcast.Columns.image]
-    description = row[Podcast.Columns.description]
     subscriptionDate = row[Podcast.Columns.subscriptionDate]
     creationDate = row[Podcast.Columns.creationDate]
   }

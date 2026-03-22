@@ -77,7 +77,6 @@ struct ListedPodcast:
   var iTunesID: ITunesPodcastID? { podcast.iTunesID }
   var image: URL { podcast.image }
   var title: String { podcast.title }
-  var description: String { podcast.description }
   var subscriptionDate: Date? { podcast.subscriptionDate }
   var subscribed: Bool { podcast.subscribed }
 

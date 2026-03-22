@@ -78,7 +78,6 @@ struct DisplayedPodcast:
   var iTunesID: ITunesPodcastID? { podcast.iTunesID }
   var image: URL { podcast.image }
   var title: String { podcast.title }
-  var description: String { podcast.description }
   var subscriptionDate: Date? { podcast.subscriptionDate }
   var subscribed: Bool { podcast.subscribed }
 
@@ -86,6 +85,7 @@ struct DisplayedPodcast:
 
   private var displayable: (any PodcastDisplayable)? { podcast as? any PodcastDisplayable }
 
+  var description: String { displayable?.description ?? title }
   var link: URL? { displayable?.link }
   var defaultPlaybackRate: Double? { displayable?.defaultPlaybackRate }
   var queueAllEpisodes: QueueAllEpisodes { displayable?.queueAllEpisodes ?? .never }
