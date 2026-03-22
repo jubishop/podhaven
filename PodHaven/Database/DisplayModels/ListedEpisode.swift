@@ -86,15 +86,7 @@ struct ListedEpisode:
     if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
     } else if let listablePodcastEpisode = getListablePodcastEpisode() {
-      guard let podcastEpisode = try await repo.podcastEpisode(listablePodcastEpisode.id) else {
-        throw DatabaseError(
-          message:
-            """
-              PodcastEpisode not found for saved episode \(listablePodcastEpisode.id)
-            """
-        )
-      }
-      return podcastEpisode
+      return try await listablePodcastEpisode.getOrCreatePodcastEpisode()
     }
     Assert.fatal("Can't make PodcastEpisode from: \(type(of: episode))")
   }

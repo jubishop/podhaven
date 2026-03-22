@@ -274,3 +274,9 @@ extension ManagingEpisodes where EpisodeType == PodcastEpisode {
     episode
   }
 }
+
+extension ManagingEpisodes where EpisodeType == ListablePodcastEpisode {
+  func getOrCreatePodcastEpisode(_ episode: ListablePodcastEpisode) async throws -> PodcastEpisode {
+    try await episode.getOrCreatePodcastEpisode()
+  }
+}

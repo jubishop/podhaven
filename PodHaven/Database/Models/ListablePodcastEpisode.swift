@@ -1,6 +1,7 @@
 // Copyright Justin Bishop, 2026
 
 import AVFoundation
+import FactoryKit
 import Foundation
 import GRDB
 import Tagged
@@ -11,6 +12,8 @@ import Tagged
 // Episode.link, etc. Combined with .removeDuplicates(), this prevents
 // spurious list re-renders when non-visible data changes.
 struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Identifiable {
+  @DynamicInjected(\.repo) private var repo
+
   // MARK: - Episode Fields
 
   let id: Episode.ID
@@ -107,5 +110,12 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
       && lhs.saveInCache == rhs.saveInCache
       && lhs.podcastImage == rhs.podcastImage
       && lhs.podcastTitle == rhs.podcastTitle
+  }
+
+  func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
+    guard let podcastEpisode = try await repo.podcastEpisode(id) else {
+      Assert.fatal("PodcastEpisode not found for ID \(id)")
+    }
+    return podcastEpisode
   }
 }

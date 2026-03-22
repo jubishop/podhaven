@@ -165,18 +165,6 @@ class EpisodesListViewModel:
     }
   }
 
-  // MARK: - ManagingEpisodes
-
-  func getOrCreatePodcastEpisode(_ episode: ListablePodcastEpisode) async throws -> PodcastEpisode {
-    guard let episodeID = episode.episodeID else {
-      Assert.fatal("ListablePodcastEpisode should always be saved")
-    }
-    guard let podcastEpisode = try await repo.podcastEpisode(episodeID) else {
-      Assert.fatal("PodcastEpisode not found for ID \(episodeID)")
-    }
-    return podcastEpisode
-  }
-
   // MARK: - SelectableEpisodeList
 
   var selectedPodcastEpisodes: [PodcastEpisode] {

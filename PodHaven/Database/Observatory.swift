@@ -55,12 +55,12 @@ struct Observatory {
     }
   }
 
-  func podcastsWithEpisodeMetadata(
+  func podcastsWithEpisodeMetadata<T: PodcastListable & FetchableRecord>(
     _ filter: @escaping PodcastFilter = { $0 },
     limit: Int = Int.max
-  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]> {
+  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<T>]> {
     _observe { db in
-      try PodcastWithEpisodeMetadata
+      try PodcastWithEpisodeMetadata<T>
         .all(filter)
         .limit(limit)
         .fetchAll(db)
@@ -82,20 +82,6 @@ struct Observatory {
       },
       limit: limit
     )
-  }
-
-  // MARK: - Listable Podcasts
-
-  func listablePodcastsWithEpisodeMetadata(
-    _ filter: @escaping PodcastFilter = { $0 },
-    limit: Int = Int.max
-  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> {
-    _observe { db in
-      try PodcastWithEpisodeMetadata<ListablePodcast>
-        .all(filter)
-        .limit(limit)
-        .fetchAll(db)
-    }
   }
 
   // MARK: - PodcastEpisodes

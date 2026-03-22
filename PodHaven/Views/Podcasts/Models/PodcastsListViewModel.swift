@@ -125,9 +125,9 @@ class PodcastsListViewModel:
   func execute() async {
     defer { isLoading = false }
     do {
-      for try await podcastsWithEpisodeMetadata in observatory.listablePodcastsWithEpisodeMetadata(
-        filter
-      ) {
+      let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
+        observatory.podcastsWithEpisodeMetadata(filter)
+      for try await podcastsWithEpisodeMetadata in observation {
         try Task.checkCancellation()
         Self.log.debug("Updating \(podcastsWithEpisodeMetadata.count) observed podcasts")
 
