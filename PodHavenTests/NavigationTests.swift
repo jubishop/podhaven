@@ -45,13 +45,13 @@ import Testing
 
   // MARK: - Search Navigation
 
-  @Test("showSearchedUnsavedPodcastSeries dismisses sheet, sets tab, and sets search path")
-  func showSearchedUnsavedPodcastSeries() throws {
+  @Test("showSharedUnsavedPodcastSeries dismisses sheet, sets tab, and sets search path")
+  func showSharedUnsavedPodcastSeries() throws {
     let series = UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
 
     presentSheet()
 
-    navigation.showSearchedUnsavedPodcastSeries(series)
+    navigation.showSharedUnsavedPodcastSeries(series)
 
     #expect(sheet.config == nil)
     #expect(navigation.currentTab == .search)
@@ -59,9 +59,9 @@ import Testing
   }
 
   @Test(
-    "showSearchedEpisode dismisses sheet, sets tab, and sets search path with series and episode"
+    "showSharedEpisode dismisses sheet, sets tab, and sets search path with series and episode"
   )
-  func showSearchedEpisode() throws {
+  func showSharedEpisode() throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsavedEpisode = try Create.unsavedEpisode()
     let series = UnsavedPodcastSeries(
@@ -71,7 +71,7 @@ import Testing
 
     presentSheet()
 
-    navigation.showSearchedEpisode(
+    navigation.showSharedEpisode(
       unsavedPodcastSeries: series,
       unsavedEpisode: unsavedEpisode
     )
@@ -193,19 +193,19 @@ import Testing
     #expect(sheet.config == nil)
   }
 
-  @Test("showSearchedUnsavedPodcastSeries dismisses sheet even when already on search tab")
-  func showSearchedUnsavedPodcastSeriesSameTab() throws {
+  @Test("showSharedUnsavedPodcastSeries dismisses sheet even when already on search tab")
+  func showSharedUnsavedPodcastSeriesSameTab() throws {
     let series = UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
     navigation.currentTab = .search
     presentSheet()
 
-    navigation.showSearchedUnsavedPodcastSeries(series)
+    navigation.showSharedUnsavedPodcastSeries(series)
 
     #expect(sheet.config == nil)
   }
 
-  @Test("showSearchedEpisode dismisses sheet even when already on search tab")
-  func showSearchedEpisodeSameTab() throws {
+  @Test("showSharedEpisode dismisses sheet even when already on search tab")
+  func showSharedEpisodeSameTab() throws {
     let unsavedPodcast = try Create.unsavedPodcast()
     let unsavedEpisode = try Create.unsavedEpisode()
     let series = UnsavedPodcastSeries(
@@ -215,7 +215,7 @@ import Testing
     navigation.currentTab = .search
     presentSheet()
 
-    navigation.showSearchedEpisode(
+    navigation.showSharedEpisode(
       unsavedPodcastSeries: series,
       unsavedEpisode: unsavedEpisode
     )

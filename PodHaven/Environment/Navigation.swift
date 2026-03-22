@@ -295,7 +295,7 @@ extension Container {
 
   // MARK: - Search Navigation
 
-  func showSearchedUnsavedPodcastSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) {
+  func showSharedUnsavedPodcastSeries(_ unsavedPodcastSeries: UnsavedPodcastSeries) {
     Self.log.debug("Showing searched unsaved series: \(unsavedPodcastSeries.toString)")
 
     sheet.dismiss()
@@ -303,7 +303,7 @@ extension Container {
     currentTab = .search
   }
 
-  func showSearchedEpisode(
+  func showSharedEpisode(
     unsavedPodcastSeries: UnsavedPodcastSeries,
     unsavedEpisode: UnsavedEpisode
   ) {

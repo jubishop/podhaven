@@ -50,7 +50,7 @@ struct DownloadManagerTests {
       asyncSemaphore.signal()
     }
     for task in tasks {
-      do { try await task.downloadFinished() } catch { /* expected */  }
+      do { _ = try await task.downloadFinished() } catch { /* expected */  }
     }
 
     // The mock's maxActiveRequests property tracks the highest concurrency observed
