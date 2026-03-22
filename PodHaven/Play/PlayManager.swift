@@ -58,7 +58,7 @@ final class PlayManager {
   var alert: Alert { get async { await Container.shared.alert() } }
   var podAVPlayer: PodAVPlayer { get async { await Container.shared.podAVPlayer() } }
 
-  nonisolated private static let log = Log.as(LogSubsystem.Play.manager)
+  nonisolated static let log = Log.as(LogSubsystem.Play.manager)
 
   // MARK: - Configurable Constants
 

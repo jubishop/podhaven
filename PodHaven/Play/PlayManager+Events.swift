@@ -2,6 +2,7 @@
 
 import AVFoundation
 import FactoryKit
+import Logging
 
 extension PlayManager {
 
