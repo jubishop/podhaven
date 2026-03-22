@@ -94,17 +94,8 @@ import UIKit
   convenience init(listedEpisode: ListedEpisode) {
     if let unsavedPodcastEpisode = listedEpisode.getUnsavedPodcastEpisode() {
       self.init(episode: DisplayedEpisode(unsavedPodcastEpisode))
-    } else if let episodeID = listedEpisode.episodeID,
-      let podcastEpisode = try? Container.shared.repo().db
-        .read({ db in
-          try Episode
-            .withID(episodeID)
-            .including(required: Episode.podcast)
-            .asRequest(of: PodcastEpisode.self)
-            .fetchOne(db)
-        })
-    {
-      self.init(episode: DisplayedEpisode(podcastEpisode))
+    } else if let listablePodcastEpisode = listedEpisode.getListablePodcastEpisode() {
+      self.init(episode: DisplayedEpisode(listablePodcastEpisode.getPodcastEpisode()))
     } else {
       Assert.fatal("Cannot create EpisodeDetailViewModel from listed episode without data")
     }

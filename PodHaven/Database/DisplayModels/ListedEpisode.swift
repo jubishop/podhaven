@@ -86,7 +86,7 @@ struct ListedEpisode:
     if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
     } else if let listablePodcastEpisode = getListablePodcastEpisode() {
-      return try await listablePodcastEpisode.getOrCreatePodcastEpisode()
+      return try await listablePodcastEpisode.getPodcastEpisode()
     }
     Assert.fatal("Can't make PodcastEpisode from: \(type(of: episode))")
   }

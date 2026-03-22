@@ -121,14 +121,7 @@ struct DisplayedPodcast:
     }
   }
 
-  static func getPodcast(_ podcast: any PodcastDisplayable) -> Podcast? {
-    getDisplayedPodcast(podcast).getPodcast()
-  }
   func getPodcast() -> Podcast? { podcast as? Podcast }
-
-  static func getUnsavedPodcast(_ podcast: any PodcastDisplayable) -> UnsavedPodcast? {
-    getDisplayedPodcast(podcast).getUnsavedPodcast()
-  }
   func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
 
   static func getDisplayedPodcast(_ podcast: any PodcastDisplayable) -> DisplayedPodcast {

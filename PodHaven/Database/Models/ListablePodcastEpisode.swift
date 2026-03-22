@@ -112,7 +112,7 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
       && lhs.podcastTitle == rhs.podcastTitle
   }
 
-  func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
+  func getPodcastEpisode() async throws -> PodcastEpisode {
     guard let podcastEpisode = try await repo.podcastEpisode(id) else {
       Assert.fatal("PodcastEpisode not found for ID \(id)")
     }
