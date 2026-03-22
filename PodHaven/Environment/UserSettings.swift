@@ -17,7 +17,7 @@ struct UserSettings: Sendable {
   @PersistedBroadcast("skipForwardInterval") var skipForwardInterval: TimeInterval = 30
   @PersistedBroadcast("skipBackwardInterval") var skipBackwardInterval: TimeInterval = 15
   @PersistedBroadcast("enableUndoSeek") var enableUndoSeek: Bool = false
-  @PersistedBroadcast("maxQueueLength") var maxQueueLength: Int = 200
+  @PersistedBroadcast("maxQueueLength") var maxQueueLength: Int = 50
   @PersistedBroadcast("showNowPlayingInUpNext") var showNowPlayingInUpNext: Bool = false
   @PersistedBroadcast("alwaysShowPodcastImageInUpNext") var alwaysShowPodcastImageInUpNext: Bool =
     false
