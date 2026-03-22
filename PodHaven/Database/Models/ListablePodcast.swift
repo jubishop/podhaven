@@ -8,14 +8,16 @@ import Tagged
 // list display, so .removeDuplicates() in Observatory filters out changes to
 // detail-only columns like lastUpdate, defaultPlaybackRate, etc.
 struct ListablePodcast: PodcastListable, FetchableRecord {
+  // MARK: - PodcastListable
+
   let id: Podcast.ID
-  let iTunesID: ITunesPodcastID?
   let feedURL: FeedURL
-  let title: String
+  let creationDate: Date?
+  let iTunesID: ITunesPodcastID?
   let image: URL
+  let title: String
   let description: String
   let subscriptionDate: Date?
-  let creationDate: Date
 
   // MARK: - Stringable / Searchable
 

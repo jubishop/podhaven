@@ -73,8 +73,9 @@ struct ListedPodcast:
   // MARK: - PodcastListable
 
   var podcastID: Podcast.ID? { podcast.podcastID }
-  var iTunesID: ITunesPodcastID? { podcast.iTunesID }
   var feedURL: FeedURL { podcast.feedURL }
+  var creationDate: Date { podcast.creationDate }
+  var iTunesID: ITunesPodcastID? { podcast.iTunesID }
   var image: URL { podcast.image }
   var title: String { podcast.title }
   var description: String { podcast.description }

@@ -67,6 +67,7 @@ struct DisplayedPodcast:
 
   var podcastID: Podcast.ID? { podcast.podcastID }
   var feedURL: FeedURL { podcast.feedURL }
+  var creationDate: Date? { podcast.creationDate }
   var iTunesID: ITunesPodcastID? { podcast.iTunesID }
   var image: URL { podcast.image }
   var title: String { podcast.title }

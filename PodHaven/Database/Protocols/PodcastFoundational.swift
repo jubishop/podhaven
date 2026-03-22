@@ -3,9 +3,15 @@
 import Foundation
 
 protocol PodcastFoundational: Identifiable, Sendable, Stringable where ID: Sendable {
-  var podcastID: Podcast.ID? { get }
+  // MARK: - Core Properties
+
   var feedURL: FeedURL { get }
+  var creationDate: Date? { get }
   var title: String { get }
+
+  // MARK: - Computed Properties
+
+  var podcastID: Podcast.ID? { get }
   var isSaved: Bool { get }
 }
 

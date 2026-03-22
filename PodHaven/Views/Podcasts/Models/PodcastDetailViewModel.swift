@@ -105,8 +105,8 @@ class PodcastDetailViewModel:
         return { $0.pubDate < $1.pubDate }
       case .recentlyAdded:
         return { lhs, rhs in
-          let lhsDate = lhs.getPodcastEpisode()?.episode.creationDate ?? Date.distantFuture
-          let rhsDate = rhs.getPodcastEpisode()?.episode.creationDate ?? Date.distantFuture
+          let lhsDate = lhs.creationDate ?? Date.distantFuture
+          let rhsDate = rhs.creationDate ?? Date.distantFuture
           return lhsDate > rhsDate
         }
       case .longest:
