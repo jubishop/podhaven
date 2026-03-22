@@ -6,7 +6,6 @@ protocol PodcastFoundational: Identifiable, Sendable, Stringable where ID: Senda
   // MARK: - Core Properties
 
   var feedURL: FeedURL { get }
-  var creationDate: Date? { get }
   var title: String { get }
 
   // MARK: - Computed Properties

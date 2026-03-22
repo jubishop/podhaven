@@ -24,7 +24,6 @@ struct UnsavedPodcast:
 
   // Feed
   let feedURL: FeedURL
-  var creationDate: Date? { nil }
   let iTunesID: ITunesPodcastID?
   let title: String
   let image: URL
