@@ -27,7 +27,7 @@ import UIKit
 
   var episode: DisplayedEpisode
   private let listedEpisode: ListedEpisode?
-  private let canRevertToUnsaved: Bool
+  private let unsavedFallback: UnsavedPodcastEpisode?
   private var _podcastEpisode: PodcastEpisode?
   private var podcastEpisode: PodcastEpisode? {
     get { _podcastEpisode }
@@ -79,11 +79,11 @@ import UIKit
   init(
     episode: DisplayedEpisode,
     listedEpisode: ListedEpisode? = nil,
-    canRevertToUnsaved: Bool = true
+    unsavedFallback: UnsavedPodcastEpisode? = nil
   ) {
     self.episode = episode
     self.listedEpisode = listedEpisode
-    self.canRevertToUnsaved = canRevertToUnsaved
+    self.unsavedFallback = unsavedFallback
 
     Task { [weak self] in
       guard let self else { return }
@@ -100,16 +100,29 @@ import UIKit
   }
 
   convenience init(listedEpisode: ListedEpisode) {
-    if listedEpisode.getUnsavedPodcastEpisode() != nil {
+    if let unsavedPodcastEpisode = listedEpisode.getUnsavedPodcastEpisode() {
+      let unsavedFallback: UnsavedPodcastEpisode
+      do {
+        unsavedFallback = try unsavedPodcastEpisode.toOriginalUnsavedPodcastEpisode()
+      } catch {
+        Assert.fatal(
+          """
+          Cannot build UnsavedPodcastEpisode fallback \
+          for listed episode: \(unsavedPodcastEpisode.toString). \
+          Error: \(error)
+          """
+        )
+      }
+
       self.init(
         episode: DisplayedEpisode(EpisodeDetailSnapshot(listedEpisode)),
-        listedEpisode: listedEpisode
+        listedEpisode: listedEpisode,
+        unsavedFallback: unsavedFallback
       )
     } else if listedEpisode.getListablePodcastEpisode() != nil {
       self.init(
         episode: DisplayedEpisode(EpisodeDetailSnapshot(listedEpisode)),
-        listedEpisode: listedEpisode,
-        canRevertToUnsaved: false
+        listedEpisode: listedEpisode
       )
     } else {
       Assert.fatal("Cannot create EpisodeDetailViewModel from listed episode without data")
@@ -141,17 +154,15 @@ import UIKit
     } else {
       Self.log.debug("Podcast episode: \(episode.toString) does not exist in db")
 
-      guard canRevertToUnsaved else {
-        Self.log.warning("Cannot revert list-only episode without saved data: \(episode.toString)")
-        _podcastEpisode = nil
-        return
-      }
-
       _podcastEpisode = nil
-      if let unsavedPodcastEpisode = listedEpisode?.getUnsavedPodcastEpisode() {
+      if let unsavedFallback {
+        episode = DisplayedEpisode(unsavedFallback)
+      } else if let unsavedPodcastEpisode = episode.getUnsavedPodcastEpisode() {
         episode = DisplayedEpisode(try unsavedPodcastEpisode.toOriginalUnsavedPodcastEpisode())
       } else {
-        episode = DisplayedEpisode(try episode.toOriginalUnsavedPodcastEpisode())
+        Self.log.warning("Episode no longer exists for detail hydration: \(episode.toString)")
+        alert("This episode is no longer available.")
+        navigation.dismiss()
       }
     }
   }

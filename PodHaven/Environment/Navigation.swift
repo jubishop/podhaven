@@ -361,6 +361,33 @@ extension Container {
     currentTab = .upNext
   }
 
+  func dismiss() {
+    Self.log.debug("Dismissing current navigation destination")
+
+    if sheet.config != nil {
+      sheet.dismiss()
+      return
+    }
+
+    switch currentTab {
+    case .settings:
+      guard !settings.path.isEmpty else { return }
+      settings.path.removeLast()
+    case .search:
+      guard !search.path.isEmpty else { return }
+      search.path.removeLast()
+    case .upNext:
+      guard !upNext.path.isEmpty else { return }
+      upNext.path.removeLast()
+    case .episodes:
+      guard episodes.path.count > 1 else { return }
+      episodes.path.removeLast()
+    case .podcasts:
+      guard podcasts.path.count > 1 else { return }
+      podcasts.path.removeLast()
+    }
+  }
+
   // MARK: - Episodes
 
   var episodes = SavedPathManager<EpisodesViewType>(

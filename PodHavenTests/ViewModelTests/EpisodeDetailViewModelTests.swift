@@ -9,6 +9,8 @@ import Testing
 
 @Suite("EpisodeDetailViewModel tests", .container)
 @MainActor final class EpisodeDetailViewModelTests {
+  @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.navigation) private var navigation
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
@@ -80,6 +82,38 @@ import Testing
     try await viewModel.performAppear()
 
     #expect(viewModel.episode.episodeID == podcastEpisode.id)
+  }
+
+  @Test("missing saved listed episodes alert and dismiss instead of fabricating unsaved detail")
+  func missingSavedListedEpisodesAlertAndDismiss() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Deleted Episode"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "deleted-episode-detail",
+          title: "Deleted Episode"
+        )
+      )
+    )
+    let listableEpisodes: [ListablePodcastEpisode] =
+      try await observatory.podcastEpisodes([
+        podcastEpisode.mediaGUID
+      ])
+      .get()
+    let listedEpisode = try #require(listableEpisodes.first)
+    let listed = ListedEpisode(listedEpisode)
+
+    navigation.currentTab = .episodes
+    navigation.episodes.path = [.episodesViewType(.recentEpisodes), .listedEpisode(listed)]
+
+    _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
+
+    let viewModel = EpisodeDetailViewModel(listedEpisode: listed)
+
+    try await viewModel.performAppear()
+
+    #expect(alert.config != nil)
+    #expect(navigation.episodes.path == [.episodesViewType(.recentEpisodes)])
   }
 
   @Test("addToTopOfQueue is a no-op for the first queued episode")

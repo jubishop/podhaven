@@ -16,7 +16,8 @@ actor PodcastsWithMetadataTests {
   @Test("podcastsWithEpisodeMetadata(feedURLs) with empty array")
   func testPodcastsWithEpisodeMetadataFeedURLsEmpty() async throws {
     // Test with empty array
-    let podcastsWithMetadata = try await observatory.podcastsWithEpisodeMetadata([]).get()
+    let podcastsWithMetadata: [PodcastWithEpisodeMetadata<Podcast>] =
+      try await observatory.podcastsWithEpisodeMetadata([]).get()
     #expect(podcastsWithMetadata.isEmpty)
   }
 
@@ -29,7 +30,7 @@ actor PodcastsWithMetadataTests {
       FeedURL(URL(string: "https://example3.com/feed.rss")!),
     ]
 
-    let podcastsWithMetadata =
+    let podcastsWithMetadata: [PodcastWithEpisodeMetadata<Podcast>] =
       try await observatory.podcastsWithEpisodeMetadata(nonExistentFeedURLs).get()
     #expect(podcastsWithMetadata.isEmpty)
   }
@@ -75,7 +76,7 @@ actor PodcastsWithMetadataTests {
     )
 
     // Test querying for specific podcasts
-    let podcastsWithMetadata =
+    let podcastsWithMetadata: [PodcastWithEpisodeMetadata<Podcast>] =
       try await observatory.podcastsWithEpisodeMetadata([feedURL1, feedURL2]).get()
 
     #expect(podcastsWithMetadata.count == 2)
@@ -119,7 +120,7 @@ actor PodcastsWithMetadataTests {
     )
 
     // Query with mix of existing and non-existing feed URLs
-    let podcastsWithMetadata =
+    let podcastsWithMetadata: [PodcastWithEpisodeMetadata<Podcast>] =
       try await observatory.podcastsWithEpisodeMetadata(
         [existingFeedURL1, nonExistentFeedURL, existingFeedURL2]
       )
@@ -177,7 +178,7 @@ actor PodcastsWithMetadataTests {
     )
 
     // Test with limit
-    let podcastsWithMetadataLimited =
+    let podcastsWithMetadataLimited: [PodcastWithEpisodeMetadata<Podcast>] =
       try await observatory.podcastsWithEpisodeMetadata(
         [feedURL1, feedURL2, feedURL3],
         limit: 2
@@ -196,7 +197,10 @@ actor PodcastsWithMetadataTests {
 
     // Start observing before any podcasts exist
     Task {
-      for try await metadata in observatory.podcastsWithEpisodeMetadata([feedURL1, feedURL2]) {
+      let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]> =
+        observatory.podcastsWithEpisodeMetadata([feedURL1, feedURL2])
+
+      for try await metadata in observation {
         await observedMetadata.set(metadata)
       }
     }

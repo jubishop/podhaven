@@ -485,11 +485,13 @@ class SearchViewModel:
       guard let self else { return }
 
       do {
-        for try await podcasts in observatory.podcastsWithEpisodeMetadata(
-          feedURLs,
-          iTunesIDs: iTunesIDs,
-          as: ListablePodcast.self
-        ) {
+        let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
+          observatory.podcastsWithEpisodeMetadata(
+            feedURLs,
+            iTunesIDs: iTunesIDs
+          )
+
+        for try await podcasts in observation {
           try Task.checkCancellation()
           update(podcasts)
         }

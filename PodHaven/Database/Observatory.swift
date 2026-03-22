@@ -70,8 +70,7 @@ struct Observatory {
   func podcastsWithEpisodeMetadata<T: PodcastListable & FetchableRecord>(
     _ feedURLs: [FeedURL],
     iTunesIDs: [ITunesPodcastID] = [],
-    limit: Int = Int.max,
-    as _: T.Type
+    limit: Int = Int.max
   ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<T>]> {
     podcastsWithEpisodeMetadata(
       { request in
@@ -82,19 +81,6 @@ struct Observatory {
         return request.filter(filter)
       },
       limit: limit
-    )
-  }
-
-  func podcastsWithEpisodeMetadata(
-    _ feedURLs: [FeedURL],
-    iTunesIDs: [ITunesPodcastID] = [],
-    limit: Int = Int.max
-  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]> {
-    podcastsWithEpisodeMetadata(
-      feedURLs,
-      iTunesIDs: iTunesIDs,
-      limit: limit,
-      as: Podcast.self
     )
   }
 
