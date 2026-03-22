@@ -137,6 +137,7 @@
 				MigrationTests/v28Tests.swift,
 				MigrationTests/v30Tests.swift,
 				MigrationTests/v31Tests.swift,
+				MigrationTests/v32Tests.swift,
 				NavigationTests.swift,
 				NotificationServiceTests.swift,
 				ObservatoryTests/MetadataTests.swift,

@@ -257,6 +257,25 @@ enum Schema {
       try db.create(indexOn: "podcast", columns: ["iTunesID"], options: .unique)
     }
 
+    migrator.registerMigration("v32") { db in
+      // Cap maxQueueLength at 100 (previously allowed up to 500).
+      let defaults = UserDefaults.standard
+      let key = "maxQueueLength"
+      if let data = defaults.data(forKey: key),
+        let current = try? JSONDecoder().decode(Int.self, from: data),
+        current > 100
+      {
+        let clamped = try JSONEncoder().encode(100)
+        defaults.set(clamped, forKey: key)
+        log.info("v32: clamped maxQueueLength from \(current) to 100")
+      }
+
+      // Trim queued episodes beyond position 100.
+      // queueOrder is always a dense 0-based sequence, so this is equivalent
+      // to removing everything past the 100th item.
+      try db.execute(sql: "UPDATE episode SET queueOrder = NULL WHERE queueOrder >= 100")
+    }
+
     return migrator
   }
 
