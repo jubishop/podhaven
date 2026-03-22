@@ -53,13 +53,6 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Str
   }
 }
 
-// MARK: - PodcastDisplayable Helpers
-
-extension PodcastWithEpisodeMetadata where PodcastType: PodcastDisplayable {
-  func getPodcast() -> Podcast? { DisplayedPodcast.getPodcast(podcast) }
-  func getUnsavedPodcast() -> UnsavedPodcast? { DisplayedPodcast.getUnsavedPodcast(podcast) }
-}
-
 // MARK: - FetchableRecord
 
 extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType: FetchableRecord {
