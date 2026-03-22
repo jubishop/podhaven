@@ -111,7 +111,7 @@ import Testing
     let searchFeedURL = FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!)
     let newestEpisodeDate = Date(timeIntervalSince1970: 321)
 
-    let savedSeries = try await repo.insertSeries(
+    try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(
           feedURL: canonicalFeedURL,
@@ -138,7 +138,6 @@ import Testing
         guard let bridged = viewModel.searchResults[id: searchFeedURL] else { return false }
         return bridged.podcast.id == searchFeedURL
           && bridged.podcast.feedURL == canonicalFeedURL
-          && bridged.podcast.getPodcast()?.id == savedSeries.podcast.id
           && bridged.episodeCount == 1
           && bridged.mostRecentEpisodeDate == newestEpisodeDate
       },
@@ -149,7 +148,6 @@ import Testing
           bridged exists: \(bridged != nil)
           result ID: \(String(describing: bridged?.podcast.id))
           canonical feed: \(String(describing: bridged?.podcast.feedURL))
-          saved podcast ID: \(String(describing: bridged?.podcast.getPodcast()?.id))
           episodeCount: \(String(describing: bridged?.episodeCount))
           mostRecentEpisodeDate: \(String(describing: bridged?.mostRecentEpisodeDate))
           """

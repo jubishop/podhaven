@@ -31,9 +31,6 @@ struct DisplayedPodcast:
   // MARK: - Identifiable
 
   var id: FeedURL {
-    if let searchResult = podcast as? SearchResultPodcast {
-      return searchResult.resultFeedURL
-    }
     return feedURL
   }
 

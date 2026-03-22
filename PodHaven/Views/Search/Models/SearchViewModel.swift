@@ -520,7 +520,6 @@ class SearchViewModel:
   private func revertToUnsaved(
     _ result: PodcastWithEpisodeMetadata<ListedPodcast>
   ) -> PodcastWithEpisodeMetadata<ListedPodcast>? {
-    guard result.podcast.getPodcast() != nil else { return nil }
     do {
       let unsaved = try result.podcast.toOriginalUnsavedPodcast()
       return PodcastWithEpisodeMetadata(

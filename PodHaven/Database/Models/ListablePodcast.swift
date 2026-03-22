@@ -9,6 +9,7 @@ import Tagged
 // detail-only columns like lastUpdate, defaultPlaybackRate, etc.
 struct ListablePodcast: PodcastListable, FetchableRecord {
   let id: Podcast.ID
+  let iTunesID: ITunesPodcastID?
   let feedURL: FeedURL
   let title: String
   let image: URL
@@ -25,6 +26,7 @@ struct ListablePodcast: PodcastListable, FetchableRecord {
 
   init(row: Row) throws {
     id = row[Podcast.Columns.id]
+    iTunesID = row[Podcast.Columns.iTunesID] as ITunesPodcastID?
     feedURL = row[Podcast.Columns.feedURL]
     title = row[Podcast.Columns.title]
     image = row[Podcast.Columns.image]

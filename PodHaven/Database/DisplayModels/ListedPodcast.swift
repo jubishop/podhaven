@@ -2,6 +2,7 @@
 
 import FactoryKit
 import Foundation
+import GRDB
 
 @dynamicMemberLookup
 struct ListedPodcast:
@@ -29,7 +30,7 @@ struct ListedPodcast:
   // MARK: - Identifiable
 
   var id: FeedURL {
-    if let searchResult = podcast as? SearchResultPodcast {
+    if let searchResult = getSearchResultPodcast() {
       return searchResult.resultFeedURL
     }
     return feedURL
@@ -38,28 +39,28 @@ struct ListedPodcast:
   // MARK: - Hashable / Equatable
 
   func hash(into hasher: inout Hasher) {
-    if let searchResult = podcast as? SearchResultPodcast {
+    if let listablePodcast = getListablePodcast() {
+      hasher.combine(listablePodcast)
+    } else if let searchResult = getSearchResultPodcast() {
       hasher.combine(searchResult)
-    } else if let podcast = getPodcast() {
-      hasher.combine(podcast)
     } else if let unsavedPodcast = getUnsavedPodcast() {
       hasher.combine(unsavedPodcast)
-    } else if let listablePodcast = getListablePodcast() {
-      hasher.combine(listablePodcast)
     } else {
       Assert.fatal("Can't make hash from: \(type(of: podcast))")
     }
   }
 
   static func == (lhs: ListedPodcast, rhs: ListedPodcast) -> Bool {
-    if let leftPodcast = lhs.getPodcast(), let rightPodcast = rhs.getPodcast() {
-      return leftPodcast == rightPodcast
+    if let leftListable = lhs.getListablePodcast(), let rightListable = rhs.getListablePodcast() {
+      return leftListable == rightListable
+    }
+    if let leftSearchResult = lhs.getSearchResultPodcast(),
+      let rightSearchResult = rhs.getSearchResultPodcast()
+    {
+      return leftSearchResult == rightSearchResult
     }
     if let leftUnsaved = lhs.getUnsavedPodcast(), let rightUnsaved = rhs.getUnsavedPodcast() {
       return leftUnsaved == rightUnsaved
-    }
-    if let leftListable = lhs.getListablePodcast(), let rightListable = rhs.getListablePodcast() {
-      return leftListable == rightListable
     }
     return false
   }
@@ -71,7 +72,7 @@ struct ListedPodcast:
 
   // MARK: - PodcastListable
 
-  var podcastID: Podcast.ID? { podcast.podcastID }
+  var iTunesID: ITunesPodcastID? { podcast.iTunesID }
   var feedURL: FeedURL { podcast.feedURL }
   var image: URL { podcast.image }
   var title: String { podcast.title }
@@ -79,20 +80,11 @@ struct ListedPodcast:
   var subscriptionDate: Date? { podcast.subscriptionDate }
   var subscribed: Bool { podcast.subscribed }
 
-  // MARK: - PodcastDisplayable (conditional)
-
-  var iTunesID: ITunesPodcastID? { (podcast as? any PodcastDisplayable)?.iTunesID }
-
   // MARK: - Getters
 
   func getListablePodcast() -> ListablePodcast? { podcast as? ListablePodcast }
+  func getSearchResultPodcast() -> SearchResultPodcast? { podcast as? SearchResultPodcast }
   func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
-  func getPodcast() -> Podcast? {
-    if let searchResult = podcast as? SearchResultPodcast {
-      return searchResult.podcast
-    }
-    return podcast as? Podcast
-  }
 
   func getDisplayedPodcast() -> DisplayedPodcast? {
     guard let displayable = podcast as? any PodcastDisplayable else { return nil }
@@ -100,10 +92,8 @@ struct ListedPodcast:
   }
 
   func toOriginalUnsavedPodcast() throws -> UnsavedPodcast {
-    if let searchResult = podcast as? SearchResultPodcast {
+    if let searchResult = getSearchResultPodcast() {
       return try searchResult.podcast.toOriginalUnsavedPodcast()
-    } else if let podcast = getPodcast() {
-      return try podcast.toOriginalUnsavedPodcast()
     } else if let unsavedPodcast = getUnsavedPodcast() {
       return try unsavedPodcast.toOriginalUnsavedPodcast()
     } else {
@@ -112,17 +102,15 @@ struct ListedPodcast:
   }
 
   func getOrCreatePodcast() async throws -> Podcast {
-    if let podcast = getPodcast() {
-      return podcast
-    } else if let unsavedPodcast = getUnsavedPodcast() {
+    if let unsavedPodcast = getUnsavedPodcast() {
       return try await DisplayedPodcast.getOrCreatePodcast(unsavedPodcast)
-    } else if let podcastID = podcast.podcastID {
-      guard let podcastSeries = try await repo.podcastSeries(podcastID) else {
-        Assert.fatal("Podcast not found for ID \(podcastID)")
+    } else if let listablePodcast = getListablePodcast() {
+      guard let podcastSeries = try await repo.podcastSeries(listablePodcast.id) else {
+        throw DatabaseError(message: "Podcast not found for ID \(listablePodcast.id)")
       }
       return podcastSeries.podcast
     } else {
-      Assert.fatal("Can't get or create Podcast from: \(type(of: podcast))")
+      Assert.fatal("Can't make podcast from: \(type(of: podcast))")
     }
   }
 }

@@ -38,6 +38,19 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Str
     self.episodeCount = episodeCount
     self.mostRecentEpisodeDate = mostRecentEpisodeDate
   }
+
+  // MARK: Query Builders
+
+  static func all(
+    _ filter: PodcastFilter = { $0 }
+  ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
+    filter(Podcast.all())
+      .annotated(with: [
+        Podcast.episodes.count.forKey(PodcastMetadataCodingKeys.episodeCount),
+        Podcast.episodes.max(\.pubDate).forKey(PodcastMetadataCodingKeys.mostRecentEpisodeDate),
+      ])
+      .asRequest(of: PodcastWithEpisodeMetadata.self)
+  }
 }
 
 // MARK: - PodcastDisplayable Helpers
@@ -54,33 +67,5 @@ extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType: Fetchab
     self.podcast = try PodcastType(row: row)
     self.episodeCount = row[PodcastMetadataCodingKeys.episodeCount]
     self.mostRecentEpisodeDate = row[PodcastMetadataCodingKeys.mostRecentEpisodeDate]
-  }
-}
-
-// MARK: - Query Builders
-
-extension PodcastWithEpisodeMetadata where PodcastType == Podcast {
-  static func all(
-    _ filter: PodcastFilter = { $0 }
-  ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
-    filter(Podcast.all())
-      .annotated(with: [
-        Podcast.episodes.count.forKey(PodcastMetadataCodingKeys.episodeCount),
-        Podcast.episodes.max(\.pubDate).forKey(PodcastMetadataCodingKeys.mostRecentEpisodeDate),
-      ])
-      .asRequest(of: PodcastWithEpisodeMetadata.self)
-  }
-}
-
-extension PodcastWithEpisodeMetadata where PodcastType == ListablePodcast {
-  static func all(
-    _ filter: PodcastFilter = { $0 }
-  ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
-    filter(Podcast.all())
-      .annotated(with: [
-        Podcast.episodes.count.forKey(PodcastMetadataCodingKeys.episodeCount),
-        Podcast.episodes.max(\.pubDate).forKey(PodcastMetadataCodingKeys.mostRecentEpisodeDate),
-      ])
-      .asRequest(of: PodcastWithEpisodeMetadata.self)
   }
 }
