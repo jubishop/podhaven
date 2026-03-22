@@ -17,7 +17,7 @@ class V32MigrationTests {
 
   // MARK: - Helpers
 
-  private func insertPodcast(_ db: Database) throws -> Int64 {
+  private static func insertPodcast(_ db: Database) throws -> Int64 {
     try db.execute(
       sql: """
         INSERT INTO podcast (feedURL, title, image, description)
@@ -27,31 +27,32 @@ class V32MigrationTests {
     return db.lastInsertedRowID
   }
 
-  private func insertEpisode(
+  private static func insertEpisodes(
     _ db: Database,
     podcastID: Int64,
-    guid: String,
-    queueOrder: Int?
-  ) throws -> Int64 {
-    try db.execute(
-      sql: """
-        INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate, queueOrder)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-        """,
-      arguments: [podcastID, guid, "https://example.com/\(guid).mp3", guid, queueOrder]
-    )
-    return db.lastInsertedRowID
-  }
-
-  private func fetchQueueOrders(_ db: Database) throws -> [Int64: Int?] {
-    let rows = try Row.fetchAll(db, sql: "SELECT id, queueOrder FROM episode ORDER BY id")
-    var result: [Int64: Int?] = [:]
-    for row in rows {
-      let id: Int64 = row["id"]
-      let order: Int? = row["queueOrder"]
-      result[id] = order
+    queuedCount: Int,
+    unqueuedCount: Int = 0
+  ) throws {
+    for i in 0..<queuedCount {
+      try db.execute(
+        sql: """
+          INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate, queueOrder)
+          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+          """,
+        arguments: [podcastID, "ep-\(i)", "https://example.com/ep-\(i).mp3", "ep-\(i)", i]
+      )
     }
-    return result
+    for i in 0..<unqueuedCount {
+      try db.execute(
+        sql: """
+          INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate, queueOrder)
+          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)
+          """,
+        arguments: [
+          podcastID, "unqueued-\(i)", "https://example.com/unqueued-\(i).mp3", "unqueued-\(i)",
+        ]
+      )
+    }
   }
 
   // MARK: - Tests
@@ -60,14 +61,9 @@ class V32MigrationTests {
   func testTrimsBeyond100() async throws {
     try migrator.migrate(appDB.db, upTo: "v31")
 
-    try await appDB.db.write { [weak self] db in
-      guard let self else { return }
-      let podcastID = try insertPodcast(db)
-
-      // Insert 120 queued episodes with dense 0-based queueOrder
-      for i in 0..<120 {
-        _ = try insertEpisode(db, podcastID: podcastID, guid: "ep-\(i)", queueOrder: i)
-      }
+    try await appDB.db.write { db in
+      let podcastID = try V32MigrationTests.insertPodcast(db)
+      try V32MigrationTests.insertEpisodes(db, podcastID: podcastID, queuedCount: 120)
     }
 
     try migrator.migrate(appDB.db, upTo: "v32")
@@ -79,14 +75,12 @@ class V32MigrationTests {
       )
       #expect(queuedCount == 100)
 
-      // Episodes 0-99 should still be queued
       let maxOrder = try Int.fetchOne(
         db,
         sql: "SELECT MAX(queueOrder) FROM episode WHERE queueOrder IS NOT NULL"
       )
       #expect(maxOrder == 99)
 
-      // Episodes that had queueOrder >= 100 should be nulled
       let nulledCount = try Int.fetchOne(
         db,
         sql: "SELECT COUNT(*) FROM episode WHERE queueOrder IS NULL"
@@ -99,13 +93,9 @@ class V32MigrationTests {
   func testExactly100() async throws {
     try migrator.migrate(appDB.db, upTo: "v31")
 
-    try await appDB.db.write { [weak self] db in
-      guard let self else { return }
-      let podcastID = try insertPodcast(db)
-
-      for i in 0..<100 {
-        _ = try insertEpisode(db, podcastID: podcastID, guid: "ep-\(i)", queueOrder: i)
-      }
+    try await appDB.db.write { db in
+      let podcastID = try V32MigrationTests.insertPodcast(db)
+      try V32MigrationTests.insertEpisodes(db, podcastID: podcastID, queuedCount: 100)
     }
 
     try migrator.migrate(appDB.db, upTo: "v32")
@@ -129,13 +119,9 @@ class V32MigrationTests {
   func testUnder100() async throws {
     try migrator.migrate(appDB.db, upTo: "v31")
 
-    try await appDB.db.write { [weak self] db in
-      guard let self else { return }
-      let podcastID = try insertPodcast(db)
-
-      for i in 0..<50 {
-        _ = try insertEpisode(db, podcastID: podcastID, guid: "ep-\(i)", queueOrder: i)
-      }
+    try await appDB.db.write { db in
+      let podcastID = try V32MigrationTests.insertPodcast(db)
+      try V32MigrationTests.insertEpisodes(db, podcastID: podcastID, queuedCount: 50)
     }
 
     try migrator.migrate(appDB.db, upTo: "v32")
@@ -153,17 +139,14 @@ class V32MigrationTests {
   func testUnqueuedUntouched() async throws {
     try migrator.migrate(appDB.db, upTo: "v31")
 
-    try await appDB.db.write { [weak self] db in
-      guard let self else { return }
-      let podcastID = try insertPodcast(db)
-
-      // 110 queued + 5 unqueued
-      for i in 0..<110 {
-        _ = try insertEpisode(db, podcastID: podcastID, guid: "ep-\(i)", queueOrder: i)
-      }
-      for i in 0..<5 {
-        _ = try insertEpisode(db, podcastID: podcastID, guid: "unqueued-\(i)", queueOrder: nil)
-      }
+    try await appDB.db.write { db in
+      let podcastID = try V32MigrationTests.insertPodcast(db)
+      try V32MigrationTests.insertEpisodes(
+        db,
+        podcastID: podcastID,
+        queuedCount: 110,
+        unqueuedCount: 5
+      )
     }
 
     try migrator.migrate(appDB.db, upTo: "v32")
@@ -188,14 +171,14 @@ class V32MigrationTests {
   func testEmptyQueue() async throws {
     try migrator.migrate(appDB.db, upTo: "v31")
 
-    try await appDB.db.write { [weak self] db in
-      guard let self else { return }
-      let podcastID = try insertPodcast(db)
-
-      // Only unqueued episodes
-      for i in 0..<3 {
-        _ = try insertEpisode(db, podcastID: podcastID, guid: "ep-\(i)", queueOrder: nil)
-      }
+    try await appDB.db.write { db in
+      let podcastID = try V32MigrationTests.insertPodcast(db)
+      try V32MigrationTests.insertEpisodes(
+        db,
+        podcastID: podcastID,
+        queuedCount: 0,
+        unqueuedCount: 3
+      )
     }
 
     try migrator.migrate(appDB.db, upTo: "v32")
