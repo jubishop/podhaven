@@ -271,20 +271,9 @@ enum Schema {
       }
 
       // Trim queued episodes beyond position 100.
-      try db.execute(
-        sql: """
-          UPDATE episode SET queueOrder = NULL
-          WHERE id IN (
-            SELECT id FROM episode
-            WHERE queueOrder IS NOT NULL
-            ORDER BY queueOrder DESC
-            LIMIT MAX(
-              (SELECT COUNT(*) FROM episode WHERE queueOrder IS NOT NULL) - 100,
-              0
-            )
-          )
-          """
-      )
+      // queueOrder is always a dense 0-based sequence, so this is equivalent
+      // to removing everything past the 100th item.
+      try db.execute(sql: "UPDATE episode SET queueOrder = NULL WHERE queueOrder >= 100")
     }
 
     return migrator
