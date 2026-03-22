@@ -254,8 +254,8 @@ struct SettingsView: View {
             }
             Slider(
               value: $tempMaxQueueLength,
-              in: 50...500,
-              step: 50,
+              in: 10...100,
+              step: 10,
               onEditingChanged: { editing in
                 if !editing {
                   userSettings.$maxQueueLength.new(Int(tempMaxQueueLength))
