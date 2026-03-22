@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol PodcastDisplayable: PodcastListable, Hashable {
+protocol PodcastDisplayable: PodcastListable {
   var iTunesID: ITunesPodcastID? { get }
   var link: URL? { get }
   var defaultPlaybackRate: Double? { get }

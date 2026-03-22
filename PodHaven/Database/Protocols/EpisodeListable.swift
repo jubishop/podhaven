@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol EpisodeListable: EpisodeFoundational {
+protocol EpisodeListable: EpisodeFoundational, Hashable {
   var image: URL { get }
   var podcastImage: URL { get }
 }

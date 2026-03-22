@@ -95,7 +95,7 @@ import UIKit
     if let unsavedPodcastEpisode = listedEpisode.getUnsavedPodcastEpisode() {
       self.init(episode: DisplayedEpisode(unsavedPodcastEpisode))
     } else if let listablePodcastEpisode = listedEpisode.getListablePodcastEpisode() {
-      self.init(episode: DisplayedEpisode(listablePodcastEpisode.getPodcastEpisode()))
+      self.init(episode: DisplayedEpisode(listablePodcastEpisode))
     } else {
       Assert.fatal("Cannot create EpisodeDetailViewModel from listed episode without data")
     }

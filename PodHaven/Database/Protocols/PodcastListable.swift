@@ -2,7 +2,7 @@
 
 import Foundation
 
-protocol PodcastListable: PodcastFoundational, Searchable {
+protocol PodcastListable: PodcastFoundational, Hashable, Searchable {
   var iTunesID: ITunesPodcastID? { get }
   var image: URL { get }
   var description: String { get }

@@ -121,8 +121,8 @@ class PodcastDetailViewModel:
         }
       case .recentlyQueued:
         return { lhs, rhs in
-          let lhsDate = lhs.episode.queueDate ?? Date.distantPast
-          let rhsDate = rhs.episode.queueDate ?? Date.distantPast
+          let lhsDate = lhs.queueDate ?? Date.distantPast
+          let rhsDate = rhs.queueDate ?? Date.distantPast
           return lhsDate > rhsDate
         }
       }
@@ -314,23 +314,12 @@ class PodcastDetailViewModel:
   convenience init(listedPodcast: ListedPodcast) {
     if let unsavedPodcast = listedPodcast.getUnsavedPodcast() {
       self.init(podcast: DisplayedPodcast(unsavedPodcast))
-    } else if let podcastID = listedPodcast.podcastID,
-      let podcast = try? Container.shared.repo().db
-        .read({ db in
-          try Podcast.withID(podcastID).fetchOne(db)
-        })
-    {
-      self.init(podcast: DisplayedPodcast(podcast))
+    } else if let searchResult = listedPodcast.getSearchResultPodcast() {
+      self.init(podcast: DisplayedPodcast(searchResult.podcast))
+    } else if let listablePodcast = listedPodcast.getListablePodcast() {
+      self.init(podcast: DisplayedPodcast(listablePodcast))
     } else {
-      // Fallback: create placeholder from listable data for initial display
-      let placeholder = try! UnsavedPodcast(
-        feedURL: listedPodcast.feedURL,
-        title: listedPodcast.title,
-        image: listedPodcast.image,
-        description: listedPodcast.description,
-        link: nil
-      )
-      self.init(podcast: DisplayedPodcast(placeholder))
+      Assert.fatal("Cannot create PodcastDetailViewModel from listed podcast without data")
     }
   }
 
