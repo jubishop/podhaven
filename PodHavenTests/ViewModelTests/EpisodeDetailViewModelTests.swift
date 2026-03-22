@@ -116,6 +116,78 @@ import Testing
     #expect(navigation.episodes.path == [.episodesViewType(.recentEpisodes)])
   }
 
+  @Test("missing listed unsaved episodes revert to unsaved detail without dismissing")
+  func missingListedUnsavedEpisodesRevertToUnsavedDetail() async throws {
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Unsaved Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "listed-unsaved",
+        title: "Unsaved Detail",
+        description: "Unsaved Description"
+      )
+    )
+    let listed = ListedEpisode(unsavedPodcastEpisode)
+    let viewModel = EpisodeDetailViewModel(listedEpisode: listed)
+
+    try await viewModel.performAppear()
+
+    #expect(viewModel.episode.isSaved == false)
+    #expect(viewModel.episode.title == unsavedPodcastEpisode.title)
+    #expect(viewModel.episode.description == unsavedPodcastEpisode.description)
+    #expect(alert.config == nil)
+  }
+
+  @Test("missing unsaved displayed episodes stay on their unsaved detail")
+  func missingUnsavedDisplayedEpisodesStayUnsaved() async throws {
+    let unsavedPodcastEpisode = UnsavedPodcastEpisode(
+      unsavedPodcast: try Create.unsavedPodcast(title: "Displayed Unsaved Podcast"),
+      unsavedEpisode: try Create.unsavedEpisode(
+        guid: "displayed-unsaved",
+        title: "Displayed Unsaved Detail",
+        description: "Displayed Unsaved Description"
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(unsavedPodcastEpisode))
+
+    try await viewModel.performAppear()
+
+    #expect(viewModel.episode.isSaved == false)
+    #expect(viewModel.episode.title == unsavedPodcastEpisode.title)
+    #expect(viewModel.episode.description == unsavedPodcastEpisode.description)
+    #expect(alert.config == nil)
+  }
+
+  @Test("observed deleted saved episodes revert to unsaved detail")
+  func observedDeletedSavedEpisodesRevertToUnsavedDetail() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Observed Delete"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "observed-delete",
+          title: "Observed Delete"
+        )
+      )
+    )
+    let viewModel = EpisodeDetailViewModel(episode: DisplayedEpisode(podcastEpisode))
+
+    try await viewModel.performAppear()
+    _ = try await repo.deletePodcast(podcastEpisode.podcast.id)
+
+    try await Wait.until(
+      { @MainActor in
+        viewModel.episode.isSaved == false
+          && viewModel.episode.mediaGUID == podcastEpisode.mediaGUID
+      },
+      { @MainActor in
+        """
+        Expected deleted saved episode to revert to unsaved detail.
+        saved: \(viewModel.episode.isSaved)
+        episode: \(viewModel.episode.toString)
+        """
+      }
+    )
+  }
+
   @Test("addToTopOfQueue is a no-op for the first queued episode")
   func addToTopOfQueueIsNoOpForFirstQueuedEpisode() async throws {
     let podcastEpisode = try await Create.podcastEpisode(
