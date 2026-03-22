@@ -23,13 +23,13 @@ class SearchViewModel:
 
   // MARK: - ManagingPodcasts
 
-  func getOrCreatePodcast(_ displayedPodcast: DisplayedPodcast) async throws -> Podcast {
-    try await displayedPodcast.getOrCreatePodcast()
+  func getOrCreatePodcast(_ listedPodcast: ListedPodcast) async throws -> Podcast {
+    try await listedPodcast.getOrCreatePodcast()
   }
 
   // MARK: - SelectablePodcastList & SortablePodcastList
 
-  var podcastList = PowerList<PodcastWithEpisodeMetadata<DisplayedPodcast>>()
+  var podcastList = PowerList<PodcastWithEpisodeMetadata<ListedPodcast>>()
 
   func forEachSelectedPodcast(
     perform action: @escaping @Sendable (Podcast) async throws -> Void
@@ -87,8 +87,8 @@ class SearchViewModel:
     var sortMethod:
       (
         @Sendable (
-          PodcastWithEpisodeMetadata<DisplayedPodcast>,
-          PodcastWithEpisodeMetadata<DisplayedPodcast>
+          PodcastWithEpisodeMetadata<ListedPodcast>,
+          PodcastWithEpisodeMetadata<ListedPodcast>
         ) -> Bool
       )?
     {
@@ -108,7 +108,7 @@ class SearchViewModel:
       }
     }
 
-    var filterMethod: (@Sendable (PodcastWithEpisodeMetadata<DisplayedPodcast>) -> Bool)? {
+    var filterMethod: (@Sendable (PodcastWithEpisodeMetadata<ListedPodcast>) -> Bool)? {
       switch self {
       case .byMostRecentEpisode:
         return { $0.mostRecentEpisodeDate != nil }
@@ -146,7 +146,7 @@ class SearchViewModel:
 
     fileprivate(set) var state: LoadingState = .idle
     fileprivate(set)
-      var results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> = []
+      var results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>> = []
     {
       didSet {
         owner?.syncPodcastListToTrendingResults(self)
@@ -202,7 +202,7 @@ class SearchViewModel:
   }
 
   var searchState: LoadingState = .idle
-  var searchResults: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> = [] {
+  var searchResults: IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>> = [] {
     didSet {
       syncPodcastListToSearchResults()
     }
@@ -310,7 +310,7 @@ class SearchViewModel:
         trendingSection.results = IdentifiedArray(
           results.map {
             PodcastWithEpisodeMetadata(
-              podcast: DisplayedPodcast($0.podcast),
+              podcast: ListedPodcast($0.podcast),
               episodeCount: $0.episodeCount,
               mostRecentEpisodeDate: $0.mostRecentEpisodeDate
             )
@@ -367,7 +367,7 @@ class SearchViewModel:
         searchResults = IdentifiedArray(
           results.map {
             PodcastWithEpisodeMetadata(
-              podcast: DisplayedPodcast($0.podcast),
+              podcast: ListedPodcast($0.podcast),
               episodeCount: $0.episodeCount,
               mostRecentEpisodeDate: $0.mostRecentEpisodeDate
             )
@@ -505,9 +505,9 @@ class SearchViewModel:
   // MARK: - Deletion Reversion
 
   private func revertDeletedPodcasts(
-    in results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>>,
+    in results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>>,
     updatedIDs: Set<FeedURL>
-  ) -> IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>> {
+  ) -> IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>> {
     var results = results
     for result in results where !updatedIDs.contains(result.id) {
       if let reverted = revertToUnsaved(result) {
@@ -518,13 +518,13 @@ class SearchViewModel:
   }
 
   private func revertToUnsaved(
-    _ result: PodcastWithEpisodeMetadata<DisplayedPodcast>
-  ) -> PodcastWithEpisodeMetadata<DisplayedPodcast>? {
+    _ result: PodcastWithEpisodeMetadata<ListedPodcast>
+  ) -> PodcastWithEpisodeMetadata<ListedPodcast>? {
     guard result.podcast.getPodcast() != nil else { return nil }
     do {
       let unsaved = try result.podcast.toOriginalUnsavedPodcast()
       return PodcastWithEpisodeMetadata(
-        podcast: DisplayedPodcast(unsaved),
+        podcast: ListedPodcast(unsaved),
         episodeCount: 0,
         mostRecentEpisodeDate: nil
       )
@@ -538,8 +538,8 @@ class SearchViewModel:
 
   private func buildUpdatedResult(
     for podcast: PodcastWithEpisodeMetadata<Podcast>,
-    in results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<DisplayedPodcast>>
-  ) -> (feedURL: FeedURL, result: PodcastWithEpisodeMetadata<DisplayedPodcast>)? {
+    in results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>>
+  ) -> (feedURL: FeedURL, result: PodcastWithEpisodeMetadata<ListedPodcast>)? {
     // Build iTunes ID → feedURL mapping from results
     var iTunesIDMapping: [ITunesPodcastID: FeedURL] = [:]
     for result in results {
@@ -576,7 +576,7 @@ class SearchViewModel:
     return (
       resultFeedURL,
       PodcastWithEpisodeMetadata(
-        podcast: DisplayedPodcast(displayPodcast),
+        podcast: ListedPodcast(displayPodcast),
         episodeCount: podcast.episodeCount,
         mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
       )

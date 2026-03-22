@@ -311,6 +311,29 @@ class PodcastDetailViewModel:
     }
   }
 
+  convenience init(listedPodcast: ListedPodcast) {
+    if let unsavedPodcast = listedPodcast.getUnsavedPodcast() {
+      self.init(podcast: DisplayedPodcast(unsavedPodcast))
+    } else if let podcastID = listedPodcast.podcastID,
+      let podcast = try? Container.shared.repo().db
+        .read({ db in
+          try Podcast.withID(podcastID).fetchOne(db)
+        })
+    {
+      self.init(podcast: DisplayedPodcast(podcast))
+    } else {
+      // Fallback: create placeholder from listable data for initial display
+      let placeholder = try! UnsavedPodcast(
+        feedURL: listedPodcast.feedURL,
+        title: listedPodcast.title,
+        image: listedPodcast.image,
+        description: listedPodcast.description,
+        link: nil
+      )
+      self.init(podcast: DisplayedPodcast(placeholder))
+    }
+  }
+
   convenience init(unsavedPodcastSeries: UnsavedPodcastSeries) {
     self.init(podcast: DisplayedPodcast(unsavedPodcastSeries.unsavedPodcast))
     self.episodeList.allEntries =

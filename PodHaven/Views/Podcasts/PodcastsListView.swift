@@ -80,8 +80,8 @@ struct PodcastsListView: View {
     ScrollView {
       ItemGrid(items: viewModel.podcastList.filteredEntries) { podcastWithEpisodeMetadata in
         NavigationLink(
-          value: Navigation.Destination.podcast(
-            DisplayedPodcast(podcastWithEpisodeMetadata.podcast)
+          value: Navigation.Destination.listedPodcast(
+            ListedPodcast(podcastWithEpisodeMetadata.podcast)
           ),
           label: {
             PodcastGridView(
@@ -105,8 +105,8 @@ struct PodcastsListView: View {
     List {
       ForEach(viewModel.podcastList.filteredEntries) { podcastWithEpisodeMetadata in
         NavigationLink(
-          value: Navigation.Destination.podcast(
-            DisplayedPodcast(podcastWithEpisodeMetadata.podcast)
+          value: Navigation.Destination.listedPodcast(
+            ListedPodcast(podcastWithEpisodeMetadata.podcast)
           ),
           label: {
             PodcastListView(

@@ -6,7 +6,7 @@ import IdentifiedCollections
 import Logging
 
 @MainActor protocol SelectableEpisodeList: AnyObject {
-  associatedtype EpisodeType: EpisodeDisplayable
+  associatedtype EpisodeType: EpisodeListable & Searchable
 
   var episodeList: PowerList<EpisodeType> { get }
 

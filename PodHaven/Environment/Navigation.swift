@@ -92,6 +92,8 @@ extension Container {
     // Universal destinations
     case podcast(DisplayedPodcast)
     case episode(DisplayedEpisode)
+    case listedPodcast(ListedPodcast)
+    case listedEpisode(ListedEpisode)
     case unsavedPodcastSeries(UnsavedPodcastSeries)
   }
 
@@ -259,6 +261,12 @@ extension Container {
     case .podcast(let podcast):
       PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
         .id(podcast.id)
+    case .listedPodcast(let listedPodcast):
+      PodcastDetailView(viewModel: PodcastDetailViewModel(listedPodcast: listedPodcast))
+        .id(listedPodcast.id)
+    case .listedEpisode(let listedEpisode):
+      EpisodeDetailView(viewModel: EpisodeDetailViewModel(listedEpisode: listedEpisode))
+        .id(listedEpisode.id)
     case .unsavedPodcastSeries(let unsavedPodcastSeries):
       PodcastDetailView(
         viewModel: PodcastDetailViewModel(unsavedPodcastSeries: unsavedPodcastSeries)

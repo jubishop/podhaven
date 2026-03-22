@@ -5,7 +5,7 @@ import Foundation
 import Logging
 
 @MainActor protocol ManagingEpisodes: AnyObject {
-  associatedtype EpisodeType: EpisodeDisplayable
+  associatedtype EpisodeType: EpisodeListable
 
   func isEpisodePlaying(_ episode: EpisodeType) -> Bool
   func isEpisodeAtBottomOfQueue(_ episode: EpisodeType) -> Bool
