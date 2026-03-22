@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 import GRDB
 import Testing
@@ -15,7 +16,21 @@ class V32MigrationTests {
     self.migrator = Schema.makeMigrator()
   }
 
+  private var defaults: FakeKeyValueStore {
+    Container.shared.standardDefaults() as! FakeKeyValueStore
+  }
+
   // MARK: - Helpers
+
+  private func seedMaxQueueLength(_ value: Int) throws {
+    let data = try JSONEncoder().encode(value)
+    defaults.set(data, forKey: "maxQueueLength")
+  }
+
+  private func loadMaxQueueLength() throws -> Int? {
+    guard let data = defaults.data(forKey: "maxQueueLength") else { return nil }
+    return try JSONDecoder().decode(Int.self, from: data)
+  }
 
   private static func insertPodcast(_ db: Database) throws -> Int64 {
     try db.execute(
@@ -196,5 +211,46 @@ class V32MigrationTests {
       )
       #expect(totalCount == 3)
     }
+  }
+
+  // MARK: - UserDefaults Clamping
+
+  @Test("clamps maxQueueLength from above 100 to 100")
+  func testClampsAbove100() async throws {
+    try migrator.migrate(appDB.db, upTo: "v31")
+    try seedMaxQueueLength(500)
+
+    try migrator.migrate(appDB.db, upTo: "v32")
+
+    #expect(try loadMaxQueueLength() == 100)
+  }
+
+  @Test("does not clamp maxQueueLength at exactly 100")
+  func testDoesNotClampAt100() async throws {
+    try migrator.migrate(appDB.db, upTo: "v31")
+    try seedMaxQueueLength(100)
+
+    try migrator.migrate(appDB.db, upTo: "v32")
+
+    #expect(try loadMaxQueueLength() == 100)
+  }
+
+  @Test("does not clamp maxQueueLength below 100")
+  func testDoesNotClampBelow100() async throws {
+    try migrator.migrate(appDB.db, upTo: "v31")
+    try seedMaxQueueLength(50)
+
+    try migrator.migrate(appDB.db, upTo: "v32")
+
+    #expect(try loadMaxQueueLength() == 50)
+  }
+
+  @Test("handles missing maxQueueLength in defaults")
+  func testMissingMaxQueueLength() async throws {
+    try migrator.migrate(appDB.db, upTo: "v31")
+
+    try migrator.migrate(appDB.db, upTo: "v32")
+
+    #expect(try loadMaxQueueLength() == nil)
   }
 }
