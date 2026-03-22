@@ -17,8 +17,10 @@ struct ListedEpisode:
 
   init(_ episode: any EpisodeListable) {
     Assert.precondition(
-      !(episode is ListedEpisode),
-      "Cannot wrap an instance of itself as a ListedEpisode"
+      !(episode is ListedEpisode)
+        && !(episode is DisplayedEpisode)
+        && !(episode is PendingEpisodeDetail),
+      "ListedEpisode cannot wrap wrapper or pending detail types"
     )
     self.episode = episode
   }

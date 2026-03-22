@@ -9,6 +9,7 @@ import Testing
 
 @Suite("EpisodeDetailViewModel tests", .container)
 @MainActor final class EpisodeDetailViewModelTests {
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
 
@@ -49,6 +50,36 @@ import Testing
         """
       }
     )
+  }
+
+  @Test("listed episodes expose a share URL before detail hydration")
+  func listedEpisodesExposeShareURLBeforeDetailHydration() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "List Episode Detail"),
+        unsavedEpisode: try Create.unsavedEpisode(
+          guid: "list-episode-detail",
+          title: "List Episode Detail"
+        )
+      )
+    )
+    let listableEpisodes: [ListablePodcastEpisode] =
+      try await observatory.podcastEpisodes([
+        podcastEpisode.mediaGUID
+      ])
+      .get()
+    let listedEpisode = try #require(listableEpisodes.first)
+
+    let viewModel = EpisodeDetailViewModel(listedEpisode: ListedEpisode(listedEpisode))
+
+    #expect(
+      viewModel.shareURL
+        == ShareURL.episode(feedURL: podcastEpisode.feedURL, guid: podcastEpisode.mediaGUID.guid)
+    )
+
+    try await viewModel.performAppear()
+
+    #expect(viewModel.episode.episodeID == podcastEpisode.id)
   }
 
   @Test("addToTopOfQueue is a no-op for the first queued episode")

@@ -17,8 +17,11 @@ struct ListedPodcast:
 
   init(_ podcast: any PodcastListable) {
     Assert.precondition(
-      !(podcast is ListedPodcast),
-      "Cannot wrap an instance of itself as a ListedPodcast"
+      !(podcast is ListedPodcast)
+        && !(podcast is DisplayedPodcast)
+        && !(podcast is Podcast)
+        && !(podcast is PendingPodcastDetail),
+      "ListedPodcast cannot wrap wrapper or pending detail types"
     )
     self.podcast = podcast
   }
@@ -83,10 +86,13 @@ struct ListedPodcast:
   // MARK: - Helpers
 
   func getOrCreatePodcast() async throws -> Podcast {
-    if let searchResult = getSearchResultPodcast() {
-      return searchResult.podcast
-    } else if let unsavedPodcast = getUnsavedPodcast() {
+    if let unsavedPodcast = getUnsavedPodcast() {
       return try await DisplayedPodcast.getOrCreatePodcast(unsavedPodcast)
+    } else if let searchResult = getSearchResultPodcast() {
+      guard let podcastSeries = try await repo.podcastSeries(searchResult.savedPodcast.id) else {
+        throw DatabaseError(message: "Podcast not found for ID \(searchResult.savedPodcast.id)")
+      }
+      return podcastSeries.podcast
     } else if let listablePodcast = getListablePodcast() {
       guard let podcastSeries = try await repo.podcastSeries(listablePodcast.id) else {
         throw DatabaseError(message: "Podcast not found for ID \(listablePodcast.id)")
@@ -103,7 +109,7 @@ struct ListedPodcast:
 
   func toOriginalUnsavedPodcast() throws -> UnsavedPodcast {
     if let searchResult = getSearchResultPodcast() {
-      return try searchResult.podcast.toOriginalUnsavedPodcast()
+      return try searchResult.originalPodcast.toOriginalUnsavedPodcast()
     } else if let unsavedPodcast = getUnsavedPodcast() {
       return try unsavedPodcast.toOriginalUnsavedPodcast()
     } else {

@@ -312,12 +312,11 @@ class PodcastDetailViewModel:
   }
 
   convenience init(listedPodcast: ListedPodcast) {
-    if let unsavedPodcast = listedPodcast.getUnsavedPodcast() {
-      self.init(podcast: DisplayedPodcast(unsavedPodcast))
-    } else if let searchResult = listedPodcast.getSearchResultPodcast() {
-      self.init(podcast: DisplayedPodcast(searchResult.podcast))
-    } else if let listablePodcast = listedPodcast.getListablePodcast() {
-      self.init(podcast: DisplayedPodcast(listablePodcast))
+    if listedPodcast.getUnsavedPodcast() != nil
+      || listedPodcast.getSearchResultPodcast() != nil
+      || listedPodcast.getListablePodcast() != nil
+    {
+      self.init(podcast: DisplayedPodcast(PendingPodcastDetail(listedPodcast)))
     } else {
       Assert.fatal("Cannot create PodcastDetailViewModel from listed podcast without data")
     }

@@ -26,6 +26,8 @@ import UIKit
   // MARK: - Data
 
   var episode: DisplayedEpisode
+  private let listedEpisode: ListedEpisode?
+  private let canRevertToUnsaved: Bool
   private var _podcastEpisode: PodcastEpisode?
   private var podcastEpisode: PodcastEpisode? {
     get { _podcastEpisode }
@@ -74,8 +76,14 @@ import UIKit
 
   // MARK: - Initialization
 
-  init(episode: DisplayedEpisode) {
+  init(
+    episode: DisplayedEpisode,
+    listedEpisode: ListedEpisode? = nil,
+    canRevertToUnsaved: Bool = true
+  ) {
     self.episode = episode
+    self.listedEpisode = listedEpisode
+    self.canRevertToUnsaved = canRevertToUnsaved
 
     Task { [weak self] in
       guard let self else { return }
@@ -92,10 +100,17 @@ import UIKit
   }
 
   convenience init(listedEpisode: ListedEpisode) {
-    if let unsavedPodcastEpisode = listedEpisode.getUnsavedPodcastEpisode() {
-      self.init(episode: DisplayedEpisode(unsavedPodcastEpisode))
-    } else if let listablePodcastEpisode = listedEpisode.getListablePodcastEpisode() {
-      self.init(episode: DisplayedEpisode(listablePodcastEpisode))
+    if listedEpisode.getUnsavedPodcastEpisode() != nil {
+      self.init(
+        episode: DisplayedEpisode(PendingEpisodeDetail(listedEpisode)),
+        listedEpisode: listedEpisode
+      )
+    } else if listedEpisode.getListablePodcastEpisode() != nil {
+      self.init(
+        episode: DisplayedEpisode(PendingEpisodeDetail(listedEpisode)),
+        listedEpisode: listedEpisode,
+        canRevertToUnsaved: false
+      )
     } else {
       Assert.fatal("Cannot create EpisodeDetailViewModel from listed episode without data")
     }
@@ -126,8 +141,18 @@ import UIKit
     } else {
       Self.log.debug("Podcast episode: \(episode.toString) does not exist in db")
 
+      guard canRevertToUnsaved else {
+        Self.log.warning("Cannot revert list-only episode without saved data: \(episode.toString)")
+        _podcastEpisode = nil
+        return
+      }
+
       _podcastEpisode = nil
-      episode = DisplayedEpisode(try episode.toOriginalUnsavedPodcastEpisode())
+      if let unsavedPodcastEpisode = listedEpisode?.getUnsavedPodcastEpisode() {
+        episode = DisplayedEpisode(try unsavedPodcastEpisode.toOriginalUnsavedPodcastEpisode())
+      } else {
+        episode = DisplayedEpisode(try episode.toOriginalUnsavedPodcastEpisode())
+      }
     }
   }
 
@@ -443,7 +468,12 @@ import UIKit
   private func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
-    let podcastEpisode = try await DisplayedEpisode.getOrCreatePodcastEpisode(episode)
+    let podcastEpisode: PodcastEpisode
+    if let listedEpisode {
+      podcastEpisode = try await listedEpisode.getOrCreatePodcastEpisode()
+    } else {
+      podcastEpisode = try await DisplayedEpisode.getOrCreatePodcastEpisode(episode)
+    }
     self.podcastEpisode = podcastEpisode
     startObservation()
     return podcastEpisode

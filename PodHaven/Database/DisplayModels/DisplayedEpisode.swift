@@ -12,17 +12,17 @@ struct DisplayedEpisode:
 {
   @DynamicInjected(\.repo) private var repo
 
-  let episode: any EpisodeListable
+  let episode: any EpisodeDisplayable
 
-  init(_ episode: any EpisodeListable) {
+  init(_ episode: any EpisodeDisplayable) {
     Assert.precondition(
-      !(episode is DisplayedEpisode) && !(episode is ListedEpisode),
+      !(episode is DisplayedEpisode),
       "Cannot wrap a wrapper type as a DisplayedEpisode"
     )
     self.episode = episode
   }
 
-  subscript<T>(dynamicMember keyPath: KeyPath<any EpisodeListable, T>) -> T {
+  subscript<T>(dynamicMember keyPath: KeyPath<any EpisodeDisplayable, T>) -> T {
     episode[keyPath: keyPath]
   }
 
@@ -37,8 +37,8 @@ struct DisplayedEpisode:
       hasher.combine(podcastEpisode)
     } else if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       hasher.combine(unsavedPodcastEpisode)
-    } else if let listablePodcastEpisode = getListablePodcastEpisode() {
-      hasher.combine(listablePodcastEpisode)
+    } else if let pendingEpisodeDetail = getPendingEpisodeDetail() {
+      hasher.combine(pendingEpisodeDetail)
     } else {
       Assert.fatal("Can't make hash from: \(type(of: episode))")
     }
@@ -57,10 +57,10 @@ struct DisplayedEpisode:
       return leftUnsavedPodcastEpisode == rightUnsavedPodcastEpisode
     }
 
-    if let leftListable = lhs.getListablePodcastEpisode(),
-      let rightListable = rhs.getListablePodcastEpisode()
+    if let leftPending = lhs.getPendingEpisodeDetail(),
+      let rightPending = rhs.getPendingEpisodeDetail()
     {
-      return leftListable == rightListable
+      return leftPending == rightPending
     }
 
     return false  // Different concrete types are not equal
@@ -84,25 +84,16 @@ struct DisplayedEpisode:
   var cacheStatus: Episode.CacheStatus { episode.cacheStatus }
   var finishDate: Date? { episode.finishDate }
 
-  // MARK: - EpisodeDisplayable (falls back to defaults for non-Displayable types)
+  // MARK: - EpisodeDisplayable
 
-  private var displayable: (any EpisodeDisplayable)? { episode as? any EpisodeDisplayable }
-
-  var feedURL: FeedURL {
-    if let displayable { return displayable.feedURL }
-    Assert.fatal("feedURL not available on \(type(of: episode))")
-  }
-  var podcastTitle: String {
-    if let displayable { return displayable.podcastTitle }
-    if let listable = getListablePodcastEpisode() { return listable.podcastTitle }
-    Assert.fatal("podcastTitle not available on \(type(of: episode))")
-  }
-  var description: String? { displayable?.description }
-  var queueDate: Date? { displayable?.queueDate }
+  var feedURL: FeedURL { episode.feedURL }
+  var podcastTitle: String { episode.podcastTitle }
+  var description: String? { episode.description }
+  var queueDate: Date? { episode.queueDate }
 
   // MARK: - Helpers
 
-  static func getOrCreatePodcastEpisode(_ episode: any EpisodeListable) async throws
+  static func getOrCreatePodcastEpisode(_ episode: any EpisodeDisplayable) async throws
     -> PodcastEpisode
   {
     try await getDisplayedEpisode(episode).getOrCreatePodcastEpisode()
@@ -112,27 +103,24 @@ struct DisplayedEpisode:
       return podcastEpisode
     } else if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       return try await repo.upsertPodcastEpisode(unsavedPodcastEpisode)
-    } else if let listablePodcastEpisode = getListablePodcastEpisode() {
-      return try await listablePodcastEpisode.getPodcastEpisode()
     } else {
       Assert.fatal("Can't make PodcastEpisode from: \(type(of: episode))")
     }
   }
 
-  static func getPodcastEpisode(_ episode: any EpisodeListable) -> PodcastEpisode? {
+  static func getPodcastEpisode(_ episode: any EpisodeDisplayable) -> PodcastEpisode? {
     getDisplayedEpisode(episode).getPodcastEpisode()
   }
   func getPodcastEpisode() -> PodcastEpisode? { episode as? PodcastEpisode }
 
-  static func getUnsavedPodcastEpisode(_ episode: any EpisodeListable) -> UnsavedPodcastEpisode? {
+  static func getUnsavedPodcastEpisode(_ episode: any EpisodeDisplayable) -> UnsavedPodcastEpisode?
+  {
     getDisplayedEpisode(episode).getUnsavedPodcastEpisode()
   }
   func getUnsavedPodcastEpisode() -> UnsavedPodcastEpisode? { episode as? UnsavedPodcastEpisode }
-  func getListablePodcastEpisode() -> ListablePodcastEpisode? {
-    episode as? ListablePodcastEpisode
-  }
+  func getPendingEpisodeDetail() -> PendingEpisodeDetail? { episode as? PendingEpisodeDetail }
 
-  static func toOriginalUnsavedPodcastEpisode(_ episode: any EpisodeListable) throws
+  static func toOriginalUnsavedPodcastEpisode(_ episode: any EpisodeDisplayable) throws
     -> UnsavedPodcastEpisode
   {
     try getDisplayedEpisode(episode).toOriginalUnsavedPodcastEpisode()
@@ -147,7 +135,7 @@ struct DisplayedEpisode:
     }
   }
 
-  static func getDisplayedEpisode(_ episode: any EpisodeListable) -> DisplayedEpisode {
+  static func getDisplayedEpisode(_ episode: any EpisodeDisplayable) -> DisplayedEpisode {
     guard let displayedEpisode = episode as? DisplayedEpisode
     else { return DisplayedEpisode(episode) }
 

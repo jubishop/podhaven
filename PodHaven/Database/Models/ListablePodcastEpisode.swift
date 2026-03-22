@@ -31,6 +31,7 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
 
   // MARK: - Podcast Fields
 
+  let feedURL: FeedURL
   let podcastImage: URL
   let podcastTitle: String
 
@@ -70,6 +71,7 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
     guard let podcastRow = row.scopes["podcast"] else {
       Assert.fatal("ListablePodcastEpisode requires podcast scope via including(required:)")
     }
+    feedURL = podcastRow[Podcast.Columns.feedURL]
     podcastImage = podcastRow[Podcast.Columns.image]
     podcastTitle = podcastRow[Podcast.Columns.title]
   }
@@ -89,6 +91,7 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
     hasher.combine(queueOrder)
     hasher.combine(cacheStatus)
     hasher.combine(saveInCache)
+    hasher.combine(feedURL)
     hasher.combine(podcastImage)
     hasher.combine(podcastTitle)
   }
@@ -108,6 +111,7 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
       && lhs.queueOrder == rhs.queueOrder
       && lhs.cacheStatus == rhs.cacheStatus
       && lhs.saveInCache == rhs.saveInCache
+      && lhs.feedURL == rhs.feedURL
       && lhs.podcastImage == rhs.podcastImage
       && lhs.podcastTitle == rhs.podcastTitle
   }
