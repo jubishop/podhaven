@@ -81,7 +81,22 @@ struct ListedPodcast:
   var subscriptionDate: Date? { podcast.subscriptionDate }
   var subscribed: Bool { podcast.subscribed }
 
-  // MARK: - Getters
+  // MARK: - Helpers
+
+  func getOrCreatePodcast() async throws -> Podcast {
+    if let searchResult = getSearchResultPodcast() {
+      return searchResult.podcast
+    } else if let unsavedPodcast = getUnsavedPodcast() {
+      return try await DisplayedPodcast.getOrCreatePodcast(unsavedPodcast)
+    } else if let listablePodcast = getListablePodcast() {
+      guard let podcastSeries = try await repo.podcastSeries(listablePodcast.id) else {
+        throw DatabaseError(message: "Podcast not found for ID \(listablePodcast.id)")
+      }
+      return podcastSeries.podcast
+    } else {
+      Assert.fatal("Can't make podcast from: \(type(of: podcast))")
+    }
+  }
 
   func getListablePodcast() -> ListablePodcast? { podcast as? ListablePodcast }
   func getSearchResultPodcast() -> SearchResultPodcast? { podcast as? SearchResultPodcast }
@@ -99,21 +114,6 @@ struct ListedPodcast:
       return try unsavedPodcast.toOriginalUnsavedPodcast()
     } else {
       Assert.fatal("Can't make Original UnsavedPodcast from: \(type(of: podcast))")
-    }
-  }
-
-  func getOrCreatePodcast() async throws -> Podcast {
-    if let searchResult = getSearchResultPodcast() {
-      return searchResult.podcast
-    } else if let unsavedPodcast = getUnsavedPodcast() {
-      return try await DisplayedPodcast.getOrCreatePodcast(unsavedPodcast)
-    } else if let listablePodcast = getListablePodcast() {
-      guard let podcastSeries = try await repo.podcastSeries(listablePodcast.id) else {
-        throw DatabaseError(message: "Podcast not found for ID \(listablePodcast.id)")
-      }
-      return podcastSeries.podcast
-    } else {
-      Assert.fatal("Can't make podcast from: \(type(of: podcast))")
     }
   }
 }
