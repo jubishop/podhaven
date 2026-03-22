@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 import IdentifiedCollections
 
@@ -9,6 +10,8 @@ struct PodcastDetailPresentation: Sendable {
 }
 
 struct PodcastDetailSource: Sendable {
+  @DynamicInjected(\.repo) private var repo
+
   let initialPresentation: PodcastDetailPresentation
 
   init(podcast: DisplayedPodcast) {
@@ -41,10 +44,7 @@ struct PodcastDetailSource: Sendable {
     )
   }
 
-  func savedSeries(
-    using repo: any Databasing,
-    currentPodcast: DisplayedPodcast
-  ) async throws -> PodcastSeries? {
+  func savedSeries(currentPodcast: DisplayedPodcast) async throws -> PodcastSeries? {
     try await repo.podcastSeries(
       currentPodcast.feedURL,
       iTunesID: currentPodcast.iTunesID

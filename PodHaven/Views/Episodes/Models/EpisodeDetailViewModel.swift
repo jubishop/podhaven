@@ -116,10 +116,7 @@ import UIKit
   }
 
   func performAppear() async throws {
-    let podcastEpisode = try await detailSource.savedEpisode(
-      using: repo,
-      currentEpisode: episode
-    )
+    let podcastEpisode = try await detailSource.savedEpisode(currentEpisode: episode)
 
     if let podcastEpisode {
       Self.log.debug("Podcast episode: \(podcastEpisode.toString) exists in db")

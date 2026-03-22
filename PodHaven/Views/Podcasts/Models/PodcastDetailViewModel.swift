@@ -500,7 +500,7 @@ class PodcastDetailViewModel:
     }
 
     guard
-      let podcastSeries = try await detailSource.savedSeries(using: repo, currentPodcast: podcast)
+      let podcastSeries = try await detailSource.savedSeries(currentPodcast: podcast)
     else { return false }
 
     Self.log.debug("\(podcastSeries.toString) exists in db")
@@ -592,7 +592,7 @@ class PodcastDetailViewModel:
     if let podcastSeries { return podcastSeries }
 
     guard
-      let podcastSeries = try await detailSource.savedSeries(using: repo, currentPodcast: podcast)
+      let podcastSeries = try await detailSource.savedSeries(currentPodcast: podcast)
     else { return nil }
 
     self.podcastSeries = podcastSeries

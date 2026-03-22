@@ -1,8 +1,11 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 
 struct EpisodeDetailSource: Sendable {
+  @DynamicInjected(\.repo) private var repo
+
   enum MissingSavedResolution: Sendable {
     case display(DisplayedEpisode)
     case dismiss(message: String)
@@ -24,10 +27,7 @@ struct EpisodeDetailSource: Sendable {
     unsavedFallback = Self.unsavedFallback(for: listedEpisode.getUnsavedPodcastEpisode())
   }
 
-  func savedEpisode(
-    using repo: any Databasing,
-    currentEpisode: DisplayedEpisode
-  ) async throws -> PodcastEpisode? {
+  func savedEpisode(currentEpisode: DisplayedEpisode) async throws -> PodcastEpisode? {
     try await repo.podcastEpisode(currentEpisode.mediaGUID)
   }
 
