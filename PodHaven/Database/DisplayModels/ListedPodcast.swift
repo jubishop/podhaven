@@ -1,8 +1,6 @@
 // Copyright Justin Bishop, 2026
 
-import FactoryKit
 import Foundation
-import GRDB
 
 @dynamicMemberLookup
 struct ListedPodcast:
@@ -11,8 +9,6 @@ struct ListedPodcast:
   Hashable,
   Sendable
 {
-  @DynamicInjected(\.repo) private var repo
-
   let podcast: any PodcastListable
 
   init(_ podcast: any PodcastListable) {
@@ -89,15 +85,9 @@ struct ListedPodcast:
     if let unsavedPodcast = getUnsavedPodcast() {
       return try await DisplayedPodcast.getOrCreatePodcast(unsavedPodcast)
     } else if let searchResult = getSearchResultPodcast() {
-      guard let podcastSeries = try await repo.podcastSeries(searchResult.savedPodcast.id) else {
-        throw DatabaseError(message: "Podcast not found for ID \(searchResult.savedPodcast.id)")
-      }
-      return podcastSeries.podcast
+      return try await searchResult.getPodcast()
     } else if let listablePodcast = getListablePodcast() {
-      guard let podcastSeries = try await repo.podcastSeries(listablePodcast.id) else {
-        throw DatabaseError(message: "Podcast not found for ID \(listablePodcast.id)")
-      }
-      return podcastSeries.podcast
+      return try await listablePodcast.getPodcast()
     } else {
       Assert.fatal("Can't make podcast from: \(type(of: podcast))")
     }

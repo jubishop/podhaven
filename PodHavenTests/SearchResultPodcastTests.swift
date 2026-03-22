@@ -186,6 +186,27 @@ class SearchResultPodcastTests {
     #expect(unwrapped.feedURL == series.podcast.feedURL)
   }
 
+  @Test("SearchResultPodcast.getPodcast() unwraps through the saved podcast")
+  func testSearchResultGetPodcast() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast(title: "Search Helper")
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
+    )
+    let savedPodcast = try await fetchSavedPodcast(series.podcast.id)
+
+    let searchResult = makeSearchResult(
+      resultFeedURL: FeedURL(URL(string: "https://example.com/search-helper.rss")!),
+      originalPodcast: try Create.unsavedPodcast(
+        feedURL: FeedURL(URL(string: "https://example.com/search-helper.rss")!)
+      ),
+      savedPodcast: savedPodcast
+    )
+
+    let resolved = try await searchResult.getPodcast()
+    #expect(resolved.id == series.podcast.id)
+    #expect(resolved.feedURL == series.podcast.feedURL)
+  }
+
   @Test("ListedPodcast.getOrCreatePodcast() returns the real Podcast")
   func testGetOrCreatePodcast() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
@@ -210,6 +231,19 @@ class SearchResultPodcastTests {
     let resolved = try await listed.getOrCreatePodcast()
     #expect(resolved.id == series.podcast.id)
     #expect(resolved.feedURL == canonicalURL)
+  }
+
+  @Test("ListablePodcast.getPodcast() returns the real Podcast")
+  func testListablePodcastGetPodcast() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast(title: "Listable Helper")
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
+    )
+    let savedPodcast = try await fetchSavedPodcast(series.podcast.id)
+
+    let resolved = try await savedPodcast.getPodcast()
+    #expect(resolved.id == series.podcast.id)
+    #expect(resolved.feedURL == series.podcast.feedURL)
   }
 
   @Test("ListedPodcast.toOriginalUnsavedPodcast() unwraps through SearchResultPodcast")

@@ -17,7 +17,6 @@ class PodcastsListViewModel:
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
-  @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
   private static let log = Log.as(LogSubsystem.PodcastsView.list)
 
@@ -142,13 +141,7 @@ class PodcastsListViewModel:
   // MARK: - ManagingPodcasts
 
   func getOrCreatePodcast(_ podcast: ListablePodcast) async throws -> Podcast {
-    guard let podcastID = podcast.podcastID else {
-      Assert.fatal("ListablePodcast should always be saved")
-    }
-    guard let podcastSeries = try await repo.podcastSeries(podcastID) else {
-      Assert.fatal("Podcast not found for ID \(podcastID)")
-    }
-    return podcastSeries.podcast
+    try await podcast.getPodcast()
   }
 
   // MARK: - Full Grid Functions

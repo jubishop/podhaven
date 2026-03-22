@@ -362,7 +362,20 @@ extension Container {
   }
 
   func dismiss() {
-    Self.log.debug("Dismissing current navigation destination")
+    let currentPath: [Destination] =
+      switch currentTab {
+      case .settings: settings.path
+      case .search: search.path
+      case .upNext: upNext.path
+      case .episodes: episodes.path
+      case .podcasts: podcasts.path
+      }
+    Self.log.debug(
+      """
+      Dismissing current navigation destination from \(currentTab) \
+      with sheetPresented: \(sheet.config != nil), path: \(currentPath)
+      """
+    )
 
     if sheet.config != nil {
       sheet.dismiss()

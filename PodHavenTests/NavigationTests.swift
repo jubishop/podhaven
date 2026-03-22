@@ -265,6 +265,63 @@ import Testing
     #expect(sheet.config == nil)
   }
 
+  // MARK: - Dismiss
+
+  @Test("dismiss dismisses an active sheet without mutating the current path")
+  func dismissSheet() throws {
+    let series = UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    navigation.currentTab = .search
+    navigation.search.path = [.unsavedPodcastSeries(series)]
+    presentSheet()
+
+    navigation.dismiss()
+
+    #expect(sheet.config == nil)
+    #expect(navigation.search.path == [.unsavedPodcastSeries(series)])
+  }
+
+  @Test("dismiss pops the last search destination")
+  func dismissSearchDestination() throws {
+    let series = UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast())
+    let detailPodcast = try Create.unsavedPodcast(title: "Search Detail")
+    navigation.currentTab = .search
+    navigation.search.path = [
+      .unsavedPodcastSeries(series), .podcast(DisplayedPodcast(detailPodcast)),
+    ]
+
+    navigation.dismiss()
+
+    #expect(navigation.search.path == [.unsavedPodcastSeries(series)])
+  }
+
+  @Test("dismiss pops episode detail but preserves the root episodes destination")
+  func dismissEpisodeDestination() throws {
+    let listedEpisode = ListedEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Episode Root"),
+        unsavedEpisode: try Create.unsavedEpisode(title: "Episode Detail")
+      )
+    )
+    navigation.currentTab = .episodes
+    navigation.episodes.path = [
+      .episodesViewType(.recentEpisodes), .listedEpisode(listedEpisode),
+    ]
+
+    navigation.dismiss()
+
+    #expect(navigation.episodes.path == [.episodesViewType(.recentEpisodes)])
+  }
+
+  @Test("dismiss keeps the root episodes destination intact")
+  func dismissEpisodeRootNoOp() {
+    navigation.currentTab = .episodes
+    navigation.episodes.path = [.episodesViewType(.recentEpisodes)]
+
+    navigation.dismiss()
+
+    #expect(navigation.episodes.path == [.episodesViewType(.recentEpisodes)])
+  }
+
   // MARK: - SavedPathManager
 
   @Test("podcasts tab saves top destination when path changes")

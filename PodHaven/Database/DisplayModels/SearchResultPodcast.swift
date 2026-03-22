@@ -46,4 +46,8 @@ struct SearchResultPodcast:
 
   var toString: String { savedPodcast.toString }
   var searchableString: String { originalPodcast.searchableString }
+
+  func getPodcast() async throws -> Podcast {
+    try await savedPodcast.getPodcast()
+  }
 }

@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 import GRDB
 import Tagged
@@ -34,5 +35,13 @@ struct ListablePodcast: PodcastListable, FetchableRecord {
     image = row[Podcast.Columns.image]
     subscriptionDate = row[Podcast.Columns.subscriptionDate]
     creationDate = row[Podcast.Columns.creationDate]
+  }
+
+  func getPodcast() async throws -> Podcast {
+    let repo = Container.shared.repo()
+    guard let podcastSeries = try await repo.podcastSeries(id) else {
+      throw DatabaseError(message: "Podcast not found for ID \(id)")
+    }
+    return podcastSeries.podcast
   }
 }
