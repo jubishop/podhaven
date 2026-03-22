@@ -102,11 +102,6 @@ struct ListedPodcast:
   func getSearchResultPodcast() -> SearchResultPodcast? { podcast as? SearchResultPodcast }
   func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
 
-  func getDisplayedPodcast() -> DisplayedPodcast? {
-    guard let displayable = podcast as? any PodcastDisplayable else { return nil }
-    return DisplayedPodcast(displayable)
-  }
-
   func toOriginalUnsavedPodcast() throws -> UnsavedPodcast {
     if let searchResult = getSearchResultPodcast() {
       return try searchResult.podcast.toOriginalUnsavedPodcast()
