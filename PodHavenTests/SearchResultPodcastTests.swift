@@ -76,10 +76,10 @@ class SearchResultPodcastTests {
     #expect(searchResult.podcastID == series.podcast.id)
   }
 
-  // MARK: - DisplayedPodcast wrapping SearchResultPodcast
+  // MARK: - ListedPodcast wrapping SearchResultPodcast
 
-  @Test("DisplayedPodcast.id returns resultFeedURL when wrapping SearchResultPodcast")
-  func testDisplayedPodcastId() async throws {
+  @Test("ListedPodcast.id returns resultFeedURL when wrapping SearchResultPodcast")
+  func testListedPodcastId() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
     let searchURL = FeedURL(URL(string: "https://example.com/search.rss")!)
     let unsavedPodcast = try Create.unsavedPodcast(feedURL: canonicalURL)
@@ -91,13 +91,13 @@ class SearchResultPodcastTests {
       resultFeedURL: searchURL,
       podcast: series.podcast
     )
-    let displayed = DisplayedPodcast(searchResult)
+    let listed = ListedPodcast(searchResult)
 
-    #expect(displayed.id == searchURL)
-    #expect(displayed.feedURL == canonicalURL)
+    #expect(listed.id == searchURL)
+    #expect(listed.feedURL == canonicalURL)
   }
 
-  @Test("DisplayedPodcast.getPodcast() unwraps through SearchResultPodcast")
+  @Test("ListedPodcast.getOrCreatePodcast() unwraps through SearchResultPodcast")
   func testGetPodcastUnwrap() async throws {
     let unsavedPodcast = try Create.unsavedPodcast(title: "Unwrap Test")
     let series = try await repo.insertSeries(
@@ -108,15 +108,14 @@ class SearchResultPodcastTests {
       resultFeedURL: FeedURL(URL(string: "https://example.com/search.rss")!),
       podcast: series.podcast
     )
-    let displayed = DisplayedPodcast(searchResult)
+    let listed = ListedPodcast(searchResult)
 
-    let unwrapped = displayed.getPodcast()
-    #expect(unwrapped != nil)
-    #expect(unwrapped?.id == series.podcast.id)
-    #expect(unwrapped?.feedURL == series.podcast.feedURL)
+    let unwrapped = try await listed.getOrCreatePodcast()
+    #expect(unwrapped.id == series.podcast.id)
+    #expect(unwrapped.feedURL == series.podcast.feedURL)
   }
 
-  @Test("DisplayedPodcast.getOrCreatePodcast() returns the real Podcast")
+  @Test("ListedPodcast.getOrCreatePodcast() returns the real Podcast")
   func testGetOrCreatePodcast() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
     let unsavedPodcast = try Create.unsavedPodcast(
@@ -131,14 +130,14 @@ class SearchResultPodcastTests {
       resultFeedURL: FeedURL(URL(string: "https://example.com/search.rss")!),
       podcast: series.podcast
     )
-    let displayed = DisplayedPodcast(searchResult)
+    let listed = ListedPodcast(searchResult)
 
-    let resolved = try await displayed.getOrCreatePodcast()
+    let resolved = try await listed.getOrCreatePodcast()
     #expect(resolved.id == series.podcast.id)
     #expect(resolved.feedURL == canonicalURL)
   }
 
-  @Test("DisplayedPodcast.toOriginalUnsavedPodcast() unwraps through SearchResultPodcast")
+  @Test("ListedPodcast.toOriginalUnsavedPodcast() unwraps through SearchResultPodcast")
   func testToOriginalUnsavedPodcast() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
     let unsavedPodcast = try Create.unsavedPodcast(
@@ -153,16 +152,16 @@ class SearchResultPodcastTests {
       resultFeedURL: FeedURL(URL(string: "https://example.com/search.rss")!),
       podcast: series.podcast
     )
-    let displayed = DisplayedPodcast(searchResult)
+    let listed = ListedPodcast(searchResult)
 
-    let original = try displayed.toOriginalUnsavedPodcast()
+    let original = try listed.toOriginalUnsavedPodcast()
     #expect(original.feedURL == canonicalURL)
     #expect(original.subscriptionDate == nil)
   }
 
   // MARK: - iTunesID bridge scenario (exercises the same guarantees as buildUpdatedResult)
 
-  @Test("bridged SearchResultPodcast in DisplayedPodcast preserves all search/trending invariants")
+  @Test("bridged SearchResultPodcast in ListedPodcast preserves all search/trending invariants")
   func testBridgedSearchResultInvariants() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
     let searchURL = FeedURL(URL(string: "https://example.com/itunes.rss")!)
@@ -183,20 +182,20 @@ class SearchResultPodcastTests {
       resultFeedURL: searchURL,
       podcast: series.podcast
     )
-    let displayed = DisplayedPodcast(wrapper)
+    let listed = ListedPodcast(wrapper)
 
     // Row identity stays on the search URL (IdentifiedArray slot stability)
-    #expect(displayed.id == searchURL)
+    #expect(listed.id == searchURL)
 
     // Canonical data flows through for sharing, navigation, DB ops
-    #expect(displayed.feedURL == canonicalURL)
-    #expect(displayed.iTunesID == iTunesID)
-    #expect(displayed.isSaved)
-    #expect(displayed.subscribed)
+    #expect(listed.feedURL == canonicalURL)
+    #expect(listed.iTunesID == iTunesID)
+    #expect(listed.isSaved)
+    #expect(listed.subscribed)
 
-    // getPodcast() returns the real DB podcast, not a synthetic
-    let unwrapped = displayed.getPodcast()
-    #expect(unwrapped?.id == series.podcast.id)
-    #expect(unwrapped?.feedURL == canonicalURL)
+    // getOrCreatePodcast() returns the real DB podcast, not a synthetic
+    let unwrapped = try await listed.getOrCreatePodcast()
+    #expect(unwrapped.id == series.podcast.id)
+    #expect(unwrapped.feedURL == canonicalURL)
   }
 }

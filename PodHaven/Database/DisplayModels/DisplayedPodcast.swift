@@ -30,9 +30,7 @@ struct DisplayedPodcast:
 
   // MARK: - Identifiable
 
-  var id: FeedURL {
-    return feedURL
-  }
+  var id: FeedURL { feedURL }
 
   // MARK: - Hashable / Equatable
 
@@ -126,12 +124,7 @@ struct DisplayedPodcast:
   static func getPodcast(_ podcast: any PodcastDisplayable) -> Podcast? {
     getDisplayedPodcast(podcast).getPodcast()
   }
-  func getPodcast() -> Podcast? {
-    if let searchResult = podcast as? SearchResultPodcast {
-      return searchResult.podcast
-    }
-    return podcast as? Podcast
-  }
+  func getPodcast() -> Podcast? { podcast as? Podcast }
 
   static func getUnsavedPodcast(_ podcast: any PodcastDisplayable) -> UnsavedPodcast? {
     getDisplayedPodcast(podcast).getUnsavedPodcast()
@@ -144,9 +137,7 @@ struct DisplayedPodcast:
     try getDisplayedPodcast(podcast).toOriginalUnsavedPodcast()
   }
   func toOriginalUnsavedPodcast() throws -> UnsavedPodcast {
-    if let searchResult = podcast as? SearchResultPodcast {
-      return try searchResult.podcast.toOriginalUnsavedPodcast()
-    } else if let podcast = getPodcast() {
+    if let podcast = getPodcast() {
       return try podcast.toOriginalUnsavedPodcast()
     } else if let unsavedPodcast = getUnsavedPodcast() {
       return try unsavedPodcast.toOriginalUnsavedPodcast()

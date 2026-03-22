@@ -72,6 +72,7 @@ struct ListedPodcast:
 
   // MARK: - PodcastListable
 
+  var podcastID: Podcast.ID? { podcast.podcastID }
   var iTunesID: ITunesPodcastID? { podcast.iTunesID }
   var feedURL: FeedURL { podcast.feedURL }
   var image: URL { podcast.image }
@@ -102,7 +103,9 @@ struct ListedPodcast:
   }
 
   func getOrCreatePodcast() async throws -> Podcast {
-    if let unsavedPodcast = getUnsavedPodcast() {
+    if let searchResult = getSearchResultPodcast() {
+      return searchResult.podcast
+    } else if let unsavedPodcast = getUnsavedPodcast() {
       return try await DisplayedPodcast.getOrCreatePodcast(unsavedPodcast)
     } else if let listablePodcast = getListablePodcast() {
       guard let podcastSeries = try await repo.podcastSeries(listablePodcast.id) else {

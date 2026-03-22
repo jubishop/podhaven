@@ -3,7 +3,7 @@
 import Foundation
 
 struct SearchResultPodcast:
-  PodcastDisplayable,
+  PodcastListable,
   Searchable,
   Stringable,
   Hashable,
@@ -16,7 +16,7 @@ struct SearchResultPodcast:
 
   var id: FeedURL { resultFeedURL }
 
-  // MARK: - PodcastDisplayable
+  // MARK: - PodcastListable
 
   var podcastID: Podcast.ID? { podcast.podcastID }
   var feedURL: FeedURL { podcast.feedURL }

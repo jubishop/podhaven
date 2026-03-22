@@ -539,6 +539,11 @@ class SearchViewModel:
     for podcast: PodcastWithEpisodeMetadata<Podcast>,
     in results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>>
   ) -> (feedURL: FeedURL, result: PodcastWithEpisodeMetadata<ListedPodcast>)? {
+    // Find which feedURL slot this saved podcast occupies in results
+    if let podcastWithEpisodeMetadata = results[id: podcast.feedURL] {
+      return (podcast.feedURL, podcastWithEpisodeMetadata)
+    }
+
     // Build iTunes ID → feedURL mapping from results
     var iTunesIDMapping: [ITunesPodcastID: FeedURL] = [:]
     for result in results {
@@ -547,39 +552,26 @@ class SearchViewModel:
       }
     }
 
-    // Find which feedURL slot this saved podcast occupies in results
-    let resultFeedURL: FeedURL
-    if results[id: podcast.feedURL] != nil {
-      resultFeedURL = podcast.feedURL
-    } else if let iTunesID = podcast.iTunesID,
+    if let iTunesID = podcast.iTunesID,
       let searchFeedURL = iTunesIDMapping[iTunesID],
       results[id: searchFeedURL] != nil
     {
-      resultFeedURL = searchFeedURL
+      return (
+        searchFeedURL,
+        PodcastWithEpisodeMetadata(
+          podcast: ListedPodcast(
+            SearchResultPodcast(
+              resultFeedURL: searchFeedURL,
+              podcast: podcast.podcast
+            )
+          ),
+          episodeCount: podcast.episodeCount,
+          mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
+        )
+      )
     } else {
       return nil
     }
-
-    // Use SearchResultPodcast to keep IdentifiedArray identity stable on resultFeedURL
-    // while preserving the canonical Podcast data for sharing, navigation, and DB operations.
-    let displayPodcast: any PodcastDisplayable
-    if resultFeedURL == podcast.feedURL {
-      displayPodcast = podcast.podcast
-    } else {
-      displayPodcast = SearchResultPodcast(
-        resultFeedURL: resultFeedURL,
-        podcast: podcast.podcast
-      )
-    }
-
-    return (
-      resultFeedURL,
-      PodcastWithEpisodeMetadata(
-        podcast: ListedPodcast(displayPodcast),
-        episodeCount: podcast.episodeCount,
-        mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
-      )
-    )
   }
 
   // MARK: - Podcast List Syncing
