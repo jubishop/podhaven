@@ -38,8 +38,8 @@ struct DisplayedPodcast:
       hasher.combine(podcast)
     } else if let unsavedPodcast = getUnsavedPodcast() {
       hasher.combine(unsavedPodcast)
-    } else if let pendingPodcastDetail = getPendingPodcastDetail() {
-      hasher.combine(pendingPodcastDetail)
+    } else if let podcastDetailSnapshot = getPodcastDetailSnapshot() {
+      hasher.combine(podcastDetailSnapshot)
     } else {
       Assert.fatal("Can't make hash from: \(type(of: podcast))")
     }
@@ -56,10 +56,10 @@ struct DisplayedPodcast:
       return leftUnsavedPodcast == rightUnsavedPodcast
     }
 
-    if let leftPending = lhs.getPendingPodcastDetail(),
-      let rightPending = rhs.getPendingPodcastDetail()
+    if let leftSnapshot = lhs.getPodcastDetailSnapshot(),
+      let rightSnapshot = rhs.getPodcastDetailSnapshot()
     {
-      return leftPending == rightPending
+      return leftSnapshot == rightSnapshot
     }
 
     return false  // Different concrete types are not equal
@@ -133,7 +133,9 @@ struct DisplayedPodcast:
 
   func getPodcast() -> Podcast? { podcast as? Podcast }
   func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
-  func getPendingPodcastDetail() -> PendingPodcastDetail? { podcast as? PendingPodcastDetail }
+  func getPodcastDetailSnapshot() -> PodcastDetailSnapshot? {
+    podcast as? PodcastDetailSnapshot
+  }
 
   static func getDisplayedPodcast(_ podcast: any PodcastDisplayable) -> DisplayedPodcast {
     guard let displayedPodcast = podcast as? DisplayedPodcast

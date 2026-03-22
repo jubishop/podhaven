@@ -2,7 +2,7 @@
 
 import Foundation
 
-struct PendingPodcastDetail:
+struct PodcastDetailSnapshot:
   PodcastDisplayable,
   Searchable,
   Stringable,
@@ -67,7 +67,7 @@ struct PendingPodcastDetail:
       cacheAllEpisodes = .never
       notifyNewEpisodes = false
     } else {
-      Assert.fatal("Cannot build PendingPodcastDetail from: \(type(of: listedPodcast.podcast))")
+      Assert.fatal("Cannot build PodcastDetailSnapshot from: \(type(of: listedPodcast.podcast))")
     }
   }
 }

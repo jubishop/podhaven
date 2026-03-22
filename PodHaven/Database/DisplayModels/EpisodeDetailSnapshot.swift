@@ -3,7 +3,7 @@
 import AVFoundation
 import Foundation
 
-struct PendingEpisodeDetail: EpisodeDisplayable, Hashable, Sendable {
+struct EpisodeDetailSnapshot: EpisodeDisplayable, Hashable, Sendable {
   let episodeID: Episode.ID?
   let mediaGUID: MediaGUID
   let feedURL: FeedURL
@@ -59,7 +59,7 @@ struct PendingEpisodeDetail: EpisodeDisplayable, Hashable, Sendable {
       podcastImage = listablePodcastEpisode.podcastImage
       saveInCache = listablePodcastEpisode.saveInCache
     } else {
-      Assert.fatal("Cannot build PendingEpisodeDetail from: \(type(of: listedEpisode.episode))")
+      Assert.fatal("Cannot build EpisodeDetailSnapshot from: \(type(of: listedEpisode.episode))")
     }
   }
 }

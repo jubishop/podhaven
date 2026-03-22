@@ -37,8 +37,8 @@ struct DisplayedEpisode:
       hasher.combine(podcastEpisode)
     } else if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       hasher.combine(unsavedPodcastEpisode)
-    } else if let pendingEpisodeDetail = getPendingEpisodeDetail() {
-      hasher.combine(pendingEpisodeDetail)
+    } else if let episodeDetailSnapshot = getEpisodeDetailSnapshot() {
+      hasher.combine(episodeDetailSnapshot)
     } else {
       Assert.fatal("Can't make hash from: \(type(of: episode))")
     }
@@ -57,10 +57,10 @@ struct DisplayedEpisode:
       return leftUnsavedPodcastEpisode == rightUnsavedPodcastEpisode
     }
 
-    if let leftPending = lhs.getPendingEpisodeDetail(),
-      let rightPending = rhs.getPendingEpisodeDetail()
+    if let leftSnapshot = lhs.getEpisodeDetailSnapshot(),
+      let rightSnapshot = rhs.getEpisodeDetailSnapshot()
     {
-      return leftPending == rightPending
+      return leftSnapshot == rightSnapshot
     }
 
     return false  // Different concrete types are not equal
@@ -118,7 +118,9 @@ struct DisplayedEpisode:
     getDisplayedEpisode(episode).getUnsavedPodcastEpisode()
   }
   func getUnsavedPodcastEpisode() -> UnsavedPodcastEpisode? { episode as? UnsavedPodcastEpisode }
-  func getPendingEpisodeDetail() -> PendingEpisodeDetail? { episode as? PendingEpisodeDetail }
+  func getEpisodeDetailSnapshot() -> EpisodeDetailSnapshot? {
+    episode as? EpisodeDetailSnapshot
+  }
 
   static func toOriginalUnsavedPodcastEpisode(_ episode: any EpisodeDisplayable) throws
     -> UnsavedPodcastEpisode

@@ -102,12 +102,12 @@ import UIKit
   convenience init(listedEpisode: ListedEpisode) {
     if listedEpisode.getUnsavedPodcastEpisode() != nil {
       self.init(
-        episode: DisplayedEpisode(PendingEpisodeDetail(listedEpisode)),
+        episode: DisplayedEpisode(EpisodeDetailSnapshot(listedEpisode)),
         listedEpisode: listedEpisode
       )
     } else if listedEpisode.getListablePodcastEpisode() != nil {
       self.init(
-        episode: DisplayedEpisode(PendingEpisodeDetail(listedEpisode)),
+        episode: DisplayedEpisode(EpisodeDetailSnapshot(listedEpisode)),
         listedEpisode: listedEpisode,
         canRevertToUnsaved: false
       )

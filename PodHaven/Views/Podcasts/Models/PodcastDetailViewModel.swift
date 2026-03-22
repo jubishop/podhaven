@@ -316,7 +316,7 @@ class PodcastDetailViewModel:
       || listedPodcast.getSearchResultPodcast() != nil
       || listedPodcast.getListablePodcast() != nil
     {
-      self.init(podcast: DisplayedPodcast(PendingPodcastDetail(listedPodcast)))
+      self.init(podcast: DisplayedPodcast(PodcastDetailSnapshot(listedPodcast)))
     } else {
       Assert.fatal("Cannot create PodcastDetailViewModel from listed podcast without data")
     }

@@ -19,8 +19,8 @@ struct ListedEpisode:
     Assert.precondition(
       !(episode is ListedEpisode)
         && !(episode is DisplayedEpisode)
-        && !(episode is PendingEpisodeDetail),
-      "ListedEpisode cannot wrap wrapper or pending detail types"
+        && !(episode is EpisodeDetailSnapshot),
+      "ListedEpisode cannot wrap wrapper or detail snapshot types"
     )
     self.episode = episode
   }

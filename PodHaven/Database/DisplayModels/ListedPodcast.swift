@@ -20,8 +20,8 @@ struct ListedPodcast:
       !(podcast is ListedPodcast)
         && !(podcast is DisplayedPodcast)
         && !(podcast is Podcast)
-        && !(podcast is PendingPodcastDetail),
-      "ListedPodcast cannot wrap wrapper or pending detail types"
+        && !(podcast is PodcastDetailSnapshot),
+      "ListedPodcast cannot wrap wrapper or detail snapshot types"
     )
     self.podcast = podcast
   }
