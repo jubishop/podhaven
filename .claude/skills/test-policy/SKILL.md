@@ -225,6 +225,34 @@ Keep each phase distinct. Avoid interleaving multiple act-assert cycles in a sin
 - Do not wrap test code in `do`/`catch` unless the test specifically needs to verify error behavior.
 - Never use `try?` in tests — let failures surface.
 
+### Migration tests
+
+Migration tests must be **self-contained and stable over time**. They verify that a specific schema migration runs correctly, so they must not depend on constructs that may change after the migration was written.
+
+- Use **raw SQL** for all database setup and assertions — not model structs, `Create` helpers, or repository methods that may evolve with later migrations.
+- Use **`Container.shared.standardDefaults()`** for UserDefaults access.
+- Do **not** use other external constructs (model types, helpers, DI-resolved services) that could change later and break the migration test even though the migration itself is correct.
+
+```swift
+// Good — raw SQL, stable across future schema changes
+try await db.write { db in
+  try db.execute(sql: """
+    INSERT INTO podcast (id, title, feedURL)
+    VALUES (?, ?, ?)
+    """, arguments: ["id1", "Test Podcast", "https://example.com/feed"])
+}
+
+let rows = try await db.read { db in
+  try Row.fetchAll(db, sql: "SELECT * FROM podcast WHERE id = ?", arguments: ["id1"])
+}
+#expect(rows.count == 1)
+```
+
+```swift
+// Bad — uses model types that may change with later migrations
+let podcast = try Create.podcast(title: "Test Podcast")
+```
+
 ### No business logic in tests
 
 Tests should exercise production code, not reimplement it. If a test needs complex setup logic, it belongs in a helper (under `PodHavenTests/Utility/`) or in `Create`.
@@ -255,6 +283,7 @@ Search the scoped files for:
 - Direct `sleeper.sleep` calls — verify they are advancing fake time, not delaying
 - Missing `Wait.until` / `Wait.forValue` — flag any polling loops or artificial delays
 - Inline setup logic that should use `Create` helpers or domain helpers
+- Migration tests using model types, `Create` helpers, or DI services instead of raw SQL and `Container.shared.standardDefaults()`
 
 ### Step 3 — Evaluate each site
 
