@@ -4,7 +4,6 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
-import GRDB
 import Testing
 
 @testable import PodHaven
@@ -130,13 +129,7 @@ import Testing
 
     // Update the episode in DB with a different currentTime (non-widget field),
     // then re-fetch as ListablePodcastEpisode.
-    try await repo.db.write { db in
-      try Episode.withID(pe.id)
-        .updateAll(
-          db,
-          Episode.Columns.currentTime.set(to: CMTime(seconds: 99, preferredTimescale: 1))
-        )
-    }
+    try await repo.updateCurrentTime(pe.id, currentTime: CMTime(seconds: 99, preferredTimescale: 1))
     let modifiedEp = try await fetchListable(pe.id)
     sharedState.$queuedPodcastEpisodes.new([modifiedEp])
 
