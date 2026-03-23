@@ -361,9 +361,10 @@ extension Container {
     currentTab = .upNext
   }
 
-  func dismiss() {
-    let currentPath: [Destination] =
-      switch currentTab {
+  func dismiss(from tab: Tab? = nil) {
+    let targetTab = tab ?? currentTab
+    let targetPath: [Destination] =
+      switch targetTab {
       case .settings: settings.path
       case .search: search.path
       case .upNext: upNext.path
@@ -372,8 +373,8 @@ extension Container {
       }
     Self.log.debug(
       """
-      Dismissing current navigation destination from \(currentTab) \
-      with sheetPresented: \(sheet.config != nil), path: \(currentPath)
+      Dismissing current navigation destination from \(targetTab) \
+      with sheetPresented: \(sheet.config != nil), path: \(targetPath)
       """
     )
 
@@ -384,7 +385,7 @@ extension Container {
 
     // Episodes and podcasts tabs always have a root destination entry,
     // so we guard count > 1 to preserve it.
-    switch currentTab {
+    switch targetTab {
     case .settings:
       guard !settings.path.isEmpty else { return }
       settings.path.removeLast()

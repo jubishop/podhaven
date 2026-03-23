@@ -242,13 +242,14 @@ import Testing
     let podcastFeed = try await PodcastFeed.parse(feedData, from: feedURL)
     let savedSeries = try await repo.insertSeries(podcastFeed.toUnsavedSeries())
     let displayedPodcast = DisplayedPodcast(savedSeries.podcast)
-    let viewModel = PodcastDetailViewModel(podcast: displayedPodcast)
 
     navigation.currentTab = .podcasts
     navigation.podcasts.path = [
       .podcastsViewType(.unsubscribed),
       .podcast(displayedPodcast),
     ]
+
+    let viewModel = PodcastDetailViewModel(podcast: displayedPodcast)
 
     try await viewModel.performAppear()
 

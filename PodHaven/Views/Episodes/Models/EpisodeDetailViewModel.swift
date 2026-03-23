@@ -25,6 +25,7 @@ import UIKit
 
   // MARK: - Data
 
+  private let originTab: Navigation.Tab
   private let detailSource: EpisodeDetailSource
   var episode: DisplayedEpisode
   private var _podcastEpisode: PodcastEpisode?
@@ -76,6 +77,7 @@ import UIKit
   // MARK: - Initialization
 
   private init(detailSource: EpisodeDetailSource) {
+    self.originTab = Container.shared.navigation().currentTab
     self.detailSource = detailSource
     self.episode = detailSource.initialEpisode
 
@@ -133,7 +135,7 @@ import UIKit
       case .dismiss(let message):
         Self.log.warning("Episode no longer exists for detail hydration: \(episode.toString)")
         alert(message)
-        navigation.dismiss()
+        navigation.dismiss(from: originTab)
       }
     }
   }

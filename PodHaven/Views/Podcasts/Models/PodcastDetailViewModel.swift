@@ -34,6 +34,7 @@ class PodcastDetailViewModel:
 
   // MARK: - Data
 
+  private let originTab: Navigation.Tab
   private let detailSource: PodcastDetailSource
   var podcast: DisplayedPodcast
   private var _podcastSeries: PodcastSeries?
@@ -297,6 +298,7 @@ class PodcastDetailViewModel:
   // MARK: - Initialization
 
   private init(detailSource: PodcastDetailSource) {
+    self.originTab = Container.shared.navigation().currentTab
     self.detailSource = detailSource
     self.podcast = detailSource.initialPresentation.podcast
     isHydratingInitialPresentation = detailSource.requiresHydratedPresentation
@@ -341,7 +343,7 @@ class PodcastDetailViewModel:
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
         if isHydratingInitialPresentation {
-          navigation.dismiss()
+          navigation.dismiss(from: originTab)
         }
       }
     }
@@ -565,7 +567,7 @@ class PodcastDetailViewModel:
             error
           )
           alert(Self.unavailableMessage)
-          navigation.dismiss()
+          navigation.dismiss(from: originTab)
         }
         return
       }
