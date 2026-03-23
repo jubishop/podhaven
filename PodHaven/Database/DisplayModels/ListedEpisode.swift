@@ -74,6 +74,7 @@ struct ListedEpisode:
   var image: URL { episode.image }
   var podcastImage: URL { episode.podcastImage }
   var saveInCache: Bool { episode.saveInCache }
+  var rating: EpisodeRating? { episode.rating }
 
   // MARK: - Getters
 

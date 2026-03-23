@@ -39,7 +39,7 @@ class V33MigrationTests {
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
         """,
       arguments: [
-        podcastID, "ep-\(UUID())", "https://example.com/ep.mp3", "Test Episode",
+        podcastID, "ep-\(UUID())", "https://example.com/ep-\(UUID()).mp3", "Test Episode",
         rating, ratingDate,
       ]
     )

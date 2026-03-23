@@ -30,6 +30,7 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
   let saveInCache: Bool
   let creationDate: Date
   let queueDate: Date?
+  let rating: EpisodeRating?
 
   // MARK: - Podcast Fields
 
@@ -62,6 +63,7 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
     saveInCache = row[Episode.Columns.saveInCache]
     creationDate = row[Episode.Columns.creationDate]
     queueDate = row[Episode.Columns.queueDate]
+    rating = row[Episode.Columns.rating]
 
     cacheStatus = .from(
       cachedFilename: row[Episode.Columns.cachedFilename] as String?,
@@ -92,6 +94,7 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
     hasher.combine(saveInCache)
     hasher.combine(creationDate)
     hasher.combine(queueDate)
+    hasher.combine(rating)
     hasher.combine(feedURL)
     hasher.combine(podcastImage)
     hasher.combine(podcastTitle)
@@ -114,6 +117,7 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
       && lhs.saveInCache == rhs.saveInCache
       && lhs.creationDate == rhs.creationDate
       && lhs.queueDate == rhs.queueDate
+      && lhs.rating == rhs.rating
       && lhs.feedURL == rhs.feedURL
       && lhs.podcastImage == rhs.podcastImage
       && lhs.podcastTitle == rhs.podcastTitle
@@ -138,6 +142,7 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
       Episode.Columns.downloadTaskID,
       Episode.Columns.creationDate,
       Episode.Columns.queueDate,
+      Episode.Columns.rating,
     ]
   }
 
