@@ -37,7 +37,7 @@ actor ObservatoryOnDeckTests {
     )
 
     let episode = series.episodes[0]
-    let onDeck: OnDeck? = try await observatory.episode(episode.id).get()
+    let onDeck = try await observatory.onDeck(episode.id).get()
 
     let unwrapped = try #require(onDeck)
     #expect(unwrapped.id == episode.id)
@@ -54,7 +54,7 @@ actor ObservatoryOnDeckTests {
 
   @Test("onDeck() returns nil for a non-existing episode")
   func testOnDeckNonExisting() async throws {
-    let onDeck: OnDeck? = try await observatory.episode(Episode.ID(rawValue: 999)).get()
+    let onDeck = try await observatory.onDeck(Episode.ID(rawValue: 999)).get()
     #expect(onDeck == nil)
   }
 
@@ -94,7 +94,7 @@ actor ObservatoryOnDeckTests {
     )
 
     let episode = series.episodes[0]
-    let onDeck: OnDeck = try #require(try await observatory.episode(episode.id).get())
+    let onDeck = try #require(try await observatory.onDeck(episode.id).get())
 
     // Episode fields
     #expect(onDeck.id == episode.id)
@@ -208,6 +208,71 @@ actor ObservatoryOnDeckTests {
     #expect(a.hashValue == b.hashValue)
   }
 
+  @Test("OnDeck.request tracks only the columns OnDeck reads from each table")
+  func testOnDeckTrackedRegion() async throws {
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(),
+        unsavedEpisodes: [try Create.unsavedEpisode()]
+      )
+    )
+    let episodeID = series.episodes[0].id
+    let db = repo.db
+
+    let region = try await db.read { db in
+      try OnDeck.request(for: episodeID).databaseRegion(db)
+    }
+
+    // Episode columns OnDeck does NOT read must not trigger the observation
+    // (podcastId is tracked because GRDB needs it for the podcast JOIN condition)
+    for column in ["currentTime", "link", "queueDate", "creationDate"] {
+      #expect(
+        !region.isModified(
+          byEventsOfKind: .update(tableName: "episode", columnNames: [column])
+        ),
+        "Region should not track episode column: \(column)"
+      )
+    }
+
+    // Podcast columns OnDeck does NOT read must not trigger the observation
+    for column in [
+      "description", "subscriptionDate", "lastUpdate", "notifyNewEpisodes",
+      "queueAllEpisodes", "cacheAllEpisodes", "iTunesID", "link",
+    ] {
+      #expect(
+        !region.isModified(
+          byEventsOfKind: .update(tableName: "podcast", columnNames: [column])
+        ),
+        "Region should not track podcast column: \(column)"
+      )
+    }
+
+    // Episode columns OnDeck DOES read must trigger the observation
+    for column in [
+      "id", "guid", "mediaURL", "title", "pubDate", "duration", "description",
+      "image", "finishDate", "queueOrder", "saveInCache", "cachedFilename", "downloadTaskID",
+      "podcastId",
+    ] {
+      #expect(
+        region.isModified(
+          byEventsOfKind: .update(tableName: "episode", columnNames: [column])
+        ),
+        "Region should track episode column: \(column)"
+      )
+    }
+
+    // Podcast columns OnDeck DOES read must trigger the observation
+    // (id is tracked because GRDB needs it for the JOIN condition)
+    for column in ["image", "title", "feedURL", "defaultPlaybackRate", "id"] {
+      #expect(
+        region.isModified(
+          byEventsOfKind: .update(tableName: "podcast", columnNames: [column])
+        ),
+        "Region should track podcast column: \(column)"
+      )
+    }
+  }
+
   @Test("onDeck() does not trigger on currentTime-only changes")
   func testOnDeckCurrentTimeDeduplication() async throws {
     let (episode, _, _) = try await Create.threePodcastEpisodes()
@@ -215,7 +280,7 @@ actor ObservatoryOnDeckTests {
     let updateCount = Counter()
 
     Task {
-      for try await _: OnDeck? in observatory.episode(episode.id) {
+      for try await _ in observatory.onDeck(episode.id) {
         await updateCount.increment()
       }
     }
@@ -243,7 +308,7 @@ actor ObservatoryOnDeckTests {
     let updateCount = Counter()
 
     Task {
-      for try await _: OnDeck? in observatory.episode(episode.id) {
+      for try await _ in observatory.onDeck(episode.id) {
         await updateCount.increment()
       }
     }
@@ -264,7 +329,7 @@ actor ObservatoryOnDeckTests {
     let receivedNil = ActorContainer<Bool>()
 
     Task {
-      for try await onDeck: OnDeck? in observatory.episode(episode.id) {
+      for try await onDeck in observatory.onDeck(episode.id) {
         if onDeck != nil {
           await receivedNonNil.set(true)
         } else {
