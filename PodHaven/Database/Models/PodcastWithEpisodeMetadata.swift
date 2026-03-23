@@ -52,9 +52,13 @@ extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType: Fetchab
   // MARK: Query Builders
 
   static func all(
-    _ filter: PodcastFilter = { $0 }
+    _ filter: PodcastFilter = { $0 },
+    selecting columns: [any SQLSelectable]? = nil
   ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
-    filter(Podcast.all())
+    var request = filter(Podcast.all())
+    if let columns { request = request.select(columns) }
+    return
+      request
       .annotated(with: [
         Podcast.episodes.count.forKey(CodingKeys.episodeCount),
         Podcast.episodes.max(\.pubDate).forKey(CodingKeys.mostRecentEpisodeDate),
