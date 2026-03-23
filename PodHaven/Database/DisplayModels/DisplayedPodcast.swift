@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import FactoryKit
 import Foundation
 
 @dynamicMemberLookup
@@ -11,8 +10,6 @@ struct DisplayedPodcast:
   Hashable,
   Sendable
 {
-  @DynamicInjected(\.repo) private var repo
-
   let podcast: any PodcastDisplayable
 
   init(_ podcast: any PodcastDisplayable) {
@@ -91,41 +88,11 @@ struct DisplayedPodcast:
 
   // MARK: - Helpers
 
-  static func getOrCreatePodcast(_ podcast: any PodcastDisplayable) async throws -> Podcast {
-    try await getDisplayedPodcast(podcast).getOrCreatePodcast()
-  }
   func getOrCreatePodcast() async throws -> Podcast {
     if let podcast = getPodcast() {
       return podcast
     } else if let unsavedPodcast = getUnsavedPodcast() {
-      if let existingSeries = try await repo.podcastSeries(
-        unsavedPodcast.feedURL,
-        iTunesID: unsavedPodcast.iTunesID
-      ) {
-        return existingSeries.podcast
-      }
-
-      // Podcast doesn't exist by our keys, parse feed to discover resolved URL
-      let podcastFeed = try await PodcastFeed.parse(unsavedPodcast.feedURL)
-
-      // The parsed feed may have a different feedURL (redirect/itunes:new-feed-url).
-      // Check if that resolved URL matches an existing podcast.
-      if podcastFeed.updatedFeedURL != unsavedPodcast.feedURL {
-        if let existingSeries = try await repo.podcastSeries(
-          podcastFeed.updatedFeedURL,
-          iTunesID: unsavedPodcast.iTunesID
-        ) {
-          if existingSeries.podcast.iTunesID == nil, let iTunesID = unsavedPodcast.iTunesID {
-            try await repo.updateITunesID(existingSeries.podcast.id, iTunesID: iTunesID)
-          }
-          return existingSeries.podcast
-        }
-      }
-
-      let podcastSeries = try await repo.insertSeries(
-        try podcastFeed.toUnsavedSeries(iTunesID: unsavedPodcast.iTunesID)
-      )
-      return podcastSeries.podcast
+      return try await unsavedPodcast.getOrCreatePodcast()
     } else {
       Assert.fatal("Can't make Podcast from: \(type(of: podcast))")
     }
@@ -135,12 +102,5 @@ struct DisplayedPodcast:
   func getUnsavedPodcast() -> UnsavedPodcast? { podcast as? UnsavedPodcast }
   func getPodcastDetailSnapshot() -> PodcastDetailSnapshot? {
     podcast as? PodcastDetailSnapshot
-  }
-
-  static func getDisplayedPodcast(_ podcast: any PodcastDisplayable) -> DisplayedPodcast {
-    guard let displayedPodcast = podcast as? DisplayedPodcast
-    else { return DisplayedPodcast(podcast) }
-
-    return displayedPodcast
   }
 }

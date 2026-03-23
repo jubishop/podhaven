@@ -37,6 +37,20 @@ struct ListablePodcast: PodcastListable, FetchableRecord {
     creationDate = row[Podcast.Columns.creationDate]
   }
 
+  // MARK: - Column Selection
+
+  static var podcastColumns: [any SQLSelectable] {
+    [
+      Podcast.Columns.id,
+      Podcast.Columns.creationDate,
+      Podcast.Columns.feedURL,
+      Podcast.Columns.iTunesID,
+      Podcast.Columns.image,
+      Podcast.Columns.title,
+      Podcast.Columns.subscriptionDate,
+    ]
+  }
+
   func getPodcast() async throws -> Podcast {
     let repo = Container.shared.repo()
     guard let podcastSeries = try await repo.podcastSeries(id) else {

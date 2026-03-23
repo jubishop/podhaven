@@ -59,8 +59,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "8BD7F92F2CF2A49100CEDAA7"
-               BuildableName = "ParallelTests.xctest"
-               BlueprintName = "ParallelTests"
+               BuildableName = "PodHavenTests.xctest"
+               BlueprintName = "PodHavenTests"
                ReferencedContainer = "container:PodHaven.xcodeproj">
             </BuildableReference>
          </TestableReference>

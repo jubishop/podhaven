@@ -119,6 +119,49 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
       && lhs.podcastTitle == rhs.podcastTitle
   }
 
+  // MARK: - Column Selection
+
+  static var episodeColumns: [any SQLSelectable] {
+    [
+      Episode.Columns.id,
+      Episode.Columns.guid,
+      Episode.Columns.mediaURL,
+      Episode.Columns.title,
+      Episode.Columns.pubDate,
+      Episode.Columns.duration,
+      Episode.Columns.image,
+      Episode.Columns.finishDate,
+      Episode.Columns.currentTime,
+      Episode.Columns.queueOrder,
+      Episode.Columns.saveInCache,
+      Episode.Columns.cachedFilename,
+      Episode.Columns.downloadTaskID,
+    ]
+  }
+
+  static var podcastColumns: [any SQLSelectable] {
+    [
+      Podcast.Columns.feedURL,
+      Podcast.Columns.image,
+      Podcast.Columns.title,
+    ]
+  }
+
+  static func request(
+    filter: SQLExpression,
+    order: SQLOrdering = Episode.Columns.pubDate.desc,
+    limit: Int = Int.max
+  ) -> QueryInterfaceRequest<ListablePodcastEpisode> {
+    Episode
+      .all()
+      .filter(filter)
+      .select(episodeColumns)
+      .including(required: Episode.podcast.select(podcastColumns))
+      .order(order)
+      .limit(limit)
+      .asRequest(of: ListablePodcastEpisode.self)
+  }
+
   func getPodcastEpisode() async throws -> PodcastEpisode {
     guard let podcastEpisode = try await repo.podcastEpisode(id) else {
       Assert.fatal("PodcastEpisode not found for ID \(id)")

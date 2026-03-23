@@ -83,7 +83,7 @@ struct ListedPodcast:
 
   func getOrCreatePodcast() async throws -> Podcast {
     if let unsavedPodcast = getUnsavedPodcast() {
-      return try await DisplayedPodcast.getOrCreatePodcast(unsavedPodcast)
+      return try await unsavedPodcast.getOrCreatePodcast()
     } else if let searchResult = getSearchResultPodcast() {
       return try await searchResult.getPodcast()
     } else if let listablePodcast = getListablePodcast() {
