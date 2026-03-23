@@ -10,7 +10,6 @@ import Tagged
 @Observable @MainActor class PlayBarViewModel: Shareable {
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
-  @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
   @ObservationIgnored @DynamicInjected(\.sleeper) private var sleeper
   @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
@@ -30,23 +29,6 @@ import Tagged
 
   var episodeImage: UIImage? { sharedState.onDeck?.artwork }
   var loadingEpisodeTitle: String { sharedState.playbackStatus.loadingTitle ?? "Unknown" }
-
-  var currentRating: EpisodeRating? { sharedState.onDeck?.rating }
-
-  func rateEpisode(_ rating: EpisodeRating) {
-    Task { [weak self] in
-      guard let self, let episodeID = sharedState.onDeck?.id else { return }
-
-      let newRating: EpisodeRating? = currentRating == rating ? nil : rating
-      Self.log.debug("Rating episode \(episodeID): \(String(describing: newRating))")
-
-      do {
-        try await repo.updateRating(episodeID, rating: newRating)
-      } catch {
-        Self.log.caughtError("Failed to update rating", error)
-      }
-    }
-  }
 
   var playbackRate: Binding<Float> {
     Binding(
