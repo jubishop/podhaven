@@ -30,7 +30,7 @@ class SearchResultPodcastTests {
 
   private func fetchSavedPodcast(_ podcastID: Podcast.ID) async throws -> ListablePodcast {
     let results: [PodcastWithEpisodeMetadata<ListablePodcast>] =
-      try await observatory.podcastsWithEpisodeMetadata(
+      try await observatory.listablePodcastsWithEpisodeMetadata(
         { $0.filter(Podcast.Columns.id == podcastID) },
         limit: 1
       )

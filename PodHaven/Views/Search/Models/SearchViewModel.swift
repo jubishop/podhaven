@@ -490,7 +490,7 @@ class SearchViewModel:
 
       do {
         let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
-          observatory.podcastsWithEpisodeMetadata(
+          observatory.listablePodcastsWithEpisodeMetadata(
             feedURLs,
             iTunesIDs: iTunesIDs
           )

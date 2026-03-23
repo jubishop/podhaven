@@ -145,7 +145,7 @@ class EpisodesListViewModel:
 
     do {
       let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
-        observatory.podcastEpisodes(
+        observatory.listablePodcastEpisodes(
           filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
           order: currentSortMethod.sqlOrdering,
           limit: 200
