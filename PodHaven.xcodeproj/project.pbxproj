@@ -182,8 +182,6 @@
 		};
 		8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = PodHavenTests;
 			sourceTree = "<group>";
 		};

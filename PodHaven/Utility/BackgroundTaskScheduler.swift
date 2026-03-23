@@ -2,6 +2,7 @@
 
 import BackgroundTasks
 import ConcurrencyExtras
+import FactoryKit
 import Foundation
 import Logging
 
@@ -26,6 +27,8 @@ struct BackgroundTaskScheduler: Sendable {
   typealias Completion = @Sendable (Bool) -> Void
 
   private static let log = Log.as("BackgroundTaskScheduler")
+
+  private var systemScheduler: any BGTaskScheduling { Container.shared.bgTaskScheduler() }
 
   private let identifier: String
   private let cadence: Duration
@@ -74,7 +77,7 @@ struct BackgroundTaskScheduler: Sendable {
     Once.run(identifier) {
       Self.log.info("register() called for: \(identifier)")
 
-      let success = BGTaskScheduler.shared.register(
+      let success = systemScheduler.register(
         forTaskWithIdentifier: identifier,
         using: nil
       ) { task in
@@ -101,7 +104,7 @@ struct BackgroundTaskScheduler: Sendable {
 
       Self.log.info(
         """
-        BGTaskScheduler.shared.register returned: \(success)
+        register returned: \(success)
         Registration for BackgroundTask: \(identifier) complete
         """
       )
@@ -119,7 +122,7 @@ struct BackgroundTaskScheduler: Sendable {
       return
     }
 
-    BGTaskScheduler.shared.getPendingTaskRequests { [self] requests in
+    systemScheduler.getPendingTaskRequests { [self] requests in
       let hasPending = requests.contains { $0.identifier == identifier }
       if hasPending {
         Self.log.debug("scheduleNextIfNeeded: task already pending for \(identifier), skipping")
@@ -140,7 +143,7 @@ struct BackgroundTaskScheduler: Sendable {
     lastAttempt = .now
 
     do {
-      try BGTaskScheduler.shared.submit(request)
+      try systemScheduler.submit(request)
     } catch {
       Self.log.caughtError("scheduleNext: failed to submit background task '\(identifier)'", error)
       return
@@ -162,7 +165,7 @@ struct BackgroundTaskScheduler: Sendable {
       return
     }
 
-    BGTaskScheduler.shared.getPendingTaskRequests { [self] requests in
+    systemScheduler.getPendingTaskRequests { [self] requests in
       let hasPending = requests.contains { $0.identifier == identifier }
       if hasPending {
         Self.log.debug("Pending task verified for '\(identifier)'")
