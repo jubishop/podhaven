@@ -8,7 +8,6 @@ struct UnsavedPodcastEpisode:
   EpisodeDisplayable,
   Equatable,
   Hashable,
-  Searchable,
   Stringable
 {
   var id: MediaGUID { unsavedEpisode.id }
@@ -33,7 +32,7 @@ struct UnsavedPodcastEpisode:
   var podcastImage: URL { unsavedPodcast.image }
   var saveInCache: Bool { unsavedEpisode.saveInCache }
 
-  // MARK: - EpisodeInformable
+  // MARK: - EpisodeFoundational
 
   var mediaGUID: MediaGUID { unsavedEpisode.id }
   var title: String { unsavedEpisode.title }
