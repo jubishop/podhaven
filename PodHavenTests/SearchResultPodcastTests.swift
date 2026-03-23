@@ -1,15 +1,43 @@
 // Copyright Justin Bishop, 2025
 
 import FactoryKit
-import FactoryTesting
 import Foundation
+import GRDB
 import Testing
 
 @testable import PodHaven
 
 @Suite("of SearchResultPodcast tests", .container)
 class SearchResultPodcastTests {
+  @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
+
+  private func makeSearchResult(
+    resultFeedURL: FeedURL,
+    originalPodcast: UnsavedPodcast,
+    savedPodcast: ListablePodcast,
+    originalEpisodeCount: Int = 3,
+    originalMostRecentEpisodeDate: Date? = Date(timeIntervalSince1970: 123)
+  ) -> SearchResultPodcast {
+    SearchResultPodcast(
+      resultFeedURL: resultFeedURL,
+      originalPodcast: originalPodcast,
+      originalEpisodeCount: originalEpisodeCount,
+      originalMostRecentEpisodeDate: originalMostRecentEpisodeDate,
+      savedPodcast: savedPodcast
+    )
+  }
+
+  private func fetchSavedPodcast(_ podcastID: Podcast.ID) async throws -> ListablePodcast {
+    let results: [PodcastWithEpisodeMetadata<ListablePodcast>] =
+      try await observatory.podcastsWithEpisodeMetadata(
+        { $0.filter(Podcast.Columns.id == podcastID) },
+        limit: 1
+      )
+      .get()
+
+    return try #require(results.first?.podcast)
+  }
 
   // MARK: - SearchResultPodcast identity
 
@@ -26,9 +54,13 @@ class SearchResultPodcastTests {
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
     )
 
-    let searchResult = SearchResultPodcast(
+    let searchResult = makeSearchResult(
       resultFeedURL: searchURL,
-      podcast: series.podcast
+      originalPodcast: try Create.unsavedPodcast(
+        feedURL: searchURL,
+        iTunesID: ITunesPodcastID(123)
+      ),
+      savedPodcast: try await fetchSavedPodcast(series.podcast.id)
     )
 
     #expect(searchResult.id == searchURL)
@@ -44,15 +76,16 @@ class SearchResultPodcastTests {
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
     )
 
-    let searchResult = SearchResultPodcast(
+    let searchResult = makeSearchResult(
       resultFeedURL: feedURL,
-      podcast: series.podcast
+      originalPodcast: try Create.unsavedPodcast(feedURL: feedURL, title: "Same URL"),
+      savedPodcast: try await fetchSavedPodcast(series.podcast.id)
     )
 
     #expect(searchResult.id == searchResult.feedURL)
   }
 
-  @Test("forwards PodcastDisplayable fields from wrapped podcast")
+  @Test("forwards PodcastListable fields from the saved podcast")
   func testFieldForwarding() async throws {
     let iTunesID = ITunesPodcastID(456)
     let unsavedPodcast = try Create.unsavedPodcast(
@@ -63,10 +96,16 @@ class SearchResultPodcastTests {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
     )
+    let savedPodcast = try await fetchSavedPodcast(series.podcast.id)
 
-    let searchResult = SearchResultPodcast(
+    let searchResult = makeSearchResult(
       resultFeedURL: FeedURL(URL(string: "https://example.com/search.rss")!),
-      podcast: series.podcast
+      originalPodcast: try Create.unsavedPodcast(
+        feedURL: FeedURL(URL(string: "https://example.com/search.rss")!),
+        iTunesID: iTunesID,
+        title: "Original Search Title"
+      ),
+      savedPodcast: savedPodcast
     )
 
     #expect(searchResult.title == "Forwarded Title")
@@ -76,47 +115,99 @@ class SearchResultPodcastTests {
     #expect(searchResult.podcastID == series.podcast.id)
   }
 
-  // MARK: - DisplayedPodcast wrapping SearchResultPodcast
+  @Test("preserves the original search metadata for reversion")
+  func testOriginalSearchMetadata() async throws {
+    let originalDate = Date(timeIntervalSince1970: 456)
+    let originalPodcast = try Create.unsavedPodcast(
+      feedURL: FeedURL(URL(string: "https://example.com/search.rss")!),
+      title: "Original Search Title",
+      description: "Original Search Description"
+    )
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: try Create.unsavedPodcast(title: "Saved Podcast"))
+    )
+    let savedPodcast = try await fetchSavedPodcast(savedSeries.podcast.id)
 
-  @Test("DisplayedPodcast.id returns resultFeedURL when wrapping SearchResultPodcast")
-  func testDisplayedPodcastId() async throws {
+    let searchResult = makeSearchResult(
+      resultFeedURL: originalPodcast.feedURL,
+      originalPodcast: originalPodcast,
+      savedPodcast: savedPodcast,
+      originalEpisodeCount: 7,
+      originalMostRecentEpisodeDate: originalDate
+    )
+
+    #expect(searchResult.originalPodcast.title == "Original Search Title")
+    #expect(searchResult.originalEpisodeCount == 7)
+    #expect(searchResult.originalMostRecentEpisodeDate == originalDate)
+  }
+
+  // MARK: - ListedPodcast wrapping SearchResultPodcast
+
+  @Test("ListedPodcast.id returns resultFeedURL when wrapping SearchResultPodcast")
+  func testListedPodcastId() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
     let searchURL = FeedURL(URL(string: "https://example.com/search.rss")!)
     let unsavedPodcast = try Create.unsavedPodcast(feedURL: canonicalURL)
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
     )
+    let savedPodcast = try await fetchSavedPodcast(series.podcast.id)
 
-    let searchResult = SearchResultPodcast(
+    let searchResult = makeSearchResult(
       resultFeedURL: searchURL,
-      podcast: series.podcast
+      originalPodcast: try Create.unsavedPodcast(feedURL: searchURL),
+      savedPodcast: savedPodcast
     )
-    let displayed = DisplayedPodcast(searchResult)
+    let listed = ListedPodcast(searchResult)
 
-    #expect(displayed.id == searchURL)
-    #expect(displayed.feedURL == canonicalURL)
+    #expect(listed.id == searchURL)
+    #expect(listed.feedURL == canonicalURL)
   }
 
-  @Test("DisplayedPodcast.getPodcast() unwraps through SearchResultPodcast")
+  @Test("ListedPodcast.getOrCreatePodcast() unwraps through SearchResultPodcast")
   func testGetPodcastUnwrap() async throws {
     let unsavedPodcast = try Create.unsavedPodcast(title: "Unwrap Test")
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
     )
+    let savedPodcast = try await fetchSavedPodcast(series.podcast.id)
 
-    let searchResult = SearchResultPodcast(
+    let searchResult = makeSearchResult(
       resultFeedURL: FeedURL(URL(string: "https://example.com/search.rss")!),
-      podcast: series.podcast
+      originalPodcast: try Create.unsavedPodcast(
+        feedURL: FeedURL(URL(string: "https://example.com/search.rss")!)
+      ),
+      savedPodcast: savedPodcast
     )
-    let displayed = DisplayedPodcast(searchResult)
+    let listed = ListedPodcast(searchResult)
 
-    let unwrapped = displayed.getPodcast()
-    #expect(unwrapped != nil)
-    #expect(unwrapped?.id == series.podcast.id)
-    #expect(unwrapped?.feedURL == series.podcast.feedURL)
+    let unwrapped = try await listed.getOrCreatePodcast()
+    #expect(unwrapped.id == series.podcast.id)
+    #expect(unwrapped.feedURL == series.podcast.feedURL)
   }
 
-  @Test("DisplayedPodcast.getOrCreatePodcast() returns the real Podcast")
+  @Test("SearchResultPodcast.getPodcast() unwraps through the saved podcast")
+  func testSearchResultGetPodcast() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast(title: "Search Helper")
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
+    )
+    let savedPodcast = try await fetchSavedPodcast(series.podcast.id)
+
+    let searchResult = makeSearchResult(
+      resultFeedURL: FeedURL(URL(string: "https://example.com/search-helper.rss")!),
+      originalPodcast: try Create.unsavedPodcast(
+        feedURL: FeedURL(URL(string: "https://example.com/search-helper.rss")!)
+      ),
+      savedPodcast: savedPodcast
+    )
+
+    let resolved = try await searchResult.getPodcast()
+    #expect(resolved.id == series.podcast.id)
+    #expect(resolved.feedURL == series.podcast.feedURL)
+  }
+
+  @Test("ListedPodcast.getOrCreatePodcast() returns the real Podcast")
   func testGetOrCreatePodcast() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
     let unsavedPodcast = try Create.unsavedPodcast(
@@ -126,19 +217,36 @@ class SearchResultPodcastTests {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
     )
+    let savedPodcast = try await fetchSavedPodcast(series.podcast.id)
 
-    let searchResult = SearchResultPodcast(
+    let searchResult = makeSearchResult(
       resultFeedURL: FeedURL(URL(string: "https://example.com/search.rss")!),
-      podcast: series.podcast
+      originalPodcast: try Create.unsavedPodcast(
+        feedURL: FeedURL(URL(string: "https://example.com/search.rss")!)
+      ),
+      savedPodcast: savedPodcast
     )
-    let displayed = DisplayedPodcast(searchResult)
+    let listed = ListedPodcast(searchResult)
 
-    let resolved = try await displayed.getOrCreatePodcast()
+    let resolved = try await listed.getOrCreatePodcast()
     #expect(resolved.id == series.podcast.id)
     #expect(resolved.feedURL == canonicalURL)
   }
 
-  @Test("DisplayedPodcast.toOriginalUnsavedPodcast() unwraps through SearchResultPodcast")
+  @Test("ListablePodcast.getPodcast() returns the real Podcast")
+  func testListablePodcastGetPodcast() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast(title: "Listable Helper")
+    let series = try await repo.insertSeries(
+      UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
+    )
+    let savedPodcast = try await fetchSavedPodcast(series.podcast.id)
+
+    let resolved = try await savedPodcast.getPodcast()
+    #expect(resolved.id == series.podcast.id)
+    #expect(resolved.feedURL == series.podcast.feedURL)
+  }
+
+  @Test("ListedPodcast.toOriginalUnsavedPodcast() unwraps through SearchResultPodcast")
   func testToOriginalUnsavedPodcast() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
     let unsavedPodcast = try Create.unsavedPodcast(
@@ -148,21 +256,27 @@ class SearchResultPodcastTests {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
     )
-
-    let searchResult = SearchResultPodcast(
-      resultFeedURL: FeedURL(URL(string: "https://example.com/search.rss")!),
-      podcast: series.podcast
+    let savedPodcast = try await fetchSavedPodcast(series.podcast.id)
+    let originalSearchPodcast = try Create.unsavedPodcast(
+      feedURL: FeedURL(URL(string: "https://example.com/search.rss")!),
+      title: "Search Title"
     )
-    let displayed = DisplayedPodcast(searchResult)
 
-    let original = try displayed.toOriginalUnsavedPodcast()
-    #expect(original.feedURL == canonicalURL)
+    let searchResult = makeSearchResult(
+      resultFeedURL: originalSearchPodcast.feedURL,
+      originalPodcast: originalSearchPodcast,
+      savedPodcast: savedPodcast
+    )
+    let listed = ListedPodcast(searchResult)
+
+    let original = try listed.toOriginalUnsavedPodcast()
+    #expect(original.feedURL == originalSearchPodcast.feedURL)
     #expect(original.subscriptionDate == nil)
   }
 
   // MARK: - iTunesID bridge scenario (exercises the same guarantees as buildUpdatedResult)
 
-  @Test("bridged SearchResultPodcast in DisplayedPodcast preserves all search/trending invariants")
+  @Test("bridged SearchResultPodcast in ListedPodcast preserves all search/trending invariants")
   func testBridgedSearchResultInvariants() async throws {
     let canonicalURL = FeedURL(URL(string: "https://example.com/canonical.rss")!)
     let searchURL = FeedURL(URL(string: "https://example.com/itunes.rss")!)
@@ -177,26 +291,32 @@ class SearchResultPodcastTests {
     let series = try await repo.insertSeries(
       UnsavedPodcastSeries(unsavedPodcast: unsavedPodcast)
     )
+    let savedPodcast = try await fetchSavedPodcast(series.podcast.id)
 
     // Simulate what buildUpdatedResult produces for an iTunesID-bridged match
-    let wrapper = SearchResultPodcast(
+    let wrapper = makeSearchResult(
       resultFeedURL: searchURL,
-      podcast: series.podcast
+      originalPodcast: try Create.unsavedPodcast(
+        feedURL: searchURL,
+        iTunesID: iTunesID,
+        title: "Search Result Title"
+      ),
+      savedPodcast: savedPodcast
     )
-    let displayed = DisplayedPodcast(wrapper)
+    let listed = ListedPodcast(wrapper)
 
     // Row identity stays on the search URL (IdentifiedArray slot stability)
-    #expect(displayed.id == searchURL)
+    #expect(listed.id == searchURL)
 
     // Canonical data flows through for sharing, navigation, DB ops
-    #expect(displayed.feedURL == canonicalURL)
-    #expect(displayed.iTunesID == iTunesID)
-    #expect(displayed.isSaved)
-    #expect(displayed.subscribed)
+    #expect(listed.feedURL == canonicalURL)
+    #expect(listed.iTunesID == iTunesID)
+    #expect(listed.isSaved)
+    #expect(listed.subscribed)
 
-    // getPodcast() returns the real DB podcast, not a synthetic
-    let unwrapped = displayed.getPodcast()
-    #expect(unwrapped?.id == series.podcast.id)
-    #expect(unwrapped?.feedURL == canonicalURL)
+    // getOrCreatePodcast() returns the real DB podcast, not a synthetic
+    let unwrapped = try await listed.getOrCreatePodcast()
+    #expect(unwrapped.id == series.podcast.id)
+    #expect(unwrapped.feedURL == canonicalURL)
   }
 }

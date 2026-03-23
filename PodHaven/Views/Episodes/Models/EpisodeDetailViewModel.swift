@@ -25,6 +25,8 @@ import UIKit
 
   // MARK: - Data
 
+  private let originTab: Navigation.Tab
+  private let detailSource: EpisodeDetailSource
   var episode: DisplayedEpisode
   private var _podcastEpisode: PodcastEpisode?
   private var podcastEpisode: PodcastEpisode? {
@@ -74,8 +76,10 @@ import UIKit
 
   // MARK: - Initialization
 
-  init(episode: DisplayedEpisode) {
-    self.episode = episode
+  private init(detailSource: EpisodeDetailSource) {
+    self.originTab = Container.shared.navigation().currentTab
+    self.detailSource = detailSource
+    self.episode = detailSource.initialEpisode
 
     Task { [weak self] in
       guard let self else { return }
@@ -89,6 +93,14 @@ import UIKit
         )
       }
     }
+  }
+
+  convenience init(episode: DisplayedEpisode) {
+    self.init(detailSource: EpisodeDetailSource(episode: episode))
+  }
+
+  convenience init(listedEpisode: ListedEpisode) {
+    self.init(detailSource: EpisodeDetailSource(listedEpisode: listedEpisode))
   }
 
   func appear() {
@@ -106,7 +118,7 @@ import UIKit
   }
 
   func performAppear() async throws {
-    let podcastEpisode = try await repo.podcastEpisode(episode.mediaGUID)
+    let podcastEpisode = try await detailSource.savedEpisode(currentEpisode: episode)
 
     if let podcastEpisode {
       Self.log.debug("Podcast episode: \(podcastEpisode.toString) exists in db")
@@ -117,7 +129,14 @@ import UIKit
       Self.log.debug("Podcast episode: \(episode.toString) does not exist in db")
 
       _podcastEpisode = nil
-      episode = DisplayedEpisode(try episode.toOriginalUnsavedPodcastEpisode())
+      switch detailSource.missingSavedResolution() {
+      case .display(let fallbackEpisode):
+        episode = fallbackEpisode
+      case .dismiss(let message):
+        Self.log.warning("Episode no longer exists for detail hydration: \(episode.toString)")
+        alert(message)
+        navigation.dismiss(from: originTab)
+      }
     }
   }
 
@@ -396,7 +415,7 @@ import UIKit
         else {
           Self.log.debug("Episode was deleted")
           _podcastEpisode = nil
-          episode = DisplayedEpisode(try podcastEpisode.toOriginalUnsavedPodcastEpisode())
+          episode = try detailSource.deletedObservedPresentation(podcastEpisode)
           return
         }
 
@@ -433,7 +452,9 @@ import UIKit
   private func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }
 
-    let podcastEpisode = try await DisplayedEpisode.getOrCreatePodcastEpisode(episode)
+    let podcastEpisode = try await detailSource.getOrCreatePodcastEpisode(
+      currentEpisode: episode
+    )
     self.podcastEpisode = podcastEpisode
     startObservation()
     return podcastEpisode

@@ -55,23 +55,23 @@ struct Observatory {
     }
   }
 
-  func podcastsWithEpisodeMetadata(
+  func podcastsWithEpisodeMetadata<T: PodcastListable & FetchableRecord>(
     _ filter: @escaping PodcastFilter = { $0 },
     limit: Int = Int.max
-  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]> {
+  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<T>]> {
     _observe { db in
-      try PodcastWithEpisodeMetadata
+      try PodcastWithEpisodeMetadata<T>
         .all(filter)
         .limit(limit)
         .fetchAll(db)
     }
   }
 
-  func podcastsWithEpisodeMetadata(
+  func podcastsWithEpisodeMetadata<T: PodcastListable & FetchableRecord>(
     _ feedURLs: [FeedURL],
     iTunesIDs: [ITunesPodcastID] = [],
     limit: Int = Int.max
-  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]> {
+  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<T>]> {
     podcastsWithEpisodeMetadata(
       { request in
         var filter = feedURLs.contains(Podcast.Columns.feedURL)
@@ -86,11 +86,11 @@ struct Observatory {
 
   // MARK: - PodcastEpisodes
 
-  func podcastEpisodes(
+  func podcastEpisodes<T: FetchableRecord & Equatable>(
     filter: SQLExpression,
     order: SQLOrdering = Episode.Columns.pubDate.desc,
     limit: Int = Int.max
-  ) -> AsyncValueObservation<[PodcastEpisode]> {
+  ) -> AsyncValueObservation<[T]> {
     _observe { db in
       try Episode
         .all()
@@ -98,16 +98,16 @@ struct Observatory {
         .including(required: Episode.podcast)
         .order(order)
         .limit(limit)
-        .asRequest(of: PodcastEpisode.self)
+        .asRequest(of: T.self)
         .fetchAll(db)
     }
   }
 
-  func podcastEpisodes(
+  func podcastEpisodes<T: FetchableRecord & Equatable>(
     _ mediaGUIDs: [MediaGUID],
     order: SQLOrdering = Episode.Columns.pubDate.desc,
     limit: Int = Int.max
-  ) -> AsyncValueObservation<[PodcastEpisode]> {
+  ) -> AsyncValueObservation<[T]> {
     let mediaGUIDFilters = mediaGUIDs.map { mediaGUID in
       Episode.Columns.guid == mediaGUID.guid && Episode.Columns.mediaURL == mediaGUID.mediaURL
     }

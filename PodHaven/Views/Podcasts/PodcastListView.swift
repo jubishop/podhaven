@@ -3,7 +3,7 @@
 import Foundation
 import SwiftUI
 
-struct PodcastListView<Podcast: PodcastDisplayable>: View {
+struct PodcastListView<Podcast: PodcastListable>: View {
   private let imageSize: CGFloat = 76
 
   private let podcastWithMetadata: PodcastWithEpisodeMetadata<Podcast>

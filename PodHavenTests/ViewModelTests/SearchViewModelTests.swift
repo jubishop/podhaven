@@ -111,7 +111,7 @@ import Testing
     let searchFeedURL = FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!)
     let newestEpisodeDate = Date(timeIntervalSince1970: 321)
 
-    let savedSeries = try await repo.insertSeries(
+    try await repo.insertSeries(
       UnsavedPodcastSeries(
         unsavedPodcast: try Create.unsavedPodcast(
           feedURL: canonicalFeedURL,
@@ -138,7 +138,8 @@ import Testing
         guard let bridged = viewModel.searchResults[id: searchFeedURL] else { return false }
         return bridged.podcast.id == searchFeedURL
           && bridged.podcast.feedURL == canonicalFeedURL
-          && bridged.podcast.getPodcast()?.id == savedSeries.podcast.id
+          && bridged.podcast.getSearchResultPodcast() != nil
+          && bridged.podcast.podcastID != nil
           && bridged.episodeCount == 1
           && bridged.mostRecentEpisodeDate == newestEpisodeDate
       },
@@ -149,12 +150,77 @@ import Testing
           bridged exists: \(bridged != nil)
           result ID: \(String(describing: bridged?.podcast.id))
           canonical feed: \(String(describing: bridged?.podcast.feedURL))
-          saved podcast ID: \(String(describing: bridged?.podcast.getPodcast()?.id))
+          search result wrapper: \(String(describing: bridged?.podcast.getSearchResultPodcast()))
+          podcastID: \(String(describing: bridged?.podcast.podcastID))
           episodeCount: \(String(describing: bridged?.episodeCount))
           mostRecentEpisodeDate: \(String(describing: bridged?.mostRecentEpisodeDate))
           """
       }
     )
+
+    let bridged = try #require(viewModel.searchResults[id: searchFeedURL])
+    let resolved = try await bridged.podcast.getOrCreatePodcast()
+    #expect(resolved.feedURL == canonicalFeedURL)
+  }
+
+  @Test("search results replace direct feedURL matches with the saved podcast")
+  func searchResultsUpgradeDirectFeedURLMatches() async throws {
+    await configureITunesResponses()
+
+    let searchFeedURL = FeedURL(URL(string: "https://api.substack.com/feed/podcast/10845.rss")!)
+    let newestEpisodeDate = Date(timeIntervalSince1970: 654)
+    let subscriptionDate = Date(timeIntervalSince1970: 321)
+    let savedSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(
+          feedURL: searchFeedURL,
+          iTunesID: ITunesPodcastID(1627920305),
+          title: "Saved Lenny",
+          subscriptionDate: subscriptionDate
+        ),
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(
+            guid: "saved-lenny-1",
+            title: "Saved Episode",
+            pubDate: newestEpisodeDate
+          )
+        ]
+      )
+    )
+
+    let viewModel = SearchViewModel()
+    viewModel.searchText = "growth"
+    try await fakeSleeper.waitForSleepRequests(count: 1)
+    await fakeSleeper.advanceTime(by: .milliseconds(400))
+
+    try await Wait.until(
+      { @MainActor in
+        guard let bridged = viewModel.searchResults[id: searchFeedURL] else { return false }
+        return bridged.podcast.id == searchFeedURL
+          && bridged.podcast.podcastID == savedSeries.podcast.id
+          && bridged.podcast.subscribed
+          && bridged.podcast.getSearchResultPodcast() != nil
+          && bridged.episodeCount == 1
+          && bridged.mostRecentEpisodeDate == newestEpisodeDate
+      },
+      { @MainActor in
+        let bridged = viewModel.searchResults[id: searchFeedURL]
+        return """
+          Expected SearchViewModel to replace a direct feedURL match with the saved podcast.
+          bridged exists: \(bridged != nil)
+          result ID: \(String(describing: bridged?.podcast.id))
+          podcastID: \(String(describing: bridged?.podcast.podcastID))
+          subscribed: \(String(describing: bridged?.podcast.subscribed))
+          search result wrapper: \(String(describing: bridged?.podcast.getSearchResultPodcast()))
+          episodeCount: \(String(describing: bridged?.episodeCount))
+          mostRecentEpisodeDate: \(String(describing: bridged?.mostRecentEpisodeDate))
+          """
+      }
+    )
+
+    let bridged = try #require(viewModel.searchResults[id: searchFeedURL])
+    let resolved = try await bridged.podcast.getOrCreatePodcast()
+    #expect(resolved.id == savedSeries.podcast.id)
   }
 
   private func configureITunesResponses() async {

@@ -230,7 +230,7 @@ struct CacheManager {
   // MARK: - Static Helpers
 
   @MainActor
-  static func canClearCache(_ episode: any EpisodeInformable) -> Bool {
+  static func canClearCache(_ episode: any EpisodeFoundational) -> Bool {
     guard !episode.queued else { return false }
     guard let currentEpisodeID = Container.shared.sharedState().currentEpisodeID else {
       return true

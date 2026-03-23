@@ -17,9 +17,8 @@ struct DisplayedEpisode:
   init(_ episode: any EpisodeDisplayable) {
     Assert.precondition(
       !(episode is DisplayedEpisode),
-      "Cannot wrap an instance of itself as a DisplayedEpisode"
+      "Cannot wrap a wrapper type as a DisplayedEpisode"
     )
-
     self.episode = episode
   }
 
@@ -38,6 +37,8 @@ struct DisplayedEpisode:
       hasher.combine(podcastEpisode)
     } else if let unsavedPodcastEpisode = getUnsavedPodcastEpisode() {
       hasher.combine(unsavedPodcastEpisode)
+    } else if let episodeDetailSnapshot = getEpisodeDetailSnapshot() {
+      hasher.combine(episodeDetailSnapshot)
     } else {
       Assert.fatal("Can't make hash from: \(type(of: episode))")
     }
@@ -56,30 +57,39 @@ struct DisplayedEpisode:
       return leftUnsavedPodcastEpisode == rightUnsavedPodcastEpisode
     }
 
+    if let leftSnapshot = lhs.getEpisodeDetailSnapshot(),
+      let rightSnapshot = rhs.getEpisodeDetailSnapshot()
+    {
+      return leftSnapshot == rightSnapshot
+    }
+
     return false  // Different concrete types are not equal
   }
 
-  // MARK: - EpisodeDisplayable
+  // MARK: - EpisodeListable
 
-  var feedURL: FeedURL { episode.feedURL }
-  var podcastTitle: String { episode.podcastTitle }
   var image: URL { episode.image }
   var podcastImage: URL { episode.podcastImage }
   var saveInCache: Bool { episode.saveInCache }
 
-  // MARK: - EpisodeInformable
+  // MARK: - EpisodeFoundational
 
   var episodeID: Episode.ID? { episode.episodeID }
   var mediaGUID: MediaGUID { episode.mediaGUID }
   var title: String { episode.title }
   var pubDate: Date { episode.pubDate }
-  var description: String? { episode.description }
   var duration: CMTime { episode.duration }
   var currentTime: CMTime { episode.currentTime }
-  var queueDate: Date? { episode.queueDate }
   var queueOrder: Int? { episode.queueOrder }
   var cacheStatus: Episode.CacheStatus { episode.cacheStatus }
   var finishDate: Date? { episode.finishDate }
+
+  // MARK: - EpisodeDisplayable
+
+  var feedURL: FeedURL { episode.feedURL }
+  var podcastTitle: String { episode.podcastTitle }
+  var description: String? { episode.description }
+  var queueDate: Date? { episode.queueDate }
 
   // MARK: - Helpers
 
@@ -108,6 +118,9 @@ struct DisplayedEpisode:
     getDisplayedEpisode(episode).getUnsavedPodcastEpisode()
   }
   func getUnsavedPodcastEpisode() -> UnsavedPodcastEpisode? { episode as? UnsavedPodcastEpisode }
+  func getEpisodeDetailSnapshot() -> EpisodeDetailSnapshot? {
+    episode as? EpisodeDetailSnapshot
+  }
 
   static func toOriginalUnsavedPodcastEpisode(_ episode: any EpisodeDisplayable) throws
     -> UnsavedPodcastEpisode

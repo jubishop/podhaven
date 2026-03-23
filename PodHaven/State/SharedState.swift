@@ -66,7 +66,7 @@ struct SharedState: Sendable {
 
   // MARK: - Episode Playing Checks
 
-  func isEpisodePlaying(_ episode: any EpisodeInformable) -> Bool {
+  func isEpisodePlaying(_ episode: any EpisodeFoundational) -> Bool {
     guard let episodeID = episode.episodeID else { return false }
     return isEpisodePlaying(episodeID)
   }

@@ -6,13 +6,12 @@ import IdentifiedCollections
 import Logging
 
 @MainActor protocol SelectableEpisodeList: AnyObject {
-  associatedtype EpisodeType: EpisodeDisplayable
+  associatedtype EpisodeType: EpisodeListable & Searchable
 
   var episodeList: PowerList<EpisodeType> { get }
 
   var selectedEpisodes: [EpisodeType] { get }
-  var selectedSavedEpisodes: [PodcastEpisode] { get }
-  var selectedSavedEpisodeIDs: [PodcastEpisode.ID] { get }
+  var selectedSavedEpisodeIDs: [Episode.ID] { get }
   var selectedPodcastEpisodeIDs: [Episode.ID] { get async throws }
 
   // Must Implement: Saves new PodcastEpisodes as needed
@@ -53,10 +52,9 @@ extension SelectableEpisodeList {
   // MARK: - Selection Getters
 
   var selectedEpisodes: [EpisodeType] { episodeList.selectedEntries.elements }
-  var selectedSavedEpisodes: [PodcastEpisode] {
-    selectedEpisodes.compactMap { DisplayedEpisode.getPodcastEpisode($0) }
+  var selectedSavedEpisodeIDs: [Episode.ID] {
+    selectedEpisodes.compactMap(\.episodeID)
   }
-  var selectedSavedEpisodeIDs: [PodcastEpisode.ID] { selectedSavedEpisodes.map(\.id) }
   var selectedPodcastEpisodeIDs: [Episode.ID] {
     get async throws {
       try await selectedPodcastEpisodes.map(\.id)
@@ -225,9 +223,9 @@ extension SelectableEpisodeList {
 
   func uncacheSelectedEpisodes() {
     let cachedEpisodeIDs =
-      selectedSavedEpisodes
-      .filter { $0.episode.cacheStatus == .cached }
-      .map(\.id)
+      selectedEpisodes
+      .filter { $0.episodeID != nil && $0.cacheStatus == .cached }
+      .compactMap(\.episodeID)
     guard !cachedEpisodeIDs.isEmpty else { return }
 
     let log = Self.log
@@ -300,9 +298,9 @@ extension SelectableEpisodeList {
 
   func unsaveSelectedEpisodesFromCache() {
     let savedEpisodeIDs =
-      selectedSavedEpisodes
-      .filter { $0.episode.saveInCache }
-      .map(\.id)
+      selectedEpisodes
+      .filter { $0.episodeID != nil && $0.saveInCache }
+      .compactMap(\.episodeID)
     guard !savedEpisodeIDs.isEmpty else { return }
 
     let log = Self.log
@@ -326,9 +324,9 @@ extension SelectableEpisodeList {
 
   func cancelSelectedEpisodeDownloads() {
     let downloadingEpisodeIDs =
-      selectedSavedEpisodes
-      .filter { $0.episode.cacheStatus == .caching }
-      .map(\.id)
+      selectedEpisodes
+      .filter { $0.episodeID != nil && $0.cacheStatus == .caching }
+      .compactMap(\.episodeID)
     guard !downloadingEpisodeIDs.isEmpty else { return }
 
     let log = Self.log

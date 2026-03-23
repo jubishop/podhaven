@@ -92,6 +92,8 @@ extension Container {
     // Universal destinations
     case podcast(DisplayedPodcast)
     case episode(DisplayedEpisode)
+    case listedPodcast(ListedPodcast)
+    case listedEpisode(ListedEpisode)
     case unsavedPodcastSeries(UnsavedPodcastSeries)
   }
 
@@ -259,6 +261,12 @@ extension Container {
     case .podcast(let podcast):
       PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
         .id(podcast.id)
+    case .listedPodcast(let listedPodcast):
+      PodcastDetailView(viewModel: PodcastDetailViewModel(listedPodcast: listedPodcast))
+        .id(listedPodcast.id)
+    case .listedEpisode(let listedEpisode):
+      EpisodeDetailView(viewModel: EpisodeDetailViewModel(listedEpisode: listedEpisode))
+        .id(listedEpisode.id)
     case .unsavedPodcastSeries(let unsavedPodcastSeries):
       PodcastDetailView(
         viewModel: PodcastDetailViewModel(unsavedPodcastSeries: unsavedPodcastSeries)
@@ -351,6 +359,49 @@ extension Container {
 
     sheet.dismiss()
     currentTab = .upNext
+  }
+
+  func dismiss(from tab: Tab? = nil) {
+    let targetTab = tab ?? currentTab
+    let targetPath: [Destination] =
+      switch targetTab {
+      case .settings: settings.path
+      case .search: search.path
+      case .upNext: upNext.path
+      case .episodes: episodes.path
+      case .podcasts: podcasts.path
+      }
+    Self.log.debug(
+      """
+      Dismissing current navigation destination from \(targetTab) \
+      with sheetPresented: \(sheet.config != nil), path: \(targetPath)
+      """
+    )
+
+    if sheet.config != nil {
+      sheet.dismiss()
+      return
+    }
+
+    // Episodes and podcasts tabs always have a root destination entry,
+    // so we guard count > 1 to preserve it.
+    switch targetTab {
+    case .settings:
+      guard !settings.path.isEmpty else { return }
+      settings.path.removeLast()
+    case .search:
+      guard !search.path.isEmpty else { return }
+      search.path.removeLast()
+    case .upNext:
+      guard !upNext.path.isEmpty else { return }
+      upNext.path.removeLast()
+    case .episodes:
+      guard episodes.path.count > 1 else { return }
+      episodes.path.removeLast()
+    case .podcasts:
+      guard podcasts.path.count > 1 else { return }
+      podcasts.path.removeLast()
+    }
   }
 
   // MARK: - Episodes

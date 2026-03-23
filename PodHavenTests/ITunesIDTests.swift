@@ -201,7 +201,7 @@ class ITunesIDTests {
 
     // Query with different feedURL but matching iTunesID
     let searchFeedURL = FeedURL(URL(string: "https://example.com/itunes.rss")!)
-    let results =
+    let results: [PodcastWithEpisodeMetadata<Podcast>] =
       try await observatory.podcastsWithEpisodeMetadata(
         [searchFeedURL],
         iTunesIDs: [iTunesID]
@@ -224,13 +224,15 @@ class ITunesIDTests {
       )
     )
 
-    let results = try await observatory.podcastsWithEpisodeMetadata([feedURL]).get()
+    let results: [PodcastWithEpisodeMetadata<Podcast>] =
+      try await observatory.podcastsWithEpisodeMetadata([feedURL]).get()
     #expect(results.count == 1)
     #expect(results[0].podcast.title == "Feed Only")
 
     // Non-matching feedURL with no iTunesIDs
     let otherURL = FeedURL(URL(string: "https://other.com/feed.rss")!)
-    let noResults = try await observatory.podcastsWithEpisodeMetadata([otherURL]).get()
+    let noResults: [PodcastWithEpisodeMetadata<Podcast>] =
+      try await observatory.podcastsWithEpisodeMetadata([otherURL]).get()
     #expect(noResults.isEmpty)
   }
 

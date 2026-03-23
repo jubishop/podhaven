@@ -50,7 +50,7 @@ struct EpisodesListView: View {
   private var listView: some View {
     List(viewModel.episodeList.filteredEntries) { podcastEpisode in
       NavigationLink(
-        value: Navigation.Destination.episode(DisplayedEpisode(podcastEpisode)),
+        value: Navigation.Destination.listedEpisode(ListedEpisode(podcastEpisode)),
         label: {
           EpisodeListView(
             episode: podcastEpisode,

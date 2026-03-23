@@ -121,9 +121,7 @@ struct UnsavedEpisode:
 
   var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
   var cacheStatus: Episode.CacheStatus {
-    if cachedFilename != nil { return .cached }
-    if downloadTaskID != nil { return .caching }
-    return .uncached
+    .from(cachedFilename: cachedFilename, downloadTaskID: downloadTaskID)
   }
 
   // MARK: - Chapters
@@ -273,6 +271,15 @@ struct Episode: EpisodeInformable, Saved, RSSUpdatable {
     case uncached
     case caching
     case cached
+
+    static func from(
+      cachedFilename: String?,
+      downloadTaskID: URLSessionDownloadTask.ID?
+    ) -> CacheStatus {
+      if cachedFilename != nil { return .cached }
+      if downloadTaskID != nil { return .caching }
+      return .uncached
+    }
   }
 }
 
