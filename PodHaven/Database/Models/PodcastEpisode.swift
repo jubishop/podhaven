@@ -29,7 +29,7 @@ struct PodcastEpisode:
   var podcastImage: URL { podcast.image }
   var saveInCache: Bool { episode.saveInCache }
 
-  // MARK: - EpisodeInformable
+  // MARK: - EpisodeFoundational
 
   var mediaGUID: MediaGUID { episode.unsaved.id }
   var title: String { episode.title }
