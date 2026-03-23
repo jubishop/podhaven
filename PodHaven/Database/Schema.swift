@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import GRDB
 import Logging
@@ -259,7 +260,7 @@ enum Schema {
 
     migrator.registerMigration("v32") { db in
       // Cap maxQueueLength at 100 (previously allowed up to 500).
-      let defaults = UserDefaults.standard
+      let defaults = Container.shared.standardDefaults()
       let key = "maxQueueLength"
       if let data = defaults.data(forKey: key),
         let current = try? JSONDecoder().decode(Int.self, from: data),
