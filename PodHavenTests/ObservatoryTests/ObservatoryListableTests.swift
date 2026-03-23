@@ -10,6 +10,7 @@ import Testing
 
 @Suite("of Observatory listable tracked-region tests", .container)
 actor ObservatoryListableTests {
+  @DynamicInjected(\.appDB) private var appDB
   @DynamicInjected(\.observatory) private var observatory
   @DynamicInjected(\.repo) private var repo
 
@@ -110,7 +111,7 @@ actor ObservatoryListableTests {
     try await updateCount.wait(for: 1)
 
     // Description changes should NOT cause new emissions
-    try await repo.db.write { db in
+    try await appDB.db.write { db in
       try db.execute(
         sql: "UPDATE episode SET description = ? WHERE id = ?",
         arguments: ["Updated description", episodeID.rawValue]
@@ -228,7 +229,7 @@ actor ObservatoryListableTests {
     try await updateCount.wait(for: 1)
 
     // Description changes should NOT cause new emissions
-    try await repo.db.write { db in
+    try await appDB.db.write { db in
       try db.execute(
         sql: "UPDATE podcast SET description = ? WHERE id = ?",
         arguments: ["Updated description", series.podcast.id.rawValue]
@@ -266,7 +267,7 @@ actor ObservatoryListableTests {
     try await updateCount.wait(for: 1)
 
     // title IS a tracked column
-    try await repo.db.write { db in
+    try await appDB.db.write { db in
       try db.execute(
         sql: "UPDATE podcast SET title = ? WHERE id = ?",
         arguments: ["New Title", series.podcast.id.rawValue]
