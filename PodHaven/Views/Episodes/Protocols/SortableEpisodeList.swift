@@ -3,7 +3,7 @@
 import Foundation
 
 @MainActor protocol SortableEpisodeList: AnyObject {
-  associatedtype EpisodeType: EpisodeDisplayable
+  associatedtype EpisodeType: EpisodeListable
   associatedtype SortMethodType: SortingMethod
 
   var currentSortMethod: SortMethodType { get set }

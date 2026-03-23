@@ -10,11 +10,21 @@ import Testing
 
 @Suite("of WidgetSnapshotWriter tests", .container)
 @MainActor class WidgetSnapshotWriterTests {
+  @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.userSettings) private var userSettings
   @DynamicInjected(\.widgetSnapshotWriter) private var writer
 
   nonisolated private var widgetState: WidgetState { Container.shared.widgetState() }
+
+  private func fetchListable(_ episodeID: Episode.ID) async throws -> ListablePodcastEpisode {
+    try await repo.db.read { db in
+      try Episode.withID(episodeID)
+        .including(required: Episode.podcast)
+        .asRequest(of: ListablePodcastEpisode.self)
+        .fetchOne(db)!
+    }
+  }
 
   @Test("writes valid queue JSON when queue is empty")
   func writesValidQueueJSONWhenQueueEmpty() async throws {
@@ -84,12 +94,14 @@ import Testing
 
   @Test("includes queue items from shared state")
   func includesQueueItemsFromSharedState() async throws {
-    let ep1 = try await Create.podcastEpisode(
+    let pe1 = try await Create.podcastEpisode(
       try Create.unsavedEpisode(title: "Queue Ep 1")
     )
-    let ep2 = try await Create.podcastEpisode(
+    let pe2 = try await Create.podcastEpisode(
       try Create.unsavedEpisode(title: "Queue Ep 2")
     )
+    let ep1 = try await fetchListable(pe1.id)
+    let ep2 = try await fetchListable(pe2.id)
     sharedState.$queuedPodcastEpisodes.new([ep1, ep2])
 
     writer.start()
@@ -103,9 +115,10 @@ import Testing
 
   @Test("skips queue snapshot write when only non-widget episode fields change")
   func skipsQueueSnapshotWriteWhenOnlyNonWidgetFieldsChange() async throws {
-    let ep = try await Create.podcastEpisode(
+    let pe = try await Create.podcastEpisode(
       try Create.unsavedEpisode(title: "Widget Ep")
     )
+    let ep = try await fetchListable(pe.id)
     sharedState.$queuedPodcastEpisodes.new([ep])
 
     writer.start()
@@ -114,27 +127,11 @@ import Testing
     let fakeFileManager = Container.shared.fileManager() as! FakeFileManager
     let initialData = try await fakeFileManager.readData(from: WidgetInfo.queueSnapshotURL)
 
-    // Build a PodcastEpisode with identical widget-relevant fields (id, title,
-    // pubDate, duration, image) but a different currentTime.
-    let modifiedUnsaved = try UnsavedEpisode(
-      podcastId: ep.episode.podcastId,
-      guid: ep.episode.guid,
-      mediaURL: ep.episode.mediaURL,
-      title: ep.episode.title,
-      pubDate: ep.episode.pubDate,
-      duration: ep.episode.duration,
-      description: ep.episode.description,
-      link: ep.episode.link,
-      image: ep.episode.image,
-      currentTime: CMTime(seconds: 99, preferredTimescale: 1)
-    )
-    let modifiedEpisode = Episode(
-      id: ep.episode.id,
-      creationDate: ep.episode.creationDate,
-      from: modifiedUnsaved
-    )
-    let modifiedPE = PodcastEpisode(podcast: ep.podcast, episode: modifiedEpisode)
-    sharedState.$queuedPodcastEpisodes.new([modifiedPE])
+    // Update the episode in DB with a different currentTime (non-widget field),
+    // then re-fetch as ListablePodcastEpisode.
+    try await repo.updateCurrentTime(pe.id, currentTime: CMTime(seconds: 99, preferredTimescale: 1))
+    let modifiedEp = try await fetchListable(pe.id)
+    sharedState.$queuedPodcastEpisodes.new([modifiedEp])
 
     // Observe a playback status change to confirm the event loop has processed
     // all pending stream emissions, including the queue change above.
@@ -150,12 +147,12 @@ import Testing
 
   @Test("caps queue at 5 but reports full queueTotalCount")
   func capsQueueAt5ButReportsFullQueueTotalCount() async throws {
-    var episodes: [PodcastEpisode] = []
+    var episodes: [ListablePodcastEpisode] = []
     for i in 1...10 {
-      let ep = try await Create.podcastEpisode(
+      let pe = try await Create.podcastEpisode(
         try Create.unsavedEpisode(title: "Ep \(i)")
       )
-      episodes.append(ep)
+      episodes.append(try await fetchListable(pe.id))
     }
     sharedState.$queuedPodcastEpisodes.new(episodes)
 

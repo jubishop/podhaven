@@ -5,7 +5,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("TimeInterval formatting", .container)
+@Suite("of TimeInterval formatting tests")
 struct TimeIntervalTests {
   // MARK: - compactReadableFormat Tests
 

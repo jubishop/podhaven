@@ -30,9 +30,12 @@ class PodcastDetailViewModel:
     var userNotificationManager
 
   private static let log = Log.as(LogSubsystem.PodcastsView.detail)
+  private static let unavailableMessage = "This podcast is no longer available."
 
   // MARK: - Data
 
+  private let originTab: Navigation.Tab
+  private let detailSource: PodcastDetailSource
   var podcast: DisplayedPodcast
   private var _podcastSeries: PodcastSeries?
   private var podcastSeries: PodcastSeries? {
@@ -45,6 +48,7 @@ class PodcastDetailViewModel:
 
       _podcastSeries = newValue
       podcast = DisplayedPodcast(newValue.podcast)
+      isHydratingInitialPresentation = false
 
       // Careful to only update allEntries once
       var allEntries = episodeList.allEntries
@@ -121,8 +125,8 @@ class PodcastDetailViewModel:
         }
       case .recentlyQueued:
         return { lhs, rhs in
-          let lhsDate = lhs.episode.queueDate ?? Date.distantPast
-          let rhsDate = rhs.episode.queueDate ?? Date.distantPast
+          let lhsDate = lhs.queueDate ?? Date.distantPast
+          let rhsDate = rhs.queueDate ?? Date.distantPast
           return lhsDate > rhsDate
         }
       }
@@ -170,6 +174,7 @@ class PodcastDetailViewModel:
   // MARK: - Derived State
 
   var displayingAboutSection: Bool = false
+  var isHydratingInitialPresentation: Bool
   var showingSettings: Bool = false
 
   var defaultPlaybackRate: Double? {
@@ -292,9 +297,13 @@ class PodcastDetailViewModel:
 
   // MARK: - Initialization
 
-  init(podcast: DisplayedPodcast) {
-    self.podcast = podcast
+  private init(detailSource: PodcastDetailSource) {
+    self.originTab = Container.shared.navigation().currentTab
+    self.detailSource = detailSource
+    self.podcast = detailSource.initialPresentation.podcast
+    isHydratingInitialPresentation = detailSource.requiresHydratedPresentation
     episodeList.sortMethod = currentSortMethod.sortMethod
+    episodeList.allEntries = detailSource.initialPresentation.episodes
 
     Task { [weak self] in
       guard let self else { return }
@@ -311,19 +320,16 @@ class PodcastDetailViewModel:
     }
   }
 
+  convenience init(podcast: DisplayedPodcast) {
+    self.init(detailSource: PodcastDetailSource(podcast: podcast))
+  }
+
+  convenience init(listedPodcast: ListedPodcast) {
+    self.init(detailSource: PodcastDetailSource(listedPodcast: listedPodcast))
+  }
+
   convenience init(unsavedPodcastSeries: UnsavedPodcastSeries) {
-    self.init(podcast: DisplayedPodcast(unsavedPodcastSeries.unsavedPodcast))
-    self.episodeList.allEntries =
-      IdentifiedArrayOf(
-        uniqueElements: unsavedPodcastSeries.unsavedEpisodes.map {
-          DisplayedEpisode(
-            UnsavedPodcastEpisode(
-              unsavedPodcast: unsavedPodcastSeries.unsavedPodcast,
-              unsavedEpisode: $0
-            )
-          )
-        }
-      )
+    self.init(detailSource: PodcastDetailSource(unsavedPodcastSeries: unsavedPodcastSeries))
   }
 
   func appear() {
@@ -336,6 +342,9 @@ class PodcastDetailViewModel:
         Self.log.caughtError("appear: failed for \(podcast.toString)", error)
         guard ErrorKit.isRemarkable(error) else { return }
         alert(ErrorKit.message(for: error))
+        if isHydratingInitialPresentation {
+          navigation.dismiss(from: originTab)
+        }
       }
     }
   }
@@ -350,7 +359,7 @@ class PodcastDetailViewModel:
       return
     }
 
-    try await parsePodcastFeed()
+    try await loadPresentationFromFeed()
 
     Self.log.debug("Attempting observation again in case FeedURL got updated by parsing the feed")
     try await attemptObservation()
@@ -436,7 +445,7 @@ class PodcastDetailViewModel:
         try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
       } else {
         Self.log.debug("refreshing unsaved podcast series \(podcast.toString)")
-        try await parsePodcastFeed()
+        try await loadPresentationFromFeed()
       }
     } catch {
       Self.log.caughtError("refreshSeries: failed for \(podcast.toString)", error)
@@ -500,10 +509,7 @@ class PodcastDetailViewModel:
     }
 
     guard
-      let podcastSeries = try await repo.podcastSeries(
-        podcast.feedURL,
-        iTunesID: podcast.iTunesID
-      )
+      let podcastSeries = try await detailSource.savedSeries(currentPodcast: podcast)
     else { return false }
 
     Self.log.debug("\(podcastSeries.toString) exists in db")
@@ -554,12 +560,14 @@ class PodcastDetailViewModel:
         Self.log.debug("Podcast was deleted")
         _podcastSeries = nil
         do {
-          try await parsePodcastFeed()
+          try await loadPresentationFromFeed()
         } catch {
           Self.log.caughtError(
             "observePodcastSeries: failed to re-parse feed after podcast \(podcastID) was deleted",
             error
           )
+          alert(Self.unavailableMessage)
+          navigation.dismiss(from: originTab)
         }
         return
       }
@@ -595,10 +603,7 @@ class PodcastDetailViewModel:
     if let podcastSeries { return podcastSeries }
 
     guard
-      let podcastSeries = try await repo.podcastSeries(
-        podcast.feedURL,
-        iTunesID: podcast.iTunesID
-      )
+      let podcastSeries = try await detailSource.savedSeries(currentPodcast: podcast)
     else { return nil }
 
     self.podcastSeries = podcastSeries
@@ -606,27 +611,21 @@ class PodcastDetailViewModel:
     return podcastSeries
   }
 
-  private func parsePodcastFeed() async throws {
+  private func loadPresentationFromFeed() async throws {
     guard podcastSeries == nil else {
       Self.log.debug("PodcastSeries already exists, no need to fetch again")
       return
     }
 
     Self.log.debug("Now fetching and parsing feed for \(podcast.toString)")
-    let podcastFeed = try await PodcastFeed.parse(podcast.feedURL)
-    let unsavedPodcast = try podcastFeed.toUnsavedPodcast(iTunesID: podcast.iTunesID)
-    podcast = DisplayedPodcast(unsavedPodcast)
-    episodeList.allEntries = IdentifiedArray(
-      uniqueElements: podcastFeed.toUnsavedEpisodes(merging: podcastSeries?.episodes)
-        .map {
-          DisplayedEpisode(
-            UnsavedPodcastEpisode(
-              unsavedPodcast: unsavedPodcast,
-              unsavedEpisode: $0
-            )
-          )
-        },
-      id: \.mediaGUID
+    apply(
+      try await detailSource.parsedFeedPresentation(currentPodcast: podcast)
     )
+  }
+
+  private func apply(_ presentation: PodcastDetailPresentation) {
+    podcast = presentation.podcast
+    episodeList.allEntries = presentation.episodes
+    isHydratingInitialPresentation = false
   }
 }

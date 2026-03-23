@@ -9,7 +9,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Playback controls tests", .container)
+@Suite("of Playback controls tests", .container)
 @MainActor struct PlaybackControlsTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.notifier) private var notifier

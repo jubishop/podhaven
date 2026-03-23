@@ -155,6 +155,17 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  func podcastEpisodes(_ episodeIDs: [Episode.ID]) async throws -> [PodcastEpisode] {
+    guard !episodeIDs.isEmpty else { return [] }
+    return try await appDB.db.read { db in
+      try Episode
+        .filter(episodeIDs.contains(Episode.Columns.id))
+        .including(required: Episode.podcast)
+        .asRequest(of: PodcastEpisode.self)
+        .fetchAll(db)
+    }
+  }
+
   func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode? {
     try await appDB.db.read { db in
       try Episode
@@ -302,14 +313,9 @@ struct Repo: Databasing, Sendable {
   // MARK: - Tag Writers
 
   @discardableResult
-  func insertTag(named: String) async throws -> Tag {
-    let normalizedName = named.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !normalizedName.isEmpty else {
-      throw DatabaseError(message: "Tag name cannot be empty")
-    }
-
-    return try await appDB.db.write { db in
-      try UnsavedTag(name: normalizedName).insertAndFetch(db, as: Tag.self)
+  func insertTag(_ unsavedTag: UnsavedTag) async throws -> Tag {
+    try await appDB.db.write { db in
+      try unsavedTag.insertAndFetch(db, as: Tag.self)
     }
   }
 

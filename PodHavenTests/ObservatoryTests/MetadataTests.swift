@@ -5,7 +5,6 @@ import FactoryKit
 import FactoryTesting
 import Foundation
 import GRDB
-import IdentifiedCollections
 import Testing
 
 @testable import PodHaven
@@ -20,7 +19,7 @@ actor MetadataTests {
     let podcastWithNoEpisodes = try Create.unsavedPodcast()
     try await repo.insertSeries(UnsavedPodcastSeries(unsavedPodcast: podcastWithNoEpisodes))
 
-    let allPodcastsWithEpisodeMetadata =
+    let allPodcastsWithEpisodeMetadata: [PodcastWithEpisodeMetadata<Podcast>] =
       try await observatory.podcastsWithEpisodeMetadata().get()
 
     #expect(allPodcastsWithEpisodeMetadata.count == 1)
@@ -69,21 +68,22 @@ actor MetadataTests {
       UnsavedPodcastSeries(unsavedPodcast: podcastAllPlayed, unsavedEpisodes: [playedEpisode])
     )
 
-    let allPodcastsWithEpisodeMetadata =
-      IdentifiedArray(
-        uniqueElements: try await observatory.podcastsWithEpisodeMetadata().get(),
-        id: \.podcast.feedURL
-      )
+    let allPodcastsWithEpisodeMetadata: [PodcastWithEpisodeMetadata<Podcast>] =
+      try await observatory.podcastsWithEpisodeMetadata().get()
     #expect(allPodcastsWithEpisodeMetadata.count == 2)
 
-    let podcastWithMetadata = allPodcastsWithEpisodeMetadata[id: podcast.feedURL]!
+    let podcastWithMetadata = allPodcastsWithEpisodeMetadata.first {
+      $0.feedURL == podcast.feedURL
+    }!
     #expect(podcastWithMetadata.episodeCount == 5)
     #expect(
       podcastWithMetadata.mostRecentEpisodeDate!
         .approximatelyEquals(newerPlayedEpisode.pubDate)
     )
 
-    let fetchedPodcastAllPlayed = allPodcastsWithEpisodeMetadata[id: podcastAllPlayed.feedURL]!
+    let fetchedPodcastAllPlayed = allPodcastsWithEpisodeMetadata.first {
+      $0.feedURL == podcastAllPlayed.feedURL
+    }!
     #expect(fetchedPodcastAllPlayed.episodeCount == 1)
     #expect(
       fetchedPodcastAllPlayed.mostRecentEpisodeDate!

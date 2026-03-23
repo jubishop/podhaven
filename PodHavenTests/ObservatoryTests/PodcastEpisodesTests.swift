@@ -16,7 +16,7 @@ actor PodcastEpisodesTests {
   @Test("podcastEpisodes() with empty array")
   func testpodcastEpisodesEmpty() async throws {
     // Test with empty array
-    let episodes = try await observatory.podcastEpisodes([]).get()
+    let episodes: [PodcastEpisode] = try await observatory.podcastEpisodes([]).get()
     #expect(episodes.isEmpty)
   }
 
@@ -29,7 +29,8 @@ actor PodcastEpisodesTests {
       MediaGUID(guid: GUID(UUID().uuidString), mediaURL: MediaURL(URL.valid())),
     ]
 
-    let episodes = try await observatory.podcastEpisodes(nonExistentMediaGUIDs).get()
+    let episodes: [PodcastEpisode] = try await observatory.podcastEpisodes(nonExistentMediaGUIDs)
+      .get()
     #expect(episodes.isEmpty)
   }
 
@@ -59,7 +60,7 @@ actor PodcastEpisodesTests {
     )
 
     // Test querying for specific episodes
-    let episodes =
+    let episodes: [PodcastEpisode] =
       try await observatory.podcastEpisodes(
         [mediaGUID1, mediaGUID2]
       )
@@ -108,7 +109,7 @@ actor PodcastEpisodesTests {
     )
 
     // Query with mix of existing and non-existing media GUIDs
-    let episodes =
+    let episodes: [PodcastEpisode] =
       try await observatory.podcastEpisodes(
         [existingMediaGUID1, nonExistentMediaGUID, existingMediaGUID2]
       )
@@ -160,7 +161,7 @@ actor PodcastEpisodesTests {
     )
 
     // Test ascending order
-    let episodesAsc =
+    let episodesAsc: [PodcastEpisode] =
       try await observatory.podcastEpisodes(
         [mediaGUID1, mediaGUID2, mediaGUID3],
         order: Episode.Columns.pubDate.asc
@@ -173,7 +174,7 @@ actor PodcastEpisodesTests {
     )
 
     // Test with limit
-    let episodesLimited =
+    let episodesLimited: [PodcastEpisode] =
       try await observatory.podcastEpisodes(
         [mediaGUID1, mediaGUID2, mediaGUID3],
         order: Episode.Columns.pubDate.desc,
@@ -198,7 +199,10 @@ actor PodcastEpisodesTests {
 
     // Start observing before any episodes exist
     Task {
-      for try await episodes in observatory.podcastEpisodes([mediaGUID1, mediaGUID2]) {
+      let observation: AsyncValueObservation<[PodcastEpisode]> = observatory.podcastEpisodes([
+        mediaGUID1, mediaGUID2,
+      ])
+      for try await episodes in observation {
         await observedEpisodes.set(episodes)
       }
     }

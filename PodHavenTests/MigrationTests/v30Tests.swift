@@ -5,7 +5,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("v30 migration tests")
+@Suite("of v30 migration tests")
 struct V30MigrationTests {
 
   private func makeTempDir() throws -> URL {

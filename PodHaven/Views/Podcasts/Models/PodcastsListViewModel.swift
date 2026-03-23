@@ -17,13 +17,12 @@ class PodcastsListViewModel:
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.refreshManager) private var refreshManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
-  @ObservationIgnored @DynamicInjected(\.repo) private var repo
 
   private static let log = Log.as(LogSubsystem.PodcastsView.list)
 
   // MARK: - SelectablePodcastList & SortablePodcastList
 
-  var podcastList: PowerList<PodcastWithEpisodeMetadata<Podcast>>
+  var podcastList: PowerList<PodcastWithEpisodeMetadata<ListablePodcast>>
 
   enum SortMethod: String, Codable, DefaultsStorable, SortingMethod {
     case byTitle
@@ -48,7 +47,9 @@ class PodcastsListViewModel:
     }
 
     var sortMethod:
-      @Sendable (PodcastWithEpisodeMetadata<Podcast>, PodcastWithEpisodeMetadata<Podcast>) -> Bool
+      @Sendable (
+        PodcastWithEpisodeMetadata<ListablePodcast>, PodcastWithEpisodeMetadata<ListablePodcast>
+      ) -> Bool
     {
       switch self {
       case .byTitle:
@@ -72,7 +73,7 @@ class PodcastsListViewModel:
       }
     }
 
-    var filterMethod: (@Sendable (PodcastWithEpisodeMetadata<Podcast>) -> Bool)? {
+    var filterMethod: (@Sendable (PodcastWithEpisodeMetadata<ListablePodcast>) -> Bool)? {
       switch self {
       case .byMostRecentEpisode:
         return { $0.mostRecentEpisodeDate != nil }
@@ -123,11 +124,11 @@ class PodcastsListViewModel:
   func execute() async {
     defer { isLoading = false }
     do {
-      for try await podcastsWithEpisodeMetadata in observatory.podcastsWithEpisodeMetadata(
-        filter
-      ) {
+      let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
+        observatory.listablePodcastsWithEpisodeMetadata(filter)
+      for try await podcastsWithEpisodeMetadata in observation {
         try Task.checkCancellation()
-        Self.log.debug("Updating \(podcastsWithEpisodeMetadata.count) observed episodes")
+        Self.log.debug("Updating \(podcastsWithEpisodeMetadata.count) observed podcasts")
 
         podcastList.allEntries = IdentifiedArray(uniqueElements: podcastsWithEpisodeMetadata)
         isLoading = false
@@ -135,6 +136,12 @@ class PodcastsListViewModel:
     } catch {
       Self.log.caughtError("execute: observation failed for podcast list '\(title)'", error)
     }
+  }
+
+  // MARK: - ManagingPodcasts
+
+  func getOrCreatePodcast(_ podcast: ListablePodcast) async throws -> Podcast {
+    try await podcast.getPodcast()
   }
 
   // MARK: - Full Grid Functions

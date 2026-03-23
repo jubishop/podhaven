@@ -5,7 +5,7 @@ import Foundation
 import Logging
 
 @MainActor protocol ManagingEpisodes: AnyObject {
-  associatedtype EpisodeType: EpisodeDisplayable
+  associatedtype EpisodeType: EpisodeListable
 
   func isEpisodePlaying(_ episode: EpisodeType) -> Bool
   func isEpisodeAtBottomOfQueue(_ episode: EpisodeType) -> Bool
@@ -272,5 +272,11 @@ extension ManagingEpisodes {
 extension ManagingEpisodes where EpisodeType == PodcastEpisode {
   func getOrCreatePodcastEpisode(_ episode: PodcastEpisode) async throws -> PodcastEpisode {
     episode
+  }
+}
+
+extension ManagingEpisodes where EpisodeType == ListablePodcastEpisode {
+  func getOrCreatePodcastEpisode(_ episode: ListablePodcastEpisode) async throws -> PodcastEpisode {
+    try await episode.getPodcastEpisode()
   }
 }

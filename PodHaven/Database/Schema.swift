@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import GRDB
 import Logging
@@ -258,6 +259,25 @@ enum Schema {
     }
 
     migrator.registerMigration("v32") { db in
+      // Cap maxQueueLength at 100 (previously allowed up to 500).
+      let defaults = Container.shared.standardDefaults()
+      let key = "maxQueueLength"
+      if let data = defaults.data(forKey: key),
+        let current = try? JSONDecoder().decode(Int.self, from: data),
+        current > 100
+      {
+        let clamped = try JSONEncoder().encode(100)
+        defaults.set(clamped, forKey: key)
+        log.info("v32: clamped maxQueueLength from \(current) to 100")
+      }
+
+      // Trim queued episodes beyond position 100.
+      // queueOrder is always a dense 0-based sequence, so this is equivalent
+      // to removing everything past the 100th item.
+      try db.execute(sql: "UPDATE episode SET queueOrder = NULL WHERE queueOrder >= 100")
+    }
+
+    migrator.registerMigration("v33") { db in
       try db.alter(table: "episode") { t in
         t.add(column: "rating", .text)
           .check { $0 == nil || $0 == "loved" || $0 == "liked" || $0 == "disliked" }
@@ -265,7 +285,7 @@ enum Schema {
       }
     }
 
-    migrator.registerMigration("v33") { db in
+    migrator.registerMigration("v34") { db in
       try db.create(table: "episodeEmbedding") { t in
         t.belongsTo("episode", onDelete: .cascade).notNull().unique()
         t.column("vector", .blob).notNull()

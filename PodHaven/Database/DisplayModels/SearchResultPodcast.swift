@@ -3,33 +3,30 @@
 import Foundation
 
 struct SearchResultPodcast:
-  PodcastDisplayable,
+  PodcastListable,
   Searchable,
   Stringable,
   Hashable,
   Sendable
 {
   let resultFeedURL: FeedURL
-  let podcast: Podcast
+  let originalPodcast: UnsavedPodcast
+  let originalEpisodeCount: Int
+  let originalMostRecentEpisodeDate: Date?
+  let savedPodcast: ListablePodcast
 
   // MARK: - Identifiable
 
   var id: FeedURL { resultFeedURL }
 
-  // MARK: - PodcastDisplayable
+  // MARK: - PodcastListable
 
-  var podcastID: Podcast.ID? { podcast.podcastID }
-  var feedURL: FeedURL { podcast.feedURL }
-  var iTunesID: ITunesPodcastID? { podcast.iTunesID }
-  var image: URL { podcast.image }
-  var title: String { podcast.title }
-  var description: String { podcast.description }
-  var link: URL? { podcast.link }
-  var subscriptionDate: Date? { podcast.subscriptionDate }
-  var defaultPlaybackRate: Double? { podcast.defaultPlaybackRate }
-  var queueAllEpisodes: QueueAllEpisodes { podcast.queueAllEpisodes }
-  var cacheAllEpisodes: CacheAllEpisodes { podcast.cacheAllEpisodes }
-  var notifyNewEpisodes: Bool { podcast.notifyNewEpisodes }
+  var podcastID: Podcast.ID? { savedPodcast.podcastID }
+  var feedURL: FeedURL { savedPodcast.feedURL }
+  var iTunesID: ITunesPodcastID? { savedPodcast.iTunesID }
+  var image: URL { savedPodcast.image }
+  var title: String { savedPodcast.title }
+  var subscriptionDate: Date? { savedPodcast.subscriptionDate }
 
   // MARK: - Hashable / Equatable
   // Intentionally hashes/compares on the canonical podcast, not resultFeedURL.
@@ -38,15 +35,19 @@ struct SearchResultPodcast:
   // the podcast changes, not when the search slot does.
 
   func hash(into hasher: inout Hasher) {
-    hasher.combine(podcast)
+    hasher.combine(savedPodcast)
   }
 
   static func == (lhs: SearchResultPodcast, rhs: SearchResultPodcast) -> Bool {
-    lhs.podcast == rhs.podcast
+    lhs.savedPodcast == rhs.savedPodcast
   }
 
   // MARK: - Stringable / Searchable
 
-  var toString: String { podcast.toString }
-  var searchableString: String { podcast.searchableString }
+  var toString: String { savedPodcast.toString }
+  var searchableString: String { originalPodcast.searchableString }
+
+  func getPodcast() async throws -> Podcast {
+    try await savedPodcast.getPodcast()
+  }
 }

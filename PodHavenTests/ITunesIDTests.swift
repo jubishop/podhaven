@@ -8,7 +8,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("iTunes ID tests", .container)
+@Suite("of iTunes ID tests", .container)
 class ITunesIDTests {
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.observatory) private var observatory
@@ -201,7 +201,7 @@ class ITunesIDTests {
 
     // Query with different feedURL but matching iTunesID
     let searchFeedURL = FeedURL(URL(string: "https://example.com/itunes.rss")!)
-    let results =
+    let results: [PodcastWithEpisodeMetadata<Podcast>] =
       try await observatory.podcastsWithEpisodeMetadata(
         [searchFeedURL],
         iTunesIDs: [iTunesID]
@@ -224,13 +224,15 @@ class ITunesIDTests {
       )
     )
 
-    let results = try await observatory.podcastsWithEpisodeMetadata([feedURL]).get()
+    let results: [PodcastWithEpisodeMetadata<Podcast>] =
+      try await observatory.podcastsWithEpisodeMetadata([feedURL]).get()
     #expect(results.count == 1)
     #expect(results[0].podcast.title == "Feed Only")
 
     // Non-matching feedURL with no iTunesIDs
     let otherURL = FeedURL(URL(string: "https://other.com/feed.rss")!)
-    let noResults = try await observatory.podcastsWithEpisodeMetadata([otherURL]).get()
+    let noResults: [PodcastWithEpisodeMetadata<Podcast>] =
+      try await observatory.podcastsWithEpisodeMetadata([otherURL]).get()
     #expect(noResults.isEmpty)
   }
 
@@ -309,7 +311,7 @@ class ITunesIDTests {
     #expect(unsavedSeries.unsavedPodcast.iTunesID == iTunesID)
   }
 
-  // MARK: - DisplayedPodcast.getOrCreatePodcast with iTunesID lookup
+  // MARK: - UnsavedPodcast.getOrCreatePodcast with iTunesID lookup
 
   @Test("getOrCreatePodcast resolves UnsavedPodcast to saved Podcast via iTunesID")
   func testGetOrCreatePodcastITunesIDResolution() async throws {
@@ -331,10 +333,9 @@ class ITunesIDTests {
       iTunesID: iTunesID,
       title: "Saved Podcast"
     )
-    let displayed = DisplayedPodcast(bridged)
 
     // Should resolve to the existing saved podcast, not create a new one
-    let resolved = try await displayed.getOrCreatePodcast()
+    let resolved = try await bridged.getOrCreatePodcast()
     #expect(resolved.id == series.podcast.id)
     #expect(resolved.feedURL == dbFeedURL)
 

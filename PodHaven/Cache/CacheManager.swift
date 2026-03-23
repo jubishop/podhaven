@@ -193,7 +193,7 @@ struct CacheManager {
 
     Task(priority: .utility) {
       for await episodes in sharedState.$queuedPodcastEpisodes.stream() {
-        let queuedEpisodeIDs = Set(episodes.map(\.episode.id))
+        let queuedEpisodeIDs = Set(episodes.map(\.id))
         await handleQueueChange(queuedEpisodeIDs)
       }
     }
@@ -230,7 +230,7 @@ struct CacheManager {
   // MARK: - Static Helpers
 
   @MainActor
-  static func canClearCache(_ episode: any EpisodeInformable) -> Bool {
+  static func canClearCache(_ episode: any EpisodeFoundational) -> Bool {
     guard !episode.queued else { return false }
     guard let currentEpisodeID = Container.shared.sharedState().currentEpisodeID else {
       return true

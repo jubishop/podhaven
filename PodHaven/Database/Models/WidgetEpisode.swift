@@ -21,4 +21,13 @@ struct WidgetEpisode: Equatable, Identifiable {
     episodeImage = podcastEpisode.episode.image
     podcastImage = podcastEpisode.podcast.image
   }
+
+  init(_ episode: ListablePodcastEpisode) {
+    id = episode.id
+    title = episode.title
+    pubDate = episode.pubDate
+    duration = episode.duration
+    episodeImage = episode.episodeImage
+    podcastImage = episode.podcastImage
+  }
 }

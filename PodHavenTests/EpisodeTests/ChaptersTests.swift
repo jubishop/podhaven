@@ -5,7 +5,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Episode chapters tests", .container)
+@Suite("of Episode chapters tests", .container)
 struct EpisodeChaptersTests {
   @Test("returns nil when description is nil")
   func nilDescription() throws {

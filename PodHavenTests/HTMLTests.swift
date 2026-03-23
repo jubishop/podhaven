@@ -7,7 +7,7 @@ import UIKit
 
 @testable import PodHaven
 
-@Suite("of HTML Regex tests", .container)
+@Suite("of HTML Regex tests")
 @MainActor class HTMLTests {
   @Test("that HTML tag detection works")
   func testHTMLTagDetection() throws {

@@ -7,7 +7,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("ITunesService", .container)
+@Suite("of ITunesService tests", .container)
 final class ITunesServiceTests {
   @DynamicInjected(\.iTunesServiceSession) private var iTunesServiceSession
   @DynamicInjected(\.iTunesService) private var iTunesService

@@ -31,10 +31,11 @@ struct MediaGUID: Codable, CustomStringConvertible, Equatable, Hashable {
 }
 
 struct UnsavedEpisode:
-  EpisodeInformable,
+  EpisodeFoundational,
   Identifiable,
   RSSUpdatable,
-  Savable
+  Savable,
+  Searchable
 {
   var id: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
 
@@ -131,14 +132,16 @@ struct UnsavedEpisode:
     self.ratingDate = ratingDate
   }
 
-  // MARK: - EpisodeInformable
+  // MARK: - EpisodeFoundational
 
   var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
   var cacheStatus: Episode.CacheStatus {
-    if cachedFilename != nil { return .cached }
-    if downloadTaskID != nil { return .caching }
-    return .uncached
+    .from(cachedFilename: cachedFilename, downloadTaskID: downloadTaskID)
   }
+
+  // MARK: - Searchable
+
+  var searchableString: String { "\(title) - \(description ?? "")" }
 
   // MARK: - Chapters
 
@@ -197,7 +200,7 @@ struct UnsavedEpisode:
 }
 
 @Saved<UnsavedEpisode>
-struct Episode: EpisodeInformable, Saved, RSSUpdatable {
+struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   // MARK: - Stringable / Searchable
 
   var toString: String { "[\(id)] - \(unsaved.toString)" }
@@ -264,7 +267,7 @@ struct Episode: EpisodeInformable, Saved, RSSUpdatable {
     unsaved.rssEquals(other.unsaved)
   }
 
-  // MARK: - EpisodeInformable
+  // MARK: - EpisodeFoundational
 
   var mediaGUID: MediaGUID { unsaved.mediaGUID }
   var title: String { unsaved.title }
@@ -295,6 +298,15 @@ struct Episode: EpisodeInformable, Saved, RSSUpdatable {
     case uncached
     case caching
     case cached
+
+    static func from(
+      cachedFilename: String?,
+      downloadTaskID: URLSessionDownloadTask.ID?
+    ) -> CacheStatus {
+      if cachedFilename != nil { return .cached }
+      if downloadTaskID != nil { return .caching }
+      return .uncached
+    }
   }
 }
 

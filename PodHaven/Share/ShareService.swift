@@ -86,13 +86,13 @@ struct ShareService {
     {
       Self.log.debug("Found unsaved episode with guid: \(guid) - \(unsavedEpisode.toString)")
 
-      await navigation.showSearchedEpisode(
+      await navigation.showSharedEpisode(
         unsavedPodcastSeries: unsavedPodcastSeries,
         unsavedEpisode: unsavedEpisode
       )
     } else {
       Self.log.debug("GUID: \(String(describing: guid)) not found, showing unsaved podcast")
-      await navigation.showSearchedUnsavedPodcastSeries(unsavedPodcastSeries)
+      await navigation.showSharedUnsavedPodcastSeries(unsavedPodcastSeries)
     }
   }
 

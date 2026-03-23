@@ -105,6 +105,43 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
   var image: URL { episodeImage ?? podcastImage }
   var mediaGUID: MediaGUID { MediaGUID(guid: guid, mediaURL: mediaURL) }
 
+  // MARK: - Column Selection
+
+  private static var episodeColumns: [any SQLSelectable] {
+    [
+      Episode.Columns.id,
+      Episode.Columns.guid,
+      Episode.Columns.mediaURL,
+      Episode.Columns.title,
+      Episode.Columns.pubDate,
+      Episode.Columns.duration,
+      Episode.Columns.description,
+      Episode.Columns.image,
+      Episode.Columns.finishDate,
+      Episode.Columns.queueOrder,
+      Episode.Columns.saveInCache,
+      Episode.Columns.cachedFilename,
+      Episode.Columns.downloadTaskID,
+    ]
+  }
+
+  private static var podcastColumns: [any SQLSelectable] {
+    [
+      Podcast.Columns.image,
+      Podcast.Columns.title,
+      Podcast.Columns.feedURL,
+      Podcast.Columns.defaultPlaybackRate,
+    ]
+  }
+
+  static func request(for episodeID: Episode.ID) -> QueryInterfaceRequest<OnDeck> {
+    Episode
+      .withID(episodeID)
+      .select(episodeColumns)
+      .including(required: Episode.podcast.select(podcastColumns))
+      .asRequest(of: OnDeck.self)
+  }
+
   // MARK: - Derived Properties
 
   var chapters: [CMTime]? {

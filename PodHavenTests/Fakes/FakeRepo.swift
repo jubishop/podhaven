@@ -91,6 +91,11 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.podcastEpisode(episodeID)
   }
 
+  func podcastEpisodes(_ episodeIDs: [Episode.ID]) async throws -> [PodcastEpisode] {
+    recordCall(methodName: "podcastEpisodes", parameters: episodeIDs)
+    return try await repo.podcastEpisodes(episodeIDs)
+  }
+
   func podcastEpisode(_ mediaGUID: MediaGUID) async throws -> PodcastEpisode? {
     recordCall(methodName: "podcastEpisode", parameters: mediaGUID)
     return try await repo.podcastEpisode(mediaGUID)
@@ -157,9 +162,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
   }
 
   @discardableResult
-  func insertTag(named: String) async throws -> Tag {
-    recordCall(methodName: "insertTag", parameters: named)
-    return try await repo.insertTag(named: named)
+  func insertTag(_ unsavedTag: UnsavedTag) async throws -> Tag {
+    recordCall(methodName: "insertTag", parameters: unsavedTag)
+    return try await repo.insertTag(unsavedTag)
   }
 
   @discardableResult

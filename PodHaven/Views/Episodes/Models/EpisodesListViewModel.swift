@@ -22,7 +22,7 @@ class EpisodesListViewModel:
 
   // MARK: - SelectableEpisodeList & SortableEpisodeList
 
-  var episodeList = PowerList<PodcastEpisode>()
+  var episodeList = PowerList<ListablePodcastEpisode>()
 
   enum SortMethod: String, Codable, DefaultsStorable, SortingMethod {
     case newestFirst
@@ -144,11 +144,13 @@ class EpisodesListViewModel:
     defer { isLoading = false }
 
     do {
-      for try await podcastEpisodes in observatory.podcastEpisodes(
-        filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
-        order: currentSortMethod.sqlOrdering,
-        limit: 200
-      ) {
+      let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
+        observatory.listablePodcastEpisodes(
+          filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
+          order: currentSortMethod.sqlOrdering,
+          limit: 200
+        )
+      for try await podcastEpisodes in observation {
         try Task.checkCancellation()
         Self.log.debug("Updating \(podcastEpisodes.count) observed episodes")
 

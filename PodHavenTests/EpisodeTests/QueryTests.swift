@@ -9,7 +9,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Episode query tests", .container)
+@Suite("of Episode query tests", .container)
 class EpisodeQueryTests {
   @DynamicInjected(\.repo) private var repo
 
@@ -238,5 +238,73 @@ class EpisodeQueryTests {
   func episodesEmptyBatch() async throws {
     let results = try await repo.episodes([])
     #expect(results.isEmpty)
+  }
+
+  // MARK: - Batch podcastEpisodes
+
+  @Test("podcastEpisodes([]) returns empty array")
+  func podcastEpisodesBatchEmpty() async throws {
+    let results = try await repo.podcastEpisodes([])
+    #expect(results.isEmpty)
+  }
+
+  @Test("podcastEpisodes returns all requested episodes with their podcasts")
+  func podcastEpisodesBatchReturnsAll() async throws {
+    let unsavedPodcast = try Create.unsavedPodcast(title: "Batch Podcast")
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: unsavedPodcast,
+        unsavedEpisodes: [
+          try Create.unsavedEpisode(guid: "batch-1", title: "Episode 1"),
+          try Create.unsavedEpisode(guid: "batch-2", title: "Episode 2"),
+          try Create.unsavedEpisode(guid: "batch-3", title: "Episode 3"),
+        ]
+      )
+    )
+
+    let allIDs = podcastSeries.episodes.map(\.id)
+    let results = try await repo.podcastEpisodes(allIDs)
+
+    #expect(results.count == 3)
+    #expect(Set(results.map(\.id)) == Set(allIDs))
+    for result in results {
+      #expect(result.podcast.title == "Batch Podcast")
+    }
+  }
+
+  @Test("podcastEpisodes skips non-existent IDs without error")
+  func podcastEpisodesBatchSkipsNonExistent() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let nonExistentID = Episode.ID(rawValue: 999_999)
+
+    let results = try await repo.podcastEpisodes([podcastEpisode.id, nonExistentID])
+
+    #expect(results.count == 1)
+    #expect(results[0].id == podcastEpisode.id)
+  }
+
+  @Test("podcastEpisodes returns episodes from multiple podcasts")
+  func podcastEpisodesBatchAcrossPodcasts() async throws {
+    let series1 = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Podcast A"),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "a-1", title: "A Episode")]
+      )
+    )
+    let series2 = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try Create.unsavedPodcast(title: "Podcast B"),
+        unsavedEpisodes: [try Create.unsavedEpisode(guid: "b-1", title: "B Episode")]
+      )
+    )
+
+    let results = try await repo.podcastEpisodes([
+      series1.episodes[0].id,
+      series2.episodes[0].id,
+    ])
+
+    #expect(results.count == 2)
+    let titles = Set(results.map(\.podcast.title))
+    #expect(titles == Set(["Podcast A", "Podcast B"]))
   }
 }

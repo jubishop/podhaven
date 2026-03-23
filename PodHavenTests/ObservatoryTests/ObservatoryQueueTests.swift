@@ -21,14 +21,14 @@ actor ObservatoryQueueTests {
       UnsavedPodcastSeries(
         unsavedPodcast: unsavedPodcast,
         unsavedEpisodes: [
-          Create.unsavedEpisode(guid: "top", queueOrder: 0),
-          Create.unsavedEpisode(guid: "bottom", queueOrder: 4),
-          Create.unsavedEpisode(guid: "midtop", queueOrder: 1),
-          Create.unsavedEpisode(guid: "middle", queueOrder: 2),
-          Create.unsavedEpisode(guid: "midbottom", queueOrder: 3),
-          Create.unsavedEpisode(guid: "unqbottom"),
-          Create.unsavedEpisode(guid: "unqmiddle"),
-          Create.unsavedEpisode(guid: "unqtop"),
+          Create.unsavedEpisode(guid: "top", title: "top", queueOrder: 0),
+          Create.unsavedEpisode(guid: "bottom", title: "bottom", queueOrder: 4),
+          Create.unsavedEpisode(guid: "midtop", title: "midtop", queueOrder: 1),
+          Create.unsavedEpisode(guid: "middle", title: "middle", queueOrder: 2),
+          Create.unsavedEpisode(guid: "midbottom", title: "midbottom", queueOrder: 3),
+          Create.unsavedEpisode(guid: "unqbottom", title: "unqbottom"),
+          Create.unsavedEpisode(guid: "unqmiddle", title: "unqmiddle"),
+          Create.unsavedEpisode(guid: "unqtop", title: "unqtop"),
         ]
       )
     )
@@ -36,7 +36,7 @@ actor ObservatoryQueueTests {
     let queuedEpisodes = try await observatory.queuedPodcastEpisodes().get()
     #expect(queuedEpisodes.count == 5)
     #expect(
-      queuedEpisodes.map(\.episode.guid) == [
+      queuedEpisodes.map(\.title) == [
         "top", "midtop", "middle", "midbottom", "bottom",
       ]
     )
@@ -71,7 +71,7 @@ actor ObservatoryQueueTests {
       )
     )
 
-    let finishedEpisodes =
+    let finishedEpisodes: [PodcastEpisode] =
       try await observatory.podcastEpisodes(
         filter: Episode.finished,
         order: Episode.Columns.finishDate.desc

@@ -16,6 +16,14 @@ struct UnsavedTag: Identifiable, Savable {
 
   let name: String
 
+  init(name: String) throws {
+    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      throw DatabaseError(message: "Tag name cannot be empty")
+    }
+    self.name = trimmed
+  }
+
   // MARK: - Stringable / Searchable
 
   var toString: String { name }

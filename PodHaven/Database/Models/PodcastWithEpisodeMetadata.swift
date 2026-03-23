@@ -4,7 +4,7 @@ import Foundation
 import GRDB
 
 @dynamicMemberLookup
-struct PodcastWithEpisodeMetadata<PodcastType: PodcastDisplayable>: Searchable, Stringable {
+struct PodcastWithEpisodeMetadata<PodcastType: PodcastListable>: Searchable, Stringable {
   // MARK: - Getters
 
   subscript<T>(dynamicMember keyPath: KeyPath<PodcastType, T>) -> T {
@@ -33,37 +33,36 @@ struct PodcastWithEpisodeMetadata<PodcastType: PodcastDisplayable>: Searchable, 
     self.episodeCount = episodeCount
     self.mostRecentEpisodeDate = mostRecentEpisodeDate
   }
-
-  // MARK: - Getters
-
-  func getPodcast() -> Podcast? { DisplayedPodcast.getPodcast(podcast) }
-  func getUnsavedPodcast() -> UnsavedPodcast? { DisplayedPodcast.getUnsavedPodcast(podcast) }
 }
 
-extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType == Podcast {
-  // MARK: - QueryInterfaceRequest
+// MARK: - FetchableRecord
 
-  static func all(
-    _ filter: PodcastFilter = { $0 }
-  ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
-    filter(Podcast.all())
-      .annotated(with: [
-        Podcast.episodes.count.forKey(CodingKeys.episodeCount),
-        Podcast.episodes.max(\.pubDate).forKey(CodingKeys.mostRecentEpisodeDate),
-      ])
-      .asRequest(of: PodcastWithEpisodeMetadata.self)
+extension PodcastWithEpisodeMetadata: FetchableRecord where PodcastType: FetchableRecord {
+  init(row: Row) throws {
+    self.podcast = try PodcastType(row: row)
+    self.episodeCount = row[CodingKeys.episodeCount]
+    self.mostRecentEpisodeDate = row[CodingKeys.mostRecentEpisodeDate]
   }
-
-  // MARK: - Custom Decoding
 
   enum CodingKeys: String, CodingKey, ColumnExpression {
     case episodeCount
     case mostRecentEpisodeDate
   }
 
-  init(row: Row) throws {
-    self.podcast = try Podcast(row: row)
-    self.episodeCount = row[CodingKeys.episodeCount]
-    self.mostRecentEpisodeDate = row[CodingKeys.mostRecentEpisodeDate]
+  // MARK: Query Builders
+
+  static func all(
+    _ filter: PodcastFilter = { $0 },
+    selecting columns: [any SQLSelectable]? = nil
+  ) -> QueryInterfaceRequest<PodcastWithEpisodeMetadata> {
+    var request = filter(Podcast.all())
+    if let columns { request = request.select(columns) }
+    return
+      request
+      .annotated(with: [
+        Podcast.episodes.count.forKey(CodingKeys.episodeCount),
+        Podcast.episodes.max(\.pubDate).forKey(CodingKeys.mostRecentEpisodeDate),
+      ])
+      .asRequest(of: PodcastWithEpisodeMetadata.self)
   }
 }

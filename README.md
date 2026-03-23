@@ -66,12 +66,12 @@ xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platf
 
 ### Run a Specific Test Class
 ```sh
-xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:ParallelTests/SomeTestClass
+xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeTestClass
 ```
 
 ### Run an Individual Test Method
 ```sh
-xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:ParallelTests/SomeTestClass/testMethod
+xcodebuild test -project PodHaven.xcodeproj -scheme PodHaven -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:PodHavenTests/SomeTestClass/testMethod
 ```
 </details>
 
@@ -97,7 +97,7 @@ PodHaven is built using modern Swift practices and a clean, modular architecture
 | **PodhavenShare** | Share extension for adding podcasts from other apps |
 | **PodHavenWidget** | Home screen widget extension |
 | **PodHavenMacros** | Swift macro compilation target |
-| **ParallelTests** | Parallelized test suite |
+| **PodHavenTests** | Parallelized test suite |
 
 ### Dependencies
 

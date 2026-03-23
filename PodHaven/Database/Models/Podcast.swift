@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2025
 
+import FactoryKit
 import Foundation
 import GRDB
 import IdentifiedCollections
@@ -104,6 +105,41 @@ struct UnsavedPodcast:
       && image == other.image
       && description == other.description
       && link == other.link
+  }
+
+  // MARK: - Helpers
+
+  func getOrCreatePodcast() async throws -> Podcast {
+    let repo = Container.shared.repo()
+
+    if let existingSeries = try await repo.podcastSeries(
+      feedURL,
+      iTunesID: iTunesID
+    ) {
+      return existingSeries.podcast
+    }
+
+    // Podcast doesn't exist by our keys, parse feed to discover resolved URL
+    let podcastFeed = try await PodcastFeed.parse(feedURL)
+
+    // The parsed feed may have a different feedURL (redirect/itunes:new-feed-url).
+    // Check if that resolved URL matches an existing podcast.
+    if podcastFeed.updatedFeedURL != feedURL {
+      if let existingSeries = try await repo.podcastSeries(
+        podcastFeed.updatedFeedURL,
+        iTunesID: iTunesID
+      ) {
+        if existingSeries.podcast.iTunesID == nil, let iTunesID {
+          try await repo.updateITunesID(existingSeries.podcast.id, iTunesID: iTunesID)
+        }
+        return existingSeries.podcast
+      }
+    }
+
+    let podcastSeries = try await repo.insertSeries(
+      try podcastFeed.toUnsavedSeries(iTunesID: iTunesID)
+    )
+    return podcastSeries.podcast
   }
 
   // MARK: - Reset

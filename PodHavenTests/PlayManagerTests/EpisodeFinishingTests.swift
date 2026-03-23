@@ -8,7 +8,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("Episode finishing tests", .container)
+@Suite("of Episode finishing tests", .container)
 @MainActor struct EpisodeFinishingTests {
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.playManager) private var playManager

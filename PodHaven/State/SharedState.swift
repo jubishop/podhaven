@@ -27,7 +27,7 @@ struct SharedState: Sendable {
   @Broadcasted var playbackStatus: PlaybackStatus = .stopped
   @Broadcasted var playRate: Float = 1.0
   @Broadcasted var tags: IdentifiedArrayOf<Tag> = []
-  @Broadcasted var queuedPodcastEpisodes: [PodcastEpisode] = []
+  @Broadcasted var queuedPodcastEpisodes: [ListablePodcastEpisode] = []
 
   // MARK: - Download Progress
 
@@ -48,7 +48,7 @@ struct SharedState: Sendable {
 
   // MARK: - Queue
 
-  func setQueuedPodcastEpisodes(_ episodes: [PodcastEpisode]) {
+  func setQueuedPodcastEpisodes(_ episodes: [ListablePodcastEpisode]) {
     $queuedPodcastEpisodes.new(episodes)
   }
 
@@ -57,7 +57,7 @@ struct SharedState: Sendable {
   }
 
   var queuedEpisodeIDs: Set<Episode.ID> {
-    Set(queuedPodcastEpisodes.map(\.episode.id))
+    Set(queuedPodcastEpisodes.map(\.id))
   }
 
   var maxQueuePosition: Int? {
@@ -66,7 +66,7 @@ struct SharedState: Sendable {
 
   // MARK: - Episode Playing Checks
 
-  func isEpisodePlaying(_ episode: any EpisodeInformable) -> Bool {
+  func isEpisodePlaying(_ episode: any EpisodeFoundational) -> Bool {
     guard let episodeID = episode.episodeID else { return false }
     return isEpisodePlaying(episodeID)
   }

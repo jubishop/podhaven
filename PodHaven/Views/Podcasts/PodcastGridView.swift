@@ -3,7 +3,7 @@
 import Foundation
 import SwiftUI
 
-struct PodcastGridView<Podcast: PodcastDisplayable>: View {
+struct PodcastGridView<Podcast: PodcastListable>: View {
   let podcast: Podcast
   private let isSelecting: Bool
   private let isSelected: Binding<Bool>
