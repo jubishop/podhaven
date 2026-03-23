@@ -55,23 +55,23 @@ struct Observatory {
     }
   }
 
-  func podcastsWithEpisodeMetadata<T: PodcastListable & FetchableRecord>(
+  func podcastsWithEpisodeMetadata(
     _ filter: @escaping PodcastFilter = { $0 },
     limit: Int = Int.max
-  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<T>]> {
+  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]> {
     _observe { db in
-      try PodcastWithEpisodeMetadata<T>
+      try PodcastWithEpisodeMetadata<Podcast>
         .all(filter)
         .limit(limit)
         .fetchAll(db)
     }
   }
 
-  func podcastsWithEpisodeMetadata<T: PodcastListable & FetchableRecord>(
+  func podcastsWithEpisodeMetadata(
     _ feedURLs: [FeedURL],
     iTunesIDs: [ITunesPodcastID] = [],
     limit: Int = Int.max
-  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<T>]> {
+  ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<Podcast>]> {
     podcastsWithEpisodeMetadata(
       { request in
         var filter = feedURLs.contains(Podcast.Columns.feedURL)
@@ -86,7 +86,7 @@ struct Observatory {
 
   // MARK: - Listable Podcasts
 
-  func podcastsWithEpisodeMetadata(
+  func listablePodcastsWithEpisodeMetadata(
     _ filter: @escaping PodcastFilter = { $0 },
     limit: Int = Int.max
   ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> {
@@ -98,12 +98,12 @@ struct Observatory {
     }
   }
 
-  func podcastsWithEpisodeMetadata(
+  func listablePodcastsWithEpisodeMetadata(
     _ feedURLs: [FeedURL],
     iTunesIDs: [ITunesPodcastID] = [],
     limit: Int = Int.max
   ) -> AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> {
-    podcastsWithEpisodeMetadata(
+    listablePodcastsWithEpisodeMetadata(
       { request in
         var filter = feedURLs.contains(Podcast.Columns.feedURL)
         if !iTunesIDs.isEmpty {
@@ -155,7 +155,7 @@ struct Observatory {
 
   // MARK: - Listable PodcastEpisodes
 
-  func podcastEpisodes(
+  func listablePodcastEpisodes(
     filter: SQLExpression,
     order: SQLOrdering = Episode.Columns.pubDate.desc,
     limit: Int = Int.max

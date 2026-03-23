@@ -98,7 +98,7 @@ actor ObservatoryListableTests {
 
     Task {
       let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
-        observatory.podcastEpisodes(
+        observatory.listablePodcastEpisodes(
           filter: Episode.Columns.id == episodeID
         )
       for try await _ in observation {
@@ -139,7 +139,7 @@ actor ObservatoryListableTests {
 
     Task {
       let observation: AsyncValueObservation<[ListablePodcastEpisode]> =
-        observatory.podcastEpisodes(
+        observatory.listablePodcastEpisodes(
           filter: Episode.Columns.id == episodeID
         )
       for try await _ in observation {
@@ -218,7 +218,7 @@ actor ObservatoryListableTests {
 
     Task {
       let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
-        observatory.podcastsWithEpisodeMetadata()
+        observatory.listablePodcastsWithEpisodeMetadata()
       for try await _ in observation {
         await updateCount.increment()
       }
@@ -256,7 +256,7 @@ actor ObservatoryListableTests {
 
     Task {
       let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
-        observatory.podcastsWithEpisodeMetadata()
+        observatory.listablePodcastsWithEpisodeMetadata()
       for try await _ in observation {
         await updateCount.increment()
       }

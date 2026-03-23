@@ -125,7 +125,7 @@ class PodcastsListViewModel:
     defer { isLoading = false }
     do {
       let observation: AsyncValueObservation<[PodcastWithEpisodeMetadata<ListablePodcast>]> =
-        observatory.podcastsWithEpisodeMetadata(filter)
+        observatory.listablePodcastsWithEpisodeMetadata(filter)
       for try await podcastsWithEpisodeMetadata in observation {
         try Task.checkCancellation()
         Self.log.debug("Updating \(podcastsWithEpisodeMetadata.count) observed podcasts")
