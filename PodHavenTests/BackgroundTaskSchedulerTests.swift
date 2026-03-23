@@ -14,13 +14,15 @@ struct BackgroundTaskSchedulerTests {
 
   private var fake: FakeBGTaskScheduler { bgTaskScheduler as! FakeBGTaskScheduler }
 
-  // Each test uses a unique identifier so Once.run doesn't block across tests.
+  private static let testIdentifier = "test.bgScheduler"
+
   private func makeScheduler(
+    identifier: String = testIdentifier,
     cadence: Duration = .hours(1),
     taskType: BackgroundTaskType = .appRefresh
   ) -> BackgroundTaskScheduler {
     BackgroundTaskScheduler(
-      identifier: "test.\(UUID().uuidString)",
+      identifier: identifier,
       cadence: cadence,
       taskType: taskType
     )
@@ -31,7 +33,6 @@ struct BackgroundTaskSchedulerTests {
   @Test("register calls BGTaskScheduler.register with the correct identifier")
   func registerCallsSystemRegister() {
     let scheduler = makeScheduler()
-    fake.reset()
 
     scheduler.register { complete in complete(true) }
 
@@ -40,13 +41,7 @@ struct BackgroundTaskSchedulerTests {
 
   @Test("register is idempotent via Once")
   func registerIsIdempotent() {
-    let identifier = "test.\(UUID().uuidString)"
-    let scheduler = BackgroundTaskScheduler(
-      identifier: identifier,
-      cadence: .hours(1),
-      taskType: .appRefresh
-    )
-    fake.reset()
+    let scheduler = makeScheduler()
 
     scheduler.register { complete in complete(true) }
     scheduler.register { complete in complete(true) }
@@ -57,7 +52,6 @@ struct BackgroundTaskSchedulerTests {
   @Test("register schedules next task after registration")
   func registerSchedulesNext() {
     let scheduler = makeScheduler()
-    fake.reset()
 
     scheduler.register { complete in complete(true) }
 
@@ -69,7 +63,6 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduleNextIfNeeded submits when cadence has elapsed and no pending tasks")
   func scheduleNextIfNeededSubmitsWhenReady() {
     let scheduler = makeScheduler(cadence: .seconds(1))
-    fake.reset()
 
     scheduler.scheduleNextIfNeeded()
 
@@ -79,7 +72,6 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduleNextIfNeeded throttles when called within cadence")
   func scheduleNextIfNeededThrottles() {
     let scheduler = makeScheduler(cadence: .hours(1))
-    fake.reset()
 
     // First call succeeds and sets lastAttempt
     scheduler.scheduleNextIfNeeded()
@@ -92,14 +84,8 @@ struct BackgroundTaskSchedulerTests {
 
   @Test("scheduleNextIfNeeded skips when task is already pending")
   func scheduleNextIfNeededSkipsWhenPending() {
-    let identifier = "test.\(UUID().uuidString)"
-    let scheduler = BackgroundTaskScheduler(
-      identifier: identifier,
-      cadence: .seconds(0),
-      taskType: .appRefresh
-    )
-    fake.reset()
-    fake.addPendingIdentifier(identifier)
+    let scheduler = makeScheduler(cadence: .seconds(0))
+    fake.addPendingIdentifier(Self.testIdentifier)
 
     scheduler.scheduleNextIfNeeded()
 
@@ -109,7 +95,6 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduleNextIfNeeded ignores pending tasks with different identifiers")
   func scheduleNextIfNeededIgnoresOtherPending() {
     let scheduler = makeScheduler(cadence: .seconds(0))
-    fake.reset()
     fake.addPendingIdentifier("some.other.identifier")
 
     scheduler.scheduleNextIfNeeded()
@@ -125,7 +110,6 @@ struct BackgroundTaskSchedulerTests {
       cadence: .seconds(0),
       taskType: .processing(requiresNetworkConnectivity: true)
     )
-    fake.reset()
 
     scheduler.scheduleNextIfNeeded()
 
@@ -137,7 +121,6 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduling an app refresh task submits a non-processing request")
   func schedulingAppRefreshTask() {
     let scheduler = makeScheduler(cadence: .seconds(0), taskType: .appRefresh)
-    fake.reset()
 
     scheduler.scheduleNextIfNeeded()
 
@@ -149,7 +132,6 @@ struct BackgroundTaskSchedulerTests {
   func schedulingSetsEarliestBeginDate() {
     let cadence: Duration = .minutes(30)
     let scheduler = makeScheduler(cadence: cadence, taskType: .appRefresh)
-    fake.reset()
 
     let before = Date.now
     scheduler.scheduleNextIfNeeded()
@@ -171,7 +153,6 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduling handles submit error gracefully")
   func schedulingHandlesSubmitError() {
     let scheduler = makeScheduler(cadence: .seconds(0))
-    fake.reset()
     fake.setSubmitError(TestError.simulatedFailure)
 
     scheduler.scheduleNextIfNeeded()
@@ -182,7 +163,6 @@ struct BackgroundTaskSchedulerTests {
   @Test("scheduling does not add to pending when submit fails")
   func schedulingDoesNotPendOnFailure() {
     let scheduler = makeScheduler(cadence: .seconds(0))
-    fake.reset()
     fake.setSubmitError(TestError.simulatedFailure)
 
     scheduler.scheduleNextIfNeeded()
@@ -195,7 +175,6 @@ struct BackgroundTaskSchedulerTests {
   @Test("confirmAndLogPendingTask does nothing when no attempt has been made")
   func confirmDoesNothingBeforeFirstSchedule() {
     let scheduler = makeScheduler()
-    fake.reset()
 
     // No scheduling has happened, so lastAttempt is .distantPast
     scheduler.confirmAndLogPendingTask()
@@ -207,17 +186,11 @@ struct BackgroundTaskSchedulerTests {
 
   @Test("confirmAndLogPendingTask queries pending tasks after scheduling")
   func confirmQueriesAfterScheduling() {
-    let identifier = "test.\(UUID().uuidString)"
-    let scheduler = BackgroundTaskScheduler(
-      identifier: identifier,
-      cadence: .seconds(0),
-      taskType: .appRefresh
-    )
-    fake.reset()
+    let scheduler = makeScheduler(cadence: .seconds(0))
 
     // Schedule first to set lastAttempt
     scheduler.scheduleNextIfNeeded()
-    #expect(fake.pendingIdentifiers.contains(identifier))
+    #expect(fake.pendingIdentifiers.contains(Self.testIdentifier))
 
     // confirmAndLogPendingTask should run without error
     // (the task is pending, so it logs success)
@@ -307,10 +280,4 @@ struct BackgroundTaskSchedulerTests {
 
     #expect(formatted.isEmpty)
   }
-}
-
-// MARK: - Test Helpers
-
-private enum TestError: Error {
-  case simulatedFailure
 }
