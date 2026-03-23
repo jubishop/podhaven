@@ -36,7 +36,7 @@ actor ObservatoryListableTests {
 
     // Episode columns ListablePodcastEpisode does NOT read must not trigger
     // (podcastId is tracked because GRDB needs it for the podcast JOIN)
-    for column in ["description", "link", "queueDate", "creationDate"] {
+    for column in ["description", "link"] {
       #expect(
         !region.isModified(
           byEventsOfKind: .update(tableName: "episode", columnNames: [column])
@@ -63,7 +63,8 @@ actor ObservatoryListableTests {
     for column in [
       "id", "guid", "mediaURL", "title", "pubDate", "duration",
       "image", "finishDate", "currentTime", "queueOrder", "saveInCache",
-      "cachedFilename", "downloadTaskID", "podcastId",
+      "cachedFilename", "downloadTaskID", "podcastId", "creationDate",
+      "queueDate",
     ] {
       #expect(
         region.isModified(

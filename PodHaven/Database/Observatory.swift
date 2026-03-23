@@ -167,8 +167,10 @@ struct Observatory {
 
   // MARK: - Queue
 
-  func queuedPodcastEpisodes(limit: Int = Int.max) -> AsyncValueObservation<[PodcastEpisode]> {
-    podcastEpisodes(
+  func queuedPodcastEpisodes(limit: Int = Int.max) -> AsyncValueObservation<
+    [ListablePodcastEpisode]
+  > {
+    listablePodcastEpisodes(
       filter: Episode.queued,
       order: Episode.Columns.queueOrder.asc,
       limit: limit

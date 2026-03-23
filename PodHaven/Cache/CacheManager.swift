@@ -193,7 +193,7 @@ struct CacheManager {
 
     Task(priority: .utility) {
       for await episodes in sharedState.$queuedPodcastEpisodes.stream() {
-        let queuedEpisodeIDs = Set(episodes.map(\.episode.id))
+        let queuedEpisodeIDs = Set(episodes.map(\.id))
         await handleQueueChange(queuedEpisodeIDs)
       }
     }

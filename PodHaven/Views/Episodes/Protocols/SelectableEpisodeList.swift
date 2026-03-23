@@ -367,3 +367,12 @@ extension SelectableEpisodeList {
 extension SelectableEpisodeList where EpisodeType == PodcastEpisode {
   var selectedPodcastEpisodes: [PodcastEpisode] { get async throws { selectedEpisodes } }
 }
+
+extension SelectableEpisodeList where EpisodeType == ListablePodcastEpisode {
+  var selectedPodcastEpisodes: [PodcastEpisode] {
+    get async throws {
+      let episodeIDs = selectedEpisodes.compactMap(\.episodeID)
+      return try await Container.shared.repo().podcastEpisodes(episodeIDs)
+    }
+  }
+}

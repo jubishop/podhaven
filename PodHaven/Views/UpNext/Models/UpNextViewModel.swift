@@ -27,7 +27,7 @@ import SwiftUI
     set { episodeList.setSelecting(newValue.isEditing) }
   }
 
-  var episodeList = PowerList<PodcastEpisode>()
+  var episodeList = PowerList<ListablePodcastEpisode>()
 
   enum SortMethod: SortingMethod {
     case newestFirst
@@ -51,24 +51,24 @@ import SwiftUI
       }
     }
 
-    var sortMethod: (PodcastEpisode, PodcastEpisode) -> Bool {
+    var sortMethod: (ListablePodcastEpisode, ListablePodcastEpisode) -> Bool {
       switch self {
       case .newestFirst:
-        return { lhs, rhs in lhs.episode.pubDate > rhs.episode.pubDate }
+        return { lhs, rhs in lhs.pubDate > rhs.pubDate }
       case .oldestFirst:
-        return { lhs, rhs in lhs.episode.pubDate < rhs.episode.pubDate }
+        return { lhs, rhs in lhs.pubDate < rhs.pubDate }
       case .recentlyAdded:
-        return { lhs, rhs in lhs.episode.creationDate > rhs.episode.creationDate }
+        return { lhs, rhs in lhs.creationDate > rhs.creationDate }
       case .mostRecentlyQueued:
         return { lhs, rhs in
-          let lhsDate = lhs.episode.queueDate ?? lhs.episode.creationDate
-          let rhsDate = rhs.episode.queueDate ?? rhs.episode.creationDate
+          let lhsDate = lhs.queueDate ?? lhs.creationDate
+          let rhsDate = rhs.queueDate ?? rhs.creationDate
           return lhsDate > rhsDate
         }
       case .leastRecentlyQueued:
         return { lhs, rhs in
-          let lhsDate = lhs.episode.queueDate ?? lhs.episode.creationDate
-          let rhsDate = rhs.episode.queueDate ?? rhs.episode.creationDate
+          let lhsDate = lhs.queueDate ?? lhs.creationDate
+          let rhsDate = rhs.queueDate ?? rhs.creationDate
           return lhsDate < rhsDate
         }
       }
@@ -94,14 +94,14 @@ import SwiftUI
   var totalQueueTime: CMTime {
     episodeList.allEntries.reduce(CMTime.zero) { total, podcastEpisode in
       userSettings.showTimeRemainingInEpisodeLists
-        ? total + (podcastEpisode.episode.duration.safe - podcastEpisode.episode.currentTime.safe)
-        : total + podcastEpisode.episode.duration.safe
+        ? total + (podcastEpisode.duration.safe - podcastEpisode.currentTime.safe)
+        : total + podcastEpisode.duration.safe
     }
   }
 
   // MARK: - ManagingEpisodes
 
-  func queueEpisodeOnTop(_ episode: PodcastEpisode, swipeAction: Bool) {
+  func queueEpisodeOnTop(_ episode: ListablePodcastEpisode, swipeAction: Bool) {
     guard episode.queueOrder != 0 else { return }
 
     Self.log.debug("Custom queueing of episode to top using UpNextViewModel")
@@ -121,7 +121,7 @@ import SwiftUI
     }
   }
 
-  func queueEpisodeAtBottom(_ episode: PodcastEpisode, swipeAction: Bool) {
+  func queueEpisodeAtBottom(_ episode: ListablePodcastEpisode, swipeAction: Bool) {
     guard !isEpisodeAtBottomOfQueue(episode) else { return }
 
     Self.log.debug("Custom queueing of episode to bottom using UpNextViewModel")
@@ -150,7 +150,7 @@ import SwiftUI
     Task { [weak self] in
       guard let self else { return }
       do {
-        try await queue.insert(episodeList.allEntries[from].episode.id, at: to)
+        try await queue.insert(episodeList.allEntries[from].id, at: to)
       } catch {
         Self.log.caughtError("moveEpisode: failed to move from \(from) to \(to)", error)
         guard ErrorKit.isRemarkable(error) else { return }
@@ -163,7 +163,7 @@ import SwiftUI
     Self.log.debug("refreshQueue: downloading and caching uncached episodes")
 
     let uncachedEpisodes = episodeList.allEntries.filter { podcastEpisode in
-      podcastEpisode.episode.cacheStatus != .cached
+      podcastEpisode.cacheStatus != .cached
     }
     guard !uncachedEpisodes.isEmpty else { return }
 
@@ -196,7 +196,7 @@ import SwiftUI
       guard let self else { return }
       do {
         let sortedEpisodes = episodeList.allEntries.sorted(by: method.sortMethod)
-        try await queue.updateQueueOrders(sortedEpisodes.map(\.episode.id))
+        try await queue.updateQueueOrders(sortedEpisodes.map(\.id))
       } catch {
         Self.log.caughtError("sort: failed to sort queue by \(method)", error)
         guard ErrorKit.isRemarkable(error) else { return }
