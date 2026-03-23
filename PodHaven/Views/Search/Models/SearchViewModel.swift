@@ -413,11 +413,13 @@ class SearchViewModel:
           \(podcasts.count) saved podcasts
         """
       )
+      let iTunesIDMapping = self.buildITunesIDMapping(from: searchResults)
       var updatedIDs: Set<FeedURL> = []
       for podcast in podcasts {
         if let (feedURL, updated) = buildUpdatedResult(
           for: podcast,
-          in: searchResults
+          in: searchResults,
+          iTunesIDMapping: iTunesIDMapping
         ) {
           searchResults[id: feedURL] = updated
           updatedIDs.insert(feedURL)
@@ -448,11 +450,13 @@ class SearchViewModel:
           \(podcasts.count) saved podcasts
         """
       )
+      let iTunesIDMapping = self.buildITunesIDMapping(from: trendingSection.results)
       var updatedIDs: Set<FeedURL> = []
       for podcast in podcasts {
         if let (feedURL, updated) = buildUpdatedResult(
           for: podcast,
-          in: trendingSection.results
+          in: trendingSection.results,
+          iTunesIDMapping: iTunesIDMapping
         ) {
           trendingSection.results[id: feedURL] = updated
           updatedIDs.insert(feedURL)
@@ -558,9 +562,22 @@ class SearchViewModel:
     return nil
   }
 
+  private func buildITunesIDMapping(
+    from results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>>
+  ) -> [ITunesPodcastID: FeedURL] {
+    var mapping: [ITunesPodcastID: FeedURL] = [:]
+    for result in results {
+      if let iTunesID = result.podcast.iTunesID {
+        mapping[iTunesID] = result.id
+      }
+    }
+    return mapping
+  }
+
   private func buildUpdatedResult(
     for podcast: PodcastWithEpisodeMetadata<ListablePodcast>,
-    in results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>>
+    in results: IdentifiedArrayOf<PodcastWithEpisodeMetadata<ListedPodcast>>,
+    iTunesIDMapping: [ITunesPodcastID: FeedURL]
   ) -> (feedURL: FeedURL, result: PodcastWithEpisodeMetadata<ListedPodcast>)? {
     // Find which feedURL slot this saved podcast occupies in results
     if let currentResult = results[id: podcast.feedURL],
@@ -582,14 +599,6 @@ class SearchViewModel:
           mostRecentEpisodeDate: podcast.mostRecentEpisodeDate
         )
       )
-    }
-
-    // Build iTunes ID → feedURL mapping from results
-    var iTunesIDMapping: [ITunesPodcastID: FeedURL] = [:]
-    for result in results {
-      if let iTunesID = result.podcast.iTunesID {
-        iTunesIDMapping[iTunesID] = result.id
-      }
     }
 
     guard let iTunesID = podcast.iTunesID,
