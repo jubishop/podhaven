@@ -256,11 +256,11 @@ import Testing
     _ = try await repo.deletePodcast(savedSeries.id)
 
     try await Wait.until(
-      { @MainActor in
+      { @MainActor [self] in
         alert.config != nil
           && navigation.podcasts.path == [.podcastsViewType(.unsubscribed)]
       },
-      { @MainActor in
+      { @MainActor [self] in
         """
         Expected failed feed recovery after deletion to alert and dismiss.
         alert presented: \(alert.config != nil)

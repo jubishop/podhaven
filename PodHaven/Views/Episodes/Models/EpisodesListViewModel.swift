@@ -170,15 +170,7 @@ class EpisodesListViewModel:
   var selectedPodcastEpisodes: [PodcastEpisode] {
     get async throws {
       let episodeIDs = selectedEpisodes.compactMap(\.episodeID)
-      guard !episodeIDs.isEmpty else { return [] }
-
-      var results: [PodcastEpisode] = []
-      for episodeID in episodeIDs {
-        if let podcastEpisode = try await repo.podcastEpisode(episodeID) {
-          results.append(podcastEpisode)
-        }
-      }
-      return results
+      return try await repo.podcastEpisodes(episodeIDs)
     }
   }
 }

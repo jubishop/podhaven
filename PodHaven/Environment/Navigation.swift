@@ -382,6 +382,8 @@ extension Container {
       return
     }
 
+    // Episodes and podcasts tabs always have a root destination entry,
+    // so we guard count > 1 to preserve it.
     switch currentTab {
     case .settings:
       guard !settings.path.isEmpty else { return }

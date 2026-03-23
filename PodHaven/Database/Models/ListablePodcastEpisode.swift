@@ -59,15 +59,10 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
     queueOrder = row[Episode.Columns.queueOrder]
     saveInCache = row[Episode.Columns.saveInCache]
 
-    let cachedFilename: String? = row[Episode.Columns.cachedFilename]
-    let downloadTaskID: URLSessionDownloadTask.ID? = row[Episode.Columns.downloadTaskID]
-    if cachedFilename != nil {
-      cacheStatus = .cached
-    } else if downloadTaskID != nil {
-      cacheStatus = .caching
-    } else {
-      cacheStatus = .uncached
-    }
+    cacheStatus = .from(
+      cachedFilename: row[Episode.Columns.cachedFilename] as String?,
+      downloadTaskID: row[Episode.Columns.downloadTaskID] as URLSessionDownloadTask.ID?
+    )
     guard let podcastRow = row.scopes["podcast"] else {
       Assert.fatal("ListablePodcastEpisode requires podcast scope via including(required:)")
     }
