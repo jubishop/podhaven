@@ -18,9 +18,7 @@
 		8B7DAA1E2D3F1294000E9153 /* Tagged in Frameworks */ = {isa = PBXBuildFile; productRef = 8B7DAA1D2D3F1294000E9153 /* Tagged */; };
 		8B80C7C62E2186EB007A7D1B /* SwiftNavigation in Frameworks */ = {isa = PBXBuildFile; productRef = 8B80C7C52E2186EB007A7D1B /* SwiftNavigation */; };
 		8B89D16B2DD57A3500E6B96E /* FactoryKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8B89D16A2DD57A3500E6B96E /* FactoryKit */; };
-		8B9B8B2C2DCBB25500E574E6 /* XMLCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9B8B282DCBB25500E574E6 /* XMLCoder */; };
 		8B9B8EE62DCD552B00E574E6 /* FactoryTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9B8EE52DCD552B00E574E6 /* FactoryTesting */; };
-		8B9B8EEE2DCD5BCB00E574E6 /* FactoryTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9B8EED2DCD5BCB00E574E6 /* FactoryTesting */; };
 		8B9E8DEF2D01722E00742C6C /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DEE2D01722E00742C6C /* Nuke */; };
 		8B9E8DF12D01722E00742C6C /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 8B9E8DF02D01722E00742C6C /* NukeUI */; };
 		8BA4F4222F3E74AC000AC336 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8BA4F4212F3E74AC000AC336 /* WidgetKit.framework */; };
@@ -31,7 +29,6 @@
 		8BAE003C2DDE79A4008E40B2 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 8BAE003B2DDE79A4008E40B2 /* Logging */; };
 		8BBD96982E2701F500BE32DD /* PodHavenShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8BBD968E2E2701F400BE32DD /* PodHavenShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8BC2DC902EC0FF0E00D323CF /* libswiftRegexBuilder.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 8BC2DC8F2EC0FF0E00D323CF /* libswiftRegexBuilder.tbd */; };
-		8BC2DC912EC0FF3700D323CF /* libswiftRegexBuilder.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 8BC2DC8F2EC0FF0E00D323CF /* libswiftRegexBuilder.tbd */; };
 		8BD0C2352CF5A01C00B7DC07 /* OrderedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD0C2342CF5A01C00B7DC07 /* OrderedCollections */; };
 		8BD2B1D02E8C8D0E007FD606 /* Algorithms in Frameworks */ = {isa = PBXBuildFile; productRef = 8BD2B1CF2E8C8D0E007FD606 /* Algorithms */; };
 		8BE319E92D0E22D8009F48C9 /* Semaphore in Frameworks */ = {isa = PBXBuildFile; productRef = 8BE319E82D0E22D8009F48C9 /* Semaphore */; };
@@ -39,13 +36,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		8B9B8B272DCBB25500E574E6 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 8BD7F9182CF2A49000CEDAA7 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 8BD7F91F2CF2A49000CEDAA7;
-			remoteInfo = PodHaven;
-		};
 		8BA4F42F2F3E74AD000AC336 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 8BD7F9182CF2A49000CEDAA7 /* Project object */;
@@ -86,7 +76,6 @@
 
 /* Begin PBXFileReference section */
 		8B1A2B3C2F4D5E6F00AABB11 /* Generated.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Generated.xcconfig; sourceTree = "<group>"; };
-		8B9B8B322DCBB25500E574E6 /* PerformanceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PerformanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PodHavenWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8BA4F4212F3E74AC000AC336 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		8BA4F4232F3E74AC000AC336 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -95,96 +84,10 @@
 		8BC2DC8F2EC0FF0E00D323CF /* libswiftRegexBuilder.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libswiftRegexBuilder.tbd; path = usr/lib/swift/libswiftRegexBuilder.tbd; sourceTree = SDKROOT; };
 		8BD0C2362CF638C700B7DC07 /* PodHaven.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = PodHaven.xctestplan; sourceTree = "<group>"; };
 		8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PodHaven.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		8BD7F9302CF2A49100CEDAA7 /* ParallelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ParallelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PodHavenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		8B8475D32DC0B88E00C6C2A5 /* Exceptions for "PodHavenTests" folder in "ParallelTests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				PerformanceTests/QueuePerformanceTests.swift,
-			);
-			target = 8BD7F92F2CF2A49100CEDAA7 /* ParallelTests */;
-		};
-		8B9B8B332DCBB25500E574E6 /* Exceptions for "PodHavenTests" folder in "PerformanceTests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				BackgroundTaskTests.swift,
-				CacheManagerTests.swift,
-				CachePurgerTests.swift,
-				DownloadManagerTests.swift,
-				EpisodeTests/ChaptersTests.swift,
-				EpisodeTests/DeletionAndCacheTests.swift,
-				EpisodeTests/PersistenceTests.swift,
-				EpisodeTests/QueryTests.swift,
-				EpisodeTests/RefreshTests.swift,
-				EpisodeTests/UpsertTests.swift,
-				ErrorTests.swift,
-				HTMLTests.swift,
-				ITunesIDTests.swift,
-				ITunesServiceTests.swift,
-				LogTests.swift,
-				MigrationTests/v1Tests.swift,
-				MigrationTests/v18Tests.swift,
-				MigrationTests/v19Tests.swift,
-				MigrationTests/v20Tests.swift,
-				MigrationTests/v21Tests.swift,
-				MigrationTests/v22Tests.swift,
-				MigrationTests/v23Tests.swift,
-				MigrationTests/v24Tests.swift,
-				MigrationTests/v25Tests.swift,
-				MigrationTests/v27Tests.swift,
-				MigrationTests/v28Tests.swift,
-				MigrationTests/v30Tests.swift,
-				MigrationTests/v31Tests.swift,
-				MigrationTests/v32Tests.swift,
-				NavigationTests.swift,
-				NotificationServiceTests.swift,
-				ObservatoryTests/MetadataTests.swift,
-				ObservatoryTests/ObservatoryOnDeckTests.swift,
-				ObservatoryTests/ObservatoryQueueTests.swift,
-				ObservatoryTests/PodcastEpisodesTests.swift,
-				ObservatoryTests/PodcastsTests.swift,
-				ObservatoryTests/PodcastsWithMetadataTests.swift,
-				PlayManagerTests/BackgroundCommandCenterLaunchTests.swift,
-				PlayManagerTests/CacheTests.swift,
-				CommandCenterTests/CommandCenterRateTests.swift,
-				CommandCenterTests/MediaServicesResetTests.swift,
-				CommandCenterTests/NextChapterModeTests.swift,
-				CommandCenterTests/NextTrackCommandTests.swift,
-				CommandCenterTests/SkipIntervalModeTests.swift,
-				PlayManagerTests/EpisodeFinishingTests.swift,
-				PlayManagerTests/LoadingTests.swift,
-				PlayManagerTests/PlaybackControlsTests.swift,
-				PlayManagerTests/PlaybackRateTests.swift,
-				PlayManagerTests/QueueManagementTests.swift,
-				PlayManagerTests/SeekingTests.swift,
-				PodcastFeedTests.swift,
-				PodcastOPMLTests.swift,
-				PodcastRSSTests.swift,
-				PodcastTests.swift,
-				QueueTests.swift,
-				RefreshManagerTests.swift,
-				SearchResultPodcastTests.swift,
-				ShareServiceTests.swift,
-				StateManagerTests.swift,
-				TagsTests.swift,
-				TimeIntervalTests.swift,
-				TimestampTests.swift,
-				UserNotificationManagerTests.swift,
-				Utility/CacheHelpers.swift,
-				Utility/PlayHelpers.swift,
-				Utility/ShareHelpers.swift,
-				Utility/WidgetHelpers.swift,
-				ViewModelTests/EpisodeDetailViewModelTests.swift,
-				ViewModelTests/OPMLViewModelTests.swift,
-				ViewModelTests/PodcastDetailViewModelTests.swift,
-				ViewModelTests/SearchViewModelTests.swift,
-				WidgetSnapshotTests.swift,
-				WidgetSnapshotWriterTests.swift,
-			);
-			target = 8B9B8B252DCBB25500E574E6 /* PerformanceTests */;
-		};
 		8BA4F4362F3E74AD000AC336 /* Exceptions for "PodHavenWidget" folder in "PodHavenWidget" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -280,8 +183,6 @@
 		8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				8B8475D32DC0B88E00C6C2A5 /* Exceptions for "PodHavenTests" folder in "ParallelTests" target */,
-				8B9B8B332DCBB25500E574E6 /* Exceptions for "PodHavenTests" folder in "PerformanceTests" target */,
 			);
 			path = PodHavenTests;
 			sourceTree = "<group>";
@@ -289,16 +190,6 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		8B9B8B2B2DCBB25500E574E6 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				8BC2DC912EC0FF3700D323CF /* libswiftRegexBuilder.tbd in Frameworks */,
-				8B9B8EEE2DCD5BCB00E574E6 /* FactoryTesting in Frameworks */,
-				8B9B8B2C2DCBB25500E574E6 /* XMLCoder in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		8BA4F41D2F3E74AC000AC336 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -383,8 +274,7 @@
 			isa = PBXGroup;
 			children = (
 				8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */,
-				8BD7F9302CF2A49100CEDAA7 /* ParallelTests.xctest */,
-				8B9B8B322DCBB25500E574E6 /* PerformanceTests.xctest */,
+				8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */,
 				8BBD968E2E2701F400BE32DD /* PodHavenShare.appex */,
 				8BA4F4202F3E74AC000AC336 /* PodHavenWidget.appex */,
 			);
@@ -394,31 +284,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		8B9B8B252DCBB25500E574E6 /* PerformanceTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 8B9B8B2F2DCBB25500E574E6 /* Build configuration list for PBXNativeTarget "PerformanceTests" */;
-			buildPhases = (
-				8B9B8B2A2DCBB25500E574E6 /* Sources */,
-				8B9B8B2B2DCBB25500E574E6 /* Frameworks */,
-				8B9B8B2E2DCBB25500E574E6 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				8B9B8B262DCBB25500E574E6 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */,
-			);
-			name = PerformanceTests;
-			packageProductDependencies = (
-				8B9B8B282DCBB25500E574E6 /* XMLCoder */,
-				8B9B8EED2DCD5BCB00E574E6 /* FactoryTesting */,
-			);
-			productName = PodHavenTests;
-			productReference = 8B9B8B322DCBB25500E574E6 /* PerformanceTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 		8BA4F41F2F3E74AC000AC336 /* PodHavenWidget */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8BA4F4322F3E74AD000AC336 /* Build configuration list for PBXNativeTarget "PodHavenWidget" */;
@@ -507,9 +372,9 @@
 			productReference = 8BD7F9202CF2A49000CEDAA7 /* PodHaven.app */;
 			productType = "com.apple.product-type.application";
 		};
-		8BD7F92F2CF2A49100CEDAA7 /* ParallelTests */ = {
+		8BD7F92F2CF2A49100CEDAA7 /* PodHavenTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 8BD7F9472CF2A49100CEDAA7 /* Build configuration list for PBXNativeTarget "ParallelTests" */;
+			buildConfigurationList = 8BD7F9472CF2A49100CEDAA7 /* Build configuration list for PBXNativeTarget "PodHavenTests" */;
 			buildPhases = (
 				8BD7F92C2CF2A49100CEDAA7 /* Sources */,
 				8BD7F92D2CF2A49100CEDAA7 /* Frameworks */,
@@ -523,13 +388,13 @@
 			fileSystemSynchronizedGroups = (
 				8BD7F9332CF2A49100CEDAA7 /* PodHavenTests */,
 			);
-			name = ParallelTests;
+			name = PodHavenTests;
 			packageProductDependencies = (
 				8B2AC0462D25D77900DB7FE5 /* XMLCoder */,
 				8B9B8EE52DCD552B00E574E6 /* FactoryTesting */,
 			);
 			productName = PodHavenTests;
-			productReference = 8BD7F9302CF2A49100CEDAA7 /* ParallelTests.xctest */;
+			productReference = 8BD7F9302CF2A49100CEDAA7 /* PodHavenTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -587,8 +452,7 @@
 			projectRoot = "";
 			targets = (
 				8BD7F91F2CF2A49000CEDAA7 /* PodHaven */,
-				8BD7F92F2CF2A49100CEDAA7 /* ParallelTests */,
-				8B9B8B252DCBB25500E574E6 /* PerformanceTests */,
+				8BD7F92F2CF2A49100CEDAA7 /* PodHavenTests */,
 				8BBD968D2E2701F400BE32DD /* PodHavenShare */,
 				8BA4F41F2F3E74AC000AC336 /* PodHavenWidget */,
 			);
@@ -596,13 +460,6 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		8B9B8B2E2DCBB25500E574E6 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		8BA4F41E2F3E74AC000AC336 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -654,13 +511,6 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		8B9B8B2A2DCBB25500E574E6 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		8BA4F41C2F3E74AC000AC336 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -692,11 +542,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		8B9B8B262DCBB25500E574E6 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 8BD7F91F2CF2A49000CEDAA7 /* PodHaven */;
-			targetProxy = 8B9B8B272DCBB25500E574E6 /* PBXContainerItemProxy */;
-		};
 		8BA4F4302F3E74AD000AC336 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 8BA4F41F2F3E74AC000AC336 /* PodHavenWidget */;
@@ -866,87 +711,6 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PodHaven.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PodHaven";
 			};
 			name = Development;
-		};
-		8B7332612E1778EB008C1622 /* Development */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SDKROOT)/usr/lib/swift",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PlayManagerTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PodHaven.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PodHaven";
-			};
-			name = Development;
-		};
-		8B9B8B302DCBB25500E574E6 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SDKROOT)/usr/lib/swift",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PlayManagerTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PodHaven.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PodHaven";
-			};
-			name = Debug;
-		};
-		8B9B8B312DCBB25500E574E6 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SDKROOT)/usr/lib/swift",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.artisanalsoftware.PlayManagerTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 1;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PodHaven.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PodHaven";
-			};
-			name = Release;
 		};
 		8BA4F4332F3E74AD000AC336 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -1455,16 +1219,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		8B9B8B2F2DCBB25500E574E6 /* Build configuration list for PBXNativeTarget "PerformanceTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				8B9B8B302DCBB25500E574E6 /* Debug */,
-				8B7332612E1778EB008C1622 /* Development */,
-				8B9B8B312DCBB25500E574E6 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		8BA4F4322F3E74AD000AC336 /* Build configuration list for PBXNativeTarget "PodHavenWidget" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1505,7 +1259,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		8BD7F9472CF2A49100CEDAA7 /* Build configuration list for PBXNativeTarget "ParallelTests" */ = {
+		8BD7F9472CF2A49100CEDAA7 /* Build configuration list for PBXNativeTarget "PodHavenTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				8BD7F9482CF2A49100CEDAA7 /* Debug */,
@@ -1584,14 +1338,6 @@
 		8B950BDB2D01720500E1D1AF /* XCRemoteSwiftPackageReference "Nuke" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kean/Nuke";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
-		8B9B8B292DCBB25500E574E6 /* XCRemoteSwiftPackageReference "XMLCoder" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/CoreOffice/XMLCoder";
 			requirement = {
 				branch = main;
 				kind = branch;
@@ -1686,17 +1432,7 @@
 			package = 8B2510D92D3317840033A510 /* XCRemoteSwiftPackageReference "Factory" */;
 			productName = FactoryKit;
 		};
-		8B9B8B282DCBB25500E574E6 /* XMLCoder */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 8B9B8B292DCBB25500E574E6 /* XCRemoteSwiftPackageReference "XMLCoder" */;
-			productName = XMLCoder;
-		};
 		8B9B8EE52DCD552B00E574E6 /* FactoryTesting */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 8B2510D92D3317840033A510 /* XCRemoteSwiftPackageReference "Factory" */;
-			productName = FactoryTesting;
-		};
-		8B9B8EED2DCD5BCB00E574E6 /* FactoryTesting */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8B2510D92D3317840033A510 /* XCRemoteSwiftPackageReference "Factory" */;
 			productName = FactoryTesting;

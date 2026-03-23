@@ -1,6 +1,6 @@
 ---
 description: Run tests and fix any failures
-argument-hint: [specific test class or method, e.g. ParallelTests/SomeTestClass/testMethod]
+argument-hint: [specific test class or method, e.g. PodHavenTests/SomeTestClass/testMethod]
 allowed-tools: Bash(xcodebuild:*), Bash(swift-format:*), Read, Edit, Write, Glob, Grep, Task
 disable-model-invocation: true
 ---
