@@ -311,7 +311,7 @@ class ITunesIDTests {
     #expect(unsavedSeries.unsavedPodcast.iTunesID == iTunesID)
   }
 
-  // MARK: - DisplayedPodcast.getOrCreatePodcast with iTunesID lookup
+  // MARK: - UnsavedPodcast.getOrCreatePodcast with iTunesID lookup
 
   @Test("getOrCreatePodcast resolves UnsavedPodcast to saved Podcast via iTunesID")
   func testGetOrCreatePodcastITunesIDResolution() async throws {
@@ -333,10 +333,9 @@ class ITunesIDTests {
       iTunesID: iTunesID,
       title: "Saved Podcast"
     )
-    let displayed = DisplayedPodcast(bridged)
 
     // Should resolve to the existing saved podcast, not create a new one
-    let resolved = try await displayed.getOrCreatePodcast()
+    let resolved = try await bridged.getOrCreatePodcast()
     #expect(resolved.id == series.podcast.id)
     #expect(resolved.feedURL == dbFeedURL)
 
