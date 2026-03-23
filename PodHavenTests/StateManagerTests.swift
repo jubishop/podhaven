@@ -361,7 +361,7 @@ actor StateManagerTests {
     let episode2 = try await fetchPodcastEpisode("episode2")
     let episode3 = try await fetchPodcastEpisode("episode3")
 
-    let observedEpisodes = ActorContainer<[PodcastEpisode]>()
+    let observedEpisodes = ActorContainer<[ListablePodcastEpisode]>()
 
     let task = Task {
       for await episodes in sharedState.$queuedPodcastEpisodes.stream() {

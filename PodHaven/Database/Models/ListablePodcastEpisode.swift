@@ -22,12 +22,14 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
   let title: String
   let pubDate: Date
   let duration: CMTime
-  private let episodeImage: URL?
+  let episodeImage: URL?
   let finishDate: Date?
   let currentTime: CMTime
   let queueOrder: Int?
   let cacheStatus: Episode.CacheStatus
   let saveInCache: Bool
+  let creationDate: Date
+  let queueDate: Date?
 
   // MARK: - Podcast Fields
 
@@ -58,6 +60,8 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
     currentTime = row[Episode.Columns.currentTime]
     queueOrder = row[Episode.Columns.queueOrder]
     saveInCache = row[Episode.Columns.saveInCache]
+    creationDate = row[Episode.Columns.creationDate]
+    queueDate = row[Episode.Columns.queueDate]
 
     cacheStatus = .from(
       cachedFilename: row[Episode.Columns.cachedFilename] as String?,
@@ -86,6 +90,8 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
     hasher.combine(queueOrder)
     hasher.combine(cacheStatus)
     hasher.combine(saveInCache)
+    hasher.combine(creationDate)
+    hasher.combine(queueDate)
     hasher.combine(feedURL)
     hasher.combine(podcastImage)
     hasher.combine(podcastTitle)
@@ -106,6 +112,8 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
       && lhs.queueOrder == rhs.queueOrder
       && lhs.cacheStatus == rhs.cacheStatus
       && lhs.saveInCache == rhs.saveInCache
+      && lhs.creationDate == rhs.creationDate
+      && lhs.queueDate == rhs.queueDate
       && lhs.feedURL == rhs.feedURL
       && lhs.podcastImage == rhs.podcastImage
       && lhs.podcastTitle == rhs.podcastTitle

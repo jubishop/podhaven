@@ -164,13 +164,4 @@ class EpisodesListViewModel:
       )
     }
   }
-
-  // MARK: - SelectableEpisodeList
-
-  var selectedPodcastEpisodes: [PodcastEpisode] {
-    get async throws {
-      let episodeIDs = selectedEpisodes.compactMap(\.episodeID)
-      return try await repo.podcastEpisodes(episodeIDs)
-    }
-  }
 }

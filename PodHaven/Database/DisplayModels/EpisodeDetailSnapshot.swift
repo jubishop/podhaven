@@ -51,7 +51,7 @@ struct EpisodeDetailSnapshot: EpisodeDisplayable, Hashable, Sendable {
       description = nil
       duration = listablePodcastEpisode.duration
       currentTime = listablePodcastEpisode.currentTime
-      queueDate = nil
+      queueDate = listablePodcastEpisode.queueDate
       queueOrder = listablePodcastEpisode.queueOrder
       cacheStatus = listablePodcastEpisode.cacheStatus
       finishDate = listablePodcastEpisode.finishDate

@@ -85,7 +85,7 @@ struct UpNextView: View {
   // MARK: - Episode List
 
   @ViewBuilder
-  func upNextListView(_ podcastEpisode: PodcastEpisode) -> some View {
+  func upNextListView(_ podcastEpisode: ListablePodcastEpisode) -> some View {
     let episodeListView = EpisodeListView(
       episode: podcastEpisode,
       alwaysShowPodcastImage: userSettings.alwaysShowPodcastImageInUpNext,
@@ -98,7 +98,7 @@ struct UpNextView: View {
       episodeListView
     } else {
       NavigationLink(
-        value: Navigation.Destination.episode(DisplayedEpisode(podcastEpisode)),
+        value: Navigation.Destination.listedEpisode(ListedEpisode(podcastEpisode)),
         label: { episodeListView }
       )
     }
