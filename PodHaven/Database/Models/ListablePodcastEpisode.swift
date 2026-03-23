@@ -136,6 +136,8 @@ struct ListablePodcastEpisode: EpisodeListable, Searchable, FetchableRecord, Ide
       Episode.Columns.saveInCache,
       Episode.Columns.cachedFilename,
       Episode.Columns.downloadTaskID,
+      Episode.Columns.creationDate,
+      Episode.Columns.queueDate,
     ]
   }
 
