@@ -111,7 +111,7 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   func scheduleNext() {
-    bgTaskScheduler.getPendingTaskRequests { [self] requests in
+    bgTaskScheduler.getPendingTaskRequests { requests in
       if requests.contains(where: { $0.identifier == identifier }) {
         Self.log.debug("scheduleNext: task already pending for \(identifier), skipping")
         return
@@ -151,12 +151,8 @@ struct BackgroundTaskScheduler: Sendable {
     }
   }
 
-  func confirmAndLogPendingTask() {
-    guard lastAttempt != .distantPast else {
-      return
-    }
-
-    bgTaskScheduler.getPendingTaskRequests { [self] requests in
+  private func confirmAndLogPendingTask() {
+    bgTaskScheduler.getPendingTaskRequests { requests in
       let hasPending = requests.contains { $0.identifier == identifier }
       if hasPending {
         Self.log.debug("Pending task verified for '\(identifier)'")

@@ -284,30 +284,6 @@ struct BackgroundTaskSchedulerTests {
     #expect(fake.pendingIdentifiers.isEmpty)
   }
 
-  // MARK: - Confirm And Log
-
-  @Test("confirmAndLogPendingTask does not query pending tasks before the first schedule")
-  func confirmDoesNothingBeforeFirstSchedule() {
-    let scheduler = makeScheduler()
-
-    scheduler.confirmAndLogPendingTask()
-
-    #expect(fake.pendingTaskRequestsCallCount == 0)
-  }
-
-  @Test("confirmAndLogPendingTask queries pending tasks after scheduling")
-  func confirmQueriesAfterScheduling() {
-    let scheduler = makeScheduler(cadence: .seconds(0))
-
-    scheduler.scheduleNext()
-    #expect(fake.pendingIdentifiers.contains(Self.testIdentifier))
-
-    let callCountBeforeConfirm = fake.pendingTaskRequestsCallCount
-    scheduler.confirmAndLogPendingTask()
-
-    #expect(fake.pendingTaskRequestsCallCount == callCountBeforeConfirm + 1)
-  }
-
   // MARK: - BackgroundTaskType
 
   @Test(

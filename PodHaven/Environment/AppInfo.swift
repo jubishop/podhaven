@@ -34,15 +34,9 @@ enum AppInfo {
 
   // MARK: - Environment Info
 
-  private static let myDeviceIDs: Set<String> = [
-    "E1AD1745-A8FB-4DC1-954E-9DA3BA956CD4",  // iPhoneDev
-    "6B915F57-D7FC-4249-8FAD-B71F5D362CEB",  // testFlight
-  ]
-
   private static let _deviceIdentifier = ThreadSafe<String>("Unknown")
   static var deviceIdentifier: String { _deviceIdentifier() }
-
-  static var myDevice: Bool { myDeviceIDs.contains(deviceIdentifier) }
+  static var myDevice: Bool { deviceIdentifier == "6B915F57-D7FC-4249-8FAD-B71F5D362CEB" }
 
   private static let _environment = ThreadSafe<EnvironmentType>(.appStore)
   static var environment: EnvironmentType {
