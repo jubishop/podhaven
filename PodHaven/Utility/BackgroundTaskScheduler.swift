@@ -25,11 +25,12 @@ enum BackgroundTaskType: Sendable {
 struct BackgroundTaskScheduler: Sendable {
   typealias Completion = @Sendable (Bool) -> Void
 
+  @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
+
   private static let log = Log.as("BackgroundTaskScheduler")
 
   private let identifier: String
   private let cadence: Duration
-  private let systemScheduler: any BGTaskScheduling
   private let taskType: BackgroundTaskType
   @PersistedThreadSafe private var lastAttempt: Date
 
@@ -58,12 +59,10 @@ struct BackgroundTaskScheduler: Sendable {
   init(
     identifier: String,
     cadence: Duration,
-    systemScheduler: any BGTaskScheduling = Container.shared.bgTaskScheduler(),
     taskType: BackgroundTaskType
   ) {
     self.identifier = identifier
     self.cadence = cadence
-    self.systemScheduler = systemScheduler
     self.taskType = taskType
     _lastAttempt = PersistedThreadSafe(
       wrappedValue: .distantPast,
@@ -77,7 +76,7 @@ struct BackgroundTaskScheduler: Sendable {
     Once.run(identifier) {
       Self.log.info("register() called for: \(identifier)")
 
-      let success = systemScheduler.register(
+      let success = bgTaskScheduler.register(
         forTaskWithIdentifier: identifier,
         using: nil
       ) { task in
@@ -121,7 +120,7 @@ struct BackgroundTaskScheduler: Sendable {
       return
     }
 
-    systemScheduler.getPendingTaskRequests { [self] requests in
+    bgTaskScheduler.getPendingTaskRequests { [self] requests in
       let hasPending = requests.contains { $0.identifier == identifier }
       if hasPending {
         Self.log.debug("scheduleNextIfNeeded: task already pending for \(identifier), skipping")
@@ -142,7 +141,7 @@ struct BackgroundTaskScheduler: Sendable {
     lastAttempt = .now
 
     do {
-      try systemScheduler.submit(request)
+      try bgTaskScheduler.submit(request)
     } catch {
       Self.log.caughtError("scheduleNext: failed to submit background task '\(identifier)'", error)
       return
@@ -164,7 +163,7 @@ struct BackgroundTaskScheduler: Sendable {
       return
     }
 
-    systemScheduler.getPendingTaskRequests { [self] requests in
+    bgTaskScheduler.getPendingTaskRequests { [self] requests in
       let hasPending = requests.contains { $0.identifier == identifier }
       if hasPending {
         Self.log.debug("Pending task verified for '\(identifier)'")
