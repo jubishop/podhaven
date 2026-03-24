@@ -126,10 +126,9 @@ final class FakeBGTaskScheduler: BGTaskScheduling, Sendable {
 
     let pendingRequests = Array(_pendingRequests().values)
     if _deliverPendingRequestsAsynchronously() {
-      DispatchQueue.global()
-        .async {
-          completionHandler(pendingRequests.map { $0.makeRequest() })
-        }
+      Task {
+        completionHandler(pendingRequests.map { $0.makeRequest() })
+      }
       return
     }
 
