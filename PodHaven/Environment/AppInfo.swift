@@ -194,7 +194,10 @@ enum AppInfo {
   }
 
   static var bundleIdentifier: String {
-    Bundle.main.bundleIdentifier ?? "com.artisanalsoftware.PodHaven"
+    guard let identifier = Bundle.main.bundleIdentifier else {
+      Assert.fatal("Bundle.main.bundleIdentifier is nil")
+    }
+    return identifier
   }
 
   static var dataDirectoryName: String? {
