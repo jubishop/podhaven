@@ -97,7 +97,9 @@ struct BackgroundTaskScheduler: Sendable {
         }
 
         scheduleNextIfNeeded()
-        bgTask(Task(priority: .background) { await executionTask(complete) })
+        let work = Task { await executionTask(complete) }
+        bgTask(work)
+        if didComplete.isClaimed { work.cancel() }
       }
 
       guard success else {
@@ -113,7 +115,7 @@ struct BackgroundTaskScheduler: Sendable {
 
   func scheduleNextIfNeeded() {
     let elapsed = Date.now.timeIntervalSince(lastAttempt)
-    guard elapsed >= cadence.asTimeInterval else {
+    guard elapsed >= cadence.asTimeInterval / 2 else {
       Self.log.debug(
         "scheduleNextIfNeeded: throttled for \(identifier), last attempt \(Int(elapsed))s ago"
       )
