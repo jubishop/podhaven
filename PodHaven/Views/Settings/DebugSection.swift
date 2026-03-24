@@ -13,15 +13,9 @@ struct DebugSection: View {
     Section("Debugging") {
       Text("Environment: \(AppInfo.environment.rawValue)")
 
-      if AppInfo.myDevice {
-        Button("Copy Device ID") {
-          UIPasteboard.general.string = AppInfo.deviceIdentifier
-        }
-
-        Text("Git: \(AppInfo.gitCommitHash)")
+      Button("Device ID \(AppInfo.deviceIdentifier)") {
+        UIPasteboard.general.string = AppInfo.deviceIdentifier
       }
-
-      Text("Language: \(AppInfo.languageCode ?? "Unknown")")
 
       #if DEBUG
       Text("in DEBUG")
@@ -31,6 +25,8 @@ struct DebugSection: View {
       #endif
 
       if AppInfo.myDevice {
+        Text("Git: \(AppInfo.gitCommitHash)")
+
         Button("Show Pending Background Tasks") {
           bgTaskScheduler.getPendingTaskRequests { requests in
             let formatted = BackgroundTaskScheduler.formatPendingTasks(requests)
