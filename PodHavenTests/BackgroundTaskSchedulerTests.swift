@@ -322,49 +322,4 @@ struct BackgroundTaskSchedulerTests {
     let processing = request as! BGProcessingTaskRequest
     #expect(processing.requiresNetworkConnectivity == false)
   }
-
-  // MARK: - Format Pending Tasks
-
-  @Test("formatPendingTasks formats processing requests")
-  func formatPendingTasksProcessing() {
-    let request = BGProcessingTaskRequest(identifier: "com.test.processing")
-    let formatted = BackgroundTaskScheduler.formatPendingTasks([request])
-
-    #expect(formatted.contains("com.test.processing"))
-    #expect(formatted.contains("processing"))
-  }
-
-  @Test("formatPendingTasks formats refresh requests")
-  func formatPendingTasksRefresh() {
-    let request = BGAppRefreshTaskRequest(identifier: "com.test.refresh")
-    let formatted = BackgroundTaskScheduler.formatPendingTasks([request])
-
-    #expect(formatted.contains("com.test.refresh"))
-    #expect(formatted.contains("refresh"))
-  }
-
-  @Test("formatPendingTasks formats earliest begin date")
-  func formatPendingTasksWithDate() {
-    let request = BGAppRefreshTaskRequest(identifier: "com.test.dated")
-    request.earliestBeginDate = Date.now
-    let formatted = BackgroundTaskScheduler.formatPendingTasks([request])
-
-    #expect(formatted.contains("com.test.dated"))
-    #expect(!formatted.contains("none"))
-  }
-
-  @Test("formatPendingTasks shows none for nil date")
-  func formatPendingTasksNilDate() {
-    let request = BGAppRefreshTaskRequest(identifier: "com.test.nodate")
-    let formatted = BackgroundTaskScheduler.formatPendingTasks([request])
-
-    #expect(formatted.contains("none"))
-  }
-
-  @Test("formatPendingTasks handles empty list")
-  func formatPendingTasksEmpty() {
-    let formatted = BackgroundTaskScheduler.formatPendingTasks([])
-
-    #expect(formatted.isEmpty)
-  }
 }

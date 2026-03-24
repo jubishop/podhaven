@@ -146,24 +146,6 @@ struct BackgroundTaskScheduler: Sendable {
           earliest begin date: \(request.earliestBeginDate?.description ?? "nil")
         """
       )
-
-      confirmAndLogPendingTask()
-    }
-  }
-
-  private func confirmAndLogPendingTask() {
-    bgTaskScheduler.getPendingTaskRequests { requests in
-      let hasPending = requests.contains { $0.identifier == identifier }
-      if hasPending {
-        Self.log.debug("Pending task verified for '\(identifier)'")
-      } else {
-        Self.log.error(
-          """
-          Expected a pending task for '\(identifier)' but none found — \
-          last scheduling attempt: \(lastAttempt.formatted())
-          """
-        )
-      }
     }
   }
 }
