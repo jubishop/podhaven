@@ -163,21 +163,21 @@ struct BackgroundTaskSchedulerTests {
 
   // MARK: - Schedule Next If Needed
 
-  @Test("scheduleNextIfNeeded submits when cadence has elapsed and no pending tasks")
-  func scheduleNextIfNeededSubmitsWhenReady() {
+  @Test("scheduleNext submits when cadence has elapsed and no pending tasks")
+  func scheduleNextSubmitsWhenReady() {
     let scheduler = makeScheduler(cadence: .seconds(1))
 
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
 
     #expect(fake.submissions.count == 1)
   }
 
-  @Test("scheduleNextIfNeeded submits when pending requests are returned asynchronously")
-  func scheduleNextIfNeededSupportsAsyncPendingRequestLookup() async throws {
+  @Test("scheduleNext submits when pending requests are returned asynchronously")
+  func scheduleNextSupportsAsyncPendingRequestLookup() async throws {
     let scheduler = makeScheduler(cadence: .seconds(0))
     fake.setDeliverPendingRequestsAsynchronously(true)
 
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
 
     try await Wait.until(
       { fake.submissions.count == 1 },
@@ -185,33 +185,33 @@ struct BackgroundTaskSchedulerTests {
     )
   }
 
-  @Test("scheduleNextIfNeeded throttles when called within cadence")
-  func scheduleNextIfNeededThrottles() {
+  @Test("scheduleNext throttles when called within cadence")
+  func scheduleNextThrottles() {
     let scheduler = makeScheduler(cadence: .hours(1))
 
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
     #expect(fake.submissions.count == 1)
 
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
     #expect(fake.submissions.count == 1)
   }
 
-  @Test("scheduleNextIfNeeded skips when task is already pending")
-  func scheduleNextIfNeededSkipsWhenPending() {
+  @Test("scheduleNext skips when task is already pending")
+  func scheduleNextSkipsWhenPending() {
     let scheduler = makeScheduler(cadence: .seconds(0))
     fake.addPendingIdentifier(Self.testIdentifier)
 
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
 
     #expect(fake.submissions.isEmpty)
   }
 
-  @Test("scheduleNextIfNeeded ignores pending tasks with different identifiers")
-  func scheduleNextIfNeededIgnoresOtherPending() {
+  @Test("scheduleNext ignores pending tasks with different identifiers")
+  func scheduleNextIgnoresOtherPending() {
     let scheduler = makeScheduler(cadence: .seconds(0))
     fake.addPendingIdentifier("some.other.identifier")
 
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
 
     #expect(fake.submissions.count == 1)
   }
@@ -225,7 +225,7 @@ struct BackgroundTaskSchedulerTests {
       taskType: .processing(requiresNetworkConnectivity: true)
     )
 
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
 
     let submission = try #require(fake.submissions.first)
     #expect(submission.isProcessing == true)
@@ -236,7 +236,7 @@ struct BackgroundTaskSchedulerTests {
   func schedulingAppRefreshTask() throws {
     let scheduler = makeScheduler(cadence: .seconds(0), taskType: .appRefresh)
 
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
 
     let submission = try #require(fake.submissions.first)
     #expect(submission.isProcessing == false)
@@ -248,7 +248,7 @@ struct BackgroundTaskSchedulerTests {
     let scheduler = makeScheduler(cadence: cadence, taskType: .appRefresh)
 
     let before = Date.now
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
     let after = Date.now
 
     let submission = try #require(fake.submissions.first)
@@ -269,7 +269,7 @@ struct BackgroundTaskSchedulerTests {
     let scheduler = makeScheduler(cadence: .seconds(0))
     fake.setSubmitError(TestError.simulatedFailure)
 
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
 
     #expect(fake.submissions.isEmpty)
   }
@@ -279,7 +279,7 @@ struct BackgroundTaskSchedulerTests {
     let scheduler = makeScheduler(cadence: .seconds(0))
     fake.setSubmitError(TestError.simulatedFailure)
 
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
 
     #expect(fake.pendingIdentifiers.isEmpty)
   }
@@ -299,7 +299,7 @@ struct BackgroundTaskSchedulerTests {
   func confirmQueriesAfterScheduling() {
     let scheduler = makeScheduler(cadence: .seconds(0))
 
-    scheduler.scheduleNextIfNeeded()
+    scheduler.scheduleNext()
     #expect(fake.pendingIdentifiers.contains(Self.testIdentifier))
 
     let callCountBeforeConfirm = fake.pendingTaskRequestsCallCount

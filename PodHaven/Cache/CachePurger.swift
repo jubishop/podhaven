@@ -257,7 +257,7 @@ struct CachePurger: Sendable {
     case .background:
       Self.log.debug("backgrounded")
 
-      backgroundTaskScheduler.scheduleNextIfNeeded()
+      backgroundTaskScheduler.scheduleNext()
     default:
       break
     }

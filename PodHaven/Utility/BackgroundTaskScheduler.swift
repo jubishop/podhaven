@@ -96,7 +96,7 @@ struct BackgroundTaskScheduler: Sendable {
           complete(false)
         }
 
-        scheduleNextIfNeeded()
+        scheduleNext()
         bgTask(Task { await executionTask(complete) })
       }
 
@@ -106,52 +106,49 @@ struct BackgroundTaskScheduler: Sendable {
       }
 
       Self.log.info("Registration for BackgroundTask: \(identifier) complete")
-
-      scheduleNextIfNeeded()
-    }
-  }
-
-  func scheduleNextIfNeeded() {
-    bgTaskScheduler.getPendingTaskRequests { [self] requests in
-      if requests.contains(where: { $0.identifier == identifier }) {
-        Self.log.debug("scheduleNextIfNeeded: task already pending for \(identifier), skipping")
-        return
-      }
-
-      Self.log.debug("scheduleNextIfNeeded: no pending task for \(identifier), scheduling")
       scheduleNext()
     }
   }
 
-  private func scheduleNext() {
-    let elapsed = Date.now.timeIntervalSince(lastAttempt)
-    guard elapsed >= cadence.asTimeInterval / 2 else {
+  func scheduleNext() {
+    bgTaskScheduler.getPendingTaskRequests { [self] requests in
+      if requests.contains(where: { $0.identifier == identifier }) {
+        Self.log.debug("scheduleNext: task already pending for \(identifier), skipping")
+        return
+      }
+
+      let elapsed = Date.now.timeIntervalSince(lastAttempt)
+      guard elapsed >= cadence.asTimeInterval / 2 else {
+        Self.log.debug(
+          "scheduleNext: throttled for \(identifier), last attempt \(Int(elapsed))s ago"
+        )
+        return
+      }
+      lastAttempt = .now
+
+      let request = taskType.makeRequest(identifier: identifier)
+      request.earliestBeginDate = Date.now.advanced(by: cadence.asTimeInterval)
+
+      do {
+        try bgTaskScheduler.submit(request)
+      } catch {
+        Self.log.caughtError(
+          "scheduleNext: failed to submit background task '\(identifier)'",
+          error
+        )
+        return
+      }
+
       Self.log.debug(
-        "scheduleNext: throttled for \(identifier), last attempt \(Int(elapsed))s ago"
+        """
+        scheduled next background task: \(identifier)
+          cadence: \(cadence)
+          earliest begin date: \(request.earliestBeginDate?.description ?? "nil")
+        """
       )
-      return
+
+      confirmAndLogPendingTask()
     }
-    lastAttempt = .now
-
-    let request = taskType.makeRequest(identifier: identifier)
-    request.earliestBeginDate = Date.now.advanced(by: cadence.asTimeInterval)
-
-    do {
-      try bgTaskScheduler.submit(request)
-    } catch {
-      Self.log.caughtError("scheduleNext: failed to submit background task '\(identifier)'", error)
-      return
-    }
-
-    Self.log.debug(
-      """
-      scheduled next background task: \(identifier)
-        cadence: \(cadence)
-        earliest begin date: \(request.earliestBeginDate?.description ?? "nil")
-      """
-    )
-
-    confirmAndLogPendingTask()
   }
 
   func confirmAndLogPendingTask() {
