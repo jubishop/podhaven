@@ -97,9 +97,7 @@ struct BackgroundTaskScheduler: Sendable {
         }
 
         scheduleNextIfNeeded()
-        let work = Task { await executionTask(complete) }
-        bgTask(work)
-        if didComplete.isClaimed { work.cancel() }
+        bgTask(Task { await executionTask(complete) })
       }
 
       guard success else {
@@ -114,17 +112,8 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   func scheduleNextIfNeeded() {
-    let elapsed = Date.now.timeIntervalSince(lastAttempt)
-    guard elapsed >= cadence.asTimeInterval / 2 else {
-      Self.log.debug(
-        "scheduleNextIfNeeded: throttled for \(identifier), last attempt \(Int(elapsed))s ago"
-      )
-      return
-    }
-
     bgTaskScheduler.getPendingTaskRequests { [self] requests in
-      let hasPending = requests.contains { $0.identifier == identifier }
-      if hasPending {
+      if requests.contains(where: { $0.identifier == identifier }) {
         Self.log.debug("scheduleNextIfNeeded: task already pending for \(identifier), skipping")
         return
       }
@@ -135,12 +124,17 @@ struct BackgroundTaskScheduler: Sendable {
   }
 
   private func scheduleNext() {
-    Self.log.debug("scheduleNext() called for: \(identifier)")
+    let elapsed = Date.now.timeIntervalSince(lastAttempt)
+    guard elapsed >= cadence.asTimeInterval / 2 else {
+      Self.log.debug(
+        "scheduleNext: throttled for \(identifier), last attempt \(Int(elapsed))s ago"
+      )
+      return
+    }
+    lastAttempt = .now
 
     let request = taskType.makeRequest(identifier: identifier)
     request.earliestBeginDate = Date.now.advanced(by: cadence.asTimeInterval)
-
-    lastAttempt = .now
 
     do {
       try bgTaskScheduler.submit(request)
