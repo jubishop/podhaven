@@ -100,7 +100,7 @@ class EmbeddingServiceTests {
     #expect(cached?.dimension == 3)
 
     // Second call should skip (already cached)
-    let originalComputedAt = cached!.computedAt
+    let originalComputedAt = cached!.creationDate
     try await embeddingService.ensureEmbeddings(
       for: [episode],
       embedding: embedding,
@@ -108,7 +108,7 @@ class EmbeddingServiceTests {
     )
 
     let cached2 = try await repo.embedding(for: episode.id)
-    #expect(cached2?.computedAt == originalComputedAt)
+    #expect(cached2?.creationDate == originalComputedAt)
   }
 
   // MARK: - Source Hash Invalidation
@@ -140,15 +140,14 @@ class EmbeddingServiceTests {
 
     // Overwrite with a stale hash but different vector
     let staleVector: [Float] = [99.0, 99.0, 99.0]
-    let staleEmbedding = EpisodeEmbedding(
+    let staleEmbedding = UnsavedEpisodeEmbedding(
       episodeId: episode.id,
-      vector: EpisodeEmbedding.vectorData(from: staleVector),
+      vector: UnsavedEpisodeEmbedding.vectorData(from: staleVector),
       sourceHash: "stale-hash",
       embeddingRevision: 1,
-      dimension: 3,
-      computedAt: Date()
+      dimension: 3
     )
-    try await repo.insertEmbedding(staleEmbedding)
+    try await repo.upsertEmbedding(staleEmbedding)
 
     // Verify stale embedding was saved
     let afterStale = try await repo.embedding(for: episode.id)!

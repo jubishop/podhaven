@@ -111,28 +111,33 @@ struct EmbeddingService: Sendable {
     podcastID: Podcast.ID,
     embedding: any Embedding
   ) async throws -> [Float]? {
-    if let cached = try await repo.podcastEmbedding(for: podcastID) {
-      return cached.floatVector
-    }
-
     guard let podcast = try await repo.podcast(podcastID) else { return nil }
 
     let cleanedDescription = cleanText(podcast.description)
     guard !cleanedDescription.isEmpty else { return nil }
 
+    let hash = sha256(cleanedDescription)
+
+    // Return cached if still fresh (same source hash and revision)
+    if let cached = try await repo.podcastEmbedding(for: podcastID),
+      cached.sourceHash == hash,
+      cached.embeddingRevision == embedding.revision
+    {
+      return cached.floatVector
+    }
+
     let text = String(cleanedDescription.prefix(embedding.maximumInputLength))
     let vector = try embedding.vector(for: text)
     let normalized = normalize(vector)
 
-    let podcastEmbedding = PodcastEmbedding(
+    let unsaved = UnsavedPodcastEmbedding(
       podcastId: podcastID,
-      vector: PodcastEmbedding.vectorData(from: normalized),
-      sourceHash: sha256(cleanedDescription),
+      vector: UnsavedPodcastEmbedding.vectorData(from: normalized),
+      sourceHash: hash,
       embeddingRevision: embedding.revision,
-      dimension: normalized.count,
-      computedAt: Date()
+      dimension: normalized.count
     )
-    try await repo.insertPodcastEmbedding(podcastEmbedding)
+    try await repo.upsertPodcastEmbedding(unsaved)
 
     return normalized
   }
@@ -148,26 +153,25 @@ struct EmbeddingService: Sendable {
       if checkCancellation { try Task.checkCancellation() }
 
       let existingEmbedding = try await repo.embedding(for: episode.id)
-      let sourceText = embeddingSourceText(for: episode)
-      let hash = sha256(sourceText)
+      let hash = try await fullSourceHash(for: episode)
 
       let needsRecompute =
         existingEmbedding == nil
         || existingEmbedding?.sourceHash != hash
+        || existingEmbedding?.embeddingRevision != embedding.revision
 
       guard needsRecompute else { continue }
 
       let vector = try await computeEmbedding(for: episode, embedding: embedding)
 
-      let episodeEmbedding = EpisodeEmbedding(
+      let unsaved = UnsavedEpisodeEmbedding(
         episodeId: episode.id,
-        vector: EpisodeEmbedding.vectorData(from: vector),
+        vector: UnsavedEpisodeEmbedding.vectorData(from: vector),
         sourceHash: hash,
         embeddingRevision: embedding.revision,
-        dimension: vector.count,
-        computedAt: Date()
+        dimension: vector.count
       )
-      try await repo.insertEmbedding(episodeEmbedding)
+      try await repo.upsertEmbedding(unsaved)
     }
   }
 
@@ -236,8 +240,14 @@ struct EmbeddingService: Sendable {
 
   // MARK: - Helpers
 
-  func embeddingSourceText(for episode: Episode) -> String {
-    "\(episode.title) \(episode.description ?? "")"
+  // Includes episode text AND podcast description so the hash invalidates
+  // when either the episode or its podcast description changes.
+  private func fullSourceHash(for episode: Episode) async throws -> String {
+    var text = "\(episode.title) \(episode.description ?? "")"
+    if let podcast = try await repo.podcast(episode.podcastID) {
+      text += " \(podcast.description)"
+    }
+    return sha256(text)
   }
 
   private func sha256(_ text: String) -> String {

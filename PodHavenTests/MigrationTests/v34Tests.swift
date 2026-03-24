@@ -22,7 +22,7 @@ class V34MigrationTests {
     #expect(columns.contains("sourceHash"))
     #expect(columns.contains("embeddingRevision"))
     #expect(columns.contains("dimension"))
-    #expect(columns.contains("computedAt"))
+    #expect(columns.contains("creationDate"))
   }
 
   @Test("v34 creates podcastEmbedding table with correct columns")
@@ -35,7 +35,7 @@ class V34MigrationTests {
     #expect(columns.contains("sourceHash"))
     #expect(columns.contains("embeddingRevision"))
     #expect(columns.contains("dimension"))
-    #expect(columns.contains("computedAt"))
+    #expect(columns.contains("creationDate"))
   }
 
   @Test("episodeEmbedding cascades on episode delete")
@@ -50,15 +50,14 @@ class V34MigrationTests {
     let podcastID = podcastEpisodes.first!.podcast.id
 
     let testVector: [Float] = [1.0, 0.0, 0.0]
-    let embedding = EpisodeEmbedding(
+    let unsaved = UnsavedEpisodeEmbedding(
       episodeId: episodeID,
-      vector: EpisodeEmbedding.vectorData(from: testVector),
+      vector: UnsavedEpisodeEmbedding.vectorData(from: testVector),
       sourceHash: "test",
       embeddingRevision: 1,
-      dimension: 3,
-      computedAt: Date()
+      dimension: 3
     )
-    try await Container.shared.repo().insertEmbedding(embedding)
+    try await Container.shared.repo().upsertEmbedding(unsaved)
 
     let beforeDelete = try await Container.shared.repo().embedding(for: episodeID)
     #expect(beforeDelete != nil)

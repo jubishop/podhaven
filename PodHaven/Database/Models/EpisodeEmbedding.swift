@@ -2,17 +2,16 @@
 
 import Foundation
 import GRDB
+import SavedMacro
+import Tagged
 
-struct EpisodeEmbedding:
-  Codable,
-  Equatable,
-  FetchableRecord,
-  Hashable,
-  PersistableRecord,
-  Sendable,
-  TableRecord,
+struct UnsavedEpisodeEmbedding:
+  Identifiable,
+  Savable,
   VectorStorable
 {
+  var id: Episode.ID { episodeId }
+
   // MARK: - Data
 
   static let databaseTableName: String = "episodeEmbedding"
@@ -22,8 +21,16 @@ struct EpisodeEmbedding:
   let sourceHash: String
   let embeddingRevision: Int
   let dimension: Int
-  let computedAt: Date
 
+  // MARK: - Stringable / Searchable
+
+  var toString: String { "embedding[\(episodeId)]" }
+  var searchableString: String { toString }
+
+}
+
+@Saved<UnsavedEpisodeEmbedding>
+struct EpisodeEmbedding: Saved, VectorStorable {
   // MARK: - Associations
 
   static let episode = belongsTo(Episode.self)
@@ -31,12 +38,20 @@ struct EpisodeEmbedding:
   // MARK: - Columns
 
   enum Columns {
+    static let id = Column("id")
     static let episodeId = Column("episodeId")
     static let vector = Column("vector")
     static let sourceHash = Column("sourceHash")
     static let embeddingRevision = Column("embeddingRevision")
     static let dimension = Column("dimension")
-    static let computedAt = Column("computedAt")
+    static let creationDate = Column("creationDate")
   }
 
+  // MARK: - Passthroughs
+
+  var episodeId: Episode.ID { unsaved.episodeId }
+  var vector: Data { unsaved.vector }
+  var sourceHash: String { unsaved.sourceHash }
+  var embeddingRevision: Int { unsaved.embeddingRevision }
+  var dimension: Int { unsaved.dimension }
 }

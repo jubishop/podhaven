@@ -413,17 +413,19 @@ struct Repo: Databasing, Sendable {
 
   // MARK: - Embedding Writers
 
-  func insertEmbedding(_ embedding: EpisodeEmbedding) async throws {
-    Self.log.debug("insertEmbedding: episode \(embedding.episodeId)")
-    try await appDB.db.write { db in
-      try embedding.save(db)
+  @discardableResult
+  func upsertEmbedding(_ unsaved: UnsavedEpisodeEmbedding) async throws -> EpisodeEmbedding {
+    Self.log.debug("upsertEmbedding: episode \(unsaved.episodeId)")
+    return try await appDB.db.write { db in
+      try unsaved.upsertAndFetch(db, as: EpisodeEmbedding.self)
     }
   }
 
-  func insertPodcastEmbedding(_ embedding: PodcastEmbedding) async throws {
-    Self.log.debug("insertPodcastEmbedding: podcast \(embedding.podcastId)")
-    try await appDB.db.write { db in
-      try embedding.save(db)
+  @discardableResult
+  func upsertPodcastEmbedding(_ unsaved: UnsavedPodcastEmbedding) async throws -> PodcastEmbedding {
+    Self.log.debug("upsertPodcastEmbedding: podcast \(unsaved.podcastId)")
+    return try await appDB.db.write { db in
+      try unsaved.upsertAndFetch(db, as: PodcastEmbedding.self)
     }
   }
 

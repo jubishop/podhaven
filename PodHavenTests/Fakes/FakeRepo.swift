@@ -274,14 +274,16 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.podcast(podcastID)
   }
 
-  func insertEmbedding(_ embedding: EpisodeEmbedding) async throws {
-    recordCall(methodName: "insertEmbedding", parameters: embedding.episodeId)
-    try await repo.insertEmbedding(embedding)
+  @discardableResult
+  func upsertEmbedding(_ unsaved: UnsavedEpisodeEmbedding) async throws -> EpisodeEmbedding {
+    recordCall(methodName: "upsertEmbedding", parameters: unsaved.episodeId)
+    return try await repo.upsertEmbedding(unsaved)
   }
 
-  func insertPodcastEmbedding(_ embedding: PodcastEmbedding) async throws {
-    recordCall(methodName: "insertPodcastEmbedding", parameters: embedding.podcastId)
-    try await repo.insertPodcastEmbedding(embedding)
+  @discardableResult
+  func upsertPodcastEmbedding(_ unsaved: UnsavedPodcastEmbedding) async throws -> PodcastEmbedding {
+    recordCall(methodName: "upsertPodcastEmbedding", parameters: unsaved.podcastId)
+    return try await repo.upsertPodcastEmbedding(unsaved)
   }
 
   func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {

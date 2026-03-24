@@ -287,21 +287,23 @@ enum Schema {
 
     migrator.registerMigration("v34") { db in
       try db.create(table: "episodeEmbedding") { t in
+        t.autoIncrementedPrimaryKey("id")
         t.belongsTo("episode", onDelete: .cascade).notNull().unique()
         t.column("vector", .blob).notNull()
         t.column("sourceHash", .text).notNull()
         t.column("embeddingRevision", .integer).notNull()
         t.column("dimension", .integer).notNull()
-        t.column("computedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+        t.column("creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
       }
 
       try db.create(table: "podcastEmbedding") { t in
+        t.autoIncrementedPrimaryKey("id")
         t.belongsTo("podcast", onDelete: .cascade).notNull().unique()
         t.column("vector", .blob).notNull()
         t.column("sourceHash", .text).notNull()
         t.column("embeddingRevision", .integer).notNull()
         t.column("dimension", .integer).notNull()
-        t.column("computedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+        t.column("creationDate", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
       }
     }
 

@@ -153,8 +153,10 @@ protocol Databasing: Sendable {
 
   // MARK: - Embedding Writers
 
-  func insertEmbedding(_ embedding: EpisodeEmbedding) async throws
-  func insertPodcastEmbedding(_ embedding: PodcastEmbedding) async throws
+  @discardableResult
+  func upsertEmbedding(_ unsaved: UnsavedEpisodeEmbedding) async throws -> EpisodeEmbedding
+  @discardableResult
+  func upsertPodcastEmbedding(_ unsaved: UnsavedPodcastEmbedding) async throws -> PodcastEmbedding
 
   // MARK: - Embedding Readers
 
