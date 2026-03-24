@@ -1,11 +1,18 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
+
+extension Container {
+  fileprivate var claimedOnceIDs: Factory<ThreadSafe<Set<String>>> {
+    Factory(self) { ThreadSafe<Set<String>>([]) }.scope(.cached)
+  }
+}
 
 // Ensures one-shot synchronous setup runs once, either per owning instance
 // or per explicit string identifier.
 final class Once: Sendable {
-  private static let claimedIDs = ThreadSafe<Set<String>>([])
+  private static var claimedIDs: ThreadSafe<Set<String>> { Container.shared.claimedOnceIDs() }
 
   private let hasRun = ThreadSafe(false)
 

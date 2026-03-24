@@ -12,4 +12,5 @@ enum TestError: Error {
   case unexpectedCall(type: String, calls: [String])
   case fileNotFound(URL)
   case notificationAuthorizationFailed
+  case simulatedFailure
 }

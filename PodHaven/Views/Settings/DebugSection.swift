@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import BackgroundTasks
 import FactoryKit
 import GRDB
 import Logging
@@ -8,6 +7,7 @@ import SwiftUI
 
 struct DebugSection: View {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
 
   var body: some View {
     Section("Debugging") {
@@ -28,7 +28,7 @@ struct DebugSection: View {
         Text("Git: \(AppInfo.gitCommitHash)")
 
         Button("Show Pending Background Tasks") {
-          BGTaskScheduler.shared.getPendingTaskRequests { requests in
+          bgTaskScheduler.getPendingTaskRequests { requests in
             let formatted = BackgroundTaskScheduler.formatPendingTasks(requests)
             Task { @MainActor in
               alert(

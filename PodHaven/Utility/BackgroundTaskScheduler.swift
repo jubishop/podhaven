@@ -1,7 +1,7 @@
 // Copyright Justin Bishop, 2025
 
 import BackgroundTasks
-import ConcurrencyExtras
+import FactoryKit
 import Foundation
 import Logging
 
@@ -24,6 +24,8 @@ enum BackgroundTaskType: Sendable {
 
 struct BackgroundTaskScheduler: Sendable {
   typealias Completion = @Sendable (Bool) -> Void
+
+  @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
 
   private static let log = Log.as("BackgroundTaskScheduler")
 
@@ -74,37 +76,38 @@ struct BackgroundTaskScheduler: Sendable {
     Once.run(identifier) {
       Self.log.info("register() called for: \(identifier)")
 
-      let success = BGTaskScheduler.shared.register(
+      let success = bgTaskScheduler.register(
         forTaskWithIdentifier: identifier,
         using: nil
       ) { task in
         Self.log.debug("iOS is executing the background task: \(identifier)")
 
-        let taskWrapper = UncheckedSendable(task)
         let didComplete = ThreadLock()
-        let complete: Completion = { [didComplete, taskWrapper] success in
+        let complete: Completion = { [didComplete, task] success in
           guard didComplete.claim() else { return }
-          taskWrapper.value.setTaskCompleted(success: success)
+          task.setTaskCompleted(success: success)
         }
 
-        var bgTask: Task<Void, Never>? = nil
-        task.expirationHandler = { [complete] in
+        let bgTask = ThreadSafe<Task<Void, Never>?>(nil)
+        task.setExpirationHandler { [complete] in
           Self.log.debug("handle: expiration triggered, cancelling running task for: \(identifier)")
 
-          bgTask?.cancel()
+          bgTask()?.cancel()
           complete(false)
         }
 
         scheduleNextIfNeeded()
-        bgTask = Task(priority: .background) { await executionTask(complete) }
+        let work = Task { await executionTask(complete) }
+        bgTask(work)
+        if didComplete.isClaimed { work.cancel() }
       }
 
-      Self.log.info(
-        """
-        BGTaskScheduler.shared.register returned: \(success)
-        Registration for BackgroundTask: \(identifier) complete
-        """
-      )
+      guard success else {
+        Self.log.error("register failed for BackgroundTask: \(identifier)")
+        return
+      }
+
+      Self.log.info("Registration for BackgroundTask: \(identifier) complete")
 
       scheduleNextIfNeeded()
     }
@@ -112,14 +115,14 @@ struct BackgroundTaskScheduler: Sendable {
 
   func scheduleNextIfNeeded() {
     let elapsed = Date.now.timeIntervalSince(lastAttempt)
-    guard elapsed >= cadence.asTimeInterval else {
+    guard elapsed >= cadence.asTimeInterval / 2 else {
       Self.log.debug(
         "scheduleNextIfNeeded: throttled for \(identifier), last attempt \(Int(elapsed))s ago"
       )
       return
     }
 
-    BGTaskScheduler.shared.getPendingTaskRequests { [self] requests in
+    bgTaskScheduler.getPendingTaskRequests { [self] requests in
       let hasPending = requests.contains { $0.identifier == identifier }
       if hasPending {
         Self.log.debug("scheduleNextIfNeeded: task already pending for \(identifier), skipping")
@@ -140,7 +143,7 @@ struct BackgroundTaskScheduler: Sendable {
     lastAttempt = .now
 
     do {
-      try BGTaskScheduler.shared.submit(request)
+      try bgTaskScheduler.submit(request)
     } catch {
       Self.log.caughtError("scheduleNext: failed to submit background task '\(identifier)'", error)
       return
@@ -162,7 +165,7 @@ struct BackgroundTaskScheduler: Sendable {
       return
     }
 
-    BGTaskScheduler.shared.getPendingTaskRequests { [self] requests in
+    bgTaskScheduler.getPendingTaskRequests { [self] requests in
       let hasPending = requests.contains { $0.identifier == identifier }
       if hasPending {
         Self.log.debug("Pending task verified for '\(identifier)'")
