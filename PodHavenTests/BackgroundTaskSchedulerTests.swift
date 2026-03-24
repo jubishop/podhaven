@@ -17,7 +17,7 @@ struct BackgroundTaskSchedulerTests {
   private static let testIdentifier = "test.bgScheduler"
 
   private func makeScheduler(
-    identifier: String = testIdentifier,
+    identifier: String = Self.testIdentifier,
     cadence: Duration = .hours(1),
     taskType: BackgroundTaskType = .appRefresh
   ) -> BackgroundTaskScheduler {
@@ -31,12 +31,15 @@ struct BackgroundTaskSchedulerTests {
   // MARK: - Register
 
   @Test("register calls BGTaskScheduler.register with the correct identifier")
-  func registerCallsSystemRegister() {
+  func registerCallsSystemRegisterWithCorrectIdentifier() throws {
     let scheduler = makeScheduler()
 
     scheduler.register { complete in complete(true) }
 
+    let registration = try #require(fake.registrations.first)
     #expect(fake.registrations.count == 1)
+    #expect(registration.identifier == Self.testIdentifier)
+    #expect(registration.usesDefaultQueue == true)
   }
 
   @Test("register is idempotent via Once")
@@ -50,12 +53,112 @@ struct BackgroundTaskSchedulerTests {
   }
 
   @Test("register schedules next task after registration")
-  func registerSchedulesNext() {
+  func registerSchedulesNext() throws {
     let scheduler = makeScheduler()
 
     scheduler.register { complete in complete(true) }
 
+    let submission = try #require(fake.submissions.first)
     #expect(fake.submissions.count == 1)
+    #expect(submission.identifier == Self.testIdentifier)
+  }
+
+  @Test("register does not schedule tasks when registration fails")
+  func registerDoesNotScheduleOnFailure() {
+    let scheduler = makeScheduler()
+    fake.setRegisterResult(false)
+
+    scheduler.register { complete in complete(true) }
+
+    #expect(fake.registrations.count == 1)
+    #expect(fake.submissions.isEmpty)
+    if case .some = fake.launchTask(withIdentifier: Self.testIdentifier) {
+      Issue.record("Failed registrations should not install a launch handler")
+    }
+  }
+
+  @Test("launching a registered task runs the execution task and reschedules")
+  func launchingRegisteredTaskRunsExecutionTaskAndReschedules() async throws {
+    let scheduler = makeScheduler(cadence: .seconds(0))
+    let executionRan = ActorContainer<Bool>()
+
+    scheduler.register { complete in
+      await executionRan.set(true)
+      complete(true)
+    }
+
+    #expect(fake.submissions.count == 1)
+
+    let task = try #require(fake.launchTask(withIdentifier: Self.testIdentifier))
+    #expect(task.hasExpirationHandler == true)
+
+    try await executionRan.waitForEqual(to: true)
+    try await Wait.until(
+      { task.completionResults == [true] },
+      {
+        """
+        Expected launch task to complete once with success, got \(task.completionResults)
+        """
+      }
+    )
+    try await Wait.until(
+      { fake.submissions.count == 2 },
+      { "Expected reschedule after launch, got \(fake.submissions.count) submissions" }
+    )
+
+    #expect(fake.pendingIdentifiers.contains(Self.testIdentifier))
+  }
+
+  @Test("expiration cancels running work and completes the task once")
+  func expirationCancelsRunningWorkAndCompletesOnce() async throws {
+    let scheduler = makeScheduler(cadence: .seconds(0))
+    let executionStarted = ActorContainer<Bool>()
+    let executionCancelled = ActorContainer<Bool>()
+
+    scheduler.register { _ in
+      await executionStarted.set(true)
+      while !Task.isCancelled {
+        await Task.yield()
+      }
+      await executionCancelled.set(true)
+    }
+
+    let task = try #require(fake.launchTask(withIdentifier: Self.testIdentifier))
+
+    try await executionStarted.waitForEqual(to: true)
+
+    task.expire()
+    task.expire()
+
+    try await executionCancelled.waitForEqual(to: true)
+    try await Wait.until(
+      { task.completionResults == [false] },
+      { "Expected expiration to complete once with failure, got \(task.completionResults)" }
+    )
+
+    #expect(task.completionCount == 1)
+  }
+
+  @Test("completion remains idempotent after execution completes")
+  func completionRemainsIdempotentAfterExecutionCompletes() async throws {
+    let scheduler = makeScheduler(cadence: .seconds(0))
+
+    scheduler.register { complete in
+      complete(true)
+      complete(false)
+    }
+
+    let task = try #require(fake.launchTask(withIdentifier: Self.testIdentifier))
+
+    try await Wait.until(
+      { task.completionResults == [true] },
+      { "Expected task to complete once with success, got \(task.completionResults)" }
+    )
+
+    task.expire()
+
+    #expect(task.completionCount == 1)
+    #expect(task.completionResults == [true])
   }
 
   // MARK: - Schedule Next If Needed
@@ -69,15 +172,26 @@ struct BackgroundTaskSchedulerTests {
     #expect(fake.submissions.count == 1)
   }
 
+  @Test("scheduleNextIfNeeded submits when pending requests are returned asynchronously")
+  func scheduleNextIfNeededSupportsAsyncPendingRequestLookup() async throws {
+    let scheduler = makeScheduler(cadence: .seconds(0))
+    fake.setDeliverPendingRequestsAsynchronously(true)
+
+    scheduler.scheduleNextIfNeeded()
+
+    try await Wait.until(
+      { fake.submissions.count == 1 },
+      { "Expected async pending lookup to schedule a request" }
+    )
+  }
+
   @Test("scheduleNextIfNeeded throttles when called within cadence")
   func scheduleNextIfNeededThrottles() {
     let scheduler = makeScheduler(cadence: .hours(1))
 
-    // First call succeeds and sets lastAttempt
     scheduler.scheduleNextIfNeeded()
     #expect(fake.submissions.count == 1)
 
-    // Second call is throttled because cadence hasn't elapsed
     scheduler.scheduleNextIfNeeded()
     #expect(fake.submissions.count == 1)
   }
@@ -105,7 +219,7 @@ struct BackgroundTaskSchedulerTests {
   // MARK: - Task Type
 
   @Test("scheduling a processing task submits a processing request")
-  func schedulingProcessingTask() {
+  func schedulingProcessingTask() throws {
     let scheduler = makeScheduler(
       cadence: .seconds(0),
       taskType: .processing(requiresNetworkConnectivity: true)
@@ -113,23 +227,23 @@ struct BackgroundTaskSchedulerTests {
 
     scheduler.scheduleNextIfNeeded()
 
-    let submission = try! #require(fake.submissions.first)
+    let submission = try #require(fake.submissions.first)
     #expect(submission.isProcessing == true)
     #expect(submission.requiresNetworkConnectivity == true)
   }
 
   @Test("scheduling an app refresh task submits a non-processing request")
-  func schedulingAppRefreshTask() {
+  func schedulingAppRefreshTask() throws {
     let scheduler = makeScheduler(cadence: .seconds(0), taskType: .appRefresh)
 
     scheduler.scheduleNextIfNeeded()
 
-    let submission = try! #require(fake.submissions.first)
+    let submission = try #require(fake.submissions.first)
     #expect(submission.isProcessing == false)
   }
 
   @Test("scheduling sets earliestBeginDate based on cadence")
-  func schedulingSetsEarliestBeginDate() {
+  func schedulingSetsEarliestBeginDate() throws {
     let cadence: Duration = .minutes(30)
     let scheduler = makeScheduler(cadence: cadence, taskType: .appRefresh)
 
@@ -137,7 +251,7 @@ struct BackgroundTaskSchedulerTests {
     scheduler.scheduleNextIfNeeded()
     let after = Date.now
 
-    let submission = try! #require(fake.submissions.first)
+    let submission = try #require(fake.submissions.first)
     if let beginDate = submission.earliestBeginDate {
       let expectedEarliest = before.addingTimeInterval(cadence.asTimeInterval)
       let expectedLatest = after.addingTimeInterval(cadence.asTimeInterval)
@@ -172,29 +286,26 @@ struct BackgroundTaskSchedulerTests {
 
   // MARK: - Confirm And Log
 
-  @Test("confirmAndLogPendingTask does nothing when no attempt has been made")
+  @Test("confirmAndLogPendingTask does not query pending tasks before the first schedule")
   func confirmDoesNothingBeforeFirstSchedule() {
     let scheduler = makeScheduler()
 
-    // No scheduling has happened, so lastAttempt is .distantPast
     scheduler.confirmAndLogPendingTask()
 
-    // getPendingTaskRequests should not be called — we verify indirectly
-    // by checking that no submissions were triggered (confirm only reads)
-    #expect(fake.submissions.isEmpty)
+    #expect(fake.pendingTaskRequestsCallCount == 0)
   }
 
   @Test("confirmAndLogPendingTask queries pending tasks after scheduling")
   func confirmQueriesAfterScheduling() {
     let scheduler = makeScheduler(cadence: .seconds(0))
 
-    // Schedule first to set lastAttempt
     scheduler.scheduleNextIfNeeded()
     #expect(fake.pendingIdentifiers.contains(Self.testIdentifier))
 
-    // confirmAndLogPendingTask should run without error
-    // (the task is pending, so it logs success)
+    let callCountBeforeConfirm = fake.pendingTaskRequestsCallCount
     scheduler.confirmAndLogPendingTask()
+
+    #expect(fake.pendingTaskRequestsCallCount == callCountBeforeConfirm + 1)
   }
 
   // MARK: - BackgroundTaskType

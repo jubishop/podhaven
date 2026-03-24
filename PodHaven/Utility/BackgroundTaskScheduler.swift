@@ -1,7 +1,6 @@
 // Copyright Justin Bishop, 2025
 
 import BackgroundTasks
-import ConcurrencyExtras
 import FactoryKit
 import Foundation
 import Logging
@@ -28,10 +27,9 @@ struct BackgroundTaskScheduler: Sendable {
 
   private static let log = Log.as("BackgroundTaskScheduler")
 
-  private var systemScheduler: any BGTaskScheduling { Container.shared.bgTaskScheduler() }
-
   private let identifier: String
   private let cadence: Duration
+  private let systemScheduler: any BGTaskScheduling
   private let taskType: BackgroundTaskType
   @PersistedThreadSafe private var lastAttempt: Date
 
@@ -60,10 +58,12 @@ struct BackgroundTaskScheduler: Sendable {
   init(
     identifier: String,
     cadence: Duration,
+    systemScheduler: any BGTaskScheduling = Container.shared.bgTaskScheduler(),
     taskType: BackgroundTaskType
   ) {
     self.identifier = identifier
     self.cadence = cadence
+    self.systemScheduler = systemScheduler
     self.taskType = taskType
     _lastAttempt = PersistedThreadSafe(
       wrappedValue: .distantPast,
@@ -83,31 +83,30 @@ struct BackgroundTaskScheduler: Sendable {
       ) { task in
         Self.log.debug("iOS is executing the background task: \(identifier)")
 
-        let taskWrapper = UncheckedSendable(task)
         let didComplete = ThreadLock()
-        let complete: Completion = { [didComplete, taskWrapper] success in
+        let complete: Completion = { [didComplete, task] success in
           guard didComplete.claim() else { return }
-          taskWrapper.value.setTaskCompleted(success: success)
+          task.setTaskCompleted(success: success)
         }
 
-        var bgTask: Task<Void, Never>? = nil
-        task.expirationHandler = { [complete] in
+        let bgTask = ThreadSafe<Task<Void, Never>?>(nil)
+        task.setExpirationHandler { [complete] in
           Self.log.debug("handle: expiration triggered, cancelling running task for: \(identifier)")
 
-          bgTask?.cancel()
+          bgTask()?.cancel()
           complete(false)
         }
 
         scheduleNextIfNeeded()
-        bgTask = Task(priority: .background) { await executionTask(complete) }
+        bgTask(Task(priority: .background) { await executionTask(complete) })
       }
 
-      Self.log.info(
-        """
-        register returned: \(success)
-        Registration for BackgroundTask: \(identifier) complete
-        """
-      )
+      guard success else {
+        Self.log.error("register failed for BackgroundTask: \(identifier)")
+        return
+      }
+
+      Self.log.info("Registration for BackgroundTask: \(identifier) complete")
 
       scheduleNextIfNeeded()
     }
