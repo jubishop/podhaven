@@ -36,7 +36,7 @@ enum AppInfo {
 
   private static let myDeviceIDs: Set<String> = [
     "E1AD1745-A8FB-4DC1-954E-9DA3BA956CD4",  // iPhoneDev
-    "48850004-711A-4B96-B6A4-588689CF3609",  // testFlight
+    "6B915F57-D7FC-4249-8FAD-B71F5D362CEB",  // testFlight
   ]
 
   private static let _deviceIdentifier = ThreadSafe<String>("Unknown")

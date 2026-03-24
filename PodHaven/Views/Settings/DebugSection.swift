@@ -24,21 +24,19 @@ struct DebugSection: View {
       Text("Built \(Date.usShortDateFormatWithTime.string(from: AppInfo.buildDate))")
       #endif
 
-      if AppInfo.myDevice {
-        Text("Git: \(AppInfo.gitCommitHash)")
+      Text("Git: \(AppInfo.gitCommitHash)")
 
-        Button("Show Pending Background Tasks") {
-          bgTaskScheduler.getPendingTaskRequests { requests in
-            let formatted = BackgroundTaskScheduler.formatPendingTasks(requests)
-            Task { @MainActor in
-              alert(
-                title: "Pending Tasks",
-                """
-                Pending Background Tasks:
-                  \(formatted)
-                """
-              )
-            }
+      Button("Show Pending Background Tasks") {
+        bgTaskScheduler.getPendingTaskRequests { requests in
+          let formatted = BackgroundTaskScheduler.formatPendingTasks(requests)
+          Task { @MainActor in
+            alert(
+              title: "Pending Tasks",
+              """
+              Pending Background Tasks:
+                \(formatted)
+              """
+            )
           }
         }
       }
