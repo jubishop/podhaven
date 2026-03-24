@@ -16,6 +16,7 @@ enum EnvironmentType: String {
   case simulator
   case testFlight
   case testing
+  case deployed
 }
 
 enum AppInfo {
@@ -38,7 +39,7 @@ enum AppInfo {
   static var deviceIdentifier: String { _deviceIdentifier() }
   static var myDevice: Bool { deviceIdentifier == "6B915F57-D7FC-4249-8FAD-B71F5D362CEB" }
 
-  private static let _environment = ThreadSafe<EnvironmentType>(.appStore)
+  private static let _environment = ThreadSafe<EnvironmentType>(.deployed)
   static var environment: EnvironmentType {
     set { _environment(newValue) }
     get { _environment() }
@@ -81,7 +82,7 @@ enum AppInfo {
           }
         } catch {
           log.caughtError("finalizeEnvironment: AppTransaction.refresh also failed", error)
-          // Keep existing environment
+          environment = .appStore
         }
       }
       #endif
@@ -103,8 +104,7 @@ enum AppInfo {
     #if DEBUG
     return currentDevelopmentEnvironment()
     #else
-    // default to appStore: finalizeEnvironment() will refine this
-    return myDevice ? currentDevelopmentEnvironment() : .appStore
+    return .deployed
     #endif
     #endif
   }

@@ -144,7 +144,7 @@ struct AppLauncher: Sendable {
 
   private func configureLogging() {
     switch AppInfo.environment {
-    case .appStore, .testFlight, .iPhoneDev, .macDev:
+    case .deployed, .appStore, .testFlight, .iPhoneDev, .macDev:
       Self.configureSentry()
 
       let sharedState = Container.shared.sharedState()
