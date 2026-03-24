@@ -16,6 +16,7 @@ enum EnvironmentType: String {
   case simulator
   case testFlight
   case testing
+  case deployed
 }
 
 enum AppInfo {
@@ -34,17 +35,11 @@ enum AppInfo {
 
   // MARK: - Environment Info
 
-  private static let myDeviceIDs: Set<String> = [
-    "E1AD1745-A8FB-4DC1-954E-9DA3BA956CD4",  // iPhoneDev
-    "48850004-711A-4B96-B6A4-588689CF3609",  // testFlight
-  ]
-
   private static let _deviceIdentifier = ThreadSafe<String>("Unknown")
   static var deviceIdentifier: String { _deviceIdentifier() }
+  static var myDevice: Bool { deviceIdentifier == "6B915F57-D7FC-4249-8FAD-B71F5D362CEB" }
 
-  static var myDevice: Bool { myDeviceIDs.contains(deviceIdentifier) }
-
-  private static let _environment = ThreadSafe<EnvironmentType>(.appStore)
+  private static let _environment = ThreadSafe<EnvironmentType>(.deployed)
   static var environment: EnvironmentType {
     set { _environment(newValue) }
     get { _environment() }
@@ -87,7 +82,7 @@ enum AppInfo {
           }
         } catch {
           log.caughtError("finalizeEnvironment: AppTransaction.refresh also failed", error)
-          // Keep existing environment
+          environment = .appStore
         }
       }
       #endif
@@ -109,8 +104,7 @@ enum AppInfo {
     #if DEBUG
     return currentDevelopmentEnvironment()
     #else
-    // default to appStore: finalizeEnvironment() will refine this
-    return myDevice ? currentDevelopmentEnvironment() : .appStore
+    return .deployed
     #endif
     #endif
   }
@@ -200,7 +194,10 @@ enum AppInfo {
   }
 
   static var bundleIdentifier: String {
-    Bundle.main.bundleIdentifier ?? "com.artisanalsoftware.PodHaven"
+    guard let identifier = Bundle.main.bundleIdentifier else {
+      Assert.fatal("Bundle.main.bundleIdentifier is nil")
+    }
+    return identifier
   }
 
   static var dataDirectoryName: String? {

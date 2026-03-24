@@ -173,7 +173,7 @@ struct Queue: Queueing {
 
     guard !episodeIDs.isEmpty
     else {
-      Self.log.warning("Calling dequeue with empty episodeIDs?")
+      Self.log.debug("Calling dequeue with empty episodeIDs?")
       return
     }
 
@@ -231,7 +231,7 @@ struct Queue: Queueing {
 
     guard !episodeIDs.isEmpty
     else {
-      Self.log.warning("Calling unshift with empty episodeIDs?")
+      Self.log.debug("Calling unshift with empty episodeIDs?")
       return
     }
 

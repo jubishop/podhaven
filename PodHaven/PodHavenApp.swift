@@ -12,6 +12,7 @@ struct PodHavenApp: App {
   @InjectedObservable(\.alert) private var alert
   @InjectedObservable(\.sheet) private var sheet
   @DynamicInjected(\.appLauncher) private var appLauncher
+  @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.embeddingTask) private var embeddingTask
   @DynamicInjected(\.refreshScheduler) private var refreshScheduler
@@ -24,7 +25,7 @@ struct PodHavenApp: App {
 
   @State private var initialized = false
 
-  private static let log = Log.as("Main")
+  nonisolated private static let log = Log.as("Main")
 
   var body: some Scene {
     WindowGroup {
@@ -50,6 +51,18 @@ struct PodHavenApp: App {
           }
         case .background where initialized:
           notifyScenePhaseChange(newPhase)
+          bgTaskScheduler.getPendingTaskRequests { requests in
+            if requests.isEmpty {
+              Self.log.error("No pending background tasks after entering background")
+            } else {
+              Self.log.debug(
+                """
+                Pending background tasks:
+                \(BackgroundTaskScheduler.formatPendingTasks(requests))
+                """
+              )
+            }
+          }
         default:
           break
         }

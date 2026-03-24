@@ -1,6 +1,5 @@
 // Copyright Justin Bishop, 2025
 
-import BackgroundTasks
 import FactoryKit
 import GRDB
 import Logging
@@ -8,12 +7,13 @@ import SwiftUI
 
 struct DebugSection: View {
   @DynamicInjected(\.alert) private var alert
+  @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
 
   var body: some View {
     Section("Debugging") {
       Text("Environment: \(AppInfo.environment.rawValue)")
 
-      Button("Device ID \(AppInfo.deviceIdentifier)") {
+      Button("Copy Device ID") {
         UIPasteboard.general.string = AppInfo.deviceIdentifier
       }
 
@@ -24,21 +24,19 @@ struct DebugSection: View {
       Text("Built \(Date.usShortDateFormatWithTime.string(from: AppInfo.buildDate))")
       #endif
 
-      if AppInfo.myDevice {
-        Text("Git: \(AppInfo.gitCommitHash)")
+      Text("Git: \(AppInfo.gitCommitHash)")
 
-        Button("Show Pending Background Tasks") {
-          BGTaskScheduler.shared.getPendingTaskRequests { requests in
-            let formatted = BackgroundTaskScheduler.formatPendingTasks(requests)
-            Task { @MainActor in
-              alert(
-                title: "Pending Tasks",
-                """
-                Pending Background Tasks:
-                  \(formatted)
-                """
-              )
-            }
+      Button("Show Pending Background Tasks") {
+        bgTaskScheduler.getPendingTaskRequests { requests in
+          let formatted = BackgroundTaskScheduler.formatPendingTasks(requests)
+          Task { @MainActor in
+            alert(
+              title: "Pending Tasks",
+              """
+              Pending Background Tasks:
+                \(formatted)
+              """
+            )
           }
         }
       }

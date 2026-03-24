@@ -32,7 +32,7 @@ struct FileLogHandler: LogHandler {
       self.targetFileSizeBytes = targetFileSizeBytes
       let fileName = fileURL.deletingPathExtension().lastPathComponent
       self.queue = DispatchQueue(
-        label: "com.artisanalsoftware.PodHaven.FileLogHandler.Writer.\(fileName)",
+        label: "\(AppInfo.bundleIdentifier).FileLogHandler.Writer.\(fileName)",
         qos: .background
       )
     }

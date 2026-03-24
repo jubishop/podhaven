@@ -57,7 +57,7 @@ enum NowPlayingInfo {
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
-      Self.log.warning("NowPlayingInfo is nil in setImage?")
+      Self.log.debug("NowPlayingInfo is nil in setImage?")
       return
     }
     defer { infoCenter.nowPlayingInfo = nowPlayingInfo }
@@ -77,7 +77,7 @@ enum NowPlayingInfo {
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
-      Self.log.warning("setCurrentTime: nowPlayingInfo is nil")
+      Self.log.debug("setCurrentTime: nowPlayingInfo is nil")
       return
     }
     defer { infoCenter.nowPlayingInfo = nowPlayingInfo }
@@ -86,7 +86,9 @@ enum NowPlayingInfo {
     let durationSeconds = duration.safe.seconds
 
     guard elapsedSeconds >= 0 else {
-      Self.log.warning("elapsedSeconds is less than 0, not updating elapsedTime")
+      Self.log.warning(
+        "elapsedSeconds is less than 0 (\(elapsedSeconds)), not updating elapsedTime"
+      )
       nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = nil
       nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackProgress] = nil
       return
@@ -110,7 +112,7 @@ enum NowPlayingInfo {
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
-      Self.log.warning("setPlaybackRate: nowPlayingInfo is nil")
+      Self.log.debug("setPlaybackRate: nowPlayingInfo is nil")
       return
     }
     defer { infoCenter.nowPlayingInfo = nowPlayingInfo }
@@ -130,7 +132,7 @@ enum NowPlayingInfo {
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
-      Self.log.warning("updateQueueCount: nowPlayingInfo is nil")
+      Self.log.debug("updateQueueCount: nowPlayingInfo is nil")
       return
     }
     defer { infoCenter.nowPlayingInfo = nowPlayingInfo }
@@ -156,7 +158,7 @@ enum NowPlayingInfo {
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
-      Self.log.warning("updateDefaultPlaybackRate: nowPlayingInfo is nil")
+      Self.log.debug("updateDefaultPlaybackRate: nowPlayingInfo is nil")
       return
     }
     defer { infoCenter.nowPlayingInfo = nowPlayingInfo }

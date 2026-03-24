@@ -53,6 +53,8 @@ extension Container: @retroactive AutoRegistering {
 
     uiApplication.context(.test) { @MainActor in FakeApplication() }.scope(.cached)
 
+    bgTaskScheduler.context(.test) { FakeBGTaskScheduler() }.scope(.cached)
+
     imagePipeline.context(.test) {
       ImagePipeline(configuration: ImagePipeline.Configuration(dataLoader: self.fakeDataLoader()))
     }

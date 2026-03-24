@@ -164,12 +164,11 @@ struct RefreshScheduler: Sendable {
     case .active:
       Self.log.debug("activated")
 
-      backgroundTaskScheduler.confirmAndLogPendingTask()
       beginForegroundRefreshing()
     case .background:
       Self.log.debug("backgrounded")
 
-      backgroundTaskScheduler.scheduleNextIfNeeded()
+      backgroundTaskScheduler.scheduleNext()
     default:
       break
     }
