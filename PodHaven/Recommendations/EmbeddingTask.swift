@@ -93,10 +93,12 @@ struct EmbeddingTask: Sendable {
     switch scenePhase {
     case .active:
       Self.log.debug("activated")
+
       embeddingService.requestContextualAssetsIfNeeded()
     case .background:
       Self.log.debug("backgrounded")
-      backgroundTaskScheduler.scheduleNextIfNeeded()
+
+      backgroundTaskScheduler.scheduleNext()
     default:
       break
     }
