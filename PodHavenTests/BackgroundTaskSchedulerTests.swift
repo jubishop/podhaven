@@ -185,17 +185,6 @@ struct BackgroundTaskSchedulerTests {
     )
   }
 
-  @Test("scheduleNext throttles when called within cadence")
-  func scheduleNextThrottles() {
-    let scheduler = makeScheduler(cadence: .hours(1))
-
-    scheduler.scheduleNext()
-    #expect(fake.submissions.count == 1)
-
-    scheduler.scheduleNext()
-    #expect(fake.submissions.count == 1)
-  }
-
   @Test("scheduleNext skips when task is already pending")
   func scheduleNextSkipsWhenPending() {
     let scheduler = makeScheduler(cadence: .seconds(0))

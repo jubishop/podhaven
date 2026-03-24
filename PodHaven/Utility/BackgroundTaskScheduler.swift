@@ -32,7 +32,6 @@ struct BackgroundTaskScheduler: Sendable {
   private let identifier: String
   private let cadence: Duration
   private let taskType: BackgroundTaskType
-  @PersistedThreadSafe private var lastAttempt: Date
 
   // MARK: - Helpers
 
@@ -64,10 +63,6 @@ struct BackgroundTaskScheduler: Sendable {
     self.identifier = identifier
     self.cadence = cadence
     self.taskType = taskType
-    _lastAttempt = PersistedThreadSafe(
-      wrappedValue: .distantPast,
-      "BackgroundTaskScheduler.lastAttempt.\(identifier)"
-    )
 
     Self.log.debug("BackgroundTaskScheduler with identifier: \(identifier)")
   }
@@ -116,15 +111,6 @@ struct BackgroundTaskScheduler: Sendable {
         Self.log.debug("scheduleNext: task already pending for \(identifier), skipping")
         return
       }
-
-      let elapsed = Date.now.timeIntervalSince(lastAttempt)
-      guard elapsed >= cadence.asTimeInterval / 2 else {
-        Self.log.debug(
-          "scheduleNext: throttled for \(identifier), last attempt \(Int(elapsed))s ago"
-        )
-        return
-      }
-      lastAttempt = .now
 
       let request = taskType.makeRequest(identifier: identifier)
       request.earliestBeginDate = Date.now.advanced(by: cadence.asTimeInterval)
