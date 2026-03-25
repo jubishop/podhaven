@@ -277,7 +277,60 @@ enum Schema {
       try db.execute(sql: "UPDATE episode SET queueOrder = NULL WHERE queueOrder >= 100")
     }
 
+    migrator.registerMigration("v33") { _ in
+      cleanupStaleKeys(
+        in: Container.shared.standardDefaults(),
+        activeKeys: [
+          "shrinkPlayBarOnScroll",
+          "cacheSizeLimitGB",
+          "defaultPlaybackRate",
+          "skipForwardInterval",
+          "skipBackwardInterval",
+          "enableUndoSeek",
+          "maxQueueLength",
+          "showNowPlayingInUpNext",
+          "alwaysShowPodcastImageInUpNext",
+          "showTimeRemainingInEpisodeLists",
+          "appearanceMode",
+          "nextTrackBehavior",
+          "currentEpisodeID",
+          "PodcastsList-displayMode",
+          "SearchView-displayMode",
+        ],
+        activePrefixes: [
+          "PodcastsList-sortMethod-",
+          "EpisodesList-sortMethod-",
+        ]
+      )
+      cleanupStaleKeys(
+        in: Container.shared.sharedDefaults(),
+        activeKeys: [
+          "skipForwardInterval",
+          "skipBackwardInterval",
+          "playbackStatus",
+        ]
+      )
+    }
+
     return migrator
+  }
+
+  // MARK: - v33: Stale Defaults Cleanup
+
+  // Removes keys from the store that are not in the active set.
+  // Extracted as a static method so it can be tested directly.
+  static func cleanupStaleKeys(
+    in store: any KeyValueStore,
+    activeKeys: Set<String>,
+    activePrefixes: [String] = []
+  ) {
+    for key in store.allKeys {
+      let isActive =
+        activeKeys.contains(key) || activePrefixes.contains(where: { key.hasPrefix($0) })
+      if !isActive {
+        store.removeObject(forKey: key)
+      }
+    }
   }
 
   // MARK: - v30: Widget Snapshot File Migration

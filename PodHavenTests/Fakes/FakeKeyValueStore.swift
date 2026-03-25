@@ -7,6 +7,10 @@ import Foundation
 final class FakeKeyValueStore: KeyValueStore {
   private let storage = ThreadSafe<[String: Data]>([:])
 
+  var allKeys: [String] {
+    Array(storage().keys)
+  }
+
   func data(forKey defaultName: String) -> Data? {
     storage()[defaultName]
   }
