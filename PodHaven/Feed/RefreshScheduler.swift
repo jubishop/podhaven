@@ -30,18 +30,18 @@ struct RefreshScheduler: Sendable {
     wifiLimit: Int
   )
   private let backgroundPolicy: RefreshPolicy = (
-    cadence: .hours(1),
+    cadence: .minutes(30),
     cellStalenessThreshold: .hours(4),
     cellLimit: 8,
-    wifiStalenessThreshold: .hours(1),
-    wifiLimit: 32
+    wifiStalenessThreshold: .hours(2),
+    wifiLimit: 64
   )
   private let foregroundPolicy: RefreshPolicy = (
-    cadence: .minutes(5),
-    cellStalenessThreshold: .hours(4),
+    cadence: .minutes(4),
+    cellStalenessThreshold: .hours(2),
     cellLimit: 8,
     wifiStalenessThreshold: .hours(1),
-    wifiLimit: 32
+    wifiLimit: 64
   )
 
   private static let log = Log.as(LogSubsystem.Feed.refreshScheduler)
