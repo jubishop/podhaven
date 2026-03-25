@@ -206,7 +206,7 @@ enum Schema {
           log.caughtError(
             "v29 migration: failed to encode '\(key)' (\(type(of: existing)))",
             error,
-            remarkable: .info
+            level: { _ in .info }
           )
         }
       }
@@ -277,7 +277,42 @@ enum Schema {
       try db.execute(sql: "UPDATE episode SET queueOrder = NULL WHERE queueOrder >= 100")
     }
 
-    migrator.registerMigration("v33") { db in
+    migrator.registerMigration("v33") { _ in
+      cleanupStaleKeys(
+        in: Container.shared.standardDefaults(),
+        activeKeys: [
+          "shrinkPlayBarOnScroll",
+          "cacheSizeLimitGB",
+          "defaultPlaybackRate",
+          "skipForwardInterval",
+          "skipBackwardInterval",
+          "enableUndoSeek",
+          "maxQueueLength",
+          "showNowPlayingInUpNext",
+          "alwaysShowPodcastImageInUpNext",
+          "showTimeRemainingInEpisodeLists",
+          "appearanceMode",
+          "nextTrackBehavior",
+          "currentEpisodeID",
+          "PodcastsList-displayMode",
+          "SearchView-displayMode",
+        ],
+        activePrefixes: [
+          "PodcastsList-sortMethod-",
+          "EpisodesList-sortMethod-",
+        ]
+      )
+      cleanupStaleKeys(
+        in: Container.shared.sharedDefaults(),
+        activeKeys: [
+          "skipForwardInterval",
+          "skipBackwardInterval",
+          "playbackStatus",
+        ]
+      )
+    }
+
+    migrator.registerMigration("v34") { db in
       try db.alter(table: "episode") { t in
         t.add(column: "rating", .text)
           .check { $0 == nil || $0 == "loved" || $0 == "liked" || $0 == "disliked" }
@@ -285,7 +320,7 @@ enum Schema {
       }
     }
 
-    migrator.registerMigration("v34") { db in
+    migrator.registerMigration("v35") { db in
       try db.create(table: "episodeEmbedding") { t in
         t.autoIncrementedPrimaryKey("id")
         t.belongsTo("episode", onDelete: .cascade).notNull().unique()
@@ -308,6 +343,24 @@ enum Schema {
     }
 
     return migrator
+  }
+
+  // MARK: - v33: Stale Defaults Cleanup
+
+  // Removes keys from the store that are not in the active set.
+  // Extracted as a static method so it can be tested directly.
+  static func cleanupStaleKeys(
+    in store: any KeyValueStore,
+    activeKeys: Set<String>,
+    activePrefixes: [String] = []
+  ) {
+    for key in store.allKeys {
+      let isActive =
+        activeKeys.contains(key) || activePrefixes.contains(where: { key.hasPrefix($0) })
+      if !isActive {
+        store.removeObject(forKey: key)
+      }
+    }
   }
 
   // MARK: - v30: Widget Snapshot File Migration

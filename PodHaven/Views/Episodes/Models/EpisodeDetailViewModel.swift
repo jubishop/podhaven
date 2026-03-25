@@ -89,7 +89,7 @@ import UIKit
         Self.log.caughtError(
           "init: failed to load share artwork for \(episode.image)",
           error,
-          remarkable: .info
+          level: { _ in .info }
         )
       }
     }

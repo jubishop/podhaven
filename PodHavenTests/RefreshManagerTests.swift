@@ -618,6 +618,100 @@ actor RefreshManagerTests {
     #expect(episodeAfterRefresh.downloadTaskID == nil)
   }
 
+  @Test("refreshSeries returns false for plain text response")
+  func testRefreshSeriesPlainTextResponse() async throws {
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try podcastFeed.toUnsavedPodcast(),
+        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
+      )
+    )
+
+    fakeRepo.clearAllCalls()
+
+    let plainText = "GoDaddy has moved this domain".data(using: .utf8)!
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: plainText)
+    let result = try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+
+    #expect(result == false)
+    try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
+  }
+
+  @Test("refreshSeries returns false for HTML response")
+  func testRefreshSeriesHTMLResponse() async throws {
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try podcastFeed.toUnsavedPodcast(),
+        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
+      )
+    )
+
+    fakeRepo.clearAllCalls()
+
+    let html = "<html><body><h1>404 Not Found</h1></body></html>".data(using: .utf8)!
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: html)
+    let result = try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+
+    #expect(result == false)
+    try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
+  }
+
+  @Test("refreshSeries returns false for valid XML that is not RSS")
+  func testRefreshSeriesValidXMLNotRSS() async throws {
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try podcastFeed.toUnsavedPodcast(),
+        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
+      )
+    )
+
+    fakeRepo.clearAllCalls()
+
+    let xml = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <root><message>This is not RSS</message></root>
+      """
+      .data(using: .utf8)!
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: xml)
+    let result = try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+
+    #expect(result == false)
+    try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
+  }
+
+  @Test("refreshSeries returns false for download error")
+  func testRefreshSeriesDownloadError() async throws {
+    let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)
+    let fakeURL = FeedURL(URL(string: "https://example.com/feed.rss")!)
+    let podcastFeed = try await PodcastFeed.parse(data, from: fakeURL)
+    let podcastSeries = try await repo.insertSeries(
+      UnsavedPodcastSeries(
+        unsavedPodcast: try podcastFeed.toUnsavedPodcast(),
+        unsavedEpisodes: podcastFeed.toUnsavedEpisodes()
+      )
+    )
+
+    fakeRepo.clearAllCalls()
+
+    await session.respond(
+      to: podcastSeries.podcast.feedURL.rawValue,
+      error: URLError(.notConnectedToInternet)
+    )
+    let result = try await refreshManager.refreshSeries(podcastSeries: podcastSeries)
+
+    #expect(result == false)
+    try fakeRepo.expectNoCall(methodName: "updateSeriesFromFeed")
+  }
+
   @Test("refreshSeries caches and saves new episodes when cacheAllEpisodes is .save")
   func testRefreshSeriesCachesAndSavesNewEpisodesWhenSaveEnabled() async throws {
     let data = PreviewBundle.loadAsset(named: "hardfork_short", in: .FeedRSS)

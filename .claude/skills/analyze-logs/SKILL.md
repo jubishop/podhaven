@@ -4,7 +4,7 @@ argument-hint: <path-to-log-file>
 disable-model-invocation: true
 ---
 
-Analyze the log file at `$ARGUMENTS`.
+Analyze the log file at `$ARGUMENTS`. If no file path was provided in the arguments, default to: `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`
 
 ## Log Format
 

@@ -59,12 +59,12 @@ final class WidgetSnapshotWriter: Sendable {
             Self.log.caughtError(
               "start: failed to remove stale now-playing snapshot",
               error,
-              isRemarkable: { error in
+              level: { error in
                 let nsError = error as NSError
                 if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
-                  return false
+                  return .debug
                 }
-                return ErrorKit.isRemarkable(error)
+                return .error
               }
             )
           }
@@ -232,7 +232,7 @@ final class WidgetSnapshotWriter: Sendable {
             Self.log.caughtError(
               "writeQueueSnapshot: failed to load \(urlString)",
               error,
-              remarkable: .info
+              level: { _ in .info }
             )
             return (urlString, nil)
           }

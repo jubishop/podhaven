@@ -67,7 +67,7 @@ struct UnsavedPodcast:
         Self.log.caughtError(
           "Invalid link URL '\(link)' for podcast '\(title)'",
           error,
-          remarkable: .info
+          level: { _ in .info }
         )
         self.link = nil
       }

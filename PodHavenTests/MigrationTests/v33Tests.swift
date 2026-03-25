@@ -1,5 +1,6 @@
 // Copyright Justin Bishop, 2026
 
+import FactoryKit
 import Foundation
 import GRDB
 import Testing
@@ -15,80 +16,209 @@ class V33MigrationTests {
     self.migrator = Schema.makeMigrator()
   }
 
+  private var standardDefaults: FakeKeyValueStore {
+    Container.shared.standardDefaults() as! FakeKeyValueStore
+  }
+
+  private var sharedDefaults: FakeKeyValueStore {
+    Container.shared.sharedDefaults() as! FakeKeyValueStore
+  }
+
   // MARK: - Helpers
 
-  private static func insertPodcast(_ db: Database) throws -> Int64 {
-    try db.execute(
-      sql: """
-        INSERT INTO podcast (feedURL, title, image, description)
-        VALUES ('https://example.com/feed.xml', 'Test', 'img', 'desc')
-        """
+  private func seedKey(_ key: String, in store: FakeKeyValueStore) throws {
+    let data = try JSONEncoder().encode("value")
+    store.set(data, forKey: key)
+  }
+
+  // MARK: - Standard Defaults Tests
+
+  @Test("preserves active standard defaults keys")
+  func testPreservesActiveStandardKeys() async throws {
+    try migrator.migrate(appDB.db, upTo: "v32")
+
+    let activeKeys = [
+      "shrinkPlayBarOnScroll",
+      "cacheSizeLimitGB",
+      "defaultPlaybackRate",
+      "skipForwardInterval",
+      "skipBackwardInterval",
+      "enableUndoSeek",
+      "maxQueueLength",
+      "showNowPlayingInUpNext",
+      "alwaysShowPodcastImageInUpNext",
+      "showTimeRemainingInEpisodeLists",
+      "appearanceMode",
+      "nextTrackBehavior",
+      "currentEpisodeID",
+      "PodcastsList-displayMode",
+      "SearchView-displayMode",
+    ]
+    for key in activeKeys {
+      try seedKey(key, in: standardDefaults)
+    }
+
+    try migrator.migrate(appDB.db, upTo: "v33")
+
+    for key in activeKeys {
+      #expect(standardDefaults.data(forKey: key) != nil, "active key '\(key)' should be preserved")
+    }
+  }
+
+  @Test("preserves dynamic prefix keys in standard defaults")
+  func testPreservesDynamicPrefixKeys() async throws {
+    try migrator.migrate(appDB.db, upTo: "v32")
+
+    let prefixedKeys = [
+      "PodcastsList-sortMethod-Subscribed",
+      "PodcastsList-sortMethod-Unsubscribed",
+      "PodcastsList-sortMethod-Untagged",
+      "PodcastsList-sortMethod-My Custom Tag",
+      "EpisodesList-sortMethod-Recent Episodes",
+      "EpisodesList-sortMethod-Cached",
+      "EpisodesList-sortMethod-Finished",
+    ]
+    for key in prefixedKeys {
+      try seedKey(key, in: standardDefaults)
+    }
+
+    try migrator.migrate(appDB.db, upTo: "v33")
+
+    for key in prefixedKeys {
+      #expect(
+        standardDefaults.data(forKey: key) != nil,
+        "prefixed key '\(key)' should be preserved"
+      )
+    }
+  }
+
+  @Test("removes stale keys from standard defaults")
+  func testRemovesStaleStandardKeys() async throws {
+    try migrator.migrate(appDB.db, upTo: "v32")
+
+    // Seed one active key to confirm it survives
+    try seedKey("maxQueueLength", in: standardDefaults)
+
+    // Seed stale keys
+    let staleKeys = [
+      "PlayManager-currentEpisodeID",
+      "oldSetting",
+      "legacyFeatureFlag",
+    ]
+    for key in staleKeys {
+      try seedKey(key, in: standardDefaults)
+    }
+
+    try migrator.migrate(appDB.db, upTo: "v33")
+
+    #expect(standardDefaults.data(forKey: "maxQueueLength") != nil)
+    for key in staleKeys {
+      #expect(standardDefaults.data(forKey: key) == nil, "stale key '\(key)' should be removed")
+    }
+  }
+
+  // MARK: - Shared Defaults Tests
+
+  @Test("preserves active shared defaults keys")
+  func testPreservesActiveSharedKeys() async throws {
+    try migrator.migrate(appDB.db, upTo: "v32")
+
+    let activeKeys = [
+      "skipForwardInterval",
+      "skipBackwardInterval",
+      "playbackStatus",
+    ]
+    for key in activeKeys {
+      try seedKey(key, in: sharedDefaults)
+    }
+
+    try migrator.migrate(appDB.db, upTo: "v33")
+
+    for key in activeKeys {
+      #expect(sharedDefaults.data(forKey: key) != nil, "active key '\(key)' should be preserved")
+    }
+  }
+
+  @Test("removes stale keys from shared defaults")
+  func testRemovesStaleSharedKeys() async throws {
+    try migrator.migrate(appDB.db, upTo: "v32")
+
+    try seedKey("playbackStatus", in: sharedDefaults)
+    try seedKey("oldWidgetKey", in: sharedDefaults)
+    try seedKey("legacySharedState", in: sharedDefaults)
+
+    try migrator.migrate(appDB.db, upTo: "v33")
+
+    #expect(sharedDefaults.data(forKey: "playbackStatus") != nil)
+    #expect(sharedDefaults.data(forKey: "oldWidgetKey") == nil)
+    #expect(sharedDefaults.data(forKey: "legacySharedState") == nil)
+  }
+
+  // MARK: - Edge Cases
+
+  @Test("handles empty stores")
+  func testEmptyStores() async throws {
+    try migrator.migrate(appDB.db, upTo: "v32")
+
+    #expect(standardDefaults.allKeys.isEmpty)
+    #expect(sharedDefaults.allKeys.isEmpty)
+
+    try migrator.migrate(appDB.db, upTo: "v33")
+
+    #expect(standardDefaults.allKeys.isEmpty)
+    #expect(sharedDefaults.allKeys.isEmpty)
+  }
+
+  @Test("does not remove keys from one store when cleaning the other")
+  func testStoreIsolation() async throws {
+    try migrator.migrate(appDB.db, upTo: "v32")
+
+    // "staleKey" exists in both stores
+    try seedKey("staleKey", in: standardDefaults)
+    try seedKey("staleKey", in: sharedDefaults)
+
+    // An active standard key should not protect the same name in shared
+    try seedKey("appearanceMode", in: sharedDefaults)
+
+    try migrator.migrate(appDB.db, upTo: "v33")
+
+    // Both stale keys removed from their respective stores
+    #expect(standardDefaults.data(forKey: "staleKey") == nil)
+    #expect(sharedDefaults.data(forKey: "staleKey") == nil)
+
+    // "appearanceMode" is active in standard but not shared
+    #expect(sharedDefaults.data(forKey: "appearanceMode") == nil)
+  }
+
+  // MARK: - Direct Static Method Tests
+
+  @Test("cleanupStaleKeys removes only non-matching keys")
+  func testCleanupStaleKeysDirect() throws {
+    let store = FakeKeyValueStore()
+    try seedKey("keep", in: store)
+    try seedKey("prefixed-foo", in: store)
+    try seedKey("remove-me", in: store)
+
+    Schema.cleanupStaleKeys(
+      in: store,
+      activeKeys: ["keep"],
+      activePrefixes: ["prefixed-"]
     )
-    return db.lastInsertedRowID
+
+    #expect(store.data(forKey: "keep") != nil)
+    #expect(store.data(forKey: "prefixed-foo") != nil)
+    #expect(store.data(forKey: "remove-me") == nil)
   }
 
-  private static func insertEpisode(
-    _ db: Database,
-    podcastID: Int64,
-    rating: String? = nil,
-    ratingDate: String? = nil
-  ) throws -> Int64 {
-    try db.execute(
-      sql: """
-        INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate, rating, ratingDate)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
-        """,
-      arguments: [
-        podcastID, "ep-\(UUID())", "https://example.com/ep-\(UUID()).mp3", "Test Episode",
-        rating, ratingDate,
-      ]
-    )
-    return db.lastInsertedRowID
-  }
+  @Test("cleanupStaleKeys with no prefixes only matches exact keys")
+  func testCleanupNoPrefixes() throws {
+    let store = FakeKeyValueStore()
+    try seedKey("exact", in: store)
+    try seedKey("exactWithSuffix", in: store)
 
-  // MARK: - Tests
+    Schema.cleanupStaleKeys(in: store, activeKeys: ["exact"])
 
-  @Test("adds rating and ratingDate columns to episode table")
-  func ratingColumnsExist() async throws {
-    try migrator.migrate(appDB.db, upTo: "v33")
-
-    try await appDB.db.read { db in
-      let columns = try db.columns(in: "episode").map(\.name)
-      #expect(columns.contains("rating"))
-      #expect(columns.contains("ratingDate"))
-    }
-  }
-
-  @Test("rating column accepts valid values")
-  func ratingColumnAcceptsValidValues() async throws {
-    try migrator.migrate(appDB.db, upTo: "v33")
-
-    try await appDB.db.write { db in
-      let podcastID = try V33MigrationTests.insertPodcast(db)
-      _ = try V33MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "loved")
-      _ = try V33MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "liked")
-      _ = try V33MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "disliked")
-      _ = try V33MigrationTests.insertEpisode(db, podcastID: podcastID, rating: nil)
-    }
-
-    try await appDB.db.read { db in
-      let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM episode")
-      #expect(count == 4)
-    }
-  }
-
-  @Test("rating column rejects invalid values")
-  func ratingColumnRejectsInvalid() async throws {
-    try migrator.migrate(appDB.db, upTo: "v33")
-
-    do {
-      try await appDB.db.write { db in
-        let podcastID = try V33MigrationTests.insertPodcast(db)
-        _ = try V33MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "invalid")
-      }
-      Issue.record("Expected CHECK constraint to reject invalid rating")
-    } catch {
-      // Expected: CHECK constraint violation
-    }
+    #expect(store.data(forKey: "exact") != nil)
+    #expect(store.data(forKey: "exactWithSuffix") == nil)
   }
 }

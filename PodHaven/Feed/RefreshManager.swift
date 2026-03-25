@@ -66,7 +66,7 @@ struct RefreshManager {
             Self.log.caughtError(
               "Failed to refresh series: \(podcastSeries.toString)",
               error,
-              remarkable: .info
+              level: { _ in .info }
             )
           }
         }
@@ -99,17 +99,20 @@ struct RefreshManager {
     } catch {
       Self.log.caughtError(
         """
-        Failed to refresh podcast series
+        Failed to parse podcast feed
           PodcastSeries: \(podcastSeries.toString)
           FeedURL: \(podcastSeries.podcast.feedURL)
         """,
         error,
-        remarkable: .notice
+        level: { error in
+          if error as? FeedParseError == .notXML { return .notice }
+          return .error
+        }
       )
       return false
     }
 
-    try await updateSeriesFromFeed(
+    await updateSeriesFromFeed(
       podcastSeries: podcastSeries,
       podcastFeed: podcastFeed
     )
@@ -120,7 +123,7 @@ struct RefreshManager {
   func updateSeriesFromFeed(
     podcastSeries: PodcastSeries,
     podcastFeed: PodcastFeed
-  ) async throws {
+  ) async {
     Self.log.trace(
       """
       updateSeriesFromFeed
@@ -138,7 +141,20 @@ struct RefreshManager {
       id: \.guid
     )
 
-    let newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries.podcast)
+    let newUnsavedPodcast: UnsavedPodcast
+    do {
+      newUnsavedPodcast = try podcastFeed.toUnsavedPodcast(merging: podcastSeries.podcast)
+    } catch {
+      Self.log.caughtError(
+        """
+        Failed to convert PodcastFeed to UnsavedPodcast
+          PodcastSeries: \(podcastSeries.toString)
+          PodcastFeed: \(podcastFeed.toString)
+        """,
+        error
+      )
+      return
+    }
     let newPodcast = Podcast(
       id: podcastSeries.id,
       creationDate: podcastSeries.podcast.creationDate,
