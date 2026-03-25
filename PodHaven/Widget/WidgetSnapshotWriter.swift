@@ -64,7 +64,7 @@ final class WidgetSnapshotWriter: Sendable {
                 if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError {
                   return .debug
                 }
-                return ErrorKit.level(error)
+                return .error
               }
             )
           }

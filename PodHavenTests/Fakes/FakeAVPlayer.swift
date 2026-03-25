@@ -200,13 +200,12 @@ class FakeAVPlayer: AVPlayable, Identifiable, Equatable {
 
     timeControlStatus = .paused
 
+    nonisolated(unsafe) let notification = Notification(
+      name: AVPlayerItem.didPlayToEndTimeNotification,
+      object: current
+    )
     notifier.continuation(for: AVPlayerItem.didPlayToEndTimeNotification)
-      .yield(
-        Notification(
-          name: AVPlayerItem.didPlayToEndTimeNotification,
-          object: current
-        )
-      )
+      .yield(notification)
   }
 
   func advanceTime(to cmTime: CMTime) {

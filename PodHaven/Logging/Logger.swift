@@ -12,10 +12,11 @@ extension Logger {
     file: String = #fileID,
     function: String = #function,
     line: UInt = #line,
-    level: (any Error) -> Logger.Level = ErrorKit.level
+    level: (any Error) -> Logger.Level = { _ in .error }
   ) {
     let message: Logger.Message = "\(header)\n\(ErrorKit.loggableMessage(for: error))"
-    self.log(level: level(error), message, file: file, function: function, line: line)
+    let resolvedLevel = ErrorKit.isRemarkable(error) ? level(error) : .debug
+    self.log(level: resolvedLevel, message, file: file, function: function, line: line)
   }
 
   func error(
@@ -23,10 +24,11 @@ extension Logger {
     file: String = #fileID,
     function: String = #function,
     line: UInt = #line,
-    level: (any Error) -> Logger.Level = ErrorKit.level
+    level: (any Error) -> Logger.Level = { _ in .error }
   ) {
     let message = ErrorKit.loggableMessage(for: error)
-    self.log(level: level(error), message, file: file, function: function, line: line)
+    let resolvedLevel = ErrorKit.isRemarkable(error) ? level(error) : .debug
+    self.log(level: resolvedLevel, message, file: file, function: function, line: line)
   }
 
 }

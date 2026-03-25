@@ -106,7 +106,7 @@ struct RefreshManager {
         error,
         level: { error in
           if error as? FeedParseError == .notXML { return .notice }
-          return ErrorKit.level(error)
+          return .error
         }
       )
       return false
