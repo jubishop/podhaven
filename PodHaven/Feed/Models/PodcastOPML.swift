@@ -143,7 +143,7 @@ struct PodcastOPML: Codable, Sendable {
           Self.log.caughtError(
             "Invalid feed URL '\(xmlUrl)' for outline '\(outline.text)'",
             error,
-            remarkable: .info
+            level: { _ in .info }
           )
           return nil
         }

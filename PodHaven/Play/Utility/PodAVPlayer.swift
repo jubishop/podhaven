@@ -151,7 +151,7 @@ enum PodAVPlayerError: Error, LocalizedError {
       Self.log.caughtError(
         "performLoadAsset: cache load failed, clearing cached filename and falling back to remote",
         error,
-        remarkable: .warning
+        level: { _ in .warning }
       )
       do {
         try await repo.updateCachedFilename(podcastEpisode.id, cachedFilename: nil)

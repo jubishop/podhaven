@@ -178,7 +178,7 @@ enum AppInfo {
       log.caughtError(
         "Failed to read Info.plist attributes at \(infoPath)",
         error,
-        remarkable: .info
+        level: { _ in .info }
       )
       return Date()
     }

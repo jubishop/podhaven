@@ -206,7 +206,7 @@ enum Schema {
           log.caughtError(
             "v29 migration: failed to encode '\(key)' (\(type(of: existing)))",
             error,
-            remarkable: .info
+            level: { _ in .info }
           )
         }
       }
