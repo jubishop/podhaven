@@ -48,18 +48,102 @@ struct RefreshScheduler: Sendable {
 
   // MARK: - State Management
 
+  // desiredMode is the source of truth.
+  // foregroundLoop reserves the single loop slot so duplicate start requests
+  // cannot create orphaned foreground tasks.
   private enum DesiredMode: Sendable {
     case foreground
     case background
   }
 
-  private struct State: Sendable {
-    var desiredMode: DesiredMode = .background
-    var foregroundLoopToken: UUID?
-    var foregroundLoopTask: Task<Void, Never>?
+  private struct ForegroundLoop: Sendable {
+    let id: UUID
+    var task: Task<Void, Never>?
   }
 
-  private let refreshLock = ThreadLock()
+  private enum Event: Sendable {
+    case sceneDidBecomeActive
+    case sceneDidEnterBackground
+    case foregroundLoopEnded(foregroundLoopID: UUID)
+  }
+
+  private enum Effect: Sendable {
+    case startForegroundLoop(UUID)
+    case cancelForegroundLoop(Task<Void, Never>)
+    case scheduleBackgroundTask
+  }
+
+  private struct State: Sendable {
+    var desiredMode: DesiredMode = .background
+    var foregroundLoop: ForegroundLoop?
+    var isRefreshInFlight = false
+
+    mutating func transition(for event: Event) -> [Effect] {
+      switch event {
+      case .sceneDidBecomeActive:
+        desiredMode = .foreground
+        return reconcileForegroundLoop()
+      case .sceneDidEnterBackground:
+        desiredMode = .background
+
+        var effects: [Effect] = []
+        if let foregroundLoopToCancel = foregroundLoop?.task {
+          effects.append(.cancelForegroundLoop(foregroundLoopToCancel))
+        }
+        foregroundLoop = nil
+        effects.append(.scheduleBackgroundTask)
+
+        return effects
+      case .foregroundLoopEnded(let foregroundLoopID):
+        guard foregroundLoop?.id == foregroundLoopID else { return [] }
+
+        foregroundLoop = nil
+        return []
+      }
+    }
+
+    mutating func installForegroundLoop(
+      _ task: Task<Void, Never>,
+      foregroundLoopID: UUID
+    ) -> Task<Void, Never>? {
+      guard desiredMode == .foreground else { return task }
+      guard foregroundLoop?.id == foregroundLoopID else { return task }
+
+      foregroundLoop?.task = task
+      return nil
+    }
+
+    func shouldContinueForegroundLoop(foregroundLoopID: UUID) -> Bool {
+      desiredMode == .foreground
+        && foregroundLoop?.id == foregroundLoopID
+    }
+
+    mutating func beginRefreshIfNeeded() -> Bool {
+      guard !isRefreshInFlight else { return false }
+
+      isRefreshInFlight = true
+      return true
+    }
+
+    mutating func finishRefresh() -> [Effect] {
+      guard isRefreshInFlight else { return [] }
+
+      isRefreshInFlight = false
+      return reconcileForegroundLoop()
+    }
+
+    private mutating func reconcileForegroundLoop() -> [Effect] {
+      guard desiredMode == .foreground else { return [] }
+      guard !isRefreshInFlight else { return [] }
+      guard foregroundLoop == nil else { return [] }
+
+      let foregroundLoopID = UUID()
+      foregroundLoop = ForegroundLoop(id: foregroundLoopID)
+
+      return [.startForegroundLoop(foregroundLoopID)]
+    }
+  }
+
   private let state = ThreadSafe(State())
   private let backgroundTaskScheduler: BackgroundTaskScheduler
 
@@ -82,7 +166,7 @@ struct RefreshScheduler: Sendable {
       do {
         Self.log.debug("background refresh: performing refresh")
 
-        try await executeRefresh(backgroundPolicy)
+        try await runRefresh(backgroundPolicy)
         try Task.checkCancellation()
 
         Self.log.debug("background refresh: completed gracefully")
@@ -92,82 +176,49 @@ struct RefreshScheduler: Sendable {
         Self.log.caughtError("register: background refresh failed", error)
         complete(false)
       }
-
-      if await application.applicationState == .active {
-        Self.log.debug("App foregrounded during BGTask: beginning foreground refreshing")
-
-        requestForegroundRefreshing()
-      }
     }
   }
 
   // MARK: - Foreground Task
 
-  private func requestForegroundRefreshing() {
-    state { $0.desiredMode = .foreground }
-
-    if refreshLock.isClaimed {
-      Self.log.debug("foreground refresh: refresh already in flight, deferring loop start")
-      return
-    }
-
-    startForegroundRefreshingIfNeeded()
+  private func handle(_ event: Event) {
+    let effects = state { $0.transition(for: event) }
+    apply(effects)
   }
 
-  private func startForegroundRefreshingIfNeeded() {
-    let token = UUID()
-    let shouldStart = state { value in
-      guard value.foregroundLoopToken == nil else { return false }
-
-      value.foregroundLoopToken = token
-      return true
+  private func apply(_ effects: [Effect]) {
+    for effect in effects {
+      switch effect {
+      case .startForegroundLoop(let foregroundLoopID):
+        startForegroundLoop(foregroundLoopID: foregroundLoopID)
+      case .cancelForegroundLoop(let task):
+        task.cancel()
+      case .scheduleBackgroundTask:
+        backgroundTaskScheduler.scheduleNext()
+      }
     }
-    guard shouldStart else {
-      Self.log.debug("foreground refresh task loop already active")
-      return
-    }
+  }
 
+  private func startForegroundLoop(foregroundLoopID: UUID) {
     Self.log.debug("starting foreground refresh task loop")
 
-    let task = foregroundRefreshTask(token: token)
-    let shouldCancel = state { value in
-      guard value.foregroundLoopToken == token else { return true }
-      guard value.desiredMode == .foreground else {
-        value.foregroundLoopToken = nil
-        value.foregroundLoopTask = nil
-        return true
-      }
-
-      value.foregroundLoopTask = task
-      return false
+    let task = foregroundRefreshTask(foregroundLoopID: foregroundLoopID)
+    let foregroundLoopToCancel = state {
+      $0.installForegroundLoop(task, foregroundLoopID: foregroundLoopID)
     }
-    if shouldCancel {
-      task.cancel()
-    }
+    foregroundLoopToCancel?.cancel()
   }
 
-  private func stopForegroundRefreshing() {
-    let task = state { value -> Task<Void, Never>? in
-      value.desiredMode = .background
-      defer {
-        value.foregroundLoopToken = nil
-        value.foregroundLoopTask = nil
-      }
-      return value.foregroundLoopTask
-    }
-    task?.cancel()
-  }
-
-  private func foregroundRefreshTask(token: UUID) -> Task<Void, Never> {
+  private func foregroundRefreshTask(foregroundLoopID: UUID) -> Task<Void, Never> {
     Task(priority: .background) {
-      defer { clearForegroundLoopIfCurrent(token: token) }
+      defer { handle(.foregroundLoopEnded(foregroundLoopID: foregroundLoopID)) }
 
       do {
         try await sleeper.sleep(for: .seconds(3))
 
         Self.log.debug("foregroundRefreshTask: done initial sleeping")
 
-        while shouldContinueForegroundRefreshing(token: token) {
+        while shouldContinueForegroundRefreshing(foregroundLoopID: foregroundLoopID) {
           try Task.checkCancellation()
           guard await application.applicationState == .active else { return }
 
@@ -178,7 +229,7 @@ struct RefreshScheduler: Sendable {
           do {
             Self.log.debug("foregroundRefreshTask: performing refresh")
 
-            try await executeRefresh(foregroundPolicy)
+            try await runRefresh(foregroundPolicy)
             try Task.checkCancellation()
 
             Self.log.debug("foregroundRefreshTask: refresh completed gracefully")
@@ -199,35 +250,24 @@ struct RefreshScheduler: Sendable {
     }
   }
 
-  private func shouldContinueForegroundRefreshing(token: UUID) -> Bool {
-    state { value in
-      value.desiredMode == .foreground
-        && value.foregroundLoopToken == token
-    }
-  }
-
-  private func clearForegroundLoopIfCurrent(token: UUID) {
-    state { value in
-      guard value.foregroundLoopToken == token else { return }
-
-      value.foregroundLoopToken = nil
-      value.foregroundLoopTask = nil
-    }
+  private func shouldContinueForegroundRefreshing(foregroundLoopID: UUID) -> Bool {
+    state { $0.shouldContinueForegroundLoop(foregroundLoopID: foregroundLoopID) }
   }
 
   // MARK: - Refresh Helpers
 
-  private func executeRefresh(_ refreshPolicy: RefreshPolicy) async throws {
+  private func runRefresh(_ refreshPolicy: RefreshPolicy) async throws {
     if connectionState.isConstrained {
       Self.log.debug("connection is constrained (low data mode)")
       return
     }
 
-    if !refreshLock.claim() {
+    let shouldRunRefresh = state { $0.beginRefreshIfNeeded() }
+    if !shouldRunRefresh {
       Self.log.debug("failed to claim refreshing: already refreshing")
       return
     }
-    defer { refreshLock.release() }
+    defer { finishRefresh() }
 
     try await refreshManager.performRefresh(
       stalenessThreshold: connectionState.isExpensive
@@ -240,6 +280,11 @@ struct RefreshScheduler: Sendable {
     )
   }
 
+  private func finishRefresh() {
+    let effects = state { $0.finishRefresh() }
+    apply(effects)
+  }
+
   // MARK: - Phase Changes
 
   func handleScenePhaseChange(to scenePhase: ScenePhase) {
@@ -247,12 +292,11 @@ struct RefreshScheduler: Sendable {
     case .active:
       Self.log.debug("activated")
 
-      requestForegroundRefreshing()
+      handle(.sceneDidBecomeActive)
     case .background:
       Self.log.debug("backgrounded")
 
-      stopForegroundRefreshing()
-      backgroundTaskScheduler.scheduleNext()
+      handle(.sceneDidEnterBackground)
     default:
       break
     }

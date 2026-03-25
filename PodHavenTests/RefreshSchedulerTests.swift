@@ -193,6 +193,39 @@ import UIKit
     #expect(fakeBGTaskScheduler.submissions.count == 1)
   }
 
+  @Test("background refresh completion while backgrounded does not arm the foreground loop")
+  func backgroundRefreshCompletionWhileBackgroundedDoesNotStartForegroundLoop() async throws {
+    let fakeBGTaskScheduler = fakeBGTaskScheduler
+    let fakeSleeper = fakeSleeper
+    let session = session
+    let podcastSeries = try await makeStaleSubscribedSeries()
+    let responseData = PreviewBundle.loadAsset(
+      named: "hardfork_short_updated",
+      in: .FeedRSS
+    )
+    await session.respond(to: podcastSeries.podcast.feedURL.rawValue, data: responseData)
+    fakeApplication.applicationState = .background
+
+    refreshScheduler.register()
+
+    let identifier = try #require(fakeBGTaskScheduler.submissions.first?.identifier)
+    let task = try #require(fakeBGTaskScheduler.launchTask(withIdentifier: identifier))
+
+    try await Wait.until(
+      { task.completionResults == [true] },
+      { "Expected background refresh to complete successfully, got \(task.completionResults)" }
+    )
+    try await Wait.until(
+      { await session.requests.count == 1 },
+      { "Expected one background refresh request, got \(await session.requests.count)" }
+    )
+
+    await fakeSleeper.advanceTime(by: .seconds(3))
+
+    #expect(await session.requests.count == 1)
+    #expect(fakeApplication.activeTaskCount == 0)
+  }
+
   @Test(
     "active scene transition during a background refresh starts foreground looping only after the background refresh finishes"
   )
