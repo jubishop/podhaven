@@ -314,7 +314,7 @@ class PodcastDetailViewModel:
         Self.log.caughtError(
           "init: failed to load share artwork for \(podcast.image)",
           error,
-          remarkable: .info
+          level: { _ in .info }
         )
       }
     }

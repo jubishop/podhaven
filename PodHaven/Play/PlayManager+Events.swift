@@ -183,7 +183,7 @@ extension PlayManager {
         Self.log.caughtError(
           "AVPlayerItem failed to play to end time",
           error,
-          remarkable: .warning
+          level: { _ in .warning }
         )
 
         await handlePlaybackFailure()

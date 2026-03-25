@@ -15,7 +15,7 @@ struct ITunesEntityResults: Decodable, Sendable {
         Self.log.caughtError(
           "Failed to convert iTunes entity (feedURL: \(String(describing: entity.feedURL)))",
           error,
-          remarkable: .notice
+          level: { _ in .notice }
         )
         return nil
       }

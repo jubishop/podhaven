@@ -46,7 +46,7 @@ struct EpisodeFeed: Sendable, Equatable {
       Self.log.caughtError(
         "Invalid MediaURL: \(mediaURL) for '\(rssEpisode.title)'",
         error,
-        remarkable: .warning
+        level: { _ in .warning }
       )
       return nil
     }
@@ -96,6 +96,19 @@ struct EpisodeFeed: Sendable, Equatable {
   }
 }
 
+// MARK: - FeedParseError
+
+enum FeedParseError: Error, LocalizedError {
+  case notXML
+
+  var errorDescription: String? {
+    switch self {
+    case .notXML:
+      return "Response is not valid XML"
+    }
+  }
+}
+
 // MARK: - PodcastFeed
 
 struct PodcastFeed: Sendable, Stringable {
@@ -114,6 +127,9 @@ struct PodcastFeed: Sendable, Stringable {
 
   static func parse(_ data: Data, from: FeedURL) async throws -> PodcastFeed {
     log.trace("Parsing data of size \(data.count) from \(from)")
+    guard XMLParser(data: data).parse() else {
+      throw FeedParseError.notXML
+    }
     let rssPodcast = try await PodcastRSS.parse(data)
     return try PodcastFeed(rssPodcast: rssPodcast, from: from)
   }
@@ -193,7 +209,7 @@ struct PodcastFeed: Sendable, Stringable {
           Self.log.caughtError(
             "Failed to convert episode feed to unsaved episode: \(episodeFeed.mediaGUID)",
             error,
-            remarkable: .warning
+            level: { _ in .warning }
           )
           return nil
         }

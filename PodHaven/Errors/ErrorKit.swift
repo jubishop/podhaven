@@ -31,6 +31,10 @@ enum ErrorKit {
 
   // MARK: - Analysis
 
+  static func level(_ error: any Error) -> Logger.Level {
+    isRemarkable(error) ? .error : .debug
+  }
+
   static func isRemarkable(_ error: any Error) -> Bool {
     if error is CancellationError { return false }
 
