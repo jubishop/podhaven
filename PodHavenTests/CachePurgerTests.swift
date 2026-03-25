@@ -4,19 +4,102 @@ import AVFoundation
 import FactoryKit
 import FactoryTesting
 import Foundation
+import SwiftUI
 import Testing
 
 @testable import PodHaven
 
 @Suite("of CachePurger tests", .container)
 @MainActor class CachePurgerTests {
+  @DynamicInjected(\.bgTaskScheduler) private var bgTaskScheduler
   @DynamicInjected(\.cachePurger) private var cachePurger
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.userSettings) private var userSettings
 
+  private var fakeBGTaskScheduler: FakeBGTaskScheduler {
+    bgTaskScheduler as! FakeBGTaskScheduler
+  }
   private var fileManager: FakeFileManager {
     Container.shared.fileManager() as! FakeFileManager
+  }
+
+  // MARK: - Background Scheduling Tests
+
+  @Test("register installs a processing task handler and schedules the initial purge task")
+  func registerInstallsProcessingTaskHandlerAndSchedulesInitialTask() throws {
+    let fakeBGTaskScheduler = fakeBGTaskScheduler
+
+    cachePurger.register()
+
+    let registration = try #require(fakeBGTaskScheduler.registrations.first)
+    let submission = try #require(fakeBGTaskScheduler.submissions.first)
+
+    #expect(fakeBGTaskScheduler.registrations.count == 1)
+    #expect(fakeBGTaskScheduler.submissions.count == 1)
+    #expect(registration.identifier == submission.identifier)
+    #expect(submission.isProcessing == true)
+    #expect(submission.requiresNetworkConnectivity == false)
+  }
+
+  @Test("launching the registered background task runs a purge and completes successfully")
+  func launchingRegisteredBackgroundTaskRunsPurge() async throws {
+    let fakeBGTaskScheduler = fakeBGTaskScheduler
+    let fakeFileManager = fileManager
+    let danglingFileURL = CacheManager.cacheDirectory.appendingPathComponent("background-purge.mp3")
+    let danglingData = Data(count: 1024 * 1024)
+
+    try await fakeFileManager.writeData(danglingData, to: danglingFileURL)
+    #expect(fakeFileManager.fileExists(at: danglingFileURL))
+
+    cachePurger.register()
+
+    let identifier = try #require(fakeBGTaskScheduler.submissions.first?.identifier)
+    let task = try #require(fakeBGTaskScheduler.launchTask(withIdentifier: identifier))
+
+    try await Wait.until(
+      { !fakeFileManager.fileExists(at: danglingFileURL) },
+      { "Expected launched background purge to remove the dangling cache file" }
+    )
+    try await Wait.until(
+      { task.completionResults == [true] },
+      {
+        "Expected launched background purge to complete successfully, got \(task.completionResults)"
+      }
+    )
+    #expect(fakeBGTaskScheduler.submissions.count == 2)
+  }
+
+  @Test("backgrounding schedules the next purge task")
+  func backgroundingSchedulesNextPurgeTask() throws {
+    let fakeBGTaskScheduler = fakeBGTaskScheduler
+
+    cachePurger.handleScenePhaseChange(to: .background)
+
+    let submission = try #require(fakeBGTaskScheduler.submissions.first)
+    #expect(fakeBGTaskScheduler.submissions.count == 1)
+    #expect(submission.isProcessing == true)
+    #expect(submission.requiresNetworkConnectivity == false)
+  }
+
+  @Test("active scene phase does not schedule a purge task")
+  func activeScenePhaseDoesNotSchedulePurgeTask() {
+    let fakeBGTaskScheduler = fakeBGTaskScheduler
+
+    cachePurger.handleScenePhaseChange(to: .active)
+
+    #expect(fakeBGTaskScheduler.submissions.isEmpty)
+  }
+
+  @Test("repeated background transitions do not enqueue duplicate pending purge tasks")
+  func repeatedBackgroundTransitionsDoNotEnqueueDuplicatePendingTasks() {
+    let fakeBGTaskScheduler = fakeBGTaskScheduler
+
+    cachePurger.handleScenePhaseChange(to: .background)
+    cachePurger.handleScenePhaseChange(to: .background)
+
+    #expect(fakeBGTaskScheduler.submissions.count == 1)
+    #expect(fakeBGTaskScheduler.pendingIdentifiers.count == 1)
   }
 
   // MARK: - Cache Size Calculation Tests
