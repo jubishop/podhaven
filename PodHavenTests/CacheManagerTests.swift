@@ -24,8 +24,8 @@ import Testing
   private var session: FakeDataFetchable {
     Container.shared.cacheManagerSession() as! FakeDataFetchable
   }
-  private var sleeper: FakeSleeper {
-    Container.shared.sleeper() as! FakeSleeper
+  private var sharedState: SharedState {
+    Container.shared.sharedState()
   }
 
   init() async throws {
@@ -362,6 +362,81 @@ import Testing
   func clearingCacheOfAnUncachedEpisodeDoesNothing() async throws {
     let podcastEpisode = try await Create.podcastEpisode()
     #expect(try await cacheManager.clearCache(for: podcastEpisode.id) == nil)
+  }
+
+  // MARK: - canClearCache
+
+  @Test("canClearCache returns true for unqueued episode with no current episode")
+  func canClearCacheReturnsTrueForUnqueuedEpisodeWithNoCurrentEpisode() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    #expect(CacheManager.canClearCache(podcastEpisode.episode))
+  }
+
+  @Test("canClearCache returns false for queued episode")
+  func canClearCacheReturnsFalseForQueuedEpisode() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    try await queue.unshift(podcastEpisode.id)
+
+    let episode = try await repo.episode(podcastEpisode.id)!
+    #expect(!CacheManager.canClearCache(episode))
+  }
+
+  @Test("canClearCache returns true when currentEpisodeID is a different episode")
+  func canClearCacheReturnsTrueWhenCurrentEpisodeIDIsDifferent() async throws {
+    let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()
+    sharedState.currentEpisodeID = podcastEpisode1.id
+
+    #expect(CacheManager.canClearCache(podcastEpisode2.episode))
+  }
+
+  // MARK: - downloadToCache Edge Cases
+
+  @Test("downloadToCache returns nil for nonexistent episode")
+  func downloadToCacheReturnsNilForNonexistentEpisode() async throws {
+    let result = try await cacheManager.downloadToCache(for: Episode.ID(rawValue: -999))
+    #expect(result == nil)
+  }
+
+  // MARK: - clearCache Edge Cases
+
+  @Test("clearCache returns nil for nonexistent episode")
+  func clearCacheReturnsNilForNonexistentEpisode() async throws {
+    let result = try await cacheManager.clearCache(for: Episode.ID(rawValue: -999))
+    #expect(result == nil)
+  }
+
+  // MARK: - Queue Observation Deduplication
+
+  @Test("re-queuing the same episode does not trigger a duplicate download")
+  func requeueingSameEpisodeDoesNotTriggerDuplicateDownload() async throws {
+    let podcastEpisode = try await Create.podcastEpisode()
+    let taskID = try await CacheHelpers.unshiftToQueue(podcastEpisode.id)
+    try await CacheHelpers.simulateBackgroundFinish(taskID)
+    try await CacheHelpers.waitForCached(podcastEpisode.id)
+
+    // Dequeue and re-queue the same episode
+    try await queue.dequeue(podcastEpisode.id)
+    try await queue.unshift(podcastEpisode.id)
+
+    // Should not start a new download since it's already cached
+    #expect(try await cacheManager.downloadToCache(for: podcastEpisode.id) == nil)
+  }
+
+  // MARK: - OnDeck Deduplication
+
+  @Test("changing onDeck to a different episode caches the new episode")
+  func changingOnDeckToADifferentEpisodeCachesNewEpisode() async throws {
+    let (podcastEpisode1, podcastEpisode2) = try await Create.twoPodcastEpisodes()
+
+    try await PlayHelpers.load(podcastEpisode1)
+    let taskID1 = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode1.id)
+    try await CacheHelpers.waitForResumed(taskID1)
+
+    try await PlayHelpers.load(podcastEpisode2)
+    let taskID2 = try await CacheHelpers.waitForDownloadTaskID(podcastEpisode2.id)
+    try await CacheHelpers.waitForResumed(taskID2)
+
+    #expect(taskID1 != taskID2)
   }
 
   // MARK: - Filenames
