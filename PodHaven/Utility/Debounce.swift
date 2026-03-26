@@ -16,9 +16,6 @@ final class Debounce: Sendable {
   }
 
   func callAsFunction(_ action: @escaping @Sendable () async -> Void) {
-    let duration = duration
-    let priority = priority
-    let sleeper = sleeper
     task { existing in
       existing?.cancel()
       existing = Task(priority: priority) {
