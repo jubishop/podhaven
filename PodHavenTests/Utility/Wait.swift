@@ -8,6 +8,8 @@ import Testing
 
 @testable import PodHaven
 
+// Polling runs at .background priority so it never starves the
+// .utility (or higher) production tasks whose effects it waits for.
 enum Wait {
   @discardableResult
   static func forValue<T: Sendable>(
@@ -15,13 +17,18 @@ enum Wait {
     delay: Duration = .milliseconds(10),
     _ block: @Sendable @escaping () async throws -> T?
   ) async throws -> T {
-    var attempts = 0
-    while attempts < maxAttempts {
-      if let value = try await block() { return value }
-      try await Task.sleep(for: delay)
-      attempts += 1
+    try await withThrowingTaskGroup(of: T.self) { group in
+      group.addTask(priority: .background) {
+        var attempts = 0
+        while attempts < maxAttempts {
+          if let value = try await block() { return value }
+          try await Task.sleep(for: delay)
+          attempts += 1
+        }
+        throw TestError.waitForValueFailure(String(describing: T.self))
+      }
+      return try await group.next()!
     }
-    throw TestError.waitForValueFailure(String(describing: T.self))
   }
 
   static func until(
@@ -30,12 +37,17 @@ enum Wait {
     _ block: @Sendable @escaping () async throws -> Bool,
     _ errorMessage: @Sendable @escaping () async throws -> String
   ) async throws {
-    var attempts = 0
-    while attempts < maxAttempts {
-      if try await block() { return }
-      try await Task.sleep(for: delay)
-      attempts += 1
+    try await withThrowingTaskGroup(of: Void.self) { group in
+      group.addTask(priority: .background) {
+        var attempts = 0
+        while attempts < maxAttempts {
+          if try await block() { return }
+          try await Task.sleep(for: delay)
+          attempts += 1
+        }
+        throw TestError.waitUntilFailure(try await errorMessage())
+      }
+      try await group.next()!
     }
-    throw TestError.waitUntilFailure(try await errorMessage())
   }
 }
