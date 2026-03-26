@@ -31,6 +31,38 @@ extension PlayManager {
     await finishEpisode(episodeID)
   }
 
+  private func logRemoteScrubDecision(
+    action: String,
+    requestedPosition: TimeInterval,
+    sourceEpisodeID: Episode.ID?,
+    currentEpisodeID: Episode.ID?,
+    reason: String? = nil
+  ) async {
+    let onDeck = sharedState.onDeck
+    let avPlayerCurrentTime = await podAVPlayer.currentTime()
+    let avPlayerPlaybackStatus = await podAVPlayer.playbackStatus()
+    let applicationState = await Container.shared.uiApplication().applicationState
+    let routeOutputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType.rawValue)
+
+    Self.log.debug(
+      """
+      \(action) remote scrub
+        requestedPosition: \(CMTime.seconds(requestedPosition))
+        sourceEpisodeID: \(String(describing: sourceEpisodeID))
+        currentEpisodeID: \(String(describing: currentEpisodeID))
+        onDeckTitle: \(String(describing: onDeck?.title))
+        sharedCurrentTime: \(String(describing: onDeck?.currentTime))
+        avPlayerCurrentTime: \(avPlayerCurrentTime)
+        sharedPlaybackStatus: \(sharedState.playbackStatus)
+        avPlayerPlaybackStatus: \(avPlayerPlaybackStatus)
+        ignoreRemoteScrubCommands: \(ignoreRemoteScrubCommands)
+        appState: \(applicationState)
+        routeOutputs: \(routeOutputs)
+        reason: \(reason ?? "accepted")
+      """
+    )
+  }
+
   private func handleTrackBehaviorChange() {
     Self.log.debug(
       """
@@ -258,29 +290,44 @@ extension PlayManager {
           await seekBackward(interval)
         case .playbackPosition(let position, let sourceEpisodeID):
           guard let sourceEpisodeID, let currentEpisodeID = sharedState.onDeck?.id else {
-            Self.log.debug(
-              """
-              playManager: dropping remote scrub to \(position) because no on-deck episode is \
-              bound
-              """
+            await logRemoteScrubDecision(
+              action: "dropping",
+              requestedPosition: position,
+              sourceEpisodeID: sourceEpisodeID,
+              currentEpisodeID: sharedState.onDeck?.id,
+              reason: "no on-deck episode bound"
             )
             continue
           }
 
           guard sourceEpisodeID == currentEpisodeID else {
-            Self.log.debug(
-              """
-              playManager: dropping stale remote scrub to \(position) from episode \
-              \(sourceEpisodeID) while current episode is \(currentEpisodeID)
-              """
+            await logRemoteScrubDecision(
+              action: "dropping",
+              requestedPosition: position,
+              sourceEpisodeID: sourceEpisodeID,
+              currentEpisodeID: currentEpisodeID,
+              reason: "stale command for non-current episode"
             )
             continue
           }
 
           if ignoreRemoteScrubCommands {
-            Self.log.debug("playManager: ignoring remote scrub to \(position) during transition")
+            await logRemoteScrubDecision(
+              action: "ignoring",
+              requestedPosition: position,
+              sourceEpisodeID: sourceEpisodeID,
+              currentEpisodeID: currentEpisodeID,
+              reason: "transition in progress"
+            )
             continue
           }
+
+          await logRemoteScrubDecision(
+            action: "applying",
+            requestedPosition: position,
+            sourceEpisodeID: sourceEpisodeID,
+            currentEpisodeID: currentEpisodeID
+          )
           await seek(to: CMTime.seconds(position))
         case .changePlaybackRate(let rate):
           await setRate(rate)

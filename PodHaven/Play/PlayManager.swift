@@ -72,7 +72,7 @@ final class PlayManager {
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
   private(set) var ignoreRemoteScrubCommands = false
-  private var lastLoggedTime: Double = 0
+  private var lastLoggedTime: Double?
 
   // MARK: - Initialization
 
@@ -432,6 +432,7 @@ final class PlayManager {
   private func setOnDeck(_ podcastEpisode: PodcastEpisode) async throws {
     Self.log.debug("setOnDeck: \(podcastEpisode.toString)")
 
+    lastLoggedTime = nil
     NowPlayingInfo.setOnDeck(podcastEpisode)
     stateManager.setOnDeck(podcastEpisode)
     fetchImage(for: podcastEpisode)
@@ -472,6 +473,7 @@ final class PlayManager {
 
   func clearOnDeck() async {
     Self.log.debug("clearOnDeck: executing")
+    lastLoggedTime = nil
     imageFetchTask?.cancel()
     await podAVPlayer.clear()
     NowPlayingInfo.clear()
@@ -480,7 +482,8 @@ final class PlayManager {
 
   func setCurrentTime(_ currentTime: CMTime) async {
     let seconds = currentTime.safe.seconds
-    if seconds - lastLoggedTime >= 10 {
+    let shouldLog = if let lastLoggedTime { seconds - lastLoggedTime >= 10 } else { true }
+    if shouldLog {
       lastLoggedTime = seconds
       Self.log.debug("setCurrentTime: \(currentTime)")
     }
