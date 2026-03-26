@@ -9,6 +9,12 @@ actor FakeSleeper: Sleepable {
     [(wakeTime: Duration, continuation: CheckedContinuation<Void, Error>)] = []
   private var currentTime: Duration = .zero
 
+  // Exposed outside the actor so waitForSleepRequests can poll without
+  // competing for actor access — this fixes priority inversion where a
+  // higher-priority polling loop starves a lower-priority task trying to
+  // register its sleep request on the same actor.
+  let pendingCount = ThreadSafe<Int>(0)
+
   func sleep(for duration: Duration) async throws {
     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
       let wakeTime = currentTime + duration
@@ -19,6 +25,7 @@ actor FakeSleeper: Sleepable {
       } else {
         sleepRequests.append(request)
       }
+      pendingCount(sleepRequests.count)
     }
   }
 
@@ -28,12 +35,13 @@ actor FakeSleeper: Sleepable {
       first.continuation.resume(returning: ())
       sleepRequests.removeFirst()
     }
+    pendingCount(sleepRequests.count)
   }
 
-  func waitForSleepRequests(count: Int) async throws {
+  nonisolated func waitForSleepRequests(count: Int) async throws {
     try await Wait.until(
-      { await self.sleepRequests.count >= count },
-      { "Expected \(count) sleep requests, but got \(await self.sleepRequests.count)" }
+      { self.pendingCount() >= count },
+      { "Expected \(count) sleep requests, but got \(self.pendingCount())" }
     )
   }
 }

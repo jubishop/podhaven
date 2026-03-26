@@ -47,7 +47,7 @@ final class WidgetSnapshotWriter: Sendable {
 
   func start() {
     startOnce.run {
-      Task { [weak self] in
+      Task(priority: .utility) { [weak self] in
         guard let self else { return }
 
         // PlayManager has already restored onDeck by the time we start.
@@ -88,7 +88,7 @@ final class WidgetSnapshotWriter: Sendable {
         }
       }
 
-      Task { [weak self] in
+      Task(priority: .utility) { [weak self] in
         guard let self else { return }
 
         for await status in sharedState.$playbackStatus.stream() {
@@ -110,7 +110,7 @@ final class WidgetSnapshotWriter: Sendable {
         }
       }
 
-      Task { [weak self] in
+      Task(priority: .utility) { [weak self] in
         guard let self else { return }
 
         for await podcastEpisodes in sharedState.$queuedPodcastEpisodes.stream() {
@@ -128,7 +128,7 @@ final class WidgetSnapshotWriter: Sendable {
         }
       }
 
-      Task { [weak self] in
+      Task(priority: .utility) { [weak self] in
         guard let self else { return }
 
         for await _ in userSettings.$alwaysShowPodcastImageInUpNext.stream() {
@@ -140,7 +140,7 @@ final class WidgetSnapshotWriter: Sendable {
         }
       }
 
-      Task { [weak self] in
+      Task(priority: .utility) { [weak self] in
         guard let self else { return }
 
         for await interval in userSettings.$skipForwardInterval.stream() {
@@ -152,7 +152,7 @@ final class WidgetSnapshotWriter: Sendable {
         }
       }
 
-      Task { [weak self] in
+      Task(priority: .utility) { [weak self] in
         guard let self else { return }
 
         for await interval in userSettings.$skipBackwardInterval.stream() {
@@ -311,7 +311,7 @@ final class WidgetSnapshotWriter: Sendable {
   // reloads are free while the app holds an active audio session.
   private func startHeartbeat() {
     stopHeartbeat()
-    let task = Task { [weak self] in
+    let task = Task(priority: .utility) { [weak self] in
       while !Task.isCancelled {
         guard let self else { return }
         try? await sleeper.sleep(for: .seconds(240))
