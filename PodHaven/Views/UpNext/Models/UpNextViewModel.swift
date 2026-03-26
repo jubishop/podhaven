@@ -160,12 +160,11 @@ import SwiftUI
   }
 
   func refreshQueue() {
-    Self.log.debug("refreshQueue: downloading and caching uncached episodes")
-
     let uncachedEpisodes = episodeList.allEntries.filter { podcastEpisode in
       podcastEpisode.cacheStatus != .cached
     }
     guard !uncachedEpisodes.isEmpty else { return }
+    Self.log.debug("refreshQueue: caching \(uncachedEpisodes.count) uncached episodes")
 
     Self.log.debug(
       """

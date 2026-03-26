@@ -326,11 +326,10 @@ final class PlayManager {
   }
 
   func finishEpisode(_ episodeID: Episode.ID? = nil) async {
-    Self.log.debug("finishEpisode: \(String(describing: episodeID))")
-
     let onDeckID = sharedState.onDeck?.id
     let episodeID = episodeID ?? onDeckID
     guard let episodeID else { return }
+    Self.log.debug("finishEpisode: \(episodeID) (onDeckID: \(String(describing: onDeckID)))")
 
     do {
       try await repo.markFinished(episodeID)

@@ -405,7 +405,7 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in userSettings.$nextTrackBehavior.stream() {
-        Self.log.debug("nextTrackBehavior changed")
+        Self.log.debug("nextTrackBehavior changed to: \(userSettings.nextTrackBehavior)")
         handleTrackBehaviorChange()
       }
     }
@@ -413,7 +413,7 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in userSettings.$skipForwardInterval.stream() {
-        Self.log.debug("skipForwardInterval changed")
+        Self.log.debug("skipForwardInterval changed to: \(userSettings.skipForwardInterval)s")
         handleSkipIntervalsChange()
       }
     }
@@ -421,7 +421,7 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in userSettings.$skipBackwardInterval.stream() {
-        Self.log.debug("skipBackwardInterval changed")
+        Self.log.debug("skipBackwardInterval changed to: \(userSettings.skipBackwardInterval)s")
         handleSkipIntervalsChange()
       }
     }
@@ -431,7 +431,7 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await _ in sharedState.$queuedPodcastEpisodes.stream() {
-        Self.log.debug("queue changed")
+        Self.log.debug("queue changed, count: \(sharedState.queueCount)")
         handleTrackBehaviorChange()
       }
     }

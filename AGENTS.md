@@ -6,9 +6,6 @@
 - Never create commits or push unless the humans explicitly ask.
 - Assume the working tree may hold user edits; respect them and avoid resets or reverts.
 
-## Build & Test
-- Don't actually try to build or test unless the user explicitly asks.
-
 ## Compatibility
 - Backward compatibility is not necessary.  Always use the latest features and libraries.
 
@@ -29,6 +26,8 @@
 - Keep `do`/`catch` scope minimal — wrap only the `try` calls, not surrounding work.
 - Use `log.caughtError()` when there's a caught error object; use `log.error()` only when there's no error object.
 - Avoid `try?` — prefer `do`/`catch` with appropriate logging so failures are visible. Exceptions: `Task.checkCancellation()` and `sleeper.sleep()` where silent failure is intentional.
+- Include relevant values in log messages (counts, sizes, flags, settings) so logs are self-contained and useful without cross-referencing code.
+- Place log statements after guards and conditionals, not at function entry — log what *did* happen, not what *might* happen.
 
 ## Testing
 - Tests use the Swift Testing DSL: `@Suite("…", .container)` with `#expect` assertions; async tests rely on structured concurrency.
