@@ -132,25 +132,31 @@ enum CommandCenter: Sendable {
   }
 
   static func updateSkipIntervals() {
-    log.debug("updateSkipIntervals")
+    let userSettings = Container.shared.userSettings()
+    log.debug(
+      """
+      updateSkipIntervals: forward \(userSettings.skipForwardInterval)s, \
+      backward \(userSettings.skipBackwardInterval)s
+      """
+    )
 
     let commandCenter = Container.shared.mpRemoteCommandCenter()
-    let userSettings = Container.shared.userSettings()
-
     commandCenter.skipForward.preferredIntervals = [userSettings.skipForwardInterval as NSNumber]
     commandCenter.skipBackward.preferredIntervals = [userSettings.skipBackwardInterval as NSNumber]
   }
 
   static func updateNextTrack() {
-    log.debug("updateNextTrack")
-
     let commandCenter = Container.shared.mpRemoteCommandCenter()
     commandCenter.previousTrack.isEnabled = true
 
     switch Container.shared.userSettings().nextTrackBehavior {
     case .nextEpisode:
-      commandCenter.nextTrack.isEnabled = Container.shared.sharedState().queueCount > 0
+      let queueCount = Container.shared.sharedState().queueCount
+      let enabled = queueCount > 0
+      log.debug("updateNextTrack: nextEpisode, enabled: \(enabled) (queueCount: \(queueCount))")
+      commandCenter.nextTrack.isEnabled = enabled
     case .skipInterval, .nextChapter:
+      log.debug("updateNextTrack: enabled (skipInterval/nextChapter)")
       commandCenter.nextTrack.isEnabled = true
     }
   }

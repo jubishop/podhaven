@@ -5,20 +5,20 @@ import Foundation
 
 final class Debounce: Sendable {
   private let duration: Duration
+  private let priority: TaskPriority?
   private let task = ThreadSafe<Task<Void, Never>?>(nil)
 
   private var sleeper: any Sleepable { Container.shared.sleeper() }
 
-  init(duration: Duration) {
+  init(duration: Duration, priority: TaskPriority? = nil) {
     self.duration = duration
+    self.priority = priority
   }
 
   func callAsFunction(_ action: @escaping @Sendable () async -> Void) {
-    let duration = duration
-    let sleeper = sleeper
     task { existing in
       existing?.cancel()
-      existing = Task {
+      existing = Task(priority: priority) {
         if duration > .zero {
           try? await sleeper.sleep(for: duration)
         }

@@ -40,7 +40,6 @@ struct CacheManager {
   @DynamicInjected(\.queue) private var queue
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
-  @DynamicInjected(\.sleeper) private var sleeper
 
   private var alert: Alert { get async { await Container.shared.alert() } }
   private var fileManager: any FileManaging { Container.shared.fileManager() }

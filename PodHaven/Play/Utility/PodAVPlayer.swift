@@ -184,6 +184,14 @@ enum PodAVPlayerError: Error, LocalizedError {
     avPlayer.replaceCurrent(with: nil)
   }
 
+  func currentTime() -> CMTime {
+    avPlayer.currentTime()
+  }
+
+  func playbackStatus() -> PlaybackStatus {
+    PlaybackStatus(avPlayer.timeControlStatus)
+  }
+
   func isCurrentItem(_ item: AVPlayerItem?) -> Bool {
     guard let item, let current = avPlayer.current as? AVPlayerItem
     else { return false }

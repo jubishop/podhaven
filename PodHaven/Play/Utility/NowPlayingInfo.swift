@@ -53,21 +53,21 @@ enum NowPlayingInfo {
   }
 
   static func setImage(_ image: UIImage?) {
-    Self.log.debug("setImage")
-
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
-      Self.log.debug("NowPlayingInfo is nil in setImage?")
+      Self.log.debug("setImage: nowPlayingInfo is nil")
       return
     }
     defer { infoCenter.nowPlayingInfo = nowPlayingInfo }
 
     if let image {
+      Self.log.debug("setImage: \(image.size)")
       nowPlayingInfo[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(
         boundsSize: image.size,
         requestHandler: { size in image }
       )
     } else {
+      Self.log.debug("setImage: nil")
       nowPlayingInfo[MPMediaItemPropertyArtwork] = nil
     }
   }
@@ -128,8 +128,6 @@ enum NowPlayingInfo {
   }
 
   static func updateQueueCount() {
-    Self.log.debug("updateQueueCount")
-
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
       Self.log.debug("updateQueueCount: nowPlayingInfo is nil")
@@ -139,22 +137,23 @@ enum NowPlayingInfo {
 
     switch Container.shared.userSettings().nextTrackBehavior {
     case .nextEpisode:
+      let queueCount = Container.shared.sharedState().queueCount
+      Self.log.debug("updateQueueCount: nextEpisode, queueCount: \(queueCount)")
       nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackQueueIndex] = 0
-      nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackQueueCount] =
-        Container.shared.sharedState().queueCount + 1
+      nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackQueueCount] = queueCount + 1
     case .skipInterval, .nextChapter:
+      Self.log.debug("updateQueueCount: clearing (skipInterval/nextChapter)")
       nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackQueueIndex] = nil
       nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackQueueCount] = nil
     }
   }
 
   static func updateDefaultPlaybackRate(for podcastEpisode: PodcastEpisode? = nil) {
-    Self.log.debug("updateDefaultPlaybackRate")
-
     let defaultPlaybackRate =
       podcastEpisode?.podcast.defaultPlaybackRate
       ?? Container.shared.sharedState().onDeck?.defaultPlaybackRate
       ?? Container.shared.userSettings().defaultPlaybackRate
+    Self.log.debug("updateDefaultPlaybackRate: \(defaultPlaybackRate)")
 
     var infoCenter = Container.shared.mpNowPlayingInfoCenter()
     guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {

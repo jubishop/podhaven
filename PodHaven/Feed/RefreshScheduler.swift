@@ -210,7 +210,7 @@ struct RefreshScheduler: Sendable {
   }
 
   private func foregroundRefreshTask(foregroundLoopID: UUID) -> Task<Void, Never> {
-    Task(priority: .background) {
+    Task(priority: .utility) {
       defer { handle(.foregroundLoopEnded(foregroundLoopID: foregroundLoopID)) }
 
       do {

@@ -116,7 +116,7 @@ struct AppLauncher: Sendable {
 
   private func startSystemMonitoring() {
     startSystemMonitoringOnce.run {
-      Task {
+      Task(priority: .utility) {
         for await _ in self.notifications(UIApplication.didReceiveMemoryWarningNotification) {
           Self.log.warning("System memory warning received")
 
@@ -126,7 +126,7 @@ struct AppLauncher: Sendable {
         }
       }
 
-      Task {
+      Task(priority: .utility) {
         for await _ in self.notifications(ProcessInfo.thermalStateDidChangeNotification) {
           let state =
             switch ProcessInfo.processInfo.thermalState {

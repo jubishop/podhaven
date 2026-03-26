@@ -72,7 +72,7 @@ final class PlayManager {
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
   private(set) var ignoreRemoteScrubCommands = false
-  private var lastLoggedTime: Double = 0
+  private var lastLoggedTime = Date.distantPast
 
   // MARK: - Initialization
 
@@ -479,9 +479,9 @@ final class PlayManager {
   }
 
   func setCurrentTime(_ currentTime: CMTime) async {
-    let seconds = currentTime.safe.seconds
-    if seconds - lastLoggedTime >= 10 {
-      lastLoggedTime = seconds
+    let now = Date()
+    if now.timeIntervalSince(lastLoggedTime) >= 10 {
+      lastLoggedTime = now
       Self.log.debug("setCurrentTime: \(currentTime)")
     }
     NowPlayingInfo.setCurrentTime(currentTime)
