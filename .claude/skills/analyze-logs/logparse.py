@@ -222,6 +222,11 @@ def cmd_errors(args):
     entries = load_entries(args.file)
     min_lvl = parse_level_arg(args.min_level)
     filtered = [e for e in entries if e.get("level", 0) >= min_lvl]
+    # apply additional filters (after, before, subsystem, etc.)
+    args_min = args.min_level
+    args.min_level = None
+    filtered = apply_filters(filtered, args)
+    args.min_level = args_min
 
     if not filtered:
         lvl_name = LEVEL_NAMES.get(min_lvl, str(min_lvl))
@@ -401,6 +406,12 @@ def main():
         default="warning",
         help="Minimum level to show (name or number, default: warning)",
     )
+    p_err.add_argument("--subsystem", help="Filter by subsystem")
+    p_err.add_argument("--category", help="Filter by category")
+    p_err.add_argument("--after", help="Only entries after this time")
+    p_err.add_argument("--before", help="Only entries before this time")
+    p_err.add_argument("--source", help="Filter by source (PodHaven or PodHavenWidget)")
+    p_err.add_argument("--search", help="Search message text (case-insensitive)")
     p_err.add_argument(
         "--group",
         action="store_true",
