@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__apple-docs__*",
+      "Skill(test)",
+      "Skill(merge-back)",
+      "Skill(update-config)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enabledPlugins": {}
+}
