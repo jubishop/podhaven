@@ -1,0 +1,3 @@
+[mcp_servers.apple-docs-mcp]
+command = "npx"
+args = ["-y", "@kimsungwhee/apple-docs-mcp@latest"]
