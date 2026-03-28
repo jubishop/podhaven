@@ -318,7 +318,7 @@ def cmd_timeline(args):
         f"of {fmt_ts(center)} (showing {len(showing)}):\n"
     )
     for e in showing:
-        print(format_entry(e, verbose=True))
+        print(format_entry(e, verbose=args.verbose))
         print()
 
 
@@ -461,6 +461,9 @@ def main():
         type=int,
         default=50,
         help="Max entries to show, centered around the target time (default 50, 0=all)",
+    )
+    p_tl.add_argument(
+        "-v", "--verbose", action="store_true", help="Include file/function/metadata"
     )
 
     # sessions
