@@ -26,6 +26,9 @@ import Testing
   private var commandCenterContinuation: AsyncStream<CommandCenter.Command>.Continuation {
     Container.shared.commandCenterStream().continuation
   }
+  private var sleeper: FakeSleeper {
+    Container.shared.sleeper() as! FakeSleeper
+  }
 
   init() async throws {
     stateManager.start()
@@ -117,10 +120,6 @@ import Testing
     // Finish the current episode and auto-advance to the queued one.
     avPlayer.finishEpisode()
     try await PlayHelpers.waitForOnDeck(queuedEpisode)
-    try await Wait.until(
-      { await playManager.ignoreRemoteScrubCommands == false },
-      { "Expected remote scrub suppression to end before testing stale commands" }
-    )
 
     // Queue a stale scrub from the finished episode, then a playback-rate
     // marker. Once the rate changes, the stale scrub has already been
@@ -129,6 +128,36 @@ import Testing
       .playbackPosition(
         TimeInterval.seconds(5),
         sourceEpisodeID: playingEpisode.id
+      )
+    )
+    commandCenterContinuation.yield(.changePlaybackRate(1.7))
+    try await PlayHelpers.waitForPlayRate(1.7)
+
+    #expect(sharedState.onDeck?.id == queuedEpisode.id)
+    #expect(sharedState.onDeck?.currentTime == .zero)
+    #expect(PlayHelpers.nowPlayingCurrentTime == .zero)
+  }
+
+  @Test("scrub commands with current episode ID are ignored during suppression window")
+  func scrubCommandsWithCurrentEpisodeIDIgnoredDuringSuppression() async throws {
+    await playManager.start()
+    let (playingEpisode, queuedEpisode) = try await Create.twoPodcastEpisodes()
+
+    try await Container.shared.queue().unshift(queuedEpisode.id)
+    try await playManager.load(playingEpisode)
+    await playManager.play()
+    try await PlayHelpers.waitFor(.playing)
+
+    // Finish the current episode and auto-advance to the queued one.
+    avPlayer.finishEpisode()
+    try await PlayHelpers.waitForOnDeck(queuedEpisode)
+
+    // Simulate what iOS does: deliver a stale scrub with the NEW episode's
+    // ID (captured at delivery time after the transition completed).
+    commandCenterContinuation.yield(
+      .playbackPosition(
+        TimeInterval.seconds(500),
+        sourceEpisodeID: queuedEpisode.id
       )
     )
     commandCenterContinuation.yield(.changePlaybackRate(1.7))
@@ -151,9 +180,13 @@ import Testing
 
     avPlayer.finishEpisode()
     try await PlayHelpers.waitForOnDeck(queuedEpisode)
+
+    // Advance past the suppression window
+    try await sleeper.waitForSleepRequests(count: 1)
+    await sleeper.advanceTime(by: .milliseconds(500))
     try await Wait.until(
       { await playManager.ignoreRemoteScrubCommands == false },
-      { "Expected remote scrub suppression to end before testing fresh commands" }
+      { "Expected remote scrub suppression to end after time advance" }
     )
 
     mpRemoteCommandCenter.fireSeek(to: TimeInterval.seconds(10))

@@ -52,6 +52,7 @@ final class PlayManager {
   @DynamicInjected(\.queue) var queue
   @DynamicInjected(\.repo) var repo
   @DynamicInjected(\.sharedState) var sharedState
+  @DynamicInjected(\.sleeper) private var sleeper
   @DynamicInjected(\.stateManager) private var stateManager
   @DynamicInjected(\.userSettings) var userSettings
 
@@ -63,6 +64,7 @@ final class PlayManager {
   // MARK: - Configurable Constants
 
   let recoveryDebounceInterval: TimeInterval = 5
+  private let remoteScrubSuppressionDuration: Duration = .milliseconds(500)
 
   // MARK: - State Management
 
@@ -72,6 +74,7 @@ final class PlayManager {
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
   private(set) var ignoreRemoteScrubCommands = false
+  private var restartScrubCommandsTask: Task<Void, any Error>?
   private var lastLoggedTime = Date.distantPast
 
   // MARK: - Initialization
@@ -340,8 +343,7 @@ final class PlayManager {
     guard episodeID == onDeckID
     else { return }
 
-    ignoreRemoteScrubCommands = true
-    defer { ignoreRemoteScrubCommands = false }
+    suppressRemoteScrubCommands()
 
     await clearOnDeck()
 
@@ -359,6 +361,23 @@ final class PlayManager {
     } catch {
       Self.log.caughtError("finishEpisode: failed to load next episode after \(episodeID)", error)
       await alert(ErrorKit.message(for: error))
+    }
+  }
+
+  // MARK: - Remote Scrub Suppression
+
+  // Temporarily suppress remote scrub commands after episode transitions.
+  // iOS may deliver stale scrub events from the finished episode's gesture
+  // with the NEW episode's ID (captured at delivery time, not gesture time),
+  // bypassing the episodeID guard.
+  private func suppressRemoteScrubCommands() {
+    restartScrubCommandsTask?.cancel()
+    ignoreRemoteScrubCommands = true
+    restartScrubCommandsTask = Task { [weak self] in
+      guard let self else { return }
+      try await sleeper.sleep(for: remoteScrubSuppressionDuration)
+      try Task.checkCancellation()
+      ignoreRemoteScrubCommands = false
     }
   }
 
