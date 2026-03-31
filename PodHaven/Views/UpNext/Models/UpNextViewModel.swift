@@ -16,6 +16,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
   @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
 
   private static let log = Log.as(LogSubsystem.UpNextView.main)
@@ -174,7 +175,7 @@ import SwiftUI
     )
 
     for podcastEpisode in uncachedEpisodes {
-      Task(priority: .utility) { [weak self] in
+      Task(priority: taskPriority(.utility)) { [weak self] in
         guard let self else { return }
         do {
           try await cacheManager.downloadToCache(for: podcastEpisode.id)
