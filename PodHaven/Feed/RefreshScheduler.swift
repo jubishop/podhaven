@@ -19,6 +19,9 @@ struct RefreshScheduler: Sendable {
   private var connectionState: ConnectionState { Container.shared.connectionState() }
   private var refreshManager: RefreshManager { Container.shared.refreshManager() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
+  private var taskPriority: @Sendable (TaskPriority) -> TaskPriority? {
+    Container.shared.taskPriority()
+  }
 
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).feedRefresh"
 
@@ -210,7 +213,7 @@ struct RefreshScheduler: Sendable {
   }
 
   private func foregroundRefreshTask(foregroundLoopID: UUID) -> Task<Void, Never> {
-    Task(priority: .utility) {
+    Task(priority: taskPriority(.utility)) {
       defer { handle(.foregroundLoopEnded(foregroundLoopID: foregroundLoopID)) }
 
       do {

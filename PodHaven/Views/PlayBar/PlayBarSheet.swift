@@ -32,6 +32,7 @@ struct PlayBarSheet: View {
             .font(.title3)
             .padding(spacing / 2)
             .glassEffect(.clear.interactive(), in: .capsule)
+            .disabled(isShowingSpeedPopover)
           }
         }
         .padding(.horizontal, spacing)

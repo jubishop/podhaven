@@ -43,6 +43,9 @@ struct CacheManager {
 
   private var alert: Alert { get async { await Container.shared.alert() } }
   private var fileManager: any FileManaging { Container.shared.fileManager() }
+  private var taskPriority: @Sendable (TaskPriority) -> TaskPriority? {
+    Container.shared.taskPriority()
+  }
 
   private static let log = Log.as(LogSubsystem.Cache.manager)
 
@@ -158,7 +161,7 @@ struct CacheManager {
   private func startOnDeckObservation() {
     Self.log.debug("startOnDeckObservation: starting")
 
-    Task(priority: .utility) {
+    Task(priority: taskPriority(.utility)) {
       for await onDeck in sharedState.$onDeck.stream() {
         await handleOnDeckChange(onDeck)
       }
@@ -190,7 +193,7 @@ struct CacheManager {
   private func startQueueObservation() {
     Self.log.debug("startQueueObservation: starting")
 
-    Task(priority: .utility) {
+    Task(priority: taskPriority(.utility)) {
       for await episodes in sharedState.$queuedPodcastEpisodes.stream() {
         let queuedEpisodeIDs = Set(episodes.map(\.id))
         await handleQueueChange(queuedEpisodeIDs)
