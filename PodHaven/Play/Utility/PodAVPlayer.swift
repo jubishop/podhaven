@@ -276,16 +276,6 @@ enum PodAVPlayerError: Error, LocalizedError {
 
   // MARK: - Seeking
 
-  func seekForward(_ duration: CMTime) async {
-    Self.log.debug("seekForward: \(duration)")
-    await seek(to: avPlayer.currentTime() + duration)
-  }
-
-  func seekBackward(_ duration: CMTime) async {
-    Self.log.debug("seekBackward: \(duration)")
-    await seek(to: avPlayer.currentTime() - duration)
-  }
-
   func seek(to time: CMTime) async {
     Self.log.debug("seek: \(time)")
 

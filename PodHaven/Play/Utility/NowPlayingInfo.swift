@@ -101,6 +101,7 @@ enum NowPlayingInfo {
       return
     }
 
+    Self.log.debug("setCurrentTime: \(currentTime)")
     nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] =
       elapsedSeconds.clamped(to: 0.0...durationSeconds)
     nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackProgress] =
@@ -108,17 +109,37 @@ enum NowPlayingInfo {
   }
 
   static func setPlaybackRate(_ rate: Float) {
-    Self.log.debug("setPlaybackRate: \(rate)")
+    let currentTime = Container.shared.sharedState().onDeck?.currentTime ?? .zero
 
-    var infoCenter = Container.shared.mpNowPlayingInfoCenter()
-    guard var nowPlayingInfo = infoCenter.nowPlayingInfo else {
+    // Log what iOS has before we overwrite — if a future stale-scrub recurs,
+    // comparing previousElapsed to currentTime shows whether the dict was already stale.
+    let infoCenter = Container.shared.mpNowPlayingInfoCenter()
+    let previousElapsed =
+      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
+    Self.log.debug(
+      """
+      setPlaybackRate: \(rate)
+        currentTime: \(currentTime)
+        previousElapsed: \(String(describing: previousElapsed.map { CMTime.seconds($0) }))
+      """
+    )
+
+    // iOS extrapolates the lock screen position as:
+    //   displayedPosition = ElapsedPlaybackTime + PlaybackRate × (now - lastDictWrite)
+    // Every rate transition (play/pause/speed change) must write BOTH the current
+    // ElapsedPlaybackTime and the new PlaybackRate, so the extrapolation restarts
+    // from the correct position. Without this, iOS extrapolates from whatever stale
+    // ElapsedPlaybackTime was already in the dict.
+    setCurrentTime(currentTime)
+
+    var infoCenterVar = Container.shared.mpNowPlayingInfoCenter()
+    guard var nowPlayingInfo = infoCenterVar.nowPlayingInfo else {
       Self.log.debug("setPlaybackRate: nowPlayingInfo is nil")
       return
     }
-    defer { infoCenter.nowPlayingInfo = nowPlayingInfo }
+    defer { infoCenterVar.nowPlayingInfo = nowPlayingInfo }
 
-    guard rate.isFinite
-    else {
+    guard rate.isFinite else {
       Self.log.warning("Not updating playBackRate, as it is not finite?")
       nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = nil
       return

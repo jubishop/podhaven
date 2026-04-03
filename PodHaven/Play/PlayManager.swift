@@ -173,7 +173,7 @@ final class PlayManager {
       Self.log.info("performLoad: \(incoming.toString)")
 
       await podAVPlayer.removeObservers()
-      await setStatus(.loading(incoming.episode.title))
+      setStatus(.loading(incoming.episode.title))
       await clearOnDeck()
 
       guard configureAudioSession() else { return false }
@@ -321,7 +321,7 @@ final class PlayManager {
 
   func stop() async {
     await clearOnDeck()
-    await setStatus(.stopped)
+    setStatus(.stopped)
   }
 
   func toggle() async {
@@ -356,7 +356,7 @@ final class PlayManager {
         await play()
       } else {
         Self.log.debug("no next episode, stopping")
-        await setStatus(.stopped)
+        setStatus(.stopped)
       }
     } catch {
       Self.log.caughtError("finishEpisode: failed to load next episode after \(episodeID)", error)
@@ -385,15 +385,18 @@ final class PlayManager {
 
   func seekForward(_ interval: TimeInterval? = nil) async {
     let duration = interval ?? userSettings.skipForwardInterval
-    await podAVPlayer.seekForward(CMTime.seconds(duration))
+    let currentTime = await podAVPlayer.currentTime()
+    await seek(to: currentTime + CMTime.seconds(duration))
   }
 
   func seekBackward(_ interval: TimeInterval? = nil) async {
     let duration = interval ?? userSettings.skipBackwardInterval
-    await podAVPlayer.seekBackward(CMTime.seconds(duration))
+    let currentTime = await podAVPlayer.currentTime()
+    await seek(to: currentTime - CMTime.seconds(duration))
   }
 
   func seek(to time: CMTime) async {
+    NowPlayingInfo.setCurrentTime(time)
     await podAVPlayer.seek(to: time)
   }
 
@@ -463,7 +466,7 @@ final class PlayManager {
       )
       await seek(to: podcastEpisode.episode.currentTime)
     } else {
-      await setCurrentTime(.zero)
+      setCurrentTime(.zero)
     }
   }
 
@@ -496,17 +499,16 @@ final class PlayManager {
     stateManager.clearOnDeck()
   }
 
-  func setCurrentTime(_ currentTime: CMTime) async {
+  func setCurrentTime(_ currentTime: CMTime) {
     let now = Date()
     if now.timeIntervalSince(lastLoggedTime) >= 10 {
       lastLoggedTime = now
       Self.log.debug("setCurrentTime: \(currentTime)")
     }
-    NowPlayingInfo.setCurrentTime(currentTime)
     stateManager.setCurrentTime(currentTime)
   }
 
-  func setStatus(_ status: PlaybackStatus) async {
+  func setStatus(_ status: PlaybackStatus) {
     Self.log.debug("setStatus: \(status)")
     sharedState.setPlaybackStatus(status)
 
@@ -520,7 +522,7 @@ final class PlayManager {
   }
 
   // Incoming state update from the AVPlayer (in contrast to setRate(_))
-  func setPlaybackRate(_ rate: Float) async {
+  func setPlaybackRate(_ rate: Float) {
     Self.log.debug("setPlaybackRate: \(rate)")
     NowPlayingInfo.setPlaybackRate(rate)
     sharedState.setPlayRate(rate)

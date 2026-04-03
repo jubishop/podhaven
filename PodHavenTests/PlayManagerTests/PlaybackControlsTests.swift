@@ -250,7 +250,6 @@ import Testing
     let advancedTime = CMTime.seconds(10)
     avPlayer.advanceTime(to: advancedTime)
     try await PlayHelpers.waitFor(advancedTime)
-    #expect(PlayHelpers.nowPlayingCurrentTime == advancedTime)
   }
 
   @Test("time updates throttle database writes to every 3 seconds")

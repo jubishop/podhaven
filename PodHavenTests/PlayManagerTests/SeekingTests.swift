@@ -98,7 +98,6 @@ import Testing
     let advancedTime = CMTimeAdd(successfulSeekTime, CMTime.seconds(10))
     avPlayer.advanceTime(to: advancedTime)  // Actually Triggers
     try await PlayHelpers.waitFor(advancedTime)
-    #expect(PlayHelpers.nowPlayingCurrentTime == advancedTime)
   }
 
   @Test("seeking saves current time to database")

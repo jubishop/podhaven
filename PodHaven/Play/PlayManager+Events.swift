@@ -3,6 +3,7 @@
 import AVFoundation
 import FactoryKit
 import Logging
+import MediaPlayer
 
 extension PlayManager {
 
@@ -43,6 +44,9 @@ extension PlayManager {
     let avPlayerPlaybackStatus = await podAVPlayer.playbackStatus()
     let applicationState = await Container.shared.uiApplication().applicationState
     let routeOutputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType.rawValue)
+    let infoCenter = Container.shared.mpNowPlayingInfoCenter()
+    let nowPlayingElapsed =
+      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
 
     Self.log.debug(
       """
@@ -53,6 +57,7 @@ extension PlayManager {
         onDeckTitle: \(String(describing: onDeck?.title))
         sharedCurrentTime: \(String(describing: onDeck?.currentTime))
         avPlayerCurrentTime: \(avPlayerCurrentTime)
+        nowPlayingElapsed: \(String(describing: nowPlayingElapsed.map { CMTime.seconds($0) }))
         sharedPlaybackStatus: \(sharedState.playbackStatus)
         avPlayerPlaybackStatus: \(avPlayerPlaybackStatus)
         ignoreRemoteScrubCommands: \(ignoreRemoteScrubCommands)
@@ -365,14 +370,14 @@ extension PlayManager {
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await currentTime in await podAVPlayer.currentTimeStream {
-        await setCurrentTime(currentTime)
+        setCurrentTime(currentTime)
       }
     }
 
     Task { @PlayActor [weak self] in
       guard let self else { return }
       for await rate in await podAVPlayer.rateStream {
-        await setPlaybackRate(rate)
+        setPlaybackRate(rate)
       }
     }
 
@@ -382,11 +387,11 @@ extension PlayManager {
         Self.log.debug("AVPlayer timeControlStatus changed to: \(controlStatus)")
         switch controlStatus {
         case .paused:
-          await setStatus(.paused)
+          setStatus(.paused)
         case .playing:
-          await setStatus(.playing)
+          setStatus(.playing)
         case .waiting:
-          await setStatus(.waiting)
+          setStatus(.waiting)
         case .loading(_), .stopped:
           Assert.fatal("\(controlStatus) from PodAVPlayer?")
         }
