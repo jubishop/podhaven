@@ -19,7 +19,7 @@ PT = ZoneInfo("America/Los_Angeles")
 
 DEFAULT_LOG = (
     "/Users/jubi/Library/Mobile Documents/"
-    "com~apple~CloudDocs/Podhaven Assets/log.ndjson"
+    "com~apple~CloudDocs/PodHaven Assets/log.ndjson"
 )
 
 LEVEL_NAMES = {
