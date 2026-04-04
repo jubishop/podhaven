@@ -26,7 +26,15 @@ extension Container {
 
   @MainActor @Observable
   class PathManager: ManagingPath {
-    var path: [Destination] = []
+    var path: [Destination] = [] {
+      didSet {
+        if path.count < oldValue.count {
+          Self.log.debug("Path popped: \(oldValue.count) → \(path.count)")
+        }
+      }
+    }
+
+    private static let log = Log.as("Navigation")
   }
 
   @MainActor @Observable
@@ -35,6 +43,10 @@ extension Container {
 
     var path: [Destination] = [] {
       didSet {
+        if path.count < oldValue.count {
+          log.debug("Path popped: \(oldValue.count) → \(path.count)")
+        }
+
         guard let first = path.first
         else {
           topDestination = nil
@@ -48,6 +60,7 @@ extension Container {
       }
     }
 
+    private let log = Log.as("Navigation")
     private let extractTopDestination: (Destination) -> TopDestination?
     private let makeDestination: (TopDestination) -> Destination
 
@@ -74,7 +87,15 @@ extension Container {
     case settings, search, upNext, episodes, podcasts
   }
 
-  var currentTab: Tab = .upNext
+  var currentTab: Tab = .upNext {
+    didSet {
+      if currentTab == oldValue {
+        Self.log.debug("Tab re-selected: \(currentTab)")
+      } else {
+        Self.log.debug("Tab changed: \(oldValue) → \(currentTab)")
+      }
+    }
+  }
 
   // MARK: - Unified Navigation Destination
 

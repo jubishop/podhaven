@@ -429,6 +429,7 @@ class PodcastDetailViewModel:
           return
         }
 
+        Self.log.info("Deleting podcast: \(podcastSeries.toString)")
         try await repo.deletePodcast(podcastSeries.id)
       } catch {
         Self.log.caughtError("delete: failed for \(podcast.toString)", error)
