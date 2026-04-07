@@ -75,7 +75,7 @@ import Testing
     let viewModel = EpisodeDetailViewModel(listedEpisode: ListedEpisode(listedEpisode))
 
     #expect(
-      viewModel.shareURL
+      ShareURL.episode(feedURL: viewModel.episode.feedURL, guid: viewModel.episode.mediaGUID.guid)
         == ShareURL.episode(feedURL: podcastEpisode.feedURL, guid: podcastEpisode.mediaGUID.guid)
     )
 

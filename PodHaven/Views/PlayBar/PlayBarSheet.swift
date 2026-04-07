@@ -23,16 +23,12 @@ struct PlayBarSheet: View {
         HStack {
           Spacer()
 
-          if let shareURL = viewModel.shareURL {
-            ShareLink(
-              item: shareURL,
-              preview: viewModel.sharePreview,
-              label: { AppIcon.shareEpisode.image }
-            )
-            .font(.title3)
-            .padding(spacing / 2)
-            .glassEffect(.clear.interactive(), in: .capsule)
-            .disabled(isShowingSpeedPopover)
+          if let onDeck = viewModel.onDeck {
+            ShareEpisodeButton(episode: onDeck)
+              .font(.title3)
+              .padding(spacing / 2)
+              .glassEffect(.clear.interactive(), in: .capsule)
+              .disabled(isShowingSpeedPopover)
           }
         }
         .padding(.horizontal, spacing)

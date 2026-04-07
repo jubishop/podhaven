@@ -68,6 +68,7 @@ struct DisplayedEpisode:
 
   // MARK: - EpisodeListable
 
+  var feedURL: FeedURL { episode.feedURL }
   var image: URL { episode.image }
   var podcastImage: URL { episode.podcastImage }
   var saveInCache: Bool { episode.saveInCache }
@@ -86,7 +87,6 @@ struct DisplayedEpisode:
 
   // MARK: - EpisodeDisplayable
 
-  var feedURL: FeedURL { episode.feedURL }
   var podcastTitle: String { episode.podcastTitle }
   var description: String? { episode.description }
   var queueDate: Date? { episode.queueDate }

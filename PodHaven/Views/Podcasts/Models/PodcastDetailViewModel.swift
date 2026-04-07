@@ -14,7 +14,6 @@ import UIKit
 class PodcastDetailViewModel:
   ManagingEpisodes,
   SelectableEpisodeList,
-  Shareable,
   SortableEpisodeList
 {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
@@ -288,12 +287,20 @@ class PodcastDetailViewModel:
     defaultPlaybackRate != nil
   }
 
-  // MARK: - Shareable
+  // MARK: - Share
 
-  var shareTitle: String { podcast.title }
-  var shareArtwork: UIImage?
-  var shareFallbackIcon: AppIcon { .showPodcast }
   var shareURL: URL? { ShareURL.podcast(feedURL: podcast.feedURL) }
+  private var shareArtwork: UIImage?
+
+  var sharePreview: SharePreview<Image, Image> {
+    let image = sharePreviewImage
+    return SharePreview(Text(podcast.title), image: image, icon: image)
+  }
+
+  private var sharePreviewImage: Image {
+    guard let shareArtwork else { return AppIcon.showPodcast.rawImage }
+    return Image(uiImage: shareArtwork)
+  }
 
   // MARK: - Initialization
 

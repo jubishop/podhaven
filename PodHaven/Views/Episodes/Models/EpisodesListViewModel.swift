@@ -148,7 +148,7 @@ class EpisodesListViewModel:
         observatory.listablePodcastEpisodes(
           filter: filter && currentSortMethod.sqlFilter && textSearchFilter,
           order: currentSortMethod.sqlOrdering,
-          limit: 200
+          limit: 100
         )
       for try await podcastEpisodes in observation {
         try Task.checkCancellation()

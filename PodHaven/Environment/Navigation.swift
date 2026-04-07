@@ -112,10 +112,14 @@ extension Container {
 
     // Universal destinations
     case podcast(DisplayedPodcast)
-    case episode(DisplayedEpisode)
+    case episode(DisplayedEpisode, startTime: Int?)
     case listedPodcast(ListedPodcast)
     case listedEpisode(ListedEpisode)
     case unsavedPodcastSeries(UnsavedPodcastSeries)
+
+    static func episode(_ episode: DisplayedEpisode) -> Destination {
+      .episode(episode, startTime: nil)
+    }
   }
 
   enum SettingsSection {
@@ -276,8 +280,8 @@ extension Container {
       }
 
     // Universal destinations
-    case .episode(let episode):
-      EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: episode))
+    case .episode(let episode, let startTime):
+      EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: episode, startTime: startTime))
         .id(episode.id)
     case .podcast(let podcast):
       PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
@@ -334,7 +338,8 @@ extension Container {
 
   func showSharedEpisode(
     unsavedPodcastSeries: UnsavedPodcastSeries,
-    unsavedEpisode: UnsavedEpisode
+    unsavedEpisode: UnsavedEpisode,
+    startTime: Int? = nil
   ) {
     Self.log.debug("Showing searched episode: \(unsavedEpisode.toString)")
 
@@ -347,7 +352,8 @@ extension Container {
             unsavedPodcast: unsavedPodcastSeries.unsavedPodcast,
             unsavedEpisode: unsavedEpisode
           )
-        )
+        ),
+        startTime: startTime
       ),
     ]
     currentTab = .search
@@ -468,14 +474,14 @@ extension Container {
     currentTab = .podcasts
   }
 
-  func showEpisode(_ podcastEpisode: PodcastEpisode) {
+  func showEpisode(_ podcastEpisode: PodcastEpisode, startTime: Int? = nil) {
     Self.log.debug("Showing PodcastEpisode: \(podcastEpisode.toString)")
 
     sheet.dismiss()
     podcasts.path = [
       .podcastsViewType(podcastEpisode.podcast.subscribed ? .subscribed : .unsubscribed),
       .podcast(DisplayedPodcast(podcastEpisode.podcast)),
-      .episode(DisplayedEpisode(podcastEpisode)),
+      .episode(DisplayedEpisode(podcastEpisode), startTime: startTime),
     ]
     currentTab = .podcasts
   }

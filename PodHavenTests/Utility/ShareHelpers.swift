@@ -28,4 +28,12 @@ enum ShareHelpers {
   static func episodeURL(feedURL: String, guid: String) -> URL {
     ShareURL.episode(feedURL: FeedURL(URL(string: feedURL)!), guid: GUID(guid))!
   }
+
+  static func episodeURL(feedURL: String, guid: String, startTime: Int) -> URL {
+    ShareURL.episode(
+      feedURL: FeedURL(URL(string: feedURL)!),
+      guid: GUID(guid),
+      startTime: startTime
+    )!
+  }
 }
