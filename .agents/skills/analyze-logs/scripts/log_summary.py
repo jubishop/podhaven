@@ -14,6 +14,12 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 PACIFIC = ZoneInfo("America/Los_Angeles")
+
+DEFAULT_LOG = (
+    "/Users/jubi/Library/Mobile Documents/"
+    "com~apple~CloudDocs/PodHaven Assets/log.ndjson"
+)
+
 LEVEL_NAMES = {
     0: "trace",
     1: "debug",
@@ -42,6 +48,29 @@ URL_ERROR_CODES: dict[int, tuple[str, str]] = {
     -1017: ("cannotParseResponse", "A task couldn't parse the response."),
 }
 URL_ERROR_PATTERN = re.compile(r"NSURLErrorDomain(?:\s+error)?[^-\d]*(?P<code>-\d+)")
+
+
+def parse_time_arg(s: str) -> int:
+    """Parse a user-supplied time string into epoch milliseconds."""
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+        "%m/%d %H:%M",
+    ):
+        try:
+            dt = datetime.strptime(s, fmt)
+            if dt.year == 1900:
+                dt = dt.replace(year=datetime.now().year)
+            dt = dt.replace(tzinfo=PACIFIC)
+            return int(dt.timestamp() * 1000)
+        except ValueError:
+            continue
+    try:
+        return int(s)
+    except ValueError:
+        print(f"error: cannot parse time '{s}'", file=sys.stderr)
+        sys.exit(1)
 
 
 @dataclass(frozen=True)
@@ -107,7 +136,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Summarize PodHaven NDJSON logs and optionally filter or compare them."
     )
-    parser.add_argument("path", help="Path to log.ndjson or widget-log.ndjson")
+    parser.add_argument("path", nargs="?", default=DEFAULT_LOG, help="Path to log.ndjson or widget-log.ndjson")
     parser.add_argument(
         "--compare-other",
         help="Compare the first log file to another log file using the same scope and filters.",
@@ -153,6 +182,14 @@ def parse_args() -> argparse.Namespace:
         help="Case-insensitive function-name filter.",
     )
     parser.add_argument(
+        "--after",
+        help="Only include entries after this time (datetime string or epoch ms).",
+    )
+    parser.add_argument(
+        "--before",
+        help="Only include entries before this time (datetime string or epoch ms).",
+    )
+    parser.add_argument(
         "--last-hours",
         type=float,
         help="Restrict the active view to entries within this many hours of the latest entry.",
@@ -188,6 +225,11 @@ def parse_args() -> argparse.Namespace:
         dest="json_output",
         action="store_true",
         help="Emit machine-readable JSON instead of text.",
+    )
+    parser.add_argument(
+        "--sessions",
+        action="store_true",
+        help="Detect and list app sessions (launch boundaries) with problem counts.",
     )
     return parser.parse_args()
 
@@ -295,6 +337,10 @@ def matches_text(value: str, needle: str | None) -> bool:
 
 def scope_description(args: argparse.Namespace) -> str | None:
     parts: list[str] = []
+    if args.after is not None:
+        parts.append(f"after {args.after}")
+    if args.before is not None:
+        parts.append(f"before {args.before}")
     if args.last_hours is not None:
         parts.append(f"last {args.last_hours:g}h")
     if args.tail is not None:
@@ -304,6 +350,18 @@ def scope_description(args: argparse.Namespace) -> str | None:
 
 def apply_scope(entries: list[Entry], args: argparse.Namespace) -> list[Entry]:
     scoped_entries = entries
+
+    if args.after is not None and scoped_entries:
+        cutoff_ms = parse_time_arg(args.after)
+        scoped_entries = [
+            entry for entry in scoped_entries if entry.timestamp_ms >= cutoff_ms
+        ]
+
+    if args.before is not None and scoped_entries:
+        cutoff_ms = parse_time_arg(args.before)
+        scoped_entries = [
+            entry for entry in scoped_entries if entry.timestamp_ms <= cutoff_ms
+        ]
 
     if args.last_hours is not None and scoped_entries:
         latest_timestamp_ms = max(entry.timestamp_ms for entry in scoped_entries)
@@ -346,6 +404,8 @@ def selection_constraints(args: argparse.Namespace) -> dict[str, Any]:
         "source",
         "file",
         "function",
+        "after",
+        "before",
         "last_hours",
         "tail",
         "coalesce_window_ms",
@@ -903,12 +963,89 @@ def print_comparison(left: Report, right: Report, args: argparse.Namespace) -> N
         print("    none")
 
 
+def detect_sessions(entries: list[Entry], gap_threshold_ms: int = 5000) -> list[dict[str, Any]]:
+    """Detect app sessions by looking for launch-related log entries."""
+    session_starts: list[tuple[int, int]] = []  # (timestamp_ms, index)
+
+    for i, e in enumerate(entries):
+        is_launch = (
+            (e.subsystem == "PodHaven" and e.category == "AppLauncher")
+            or (e.subsystem == "Database" and "creating" in e.message and "AppDB" in e.message)
+            or ("configureLogging" in e.message)
+        )
+        if not is_launch:
+            continue
+        if not session_starts or e.timestamp_ms - session_starts[-1][0] > gap_threshold_ms:
+            session_starts.append((e.timestamp_ms, i))
+
+    if not session_starts:
+        return []
+
+    sessions: list[dict[str, Any]] = []
+    for j, (start_ts, start_idx) in enumerate(session_starts):
+        if j + 1 < len(session_starts):
+            end_idx = session_starts[j + 1][1] - 1
+        else:
+            end_idx = len(entries) - 1
+
+        session_entries = entries[start_idx : end_idx + 1]
+        level_counts = Counter(e.level for e in session_entries)
+        end_ts = entries[end_idx].timestamp_ms
+        duration_ms = end_ts - start_ts
+
+        sessions.append({
+            "number": j + 1,
+            "start_ms": start_ts,
+            "start_pt": format_timestamp(start_ts),
+            "end_ms": end_ts,
+            "end_pt": format_timestamp(end_ts),
+            "duration_ms": duration_ms,
+            "duration_human": format_duration(duration_ms),
+            "entry_count": len(session_entries),
+            "warnings": level_counts.get(4, 0),
+            "errors": level_counts.get(5, 0) + level_counts.get(6, 0),
+        })
+
+    return sessions
+
+
+def print_sessions(sessions: list[dict[str, Any]]) -> None:
+    print(f"Found {len(sessions)} sessions:\n")
+    for s in sessions:
+        problems = []
+        if s["errors"]:
+            problems.append(f"{s['errors']} errors")
+        if s["warnings"]:
+            problems.append(f"{s['warnings']} warnings")
+        prob_str = f"  [{', '.join(problems)}]" if problems else ""
+
+        print(
+            f"  Session {s['number']}: {s['start_pt']} "
+            f"({s['duration_human']}, {s['entry_count']:,} entries){prob_str}"
+        )
+
+
 def main() -> int:
     args = parse_args()
     path = Path(args.path).expanduser()
     if not path.exists():
         print(f"Log file not found: {path}", file=sys.stderr)
         return 1
+
+    if args.sessions:
+        file_entries, parse_errors = load_entries(path)
+        if not file_entries:
+            print("No entries found.")
+            return 0
+        sessions = detect_sessions(file_entries)
+        if not sessions:
+            print("No session boundaries detected.")
+            return 0
+        if args.json_output:
+            print(json.dumps({"sessions": sessions}, indent=2, sort_keys=False))
+        else:
+            print_sessions(sessions)
+        return 0
 
     primary_report = build_report(path, args)
 

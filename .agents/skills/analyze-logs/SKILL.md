@@ -1,72 +1,132 @@
 ---
 name: analyze-logs
-description: Analyze PodHaven NDJSON log files and reconstruct failure timelines. Use when Codex needs to inspect `log.ndjson` or `widget-log.ndjson`, diagnose warnings or errors from exported app logs or feedback attachments, correlate a Sentry timestamp to local logs, or explain what happened around a specific time, subsystem, category, source file, or message.
+description: Analyze PodHaven NDJSON log files and reconstruct failure timelines. Use when inspecting log.ndjson or widget-log.ndjson, diagnosing warnings or errors, correlating a Sentry timestamp to local logs, or explaining what happened around a specific time, subsystem, category, source file, or message.
 ---
 
 # Analyze Logs
 
-Use this skill to inspect PodHaven NDJSON logs without reading the entire file into context. Start with the bundled summary script, then use targeted `rg` searches against the raw file only when you need line-level confirmation.
+Inspect PodHaven NDJSON logs without reading the entire file into context. Use the bundled summary script for structured analysis, then targeted `rg` searches when you need line-level confirmation.
 
 ## Quick Start
 
 1. Determine the log path.
    - Use the user-provided path first.
-   - If none is provided, try `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`.
-   - If the request is explicitly about the widget, look for `widget-log.ndjson` instead.
-2. Run `python3 scripts/log_summary.py "$LOG_PATH"` for the initial pass.
-3. Add structural filters like `--subsystem`, `--category`, `--source`, `--file`, or `--function` before falling back to broad text matching.
-4. Use `--last-hours` or `--tail` when the user only cares about recent activity.
-5. Use `--json` when the next step needs machine-readable output.
-6. Use `--compare-other OTHER_LOG_PATH` when the user gives both app and widget logs or asks for a before/after comparison.
-7. Read `references/podhaven-log-format.md` only if you need field or truncation details.
-8. Use `rg` on the raw file to zoom in on the relevant timestamps, levels, subsystems, or messages.
-9. Report the time range, key problems, event timeline, and root-cause assessment with a clear separation between observation and inference.
+   - Default: `/Users/jubi/Library/Mobile Documents/com~apple~CloudDocs/Podhaven Assets/log.ndjson`.
+   - Widget logs: look for `widget-log.ndjson` instead.
+2. Run the script with no filters for the initial overview.
+3. Add structural filters (`--subsystem`, `--category`, `--source`, `--file`, `--function`) before falling back to broad `--match`.
+4. Use `--last-hours`, `--tail`, `--after`/`--before` to narrow time ranges.
+5. Use `--sessions` to find app launch boundaries and problem counts.
+6. Use `--json` when the next step needs machine-readable output.
+7. Use `--compare-other` when the user gives both app and widget logs or asks for a before/after comparison.
+8. Use `rg` on the raw file to zoom in on specific timestamps, levels, subsystems, or messages.
+9. Read `references/podhaven-log-format.md` only if you need field or truncation details.
+
+## Commands
+
+```bash
+# Overview: time range, level counts, subsystem breakdown, top recurring issues
+python3 scripts/log_summary.py
+python3 scripts/log_summary.py "$LOG_PATH"
+
+# Session detection: find app launches with per-session problem counts
+python3 scripts/log_summary.py --sessions
+python3 scripts/log_summary.py --sessions --json
+
+# Filter by level
+python3 scripts/log_summary.py --min-level error
+python3 scripts/log_summary.py --min-level warning --coalesce-window-ms 0
+
+# Filter by time range
+python3 scripts/log_summary.py --last-hours 6 --min-level warning
+python3 scripts/log_summary.py --after "2026-04-03" --before "2026-04-04"
+python3 scripts/log_summary.py --after "2026-04-03 10:00" --before "2026-04-03 12:00"
+
+# Filter by structure
+python3 scripts/log_summary.py --subsystem Feed --category refreshManager --function refreshSeries
+python3 scripts/log_summary.py --source PodHavenWidget
+python3 scripts/log_summary.py --file PlayManager.swift
+
+# Timeline around a specific event
+python3 scripts/log_summary.py --around 1768679500000 --window-ms 30000
+
+# Text search across all fields
+python3 scripts/log_summary.py --match "cache load failed" --min-level warning
+
+# Show last N entries
+python3 scripts/log_summary.py --tail 200 --json
+
+# Compare two log files (e.g. app vs widget, or before vs after)
+python3 scripts/log_summary.py "$LOG_PATH" --compare-other "$OTHER_LOG_PATH"
+
+# Raw rg searches when you need line-level precision
+rg -n '"level":(4|5|6)' "$LOG_PATH"
+rg -n '"timestamp":17686795' "$LOG_PATH"
+rg -n '"subsystem":"Play"|"category":"refreshScheduler"' "$LOG_PATH"
+```
+
+## Flags Reference
+
+### Scope (narrows the active view before analysis)
+| Flag | Description |
+|------|-------------|
+| `--after TIME` | Only entries after this time (datetime string or epoch ms) |
+| `--before TIME` | Only entries before this time |
+| `--last-hours N` | Restrict to entries within N hours of the latest entry |
+| `--tail N` | Keep only the last N entries after other scope filters |
+
+Time arguments accept: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD`, `MM/DD HH:MM`, or raw epoch milliseconds.
+
+### Selection filters (choose which entries to display)
+| Flag | Description |
+|------|-------------|
+| `--min-level LEVEL` | Minimum level: trace, debug, info, notice, warning, error, critical |
+| `--around TIMESTAMP_MS` | Select entries within `--window-ms` of this timestamp |
+| `--window-ms N` | Window size for `--around` (default: 30000) |
+| `--subsystem NAME` | Case-insensitive subsystem filter |
+| `--category NAME` | Case-insensitive category filter |
+| `--source NAME` | Case-insensitive source filter (e.g. PodHaven, PodHavenWidget) |
+| `--file NAME` | Case-insensitive source-file filter |
+| `--function NAME` | Case-insensitive function-name filter |
+| `--match TEXT` | Case-insensitive search across message, metadata, and all structural fields |
+
+### Display controls
+| Flag | Description |
+|------|-------------|
+| `--top N` | Number of recurring warning/error families to show (default: 8) |
+| `--limit N` | Number of selected entries or bursts to print (default: 20) |
+| `--coalesce-window-ms N` | Collapse consecutive duplicate entries into bursts (default: 1000, 0=disable) |
+| `--json` | Emit machine-readable JSON instead of text |
+| `--sessions` | Detect and list app sessions (launch boundaries) with problem counts |
+| `--compare-other PATH` | Compare the primary log to another log using the same filters |
 
 ## Workflow
 
 ### 1. Orient
 
-- Run `python3 scripts/log_summary.py "$LOG_PATH"` to get the parsed entry count, Pacific Time range, level distribution, top sources and subsystems, and repeated warning or error messages.
-- The filtered view collapses consecutive duplicate entries into short bursts by default so rapid-fire warnings stay readable. Use `--coalesce-window-ms 0` when you need every raw matching entry printed.
-- The recurring issue section now groups by logger location, message, and metadata, and includes cadence plus common `NSURLErrorDomain` decoding.
-- Treat the file as newline-delimited JSON. Do not dump a large log into context unless it is genuinely tiny.
-- Present all user-facing timestamps in `America/Los_Angeles`.
+- Run the script with no filters to get the parsed entry count, time range, level distribution, top sources/subsystems, and recurring warning/error families.
+- Use `--sessions` to identify app launch boundaries and which sessions have problems.
+- The recurring issue section groups by logger location, message, and metadata, and includes cadence (avg/min/max gap between occurrences) plus NSURLErrorDomain decoding.
+- Present all user-facing timestamps in Pacific Time.
 
 ### 2. Find candidate failures
 
 - Prioritize `error` and `critical` entries.
 - Include `warning` entries when they plausibly lead to a later failure or show repeated unhealthy behavior.
-- Watch for repeated messages, bursts in the same time window, and the same `subsystem` or `category` appearing across multiple entries.
+- Watch for repeated messages, bursts in the same time window, and the same subsystem/category appearing across multiple entries.
 
 ### 3. Reconstruct the timeline
 
-- Search narrow time windows instead of scanning the full file.
-- Use exact or prefix timestamp searches when you already know the relevant millisecond value.
-- Correlate `source`, `subsystem`, `category`, `file`, `function`, and `metadata` to identify the code path and preconditions.
-- Reformat multiline `message` values when quoting them. They are stored as escaped newlines inside JSON.
+- Use `--around` with a narrow `--window-ms` to see what happened around a specific event.
+- Use `--after`/`--before` for broader time ranges.
+- Correlate `source`, `subsystem`, `category`, `file`, `function`, and `metadata` to identify the code path.
+- Use `rg` on the raw file for timestamp-prefix searches when you already know the exact millisecond.
 
 ### 4. Correlate external references
 
-- If the user gives a Sentry timestamp, convert it to milliseconds and inspect a narrow window around it with `python3 scripts/log_summary.py "$LOG_PATH" --around TIMESTAMP_MS --window-ms 30000`.
+- If the user gives a Sentry timestamp, convert it to milliseconds and use `--around`.
 - If the user gives a subsystem, category, source file, or function name, prefer the dedicated flags before using `rg`.
-- If the user gives multiple log files, analyze them separately first, then compare the timelines and crossover points.
-
-## Commands
-
-```bash
-python3 scripts/log_summary.py "$LOG_PATH"
-python3 scripts/log_summary.py "$LOG_PATH" --min-level error
-python3 scripts/log_summary.py "$LOG_PATH" --min-level warning --coalesce-window-ms 0
-python3 scripts/log_summary.py "$LOG_PATH" --subsystem Feed --category refreshManager --function refreshSeries
-python3 scripts/log_summary.py "$LOG_PATH" --last-hours 6 --min-level warning
-python3 scripts/log_summary.py "$LOG_PATH" --tail 200 --json
-python3 scripts/log_summary.py "$LOG_PATH" --compare-other "$OTHER_LOG_PATH"
-python3 scripts/log_summary.py "$LOG_PATH" --around 1768679500000 --window-ms 30000
-python3 scripts/log_summary.py "$LOG_PATH" --match RefreshScheduler --min-level warning
-rg -n '"level":(4|5|6)' "$LOG_PATH"
-rg -n '"timestamp":17686795' "$LOG_PATH"
-rg -n '"subsystem":"Play"|"category":"refreshScheduler"|"function":"refresh"' "$LOG_PATH"
-```
+- If the user gives multiple log files, analyze them separately first, then use `--compare-other` for a side-by-side diff.
 
 ## Reporting
 
@@ -77,6 +137,5 @@ rg -n '"subsystem":"Play"|"category":"refreshScheduler"|"function":"refresh"' "$
 
 ## Resources
 
-- Use `scripts/log_summary.py` for the first-pass summary and for focused time-window or text filtering.
-- Use `scripts/log_summary.py` for the first-pass summary, structural filtering, recent-window scoping, JSON export, and cross-file comparison.
-- Use `references/podhaven-log-format.md` for the exact entry schema, log file names, and truncation behavior.
+- `scripts/log_summary.py` — primary analysis tool
+- `references/podhaven-log-format.md` — entry schema, log file names, and truncation behavior
