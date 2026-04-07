@@ -282,7 +282,7 @@ extension Container {
     // Universal destinations
     case .episode(let episode, let startTime):
       EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: episode, startTime: startTime))
-        .id(episode.id)
+        .id("\(episode.id)-\(startTime ?? 0)")
     case .podcast(let podcast):
       PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
         .id(podcast.id)
