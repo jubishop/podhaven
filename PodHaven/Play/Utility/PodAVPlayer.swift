@@ -237,7 +237,7 @@ enum PodAVPlayerError: Error, LocalizedError {
   // MARK: - Playback Controls
 
   func play() {
-    Self.log.debug("play: executing")
+    Self.log.debug("play: executing (fromCache: \(playingFromCache))")
     avPlayer.play()
   }
 
@@ -275,16 +275,6 @@ enum PodAVPlayerError: Error, LocalizedError {
   }
 
   // MARK: - Seeking
-
-  func seekForward(_ duration: CMTime) async {
-    Self.log.debug("seekForward: \(duration)")
-    await seek(to: avPlayer.currentTime() + duration)
-  }
-
-  func seekBackward(_ duration: CMTime) async {
-    Self.log.debug("seekBackward: \(duration)")
-    await seek(to: avPlayer.currentTime() - duration)
-  }
 
   func seek(to time: CMTime) async {
     Self.log.debug("seek: \(time)")
@@ -443,6 +433,7 @@ enum PodAVPlayerError: Error, LocalizedError {
 
     rateObserver = avPlayer.observeRate(options: [.initial, .new]) { [weak self] rate in
       guard let self else { return }
+      Self.log.debug("rate changed: \(rate)")
       rateContinuation.yield(rate)
     }
   }

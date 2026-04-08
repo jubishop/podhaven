@@ -119,14 +119,8 @@ struct EpisodeDetailView: View {
       }
     }
 
-    if let shareURL = viewModel.shareURL {
-      ToolbarItem(placement: .primaryAction) {
-        ShareLink(
-          item: shareURL,
-          preview: viewModel.sharePreview,
-          label: { AppIcon.shareEpisode.label }
-        )
-      }
+    ToolbarItem(placement: .primaryAction) {
+      ShareEpisodeButton(episode: viewModel.episode)
     }
   }
 

@@ -3,6 +3,11 @@
     "apple-docs": {
       "command": "npx",
       "args": ["-y", "@kimsungwhee/apple-docs-mcp@latest"]
+    },
+    "xcode": {
+      "command": "xcrun",
+      "args": ["mcpbridge"],
+      "type": "stdio"
     }
   }
 }

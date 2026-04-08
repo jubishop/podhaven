@@ -52,6 +52,7 @@ final class PlayManager {
   @DynamicInjected(\.queue) var queue
   @DynamicInjected(\.repo) var repo
   @DynamicInjected(\.sharedState) var sharedState
+  @DynamicInjected(\.sleeper) private var sleeper
   @DynamicInjected(\.stateManager) private var stateManager
   @DynamicInjected(\.userSettings) var userSettings
 
@@ -63,6 +64,7 @@ final class PlayManager {
   // MARK: - Configurable Constants
 
   let recoveryDebounceInterval: TimeInterval = 5
+  private let remoteScrubSuppressionDuration: Duration = .milliseconds(500)
 
   // MARK: - State Management
 
@@ -72,6 +74,7 @@ final class PlayManager {
   private let startOnce = AsyncOnce()
   private let startStreamConsumersOnce = Once()
   private(set) var ignoreRemoteScrubCommands = false
+  private var restartScrubCommandsTask: Task<Void, any Error>?
   private var lastLoggedTime = Date.distantPast
 
   // MARK: - Initialization
@@ -170,7 +173,7 @@ final class PlayManager {
       Self.log.info("performLoad: \(incoming.toString)")
 
       await podAVPlayer.removeObservers()
-      await setStatus(.loading(incoming.episode.title))
+      setStatus(.loading(incoming.episode.title))
       await clearOnDeck()
 
       guard configureAudioSession() else { return false }
@@ -318,7 +321,7 @@ final class PlayManager {
 
   func stop() async {
     await clearOnDeck()
-    await setStatus(.stopped)
+    setStatus(.stopped)
   }
 
   func toggle() async {
@@ -326,11 +329,10 @@ final class PlayManager {
   }
 
   func finishEpisode(_ episodeID: Episode.ID? = nil) async {
-    Self.log.debug("finishEpisode: \(String(describing: episodeID))")
-
     let onDeckID = sharedState.onDeck?.id
     let episodeID = episodeID ?? onDeckID
     guard let episodeID else { return }
+    Self.log.debug("finishEpisode: \(episodeID) (onDeckID: \(String(describing: onDeckID)))")
 
     do {
       try await repo.markFinished(episodeID)
@@ -341,8 +343,7 @@ final class PlayManager {
     guard episodeID == onDeckID
     else { return }
 
-    ignoreRemoteScrubCommands = true
-    defer { ignoreRemoteScrubCommands = false }
+    suppressRemoteScrubCommands()
 
     await clearOnDeck()
 
@@ -355,7 +356,7 @@ final class PlayManager {
         await play()
       } else {
         Self.log.debug("no next episode, stopping")
-        await setStatus(.stopped)
+        setStatus(.stopped)
       }
     } catch {
       Self.log.caughtError("finishEpisode: failed to load next episode after \(episodeID)", error)
@@ -363,19 +364,39 @@ final class PlayManager {
     }
   }
 
+  // MARK: - Remote Scrub Suppression
+
+  // Temporarily suppress remote scrub commands after episode transitions.
+  // iOS may deliver stale scrub events from the finished episode's gesture
+  // with the NEW episode's ID (captured at delivery time, not gesture time),
+  // bypassing the episodeID guard.
+  private func suppressRemoteScrubCommands() {
+    restartScrubCommandsTask?.cancel()
+    ignoreRemoteScrubCommands = true
+    restartScrubCommandsTask = Task { [weak self] in
+      guard let self else { return }
+      try await sleeper.sleep(for: remoteScrubSuppressionDuration)
+      try Task.checkCancellation()
+      ignoreRemoteScrubCommands = false
+    }
+  }
+
   // MARK: - Seeking
 
   func seekForward(_ interval: TimeInterval? = nil) async {
     let duration = interval ?? userSettings.skipForwardInterval
-    await podAVPlayer.seekForward(CMTime.seconds(duration))
+    let currentTime = await podAVPlayer.currentTime()
+    await seek(to: currentTime + CMTime.seconds(duration))
   }
 
   func seekBackward(_ interval: TimeInterval? = nil) async {
     let duration = interval ?? userSettings.skipBackwardInterval
-    await podAVPlayer.seekBackward(CMTime.seconds(duration))
+    let currentTime = await podAVPlayer.currentTime()
+    await seek(to: currentTime - CMTime.seconds(duration))
   }
 
   func seek(to time: CMTime) async {
+    NowPlayingInfo.setCurrentTime(time)
     await podAVPlayer.seek(to: time)
   }
 
@@ -445,7 +466,7 @@ final class PlayManager {
       )
       await seek(to: podcastEpisode.episode.currentTime)
     } else {
-      await setCurrentTime(.zero)
+      setCurrentTime(.zero)
     }
   }
 
@@ -478,17 +499,16 @@ final class PlayManager {
     stateManager.clearOnDeck()
   }
 
-  func setCurrentTime(_ currentTime: CMTime) async {
+  func setCurrentTime(_ currentTime: CMTime) {
     let now = Date()
     if now.timeIntervalSince(lastLoggedTime) >= 10 {
       lastLoggedTime = now
       Self.log.debug("setCurrentTime: \(currentTime)")
     }
-    NowPlayingInfo.setCurrentTime(currentTime)
     stateManager.setCurrentTime(currentTime)
   }
 
-  func setStatus(_ status: PlaybackStatus) async {
+  func setStatus(_ status: PlaybackStatus) {
     Self.log.debug("setStatus: \(status)")
     sharedState.setPlaybackStatus(status)
 
@@ -502,7 +522,7 @@ final class PlayManager {
   }
 
   // Incoming state update from the AVPlayer (in contrast to setRate(_))
-  func setPlaybackRate(_ rate: Float) async {
+  func setPlaybackRate(_ rate: Float) {
     Self.log.debug("setPlaybackRate: \(rate)")
     NowPlayingInfo.setPlaybackRate(rate)
     sharedState.setPlayRate(rate)

@@ -63,6 +63,7 @@ struct ListedEpisode:
 
   // MARK: - EpisodeListable
 
+  var feedURL: FeedURL { episode.feedURL }
   var mediaGUID: MediaGUID { episode.mediaGUID }
   var title: String { episode.title }
   var pubDate: Date { episode.pubDate }

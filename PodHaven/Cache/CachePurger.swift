@@ -82,7 +82,7 @@ struct CachePurger: Sendable {
     let cachedEpisodes = try await repo.cachedEpisodes()
 
     // First, purge any dangling files (files with no associated episode)
-    try await purgeDanglingFiles(cachedEpisodes: cachedEpisodes)
+    try purgeDanglingFiles(cachedEpisodes: cachedEpisodes)
 
     // Validate that cached episodes still have their files on disk
     await validateCachedEpisodes(cachedEpisodes: cachedEpisodes)
@@ -107,7 +107,7 @@ struct CachePurger: Sendable {
     var freedBytes: Int64 = 0
     var deletedCount = 0
 
-    for episode in try await getCachedEpisodesInDeletionOrder(cachedEpisodes: cachedEpisodes) {
+    for episode in getCachedEpisodesInDeletionOrder(cachedEpisodes: cachedEpisodes) {
       guard freedBytes < bytesToFree else { break }
 
       if let cachedURL = episode.cachedURL {
@@ -154,7 +154,7 @@ struct CachePurger: Sendable {
 
   // MARK: - Dangling File Purge
 
-  private func purgeDanglingFiles(cachedEpisodes: [Episode]) async throws {
+  private func purgeDanglingFiles(cachedEpisodes: [Episode]) throws {
     let cachedFiles = try fileManager.contentsOfDirectory(at: CacheManager.cacheDirectory)
     let episodeCachedFilenames = Set(cachedEpisodes.compactMap { $0.cachedURL?.lastPathComponent })
 
@@ -228,9 +228,7 @@ struct CachePurger: Sendable {
 
   // MARK: - Episode Deletion Heuristic
 
-  private func getCachedEpisodesInDeletionOrder(cachedEpisodes: [Episode]) async throws
-    -> [Episode]
-  {
+  private func getCachedEpisodesInDeletionOrder(cachedEpisodes: [Episode]) -> [Episode] {
     let currentEpisodeID = Container.shared.sharedState().currentEpisodeID
     let unqueuedEpisodes = cachedEpisodes.filter {
       !$0.queued && !$0.saveInCache && $0.id != currentEpisodeID

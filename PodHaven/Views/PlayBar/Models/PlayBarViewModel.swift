@@ -7,7 +7,7 @@ import Logging
 import SwiftUI
 import Tagged
 
-@Observable @MainActor class PlayBarViewModel: Shareable {
+@Observable @MainActor class PlayBarViewModel {
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
@@ -27,6 +27,7 @@ import Tagged
   @ObservationIgnored private var undoCandidate: (episodeID: Episode.ID, time: Double)?
   @ObservationIgnored private var hideUndoButtonTask: Task<Void, Never>?
 
+  var onDeck: OnDeck? { sharedState.onDeck }
   var episodeImage: UIImage? { sharedState.onDeck?.artwork }
   var loadingEpisodeTitle: String { sharedState.playbackStatus.loadingTitle ?? "Unknown" }
 
@@ -60,16 +61,6 @@ import Tagged
     guard let chapters, !chapters.isEmpty else { return false }
     let currentSeconds = sliderValue
     return chapters.contains { $0.seconds > currentSeconds }
-  }
-
-  // MARK: - Shareable
-
-  var shareTitle: String { sharedState.onDeck?.title ?? "Episode" }
-  var shareArtwork: UIImage? { episodeImage }
-  var shareFallbackIcon: AppIcon { .showEpisode }
-  var shareURL: URL? {
-    guard let onDeck = sharedState.onDeck else { return nil }
-    return ShareURL.episode(feedURL: onDeck.feedURL, guid: onDeck.mediaGUID.guid)
   }
 
   var isDragging = false {

@@ -29,6 +29,9 @@ final class WidgetSnapshotWriter: Sendable {
   private var imagePipeline: ImagePipeline { Container.shared.imagePipeline() }
   private var sharedState: SharedState { Container.shared.sharedState() }
   private var sleeper: any Sleepable { Container.shared.sleeper() }
+  private var taskPriority: @Sendable (TaskPriority) -> TaskPriority? {
+    Container.shared.taskPriority()
+  }
   private var userSettings: UserSettings { Container.shared.userSettings() }
   private var widgetCenter: any WidgetReloading { Container.shared.widgetCenter() }
   private var widgetState: WidgetState { Container.shared.widgetState() }
@@ -47,7 +50,7 @@ final class WidgetSnapshotWriter: Sendable {
 
   func start() {
     startOnce.run {
-      Task(priority: .utility) { [weak self] in
+      Task(priority: taskPriority(.utility)) { [weak self] in
         guard let self else { return }
 
         // PlayManager has already restored onDeck by the time we start.
@@ -88,7 +91,7 @@ final class WidgetSnapshotWriter: Sendable {
         }
       }
 
-      Task(priority: .utility) { [weak self] in
+      Task(priority: taskPriority(.utility)) { [weak self] in
         guard let self else { return }
 
         for await status in sharedState.$playbackStatus.stream() {
@@ -110,7 +113,7 @@ final class WidgetSnapshotWriter: Sendable {
         }
       }
 
-      Task(priority: .utility) { [weak self] in
+      Task(priority: taskPriority(.utility)) { [weak self] in
         guard let self else { return }
 
         for await podcastEpisodes in sharedState.$queuedPodcastEpisodes.stream() {
@@ -128,7 +131,7 @@ final class WidgetSnapshotWriter: Sendable {
         }
       }
 
-      Task(priority: .utility) { [weak self] in
+      Task(priority: taskPriority(.utility)) { [weak self] in
         guard let self else { return }
 
         for await _ in userSettings.$alwaysShowPodcastImageInUpNext.stream() {
@@ -140,7 +143,7 @@ final class WidgetSnapshotWriter: Sendable {
         }
       }
 
-      Task(priority: .utility) { [weak self] in
+      Task(priority: taskPriority(.utility)) { [weak self] in
         guard let self else { return }
 
         for await interval in userSettings.$skipForwardInterval.stream() {
@@ -152,7 +155,7 @@ final class WidgetSnapshotWriter: Sendable {
         }
       }
 
-      Task(priority: .utility) { [weak self] in
+      Task(priority: taskPriority(.utility)) { [weak self] in
         guard let self else { return }
 
         for await interval in userSettings.$skipBackwardInterval.stream() {
@@ -311,7 +314,7 @@ final class WidgetSnapshotWriter: Sendable {
   // reloads are free while the app holds an active audio session.
   private func startHeartbeat() {
     stopHeartbeat()
-    let task = Task(priority: .utility) { [weak self] in
+    let task = Task(priority: taskPriority(.utility)) { [weak self] in
       while !Task.isCancelled {
         guard let self else { return }
         try? await sleeper.sleep(for: .seconds(240))

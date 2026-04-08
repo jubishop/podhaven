@@ -16,6 +16,7 @@ import SwiftUI
   @ObservationIgnored @DynamicInjected(\.queue) private var queue
   @ObservationIgnored @DynamicInjected(\.repo) private var repo
   @ObservationIgnored @DynamicInjected(\.sharedState) private var sharedState
+  @ObservationIgnored @DynamicInjected(\.taskPriority) private var taskPriority
   @ObservationIgnored @DynamicInjected(\.userSettings) private var userSettings
 
   private static let log = Log.as(LogSubsystem.UpNextView.main)
@@ -160,12 +161,11 @@ import SwiftUI
   }
 
   func refreshQueue() {
-    Self.log.debug("refreshQueue: downloading and caching uncached episodes")
-
     let uncachedEpisodes = episodeList.allEntries.filter { podcastEpisode in
       podcastEpisode.cacheStatus != .cached
     }
     guard !uncachedEpisodes.isEmpty else { return }
+    Self.log.debug("refreshQueue: caching \(uncachedEpisodes.count) uncached episodes")
 
     Self.log.debug(
       """
@@ -175,7 +175,7 @@ import SwiftUI
     )
 
     for podcastEpisode in uncachedEpisodes {
-      Task(priority: .utility) { [weak self] in
+      Task(priority: taskPriority(.utility)) { [weak self] in
         guard let self else { return }
         do {
           try await cacheManager.downloadToCache(for: podcastEpisode.id)

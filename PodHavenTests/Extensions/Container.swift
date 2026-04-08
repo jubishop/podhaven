@@ -55,6 +55,9 @@ extension Container: @retroactive AutoRegistering {
 
     bgTaskScheduler.context(.test) { FakeBGTaskScheduler() }.scope(.cached)
 
+    // nil = inherit from parent, avoiding priority-based starvation in tests.
+    taskPriority.context(.test) { { _ in nil } }
+
     imagePipeline.context(.test) {
       ImagePipeline(configuration: ImagePipeline.Configuration(dataLoader: self.fakeDataLoader()))
     }

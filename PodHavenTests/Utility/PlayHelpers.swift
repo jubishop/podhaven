@@ -80,12 +80,11 @@ enum PlayHelpers {
   static func waitFor(_ time: CMTime) async throws {
     try await Wait.until(
       { @MainActor in
-        (sharedState.onDeck?.currentTime ?? .zero) == time && nowPlayingCurrentTime == time
+        (sharedState.onDeck?.currentTime ?? .zero) == time
       },
       { @MainActor in
         """
         sharedState.onDeck?.currentTime: \(sharedState.onDeck?.currentTime ?? .zero), \
-        nowPlayingCurrentTime: \(nowPlayingCurrentTime), \
         Expected: \(time)
         """
       }

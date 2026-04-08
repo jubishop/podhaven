@@ -360,7 +360,7 @@ import Testing
     #expect(navigation.currentTab == .podcasts)
     #expect(navigation.podcasts.path.count == 3)
 
-    guard case .episode(let displayedEpisode) = navigation.podcasts.path[safe: 2] else {
+    guard case .episode(let displayedEpisode, _) = navigation.podcasts.path[safe: 2] else {
       Issue.record("Expected navigation to episode, but got: \(navigation.podcasts.path[safe: 2])")
       return
     }
@@ -391,6 +391,62 @@ import Testing
     // Verify navigation falls back to podcast (not episode)
     #expect(navigation.currentTab == .search)
     #expect(navigation.search.path == [.unsavedPodcastSeries(try podcastFeed.toUnsavedSeries())])
+  }
+
+  @Test("that an episode URL with startTime passes startTime through to navigation")
+  func episodeURLWithStartTimePassesThrough() async throws {
+    let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
+    let feedData = PreviewBundle.loadAsset(named: "lenny", in: .FeedRSS)
+
+    // Pre-populate the database with the podcast
+    let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
+    try await repo.insertSeries(podcastFeed.toUnsavedSeries())
+
+    await feedSession.respond(to: feedURL, data: feedData)
+
+    let episodeGUID = "substack:post:167485876"
+    let episodeURL = ShareHelpers.episodeURL(
+      feedURL: feedURL.absoluteString,
+      guid: episodeGUID,
+      startTime: 90
+    )
+
+    try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: episodeURL))
+
+    #expect(navigation.currentTab == .podcasts)
+    guard case .episode(_, let startTime) = navigation.podcasts.path[safe: 2] else {
+      Issue.record("Expected navigation to episode")
+      return
+    }
+    #expect(startTime == 90)
+  }
+
+  @Test("that an episode URL with negative startTime ignores startTime")
+  func episodeURLWithNegativeStartTimeIgnoresIt() async throws {
+    let feedURL = URL(string: "https://api.substack.com/feed/podcast/10845.rss")!
+    let feedData = PreviewBundle.loadAsset(named: "lenny", in: .FeedRSS)
+
+    let podcastFeed = try await PodcastFeed.parse(feedData, from: FeedURL(feedURL))
+    try await repo.insertSeries(podcastFeed.toUnsavedSeries())
+
+    await feedSession.respond(to: feedURL, data: feedData)
+
+    let episodeGUID = "substack:post:167485876"
+    // Manually construct URL with negative startTime
+    var components = URLComponents(string: "https://www.artisanalsoftware.com/podhaven/episode")!
+    components.queryItems = [
+      URLQueryItem(name: "feedURL", value: feedURL.absoluteString),
+      URLQueryItem(name: "guid", value: episodeGUID),
+      URLQueryItem(name: "startTime", value: "-5"),
+    ]
+
+    try await shareService.handleIncomingURL(ShareHelpers.shareURL(with: components.url!))
+
+    guard case .episode(_, let startTime) = navigation.podcasts.path[safe: 2] else {
+      Issue.record("Expected navigation to episode")
+      return
+    }
+    #expect(startTime == nil)
   }
 
   @Test("that a podcast URL with only feedURL (no guid) navigates to podcast")

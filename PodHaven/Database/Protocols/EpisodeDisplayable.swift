@@ -7,7 +7,6 @@ protocol EpisodeDisplayable:
   Searchable,
   Sendable
 {
-  var feedURL: FeedURL { get }
   var podcastTitle: String { get }
   var description: String? { get }
   var queueDate: Date? { get }

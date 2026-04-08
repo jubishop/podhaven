@@ -18,7 +18,7 @@ enum ShareURL {
     return components.url
   }
 
-  static func episode(feedURL: FeedURL, guid: GUID) -> URL? {
+  static func episode(feedURL: FeedURL, guid: GUID, startTime: Int? = nil) -> URL? {
     var components = URLComponents()
     components.scheme = scheme
     components.host = host
@@ -27,6 +27,12 @@ enum ShareURL {
       URLQueryItem(name: "feedURL", value: feedURL.rawValue.absoluteString),
       URLQueryItem(name: "guid", value: guid.rawValue),
     ]
+    if let startTime {
+      components.queryItems?
+        .append(
+          URLQueryItem(name: "startTime", value: String(startTime))
+        )
+    }
     return components.url
   }
 }

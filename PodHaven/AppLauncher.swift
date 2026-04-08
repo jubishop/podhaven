@@ -22,6 +22,9 @@ struct AppLauncher: Sendable {
   @DynamicInjected(\.widgetSnapshotWriter) private var widgetSnapshotWriter
 
   private var alert: Alert { get async { await Container.shared.alert() } }
+  private var taskPriority: @Sendable (TaskPriority) -> TaskPriority? {
+    Container.shared.taskPriority()
+  }
   private var userNotificationManager: UserNotificationManager {
     Container.shared.userNotificationManager()
   }
@@ -116,7 +119,7 @@ struct AppLauncher: Sendable {
 
   private func startSystemMonitoring() {
     startSystemMonitoringOnce.run {
-      Task(priority: .utility) {
+      Task(priority: taskPriority(.utility)) {
         for await _ in self.notifications(UIApplication.didReceiveMemoryWarningNotification) {
           Self.log.warning("System memory warning received")
 
@@ -126,7 +129,7 @@ struct AppLauncher: Sendable {
         }
       }
 
-      Task(priority: .utility) {
+      Task(priority: taskPriority(.utility)) {
         for await _ in self.notifications(ProcessInfo.thermalStateDidChangeNotification) {
           let state =
             switch ProcessInfo.processInfo.thermalState {

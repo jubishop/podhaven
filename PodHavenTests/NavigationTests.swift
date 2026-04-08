@@ -171,6 +171,41 @@ import Testing
     )
   }
 
+  @Test("showEpisode with startTime includes startTime in destination")
+  func showEpisodeWithStartTime() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: Create.unsavedPodcast(subscriptionDate: Date()),
+        unsavedEpisode: Create.unsavedEpisode()
+      )
+    )
+
+    navigation.showEpisode(podcastEpisode, startTime: 90)
+
+    guard case .episode(_, let startTime) = navigation.podcasts.path[safe: 2] else {
+      Issue.record("Expected navigation to episode")
+      return
+    }
+    #expect(startTime == 90)
+  }
+
+  @Test("showEpisode with startTime produces different destination than without")
+  func showEpisodeStartTimeChangesDestionation() async throws {
+    let podcastEpisode = try await Create.podcastEpisode(
+      UnsavedPodcastEpisode(
+        unsavedPodcast: Create.unsavedPodcast(subscriptionDate: Date()),
+        unsavedEpisode: Create.unsavedEpisode()
+      )
+    )
+
+    let withoutStartTime = Navigation.Destination.episode(DisplayedEpisode(podcastEpisode))
+    let withStartTime = Navigation.Destination.episode(
+      DisplayedEpisode(podcastEpisode),
+      startTime: 90
+    )
+    #expect(withoutStartTime != withStartTime)
+  }
+
   // MARK: - Same-Tab Sheet Dismissal
 
   @Test("showOPMLImport dismisses sheet even when already on settings tab")

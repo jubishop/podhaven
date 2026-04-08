@@ -221,6 +221,7 @@ private struct SystemImageName:
   case exportOPML
   case importOPML
   case shareEpisode
+  case shareEpisodeFromStart
   case sharePodcast
   case shareDatabase
   case shareLogs
@@ -465,6 +466,8 @@ private struct SystemImageName:
       return Data(text: "Import OPML", systemImageName: .downloadEpisode)
     case .shareEpisode:
       return Data(text: "Share Episode", systemImageName: .share)
+    case .shareEpisodeFromStart:
+      return Data(text: "Share from Start", systemImageName: .share)
     case .sharePodcast:
       return Data(text: "Share Podcast", systemImageName: .share)
     case .shareDatabase:

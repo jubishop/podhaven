@@ -39,7 +39,11 @@ struct ShareService {
     if extractedURL.pathExtension.lowercased() == "opml" {
       try await handleOPMLURL(extractedURL)
     } else if let feedURL = extractFeedURLParameter(from: extractedURL) {
-      try await handlePodcastURL(feedURL, guid: extractGUIDParameter(from: extractedURL))
+      try await handlePodcastURL(
+        feedURL,
+        guid: extractGUIDParameter(from: extractedURL),
+        startTime: extractStartTimeParameter(from: extractedURL)
+      )
     } else if let feedURL = try await fetchFeedURL(from: extractedURL) {
       try await handlePodcastURL(feedURL)
     } else {
@@ -47,8 +51,14 @@ struct ShareService {
     }
   }
 
-  func handlePodcastURL(_ feedURL: FeedURL, guid: GUID? = nil) async throws {
-    Self.log.debug("handlePodcastURL: \(feedURL), guid: \(guid?.toString ?? "nil")")
+  func handlePodcastURL(_ feedURL: FeedURL, guid: GUID? = nil, startTime: Int? = nil) async throws {
+    Self.log.debug(
+      """
+      handlePodcastURL: \(feedURL), \
+      guid: \(guid?.toString ?? "nil"), \
+      startTime: \(String(describing: startTime))
+      """
+    )
 
     if let podcastSeries = try await repo.podcastSeries(feedURL) {
       Self.log.debug(
@@ -62,7 +72,8 @@ struct ShareService {
       if let guid, let episode = podcastSeries.episodes.first(where: { $0.guid == guid }) {
         Self.log.debug("Found episode with guid: \(guid) - \(episode.toString)")
         await navigation.showEpisode(
-          PodcastEpisode(podcast: podcastSeries.podcast, episode: episode)
+          PodcastEpisode(podcast: podcastSeries.podcast, episode: episode),
+          startTime: startTime
         )
       } else {
         Self.log.debug("GUID: \(String(describing: guid)) not found, showing podcast")
@@ -88,7 +99,8 @@ struct ShareService {
 
       await navigation.showSharedEpisode(
         unsavedPodcastSeries: unsavedPodcastSeries,
-        unsavedEpisode: unsavedEpisode
+        unsavedEpisode: unsavedEpisode,
+        startTime: startTime
       )
     } else {
       Self.log.debug("GUID: \(String(describing: guid)) not found, showing unsaved podcast")
@@ -145,6 +157,17 @@ struct ShareService {
     else { return nil }
 
     return GUID(guidString)
+  }
+
+  private func extractStartTimeParameter(from url: URL) -> Int? {
+    guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+      let queryItems = components.queryItems,
+      let startTimeString = queryItems.first(where: { $0.name == "startTime" })?.value,
+      let startTime = Int(startTimeString),
+      startTime > 0
+    else { return nil }
+
+    return startTime
   }
 
   // MARK: - Private Data Fetching

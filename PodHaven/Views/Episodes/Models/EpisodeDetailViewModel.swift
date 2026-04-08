@@ -5,15 +5,13 @@ import FactoryKit
 import Foundation
 import GRDB
 import Logging
-import Nuke
 import SwiftUI
 import Tagged
-import UIKit
 
-@Observable @MainActor class EpisodeDetailViewModel: Shareable {
+@Observable @MainActor class EpisodeDetailViewModel {
   @ObservationIgnored @DynamicInjected(\.alert) private var alert
   @ObservationIgnored @DynamicInjected(\.cacheManager) private var cacheManager
-  @ObservationIgnored @DynamicInjected(\.imagePipeline) private var imagePipeline
+
   @ObservationIgnored @DynamicInjected(\.navigation) private var navigation
   @ObservationIgnored @DynamicInjected(\.observatory) private var observatory
   @ObservationIgnored @DynamicInjected(\.playManager) private var playManager
@@ -67,36 +65,19 @@ import UIKit
     episode.cacheStatus != .uncached && CacheManager.canClearCache(episode)
   }
 
-  // MARK: - Shareable
-
-  var shareTitle: String { episode.title }
-  var shareArtwork: UIImage?
-  var shareFallbackIcon: AppIcon { .showEpisode }
-  var shareURL: URL? { ShareURL.episode(feedURL: episode.feedURL, guid: episode.mediaGUID.guid) }
+  private let startTime: Int?
 
   // MARK: - Initialization
 
-  private init(detailSource: EpisodeDetailSource) {
+  private init(detailSource: EpisodeDetailSource, startTime: Int? = nil) {
     self.originTab = Container.shared.navigation().currentTab
     self.detailSource = detailSource
     self.episode = detailSource.initialEpisode
-
-    Task { [weak self] in
-      guard let self else { return }
-      do {
-        shareArtwork = try await imagePipeline.image(for: episode.image)
-      } catch {
-        Self.log.caughtError(
-          "init: failed to load share artwork for \(episode.image)",
-          error,
-          level: { _ in .info }
-        )
-      }
-    }
+    self.startTime = startTime
   }
 
-  convenience init(episode: DisplayedEpisode) {
-    self.init(detailSource: EpisodeDetailSource(episode: episode))
+  convenience init(episode: DisplayedEpisode, startTime: Int? = nil) {
+    self.init(detailSource: EpisodeDetailSource(episode: episode), startTime: startTime)
   }
 
   convenience init(listedEpisode: ListedEpisode) {
@@ -136,7 +117,14 @@ import UIKit
         Self.log.warning("Episode no longer exists for detail hydration: \(episode.toString)")
         alert(message)
         navigation.dismiss(from: originTab)
+        return
       }
+    }
+
+    if let startTime {
+      Self.log.debug("Auto-playing from startTime: \(startTime)s")
+      let podcastEpisode = try await getOrCreatePodcastEpisode()
+      try await loadAndPlay(podcastEpisode, seekTo: startTime)
     }
   }
 
@@ -178,9 +166,7 @@ import UIKit
 
       do {
         let podcastEpisode = try await getOrCreatePodcastEpisode()
-        try await playManager.load(podcastEpisode)
-        await playManager.seek(to: CMTime.seconds(Double(seconds)))
-        await playManager.play()
+        try await loadAndPlay(podcastEpisode, seekTo: seconds)
       } catch {
         Self.log.caughtError(
           "playAt: failed for \(episode.toString) at timestamp \(timestamp)",
@@ -448,6 +434,12 @@ import UIKit
   }
 
   // MARK: - Private Helpers
+
+  private func loadAndPlay(_ podcastEpisode: PodcastEpisode, seekTo seconds: Int) async throws {
+    try await playManager.load(podcastEpisode)
+    await playManager.seek(to: CMTime.seconds(Double(seconds)))
+    await playManager.play()
+  }
 
   private func getOrCreatePodcastEpisode() async throws -> PodcastEpisode {
     if let podcastEpisode = self.podcastEpisode { return podcastEpisode }

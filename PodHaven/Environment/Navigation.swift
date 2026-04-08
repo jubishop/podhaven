@@ -26,7 +26,15 @@ extension Container {
 
   @MainActor @Observable
   class PathManager: ManagingPath {
-    var path: [Destination] = []
+    var path: [Destination] = [] {
+      didSet {
+        if path.count < oldValue.count {
+          Self.log.debug("Path popped: \(oldValue.count) → \(path.count)")
+        }
+      }
+    }
+
+    private static let log = Log.as("Navigation")
   }
 
   @MainActor @Observable
@@ -35,6 +43,10 @@ extension Container {
 
     var path: [Destination] = [] {
       didSet {
+        if path.count < oldValue.count {
+          log.debug("Path popped: \(oldValue.count) → \(path.count)")
+        }
+
         guard let first = path.first
         else {
           topDestination = nil
@@ -48,6 +60,7 @@ extension Container {
       }
     }
 
+    private let log = Log.as("Navigation")
     private let extractTopDestination: (Destination) -> TopDestination?
     private let makeDestination: (TopDestination) -> Destination
 
@@ -74,7 +87,15 @@ extension Container {
     case settings, search, upNext, episodes, podcasts
   }
 
-  var currentTab: Tab = .upNext
+  var currentTab: Tab = .upNext {
+    didSet {
+      if currentTab == oldValue {
+        Self.log.debug("Tab re-selected: \(currentTab)")
+      } else {
+        Self.log.debug("Tab changed: \(oldValue) → \(currentTab)")
+      }
+    }
+  }
 
   // MARK: - Unified Navigation Destination
 
@@ -91,10 +112,14 @@ extension Container {
 
     // Universal destinations
     case podcast(DisplayedPodcast)
-    case episode(DisplayedEpisode)
+    case episode(DisplayedEpisode, startTime: Int?)
     case listedPodcast(ListedPodcast)
     case listedEpisode(ListedEpisode)
     case unsavedPodcastSeries(UnsavedPodcastSeries)
+
+    static func episode(_ episode: DisplayedEpisode) -> Destination {
+      .episode(episode, startTime: nil)
+    }
   }
 
   enum SettingsSection {
@@ -255,9 +280,9 @@ extension Container {
       }
 
     // Universal destinations
-    case .episode(let episode):
-      EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: episode))
-        .id(episode.id)
+    case .episode(let episode, let startTime):
+      EpisodeDetailView(viewModel: EpisodeDetailViewModel(episode: episode, startTime: startTime))
+        .id("\(episode.id)-\(startTime ?? 0)")
     case .podcast(let podcast):
       PodcastDetailView(viewModel: PodcastDetailViewModel(podcast: podcast))
         .id(podcast.id)
@@ -313,7 +338,8 @@ extension Container {
 
   func showSharedEpisode(
     unsavedPodcastSeries: UnsavedPodcastSeries,
-    unsavedEpisode: UnsavedEpisode
+    unsavedEpisode: UnsavedEpisode,
+    startTime: Int? = nil
   ) {
     Self.log.debug("Showing searched episode: \(unsavedEpisode.toString)")
 
@@ -326,7 +352,8 @@ extension Container {
             unsavedPodcast: unsavedPodcastSeries.unsavedPodcast,
             unsavedEpisode: unsavedEpisode
           )
-        )
+        ),
+        startTime: startTime
       ),
     ]
     currentTab = .search
@@ -447,14 +474,14 @@ extension Container {
     currentTab = .podcasts
   }
 
-  func showEpisode(_ podcastEpisode: PodcastEpisode) {
+  func showEpisode(_ podcastEpisode: PodcastEpisode, startTime: Int? = nil) {
     Self.log.debug("Showing PodcastEpisode: \(podcastEpisode.toString)")
 
     sheet.dismiss()
     podcasts.path = [
       .podcastsViewType(podcastEpisode.podcast.subscribed ? .subscribed : .unsubscribed),
       .podcast(DisplayedPodcast(podcastEpisode.podcast)),
-      .episode(DisplayedEpisode(podcastEpisode)),
+      .episode(DisplayedEpisode(podcastEpisode), startTime: startTime),
     ]
     currentTab = .podcasts
   }
