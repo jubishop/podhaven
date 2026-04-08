@@ -26,7 +26,6 @@ struct UnsavedEpisodeEmbedding:
 
   var toString: String { "embedding[\(episodeId)]" }
   var searchableString: String { toString }
-
 }
 
 @Saved<UnsavedEpisodeEmbedding>
