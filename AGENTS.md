@@ -52,6 +52,6 @@
 - Run `swift-format` on every Swift file you touch before handing work back.
 - Use `//` for comments, not `///` (no doc comments).
 - Never leave behind unused code, properties, or parameters. If something becomes unused, remove it immediately.
-- Avoid using `@unchecked`/`unsafe` in code unless absolutely necessary.
+- Avoid using `@unchecked`/`@retroactive`/`unsafe` in code unless absolutely necessary.
 - Avoid `inout` parameters; return values instead.
 - Use `@MainActor` on functions/types instead of `MainActor.run { }` blocks.

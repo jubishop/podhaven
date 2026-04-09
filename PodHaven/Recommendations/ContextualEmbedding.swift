@@ -55,28 +55,18 @@ class ContextualEmbedding {
 
     guard embedding.hasAvailableAssets else {
       Self.log.info("Requesting contextual embedding assets download")
-      embedding.requestAssets { [weak self] error in
+      embedding.requestAssets { error in
         if let error {
           Self.log.caughtError("Failed to download contextual embedding assets", error)
         } else {
           Self.log.info("Contextual embedding assets downloaded")
-          self?.loadAssets()
+          Container.shared.contextualEmbedding().loadAssets()
         }
       }
       return
     }
 
     loadAssets()
-  }
-
-  private func loadAssets() {
-    guard !isAvailable else { return }
-    do {
-      try embedding.load()
-      isAvailable = true
-    } catch {
-      Self.log.caughtError("Failed to load contextual embedding", error)
-    }
   }
 
   func vector(for text: String) throws -> [Float] {
@@ -101,5 +91,15 @@ class ContextualEmbedding {
 
     guard count > 0, let sum else { throw EmbeddingError.noResult }
     return sum.map { $0 / Float(count) }
+  }
+
+  fileprivate func loadAssets() {
+    guard !isAvailable else { return }
+    do {
+      try embedding.load()
+      isAvailable = true
+    } catch {
+      Self.log.caughtError("Failed to load contextual embedding", error)
+    }
   }
 }
