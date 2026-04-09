@@ -45,14 +45,14 @@ enum EmbeddingError: LocalizedError {
 struct ContextualEmbedding: Embeddable, @unchecked Sendable {
   fileprivate static let cached = ThreadSafe<ContextualEmbedding?>(nil)
 
+  var revision: Int { nlEmbedding.revision }
+  var maximumInputLength: Int { nlEmbedding.maximumSequenceLength }
+
   private let nlEmbedding: NLContextualEmbedding
 
   fileprivate init(nlEmbedding: NLContextualEmbedding) {
     self.nlEmbedding = nlEmbedding
   }
-
-  var revision: Int { nlEmbedding.revision }
-  var maximumInputLength: Int { nlEmbedding.maximumSequenceLength }
 
   func vector(for text: String) throws -> [Float] {
     let result = try nlEmbedding.embeddingResult(for: text, language: .english)
