@@ -100,5 +100,4 @@ struct EmbeddingProcessor: Sendable {
       break
     }
   }
-
 }
