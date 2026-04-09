@@ -9,18 +9,18 @@ import SwiftUI
 // MARK: - Container
 
 extension Container {
-  var embeddingTask: Factory<EmbeddingTask> {
-    Factory(self) { EmbeddingTask() }.scope(.cached)
+  var embeddingProcessor: Factory<EmbeddingProcessor> {
+    Factory(self) { EmbeddingProcessor() }.scope(.cached)
   }
 }
 
-// MARK: - EmbeddingTask
+// MARK: - EmbeddingProcessor
 
-struct EmbeddingTask: Sendable {
+struct EmbeddingProcessor: Sendable {
   @DynamicInjected(\.embeddingService) private var embeddingService
   @DynamicInjected(\.repo) private var repo
 
-  private static let log = Log.as(LogSubsystem.Recommendations.backgroundTask)
+  private static let log = Log.as(LogSubsystem.Recommendations.processor)
 
   private static let backgroundTaskIdentifier = "\(AppInfo.bundleIdentifier).embeddingComputation"
 

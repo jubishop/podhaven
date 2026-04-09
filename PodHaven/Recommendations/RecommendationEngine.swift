@@ -34,7 +34,6 @@ extension Container {
 
 struct RecommendationEngine: Sendable {
   @DynamicInjected(\.repo) private var repo
-  @DynamicInjected(\.embeddingService) private var embeddingService
 
   private static let log = Log.as(LogSubsystem.Recommendations.engine)
 
@@ -75,8 +74,8 @@ struct RecommendationEngine: Sendable {
       return []
     }
 
-    guard embeddingService.resolveEmbedding() != nil else {
-      Self.log.debug("Contextual embedding assets not available yet, returning empty")
+    guard try await repo.hasEmbeddings() else {
+      Self.log.debug("No embeddings computed yet, returning empty")
       return []
     }
 
@@ -202,9 +201,9 @@ struct RecommendationEngine: Sendable {
       let positiveCentroid
     {
       let vector = embedding.floatVector
-      var similarity = embeddingService.dotProduct(vector, positiveCentroid)
+      var similarity = VectorMath.dotProduct(vector, positiveCentroid)
       if let negativeCentroid {
-        similarity -= embeddingService.dotProduct(vector, negativeCentroid)
+        similarity -= VectorMath.dotProduct(vector, negativeCentroid)
       }
       // Remap from [-2, 2] to [0, 1]
       let remapped = (similarity + 2.0) / 4.0
@@ -397,6 +396,6 @@ struct RecommendationEngine: Sendable {
 
     guard totalWeight > 0 else { return nil }
     let centroid = sum.map { $0 / totalWeight }
-    return embeddingService.normalize(centroid)
+    return VectorMath.normalize(centroid)
   }
 }

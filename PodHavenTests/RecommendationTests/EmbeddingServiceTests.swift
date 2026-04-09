@@ -39,40 +39,6 @@ class EmbeddingServiceTests {
     #expect(result == "too many spaces")
   }
 
-  // MARK: - Vector Math
-
-  @Test("normalize produces unit vector")
-  func normalizeUnit() {
-    let vector: [Float] = [3.0, 4.0]
-    let normalized = embeddingService.normalize(vector)
-    let norm = sqrt(normalized.reduce(0) { $0 + $1 * $1 })
-    #expect(abs(norm - 1.0) < 0.0001)
-  }
-
-  @Test("normalize handles zero vector gracefully")
-  func normalizeZero() {
-    let vector: [Float] = [0.0, 0.0, 0.0]
-    let normalized = embeddingService.normalize(vector)
-    #expect(normalized == [0.0, 0.0, 0.0])
-  }
-
-  @Test("dotProduct computes correctly")
-  func dotProductCorrect() {
-    let v1: [Float] = [1.0, 2.0, 3.0]
-    let v2: [Float] = [4.0, 5.0, 6.0]
-    let result = embeddingService.dotProduct(v1, v2)
-    #expect(result == 32.0)
-  }
-
-  @Test("weightedAverage computes correctly")
-  func weightedAverageCorrect() {
-    let v1: [Float] = [1.0, 0.0]
-    let v2: [Float] = [0.0, 1.0]
-    let result = embeddingService.weightedAverage(v1, weight1: 0.6, v2, weight2: 0.4)
-    #expect(abs(result[0] - 0.6) < 0.0001)
-    #expect(abs(result[1] - 0.4) < 0.0001)
-  }
-
   // MARK: - Embedding Caching
 
   @Test("ensureEmbeddings caches results and skips already computed")

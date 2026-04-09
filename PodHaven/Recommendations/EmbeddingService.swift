@@ -81,7 +81,7 @@ struct EmbeddingService: Sendable {
     let descriptionVector = try embedding.vector(for: descriptionText)
 
     // Weighted average of title and description
-    var episodeVector = weightedAverage(
+    var episodeVector = VectorMath.weightedAverage(
       titleVector,
       weight1: Self.titleWeight,
       descriptionVector,
@@ -94,7 +94,7 @@ struct EmbeddingService: Sendable {
       embedding: embedding
     )
     if let podcastVector {
-      episodeVector = weightedAverage(
+      episodeVector = VectorMath.weightedAverage(
         episodeVector,
         weight1: Self.episodeBlendWeight,
         podcastVector,
@@ -102,7 +102,7 @@ struct EmbeddingService: Sendable {
       )
     }
 
-    return normalize(episodeVector)
+    return VectorMath.normalize(episodeVector)
   }
 
   // MARK: - Podcast Embedding
@@ -128,7 +128,7 @@ struct EmbeddingService: Sendable {
 
     let text = String(cleanedDescription.prefix(embedding.maximumInputLength))
     let vector = try embedding.vector(for: text)
-    let normalized = normalize(vector)
+    let normalized = VectorMath.normalize(vector)
 
     let unsaved = UnsavedPodcastEmbedding(
       podcastId: podcastID,
@@ -209,33 +209,6 @@ struct EmbeddingService: Sendable {
     )
 
     return result.trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-
-  // MARK: - Vector Math
-
-  func weightedAverage(
-    _ v1: [Float],
-    weight1: Float,
-    _ v2: [Float],
-    weight2: Float
-  ) -> [Float] {
-    guard v1.count == v2.count else {
-      Assert.fatal("Vector dimension mismatch: \(v1.count) vs \(v2.count)")
-    }
-    return zip(v1, v2).map { a, b in a * weight1 + b * weight2 }
-  }
-
-  func normalize(_ vector: [Float]) -> [Float] {
-    let norm = sqrt(vector.reduce(0) { $0 + $1 * $1 })
-    guard norm > 0 else { return vector }
-    return vector.map { $0 / norm }
-  }
-
-  func dotProduct(_ v1: [Float], _ v2: [Float]) -> Float {
-    guard v1.count == v2.count else {
-      Assert.fatal("Vector dimension mismatch: \(v1.count) vs \(v2.count)")
-    }
-    return zip(v1, v2).reduce(0) { $0 + $1.0 * $1.1 }
   }
 
   // MARK: - Helpers

@@ -4,7 +4,10 @@
       "mcp__apple-docs__*",
       "Skill(test)",
       "Skill(merge-back)",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "mcp__xcode__XcodeListWindows",
+      "mcp__xcode__BuildProject",
+      "mcp__xcode__RunSomeTests"
     ],
     "deny": [],
     "ask": []

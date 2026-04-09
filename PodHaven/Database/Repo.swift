@@ -431,6 +431,12 @@ struct Repo: Databasing, Sendable {
 
   // MARK: - Embedding Readers
 
+  func hasEmbeddings() async throws -> Bool {
+    try await appDB.db.read { db in
+      try EpisodeEmbedding.fetchCount(db) > 0
+    }
+  }
+
   func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding? {
     try await appDB.db.read { db in
       try EpisodeEmbedding
