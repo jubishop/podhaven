@@ -40,7 +40,7 @@ struct EmbeddingProcessor: Sendable {
     backgroundTaskScheduler.register { complete in
       Self.log.info("Starting embedding background task")
 
-      guard let embedding = Container.shared.embeddingService().resolveEmbedding() else {
+      guard let embedding = Container.shared.embeddingProvider() else {
         Self.log.info("Contextual embedding assets not available yet, skipping")
         complete(true)
         return

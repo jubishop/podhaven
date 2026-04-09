@@ -50,7 +50,7 @@ class EmbeddingServiceTests {
     )
     let episode = podcastEpisode.episode
 
-    let embedding = FakeEmbeddingProvider()
+    let embedding = FakeContextualEmbedding()
 
     // First call should compute and cache
     try await embeddingService.ensureEmbeddings(
@@ -85,7 +85,7 @@ class EmbeddingServiceTests {
       episodeDescription: "Test description"
     )
     let episode = podcastEpisode.episode
-    let embedding = FakeEmbeddingProvider()
+    let embedding = FakeContextualEmbedding()
 
     // First compute normally to get the correct hash
     try await embeddingService.ensureEmbeddings(
@@ -131,8 +131,8 @@ class EmbeddingServiceTests {
       episodeDescription: "Episode description"
     )
     let episode = podcastEpisode.episode
-    let firstEmbedding = RevisionedEmbeddingProvider(revision: 1)
-    let secondEmbedding = RevisionedEmbeddingProvider(revision: 2)
+    let firstEmbedding = RevisionedContextualEmbedding(revision: 1)
+    let secondEmbedding = RevisionedContextualEmbedding(revision: 2)
 
     try await embeddingService.ensureEmbeddings(
       for: [episode],
@@ -162,7 +162,7 @@ class EmbeddingServiceTests {
       episodeTitle: "Podcast Refresh",
       episodeDescription: "Episode description"
     )
-    let embedding = FakeEmbeddingProvider()
+    let embedding = FakeContextualEmbedding()
 
     try await embeddingService.ensureEmbeddings(
       for: [podcastEpisode.episode],
@@ -214,7 +214,7 @@ class EmbeddingServiceTests {
       episodeTitle: "Podcast Cache Refresh",
       episodeDescription: "Episode description"
     )
-    let embedding = FakeEmbeddingProvider()
+    let embedding = FakeContextualEmbedding()
 
     let staleVector: [Float] = [99.0, 99.0, 99.0]
     let staleEmbedding = UnsavedPodcastEmbedding(
@@ -359,11 +359,11 @@ class EmbeddingServiceTests {
   }
 }
 
-private struct RevisionedEmbeddingProvider: Embedding, Sendable {
+private struct RevisionedContextualEmbedding: Embeddable, Sendable {
   let revision: Int
   let maximumInputLength: Int = 1000
 
   func vector(for text: String) throws -> [Float] {
-    try FakeEmbeddingProvider().vector(for: text)
+    try FakeContextualEmbedding().vector(for: text)
   }
 }

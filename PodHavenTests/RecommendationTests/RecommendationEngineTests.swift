@@ -55,7 +55,7 @@ class RecommendationEngineTests {
   }
 
   private func embedEpisodes(_ episodes: [Episode]) async throws {
-    let embedding = FakeEmbeddingProvider()
+    let embedding = FakeContextualEmbedding()
     try await embeddingService.ensureEmbeddings(
       for: episodes,
       embedding: embedding,

@@ -4,7 +4,7 @@ import Foundation
 
 @testable import PodHaven
 
-struct FakeEmbeddingProvider: Embedding, Sendable {
+struct FakeContextualEmbedding: Embeddable, Sendable {
   let revision: Int = 1
   let maximumInputLength: Int = 1000
 

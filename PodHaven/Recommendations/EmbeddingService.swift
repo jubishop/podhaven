@@ -6,23 +6,11 @@ import Foundation
 import Logging
 import NaturalLanguage
 
-// MARK: - Embedding Protocol
-
-protocol Embedding: Sendable {
-  func vector(for text: String) throws -> [Float]
-  var revision: Int { get }
-  var maximumInputLength: Int { get }
-}
-
 // MARK: - Container
 
 extension Container {
   var embeddingService: Factory<EmbeddingService> {
     Factory(self) { EmbeddingService() }.scope(.cached)
-  }
-
-  var embeddingProvider: Factory<(any Embedding)?> {
-    Factory(self) { nil }
   }
 }
 
@@ -40,15 +28,6 @@ struct EmbeddingService: Sendable {
   // Podcast description blending ratio
   private static let episodeBlendWeight: Float = 0.6
   private static let podcastBlendWeight: Float = 0.4
-
-  // MARK: - Embedding Provider
-
-  func resolveEmbedding() -> (any Embedding)? {
-    if let override = Container.shared.embeddingProvider() {
-      return override
-    }
-    return ContextualEmbeddingProvider.createIfAvailable()
-  }
 
   // MARK: - Request Assets
 
@@ -68,7 +47,7 @@ struct EmbeddingService: Sendable {
 
   // MARK: - Compute Episode Embedding
 
-  func computeEmbedding(for episode: Episode, embedding: any Embedding) async throws -> [Float] {
+  func computeEmbedding(for episode: Episode, embedding: any Embeddable) async throws -> [Float] {
     let cleanedTitle = cleanText(episode.title)
     let cleanedDescription = cleanText(episode.description ?? "")
 
@@ -109,7 +88,7 @@ struct EmbeddingService: Sendable {
 
   private func fetchOrComputePodcastEmbedding(
     podcastID: Podcast.ID,
-    embedding: any Embedding
+    embedding: any Embeddable
   ) async throws -> [Float]? {
     guard let podcast = try await repo.podcast(podcastID) else { return nil }
 
@@ -146,7 +125,7 @@ struct EmbeddingService: Sendable {
 
   func ensureEmbeddings(
     for episodes: [Episode],
-    embedding: any Embedding,
+    embedding: any Embeddable,
     checkCancellation: Bool = true
   ) async throws {
     for episode in episodes {
@@ -238,56 +217,4 @@ struct EmbeddingService: Sendable {
       }
       .joined()
   }
-}
-
-// MARK: - Contextual Embedding Provider
-
-struct ContextualEmbeddingProvider: Embedding, @unchecked Sendable {
-  private let nlEmbedding: NLContextualEmbedding
-
-  var revision: Int { nlEmbedding.revision }
-  var maximumInputLength: Int { nlEmbedding.maximumSequenceLength }
-
-  static func createIfAvailable() -> ContextualEmbeddingProvider? {
-    guard let embedding = NLContextualEmbedding(language: .english),
-      embedding.hasAvailableAssets
-    else {
-      return nil
-    }
-    do {
-      try embedding.load()
-      return ContextualEmbeddingProvider(nlEmbedding: embedding)
-    } catch {
-      return nil
-    }
-  }
-
-  func vector(for text: String) throws -> [Float] {
-    let result = try nlEmbedding.embeddingResult(for: text, language: .english)
-
-    // Pool subword vectors by averaging
-    var sum: [Float]?
-    var count = 0
-
-    result.enumerateTokenVectors(in: text.startIndex..<text.endIndex) { vector, _ in
-      if sum == nil {
-        sum = [Float](repeating: 0, count: vector.count)
-      }
-      for i in 0..<vector.count {
-        sum![i] += Float(vector[i])
-      }
-      count += 1
-      return true
-    }
-
-    guard count > 0, let sum else { throw EmbeddingError.noResult }
-    return sum.map { $0 / Float(count) }
-  }
-}
-
-// MARK: - Errors
-
-enum EmbeddingError: Error {
-  case modelUnavailable
-  case noResult
 }
