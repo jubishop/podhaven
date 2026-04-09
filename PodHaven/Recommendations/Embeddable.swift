@@ -2,8 +2,18 @@
 
 import Foundation
 
-protocol Embeddable: Sendable {
-  func vector(for text: String) throws -> [Float]
+protocol Embeddable {
+  var hasAvailableAssets: Bool { get }
   var revision: Int { get }
-  var maximumInputLength: Int { get }
+  var maximumSequenceLength: Int { get }
+  func load() throws
+  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void)
+  func embeddingResult(for string: String) throws -> any EmbeddableResult
+}
+
+protocol EmbeddableResult {
+  func enumerateTokenVectors(
+    in range: Range<String.Index>,
+    using block: ([Double], Range<String.Index>) -> Bool
+  )
 }

@@ -4,7 +4,6 @@ import CryptoKit
 import FactoryKit
 import Foundation
 import Logging
-import NaturalLanguage
 
 // MARK: - Container
 
@@ -29,25 +28,11 @@ struct EmbeddingService: Sendable {
   private static let episodeBlendWeight: Float = 0.6
   private static let podcastBlendWeight: Float = 0.4
 
-  // MARK: - Request Assets
-
-  func requestContextualAssetsIfNeeded() {
-    guard let embedding = NLContextualEmbedding(language: .english) else { return }
-    if !embedding.hasAvailableAssets {
-      Self.log.info("Requesting contextual embedding assets download")
-      embedding.requestAssets { result, error in
-        if let error {
-          Self.log.caughtError("Failed to download contextual embedding assets", error)
-        } else {
-          Self.log.info("Contextual embedding assets result: \(result)")
-        }
-      }
-    }
-  }
-
   // MARK: - Compute Episode Embedding
 
-  func computeEmbedding(for episode: Episode, embedding: any Embeddable) async throws -> [Float] {
+  func computeEmbedding(for episode: Episode, embedding: ContextualEmbedding) async throws
+    -> [Float]
+  {
     let cleanedTitle = cleanText(episode.title)
     let cleanedDescription = cleanText(episode.description ?? "")
 
@@ -56,7 +41,7 @@ struct EmbeddingService: Sendable {
     let descriptionText =
       cleanedDescription.isEmpty
       ? cleanedTitle
-      : String(cleanedDescription.prefix(embedding.maximumInputLength))
+      : String(cleanedDescription.prefix(embedding.maximumSequenceLength))
     let descriptionVector = try embedding.vector(for: descriptionText)
 
     // Weighted average of title and description
@@ -88,7 +73,7 @@ struct EmbeddingService: Sendable {
 
   private func fetchOrComputePodcastEmbedding(
     podcastID: Podcast.ID,
-    embedding: any Embeddable
+    embedding: ContextualEmbedding
   ) async throws -> [Float]? {
     guard let podcast = try await repo.podcast(podcastID) else { return nil }
 
@@ -105,7 +90,7 @@ struct EmbeddingService: Sendable {
       return cached.floatVector
     }
 
-    let text = String(cleanedDescription.prefix(embedding.maximumInputLength))
+    let text = String(cleanedDescription.prefix(embedding.maximumSequenceLength))
     let vector = try embedding.vector(for: text)
     let normalized = VectorMath.normalize(vector)
 
@@ -125,7 +110,7 @@ struct EmbeddingService: Sendable {
 
   func ensureEmbeddings(
     for episodes: [Episode],
-    embedding: any Embeddable,
+    embedding: ContextualEmbedding,
     checkCancellation: Bool = true
   ) async throws {
     for episode in episodes {

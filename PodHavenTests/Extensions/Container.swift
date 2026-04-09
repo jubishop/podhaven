@@ -36,7 +36,12 @@ extension Container: @retroactive AutoRegistering {
       }
     }
 
-    embeddingProvider.context(.test) { FakeContextualEmbedding() }.scope(.cached)
+    contextualEmbedding.context(.test) {
+      let embedding = ContextualEmbedding(embedding: FakeEmbeddable())
+      embedding.requestAndLoadAssetsIfNeeded()
+      return embedding
+    }
+    .scope(.cached)
 
     sleeper.context(.test) { FakeSleeper() }.scope(.cached)
 

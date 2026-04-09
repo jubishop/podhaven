@@ -2,38 +2,33 @@
 
 import FactoryKit
 import Foundation
+import Logging
 import NaturalLanguage
 
 // MARK: - Container
 
 extension Container {
-  var embeddingProvider: Factory<(any Embeddable)?> {
+  var contextualEmbedding: Factory<ContextualEmbedding> {
     Factory(self) {
-      if let existing = ContextualEmbedding.cached() { return existing }
-
-      guard let embedding = NLContextualEmbedding(language: .english),
-        embedding.hasAvailableAssets
-      else {
-        return nil
+      guard let nlEmbedding = NLContextualEmbedding(language: .english) else {
+        Assert.fatal("NLContextualEmbedding(language: .english) returned nil")
       }
-
-      do {
-        try embedding.load()
-        let provider = ContextualEmbedding(nlEmbedding: embedding)
-        ContextualEmbedding.cached(provider)
-        return provider
-      } catch {
-        return nil
-      }
+      return ContextualEmbedding(embedding: nlEmbedding)
     }
+    .scope(.cached)
   }
 }
 
+// MARK: - Errors
+
 enum EmbeddingError: LocalizedError {
+  case modelUnavailable
   case noResult
 
   var errorDescription: String? {
     switch self {
+    case .modelUnavailable:
+      "Contextual embedding model is not available"
     case .noResult:
       "Embedding produced no token vectors for the given text"
     }
@@ -42,20 +37,52 @@ enum EmbeddingError: LocalizedError {
 
 // MARK: - ContextualEmbedding
 
-struct ContextualEmbedding: Embeddable, @unchecked Sendable {
-  fileprivate static let cached = ThreadSafe<ContextualEmbedding?>(nil)
+class ContextualEmbedding {
+  private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
-  var revision: Int { nlEmbedding.revision }
-  var maximumInputLength: Int { nlEmbedding.maximumSequenceLength }
+  private let embedding: any Embeddable
+  private(set) var isAvailable = false
 
-  private let nlEmbedding: NLContextualEmbedding
+  init(embedding: any Embeddable) {
+    self.embedding = embedding
+  }
 
-  fileprivate init(nlEmbedding: NLContextualEmbedding) {
-    self.nlEmbedding = nlEmbedding
+  var revision: Int { embedding.revision }
+  var maximumSequenceLength: Int { embedding.maximumSequenceLength }
+
+  func requestAndLoadAssetsIfNeeded() {
+    guard !isAvailable else { return }
+
+    guard embedding.hasAvailableAssets else {
+      Self.log.info("Requesting contextual embedding assets download")
+      embedding.requestAssets { [weak self] error in
+        if let error {
+          Self.log.caughtError("Failed to download contextual embedding assets", error)
+        } else {
+          Self.log.info("Contextual embedding assets downloaded")
+          self?.loadAssets()
+        }
+      }
+      return
+    }
+
+    loadAssets()
+  }
+
+  private func loadAssets() {
+    guard !isAvailable else { return }
+    do {
+      try embedding.load()
+      isAvailable = true
+    } catch {
+      Self.log.caughtError("Failed to load contextual embedding", error)
+    }
   }
 
   func vector(for text: String) throws -> [Float] {
-    let result = try nlEmbedding.embeddingResult(for: text, language: .english)
+    guard isAvailable else { throw EmbeddingError.modelUnavailable }
+
+    let result = try embedding.embeddingResult(for: text)
 
     // Pool subword vectors by averaging
     var sum: [Float]?

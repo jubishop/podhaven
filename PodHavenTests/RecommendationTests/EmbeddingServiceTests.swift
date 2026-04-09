@@ -50,7 +50,7 @@ class EmbeddingServiceTests {
     )
     let episode = podcastEpisode.episode
 
-    let embedding = FakeContextualEmbedding()
+    let embedding = makeContextualEmbedding()
 
     // First call should compute and cache
     try await embeddingService.ensureEmbeddings(
@@ -85,7 +85,7 @@ class EmbeddingServiceTests {
       episodeDescription: "Test description"
     )
     let episode = podcastEpisode.episode
-    let embedding = FakeContextualEmbedding()
+    let embedding = makeContextualEmbedding()
 
     // First compute normally to get the correct hash
     try await embeddingService.ensureEmbeddings(
@@ -131,8 +131,12 @@ class EmbeddingServiceTests {
       episodeDescription: "Episode description"
     )
     let episode = podcastEpisode.episode
-    let firstEmbedding = RevisionedContextualEmbedding(revision: 1)
-    let secondEmbedding = RevisionedContextualEmbedding(revision: 2)
+    let firstEmbedding = makeContextualEmbedding(
+      RevisionedEmbeddable(revision: 1)
+    )
+    let secondEmbedding = makeContextualEmbedding(
+      RevisionedEmbeddable(revision: 2)
+    )
 
     try await embeddingService.ensureEmbeddings(
       for: [episode],
@@ -162,7 +166,7 @@ class EmbeddingServiceTests {
       episodeTitle: "Podcast Refresh",
       episodeDescription: "Episode description"
     )
-    let embedding = FakeContextualEmbedding()
+    let embedding = makeContextualEmbedding()
 
     try await embeddingService.ensureEmbeddings(
       for: [podcastEpisode.episode],
@@ -214,7 +218,7 @@ class EmbeddingServiceTests {
       episodeTitle: "Podcast Cache Refresh",
       episodeDescription: "Episode description"
     )
-    let embedding = FakeContextualEmbedding()
+    let embedding = makeContextualEmbedding()
 
     let staleVector: [Float] = [99.0, 99.0, 99.0]
     let staleEmbedding = UnsavedPodcastEmbedding(
@@ -321,6 +325,14 @@ class EmbeddingServiceTests {
 
   // MARK: - Helpers
 
+  private func makeContextualEmbedding(
+    _ embeddable: some Embeddable = FakeEmbeddable()
+  ) -> ContextualEmbedding {
+    let embedding = ContextualEmbedding(embedding: embeddable)
+    embedding.requestAndLoadAssetsIfNeeded()
+    return embedding
+  }
+
   private func makePodcastEpisode(
     podcastDescription: String,
     episodeTitle: String,
@@ -359,11 +371,15 @@ class EmbeddingServiceTests {
   }
 }
 
-private struct RevisionedContextualEmbedding: Embeddable, Sendable {
+private struct RevisionedEmbeddable: Embeddable {
+  var hasAvailableAssets = true
   let revision: Int
-  let maximumInputLength: Int = 1000
+  let maximumSequenceLength: Int = 1000
 
-  func vector(for text: String) throws -> [Float] {
-    try FakeContextualEmbedding().vector(for: text)
+  func load() throws {}
+  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+
+  func embeddingResult(for string: String) throws -> any EmbeddableResult {
+    try FakeEmbeddable().embeddingResult(for: string)
   }
 }

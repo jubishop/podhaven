@@ -17,7 +17,6 @@ extension Container {
 // MARK: - EmbeddingProcessor
 
 struct EmbeddingProcessor: Sendable {
-  @DynamicInjected(\.embeddingService) private var embeddingService
   @DynamicInjected(\.repo) private var repo
 
   private static let log = Log.as(LogSubsystem.Recommendations.processor)
@@ -40,7 +39,8 @@ struct EmbeddingProcessor: Sendable {
     backgroundTaskScheduler.register { complete in
       Self.log.info("Starting embedding background task")
 
-      guard let embedding = Container.shared.embeddingProvider() else {
+      let embedding = Container.shared.contextualEmbedding()
+      guard embedding.isAvailable else {
         Self.log.info("Contextual embedding assets not available yet, skipping")
         complete(true)
         return
@@ -91,7 +91,7 @@ struct EmbeddingProcessor: Sendable {
     case .active:
       Self.log.debug("activated")
 
-      embeddingService.requestContextualAssetsIfNeeded()
+      Container.shared.contextualEmbedding().requestAndLoadAssetsIfNeeded()
     case .background:
       Self.log.debug("backgrounded")
 
