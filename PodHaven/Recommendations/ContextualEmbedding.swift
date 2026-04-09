@@ -9,13 +9,8 @@ import NaturalLanguage
 
 extension Container {
   var contextualEmbedding: Factory<ContextualEmbedding> {
-    Factory(self) {
-      guard let nlEmbedding = NLContextualEmbedding(language: .english) else {
-        Assert.fatal("NLContextualEmbedding(language: .english) returned nil")
-      }
-      return ContextualEmbedding(embedding: nlEmbedding)
-    }
-    .scope(.cached)
+    Factory(self) { ContextualEmbedding(embedding: self.nlContextualEmbedding()) }
+      .scope(.cached)
   }
 }
 
