@@ -35,24 +35,24 @@ enum EmbeddingError: LocalizedError {
 class ContextualEmbedding {
   private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
+  private(set) var isAvailable = false
+
   private let embedding: any Embeddable
-  private let _isLoaded = ThreadSafe(false)
-  private let _isLoading = ThreadSafe(false)
-  private let _isRequesting = ThreadSafe(false)
+  private let isLoading = ThreadSafe(false)
+  private let isRequesting = ThreadSafe(false)
 
   init(embedding: any Embeddable) {
     self.embedding = embedding
   }
 
-  var isAvailable: Bool { _isLoaded() }
   var revision: Int { embedding.revision }
   var maximumSequenceLength: Int { embedding.maximumSequenceLength }
 
   func requestAndLoadAssetsIfNeeded() {
-    guard !_isLoaded() else { return }
+    guard !isAvailable else { return }
 
     guard embedding.hasAvailableAssets else {
-      let shouldRequest = _isRequesting { requesting -> Bool in
+      let shouldRequest = isRequesting { requesting -> Bool in
         guard !requesting else { return false }
         requesting = true
         return true
@@ -60,7 +60,7 @@ class ContextualEmbedding {
       guard shouldRequest else { return }
 
       Self.log.info("Requesting contextual embedding assets download")
-      let isRequesting = _isRequesting
+      let isRequesting = isRequesting
       embedding.requestAssets { error in
         if let error {
           Self.log.caughtError("Failed to download contextual embedding assets", error)
@@ -101,7 +101,7 @@ class ContextualEmbedding {
   }
 
   fileprivate func loadAssets() {
-    let shouldLoad = _isLoading { loading -> Bool in
+    let shouldLoad = isLoading { loading -> Bool in
       guard !loading else { return false }
       loading = true
       return true
@@ -110,10 +110,10 @@ class ContextualEmbedding {
 
     do {
       try embedding.load()
-      _isLoaded(true)
+      isAvailable = true
     } catch {
       Self.log.caughtError("Failed to load contextual embedding", error)
-      _isLoading(false)
+      isLoading(false)
     }
   }
 }
