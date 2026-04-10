@@ -33,91 +33,56 @@ struct EmbeddingService: Sendable {
   func computeEmbedding(for episode: Episode, embedding: ContextualEmbedding) async throws
     -> [Float]
   {
-    let cleanedTitle = cleanText(episode.title)
-    let cleanedDescription = cleanText(episode.description ?? "")
-
-    let titleVector = try embedding.vector(for: cleanedTitle)
-
-    let descriptionText =
-      cleanedDescription.isEmpty
-      ? cleanedTitle
-      : String(cleanedDescription.prefix(embedding.maximumSequenceLength))
-    let descriptionVector = try embedding.vector(for: descriptionText)
-
-    // Weighted average of title and description
-    var episodeVector = VectorMath.weightedAverage(
-      titleVector,
-      weight1: Self.titleWeight,
-      descriptionVector,
-      weight2: Self.descriptionWeight
+    let podcast = try await repo.podcast(episode.podcastID)
+    let cachedPodcastEmbedding =
+      if let podcast {
+        try await repo.podcastEmbedding(for: podcast.id)
+      } else {
+        nil as PodcastEmbedding?
+      }
+    return try await computeEmbedding(
+      for: episode,
+      embedding: embedding,
+      podcast: podcast,
+      cachedPodcastEmbedding: cachedPodcastEmbedding
     )
-
-    // Blend with podcast description embedding
-    let podcastVector = try await fetchOrComputePodcastEmbedding(
-      podcastID: episode.podcastID,
-      embedding: embedding
-    )
-    if let podcastVector {
-      episodeVector = VectorMath.weightedAverage(
-        episodeVector,
-        weight1: Self.episodeBlendWeight,
-        podcastVector,
-        weight2: Self.podcastBlendWeight
-      )
-    }
-
-    return VectorMath.normalize(episodeVector)
-  }
-
-  // MARK: - Podcast Embedding
-
-  private func fetchOrComputePodcastEmbedding(
-    podcastID: Podcast.ID,
-    embedding: ContextualEmbedding
-  ) async throws -> [Float]? {
-    guard let podcast = try await repo.podcast(podcastID) else { return nil }
-
-    let cleanedDescription = cleanText(podcast.description)
-    guard !cleanedDescription.isEmpty else { return nil }
-
-    let hash = sha256(cleanedDescription)
-
-    // Return cached if still fresh (same source hash and revision)
-    if let cached = try await repo.podcastEmbedding(for: podcastID),
-      cached.sourceHash == hash,
-      cached.embeddingRevision == embedding.revision
-    {
-      return cached.floatVector
-    }
-
-    let text = String(cleanedDescription.prefix(embedding.maximumSequenceLength))
-    let vector = try embedding.vector(for: text)
-    let normalized = VectorMath.normalize(vector)
-
-    let unsaved = UnsavedPodcastEmbedding(
-      podcastId: podcastID,
-      vector: UnsavedPodcastEmbedding.vectorData(from: normalized),
-      sourceHash: hash,
-      embeddingRevision: embedding.revision,
-      dimension: normalized.count
-    )
-    try await repo.upsertPodcastEmbedding(unsaved)
-
-    return normalized
   }
 
   // MARK: - Ensure Embeddings
 
   func ensureEmbeddings(
     for episodes: [Episode],
-    embedding: ContextualEmbedding,
-    checkCancellation: Bool = true
+    embedding: ContextualEmbedding
   ) async throws {
-    for episode in episodes {
-      if checkCancellation { try Task.checkCancellation() }
+    guard !episodes.isEmpty else { return }
 
-      let existingEmbedding = try await repo.embedding(for: episode.id)
-      let hash = try await fullSourceHash(for: episode)
+    // Batch fetch all needed data upfront
+    let episodeIDs = episodes.map(\.id)
+    let existingEmbeddings = try await repo.embeddings(for: episodeIDs)
+    let embeddingsByEpisodeID = Dictionary(
+      existingEmbeddings.map { ($0.episodeId, $0) },
+      uniquingKeysWith: { first, _ in first }
+    )
+
+    let podcastIDs = Array(Set(episodes.map(\.podcastID)))
+    let podcasts = try await repo.podcasts(for: podcastIDs)
+    let podcastsByID = Dictionary(
+      podcasts.map { ($0.id, $0) },
+      uniquingKeysWith: { first, _ in first }
+    )
+
+    let podcastEmbeddings = try await repo.podcastEmbeddings(for: podcastIDs)
+    let podcastEmbeddingsByID = Dictionary(
+      podcastEmbeddings.map { ($0.podcastId, $0) },
+      uniquingKeysWith: { first, _ in first }
+    )
+
+    for episode in episodes {
+      try Task.checkCancellation()
+
+      let existingEmbedding = embeddingsByEpisodeID[episode.id]
+      let podcast = podcastsByID[episode.podcastID]
+      let hash = fullSourceHash(for: episode, podcast: podcast)
 
       let needsRecompute =
         existingEmbedding == nil
@@ -126,7 +91,12 @@ struct EmbeddingService: Sendable {
 
       guard needsRecompute else { continue }
 
-      let vector = try await computeEmbedding(for: episode, embedding: embedding)
+      let vector = try await computeEmbedding(
+        for: episode,
+        embedding: embedding,
+        podcast: podcast,
+        cachedPodcastEmbedding: podcastEmbeddingsByID[episode.podcastID]
+      )
 
       let unsaved = UnsavedEpisodeEmbedding(
         episodeId: episode.id,
@@ -177,11 +147,88 @@ struct EmbeddingService: Sendable {
 
   // MARK: - Helpers
 
-  // Includes episode text AND podcast description so the hash invalidates
-  // when either the episode or its podcast description changes.
-  private func fullSourceHash(for episode: Episode) async throws -> String {
+  private func computeEmbedding(
+    for episode: Episode,
+    embedding: ContextualEmbedding,
+    podcast: Podcast?,
+    cachedPodcastEmbedding: PodcastEmbedding?
+  ) async throws -> [Float] {
+    let cleanedTitle = cleanText(episode.title)
+    let cleanedDescription = cleanText(episode.description ?? "")
+
+    let titleVector = try embedding.vector(for: cleanedTitle)
+
+    let descriptionText =
+      cleanedDescription.isEmpty
+      ? cleanedTitle
+      : String(cleanedDescription.prefix(embedding.maximumSequenceLength))
+    let descriptionVector = try embedding.vector(for: descriptionText)
+
+    // Weighted average of title and description
+    var episodeVector = VectorMath.weightedAverage(
+      titleVector,
+      weight1: Self.titleWeight,
+      descriptionVector,
+      weight2: Self.descriptionWeight
+    )
+
+    // Blend with podcast description embedding
+    let podcastVector = try await fetchOrComputePodcastEmbedding(
+      podcast: podcast,
+      embedding: embedding,
+      cachedEmbedding: cachedPodcastEmbedding
+    )
+    if let podcastVector {
+      episodeVector = VectorMath.weightedAverage(
+        episodeVector,
+        weight1: Self.episodeBlendWeight,
+        podcastVector,
+        weight2: Self.podcastBlendWeight
+      )
+    }
+
+    return VectorMath.normalize(episodeVector)
+  }
+
+  private func fetchOrComputePodcastEmbedding(
+    podcast: Podcast?,
+    embedding: ContextualEmbedding,
+    cachedEmbedding: PodcastEmbedding?
+  ) async throws -> [Float]? {
+    guard let podcast else { return nil }
+
+    let cleanedDescription = cleanText(podcast.description)
+    guard !cleanedDescription.isEmpty else { return nil }
+
+    let hash = sha256(cleanedDescription)
+
+    // Return cached if still fresh (same source hash and revision)
+    if let cached = cachedEmbedding,
+      cached.sourceHash == hash,
+      cached.embeddingRevision == embedding.revision
+    {
+      return cached.floatVector
+    }
+
+    let text = String(cleanedDescription.prefix(embedding.maximumSequenceLength))
+    let vector = try embedding.vector(for: text)
+    let normalized = VectorMath.normalize(vector)
+
+    let unsaved = UnsavedPodcastEmbedding(
+      podcastId: podcast.id,
+      vector: UnsavedPodcastEmbedding.vectorData(from: normalized),
+      sourceHash: hash,
+      embeddingRevision: embedding.revision,
+      dimension: normalized.count
+    )
+    try await repo.upsertPodcastEmbedding(unsaved)
+
+    return normalized
+  }
+
+  private func fullSourceHash(for episode: Episode, podcast: Podcast?) -> String {
     var text = "\(episode.title) \(episode.description ?? "")"
-    if let podcast = try await repo.podcast(episode.podcastID) {
+    if let podcast {
       text += " \(podcast.description)"
     }
     return sha256(text)

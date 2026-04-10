@@ -51,14 +51,14 @@ struct ContextualEmbeddingTests {
 
     embedding.requestAndLoadAssetsIfNeeded()
     embedding.requestAndLoadAssetsIfNeeded()
-    #expect(fake.requestAssetsCount == 2)
+    #expect(fake.requestAssetsCount == 1)
 
     // Simulate assets arriving
     fake.hasAvailableAssets = true
     embedding.requestAndLoadAssetsIfNeeded()
     #expect(embedding.isAvailable)
     #expect(fake.loadCount == 1)
-    #expect(fake.requestAssetsCount == 2)
+    #expect(fake.requestAssetsCount == 1)
   }
 
   // MARK: - vector(for:)

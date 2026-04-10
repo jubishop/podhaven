@@ -462,6 +462,59 @@ struct Repo: Databasing, Sendable {
     }
   }
 
+  func podcastEmbeddings(for podcastIDs: [Podcast.ID]) async throws -> [PodcastEmbedding] {
+    guard !podcastIDs.isEmpty else { return [] }
+    return try await appDB.db.read { db in
+      try PodcastEmbedding
+        .filter(podcastIDs.contains(PodcastEmbedding.Columns.podcastId))
+        .fetchAll(db)
+    }
+  }
+
+  func podcasts(for podcastIDs: [Podcast.ID]) async throws -> [Podcast] {
+    guard !podcastIDs.isEmpty else { return [] }
+    return try await appDB.db.read { db in
+      try Podcast
+        .filter(podcastIDs.contains(Podcast.Columns.id))
+        .fetchAll(db)
+    }
+  }
+
+  func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode] {
+    try await appDB.db.read { db in
+      try Episode.fetchAll(
+        db,
+        sql: """
+          SELECT episode.* FROM episode
+          LEFT JOIN episodeEmbedding ON episodeEmbedding.episodeId = episode.id
+          JOIN podcast ON podcast.id = episode.podcastId
+          WHERE (
+            episode.rating IS NOT NULL
+            OR episode.finishDate IS NOT NULL
+            OR (
+              episode.currentTime = 0
+              AND episode.finishDate IS NULL
+              AND episode.rating IS NULL
+              AND episode.queueOrder IS NULL
+            )
+          )
+          AND (
+            episodeEmbedding.id IS NULL
+            OR episodeEmbedding.embeddingRevision != ?
+            OR episode.contentUpdatedAt > episodeEmbedding.creationDate
+            OR podcast.contentUpdatedAt > episodeEmbedding.creationDate
+          )
+          ORDER BY
+            CASE
+              WHEN episode.rating IS NOT NULL OR episode.finishDate IS NOT NULL THEN 0
+              ELSE 1
+            END
+          """,
+        arguments: [revision]
+      )
+    }
+  }
+
   // MARK: - Episode Writers
 
   @discardableResult

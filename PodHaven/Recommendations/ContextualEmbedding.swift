@@ -36,23 +36,35 @@ class ContextualEmbedding {
   private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
   private let embedding: any Embeddable
-  private(set) var isAvailable = false
+  private let _isLoaded = ThreadSafe(false)
+  private let _isLoading = ThreadSafe(false)
+  private let _isRequesting = ThreadSafe(false)
 
   init(embedding: any Embeddable) {
     self.embedding = embedding
   }
 
+  var isAvailable: Bool { _isLoaded() }
   var revision: Int { embedding.revision }
   var maximumSequenceLength: Int { embedding.maximumSequenceLength }
 
   func requestAndLoadAssetsIfNeeded() {
-    guard !isAvailable else { return }
+    guard !_isLoaded() else { return }
 
     guard embedding.hasAvailableAssets else {
+      let shouldRequest = _isRequesting { requesting -> Bool in
+        guard !requesting else { return false }
+        requesting = true
+        return true
+      }
+      guard shouldRequest else { return }
+
       Self.log.info("Requesting contextual embedding assets download")
+      let isRequesting = _isRequesting
       embedding.requestAssets { error in
         if let error {
           Self.log.caughtError("Failed to download contextual embedding assets", error)
+          isRequesting(false)
         } else {
           Self.log.info("Contextual embedding assets downloaded")
           Container.shared.contextualEmbedding().loadAssets()
@@ -89,12 +101,19 @@ class ContextualEmbedding {
   }
 
   fileprivate func loadAssets() {
-    guard !isAvailable else { return }
+    let shouldLoad = _isLoading { loading -> Bool in
+      guard !loading else { return false }
+      loading = true
+      return true
+    }
+    guard shouldLoad else { return }
+
     do {
       try embedding.load()
-      isAvailable = true
+      _isLoaded(true)
     } catch {
       Self.log.caughtError("Failed to load contextual embedding", error)
+      _isLoading(false)
     }
   }
 }

@@ -59,8 +59,7 @@ class RecommendationEngineTests {
     embedding.requestAndLoadAssetsIfNeeded()
     try await embeddingService.ensureEmbeddings(
       for: episodes,
-      embedding: embedding,
-      checkCancellation: false
+      embedding: embedding
     )
   }
 

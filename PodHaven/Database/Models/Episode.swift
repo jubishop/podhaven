@@ -255,6 +255,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     static let rating = Column("rating")
     static let ratingDate = Column("ratingDate")
     static let creationDate = Column("creationDate")
+    static let contentUpdatedAt = Column("contentUpdatedAt")
   }
 
   // MARK: - RSSUpdatable

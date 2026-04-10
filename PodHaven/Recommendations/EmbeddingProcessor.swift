@@ -50,26 +50,24 @@ struct EmbeddingProcessor: Sendable {
         let embeddingService = Container.shared.embeddingService()
         let repo = Container.shared.repo()
 
-        // Prioritize signal episodes (rated/finished) then candidates.
-        // ensureEmbeddings handles staleness checks internally — it skips
-        // episodes whose cached embedding is still fresh (matching sourceHash
-        // and embeddingRevision), and upserts stale or missing ones.
-        let signalEpisodes = try await repo.allSignalEpisodes()
-        let candidates = try await repo.allCandidateEpisodes()
-        let episodesToProcess = signalEpisodes + candidates
+        // Query returns only episodes that actually need embedding work:
+        // no existing embedding, wrong revision, or content changed since
+        // last computation. Signal episodes (rated/finished) are ordered first.
+        let episodesToProcess = try await repo.episodesNeedingEmbeddings(
+          revision: embedding.revision
+        )
 
         if episodesToProcess.isEmpty {
-          Self.log.info("No episodes to process")
+          Self.log.info("No episodes need embedding updates")
           complete(true)
           return
         }
 
-        Self.log.info("Processing \(episodesToProcess.count) episodes for embedding freshness")
+        Self.log.info("Processing \(episodesToProcess.count) episodes for embeddings")
 
         try await embeddingService.ensureEmbeddings(
           for: episodesToProcess,
-          embedding: embedding,
-          checkCancellation: true
+          embedding: embedding
         )
 
         Self.log.info("Embedding background task completed successfully")

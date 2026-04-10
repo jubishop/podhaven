@@ -342,6 +342,35 @@ enum Schema {
       }
     }
 
+    migrator.registerMigration("v36") { db in
+      try db.alter(table: "episode") { t in
+        t.add(column: "contentUpdatedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+      }
+      try db.alter(table: "podcast") { t in
+        t.add(column: "contentUpdatedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
+      }
+
+      try db.execute(
+        sql: """
+          CREATE TRIGGER episode_content_updated AFTER UPDATE ON episode
+          WHEN OLD.title IS NOT NEW.title OR OLD.description IS NOT NEW.description
+          BEGIN
+            UPDATE episode SET contentUpdatedAt = CURRENT_TIMESTAMP WHERE id = NEW.id;
+          END
+          """
+      )
+
+      try db.execute(
+        sql: """
+          CREATE TRIGGER podcast_content_updated AFTER UPDATE ON podcast
+          WHEN OLD.description IS NOT NEW.description
+          BEGIN
+            UPDATE podcast SET contentUpdatedAt = CURRENT_TIMESTAMP WHERE id = NEW.id;
+          END
+          """
+      )
+    }
+
     return migrator
   }
 

@@ -55,8 +55,7 @@ class EmbeddingServiceTests {
     // First call should compute and cache
     try await embeddingService.ensureEmbeddings(
       for: [episode],
-      embedding: embedding,
-      checkCancellation: false
+      embedding: embedding
     )
 
     let cached = try await repo.embedding(for: episode.id)
@@ -67,8 +66,7 @@ class EmbeddingServiceTests {
     let originalComputedAt = cached!.creationDate
     try await embeddingService.ensureEmbeddings(
       for: [episode],
-      embedding: embedding,
-      checkCancellation: false
+      embedding: embedding
     )
 
     let cached2 = try await repo.embedding(for: episode.id)
@@ -90,8 +88,7 @@ class EmbeddingServiceTests {
     // First compute normally to get the correct hash
     try await embeddingService.ensureEmbeddings(
       for: [episode],
-      embedding: embedding,
-      checkCancellation: false
+      embedding: embedding
     )
     let correctHash = try await repo.embedding(for: episode.id)!.sourceHash
     let correctVector = try await repo.embedding(for: episode.id)!.floatVector
@@ -114,8 +111,7 @@ class EmbeddingServiceTests {
     // Recompute — should detect stale hash and recompute
     try await embeddingService.ensureEmbeddings(
       for: [episode],
-      embedding: embedding,
-      checkCancellation: false
+      embedding: embedding
     )
 
     let refreshed = try await repo.embedding(for: episode.id)!
@@ -140,8 +136,7 @@ class EmbeddingServiceTests {
 
     try await embeddingService.ensureEmbeddings(
       for: [episode],
-      embedding: firstEmbedding,
-      checkCancellation: false
+      embedding: firstEmbedding
     )
 
     let cached = try #require(try await repo.embedding(for: episode.id))
@@ -149,8 +144,7 @@ class EmbeddingServiceTests {
 
     try await embeddingService.ensureEmbeddings(
       for: [episode],
-      embedding: secondEmbedding,
-      checkCancellation: false
+      embedding: secondEmbedding
     )
 
     let refreshed = try #require(try await repo.embedding(for: episode.id))
@@ -170,8 +164,7 @@ class EmbeddingServiceTests {
 
     try await embeddingService.ensureEmbeddings(
       for: [podcastEpisode.episode],
-      embedding: embedding,
-      checkCancellation: false
+      embedding: embedding
     )
 
     let initialEpisodeEmbedding = try #require(
@@ -194,8 +187,7 @@ class EmbeddingServiceTests {
 
     try await embeddingService.ensureEmbeddings(
       for: [refreshedPodcastEpisode.episode],
-      embedding: embedding,
-      checkCancellation: false
+      embedding: embedding
     )
 
     let refreshedEpisodeEmbedding = try #require(
