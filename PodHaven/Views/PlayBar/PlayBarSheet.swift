@@ -1,9 +1,12 @@
 // Copyright Justin Bishop, 2025
 
 import CoreMedia
+import FactoryKit
 import SwiftUI
 
 struct PlayBarSheet: View {
+  @DynamicInjected(\.sharedState) private var sharedState
+
   private let spacing: CGFloat = 12
 
   @Bindable var viewModel: PlayBarViewModel
@@ -23,7 +26,7 @@ struct PlayBarSheet: View {
         HStack {
           Spacer()
 
-          if let onDeck = viewModel.onDeck {
+          if let onDeck = sharedState.onDeck {
             ShareEpisodeButton(episode: onDeck)
               .font(.title3)
               .padding(spacing / 2)
