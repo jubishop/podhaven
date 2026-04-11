@@ -50,12 +50,17 @@ enum EmbeddingService {
 
       guard needsRecompute else { continue }
 
+      let podcastVector = try await ensurePodcastEmbedding(
+        podcast: podcast,
+        embedding: embedding,
+        cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
+      )
+
       try await ensureEpisodeEmbedding(
         episode,
         hash: hash,
         embedding: embedding,
-        podcast: podcast,
-        cachedPodcastEmbedding: podcastEmbeddings[id: episode.podcastID]
+        podcastVector: podcastVector
       )
     }
   }
@@ -94,19 +99,48 @@ enum EmbeddingService {
 
   // MARK: - Helpers
 
+  private static func ensurePodcastEmbedding(
+    podcast: Podcast?,
+    embedding: ContextualEmbedding,
+    cachedEmbedding: PodcastEmbedding?
+  ) async throws -> [Float]? {
+    guard let podcast else { return nil }
+
+    let cleanedDescription = cleanText(podcast.description)
+    guard !cleanedDescription.isEmpty else { return nil }
+
+    let hash = cleanedDescription.sha256()
+
+    // Return cached if still fresh (same source hash and revision)
+    if let cached = cachedEmbedding,
+      cached.sourceHash == hash,
+      cached.embeddingRevision == embedding.revision
+    {
+      return cached.floatVector
+    }
+
+    let text = String(cleanedDescription.prefix(embedding.maximumSequenceLength))
+    let vector = try embedding.vector(for: text)
+    let normalized = VectorMath.normalize(vector)
+
+    let unsaved = UnsavedPodcastEmbedding(
+      podcastId: podcast.id,
+      vector: UnsavedPodcastEmbedding.vectorData(from: normalized),
+      sourceHash: hash,
+      embeddingRevision: embedding.revision,
+      dimension: normalized.count
+    )
+    try await Container.shared.repo().upsertPodcastEmbedding(unsaved)
+
+    return normalized
+  }
+
   private static func ensureEpisodeEmbedding(
     _ episode: Episode,
     hash: String,
     embedding: ContextualEmbedding,
-    podcast: Podcast?,
-    cachedPodcastEmbedding: PodcastEmbedding?
+    podcastVector: [Float]?
   ) async throws {
-    let podcastVector = try await ensurePodcastEmbedding(
-      podcast: podcast,
-      embedding: embedding,
-      cachedEmbedding: cachedPodcastEmbedding
-    )
-
     let vector = try computeEpisodeEmbedding(
       for: episode,
       embedding: embedding,
@@ -158,42 +192,6 @@ enum EmbeddingService {
     }
 
     return VectorMath.normalize(episodeVector)
-  }
-
-  private static func ensurePodcastEmbedding(
-    podcast: Podcast?,
-    embedding: ContextualEmbedding,
-    cachedEmbedding: PodcastEmbedding?
-  ) async throws -> [Float]? {
-    guard let podcast else { return nil }
-
-    let cleanedDescription = cleanText(podcast.description)
-    guard !cleanedDescription.isEmpty else { return nil }
-
-    let hash = cleanedDescription.sha256()
-
-    // Return cached if still fresh (same source hash and revision)
-    if let cached = cachedEmbedding,
-      cached.sourceHash == hash,
-      cached.embeddingRevision == embedding.revision
-    {
-      return cached.floatVector
-    }
-
-    let text = String(cleanedDescription.prefix(embedding.maximumSequenceLength))
-    let vector = try embedding.vector(for: text)
-    let normalized = VectorMath.normalize(vector)
-
-    let unsaved = UnsavedPodcastEmbedding(
-      podcastId: podcast.id,
-      vector: UnsavedPodcastEmbedding.vectorData(from: normalized),
-      sourceHash: hash,
-      embeddingRevision: embedding.revision,
-      dimension: normalized.count
-    )
-    try await Container.shared.repo().upsertPodcastEmbedding(unsaved)
-
-    return normalized
   }
 
   private static func fullSourceHash(for episode: Episode, podcast: Podcast?) -> String {
