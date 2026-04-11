@@ -50,26 +50,13 @@ enum EmbeddingService {
 
       guard needsRecompute else { continue }
 
-      let podcastVector = try await ensurePodcastEmbedding(
+      try await ensureEpisodeEmbedding(
+        episode,
+        hash: hash,
+        embedding: embedding,
         podcast: podcast,
-        embedding: embedding,
-        cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
+        cachedPodcastEmbedding: podcastEmbeddings[id: episode.podcastID]
       )
-
-      let vector = try computeEmbedding(
-        for: episode,
-        embedding: embedding,
-        podcastVector: podcastVector
-      )
-
-      let unsaved = UnsavedEpisodeEmbedding(
-        episodeId: episode.id,
-        vector: UnsavedEpisodeEmbedding.vectorData(from: vector),
-        sourceHash: hash,
-        embeddingRevision: embedding.revision,
-        dimension: vector.count
-      )
-      try await repo.upsertEmbedding(unsaved)
     }
   }
 
@@ -107,7 +94,36 @@ enum EmbeddingService {
 
   // MARK: - Helpers
 
-  private static func computeEmbedding(
+  private static func ensureEpisodeEmbedding(
+    _ episode: Episode,
+    hash: String,
+    embedding: ContextualEmbedding,
+    podcast: Podcast?,
+    cachedPodcastEmbedding: PodcastEmbedding?
+  ) async throws {
+    let podcastVector = try await ensurePodcastEmbedding(
+      podcast: podcast,
+      embedding: embedding,
+      cachedEmbedding: cachedPodcastEmbedding
+    )
+
+    let vector = try computeEpisodeEmbedding(
+      for: episode,
+      embedding: embedding,
+      podcastVector: podcastVector
+    )
+
+    let unsaved = UnsavedEpisodeEmbedding(
+      episodeId: episode.id,
+      vector: UnsavedEpisodeEmbedding.vectorData(from: vector),
+      sourceHash: hash,
+      embeddingRevision: embedding.revision,
+      dimension: vector.count
+    )
+    try await Container.shared.repo().upsertEmbedding(unsaved)
+  }
+
+  private static func computeEpisodeEmbedding(
     for episode: Episode,
     embedding: ContextualEmbedding,
     podcastVector: [Float]?
