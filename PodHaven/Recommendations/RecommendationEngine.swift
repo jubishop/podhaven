@@ -4,6 +4,7 @@ import AVFoundation
 import FactoryKit
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Logging
 
 // MARK: - Types
@@ -104,16 +105,12 @@ struct RecommendationEngine: Sendable {
 
     // Score candidates
     let candidateIDs: [Episode.ID] = candidates.map { $0.id }
-    let candidateEmbeddings = try await repo.embeddings(for: candidateIDs)
-    let embeddingsByEpisode: [Episode.ID: EpisodeEmbedding] = Dictionary(
-      candidateEmbeddings.map { ($0.episodeId, $0) },
-      uniquingKeysWith: { first, _ in first }
-    )
+    let embeddingsByEpisode = try await repo.embeddings(for: candidateIDs)
 
     var results: [RecommendedEpisode] = candidates.compactMap { episode in
       scoreCandidate(
         episode: episode,
-        embedding: embeddingsByEpisode[episode.id],
+        embedding: embeddingsByEpisode[id: episode.id],
         positiveCentroid: positiveCentroid,
         negativeCentroid: negativeCentroid,
         podcastAffinities: podcastAffinities,
@@ -146,18 +143,14 @@ struct RecommendationEngine: Sendable {
     signalEpisodes: [Episode]
   ) async throws -> (positive: [Float]?, negative: [Float]?) {
     let episodeIDs: [Episode.ID] = signalEpisodes.map { $0.id }
-    let embeddings = try await repo.embeddings(for: episodeIDs)
-    let embeddingsByEpisode: [Episode.ID: EpisodeEmbedding] = Dictionary(
-      embeddings.map { ($0.episodeId, $0) },
-      uniquingKeysWith: { first, _ in first }
-    )
+    let embeddingsByEpisode = try await repo.embeddings(for: episodeIDs)
 
     let now = Date()
     var positiveVectors: [(vector: [Float], weight: Float)] = []
     var negativeVectors: [(vector: [Float], weight: Float)] = []
 
     for episode in signalEpisodes {
-      guard let cached = embeddingsByEpisode[episode.id] else { continue }
+      guard let cached = embeddingsByEpisode[id: episode.id] else { continue }
       let vector = cached.floatVector
 
       if let rating = episode.rating {

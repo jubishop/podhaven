@@ -3,6 +3,7 @@
 import CryptoKit
 import FactoryKit
 import Foundation
+import IdentifiedCollections
 import Logging
 
 // MARK: - Container
@@ -58,18 +59,10 @@ struct EmbeddingService: Sendable {
 
     // Batch fetch all needed data upfront
     let episodeIDs = episodes.map(\.id)
-    let existingEmbeddings = try await repo.embeddings(for: episodeIDs)
-    let embeddingsByEpisodeID = Dictionary(
-      existingEmbeddings.map { ($0.episodeId, $0) },
-      uniquingKeysWith: { first, _ in first }
-    )
+    let embeddingsByEpisodeID = try await repo.embeddings(for: episodeIDs)
 
     let podcastIDs = Array(Set(episodes.map(\.podcastID)))
-    let podcasts = try await repo.podcasts(for: podcastIDs)
-    let podcastsByID = Dictionary(
-      podcasts.map { ($0.id, $0) },
-      uniquingKeysWith: { first, _ in first }
-    )
+    let podcastsByID = try await repo.podcasts(for: podcastIDs)
 
     let podcastEmbeddings = try await repo.podcastEmbeddings(for: podcastIDs)
     let podcastEmbeddingsByID = Dictionary(
@@ -80,8 +73,8 @@ struct EmbeddingService: Sendable {
     for episode in episodes {
       try Task.checkCancellation()
 
-      let existingEmbedding = embeddingsByEpisodeID[episode.id]
-      let podcast = podcastsByID[episode.podcastID]
+      let existingEmbedding = embeddingsByEpisodeID[id: episode.id]
+      let podcast = podcastsByID[id: episode.podcastID]
       let hash = fullSourceHash(for: episode, podcast: podcast)
 
       let needsRecompute =

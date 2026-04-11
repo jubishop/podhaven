@@ -3,6 +3,7 @@
 import AVFoundation
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Tagged
 
 protocol Databasing: Sendable {
@@ -162,10 +163,11 @@ protocol Databasing: Sendable {
 
   func hasEmbeddings() async throws -> Bool
   func embedding(for episodeID: Episode.ID) async throws -> EpisodeEmbedding?
-  func embeddings(for episodeIDs: [Episode.ID]) async throws -> [EpisodeEmbedding]
+  func embeddings(for episodeIDs: [Episode.ID]) async throws
+    -> IdentifiedArray<Episode.ID, EpisodeEmbedding>
   func podcastEmbedding(for podcastID: Podcast.ID) async throws -> PodcastEmbedding?
   func podcastEmbeddings(for podcastIDs: [Podcast.ID]) async throws -> [PodcastEmbedding]
-  func podcasts(for podcastIDs: [Podcast.ID]) async throws -> [Podcast]
+  func podcasts(for podcastIDs: [Podcast.ID]) async throws -> IdentifiedArrayOf<Podcast>
   func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode]
 
   // MARK: - Recommendation Readers

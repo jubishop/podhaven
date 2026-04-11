@@ -3,6 +3,7 @@
 import AVFoundation
 import Foundation
 import GRDB
+import IdentifiedCollections
 import Tagged
 
 @testable import PodHaven
@@ -296,7 +297,9 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.embedding(for: episodeID)
   }
 
-  func embeddings(for episodeIDs: [Episode.ID]) async throws -> [EpisodeEmbedding] {
+  func embeddings(for episodeIDs: [Episode.ID]) async throws
+    -> IdentifiedArray<Episode.ID, EpisodeEmbedding>
+  {
     recordCall(methodName: "embeddings", parameters: episodeIDs)
     return try await repo.embeddings(for: episodeIDs)
   }
@@ -311,7 +314,7 @@ actor FakeRepo: Databasing, Sendable, FakeCallable {
     return try await repo.podcastEmbeddings(for: podcastIDs)
   }
 
-  func podcasts(for podcastIDs: [Podcast.ID]) async throws -> [Podcast] {
+  func podcasts(for podcastIDs: [Podcast.ID]) async throws -> IdentifiedArrayOf<Podcast> {
     recordCall(methodName: "podcasts", parameters: podcastIDs)
     return try await repo.podcasts(for: podcastIDs)
   }

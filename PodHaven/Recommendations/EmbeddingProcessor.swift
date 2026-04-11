@@ -53,9 +53,12 @@ struct EmbeddingProcessor: Sendable {
         // Query returns only episodes that actually need embedding work:
         // no existing embedding, wrong revision, or content changed since
         // last computation. Signal episodes (rated/finished) are ordered first.
+        let queryStart = ContinuousClock.now
         let episodesToProcess = try await repo.episodesNeedingEmbeddings(
           revision: embedding.revision
         )
+        let queryDuration = ContinuousClock.now - queryStart
+        Self.log.debug("episodesNeedingEmbeddings query took \(queryDuration)")
 
         if episodesToProcess.isEmpty {
           Self.log.info("No episodes need embedding updates")

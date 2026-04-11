@@ -445,12 +445,14 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func embeddings(for episodeIDs: [Episode.ID]) async throws -> [EpisodeEmbedding] {
-    guard !episodeIDs.isEmpty else { return [] }
+  func embeddings(for episodeIDs: [Episode.ID]) async throws
+    -> IdentifiedArray<Episode.ID, EpisodeEmbedding>
+  {
+    guard !episodeIDs.isEmpty else { return IdentifiedArray(id: \.episodeId) }
     return try await appDB.db.read { db in
       try EpisodeEmbedding
         .filter(episodeIDs.contains(EpisodeEmbedding.Columns.episodeId))
-        .fetchAll(db)
+        .fetchIdentifiedArray(db, id: \.episodeId)
     }
   }
 
@@ -471,47 +473,45 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func podcasts(for podcastIDs: [Podcast.ID]) async throws -> [Podcast] {
+  func podcasts(for podcastIDs: [Podcast.ID]) async throws -> IdentifiedArrayOf<Podcast> {
     guard !podcastIDs.isEmpty else { return [] }
     return try await appDB.db.read { db in
       try Podcast
         .filter(podcastIDs.contains(Podcast.Columns.id))
-        .fetchAll(db)
+        .fetchIdentifiedArray(db)
     }
   }
 
   func episodesNeedingEmbeddings(revision: Int) async throws -> [Episode] {
     try await appDB.db.read { db in
-      try Episode.fetchAll(
-        db,
-        sql: """
-          SELECT episode.* FROM episode
-          LEFT JOIN episodeEmbedding ON episodeEmbedding.episodeId = episode.id
-          JOIN podcast ON podcast.id = episode.podcastId
-          WHERE (
-            episode.rating IS NOT NULL
-            OR episode.finishDate IS NOT NULL
-            OR (
-              episode.currentTime = 0
-              AND episode.finishDate IS NULL
-              AND episode.rating IS NULL
-              AND episode.queueOrder IS NULL
-            )
+      let embeddingAlias = TableAlias()
+      let podcastAlias = TableAlias()
+
+      return
+        try Episode
+        .joining(required: Episode.podcast.aliased(podcastAlias))
+        .joining(optional: Episode.embedding.aliased(embeddingAlias))
+        .filter(
+          Episode.rated || Episode.finished
+            || (Episode.unstarted && Episode.unfinished && !Episode.rated && Episode.unqueued)
+        )
+        .filter(
+          embeddingAlias[EpisodeEmbedding.Columns.id] == nil
+            || embeddingAlias[EpisodeEmbedding.Columns.embeddingRevision] != revision
+            || Episode.Columns.contentUpdatedAt
+              > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
+            || podcastAlias[Podcast.Columns.contentUpdatedAt]
+              > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
+        )
+        .order(
+          SQL(
+            """
+            CASE WHEN \(Episode.Columns.rating) IS NOT NULL \
+            OR \(Episode.Columns.finishDate) IS NOT NULL THEN 0 ELSE 1 END
+            """
           )
-          AND (
-            episodeEmbedding.id IS NULL
-            OR episodeEmbedding.embeddingRevision != ?
-            OR episode.contentUpdatedAt > episodeEmbedding.creationDate
-            OR podcast.contentUpdatedAt > episodeEmbedding.creationDate
-          )
-          ORDER BY
-            CASE
-              WHEN episode.rating IS NOT NULL OR episode.finishDate IS NOT NULL THEN 0
-              ELSE 1
-            END
-          """,
-        arguments: [revision]
-      )
+        )
+        .fetchAll(db)
     }
   }
 

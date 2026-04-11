@@ -208,6 +208,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
 
   // MARK: - Associations
 
+  static let embedding = hasOne(EpisodeEmbedding.self)
   static let episodeTags = hasMany(EpisodeTag.self)
   static let podcast = belongsTo(Podcast.self)
   static let tags = hasMany(Tag.self, through: episodeTags, using: EpisodeTag.tag).order(\.name)
