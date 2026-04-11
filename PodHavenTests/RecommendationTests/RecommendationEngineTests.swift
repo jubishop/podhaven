@@ -11,7 +11,6 @@ import Testing
 
 @Suite("RecommendationEngine tests", .container)
 class RecommendationEngineTests {
-  @DynamicInjected(\.embeddingService) private var embeddingService
   @DynamicInjected(\.recommendationEngine) private var engine
   @DynamicInjected(\.repo) private var repo
 
@@ -57,7 +56,7 @@ class RecommendationEngineTests {
   private func embedEpisodes(_ episodes: [Episode]) async throws {
     let embedding = ContextualEmbedding(embedding: FakeEmbeddable())
     embedding.requestAndLoadAssetsIfNeeded()
-    try await embeddingService.ensureEmbeddings(
+    try await EmbeddingService.ensureEmbeddings(
       for: episodes,
       embedding: embedding
     )

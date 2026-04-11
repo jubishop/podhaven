@@ -464,12 +464,14 @@ struct Repo: Databasing, Sendable {
     }
   }
 
-  func podcastEmbeddings(for podcastIDs: [Podcast.ID]) async throws -> [PodcastEmbedding] {
-    guard !podcastIDs.isEmpty else { return [] }
+  func podcastEmbeddings(for podcastIDs: [Podcast.ID]) async throws
+    -> IdentifiedArray<Podcast.ID, PodcastEmbedding>
+  {
+    guard !podcastIDs.isEmpty else { return IdentifiedArray(id: \.podcastId) }
     return try await appDB.db.read { db in
       try PodcastEmbedding
         .filter(podcastIDs.contains(PodcastEmbedding.Columns.podcastId))
-        .fetchAll(db)
+        .fetchIdentifiedArray(db, id: \.podcastId)
     }
   }
 
@@ -503,14 +505,7 @@ struct Repo: Databasing, Sendable {
             || podcastAlias[Podcast.Columns.contentUpdatedAt]
               > embeddingAlias[EpisodeEmbedding.Columns.creationDate]
         )
-        .order(
-          SQL(
-            """
-            CASE WHEN \(Episode.Columns.rating) IS NOT NULL \
-            OR \(Episode.Columns.finishDate) IS NOT NULL THEN 0 ELSE 1 END
-            """
-          )
-        )
+        .order((Episode.rated || Episode.finished).desc)
         .fetchAll(db)
     }
   }

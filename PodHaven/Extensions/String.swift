@@ -32,6 +32,17 @@ extension String {
     return String(result)
   }
 
+  // MARK: - SHA256
+
+  func sha256() -> String {
+    let hexDigits: [Character] = Array("0123456789abcdef")
+    return Data(SHA256.hash(data: Data(utf8)))
+      .reduce(into: "") { result, byte in
+        result.append(hexDigits[Int(byte >> 4)])
+        result.append(hexDigits[Int(byte & 0x0F)])
+      }
+  }
+
   // MARK: - Transforming
 
   func trimmed() -> String {

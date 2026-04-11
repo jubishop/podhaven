@@ -1,24 +1,13 @@
 // Copyright Justin Bishop, 2026
 
-import CryptoKit
 import FactoryKit
 import Foundation
 import IdentifiedCollections
 import Logging
 
-// MARK: - Container
-
-extension Container {
-  var embeddingService: Factory<EmbeddingService> {
-    Factory(self) { EmbeddingService() }.scope(.cached)
-  }
-}
-
 // MARK: - EmbeddingService
 
-struct EmbeddingService: Sendable {
-  @DynamicInjected(\.repo) private var repo
-
+enum EmbeddingService {
   private static let log = Log.as(LogSubsystem.Recommendations.embedding)
 
   // Title gets more weight than description to avoid boilerplate dominance
@@ -29,33 +18,15 @@ struct EmbeddingService: Sendable {
   private static let episodeBlendWeight: Float = 0.6
   private static let podcastBlendWeight: Float = 0.4
 
-  // MARK: - Compute Episode Embedding
-
-  func computeEmbedding(for episode: Episode, embedding: ContextualEmbedding) async throws
-    -> [Float]
-  {
-    let podcast = try await repo.podcast(episode.podcastID)
-    let cachedPodcastEmbedding =
-      if let podcast {
-        try await repo.podcastEmbedding(for: podcast.id)
-      } else {
-        nil as PodcastEmbedding?
-      }
-    return try await computeEmbedding(
-      for: episode,
-      embedding: embedding,
-      podcast: podcast,
-      cachedPodcastEmbedding: cachedPodcastEmbedding
-    )
-  }
-
   // MARK: - Ensure Embeddings
 
-  func ensureEmbeddings(
+  static func ensureEmbeddings(
     for episodes: [Episode],
     embedding: ContextualEmbedding
   ) async throws {
     guard !episodes.isEmpty else { return }
+
+    let repo = Container.shared.repo()
 
     // Batch fetch all needed data upfront
     let episodeIDs = episodes.map(\.id)
@@ -63,12 +34,7 @@ struct EmbeddingService: Sendable {
 
     let podcastIDs = Array(Set(episodes.map(\.podcastID)))
     let podcastsByID = try await repo.podcasts(for: podcastIDs)
-
     let podcastEmbeddings = try await repo.podcastEmbeddings(for: podcastIDs)
-    let podcastEmbeddingsByID = Dictionary(
-      podcastEmbeddings.map { ($0.podcastId, $0) },
-      uniquingKeysWith: { first, _ in first }
-    )
 
     for episode in episodes {
       try Task.checkCancellation()
@@ -88,7 +54,7 @@ struct EmbeddingService: Sendable {
         for: episode,
         embedding: embedding,
         podcast: podcast,
-        cachedPodcastEmbedding: podcastEmbeddingsByID[episode.podcastID]
+        cachedPodcastEmbedding: podcastEmbeddings[id: episode.podcastID]
       )
 
       let unsaved = UnsavedEpisodeEmbedding(
@@ -104,7 +70,7 @@ struct EmbeddingService: Sendable {
 
   // MARK: - Text Cleaning
 
-  func cleanText(_ text: String) -> String {
+  static func cleanText(_ text: String) -> String {
     var result = text
 
     // Strip HTML tags
@@ -140,7 +106,7 @@ struct EmbeddingService: Sendable {
 
   // MARK: - Helpers
 
-  private func computeEmbedding(
+  private static func computeEmbedding(
     for episode: Episode,
     embedding: ContextualEmbedding,
     podcast: Podcast?,
@@ -160,13 +126,13 @@ struct EmbeddingService: Sendable {
     // Weighted average of title and description
     var episodeVector = VectorMath.weightedAverage(
       titleVector,
-      weight1: Self.titleWeight,
+      weight1: titleWeight,
       descriptionVector,
-      weight2: Self.descriptionWeight
+      weight2: descriptionWeight
     )
 
     // Blend with podcast description embedding
-    let podcastVector = try await fetchOrComputePodcastEmbedding(
+    let podcastVector = try await ensurePodcastEmbedding(
       podcast: podcast,
       embedding: embedding,
       cachedEmbedding: cachedPodcastEmbedding
@@ -174,16 +140,16 @@ struct EmbeddingService: Sendable {
     if let podcastVector {
       episodeVector = VectorMath.weightedAverage(
         episodeVector,
-        weight1: Self.episodeBlendWeight,
+        weight1: episodeBlendWeight,
         podcastVector,
-        weight2: Self.podcastBlendWeight
+        weight2: podcastBlendWeight
       )
     }
 
     return VectorMath.normalize(episodeVector)
   }
 
-  private func fetchOrComputePodcastEmbedding(
+  private static func ensurePodcastEmbedding(
     podcast: Podcast?,
     embedding: ContextualEmbedding,
     cachedEmbedding: PodcastEmbedding?
@@ -193,7 +159,7 @@ struct EmbeddingService: Sendable {
     let cleanedDescription = cleanText(podcast.description)
     guard !cleanedDescription.isEmpty else { return nil }
 
-    let hash = sha256(cleanedDescription)
+    let hash = cleanedDescription.sha256()
 
     // Return cached if still fresh (same source hash and revision)
     if let cached = cachedEmbedding,
@@ -214,32 +180,16 @@ struct EmbeddingService: Sendable {
       embeddingRevision: embedding.revision,
       dimension: normalized.count
     )
-    try await repo.upsertPodcastEmbedding(unsaved)
+    try await Container.shared.repo().upsertPodcastEmbedding(unsaved)
 
     return normalized
   }
 
-  private func fullSourceHash(for episode: Episode, podcast: Podcast?) -> String {
+  private static func fullSourceHash(for episode: Episode, podcast: Podcast?) -> String {
     var text = "\(episode.title) \(episode.description ?? "")"
     if let podcast {
       text += " \(podcast.description)"
     }
-    return sha256(text)
-  }
-
-  private func sha256(_ text: String) -> String {
-    let data = Data(text.utf8)
-    let hash = SHA256.hash(data: data)
-    let hashData = Data(hash)
-    return
-      hashData.map { byte in
-        let hi = byte >> 4
-        let lo = byte & 0x0F
-        let hexChar = { (n: UInt8) -> Character in
-          n < 10 ? Character(Unicode.Scalar(n + 48)) : Character(Unicode.Scalar(n + 87))
-        }
-        return String([hexChar(hi), hexChar(lo)])
-      }
-      .joined()
+    return text.sha256()
   }
 }

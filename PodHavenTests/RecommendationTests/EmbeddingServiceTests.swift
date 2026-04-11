@@ -10,32 +10,31 @@ import Testing
 @Suite("EmbeddingService tests", .container)
 class EmbeddingServiceTests {
   @DynamicInjected(\.appDB) private var appDB
-  @DynamicInjected(\.embeddingService) private var embeddingService
   @DynamicInjected(\.repo) private var repo
 
   // MARK: - Text Cleaning
 
   @Test("cleanText strips HTML tags")
   func cleanTextHTML() {
-    let result = embeddingService.cleanText("<p>Hello <b>world</b></p>")
+    let result = EmbeddingService.cleanText("<p>Hello <b>world</b></p>")
     #expect(result == "Hello world")
   }
 
   @Test("cleanText strips URLs")
   func cleanTextURLs() {
-    let result = embeddingService.cleanText("Visit https://example.com for more")
+    let result = EmbeddingService.cleanText("Visit https://example.com for more")
     #expect(result == "Visit for more")
   }
 
   @Test("cleanText strips timestamps")
   func cleanTextTimestamps() {
-    let result = embeddingService.cleanText("0:00 Intro 2:15 Main topic 1:02:15 Outro")
+    let result = EmbeddingService.cleanText("0:00 Intro 2:15 Main topic 1:02:15 Outro")
     #expect(result == "Intro Main topic Outro")
   }
 
   @Test("cleanText normalizes whitespace")
   func cleanTextWhitespace() {
-    let result = embeddingService.cleanText("  too   many    spaces  ")
+    let result = EmbeddingService.cleanText("  too   many    spaces  ")
     #expect(result == "too many spaces")
   }
 
@@ -53,7 +52,7 @@ class EmbeddingServiceTests {
     let embedding = makeContextualEmbedding()
 
     // First call should compute and cache
-    try await embeddingService.ensureEmbeddings(
+    try await EmbeddingService.ensureEmbeddings(
       for: [episode],
       embedding: embedding
     )
@@ -64,7 +63,7 @@ class EmbeddingServiceTests {
 
     // Second call should skip (already cached)
     let originalComputedAt = cached!.creationDate
-    try await embeddingService.ensureEmbeddings(
+    try await EmbeddingService.ensureEmbeddings(
       for: [episode],
       embedding: embedding
     )
@@ -86,7 +85,7 @@ class EmbeddingServiceTests {
     let embedding = makeContextualEmbedding()
 
     // First compute normally to get the correct hash
-    try await embeddingService.ensureEmbeddings(
+    try await EmbeddingService.ensureEmbeddings(
       for: [episode],
       embedding: embedding
     )
@@ -109,7 +108,7 @@ class EmbeddingServiceTests {
     #expect(afterStale.sourceHash == "stale-hash")
 
     // Recompute — should detect stale hash and recompute
-    try await embeddingService.ensureEmbeddings(
+    try await EmbeddingService.ensureEmbeddings(
       for: [episode],
       embedding: embedding
     )
@@ -134,7 +133,7 @@ class EmbeddingServiceTests {
       RevisionedEmbeddable(revision: 2)
     )
 
-    try await embeddingService.ensureEmbeddings(
+    try await EmbeddingService.ensureEmbeddings(
       for: [episode],
       embedding: firstEmbedding
     )
@@ -142,7 +141,7 @@ class EmbeddingServiceTests {
     let cached = try #require(try await repo.embedding(for: episode.id))
     #expect(cached.embeddingRevision == 1)
 
-    try await embeddingService.ensureEmbeddings(
+    try await EmbeddingService.ensureEmbeddings(
       for: [episode],
       embedding: secondEmbedding
     )
@@ -162,7 +161,7 @@ class EmbeddingServiceTests {
     )
     let embedding = makeContextualEmbedding()
 
-    try await embeddingService.ensureEmbeddings(
+    try await EmbeddingService.ensureEmbeddings(
       for: [podcastEpisode.episode],
       embedding: embedding
     )
@@ -185,7 +184,7 @@ class EmbeddingServiceTests {
       )
     )
 
-    try await embeddingService.ensureEmbeddings(
+    try await EmbeddingService.ensureEmbeddings(
       for: [refreshedPodcastEpisode.episode],
       embedding: embedding
     )
@@ -227,8 +226,8 @@ class EmbeddingServiceTests {
     )
     #expect(cachedBeforeRefresh.sourceHash == "stale-hash")
 
-    _ = try await embeddingService.computeEmbedding(
-      for: podcastEpisode.episode,
+    try await EmbeddingService.ensureEmbeddings(
+      for: [podcastEpisode.episode],
       embedding: embedding
     )
 

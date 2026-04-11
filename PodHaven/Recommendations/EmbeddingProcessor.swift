@@ -47,7 +47,6 @@ struct EmbeddingProcessor: Sendable {
       }
 
       do {
-        let embeddingService = Container.shared.embeddingService()
         let repo = Container.shared.repo()
 
         // Query returns only episodes that actually need embedding work:
@@ -68,7 +67,7 @@ struct EmbeddingProcessor: Sendable {
 
         Self.log.info("Processing \(episodesToProcess.count) episodes for embeddings")
 
-        try await embeddingService.ensureEmbeddings(
+        try await EmbeddingService.ensureEmbeddings(
           for: episodesToProcess,
           embedding: embedding
         )
