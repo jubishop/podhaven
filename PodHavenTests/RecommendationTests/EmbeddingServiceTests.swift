@@ -40,8 +40,8 @@ class EmbeddingServiceTests {
 
   // MARK: - Embedding Caching
 
-  @Test("ensureEmbeddings caches results and skips already computed")
-  func ensureEmbeddingsCaching() async throws {
+  @Test("upsertEpisodeEmbeddings caches results and skips already computed")
+  func upsertEpisodeEmbeddingsCaching() async throws {
     let podcastEpisode = try await makePodcastEpisode(
       podcastDescription: "",
       episodeTitle: "Test Episode",
@@ -52,7 +52,7 @@ class EmbeddingServiceTests {
     let embedding = makeContextualEmbedding()
 
     // First call should compute and cache
-    try await EmbeddingService.ensureEmbeddings(
+    try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [episode],
       embedding: embedding
     )
@@ -63,7 +63,7 @@ class EmbeddingServiceTests {
 
     // Second call should skip (already cached)
     let originalComputedAt = cached!.creationDate
-    try await EmbeddingService.ensureEmbeddings(
+    try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [episode],
       embedding: embedding
     )
@@ -85,7 +85,7 @@ class EmbeddingServiceTests {
     let embedding = makeContextualEmbedding()
 
     // First compute normally to get the correct hash
-    try await EmbeddingService.ensureEmbeddings(
+    try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [episode],
       embedding: embedding
     )
@@ -108,7 +108,7 @@ class EmbeddingServiceTests {
     #expect(afterStale.sourceHash == "stale-hash")
 
     // Recompute — should detect stale hash and recompute
-    try await EmbeddingService.ensureEmbeddings(
+    try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [episode],
       embedding: embedding
     )
@@ -133,7 +133,7 @@ class EmbeddingServiceTests {
       RevisionedEmbeddable(revision: 2)
     )
 
-    try await EmbeddingService.ensureEmbeddings(
+    try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [episode],
       embedding: firstEmbedding
     )
@@ -141,7 +141,7 @@ class EmbeddingServiceTests {
     let cached = try #require(try await repo.embedding(for: episode.id))
     #expect(cached.embeddingRevision == 1)
 
-    try await EmbeddingService.ensureEmbeddings(
+    try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [episode],
       embedding: secondEmbedding
     )
@@ -161,7 +161,7 @@ class EmbeddingServiceTests {
     )
     let embedding = makeContextualEmbedding()
 
-    try await EmbeddingService.ensureEmbeddings(
+    try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [podcastEpisode.episode],
       embedding: embedding
     )
@@ -184,7 +184,7 @@ class EmbeddingServiceTests {
       )
     )
 
-    try await EmbeddingService.ensureEmbeddings(
+    try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [refreshedPodcastEpisode.episode],
       embedding: embedding
     )
@@ -226,7 +226,7 @@ class EmbeddingServiceTests {
     )
     #expect(cachedBeforeRefresh.sourceHash == "stale-hash")
 
-    try await EmbeddingService.ensureEmbeddings(
+    try await EmbeddingService.upsertEpisodeEmbeddings(
       for: [podcastEpisode.episode],
       embedding: embedding
     )

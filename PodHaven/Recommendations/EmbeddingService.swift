@@ -18,9 +18,9 @@ enum EmbeddingService {
   private static let episodeBlendWeight: Float = 0.6
   private static let podcastBlendWeight: Float = 0.4
 
-  // MARK: - Ensure Embeddings
+  // MARK: - Upsert Episode Embeddings
 
-  static func ensureEmbeddings(
+  static func upsertEpisodeEmbeddings(
     for episodes: [Episode],
     embedding: ContextualEmbedding
   ) async throws {
@@ -56,7 +56,7 @@ enum EmbeddingService {
         cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
       )
 
-      try await ensureEpisodeEmbedding(
+      try await upsertEpisodeEmbedding(
         episode,
         hash: hash,
         embedding: embedding,
@@ -103,7 +103,7 @@ enum EmbeddingService {
     return normalized
   }
 
-  private static func ensureEpisodeEmbedding(
+  private static func upsertEpisodeEmbedding(
     _ episode: Episode,
     hash: String,
     embedding: ContextualEmbedding,

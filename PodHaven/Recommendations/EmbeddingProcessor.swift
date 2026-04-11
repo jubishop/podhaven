@@ -67,7 +67,7 @@ struct EmbeddingProcessor: Sendable {
 
         Self.log.info("Processing \(episodesToProcess.count) episodes for embeddings")
 
-        try await EmbeddingService.ensureEmbeddings(
+        try await EmbeddingService.upsertEpisodeEmbeddings(
           for: episodesToProcess,
           embedding: embedding
         )
