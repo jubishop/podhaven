@@ -38,8 +38,8 @@ class ContextualEmbedding {
   private(set) var isAvailable = false
 
   private let embedding: any Embeddable
-  private let isLoading = ThreadSafe(false)
-  private let isRequesting = ThreadSafe(false)
+  private let isLoading = ThreadLock()
+  private let isRequesting = ThreadLock()
 
   init(embedding: any Embeddable) {
     self.embedding = embedding
@@ -52,19 +52,14 @@ class ContextualEmbedding {
     guard !isAvailable else { return }
 
     guard embedding.hasAvailableAssets else {
-      let shouldRequest = isRequesting { requesting -> Bool in
-        guard !requesting else { return false }
-        requesting = true
-        return true
-      }
-      guard shouldRequest else { return }
+      guard isRequesting.claim() else { return }
 
       Self.log.info("Requesting contextual embedding assets download")
       let isRequesting = isRequesting
       embedding.requestAssets { error in
         if let error {
           Self.log.caughtError("Failed to download contextual embedding assets", error)
-          isRequesting(false)
+          isRequesting.release()
         } else {
           Self.log.info("Contextual embedding assets downloaded")
           Container.shared.contextualEmbedding().loadAssets()
@@ -101,19 +96,14 @@ class ContextualEmbedding {
   }
 
   fileprivate func loadAssets() {
-    let shouldLoad = isLoading { loading -> Bool in
-      guard !loading else { return false }
-      loading = true
-      return true
-    }
-    guard shouldLoad else { return }
+    guard isLoading.claim() else { return }
 
     do {
       try embedding.load()
       isAvailable = true
     } catch {
       Self.log.caughtError("Failed to load contextual embedding", error)
-      isLoading(false)
+      isLoading.release()
     }
   }
 }
