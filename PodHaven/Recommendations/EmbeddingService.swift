@@ -65,38 +65,6 @@ enum EmbeddingService {
     }
   }
 
-  // MARK: - Text Cleaning
-
-  static func cleanText(_ text: String) -> String {
-    var result = text
-
-    // Strip HTML tags
-    result = result.replacingOccurrences(
-      of: "<[^>]+>",
-      with: " ",
-      options: .regularExpression
-    )
-
-    // Strip URLs
-    result = result.replacingOccurrences(
-      of: "https?://\\S+",
-      with: "",
-      options: .regularExpression
-    )
-
-    // Strip timestamps
-    result.replace(Timestamp.regex, with: "")
-
-    // Normalize whitespace
-    result = result.replacingOccurrences(
-      of: "\\s+",
-      with: " ",
-      options: .regularExpression
-    )
-
-    return result.trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-
   // MARK: - Helpers
 
   private static func ensurePodcastEmbedding(
@@ -200,5 +168,35 @@ enum EmbeddingService {
       text += " \(podcast.description)"
     }
     return text.sha256()
+  }
+
+  static func cleanText(_ text: String) -> String {
+    var result = text
+
+    // Strip HTML tags
+    result = result.replacingOccurrences(
+      of: "<[^>]+>",
+      with: " ",
+      options: .regularExpression
+    )
+
+    // Strip URLs
+    result = result.replacingOccurrences(
+      of: "https?://\\S+",
+      with: "",
+      options: .regularExpression
+    )
+
+    // Strip timestamps
+    result.replace(Timestamp.regex, with: "")
+
+    // Normalize whitespace
+    result = result.replacingOccurrences(
+      of: "\\s+",
+      with: " ",
+      options: .regularExpression
+    )
+
+    return result.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }
