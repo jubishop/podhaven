@@ -50,11 +50,16 @@ enum EmbeddingService {
 
       guard needsRecompute else { continue }
 
-      let vector = try await computeEmbedding(
+      let podcastVector = try await ensurePodcastEmbedding(
+        podcast: podcast,
+        embedding: embedding,
+        cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
+      )
+
+      let vector = try computeEmbedding(
         for: episode,
         embedding: embedding,
-        podcast: podcast,
-        cachedPodcastEmbedding: podcastEmbeddings[id: episode.podcastID]
+        podcastVector: podcastVector
       )
 
       let unsaved = UnsavedEpisodeEmbedding(
@@ -87,12 +92,8 @@ enum EmbeddingService {
       options: .regularExpression
     )
 
-    // Strip timestamps (same pattern the app uses for chapter parsing)
-    result = result.replacingOccurrences(
-      of: "\\d{1,2}:\\d{2}(:\\d{2})?",
-      with: "",
-      options: .regularExpression
-    )
+    // Strip timestamps
+    result.replace(Timestamp.regex, with: "")
 
     // Normalize whitespace
     result = result.replacingOccurrences(
@@ -109,9 +110,8 @@ enum EmbeddingService {
   private static func computeEmbedding(
     for episode: Episode,
     embedding: ContextualEmbedding,
-    podcast: Podcast?,
-    cachedPodcastEmbedding: PodcastEmbedding?
-  ) async throws -> [Float] {
+    podcastVector: [Float]?
+  ) throws -> [Float] {
     let cleanedTitle = cleanText(episode.title)
     let cleanedDescription = cleanText(episode.description ?? "")
 
@@ -132,11 +132,6 @@ enum EmbeddingService {
     )
 
     // Blend with podcast description embedding
-    let podcastVector = try await ensurePodcastEmbedding(
-      podcast: podcast,
-      embedding: embedding,
-      cachedEmbedding: cachedPodcastEmbedding
-    )
     if let podcastVector {
       episodeVector = VectorMath.weightedAverage(
         episodeVector,
