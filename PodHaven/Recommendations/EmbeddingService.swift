@@ -36,6 +36,9 @@ enum EmbeddingService {
     let podcastsByID = try await repo.podcasts(for: podcastIDs)
     let podcastEmbeddings = try await repo.podcastEmbeddings(for: podcastIDs)
 
+    // Cache computed podcast vectors to avoid redundant work within the batch
+    var podcastVectorCache: [Podcast.ID: [Float]?] = [:]
+
     for episode in episodes {
       try Task.checkCancellation()
 
@@ -50,11 +53,17 @@ enum EmbeddingService {
 
       guard needsRecompute else { continue }
 
-      let podcastVector = try await ensurePodcastEmbedding(
-        podcast: podcast,
-        embedding: embedding,
-        cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
-      )
+      let podcastVector: [Float]?
+      if let cached = podcastVectorCache[episode.podcastID] {
+        podcastVector = cached
+      } else {
+        podcastVector = try await ensurePodcastEmbedding(
+          podcast: podcast,
+          embedding: embedding,
+          cachedEmbedding: podcastEmbeddings[id: episode.podcastID]
+        )
+        podcastVectorCache[episode.podcastID] = podcastVector
+      }
 
       try await upsertEpisodeEmbedding(
         episode,

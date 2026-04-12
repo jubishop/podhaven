@@ -81,11 +81,11 @@ class ContextualEmbedding {
     var count = 0
 
     result.enumerateTokenVectors(in: text.startIndex..<text.endIndex) { vector, _ in
-      if sum == nil {
-        sum = [Float](repeating: 0, count: vector.count)
-      }
-      for i in 0..<vector.count {
-        sum![i] += Float(vector[i])
+      if var accumulated = sum {
+        for i in 0..<vector.count { accumulated[i] += Float(vector[i]) }
+        sum = accumulated
+      } else {
+        sum = vector.map { Float($0) }
       }
       count += 1
       return true

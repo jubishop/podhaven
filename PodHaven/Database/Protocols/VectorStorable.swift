@@ -8,18 +8,10 @@ protocol VectorStorable {
 
 extension VectorStorable {
   var floatVector: [Float] {
-    do {
-      return try JSONDecoder().decode([Float].self, from: vector)
-    } catch {
-      Assert.fatal("Failed to decode embedding vector: \(error)")
-    }
+    unsafe vector.withUnsafeBytes { unsafe Array($0.bindMemory(to: Float.self)) }
   }
 
   static func vectorData(from floats: [Float]) -> Data {
-    do {
-      return try JSONEncoder().encode(floats)
-    } catch {
-      Assert.fatal("Failed to encode embedding vector: \(error)")
-    }
+    unsafe floats.withUnsafeBytes { unsafe Data($0) }
   }
 }

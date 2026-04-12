@@ -1,70 +1,111 @@
 // Copyright Justin Bishop, 2026
 
-import FactoryKit
-import FactoryTesting
 import Foundation
 import GRDB
 import Testing
 
 @testable import PodHaven
 
-@Suite("v35 migration tests (embedding cache tables)", .container)
+@Suite("of v35 migration tests (embedding cache tables)", .container)
 class V35MigrationTests {
-  @DynamicInjected(\.appDB) private var appDB
+  private let appDB = AppDB.inMemory(migrate: false)
+  private let migrator: DatabaseMigrator
 
-  @Test("v35 creates episodeEmbedding table with correct columns")
-  func episodeEmbeddingTableExists() async throws {
-    let columns = try await appDB.db.read { db in
-      try db.columns(in: "episodeEmbedding").map(\.name)
-    }
-    #expect(columns.contains("episodeId"))
-    #expect(columns.contains("vector"))
-    #expect(columns.contains("sourceHash"))
-    #expect(columns.contains("embeddingRevision"))
-    #expect(columns.contains("dimension"))
-    #expect(columns.contains("creationDate"))
+  init() async throws {
+    self.migrator = Schema.makeMigrator()
   }
 
-  @Test("v35 creates podcastEmbedding table with correct columns")
-  func podcastEmbeddingTableExists() async throws {
-    let columns = try await appDB.db.read { db in
-      try db.columns(in: "podcastEmbedding").map(\.name)
+  // MARK: - Helpers
+
+  private static func insertPodcast(_ db: Database) throws -> Int64 {
+    try db.execute(
+      sql: """
+        INSERT INTO podcast (feedURL, title, image, description)
+        VALUES ('https://example.com/feed.xml', 'Test', 'img', 'desc')
+        """
+    )
+    return db.lastInsertedRowID
+  }
+
+  private static func insertEpisode(_ db: Database, podcastID: Int64) throws -> Int64 {
+    try db.execute(
+      sql: """
+        INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """,
+      arguments: [
+        podcastID, "ep-\(UUID())", "https://example.com/ep-\(UUID()).mp3", "Test Episode",
+      ]
+    )
+    return db.lastInsertedRowID
+  }
+
+  // MARK: - Tests
+
+  @Test("creates episodeEmbedding table with correct columns")
+  func episodeEmbeddingTableExists() async throws {
+    try migrator.migrate(appDB.db, upTo: "v35")
+
+    try await appDB.db.read { db in
+      let columns = try db.columns(in: "episodeEmbedding").map(\.name)
+      #expect(columns.contains("episodeId"))
+      #expect(columns.contains("vector"))
+      #expect(columns.contains("sourceHash"))
+      #expect(columns.contains("embeddingRevision"))
+      #expect(columns.contains("dimension"))
+      #expect(columns.contains("creationDate"))
     }
-    #expect(columns.contains("podcastId"))
-    #expect(columns.contains("vector"))
-    #expect(columns.contains("sourceHash"))
-    #expect(columns.contains("embeddingRevision"))
-    #expect(columns.contains("dimension"))
-    #expect(columns.contains("creationDate"))
+  }
+
+  @Test("creates podcastEmbedding table with correct columns")
+  func podcastEmbeddingTableExists() async throws {
+    try migrator.migrate(appDB.db, upTo: "v35")
+
+    try await appDB.db.read { db in
+      let columns = try db.columns(in: "podcastEmbedding").map(\.name)
+      #expect(columns.contains("podcastId"))
+      #expect(columns.contains("vector"))
+      #expect(columns.contains("sourceHash"))
+      #expect(columns.contains("embeddingRevision"))
+      #expect(columns.contains("dimension"))
+      #expect(columns.contains("creationDate"))
+    }
   }
 
   @Test("episodeEmbedding cascades on episode delete")
   func episodeEmbeddingCascade() async throws {
-    let unsavedPodcast = try Create.unsavedPodcast()
-    let unsavedEpisode = try Create.unsavedEpisode()
-    let podcastEpisodes = try await Container.shared.repo()
-      .upsertPodcastEpisodes([
-        UnsavedPodcastEpisode(unsavedPodcast: unsavedPodcast, unsavedEpisode: unsavedEpisode)
-      ])
-    let episodeID = podcastEpisodes.first!.episode.id
-    let podcastID = podcastEpisodes.first!.podcast.id
+    try migrator.migrate(appDB.db, upTo: "v35")
 
-    let testVector: [Float] = [1.0, 0.0, 0.0]
-    let unsaved = UnsavedEpisodeEmbedding(
-      episodeId: episodeID,
-      vector: UnsavedEpisodeEmbedding.vectorData(from: testVector),
-      sourceHash: "test",
-      embeddingRevision: 1,
-      dimension: 3
-    )
-    try await Container.shared.repo().upsertEmbedding(unsaved)
+    try await appDB.db.write { db in
+      let podcastID = try V35MigrationTests.insertPodcast(db)
+      let episodeID = try V35MigrationTests.insertEpisode(db, podcastID: podcastID)
 
-    let beforeDelete = try await Container.shared.repo().embedding(for: episodeID)
-    #expect(beforeDelete != nil)
+      try db.execute(
+        sql: """
+          INSERT INTO episodeEmbedding (episodeId, vector, sourceHash, embeddingRevision, dimension)
+          VALUES (?, X'00000000', 'test', 1, 3)
+          """,
+        arguments: [episodeID]
+      )
 
-    _ = try await Container.shared.repo().deletePodcast(podcastID)
+      let beforeDelete = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episodeEmbedding WHERE episodeId = ?",
+        arguments: [episodeID]
+      )
+      #expect(beforeDelete == 1)
 
-    let afterDelete = try await Container.shared.repo().embedding(for: episodeID)
-    #expect(afterDelete == nil)
+      try db.execute(
+        sql: "DELETE FROM episode WHERE id = ?",
+        arguments: [episodeID]
+      )
+
+      let afterDelete = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episodeEmbedding WHERE episodeId = ?",
+        arguments: [episodeID]
+      )
+      #expect(afterDelete == 0)
+    }
   }
 }

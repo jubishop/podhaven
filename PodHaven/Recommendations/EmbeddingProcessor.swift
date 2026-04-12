@@ -47,8 +47,6 @@ struct EmbeddingProcessor: Sendable {
       }
 
       do {
-        let repo = Container.shared.repo()
-
         // Query returns only episodes that actually need embedding work:
         // no existing embedding, wrong revision, or content changed since
         // last computation. Signal episodes (rated/finished) are ordered first.
