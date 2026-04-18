@@ -1,10 +1,59 @@
 ---
 name: NowPlayingInfo elapsed time desync bug
-description: Recurring bug where lock screen shows stale playback position after background playback, causing scrub/resume to rewind. Three confirmed stale scrub incidents analyzed 2026-04-03.
+description: Recurring bug where iOS sends a stale backward scrub ~33s after AirPods-triggered background pause. 5 confirmed incidents; incident-3 fix (event-driven NowPlayingInfo writes) did NOT hold — bug reproduced 4/13 and 4/16.
 type: project
+originSessionId: 03a15cba-4c43-4960-b7e0-311fae53bf03
 ---
-
 ## NowPlayingInfo Elapsed Time Desync Bug
+
+### Incident 5 — 2026-04-16 (Andy's report, log.ndjson analyzed 2026-04-18)
+
+Andy: "Did the thing where it thought I fell asleep and paused and then skipped back 15mins after I restarted it." Thursday morning, episode 27140, AirPods, background.
+
+**Timeline (Session 59, 2026-04-16 PDT):**
+- 05:16:15.125 — `setPlaybackRate: 1.0, currentTime: 1:18:20` (playback starts, dict written with elapsed=1:18:20)
+- 05:16:15 → 05:41:26 — 25 minutes of background playback; periodic observer fires `PlayManager.setCurrentTime` every 10s but **zero NowPlayingInfo writes** (confirms incident-3 fix behavior: continuous writes removed)
+- 05:41:26.533 — Remote command: **pause** (AirPods sleep-pause)
+- 05:41:26.542 — Pause handler writes `setPlaybackRate: 0.0, currentTime: 1:43:31, previousElapsed: Optional(1:18:20)` → **dict was 25:11 stale at pause**, correct value written immediately
+- 05:41:59.157 — **Exactly 32.62s after pause**: `playbackPosition(5371.25, sourceEpisodeID: 27140)` = 1:29:31
+- 05:41:59.164 — `logRemoteScrubDecision`: `requestedPosition: 1:29:31`, `sharedCurrentTime/avPlayerCurrentTime/nowPlayingElapsed: 1:43:31`, `appState: background`, `routeOutputs: [BluetoothA2DPOutput]`, `paused`, `reason: accepted` → scrub applied, rewinding 14:00
+- 05:42:19.245 — Andy hits play; resumes from 1:29:31 (the "15 min" rewind he reported)
+
+### Incident 4 — 2026-04-13 05:13 PDT (unreported, found in same log)
+
+Same fingerprint: AirPods, background, episode 27067 "Tate-Keeping."
+- Pause at 05:13:21.947, `setPlaybackRate: 0.0, currentTime: 26:44, previousElapsed: 12:38` → dict 14:06 stale
+- Scrub at 05:13:54.516 (**32.57s after pause**): `playbackPosition(849.25)` = 14:09
+- `nowPlayingElapsed: 26:44`, `requestedPosition: 14:09` → rewound 12:35
+
+### Why the incident-3 fix DID NOT hold
+
+The incident-3 theory — "iOS silently stops reflecting continuous NowPlayingInfo writes during extended background playback" — was **wrong**. Evidence from incidents 4 and 5:
+
+1. `nowPlayingElapsed` at scrub time reads **correct** (matches avPlayerCurrentTime) in both incidents, because the pause handler wrote the right elapsed time. Yet iOS still sends a backward scrub.
+2. iOS's extrapolation is not rate×realtime. Between last dict write and scrub:
+   - 4/13: 846s of real time, iOS extrapolated ~91s (~11%) → scrub at 14:09
+   - 4/16: 1544s of real time, iOS extrapolated ~671s (~44%) → scrub at 1:29:31
+3. The scrub payload is computed from iOS's stale pre-pause internal state and dispatched ~33s later. Our pause handler's corrected write happens AFTER iOS has already captured the payload, so it can't influence it.
+
+**Revised root-cause theory:** When AirPods auto-pause fires during a long background session, iOS captures its internal extrapolated position (which has drifted backward relative to rate×realtime for reasons unknown — possibly because iOS pauses its extrapolation clock when the app is suspended but not when it's merely backgrounded). iOS then dispatches `pause`, and ~33s later (likely an AirPods reconnection-timeout window) sends a `changePlaybackPosition` with that captured stale position as a "resync."
+
+### Fingerprint (all 5 incidents)
+
+- `playbackStatus: paused`
+- `appState: background`
+- `routeOutputs` contains a wireless route (BluetoothA2DPOutput in all 5 cases)
+- Scrub arrives **32–33s after** the preceding `setPlaybackRate(0.0)` — extremely tight window
+- `requestedPosition` significantly behind `avPlayerCurrentTime` (10–14 min in observed cases)
+- `playbackPosition(X.25, …)` — scrub value has `.25s` quantization (iOS system-generated fingerprint; user-drag scrubs have arbitrary precision)
+
+### Key Files
+
+- `PodHaven/Play/Utility/NowPlayingInfo.swift` — dict management (setCurrentTime, setPlaybackRate with previousElapsed logging)
+- `PodHaven/Play/Utility/PodAVPlayer.swift` — periodic time observer, AVPlayer wrapper
+- `PodHaven/Play/PlayManager.swift` — orchestrates playback, event-driven NowPlayingInfo writes
+- `PodHaven/Play/PlayManager+Events.swift` — `logRemoteScrubDecision` (includes nowPlayingElapsed read, line 51)
+- `PodHaven/Play/CommandCenter.swift` — remote command handler (line 45)
 
 ### Incident 3 — 2026-04-03 (Andy's logs, build 445, commit 25465a57)
 

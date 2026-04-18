@@ -76,6 +76,7 @@ final class PlayManager {
   private(set) var ignoreRemoteScrubCommands = false
   private var restartScrubCommandsTask: Task<Void, any Error>?
   private var lastLoggedTime = Date.distantPast
+  private var lastNowPlayingElapsedWrite: CMTime?
 
   // MARK: - Initialization
 
@@ -506,6 +507,18 @@ final class PlayManager {
       Self.log.debug("setCurrentTime: \(currentTime)")
     }
     stateManager.setCurrentTime(currentTime)
+
+    // Periodically anchor iOS's lock-screen extrapolation. Apple's docs say
+    // explicit periodic updates are unnecessary, but incidents 1–5 in
+    // memory/project_nowplaying_desync_bug.md show iOS's extrapolation drifts
+    // backward during long background sessions. Writing every 3 seconds of
+    // playback-time delta caps worst-case dict staleness at ~3s. Event-driven
+    // writes (seek, play/pause, rate change) also flow through
+    // `NowPlayingInfo.setCurrentTime` directly and are unaffected by this gate.
+    if abs(currentTime.seconds - (lastNowPlayingElapsedWrite ?? .zero).seconds) >= 3.0 {
+      lastNowPlayingElapsedWrite = currentTime
+      NowPlayingInfo.setCurrentTime(currentTime)
+    }
   }
 
   func setStatus(_ status: PlaybackStatus) {

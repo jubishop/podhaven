@@ -160,6 +160,11 @@ extension PlayManager {
 
         switch parsedNotification {
         case .pause:
+          // Snapshot the current elapsed time into NowPlayingInfo before the
+          // pause handler runs, so iOS sees a fresh anchor even if it captures
+          // its lock-screen state between this notification and the rate-
+          // observer-driven write that follows from `pause()`.
+          NowPlayingInfo.setCurrentTime(await podAVPlayer.currentTime())
           await pause()
         case .resume:
           await play()
@@ -201,6 +206,10 @@ extension PlayManager {
         )
 
         await podAVPlayer.savePosition()
+        // Refresh the lock-screen elapsed time on route change too — wireless
+        // disconnect/reconnect moments are when iOS is most likely to snapshot
+        // the dict for a subsequent system-generated scrub.
+        NowPlayingInfo.setCurrentTime(await podAVPlayer.currentTime())
       }
     }
 
