@@ -3,7 +3,9 @@
 import Foundation
 import MediaPlayer
 
-protocol MPRemoteCommandEventable {}
+protocol MPRemoteCommandEventable {
+  var timestamp: TimeInterval { get }
+}
 
 protocol MPSkipIntervalCommandEventable: MPRemoteCommandEventable {
   var interval: TimeInterval { get }

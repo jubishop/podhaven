@@ -26,7 +26,11 @@ enum CommandCenter: Sendable {
     case play, pause, togglePlayPause
     case skipBackward(TimeInterval)
     case skipForward(TimeInterval)
-    case playbackPosition(TimeInterval, sourceEpisodeID: Episode.ID?)
+    case playbackPosition(
+      TimeInterval,
+      sourceEpisodeID: Episode.ID?,
+      eventTimestamp: TimeInterval
+    )
     case changePlaybackRate(Float)
     case nextEpisode
     case previousEpisode
@@ -92,7 +96,8 @@ enum CommandCenter: Sendable {
       yield(
         .playbackPosition(
           positionEvent.positionTime,
-          sourceEpisodeID: Container.shared.sharedState().onDeck?.id
+          sourceEpisodeID: Container.shared.sharedState().onDeck?.id,
+          eventTimestamp: positionEvent.timestamp
         )
       )
       return .success

@@ -50,12 +50,45 @@ Incident 6 proved the dict wasn't the scrub source (dict only 2s stale at pause,
 4. **Added `PodAVPlayer.reasonForWaitingToPlay()`** accessor for the snapshot.
 5. **Removed the two CurrentPlaybackDate-specific tests** from `NowPlayingInfoTests`; removed the dict-key assertion in `LoadingTests`.
 
+### Candidate theory — AirPods "Pause when falling asleep" rewind (added 2026-04-19)
+
+Apple's "Pause Media When Falling Asleep" feature (AirPods 4, AirPods Pro 2, AirPods Pro 3 only) uses motion/head-pose sensors to detect sleep onset. Theory: iOS/AirPods internally stamp the "user stopped actively listening" time *T*, keep playing until sleep is confirmed, then dispatch `pause` followed ~33s later by a `changePlaybackPosition` scrub *back to T* as an intentional "rewind to where you dozed off" behavior.
+
+**Fits:**
+- Explains why the stale position matches no value our dict ever held (separate internal state in mediaserverd/audiod fed by the AirPods sensor stream).
+- Rewind magnitudes (10–17 min across incidents 3–6) are plausible sleep-onset-to-confirmation intervals.
+- All confirmed incidents are on a wireless Bluetooth route — consistent with an AirPods-only feature.
+- Andy's reports sound like he actually was asleep by pause time, so premature-detection-from-his-POV holds.
+
+**Doesn't fit:**
+- Apple docs describe *pause* only, not rewind-on-pause. If this were public behavior we'd expect it documented.
+- 32–33s post-pause delay is suspiciously BLE-reconnection-shaped, not sleep-confirmation-shaped.
+
+**Falsification tests:**
+- Confirm Andy's AirPods model. If he's on AirPods 3 or pre-Pro-2, theory dies.
+- If a future stale scrub fires on a non-sleep-capable route (CarPlay, wired, older Bluetooth, HomePod), theory dies.
+- If post-pause snapshots ever show the scrub position matching a stable dict anchor, theory weakens (dict-derived instead).
+
+**Implication:** if this is the mechanism, it's deterministic iOS behavior we cannot prevent from our side — the fingerprint-rejection mitigation is the right move regardless.
+
 ### Signals to watch for in next incident's snapshot data
 
 - **Dict `nowPlayingElapsed` differs from pause-handler write** across `post-pause +Ns` snapshots → iOS IS rewriting the dict during the reconnect window; the fb43f650 theory isn't fully dead, just wasn't captured by old instrumentation.
 - **`waitingReason` non-nil during `periodic +Ns` playback snapshots** → AVPlayer is stalling internally without us noticing → extrapolation drift is explained by "iOS paused its extrapolation clock because playback wasn't actually producing audio."
 - **`avPlayerCurrentTime` runs ahead of `nowPlayingElapsed` by more than ~3s** in periodic playback snapshots → our 3s anchor isn't being read by iOS after all; writes are being silently dropped/throttled.
 - **Dict `nowPlayingRate` stuck at 1.0 across post-pause snapshots** → rate observer's `setPlaybackRate(0.0)` write didn't reach iOS, even though our pause handler logged it.
+
+### Fingerprint instrumentation shipped 2026-04-19 (same day as incident 6 response)
+
+Goal: find a signal unique to system-generated scrubs that a user physically cannot produce, so we can classify without relying on the ~33s magic number.
+
+1. **`MPRemoteCommandEvent.timestamp` lag** — Plumbed through `Command.playbackPosition(…, eventTimestamp:)`. `logRemoteScrubDecision` now logs raw `eventTimestamp` and `eventLagSeconds = Date().timeIntervalSinceReferenceDate - eventTimestamp`. Hypothesis: user-initiated lock-screen scrubs lag ~0ms; system-generated scrubs stamped at pre-pause capture time should lag multiple seconds (possibly ~30s matching the post-pause delay). Added `timestamp` to `MPRemoteCommandEventable` protocol and fake events. **This is the primary user-undoable signal.**
+2. **Enriched `AVAudioSession.interruptionNotification` logging** — logs `typeRaw`, `optionsRaw`, and `AVAudioSessionInterruptionReasonKey` (iOS 14.5+). `.routeDisconnected` reason (iOS 17+) directly identifies AirPods-disconnect interruptions.
+3. **Enriched route-change logging** — now includes `previousOutputs` from `AVAudioSessionRouteChangePreviousRouteKey`, so we can see full old→new route transitions in the log.
+
+The `wasSuspended` key was deprecated in iOS 14.5; reason key supersedes it. NDJSON log timestamps on `Audio interruption notification` / `Audio route changed` / `applying remote scrub` lines let `analyze-logs` correlate temporal proximity without needing an in-memory ring buffer.
+
+Files touched: `PodHaven/Play/Protocols/MPRemoteCommandableCenter.swift`, `PodHaven/Play/Utility/CommandCenter.swift`, `PodHaven/Play/PlayManager+Events.swift`, `PodHavenTests/Fakes/FakeMPRemoteCommandCenter.swift`, `PodHavenTests/PlayManagerTests/PlaybackControlsTests.swift`.
 
 ### Still-open mitigations (NOT implemented; ranked)
 
