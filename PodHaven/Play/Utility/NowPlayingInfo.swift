@@ -28,7 +28,6 @@ enum NowPlayingInfo {
     nowPlayingInfo[MPMediaItemPropertyTitle] = onDeck.title
     nowPlayingInfo[MPMediaItemPropertyReleaseDate] = onDeck.pubDate
     nowPlayingInfo[MPNowPlayingInfoPropertyAssetURL] = onDeck.episode.mediaURL.rawValue
-    nowPlayingInfo[MPNowPlayingInfoPropertyCurrentPlaybackDate] = Date()
     nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsedSeconds
     nowPlayingInfo[MPNowPlayingInfoPropertyExternalContentIdentifier] = onDeck.episode.guid.rawValue
     nowPlayingInfo[MPNowPlayingInfoPropertyIsLiveStream] = false
@@ -109,12 +108,6 @@ enum NowPlayingInfo {
       elapsedSeconds.clamped(to: 0.0...durationSeconds)
     nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackProgress] =
       (elapsedSeconds / durationSeconds).clamped(to: 0.0...1.0)
-    // Anchor iOS's extrapolation clock to wall time at write. Apple's docs
-    // describe this property only for live streams, but real-world on-demand
-    // players use it with `Date()` and our incident history suggests iOS's
-    // auto-extrapolation drifts during long background sessions; providing an
-    // explicit anchor is cheap and may be the actual reference iOS uses.
-    nowPlayingInfo[MPNowPlayingInfoPropertyCurrentPlaybackDate] = Date()
   }
 
   static func setPlaybackRate(_ rate: Float) {
@@ -125,11 +118,17 @@ enum NowPlayingInfo {
     let infoCenter = Container.shared.mpNowPlayingInfoCenter()
     let previousElapsed =
       infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
+    let previousElapsedString: String
+    if let previousElapsed {
+      previousElapsedString = String(describing: CMTime.seconds(previousElapsed))
+    } else {
+      previousElapsedString = "nil"
+    }
     Self.log.debug(
       """
       setPlaybackRate: \(rate)
         currentTime: \(currentTime)
-        previousElapsed: \(String(describing: previousElapsed.map { CMTime.seconds($0) }))
+        previousElapsed: \(previousElapsedString)
       """
     )
 

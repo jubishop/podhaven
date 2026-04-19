@@ -192,6 +192,10 @@ enum PodAVPlayerError: Error, LocalizedError {
     PlaybackStatus(avPlayer.timeControlStatus)
   }
 
+  func reasonForWaitingToPlay() -> String? {
+    avPlayer.reasonForWaitingToPlay?.rawValue
+  }
+
   func isCurrentItem(_ item: AVPlayerItem?) -> Bool {
     guard let item, let current = avPlayer.current as? AVPlayerItem
     else { return false }

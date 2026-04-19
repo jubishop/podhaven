@@ -1,10 +1,74 @@
 ---
 name: NowPlayingInfo elapsed time desync bug
-description: Recurring bug where iOS sends a stale backward scrub ~33s after AirPods-triggered background pause. 5 confirmed incidents; incident-3 fix (event-driven NowPlayingInfo writes) did NOT hold — bug reproduced 4/13 and 4/16.
+description: Recurring bug where iOS sends a stale backward scrub ~30–33s after AirPods-triggered background pause. 6 confirmed incidents. Both the incident-3 fix (event-driven writes) and the incident-5 fix (fb43f650, periodic CurrentPlaybackDate anchor + playbackState mirror) FAILED to prevent recurrence on 4/19. Response: removed CurrentPlaybackDate entirely (on-demand audio doesn't need it) and added a 30s wall-clock diagnostic snapshot to catch AVPlayer/dict/mediaserverd drift on the next incident.
 type: project
 originSessionId: 03a15cba-4c43-4960-b7e0-311fae53bf03
 ---
 ## NowPlayingInfo Elapsed Time Desync Bug
+
+### Incident 6 — 2026-04-19 (Andy's report, log.ndjson analyzed same day) — fb43f650 fix DID NOT hold
+
+Andy reported another scrubbing-backwards incident. Build was running fb43f650 (committed 4/18 11:17 PDT) — confirmed by visible 3-second-cadence `setCurrentTime` logs from the new periodic anchor.
+
+**Timeline (Session 30, 2026-04-19 PDT):**
+- 13:11:04.988 — `setOnDeck: [27238]` "Nolan, Spielberg…", elapsed=0:00, CurrentPlaybackDate=Date(), playbackState=.paused
+- 13:11:05.068 — `setPlaybackRate: 1.0`, playback starts from 0:00
+- 13:11:31.464 — scenePhase: **`backgrounded`** (player at ~0:25)
+- 13:11:31 → 13:47:38 — 36 min background playback. Periodic anchor logs every 3s of playback delta (working as designed).
+- 13:47:38.938 — Last anchor before pause: `setCurrentTime: 33:48` (CurrentPlaybackDate refreshed)
+- 13:47:41.151 — Remote command: **pause** (AirPods sleep-pause)
+- 13:47:41.155 — Pause handler: `setPlaybackRate: 0.0, currentTime: 33:50, previousElapsed: Optional(33:48)` → **dict only 2s stale at pause** (vs 25:11/14:06 stale in incidents 4/5)
+- 13:48:11.467 — **30.32s after pause**: `playbackPosition(1020.7501434850001, sourceEpisodeID: 27238)` = **17:00.75**
+- 13:48:11.470 — `logRemoteScrubDecision`: `requestedPosition: 17:00`, `sharedCurrentTime/avPlayerCurrentTime/nowPlayingElapsed: 33:50`, `appState: background`, `routeOutputs: [BluetoothA2DPOutput]`, `paused`, `reason: accepted` → scrub applied, rewinding **16:50**
+
+### Why the fb43f650 fix DID NOT hold
+
+The fb43f650 theory: iOS's auto-extrapolation drifts during long background sessions; periodically anchoring `MPNowPlayingInfoPropertyCurrentPlaybackDate = Date()` (every 3s of playback delta + on rate change + on route change) plus mirroring rate into `playbackState` should keep iOS's view of position consistent.
+
+**Evidence the fix worked at the layer it targeted:**
+1. Periodic `setCurrentTime` anchor fired every 3s right up to pause (visible in logs).
+2. `previousElapsed: 33:48` at pause vs `currentTime: 33:50` written → dict was only 2s stale (vs 25:11 stale in incident 5 with the same wall-time gap).
+
+**Evidence the fix didn't address the actual bug:**
+1. iOS still sent a stale scrub with the same fingerprint (background, BluetoothA2DPOutput, paused, ~30s post-pause, .25/.75 quantization).
+2. The captured stale position (17:00) does not correspond to ANY value the dict held — never anchored at 17:00, never had CurrentPlaybackDate matching a wall time that would extrapolate to 17:00, no rate/anchor combination in the dict produces 17:00.
+
+**Updated root-cause theory:** The system-generated stale scrub does NOT read from `MPNowPlayingInfoCenter.nowPlayingInfo` at all. iOS captures the position from a separate internal source — most likely `mediaserverd`'s cached view of `AVAudioSession`/`AVPlayer` state, which is what the AirPods-reconnect window queries when reconciling after auto-pause. That internal view is throttled during long background sessions independent of our dict writes.
+
+**What 17:00 might mean:** Wall-clock at scrub minus 1020s = 13:31:11. At 13:31:11 the player was around 20:07 (assuming linear playback from 13:11:04 + minor buffering). So 17:00 ≠ "position 30s ago". It also ≠ position at backgrounding (0:25). It does not cleanly match any obvious anchor — supports the "internal mediaserverd state" theory rather than any dict-derived value.
+
+### Response shipped after incident 6 (2026-04-19)
+
+Incident 6 proved the dict wasn't the scrub source (dict only 2s stale at pause, yet scrub still fired), so we shifted from "tune the dict" to "instrument and observe":
+
+1. **Removed `MPNowPlayingInfoPropertyCurrentPlaybackDate` entirely** from `NowPlayingInfo.setOnDeck` and `NowPlayingInfo.setCurrentTime`. Incident 6 showed writing it every 3s doesn't prevent the bug, and for on-demand audio the property is genuinely redundant — iOS's implicit receive-time extrapolation does the same thing. The live-stream "playback origin date" semantic doesn't apply to pre-recorded podcasts. If a future incident suggests iOS uses this property for the stale-scrub capture, put it back as `Date()` (write-timestamp semantic, NOT `Date() − elapsed`).
+2. **Removed the two speculative `NowPlayingInfo.setCurrentTime` dict writes** also added by fb43f650: the pre-pause anchor in the audio-interruption handler (redundant — the rate observer's `setPlaybackRate(0.0)` writes ElapsedPlaybackTime+PlaybackRate atomically right after), and the route-change anchor (motivated by the disproven "iOS captures dict during wireless-reconnect windows" theory).
+3. **Added `logBackgroundPlaybackSnapshot` in PlayManager+Events.swift**. Captures: AVPlayer currentTime, dict ElapsedPlaybackTime, dict PlaybackRate, AVPlayer `timeControlStatus`, `reasonForWaitingToPlay`, sharedPlaybackStatus, appState, routeOutputs. Called from three places:
+   - Periodic 30s wall-clock from `PlayManager.setCurrentTime` (label `periodic +Ns`) — daily log overhead ~250KB at 6h/day playback, within the 3MB rotation for 24h retention
+   - Immediately on `.pause` interruption (label `pause`)
+   - `startPostPauseObservation` task fires 9 snapshots at 5s intervals (+5s through +45s) labeled `post-pause +Ns`, cancelled/restarted on next pause
+4. **Added `PodAVPlayer.reasonForWaitingToPlay()`** accessor for the snapshot.
+5. **Removed the two CurrentPlaybackDate-specific tests** from `NowPlayingInfoTests`; removed the dict-key assertion in `LoadingTests`.
+
+### Signals to watch for in next incident's snapshot data
+
+- **Dict `nowPlayingElapsed` differs from pause-handler write** across `post-pause +Ns` snapshots → iOS IS rewriting the dict during the reconnect window; the fb43f650 theory isn't fully dead, just wasn't captured by old instrumentation.
+- **`waitingReason` non-nil during `periodic +Ns` playback snapshots** → AVPlayer is stalling internally without us noticing → extrapolation drift is explained by "iOS paused its extrapolation clock because playback wasn't actually producing audio."
+- **`avPlayerCurrentTime` runs ahead of `nowPlayingElapsed` by more than ~3s** in periodic playback snapshots → our 3s anchor isn't being read by iOS after all; writes are being silently dropped/throttled.
+- **Dict `nowPlayingRate` stuck at 1.0 across post-pause snapshots** → rate observer's `setPlaybackRate(0.0)` write didn't reach iOS, even though our pause handler logged it.
+
+### Still-open mitigations (NOT implemented; ranked)
+
+- **Reject system scrubs by fingerprint.** When `appState=background`, `playbackStatus=paused`, wireless route, position ends in `.25`/`.75`, and `requestedPosition` > e.g. 30s behind `avPlayerCurrentTime`, reject. User-initiated lock-screen scrubs don't match this pattern. Avoided because it's a hack — want root cause first.
+- **Put CurrentPlaybackDate back as `Date()`** if snapshot data shows iOS's `ElapsedPlaybackTime` view diverging from ours during background in a way that suggests a missing anchor.
+
+### Key Files
+
+- `PodHaven/Play/Utility/NowPlayingInfo.swift` — dict management (no CurrentPlaybackDate writes; setPlaybackRate mirrors to playbackState)
+- `PodHaven/Play/Utility/PodAVPlayer.swift` — periodic time observer, AVPlayer wrapper, `reasonForWaitingToPlay()` accessor
+- `PodHaven/Play/PlayManager.swift` — `setCurrentTime` gates the 3s anchor delta and the 30s diagnostic-snapshot wall-clock delta
+- `PodHaven/Play/PlayManager+Events.swift` — `logBackgroundPlaybackSnapshot`, `logRemoteScrubDecision`, interruption + route-change handlers
+- `PodHaven/Play/CommandCenter.swift` — remote command handler
 
 ### Incident 5 — 2026-04-16 (Andy's report, log.ndjson analyzed 2026-04-18)
 
