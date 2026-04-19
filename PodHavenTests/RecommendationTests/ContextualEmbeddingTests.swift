@@ -124,16 +124,6 @@ struct ContextualEmbeddingTests {
     let embedding = ContextualEmbedding(embedding: fake)
     #expect(embedding.revision == 42)
   }
-
-  @Test("maximumSequenceLength delegates to underlying embeddable")
-  func maximumSequenceLengthDelegates() {
-    let fake = ControllableEmbeddable(
-      hasAvailableAssets: true,
-      maximumSequenceLength: 512
-    )
-    let embedding = ContextualEmbedding(embedding: fake)
-    #expect(embedding.maximumSequenceLength == 512)
-  }
 }
 
 // MARK: - Controllable Fake
@@ -141,7 +131,6 @@ struct ContextualEmbeddingTests {
 private class ControllableEmbeddable: Embeddable {
   var hasAvailableAssets: Bool
   let revision: Int
-  let maximumSequenceLength: Int
   let vectors: [[Double]]
 
   private(set) var loadCount = 0
@@ -150,13 +139,11 @@ private class ControllableEmbeddable: Embeddable {
   init(
     hasAvailableAssets: Bool,
     vectors: [[Double]] = [[0.5, 0.5, 0.5]],
-    revision: Int = 1,
-    maximumSequenceLength: Int = 1000
+    revision: Int = 1
   ) {
     self.hasAvailableAssets = hasAvailableAssets
     self.vectors = vectors
     self.revision = revision
-    self.maximumSequenceLength = maximumSequenceLength
   }
 
   func load() throws {

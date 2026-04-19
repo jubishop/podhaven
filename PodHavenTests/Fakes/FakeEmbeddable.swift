@@ -7,7 +7,6 @@ import Foundation
 struct FakeEmbeddable: Embeddable {
   var hasAvailableAssets = true
   let revision: Int = 1
-  let maximumSequenceLength: Int = 1000
 
   func load() throws {}
 

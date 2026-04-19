@@ -10,7 +10,7 @@ import Tagged
 
 // MARK: - EpisodeRating
 
-enum EpisodeRating: String, Codable, DatabaseValueConvertible, Hashable, Sendable {
+enum EpisodeRating: String, CaseIterable, Codable, DatabaseValueConvertible, Hashable, Sendable {
   case loved
   case liked
   case disliked

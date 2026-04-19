@@ -5,7 +5,6 @@ import Foundation
 protocol Embeddable {
   var hasAvailableAssets: Bool { get }
   var revision: Int { get }
-  var maximumSequenceLength: Int { get }
   func load() throws
   func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void)
   func embeddingResult(for string: String) throws -> any EmbeddableResult

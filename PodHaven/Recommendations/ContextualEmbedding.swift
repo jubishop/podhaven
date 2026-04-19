@@ -46,7 +46,6 @@ class ContextualEmbedding {
   }
 
   var revision: Int { embedding.revision }
-  var maximumSequenceLength: Int { embedding.maximumSequenceLength }
 
   func requestAndLoadAssetsIfNeeded() {
     guard !isAvailable else { return }

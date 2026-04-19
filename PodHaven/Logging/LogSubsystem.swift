@@ -66,7 +66,6 @@ enum LogSubsystem {
 
   enum Recommendations: String, LogCategorizable {
     case embedding
-    case engine
     case processor
   }
 

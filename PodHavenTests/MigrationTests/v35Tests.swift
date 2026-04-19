@@ -108,4 +108,40 @@ class V35MigrationTests {
       #expect(afterDelete == 0)
     }
   }
+
+  @Test("podcastEmbedding cascades on podcast delete")
+  func podcastEmbeddingCascade() async throws {
+    try migrator.migrate(appDB.db, upTo: "v35")
+
+    try await appDB.db.write { db in
+      let podcastID = try V35MigrationTests.insertPodcast(db)
+
+      try db.execute(
+        sql: """
+          INSERT INTO podcastEmbedding (podcastId, vector, sourceHash, embeddingRevision, dimension)
+          VALUES (?, X'00000000', 'test', 1, 3)
+          """,
+        arguments: [podcastID]
+      )
+
+      let beforeDelete = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM podcastEmbedding WHERE podcastId = ?",
+        arguments: [podcastID]
+      )
+      #expect(beforeDelete == 1)
+
+      try db.execute(
+        sql: "DELETE FROM podcast WHERE id = ?",
+        arguments: [podcastID]
+      )
+
+      let afterDelete = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM podcastEmbedding WHERE podcastId = ?",
+        arguments: [podcastID]
+      )
+      #expect(afterDelete == 0)
+    }
+  }
 }

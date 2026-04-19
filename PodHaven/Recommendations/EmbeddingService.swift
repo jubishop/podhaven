@@ -18,6 +18,13 @@ enum EmbeddingService {
   private static let episodeBlendWeight: Float = 0.6
   private static let podcastBlendWeight: Float = 0.4
 
+  // Regex<Substring> isn't Sendable-annotated upstream, but its compiled NFA is
+  // immutable and matching is thread-safe. Precompile once to avoid recompiling
+  // on every cleanText call (called 2x per episode during BG embedding pass).
+  private nonisolated(unsafe) static let htmlTagRegex = /<[^>]+>/
+  private nonisolated(unsafe) static let urlRegex = /https?:\/\/\S+/
+  private nonisolated(unsafe) static let whitespaceRunRegex = /\s+/
+
   // MARK: - Upsert Episode Embeddings
 
   static func upsertEpisodeEmbeddings(
@@ -96,8 +103,7 @@ enum EmbeddingService {
       return cached.floatVector
     }
 
-    let text = String(cleanedDescription.prefix(embedding.maximumSequenceLength))
-    let vector = try embedding.vector(for: text)
+    let vector = try embedding.vector(for: cleanedDescription)
     let normalized = VectorMath.normalize(vector)
 
     let unsaved = UnsavedPodcastEmbedding(
@@ -144,10 +150,7 @@ enum EmbeddingService {
 
     let titleVector = try embedding.vector(for: cleanedTitle)
 
-    let descriptionText =
-      cleanedDescription.isEmpty
-      ? cleanedTitle
-      : String(cleanedDescription.prefix(embedding.maximumSequenceLength))
+    let descriptionText = cleanedDescription.isEmpty ? cleanedTitle : cleanedDescription
     let descriptionVector = try embedding.vector(for: descriptionText)
 
     // Weighted average of title and description
@@ -181,31 +184,10 @@ enum EmbeddingService {
 
   static func cleanText(_ text: String) -> String {
     var result = text
-
-    // Strip HTML tags
-    result = result.replacingOccurrences(
-      of: "<[^>]+>",
-      with: " ",
-      options: .regularExpression
-    )
-
-    // Strip URLs
-    result = result.replacingOccurrences(
-      of: "https?://\\S+",
-      with: "",
-      options: .regularExpression
-    )
-
-    // Strip timestamps
+    unsafe result.replace(htmlTagRegex, with: " ")
+    unsafe result.replace(urlRegex, with: "")
     result.replace(Timestamp.regex, with: "")
-
-    // Normalize whitespace
-    result = result.replacingOccurrences(
-      of: "\\s+",
-      with: " ",
-      options: .regularExpression
-    )
-
+    unsafe result.replace(whitespaceRunRegex, with: " ")
     return result.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }

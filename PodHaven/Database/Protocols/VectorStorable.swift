@@ -8,7 +8,11 @@ protocol VectorStorable {
 
 extension VectorStorable {
   var floatVector: [Float] {
-    unsafe vector.withUnsafeBytes { unsafe Array($0.bindMemory(to: Float.self)) }
+    let floatStride = MemoryLayout<Float>.size
+    guard vector.count % floatStride == 0 else {
+      Assert.fatal("vector blob length \(vector.count) is not a multiple of \(floatStride)")
+    }
+    return unsafe vector.withUnsafeBytes { unsafe Array($0.bindMemory(to: Float.self)) }
   }
 
   static func vectorData(from floats: [Float]) -> Data {

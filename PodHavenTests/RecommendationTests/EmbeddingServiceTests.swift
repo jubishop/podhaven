@@ -38,6 +38,35 @@ class EmbeddingServiceTests {
     #expect(result == "too many spaces")
   }
 
+  // MARK: - Input Forwarding
+
+  @Test("upsertEpisodeEmbeddings forwards full cleaned text without length truncation")
+  func fullTextForwarded() async throws {
+    // Build a description that would have been truncated under the old
+    // prefix(maximumSequenceLength) behavior, confirming the full string
+    // reaches embeddingResult(for:).
+    let longDescription = String(repeating: "word ", count: 500).trimmed()
+    let longPodcastDescription = String(repeating: "pod ", count: 500).trimmed()
+
+    let podcastEpisode = try await makePodcastEpisode(
+      podcastDescription: longPodcastDescription,
+      episodeTitle: "Forwarding Test",
+      episodeDescription: longDescription
+    )
+
+    let recorder = RecordingEmbeddable()
+    let embedding = makeContextualEmbedding(recorder)
+
+    try await EmbeddingService.upsertEpisodeEmbeddings(
+      for: [podcastEpisode.episode],
+      embedding: embedding
+    )
+
+    let seen = recorder.seenInputs()
+    #expect(seen.contains(longDescription))
+    #expect(seen.contains(longPodcastDescription))
+  }
+
   // MARK: - Embedding Caching
 
   @Test("upsertEpisodeEmbeddings caches results and skips already computed")
@@ -365,7 +394,6 @@ class EmbeddingServiceTests {
 private struct RevisionedEmbeddable: Embeddable {
   var hasAvailableAssets = true
   let revision: Int
-  let maximumSequenceLength: Int = 1000
 
   func load() throws {}
   func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
@@ -373,4 +401,21 @@ private struct RevisionedEmbeddable: Embeddable {
   func embeddingResult(for string: String) throws -> any EmbeddableResult {
     try FakeEmbeddable().embeddingResult(for: string)
   }
+}
+
+private final class RecordingEmbeddable: Embeddable {
+  let hasAvailableAssets = true
+  let revision: Int = 1
+
+  private let inputs = ThreadSafe<[String]>([])
+
+  func load() throws {}
+  func requestAssets(completion: @escaping @Sendable ((any Error)?) -> Void) { completion(nil) }
+
+  func embeddingResult(for string: String) throws -> any EmbeddableResult {
+    inputs { $0.append(string) }
+    return try FakeEmbeddable().embeddingResult(for: string)
+  }
+
+  func seenInputs() -> [String] { inputs() }
 }
