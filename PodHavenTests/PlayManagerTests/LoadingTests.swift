@@ -71,8 +71,16 @@ import Testing
     expectedInfo[MPNowPlayingInfoPropertyPlaybackRate] = 0.0
     expectedInfo[MPNowPlayingInfoPropertyPlaybackQueueCount] = 1
 
-    // Check all keys exist in both dictionaries
-    #expect(Set(nowPlayingInfo!.keys) == Set(expectedInfo.keys).union([MPMediaItemPropertyArtwork]))
+    // Check all keys exist in both dictionaries. CurrentPlaybackDate is
+    // verified separately below because its value is a live `Date()`.
+    #expect(
+      Set(nowPlayingInfo!.keys)
+        == Set(expectedInfo.keys)
+        .union([
+          MPMediaItemPropertyArtwork,
+          MPNowPlayingInfoPropertyCurrentPlaybackDate,
+        ])
+    )
 
     let isEqual: (Any?, Any) -> Bool = { lhs, rhs in
       switch (lhs, rhs) {
@@ -107,6 +115,15 @@ import Testing
       #expect(actualImage.isVisuallyEqual(to: image))
     } else {
       Issue.record("MPMediaItemPropertyArtwork is missing or wrong type")
+    }
+
+    // CurrentPlaybackDate anchors iOS's extrapolation clock at each elapsed
+    // write; at load time it should be a recent Date().
+    let currentPlaybackDate =
+      nowPlayingInfo![MPNowPlayingInfoPropertyCurrentPlaybackDate] as? Date
+    #expect(currentPlaybackDate != nil)
+    if let currentPlaybackDate {
+      #expect(abs(currentPlaybackDate.timeIntervalSinceNow) < 60)
     }
   }
 

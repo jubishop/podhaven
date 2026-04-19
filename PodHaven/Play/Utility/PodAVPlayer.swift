@@ -326,8 +326,11 @@ enum PodAVPlayerError: Error, LocalizedError {
       return
     }
 
-    // Only update the database every 3 seconds
-    if currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds >= 3.0 {
+    // Only update the database every 3 seconds of playback-time delta in
+    // either direction. `abs` guards against any future path that moves time
+    // backward without routing through `seek(to:)` (which resets
+    // `lastDatabaseUpdateTime`).
+    if abs(currentTime.seconds - (lastDatabaseUpdateTime ?? .zero).seconds) >= 3.0 {
       await saveCurrentTime(currentTime)
     }
 

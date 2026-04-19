@@ -1,3 +1,8 @@
+## Project Memory
+- Project-specific memory lives in `memory/`.
+- Use `memory/MEMORY.md` as the canonical index of saved memories, with one linked Markdown file per memory in `memory/`.
+- When asked to save, recall, or update a memory, read and write those files directly. Check memory before guessing about prior project-specific decisions or environment details.
+
 ## MCP Usage
 - If discussing Swift, SwiftUI, and iOS: Consult the apple-docs mcp for up to date information.
 
