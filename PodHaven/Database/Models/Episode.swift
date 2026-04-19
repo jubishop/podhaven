@@ -321,7 +321,7 @@ extension Episode {
     guard let description else { return nil }
 
     var seen = Set<Int>()
-    let times: [CMTime] = description.matches(of: Timestamp.regex)
+    let times: [CMTime] = unsafe description.matches(of: Timestamp.regex)
       .compactMap { match in
         guard let totalSeconds = Timestamp.parse(match.output) else { return nil }
 

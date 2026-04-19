@@ -3,9 +3,11 @@
 import Foundation
 
 enum Timestamp {
-  static var regex: Regex<Substring> {
+  // Regex<Substring> isn't Sendable-annotated upstream, but its compiled NFA is
+  // immutable and matching is thread-safe. Precompile once to avoid recompiling
+  // on every access (hot in RSS ingest and embedding background passes).
+  nonisolated(unsafe) static let regex: Regex<Substring> =
     #/(?:\d{1,2}:\d{2}:\d{2}|\d{1,2}:\d{2})(?![\d:])/#
-  }
 
   // Parses a timestamp string (e.g. "2:15", "14:30", "1:02:15") into total seconds.
   static func parse(_ timestamp: some StringProtocol) -> Int? {
