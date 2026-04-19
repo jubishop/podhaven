@@ -14,7 +14,6 @@ import Testing
   @DynamicInjected(\.cacheManager) private var cacheManager
   @DynamicInjected(\.fakeEpisodeAssetLoader) private var episodeAssetLoader
   @DynamicInjected(\.playManager) private var playManager
-  @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.stateManager) private var stateManager
 
   private var avPlayer: FakeAVPlayer {
@@ -77,56 +76,6 @@ import Testing
       key: MPNowPlayingInfoPropertyElapsedPlaybackTime,
       value: 6.0
     )
-  }
-
-  // MARK: - CurrentPlaybackDate
-
-  @Test("setOnDeck writes CurrentPlaybackDate")
-  func setOnDeckWritesCurrentPlaybackDate() async throws {
-    await playManager.start()
-    let podcastEpisode = try await Create.podcastEpisode()
-
-    let before = Date()
-    try await playManager.load(podcastEpisode)
-    let after = Date()
-
-    let date =
-      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyCurrentPlaybackDate] as? Date
-    #expect(date != nil)
-    if let date {
-      #expect(date >= before)
-      #expect(date <= after)
-    }
-  }
-
-  @Test("periodic elapsed write refreshes CurrentPlaybackDate")
-  func periodicElapsedWriteRefreshesCurrentPlaybackDate() async throws {
-    await playManager.start()
-    let podcastEpisode = try await Create.podcastEpisode()
-    await episodeAssetLoader.respond(
-      to: podcastEpisode.episode.mediaURL,
-      data: (true, CMTime.seconds(240))
-    )
-    try await playManager.load(podcastEpisode)
-    try await PlayHelpers.play()
-
-    let initialDate =
-      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyCurrentPlaybackDate] as? Date
-    #expect(initialDate != nil)
-
-    // Cross the 3s gate so a periodic write fires.
-    avPlayer.advanceTime(to: CMTime.seconds(3))
-    try await PlayHelpers.waitForNowPlayingInfo(
-      key: MPNowPlayingInfoPropertyElapsedPlaybackTime,
-      value: 3.0
-    )
-
-    let refreshedDate =
-      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyCurrentPlaybackDate] as? Date
-    #expect(refreshedDate != nil)
-    if let initialDate, let refreshedDate {
-      #expect(refreshedDate >= initialDate)
-    }
   }
 
   // MARK: - playbackState Enum

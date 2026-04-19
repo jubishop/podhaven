@@ -77,6 +77,8 @@ final class PlayManager {
   private var restartScrubCommandsTask: Task<Void, any Error>?
   private var lastLoggedTime = Date.distantPast
   private var lastNowPlayingElapsedWrite: CMTime?
+  private var lastBackgroundSnapshot: Date?
+  private var postPauseObservationTask: Task<Void, Never>?
 
   // MARK: - Initialization
 
@@ -367,6 +369,37 @@ final class PlayManager {
 
   // MARK: - Remote Scrub Suppression
 
+  // After an AirPods-triggered pause, fire snapshots every 5s for 45s so the
+  // dict state across the ~30s window before iOS's system-generated stale
+  // scrub is captured. If any snapshot shows ElapsedPlaybackTime drifting
+  // from what the pause handler wrote, iOS is rewriting the dict during that
+  // window. If the dict stays put but the scrub still arrives with a
+  // different value, iOS is sourcing the position from somewhere else
+  // entirely (mediaserverd theory). See memory/project_nowplaying_desync_bug.md.
+  func startPostPauseObservation() {
+    postPauseObservationTask?.cancel()
+    postPauseObservationTask = Task { [weak self] in
+      guard let self else { return }
+      let pauseAt = Date()
+      for _ in 0..<9 {
+        do {
+          try await sleeper.sleep(for: .seconds(5))
+        } catch {
+          return
+        }
+        if Task.isCancelled { return }
+        let offset = Int(Date().timeIntervalSince(pauseAt).rounded())
+        await logBackgroundPlaybackSnapshot(
+          label: "post-pause +\(offset)s",
+          currentTime: podAVPlayer.currentTime()
+        )
+      }
+      // Clear only on graceful completion. The cancel path returns early so a
+      // replacement task assigned to this property isn't wiped out.
+      postPauseObservationTask = nil
+    }
+  }
+
   // Temporarily suppress remote scrub commands after episode transitions.
   // iOS may deliver stale scrub events from the finished episode's gesture
   // with the NEW episode's ID (captured at delivery time, not gesture time),
@@ -518,6 +551,29 @@ final class PlayManager {
     if abs(currentTime.seconds - (lastNowPlayingElapsedWrite ?? .zero).seconds) >= 3.0 {
       lastNowPlayingElapsedWrite = currentTime
       NowPlayingInfo.setCurrentTime(currentTime)
+    }
+
+    // Every 30s wall-clock, snapshot both our AVPlayer view and iOS's dict
+    // view so the next stale-scrub incident has a trail of checkpoints
+    // covering the whole session. Tight post-pause resolution comes from
+    // `startPostPauseObservation` at 5s; during normal playback 30s keeps
+    // the daily log budget around ~250KB so 24h of retention stays within
+    // the 3MB log rotation. See memory/project_nowplaying_desync_bug.md.
+    if let last = lastBackgroundSnapshot {
+      let snapshotDelta = now.timeIntervalSince(last)
+      if snapshotDelta >= 30 {
+        lastBackgroundSnapshot = now
+        Task { [weak self, currentTime, snapshotDelta] in
+          guard let self else { return }
+          let offset = Int(snapshotDelta.rounded())
+          await logBackgroundPlaybackSnapshot(
+            label: "periodic +\(offset)s",
+            currentTime: currentTime
+          )
+        }
+      }
+    } else {
+      lastBackgroundSnapshot = now
     }
   }
 

@@ -32,6 +32,44 @@ extension PlayManager {
     await finishEpisode(episodeID)
   }
 
+  // Snapshot both our view of playback state (AVPlayer currentTime,
+  // timeControlStatus, reasonForWaitingToPlay) and iOS's dict view (elapsed,
+  // rate). `label` identifies the caller (periodic, pause, post-pause +5s,
+  // etc.) so the next stale-scrub incident has a trail of checkpoints across
+  // the whole session leading up to, through, and past the pause window.
+  func logBackgroundPlaybackSnapshot(label: String, currentTime: CMTime) async {
+    let avPlayerPlaybackStatus = await podAVPlayer.playbackStatus()
+    let waitingReason = await podAVPlayer.reasonForWaitingToPlay()
+    let applicationState = await Container.shared.uiApplication().applicationState
+    let routeOutputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType.rawValue)
+    let infoCenter = Container.shared.mpNowPlayingInfoCenter()
+    let nowPlayingElapsed: Double? =
+      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
+    let nowPlayingRate: Double? =
+      infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] as? Double
+
+    let elapsedString: String
+    if let nowPlayingElapsed {
+      elapsedString = String(describing: CMTime.seconds(nowPlayingElapsed))
+    } else {
+      elapsedString = "nil"
+    }
+
+    Self.log.debug(
+      """
+      playback snapshot (\(label))
+        avPlayerCurrentTime: \(currentTime)
+        nowPlayingElapsed: \(elapsedString)
+        nowPlayingRate: \(String(describing: nowPlayingRate))
+        sharedPlaybackStatus: \(sharedState.playbackStatus)
+        avPlayerPlaybackStatus: \(avPlayerPlaybackStatus)
+        waitingReason: \(String(describing: waitingReason))
+        appState: \(applicationState)
+        routeOutputs: \(routeOutputs)
+      """
+    )
+  }
+
   private func logRemoteScrubDecision(
     action: String,
     requestedPosition: TimeInterval,
@@ -47,6 +85,12 @@ extension PlayManager {
     let infoCenter = Container.shared.mpNowPlayingInfoCenter()
     let nowPlayingElapsed =
       infoCenter.nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double
+    let nowPlayingElapsedString: String
+    if let nowPlayingElapsed {
+      nowPlayingElapsedString = String(describing: CMTime.seconds(nowPlayingElapsed))
+    } else {
+      nowPlayingElapsedString = "nil"
+    }
 
     Self.log.debug(
       """
@@ -57,7 +101,7 @@ extension PlayManager {
         onDeckTitle: \(String(describing: onDeck?.title))
         sharedCurrentTime: \(String(describing: onDeck?.currentTime))
         avPlayerCurrentTime: \(avPlayerCurrentTime)
-        nowPlayingElapsed: \(String(describing: nowPlayingElapsed.map { CMTime.seconds($0) }))
+        nowPlayingElapsed: \(nowPlayingElapsedString)
         sharedPlaybackStatus: \(sharedState.playbackStatus)
         avPlayerPlaybackStatus: \(avPlayerPlaybackStatus)
         ignoreRemoteScrubCommands: \(ignoreRemoteScrubCommands)
@@ -160,12 +204,10 @@ extension PlayManager {
 
         switch parsedNotification {
         case .pause:
-          // Snapshot the current elapsed time into NowPlayingInfo before the
-          // pause handler runs, so iOS sees a fresh anchor even if it captures
-          // its lock-screen state between this notification and the rate-
-          // observer-driven write that follows from `pause()`.
-          NowPlayingInfo.setCurrentTime(await podAVPlayer.currentTime())
           await pause()
+          let pausedAt = await podAVPlayer.currentTime()
+          await logBackgroundPlaybackSnapshot(label: "pause", currentTime: pausedAt)
+          startPostPauseObservation()
         case .resume:
           await play()
         case .ignore:
@@ -206,10 +248,6 @@ extension PlayManager {
         )
 
         await podAVPlayer.savePosition()
-        // Refresh the lock-screen elapsed time on route change too — wireless
-        // disconnect/reconnect moments are when iOS is most likely to snapshot
-        // the dict for a subsequent system-generated scrub.
-        NowPlayingInfo.setCurrentTime(await podAVPlayer.currentTime())
       }
     }
 
