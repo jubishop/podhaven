@@ -6,7 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("SearchViewModel tests", .container)
+@Suite("of SearchViewModel tests", .container)
 @MainActor final class SearchViewModelTests {
   @DynamicInjected(\.iTunesServiceSession) private var iTunesServiceSession
   @DynamicInjected(\.repo) private var repo
