@@ -186,7 +186,7 @@ enum EmbeddingService {
     var result = text
     unsafe result.replace(htmlTagRegex, with: " ")
     unsafe result.replace(urlRegex, with: "")
-    result.replace(Timestamp.regex, with: "")
+    unsafe result.replace(Timestamp.regex, with: "")
     unsafe result.replace(whitespaceRunRegex, with: " ")
     return result.trimmingCharacters(in: .whitespacesAndNewlines)
   }
