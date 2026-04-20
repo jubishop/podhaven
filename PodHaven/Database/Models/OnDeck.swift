@@ -33,10 +33,6 @@ struct OnDeck: EpisodeListable, FetchableRecord, Identifiable {
 
   var artwork: UIImage?
   var currentTime: CMTime
-  // In-memory like currentTime: the DB writes maxPlaybackTime alongside
-  // currentTime every 3s, so reading it from the GRDB observation would
-  // cause OnDeck to re-query at the same cadence. StateManager grows this
-  // value in sync with currentTime and re-hydrates from the DB on setOnDeck.
   var maxPlaybackTime: CMTime
 
   // MARK: - FetchableRecord

@@ -67,21 +67,23 @@ import Tagged
 
   // Live peak: fall back to the scrubber value in case the in-memory OnDeck
   // lags behind (e.g., a scrub just happened and the update is in-flight).
-  private var maxPlaybackPosition: Double {
-    let max = (sharedState.onDeck?.maxPlaybackTime ?? .zero).safe.seconds
-    return Swift.max(max, sliderValue)
+  private var maxPlaybackTime: Double {
+    Swift.max(
+      (sharedState.onDeck?.maxPlaybackTime ?? .zero).safe.seconds,
+      sliderValue
+    )
   }
 
-  var maxPlaybackMarker: Double? {
-    let ahead = maxPlaybackPosition - sliderValue
+  var maxPlaybackPosition: Double? {
+    let ahead = maxPlaybackTime - sliderValue
     let totalDuration = duration.seconds
     guard totalDuration > 0 else { return nil }
     guard (ahead / totalDuration) > Self.maxPlaybackIndicatorMinRatio else { return nil }
-    return maxPlaybackPosition
+    return maxPlaybackTime
   }
 
   var canJumpToMaxPlayback: Bool {
-    (maxPlaybackPosition - sliderValue) > Self.jumpToMaxMinDeltaSeconds
+    (maxPlaybackTime - sliderValue) > Self.jumpToMaxMinDeltaSeconds
   }
 
   var canGoToNextChapter: Bool {
@@ -161,7 +163,7 @@ import Tagged
   }
 
   func jumpToMaxPlayback() {
-    let target = maxPlaybackPosition
+    let target = maxPlaybackTime
     Task { [weak self] in
       guard let self else { return }
       Self.log.debug("Jumping to max playback position: \(target)")

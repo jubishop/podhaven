@@ -9,7 +9,7 @@ struct ProgressBar: View {
   let range: ClosedRange<Double>
   let animationDuration: Double
   var tickMarks: [Double]?
-  var maxPlaybackMarker: Double?
+  var maxPlaybackPosition: Double?
   let normalHeight: CGFloat = 4
   let dragHeight: CGFloat = 12
   let touchHeight: CGFloat = 36
@@ -41,10 +41,8 @@ struct ProgressBar: View {
           }
         }
 
-        // Max-playback marker (shown as a filled tinted dot, visually
-        // distinct from the white vertical chapter ticks).
-        if let maxPlaybackMarker {
-          maxPlaybackMarkerView(at: maxPlaybackMarker, width: geometry.size.width)
+        if let maxPlaybackPosition {
+          maxPlaybackMarkerView(at: maxPlaybackPosition, width: geometry.size.width)
         }
       }
       .frame(maxHeight: .infinity, alignment: .center)
