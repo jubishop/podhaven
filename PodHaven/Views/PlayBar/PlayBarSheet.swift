@@ -99,6 +99,15 @@ struct PlayBarSheet: View {
   }
 
   @ViewBuilder
+  private var finishOrJumpButton: some View {
+    if viewModel.canJumpToMaxPlayback {
+      AppIcon.jumpToMaxPosition.imageButton { viewModel.jumpToMaxPlayback() }
+    } else {
+      AppIcon.finishEpisode.imageButton { viewModel.finishEpisode() }
+    }
+  }
+
+  @ViewBuilder
   private var playbackMetaControls: some View {
     ZStack {
       HStack {
@@ -112,18 +121,8 @@ struct PlayBarSheet: View {
 
         Spacer()
 
-        metaButtonStyle(
-          Group {
-            if viewModel.canJumpToMaxPlayback {
-              AppIcon.jumpToMaxPosition
-                .imageButton { viewModel.jumpToMaxPlayback() }
-            } else {
-              AppIcon.finishEpisode
-                .imageButton { viewModel.finishEpisode() }
-            }
-          }
-        )
-        .disabled(isShowingSpeedPopover)
+        metaButtonStyle(finishOrJumpButton)
+          .disabled(isShowingSpeedPopover)
       }
 
       if viewModel.hasChapters {
