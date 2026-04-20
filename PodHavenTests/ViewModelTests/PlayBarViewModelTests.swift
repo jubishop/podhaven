@@ -12,6 +12,7 @@ import Testing
   @DynamicInjected(\.repo) private var repo
   @DynamicInjected(\.sharedState) private var sharedState
   @DynamicInjected(\.stateManager) private var stateManager
+  @DynamicInjected(\.userSettings) private var userSettings
 
   private var viewModel = PlayBarViewModel()
 
@@ -114,5 +115,58 @@ import Testing
 
     #expect(viewModel.canJumpToMaxPlayback == true)
     #expect(viewModel.maxPlaybackTime == 300)
+  }
+
+  // MARK: - undoSeekDirection
+
+  private func scrub(from start: Double, to end: Double) async throws {
+    userSettings.$enableUndoSeek.new(true)
+    _ = try await episodeOnDeck(currentTime: CMTime.seconds(start))
+    viewModel.isDragging = true
+    stateManager.setCurrentTime(CMTime.seconds(end))
+    viewModel.isDragging = false
+  }
+
+  @Test("undoSeekDirection is nil by default")
+  func undoDirectionNilByDefault() {
+    #expect(viewModel.undoSeekDirection == nil)
+  }
+
+  @Test("scrubbing forward sets undoSeekDirection to .backward")
+  func undoDirectionBackwardAfterForwardScrub() async throws {
+    try await scrub(from: 100, to: 200)
+    #expect(viewModel.undoSeekDirection == .backward)
+  }
+
+  @Test("scrubbing backward sets undoSeekDirection to .forward")
+  func undoDirectionForwardAfterBackwardScrub() async throws {
+    try await scrub(from: 200, to: 50)
+    #expect(viewModel.undoSeekDirection == .forward)
+  }
+
+  @Test("undoSeek clears undoSeekDirection")
+  func undoSeekClearsDirection() async throws {
+    try await scrub(from: 100, to: 300)
+    #expect(viewModel.undoSeekDirection == .backward)
+
+    viewModel.undoSeek()
+    #expect(viewModel.undoSeekDirection == nil)
+  }
+
+  @Test("undoSeekDirection stays nil when the scrub lands at the original position")
+  func undoDirectionNilWhenScrubIsNoOp() async throws {
+    try await scrub(from: 100, to: 100)
+    #expect(viewModel.undoSeekDirection == nil)
+  }
+
+  @Test("undoSeekDirection stays nil when the setting is disabled")
+  func undoDirectionNilWhenDisabled() async throws {
+    userSettings.$enableUndoSeek.new(false)
+    _ = try await episodeOnDeck(currentTime: CMTime.seconds(100))
+    viewModel.isDragging = true
+    stateManager.setCurrentTime(CMTime.seconds(250))
+    viewModel.isDragging = false
+
+    #expect(viewModel.undoSeekDirection == nil)
   }
 }
