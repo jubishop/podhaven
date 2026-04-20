@@ -117,6 +117,7 @@ private struct SystemImageName:
   static let playButton = SystemImageName("play.circle.fill")
   static let previousChapter = SystemImageName("backward.frame.fill")
   static let finishEpisode = SystemImageName("forward.end.fill")
+  static let jumpToMaxPosition = SystemImageName("arrow.forward.to.line")
   static let undoSeek = SystemImageName("arrow.uturn.backward")
 
   // Podcast Status
@@ -289,6 +290,7 @@ private struct SystemImageName:
   case seekBackward(Int)
   case seekForward(Int)
   case finishEpisode
+  case jumpToMaxPosition
   case undoSeek
   case selectAll
   case unselectAll
@@ -654,6 +656,12 @@ private struct SystemImageName:
       )
     case .finishEpisode:
       return Data(text: "Finish Episode", systemImageName: .finishEpisode, color: .blue)
+    case .jumpToMaxPosition:
+      return Data(
+        text: "Resume Furthest Position",
+        systemImageName: .jumpToMaxPosition,
+        color: .accentColor
+      )
     case .undoSeek:
       return Data(
         text: "Undo Seek",

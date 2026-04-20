@@ -159,6 +159,50 @@ actor StateManagerTests {
     #expect(sharedState.onDeck?.currentTime == CMTime.seconds(5))
   }
 
+  @Test("setCurrentTime grows maxPlaybackTime on forward progress but not on seek-back")
+  func setCurrentTimeGrowsMaxPlaybackTime() async throws {
+    let podcastEpisode = try await fetchPodcastEpisode("episode1")
+    stateManager.setOnDeck(podcastEpisode)
+    #expect(sharedState.onDeck?.maxPlaybackTime == .zero)
+
+    stateManager.setCurrentTime(CMTime.seconds(30))
+    #expect(sharedState.onDeck?.maxPlaybackTime == CMTime.seconds(30))
+
+    stateManager.setCurrentTime(CMTime.seconds(90))
+    #expect(sharedState.onDeck?.maxPlaybackTime == CMTime.seconds(90))
+
+    // Seeking backward must not regress the peak.
+    stateManager.setCurrentTime(CMTime.seconds(45))
+    #expect(sharedState.onDeck?.currentTime == CMTime.seconds(45))
+    #expect(sharedState.onDeck?.maxPlaybackTime == CMTime.seconds(90))
+
+    // Advancing past the peak lifts it again.
+    stateManager.setCurrentTime(CMTime.seconds(120))
+    #expect(sharedState.onDeck?.maxPlaybackTime == CMTime.seconds(120))
+  }
+
+  @Test("setOnDeck preserves in-memory maxPlaybackTime across DB observation updates")
+  func setOnDeckPreservesMaxPlaybackTime() async throws {
+    let podcastEpisode = try await fetchPodcastEpisode("episode1")
+    stateManager.setOnDeck(podcastEpisode)
+
+    stateManager.setCurrentTime(CMTime.seconds(75))
+    #expect(sharedState.onDeck?.maxPlaybackTime == CMTime.seconds(75))
+
+    // Trigger an unrelated DB change that causes observatory to re-emit
+    // (updateSaveInCache changes a persisted column but not maxPlaybackTime).
+    _ = try await repo.updateSaveInCache(podcastEpisode.id, saveInCache: true)
+
+    try await Wait.until(
+      { Container.shared.sharedState().onDeck?.saveInCache == true },
+      { "Expected onDeck to reflect saveInCache=true after update" }
+    )
+
+    // Setting a smaller currentTime here would reset the in-memory peak if
+    // the observer update didn't carry maxPlaybackTime forward.
+    #expect(sharedState.onDeck?.maxPlaybackTime == CMTime.seconds(75))
+  }
+
   // MARK: - Queue Count Observation Tests
 
   @Test("queueCount updates when episodes are added to queue")

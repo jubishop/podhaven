@@ -113,10 +113,15 @@ struct PlayBarSheet: View {
         Spacer()
 
         metaButtonStyle(
-          AppIcon.finishEpisode
-            .imageButton {
-              viewModel.finishEpisode()
+          Group {
+            if viewModel.canJumpToMaxPlayback {
+              AppIcon.jumpToMaxPosition
+                .imageButton { viewModel.jumpToMaxPlayback() }
+            } else {
+              AppIcon.finishEpisode
+                .imageButton { viewModel.finishEpisode() }
             }
+          }
         )
         .disabled(isShowingSpeedPopover)
       }
@@ -184,7 +189,8 @@ struct PlayBarSheet: View {
         isDragging: $viewModel.isDragging,
         range: 0...viewModel.duration.seconds,
         animationDuration: progressAnimationDuration,
-        tickMarks: viewModel.chapterPositions
+        tickMarks: viewModel.chapterPositions,
+        maxPlaybackMarker: viewModel.maxPlaybackMarker
       )
 
       HStack {

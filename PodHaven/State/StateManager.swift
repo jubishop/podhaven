@@ -58,11 +58,13 @@ struct StateManager: Sendable {
               retryDelay = .seconds(1)
 
               if var observed {
-                // Observatory emits OnDeck with artwork = nil and
-                // currentTime = .zero; restore them from current state.
+                // Observatory emits OnDeck with artwork = nil,
+                // currentTime = .zero, and maxPlaybackTime = .zero;
+                // restore them from current state.
                 sharedState.$onDeck.update { onDeck in
                   observed.artwork = onDeck?.artwork
                   observed.currentTime = onDeck?.currentTime ?? .zero
+                  observed.maxPlaybackTime = onDeck?.maxPlaybackTime ?? .zero
                   onDeck = observed
                 }
               } else {
@@ -99,7 +101,14 @@ struct StateManager: Sendable {
   // MARK: - Current Time
 
   func setCurrentTime(_ currentTime: CMTime) {
-    sharedState.$onDeck.update { $0?.currentTime = currentTime }
+    sharedState.$onDeck.update { onDeck in
+      onDeck?.currentTime = currentTime
+      // Keep the in-memory peak in lockstep with playback so the UI has a
+      // live reading; DB catch-up happens via repo.updateCurrentTime's MAX.
+      if let current = onDeck?.maxPlaybackTime, currentTime.seconds > current.seconds {
+        onDeck?.maxPlaybackTime = currentTime
+      }
+    }
   }
 
   // MARK: - Observations

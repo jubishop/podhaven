@@ -16,6 +16,13 @@ import Tagged
 
   private static let log = Log.as(LogSubsystem.PlayBar.main)
 
+  // Tunables for the max-playback overlay on the progress bar. Tweak after
+  // eyeballing in the simulator.
+  // Show the marker only when the peak is meaningfully ahead of the scrubber.
+  private static let maxPlaybackIndicatorMinRatio: Double = 0.05
+  // Only swap finishEpisode for jump-to-max when the jump is worthwhile.
+  private static let jumpToMaxMinDeltaSeconds: Double = 15
+
   // MARK: - State Management
 
   var isLoading: Bool { sharedState.playbackStatus.loading }
@@ -55,6 +62,27 @@ import Tagged
   var hasChapters: Bool { chapters != nil }
 
   var chapterPositions: [Double]? { chapters?.map { $0.seconds } }
+
+  // MARK: - Max Playback Position
+
+  // Live peak: fall back to the scrubber value in case the in-memory OnDeck
+  // lags behind (e.g., a scrub just happened and the update is in-flight).
+  private var maxPlaybackPosition: Double {
+    let max = (sharedState.onDeck?.maxPlaybackTime ?? .zero).safe.seconds
+    return Swift.max(max, sliderValue)
+  }
+
+  var maxPlaybackMarker: Double? {
+    let ahead = maxPlaybackPosition - sliderValue
+    let totalDuration = duration.seconds
+    guard totalDuration > 0 else { return nil }
+    guard (ahead / totalDuration) > Self.maxPlaybackIndicatorMinRatio else { return nil }
+    return maxPlaybackPosition
+  }
+
+  var canJumpToMaxPlayback: Bool {
+    (maxPlaybackPosition - sliderValue) > Self.jumpToMaxMinDeltaSeconds
+  }
 
   var canGoToNextChapter: Bool {
     guard let chapters, !chapters.isEmpty else { return false }
@@ -129,6 +157,15 @@ import Tagged
       guard let self else { return }
       Self.log.debug("Going to next chapter")
       await playManager.seekToNextChapter()
+    }
+  }
+
+  func jumpToMaxPlayback() {
+    let target = maxPlaybackPosition
+    Task { [weak self] in
+      guard let self else { return }
+      Self.log.debug("Jumping to max playback position: \(target)")
+      await playManager.seek(to: CMTime.seconds(target))
     }
   }
 

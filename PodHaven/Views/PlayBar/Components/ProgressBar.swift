@@ -9,6 +9,7 @@ struct ProgressBar: View {
   let range: ClosedRange<Double>
   let animationDuration: Double
   var tickMarks: [Double]?
+  var maxPlaybackMarker: Double?
   let normalHeight: CGFloat = 4
   let dragHeight: CGFloat = 12
   let touchHeight: CGFloat = 36
@@ -38,6 +39,12 @@ struct ProgressBar: View {
           ForEach(tickMarks, id: \.self) { position in
             tickMark(at: position, width: geometry.size.width)
           }
+        }
+
+        // Max-playback marker (shown as a filled tinted dot, visually
+        // distinct from the white vertical chapter ticks).
+        if let maxPlaybackMarker {
+          maxPlaybackMarkerView(at: maxPlaybackMarker, width: geometry.size.width)
         }
       }
       .frame(maxHeight: .infinity, alignment: .center)
@@ -72,6 +79,18 @@ struct ProgressBar: View {
     return RoundedRectangle(cornerRadius: markerWidth / 2)
       .fill(Color.white)
       .frame(width: markerWidth, height: currentHeight + 4)
+      .position(x: CGFloat(normalized) * width, y: dragHeight / 2)
+  }
+
+  private func maxPlaybackMarkerView(at position: Double, width: CGFloat) -> some View {
+    let clamped = position.clamped(to: range)
+    let normalized = (clamped - range.lowerBound) / (range.upperBound - range.lowerBound)
+    let diameter: CGFloat = currentHeight + 6
+
+    return Circle()
+      .fill(Color.accentColor)
+      .overlay(Circle().stroke(Color.white, lineWidth: 1))
+      .frame(width: diameter, height: diameter)
       .position(x: CGFloat(normalized) * width, y: dragHeight / 2)
   }
 }
