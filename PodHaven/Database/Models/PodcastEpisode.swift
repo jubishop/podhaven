@@ -37,6 +37,7 @@ struct PodcastEpisode:
   var description: String? { episode.description }
   var duration: CMTime { episode.duration }
   var currentTime: CMTime { episode.currentTime }
+  var maxPlaybackTime: CMTime { episode.maxPlaybackTime }
   var queueDate: Date? { episode.queueDate }
   var queueOrder: Int? { episode.queueOrder }
   var cacheStatus: Episode.CacheStatus { episode.cacheStatus }
