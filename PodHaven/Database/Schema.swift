@@ -314,13 +314,23 @@ enum Schema {
 
     migrator.registerMigration("v34") { db in
       try db.alter(table: "episode") { t in
+        t.add(column: "maxPlaybackTime", .integer).notNull().defaults(to: 0)
+      }
+      // Seed from existing progress so in-progress episodes start at their
+      // furthest-reached point. Finished episodes have currentTime = 0, so
+      // they correctly start at 0.
+      try db.execute(sql: "UPDATE episode SET maxPlaybackTime = currentTime")
+    }
+
+    migrator.registerMigration("v35") { db in
+      try db.alter(table: "episode") { t in
         t.add(column: "rating", .text)
           .check { $0 == nil || $0 == "loved" || $0 == "liked" || $0 == "disliked" }
         t.add(column: "ratingDate", .datetime)
       }
     }
 
-    migrator.registerMigration("v35") { db in
+    migrator.registerMigration("v36") { db in
       try db.create(table: "episodeEmbedding") { t in
         t.autoIncrementedPrimaryKey("id")
         t.belongsTo("episode", onDelete: .cascade).notNull().unique()
@@ -342,7 +352,7 @@ enum Schema {
       }
     }
 
-    migrator.registerMigration("v36") { db in
+    migrator.registerMigration("v37") { db in
       try db.alter(table: "episode") { t in
         t.add(column: "contentUpdatedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
       }

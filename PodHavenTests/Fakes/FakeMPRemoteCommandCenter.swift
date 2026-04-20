@@ -50,29 +50,44 @@ final class FakeMPChangePlaybackRateCommand: FakeMPRemoteCommandable,
 
 // MARK: - Fake Events
 
-class FakeMPRemoteCommandEvent: MPRemoteCommandEventable {}
+class FakeMPRemoteCommandEvent: MPRemoteCommandEventable {
+  let timestamp: TimeInterval
+
+  init(timestamp: TimeInterval = Date().timeIntervalSinceReferenceDate) {
+    self.timestamp = timestamp
+  }
+}
 
 class FakeMPSkipIntervalCommandEvent: MPSkipIntervalCommandEventable {
   let interval: TimeInterval
+  let timestamp: TimeInterval
 
-  init(interval: TimeInterval) {
+  init(interval: TimeInterval, timestamp: TimeInterval = Date().timeIntervalSinceReferenceDate) {
     self.interval = interval
+    self.timestamp = timestamp
   }
 }
 
 class FakeMPChangePlaybackPositionCommandEvent: MPChangePlaybackPositionCommandEventable {
   let positionTime: TimeInterval
+  let timestamp: TimeInterval
 
-  init(positionTime: TimeInterval) {
+  init(
+    positionTime: TimeInterval,
+    timestamp: TimeInterval = Date().timeIntervalSinceReferenceDate
+  ) {
     self.positionTime = positionTime
+    self.timestamp = timestamp
   }
 }
 
 class FakeMPChangePlaybackRateCommandEvent: MPChangePlaybackRateCommandEventable {
   let playbackRate: Float
+  let timestamp: TimeInterval
 
-  init(playbackRate: Float) {
+  init(playbackRate: Float, timestamp: TimeInterval = Date().timeIntervalSinceReferenceDate) {
     self.playbackRate = playbackRate
+    self.timestamp = timestamp
   }
 }
 

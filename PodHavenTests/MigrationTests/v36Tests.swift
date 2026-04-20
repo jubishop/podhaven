@@ -6,7 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of v36 migration tests", .container)
+@Suite("of v36 migration tests (embedding cache tables)", .container)
 class V36MigrationTests {
   private let appDB = AppDB.inMemory(migrate: false)
   private let migrator: DatabaseMigrator
@@ -40,92 +40,108 @@ class V36MigrationTests {
     return db.lastInsertedRowID
   }
 
-  // MARK: - Column Tests
+  // MARK: - Tests
 
-  @Test("adds contentUpdatedAt column to episode table")
-  func episodeContentUpdatedAtExists() async throws {
+  @Test("creates episodeEmbedding table with correct columns")
+  func episodeEmbeddingTableExists() async throws {
     try migrator.migrate(appDB.db, upTo: "v36")
 
     try await appDB.db.read { db in
-      let columns = try db.columns(in: "episode").map(\.name)
-      #expect(columns.contains("contentUpdatedAt"))
+      let columns = try db.columns(in: "episodeEmbedding").map(\.name)
+      #expect(columns.contains("episodeId"))
+      #expect(columns.contains("vector"))
+      #expect(columns.contains("sourceHash"))
+      #expect(columns.contains("embeddingRevision"))
+      #expect(columns.contains("dimension"))
+      #expect(columns.contains("creationDate"))
     }
   }
 
-  @Test("adds contentUpdatedAt column to podcast table")
-  func podcastContentUpdatedAtExists() async throws {
+  @Test("creates podcastEmbedding table with correct columns")
+  func podcastEmbeddingTableExists() async throws {
     try migrator.migrate(appDB.db, upTo: "v36")
 
     try await appDB.db.read { db in
-      let columns = try db.columns(in: "podcast").map(\.name)
-      #expect(columns.contains("contentUpdatedAt"))
+      let columns = try db.columns(in: "podcastEmbedding").map(\.name)
+      #expect(columns.contains("podcastId"))
+      #expect(columns.contains("vector"))
+      #expect(columns.contains("sourceHash"))
+      #expect(columns.contains("embeddingRevision"))
+      #expect(columns.contains("dimension"))
+      #expect(columns.contains("creationDate"))
     }
   }
 
-  @Test("contentUpdatedAt defaults to CURRENT_TIMESTAMP for new episodes")
-  func episodeContentUpdatedAtDefaults() async throws {
+  @Test("episodeEmbedding cascades on episode delete")
+  func episodeEmbeddingCascade() async throws {
     try migrator.migrate(appDB.db, upTo: "v36")
 
     try await appDB.db.write { db in
       let podcastID = try V36MigrationTests.insertPodcast(db)
       let episodeID = try V36MigrationTests.insertEpisode(db, podcastID: podcastID)
 
-      let value = try String.fetchOne(
-        db,
-        sql: "SELECT contentUpdatedAt FROM episode WHERE id = ?",
+      try db.execute(
+        sql: """
+          INSERT INTO episodeEmbedding (episodeId, vector, sourceHash, embeddingRevision, dimension)
+          VALUES (?, X'00000000', 'test', 1, 3)
+          """,
         arguments: [episodeID]
       )
-      #expect(value != nil)
+
+      let beforeDelete = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episodeEmbedding WHERE episodeId = ?",
+        arguments: [episodeID]
+      )
+      #expect(beforeDelete == 1)
+
+      try db.execute(
+        sql: "DELETE FROM episode WHERE id = ?",
+        arguments: [episodeID]
+      )
+
+      let afterDelete = try Int.fetchOne(
+        db,
+        sql: "SELECT COUNT(*) FROM episodeEmbedding WHERE episodeId = ?",
+        arguments: [episodeID]
+      )
+      #expect(afterDelete == 0)
     }
   }
 
-  @Test("contentUpdatedAt defaults to CURRENT_TIMESTAMP for new podcasts")
-  func podcastContentUpdatedAtDefaults() async throws {
+  @Test("podcastEmbedding cascades on podcast delete")
+  func podcastEmbeddingCascade() async throws {
     try migrator.migrate(appDB.db, upTo: "v36")
 
     try await appDB.db.write { db in
       let podcastID = try V36MigrationTests.insertPodcast(db)
 
-      let value = try String.fetchOne(
-        db,
-        sql: "SELECT contentUpdatedAt FROM podcast WHERE id = ?",
+      try db.execute(
+        sql: """
+          INSERT INTO podcastEmbedding (podcastId, vector, sourceHash, embeddingRevision, dimension)
+          VALUES (?, X'00000000', 'test', 1, 3)
+          """,
         arguments: [podcastID]
       )
-      #expect(value != nil)
-    }
-  }
 
-  // MARK: - Trigger Tests
-
-  @Test("episode_content_updated trigger exists")
-  func episodeTriggerExists() async throws {
-    try migrator.migrate(appDB.db, upTo: "v36")
-
-    try await appDB.db.read { db in
-      let triggers = try String.fetchAll(
+      let beforeDelete = try Int.fetchOne(
         db,
-        sql: """
-          SELECT name FROM sqlite_master
-          WHERE type = 'trigger' AND tbl_name = 'episode'
-          """
+        sql: "SELECT COUNT(*) FROM podcastEmbedding WHERE podcastId = ?",
+        arguments: [podcastID]
       )
-      #expect(triggers.contains("episode_content_updated"))
-    }
-  }
+      #expect(beforeDelete == 1)
 
-  @Test("podcast_content_updated trigger exists")
-  func podcastTriggerExists() async throws {
-    try migrator.migrate(appDB.db, upTo: "v36")
+      try db.execute(
+        sql: "DELETE FROM podcast WHERE id = ?",
+        arguments: [podcastID]
+      )
 
-    try await appDB.db.read { db in
-      let triggers = try String.fetchAll(
+      let afterDelete = try Int.fetchOne(
         db,
-        sql: """
-          SELECT name FROM sqlite_master
-          WHERE type = 'trigger' AND tbl_name = 'podcast'
-          """
+        sql: "SELECT COUNT(*) FROM podcastEmbedding WHERE podcastId = ?",
+        arguments: [podcastID]
       )
-      #expect(triggers.contains("podcast_content_updated"))
+      #expect(afterDelete == 0)
     }
   }
 }

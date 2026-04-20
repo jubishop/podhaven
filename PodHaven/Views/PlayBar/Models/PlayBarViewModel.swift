@@ -16,6 +16,11 @@ import Tagged
 
   private static let log = Log.as(LogSubsystem.PlayBar.main)
 
+  // Only surface the max-playback marker and swap the finish button for
+  // jump-to-max when the peak is at least this far ahead of the scrubber.
+  // Tweak after eyeballing in the simulator.
+  private static let jumpToMaxMinDeltaSeconds: Double = 20
+
   // MARK: - State Management
 
   var isLoading: Bool { sharedState.playbackStatus.loading }
@@ -55,6 +60,21 @@ import Tagged
   var hasChapters: Bool { chapters != nil }
 
   var chapterPositions: [Double]? { chapters?.map { $0.seconds } }
+
+  // MARK: - Max Playback Position
+
+  // Live peak: fall back to the scrubber value in case the in-memory OnDeck
+  // lags behind (e.g., a scrub just happened and the update is in-flight).
+  var maxPlaybackTime: Double {
+    Swift.max(
+      (sharedState.onDeck?.maxPlaybackTime ?? .zero).safe.seconds,
+      sliderValue
+    )
+  }
+
+  var canJumpToMaxPlayback: Bool {
+    (maxPlaybackTime - sliderValue) > Self.jumpToMaxMinDeltaSeconds
+  }
 
   var canGoToNextChapter: Bool {
     guard let chapters, !chapters.isEmpty else { return false }
@@ -129,6 +149,15 @@ import Tagged
       guard let self else { return }
       Self.log.debug("Going to next chapter")
       await playManager.seekToNextChapter()
+    }
+  }
+
+  func jumpToMaxPlayback() {
+    let target = maxPlaybackTime
+    Task { [weak self] in
+      guard let self else { return }
+      Self.log.debug("Jumping to max playback position: \(target)")
+      await playManager.seek(to: CMTime.seconds(target))
     }
   }
 

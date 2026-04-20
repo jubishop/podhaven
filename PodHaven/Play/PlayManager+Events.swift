@@ -75,6 +75,7 @@ extension PlayManager {
     requestedPosition: TimeInterval,
     sourceEpisodeID: Episode.ID?,
     currentEpisodeID: Episode.ID?,
+    eventTimestamp: TimeInterval,
     reason: String? = nil
   ) async {
     let onDeck = sharedState.onDeck
@@ -91,6 +92,13 @@ extension PlayManager {
     } else {
       nowPlayingElapsedString = "nil"
     }
+    // User-initiated lock-screen scrubs carry an event timestamp stamped at
+    // tap time, so the lag against Date() is ~0. System-generated scrubs that
+    // arrive mid-AirPods-reconnect appear to be stamped at the internal
+    // capture moment (pre-pause), producing a multi-second lag that the user
+    // cannot physically replicate. MPRemoteCommandEvent.timestamp base is
+    // NSDate.timeIntervalSinceReferenceDate.
+    let eventLag = Date().timeIntervalSinceReferenceDate - eventTimestamp
 
     Self.log.debug(
       """
@@ -107,6 +115,8 @@ extension PlayManager {
         ignoreRemoteScrubCommands: \(ignoreRemoteScrubCommands)
         appState: \(applicationState)
         routeOutputs: \(routeOutputs)
+        eventTimestamp: \(eventTimestamp)
+        eventLagSeconds: \(eventLag)
         reason: \(reason ?? "accepted")
       """
     )
@@ -200,7 +210,25 @@ extension PlayManager {
       guard let self else { return }
       for await notification in notifications(AVAudioSession.interruptionNotification) {
         let parsedNotification = AudioInterruption.parse(notification)
-        Self.log.debug("Got audio interruption notification: \(parsedNotification)")
+        let userInfo = notification.userInfo ?? [:]
+        let typeRaw = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt
+        let optionsRaw = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt
+        let reasonRaw = userInfo[AVAudioSessionInterruptionReasonKey] as? UInt
+        let reasonDescription: String
+        if let reasonRaw, let reason = AVAudioSession.InterruptionReason(rawValue: reasonRaw) {
+          reasonDescription = String(describing: reason)
+        } else {
+          reasonDescription = "nil"
+        }
+        Self.log.info(
+          """
+          Audio interruption notification
+            parsed: \(parsedNotification)
+            typeRaw: \(String(describing: typeRaw))
+            optionsRaw: \(String(describing: optionsRaw))
+            reason: \(reasonDescription)
+          """
+        )
 
         switch parsedNotification {
         case .pause:
@@ -239,10 +267,15 @@ extension PlayManager {
         else { continue }
 
         let session = AVAudioSession.sharedInstance()
+        let previousRoute =
+          notification.userInfo?[AVAudioSessionRouteChangePreviousRouteKey]
+          as? AVAudioSessionRouteDescription
+        let previousOutputs = previousRoute?.outputs.map(\.portType.rawValue) ?? []
         Self.log.info(
           """
           Audio route changed
             reason: \(reason)
+            previousOutputs: \(previousOutputs)
             outputs: \(session.currentRoute.outputs.map(\.portType.rawValue))
           """
         )
@@ -340,13 +373,14 @@ extension PlayManager {
           await seekForward(interval)
         case .skipBackward(let interval):
           await seekBackward(interval)
-        case .playbackPosition(let position, let sourceEpisodeID):
+        case .playbackPosition(let position, let sourceEpisodeID, let eventTimestamp):
           guard let sourceEpisodeID, let currentEpisodeID = sharedState.onDeck?.id else {
             await logRemoteScrubDecision(
               action: "dropping",
               requestedPosition: position,
               sourceEpisodeID: sourceEpisodeID,
               currentEpisodeID: sharedState.onDeck?.id,
+              eventTimestamp: eventTimestamp,
               reason: "no on-deck episode bound"
             )
             continue
@@ -358,6 +392,7 @@ extension PlayManager {
               requestedPosition: position,
               sourceEpisodeID: sourceEpisodeID,
               currentEpisodeID: currentEpisodeID,
+              eventTimestamp: eventTimestamp,
               reason: "stale command for non-current episode"
             )
             continue
@@ -369,6 +404,7 @@ extension PlayManager {
               requestedPosition: position,
               sourceEpisodeID: sourceEpisodeID,
               currentEpisodeID: currentEpisodeID,
+              eventTimestamp: eventTimestamp,
               reason: "transition in progress"
             )
             continue
@@ -378,7 +414,8 @@ extension PlayManager {
             action: "applying",
             requestedPosition: position,
             sourceEpisodeID: sourceEpisodeID,
-            currentEpisodeID: currentEpisodeID
+            currentEpisodeID: currentEpisodeID,
+            eventTimestamp: eventTimestamp
           )
           await seek(to: CMTime.seconds(position))
         case .changePlaybackRate(let rate):

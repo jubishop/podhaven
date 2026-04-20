@@ -129,10 +129,10 @@ class EpisodeRatingTests {
     }
   }
 
-  // Locks the EpisodeRating rawValue set to match the v34 migration's hardcoded
+  // Locks the EpisodeRating rawValue set to match the v35 migration's hardcoded
   // CHECK constraint. Adding/renaming a case without a follow-up migration to
   // widen the constraint would cause silent runtime write failures.
-  @Test("EpisodeRating rawValues match v34 CHECK constraint")
+  @Test("EpisodeRating rawValues match v35 CHECK constraint")
   func ratingRawValuesMatchCheckConstraint() {
     let expected: Set<String> = ["loved", "liked", "disliked"]
     #expect(Set(EpisodeRating.allCases.map(\.rawValue)) == expected)

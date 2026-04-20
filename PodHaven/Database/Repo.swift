@@ -691,7 +691,13 @@ struct Repo: Databasing, Sendable {
     return try await appDB.db.write { db in
       try Episode
         .withID(episodeID)
-        .updateAll(db, Episode.Columns.currentTime.set(to: currentTime))
+        .updateAll(
+          db,
+          Episode.Columns.currentTime.set(to: currentTime),
+          Episode.Columns.maxPlaybackTime.set(
+            to: sqlMax(Episode.Columns.maxPlaybackTime, currentTime)
+          )
+        )
     } > 0
   }
 
@@ -758,7 +764,8 @@ struct Repo: Databasing, Sendable {
         .updateAll(
           db,
           Episode.Columns.finishDate.set(to: Date()),
-          Episode.Columns.currentTime.set(to: 0)
+          Episode.Columns.currentTime.set(to: 0),
+          Episode.Columns.maxPlaybackTime.set(to: 0)
         )
     }
   }

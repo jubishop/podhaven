@@ -127,7 +127,8 @@ import Testing
     commandCenterContinuation.yield(
       .playbackPosition(
         TimeInterval.seconds(5),
-        sourceEpisodeID: playingEpisode.id
+        sourceEpisodeID: playingEpisode.id,
+        eventTimestamp: Date().timeIntervalSinceReferenceDate
       )
     )
     commandCenterContinuation.yield(.changePlaybackRate(1.7))
@@ -157,7 +158,8 @@ import Testing
     commandCenterContinuation.yield(
       .playbackPosition(
         TimeInterval.seconds(500),
-        sourceEpisodeID: queuedEpisode.id
+        sourceEpisodeID: queuedEpisode.id,
+        eventTimestamp: Date().timeIntervalSinceReferenceDate
       )
     )
     commandCenterContinuation.yield(.changePlaybackRate(1.7))

@@ -6,7 +6,7 @@ import Testing
 
 @testable import PodHaven
 
-@Suite("of v35 migration tests (embedding cache tables)", .container)
+@Suite("of v35 migration tests", .container)
 class V35MigrationTests {
   private let appDB = AppDB.inMemory(migrate: false)
   private let migrator: DatabaseMigrator
@@ -27,14 +27,20 @@ class V35MigrationTests {
     return db.lastInsertedRowID
   }
 
-  private static func insertEpisode(_ db: Database, podcastID: Int64) throws -> Int64 {
+  private static func insertEpisode(
+    _ db: Database,
+    podcastID: Int64,
+    rating: String? = nil,
+    ratingDate: String? = nil
+  ) throws -> Int64 {
     try db.execute(
       sql: """
-        INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO episode (podcastId, guid, mediaURL, title, pubDate, rating, ratingDate)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
         """,
       arguments: [
         podcastID, "ep-\(UUID())", "https://example.com/ep-\(UUID()).mp3", "Test Episode",
+        rating, ratingDate,
       ]
     )
     return db.lastInsertedRowID
@@ -42,106 +48,47 @@ class V35MigrationTests {
 
   // MARK: - Tests
 
-  @Test("creates episodeEmbedding table with correct columns")
-  func episodeEmbeddingTableExists() async throws {
+  @Test("adds rating and ratingDate columns to episode table")
+  func ratingColumnsExist() async throws {
     try migrator.migrate(appDB.db, upTo: "v35")
 
     try await appDB.db.read { db in
-      let columns = try db.columns(in: "episodeEmbedding").map(\.name)
-      #expect(columns.contains("episodeId"))
-      #expect(columns.contains("vector"))
-      #expect(columns.contains("sourceHash"))
-      #expect(columns.contains("embeddingRevision"))
-      #expect(columns.contains("dimension"))
-      #expect(columns.contains("creationDate"))
+      let columns = try db.columns(in: "episode").map(\.name)
+      #expect(columns.contains("rating"))
+      #expect(columns.contains("ratingDate"))
     }
   }
 
-  @Test("creates podcastEmbedding table with correct columns")
-  func podcastEmbeddingTableExists() async throws {
-    try migrator.migrate(appDB.db, upTo: "v35")
-
-    try await appDB.db.read { db in
-      let columns = try db.columns(in: "podcastEmbedding").map(\.name)
-      #expect(columns.contains("podcastId"))
-      #expect(columns.contains("vector"))
-      #expect(columns.contains("sourceHash"))
-      #expect(columns.contains("embeddingRevision"))
-      #expect(columns.contains("dimension"))
-      #expect(columns.contains("creationDate"))
-    }
-  }
-
-  @Test("episodeEmbedding cascades on episode delete")
-  func episodeEmbeddingCascade() async throws {
+  @Test("rating column accepts valid values")
+  func ratingColumnAcceptsValidValues() async throws {
     try migrator.migrate(appDB.db, upTo: "v35")
 
     try await appDB.db.write { db in
       let podcastID = try V35MigrationTests.insertPodcast(db)
-      let episodeID = try V35MigrationTests.insertEpisode(db, podcastID: podcastID)
+      _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "loved")
+      _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "liked")
+      _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "disliked")
+      _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: nil)
+    }
 
-      try db.execute(
-        sql: """
-          INSERT INTO episodeEmbedding (episodeId, vector, sourceHash, embeddingRevision, dimension)
-          VALUES (?, X'00000000', 'test', 1, 3)
-          """,
-        arguments: [episodeID]
-      )
-
-      let beforeDelete = try Int.fetchOne(
-        db,
-        sql: "SELECT COUNT(*) FROM episodeEmbedding WHERE episodeId = ?",
-        arguments: [episodeID]
-      )
-      #expect(beforeDelete == 1)
-
-      try db.execute(
-        sql: "DELETE FROM episode WHERE id = ?",
-        arguments: [episodeID]
-      )
-
-      let afterDelete = try Int.fetchOne(
-        db,
-        sql: "SELECT COUNT(*) FROM episodeEmbedding WHERE episodeId = ?",
-        arguments: [episodeID]
-      )
-      #expect(afterDelete == 0)
+    try await appDB.db.read { db in
+      let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM episode")
+      #expect(count == 4)
     }
   }
 
-  @Test("podcastEmbedding cascades on podcast delete")
-  func podcastEmbeddingCascade() async throws {
+  @Test("rating column rejects invalid values")
+  func ratingColumnRejectsInvalid() async throws {
     try migrator.migrate(appDB.db, upTo: "v35")
 
-    try await appDB.db.write { db in
-      let podcastID = try V35MigrationTests.insertPodcast(db)
-
-      try db.execute(
-        sql: """
-          INSERT INTO podcastEmbedding (podcastId, vector, sourceHash, embeddingRevision, dimension)
-          VALUES (?, X'00000000', 'test', 1, 3)
-          """,
-        arguments: [podcastID]
-      )
-
-      let beforeDelete = try Int.fetchOne(
-        db,
-        sql: "SELECT COUNT(*) FROM podcastEmbedding WHERE podcastId = ?",
-        arguments: [podcastID]
-      )
-      #expect(beforeDelete == 1)
-
-      try db.execute(
-        sql: "DELETE FROM podcast WHERE id = ?",
-        arguments: [podcastID]
-      )
-
-      let afterDelete = try Int.fetchOne(
-        db,
-        sql: "SELECT COUNT(*) FROM podcastEmbedding WHERE podcastId = ?",
-        arguments: [podcastID]
-      )
-      #expect(afterDelete == 0)
+    do {
+      try await appDB.db.write { db in
+        let podcastID = try V35MigrationTests.insertPodcast(db)
+        _ = try V35MigrationTests.insertEpisode(db, podcastID: podcastID, rating: "invalid")
+      }
+      Issue.record("Expected CHECK constraint to reject invalid rating")
+    } catch {
+      // Expected: CHECK constraint violation
     }
   }
 }

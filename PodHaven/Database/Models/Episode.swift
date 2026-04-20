@@ -58,6 +58,7 @@ struct UnsavedEpisode:
   // User
   let finishDate: Date?
   let currentTime: CMTime
+  let maxPlaybackTime: CMTime
   let queueOrder: Int?
   let queueDate: Date?
   private let cachedFilename: String?
@@ -78,6 +79,7 @@ struct UnsavedEpisode:
     image: URL?,
     finishDate: Date? = nil,
     currentTime: CMTime? = nil,
+    maxPlaybackTime: CMTime? = nil,
     queueOrder: Int? = nil,
     queueDate: Date? = nil,
     cachedFilename: String? = nil,
@@ -123,6 +125,7 @@ struct UnsavedEpisode:
     }
     self.finishDate = finishDate
     self.currentTime = currentTime ?? CMTime.zero
+    self.maxPlaybackTime = maxPlaybackTime ?? CMTime.zero
     self.queueOrder = queueOrder
     self.queueDate = queueDate
     self.cachedFilename = cachedFilename
@@ -248,6 +251,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
     static let image = Column("image")
     static let finishDate = Column("finishDate")
     static let currentTime = Column("currentTime")
+    static let maxPlaybackTime = Column("maxPlaybackTime")
     static let queueOrder = Column("queueOrder")
     static let queueDate = Column("queueDate")
     static let cachedFilename = Column("cachedFilename")
@@ -277,6 +281,7 @@ struct Episode: EpisodeFoundational, Saved, RSSUpdatable, Searchable {
   var description: String? { unsaved.description }
   var duration: CMTime { unsaved.duration }
   var currentTime: CMTime { unsaved.currentTime }
+  var maxPlaybackTime: CMTime { unsaved.maxPlaybackTime }
   var queueDate: Date? { unsaved.queueDate }
   var queueOrder: Int? { unsaved.queueOrder }
   var cacheStatus: CacheStatus { unsaved.cacheStatus }
