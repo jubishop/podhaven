@@ -16,12 +16,10 @@ import Tagged
 
   private static let log = Log.as(LogSubsystem.PlayBar.main)
 
-  // Tunables for the max-playback overlay on the progress bar. Tweak after
-  // eyeballing in the simulator.
-  // Show the marker only when the peak is meaningfully ahead of the scrubber.
-  private static let maxPlaybackIndicatorMinRatio: Double = 0.05
-  // Only swap finishEpisode for jump-to-max when the jump is worthwhile.
-  private static let jumpToMaxMinDeltaSeconds: Double = 15
+  // Only surface the max-playback marker and swap the finish button for
+  // jump-to-max when the peak is at least this far ahead of the scrubber.
+  // Tweak after eyeballing in the simulator.
+  private static let jumpToMaxMinDeltaSeconds: Double = 20
 
   // MARK: - State Management
 
@@ -67,19 +65,11 @@ import Tagged
 
   // Live peak: fall back to the scrubber value in case the in-memory OnDeck
   // lags behind (e.g., a scrub just happened and the update is in-flight).
-  private var maxPlaybackTime: Double {
+  var maxPlaybackTime: Double {
     Swift.max(
       (sharedState.onDeck?.maxPlaybackTime ?? .zero).safe.seconds,
       sliderValue
     )
-  }
-
-  var maxPlaybackPosition: Double? {
-    let ahead = maxPlaybackTime - sliderValue
-    let totalDuration = duration.seconds
-    guard totalDuration > 0 else { return nil }
-    guard (ahead / totalDuration) > Self.maxPlaybackIndicatorMinRatio else { return nil }
-    return maxPlaybackTime
   }
 
   var canJumpToMaxPlayback: Bool {
